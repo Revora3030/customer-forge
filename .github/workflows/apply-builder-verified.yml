@@ -44,3 +44,4 @@ jobs:
             .patches/apply-builder-verified.patch
           git commit -m 'fix: harden builder apply and master engine'
           git push origin HEAD:fix/builder-master-apply-verified
+# Retriggers the existing push workflow after branch-state verification.
