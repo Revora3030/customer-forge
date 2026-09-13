@@ -9,9 +9,9 @@ import { GROWTH_SYSTEM, usdExact } from "@/lib/offer";
 import { breadcrumbSchema, canonicalLink, ogUrl } from "@/lib/seo";
 import { formatPercent, formatUsd, leadValue, missedCallImpact } from "@/lib/tools-calc";
 
-const TITLE = "Free local business calculators — missed calls & lead value | Revora";
+const TITLE = "Free Calculators for Local Businesses | Revora";
 const DESCRIPTION =
-  "Two free calculators for local service businesses: what missed calls and slow replies cost you each month, and what a single lead is actually worth. Your numbers, no signup, nothing stored.";
+  "Free calculators for local service businesses: what missed calls cost you and what every lead is worth. No signup.";
 
 export const Route = createFileRoute("/tools")({
   head: () => ({

@@ -13,7 +13,7 @@ export const Route = createFileRoute("/website-audit")({
       {
         name: "description",
         content:
-          "Get a free Revora website audit: conversion, mobile, speed, local SEO, lead capture, quoting and booking checked against what actually turns visitors into paying customers.",
+          "Get a free Revora website audit: conversion, mobile, speed, local SEO and lead capture — see what turns visitors into customers.",
       },
       { property: "og:title", content: "Free website audit for local businesses" },
       {
