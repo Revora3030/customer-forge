@@ -814,6 +814,7 @@ function readNewPages(text: string): string[] {
 
       if (
         label.length > 1 &&
+        !isWholeSiteLabel(label) &&
         !out.some(
           (existing) =>
             lower(existing) === lower(label),
@@ -825,6 +826,36 @@ function readNewPages(text: string): string[] {
   }
 
   return out.slice(0, 8);
+}
+
+/**
+ * A label that describes building an entire website ("website with a home
+ * page", "company website for ...") is not the name of a single page. Treating
+ * it as a page title produces a duplicated whole-site request.
+ */
+function isWholeSiteLabel(
+  label: string,
+): boolean {
+  const normalized =
+    lower(label);
+
+  if (
+    normalized.match(
+      /\bwebsite\b|\bweb ?site\b|\bsite\b|\bcompany website\b/,
+    )
+  ) {
+    return true;
+  }
+
+  if (
+    /\b(company|business|firm|practice)\s+website\b/.test(
+      normalized,
+    )
+  ) {
+    return true;
+  }
+
+  return false;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -1074,13 +1105,27 @@ export function interpret(
     );
 
   const explicitWebsiteCreation =
-    /\b(build me a website|build my website|create my website|create a website from scratch|make me a website|make my website from scratch|start over)\b/i.test(
+    /\b(build me a website|build my website|create my website|create a website from scratch|make me a website|make my website from scratch|start over|new website|build me a site|create a site|make me a site)\b/i.test(
+      text,
+    );
+
+  /**
+   * A bare website build ("build me a plumbing website") is a whole-site
+   * request: the user wants the essential pages built, not a single named
+   * page. Targeted page requests ("add a pricing page") stay single-page.
+   *
+   * The frame must pair an explicit build/create verb with the word
+   * "website"/"site" and must not be aimed at a named page.
+   */
+  const websiteBuildFrame =
+    /\b(build me|build a|build my|build us|build the site|build a brand|create a|create my|create an|make me a|make me an|set up a|set up my|start my)\b[^.!?\n]{0,120}\b(website|web ?site|site)\b/i.test(
       text,
     );
 
   const wholeSite =
     explicitWholeSitePhrase ||
     explicitWebsiteCreation ||
+    websiteBuildFrame ||
     goals.includes("redesign");
 
   const everyPage =

@@ -79,6 +79,15 @@ export async function checkAiLimits(caller: {
   const dayAgo = new Date(now - 24 * 60 * 60 * 1000).toISOString();
   const monthAgo = new Date(now - 30 * 24 * 60 * 60 * 1000).toISOString();
 
+  // No identity means there is no per-user or per-workspace cap to enforce.
+  // Anonymous/system callers must not be denied because usage telemetry cannot
+  // be attributed to anyone — the caps below are keyed by id and simply do not
+  // apply. This also keeps the provider layers usable when the usage-tracking
+  // store is temporarily unavailable to anonymous paths.
+  if (!caller.userId && !caller.organizationId) {
+    return { allowed: true };
+  }
+
   try {
     const client = await admin();
 

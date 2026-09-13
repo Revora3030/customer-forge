@@ -126,6 +126,40 @@ describe("free-first builder — works with zero AI providers", () => {
     expect(plan.coverage).not.toBe("none");
   });
 
+  it("emits theme and backdrop choices that survive validation and render", () => {
+    // Regression: the deterministic designer produced semantic words
+    // (`primary: "deep blue"`, `backdrop: "soft"`) that the action validator
+    // rejected and the renderer could not display — so a whole-site design
+    // request silently produced no visual action at all.
+    const plan = buildDeterministicPlan(context(), "build me a plumbing website");
+    const theme = plan.actions.find((action) => action.type === "set_theme");
+    const backdrop = plan.actions.find((action) => action.type === "set_backdrop");
+
+    // The planner must actually emit them for a design-bearing request.
+    expect(theme?.type).toBe("set_theme");
+    expect(backdrop?.type).toBe("set_backdrop");
+
+    // They must survive the same validator the AI path goes through.
+    expect(readActions([theme!, backdrop!], known).length).toBe(2);
+
+    // And they must be renderer-safe: concrete hex colors and an allowlisted
+    // backdrop id, never a prose word the renderer would ignore.
+    if (theme?.type === "set_theme") {
+      for (const color of [
+        theme.patch.primary_color,
+        theme.patch.secondary_color,
+        theme.patch.accent_color,
+      ]) {
+        expect(color).toMatch(/^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i);
+      }
+    }
+    if (backdrop?.type === "set_backdrop") {
+      expect(backdrop.backdrop).toMatch(
+        /^(none|stars|aurora|nebula|grid|spotlight|gradient_mesh)$/,
+      );
+    }
+  });
+
   it("makes the hero bigger without a model", () => {
     const plan = buildDeterministicPlan(context(), "make the hero bigger");
     expect(
