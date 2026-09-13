@@ -680,6 +680,11 @@ export function emailDisplay(
     : null;
 }
 
+/**
+ * Builds a `mailto:` link. The email address itself must stay readable —
+ * `encodeURIComponent` would turn the `@` into `%40` and break the header —
+ * so only characters that are illegal in an email header value are percent-encoded.
+ */
 export function emailLink(
   value: unknown,
 ): string | null {
@@ -690,7 +695,14 @@ export function emailLink(
     return null;
   }
 
-  return `mailto:${encodeURIComponent(email)}`;
+  return `mailto:${email
+    .split("")
+    .map((character) =>
+      /[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~@-]/.test(character)
+        ? character
+        : encodeURIComponent(character),
+    )
+    .join("")}`;
 }
 
 /* -------------------------------------------------------------------------- */

@@ -204,6 +204,35 @@ describe("provider fallback", () => {
     ).rejects.toMatchObject({ name: "RevoraAiError", category: "unauthorized" });
   });
 
+  it("does not deny anonymous callers because usage telemetry cannot be attributed", async () => {
+    // Regression: the per-user/per-workspace caps are keyed by identity. An
+    // anonymous call has no id to count against, so the limit check must not
+    // reach for the usage-tracking store (which may be unconfigured) and deny
+    // the request with a misleading rate-limit error.
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: unknown) => {
+        const url = String(input);
+        if (url.includes("generativelanguage"))
+          return new Response("upstream down", { status: 503 });
+        return new Response(
+          JSON.stringify({
+            choices: [{ message: { content: "second provider answered" } }],
+            usage: { prompt_tokens: 5, completion_tokens: 3 },
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        );
+      }),
+    );
+    const { generateText } = await import("@/lib/ai/router.server");
+    const result = await generateText(
+      { task: "test.anonymous", organizationId: null, userId: null },
+      { messages: [{ role: "user", content: "hello" }] },
+    );
+    expect(result.text).toBe("second provider answered");
+    expect(result.provider).toBe("openai");
+  });
+
   it("refuses an oversized request before paying a provider to refuse it", async () => {
     const { generateText } = await import("@/lib/ai/router.server");
     await expect(

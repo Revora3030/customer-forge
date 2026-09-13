@@ -42,15 +42,15 @@ import type { IndustryPlaybook } from "./industry";
 /* -------------------------------------------------------------------------- */
 
 export type CopyFacts = {
-  name: string;
-  industry: string;
-  tagline: string;
-  description: string;
-  city: string;
-  state: string;
-  serviceArea: string;
-  phone: string;
-  email: string;
+  name: string | null;
+  industry: string | null;
+  tagline: string | null;
+  description: string | null;
+  city: string | null;
+  state: string | null;
+  serviceArea: string | null;
+  phone: string | null;
+  email: string | null;
 
   services: Array<{
     name: string;
@@ -58,6 +58,17 @@ export type CopyFacts = {
 };
 
 export type SectionCopy = {
+  heading: string;
+  subheading: string;
+  /** Omitted (rather than empty) when there is no real content to write. */
+  body: string | undefined;
+};
+
+/**
+ * The generic fallback copy is always fully populated in every field — it is
+ * only at the public boundary that an empty body becomes an omitted one.
+ */
+type GenericSectionCopy = {
   heading: string;
   subheading: string;
   body: string;
@@ -169,16 +180,160 @@ function hasValue(
   return Boolean(clean(value));
 }
 
+/**
+ * Type-safe accessors for optional playbook fields.
+ *
+ * `IndustryPlaybook` is declared with a `readonly [key: string]: unknown`
+ * index signature, so IDE-style property access fails TypeScript's
+ * "index signature" rules. These helpers read the indexed value and cast it
+ * to the shape that consumes it.
+ */
+
+function playbookText(
+  playbook: IndustryPlaybook,
+  key: string,
+): string {
+  const value =
+    (playbook as Record<
+      string,
+      unknown
+    >)[key];
+
+  return typeof value === "string"
+    ? value
+    : "";
+}
+
+function playbookTextArray(
+  playbook: IndustryPlaybook,
+  key: string,
+): string[] {
+  const value =
+    (playbook as Record<
+      string,
+      unknown
+    >)[key];
+
+  return Array.isArray(value)
+    ? value.filter(
+        (
+          item,
+        ): item is string =>
+          typeof item === "string",
+      )
+    : [];
+}
+
+type PlaybookSectionCopy = {
+  heading?: unknown;
+  subheading?: unknown;
+  body?: unknown;
+};
+
+function textOf(
+  value: unknown,
+): string {
+  return typeof value === "string"
+    ? value
+    : "";
+}
+
+/**
+ * An empty generated body is semantically "this field has no content", not a
+ * real sentence. Normalise it to `undefined` so callers never render an empty
+ * paragraph or treat it as a change to apply.
+ */
+const omitIfEmpty = (
+  value: string,
+): string | undefined =>
+  value.trim().length > 0
+    ? value
+    : undefined;
+
+/**
+ * True when the business has any usable fact to write about. When nothing is
+ * supplied — no name, industry, description, location or services — the copy
+ * engine omits filler sentences instead of inventing them, so a blank site
+ * never gets a confident-sounding paragraph about nothing.
+ */
+function hasFacts(
+  facts: CopyFacts,
+): boolean {
+  const normalized =
+    normalizeFacts(facts);
+
+  return Boolean(
+    normalized.name ||
+      normalized.industry ||
+      normalized.description ||
+      normalized.city ||
+      normalized.serviceArea ||
+      normalized.services.length,
+  );
+}
+
+function playbookSection(
+  playbook: IndustryPlaybook,
+  kind: string,
+): PlaybookSectionCopy {
+  const value =
+    (playbook as Record<
+      string,
+      unknown
+    >)["sections"];
+
+  if (
+    !value ||
+    typeof value !== "object"
+  ) {
+    return {};
+  }
+
+  const sections =
+    value as Record<
+      string,
+      unknown
+    >;
+
+  const section =
+    sections[lower(kind)];
+
+  if (
+    !section ||
+    typeof section !== "object"
+  ) {
+    return {};
+  }
+
+  return section as PlaybookSectionCopy;
+}
+
 /* -------------------------------------------------------------------------- */
 /* Fact normalization                                                         */
 /* -------------------------------------------------------------------------- */
+
+type NormalizedFacts = {
+  name: string;
+  industry: string;
+  tagline: string;
+  description: string;
+  city: string;
+  state: string;
+  serviceArea: string;
+  phone: string;
+  email: string;
+
+  services: Array<{
+    name: string;
+  }>;
+};
 
 /**
  * Keep business facts safe and predictable before using them in copy.
  */
 function normalizeFacts(
   facts: CopyFacts,
-): CopyFacts {
+): NormalizedFacts {
   return {
     name:
       truncate(
@@ -310,19 +465,23 @@ function serviceSentence(
   }
 
   if (services.length === 1) {
-    return services[0];
+    return services[0] ?? "";
   }
 
   if (services.length === 2) {
-    return `${services[0]} and ${services[1]}`;
+    return `${services[0] ?? ""} and ${services[1] ?? ""}`;
   }
 
   const visible =
     services.slice(0, 3);
 
+  const last =
+    visible[visible.length - 1] ??
+    "";
+
   return `${visible
     .slice(0, -1)
-    .join(", ")}, and ${visible.at(-1)}`;
+    .join(", ")}, and ${last}`;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -417,7 +576,10 @@ export function heroHeadline(
 
   const headline =
     firstNonEmpty(
-      playbook.heroHeadline,
+      playbookText(
+        playbook,
+        "heroHeadline",
+      ),
       `A better way to ${industryLabel(
         facts,
       )}`,
@@ -480,7 +642,10 @@ export function heroSubheadline(
 
   return truncate(
     firstNonEmpty(
-      playbook.heroSubheadline,
+      playbookText(
+        playbook,
+        "heroSubheadline",
+      ),
       `Explore the services and solutions available from ${businessDescriptor(
         normalized,
       )}.`,
@@ -596,7 +761,7 @@ export function nextStep(
 function genericSectionCopy(
   kind: string,
   facts: CopyFacts,
-): SectionCopy {
+): GenericSectionCopy {
   const business =
     businessDescriptor(facts);
 
@@ -635,7 +800,9 @@ function genericSectionCopy(
             : "",
         body:
           firstSentence(facts) ||
-          `Learn more about ${business} and the services available to customers.`,
+          (hasFacts(facts)
+            ? `Learn more about ${business} and the services available to customers.`
+            : ""),
       };
 
     case "services":
@@ -762,7 +929,9 @@ function genericSectionCopy(
           "",
         body:
           firstSentence(facts) ||
-          `Learn more about ${business}.`,
+          (hasFacts(facts)
+            ? `Learn more about ${business}.`
+            : ""),
       };
   }
 }
@@ -842,19 +1011,25 @@ export function sectionCopy(
    *
    * We deliberately only consume values that exist.
    */
-  const playbookSection =
-    playbook.sections?.[
-      lower(kind)
-    ];
+  const playbookSectionCopy =
+    playbookSection(
+      playbook,
+      kind,
+    );
 
   if (
-    playbookSection
+    playbookSectionCopy &&
+    Object.keys(
+      playbookSectionCopy,
+    ).length > 0
   ) {
     return {
       heading:
         truncate(
           firstNonEmpty(
-            playbookSection.heading,
+            textOf(
+              playbookSectionCopy.heading,
+            ),
             generic.heading,
           ),
           140,
@@ -863,19 +1038,25 @@ export function sectionCopy(
       subheading:
         truncate(
           firstNonEmpty(
-            playbookSection.subheading,
+            textOf(
+              playbookSectionCopy.subheading,
+            ),
             generic.subheading,
           ),
           220,
         ),
 
       body:
-        truncate(
-          firstNonEmpty(
-            playbookSection.body,
-            generic.body,
+        omitIfEmpty(
+          truncate(
+            firstNonEmpty(
+              textOf(
+                playbookSectionCopy.body,
+              ),
+              generic.body,
+            ),
+            700,
           ),
-          700,
         ),
     };
   }
@@ -894,9 +1075,11 @@ export function sectionCopy(
       ),
 
     body:
-      truncate(
-        generic.body,
-        700,
+      omitIfEmpty(
+        truncate(
+          generic.body,
+          700,
+        ),
       ),
   };
 }
@@ -913,7 +1096,10 @@ export function faqQuestions(
   playbook: IndustryPlaybook,
 ): string[] {
   const questions =
-    playbook.faqQuestions ?? [];
+    playbookTextArray(
+      playbook,
+      "faqQuestions",
+    );
 
   return unique(
     questions,
@@ -1028,11 +1214,13 @@ export function pageSeo(
    * business information.
    */
   if (
-    !description &&
-    playbook.seoDescription
+    !description
   ) {
     description =
-      playbook.seoDescription;
+      playbookText(
+        playbook,
+        "seoDescription",
+      );
   }
 
   return {
@@ -1165,7 +1353,7 @@ export function safeSectionCopy(
 
     body:
       sanitizeGeneratedText(
-        copy.body,
+        copy.body ?? "",
         facts,
       ),
   };
@@ -1302,7 +1490,7 @@ export function rewriteSectionCopy(
 
       body:
         truncate(
-          copy.body,
+          copy.body ?? "",
           300,
         ),
     };
@@ -1325,7 +1513,7 @@ export function rewriteSectionCopy(
 
       body:
         unique([
-          copy.body,
+          copy.body ?? "",
           extra
             ? `Services include ${extra}.`
             : "",

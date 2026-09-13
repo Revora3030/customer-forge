@@ -11,6 +11,7 @@
  */
 
 import type { BackdropId, SectionEffectId } from "@/lib/site-effects";
+import { resolveBackdrop, resolveColor, resolveFont } from "@/lib/visual-palette";
 import type { IndustryPlaybook } from "./industry";
 import type { StyleMood } from "./interpreter";
 
@@ -198,12 +199,12 @@ export function designDecision(
 ): DesignDecision {
   const decision: DesignDecision = {
     theme: {
-      primary_color: playbook.visual.primary,
-      secondary_color: playbook.visual.secondary,
-      accent_color: playbook.visual.accent,
-      font_preference: playbook.visual.font,
+      primary_color: resolveColor(playbook.visual.primary),
+      secondary_color: resolveColor(playbook.visual.secondary),
+      accent_color: resolveColor(playbook.visual.accent),
+      font_preference: resolveFont(playbook.visual.font),
     },
-    backdrop: playbook.visual.backdrop as BackdropId,
+    backdrop: resolveBackdrop(playbook.visual.backdrop),
     heroEffect: "rise",
     bodyEffect: "none",
     density: "standard",
