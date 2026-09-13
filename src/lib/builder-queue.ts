@@ -123,6 +123,26 @@ export function moveStep(task: QueueTask, key: string, direction: -1 | 1): Queue
   return { ...task, steps };
 }
 
+/**
+ * Decides the honest terminal state for a plan that came back empty.
+ *
+ * A plan with zero steps is a real outcome, not a dropped result: the engine
+ * read the request and found nothing safe to change. If there are follow-up
+ * questions, the owner must answer them (the panel surfaces them and offers
+ * "Continue in chat"). Otherwise the request is a failure the owner can retry
+ * or remove — never a silent hold with no button anywhere on it.
+ */
+export function terminalStateForEmptyPlan(input: {
+  steps: PlanStep[];
+  questions: string[];
+  unavailable?: { retryable?: boolean } | null;
+}): QueueState {
+  const { steps, questions } = input;
+  if (steps.length > 0) return "waiting_for_approval";
+  if (questions.length > 0) return "waiting_for_approval";
+  return "failed";
+}
+
 /** One honest sentence about the queue, never rounded up. */
 export function queueSummary(tasks: QueueTask[]): string {
   if (tasks.length === 0) return "";

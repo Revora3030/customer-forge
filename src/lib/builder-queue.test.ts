@@ -7,6 +7,7 @@ import {
   nextRunnable,
   queueSummary,
   removeStep,
+  terminalStateForEmptyPlan,
   toPlanSteps,
   toggleStep,
   updateTask,
@@ -59,5 +60,26 @@ describe("builder queue", () => {
     const b = { ...newTask("two"), state: "failed" as const };
     const c = newTask("three");
     expect(queueSummary([a, b, c])).toBe("1 done · 1 waiting · 1 didn't work");
+  });
+
+  it("never leaves an empty plan in a silent hold", () => {
+    // A plan with no steps and no questions is an honest failure the owner can
+    // retry or remove — not a dead-end "waiting" task with no button on it.
+    expect(terminalStateForEmptyPlan({ steps: [], questions: [], unavailable: null })).toBe(
+      "failed",
+    );
+    expect(
+      terminalStateForEmptyPlan({ steps: [], questions: [], unavailable: { retryable: false } }),
+    ).toBe("failed");
+  });
+
+  it("keeps a plan that needs an answer or has steps in the approval lane", () => {
+    const step = toPlanSteps([{ key: "a", title: "Set SEO title", where: "Home" }]);
+    expect(terminalStateForEmptyPlan({ steps: step, questions: [], unavailable: null })).toBe(
+      "waiting_for_approval",
+    );
+    expect(
+      terminalStateForEmptyPlan({ steps: [], questions: ["Which page?"], unavailable: null }),
+    ).toBe("waiting_for_approval");
   });
 });

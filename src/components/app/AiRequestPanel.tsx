@@ -40,6 +40,7 @@ import {
   QUEUE_LABELS,
   queueSummary,
   removeStep,
+  terminalStateForEmptyPlan,
   toPlanSteps,
   toggleStep,
   updateTask,
@@ -149,15 +150,33 @@ export function AiRequestPanel({
       });
       const steps = result.steps as AgentStep[];
       for (const step of steps) actionsRef.current.set(step.key, step);
+      const plannedSteps = toPlanSteps(steps);
+      const questions = result.questions ?? [];
       const planned: QueueTask = {
         ...task,
         state: "waiting_for_approval",
-        steps: toPlanSteps(steps),
+        steps: plannedSteps,
         reply: result.reply,
         summary: result.summary,
-        questions: result.questions ?? [],
+        questions,
         retryable: Boolean(result.unavailable?.retryable),
       };
+      // A request that ended in nothing actionable must never sit in a silent
+      // hold with no working button. Empty plans become an honest, retryable
+      // failure ("Didn't work") unless the engine is waiting on an answer.
+      if (plannedSteps.length === 0 && questions.length === 0) {
+        planned.state = terminalStateForEmptyPlan({
+          steps: plannedSteps,
+          questions,
+          unavailable: result.unavailable,
+        });
+        planned.error = friendlyError(
+          new Error(
+            "Revora read your request but couldn't find a safe change to make yet. Try being more specific — for example “set my home page title”, “rewrite the services page”, or “add a booking section”.",
+          ),
+          "Couldn't make that change.",
+        );
+      }
       setTasks((current) => updateTask(current, task.id, planned));
       if (!result.unavailable && canAutoApply(planned)) await runBuild(planned);
     } catch (error) {
