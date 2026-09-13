@@ -107,7 +107,7 @@ export const Route = createFileRoute("/")({
               {
                 name: "description",
                 content:
-                  "AI growth software for local service businesses: lead-generating website, instant quotes, online booking, CRM, automated follow-up, review requests, local SEO and analytics in one system. 3 days free full access, $750 setup, first month free, then $100/month.",
+                  "AI growth software for local service businesses: website, instant quotes, online booking, CRM, follow-up, reviews, local SEO and analytics — in one system.",
               },
               {
                 property: "og:title",

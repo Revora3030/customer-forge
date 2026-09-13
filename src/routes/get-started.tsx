@@ -16,6 +16,7 @@ import { getAttribution, trackConversion } from "@/lib/conversion";
 import { provisionWorkspace, recordAccountCreated } from "@/lib/platform-funnel.functions";
 import { useStepScroll } from "@/lib/use-step-scroll";
 import { smartIntakeValue } from "@/lib/intake-smart";
+import { canonicalLink, ogUrl } from "@/lib/seo";
 
 export const Route = createFileRoute("/get-started")({
   head: () => ({
@@ -24,7 +25,7 @@ export const Route = createFileRoute("/get-started")({
       {
         name: "description",
         content:
-          "Launch your Revora Growth System: $750 one-time setup, a first month free, then $100/month for website, lead capture, CRM, booking, quotes, follow-up, reviews, local SEO, analytics and support.",
+          "Launch your Revora Growth System: $750 one-time setup, a first month free, then $100/month for website, CRM, booking, SEO and support.",
       },
       { property: "og:title", content: "Start your Revora Growth System" },
       {
@@ -34,7 +35,9 @@ export const Route = createFileRoute("/get-started")({
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
+      ogUrl("/get-started"),
     ],
+    links: [canonicalLink("/get-started")],
   }),
   component: GetStarted,
 });

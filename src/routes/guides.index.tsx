@@ -7,7 +7,7 @@ import { breadcrumbSchema, canonicalLink, ogUrl } from "@/lib/seo";
 
 const TITLE = "Free local business growth guides — Revora";
 const DESCRIPTION =
-  "Practical, no-fluff guides for local service businesses: getting more Google reviews, showing up in the map pack, replying to leads faster, publishing prices and a website checklist that actually converts.";
+  "Practical guides for local businesses: getting reviews, showing up in the map pack, replying faster and publishing prices.";
 
 export const Route = createFileRoute("/guides/")({
   head: () => ({
