@@ -1,0 +1,50 @@
+name: Apply typecheck blocker fixes
+
+on:
+  push:
+    branches: [fix/typecheck-blockers]
+    paths:
+      - .github/workflows/fix-typecheck-blockers.yml
+      - .patches/typecheck-blockers.patch
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/typecheck-blockers
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - name: Apply type fixes
+        run: |
+          git apply --check .patches/typecheck-blockers.patch
+          git apply .patches/typecheck-blockers.patch
+      - run: bun run typecheck
+      - run: bun test
+      - name: Commit validated type fixes
+        run: |
+          rm -f \
+            .github/workflows/apply-builder-master-improvements.yml \
+            .github/workflows/apply-builder-verified.yml \
+            .github/workflows/fix-typecheck-blockers.yml \
+            .patches/builder-master-improvements.patch \
+            .patches/apply-builder-verified.patch \
+            .patches/typecheck-blockers.patch
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A \
+            src/lib/builder/visual.ts \
+            src/lib/builder/facts.ts \
+            .github/workflows/apply-builder-master-improvements.yml \
+            .github/workflows/apply-builder-verified.yml \
+            .github/workflows/fix-typecheck-blockers.yml \
+            .patches/builder-master-improvements.patch \
+            .patches/apply-builder-verified.patch \
+            .patches/typecheck-blockers.patch
+          git commit -m 'fix: resolve builder typecheck blockers'
+          git push origin HEAD:fix/typecheck-blockers
