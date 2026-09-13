@@ -7,11 +7,8 @@ import { CRM_SOLUTIONS } from "@/lib/crm-solutions";
 import { GROWTH_SYSTEM } from "@/lib/offer";
 import { breadcrumbSchema, canonicalLink, ogUrl } from "@/lib/seo";
 
-const SETUP = `$${GROWTH_SYSTEM.setupPrice}`;
-const MONTHLY = `$${GROWTH_SYSTEM.monthlyPrice}`;
-
-const TITLE = `CRM Software for Contractors & Trades — By Trade | Revora`;
-const DESCRIPTION = `CRM software built for contractors and trades: capture leads, send written quotes, book jobs, follow up automatically and collect reviews. ${SETUP} setup, first month free, then ${MONTHLY}/month.`;
+const TITLE = `CRM Software for Contractors & Trades | Revora`;
+const DESCRIPTION = `CRM software for contractors and trades: capture leads, send quotes, book jobs, follow up automatically and collect reviews.`;
 
 export const Route = createFileRoute("/crm/")({
   head: () => ({

@@ -30,7 +30,7 @@ export const Route = createFileRoute("/pricing")({
         {
           name: "description",
           content:
-            "$750 one-time setup. Your first month of the $100/month platform fee is free — your first monthly payment is charged 30 days later (month two) and continues at $100/month unless canceled. Website, lead capture, CRM, booking, quotes, follow-up, reviews, local SEO, analytics and support.",
+            "$750 one-time setup + $100/month, first month free. Website, lead capture, CRM, booking, quotes, follow-up, reviews, local SEO, analytics and support.",
         },
         { property: "og:title", content: "Pricing — Revora Growth System" },
         {

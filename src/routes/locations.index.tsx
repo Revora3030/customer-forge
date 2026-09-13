@@ -7,12 +7,12 @@ import { SectionHeading } from "@/components/app/Bits";
 import { Button } from "@/components/ui/button";
 import { BusinessDetails } from "@/components/marketing/BusinessDetails";
 import { BUSINESS, NC_LOCATIONS } from "@/lib/business-identity";
-import { GROWTH_SYSTEM, usdExact } from "@/lib/offer";
+import { GROWTH_SYSTEM } from "@/lib/offer";
 import { breadcrumbSchema, canonicalLink, ogUrl } from "@/lib/seo";
 import { trackConversion } from "@/lib/conversion";
 
-const TITLE = "Website & lead generation for North Carolina businesses — Revora";
-const DESCRIPTION = `Revora builds North Carolina service businesses a complete customer acquisition system — website, instant quotes, online booking, CRM and follow-up. ${usdExact(GROWTH_SYSTEM.setupPrice)} setup, then ${usdExact(GROWTH_SYSTEM.monthlyPrice)}/month.`;
+const TITLE = "Website & Lead Gen for NC Businesses | Revora";
+const DESCRIPTION = `Revora builds North Carolina service businesses a complete customer acquisition system — website, instant quotes, online booking, CRM and follow-up.`;
 
 export const Route = createFileRoute("/locations/")({
   head: () => ({

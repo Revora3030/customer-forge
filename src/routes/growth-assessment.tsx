@@ -7,11 +7,11 @@ import { canonicalLink, ogUrl } from "@/lib/seo";
 export const Route = createFileRoute("/growth-assessment")({
   head: () => ({
     meta: [
-      { title: "Free Growth Assessment — Score Your Customer Acquisition | Revora" },
+      { title: "Free Growth Assessment | Revora" },
       {
         name: "description",
         content:
-          "Take Revora's free 2-minute Growth Assessment: score your website, lead capture, quotes, booking, follow-up, reviews and local SEO, and see the revenue estimated to be leaking out of your funnel.",
+          "Take Revora's free 2-minute Growth Assessment and see the revenue your funnel is leaking — website, quotes, booking, follow-up and local SEO.",
       },
       { property: "og:title", content: "Free Growth Assessment — score your customer acquisition" },
       {
