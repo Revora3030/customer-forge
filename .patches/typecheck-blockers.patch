@@ -1,0 +1,53 @@
+diff --git a/src/lib/builder/visual.ts b/src/lib/builder/visual.ts
+--- a/src/lib/builder/visual.ts
++++ b/src/lib/builder/visual.ts
+@@ -104,14 +104,14 @@
+   navigable: boolean;
+   ctas: number;
+ 
+-  deadControls?: string[];
+-  distortedImages?: string[];
+-  overlapping?: string[];
+-  narrowColumns?: string[];
+-  stickyFooterHeight?: number;
+-
+-  accessibility?: AccessibilityMeasurement;
+-  performance?: PerformanceMeasurement;
++  deadControls?: string[] | undefined;
++  distortedImages?: string[] | undefined;
++  overlapping?: string[] | undefined;
++  narrowColumns?: string[] | undefined;
++  stickyFooterHeight?: number | undefined;
++
++  accessibility?: AccessibilityMeasurement | undefined;
++  performance?: PerformanceMeasurement | undefined;
+ };
+ 
+ export type VisualFinding = {
+diff --git a/src/lib/builder/facts.ts b/src/lib/builder/facts.ts
+--- a/src/lib/builder/facts.ts
++++ b/src/lib/builder/facts.ts
+@@ -27,6 +27,7 @@
+   businessName: string | null;
+   tagline: string | null;
+   description: string | null;
++  industry: string | null;
+   phone: string | null;
+   phoneHref: string | null;
+   email: string | null;
+@@ -52,6 +53,7 @@
+   "businessName",
+   "tagline",
+   "description",
++  "industry",
+   "phone",
+   "email",
+   "website",
+@@ -76,6 +78,7 @@
+     businessName: safeText(businessName ?? row["business_name"]),
+     tagline: safeText(row["tagline"]),
+     description: safeParagraph(row["description"]),
++    industry: safeText(row["industry"]),
+     phone: phoneDisplay(row["phone"]),
+     phoneHref: phoneLink(row["phone"]),
+     email: emailDisplay(row["email"]),
