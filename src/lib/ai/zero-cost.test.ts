@@ -138,6 +138,7 @@ function workspace(): AgentContext {
             heading: "Ridgeline Plumbing",
             subheading: null,
             body: null,
+            sort_order: 0,
             components: [],
           },
         ],

@@ -52,6 +52,7 @@ const context: AgentContext = {
           heading: "We fix boilers",
           subheading: null,
           body: null,
+          sort_order: 0,
           components: [],
         },
       ],

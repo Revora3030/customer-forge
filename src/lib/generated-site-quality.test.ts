@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "vitest";
 import {
   QUALITY_DIMENSIONS,
   evaluateGeneratedSiteQuality,
@@ -23,9 +23,7 @@ describe("evaluateGeneratedSiteQuality", () => {
     });
     expect(result.publishable).toBe(false);
     expect(result.failedDimensions).toEqual(["accessibility"]);
-    expect(qualityFailureSummary(result)).toContain(
-      "Missing quality evidence: accessibility",
-    );
+    expect(qualityFailureSummary(result)).toContain("Missing quality evidence: accessibility");
   });
 
   test("blocks a fact-safety failure even when every dimension passes", () => {
@@ -34,8 +32,6 @@ describe("evaluateGeneratedSiteQuality", () => {
       blockedReasons: ["Unverified testimonial attribution"],
     });
     expect(result.publishable).toBe(false);
-    expect(qualityFailureSummary(result)).toContain(
-      "Unverified testimonial attribution",
-    );
+    expect(qualityFailureSummary(result)).toContain("Unverified testimonial attribution");
   });
 });

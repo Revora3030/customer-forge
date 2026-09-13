@@ -217,7 +217,7 @@ export async function designDirection(
     );
     const story = list(raw["story"], 160, 8);
     const avoid = list(raw["avoid"], 120, 6);
-    const goal = text(raw["goal"], 300);
+    const goalText = text(raw["goal"], 300);
     const layout = text(raw["layout"], 400);
     const typography = text(raw["typography"], 300);
     const palette = text(raw["palette"], 300);
@@ -228,12 +228,12 @@ export async function designDirection(
     // direction wearing a "model" label — say so honestly instead of reporting
     // a bespoke design pass that never actually happened.
     const usedModel = Boolean(
-      goal || layout || typography || palette || motion || story.length || avoid.length,
+      goalText || layout || typography || palette || motion || story.length || avoid.length,
     );
     if (!usedModel) return fallback;
 
     return {
-      goal: goal || fallback.goal,
+      goal: goalText || fallback.goal,
       layout: layout || fallback.layout,
       typography: typography || fallback.typography,
       palette: palette || fallback.palette,

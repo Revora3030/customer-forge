@@ -184,7 +184,7 @@ function TemplateSiteView({
 
   const jsonLd = {
     "@context": "https://schema.org",
-    "@type": schemaTypeFor(playbookFor(facts.industry, org.name)),
+    "@type": schemaTypeFor(playbookFor(org.industry, org.name)),
     name: org.name,
     description: profile?.description ?? sub,
     url: canonicalSiteUrl(settings, org.slug) ?? `https://revoragrowthsystems.com/s/${org.slug}`,

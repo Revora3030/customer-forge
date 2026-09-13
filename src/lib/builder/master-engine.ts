@@ -313,6 +313,7 @@ function sectionOperations(
   verbs: string[];
   goals: string[];
   moods: string[];
+  raw: string;
 }> {
   const scoped = intent.operations
     .filter(
@@ -325,6 +326,7 @@ function sectionOperations(
         verbs: operation.verbs,
         goals: operation.goals,
         moods: operation.moods,
+        raw: operation.raw,
       })),
     );
 
@@ -337,6 +339,7 @@ function sectionOperations(
     verbs: intent.verbs,
     goals: intent.goals,
     moods: intent.moods,
+    raw: intent.original,
   }));
 }
 
@@ -937,7 +940,6 @@ export function buildDeterministicPlan(
             context.business.state ?? "",
             page?.id ?? "",
           ].join("|"),
-          intent.visualIntensity,
         );
 
         pushUnique(

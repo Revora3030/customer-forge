@@ -48,7 +48,7 @@ export function assessGeneratedSiteQuality(
   const evidence = evidenceFromGeneratedSiteSignals(signals);
   const result = evaluateGeneratedSiteQuality({
     evidence,
-    blockedReasons: signals.blockedReasons,
+    ...(signals.blockedReasons !== undefined ? { blockedReasons: signals.blockedReasons } : {}),
   });
   return {
     evidence,

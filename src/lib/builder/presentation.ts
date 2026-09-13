@@ -628,9 +628,11 @@ export function isUsableEmail(
     return false;
   }
 
-  const [local, domain] = parts;
+  const local = parts[0];
+  const domain = parts[1];
 
   if (
+    !local || !domain ||
     local.length < 1 ||
     local.length > 254 ||
     domain.length < 3 ||
@@ -956,12 +958,12 @@ function hoursEntry(
   }
 
   return (
-    safeText(record.hours) ??
-    safeText(record.open) ??
-    safeText(record.time) ??
-    safeText(record.value) ??
-    safeText(record.label) ??
-    safeText(record.text)
+    safeText(record["hours"]) ??
+    safeText(record["open"]) ??
+    safeText(record["time"]) ??
+    safeText(record["value"]) ??
+    safeText(record["label"]) ??
+    safeText(record["text"])
   );
 }
 
@@ -1018,10 +1020,10 @@ export function hoursDisplay(
   }
 
   const summary =
-    safeText(record.summary) ??
-    safeText(record.text) ??
-    safeText(record.label) ??
-    safeText(record.description);
+    safeText(record["summary"]) ??
+    safeText(record["text"]) ??
+    safeText(record["label"]) ??
+    safeText(record["description"]);
 
   if (!summary) {
     return null;

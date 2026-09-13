@@ -49,6 +49,7 @@ export type SiteMapPage = {
     heading: string | null;
     subheading: string | null;
     body: string | null;
+    sort_order: number;
     components: {
       id: string;
       kind: string;
@@ -56,6 +57,7 @@ export type SiteMapPage = {
       body: string | null;
       link_label: string | null;
       link_url: string | null;
+      sort_order: number;
     }[];
   }[];
 };

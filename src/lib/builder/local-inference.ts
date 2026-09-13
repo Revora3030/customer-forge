@@ -787,7 +787,7 @@ export async function localPolish(
     const result = await localRewrite(source, {
       timeoutMs: options.timeoutMs ?? DEFAULT_TIMEOUT_MS,
       strict: options.strict ?? true,
-      style: options.style,
+      ...(options.style !== undefined ? { style: options.style } : {}),
     });
 
     return result ?? source;

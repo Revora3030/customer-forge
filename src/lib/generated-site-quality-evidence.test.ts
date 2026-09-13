@@ -1,4 +1,4 @@
-import { expect, test } from "bun:test";
+import { expect, test } from "vitest";
 import {
   assessGeneratedSiteQuality,
   evidenceFromGeneratedSiteSignals,
@@ -28,5 +28,5 @@ test("preserves explicit blocks and produces a corrective recommendation", () =>
     blockedReasons: ["Unsupported certification badge"],
   });
   expect(assessment.result.publishable).toBe(false);
-  expect(assessment.recommendations[0].action).toBe("Unsupported certification badge");
+  expect(assessment.recommendations[0]?.action).toBe("Unsupported certification badge");
 });

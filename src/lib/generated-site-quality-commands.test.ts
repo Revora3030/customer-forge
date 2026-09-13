@@ -1,4 +1,4 @@
-import { expect, test } from "bun:test";
+import { expect, test } from "vitest";
 import { commandFromQualityRecommendation } from "./generated-site-quality-commands";
 
 test("requires approval for factual-trust changes", () => {

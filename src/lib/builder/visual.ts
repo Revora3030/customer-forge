@@ -104,14 +104,14 @@ export type ViewportMeasurement = {
   navigable: boolean;
   ctas: number;
 
-  deadControls?: string[];
-  distortedImages?: string[];
-  overlapping?: string[];
-  narrowColumns?: string[];
-  stickyFooterHeight?: number;
+  deadControls?: string[] | undefined;
+  distortedImages?: string[] | undefined;
+  overlapping?: string[] | undefined;
+  narrowColumns?: string[] | undefined;
+  stickyFooterHeight?: number | undefined;
 
-  accessibility?: AccessibilityMeasurement;
-  performance?: PerformanceMeasurement;
+  accessibility?: AccessibilityMeasurement | undefined;
+  performance?: PerformanceMeasurement | undefined;
 };
 
 export type VisualFinding = {
