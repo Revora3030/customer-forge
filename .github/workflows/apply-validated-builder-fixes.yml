@@ -1,0 +1,62 @@
+name: Apply validated builder fixes
+
+on:
+  push:
+    branches: [internal/validated-builder-fixes]
+    paths:
+      - .github/workflows/apply-validated-builder-fixes.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: internal/validated-builder-fixes
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - name: Verify and decode existing source patch
+        run: |
+          test -f .patches/builder-production-hardening.patch.gz.b64
+          echo '8c8c40c1cdf218077e460972fc6f4f600116ed7cde52439033ef61fc7b879085  .patches/builder-production-hardening.patch.gz.b64' | sha256sum -c -
+          base64 -d .patches/builder-production-hardening.patch.gz.b64 | gzip -dc > .patches/validated-builder-fixes.patch
+      - name: Apply source patch
+        run: |
+          git apply --check .patches/validated-builder-fixes.patch
+          git apply .patches/validated-builder-fixes.patch
+      - name: Format touched files only
+        run: bunx prettier --write src/lib/site-agent.functions.ts src/lib/site-agent.atomic.ts src/lib/site-agent.coverage.test.ts
+      - name: Typecheck
+        run: bun run typecheck
+      - name: Test
+        run: bun test
+      - name: Lint
+        run: bun run lint
+      - name: Production build
+        run: bun run build
+      - name: Commit validated source changes
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git rm -f .github/workflows/apply-validated-builder-fixes.yml \
+            .github/workflows/apply-builder-master-improvements.yml \
+            .github/workflows/apply-builder-verified.yml \
+            .github/workflows/builder-production-hardening.yml \
+            .github/workflows/fix-typecheck-blockers.yml \
+            .patches/builder-production-hardening.patch.gz.b64 \
+            .patches/validated-builder-fixes.patch 2>/dev/null || true
+          rm -f .patches/validated-builder-fixes.patch
+          git add src/lib/site-agent.functions.ts src/lib/site-agent.atomic.ts src/lib/site-agent.coverage.test.ts
+          git add -A .github/workflows .patches
+          if git diff --cached --quiet; then
+            echo 'Validation produced no source changes' >&2
+            exit 1
+          fi
+          git status --short
+          git commit -m 'fix: harden builder visual actions and snapshots'
+          git push origin HEAD:internal/validated-builder-fixes
