@@ -237,6 +237,7 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
               heading: section.heading,
               subheading: section.subheading,
               body: section.body,
+              sort_order: section.sort_order,
               components: (componentsBySection.get(section.id) ?? []).map((component) => ({
                 id: component.id,
                 kind: component.kind,
@@ -244,6 +245,7 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
                 body: component.body,
                 link_label: component.link_label,
                 link_url: component.link_url,
+                sort_order: component.sort_order,
               })),
             })),
         })),

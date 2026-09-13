@@ -240,7 +240,7 @@ export type SectionVisualPatch = {
     | "layered"
     | "stacked";
 
-  density:
+  density?:
     | "airy"
     | "balanced"
     | "dense";
@@ -824,7 +824,7 @@ const readVisualPatch = (
     )
   ) {
     patch.object_fit =
-      raw["object_fit"] as VisualComponentPatch["object_fit"];
+      raw["object_fit"] as NonNullable<VisualComponentPatch["object_fit"]>;
   }
 
   if (
@@ -853,7 +853,7 @@ const readVisualPatch = (
     )
   ) {
     patch.overlay =
-      raw["overlay"] as VisualComponentPatch["overlay"];
+      raw["overlay"] as NonNullable<VisualComponentPatch["overlay"]>;
   }
 
   if (
@@ -864,7 +864,7 @@ const readVisualPatch = (
     )
   ) {
     patch.radius =
-      raw["radius"] as VisualComponentPatch["radius"];
+      raw["radius"] as NonNullable<VisualComponentPatch["radius"]>;
   }
 
   if (
@@ -875,7 +875,7 @@ const readVisualPatch = (
     )
   ) {
     patch.shadow =
-      raw["shadow"] as VisualComponentPatch["shadow"];
+      raw["shadow"] as NonNullable<VisualComponentPatch["shadow"]>;
   }
 
   if (
@@ -886,7 +886,7 @@ const readVisualPatch = (
     )
   ) {
     patch.aspect_ratio =
-      raw["aspect_ratio"] as VisualComponentPatch["aspect_ratio"];
+      raw["aspect_ratio"] as NonNullable<VisualComponentPatch["aspect_ratio"]>;
   }
 
   if (

@@ -270,7 +270,6 @@ function archetypeFor(
 
   if (moods.includes("bold")) return "bold";
   if (moods.includes("friendly")) return "organic";
-  if (moods.includes("playful")) return "playful";
 
   return "conversion";
 }
