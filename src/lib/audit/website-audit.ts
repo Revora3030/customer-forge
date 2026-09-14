@@ -58,8 +58,9 @@ function isPrivateHostname(hostname: string) {
   if (/^169\.254\./.test(host)) return true;
   const parts = host.split(".").map(Number);
   if (parts.length === 4 && parts.every((part) => Number.isInteger(part) && part >= 0 && part <= 255)) {
-    const [a, b] = parts;
-    if (a === 172 && b >= 16 && b <= 31) return true;
+    const a = parts[0];
+    const b = parts[1];
+    if (a === 172 && b !== undefined && b >= 16 && b <= 31) return true;
     if (a === 0) return true;
   }
   return false;
@@ -179,8 +180,7 @@ export async function auditPublicWebsite(rawUrl: string): Promise<WebsiteAuditRe
     const high = findings.filter((f) => f.severity === "high").length;
     const medium = findings.filter((f) => f.severity === "medium").length;
     const low = findings.filter((f) => f.severity === "low").length;
-    const penalty = high * 14 + medium * 7 + low * 3;
-    const score = Math.max(0, Math.min(100, 100 - penalty));
+    const score = Math.max(0, Math.min(100, 100 - high * 18 - medium * 8 - low * 3));
 
     return {
       url: url.toString(),
@@ -206,7 +206,7 @@ export async function auditPublicWebsite(rawUrl: string): Promise<WebsiteAuditRe
         emailSignals,
         ctaSignals,
         socialProofSignals,
-        htmlBytes: Buffer.byteLength(body, "utf8"),
+        htmlBytes: html.length,
       },
     };
   } finally {
