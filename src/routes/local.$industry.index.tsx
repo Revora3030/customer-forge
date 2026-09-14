@@ -55,7 +55,7 @@ function LocalIndustryHub() {
   const { industry } = Route.useRouteContext() as { industry: LocalIndustry };
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen">
       <SiteHeader />
       <main className="mx-auto max-w-5xl px-4 pt-14 pb-20 sm:px-6 sm:pt-20">
         <nav aria-label="Breadcrumb" className="text-xs text-muted-foreground">

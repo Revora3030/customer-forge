@@ -80,7 +80,7 @@ function SharePage() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen">
       <SiteHeader />
       <main className="mx-auto max-w-4xl px-4 py-12">
         <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">

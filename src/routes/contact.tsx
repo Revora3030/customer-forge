@@ -71,7 +71,7 @@ function Contact() {
   const send = useServerFn(submitContactRequest);
 
   return (
-    <div className="min-h-screen bg-background pb-20 md:pb-0">
+    <div className="min-h-screen pb-20 md:pb-0">
       <SiteHeader />
       <main className="hero-aura mx-auto max-w-6xl px-4 py-16">
         <div className="grid gap-10 lg:grid-cols-[1fr_1fr] lg:items-start lg:gap-12">

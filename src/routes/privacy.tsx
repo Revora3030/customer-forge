@@ -101,7 +101,7 @@ const SECTIONS: { heading: string; body: string[] }[] = [
 
 function PrivacyPage() {
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen">
       <SiteHeader />
       <main>
         <section className="border-b border-border">
