@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { auditPublicWebsite } from "@/lib/audit/website-audit";
+import { emitN8nEvent } from "@/lib/connectors/n8n.server";
 
 export const auditExistingWebsite = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -62,6 +63,14 @@ export const auditExistingWebsite = createServerFn({ method: "POST" })
       );
       if (findingError) console.error("[website-audit] findings could not be saved", findingError);
     }
+
+    // Optional: if n8n is not configured this is a no-op, so the audit remains
+    // fully functional without any third-party service.
+    void emitN8nEvent({
+      organizationId: data.organizationId,
+      event: "website.audit.completed",
+      data: { auditId: savedAudit.id, score: audit.score, url: audit.finalUrl },
+    });
 
     return { ...audit, auditId: savedAudit.id };
   });
