@@ -49,6 +49,7 @@ export interface WebsiteAuditResult {
 
 const MAX_HTML_BYTES = 1_500_000;
 const TIMEOUT_MS = 10_000;
+const MAX_REDIRECTS = 5;
 
 function isPrivateHostname(hostname: string) {
   const host = hostname.toLowerCase().replace(/\.$/, "");
@@ -74,6 +75,33 @@ export function validatePublicWebsiteUrl(raw: string) {
   url.password = "";
   url.hash = "";
   return url;
+}
+
+async function fetchPublicHtml(startUrl: URL, signal: AbortSignal) {
+  let currentUrl = startUrl;
+
+  for (let redirectCount = 0; redirectCount <= MAX_REDIRECTS; redirectCount += 1) {
+    const response = await fetch(currentUrl, {
+      redirect: "manual",
+      signal,
+      headers: {
+        "user-agent": "RevoraWebsiteAudit/1.0 (+https://revoragrowthsystems.com)",
+        accept: "text/html,application/xhtml+xml",
+      },
+    });
+
+    const location = response.headers.get("location");
+    if (response.status >= 300 && response.status < 400 && location) {
+      if (redirectCount === MAX_REDIRECTS) throw new Error("The website redirected too many times.");
+      const nextUrl = validatePublicWebsiteUrl(new URL(location, currentUrl).toString());
+      currentUrl = nextUrl;
+      continue;
+    }
+
+    return { response, finalUrl: currentUrl.toString() };
+  }
+
+  throw new Error("The website could not be fetched safely.");
 }
 
 function textContent(html: string) {
@@ -110,16 +138,7 @@ export async function auditPublicWebsite(rawUrl: string): Promise<WebsiteAuditRe
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
 
   try {
-    const response = await fetch(url, {
-      redirect: "follow",
-      signal: controller.signal,
-      headers: {
-        "user-agent": "RevoraWebsiteAudit/1.0 (+https://revoragrowthsystems.com)",
-        accept: "text/html,application/xhtml+xml",
-      },
-    });
-
-    const finalUrl = validatePublicWebsiteUrl(response.url).toString();
+    const { response, finalUrl } = await fetchPublicHtml(url, controller.signal);
     const contentType = response.headers.get("content-type") ?? "";
     if (!contentType.toLowerCase().includes("text/html") && !contentType.toLowerCase().includes("application/xhtml+xml")) {
       throw new Error("The supplied URL did not return an HTML page.");
