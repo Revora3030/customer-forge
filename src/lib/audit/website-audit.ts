@@ -78,9 +78,9 @@ export function validatePublicWebsiteUrl(raw: string) {
 
 function textContent(html: string) {
   return html
-    .replace(/<script[\s\S]*?<\/script>/gi, " ")
-    .replace(/<style[\s\S]*?<\/style>/gi, " ")
-    .replace(/<noscript[\s\S]*?<\/noscript>/gi, " ")
+    .replace(/<script[\s\S]*?<\/script\b[^>]*>/gi, " ")
+    .replace(/<style[\s\S]*?<\/style\b[^>]*>/gi, " ")
+    .replace(/<noscript[\s\S]*?<\/noscript\b[^>]*>/gi, " ")
     .replace(/<[^>]+>/g, " ")
     .replace(/&nbsp;/gi, " ")
     .replace(/\s+/g, " ")
