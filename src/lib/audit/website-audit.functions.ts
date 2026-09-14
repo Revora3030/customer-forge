@@ -12,6 +12,15 @@ export const auditExistingWebsite = createServerFn({ method: "POST" })
     return { organizationId, url };
   })
   .handler(async ({ data, context }) => {
+    const { data: membership, error: membershipError } = await context.supabase
+      .from("memberships")
+      .select("organization_id")
+      .eq("organization_id", data.organizationId)
+      .eq("user_id", context.userId)
+      .maybeSingle();
+
+    if (membershipError || !membership) throw new Error("You don't have access to this workspace.");
+
     const audit = await auditPublicWebsite(data.url);
     const supabase = context.supabase;
 
@@ -51,9 +60,7 @@ export const auditExistingWebsite = createServerFn({ method: "POST" })
           observed: finding.observed,
         })),
       );
-      if (findingError) {
-        console.error("[website-audit] findings could not be saved", findingError);
-      }
+      if (findingError) console.error("[website-audit] findings could not be saved", findingError);
     }
 
     return { ...audit, auditId: savedAudit.id };
