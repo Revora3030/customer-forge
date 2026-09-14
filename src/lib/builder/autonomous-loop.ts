@@ -1,6 +1,10 @@
 import type { AgentContext } from "@/lib/agent/types";
 import { buildAutonomousPlan } from "@/lib/builder/autonomous-brain";
-import { DEFAULT_AUTONOMY_POLICY } from "@/lib/builder/upgrade-contract";
+import {
+  DEFAULT_AUTONOMY_POLICY,
+  clampQualityScore,
+  shouldRepairQuality,
+} from "@/lib/builder/upgrade-contract";
 
 export type AutonomousLoopStage =
   | "inspect"
@@ -23,10 +27,9 @@ export type AutonomousLoopResult = {
 /**
  * Safe orchestration contract for Revora's autonomous builder.
  *
- * This module plans and gates the loop; it deliberately does not write to the
- * database or bypass the existing executor. Callers should execute the
- * returned plan through the normal approval/atomic-write path, then feed a
- * fresh site snapshot into the next iteration.
+ * Planning is intentionally pure. Callers execute through the existing
+ * approval/atomic-write path and then supply a fresh site snapshot for the
+ * next pass. No database writes, model calls, or executor bypasses occur here.
  */
 export function buildAutonomousLoopPlan(
   context: AgentContext,
@@ -34,7 +37,7 @@ export function buildAutonomousLoopPlan(
   options: Parameters<typeof buildAutonomousPlan>[2] = {},
 ): AutonomousLoopResult {
   const plan = buildAutonomousPlan(context, instruction, options);
-  const maxIterations = 2;
+  const maxIterations = DEFAULT_AUTONOMY_POLICY.maxRepairPasses;
   const repairRequested = plan.qualityProfile.priorities.length > 0;
 
   return {
@@ -56,15 +59,29 @@ export function buildAutonomousLoopPlan(
   };
 }
 
+/** Creates a concise, business-readable repair request from verification output. */
+export function buildRepairInstruction(
+  originalInstruction: string,
+  verificationSummary: string,
+): string {
+  const original = originalInstruction.trim().slice(0, 1200);
+  const summary = verificationSummary.trim().slice(0, 1200);
+  return `${original}\n\nRevora's verification found this remaining issue: ${summary}\nFix that issue without changing verified business facts, billing, authentication, publishing, or destructive content.`.trim();
+}
+
 export function canAutoContinueAfterVerification(input: {
   score: number;
   iteration: number;
+  previousScore?: number;
   policy?: typeof DEFAULT_AUTONOMY_POLICY;
   hasHighImpactChange?: boolean;
 }): boolean {
   const policy = input.policy ?? DEFAULT_AUTONOMY_POLICY;
-  if (input.hasHighImpactChange) return false;
-  if (!policy.allowBroadPlanning) return false;
-  if (input.iteration >= 2) return false;
-  return input.score < 95;
+  return shouldRepairQuality({
+    score: clampQualityScore(input.score),
+    previousScore: input.previousScore,
+    iteration: input.iteration,
+    policy,
+    hasHighImpactChange: input.hasHighImpactChange,
+  });
 }
