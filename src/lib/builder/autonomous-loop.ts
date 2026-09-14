@@ -1,4 +1,4 @@
-import type { AgentContext } from "@/lib/agent/types";
+import type { AgentContext } from "@/lib/site-agent.server";
 import { buildAutonomousPlan } from "@/lib/builder/autonomous-brain";
 import {
   DEFAULT_AUTONOMY_POLICY,
@@ -38,7 +38,7 @@ export function buildAutonomousLoopPlan(
 ): AutonomousLoopResult {
   const plan = buildAutonomousPlan(context, instruction, options);
   const maxIterations = DEFAULT_AUTONOMY_POLICY.maxRepairPasses;
-  const repairRequested = plan.qualityProfile.priorities.length > 0;
+  const repairRequested = plan.coverage !== "none" && plan.actions.length > 0;
 
   return {
     stage: "plan",
@@ -53,7 +53,7 @@ export function buildAutonomousLoopPlan(
       "score: evaluate the resulting site with the quality profile",
       repairRequested
         ? "fix: safe quality repairs may be planned on the next pass"
-        : "fix: no additional deterministic repair priority detected",
+        : "fix: no executable deterministic repair detected",
       "verify: require a fresh site snapshot before declaring completion",
     ],
   };
