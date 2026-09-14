@@ -1,7 +1,98 @@
 import { createServerFn } from "@tanstack/react-start";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import type { Database, Json } from "@/integrations/supabase/types";
 import { auditPublicWebsite } from "@/lib/audit/website-audit";
 import { emitN8nEvent } from "@/lib/connectors/n8n.server";
+
+type AuditDatabase = Omit<Database, "public"> & {
+  public: Omit<Database["public"], "Tables"> & {
+    Tables: Database["public"]["Tables"] & {
+      website_audits: {
+        Row: {
+          id: string;
+          organization_id: string;
+          requested_url: string;
+          final_url: string;
+          status: string;
+          http_status: number | null;
+          growth_score: number | null;
+          title: string | null;
+          description: string | null;
+          signals: Json;
+          fetched_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          requested_url: string;
+          final_url: string;
+          status: string;
+          http_status?: number | null;
+          growth_score?: number | null;
+          title?: string | null;
+          description?: string | null;
+          signals: Json;
+          fetched_at: string;
+        };
+        Update: Partial<{
+          organization_id: string;
+          requested_url: string;
+          final_url: string;
+          status: string;
+          http_status: number | null;
+          growth_score: number | null;
+          title: string | null;
+          description: string | null;
+          signals: Json;
+          fetched_at: string;
+        }>;
+        Relationships: [];
+      };
+      website_audit_findings: {
+        Row: {
+          id: string;
+          audit_id: string;
+          organization_id: string;
+          finding_key: string;
+          category: string;
+          severity: string;
+          title: string;
+          explanation: string;
+          recommendation: string;
+          evidence: Json;
+          observed: boolean;
+        };
+        Insert: {
+          id?: string;
+          audit_id: string;
+          organization_id: string;
+          finding_key: string;
+          category: string;
+          severity: string;
+          title: string;
+          explanation: string;
+          recommendation: string;
+          evidence: Json;
+          observed?: boolean;
+        };
+        Update: Partial<{
+          audit_id: string;
+          organization_id: string;
+          finding_key: string;
+          category: string;
+          severity: string;
+          title: string;
+          explanation: string;
+          recommendation: string;
+          evidence: Json;
+          observed: boolean;
+        }>;
+        Relationships: [];
+      };
+    };
+  };
+};
 
 export const auditExistingWebsite = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -23,7 +114,7 @@ export const auditExistingWebsite = createServerFn({ method: "POST" })
     if (membershipError || !membership) throw new Error("You don't have access to this workspace.");
 
     const audit = await auditPublicWebsite(data.url);
-    const supabase = context.supabase;
+    const supabase = context.supabase as unknown as SupabaseClient<AuditDatabase>;
 
     const { data: savedAudit, error: auditError } = await supabase
       .from("website_audits")
