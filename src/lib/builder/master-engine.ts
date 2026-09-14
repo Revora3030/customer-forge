@@ -21,38 +21,23 @@
  * Execution remains owned by the existing site-agent/site-engine pipeline.
  */
 
-import type { AgentAction } from "@/lib/site-agent";
+import { MAX_ACTIONS, type AgentAction } from "@/lib/site-agent";
 import type { AgentContext } from "@/lib/site-agent.server";
 
-import {
-  interpret,
-  type BuilderIntent,
-} from "./interpreter";
+import { interpret, type BuilderIntent } from "./interpreter";
 
-import {
-  playbookFor,
-} from "./industry";
+import { playbookFor } from "./industry";
 
-import {
-  designDecision,
-  hierarchySort,
-} from "./design";
+import { designDecision, hierarchySort } from "./design";
 
-import {
-  ctaTarget,
-  faqQuestions,
-  pageSeo,
-  place,
-  sectionCopy,
-  type CopyFacts,
-} from "./copy";
+import { ctaTarget, faqQuestions, pageSeo, place, sectionCopy, type CopyFacts } from "./copy";
 
 /* -------------------------------------------------------------------------- */
 /* Limits                                                                     */
 /* -------------------------------------------------------------------------- */
 
-export const MASTER_MAX_ACTIONS = 60;
-export const MASTER_MAX_WHOLE_SITE_ACTIONS = 160;
+export const MASTER_MAX_ACTIONS = MAX_ACTIONS;
+export const MASTER_MAX_WHOLE_SITE_ACTIONS = MAX_ACTIONS;
 
 /* -------------------------------------------------------------------------- */
 /* Public contracts                                                           */
@@ -141,10 +126,7 @@ function normaliseSlug(value: string): string {
 /* Page intelligence                                                          */
 /* -------------------------------------------------------------------------- */
 
-function pageKindFromLabel(
-  label: string,
-  slug: string,
-): string {
+function pageKindFromLabel(label: string, slug: string): string {
   const text = `${label} ${slug}`.toLowerCase();
 
   if (/\b(price|pricing|cost|rate|rates|package|packages)\b/.test(text)) {
@@ -167,79 +149,40 @@ function pageKindFromLabel(
     return "reviews";
   }
 
-  if (
-    /\b(gallery|portfolio|work|photos|photo|projects|project)\b/.test(text)
-  ) {
+  if (/\b(gallery|portfolio|work|photos|photo|projects|project)\b/.test(text)) {
     return "gallery";
   }
 
-  if (
-    /\b(service|services|what we do|what-we-do|offer|offers)\b/.test(text)
-  ) {
+  if (/\b(service|services|what we do|what-we-do|offer|offers)\b/.test(text)) {
     return "services";
   }
 
   return "custom";
 }
 
-function pageSections(
-  kind: string,
-  playbook: ReturnType<typeof playbookFor>,
-): string[] {
+function pageSections(kind: string, playbook: ReturnType<typeof playbookFor>): string[] {
   if (kind === "pricing") {
-    return [
-      "hero",
-      "pricing",
-      "faq",
-      "cta",
-      "contact",
-    ];
+    return ["hero", "pricing", "faq", "cta", "contact"];
   }
 
   if (kind === "book") {
-    return [
-      "hero",
-      "booking",
-      "benefits",
-      "faq",
-      "cta",
-    ];
+    return ["hero", "booking", "benefits", "faq", "cta"];
   }
 
   if (kind === "about") {
-    return [
-      "hero",
-      "intro",
-      "benefits",
-      "area",
-      "cta",
-    ];
+    return ["hero", "intro", "benefits", "area", "cta"];
   }
 
   if (kind === "contact") {
-    return [
-      "hero",
-      "contact",
-      "area",
-      "cta",
-    ];
+    return ["hero", "contact", "area", "cta"];
   }
 
   if (kind === "gallery") {
-    return [
-      "hero",
-      "gallery",
-      "services",
-      "cta",
-    ];
+    return ["hero", "gallery", "services", "cta"];
   }
 
   if (kind === "reviews") {
-    return [
-      "hero",
-      "reviews",
-      "cta",
-    ];
+    return ["hero", "reviews", "cta"];
   }
 
   if (kind === "services") {
@@ -249,19 +192,11 @@ function pageSections(
   return [...playbook.homeSections];
 }
 
-function findSection(
-  page: Page | null,
-  kind: string,
-): Section | undefined {
-  return page?.sections.find(
-    (section) => section.kind === kind,
-  );
+function findSection(page: Page | null, kind: string): Section | undefined {
+  return page?.sections.find((section) => section.kind === kind);
 }
 
-function targetPage(
-  context: AgentContext,
-  intent: BuilderIntent,
-): Page | null {
+function targetPage(context: AgentContext, intent: BuilderIntent): Page | null {
   for (const hint of intent.pageHints) {
     const wanted = normaliseSlug(hint);
 
@@ -283,9 +218,7 @@ function targetPage(
   return (
     context.pages.find((page) => page.kind === "home") ??
     context.pages.find(
-      (page) =>
-        normaliseSlug(page.slug) === "" ||
-        normaliseSlug(page.slug) === "home",
+      (page) => normaliseSlug(page.slug) === "" || normaliseSlug(page.slug) === "home",
     ) ??
     context.pages[0] ??
     null
@@ -306,9 +239,7 @@ function targetPage(
  *
  * "remove + add" applied to both pricing AND booking.
  */
-function sectionOperations(
-  intent: BuilderIntent,
-): Array<{
+function sectionOperations(intent: BuilderIntent): Array<{
   kind: string;
   verbs: string[];
   goals: string[];
@@ -316,10 +247,7 @@ function sectionOperations(
   raw: string;
 }> {
   const scoped = intent.operations
-    .filter(
-      (operation) =>
-        operation.sectionKinds.length > 0,
-    )
+    .filter((operation) => operation.sectionKinds.length > 0)
     .flatMap((operation) =>
       operation.sectionKinds.map((kind) => ({
         kind,
@@ -354,11 +282,7 @@ function actionExists(
   return actions.some(predicate);
 }
 
-function pushUnique(
-  actions: AgentAction[],
-  action: AgentAction,
-  cap: number,
-): void {
+function pushUnique(actions: AgentAction[], action: AgentAction, cap: number): void {
   if (actions.length >= cap) {
     return;
   }
@@ -368,8 +292,7 @@ function pushUnique(
     actionExists(
       actions,
       (existing) =>
-        existing.type === "set_section_effect" &&
-        existing.sectionId === action.sectionId,
+        existing.type === "set_section_effect" && existing.sectionId === action.sectionId,
     )
   ) {
     return;
@@ -393,8 +316,7 @@ function pushUnique(
     actionExists(
       actions,
       (existing) =>
-        existing.type === "set_section_variant" &&
-        existing.sectionId === action.sectionId,
+        existing.type === "set_section_variant" && existing.sectionId === action.sectionId,
     )
   ) {
     return;
@@ -405,8 +327,7 @@ function pushUnique(
     actionExists(
       actions,
       (existing) =>
-        existing.type === "set_section_visibility" &&
-        existing.sectionId === action.sectionId,
+        existing.type === "set_section_visibility" && existing.sectionId === action.sectionId,
     )
   ) {
     return;
@@ -443,9 +364,7 @@ function pushUnique(
     action.type === "set_page" &&
     actionExists(
       actions,
-      (existing) =>
-        existing.type === "set_page" &&
-        existing.pageId === action.pageId,
+      (existing) => existing.type === "set_page" && existing.pageId === action.pageId,
     )
   ) {
     return;
@@ -472,11 +391,7 @@ function addSection(
     return false;
   }
 
-  const copy = sectionCopy(
-    kind,
-    facts,
-    playbook,
-  );
+  const copy = sectionCopy(kind, facts, playbook);
 
   pushUnique(
     actions,
@@ -509,14 +424,13 @@ function buildPage(
   playbook: ReturnType<typeof playbookFor>,
   cap: number,
 ): void {
-  const safeSlug =
-    slugify(title) || `page-${Date.now()}`;
+  const safeSlug = slugify(title) || `page-${ref.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
 
   const actualKind = context.pageKinds.includes(kind)
     ? kind
     : context.pageKinds.includes("custom")
       ? "custom"
-      : context.pageKinds[0] ?? "custom";
+      : (context.pageKinds[0] ?? "custom");
 
   pushUnique(
     actions,
@@ -532,26 +446,12 @@ function buildPage(
 
   let position = 0;
 
-  for (const sectionKind of pageSections(
-    kind,
-    playbook,
-  )) {
+  for (const sectionKind of pageSections(kind, playbook)) {
     if (position >= 10) {
       break;
     }
 
-    if (
-      addSection(
-        actions,
-        ref,
-        sectionKind,
-        context,
-        facts,
-        playbook,
-        position,
-        cap,
-      )
-    ) {
+    if (addSection(actions, ref, sectionKind, context, facts, playbook, position, cap)) {
       position += 1;
     }
   }
@@ -561,11 +461,7 @@ function buildPage(
     {
       type: "set_page",
       pageId: ref,
-      patch: pageSeo(
-        title,
-        facts,
-        playbook,
-      ),
+      patch: pageSeo(title, facts, playbook),
     },
     cap,
   );
@@ -584,40 +480,21 @@ function improveExistingPage(
   intent: BuilderIntent,
   cap: number,
 ): void {
-  const sections = [...page.sections].sort(
-    (a, b) => a.sort_order - b.sort_order,
-  );
+  const sections = [...page.sections].sort((a, b) => a.sort_order - b.sort_order);
 
-  const existingKinds = new Set(
-    sections.map((section) => section.kind),
-  );
+  const existingKinds = new Set(sections.map((section) => section.kind));
 
   /* ---------------------------------------------------------------------- */
   /* Complete missing conversion structure                                  */
   /* ---------------------------------------------------------------------- */
 
-  const desiredSections = playbook.homeSections.slice(
-    0,
-    10,
-  );
+  const desiredSections = playbook.homeSections.slice(0, 10);
 
   let nextPosition = sections.length;
 
   for (const kind of desiredSections) {
-    if (
-      !existingKinds.has(kind) &&
-      context.sectionKinds.includes(kind)
-    ) {
-      addSection(
-        actions,
-        page.id,
-        kind,
-        context,
-        facts,
-        playbook,
-        nextPosition,
-        cap,
-      );
+    if (!existingKinds.has(kind) && context.sectionKinds.includes(kind)) {
+      addSection(actions, page.id, kind, context, facts, playbook, nextPosition, cap);
 
       nextPosition += 1;
       existingKinds.add(kind);
@@ -633,16 +510,9 @@ function improveExistingPage(
       break;
     }
 
-    const copy = sectionCopy(
-      section.kind,
-      facts,
-      playbook,
-    );
+    const copy = sectionCopy(section.kind, facts, playbook);
 
-    if (
-      !section.heading &&
-      copy.heading
-    ) {
+    if (!section.heading && copy.heading) {
       pushUnique(
         actions,
         {
@@ -655,10 +525,7 @@ function improveExistingPage(
       );
     }
 
-    if (
-      !section.subheading &&
-      copy.subheading
-    ) {
+    if (!section.subheading && copy.subheading) {
       pushUnique(
         actions,
         {
@@ -671,10 +538,7 @@ function improveExistingPage(
       );
     }
 
-    if (
-      !section.body &&
-      copy.body
-    ) {
+    if (!section.body && copy.body) {
       pushUnique(
         actions,
         {
@@ -692,21 +556,13 @@ function improveExistingPage(
   /* SEO                                                                     */
   /* ---------------------------------------------------------------------- */
 
-  if (
-    intent.goals.includes("seo") ||
-    intent.verbs.includes("seo") ||
-    intent.wholeSite
-  ) {
+  if (intent.goals.includes("seo") || intent.verbs.includes("seo") || intent.wholeSite) {
     pushUnique(
       actions,
       {
         type: "set_page",
         pageId: page.id,
-        patch: pageSeo(
-          page.title || "Home",
-          facts,
-          playbook,
-        ),
+        patch: pageSeo(page.title || "Home", facts, playbook),
       },
       cap,
     );
@@ -721,14 +577,9 @@ function improveExistingPage(
     intent.goals.includes("conversion") ||
     intent.wholeSite
   ) {
-    const sorted = hierarchySort(
-      sections,
-    );
+    const sorted = hierarchySort(sections);
 
-    const changed = sorted.some(
-      (section, index) =>
-        section.id !== sections[index]?.id,
-    );
+    const changed = sorted.some((section, index) => section.id !== sections[index]?.id);
 
     if (changed) {
       pushUnique(
@@ -736,9 +587,7 @@ function improveExistingPage(
         {
           type: "reorder_sections",
           pageId: page.id,
-          sectionIds: sorted.map(
-            (section) => section.id,
-          ),
+          sectionIds: sorted.map((section) => section.id),
         },
         cap,
       );
@@ -751,36 +600,20 @@ function improveExistingPage(
 
   if (
     intent.verbs.includes("cta") ||
-    intent.goals.some((goal) =>
-      [
-        "conversion",
-        "leads",
-        "booking",
-        "calls",
-      ].includes(goal),
-    ) ||
+    intent.goals.some((goal) => ["conversion", "leads", "booking", "calls"].includes(goal)) ||
     intent.wholeSite
   ) {
     const target = ctaTarget(facts);
 
-    const host =
-      page.sections.find(
-        (section) => section.kind === "hero",
-      ) ??
-      page.sections[0];
+    const host = page.sections.find((section) => section.kind === "hero") ?? page.sections[0];
 
     if (host) {
-      const hasButton =
-        host.components.some(
-          (component) =>
-            component.kind === "button" ||
-            component.link_url ===
-              target?.url,
-        );
+      const hasButton = host.components.some(
+        (component) => component.kind === "button" || component.link_url === target?.url,
+      );
 
       if (!hasButton) {
-        const label =
-          playbook.ctaLabels.primary;
+        const label = playbook.ctaLabels.primary;
 
         pushUnique(
           actions,
@@ -789,9 +622,7 @@ function improveExistingPage(
             sectionId: host.id,
             kind: "button",
             label,
-            link_url:
-              target?.url ??
-              "/contact",
+            link_url: target?.url ?? "/contact",
             link_label: label,
           },
           cap,
@@ -804,34 +635,17 @@ function improveExistingPage(
   /* FAQ enrichment                                                         */
   /* ---------------------------------------------------------------------- */
 
-  const faq = page.sections.find(
-    (section) => section.kind === "faq",
-  );
+  const faq = page.sections.find((section) => section.kind === "faq");
 
-  if (
-    faq &&
-    (
-      intent.wholeSite ||
-      intent.sectionKinds.includes("faq")
-    )
-  ) {
+  if (faq && (intent.wholeSite || intent.sectionKinds.includes("faq"))) {
     const existingQuestions = new Set(
       faq.components
-        .map((component) =>
-          component.label?.trim(),
-        )
-        .filter(
-          (value): value is string =>
-            Boolean(value),
-        ),
+        .map((component) => component.label?.trim())
+        .filter((value): value is string => Boolean(value)),
     );
 
-    for (const question of faqQuestions(
-      playbook,
-    ).slice(0, 5)) {
-      if (
-        !existingQuestions.has(question)
-      ) {
+    for (const question of faqQuestions(playbook).slice(0, 5)) {
+      if (!existingQuestions.has(question)) {
         pushUnique(
           actions,
           {
@@ -856,32 +670,17 @@ export function buildDeterministicPlan(
   instruction: string,
   options: BuilderOptions = {},
 ): DeterministicPlan {
-  const intent = interpret(
-    instruction,
-    options.history ?? [],
-  );
+  const intent = interpret(instruction, options.history ?? []);
 
   const facts = factsOf(context);
 
-  const playbook =
-    intent.industry ??
-    playbookFor(
-      context.business.industry,
-      instruction,
-    );
+  const playbook = intent.industry ?? playbookFor(context.business.industry, instruction);
 
-  const page = targetPage(
-    context,
-    intent,
-  );
+  const page = targetPage(context, intent);
 
-  const allowedSections = new Set(
-    context.sectionKinds,
-  );
+  const allowedSections = new Set(context.sectionKinds);
 
-  const cap = intent.wholeSite
-    ? MASTER_MAX_WHOLE_SITE_ACTIONS
-    : MASTER_MAX_ACTIONS;
+  const cap = intent.wholeSite ? MASTER_MAX_WHOLE_SITE_ACTIONS : MASTER_MAX_ACTIONS;
 
   const actions: AgentAction[] = [];
   const tasks: BuilderTask[] = [];
@@ -890,10 +689,7 @@ export function buildDeterministicPlan(
   const trace: string[] = [];
   const completed = new Set<string>();
 
-  const addTask = (
-    title: string,
-    task: () => boolean,
-  ): void => {
+  const addTask = (title: string, task: () => boolean): void => {
     const before = actions.length;
     let claimed = false;
 
@@ -905,9 +701,7 @@ export function buildDeterministicPlan(
 
     tasks.push({
       title,
-      done:
-        claimed ||
-        actions.length > before,
+      done: claimed || actions.length > before,
     });
   };
 
@@ -928,120 +722,93 @@ export function buildDeterministicPlan(
     intent.goals.includes("redesign");
 
   if (designRequested) {
-    addTask(
-      "Create one coordinated visual direction",
-      () => {
-        const design = designDecision(
-          playbook,
-          intent.moods,
-          [
-            context.business.name,
-            context.business.city ?? "",
-            context.business.state ?? "",
-            page?.id ?? "",
-          ].join("|"),
-        );
+    addTask("Create one coordinated visual direction", () => {
+      const design = designDecision(
+        playbook,
+        intent.moods,
+        [
+          context.business.name,
+          context.business.city ?? "",
+          context.business.state ?? "",
+          page?.id ?? "",
+        ].join("|"),
+      );
 
+      pushUnique(
+        actions,
+        {
+          type: "set_theme",
+          patch: design.theme,
+        },
+        cap,
+      );
+
+      pushUnique(
+        actions,
+        {
+          type: "set_backdrop",
+          backdrop: design.backdrop,
+        },
+        cap,
+      );
+
+      const hero = page?.sections.find((section) => section.kind === "hero") ?? page?.sections[0];
+
+      if (hero) {
         pushUnique(
           actions,
           {
-            type: "set_theme",
-            patch: design.theme,
+            type: "set_section_effect",
+            sectionId: hero.id,
+            effect: design.heroEffect,
           },
           cap,
         );
 
-        pushUnique(
-          actions,
-          {
-            type: "set_backdrop",
-            backdrop: design.backdrop,
-          },
-          cap,
-        );
+        if (hero.kind === "hero") {
+          const variant =
+            design.density === "full"
+              ? "banner"
+              : design.density === "compact"
+                ? "stacked"
+                : "split";
 
-        const hero =
-          page?.sections.find(
-            (section) =>
-              section.kind === "hero",
-          ) ??
-          page?.sections[0];
+          pushUnique(
+            actions,
+            {
+              type: "set_section_variant",
+              sectionId: hero.id,
+              variant,
+            },
+            cap,
+          );
+        }
+      }
 
-        if (hero) {
+      if (design.bodyEffect !== "none" && page) {
+        const bodySections = page.sections
+          .filter((section) => section.kind !== "hero")
+          .slice(0, intent.visualIntensity >= 2 ? 4 : 2);
+
+        for (const section of bodySections) {
           pushUnique(
             actions,
             {
               type: "set_section_effect",
-              sectionId: hero.id,
-              effect: design.heroEffect,
+              sectionId: section.id,
+              effect: design.bodyEffect,
             },
             cap,
           );
-
-          if (
-            hero.kind === "hero"
-          ) {
-            const variant =
-              design.density === "full"
-                ? "banner"
-                : design.density ===
-                    "compact"
-                  ? "stacked"
-                  : "split";
-
-            pushUnique(
-              actions,
-              {
-                type: "set_section_variant",
-                sectionId: hero.id,
-                variant,
-              },
-              cap,
-            );
-          }
         }
+      }
 
-        if (
-          design.bodyEffect !== "none" &&
-          page
-        ) {
-          const bodySections =
-            page.sections
-              .filter(
-                (section) =>
-                  section.kind !==
-                  "hero",
-              )
-              .slice(
-                0,
-                intent.visualIntensity >= 2
-                  ? 4
-                  : 2,
-              );
+      notes.push(...design.rationale.slice(1));
 
-          for (const section of bodySections) {
-            pushUnique(
-              actions,
-              {
-                type: "set_section_effect",
-                sectionId: section.id,
-                effect:
-                  design.bodyEffect,
-              },
-              cap,
-            );
-          }
-        }
+      completed.add("design");
 
-        notes.push(
-          ...design.rationale.slice(1),
-        );
-
-        completed.add("design");
-
-        return true;
-      },
-    );
+      return true;
+    });
   }
 
   /* ---------------------------------------------------------------------- */
@@ -1049,89 +816,54 @@ export function buildDeterministicPlan(
   /* ---------------------------------------------------------------------- */
 
   if (intent.wholeSite) {
-    addTask(
-      "Finish the site's missing pages",
-      () => {
-        let created = false;
-        let index = 0;
+    addTask("Finish the site's missing pages", () => {
+      let created = false;
+      let index = 0;
 
-        for (const wanted of playbook.pages) {
-          if (actions.length >= cap) {
-            break;
-          }
-
-          const slug = slugify(
-            wanted.slug ||
-              wanted.title,
-          );
-
-          if (!slug) {
-            continue;
-          }
-
-          const exists =
-            context.pages.some(
-              (existingPage) =>
-                normaliseSlug(
-                  existingPage.slug,
-                ) === slug,
-            );
-
-          if (exists) {
-            continue;
-          }
-
-          const ref =
-            `temp_master_page_${index++}`;
-
-          buildPage(
-            actions,
-            ref,
-            wanted.title,
-            wanted.kind,
-            context,
-            facts,
-            playbook,
-            cap,
-          );
-
-          created = true;
+      for (const wanted of playbook.pages) {
+        if (actions.length >= cap) {
+          break;
         }
 
-        if (created) {
-          completed.add("pages");
+        const slug = slugify(wanted.slug || wanted.title);
+
+        if (!slug) {
+          continue;
         }
 
-        return created;
-      },
-    );
+        const exists = context.pages.some(
+          (existingPage) => normaliseSlug(existingPage.slug) === slug,
+        );
+
+        if (exists) {
+          continue;
+        }
+
+        const ref = `temp_master_page_${index++}`;
+
+        buildPage(actions, ref, wanted.title, wanted.kind, context, facts, playbook, cap);
+
+        created = true;
+      }
+
+      if (created) {
+        completed.add("pages");
+      }
+
+      return created;
+    });
 
     if (page) {
-      addTask(
-        "Upgrade the home page into a complete conversion journey",
-        () => {
-          const before =
-            actions.length;
+      addTask("Upgrade the home page into a complete conversion journey", () => {
+        const before = actions.length;
 
-          improveExistingPage(
-            actions,
-            page,
-            context,
-            facts,
-            playbook,
-            intent,
-            cap,
-          );
+        improveExistingPage(actions, page, context, facts, playbook, intent, cap);
 
-          completed.add("structure");
-          completed.add("conversion");
+        completed.add("structure");
+        completed.add("conversion");
 
-          return (
-            actions.length >
-            before
-          );
-        },
-      );
+        return actions.length > before;
+      });
     }
   }
 
@@ -1139,31 +871,15 @@ export function buildDeterministicPlan(
   /* Explicit section operations                                            */
   /* ---------------------------------------------------------------------- */
 
-  for (const operation of sectionOperations(
-    intent,
-  )) {
-    if (
-      !allowedSections.has(
-        operation.kind,
-      ) ||
-      !page
-    ) {
+  for (const operation of sectionOperations(intent)) {
+    if (!allowedSections.has(operation.kind) || !page) {
       continue;
     }
 
-    const existing =
-      findSection(
-        page,
-        operation.kind,
-      );
+    const existing = findSection(page, operation.kind);
 
     /* Remove */
-    if (
-      operation.verbs.includes(
-        "remove",
-      ) &&
-      existing
-    ) {
+    if (operation.verbs.includes("remove") && existing) {
       pushUnique(
         actions,
         {
@@ -1178,12 +894,7 @@ export function buildDeterministicPlan(
     }
 
     /* Hide */
-    if (
-      operation.verbs.includes(
-        "hide",
-      ) &&
-      existing
-    ) {
+    if (operation.verbs.includes("hide") && existing) {
       pushUnique(
         actions,
         {
@@ -1199,12 +910,7 @@ export function buildDeterministicPlan(
     }
 
     /* Show */
-    if (
-      operation.verbs.includes(
-        "show",
-      ) &&
-      existing
-    ) {
+    if (operation.verbs.includes("show") && existing) {
       pushUnique(
         actions,
         {
@@ -1220,28 +926,16 @@ export function buildDeterministicPlan(
     }
 
     /* Resize */
-    if (
-      operation.verbs.includes(
-        "resize",
-      ) &&
-      existing
-    ) {
-      const bigger =
-        /\b(bigger|larger|taller|full[\s-]?screen)\b/i.test(
-          operation.raw,
-        );
+    if (operation.verbs.includes("resize") && existing) {
+      const bigger = /\b(bigger|larger|taller|full[\s-]?screen)\b/i.test(operation.raw);
 
-      if (
-        existing.kind === "hero"
-      ) {
+      if (existing.kind === "hero") {
         pushUnique(
           actions,
           {
             type: "set_section_variant",
             sectionId: existing.id,
-            variant: bigger
-              ? "banner"
-              : "stacked",
+            variant: bigger ? "banner" : "stacked",
           },
           cap,
         );
@@ -1251,8 +945,7 @@ export function buildDeterministicPlan(
             actions,
             {
               type: "set_section_effect",
-              sectionId:
-                existing.id,
+              sectionId: existing.id,
               effect: "rise",
             },
             cap,
@@ -1265,34 +958,17 @@ export function buildDeterministicPlan(
     }
 
     /* Rewrite / restyle */
-    if (
-      (
-        operation.verbs.includes(
-          "rewrite",
-        ) ||
-        operation.verbs.includes(
-          "restyle",
-        )
-      ) &&
-      existing
-    ) {
-      const copy =
-        sectionCopy(
-          operation.kind,
-          facts,
-          playbook,
-        );
+    if ((operation.verbs.includes("rewrite") || operation.verbs.includes("restyle")) && existing) {
+      const copy = sectionCopy(operation.kind, facts, playbook);
 
       if (copy.heading) {
         pushUnique(
           actions,
           {
             type: "set_section_text",
-            sectionId:
-              existing.id,
+            sectionId: existing.id,
             field: "heading",
-            value:
-              copy.heading,
+            value: copy.heading,
           },
           cap,
         );
@@ -1303,11 +979,9 @@ export function buildDeterministicPlan(
           actions,
           {
             type: "set_section_text",
-            sectionId:
-              existing.id,
+            sectionId: existing.id,
             field: "subheading",
-            value:
-              copy.subheading,
+            value: copy.subheading,
           },
           cap,
         );
@@ -1318,11 +992,9 @@ export function buildDeterministicPlan(
           actions,
           {
             type: "set_section_text",
-            sectionId:
-              existing.id,
+            sectionId: existing.id,
             field: "body",
-            value:
-              copy.body,
+            value: copy.body,
           },
           cap,
         );
@@ -1335,16 +1007,7 @@ export function buildDeterministicPlan(
     /* Add missing section */
     if (
       !existing &&
-      operation.verbs.some(
-        (verb) =>
-          [
-            "add",
-            "build",
-            "show",
-            "rewrite",
-            "restyle",
-          ].includes(verb),
-      )
+      operation.verbs.some((verb) => ["add", "build", "show", "rewrite", "restyle"].includes(verb))
     ) {
       addSection(
         actions,
@@ -1372,42 +1035,25 @@ export function buildDeterministicPlan(
       break;
     }
 
-    const slug =
-      slugify(label);
+    const slug = slugify(label);
 
     if (!slug) {
       continue;
     }
 
-    const exists =
-      context.pages.some(
-        (existingPage) =>
-          normaliseSlug(
-            existingPage.slug,
-          ) === slug,
-      );
+    const exists = context.pages.some((existingPage) => normaliseSlug(existingPage.slug) === slug);
 
     if (exists) {
       continue;
     }
 
-    const guessedKind =
-      pageKindFromLabel(
-        label,
-        slug,
-      );
+    const guessedKind = pageKindFromLabel(label, slug);
 
-    const kind =
-      context.pageKinds.includes(
-        guessedKind,
-      )
-        ? guessedKind
-        : context.pageKinds.includes(
-              "custom",
-            )
-          ? "custom"
-          : context.pageKinds[0] ??
-            "custom";
+    const kind = context.pageKinds.includes(guessedKind)
+      ? guessedKind
+      : context.pageKinds.includes("custom")
+        ? "custom"
+        : (context.pageKinds[0] ?? "custom");
 
     buildPage(
       actions,
@@ -1427,150 +1073,83 @@ export function buildDeterministicPlan(
   /* Explicit target-page rewrite                                           */
   /* ---------------------------------------------------------------------- */
 
-  if (
-    intent.verbs.includes(
-      "rewrite",
-    ) &&
-    page &&
-    !intent.sectionKinds.length
-  ) {
-    addTask(
-      "Rewrite weak page sections",
-      () => {
-        const before =
-          actions.length;
+  if (intent.verbs.includes("rewrite") && page && !intent.sectionKinds.length) {
+    addTask("Rewrite weak page sections", () => {
+      const before = actions.length;
 
-        for (const section of page.sections.slice(
-          0,
-          12,
-        )) {
-          const copy =
-            sectionCopy(
-              section.kind,
-              facts,
-              playbook,
-            );
+      for (const section of page.sections.slice(0, 12)) {
+        const copy = sectionCopy(section.kind, facts, playbook);
 
-          if (
-            !section.heading &&
-            copy.heading
-          ) {
-            pushUnique(
-              actions,
-              {
-                type: "set_section_text",
-                sectionId:
-                  section.id,
-                field:
-                  "heading",
-                value:
-                  copy.heading,
-              },
-              cap,
-            );
-          }
-
-          if (
-            !section.subheading &&
-            copy.subheading
-          ) {
-            pushUnique(
-              actions,
-              {
-                type: "set_section_text",
-                sectionId:
-                  section.id,
-                field:
-                  "subheading",
-                value:
-                  copy.subheading,
-              },
-              cap,
-            );
-          }
-
-          if (
-            !section.body &&
-            copy.body
-          ) {
-            pushUnique(
-              actions,
-              {
-                type: "set_section_text",
-                sectionId:
-                  section.id,
-                field:
-                  "body",
-                value:
-                  copy.body,
-              },
-              cap,
-            );
-          }
+        if (!section.heading && copy.heading) {
+          pushUnique(
+            actions,
+            {
+              type: "set_section_text",
+              sectionId: section.id,
+              field: "heading",
+              value: copy.heading,
+            },
+            cap,
+          );
         }
 
-        completed.add(
-          "copy",
-        );
+        if (!section.subheading && copy.subheading) {
+          pushUnique(
+            actions,
+            {
+              type: "set_section_text",
+              sectionId: section.id,
+              field: "subheading",
+              value: copy.subheading,
+            },
+            cap,
+          );
+        }
 
-        return (
-          actions.length >
-          before
-        );
-      },
-    );
+        if (!section.body && copy.body) {
+          pushUnique(
+            actions,
+            {
+              type: "set_section_text",
+              sectionId: section.id,
+              field: "body",
+              value: copy.body,
+            },
+            cap,
+          );
+        }
+      }
+
+      completed.add("copy");
+
+      return actions.length > before;
+    });
   }
 
   /* ---------------------------------------------------------------------- */
   /* Sitewide SEO                                                            */
   /* ---------------------------------------------------------------------- */
 
-  if (
-    intent.verbs.includes(
-      "seo",
-    ) ||
-    intent.goals.includes(
-      "seo",
-    ) ||
-    intent.wholeSite
-  ) {
-    addTask(
-      "Strengthen search metadata",
-      () => {
-        const before =
-          actions.length;
+  if (intent.verbs.includes("seo") || intent.goals.includes("seo") || intent.wholeSite) {
+    addTask("Strengthen search metadata", () => {
+      const before = actions.length;
 
-        for (const candidate of context.pages.slice(
-          0,
-          20,
-        )) {
-          pushUnique(
-            actions,
-            {
-              type: "set_page",
-              pageId:
-                candidate.id,
-              patch: pageSeo(
-                candidate.title ||
-                  "Home",
-                facts,
-                playbook,
-              ),
-            },
-            cap,
-          );
-        }
-
-        completed.add(
-          "seo",
+      for (const candidate of context.pages.slice(0, 20)) {
+        pushUnique(
+          actions,
+          {
+            type: "set_page",
+            pageId: candidate.id,
+            patch: pageSeo(candidate.title || "Home", facts, playbook),
+          },
+          cap,
         );
+      }
 
-        return (
-          actions.length >
-          before
-        );
-      },
-    );
+      completed.add("seo");
+
+      return actions.length > before;
+    });
   }
 
   /* ---------------------------------------------------------------------- */
@@ -1579,205 +1158,111 @@ export function buildDeterministicPlan(
 
   if (
     page &&
-    (
-      intent.verbs.includes(
-        "cta",
-      ) ||
-      intent.goals.some(
-        (goal) =>
-          [
-            "conversion",
-            "leads",
-            "booking",
-            "calls",
-          ].includes(goal),
-      ) ||
-      intent.wholeSite
-    )
+    (intent.verbs.includes("cta") ||
+      intent.goals.some((goal) => ["conversion", "leads", "booking", "calls"].includes(goal)) ||
+      intent.wholeSite)
   ) {
-    addTask(
-      "Strengthen the primary action",
-      () => {
-        const target =
-          ctaTarget(facts);
+    addTask("Strengthen the primary action", () => {
+      const target = ctaTarget(facts);
 
-        const candidates =
-          intent.everyPage ||
-          intent.wholeSite
-            ? context.pages.slice(
-                0,
-                12,
-              )
-            : [page];
+      const candidates = intent.everyPage || intent.wholeSite ? context.pages.slice(0, 12) : [page];
 
-        const before =
-          actions.length;
+      const before = actions.length;
 
-        for (const candidate of candidates) {
-          const host =
-            candidate.sections.find(
-              (section) =>
-                section.kind ===
-                "hero",
-            ) ??
-            candidate.sections[0];
+      for (const candidate of candidates) {
+        const host =
+          candidate.sections.find((section) => section.kind === "hero") ?? candidate.sections[0];
 
-          if (!host) {
-            continue;
-          }
-
-          const label =
-            playbook.ctaLabels
-              .primary;
-
-          const alreadyHasCTA =
-            host.components.some(
-              (component) =>
-                component.kind ===
-                  "button" ||
-                component.link_url ===
-                  target?.url,
-            );
-
-          if (alreadyHasCTA) {
-            continue;
-          }
-
-          pushUnique(
-            actions,
-            {
-              type: "add_component",
-              sectionId:
-                host.id,
-              kind: "button",
-              label,
-              link_url:
-                target?.url ??
-                "/contact",
-              link_label:
-                label,
-            },
-            cap,
-          );
+        if (!host) {
+          continue;
         }
 
-        completed.add(
-          "conversion",
+        const label = playbook.ctaLabels.primary;
+
+        const alreadyHasCTA = host.components.some(
+          (component) => component.kind === "button" || component.link_url === target?.url,
         );
 
-        return (
-          actions.length >
-          before
+        if (alreadyHasCTA) {
+          continue;
+        }
+
+        pushUnique(
+          actions,
+          {
+            type: "add_component",
+            sectionId: host.id,
+            kind: "button",
+            label,
+            link_url: target?.url ?? "/contact",
+            link_label: label,
+          },
+          cap,
         );
-      },
-    );
+      }
+
+      completed.add("conversion");
+
+      return actions.length > before;
+    });
   }
 
   /* ---------------------------------------------------------------------- */
   /* Mobile                                                                   */
   /* ---------------------------------------------------------------------- */
 
-  if (
-    intent.verbs.includes(
-      "mobile",
-    ) ||
-    intent.goals.includes(
-      "mobile",
-    ) ||
-    intent.wholeSite
-  ) {
-    addTask(
-      "Harden the mobile journey",
-      () => {
-        if (!page) {
-          return false;
-        }
+  if (intent.verbs.includes("mobile") || intent.goals.includes("mobile") || intent.wholeSite) {
+    addTask("Harden the mobile journey", () => {
+      if (!page) {
+        return false;
+      }
 
-        if (
-          !allowedSections.has(
-            "sticky_cta",
-          )
-        ) {
-          notes.push(
-            "Mobile responsiveness is handled by the existing renderer; no unsupported mobile-only section was invented.",
-          );
-
-          completed.add(
-            "mobile",
-          );
-
-          return true;
-        }
-
-        const alreadyExists =
-          page.sections.some(
-            (section) =>
-              section.kind ===
-              "sticky_cta",
-          );
-
-        if (!alreadyExists) {
-          const copy =
-            sectionCopy(
-              "sticky_cta",
-              facts,
-              playbook,
-            );
-
-          pushUnique(
-            actions,
-            {
-              type: "add_section",
-              pageId: page.id,
-              kind: "sticky_cta",
-              heading:
-                copy.heading ||
-                undefined,
-              subheading:
-                copy.subheading ||
-                undefined,
-              body:
-                copy.body ||
-                undefined,
-              position:
-                page.sections.length,
-            },
-            cap,
-          );
-        }
-
-        completed.add(
-          "mobile",
+      if (!allowedSections.has("sticky_cta")) {
+        notes.push(
+          "Mobile responsiveness is handled by the existing renderer; no unsupported mobile-only section was invented.",
         );
 
+        completed.add("mobile");
+
         return true;
-      },
-    );
+      }
+
+      const alreadyExists = page.sections.some((section) => section.kind === "sticky_cta");
+
+      if (!alreadyExists) {
+        const copy = sectionCopy("sticky_cta", facts, playbook);
+
+        pushUnique(
+          actions,
+          {
+            type: "add_section",
+            pageId: page.id,
+            kind: "sticky_cta",
+            heading: copy.heading || undefined,
+            subheading: copy.subheading || undefined,
+            body: copy.body || undefined,
+            position: page.sections.length,
+          },
+          cap,
+        );
+      }
+
+      completed.add("mobile");
+
+      return true;
+    });
   }
 
   /* ---------------------------------------------------------------------- */
   /* Missing factual information                                             */
   /* ---------------------------------------------------------------------- */
 
-  if (
-    intent.locationHint
-  ) {
-    const currentPlace =
-      place(facts);
+  if (intent.locationHint) {
+    const currentPlace = place(facts);
 
-    const town =
-      intent.locationHint
-        .split(",")[0]
-        ?.trim()
-        .toLowerCase() ??
-      "";
+    const town = intent.locationHint.split(",")[0]?.trim().toLowerCase() ?? "";
 
-    if (
-      !currentPlace ||
-      !currentPlace
-        .toLowerCase()
-        .includes(town)
-    ) {
+    if (!currentPlace || !currentPlace.toLowerCase().includes(town)) {
       questions.push(
         currentPlace
           ? `You mentioned "${intent.locationHint}". Should that replace your current service area "${currentPlace}" or only apply to this page?`
@@ -1786,18 +1271,9 @@ export function buildDeterministicPlan(
     }
   } else if (
     !place(facts) &&
-    (
-      intent.goals.includes(
-        "local_seo",
-      ) ||
-      intent.verbs.includes(
-        "seo",
-      )
-    )
+    (intent.goals.includes("local_seo") || intent.verbs.includes("seo"))
   ) {
-    questions.push(
-      "What city, town or service area should the website target?",
-    );
+    questions.push("What city, town or service area should the website target?");
   }
 
   /* ---------------------------------------------------------------------- */
@@ -1805,16 +1281,9 @@ export function buildDeterministicPlan(
   /* ---------------------------------------------------------------------- */
 
   if (
-    (
-      intent.sectionKinds.includes(
-        "reviews",
-      ) ||
-      /\breviews?\b|\btestimonials?\b/i.test(
-        instruction,
-      )
-    ) &&
-    context.business
-      .publishedReviewCount === 0
+    (intent.sectionKinds.includes("reviews") ||
+      /\breviews?\b|\btestimonials?\b/i.test(instruction)) &&
+    context.business.publishedReviewCount === 0
   ) {
     questions.push(
       "Send the real reviews or review source you want displayed; I will not invent reviews.",
@@ -1826,33 +1295,20 @@ export function buildDeterministicPlan(
   /* ---------------------------------------------------------------------- */
 
   if (
-    (
-      intent.sectionKinds.includes(
-        "pricing",
-      ) ||
-      /\bprices?\b|\bpricing\b|\brates?\b/i.test(
-        instruction,
-      )
-    ) &&
+    (intent.sectionKinds.includes("pricing") ||
+      /\bprices?\b|\bpricing\b|\brates?\b/i.test(instruction)) &&
     context.business.services.every(
-      (service) =>
-        service.price == null &&
-        service.startingPrice ==
-          null,
+      (service) => service.price == null && service.startingPrice == null,
     )
   ) {
-    questions.push(
-      "What prices or starting prices should be shown?",
-    );
+    questions.push("What prices or starting prices should be shown?");
   }
 
   /* ---------------------------------------------------------------------- */
   /* Audience                                                                */
   /* ---------------------------------------------------------------------- */
 
-  if (
-    intent.audienceHint
-  ) {
+  if (intent.audienceHint) {
     notes.push(
       `Audience detected: ${intent.audienceHint}. Copy should be written for that audience without inventing business facts.`,
     );
@@ -1862,14 +1318,10 @@ export function buildDeterministicPlan(
   /* Attachments                                                             */
   /* ---------------------------------------------------------------------- */
 
-  if (
-    options.attachments?.length
-  ) {
+  if (options.attachments?.length) {
     notes.push(
       `Kept ${options.attachments.length} attachment${
-        options.attachments.length === 1
-          ? ""
-          : "s"
+        options.attachments.length === 1 ? "" : "s"
       } in context. Visual/content claims are not invented from filenames alone.`,
     );
   }
@@ -1878,12 +1330,7 @@ export function buildDeterministicPlan(
   /* Fact protection                                                         */
   /* ---------------------------------------------------------------------- */
 
-  if (
-    intent.keepFacts ||
-    intent.constraints.includes(
-      "no_invention",
-    )
-  ) {
+  if (intent.keepFacts || intent.constraints.includes("no_invention")) {
     notes.push(
       "Business facts are treated as source-of-truth data. The builder will not manufacture reviews, prices, credentials, guarantees or results.",
     );
@@ -1900,15 +1347,11 @@ export function buildDeterministicPlan(
     intent.goals.length > 0 ||
     intent.newPages.length > 0;
 
-  let coverage:
-    DeterministicPlan["coverage"];
+  let coverage: DeterministicPlan["coverage"];
 
   if (actions.length === 0) {
     coverage = "none";
-  } else if (
-    recognised &&
-    intent.unrecognised.length === 0
-  ) {
+  } else if (recognised && intent.unrecognised.length === 0) {
     coverage = "full";
   } else {
     coverage = "partial";
@@ -1918,32 +1361,21 @@ export function buildDeterministicPlan(
   /* External reasoning flag                                                 */
   /* ---------------------------------------------------------------------- */
 
-  const requiresExternalReasoning =
-    actions.length === 0;
+  const requiresExternalReasoning = actions.length === 0;
 
-  let externalReason:
-    string | null = null;
+  let externalReason: string | null = null;
 
-  if (
-    actions.length === 0
-  ) {
+  if (actions.length === 0) {
     if (
-      options.attachments
-        ?.some(
-          (attachment) =>
-            attachment.kind ===
-              "image" ||
-            attachment.kind ===
-              "video" ||
-            attachment.kind ===
-              "audio",
-        )
+      options.attachments?.some(
+        (attachment) =>
+          attachment.kind === "image" || attachment.kind === "video" || attachment.kind === "audio",
+      )
     ) {
       externalReason =
         "The uploaded content must be interpreted before safe edits can be selected.";
     } else {
-      externalReason =
-        "The request did not map to a supported website change.";
+      externalReason = "The request did not map to a supported website change.";
     }
   }
 
@@ -1951,22 +1383,15 @@ export function buildDeterministicPlan(
   /* Empty-plan protection                                                   */
   /* ---------------------------------------------------------------------- */
 
-  if (
-    actions.length === 0
-  ) {
-    notes.push(
-      "No destructive or speculative change was generated.",
-    );
+  if (actions.length === 0) {
+    notes.push("No destructive or speculative change was generated.");
   }
 
   /* ---------------------------------------------------------------------- */
   /* Summary                                                                 */
   /* ---------------------------------------------------------------------- */
 
-  const summaryBits =
-    Array.from(
-      completed,
-    );
+  const summaryBits = Array.from(completed);
 
   const summary =
     summaryBits.length > 0
@@ -1976,14 +1401,8 @@ export function buildDeterministicPlan(
   const reply =
     actions.length > 0
       ? `I understood the request and prepared ${actions.length} website update${
-          actions.length === 1
-            ? ""
-            : "s"
-        } across ${
-          summaryBits.join(
-            ", ",
-          ) || "your site"
-        }.`
+          actions.length === 1 ? "" : "s"
+        } across ${summaryBits.join(", ") || "your site"}.`
       : "I could not safely turn that request into a website change without guessing.";
 
   /* ---------------------------------------------------------------------- */
@@ -1994,16 +1413,8 @@ export function buildDeterministicPlan(
     reply,
     summary,
     actions,
-    questions: [
-      ...new Set(
-        questions,
-      ),
-    ].slice(0, 1),
-    notes: [
-      ...new Set(
-        notes,
-      ),
-    ].slice(0, 10),
+    questions: [...new Set(questions)].slice(0, 1),
+    notes: [...new Set(notes)].slice(0, 10),
     coverage,
     trace,
     intent,
@@ -2017,7 +1428,4 @@ export function buildDeterministicPlan(
 /* Public helper                                                              */
 /* -------------------------------------------------------------------------- */
 
-export const isFullyHandled = (
-  plan: DeterministicPlan,
-): boolean =>
-  plan.coverage === "full";
+export const isFullyHandled = (plan: DeterministicPlan): boolean => plan.coverage === "full";

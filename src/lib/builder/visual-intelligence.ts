@@ -60,28 +60,14 @@ export type ImageTreatment =
   | "cutout"
   | "full_bleed";
 
-export type CardGeometry =
-  | "soft"
-  | "sharp"
-  | "pill"
-  | "glass"
-  | "editorial"
-  | "floating";
+export type CardGeometry = "soft" | "sharp" | "pill" | "glass" | "editorial" | "floating";
 
-export type SectionDensity =
-  | "airy"
-  | "balanced"
-  | "dense";
+export type SectionDensity = "airy" | "balanced" | "dense";
 
 export type MotionIntensity = 0 | 1 | 2 | 3;
 
 export type ResponsiveStrategy =
-  | "stack"
-  | "preserve_split"
-  | "image_first"
-  | "text_first"
-  | "center_mobile"
-  | "compact_mobile";
+  "stack" | "preserve_split" | "image_first" | "text_first" | "center_mobile" | "compact_mobile";
 
 export type VisualSystem = {
   archetype: VisualArchetype;
@@ -171,24 +157,12 @@ function hash(input: string): number {
   return h >>> 0;
 }
 
-function pick<T>(items: readonly T[], seed: string): T {
-  if (!items.length) throw new Error("visual-intelligence-empty-choice");
-  return items[hash(seed) % items.length]!;
-}
-
 function hasAny(source: string, words: string[]) {
   return words.some((word) => source.includes(word));
 }
 
-function archetypeFor(
-  facts: Facts,
-  moods: StyleMood[],
-): VisualArchetype {
-  const source = text(
-    facts.industry,
-    facts.description,
-    facts.name,
-  );
+function archetypeFor(facts: Facts, moods: StyleMood[]): VisualArchetype {
+  const source = text(facts.industry, facts.description, facts.name);
 
   if (moods.includes("premium")) {
     return "luxury";
@@ -208,44 +182,16 @@ function archetypeFor(
     return "editorial";
   }
 
-  if (
-    hasAny(source, [
-      "restaurant",
-      "food",
-      "cafe",
-      "bakery",
-      "catering",
-      "bar",
-      "coffee",
-    ])
-  ) {
+  if (hasAny(source, ["restaurant", "food", "cafe", "bakery", "catering", "bar", "coffee"])) {
     return "cinematic";
   }
 
-  if (
-    hasAny(source, [
-      "salon",
-      "spa",
-      "beauty",
-      "barber",
-      "fashion",
-      "boutique",
-      "wedding",
-    ])
-  ) {
+  if (hasAny(source, ["salon", "spa", "beauty", "barber", "fashion", "boutique", "wedding"])) {
     return "luxury";
   }
 
   if (
-    hasAny(source, [
-      "software",
-      "technology",
-      "saas",
-      "ai ",
-      "cyber",
-      "engineering",
-      "marketing",
-    ])
+    hasAny(source, ["software", "technology", "saas", "ai ", "cyber", "engineering", "marketing"])
   ) {
     return "technical";
   }
@@ -274,10 +220,7 @@ function archetypeFor(
   return "conversion";
 }
 
-function systemForArchetype(
-  archetype: VisualArchetype,
-  seed: string,
-): VisualSystem {
+function systemForArchetype(archetype: VisualArchetype, seed: string): VisualSystem {
   const defaults: Record<VisualArchetype, VisualSystem> = {
     cinematic: {
       archetype,
@@ -862,10 +805,7 @@ export function visualSystemFor(
   return system;
 }
 
-export function visualSectionPlan(
-  kind: string,
-  system: VisualSystem,
-) {
+export function visualSectionPlan(kind: string, system: VisualSystem) {
   const normalized = kind.toLowerCase();
 
   if (normalized === "hero") {
@@ -886,11 +826,7 @@ export function visualSectionPlan(
     };
   }
 
-  if (
-    normalized === "services" ||
-    normalized === "benefits" ||
-    normalized === "pricing"
-  ) {
+  if (normalized === "services" || normalized === "benefits" || normalized === "pricing") {
     return {
       variant: system.layout.cards,
       imageTreatment: "natural" as const,
@@ -918,5 +854,5 @@ export function visualSectionPlan(
 
 export function visualQualityScore(system: VisualSystem): number {
   const values = Object.values(system.score);
-  return Math.round(values.reduce((sum, value) => sum + value, 0) / values.length * 10);
+  return Math.round((values.reduce((sum, value) => sum + value, 0) / values.length) * 10);
 }
