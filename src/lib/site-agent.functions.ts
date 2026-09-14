@@ -96,6 +96,15 @@ async function loadSite(supabase: SupabaseLike, orgId: string): Promise<LoadedSi
       .order("sort_order"),
   ]);
   if (pages.error) throw new Error("You don't have access to that workspace.");
+  if (sections.error || components.error) {
+    console.error("[site-agent] website content could not be read", {
+      sections: sections.error,
+      components: components.error,
+    });
+    throw new Error(
+      "Revora couldn't read your full website right now. Nothing was changed — please try again.",
+    );
+  }
   return {
     pages: (pages.data ?? []) as LoadedSite["pages"],
     sections: (sections.data ?? []) as LoadedSite["sections"],
@@ -531,7 +540,12 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
       pageIds: new Set(site.pages.map((page) => page.id)),
       sectionIds: new Set(site.sections.map((section) => section.id)),
       componentIds: new Set(site.components.map((component) => component.id)),
-    }).slice(0, MAX_ACTIONS);
+    });
+    if (actions.length > MAX_ACTIONS) {
+      throw new Error(
+        `That batch contains ${actions.length} supported changes, but Revora can safely install up to ${MAX_ACTIONS} at once. Untick a few upgrades, install those first, then continue with the rest.`,
+      );
+    }
     if (!actions.length) throw new Error("Nothing to apply.");
 
     // Snapshot first, so an unwanted change can always be rolled back.
