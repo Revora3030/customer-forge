@@ -39,7 +39,7 @@ export const Route = createFileRoute("/crm/")({
 
 function CrmHubPage() {
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen">
       <SiteHeader />
       <main className="mx-auto max-w-4xl px-4 pt-14 pb-20 sm:px-6 sm:pt-20">
         <h1 className="font-display text-[clamp(1.7rem,4.4vw,2.5rem)] leading-tight font-semibold">

@@ -298,7 +298,7 @@ function GetStarted() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen">
       <SiteHeader />
       <main className="mx-auto w-full max-w-3xl px-4 py-10 sm:py-14">
         <p className="eyebrow">Get started</p>

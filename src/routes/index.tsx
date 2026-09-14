@@ -283,7 +283,7 @@ function PriceLine({ className = "" }: { className?: string }) {
 
 function Landing() {
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen">
       <VisualComposition composition={HOMEPAGE_COMPOSITION} />
       <SiteHeader />
 

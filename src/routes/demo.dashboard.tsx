@@ -134,7 +134,7 @@ function DemoDashboard() {
     leads.find((l) => l.id === selectedId) ?? leads[0] ?? workspace.leads[0];
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen">
       <SiteHeader />
       <main>
         <section className="hero-aura border-b border-border">

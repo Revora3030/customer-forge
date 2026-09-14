@@ -111,7 +111,7 @@ function LocalIndustryStatePage() {
   }, [industry.slug, state.slug]);
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen">
       <SiteHeader />
       <main>
         <section className="mx-auto max-w-5xl px-4 pt-14 pb-10 sm:px-6 sm:pt-20">

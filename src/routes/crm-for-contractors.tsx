@@ -89,7 +89,7 @@ const STEPS = [
 
 function ContractorCrmPage() {
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen">
       <SiteHeader />
       <main className="hero-aura mx-auto max-w-5xl px-4 py-16">
         <p className="eyebrow">CRM for contractors</p>
