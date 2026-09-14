@@ -502,6 +502,100 @@ a[href*="lovable.app"][target="_blank"][class*="fixed"],
   animation: revora-reveal 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
+/* Staggered child entrance for the hero: each direct child rises in,
+   ~70ms apart. Motion is removed under prefers-reduced-motion. */
+@utility hero-stagger {
+  & > * {
+    animation: revora-reveal 520ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  & > *:nth-child(1) {
+    animation-delay: 40ms;
+  }
+  & > *:nth-child(2) {
+    animation-delay: 110ms;
+  }
+  & > *:nth-child(3) {
+    animation-delay: 180ms;
+  }
+  & > *:nth-child(4) {
+    animation-delay: 250ms;
+  }
+  & > *:nth-child(5) {
+    animation-delay: 320ms;
+  }
+  & > *:nth-child(6) {
+    animation-delay: 390ms;
+  }
+  & > *:nth-child(7) {
+    animation-delay: 460ms;
+  }
+  & > *:nth-child(8) {
+    animation-delay: 530ms;
+  }
+}
+
+/* Stage for the hero product preview: entrance rise, soft lift shadow and a
+   slowly pulsing gold under-glow that grounds the panel. */
+@utility preview-stage {
+  position: relative;
+  isolation: isolate;
+  animation: revora-reveal 640ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: 220ms;
+
+  &::before {
+    content: "";
+    position: absolute;
+    inset: auto 6% -7% 6%;
+    height: 42%;
+    z-index: -1;
+    pointer-events: none;
+    background: radial-gradient(
+      62% 100% at 50% 100%,
+      color-mix(in oklab, var(--color-gold) 16%, transparent) 0%,
+      transparent 72%
+    );
+    animation: preview-pulse 6.5s ease-in-out infinite alternate;
+  }
+}
+
+@keyframes preview-pulse {
+  from {
+    opacity: 0.55;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Dashboard chart bars grow from the baseline when the preview enters. */
+@keyframes grow-up {
+  from {
+    transform: scaleY(0.06);
+  }
+  to {
+    transform: scaleY(1);
+  }
+}
+@utility grow-bar {
+  transform-origin: bottom;
+  animation: grow-up 720ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Scroll-driven section reveals — pure CSS, progressive enhancement.
+   Browsers without scroll timelines show content statically. */
+@supports (animation-timeline: view()) {
+  .scroll-reveal {
+    animation: revora-reveal 1ms linear both;
+    animation-timeline: view();
+    animation-range: entry 4% entry 40%;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .scroll-reveal {
+    animation: none;
+  }
+}
+
 /* ==========================================================================
    Website effects — animated backdrops and 3D/motion section treatments the
    builder and Website Assistant can install on a client's site. Pure CSS, so

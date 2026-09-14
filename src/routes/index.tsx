@@ -291,7 +291,7 @@ function Landing() {
         {/* HERO */}
         <section className="hero-aura border-b border-border">
           <div className="mx-auto grid max-w-6xl gap-12 px-4 py-14 lg:grid-cols-[1.02fr_0.98fr] lg:items-start lg:gap-10 lg:py-20">
-            <div className="reveal min-w-0 lg:pt-4">
+            <div className="hero-stagger min-w-0 lg:pt-4">
               <Pill tone="signal">
                 <Sparkles className="size-3.5" aria-hidden="true" /> REVORA™ — AI growth system for
                 local businesses
@@ -333,7 +333,9 @@ function Landing() {
                 ))}
               </dl>
             </div>
-            <DashboardPreview />
+            <div className="preview-stage">
+              <DashboardPreview />
+            </div>
           </div>
         </section>
 

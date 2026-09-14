@@ -1,11 +1,50 @@
+import { useEffect, useState } from "react";
+import { BellRing, CalendarCheck, MessageSquare, Star } from "lucide-react";
 import { MetricCard, Pill } from "@/components/app/Bits";
 
 const BARS = [22, 34, 28, 46, 52, 41, 64, 58, 72, 66, 84, 100];
 
+const ACTIVITY = [
+  { icon: MessageSquare, text: "Quote answered in 41s — pressure washing" },
+  { icon: CalendarCheck, text: "Job booked — Tue 9:00 AM, confirmed instantly" },
+  { icon: Star, text: "Review request delivered — after-job follow-up" },
+  { icon: BellRing, text: "3 quiet leads nudged with a second-chance offer" },
+] as const;
+
+/** The system never sleeps — this strip quietly cycles real work it just did. */
+function ActivityTicker() {
+  const [index, setIndex] = useState(0);
+
+  useEffect(() => {
+    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reduced) return;
+    const timer = window.setInterval(() => setIndex((i) => (i + 1) % ACTIVITY.length), 3200);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  const Current = ACTIVITY[index] ?? ACTIVITY[0]!;
+
+  return (
+    <div
+      aria-hidden="true"
+      className="flex items-center gap-2.5 border-t border-border bg-elevated/60 px-3.5 py-2.5"
+    >
+      <span className="relative flex size-2">
+        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-60" />
+        <span className="relative inline-flex size-2 rounded-full bg-primary" />
+      </span>
+      <Current.icon className="size-3.5 shrink-0 text-primary" />
+      <span key={index} className="reveal truncate text-[11.5px] text-muted-foreground">
+        {Current.text}
+      </span>
+    </div>
+  );
+}
+
 /** Static, honest product preview: real dashboard chrome, clearly labelled demo. */
 export function DashboardPreview() {
   return (
-    <div className="panel overflow-hidden p-0" aria-label="Product preview">
+    <div className="panel shadow-lift overflow-hidden p-0" aria-label="Product preview">
       <div className="flex items-center justify-between border-b border-border bg-elevated px-3.5 py-2.5">
         <span className="eyebrow">Business Command Center</span>
         <Pill tone="signal">Demo data</Pill>
@@ -26,8 +65,8 @@ export function DashboardPreview() {
                 {[8, 12, 10, 16, 20, 32].map((h, i) => (
                   <span
                     key={i}
-                    className={`w-1.5 rounded-sm ${i > 3 ? "bg-primary" : i > 2 ? "bg-primary/60" : "bg-border"}`}
-                    style={{ height: h }}
+                    className={`grow-bar w-1.5 rounded-sm ${i > 3 ? "bg-primary" : i > 2 ? "bg-primary/60" : "bg-border"}`}
+                    style={{ height: h, animationDelay: `${420 + i * 60}ms` }}
                   />
                 ))}
               </div>
@@ -51,8 +90,8 @@ export function DashboardPreview() {
             {BARS.map((h, i) => (
               <div
                 key={i}
-                className={`flex-1 rounded-sm ${i === BARS.length - 1 ? "bg-primary" : "bg-primary/35"}`}
-                style={{ height: `${h}%` }}
+                className={`grow-bar flex-1 rounded-sm ${i === BARS.length - 1 ? "bg-primary" : "bg-primary/35"}`}
+                style={{ height: `${h}%`, animationDelay: `${520 + i * 45}ms` }}
               />
             ))}
           </div>
@@ -128,6 +167,8 @@ export function DashboardPreview() {
           </div>
         </div>
       </div>
+
+      <ActivityTicker />
     </div>
   );
 }

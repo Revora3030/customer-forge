@@ -22,6 +22,14 @@ export function ogUrl(path: string) {
   return { property: "og:url", content: absoluteUrl(path) } as const;
 }
 
+/** og:image meta entries for the brand social card. */
+export const OG_IMAGE = {
+  url: absoluteUrl("/og.jpg"),
+  width: 1200,
+  height: 630,
+  alt: "Revora — AI growth software that books local jobs 24/7",
+} as const;
+
 /** canonical link entry for a page path. */
 export function canonicalLink(path: string) {
   return { rel: "canonical", href: absoluteUrl(path) } as const;
