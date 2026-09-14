@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { auditPublicWebsite } from "@/lib/audit/website-audit";
+import { emitN8nEvent } from "@/lib/connectors/n8n.server";
 
 export const auditExistingWebsite = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -12,6 +13,15 @@ export const auditExistingWebsite = createServerFn({ method: "POST" })
     return { organizationId, url };
   })
   .handler(async ({ data, context }) => {
+    const { data: membership, error: membershipError } = await context.supabase
+      .from("memberships")
+      .select("organization_id")
+      .eq("organization_id", data.organizationId)
+      .eq("user_id", context.userId)
+      .maybeSingle();
+
+    if (membershipError || !membership) throw new Error("You don't have access to this workspace.");
+
     const audit = await auditPublicWebsite(data.url);
     const supabase = context.supabase;
 
@@ -51,10 +61,16 @@ export const auditExistingWebsite = createServerFn({ method: "POST" })
           observed: finding.observed,
         })),
       );
-      if (findingError) {
-        console.error("[website-audit] findings could not be saved", findingError);
-      }
+      if (findingError) console.error("[website-audit] findings could not be saved", findingError);
     }
+
+    // Optional: if n8n is not configured this is a no-op, so the audit remains
+    // fully functional without any third-party service.
+    void emitN8nEvent({
+      organizationId: data.organizationId,
+      event: "website.audit.completed",
+      data: { auditId: savedAudit.id, score: audit.score, url: audit.finalUrl },
+    });
 
     return { ...audit, auditId: savedAudit.id };
   });
