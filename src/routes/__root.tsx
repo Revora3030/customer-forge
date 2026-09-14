@@ -12,7 +12,7 @@ import appCss from "../styles.css?url";
 import { Toaster } from "@/components/ui/sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { ensureProfile, enforceSessionPolicy, resolvePostLoginPath } from "@/lib/auth-session";
-import { ORGANIZATION_SCHEMA, WEBSITE_SCHEMA } from "@/lib/seo";
+import { OG_IMAGE, ORGANIZATION_SCHEMA, WEBSITE_SCHEMA } from "@/lib/seo";
 import { RouteError, RouteNotFound } from "@/components/app/RouteStates";
 import { PlatformAnalytics } from "@/components/marketing/PlatformAnalytics";
 
@@ -36,6 +36,11 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { property: "og:site_name", content: "Revora Growth Systems" },
       { property: "og:locale", content: "en_US" },
       { name: "twitter:card", content: "summary_large_image" },
+      { property: "og:image", content: OG_IMAGE.url },
+      { property: "og:image:width", content: String(OG_IMAGE.width) },
+      { property: "og:image:height", content: String(OG_IMAGE.height) },
+      { property: "og:image:alt", content: OG_IMAGE.alt },
+      { name: "twitter:image", content: OG_IMAGE.url },
       // Indexing is the crawler default, so this only widens previews/snippets.
       // Deliberately no "index, follow": that would fight the "noindex" that
       // not-found and private screens emit, and conflicting directives resolve

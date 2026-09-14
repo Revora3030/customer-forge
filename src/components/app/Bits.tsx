@@ -100,7 +100,7 @@ export function SectionHeading({
   return (
     <div
       className={cn(
-        "grid grid-cols-[minmax(0,1fr)_auto] items-end gap-3 sm:flex sm:justify-between",
+        "scroll-reveal grid grid-cols-[minmax(0,1fr)_auto] items-end gap-3 sm:flex sm:justify-between",
         className,
       )}
     >
