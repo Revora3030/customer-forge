@@ -77,11 +77,14 @@ export function canAutoContinueAfterVerification(input: {
   hasHighImpactChange?: boolean;
 }): boolean {
   const policy = input.policy ?? DEFAULT_AUTONOMY_POLICY;
-  return shouldRepairQuality({
+  const qualityInput = {
     score: clampQualityScore(input.score),
-    previousScore: input.previousScore,
     iteration: input.iteration,
     policy,
-    hasHighImpactChange: input.hasHighImpactChange,
-  });
+    ...(input.previousScore !== undefined ? { previousScore: input.previousScore } : {}),
+    ...(input.hasHighImpactChange !== undefined
+      ? { hasHighImpactChange: input.hasHighImpactChange }
+      : {}),
+  };
+  return shouldRepairQuality(qualityInput);
 }

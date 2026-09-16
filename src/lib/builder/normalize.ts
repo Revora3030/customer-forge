@@ -55,7 +55,7 @@ const IDIOMS: [RegExp, string][] = [
   [/\bdo not change my information\b/g, "keep business facts"], [/\blooks? (?:old fashioned|outdated|dated|old school)\b/g, "premium modern"], [/\blooks? cluttered\b/g, "minimal hierarchy"],
   [/\btoo busy\b/g, "minimal"], [/\btoo much going on\b/g, "minimal hierarchy"], [/\btoo plain\b/g, "premium visual"], [/\bboring\b/g, "visual bolder"], [/\bbland\b/g, "visual premium"],
   [/\bmake it pop\b/g, "visual bolder"], [/\bmake it wow\b/g, "visual premium"], [/\beye[- ]catching\b/g, "visual bolder"], [/\bmake it mobile friendly\b/g, "mobile"],
-  [/\bworks? on phones?\b/g, "mobile"], [/\bphone friendly\b/g, "mobile"], [/\bload faster\b/g, "speed"], [/\bshow up (?:higher )?(?:in|on) google\b/g, "seo"], [/\brank (?:higher|better)\b/g, "seo"],
+  [/\b(?:work|works) (?:great |really |well )?on phones?\b/g, "mobile"], [/\bphone friendly\b/g, "mobile"], [/\bload faster\b/g, "speed"], [/\bshow up (?:higher )?(?:in|on) google\b/g, "seo"], [/\brank (?:higher|better)\b/g, "seo"],
   [/\bfound (?:locally|online|on google)\b/g, "seo"], [/\bnear me searches?\b/g, "local seo"], [/\bmake it easier\b/g, "simple hierarchy"], [/\bkeep it simple\b/g, "simple minimal"],
   [/\bdo the same\b/g, "repeat previous change"], [/\bdo that everywhere\b/g, "on every page"],
 ];
@@ -96,6 +96,10 @@ const SUBJECT_WORDS = [
 export function normaliseSubjectOnly(previous: string): string | null {
   let text = fixTypos(collapse(previous.toLowerCase()));
   for (const [pattern, replacement] of IDIOMS) text = text.replace(pattern, replacement);
-  const found = SUBJECT_WORDS.filter((word) => text.includes(word));
+  const found = SUBJECT_WORDS
+    .map((word) => ({ word, index: text.indexOf(word) }))
+    .filter((item) => item.index >= 0)
+    .sort((a, b) => a.index - b.index)
+    .map((item) => item.word);
   return found.length ? found.slice(0, 4).join(" ") : null;
 }
