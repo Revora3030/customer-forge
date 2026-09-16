@@ -47,7 +47,7 @@ export function buildAutonomousPlan(
       ...plan,
       trace: unique([
         ...plan.trace,
-        autopilotSummary(diagnosis),
+        `Site readiness: ${autopilotSummary(diagnosis)}`,
       ]),
     };
   }
