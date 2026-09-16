@@ -37,9 +37,8 @@ export default tseslint.config(
       "@typescript-eslint/no-unused-vars": "off",
     },
   },
-  // These files intentionally use low-level sentinels/control-character
-  // handling and one test fixture uses a structural context cast. Keep those
-  // narrow exceptions local instead of weakening lint across the repository.
+  // Narrow CI compatibility exceptions for intentional low-level builder code.
+  // Keep the exceptions scoped to the exact files that currently need them.
   {
     files: [
       "src/lib/builder/autonomous-brain.test.ts",
