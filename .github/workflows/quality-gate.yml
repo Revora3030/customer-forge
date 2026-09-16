@@ -2,7 +2,9 @@ name: Revora Quality Gate
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
+      - fix/revora-master-audit-ci
   pull_request:
     branches: [main]
 
