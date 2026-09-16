@@ -41,8 +41,30 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      - name: Start E2E server
+        run: |
+          npm run dev -- --host 127.0.0.1 --port 8080 > /tmp/revora-e2e.log 2>&1 &
+          echo $! > /tmp/revora-e2e.pid
+          for attempt in {1..30}; do
+            if curl --fail --silent --show-error http://127.0.0.1:8080/ >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat /tmp/revora-e2e.log
+          exit 1
+
       - name: Test
+        env:
+          E2E_BASE_URL: http://127.0.0.1:8080
         run: npm test
+
+      - name: Stop E2E server
+        if: always()
+        run: |
+          if [ -f /tmp/revora-e2e.pid ]; then
+            kill "$(cat /tmp/revora-e2e.pid)" 2>/dev/null || true
+          fi
 
       - name: Production build
         run: npm run build
