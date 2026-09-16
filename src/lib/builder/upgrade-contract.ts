@@ -82,6 +82,8 @@ export function shouldRepairQuality(input: {
   const score = clampQualityScore(input.score);
   const previous = input.previousScore == null ? null : clampQualityScore(input.previousScore);
   if (score >= policy.qualityTarget) return false;
-  if (previous != null && score <= previous - policy.minimumImprovementForRepair) return false;
+  // A repair pass must produce a real quality improvement. With the default
+  // minimum of 1 point, an unchanged score cannot trigger another pass.
+  if (previous != null && score < previous + policy.minimumImprovementForRepair) return false;
   return true;
 }
