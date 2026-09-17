@@ -289,11 +289,11 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
     // A language model is only consulted when the request needs judgement the
     // rules cannot supply, and if no provider is available the deterministic
     // plan is still returned, so the builder is never unusable.
-    const { buildDeterministicPlan } = await import("@/lib/builder/deterministic");
+    const { buildAutonomousPlan } = await import("@/lib/builder/autonomous-brain");
     // Uploads no longer sideline Revora's own builder: the structural work is
     // planned natively, and an outside model is only consulted when the upload's
     // contents genuinely have to be read before anything can change.
-    const deterministic = buildDeterministicPlan(agentContext, instruction, {
+    const deterministic = buildAutonomousPlan(agentContext, instruction, {
       history: data.history
         .filter((turn) => turn.role === "user")
         .map((turn) => turn.content)
