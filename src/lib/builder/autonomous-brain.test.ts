@@ -21,7 +21,7 @@ describe("autonomous brain", () => {
   it("turns a vague request into a diagnosis-informed deterministic plan", () => {
     const plan = buildAutonomousPlan(context, "make my website better and get me more customers");
     expect(plan.actions.length).toBeGreaterThan(0);
-    expect(plan.trace.some((item) => item.includes("Autonomous Brain v3"))).toBe(true);
+    expect(plan.trace.some((item) => item.includes("Autonomous Brain v2"))).toBe(true);
     expect(plan.trace.some((item) => item.includes("customer acquisition"))).toBe(true);
     expect(plan.notes.some((item) => item.includes("Trust") || item.includes("FAQ"))).toBe(true);
   });
@@ -47,7 +47,9 @@ describe("autonomous brain", () => {
   });
 
   it("carries a prior subject into a follow-up request", () => {
-    const plan = buildAutonomousPlan(context, "make it better", ["make the hero look premium"]);
+    const plan = buildAutonomousPlan(context, "make it better", {
+      history: ["make the hero look premium"],
+    });
     expect(plan.actions.length).toBeGreaterThan(0);
     expect(plan.trace.some((item) => item.includes("carried forward the prior subject"))).toBe(true);
   });
