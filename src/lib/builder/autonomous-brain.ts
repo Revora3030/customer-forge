@@ -1,5 +1,5 @@
 /**
- * REVORA AUTONOMOUS BUILDER BRAIN v3
+ * REVORA AUTONOMOUS BUILDER BRAIN v4
  *
  * Free-first decision layer between plain-English outcomes and the existing
  * deterministic compiler. It diagnoses the current workspace, normalises
@@ -17,6 +17,7 @@ import { diagnoseSite, applyAutopilot, autopilotSummary } from "./autopilot";
 import { interpret } from "./interpreter";
 import { normalise } from "./normalize";
 import { qualityProfile } from "./quality-profile";
+import { guardAutonomousPlan } from "./plan-quality";
 
 const unique = <T>(items: T[]): T[] => [...new Set(items)];
 
@@ -106,14 +107,16 @@ function outcomeTerms(instruction: string, inferred: { goals: string[]; verbs: s
   };
 }
 
+function finalizePlan(context: AgentContext, plan: DeterministicPlan): DeterministicPlan {
+  return guardAutonomousPlan(context, plan);
+}
+
 /**
  * Build one coherent plan from a broad outcome request.
  *
- * v3 makes the language normaliser the first semantic boundary. That means
- * typos, contractions, idioms and follow-up pronouns are resolved before the
- * autonomous diagnosis and outcome bundles make decisions. The original text
- * remains available to the deterministic compiler through the final prompt,
- * so normalisation improves matching without discarding user wording.
+ * v4 adds a final pure quality boundary after compilation. The compiler still
+ * owns action generation; this guard only removes duplicate or unresolved work
+ * before a plan can cross the autonomous boundary.
  */
 export function buildAutonomousPlan(
   context: AgentContext,
@@ -130,7 +133,7 @@ export function buildAutonomousPlan(
 
   if (!broadRequest(planningInstruction)) {
     const plan = buildDeterministicPlan(context, planningInstruction, options);
-    return {
+    return finalizePlan(context, {
       ...plan,
       trace: unique([
         ...plan.trace,
@@ -139,7 +142,7 @@ export function buildAutonomousPlan(
           : "",
         `Site readiness: ${autopilotSummary(diagnosis)}`,
       ].filter(Boolean)),
-    };
+    });
   }
 
   const priorities = qualityProfile({
@@ -175,7 +178,7 @@ export function buildAutonomousPlan(
 
   const plan = buildDeterministicPlan(context, enrichedInstruction, options);
 
-  return {
+  return finalizePlan(context, {
     ...plan,
     trace: unique([
       ...plan.trace,
@@ -195,5 +198,5 @@ export function buildAutonomousPlan(
       diagnosis.missingTrust ? "Trust structure is limited; only existing real proof may be used." : "",
       diagnosis.missingFaq ? "FAQ opportunity detected; answers must remain factual." : "",
     ].filter(Boolean)),
-  };
+  });
 }
