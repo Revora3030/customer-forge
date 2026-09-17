@@ -1,4 +1,4 @@
-export function critiquePlan(plan: { actions: { type: string }[]; notes: string[]; trace: string[] }) {
+export function critiquePlan<T extends { actions: { type: string }[]; notes: string[]; trace: string[] }>(plan: T): T {
   const actionTypes = new Set(plan.actions.map((action) => action.type));
   const notes = [...plan.notes];
   const trace = [...plan.trace];
