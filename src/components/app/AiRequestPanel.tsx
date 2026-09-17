@@ -61,6 +61,7 @@ export function AiRequestPanel({
 }: {
   organizationId: string | null;
   canManage: boolean;
+  /** Switch to the AI workspace, where uploads, voice and history live. */
   onOpenAi: () => void;
   compact?: boolean;
 }) {
@@ -72,6 +73,7 @@ export function AiRequestPanel({
   const [ideasOpen, setIdeasOpen] = useState(false);
   const queryClient = useQueryClient();
 
+  // Honest report of what this device can do. Building never depends on it.
   useEffect(() => {
     let live = true;
     detectCapabilities().then(
@@ -87,7 +89,9 @@ export function AiRequestPanel({
 
   const planFn = useServerFn(planWebsiteChanges);
   const applyFn = useServerFn(applyWebsiteChanges);
+
   const ready = canManage && Boolean(organizationId);
+  /** Full plan actions kept out of React state: only the labels are editable. */
   const actionsRef = useRef(new Map<string, AgentStep>());
   const runningRef = useRef(false);
 
@@ -159,6 +163,9 @@ export function AiRequestPanel({
         questions,
         retryable: Boolean(result.unavailable?.retryable),
       };
+      // A request that ended in nothing actionable must never sit in a silent
+      // hold with no working button. Empty plans become an honest, retryable
+      // failure ("Didn't work") unless the engine is waiting on an answer.
       if (plannedSteps.length === 0 && questions.length === 0) {
         planned.state = terminalStateForEmptyPlan({
           steps: plannedSteps,
@@ -189,6 +196,7 @@ export function AiRequestPanel({
     }
   };
 
+  // Work the queue: one request at a time, in the order they were added.
   useEffect(() => {
     if (!ready || runningRef.current) return;
     const next = nextRunnable(tasks);
@@ -291,6 +299,7 @@ export function AiRequestPanel({
                   {QUEUE_LABELS[task.state]}
                 </span>
               </div>
+
               {task.reply ? (
                 <p className="mt-1.5 text-[12.5px] text-muted-foreground">{task.reply}</p>
               ) : null}
@@ -301,6 +310,7 @@ export function AiRequestPanel({
                   {task.failedCount ? `, ${task.failedCount} couldn't be applied` : ""}.
                 </p>
               ) : null}
+
               {task.questions.length ? (
                 <ul className="mt-2 space-y-1 text-[12px]">
                   {task.questions.map((question) => (
@@ -308,6 +318,7 @@ export function AiRequestPanel({
                   ))}
                 </ul>
               ) : null}
+
               {task.steps.length ? (
                 <ul className="mt-2 space-y-1">
                   {task.steps.map((step, index) => (
@@ -387,6 +398,7 @@ export function AiRequestPanel({
                   ))}
                 </ul>
               ) : null}
+
               <div className="mt-3 flex flex-wrap gap-2">
                 {task.state === "waiting_for_approval" && task.steps.length ? (
                   <Button
