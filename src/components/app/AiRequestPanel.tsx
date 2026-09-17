@@ -180,13 +180,12 @@ export function AiRequestPanel({
         );
       }
       setTasks((current) => updateTask(current, task.id, planned));
-      setConversation((current) =>
-        [
-          ...current,
-          { role: "user", content: task.instruction },
-          ...(result.reply ? [{ role: "assistant" as const, content: result.reply }] : []),
-        ].slice(-8),
-      );
+      const nextConversation = [
+        ...conversation,
+        { role: "user" as const, content: task.instruction },
+        ...(result.reply ? [{ role: "assistant" as const, content: result.reply }] : []),
+      ] satisfies Array<{ role: "user" | "assistant"; content: string }>;
+      setConversation(nextConversation.slice(-8));
       if (!result.unavailable && canAutoApply(planned)) await runBuild(planned);
     } catch (error) {
       patch(task.id, {
