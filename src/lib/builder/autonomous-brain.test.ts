@@ -41,7 +41,7 @@ describe("autonomous brain", () => {
   it("normalises typos and conversational wording before autonomous matching", () => {
     const plan = buildAutonomousPlan(context, "plz make my webiste look premuim and get me more custmers");
     expect(plan.actions.length).toBeGreaterThan(0);
-    expect(plan.trace.some((item) => item.includes("normalised conversational wording"))).toBe(true);
+    expect(plan.trace.some((item) => item.includes("normalised and inspected the existing workspace"))).toBe(true);
     expect(plan.trace.some((item) => item.includes("customer acquisition"))).toBe(true);
     expect(plan.trace.some((item) => item.includes("premium presentation"))).toBe(true);
   });
@@ -51,7 +51,7 @@ describe("autonomous brain", () => {
       history: ["make the hero look premium"],
     });
     expect(plan.actions.length).toBeGreaterThan(0);
-    expect(plan.trace.some((item) => item.includes("carried forward the prior subject"))).toBe(true);
+    expect(plan.trace.some((item) => item.includes("Autonomous Brain v3: carried forward the prior subject"))).toBe(true);
   });
 
   it("keeps explicit requests on the existing compiler path", () => {
