@@ -24,11 +24,6 @@ import {
   type AgentTurn,
 } from "@/lib/site-agent";
 
-/**
- * Planning is a reasoning job, so it asks Revora AI for the "coding" model
- * class. Which provider and model that resolves to is decided by Revora's own
- * AI configuration, never here.
- */
 export const AGENT_ROLE: ModelRole = "coding";
 export const AGENT_FALLBACK_ROLE: ModelRole = "fast";
 
@@ -177,7 +172,6 @@ function siteMap(context: AgentContext) {
 type ContentPart = AiPart;
 export type ChatMessage = AiMessage;
 
-/** Maps an attachment onto Revora AI's provider-independent content part. */
 function attachmentPart(attachment: AgentAttachment): ContentPart {
   if (attachment.kind === "image")
     return { type: "image", dataUrl: attachment.dataUrl, mimeType: attachment.mimeType };
@@ -186,12 +180,6 @@ function attachmentPart(attachment: AgentAttachment): ContentPart {
   return { type: "audio", dataUrl: attachment.dataUrl, mimeType: attachment.mimeType };
 }
 
-/**
- * One JSON call through Revora's own AI layer. Every stage of the agent goes
- * through here, so provider choice, fallback, limits, timeouts, retries and
- * telemetry live in exactly one place — and swapping provider changes nothing
- * in this file.
- */
 export async function callJson(
   role: ModelRole,
   messages: ChatMessage[],
@@ -209,10 +197,10 @@ export async function callJson(
 }
 
 /**
- * Runs one planning turn. `history` carries the conversation so follow-ups like
- * "now do the same on the pricing page" work without repeating the brief.
- * `attachments` are photos, video clips or voice notes the owner sent with the
- * request — the model reads them for context and still may not invent facts.
+ * Runs one planning turn. Native Revora planning is attempted first whenever
+ * the deterministic/autonomous brain can safely satisfy the request. This
+ * keeps the normal builder path free-first and makes this server planner obey
+ * the same safety boundary instead of jumping straight to an external model.
  */
 export async function planChanges(
   context: AgentContext,
@@ -221,6 +209,29 @@ export async function planChanges(
   attachments: AgentAttachment[] = [],
   caller?: Partial<AiCaller>,
 ): Promise<Record<string, unknown>> {
+  const { buildAutonomousPlan } = await import("@/lib/builder/autonomous-brain");
+  const native = buildAutonomousPlan(context, instruction, {
+    history: history
+      .filter((turn) => turn.role === "user")
+      .map((turn) => turn.content)
+      .slice(-6),
+    attachments: attachments.map((attachment) => ({
+      kind: attachment.kind,
+      name: attachment.name,
+    })),
+  });
+
+  if (native.actions.length > 0 && !native.requiresExternalReasoning) {
+    return {
+      reply: native.reply,
+      summary: native.summary,
+      actions: native.actions,
+      questions: native.questions,
+      notes: native.notes,
+      trace: native.trace,
+    };
+  }
+
   const intent = translateIntent(instruction);
   const parts: ContentPart[] = [
     {
@@ -271,8 +282,6 @@ export async function planChanges(
   try {
     return await callJson(AGENT_ROLE, messages, plannerCaller);
   } catch (error) {
-    // A missing provider, a refused key, a usage limit or a rate limit is not
-    // fixed by asking for a different model class.
     if (
       error instanceof RevoraAiError &&
       ["not_configured", "unauthorized", "quota", "policy", "rate_limited", "too_large"].includes(
@@ -286,11 +295,6 @@ export async function planChanges(
 
 /* ------------------------------ voice commands ----------------------------- */
 
-/**
- * Turns a recorded voice command into editable text through Revora's own
- * transcription provider. The owner sees the words before anything is planned,
- * so a mis-heard phrase never becomes a site edit.
- */
 export async function transcribeVoice(
   attachment: AgentAttachment,
   caller?: Partial<AiCaller>,
@@ -310,11 +314,6 @@ export async function transcribeVoice(
 
 export const CHAPTER_ROLE: ModelRole = "vision";
 
-/**
- * Writes short "chapters" for an attached clip so the owner can reference a
- * moment ("use the shot at 0:12") instead of describing it. Descriptive only —
- * no prices, ratings or claims are inferred from footage.
- */
 export async function summarizeChapters(
   attachment: AgentAttachment,
   caller?: Partial<AiCaller>,
