@@ -49,7 +49,7 @@ describe("site agent native planner handoff", () => {
       [],
     );
 
-    expect(result.actions).toHaveLength(1);
-    expect(result.reply).toBe("Updated the section.");
+    expect(result["actions"]).toHaveLength(1);
+    expect(result["reply"]).toBe("Updated the section.");
   });
 });
