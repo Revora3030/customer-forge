@@ -21,7 +21,7 @@ describe("autonomous brain", () => {
   it("turns a vague request into a diagnosis-informed deterministic plan", () => {
     const plan = buildAutonomousPlan(context, "make my website better and get me more customers");
     expect(plan.actions.length).toBeGreaterThan(0);
-    expect(plan.trace.some((item) => item.includes("Autonomous Brain v2"))).toBe(true);
+    expect(plan.trace.some((item) => item.includes("Autonomous Brain v3"))).toBe(true);
     expect(plan.trace.some((item) => item.includes("customer acquisition"))).toBe(true);
     expect(plan.notes.some((item) => item.includes("Trust") || item.includes("FAQ"))).toBe(true);
   });
@@ -36,6 +36,22 @@ describe("autonomous brain", () => {
     const plan = buildAutonomousPlan(context, "help me get found and improve local SEO");
     expect(plan.actions.length).toBeGreaterThan(0);
     expect(plan.trace.some((item) => item.includes("search visibility"))).toBe(true);
+  });
+
+  it("normalises typos and conversational wording before autonomous matching", () => {
+    const plan = buildAutonomousPlan(context, "plz make my webiste look premuim and get me more custmers");
+    expect(plan.actions.length).toBeGreaterThan(0);
+    expect(plan.trace.some((item) => item.includes("normalised and inspected the existing workspace"))).toBe(true);
+    expect(plan.trace.some((item) => item.includes("customer acquisition"))).toBe(true);
+    expect(plan.trace.some((item) => item.includes("premium presentation"))).toBe(true);
+  });
+
+  it("carries a prior subject into a follow-up request", () => {
+    const plan = buildAutonomousPlan(context, "make it better", {
+      history: ["make the hero look premium"],
+    });
+    expect(plan.actions.length).toBeGreaterThan(0);
+    expect(plan.trace.some((item) => item.includes("Autonomous Brain v3: carried forward the prior subject"))).toBe(true);
   });
 
   it("keeps explicit requests on the existing compiler path", () => {

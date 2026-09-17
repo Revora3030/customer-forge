@@ -70,20 +70,29 @@ export function normalise(instruction: string, history: string[] = []): Normalis
   const original = collapse(instruction);
   let text = fixTypos(collapse(original.toLowerCase()));
   for (const [pattern, replacement] of REWRITES) text = text.replace(pattern, replacement);
-  for (const [pattern, replacement] of IDIOMS) text = text.replace(pattern, replacement);
-  text = collapse(text);
 
+  // Capture the follow-up subject before idiom expansion. Phrases such as
+  // "make it better" are intentionally expanded below, but that expansion
+  // would otherwise remove the pronoun that tells us to inspect prior context.
+  const hasFollowUpReference = PRONOUNS.test(text);
   let carried: string | null = null;
-  if (PRONOUNS.test(text)) {
+  if (hasFollowUpReference) {
     for (let index = history.length - 1; index >= 0; index -= 1) {
       const previous = normaliseSubjectOnly(history[index] ?? "");
       if (previous) {
         carried = previous;
-        text = collapse(`${text} ${previous}`);
         break;
       }
     }
   }
+
+  for (const [pattern, replacement] of IDIOMS) text = text.replace(pattern, replacement);
+  text = collapse(text);
+
+  if (carried) {
+    text = collapse(`${text} ${carried}`);
+  }
+
   return { text, original, carried };
 }
 
