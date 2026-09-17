@@ -63,7 +63,7 @@ export function guardAutonomousPlan(
   const actions = [] as DeterministicPlan["actions"];
 
   for (const action of plan.actions.slice(0, MAX_PLAN_ACTIONS)) {
-    const key = JSON.stringify(action);
+    const key = JSON.stringify(action) ?? "";
     if (seen.has(key)) {
       issues.push(`Removed duplicate action: ${action.type}.`);
       continue;
