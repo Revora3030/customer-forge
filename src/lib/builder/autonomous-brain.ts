@@ -1,12 +1,13 @@
 /**
- * REVORA AUTONOMOUS BUILDER BRAIN
+ * REVORA AUTONOMOUS BUILDER BRAIN v2
  *
- * A free-first decision layer between the user's plain-English request and
- * the existing deterministic compiler. It performs:
- *   diagnose -> prioritize -> enrich -> compile -> quality snapshot
+ * Free-first decision layer between plain-English outcomes and the existing
+ * deterministic compiler. It diagnoses the current workspace, translates
+ * business outcomes into coordinated website concerns, then lets the existing
+ * safety compiler produce the actual bounded actions.
  *
- * It does not execute mutations, call a model, access the network, invent
- * business facts, or bypass the existing site-agent safety boundaries.
+ * This layer never executes mutations, calls a model, accesses the network, or
+ * invents business facts.
  */
 
 import type { AgentContext } from "@/lib/site-agent.server";
@@ -22,11 +23,67 @@ const broadRequest = (text: string): boolean => {
   return [
     "make my website better", "make my site better", "improve my website",
     "improve the site", "fix everything", "fix whatever is wrong",
-    "upgrade my website", "make it great", "make this great", "grow my business",
+    "upgrade my website", "make it great", "make this great", "make it better",
+    "grow my business", "grow the business", "help my business grow",
     "get more customers", "get more leads", "get more calls", "get more bookings",
-    "whole site", "entire site", "every page", "all pages",
+    "book more jobs", "sell more", "convert more", "increase conversions",
+    "look more professional", "look premium", "make it premium", "make it modern",
+    "make it look expensive", "make it look better", "make it cleaner",
+    "get found", "rank better", "improve seo", "improve local seo",
+    "fix mobile", "make it mobile friendly", "work better on phones",
+    "whole site", "entire site", "every page", "all pages", "sitewide", "site-wide",
   ].some((phrase) => value.includes(phrase));
 };
+
+/**
+ * Outcome bundles turn human goals into coordinated, deterministic concerns.
+ * They are deliberately additive: the user's request remains the source of
+ * truth and site diagnosis decides which areas are actually worth touching.
+ */
+const OUTCOME_BUNDLES: Array<{ phrases: string[]; terms: string[]; label: string }> = [
+  {
+    phrases: ["more customers", "more leads", "more calls", "more bookings", "book more jobs", "convert more"],
+    terms: ["conversion", "call to action", "leads", "mobile", "trust"],
+    label: "customer acquisition",
+  },
+  {
+    phrases: ["look premium", "look expensive", "more professional", "make it premium", "make it modern", "look better"],
+    terms: ["design", "restyle", "hierarchy", "typography", "premium"],
+    label: "premium presentation",
+  },
+  {
+    phrases: ["get found", "rank better", "improve seo", "local seo"],
+    terms: ["seo", "local seo", "content", "trust"],
+    label: "search visibility",
+  },
+  {
+    phrases: ["fix mobile", "mobile friendly", "work better on phones"],
+    terms: ["mobile", "responsive", "conversion"],
+    label: "mobile experience",
+  },
+  {
+    phrases: ["make it clearer", "make it simple", "make it easier", "less confusing"],
+    terms: ["hierarchy", "clarity", "call to action", "conversion"],
+    label: "clarity and usability",
+  },
+];
+
+function outcomeTerms(instruction: string, inferred: { goals: string[]; verbs: string[]; moods: string[] }) {
+  const value = instruction.toLowerCase();
+  const matched = OUTCOME_BUNDLES.filter((bundle) =>
+    bundle.phrases.some((phrase) => value.includes(phrase)),
+  );
+
+  return {
+    labels: matched.map((bundle) => bundle.label),
+    terms: unique([
+      ...matched.flatMap((bundle) => bundle.terms),
+      ...inferred.goals,
+      ...inferred.verbs,
+      ...inferred.moods,
+    ]),
+  };
+}
 
 /**
  * Build one coherent plan from a broad outcome request.
@@ -40,6 +97,7 @@ export function buildAutonomousPlan(
   const diagnosis = diagnoseSite(context);
   const baseIntent = interpret(instruction, options.history ?? []);
   const inferred = applyAutopilot(context, instruction, baseIntent);
+  const outcomes = outcomeTerms(instruction, inferred);
 
   if (!broadRequest(instruction)) {
     const plan = buildDeterministicPlan(context, instruction, options);
@@ -66,32 +124,25 @@ export function buildAutonomousPlan(
     design: "design restyle hierarchy",
     conversion: "conversion call to action leads",
     content: "rewrite content",
-    mobile: "mobile",
-    seo: "seo",
+    mobile: "mobile responsive",
+    seo: "seo local seo",
     trust: "trust reviews",
     faq: "faq",
   };
 
-  // Only append deterministic concepts that the site diagnosis says are weak.
-  // This lets a vague request trigger a coordinated multi-area improvement
-  // without inventing any business-specific copy or facts.
+  // Diagnosis contributes only areas that are actually weak. Outcome bundles
+  // contribute what the owner explicitly asked to improve. No business fact is
+  // created by either layer.
   const repairTerms = priorities.priorities
     .map((priority) => priorityVocabulary[priority])
-    .filter(Boolean)
-    .join(" ");
+    .filter(Boolean);
 
-  const inferredTerms = unique([
-    ...inferred.goals,
-    ...inferred.verbs,
-    ...inferred.moods,
-  ]).join(" ");
-
-  const enrichedInstruction = [
+  const enrichedInstruction = unique([
     instruction,
-    inferredTerms,
-    repairTerms,
+    ...outcomes.terms,
+    ...repairTerms,
     diagnosis.pages > 1 ? "on every page" : "",
-  ].filter(Boolean).join(" ");
+  ]).filter(Boolean).join(" ");
 
   const plan = buildDeterministicPlan(context, enrichedInstruction, options);
 
@@ -99,11 +150,14 @@ export function buildAutonomousPlan(
     ...plan,
     trace: unique([
       ...plan.trace,
-      "Autonomous Brain: inspected the existing workspace before planning.",
+      "Autonomous Brain v2: inspected the existing workspace before planning.",
       autopilotSummary(diagnosis),
-      `Autonomous Brain: prioritized ${priorities.priorities.length ? priorities.priorities.join(", ") : "no weak dimensions"}.`,
-      "Autonomous Brain: compiled one bounded plan through the existing deterministic safety pipeline.",
-    ]),
+      outcomes.labels.length
+        ? `Autonomous Brain v2: recognized ${outcomes.labels.join(", ")} outcome${outcomes.labels.length === 1 ? "" : "s"}.`
+        : "Autonomous Brain v2: translated the request into site-level concerns.",
+      `Autonomous Brain v2: prioritized ${priorities.priorities.length ? priorities.priorities.join(", ") : "no weak dimensions"}.`,
+      "Autonomous Brain v2: compiled one bounded plan through the existing deterministic safety pipeline.",
+    ],
     notes: unique([
       ...plan.notes,
       diagnosis.missingTrust ? "Trust structure is limited; only existing real proof may be used." : "",
