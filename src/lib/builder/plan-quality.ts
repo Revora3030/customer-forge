@@ -36,16 +36,17 @@ function actionIsSafe(action: unknown, ids: ReturnType<typeof allowedIds>): bool
   if (!action || typeof action !== "object") return false;
   const item = action as Record<string, unknown>;
 
-  if ("pageId" in item && !isAllowedReference(item.pageId, ids.pages)) return false;
-  if ("sectionId" in item && !isAllowedReference(item.sectionId, ids.sections)) return false;
-  if ("componentId" in item && !isAllowedReference(item.componentId, ids.components)) return false;
+  if ("pageId" in item && !isAllowedReference(item["pageId"], ids.pages)) return false;
+  if ("sectionId" in item && !isAllowedReference(item["sectionId"], ids.sections)) return false;
+  if ("componentId" in item && !isAllowedReference(item["componentId"], ids.components)) return false;
 
-  if (item.type === "reorder_sections") {
-    if (!Array.isArray(item.sectionIds)) return false;
-    if (item.sectionIds.some((id) => !isAllowedReference(id, ids.sections))) return false;
+  if (item["type"] === "reorder_sections") {
+    const sectionIds = item["sectionIds"];
+    if (!Array.isArray(sectionIds)) return false;
+    if (sectionIds.some((id) => !isAllowedReference(id, ids.sections))) return false;
   }
 
-  return typeof item.type === "string" && item.type.length > 0;
+  return typeof item["type"] === "string" && item["type"].length > 0;
 }
 
 /**
