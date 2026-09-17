@@ -18,6 +18,7 @@ import { interpret } from "./interpreter";
 import { normalise } from "./normalize";
 import { qualityProfile } from "./quality-profile";
 import { guardAutonomousPlan } from "./plan-quality";
+import { scopeContextForIntent } from "./context-targeting";
 
 const unique = <T>(items: T[]): T[] => [...new Set(items)];
 
@@ -128,17 +129,39 @@ export function buildAutonomousPlan(
   const planningInstruction = normalized.text || instruction;
   const diagnosis = diagnoseSite(context);
   const baseIntent = interpret(planningInstruction, history);
-  const inferred = applyAutopilot(context, planningInstruction, baseIntent);
+  const target = scopeContextForIntent(context, baseIntent);
+
+  if (!target.matched) {
+    return finalizePlan(context, {
+      reply: `I can make that change, but I need to know which page you mean: ${target.requested.join(", ")}.`,
+      summary: "No changes planned because the requested page could not be matched safely.",
+      actions: [],
+      questions: [`Which existing page should I change? I could not match: ${target.requested.join(", ")}.`],
+      notes: ["No homepage fallback was used because the request named a page that could not be resolved."],
+      coverage: "none",
+      trace: ["Autonomous Brain v4: explicit page target could not be resolved; returned a safe no-op."],
+      intent: baseIntent,
+      tasks: [],
+      requiresExternalReasoning: false,
+      externalReason: null,
+    });
+  }
+
+  const planningContext = target.context;
+  const inferred = applyAutopilot(planningContext, planningInstruction, baseIntent);
   const outcomes = outcomeTerms(planningInstruction, inferred);
 
   if (!broadRequest(planningInstruction)) {
-    const plan = buildDeterministicPlan(context, planningInstruction, options);
+    const plan = buildDeterministicPlan(planningContext, planningInstruction, options);
     return finalizePlan(context, {
       ...plan,
       trace: unique([
         ...plan.trace,
         normalized.text !== normalized.original
           ? "Autonomous Brain v3: normalised conversational wording before planning."
+          : "",
+        target.scoped
+          ? `Autonomous Brain v4: scoped planning to page ${target.pageTitle ?? target.pageId ?? "target"}.`
           : "",
         `Site readiness: ${autopilotSummary(diagnosis)}`,
       ].filter(Boolean)),
@@ -173,16 +196,19 @@ export function buildAutonomousPlan(
     planningInstruction,
     ...outcomes.terms,
     ...repairTerms,
-    diagnosis.pages > 1 ? "on every page" : "",
+    diagnosis.pages > 1 && (target.scoped ? false : true) ? "on every page" : "",
   ]).filter(Boolean).join(" ");
 
-  const plan = buildDeterministicPlan(context, enrichedInstruction, options);
+  const plan = buildDeterministicPlan(planningContext, enrichedInstruction, options);
 
   return finalizePlan(context, {
     ...plan,
     trace: unique([
       ...plan.trace,
       "Autonomous Brain v3: normalised and inspected the existing workspace before planning.",
+      target.scoped
+        ? `Autonomous Brain v4: scoped planning to page ${target.pageTitle ?? target.pageId ?? "target"}.`
+        : "",
       autopilotSummary(diagnosis),
       outcomes.labels.length
         ? `Autonomous Brain v3: recognized ${outcomes.labels.join(", ")} outcome${outcomes.labels.length === 1 ? "" : "s"}.`
