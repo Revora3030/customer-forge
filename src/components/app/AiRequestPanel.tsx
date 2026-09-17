@@ -61,7 +61,6 @@ export function AiRequestPanel({
 }: {
   organizationId: string | null;
   canManage: boolean;
-  /** Switch to the AI workspace, where uploads, voice and history live. */
   onOpenAi: () => void;
   compact?: boolean;
 }) {
@@ -69,9 +68,10 @@ export function AiRequestPanel({
   const [howOpen, setHowOpen] = useState(false);
   const [tasks, setTasks] = useState<QueueTask[]>([]);
   const [capabilities, setCapabilities] = useState<BuilderCapabilities | null>(null);
+  const [conversation, setConversation] = useState<Array<{ role: "user" | "assistant"; content: string }>>([]);
+  const [ideasOpen, setIdeasOpen] = useState(false);
   const queryClient = useQueryClient();
 
-  // Honest report of what this device can do. Building never depends on it.
   useEffect(() => {
     let live = true;
     detectCapabilities().then(
@@ -87,9 +87,7 @@ export function AiRequestPanel({
 
   const planFn = useServerFn(planWebsiteChanges);
   const applyFn = useServerFn(applyWebsiteChanges);
-
   const ready = canManage && Boolean(organizationId);
-  /** Full plan actions kept out of React state: only the labels are editable. */
   const actionsRef = useRef(new Map<string, AgentStep>());
   const runningRef = useRef(false);
 
@@ -144,7 +142,7 @@ export function AiRequestPanel({
         data: {
           organizationId: organizationId!,
           instruction: task.instruction,
-          history: [],
+          history: conversation.slice(-8),
           attachments: [],
         },
       });
@@ -161,9 +159,6 @@ export function AiRequestPanel({
         questions,
         retryable: Boolean(result.unavailable?.retryable),
       };
-      // A request that ended in nothing actionable must never sit in a silent
-      // hold with no working button. Empty plans become an honest, retryable
-      // failure ("Didn't work") unless the engine is waiting on an answer.
       if (plannedSteps.length === 0 && questions.length === 0) {
         planned.state = terminalStateForEmptyPlan({
           steps: plannedSteps,
@@ -178,6 +173,13 @@ export function AiRequestPanel({
         );
       }
       setTasks((current) => updateTask(current, task.id, planned));
+      setConversation((current) =>
+        [
+          ...current,
+          { role: "user", content: task.instruction },
+          ...(result.reply ? [{ role: "assistant" as const, content: result.reply }] : []),
+        ].slice(-8),
+      );
       if (!result.unavailable && canAutoApply(planned)) await runBuild(planned);
     } catch (error) {
       patch(task.id, {
@@ -187,7 +189,6 @@ export function AiRequestPanel({
     }
   };
 
-  // Work the queue: one request at a time, in the order they were added.
   useEffect(() => {
     if (!ready || runningRef.current) return;
     const next = nextRunnable(tasks);
@@ -217,18 +218,26 @@ export function AiRequestPanel({
 
   return (
     <section className="panel p-4 sm:p-5">
-      <h2 className="text-[15px] font-medium">Tell Revora what you want.</h2>
-      <p className="mt-1 text-[12.5px] text-muted-foreground">
-        Describe the result in your own words. Add as many requests as you like — Revora works
-        through them one at a time, and you can change any plan before it runs.
-      </p>
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <h2 className="text-[18px] font-semibold tracking-tight">What do you want to build next?</h2>
+          <p className="mt-1 text-[12.5px] text-muted-foreground">
+            Tell Revora the result you want. It figures out the work.
+          </p>
+        </div>
+        {conversation.length ? (
+          <span className="shrink-0 rounded-full border border-border px-2 py-1 text-[10px] text-muted-foreground">
+            Context on
+          </span>
+        ) : null}
+      </div>
       {capabilities ? (
         <p className="mt-1 text-[12px] text-muted-foreground">{capabilities.summary}</p>
       ) : null}
 
       <Textarea
         className="mt-3 min-h-24 text-[13px]"
-        placeholder="Describe what you want to change…"
+        placeholder="Describe what you want to build or change…"
         aria-label="Describe what you want to change"
         value={value}
         maxLength={INSTRUCTION_LIMIT}
@@ -251,7 +260,7 @@ export function AiRequestPanel({
           ) : (
             <Wand2 className="mr-1.5 size-4" aria-hidden />
           )}
-          {tasks.length ? "Add to the list" : "Ask Revora"}
+          {busy ? "Working…" : tasks.length ? "Add to queue" : "Build with Revora"}
         </Button>
         <Button
           size="sm"
@@ -262,7 +271,6 @@ export function AiRequestPanel({
         >
           <ImageIcon className="mr-1.5 size-4" aria-hidden /> Add photo or video
         </Button>
-
         <Button size="sm" variant="outline" onClick={onOpenAi} disabled={!ready}>
           <Mic className="mr-1.5 size-4" aria-hidden /> Speak
         </Button>
@@ -283,7 +291,6 @@ export function AiRequestPanel({
                   {QUEUE_LABELS[task.state]}
                 </span>
               </div>
-
               {task.reply ? (
                 <p className="mt-1.5 text-[12.5px] text-muted-foreground">{task.reply}</p>
               ) : null}
@@ -294,7 +301,6 @@ export function AiRequestPanel({
                   {task.failedCount ? `, ${task.failedCount} couldn't be applied` : ""}.
                 </p>
               ) : null}
-
               {task.questions.length ? (
                 <ul className="mt-2 space-y-1 text-[12px]">
                   {task.questions.map((question) => (
@@ -302,7 +308,6 @@ export function AiRequestPanel({
                   ))}
                 </ul>
               ) : null}
-
               {task.steps.length ? (
                 <ul className="mt-2 space-y-1">
                   {task.steps.map((step, index) => (
@@ -382,7 +387,6 @@ export function AiRequestPanel({
                   ))}
                 </ul>
               ) : null}
-
               <div className="mt-3 flex flex-wrap gap-2">
                 {task.state === "waiting_for_approval" && task.steps.length ? (
                   <Button
@@ -425,23 +429,33 @@ export function AiRequestPanel({
 
       {compact ? null : (
         <div className="mt-4">
-          <p className="eyebrow">Popular requests</p>
-          <div className="mt-2 flex flex-wrap gap-1.5">
-            {BUILDER_QUICK_ACTIONS.map((action) => (
-              <button
-                key={action.label}
-                type="button"
-                disabled={!ready}
-                onClick={() => queue(action.instruction)}
-                className={cn(
-                  "min-h-9 cursor-pointer rounded-full border border-border px-3 py-1.5 text-[12px] text-muted-foreground transition-colors",
-                  "hover:bg-elevated hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none disabled:opacity-50",
-                )}
-              >
-                {action.label}
-              </button>
-            ))}
-          </div>
+          <button
+            type="button"
+            aria-expanded={ideasOpen}
+            onClick={() => setIdeasOpen((open) => !open)}
+            className="flex cursor-pointer items-center gap-1 text-[12px] font-medium text-muted-foreground hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+          >
+            Ideas to get started
+            <ChevronDown className={cn("size-3.5 transition-transform", ideasOpen && "rotate-180")} />
+          </button>
+          {ideasOpen ? (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {BUILDER_QUICK_ACTIONS.map((action) => (
+                <button
+                  key={action.label}
+                  type="button"
+                  disabled={!ready}
+                  onClick={() => queue(action.instruction)}
+                  className={cn(
+                    "min-h-9 cursor-pointer rounded-full border border-border px-3 py-1.5 text-[12px] text-muted-foreground transition-colors",
+                    "hover:bg-elevated hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none disabled:opacity-50",
+                  )}
+                >
+                  {action.label}
+                </button>
+              ))}
+            </div>
+          ) : null}
         </div>
       )}
 
