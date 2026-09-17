@@ -20,7 +20,15 @@ import { qualityProfile } from "./quality-profile";
 
 const unique = <T>(items: T[]): T[] => [...new Set(items)];
 
-/** Determine whether the request describes a broad site-level outcome. */
+/**
+ * Determine whether the request describes a broad site-level outcome.
+ *
+ * Normalisation intentionally rewrites phrases such as "make my website
+ * better" into compiler vocabulary such as "redesign conversion visual...".
+ * Broad detection therefore recognizes both owner language and the stable
+ * vocabulary produced by the normalizer. This prevents semantic preprocessing
+ * from accidentally downgrading a broad request into a narrow request.
+ */
 const broadRequest = (text: string): boolean => {
   const value = text.toLowerCase();
   return [
@@ -36,6 +44,8 @@ const broadRequest = (text: string): boolean => {
     "fix mobile", "make it mobile friendly", "work better on phones",
     "make it clearer", "make it simple", "make it easier", "less confusing",
     "whole site", "entire site", "every page", "all pages", "sitewide", "site-wide",
+    "redesign", "restyle", "conversion", "more leads", "premium visual",
+    "visual hierarchy", "mobile responsive", "local seo",
   ].some((phrase) => value.includes(phrase));
 };
 
@@ -46,27 +56,33 @@ const broadRequest = (text: string): boolean => {
  */
 const OUTCOME_BUNDLES: Array<{ phrases: string[]; terms: string[]; label: string }> = [
   {
-    phrases: ["more customers", "more leads", "more calls", "more bookings", "book more jobs", "convert more"],
+    phrases: [
+      "more customers", "more leads", "more calls", "more bookings", "book more jobs", "convert more",
+      "conversion leads", "conversion calls", "conversion booking", "call to action leads",
+    ],
     terms: ["conversion", "call to action", "leads", "mobile", "trust"],
     label: "customer acquisition",
   },
   {
-    phrases: ["look premium", "look expensive", "more professional", "make it premium", "make it modern", "look better"],
+    phrases: [
+      "look premium", "look expensive", "more professional", "make it premium", "make it modern", "look better",
+      "premium visual", "visual premium", "restyle", "redesign",
+    ],
     terms: ["design", "restyle", "hierarchy", "typography", "premium"],
     label: "premium presentation",
   },
   {
-    phrases: ["get found", "rank better", "improve seo", "local seo"],
+    phrases: ["get found", "rank better", "improve seo", "local seo", "seo"],
     terms: ["seo", "local seo", "content", "trust"],
     label: "search visibility",
   },
   {
-    phrases: ["fix mobile", "mobile friendly", "work better on phones"],
+    phrases: ["fix mobile", "mobile friendly", "work better on phones", "mobile responsive", "mobile"],
     terms: ["mobile", "responsive", "conversion"],
     label: "mobile experience",
   },
   {
-    phrases: ["make it clearer", "make it simple", "make it easier", "less confusing"],
+    phrases: ["make it clearer", "make it simple", "make it easier", "less confusing", "simple hierarchy"],
     terms: ["hierarchy", "clarity", "call to action", "conversion"],
     label: "clarity and usability",
   },
@@ -146,9 +162,6 @@ export function buildAutonomousPlan(
     faq: "faq",
   };
 
-  // Diagnosis contributes only areas that are actually weak. Outcome bundles
-  // contribute what the owner explicitly asked to improve. No business fact is
-  // created by either layer.
   const repairTerms = priorities.priorities
     .map((priority) => priorityVocabulary[priority])
     .filter(Boolean);
