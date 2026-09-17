@@ -1,5 +1,5 @@
 /**
- * REVORA AUTONOMOUS PLAN QUALITY GUARD v4
+ * REVORA AUTONOMOUS PLAN QUALITY GUARD v5
  *
  * Pure, local validation/sanitization for plans produced by the deterministic
  * compiler. It never executes changes, calls a provider, or touches the DB.
@@ -10,6 +10,7 @@
 
 import type { AgentContext } from "@/lib/site-agent.server";
 import type { DeterministicPlan } from "./deterministic";
+import { critiquePlan } from "./plan-critique";
 
 const MAX_PLAN_ACTIONS = 56;
 const TEMP_REF = /^temp_[a-z0-9_-]+$/i;
@@ -58,12 +59,13 @@ export function guardAutonomousPlan(
   context: AgentContext,
   plan: DeterministicPlan,
 ): DeterministicPlan {
+  const critiqued = critiquePlan(plan);
   const ids = allowedIds(context);
   const issues: string[] = [];
   const seen = new Set<string>();
   const actions = [] as DeterministicPlan["actions"];
 
-  for (const action of plan.actions.slice(0, MAX_PLAN_ACTIONS)) {
+  for (const action of critiqued.actions.slice(0, MAX_PLAN_ACTIONS)) {
     const key = JSON.stringify(action) ?? "";
     if (seen.has(key)) {
       issues.push(`Removed duplicate action: ${action.type}.`);
@@ -79,29 +81,29 @@ export function guardAutonomousPlan(
     actions.push(action);
   }
 
-  if (plan.actions.length > MAX_PLAN_ACTIONS)
+  if (critiqued.actions.length > MAX_PLAN_ACTIONS)
     issues.push(`Capped the plan at ${MAX_PLAN_ACTIONS} actions.`);
 
-  const changed = actions.length !== plan.actions.length;
+  const changed = actions.length !== critiqued.actions.length;
   const coverage =
-    actions.length === 0 && plan.actions.length > 0
+    actions.length === 0 && critiqued.actions.length > 0
       ? "none"
-      : changed && plan.coverage === "full"
+      : changed && critiqued.coverage === "full"
         ? "partial"
-        : plan.coverage;
+        : critiqued.coverage;
 
   return {
-    ...plan,
+    ...critiqued,
     actions,
     coverage,
     trace: unique([
-      ...plan.trace,
+      ...critiqued.trace,
       issues.length
-        ? `Autonomous Brain v4: quality guard ${issues.length} correction${issues.length === 1 ? "" : "s"} applied before execution.`
-        : "Autonomous Brain v4: quality guard passed the native plan.",
+        ? `Autonomous Brain v5: quality guard ${issues.length} correction${issues.length === 1 ? "" : "s"} applied before execution.`
+        : "Autonomous Brain v5: quality guard passed the native plan.",
     ]),
     notes: unique([
-      ...plan.notes,
+      ...critiqued.notes,
       ...issues,
     ]),
   };
