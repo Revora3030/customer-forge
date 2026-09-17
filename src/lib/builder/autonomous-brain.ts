@@ -18,6 +18,7 @@ import { qualityProfile } from "./quality-profile";
 
 const unique = <T>(items: T[]): T[] => [...new Set(items)];
 
+/** Determine whether the request describes a broad site-level outcome. */
 const broadRequest = (text: string): boolean => {
   const value = text.toLowerCase();
   return [
@@ -31,6 +32,7 @@ const broadRequest = (text: string): boolean => {
     "make it look expensive", "make it look better", "make it cleaner",
     "get found", "rank better", "improve seo", "improve local seo",
     "fix mobile", "make it mobile friendly", "work better on phones",
+    "make it clearer", "make it simple", "make it easier", "less confusing",
     "whole site", "entire site", "every page", "all pages", "sitewide", "site-wide",
   ].some((phrase) => value.includes(phrase));
 };
@@ -68,6 +70,7 @@ const OUTCOME_BUNDLES: Array<{ phrases: string[]; terms: string[]; label: string
   },
 ];
 
+/** Translate a request and inferred intent into deduplicated outcome terms. */
 function outcomeTerms(instruction: string, inferred: { goals: string[]; verbs: string[]; moods: string[] }) {
   const value = instruction.toLowerCase();
   const matched = OUTCOME_BUNDLES.filter((bundle) =>
@@ -157,7 +160,7 @@ export function buildAutonomousPlan(
         : "Autonomous Brain v2: translated the request into site-level concerns.",
       `Autonomous Brain v2: prioritized ${priorities.priorities.length ? priorities.priorities.join(", ") : "no weak dimensions"}.`,
       "Autonomous Brain v2: compiled one bounded plan through the existing deterministic safety pipeline.",
-    ],
+    ]),
     notes: unique([
       ...plan.notes,
       diagnosis.missingTrust ? "Trust structure is limited; only existing real proof may be used." : "",
