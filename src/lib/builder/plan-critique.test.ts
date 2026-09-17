@@ -7,6 +7,7 @@ describe("autonomous plan self-critique", () => {
       actions: [{ type: "set_section_text" }],
       notes: [],
       trace: [],
+      coverage: "full",
     };
 
     const result = critiquePlan(plan);
@@ -16,7 +17,7 @@ describe("autonomous plan self-critique", () => {
   });
 
   it("keeps an empty plan safe and explains why nothing should execute", () => {
-    const result = critiquePlan({ actions: [], notes: [], trace: [] });
+    const result = critiquePlan({ actions: [], notes: [], trace: [], coverage: "none" });
 
     expect(result.actions).toEqual([]);
     expect(result.notes).toContain(
