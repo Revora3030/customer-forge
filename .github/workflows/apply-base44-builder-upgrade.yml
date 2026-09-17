@@ -1,0 +1,61 @@
+name: Apply Base44-style builder upgrade
+
+on:
+  push:
+    branches: [feat/base44-style-super-builder]
+    paths:
+      - .github/workflows/apply-base44-builder-upgrade.yml
+      - .patches/base44-builder-upgrade.patch.gz.b64
+
+permissions:
+  contents: write
+
+jobs:
+  apply-and-verify:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout upgrade branch
+        uses: actions/checkout@v4
+        with:
+          ref: feat/base44-style-super-builder
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Pin npm
+        run: npm install --global npm@11.6.0
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Decode and verify source patch
+        run: |
+          base64 -d .patches/base44-builder-upgrade.patch.gz.b64 | gzip -dc > /tmp/base44-builder-upgrade.patch
+          git apply --check /tmp/base44-builder-upgrade.patch
+
+      - name: Apply source patch
+        run: git apply /tmp/base44-builder-upgrade.patch
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        run: npm test
+
+      - name: Production build
+        run: npm run build
+
+      - name: Commit validated builder upgrade
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          rm -f .github/workflows/apply-base44-builder-upgrade.yml .patches/base44-builder-upgrade.patch.gz.b64
+          git add -A
+          git commit -m 'feat: make Revora builder prompt-first and context-aware'
+          git push origin HEAD:feat/base44-style-super-builder
