@@ -13,6 +13,6 @@ describe('outcome-based improvement history', () => {
 
   it('prioritizes confidence before recommendation volume', () => {
     const result = prioritizeRecommendations([{ id: 'low', title: 'Low', rationale: '', metric: 'organicClicks', direction: 'increase', confidence: 'low', evidence: ['a', 'b'] }, { id: 'high', title: 'High', rationale: '', metric: 'organicClicks', direction: 'increase', confidence: 'high', evidence: ['a'] }]);
-    expect(result[0].id).toBe('high');
+    expect(result.at(0)?.id).toBe('high');
   });
 });
