@@ -95,6 +95,8 @@ export function inspectHtml(html: string, where: string): PageInspection {
     "Google has a description to show",
     Boolean(description && description.length > 20),
     "warning",
+    undefined,
+    "seo",
   );
 
   const viewport = metas.some((tag) => /name\s*=\s*["']viewport["']/i.test(tag));
@@ -126,7 +128,7 @@ export function inspectHtml(html: string, where: string): PageInspection {
   const canonical = /<link\b[^>]*rel\s*=\s*["']canonical["']/i.test(html);
   add("Search engines have a canonical URL", canonical, "warning", undefined, "seo");
 
-  const structuredData = /<script\b[^>]*type\s*=\s*["']application\/ld\\+json["']/i.test(html);
+  const structuredData = /<script\b[^>]*type\s*=\s*["']application\/ld\+json["']/i.test(html);
   add("Structured data is present", structuredData, "warning", undefined, "seo");
 
   const body = stripped(html);
