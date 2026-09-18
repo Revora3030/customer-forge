@@ -301,6 +301,61 @@ export function componentTools(kind: ElementKind): ToolId[] {
  * and element (and its database id) keeps an AI edit scoped to what the client
  * selected instead of rewriting the whole site.
  */
+/** Preview tier used when the client asks AI to change what they are looking at. */
+export type VisualEditDevice = "desktop" | "tablet" | "mobile";
+
+/**
+ * Builds a selection-aware visual-edit prompt. This is deliberately additive:
+ * it gives the assistant hard scope and device context while leaving the
+ * existing request planner and executor unchanged.
+ */
+export function visualEditInstruction(
+  request: string,
+  page: ContentPage | null,
+  section: ContentSection | null,
+  component: ContentComponent | null,
+  device: VisualEditDevice = "desktop",
+): string {
+  const base = aiInstruction(request, page, section, component);
+  if (!page && !section && !component) return base;
+
+  const target = component ? "selected element" : section ? "selected section" : "selected page";
+  const guidance = [
+    "Visual edit mode is active.",
+    "Preview device: " + device + ".",
+    "Treat the " + target + " as the hard edit boundary. Do not rewrite unrelated pages, sections, or components.",
+    "Preserve existing factual business details, links, and working functionality unless the request explicitly changes them.",
+    "Prefer the smallest coherent set of native edits that makes the requested visual change obvious at the selected device size.",
+  ];
+
+  return [base, ...guidance].join("\n");
+}
+
+/** Contextual prompts shown beside a selected block; intentionally deterministic and editable. */
+export function visualEditSuggestions(
+  component: ContentComponent | null,
+  section: ContentSection | null,
+): string[] {
+  if (component) {
+    switch (elementKindOf(component)) {
+      case "button":
+        return ["Make this CTA stand out", "Improve this button copy", "Make this button feel more premium"];
+      case "image":
+        return ["Improve this image presentation", "Make this image fit the section better", "Improve this image alt text"];
+      case "review":
+        return ["Make this testimonial easier to trust", "Improve the review layout", "Make this review feel more premium"];
+      case "faq":
+        return ["Make this answer clearer", "Improve the FAQ presentation", "Make this question easier to scan"];
+      default:
+        return ["Make this more premium", "Improve this content hierarchy", "Make this easier to scan"];
+    }
+  }
+  if (section) {
+    return ["Make this section more premium", "Improve this section hierarchy", "Make this section convert better"];
+  }
+  return ["Make this page more polished", "Improve this page hierarchy", "Make this page easier to scan"];
+}
+
 export function aiInstruction(
   request: string,
   page: ContentPage | null,

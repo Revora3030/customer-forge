@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   aiInstruction,
+  visualEditInstruction,
+  visualEditSuggestions,
   breadcrumb,
   componentTools,
   duplicateComponentPayload,
@@ -169,4 +171,21 @@ describe("AI addressing", () => {
   it("passes a bare request through when nothing is selected", () => {
     expect(aiInstruction(" add a booking page ", null, null, null)).toBe("add a booking page");
   });
+
+  it("adds hard visual-edit scope and device context", () => {
+    const instruction = visualEditInstruction("make this cleaner", page(), section(), component(), "mobile");
+    expect(instruction).toContain("Visual edit mode is active.");
+    expect(instruction).toContain("Preview device: mobile.");
+    expect(instruction).toContain("hard edit boundary");
+    expect(instruction).toContain("make this cleaner");
+  });
+
+  it("offers deterministic suggestions for the selected element", () => {
+    expect(visualEditSuggestions(component(), section())).toContain("Make this CTA stand out");
+    expect(visualEditSuggestions(component({ kind: "gallery" }), section())).toContain(
+      "Improve this image presentation",
+    );
+    expect(visualEditSuggestions(null, section())).toContain("Make this section more premium");
+  });
+
 });
