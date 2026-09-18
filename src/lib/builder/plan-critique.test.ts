@@ -13,7 +13,7 @@ describe("autonomous plan self-critique", () => {
     const result = critiquePlan(plan);
 
     expect(result.actions).toEqual(plan.actions);
-    expect(result.trace.join("\n")).toContain("Autonomous Brain v5");
+    expect(result.trace.join("\n")).toContain("Autonomous Brain v8");
   });
 
   it("keeps an empty plan safe and explains why nothing should execute", () => {
