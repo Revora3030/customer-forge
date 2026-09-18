@@ -39,7 +39,8 @@ const instructionFor: Record<LaunchQualityFinding['dimension'], string> = {
 };
 
 export function planQualityImprovements(report: LaunchQualityReport, limit = 3): QualityImprovementPlan[] {
-  const safeLimit = Math.max(1, Math.min(5, Math.floor(limit) || 3));
+  const requestedLimit = Number.isFinite(limit) ? Math.floor(limit) : 3;
+  const safeLimit = Math.max(1, Math.min(5, requestedLimit));
 
   return report.findings.slice(0, safeLimit).map((finding) => ({
     id: `quality-${finding.dimension}`,
