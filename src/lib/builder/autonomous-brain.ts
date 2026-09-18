@@ -277,6 +277,9 @@ export function buildAutonomousPlan(
       normalized.carried
         ? `Autonomous Brain v3: carried forward the prior subject — ${normalized.carried}.`
         : "",
+      focusedPlans.length
+        ? `Autonomous Brain v6: ran ${focusedPlans.length} focused quality passes and merged them into one bounded plan.`
+        : "Autonomous Brain v6: one focused planning pass was sufficient for the diagnosed request.",
       "Autonomous Brain v3: compiled one bounded plan through the existing deterministic safety pipeline.",
     ].filter(Boolean)),
     notes: unique([
