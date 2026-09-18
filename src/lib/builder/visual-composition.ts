@@ -106,15 +106,38 @@ export function compileVisualComposition(
     .filter((page) => page.is_visible && !page.noindex)
     .sort((a, b) => Number(a.kind !== "home") - Number(b.kind !== "home"));
 
+  const sitewideConsistency = /\b(site[- ]?wide|entire site|every page|all pages|across (the )?site|consistent|cohesive|uniform|same design|brand consistency)\b/i.test(
+    instruction,
+  );
+
   const sections = pageCandidates
-    .flatMap((page) => page.sections.map((section) => ({ page, section })))
-    .sort((a, b) => sectionPriority(b.section) - sectionPriority(a.section));
+    .flatMap((page, pageIndex) =>
+      page.sections.map((section, sectionIndex) => ({ page, section, pageIndex, sectionIndex })),
+    )
+    .sort((a, b) => {
+      if (sitewideConsistency) {
+        return (
+          a.pageIndex - b.pageIndex ||
+          sectionPriority(b.section) - sectionPriority(a.section) ||
+          a.sectionIndex - b.sectionIndex
+        );
+      }
+
+      return (
+        sectionPriority(b.section) - sectionPriority(a.section) ||
+        a.pageIndex - b.pageIndex ||
+        a.sectionIndex - b.sectionIndex
+      );
+    });
 
   const seen = new Set<string>();
   const actions: AgentAction[] = [];
+  const actionLimit = sitewideConsistency
+    ? Math.min(24, Math.max(1, Math.min(limit, 12)) * Math.max(1, pageCandidates.length))
+    : Math.max(1, Math.min(limit, 12));
 
   for (const { section } of sections) {
-    if (actions.length >= Math.max(1, Math.min(limit, 12))) break;
+    if (actions.length >= actionLimit) break;
     if (seen.has(section.id)) continue;
 
     const patch = sectionPatch(section, moods, intensity);
