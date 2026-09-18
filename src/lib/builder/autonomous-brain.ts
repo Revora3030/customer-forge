@@ -259,6 +259,9 @@ export function buildAutonomousPlan(
     missingTrust: diagnosis.missingTrust,
     missingFaq: diagnosis.missingFaq,
     missingHomeHero: diagnosis.missingHomeHero,
+    emptySections: diagnosis.emptySections,
+    pagesMissingSeo: diagnosis.pagesMissingSeo,
+    ctaCount: diagnosis.ctaCount,
   });
 
   const priorityVocabulary: Record<string, string> = {
