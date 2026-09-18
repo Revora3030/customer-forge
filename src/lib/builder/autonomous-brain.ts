@@ -18,6 +18,7 @@ import { interpret } from "./interpreter";
 import { normalise } from "./normalize";
 import { qualityProfile } from "./quality-profile";
 import { guardAutonomousPlan } from "./plan-quality";
+import { buildExecutionBlueprint, blueprintTrace } from "./execution-blueprint";
 import { scopeContextForIntent } from "./context-targeting";
 
 const unique = <T>(items: T[]): T[] => [...new Set(items)];
@@ -323,8 +324,11 @@ export function buildAutonomousPlan(
   const focusedPlans = [...initialFocusedPlans, ...recoveryPlans];
   const plan = mergeFocusedPlans(primaryPlan, focusedPlans);
 
+  const blueprint = buildExecutionBlueprint(plan.actions);
+
   return finalizePlan(context, {
     ...plan,
+    blueprint,
     trace: unique([
       ...plan.trace,
       "Autonomous Brain v3: normalised and inspected the existing workspace before planning.",
@@ -345,6 +349,7 @@ export function buildAutonomousPlan(
       recoveryPlans.length
         ? `Autonomous Brain v7: self-critique found ${recoveryPlans.length} uncovered quality dimension${recoveryPlans.length === 1 ? "" : "s"} and ran targeted recovery passes.`
         : "Autonomous Brain v7: self-critique found no uncovered diagnosed quality dimensions.",
+      blueprintTrace(blueprint),
       "Autonomous Brain v3: compiled one bounded plan through the existing deterministic safety pipeline.",
     ].filter(Boolean)),
     notes: unique([
