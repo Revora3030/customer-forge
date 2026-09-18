@@ -10,8 +10,8 @@ describe("execution blueprint", () => {
       action("set_theme"),
       action("set_section_text"),
       action("add_section"),
-      action("set_cta"),
-      action("set_seo"),
+      action("set_business_fact"),
+      action("set_page"),
     ]);
 
     expect(blueprint.totalActions).toBe(5);
