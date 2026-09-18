@@ -27,6 +27,24 @@ describe("execution blueprint", () => {
     expect(blueprint.parallelizable).toEqual([["phase-content", "phase-visual"]]);
   });
 
+  it("computes risk, impact and approval checkpoints before execution", () => {
+    const blueprint = buildExecutionBlueprint([
+      action("set_section_text"),
+      action("set_business_fact"),
+      action("set_page"),
+    ]);
+
+    expect(blueprint.risk).toBe("high");
+    expect(blueprint.requiresApproval).toBe(true);
+    expect(blueprint.approvalCheckpoints).toEqual([
+      "phase-conversion",
+      "phase-seo",
+    ]);
+    expect(blueprint.steps.find((step) => step.phase === "conversion")?.approvalRequired).toBe(true);
+    expect(blueprint.steps.find((step) => step.phase === "content")?.risk).toBe("low");
+    expect(blueprint.impactSummary).toContain("customer-facing");
+  });
+
   it("keeps unknown action types inside verification instead of dropping them", () => {
     const blueprint = buildExecutionBlueprint([action("future_action")]);
     expect(blueprint.steps).toHaveLength(1);
@@ -34,10 +52,11 @@ describe("execution blueprint", () => {
     expect(blueprint.steps[0]?.actionTypes).toEqual(["future_action"]);
   });
 
-  it("produces an explainable v9 trace", () => {
+  it("produces an explainable v10 trace", () => {
     const blueprint = buildExecutionBlueprint([action("add_page"), action("set_theme")]);
     const trace = blueprintTrace(blueprint);
-    expect(trace).toContain("Autonomous Brain v9");
+    expect(trace).toContain("Autonomous Brain v10");
     expect(trace).toContain("2-phase execution blueprint");
+    expect(trace).toContain("approval");
   });
 });
