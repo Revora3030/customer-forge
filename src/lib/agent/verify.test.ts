@@ -1,20 +1,22 @@
 import { describe, expect, it } from "vitest";
 import { inspectHtml, summarise } from "@/lib/agent/verify";
 
-const good = `<!doctype html><html><head><title>Elite Detailing — Mobile car detailing</title>
+const good = `<!doctype html><html lang="en"><head><title>Elite Detailing — Mobile car detailing</title>
 <meta name="description" content="Mobile detailing that comes to your driveway across the metro area." />
-<meta name="viewport" content="width=device-width, initial-scale=1" /></head>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="canonical" href="https://example.com/" />
+<script type="application/ld+json">{"@type":"LocalBusiness"}</script></head>
 <body><h1>Mobile detailing at your door</h1>
 <p>${"We bring a full valet service to your driveway, seven days a week. ".repeat(6)}</p>
 <img src="/a.jpg" alt="A detailed car" />
-<a href="/s/elite/services">Services</a><a href="#top">Top</a><a href="https://x.com/e">X</a>
+<a href="/s/elite/services">Services</a><a href="/book">Book now</a><a href="#top">Top</a><a href="https://x.com/e">X</a>
 </body></html>`;
 
 describe("inspectHtml", () => {
   it("passes a complete page and collects only same-site links", () => {
     const result = inspectHtml(good, "Home");
     expect(result.checks.every((check) => check.ok)).toBe(true);
-    expect(result.links).toEqual(["/s/elite/services"]);
+    expect(result.links).toEqual(["/s/elite/services", "/book"]);
   });
 
   it("flags a missing headline as critical", () => {
@@ -60,16 +62,28 @@ describe("summarise", () => {
       { label: "c", ok: true, severity: "warning", where: "Home" },
     ]);
     expect(report).toMatchObject({ critical: 1, warnings: 1, passed: 1 });
-    expect(report.summary).toContain("broken for visitors");
+    expect(report.summary).toContain("require attention");
   });
 
   it("is honest when nothing could be checked", () => {
     expect(summarise([]).summary).toBe("No pages could be checked.");
   });
 
+  it("returns a weighted score and category breakdown", () => {
+    const report = summarise([
+      { label: "headline", ok: true, severity: "critical", where: "Home", category: "content" },
+      { label: "seo", ok: false, severity: "warning", where: "Home", category: "seo" },
+      { label: "broken", ok: false, severity: "critical", where: "Home", category: "technical" },
+    ]);
+    expect(report.score).toBe(40);
+    expect(report.categories.content.passed).toBe(1);
+    expect(report.categories.seo.failed).toBe(1);
+    expect(report.categories.technical.failed).toBe(1);
+  });
+
   it("acknowledges a clean pass", () => {
     expect(summarise([{ label: "a", ok: true, severity: "critical", where: "Home" }]).summary).toBe(
-      "Checked the live pages — everything passed.",
+      "Verified the served page — every check passed.",
     );
   });
 });
