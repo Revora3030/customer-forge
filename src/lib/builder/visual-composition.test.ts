@@ -21,15 +21,17 @@ const context = {
 describe("visual composition intelligence", () => {
   it("turns premium intent into bounded native visual actions", () => {
     const actions = compileVisualComposition(context, "make the site premium and polished", ["premium"], 2, 8);
-    expect(actions).toHaveLength(3);
+    expect(actions).toHaveLength(5);
     const visualActions = actions.filter((action) => action.type === "set_section_visual");
-    expect(visualActions).toHaveLength(3);
+    expect(visualActions).toHaveLength(5);
     expect(new Set(visualActions.map((action) => action.sectionId)).size).toBe(visualActions.length);
-    expect(visualCompositionSummary(actions)).toContain("3 existing sections");
+    expect(visualCompositionSummary(actions)).toContain("5 existing sections");
   });
+
   it("does nothing for unrelated requests", () => {
     expect(compileVisualComposition(context, "change my phone number", [], 0)).toEqual([]);
   });
+
   it("extends coordinated visual composition across pages when consistency is requested", () => {
     const actions = compileVisualComposition(
       context,
@@ -39,13 +41,13 @@ describe("visual composition intelligence", () => {
       2,
     );
     const visualActions = actions.filter((action) => action.type === "set_section_visual");
-    expect(visualActions).toHaveLength(5);
-    expect(new Set(visualActions.map((action) => action.sectionId)).size).toBe(5);
+    expect(visualActions).toHaveLength(4);
+    expect(new Set(visualActions.map((action) => action.sectionId)).size).toBe(4);
   });
 
   it("prioritizes hero before supporting sections", () => {
     const actions = compileVisualComposition(context, "redesign the visual layout", ["modern"], 1, 2);
     const visualActions = actions.filter((action) => action.type === "set_section_visual");
-    expect(visualActions.map((action) => action.sectionId)).toEqual(["hero", "services"]);
+    expect(visualActions.map((action) => action.sectionId)).toEqual(["hero", "about-hero"]);
   });
 });
