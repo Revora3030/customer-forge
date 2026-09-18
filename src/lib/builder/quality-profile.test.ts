@@ -21,4 +21,23 @@ describe("builder quality profile", () => {
     expect(profile.overall).toBeLessThanOrEqual(100);
     expect(profile.overall).toBeGreaterThanOrEqual(0);
   });
+  it("surfaces structural gaps even when headline readiness scores look healthy", () => {
+    const profile = qualityProfile({
+      completeness: 95,
+      conversionReadiness: 92,
+      contentReadiness: 92,
+      missingMobileCta: false,
+      missingTrust: false,
+      missingFaq: false,
+      missingHomeHero: false,
+      emptySections: 2,
+      pagesMissingSeo: 3,
+      ctaCount: 0,
+    });
+
+    expect(profile.priorities).toEqual(expect.arrayContaining(["content", "seo", "conversion"]));
+    expect(profile.content).toBeLessThan(85);
+    expect(profile.seo).toBeLessThan(85);
+  });
+
 });
