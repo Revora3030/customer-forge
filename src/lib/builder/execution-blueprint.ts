@@ -44,14 +44,11 @@ export function buildExecutionBlueprint(actions: AgentAction[]): ExecutionBluepr
       case "set_backdrop":
       case "set_section_effect":
         return "visual";
-      case "set_cta":
-      case "set_conversion":
-      case "set_booking":
-      case "set_quote":
+      case "set_business_fact":
+      case "set_section_visibility":
+      case "set_component":
         return "conversion";
       case "set_page":
-      case "set_seo":
-      case "set_metadata":
         return "seo";
       default:
         return "verification";
