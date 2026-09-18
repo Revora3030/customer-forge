@@ -57,7 +57,7 @@ const stripped = (html: string) =>
     .trim();
 
 const attr = (tag: string, name: string) => {
-  const match = new RegExp(`${name}\s*=\s*("([^"]*)"|'([^']*)')`, "i").exec(tag);
+  const match = new RegExp(String.raw`${name}\s*=\s*("([^"]*)"|'([^']*)')`, "i").exec(tag);
   return (match?.[2] ?? match?.[3] ?? "").trim();
 };
 
