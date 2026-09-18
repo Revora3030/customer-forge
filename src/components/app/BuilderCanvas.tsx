@@ -28,6 +28,7 @@ import {
   Tablet,
   Trash2,
   Undo2,
+  Wand2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { safeLinkUrl } from "@/lib/website-content";
