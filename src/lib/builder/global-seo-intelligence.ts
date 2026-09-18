@@ -20,7 +20,6 @@ export function findGlobalSeoFindings(context: AgentContext): SeoFinding[] {
     const title = page.seo_title?.trim().toLowerCase();
     if (title) titles.set(title, (titles.get(title) ?? 0) + 1);
   }
-
   const findings: SeoFinding[] = [];
   for (const page of pages) {
     const title = page.seo_title?.trim() ?? "";
@@ -34,12 +33,7 @@ export function findGlobalSeoFindings(context: AgentContext): SeoFinding[] {
   return findings.slice(0, 32);
 }
 
-export function compileGlobalSeoRepairs(
-  context: AgentContext,
-  facts: CopyFacts,
-  playbook: IndustryPlaybook,
-  limit = 20,
-): { findings: SeoFinding[]; actions: AgentAction[] } {
+export function compileGlobalSeoRepairs(context: AgentContext, facts: CopyFacts, playbook: IndustryPlaybook, limit = 20): { findings: SeoFinding[]; actions: AgentAction[] } {
   const findings = findGlobalSeoFindings(context);
   const actions: AgentAction[] = [];
   for (const page of context.pages.filter((item) => item.is_visible && !item.noindex)) {
@@ -52,8 +46,8 @@ export function compileGlobalSeoRepairs(
       type: "set_page",
       pageId: page.id,
       patch: {
-        seo_title: needsTitle ? generated.seo_title : page.seo_title,
-        seo_description: needsDescription ? generated.seo_description : page.seo_description,
+        seo_title: needsTitle ? generated.seo_title : (page.seo_title ?? ""),
+        seo_description: needsDescription ? generated.seo_description : (page.seo_description ?? ""),
       },
     });
   }
