@@ -111,8 +111,24 @@ export function compileVisualComposition(
   );
 
   const sections = pageCandidates
-    .flatMap((page) => page.sections.map((section) => ({ page, section })))
-    .sort((a, b) => sectionPriority(b.section) - sectionPriority(a.section));
+    .flatMap((page, pageIndex) =>
+      page.sections.map((section, sectionIndex) => ({ page, section, pageIndex, sectionIndex })),
+    )
+    .sort((a, b) => {
+      if (sitewideConsistency) {
+        return (
+          a.pageIndex - b.pageIndex ||
+          sectionPriority(b.section) - sectionPriority(a.section) ||
+          a.sectionIndex - b.sectionIndex
+        );
+      }
+
+      return (
+        sectionPriority(b.section) - sectionPriority(a.section) ||
+        a.pageIndex - b.pageIndex ||
+        a.sectionIndex - b.sectionIndex
+      );
+    });
 
   const seen = new Set<string>();
   const actions: AgentAction[] = [];
