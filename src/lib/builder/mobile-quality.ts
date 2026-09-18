@@ -61,9 +61,6 @@ export function scoreMobileQuality(context: AgentContext): MobileQualityScore {
     [s.heading, s.subheading, s.body].filter(Boolean).join(" ").length > 700,
   ).length;
   const denseSections = sections.filter((s) => s.components.length > 8).length;
-  const multiItem = sections.filter((s) =>
-    ["services", "pricing", "gallery", "reviews", "benefits"].includes(s.kind),
-  ).length;
   const mediaSections = sections.filter((s) => ["gallery", "reviews"].includes(s.kind)).length;
   const interactive = sections.flatMap((s) => s.components).filter((c) =>
     Boolean(c.link_url || c.link_label),
@@ -77,11 +74,9 @@ export function scoreMobileQuality(context: AgentContext): MobileQualityScore {
   const layout = scoreDimension(
     100 - ((denseSections / sections.length) * 55 + (riskyLongCopy / sections.length) * 25),
   );
-  const content = scoreDimension(
-    100 - (riskyLongCopy / sections.length) * 60,
-  );
+  const content = scoreDimension(100 - (riskyLongCopy / sections.length) * 60);
   const interaction = scoreDimension(
-    Math.min(100, 55 + Math.min(25, interactive * 5) + Math.min(20, ctaLike * 10)),
+    Math.min(100, 55 + Math.min(25, interactive * 5) + Math.min(20, ctaLike * 20)),
   );
   const navigation = scoreDimension(
     Math.min(100, 60 + Math.min(40, Math.max(0, pages.length - 1) * 8)),
