@@ -113,6 +113,49 @@ function finalizePlan(context: AgentContext, plan: DeterministicPlan): Determini
 }
 
 /**
+ * Merge focused deterministic passes without allowing one broad request to
+ * overwhelm the executor. The primary pass owns the customer-facing response;
+ * focused passes contribute additional safe native actions for dimensions the
+ * diagnosis says are weak.
+ */
+function mergeFocusedPlans(
+  primary: DeterministicPlan,
+  focused: DeterministicPlan[],
+  cap = 56,
+): DeterministicPlan {
+  const actions: DeterministicPlan["actions"] = [];
+  const seen = new Set<string>();
+
+  for (const plan of [primary, ...focused]) {
+    for (const action of plan.actions) {
+      if (actions.length >= cap) break;
+      const key = JSON.stringify(action);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      actions.push(action);
+    }
+    if (actions.length >= cap) break;
+  }
+
+  return {
+    ...primary,
+    actions,
+    tasks: [...primary.tasks, ...focused.flatMap((plan) => plan.tasks)]
+      .filter((task, index, all) => all.findIndex((candidate) => candidate.title === task.title) === index),
+    notes: unique([primary.notes, ...focused.map((plan) => plan.notes)].flat()),
+    trace: unique([primary.trace, ...focused.map((plan) => plan.trace)].flat()),
+    coverage: [primary, ...focused].some((plan) => plan.coverage === "partial")
+      ? "partial"
+      : primary.coverage,
+    requiresExternalReasoning: [primary, ...focused].some((plan) => plan.requiresExternalReasoning),
+    externalReason:
+      primary.externalReason ??
+      focused.find((plan) => plan.externalReason)?.externalReason ??
+      null,
+  };
+}
+
+/**
  * Build one coherent plan from a broad outcome request.
  *
  * v4 adds a final pure quality boundary after compilation. The compiler still
@@ -199,7 +242,24 @@ export function buildAutonomousPlan(
     diagnosis.pages > 1 && (target.scoped ? false : true) ? "on every page" : "",
   ]).filter(Boolean).join(" ");
 
-  const plan = buildDeterministicPlan(planningContext, enrichedInstruction, options);
+  const primaryPlan = buildDeterministicPlan(planningContext, enrichedInstruction, options);
+
+  // Broad requests benefit from several narrow, deterministic passes. This is
+  // deliberately not a second AI provider: each pass uses the same existing
+  // compiler, business facts, industry playbook and executor vocabulary. The
+  // merge is bounded and the final quality guard still validates every action.
+  const focusedPlans =
+    priorities.priorities.length > 1
+      ? priorities.priorities.slice(0, 4).map((priority) =>
+          buildDeterministicPlan(
+            planningContext,
+            `${planningInstruction} Focus this pass on ${priorityVocabulary[priority] ?? priority}. Preserve existing business facts and only make evidence-safe website changes.`,
+            options,
+          ),
+        )
+      : [];
+
+  const plan = mergeFocusedPlans(primaryPlan, focusedPlans);
 
   return finalizePlan(context, {
     ...plan,
