@@ -113,6 +113,46 @@ function finalizePlan(context: AgentContext, plan: DeterministicPlan): Determini
 }
 
 /**
+ * Estimate which quality dimensions a compiled plan actually covers.
+ *
+ * This deterministic self-critique checks the proposed actions against the
+ * diagnosed weaknesses before the plan crosses the final safety boundary.
+ */
+function planCoverage(actions: DeterministicPlan["actions"], priority: string): boolean {
+  const serialized = actions.map((action) => JSON.stringify(action).toLowerCase()).join(" ");
+
+  switch (priority) {
+    case "design":
+      return /set_theme|set_section_variant|set_section_visual|set_component_visual|set_backdrop|set_section_effect/.test(serialized);
+    case "conversion":
+      return /call|book|quote|cta|conversion|lead|set_component|add_component|add_section/.test(serialized);
+    case "content":
+      return /set_section_text|set_component|add_section/.test(serialized);
+    case "mobile":
+      return /mobile|responsive|set_theme|set_section_visual|set_component_visual|set_component/.test(serialized);
+    case "seo":
+      return /seo_|noindex|canonical|meta|set_page/.test(serialized);
+    case "trust":
+      return /reviews|testimonial|trust|credential|set_section_text|add_section/.test(serialized);
+    case "faq":
+      return /faq|question|add_section|set_section_text/.test(serialized);
+    default:
+      return true;
+  }
+}
+
+/**
+ * Return only diagnosed dimensions that the compiled action set does not
+ * clearly address. The caller deliberately caps recovery work.
+ */
+function missingPriorities(
+  actions: DeterministicPlan["actions"],
+  priorities: string[],
+): string[] {
+  return priorities.filter((priority) => !planCoverage(actions, priority));
+}
+
+/**
  * Merge focused deterministic passes without allowing one broad request to
  * overwhelm the executor. The primary pass owns the customer-facing response;
  * focused passes contribute additional safe native actions for dimensions the
@@ -248,7 +288,7 @@ export function buildAutonomousPlan(
   // deliberately not a second AI provider: each pass uses the same existing
   // compiler, business facts, industry playbook and executor vocabulary. The
   // merge is bounded and the final quality guard still validates every action.
-  const focusedPlans =
+  const initialFocusedPlans =
     priorities.priorities.length > 1
       ? priorities.priorities.slice(0, 4).map((priority) =>
           buildDeterministicPlan(
@@ -259,6 +299,25 @@ export function buildAutonomousPlan(
         )
       : [];
 
+  const initialMerged = mergeFocusedPlans(primaryPlan, initialFocusedPlans);
+
+  // Self-critique the actual action set. If a diagnosed dimension is still
+  // uncovered, run at most two targeted recovery passes. This adds a bounded
+  // plan → inspect → repair loop without introducing a paid model dependency.
+  const recoveryPriorities = missingPriorities(
+    initialMerged.actions,
+    priorities.priorities,
+  ).slice(0, 2);
+
+  const recoveryPlans = recoveryPriorities.map((priority) =>
+    buildDeterministicPlan(
+      planningContext,
+      `${planningInstruction} Recovery pass: the existing plan did not clearly cover ${priorityVocabulary[priority] ?? priority}. Add only safe, evidence-backed changes for ${priorityVocabulary[priority] ?? priority}. Preserve existing business facts.`,
+      options,
+    ),
+  );
+
+  const focusedPlans = [...initialFocusedPlans, ...recoveryPlans];
   const plan = mergeFocusedPlans(primaryPlan, focusedPlans);
 
   return finalizePlan(context, {
@@ -280,6 +339,9 @@ export function buildAutonomousPlan(
       focusedPlans.length
         ? `Autonomous Brain v6: ran ${focusedPlans.length} focused quality passes and merged them into one bounded plan.`
         : "Autonomous Brain v6: one focused planning pass was sufficient for the diagnosed request.",
+      recoveryPlans.length
+        ? `Autonomous Brain v7: self-critique found ${recoveryPlans.length} uncovered quality dimension${recoveryPlans.length === 1 ? "" : "s"} and ran targeted recovery passes.`
+        : "Autonomous Brain v7: self-critique found no uncovered diagnosed quality dimensions.",
       "Autonomous Brain v3: compiled one bounded plan through the existing deterministic safety pipeline.",
     ].filter(Boolean)),
     notes: unique([
