@@ -72,7 +72,26 @@ function plan(actions: unknown[], coverage: DeterministicPlan["coverage"] = "ful
     notes: [],
     coverage,
     trace: [],
-    intent: {} as DeterministicPlan["intent"],
+    intent: {
+      goals: [],
+      sectionKinds: [],
+      moods: [],
+      verbs: [],
+      constraints: [],
+      wholeSite: false,
+      everyPage: false,
+      keepFacts: true,
+      original: "",
+      operations: [],
+      pageHints: [],
+      newPages: [],
+      industry: null,
+      carried: null,
+      locationHint: null,
+      audienceHint: null,
+      visualIntensity: 0,
+      unrecognised: [],
+    },
     tasks: [],
     requiresExternalReasoning: false,
     externalReason: null,
@@ -91,6 +110,26 @@ describe("guardAutonomousPlan", () => {
 
     expect(result.actions).toHaveLength(2);
     expect(result.trace.some((item) => item.includes("quality guard passed"))).toBe(true);
+  });
+
+
+  test("flags a plan that has actions but misses the requested requirement", () => {
+    const result = guardAutonomousPlan(
+      context,
+      {
+        ...plan([{ type: "set_section_text", sectionId: "section-1", field: "heading", value: "Welcome" }]),
+        intent: {
+          goals: ["seo"],
+          sectionKinds: [],
+          moods: [],
+          verbs: ["seo"],
+        },
+      } as DeterministicPlan,
+    );
+
+    expect(result.coverage).toBe("partial");
+    expect(result.notes.some((item) => item.includes("Requirement gap detected"))).toBe(true);
+    expect(result.trace.some((item) => item.includes("Autonomous Brain v8"))).toBe(true);
   });
 
   test("removes duplicate and unresolved actions instead of passing them downstream", () => {
