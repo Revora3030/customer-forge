@@ -1,1 +1,137 @@
-/**\n * REVORA VISUAL COMPOSITION INTELLIGENCE\n * ======================================\n *\n * Turns a coordinated design direction into bounded section-level composition\n * decisions. The planner only targets sections that already exist and uses the\n * finite visual vocabulary supported by the site-agent contract.\n */\n\nimport type { AgentAction, SectionVisualPatch } from "@/lib/site-agent";\nimport type { AgentContext } from "@/lib/site-agent.server";\nimport type { StyleMood } from "./interpreter";\n\ntype Section = AgentContext["pages"][number]["sections"][number];\n\nconst requestedVisual = (instruction: string, moods: StyleMood[], intensity: number): boolean =>\n  intensity > 0 || moods.length > 0 || /\b(visual|design|redesign|restyle|layout|look|premium|modern|beautiful|polished)\b/i.test(instruction);\n\nfunction sectionPriority(section: Section): number {\n  switch (section.kind) {\n    case "hero": return 100;\n    case "trust_bar": return 92;\n    case "offer": return 88;\n    case "services": return 84;\n    case "gallery": return 82;\n    case "reviews": return 78;\n    case "benefits": return 76;\n    case "pricing": return 74;\n    case "process": return 70;\n    case "faq": return 60;\n    case "cta": return 56;\n    case "contact": return 52;\n    default: return 40;\n  }\n}\n\nfunction sectionPatch(section: Section, moods: StyleMood[], intensity: number): SectionVisualPatch | null {\n  const moodSet = new Set(moods);\n  const premium = moodSet.has("premium");\n  const modern = moodSet.has("modern");\n  const bold = moodSet.has("bold");\n  const minimal = moodSet.has("minimal");\n  const friendly = moodSet.has("friendly");\n  const dark = moodSet.has("dark");\n\n  if (section.kind === "hero") {\n    return {\n      layout: premium || modern || bold ? "layered" : "split",\n      density: minimal ? "compact" : bold || premium ? "airy" : "balanced",\n      image_position: "right",\n      image_treatment: premium || dark ? "cinematic" : modern ? "glass_frame" : "rounded",\n      spacing: minimal ? "tight" : "generous",\n      max_width: bold || premium ? "wide" : "standard",\n      card_style: premium || dark ? "glass" : friendly ? "soft" : "floating",\n      image_ratio: bold ? "21:9" : "16:9",\n    };\n  }\n\n  if (["services", "benefits", "offer", "pricing"].includes(section.kind)) {\n    return {\n      layout: modern || premium ? "editorial" : "stacked",\n      density: minimal ? "compact" : "balanced",\n      spacing: premium ? "generous" : "standard",\n      max_width: "wide",\n      card_style: premium || dark ? "glass" : friendly ? "soft" : bold ? "floating" : "sharp",\n    };\n  }\n\n  if (["gallery", "reviews"].includes(section.kind)) {\n    return {\n      layout: modern || premium ? "editorial" : "stacked",\n      density: intensity >= 2 ? "airy" : "balanced",\n      spacing: "generous",\n      max_width: "wide",\n      card_style: premium || dark ? "glass" : "soft",\n      image_ratio: "4:3",\n    };\n  }\n\n  if (["trust_bar", "process", "faq", "contact", "cta"].includes(section.kind)) {\n    return {\n      layout: section.kind === "cta" && bold ? "full_bleed" : "centered",\n      density: minimal ? "compact" : "balanced",\n      spacing: bold || premium ? "generous" : "standard",\n      max_width: section.kind === "trust_bar" ? "edge" : "standard",\n      card_style: dark || premium ? "glass" : friendly ? "soft" : "sharp",\n    };\n  }\n\n  return null;\n}\n\n/** Creates bounded visual composition actions for existing sections. */\nexport function compileVisualComposition(\n  context: AgentContext,\n  instruction: string,\n  moods: StyleMood[],\n  intensity: number,\n  limit = 8,\n): AgentAction[] {\n  if (!requestedVisual(instruction, moods, intensity)) return [];\n\n  const pageCandidates = context.pages\n    .filter((page) => page.is_visible && !page.noindex)\n    .sort((a, b) => Number(a.kind !== "home") - Number(b.kind !== "home"));\n\n  const sections = pageCandidates\n    .flatMap((page) => page.sections.map((section) => ({ page, section })))\n    .sort((a, b) => sectionPriority(b.section) - sectionPriority(a.section));\n\n  const seen = new Set<string>();\n  const actions: AgentAction[] = [];\n\n  for (const { section } of sections) {\n    if (actions.length >= Math.max(1, Math.min(limit, 12))) break;\n    if (seen.has(section.id)) continue;\n\n    const patch = sectionPatch(section, moods, intensity);\n    if (!patch) continue;\n\n    seen.add(section.id);\n    actions.push({ type: "set_section_visual", sectionId: section.id, patch });\n  }\n\n  return actions;\n}\n\nexport function visualCompositionSummary(actions: AgentAction[]): string {\n  const count = actions.filter((action) => action.type === "set_section_visual").length;\n  return count === 0\n    ? "Visual composition intelligence found no supported existing sections to refine."\n    : "Visual composition intelligence prepared " + count + " existing section" + (count === 1 ? "" : "s") + " for coordinated layout, spacing and media treatment.";\n}\n
+/**
+ * REVORA VISUAL COMPOSITION INTELLIGENCE
+ * ======================================
+ *
+ * Turns a coordinated design direction into bounded section-level composition
+ * decisions. The planner only targets sections that already exist and uses the
+ * finite visual vocabulary supported by the site-agent contract.
+ */
+
+import type { AgentAction, SectionVisualPatch } from "@/lib/site-agent";
+import type { AgentContext } from "@/lib/site-agent.server";
+import type { StyleMood } from "./interpreter";
+
+type Section = AgentContext["pages"][number]["sections"][number];
+
+const requestedVisual = (instruction: string, moods: StyleMood[], intensity: number): boolean =>
+  intensity > 0 ||
+  moods.length > 0 ||
+  /\b(visual|design|redesign|restyle|layout|look|premium|modern|beautiful|polished)\b/i.test(instruction);
+
+function sectionPriority(section: Section): number {
+  switch (section.kind) {
+    case "hero": return 100;
+    case "trust_bar": return 92;
+    case "offer": return 88;
+    case "services": return 84;
+    case "gallery": return 82;
+    case "reviews": return 78;
+    case "benefits": return 76;
+    case "pricing": return 74;
+    case "process": return 70;
+    case "faq": return 60;
+    case "cta": return 56;
+    case "contact": return 52;
+    default: return 40;
+  }
+}
+
+function sectionPatch(section: Section, moods: StyleMood[], intensity: number): SectionVisualPatch | null {
+  const moodSet = new Set(moods);
+  const premium = moodSet.has("premium");
+  const modern = moodSet.has("modern");
+  const bold = moodSet.has("bold");
+  const minimal = moodSet.has("minimal");
+  const friendly = moodSet.has("friendly");
+  const dark = moodSet.has("dark");
+
+  if (section.kind === "hero") {
+    return {
+      layout: premium || modern || bold ? "layered" : "split",
+      density: minimal ? "compact" : bold || premium ? "airy" : "balanced",
+      image_position: "right",
+      image_treatment: premium || dark ? "cinematic" : modern ? "glass_frame" : "rounded",
+      spacing: minimal ? "tight" : "generous",
+      max_width: bold || premium ? "wide" : "standard",
+      card_style: premium || dark ? "glass" : friendly ? "soft" : "floating",
+      image_ratio: bold ? "21:9" : "16:9",
+    };
+  }
+
+  if (["services", "benefits", "offer", "pricing"].includes(section.kind)) {
+    return {
+      layout: modern || premium ? "editorial" : "stacked",
+      density: minimal ? "compact" : "balanced",
+      spacing: premium ? "generous" : "standard",
+      max_width: "wide",
+      card_style: premium || dark ? "glass" : friendly ? "soft" : bold ? "floating" : "sharp",
+    };
+  }
+
+  if (["gallery", "reviews"].includes(section.kind)) {
+    return {
+      layout: modern || premium ? "editorial" : "stacked",
+      density: intensity >= 2 ? "airy" : "balanced",
+      spacing: "generous",
+      max_width: "wide",
+      card_style: premium || dark ? "glass" : "soft",
+      image_ratio: "4:3",
+    };
+  }
+
+  if (["trust_bar", "process", "faq", "contact", "cta"].includes(section.kind)) {
+    return {
+      layout: section.kind === "cta" && bold ? "full_bleed" : "centered",
+      density: minimal ? "compact" : "balanced",
+      spacing: bold || premium ? "generous" : "standard",
+      max_width: section.kind === "trust_bar" ? "edge" : "standard",
+      card_style: dark || premium ? "glass" : friendly ? "soft" : "sharp",
+    };
+  }
+
+  return null;
+}
+
+/** Creates bounded visual composition actions for existing sections. */
+export function compileVisualComposition(
+  context: AgentContext,
+  instruction: string,
+  moods: StyleMood[],
+  intensity: number,
+  limit = 8,
+): AgentAction[] {
+  if (!requestedVisual(instruction, moods, intensity)) return [];
+
+  const pageCandidates = context.pages
+    .filter((page) => page.is_visible && !page.noindex)
+    .sort((a, b) => Number(a.kind !== "home") - Number(b.kind !== "home"));
+
+  const sections = pageCandidates
+    .flatMap((page) => page.sections.map((section) => ({ page, section })))
+    .sort((a, b) => sectionPriority(b.section) - sectionPriority(a.section));
+
+  const seen = new Set<string>();
+  const actions: AgentAction[] = [];
+
+  for (const { section } of sections) {
+    if (actions.length >= Math.max(1, Math.min(limit, 12))) break;
+    if (seen.has(section.id)) continue;
+
+    const patch = sectionPatch(section, moods, intensity);
+    if (!patch) continue;
+
+    seen.add(section.id);
+    actions.push({ type: "set_section_visual", sectionId: section.id, patch });
+  }
+
+  return actions;
+}
+
+export function visualCompositionSummary(actions: AgentAction[]): string {
+  const count = actions.filter((action) => action.type === "set_section_visual").length;
+  return count === 0
+    ? "Visual composition intelligence found no supported existing sections to refine."
+    : "Visual composition intelligence prepared " + count + " existing section" +
+      (count === 1 ? "" : "s") +
+      " for coordinated layout, spacing and media treatment.";
+}
