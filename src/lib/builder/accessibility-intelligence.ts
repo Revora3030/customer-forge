@@ -145,51 +145,40 @@ export function compileAccessibilityRepairs(
   instruction: string,
   limit = 12,
 ): AgentAction[] {
-  if (!isAccessibilityRequest(instruction)) {
-    return [];
-  }
+  if (!isAccessibilityRequest(instruction)) return [];
 
   const componentsById = new Map(
     visibleComponents(context).map((component) => [component.id, component]),
   );
+  const repairs: AgentAction[] = [];
 
-  const repairs: AgentAction[] = [];\n\n  for (const finding of findAccessibilityFindings(context, limit)) {
-    if (!finding.componentId) {
-      return [];
-    }
-
+  for (const finding of findAccessibilityFindings(context, limit)) {
+    if (!finding.componentId) continue;
     const component = componentsById.get(finding.componentId);
-    if (!component) {
-      return [];
-    }
+    if (!component) continue;
 
     if (finding.kind === "missing_alt") {
       const alt = mediaAlt(component);
-      if (!alt) {
-        return [];
-      }
-
-      return [
-        {
-          type: "set_component_visual" as const,
+      if (alt) {
+        repairs.push({
+          type: "set_component_visual",
           componentId: component.id,
           patch: { alt },
-        },
-      ];
+        });
+      }
+      continue;
     }
 
     if (finding.kind === "missing_link_label" && component.label?.trim()) {
-      return [
-        {
-          type: "set_component" as const,
-          componentId: component.id,
-          patch: { link_label: component.label.trim().slice(0, 160) },
-        },
-      ];
+      repairs.push({
+        type: "set_component",
+        componentId: component.id,
+        patch: { link_label: component.label.trim().slice(0, 160) },
+      });
     }
+  }
 
-    return [];
-  }).slice(0, Math.max(1, Math.min(limit, 12)));
+  return repairs.slice(0, Math.max(1, Math.min(limit, 12)));
 }
 
 export function scoreAccessibility(context: AgentContext): AccessibilityScore {
