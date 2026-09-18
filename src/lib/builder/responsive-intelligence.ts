@@ -143,17 +143,20 @@ export function compileResponsiveRepairs(
   limit = 8,
 ): AgentAction[] {
   const findings = findResponsiveFindings(context, instruction, limit);
-  return findings.map((finding) => ({
-    type: "set_section_visual",
-    sectionId: finding.sectionId,
-    patch: mobilePatch(
-      context.pages
-        .flatMap((page) => page.sections)
-        .find((section) => section.id === finding.sectionId) ??
-        context.pages[0]?.sections[0] ??
-        ({ id: finding.sectionId, kind: finding.kind, components: [] } as Section),
-    ),
-  }));
+  const sectionsById = new Map(
+    context.pages.flatMap((page) => page.sections).map((section) => [section.id, section]),
+  );
+
+  return findings.flatMap((finding) => {
+    const section = sectionsById.get(finding.sectionId);
+    if (!section) return [];
+
+    return [{
+      type: "set_section_visual" as const,
+      sectionId: section.id,
+      patch: mobilePatch(section),
+    }];
+  });
 }
 
 export function responsiveSummary(findings: ResponsiveFinding[]): string {
