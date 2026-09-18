@@ -62,8 +62,11 @@ import {
   orderedSections,
   reorder,
   type Selection,
+  visualEditInstruction,
+  visualEditSuggestions,
 } from "@/lib/builder-tree";
 import { cn } from "@/lib/utils";
+import { askAssistant } from "@/lib/assistant-bridge";
 import {
   ALIGNMENTS,
   BORDER_WIDTHS,
@@ -923,6 +926,49 @@ export function BuilderCanvas({
                 <p className="mt-0.5 text-[12px] text-muted-foreground">
                   In {sectionLabel(selectedSection.kind)}
                 </p>
+                <div className="mt-2 space-y-2">
+                  <Button
+                    size="sm"
+                    variant="signal"
+                    disabled={!canManage}
+                    onClick={() =>
+                      askAssistant(
+                        visualEditInstruction(
+                          visualEditSuggestions(selectedComponent, selectedSection)[0]!,
+                          page,
+                          selectedSection,
+                          selectedComponent,
+                          device,
+                        ),
+                      )
+                    }
+                  >
+                    <Wand2 className="mr-1.5 size-3.5" aria-hidden /> AI edit selected
+                  </Button>
+                  <div className="flex flex-wrap gap-1.5">
+                    {visualEditSuggestions(selectedComponent, selectedSection).slice(0, 3).map((suggestion) => (
+                      <button
+                        key={suggestion}
+                        type="button"
+                        disabled={!canManage}
+                        onClick={() =>
+                          askAssistant(
+                            visualEditInstruction(
+                              suggestion,
+                              page,
+                              selectedSection,
+                              selectedComponent,
+                              device,
+                            ),
+                          )
+                        }
+                        className="min-h-8 rounded-full border border-border px-2.5 py-1 text-[11px] text-muted-foreground hover:bg-elevated hover:text-foreground disabled:opacity-50"
+                      >
+                        {suggestion}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
               <Field label="Button / link text">
                 <Input
@@ -1054,6 +1100,49 @@ export function BuilderCanvas({
                 <p className="mt-0.5 text-[12px] text-muted-foreground">
                   On {page.title} (/{page.slug})
                 </p>
+                <div className="mt-2 space-y-2">
+                  <Button
+                    size="sm"
+                    variant="signal"
+                    disabled={!canManage}
+                    onClick={() =>
+                      askAssistant(
+                        visualEditInstruction(
+                          visualEditSuggestions(null, selectedSection)[0]!,
+                          page,
+                          selectedSection,
+                          null,
+                          device,
+                        ),
+                      )
+                    }
+                  >
+                    <Wand2 className="mr-1.5 size-3.5" aria-hidden /> AI edit selected
+                  </Button>
+                  <div className="flex flex-wrap gap-1.5">
+                    {visualEditSuggestions(null, selectedSection).slice(0, 3).map((suggestion) => (
+                      <button
+                        key={suggestion}
+                        type="button"
+                        disabled={!canManage}
+                        onClick={() =>
+                          askAssistant(
+                            visualEditInstruction(
+                              suggestion,
+                              page,
+                              selectedSection,
+                              null,
+                              device,
+                            ),
+                          )
+                        }
+                        className="min-h-8 rounded-full border border-border px-2.5 py-1 text-[11px] text-muted-foreground hover:bg-elevated hover:text-foreground disabled:opacity-50"
+                      >
+                        {suggestion}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
               <Field label="Headline">
                 <Input
