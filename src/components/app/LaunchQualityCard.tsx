@@ -1,8 +1,8 @@
-import type { LaunchQualityReport } from '@/lib/builder/launch-quality-gate';
+import type { LaunchQualityDimension, LaunchQualityReport } from '@/lib/builder/launch-quality-gate';
 
 type LaunchQualityCardProps = {
   report: LaunchQualityReport;
-  onImprove?: (dimension: LaunchQualityReport['nextAction'] extends infer T ? T extends { dimension: infer D } ? D : never : never) => void;
+  onImprove?: (dimension: LaunchQualityDimension) => void;
   className?: string;
 };
 
