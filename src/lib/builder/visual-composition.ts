@@ -48,7 +48,7 @@ function sectionPatch(section: Section, moods: StyleMood[], intensity: number): 
   if (section.kind === "hero") {
     return {
       layout: premium || modern || bold ? "layered" : "split",
-      density: minimal ? "compact" : bold || premium ? "airy" : "balanced",
+      density: minimal ? "dense" : bold || premium ? "airy" : "balanced",
       image_position: "right",
       image_treatment: premium || dark ? "cinematic" : modern ? "glass_frame" : "rounded",
       spacing: minimal ? "tight" : "generous",
@@ -61,7 +61,7 @@ function sectionPatch(section: Section, moods: StyleMood[], intensity: number): 
   if (["services", "benefits", "offer", "pricing"].includes(section.kind)) {
     return {
       layout: modern || premium ? "editorial" : "stacked",
-      density: minimal ? "compact" : "balanced",
+      density: minimal ? "dense" : "balanced",
       spacing: premium ? "generous" : "standard",
       max_width: "wide",
       card_style: premium || dark ? "glass" : friendly ? "soft" : bold ? "floating" : "sharp",
@@ -82,7 +82,7 @@ function sectionPatch(section: Section, moods: StyleMood[], intensity: number): 
   if (["trust_bar", "process", "faq", "contact", "cta"].includes(section.kind)) {
     return {
       layout: section.kind === "cta" && bold ? "full_bleed" : "centered",
-      density: minimal ? "compact" : "balanced",
+      density: minimal ? "dense" : "balanced",
       spacing: bold || premium ? "generous" : "standard",
       max_width: section.kind === "trust_bar" ? "edge" : "standard",
       card_style: dark || premium ? "glass" : friendly ? "soft" : "sharp",
