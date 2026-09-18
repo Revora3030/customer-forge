@@ -23,14 +23,14 @@ const context = {
       }],
     },
     {
-      id: "services", slug: "services", title: "Detailing Services", kind: "services", is_visible: true, noindex: false,
+      id: "services", slug: "services", title: "Detailing Services", kind: "services", is_visible: true, noindex: false, seo_title: null, seo_description: null,
       sections: [{
         id: "services-section", kind: "services", variant: "default", is_visible: true, heading: "Detailing services",
         subheading: null, body: "Exterior and interior detailing.", sort_order: 0, components: [],
       }],
     },
     {
-      id: "contact", slug: "contact", title: "Contact", kind: "contact", is_visible: true, noindex: false,
+      id: "contact", slug: "contact", title: "Contact", kind: "contact", is_visible: true, noindex: false, seo_title: null, seo_description: null,
       sections: [{
         id: "contact-section", kind: "contact", variant: "default", is_visible: true, heading: "Contact us",
         subheading: null, body: null, sort_order: 0, components: [],
