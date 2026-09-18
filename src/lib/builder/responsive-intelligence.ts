@@ -54,7 +54,7 @@ function riskForSection(section: Section): ResponsiveFinding | null {
     priority += 2;
   }
 
-  if (section.components.some((component) => Boolean(component.media_url))) {
+  if (["gallery", "reviews"].includes(section.kind)) {
     reasons.push("media-bearing section");
     priority += 1;
   }
@@ -149,7 +149,9 @@ export function compileResponsiveRepairs(
     patch: mobilePatch(
       context.pages
         .flatMap((page) => page.sections)
-        .find((section) => section.id === finding.sectionId) ?? context.pages[0]!.sections[0],
+        .find((section) => section.id === finding.sectionId) ??
+        context.pages[0]?.sections[0] ??
+        ({ id: finding.sectionId, kind: finding.kind, components: [] } as Section),
     ),
   }));
 }
