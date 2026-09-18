@@ -8,7 +8,8 @@ describe('createVisualDirection', () => {
     expect(direction.mood).toBe('refined');
     expect(direction.heroTreatment).toContain('quote');
     expect(direction.assetBriefs[0]?.canvaPrompt).toContain('Northstar Roofing in Cleveland');
-    expect(direction.assetBriefs.every((asset) => asset.canvaPrompt.includes('no embedded text'))).toBe(true);
+    expect(direction.assetBriefs[0]?.canvaPrompt).toContain('avoid embedded text');
+    expect(direction.assetBriefs.slice(1).every((asset) => asset.canvaPrompt.includes('no embedded text'))).toBe(true);
   });
 
   it('uses calm as the default health-and-wellness mood', () => {
