@@ -46,7 +46,6 @@ export function buildExecutionBlueprint(actions: AgentAction[]): ExecutionBluepr
         return "visual";
       case "set_business_fact":
       case "set_section_visibility":
-      case "set_component":
         return "conversion";
       case "set_page":
         return "seo";
