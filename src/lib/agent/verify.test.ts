@@ -16,7 +16,7 @@ describe("inspectHtml", () => {
   it("passes a complete page and collects only same-site links", () => {
     const result = inspectHtml(good, "Home");
     expect(result.checks.every((check) => check.ok)).toBe(true);
-    expect(result.links).toEqual(["/s/elite/services"]);
+    expect(result.links).toEqual(["/s/elite/services", "/book"]);
   });
 
   it("flags a missing headline as critical", () => {
