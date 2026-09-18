@@ -34,6 +34,7 @@ import { ctaTarget, faqQuestions, pageSeo, place, sectionCopy, type CopyFacts } 
 import { compileNavigationRepairs } from "./navigation-intelligence";
 import { compileVisualComposition, visualCompositionSummary } from "./visual-composition";
 import { compileSitewideCtaRepairs, sitewideCtaSummary } from "./sitewide-cta";
+import { compileGlobalSeoRepairs, globalSeoSummary } from "./global-seo-intelligence";
 
 /* -------------------------------------------------------------------------- */
 /* Limits                                                                     */
@@ -1235,24 +1236,23 @@ export function buildDeterministicPlan(
   /* ---------------------------------------------------------------------- */
 
   if (intent.verbs.includes("seo") || intent.goals.includes("seo") || intent.wholeSite) {
-    addTask("Strengthen search metadata", () => {
+    addTask("Audit and repair global SEO metadata", () => {
+      const result = compileGlobalSeoRepairs(
+        context,
+        facts,
+        playbook,
+        Math.min(20, cap - actions.length),
+      );
       const before = actions.length;
-
-      for (const candidate of context.pages.slice(0, 20)) {
-        pushUnique(
-          actions,
-          {
-            type: "set_page",
-            pageId: candidate.id,
-            patch: pageSeo(candidate.title || "Home", facts, playbook),
-          },
-          cap,
-        );
+      for (const action of result.actions) {
+        pushUnique(actions, action, cap);
       }
-
+      trace.push(globalSeoSummary(result.findings, result.actions));
+      if (result.findings.length > 0) {
+        notes.push("Global SEO checks cover missing, duplicated and oversized metadata using the existing fact-safe page SEO compiler.");
+      }
       completed.add("seo");
-
-      return actions.length > before;
+      return actions.length > before || result.findings.length > 0;
     });
   }
 
