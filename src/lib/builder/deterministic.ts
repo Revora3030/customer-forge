@@ -183,6 +183,11 @@ export type DeterministicPlan = {
   tasks: BuilderTask[];
 
   /**
+   * Dependency-aware planning metadata. Optional so existing plan consumers remain compatible.
+   */
+  blueprint?: import("./execution-blueprint").ExecutionBlueprint;
+
+  /**
    * True only when an outside reasoning layer may genuinely be useful.
    *
    * This does NOT mean the customer must pay for AI.
