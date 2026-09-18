@@ -36,6 +36,7 @@ import { compileVisualComposition, visualCompositionSummary } from "./visual-com
 import { compileSitewideCtaRepairs, sitewideCtaSummary } from "./sitewide-cta";
 import { compileGlobalSeoRepairs, globalSeoSummary } from "./global-seo-intelligence";
 import { designQualitySummary, scoreDesignQuality } from "./design-quality";
+import { compileResponsiveRepairs, isResponsiveRequest, responsiveSummary } from "./responsive-intelligence";
 
 /* -------------------------------------------------------------------------- */
 /* Limits                                                                     */
@@ -910,6 +911,44 @@ export function buildDeterministicPlan(
         notes.push(
           "Visual composition uses only existing sections and the builder's finite visual vocabulary, so layout refinement stays reversible and renderer-safe.",
         );
+        return true;
+      }
+
+      return false;
+    });
+  }
+
+  /* ---------------------------------------------------------------------- */
+  /* Responsive intelligence                                                  */
+  /* ---------------------------------------------------------------------- */
+
+  if (isResponsiveRequest(instruction)) {
+    addTask("Refine responsive layouts for smaller screens", () => {
+      const responsiveActions = compileResponsiveRepairs(
+        context,
+        instruction,
+        Math.min(8, cap - actions.length),
+      );
+
+      const before = actions.length;
+      for (const action of responsiveActions) {
+        pushUnique(actions, action, cap);
+      }
+
+      if (actions.length > before) {
+        trace.push(responsiveSummary(
+          responsiveActions.map((action) => ({
+            pageId: "",
+            sectionId: action.type === "set_section_visual" ? action.sectionId : "",
+            kind: "custom" as Section["kind"],
+            reasons: ["mobile layout refinement"],
+            priority: 0,
+          })),
+        ));
+        notes.push(
+          "Responsive intelligence uses only renderer-supported section layouts and conservative mobile-first spacing; it does not claim browser measurements it cannot observe.",
+        );
+        completed.add("mobile");
         return true;
       }
 
