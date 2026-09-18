@@ -218,8 +218,9 @@ function targetPage(context: AgentContext, intent: BuilderIntent): Page | null {
 
   if (!intent.wholeSite) {
     const ranked = rankPagesForIntent(context, intent.original);
-    if (ranked[0]) {
-      return context.pages.find((page) => page.id === ranked[0].pageId) ?? null;
+    const topRankedPage = ranked[0];
+    if (topRankedPage) {
+      return context.pages.find((page) => page.id === topRankedPage.pageId) ?? null;
     }
   }
 
