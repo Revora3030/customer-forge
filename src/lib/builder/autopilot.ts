@@ -11,6 +11,9 @@ export type SiteDiagnosis = {
   missingTrust: boolean;
   missingFaq: boolean;
   missingHomeHero: boolean;
+  emptySections: number;
+  pagesMissingSeo: number;
+  ctaCount: number;
 };
 
 type AutopilotIntent = Pick<BuilderIntent, "goals" | "verbs" | "moods">;
@@ -54,6 +57,36 @@ export function diagnoseSite(context: AgentContext): SiteDiagnosis {
     }),
   );
 
+  const emptySections = context.pages.reduce(
+    (count, page) =>
+      count +
+      page.sections.filter(
+        (section) =>
+          !text(section.heading) &&
+          !text(section.subheading) &&
+          !text(section.body) &&
+          section.components.length === 0,
+      ).length,
+    0,
+  );
+  const pagesMissingSeo = context.pages.filter(
+    (page) => !text(page.seo_title) || !text(page.seo_description),
+  ).length;
+  const ctaCount = context.pages.reduce(
+    (count, page) =>
+      count +
+      page.sections.reduce((sectionCount, section) => {
+        const kind = section.kind.toLowerCase();
+        const body = [
+          text(section.heading),
+          text(section.subheading),
+          text(section.body),
+        ].join(" ").toLowerCase();
+        return sectionCount + (kind === "cta" || /book|schedule|quote|contact|call|get started/.test(body) ? 1 : 0);
+      }, 0),
+    0,
+  );
+
   const pageCompleteness = pages === 0 ? 0 : Math.min(100, 55 + Math.min(pages, 6) * 7);
   const sectionCompleteness = pages === 0 ? 0 : Math.min(100, Math.round((sections / Math.max(pages * 3, 1)) * 100));
   const completeness = clamp((pageCompleteness + sectionCompleteness + (hasHomeHero ? 10 : 0)) / 2);
@@ -70,6 +103,9 @@ export function diagnoseSite(context: AgentContext): SiteDiagnosis {
     missingTrust: !hasTrust,
     missingFaq: !hasFaq,
     missingHomeHero: !hasHomeHero,
+    emptySections,
+    pagesMissingSeo,
+    ctaCount,
   };
 }
 
@@ -109,5 +145,13 @@ export function applyAutopilot(
 }
 
 export function autopilotSummary(diagnosis: SiteDiagnosis): string {
-  return `Autopilot diagnosis: ${diagnosis.pages} page(s), ${diagnosis.sections} section(s), completeness ${diagnosis.completeness}/100, conversion readiness ${diagnosis.conversionReadiness}/100, content readiness ${diagnosis.contentReadiness}/100.`;
+  return [
+    `Autopilot diagnosis: ${diagnosis.pages} page(s), ${diagnosis.sections} section(s)`,
+    `completeness ${diagnosis.completeness}/100`,
+    `conversion readiness ${diagnosis.conversionReadiness}/100`,
+    `content readiness ${diagnosis.contentReadiness}/100`,
+    `${diagnosis.emptySections} empty section(s)`,
+    `${diagnosis.pagesMissingSeo} page(s) missing SEO fields`,
+    `${diagnosis.ctaCount} conversion CTA(s)`,
+  ].join(", ") + ".";
 }

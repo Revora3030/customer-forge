@@ -21,12 +21,15 @@ export function qualityProfile(input: {
   missingTrust: boolean;
   missingFaq: boolean;
   missingHomeHero: boolean;
+  emptySections?: number;
+  pagesMissingSeo?: number;
+  ctaCount?: number;
 }): BuilderQualityProfile {
   const design = clamp(input.missingHomeHero ? 70 : 92);
-  const conversion = clamp(input.conversionReadiness);
-  const content = clamp(input.contentReadiness);
+  const conversion = clamp(input.conversionReadiness + (input.ctaCount && input.ctaCount > 0 ? 4 : -8));
+  const content = clamp(input.contentReadiness - Math.min(15, (input.emptySections ?? 0) * 5));
   const mobile = clamp(input.missingMobileCta ? 74 : 94);
-  const seo = clamp(input.completeness - 2);
+  const seo = clamp(input.completeness - 2 - Math.min(18, (input.pagesMissingSeo ?? 0) * 6));
   const trust = clamp(input.missingTrust ? 72 : 94);
   const completeness = clamp(input.completeness);
   const overall = clamp((design + conversion + content + mobile + seo + trust + completeness) / 7);
@@ -39,6 +42,9 @@ export function qualityProfile(input: {
   if (seo < 85) priorities.push("seo");
   if (trust < 85) priorities.push("trust");
   if (input.missingFaq) priorities.push("faq");
+  if ((input.emptySections ?? 0) > 0 && !priorities.includes("content")) priorities.push("content");
+  if ((input.pagesMissingSeo ?? 0) > 0 && !priorities.includes("seo")) priorities.push("seo");
+  if ((input.ctaCount ?? 0) === 0 && !priorities.includes("conversion")) priorities.push("conversion");
 
   return {
     overall,
