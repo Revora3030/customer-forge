@@ -31,6 +31,7 @@ import { playbookFor } from "./industry";
 import { designDecision, hierarchySort } from "./design";
 
 import { ctaTarget, faqQuestions, pageSeo, place, sectionCopy, type CopyFacts } from "./copy";
+import { compileNavigationRepairs } from "./navigation-intelligence";
 
 /* -------------------------------------------------------------------------- */
 /* Limits                                                                     */
@@ -708,6 +709,33 @@ export function buildDeterministicPlan(
   trace.push(
     `Master builder selected ${playbook.label} intelligence and a deterministic free-first plan.`,
   );
+
+  /* ---------------------------------------------------------------------- */
+  /* Navigation intelligence                                                 */
+  /* ---------------------------------------------------------------------- */
+
+  addTask("Repair contextual internal navigation", () => {
+    const result = compileNavigationRepairs(context, instruction, Math.min(4, cap - actions.length));
+    for (const action of result.actions) {
+      pushUnique(actions, action, cap);
+    }
+
+    if (result.repairs.length > 0) {
+      trace.push(
+        `Navigation intelligence found ${result.repairs.length} contextual internal-link repair${result.repairs.length === 1 ? "" : "s"}.`,
+      );
+      notes.push(
+        "Navigation repairs use only existing visible pages and native internal links; no destination pages or business facts are invented.",
+      );
+      return true;
+    }
+
+    if (/\b(navigation|nav|menu|menus|link|links|orphan|site structure|site architecture)\b/i.test(instruction)) {
+      trace.push("Navigation intelligence inspected the existing internal-link structure and found no safe repair to add.");
+    }
+
+    return false;
+  });
 
   /* ---------------------------------------------------------------------- */
   /* Design system                                                           */
