@@ -57,7 +57,7 @@ const stripped = (html: string) =>
     .trim();
 
 const attr = (tag: string, name: string) => {
-  const match = new RegExp(`${name}\\s*=\\s*("([^"]*)"|'([^']*)')`, "i").exec(tag);
+  const match = new RegExp(`${name}\s*=\s*("([^"]*)"|'([^']*)')`, "i").exec(tag);
   return (match?.[2] ?? match?.[3] ?? "").trim();
 };
 
@@ -81,7 +81,7 @@ export function inspectHtml(html: string, where: string): PageInspection {
   const headingText = headings.map((tag) => stripped(tag)).filter(Boolean);
   add("The page has a real headline", headingText.length > 0, "critical", undefined, "content");
   if (headings.length > 1)
-    add("Only one main headline per page", false, "warning", `${headings.length} found`);
+    add("Only one main headline per page", false, "warning", `${headings.length} found`, "accessibility");
 
   const title = stripped(/<title[^>]*>([\s\S]*?)<\/title>/i.exec(html)?.[1] ?? "");
   add("The browser tab has a title", title.length > 2, "warning", title.slice(0, 80), "seo");
@@ -107,25 +107,26 @@ export function inspectHtml(html: string, where: string): PageInspection {
     missingAlt === 0,
     "warning",
     missingAlt ? `${missingAlt} of ${images.length} photos have no description` : undefined,
+    "accessibility",
   );
 
-  const lang = /<html\\b[^>]*\\blang\\s*=\\s*["'][^"']+["']/i.test(html);
+  const lang = /<html\b[^>]*\blang\s*=\s*["'][^"']+["']/i.test(html);
   add("The document declares a language", lang, "warning", undefined, "accessibility");
 
-  const forms = html.match(/<form\\b[^>]*>/gi) ?? [];
-  const submitSignals = /<(?:button|input)\\b[^>]*(?:type\\s*=\\s*["']submit["']|>[^<]*(?:book|quote|contact|call|get started|schedule|request))/i.test(html);
+  const forms = html.match(/<form\b[^>]*>/gi) ?? [];
+  const submitSignals = /<(?:button|input)\b[^>]*(?:type\s*=\s*["']submit["']|>[^<]*(?:book|quote|contact|call|get started|schedule|request))/i.test(html);
   add(
     "Visitors have a clear conversion action",
-    submitSignals || /href\\s*=\\s*["'][^"']*(?:book|quote|contact|call|schedule|get-started|start)/i.test(html),
+    submitSignals || /href\s*=\s*["'][^"']*(?:book|quote|contact|call|schedule|get-started|start)/i.test(html),
     "warning",
     `${forms.length} form(s)`,
     "conversion",
   );
 
-  const canonical = /<link\\b[^>]*rel\\s*=\\s*["']canonical["']/i.test(html);
+  const canonical = /<link\b[^>]*rel\s*=\s*["']canonical["']/i.test(html);
   add("Search engines have a canonical URL", canonical, "warning", undefined, "seo");
 
-  const structuredData = /<script\\b[^>]*type\\s*=\\s*["']application\\/ld\\+json["']/i.test(html);
+  const structuredData = /<script\b[^>]*type\s*=\s*["']application\/ld\\+json["']/i.test(html);
   add("Structured data is present", structuredData, "warning", undefined, "seo");
 
   const body = stripped(html);
@@ -134,6 +135,7 @@ export function inspectHtml(html: string, where: string): PageInspection {
     body.length > 200,
     "critical",
     `${body.length} characters`,
+    "content",
   );
   const placeholder = PLACEHOLDER.exec(body);
   add(
@@ -141,6 +143,7 @@ export function inspectHtml(html: string, where: string): PageInspection {
     !placeholder,
     "critical",
     placeholder ? `found "${placeholder[0]}"` : undefined,
+    "content",
   );
 
   const links = new Set<string>();
