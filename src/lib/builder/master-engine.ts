@@ -37,6 +37,7 @@ import { compileSitewideCtaRepairs, sitewideCtaSummary } from "./sitewide-cta";
 import { compileGlobalSeoRepairs, globalSeoSummary } from "./global-seo-intelligence";
 import { designQualitySummary, scoreDesignQuality } from "./design-quality";
 import { compileResponsiveRepairs, isResponsiveRequest, responsiveSummary } from "./responsive-intelligence";
+import { accessibilitySummary, compileAccessibilityRepairs, isAccessibilityRequest, scoreAccessibility } from "./accessibility-intelligence";
 
 /* -------------------------------------------------------------------------- */
 /* Limits                                                                     */
@@ -953,6 +954,42 @@ export function buildDeterministicPlan(
       }
 
       return false;
+    });
+  }
+
+  /* ---------------------------------------------------------------------- */
+  /* Accessibility intelligence                                              */
+  /* ---------------------------------------------------------------------- */
+
+  if (isAccessibilityRequest(instruction)) {
+    addTask("Audit and repair accessibility signals", () => {
+      const result = scoreAccessibility(context);
+      const accessibilityActions = compileAccessibilityRepairs(
+        context,
+        instruction,
+        Math.min(12, cap - actions.length),
+      );
+      const before = actions.length;
+
+      for (const action of accessibilityActions) {
+        pushUnique(actions, action, cap);
+      }
+
+      trace.push(accessibilitySummary(result));
+      if (result.strengths.length) {
+        notes.push(`Accessibility strengths detected: ${result.strengths.join(", ")}.`);
+      }
+      if (result.gaps.length) {
+        notes.push(`Accessibility gaps detected: ${result.gaps.join(", ")}.`);
+      }
+      if (accessibilityActions.length) {
+        notes.push(
+          "Accessibility repairs use only source-derived alt text and existing link labels; heading, contrast and keyboard findings remain audit signals rather than guessed changes.",
+        );
+      }
+
+      completed.add("accessibility");
+      return actions.length > before || result.score >= 0;
     });
   }
 
