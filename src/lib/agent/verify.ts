@@ -31,11 +31,15 @@ export type PageInspection = {
   links: string[];
 };
 
+export type VerificationCategory = "content" | "seo" | "accessibility" | "conversion" | "technical" | "security";
+
 export type VerificationReport = {
   checks: Check[];
   critical: number;
   warnings: number;
   passed: number;
+  score: number;
+  categories: Record<VerificationCategory, { passed: number; failed: number }>;
   /** One line summarising the outcome for the owner. */
   summary: string;
 };
@@ -59,17 +63,27 @@ const attr = (tag: string, name: string) => {
 /** Inspects one served page. `where` is the human label used in the report. */
 export function inspectHtml(html: string, where: string): PageInspection {
   const checks: Check[] = [];
-  const add = (label: string, ok: boolean, severity: CheckSeverity, detail?: string) =>
-    checks.push(detail ? { label, ok, severity, where, detail } : { label, ok, severity, where });
+  const add = (
+    label: string,
+    ok: boolean,
+    severity: CheckSeverity,
+    detail?: string,
+    category: VerificationCategory = "technical",
+  ) =>
+    checks.push(
+      detail
+        ? { label, ok, severity, where, detail, category }
+        : { label, ok, severity, where, category },
+    );
 
   const headings = html.match(/<h1\b[^>]*>([\s\S]*?)<\/h1>/gi) ?? [];
   const headingText = headings.map((tag) => stripped(tag)).filter(Boolean);
-  add("The page has a real headline", headingText.length > 0, "critical");
+  add("The page has a real headline", headingText.length > 0, "critical", undefined, "content");
   if (headings.length > 1)
     add("Only one main headline per page", false, "warning", `${headings.length} found`);
 
   const title = stripped(/<title[^>]*>([\s\S]*?)<\/title>/i.exec(html)?.[1] ?? "");
-  add("The browser tab has a title", title.length > 2, "warning", title.slice(0, 80));
+  add("The browser tab has a title", title.length > 2, "warning", title.slice(0, 80), "seo");
 
   const metas = html.match(/<meta\b[^>]*>/gi) ?? [];
   const description = metas
@@ -83,7 +97,7 @@ export function inspectHtml(html: string, where: string): PageInspection {
   );
 
   const viewport = metas.some((tag) => /name\s*=\s*["']viewport["']/i.test(tag));
-  add("The page is readable on a phone", viewport, "critical");
+  add("The page is readable on a phone", viewport, "critical", undefined, "accessibility");
 
   const images = html.match(/<img\b[^>]*>/gi) ?? [];
   const missingAlt = images.filter((tag) => !attr(tag, "alt")).length;
@@ -93,6 +107,25 @@ export function inspectHtml(html: string, where: string): PageInspection {
     "warning",
     missingAlt ? `${missingAlt} of ${images.length} photos have no description` : undefined,
   );
+
+  const lang = /<html\\b[^>]*\\blang\\s*=\\s*["'][^"']+["']/i.test(html);
+  add("The document declares a language", lang, "warning", undefined, "accessibility");
+
+  const forms = html.match(/<form\\b[^>]*>/gi) ?? [];
+  const submitSignals = /<(?:button|input)\\b[^>]*(?:type\\s*=\\s*["']submit["']|>[^<]*(?:book|quote|contact|call|get started|schedule|request))/i.test(html);
+  add(
+    "Visitors have a clear conversion action",
+    submitSignals || /href\\s*=\\s*["'][^"']*(?:book|quote|contact|call|schedule|get-started|start)/i.test(html),
+    "warning",
+    `${forms.length} form(s)`,
+    "conversion",
+  );
+
+  const canonical = /<link\\b[^>]*rel\\s*=\\s*["']canonical["']/i.test(html);
+  add("Search engines have a canonical URL", canonical, "warning", undefined, "seo");
+
+  const structuredData = /<script\\b[^>]*type\\s*=\\s*["']application\\/ld\\+json["']/i.test(html);
+  add("Structured data is present", structuredData, "warning", undefined, "seo");
 
   const body = stripped(html);
   add(
@@ -125,12 +158,28 @@ export function summarise(checks: Check[]): VerificationReport {
   const critical = failures.filter((check) => check.severity === "critical").length;
   const warnings = failures.length - critical;
   const passed = checks.length - failures.length;
+  const categories: Record<VerificationCategory, { passed: number; failed: number }> = {
+    content: { passed: 0, failed: 0 },
+    seo: { passed: 0, failed: 0 },
+    accessibility: { passed: 0, failed: 0 },
+    conversion: { passed: 0, failed: 0 },
+    technical: { passed: 0, failed: 0 },
+    security: { passed: 0, failed: 0 },
+  };
+  for (const check of checks) {
+    const category = check.category ?? "technical";
+    if (check.ok) categories[category].passed += 1;
+    else categories[category].failed += 1;
+  }
+  const totalWeight = checks.reduce((sum, check) => sum + (check.severity === "critical" ? 2 : 1), 0);
+  const failedWeight = failures.reduce((sum, check) => sum + (check.severity === "critical" ? 2 : 1), 0);
+  const score = totalWeight ? Math.max(0, Math.round(100 - (failedWeight / totalWeight) * 100)) : 0;
   const summary = critical
-    ? `${critical} thing${critical === 1 ? "" : "s"} would have been broken for visitors`
+    ? `${critical} critical issue${critical === 1 ? "" : "s"} require attention before this page is considered verified.`
     : warnings
-      ? `Everything works. ${warnings} smaller improvement${warnings === 1 ? "" : "s"} noted.`
+      ? `Verified successfully with ${warnings} improvement${warnings === 1 ? "" : "s"} noted.`
       : checks.length
-        ? "Checked the live pages — everything passed."
+        ? "Verified the served page — every check passed."
         : "No pages could be checked.";
-  return { checks, critical, warnings, passed, summary };
+  return { checks, critical, warnings, passed, score, categories, summary };
 }
