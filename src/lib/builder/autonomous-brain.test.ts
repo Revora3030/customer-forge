@@ -63,6 +63,7 @@ describe("autonomous brain", () => {
     expect(plan.actions.length).toBeGreaterThan(0);
     expect(plan.actions.length).toBeLessThanOrEqual(56);
     expect(plan.trace.some((item) => item.includes("Autonomous Brain v6: ran"))).toBe(true);
+    expect(plan.trace.some((item) => item.includes("Autonomous Brain v7: self-critique"))).toBe(true);
 
     const keys = plan.actions.map((action) => JSON.stringify(action));
     expect(new Set(keys).size).toBe(keys.length);
