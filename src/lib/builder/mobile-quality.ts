@@ -26,7 +26,7 @@ export type MobileQualityScore = {
   scannedSections: number;
 };
 
-const MOBILE_TERMS = /\\b(mobile|responsive|phone|phones|tablet|small screen|touch)\\b/i;
+const MOBILE_TERMS = /\b(mobile|responsive|phone|phones|tablet|small screen|touch)\b/i;
 
 function visibleSections(context: AgentContext): Section[] {
   return context.pages
@@ -66,7 +66,7 @@ export function scoreMobileQuality(context: AgentContext): MobileQualityScore {
     Boolean(c.link_url || c.link_label),
   ).length;
   const ctaLike = sections.flatMap((s) => s.components).filter((c) =>
-    /\\b(book|quote|estimate|contact|call|get started|schedule|appointment)\\b/i.test(
+    /\b(book|quote|estimate|contact|call|get started|schedule|appointment)\b/i.test(
       [c.label, c.link_label].filter(Boolean).join(" "),
     ),
   ).length;
