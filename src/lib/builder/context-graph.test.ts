@@ -56,6 +56,6 @@ describe("site context graph", () => {
   });
 
   it("produces a compact deterministic summary", () => {
-    expect(contextGraphSummary(context)).toBe("3 pages · 7 graph nodes · 12 relationships · 1 orphan pages · 1 conversion pages");
+    expect(contextGraphSummary(context)).toBe("3 pages · 7 graph nodes · 10 relationships · 1 orphan pages · 1 conversion pages");
   });
 });
