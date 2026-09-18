@@ -32,6 +32,7 @@ import { designDecision, hierarchySort } from "./design";
 
 import { ctaTarget, faqQuestions, pageSeo, place, sectionCopy, type CopyFacts } from "./copy";
 import { compileNavigationRepairs } from "./navigation-intelligence";
+import { compileVisualComposition, visualCompositionSummary } from "./visual-composition";
 
 /* -------------------------------------------------------------------------- */
 /* Limits                                                                     */
@@ -356,6 +357,18 @@ function pushUnique(actions: AgentAction[], action: AgentAction, cap: number): v
         existing.sectionId === action.sectionId &&
         existing.kind === action.kind &&
         existing.label === action.label,
+    )
+  ) {
+    return;
+  }
+
+  if (
+    action.type === "set_section_visual" &&
+    actionExists(
+      actions,
+      (existing) =>
+        existing.type === "set_section_visual" &&
+        existing.sectionId === action.sectionId,
     )
   ) {
     return;
@@ -836,6 +849,31 @@ export function buildDeterministicPlan(
       completed.add("design");
 
       return true;
+    });
+
+    addTask("Refine section-level visual composition", () => {
+      const visualActions = compileVisualComposition(
+        context,
+        instruction,
+        intent.moods,
+        intent.visualIntensity,
+        Math.min(8, cap - actions.length),
+      );
+
+      const before = actions.length;
+      for (const action of visualActions) {
+        pushUnique(actions, action, cap);
+      }
+
+      if (actions.length > before) {
+        trace.push(visualCompositionSummary(visualActions));
+        notes.push(
+          "Visual composition uses only existing sections and the builder's finite visual vocabulary, so layout refinement stays reversible and renderer-safe.",
+        );
+        return true;
+      }
+
+      return false;
     });
   }
 
