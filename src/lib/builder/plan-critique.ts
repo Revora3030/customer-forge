@@ -1,3 +1,5 @@
+import type { BuilderIntent } from "./interpreter";
+
 /**
  * Requirement-aware self-critique for native Revora plans.
  *
@@ -5,12 +7,7 @@
  * the intent that produced the plan, so a plan can be flagged when it has
  * actions but does not clearly address what the owner actually asked for.
  */
-type CritiqueIntent = {
-  goals?: string[];
-  sectionKinds?: string[];
-  moods?: string[];
-  verbs?: string[];
-};
+type CritiqueIntent = Pick<BuilderIntent, "goals" | "sectionKinds" | "moods" | "verbs">;
 
 const unique = <T>(items: T[]): T[] => [...new Set(items)];
 
