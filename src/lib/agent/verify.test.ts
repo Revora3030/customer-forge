@@ -69,6 +69,18 @@ describe("summarise", () => {
     expect(summarise([]).summary).toBe("No pages could be checked.");
   });
 
+  it("returns a weighted score and category breakdown", () => {
+    const report = summarise([
+      { label: "headline", ok: true, severity: "critical", where: "Home", category: "content" },
+      { label: "seo", ok: false, severity: "warning", where: "Home", category: "seo" },
+      { label: "broken", ok: false, severity: "critical", where: "Home", category: "technical" },
+    ]);
+    expect(report.score).toBe(40);
+    expect(report.categories.content.passed).toBe(1);
+    expect(report.categories.seo.failed).toBe(1);
+    expect(report.categories.technical.failed).toBe(1);
+  });
+
   it("acknowledges a clean pass", () => {
     expect(summarise([{ label: "a", ok: true, severity: "critical", where: "Home" }]).summary).toBe(
       "Verified the served page — every check passed.",
