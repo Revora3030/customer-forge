@@ -23,6 +23,7 @@ export type Check = {
   /** Where it was seen, e.g. "Home" or "/s/acme/services". */
   where: string;
   detail?: string;
+  category?: VerificationCategory;
 };
 
 export type PageInspection = {
