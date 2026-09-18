@@ -52,7 +52,7 @@ describe("site context graph", () => {
 
   it("ranks conversion pages for conversion-oriented requests", () => {
     const ranked = rankPagesForIntent(context, "improve booking conversion");
-    expect(ranked[0]?.id).toBe("booking");
+    expect(ranked[0]?.pageId).toBe("booking");
   });
 
   it("produces a compact deterministic summary", () => {
