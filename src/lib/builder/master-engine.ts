@@ -33,6 +33,7 @@ import { designDecision, hierarchySort } from "./design";
 import { ctaTarget, faqQuestions, pageSeo, place, sectionCopy, type CopyFacts } from "./copy";
 import { compileNavigationRepairs } from "./navigation-intelligence";
 import { compileVisualComposition, visualCompositionSummary } from "./visual-composition";
+import { compileSitewideCtaRepairs, sitewideCtaSummary } from "./sitewide-cta";
 
 /* -------------------------------------------------------------------------- */
 /* Limits                                                                     */
@@ -745,6 +746,43 @@ export function buildDeterministicPlan(
 
     if (/\b(navigation|nav|menu|menus|link|links|orphan|site structure|site architecture)\b/i.test(instruction)) {
       trace.push("Navigation intelligence inspected the existing internal-link structure and found no safe repair to add.");
+    }
+
+    return false;
+  });
+
+  /* ---------------------------------------------------------------------- */
+  /* Site-wide CTA intelligence                                             */
+  /* ---------------------------------------------------------------------- */
+
+  addTask("Complete the site-wide conversion path", () => {
+    const target = ctaTarget(facts);
+
+    if (!target) {
+      return false;
+    }
+
+    const ctaActions = compileSitewideCtaRepairs(
+      context,
+      instruction,
+      target.url,
+      playbook.ctaLabels.primary,
+      Math.min(8, cap - actions.length),
+    );
+
+    const before = actions.length;
+
+    for (const action of ctaActions) {
+      pushUnique(actions, action, cap);
+    }
+
+    if (actions.length > before) {
+      trace.push(sitewideCtaSummary(ctaActions));
+      notes.push(
+        "Site-wide CTA intelligence reuses the existing safe conversion destination and native button action; it does not invent contact details or external destinations.",
+      );
+      completed.add("conversion");
+      return true;
     }
 
     return false;
