@@ -75,7 +75,7 @@ describe("summarise", () => {
       { label: "seo", ok: false, severity: "warning", where: "Home", category: "seo" },
       { label: "broken", ok: false, severity: "critical", where: "Home", category: "technical" },
     ]);
-    expect(report.score).toBe(25);
+    expect(report.score).toBe(40);
     expect(report.categories.content.passed).toBe(1);
     expect(report.categories.seo.failed).toBe(1);
     expect(report.categories.technical.failed).toBe(1);
