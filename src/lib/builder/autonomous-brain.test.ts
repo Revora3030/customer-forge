@@ -54,6 +54,20 @@ describe("autonomous brain", () => {
     expect(plan.trace.some((item) => item.includes("Autonomous Brain v3: carried forward the prior subject"))).toBe(true);
   });
 
+  it("uses bounded focused passes for broad multi-goal requests", () => {
+    const plan = buildAutonomousPlan(
+      context,
+      "make the whole site look premium, get more customers, improve local SEO, and fix mobile",
+    );
+
+    expect(plan.actions.length).toBeGreaterThan(0);
+    expect(plan.actions.length).toBeLessThanOrEqual(56);
+    expect(plan.trace.some((item) => item.includes("Autonomous Brain v6: ran"))).toBe(true);
+
+    const keys = plan.actions.map((action) => JSON.stringify(action));
+    expect(new Set(keys).size).toBe(keys.length);
+  });
+
   it("keeps explicit requests on the existing compiler path", () => {
     const plan = buildAutonomousPlan(context, "change the hero heading");
     expect(plan.actions.length).toBeGreaterThanOrEqual(0);
