@@ -119,6 +119,7 @@ describe("guardAutonomousPlan", () => {
       {
         ...plan([{ type: "set_section_text", sectionId: "section-1", field: "heading", value: "Welcome" }]),
         intent: {
+          ...plan([]).intent,
           goals: ["seo"],
           sectionKinds: [],
           moods: [],
