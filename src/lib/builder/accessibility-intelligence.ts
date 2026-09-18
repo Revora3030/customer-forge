@@ -153,7 +153,7 @@ export function compileAccessibilityRepairs(
     visibleComponents(context).map((component) => [component.id, component]),
   );
 
-  return findAccessibilityFindings(context, limit).flatMap((finding) => {
+  const repairs: AgentAction[] = [];\n\n  for (const finding of findAccessibilityFindings(context, limit)) {
     if (!finding.componentId) {
       return [];
     }
