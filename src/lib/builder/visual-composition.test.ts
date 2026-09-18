@@ -1,4 +1,4 @@
-import type { AgentContext } from "@/lib/site-agent.server";
+import { describe, expect, it } from "vitest";
 import { compileVisualComposition, visualCompositionSummary } from "./visual-composition";
 
 const context = {
