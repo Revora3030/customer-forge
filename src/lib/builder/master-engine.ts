@@ -35,6 +35,7 @@ import { compileNavigationRepairs } from "./navigation-intelligence";
 import { compileVisualComposition, visualCompositionSummary } from "./visual-composition";
 import { compileSitewideCtaRepairs, sitewideCtaSummary } from "./sitewide-cta";
 import { compileGlobalSeoRepairs, globalSeoSummary } from "./global-seo-intelligence";
+import { designQualitySummary, scoreDesignQuality } from "./design-quality";
 
 /* -------------------------------------------------------------------------- */
 /* Limits                                                                     */
@@ -913,6 +914,24 @@ export function buildDeterministicPlan(
       }
 
       return false;
+    });
+  }
+
+  /* ---------------------------------------------------------------------- */
+  /* Design quality intelligence                                             */
+  /* ---------------------------------------------------------------------- */
+
+  if (designRequested) {
+    addTask("Measure the existing design quality", () => {
+      const result = scoreDesignQuality(context);
+      trace.push(designQualitySummary(result));
+      if (result.strengths.length) {
+        notes.push(`Design strengths detected: ${result.strengths.join(", ")}.`);
+      }
+      if (result.gaps.length) {
+        notes.push(`Design gaps detected for future refinement: ${result.gaps.join(", ")}.`);
+      }
+      return true;
     });
   }
 
