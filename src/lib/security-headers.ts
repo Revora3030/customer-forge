@@ -76,6 +76,10 @@ export function baseSecurityHeaders(options: { https: boolean }): Record<string,
     "referrer-policy": "strict-origin-when-cross-origin",
     "x-frame-options": "DENY",
     "cross-origin-opener-policy": "same-origin",
+    "cross-origin-resource-policy": "same-origin",
+    "x-dns-prefetch-control": "off",
+    "x-permitted-cross-domain-policies": "none",
+    "origin-agent-cluster": "?1",
     ...(options.https
       ? { "strict-transport-security": "max-age=31536000; includeSubDomains; preload" }
       : {}),
