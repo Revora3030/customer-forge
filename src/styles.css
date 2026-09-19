@@ -1560,3 +1560,24 @@ a[href*="lovable.app"][target="_blank"][class*="fixed"],
     transform: none;
   }
 }
+
+
+/* Ultimate media overlays: finite, composable and reduced-motion safe. */
+.rv-media-frame { position: relative; isolation: isolate; }
+.rv-media-frame::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 220ms ease;
+  z-index: 1;
+}
+.rv-overlay-soft::after { opacity: .12; background: #000; }
+.rv-overlay-dark::after { opacity: .30; background: #000; }
+.rv-overlay-brand::after { opacity: .16; background: hsl(var(--primary)); }
+.rv-overlay-gradient::after { opacity: .35; background: linear-gradient(135deg, transparent 30%, rgb(0 0 0 / .62)); }
+.rv-media-frame:hover::after { opacity: .18; }
+@media (prefers-reduced-motion: reduce) {
+  .rv-media-frame::after { transition: none; }
+}
