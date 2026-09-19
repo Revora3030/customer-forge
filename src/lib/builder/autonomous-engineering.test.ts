@@ -90,8 +90,11 @@ describe("Autonomous Engineering 2.0", () => {
 
   it("detects duplicate slugs and placeholder content", () => {
     const ctx = context();
-    ctx.pages[0].sections[0].heading = "Lorem ipsum";
-    ctx.pages.push({ ...ctx.pages[0], id: "duplicate", slug: "/" });
+    const firstPage = ctx.pages[0];
+    if (!firstPage) throw new Error("Test fixture missing home page");
+    firstPage.sections[0]!.heading = "Lorem ipsum";
+    const duplicate = { ...firstPage, id: "duplicate", slug: "/" } as AgentContext["pages"][number];
+    ctx.pages.push(duplicate);
 
     const result = compileAutonomousEngineering(ctx, "audit the whole site", true, 8);
 
