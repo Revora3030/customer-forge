@@ -26,11 +26,18 @@ export function PlatformAnalytics() {
 
   // Load the configured GA4 property once per browser session. The ID comes
   // from the backend — the settings table itself is not publicly readable.
+  // Load the configured GA4 property once per browser session. The lookup is
+  // optional and must never create an unhandled rejection that can turn a
+  // preview/runtime diagnostic into a page-level error.
   useEffect(() => {
     let cancelled = false;
-    void getPublicGaMeasurementId().then((id) => {
-      if (!cancelled && isValidMeasurementId(id)) loadGa4(id);
-    });
+    void getPublicGaMeasurementId()
+      .then((id) => {
+        if (!cancelled && isValidMeasurementId(id)) loadGa4(id);
+      })
+      .catch(() => {
+        // Analytics is non-critical. The public app must continue rendering.
+      });
     return () => {
       cancelled = true;
     };
