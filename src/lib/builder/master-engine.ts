@@ -54,6 +54,7 @@ import { compileWholeRepoUpgrades } from "./whole-repo-upgrade";
 import { createBrowserVerificationPlan } from "../agent/browser-verification-contract";
 import { evaluateSiteQuality } from "./site-quality-contract";
 import { inspectBuilderPrompt } from "../security/ai-prompt-security";
+import { auditFinal10Controls } from "./final-10-10-controls";
 
 /* -------------------------------------------------------------------------- */
 /* Limits                                                                     */
@@ -771,6 +772,9 @@ export function buildDeterministicPlan(
 
   const graphSummary = contextGraphSummary(context);
   trace.push(`Context graph: ${graphSummary}.`);
+
+  const finalControls = auditFinal10Controls();
+  trace.push(`Final 10/10 control inventory: ${finalControls.total} controls across ${finalControls.categories.length} domains; ${finalControls.runtime} require runtime evidence.`);
 
   const browserPlan = createBrowserVerificationPlan(context.pages.map((candidate) => candidate.slug), 12);
   trace.push(`Browser evidence plan: ${browserPlan.checks.length} bounded checks across ${browserPlan.maxPages} pages; runtime evidence remains read-only.`);
