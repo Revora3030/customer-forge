@@ -1575,24 +1575,6 @@ export function buildDeterministicPlan(
   }
 
   /* ---------------------------------------------------------------------- */
-  /* Summary                                                                 */
-  /* ---------------------------------------------------------------------- */
-
-  const summaryBits = Array.from(completed);
-
-  let summary =
-    summaryBits.length > 0
-      ? `Master builder improved ${summaryBits.join(", ")} using your existing business data.`
-      : "No safe website change was generated from this request.";
-
-  let reply =
-    actions.length > 0
-      ? `I understood the request and prepared ${actions.length} website update${
-          actions.length === 1 ? "" : "s"
-        } across ${summaryBits.join(", ") || "your site"}.`
-      : "I could not safely turn that request into a website change without guessing.";
-
-  /* ---------------------------------------------------------------------- */
   /* Safe QA repair pass                                                     */
 
   const repairRequested =
