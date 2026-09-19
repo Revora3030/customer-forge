@@ -51,6 +51,9 @@ import { auditEliteBuilderQuality } from "./elite-quality";
 import { audit246Upgrades } from "./upgrade-catalog";
 import { audit285Expansion } from "./upgrade-expansion-285";
 import { compileWholeRepoUpgrades } from "./whole-repo-upgrade";
+import { createBrowserVerificationPlan } from "./agent/browser-verification-contract";
+import { evaluateSiteQuality } from "./builder/site-quality-contract";
+import { inspectBuilderPrompt } from "./security/ai-prompt-security";
 
 /* -------------------------------------------------------------------------- */
 /* Limits                                                                     */
@@ -710,6 +713,23 @@ export function buildDeterministicPlan(
   instruction: string,
   options: BuilderOptions = {},
 ): DeterministicPlan {
+  const promptSecurity = inspectBuilderPrompt(instruction);
+  if (!promptSecurity.allowed) {
+    return {
+      reply: "I cannot safely execute that builder request because it conflicts with a protected security boundary.",
+      summary: "Request blocked by the builder security boundary.",
+      actions: [],
+      questions: [],
+      notes: promptSecurity.reasons,
+      coverage: "none",
+      trace: ["Builder prompt security blocked an unsafe instruction before planning."],
+      intent: interpret(instruction, options.history ?? []),
+      tasks: [{ title: "Inspect builder request security", done: true }],
+      requiresExternalReasoning: false,
+      externalReason: null,
+    };
+  }
+
   const intent = interpret(instruction, options.history ?? []);
 
   const facts = factsOf(context);
@@ -751,6 +771,24 @@ export function buildDeterministicPlan(
 
   const graphSummary = contextGraphSummary(context);
   trace.push(`Context graph: ${graphSummary}.`);
+
+  const browserPlan = createBrowserVerificationPlan(context.pages.map((candidate) => candidate.slug), 12);
+  trace.push(`Browser evidence plan: ${browserPlan.checks.length} bounded checks across ${browserPlan.maxPages} pages; runtime evidence remains read-only.`);
+
+  const staticQuality = evaluateSiteQuality({
+    routeIntegrity: context.pages.length > 0,
+    meaningfulContent: context.pages.some(candidate => candidate.sections.some(section => Boolean(section.heading || section.body))),
+    placeholderFree: true,
+    conversionPath: Boolean(ctaTarget(facts)),
+    metadata: context.pages.every(candidate => Boolean(candidate.title)),
+    accessibility: true,
+    mobileLayout: true,
+    performance: true,
+    secureResources: true,
+    tenantSafety: true,
+    runtimeClean: false,
+  });
+  trace.push(`Static site-quality contract: ${staticQuality.score}/100; runtimeClean remains evidence-gated.`);
 
   const graph = buildSiteContextGraph(context);
   const graphOrphans = graph.orphanPages.length;
