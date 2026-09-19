@@ -19,6 +19,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      - name: Install dependencies
+        run: npm ci
       - name: Repository security audit
         run: node scripts/security-audit.mjs
       - name: Focused security tests
