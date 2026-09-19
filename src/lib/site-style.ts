@@ -374,6 +374,131 @@ export function clearDeviceLayer(settings: unknown, device: Device): Record<stri
   return base;
 }
 
+
+/* -------------------------- persisted visual tokens ------------------------- */
+
+/**
+ * Section-level composition is stored separately from free-form block styling.
+ * Keeping it in a finite vocabulary lets the AI make expressive layouts while
+ * guaranteeing the public renderer has a consumer for every value.
+ */
+export type PersistedSectionVisual = {
+  layout?: "split" | "centered" | "image_left" | "image_right" | "full_bleed" | "editorial" | "layered" | "stacked";
+  density?: "airy" | "balanced" | "dense";
+  image_position?: "left" | "right" | "center" | "background";
+  image_treatment?: "natural" | "rounded" | "soft_shadow" | "glass_frame" | "duotone" | "gradient_overlay" | "cinematic" | "cutout" | "full_bleed";
+  spacing?: "tight" | "standard" | "generous";
+  max_width?: "narrow" | "standard" | "wide" | "edge";
+  card_style?: "soft" | "sharp" | "pill" | "glass" | "editorial" | "floating";
+  image_ratio?: "1:1" | "4:3" | "3:2" | "16:9" | "21:9";
+};
+
+const SECTION_VISUAL_VALUES = {
+  layout: new Set(["split", "centered", "image_left", "image_right", "full_bleed", "editorial", "layered", "stacked"]),
+  density: new Set(["airy", "balanced", "dense"]),
+  image_position: new Set(["left", "right", "center", "background"]),
+  image_treatment: new Set(["natural", "rounded", "soft_shadow", "glass_frame", "duotone", "gradient_overlay", "cinematic", "cutout", "full_bleed"]),
+  spacing: new Set(["tight", "standard", "generous"]),
+  max_width: new Set(["narrow", "standard", "wide", "edge"]),
+  card_style: new Set(["soft", "sharp", "pill", "glass", "editorial", "floating"]),
+  image_ratio: new Set(["1:1", "4:3", "3:2", "16:9", "21:9"]),
+} as const;
+
+const VISUAL_KEYS = [
+  "layout",
+  "density",
+  "image_position",
+  "image_treatment",
+  "spacing",
+  "max_width",
+  "card_style",
+  "image_ratio",
+] as const;
+
+export function readSectionVisual(settings: unknown): PersistedSectionVisual {
+  if (!settings || typeof settings !== "object" || Array.isArray(settings)) return {};
+  const raw = (settings as Record<string, unknown>)["visual"];
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+  const out: Record<string, string> = {};
+  for (const key of VISUAL_KEYS) {
+    const value = (raw as Record<string, unknown>)[key];
+    if (
+      typeof value === "string" &&
+      value.length <= 32 &&
+      SECTION_VISUAL_VALUES[key].has(value as never)
+    ) {
+      out[key] = value;
+    }
+  }
+  return out as PersistedSectionVisual;
+}
+
+export function writeSectionVisual(
+  settings: unknown,
+  patch: PersistedSectionVisual,
+): Record<string, unknown> {
+  const base =
+    settings && typeof settings === "object" && !Array.isArray(settings)
+      ? { ...(settings as Record<string, unknown>) }
+      : {};
+  const current = readSectionVisual(settings);
+  const next: Record<string, string> = { ...current };
+  for (const key of VISUAL_KEYS) {
+    const value = patch[key];
+    if (typeof value === "string" && value.length <= 32) next[key] = value;
+  }
+  base["visual"] = next;
+  return base;
+}
+
+export type PersistedComponentVisual = {
+  alt?: string;
+  object_fit?: "cover" | "contain";
+  object_position?: string;
+  overlay?: "none" | "soft" | "dark" | "brand" | "gradient";
+  radius?: "none" | "small" | "medium" | "large" | "pill";
+  shadow?: "none" | "soft" | "medium" | "strong";
+  aspect_ratio?: "1:1" | "4:3" | "3:2" | "16:9" | "21:9";
+  focal_point?: string;
+};
+
+export function readComponentVisual(settings: unknown): PersistedComponentVisual {
+  if (!settings || typeof settings !== "object" || Array.isArray(settings)) return {};
+  const raw = (settings as Record<string, unknown>)["visual"];
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+  const value = raw as Record<string, unknown>;
+  const out: PersistedComponentVisual = {};
+  if (typeof value.alt === "string") out.alt = value.alt.slice(0, 160);
+  if (value.object_fit === "cover" || value.object_fit === "contain") out.object_fit = value.object_fit;
+  if (typeof value.object_position === "string") out.object_position = value.object_position;
+  if (["none", "soft", "dark", "brand", "gradient"].includes(String(value.overlay))) {
+    out.overlay = value.overlay as PersistedComponentVisual["overlay"];
+  }
+  if (["none", "small", "medium", "large", "pill"].includes(String(value.radius))) {
+    out.radius = value.radius as PersistedComponentVisual["radius"];
+  }
+  if (["none", "soft", "medium", "strong"].includes(String(value.shadow))) {
+    out.shadow = value.shadow as PersistedComponentVisual["shadow"];
+  }
+  if (["1:1", "4:3", "3:2", "16:9", "21:9"].includes(String(value.aspect_ratio))) {
+    out.aspect_ratio = value.aspect_ratio as PersistedComponentVisual["aspect_ratio"];
+  }
+  if (typeof value.focal_point === "string") out.focal_point = value.focal_point;
+  return out;
+}
+
+export function writeComponentVisual(
+  settings: unknown,
+  patch: PersistedComponentVisual,
+): Record<string, unknown> {
+  const base =
+    settings && typeof settings === "object" && !Array.isArray(settings)
+      ? { ...(settings as Record<string, unknown>) }
+      : {};
+  base["visual"] = { ...readComponentVisual(settings), ...patch };
+  return base;
+}
+
 /* ---------------------------------- to CSS --------------------------------- */
 
 /** Typography, spacing and appearance for the block itself. */

@@ -5,7 +5,7 @@
  * claims. Lead-capture blocks (quote, booking, sticky call bar) render the same
  * forms used on the home page, so any page can convert a visitor.
  */
-import { blockCss, readBlockStyle } from "@/lib/site-style";
+import { blockCss, readBlockStyle, readSectionVisual, readComponentVisual } from "@/lib/site-style";
 import { Link } from "@tanstack/react-router";
 import { SitePageLink } from "@/components/site/site-links";
 import { Mail, MapPin, Phone, Star } from "lucide-react";
@@ -62,6 +62,73 @@ const Heading = ({ section }: { section: Section }) => {
 };
 
 /** Buttons stored on a section. Internal links use the router, links out don't. */
+const IMAGE_COMPONENT_KINDS = new Set(["image", "gallery", "media", "photo", "hero_image"]);
+
+function safeObjectPosition(value: string | undefined): string {
+  if (!value) return "center";
+  return /^(left|center|right)(\s+(top|center|bottom))?$/i.test(value) ? value : "center";
+}
+
+function ratioClass(ratio: string | undefined): string {
+  switch (ratio) {
+    case "1:1": return "aspect-square";
+    case "4:3": return "aspect-[4/3]";
+    case "3:2": return "aspect-[3/2]";
+    case "21:9": return "aspect-[21/9]";
+    default: return "aspect-video";
+  }
+}
+
+function visualImageClass(visual: ReturnType<typeof readComponentVisual>): string {
+  const radius =
+    visual.radius === "pill"
+      ? "rounded-full"
+      : visual.radius === "large"
+        ? "rounded-2xl"
+        : visual.radius === "medium"
+          ? "rounded-xl"
+          : visual.radius === "small"
+            ? "rounded-lg"
+            : "rounded-none";
+  const shadow =
+    visual.shadow === "strong"
+      ? "shadow-2xl"
+      : visual.shadow === "medium"
+        ? "shadow-xl"
+        : visual.shadow === "soft"
+          ? "shadow-lg"
+          : "shadow-none";
+  return `h-full w-full ${radius} ${shadow} object-${visual.object_fit ?? "cover"}`;
+}
+
+function SectionMedia({ site, section }: { site: Site; section: Section }) {
+  const items = section.components.filter(
+    (component) => IMAGE_COMPONENT_KINDS.has(component.kind) && safeLinkUrl(component.media_url),
+  );
+  if (!items.length) return null;
+  return (
+    <div className="rv-generated-media mx-auto grid max-w-6xl gap-4 px-4 pb-10 md:grid-cols-2">
+      {items.slice(0, 4).map((component) => {
+        const visual = readComponentVisual(component.settings);
+        const src = safeLinkUrl(component.media_url);
+        if (!src) return null;
+        return (
+          <figure key={component.id} className={`rv-media-frame ${ratioClass(visual.aspect_ratio)} overflow-hidden`}>
+            <img
+              src={src}
+              alt={visual.alt || component.label || `${site.org.name} work sample`}
+              loading="lazy"
+              decoding="async"
+              className={visualImageClass(visual)}
+              style={{ objectPosition: safeObjectPosition(visual.object_position) }}
+            />
+          </figure>
+        );
+      })}
+    </div>
+  );
+}
+
 function SectionButtons({ site, components }: { site: Site; components: Component[] }) {
   const buttons = components.filter((c) => c.kind === "button" && c.label);
   if (!buttons.length) return null;
@@ -94,12 +161,10 @@ function SectionButtons({ site, components }: { site: Site; components: Componen
 export function SiteSection({ site, section }: { site: Site; section: Section }) {
   const effect = readSectionEffect(section.settings);
   const style = readBlockStyle(section.settings);
+  const visual = readSectionVisual(section.settings);
+  const variant = /^[a-z0-9-]{1,40}$/i.test(section.variant ?? "") ? section.variant : "default";
   let inner = <SiteSectionBody site={site} section={section} />;
 
-  // Client-chosen typography, colours, spacing and background from the visual
-  // builder. Only explicitly set values are applied, so untouched sections keep
-  // the generated template exactly as it was. The `data-rvb` hook lets the
-  // page's stylesheet apply that block's tablet and phone overrides.
   const css = blockCss(style);
   if (Object.keys(css).length) {
     inner = (
@@ -109,8 +174,26 @@ export function SiteSection({ site, section }: { site: Site; section: Section })
     );
   }
 
-  if (effect === "none") return inner;
-  return <div className={sectionEffectClass(effect)}>{inner}</div>;
+  const visualClass = [
+    "rv-section",
+    `rv-variant-${variant}`,
+    visual.layout ? `rv-layout-${visual.layout}` : "",
+    visual.density ? `rv-density-${visual.density}` : "",
+    visual.spacing ? `rv-spacing-${visual.spacing}` : "",
+    visual.max_width ? `rv-width-${visual.max_width}` : "",
+    visual.card_style ? `rv-cards-${visual.card_style}` : "",
+    visual.image_treatment ? `rv-image-${visual.image_treatment}` : "",
+  ].filter(Boolean).join(" ");
+
+  const decorated = (
+    <div className={visualClass} data-rv-variant={variant}>
+      {section.kind !== "hero" ? <SectionMedia site={site} section={section} /> : null}
+      {inner}
+    </div>
+  );
+
+  if (effect === "none") return decorated;
+  return <div className={sectionEffectClass(effect)}>{decorated}</div>;
 }
 
 function SiteSectionBody({ site, section }: { site: Site; section: Section }) {
@@ -130,20 +213,37 @@ function SiteSectionBody({ site, section }: { site: Site; section: Section }) {
                 {rating.toFixed(1)} ★ · {reviews.length} reviews
               </Pill>
             ) : null}
-            <h1 className="mt-5 max-w-3xl font-display text-[34px] leading-[1.06] font-semibold tracking-tight lg:text-[46px]">
-              {section.heading ?? org.name}
-            </h1>
-            {section.subheading ? (
-              <p className="mt-4 max-w-xl text-[15px] leading-relaxed text-muted-foreground">
-                {section.subheading}
-              </p>
-            ) : null}
-            {section.body ? (
-              <p className="mt-4 max-w-xl text-[15px] leading-relaxed text-muted-foreground">
-                {section.body}
-              </p>
-            ) : null}
-            <SectionButtons site={site} components={components} />
+            <div className="rv-hero-grid mt-6">
+              <div>
+                <h1 className="max-w-3xl font-display text-[34px] leading-[1.06] font-semibold tracking-tight lg:text-[46px]">
+                  {section.heading ?? org.name}
+                </h1>
+                {section.subheading ? (
+                  <p className="mt-4 max-w-xl text-[15px] leading-relaxed text-muted-foreground">
+                    {section.subheading}
+                  </p>
+                ) : null}
+                {section.body ? (
+                  <p className="mt-4 max-w-xl text-[15px] leading-relaxed text-muted-foreground">
+                    {section.body}
+                  </p>
+                ) : null}
+                <SectionButtons site={site} components={components} />
+              </div>
+              {profile?.hero_image_url ? (
+                <div className="rv-hero-media overflow-hidden rounded-2xl">
+                  <img
+                    src={profile?.hero_image_url ?? ""}
+                    alt={org.name + " featured work"}
+                    width={1200}
+                    height={800}
+                    fetchPriority="high"
+                    decoding="async"
+                    className="h-full min-h-64 w-full object-cover"
+                  />
+                </div>
+              ) : null}
+            </div>
           </div>
         </section>
       );

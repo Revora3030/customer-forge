@@ -10,6 +10,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
  */
 
 import { writeBackdrop, writeSectionEffect } from "@/lib/site-effects";
+import { writeComponentVisual, writeSectionVisual } from "@/lib/site-style";
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import {
@@ -699,6 +700,22 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
               .eq("organization_id", orgId),
           );
           break;
+        case "set_section_visual":
+          await run(action.type, async () => {
+            const { data: current } = await supabase
+              .from("website_sections")
+              .select("settings")
+              .eq("id", action.sectionId)
+              .eq("organization_id", orgId)
+              .maybeSingle();
+            const settings = writeSectionVisual(current?.["settings"] ?? null, action.patch);
+            return supabase
+              .from("website_sections")
+              .update({ settings } as never)
+              .eq("id", action.sectionId)
+              .eq("organization_id", orgId);
+          });
+          break;
         case "add_section": {
           // Several sections added to the same page in one run must not all
           // claim the same slot, so the running count is used, not the snapshot.
@@ -773,6 +790,25 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
           );
           break;
         }
+        case "set_component_visual":
+          await run(action.type, async () => {
+            const { data: current } = await supabase
+              .from("website_components")
+              .select("settings,media_url")
+              .eq("id", action.componentId)
+              .eq("organization_id", orgId)
+              .maybeSingle();
+            const settings = writeComponentVisual(current?.["settings"] ?? null, action.patch);
+            const mediaUrl = action.patch.media_url;
+            const patch: Record<string, unknown> = { settings };
+            if (mediaUrl !== undefined) patch.media_url = safeLinkUrl(mediaUrl);
+            return supabase
+              .from("website_components")
+              .update(patch as never)
+              .eq("id", action.componentId)
+              .eq("organization_id", orgId);
+          });
+          break;
         case "add_component":
           await run(action.type, () =>
             supabase.from("website_components").insert({
