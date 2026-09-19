@@ -27,6 +27,29 @@ export type CapturedError = {
 const MAX_MESSAGE = 500;
 const MAX_STACK = 8000;
 
+const SENSITIVE_QUERY_PARAM =
+  /([?&](?:access_token|refresh_token|api[_-]?key|client[_-]?secret|token|secret|password|signature|sig|code)=)[^&#\s)]+/gi;
+const CREDENTIAL_VALUE =
+  /\b(?:sk_(?:live|test)_[A-Za-z0-9]+|whsec_[A-Za-z0-9]+|AIza[0-9A-Za-z_-]{20,})\b/g;
+const AUTH_VALUE = /\b(?:Bearer|Basic)\s+[A-Za-z0-9._~+/=-]{12,}/gi;
+const SENSITIVE_HEADER =
+  /((?:authorization|cookie|x-api-key|x-auth-token|x-signature)\s*[:=]\s*)[^\s,;]+/gi;
+
+/**
+ * Redacts credential-shaped values from error messages and stacks before they
+ * reach persistent telemetry or a third-party error service. Error messages
+ * can contain request URLs or upstream responses, so context-only redaction is
+ * not sufficient.
+ */
+export function sanitizeErrorText(value: string | null | undefined): string | null {
+  if (value == null) return null;
+  return String(value)
+    .replace(SENSITIVE_QUERY_PARAM, "$1[redacted]")
+    .replace(CREDENTIAL_VALUE, "[redacted]")
+    .replace(AUTH_VALUE, "[redacted]")
+    .replace(SENSITIVE_HEADER, "$1[redacted]");
+}
+
 /** Stable grouping key: same failure in the same place = same fingerprint. */
 export function fingerprintOf(input: {
   message: string;
@@ -77,7 +100,7 @@ function stacktraceFrames(stack: string | null | undefined) {
     .filter(Boolean)
     .map((line) => {
       const match = line.match(/^at\\s+(.*?)\\s+\\((.*?):(\\d+):(\\d+)\\)$/) ??
-        line.match(/^at\\s+(.*?):(\\d+):(\\d+)$/);
+        line.match(/^at\\s+(.*?):(\\d+):(\\d+)\\$/);
       if (!match) return null;
       if (match.length === 5) {
         const [, fn, rawUrl, lineNo, colNo] = match;
@@ -170,10 +193,18 @@ export async function captureError(
           ? { ...(input as CapturedError) }
           : { message: describeError(input) };
     const event: CapturedError = { ...described, ...extra };
-    const message = String(event.message ?? "Unknown error").slice(0, MAX_MESSAGE);
-    const stack = event.stack ? String(event.stack).slice(0, MAX_STACK) : null;
-    const fingerprint = fingerprintOf({ message, route: event.route, stack });
-    const forwarded = await forwardToSentry({ ...event, message, stack }, fingerprint);
+    const message = (
+      sanitizeErrorText(String(event.message ?? "Unknown error")) ?? "Unknown error"
+    ).slice(0, MAX_MESSAGE);
+    const stack = event.stack
+      ? (sanitizeErrorText(String(event.stack))?.slice(0, MAX_STACK) ?? null)
+      : null;
+    const route = event.route
+      ? (sanitizeErrorText(String(event.route))?.slice(0, 500) ?? null)
+      : null;
+    const sanitizedEvent = { ...event, message, stack, route };
+    const fingerprint = fingerprintOf(sanitizedEvent);
+    const forwarded = await forwardToSentry(sanitizedEvent, fingerprint);
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     await supabaseAdmin.from("error_events").insert({
@@ -183,7 +214,7 @@ export async function captureError(
       source: event.source ?? "server",
       message,
       stack,
-      route: event.route ?? null,
+      route,
       status_code: event.statusCode ?? null,
       duration_ms: event.durationMs ?? null,
       release: process.env["SENTRY_RELEASE"] ?? null,
