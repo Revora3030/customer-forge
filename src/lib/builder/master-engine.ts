@@ -40,7 +40,7 @@ import { designQualitySummary, scoreDesignQuality } from "./design-quality";
 import { compileResponsiveRepairs, isResponsiveRequest, responsiveSummary } from "./responsive-intelligence";
 import { auditAutonomousBuilder, autonomousAuditSummary } from "./autonomous-builder-intelligence";
 import { compileQaAutoRepairs, qaRepairSummary } from "./qa-auto-repair";
-import { auditCompleteBuilderCapabilities, capabilitySummary, buildOptimizationPlan } from "./complete-builder-capabilities";
+import { auditCompleteBuilderCapabilities, capabilitySummary, buildOptimizationPlan } from "./complete-builder-capabilities";\nimport { auditAdvancedBuilderIntelligence, advancedBuilderSummary, compileAdvancedSafeRepairs } from "./advanced-builder-intelligence";
 
 /* -------------------------------------------------------------------------- */
 /* Limits                                                                     */
@@ -1629,7 +1629,7 @@ export function buildDeterministicPlan(
   /* ---------------------------------------------------------------------- */
   /* Complete capability audit / optimization queue                          */
 
-  const capabilityAudit = auditCompleteBuilderCapabilities(context, actions);
+  const advancedAudit = auditAdvancedBuilderIntelligence(context, instruction, options.history ?? []);\n  trace.push(advancedBuilderSummary(advancedAudit));\n\n  const advancedRepairs = compileAdvancedSafeRepairs(\n    context,\n    instruction,\n    Math.min(8, cap - actions.length),\n  );\n  const beforeAdvancedRepairs = actions.length;\n  for (const repair of advancedRepairs) pushUnique(actions, repair, cap);\n  if (actions.length > beforeAdvancedRepairs) {\n    notes.push(\n      "Applied bounded advanced repairs using existing site data; design, media, motion, responsive, accessibility, performance, SEO and architecture signals remain evidence-driven.",\n    );\n  }\n\n  const capabilityAudit = auditCompleteBuilderCapabilities(context, actions);
   trace.push(capabilitySummary(capabilityAudit));
   const optimizationQueue = buildOptimizationPlan(capabilityAudit);
   if (optimizationQueue.length > 0) {
