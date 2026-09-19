@@ -17,6 +17,8 @@ describe("inspectHtml", () => {
     const result = inspectHtml(good, "Home");
     expect(result.checks.every((check) => check.ok)).toBe(true);
     expect(result.links).toEqual(["/s/elite/services", "/book"]);
+    expect(result.checks.some((check) => check.label.includes("useful search length") && check.ok)).toBe(true);
+    expect(result.checks.some((check) => check.category === "security" && check.ok)).toBe(true);
   });
 
   it("flags a missing headline as critical", () => {
@@ -44,6 +46,30 @@ describe("inspectHtml", () => {
     const result = inspectHtml(good.replace(' alt="A detailed car"', ""), "Home");
     const failed = result.checks.find((check) => !check.ok);
     expect(failed?.severity).toBe("warning");
+  });
+
+  it("flags unlabeled interactive links and insecure resources", () => {
+    const result = inspectHtml(
+      good.replace('<a href="/book">Book now</a>', '<a href="/book"></a>').replace(
+        '<a href="https://x.com/e">X</a>',
+        '<a href="http://x.com/e">X</a>',
+      ),
+      "Home",
+    );
+    expect(result.checks.some((check) => !check.ok && check.label.includes("accessible labels"))).toBe(true);
+    expect(result.checks.some((check) => !check.ok && check.label.includes("insecure HTTP"))).toBe(true);
+  });
+
+  it("warns when search metadata is unusually short or long", () => {
+    const result = inspectHtml(
+      good.replace(/<title>[\s\S]*?<\/title>/, "<title>x</title>").replace(
+        /<meta name="description"[^>]*>/,
+        '<meta name="description" content="too short" />',
+      ),
+      "Home",
+    );
+    expect(result.checks.some((check) => !check.ok && check.label.includes("useful search length"))).toBe(true);
+    expect(result.checks.some((check) => !check.ok && check.label.includes("useful length"))).toBe(true);
   });
 
   it("warns about more than one main headline", () => {
