@@ -56,6 +56,8 @@ import { evaluateSiteQuality } from "./site-quality-contract";
 import { inspectBuilderPrompt } from "../security/ai-prompt-security";
 import { auditFinal10Controls } from "./final-10-10-controls";
 import { compileEliteSiteOutput } from "./elite-site-output";
+import { compileUltimateSiteQuality } from "./ultimate-site-quality";
+import { auditRemainingSiteUpgrades } from "./remaining-upgrades-catalog";
 
 /* -------------------------------------------------------------------------- */
 /* Limits                                                                     */
@@ -1730,6 +1732,33 @@ export function buildDeterministicPlan(
       notes.push("Elite visual actions were fully deduplicated against earlier work; no redundant mutations were added.");
     }
   }
+
+  /* ---------------------------------------------------------------------- */
+  /* Ultimate site quality autopilot                                         */
+  /* ---------------------------------------------------------------------- */
+
+  const ultimateQuality = compileUltimateSiteQuality(
+    context,
+    instruction,
+    Math.min(50, Math.max(0, cap - actions.length)),
+  );
+
+  for (const action of ultimateQuality.actions) {
+    pushUnique(actions, action, cap);
+  }
+
+  trace.push(
+    "Ultimate site quality: " + ultimateQuality.score + "/100 across " +
+      Object.keys(ultimateQuality.domains).length + " quality domains; direction=" +
+      (ultimateQuality.directionId ?? "none") + ".",
+  );
+  notes.push(...ultimateQuality.trace.slice(0, 3));
+
+  const remainingUpgradeAudit = auditRemainingSiteUpgrades();
+  trace.push(
+    "Remaining site-quality inventory: " + remainingUpgradeAudit.total +
+      " capabilities, " + remainingUpgradeAudit.unique + " unique.",
+  );
 
   /* ---------------------------------------------------------------------- */
   /* 246-upgrade operating matrix                                            */
