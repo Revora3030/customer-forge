@@ -331,16 +331,21 @@ export function compileAutonomousEngineering(
   runtimeRequired.push("contrast measurement", "keyboard traversal", "screen-reader behavior");
 
   /* Performance: flag complexity, but never claim a measured load time. */
-  const effectCount = context.pages.reduce(
-    (total, page) => total + page.sections.filter((section) => Boolean(section.settings?.effect)).length,
+  const visualComplexity = context.pages.reduce(
+    (total, page) =>
+      total +
+      page.sections.reduce(
+        (sectionTotal, section) => sectionTotal + section.components.length,
+        0,
+      ),
     0,
   );
-  if (effectCount > 12) {
+  if (visualComplexity > 120) {
     addFinding(
       "performance",
       "medium",
-      "The site contains many animated/effect-bearing sections.",
-      `${effectCount} effect-bearing sections`,
+      "The site contains a large number of rendered components and deserves runtime performance verification.",
+      `${visualComplexity} rendered components in the available site map`,
       false,
     );
   }
