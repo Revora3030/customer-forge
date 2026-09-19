@@ -37,10 +37,19 @@ export type ErrorFeed = {
 /** Records a browser-side crash. Deliberately small, bounded and unauthenticated. */
 export const reportClientError = createServerFn({ method: "POST" })
   .inputValidator(
-    (input: { message: string; stack?: string; route?: string; organizationId?: string }) => ({
+    (input: {
+      message: string;
+      stack?: string;
+      route?: string;
+      organizationId?: string;
+      mechanism?: string;
+      componentStack?: string;
+    }) => ({
       message: String(input?.message ?? "").slice(0, 500),
       stack: String(input?.stack ?? "").slice(0, 4000) || undefined,
       route: String(input?.route ?? "").slice(0, 300) || undefined,
+      mechanism: String(input?.mechanism ?? "").slice(0, 80) || undefined,
+      componentStack: String(input?.componentStack ?? "").slice(0, 4000) || undefined,
       organizationId: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
         String(input?.organizationId ?? ""),
       )
@@ -58,6 +67,10 @@ export const reportClientError = createServerFn({ method: "POST" })
       organizationId: data.organizationId ?? null,
       source: "client",
       level: "error",
+      context: {
+        mechanism: data.mechanism ?? "client",
+        componentStack: data.componentStack ?? "",
+      },
     });
     return { recorded: result.recorded };
   });
