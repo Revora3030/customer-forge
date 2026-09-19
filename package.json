@@ -13,7 +13,8 @@
     "test": "vitest run",
     "format": "prettier --write .",
     "security:audit": "node scripts/security-audit.mjs",
-    "quality": "npm run typecheck && npm run lint && npm run security:audit && npm test && npm run build"
+    "quality": "npm run typecheck && npm run lint && npm run security:audit && npm test && npm run build",
+    "production:readiness": "node scripts/production-readiness-audit.mjs"
   },
   "overrides": {
     "rolldown": "1.2.1"
