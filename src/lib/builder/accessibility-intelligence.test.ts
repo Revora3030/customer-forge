@@ -86,6 +86,7 @@ const context: AgentContext = {
   ],
   sectionKinds: ["hero", "services"],
   pageKinds: ["home"],
+  componentKinds: ["image", "button"],
 };
 
 describe("accessibility-intelligence", () => {
