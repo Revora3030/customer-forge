@@ -197,7 +197,7 @@ export function auditAutonomousBuilder(
   if (design.score < 70) capabilities.design = "signal";
   if (browserQa.findings.some((finding) => finding.kind === "seo")) capabilities.seo = "signal";
   if (browserQa.findings.some((finding) => finding.kind === "accessibility")) capabilities.accessibility = "signal";
-  if (critical > 0) capabilities.self-healing = "signal";
+  if (critical > 0) capabilities["self-healing"] = "signal";
 
   return {
     score,
