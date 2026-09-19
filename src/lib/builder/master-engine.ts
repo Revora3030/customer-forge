@@ -39,6 +39,7 @@ import { compileGlobalSeoRepairs, globalSeoSummary } from "./global-seo-intellig
 import { designQualitySummary, scoreDesignQuality } from "./design-quality";
 import { compileResponsiveRepairs, isResponsiveRequest, responsiveSummary } from "./responsive-intelligence";
 import { auditAutonomousBuilder, autonomousAuditSummary } from "./autonomous-builder-intelligence";
+import { compileQaAutoRepairs, qaRepairSummary } from "./qa-auto-repair";
 
 /* -------------------------------------------------------------------------- */
 /* Limits                                                                     */
@@ -1586,6 +1587,25 @@ export function buildDeterministicPlan(
           actions.length === 1 ? "" : "s"
         } across ${summaryBits.join(", ") || "your site"}.`
       : "I could not safely turn that request into a website change without guessing.";
+
+  /* ---------------------------------------------------------------------- */
+  /* Safe QA repair pass                                                     */
+
+  const repairRequested =
+    /\\b(fix|repair|qa|quality|broken|errors?|issues?|audit|improve)\\b/i.test(instruction) ||
+    intent.wholeSite;
+
+  if (repairRequested) {
+    const qaRepairs = compileQaAutoRepairs(context, instruction, Math.min(8, cap - actions.length));
+    const beforeRepairs = actions.length;
+    for (const repair of qaRepairs) {
+      pushUnique(actions, repair.action, cap);
+    }
+    trace.push(qaRepairSummary(qaRepairs));
+    if (actions.length > beforeRepairs) {
+      notes.push("Applied only deterministic QA repairs derived from the current site map; ambiguous findings remain unresolved rather than guessed.");
+    }
+  }
 
   /* ---------------------------------------------------------------------- */
   /* Unified autonomous quality orchestration                                */
