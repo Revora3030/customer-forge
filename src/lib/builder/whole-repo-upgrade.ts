@@ -271,7 +271,7 @@ export function compileWholeRepoUpgrades(
     });
   }
 
-  if (/performance|speed|core web vitals|lcp|cls|inp/.test(lower)) {
+  if (/performance|speed|faster|fast|core web vitals|lcp|cls|inp/.test(lower)) {
     runtimeRequired.push("real-browser Core Web Vitals measurement");
     pushFinding(findings, {
       area: "performance",
