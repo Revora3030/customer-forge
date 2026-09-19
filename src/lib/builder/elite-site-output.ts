@@ -167,6 +167,16 @@ export function compileEliteSiteOutput(
       sectionId: section.id,
       patch: compositionFor(section, dark),
     });
+    if (actions.length >= cap) break;
+    const effect =
+      section.kind === "hero"
+        ? direction.heroEffect
+        : section.kind === "cta" || section.kind === "offer" || section.kind === "sticky_cta"
+          ? direction.ctaEffect
+          : section.kind === "quote" || section.kind === "booking" || section.kind === "contact"
+            ? direction.formEffect
+            : direction.bodyEffect;
+    actions.push({ type: "set_section_effect", sectionId: section.id, effect });
   }
 
   for (const section of targetSections) {
