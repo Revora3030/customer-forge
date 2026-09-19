@@ -44,9 +44,16 @@ function ActivityTicker() {
 /** Static, honest product preview: real dashboard chrome, clearly labelled demo. */
 export function DashboardPreview() {
   return (
-    <div className="panel shadow-lift overflow-hidden p-0" aria-label="Product preview">
-      <div className="flex items-center justify-between border-b border-border bg-elevated px-3.5 py-2.5">
-        <span className="eyebrow">Business Command Center</span>
+    <div className="panel dashboard-preview-shell shadow-lift overflow-hidden p-0" aria-label="Product preview">
+      <div className="dashboard-preview-topbar flex items-center justify-between border-b border-border bg-elevated px-3.5 py-2.5">
+        <div className="flex items-center gap-2">
+          <span className="dashboard-window-dots" aria-hidden="true">
+            <i />
+            <i />
+            <i />
+          </span>
+          <span className="eyebrow">Business Command Center</span>
+        </div>
         <Pill tone="signal">Demo data</Pill>
       </div>
 

@@ -333,8 +333,17 @@ function Landing() {
                 ))}
               </dl>
             </div>
-            <div className="preview-stage">
+            <div className="preview-stage dashboard-3d-stage">
+              <div className="preview-orbit" aria-hidden="true">
+                <span className="preview-orbit-dot" />
+              </div>
               <DashboardPreview />
+              <div className="hero-live-badge" aria-label="Live system preview">
+                <span className="hero-live-dot" aria-hidden="true" />
+                <span>LIVE SYSTEM</span>
+                <span className="hero-live-divider" aria-hidden="true" />
+                <span className="text-muted-foreground">updated just now</span>
+              </div>
             </div>
           </div>
         </section>
