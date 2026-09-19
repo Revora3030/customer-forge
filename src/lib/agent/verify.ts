@@ -154,7 +154,7 @@ export function inspectHtml(html: string, where: string): PageInspection {
   const conversionLinks = (html.match(/href\s*=\s*["'][^"']*(?:tel:|mailto:|sms:)[^"']*["']/gi) ?? []).length;
   add(
     "Direct contact actions are available when a site exposes them",
-    forms.length > 0 || conversionLinks > 0 || submitSignals,
+    forms.length > 0 || conversionLinks > 0 || submitSignals || /href\s*=\s*["'][^"']*(?:book|quote|contact|call|schedule|get-started|start)/i.test(html),
     "warning",
     conversionLinks ? `${conversionLinks} direct contact action(s)` : undefined,
     "conversion",
