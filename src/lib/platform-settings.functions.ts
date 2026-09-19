@@ -41,14 +41,19 @@ export const getPlatformSettings = createServerFn({ method: "GET" })
  */
 export const getPublicGaMeasurementId = createServerFn({ method: "GET" }).handler(
   async (): Promise<string | null> => {
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data } = await supabaseAdmin
-      .from("platform_settings")
-      .select("ga_measurement_id")
-      .eq("id", "default")
-      .maybeSingle();
-    const id = data?.ga_measurement_id;
-    return typeof id === "string" && GA_PATTERN.test(id) ? id : null;
+    try {
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      const { data } = await supabaseAdmin
+        .from("platform_settings")
+        .select("ga_measurement_id")
+        .eq("id", "default")
+        .maybeSingle();
+      const id = data?.ga_measurement_id;
+      return typeof id === "string" && GA_PATTERN.test(id) ? id : null;
+    } catch (error) {
+      console.warn("[Analytics] Public GA lookup unavailable; continuing without GA4.", error);
+      return null;
+    }
   },
 );
 
