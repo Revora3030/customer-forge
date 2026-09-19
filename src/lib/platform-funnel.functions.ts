@@ -102,7 +102,9 @@ export const provisionWorkspace = createServerFn({ method: "POST" })
     }),
   )
   .handler(async ({ context, data }) => {
-    const { data: organizationId, error } = await context.supabase.rpc("provision_workspace", {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: organizationId, error } = await supabaseAdmin.rpc("provision_workspace_server", {
+      _user_id: context.userId,
       _name: data.name,
       ...(data.industry ? { _industry: data.industry } : {}),
       _profile: data.profile as never,
