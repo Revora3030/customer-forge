@@ -47,6 +47,9 @@ jobs:
       - name: Whole-repository visual output contract
         run: npm run repo:visual-output
 
+      - name: Ultimate builder output audit
+        run: npm run builder:ultimate-audit
+
       - name: Whole-repository audit contract
         run: npm run repo:audit:test
 
