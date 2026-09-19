@@ -41,6 +41,7 @@ import { compileResponsiveRepairs, isResponsiveRequest, responsiveSummary } from
 import { auditAutonomousBuilder, autonomousAuditSummary } from "./autonomous-builder-intelligence";
 import { compileQaAutoRepairs, qaRepairSummary } from "./qa-auto-repair";
 import { auditCompleteBuilderCapabilities, capabilitySummary, buildOptimizationPlan } from "./complete-builder-capabilities";
+import { compileSafeOptimizationRepairs, findOptimizationOpportunities, optimizationSummary } from "./optimization-intelligence";
 
 /* -------------------------------------------------------------------------- */
 /* Limits                                                                     */
