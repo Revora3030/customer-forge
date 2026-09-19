@@ -286,7 +286,7 @@ export function compileAutonomousEngineering(
         pushUnique(actions, { type: "set_section_text", sectionId: section.id, field: "subheading", value: copy.subheading }, cap);
       }
       if (!text(section.body) && text(copy.body)) {
-        pushUnique(actions, { type: "set_section_text", sectionId: section.id, field: "body", value: copy.body }, cap);
+        pushUnique(actions, { type: "set_section_text", sectionId: section.id, field: "body", value: copy.body ?? "" }, cap);
       }
     }
   }
@@ -332,7 +332,7 @@ export function compileAutonomousEngineering(
 
   /* Performance: flag complexity, but never claim a measured load time. */
   const effectCount = context.pages.reduce(
-    (total, page) => total + page.sections.filter((section) => Boolean(section.effect)).length,
+    (total, page) => total + page.sections.filter((section) => Boolean(section.settings?.effect)).length,
     0,
   );
   if (effectCount > 12) {
