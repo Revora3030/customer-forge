@@ -799,7 +799,7 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
               .eq("organization_id", orgId)
               .maybeSingle();
             const settings = writeComponentVisual(current?.["settings"] ?? null, action.patch);
-            const mediaUrl = action.patch.media_url;
+            const mediaUrl = action.patch["media_url"];
             const patch: Record<string, unknown> = { settings };
             if (mediaUrl !== undefined) patch.media_url = safeLinkUrl(mediaUrl);
             return supabase
