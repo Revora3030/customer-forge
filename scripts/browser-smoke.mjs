@@ -27,10 +27,11 @@ function run(args) {
         ? String(error.stdout || "")
         : "";
     const detail = [stderr.trim(), stdout.trim()].filter(Boolean).join("\n");
+    const code = error && typeof error === "object" && "status" in error ? String(error.status ?? "") : "";
+    const signal = error && typeof error === "object" && "signal" in error ? String(error.signal ?? "") : "";
     throw new Error(
-      `playwright-cli ${args.join(" ")} failed${detail ? `:\n${detail}` : ""}`,
-    );
-  }
+      `playwright-cli ${args.join(" ")} failed${code ? ` (exit ${code})` : ""}${signal ? ` (signal ${signal})` : ""}${detail ? `:\n${detail}` : ""}`,
+    );  }
 }
 
 const report = [];
