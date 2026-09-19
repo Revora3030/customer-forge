@@ -11,7 +11,9 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "security:audit": "node scripts/security-audit.mjs",
+    "quality": "npm run typecheck && npm run lint && npm run security:audit && npm test && npm run build"
   },
   "overrides": {
     "rolldown": "1.2.1"

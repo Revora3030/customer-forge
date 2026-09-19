@@ -31,14 +31,11 @@ dist-ssr
 *.sln
 *.sw?
 
-# Environment files
-# .env, .env.development and .env.production are managed by the platform and
-# contain ONLY publishable client values (Stripe pk_*, Supabase publishable
-# key, project id). Server secrets — Stripe gateway keys, webhook signing
-# secrets, the Supabase service-role key, LOVABLE_API_KEY — are injected at
-# runtime and must never be written to a file in this repo.
+# Environment and credential files — never commit any real environment file.
+.env
+.env.*
+!.env.example
 .env*.local
-.env.local
 .dev.vars.local
 *.pem
 *.key
