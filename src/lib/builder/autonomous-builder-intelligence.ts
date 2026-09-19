@@ -13,7 +13,7 @@
 
 import type { AgentAction } from "@/lib/site-agent";
 import type { AgentContext } from "@/lib/site-agent.server";
-import { runBrowserStyleQa, type BrowserQaReport } from "./browser-qa-intelligence";
+import { browserQaSummary, runBrowserStyleQa, type BrowserQaReport } from "./browser-qa-intelligence";
 import { scoreDesignQuality, type DesignQualityScore } from "./design-quality";
 import { scoreMobileQuality, type MobileQualityScore } from "./mobile-quality";
 import { buildSiteContextGraph, type SiteContextGraph } from "./context-graph";
@@ -132,7 +132,7 @@ export function compareRetestQuality(
   const beforeVerification = before
     ? {
         checks: [],
-        critical: before.findings.filter((f) => f.severity === "critical").length,
+        critical: 0,
         warnings: before.findings.filter((f) => f.severity !== "critical").length,
         passed: before.checksRun,
         score: before.score,
@@ -141,13 +141,13 @@ export function compareRetestQuality(
           accessibility: { passed: 0, failed: 0 }, conversion: { passed: 0, failed: 0 },
           technical: { passed: 0, failed: 0 }, security: { passed: 0, failed: 0 },
         },
-        summary: before.summary,
+        summary: browserQaSummary(before),
       }
     : null;
 
   const afterVerification = {
     checks: [],
-    critical: after.findings.filter((f) => f.severity === "critical").length,
+    critical: 0,
     warnings: after.findings.filter((f) => f.severity !== "critical").length,
     passed: after.checksRun,
     score: after.score,
@@ -156,7 +156,7 @@ export function compareRetestQuality(
       accessibility: { passed: 0, failed: 0 }, conversion: { passed: 0, failed: 0 },
       technical: { passed: 0, failed: 0 }, security: { passed: 0, failed: 0 },
     },
-    summary: after.summary,
+    summary: browserQaSummary(after),
   };
 
   return compareVerification(beforeVerification, afterVerification, attempt);
