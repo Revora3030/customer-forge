@@ -29,7 +29,8 @@ export type PublicationCheck =
   | "resources"
   | "runtime"
   | "performance"
-  | "tenant-safety";
+  | "tenant-safety"
+  | "seo";
 
 export type PublicationResult = {
   publishable: boolean;
