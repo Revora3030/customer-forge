@@ -202,8 +202,9 @@ export function compileAutonomousEngineering(
   /* Architecture / site graph */
   const slugs = new Map<string, number>();
   for (const page of context.pages) {
-    const slug = text(page.slug).toLowerCase().replace(/^\/+|\/+$/g, "");
-    if (slug) slugs.set(slug, (slugs.get(slug) ?? 0) + 1);
+    const normalizedSlug = text(page.slug).toLowerCase().replace(/^\/+|\/+$/g, "");
+    const slug = normalizedSlug || "/";
+    slugs.set(slug, (slugs.get(slug) ?? 0) + 1);
     if (!pageHasContent(page)) {
       addFinding("architecture", "high", "Page has no meaningful visible content.", page.id, false);
     }
@@ -237,7 +238,15 @@ export function compileAutonomousEngineering(
   }
 
   /* Conversion intelligence */
-  const target = ctaTarget(facts);
+  const hasContactRoute = context.pages.some(
+    (page) => text(page.slug).toLowerCase().replace(/^\/+|\/+$/g, "") === "contact",
+  );
+  const directTarget =
+    ctaTarget(facts);
+  const target =
+    directTarget && (Boolean(text(facts.phone)) || Boolean(text(facts.email)) || hasContactRoute)
+      ? directTarget
+      : null;
   const pagesMissingCta = context.pages.filter((page) => {
     const host = page.sections.find((section) => section.kind === "hero") ?? page.sections[0];
     return Boolean(host) && !hasCta(host!);
