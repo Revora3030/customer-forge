@@ -112,8 +112,9 @@ function SectionMedia({ site, section }: { site: Site; section: Section }) {
         const visual = readComponentVisual(component.settings);
         const src = safeLinkUrl(component.media_url);
         if (!src) return null;
+        const overlayClass = visual.overlay ? "rv-overlay-" + visual.overlay : "";
         return (
-          <figure key={component.id} className={`rv-media-frame ${ratioClass(visual.aspect_ratio)} overflow-hidden`}>
+          <figure key={component.id} className={`rv-media-frame ${ratioClass(visual.aspect_ratio)} ${overlayClass} overflow-hidden`}>
             <img
               src={src}
               alt={visual.alt || component.label || `${site.org.name} work sample`}
