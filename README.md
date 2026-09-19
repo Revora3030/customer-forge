@@ -159,6 +159,12 @@ Publish from Lovable. Migrations are additive — never rewrite a deployed migra
 one and backfill safely. Before shipping, run typecheck, lint, tests and the production build.
 
 
+## Whole-repository engineering
+
+Customer Forge now treats all repository files as part of the engineering surface. The CI audit scans the complete working tree for file inventory, oversized artifacts, TODO/FIXME markers, credential patterns, route/migration/test/workflow coverage and suspicious client environment values. The deterministic builder also runs a final whole-repository quality pass while preserving the existing action cap and runtime evidence boundaries.
+
+Run `npm run repo:audit` for the repository-wide report.
+
 ## Production quality contract
 
 Customer Forge treats security, reliability, builder quality, accessibility, SEO, and conversion as

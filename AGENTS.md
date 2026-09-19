@@ -10,3 +10,7 @@
 > the editor, so keep the branch in a working state.
 
 <!-- LOVABLE:END -->
+
+## Whole-repository upgrade contract
+
+Scan the entire repository before making broad changes. Do not mass-edit generated types, lockfiles or binary assets without a concrete reason. Prefer deterministic, evidence-backed improvements, preserve tenant/auth/billing/publishing boundaries, and keep browser/database/provider claims explicitly runtime- or environment-gated.

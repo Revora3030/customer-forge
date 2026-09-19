@@ -41,6 +41,12 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      - name: Whole-repository audit
+        run: npm run repo:audit
+
+      - name: Whole-repository audit contract
+        run: npm run repo:audit:test
+
       - name: Production readiness contract
         run: npm run production:readiness
 \n      - name: Production control audit\n        run: npm run production:controls\n

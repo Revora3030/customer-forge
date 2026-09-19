@@ -50,6 +50,7 @@ import { guardBuilderPlan } from "./elite-plan-guard";
 import { auditEliteBuilderQuality } from "./elite-quality";
 import { audit246Upgrades } from "./upgrade-catalog";
 import { audit285Expansion } from "./upgrade-expansion-285";
+import { compileWholeRepoUpgrades } from "./whole-repo-upgrade";
 
 /* -------------------------------------------------------------------------- */
 /* Limits                                                                     */
@@ -1762,6 +1763,39 @@ export function buildDeterministicPlan(
         ".",
     );
   }
+
+  /* ---------------------------------------------------------------------- */
+  /* Whole-repository maximum upgrade pass                                   */
+
+  const wholeRepoUpgrade = compileWholeRepoUpgrades(
+    context,
+    instruction,
+    Math.min(12, cap - actions.length),
+  );
+
+  trace.push(wholeRepoUpgrade.summary);
+
+  for (const action of wholeRepoUpgrade.actions) {
+    pushUnique(actions, action, cap);
+  }
+
+  if (wholeRepoUpgrade.findings.length > 0) {
+    notes.push(
+      "Whole-repository quality pass: " +
+        wholeRepoUpgrade.findings.slice(0, 5).map((finding) => finding.message).join("; ") +
+        ".",
+    );
+  }
+
+  if (wholeRepoUpgrade.runtimeRequired.length > 0) {
+    notes.push(
+      "Whole-repository evidence queue: " +
+        wholeRepoUpgrade.runtimeRequired.slice(0, 6).join(", ") +
+        ".",
+    );
+  }
+
+  notes.push("Whole-repository static quality score: " + wholeRepoUpgrade.score + "/100.");
 
   /* ---------------------------------------------------------------------- */
   /* Elite plan guard + final quality gate                                   */
