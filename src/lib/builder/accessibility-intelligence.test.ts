@@ -48,6 +48,7 @@ const context: AgentContext = {
           heading: "Clean spaces",
           subheading: null,
           body: null,
+          sort_order: 0,
           is_visible: true,
           components: [
             {
@@ -57,6 +58,7 @@ const context: AgentContext = {
               body: null,
               link_url: null,
               link_label: null,
+              sort_order: 0,
             },
             {
               id: "book",
@@ -65,6 +67,7 @@ const context: AgentContext = {
               body: null,
               link_url: "/book",
               link_label: null,
+              sort_order: 1,
             },
           ],
         },
@@ -75,6 +78,7 @@ const context: AgentContext = {
           heading: null,
           subheading: null,
           body: null,
+          sort_order: 1,
           is_visible: true,
           components: [],
         },
