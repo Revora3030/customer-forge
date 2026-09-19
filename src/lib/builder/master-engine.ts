@@ -38,6 +38,7 @@ import { compileSitewideCtaRepairs, sitewideCtaSummary } from "./sitewide-cta";
 import { compileGlobalSeoRepairs, globalSeoSummary } from "./global-seo-intelligence";
 import { designQualitySummary, scoreDesignQuality } from "./design-quality";
 import { compileResponsiveRepairs, isResponsiveRequest, responsiveSummary } from "./responsive-intelligence";
+import { auditAutonomousBuilder, autonomousAuditSummary } from "./autonomous-builder-intelligence";
 
 /* -------------------------------------------------------------------------- */
 /* Limits                                                                     */
@@ -1585,6 +1586,24 @@ export function buildDeterministicPlan(
           actions.length === 1 ? "" : "s"
         } across ${summaryBits.join(", ") || "your site"}.`
       : "I could not safely turn that request into a website change without guessing.";
+
+  /* ---------------------------------------------------------------------- */
+  /* Unified autonomous quality orchestration                                */
+
+  const autonomousAudit = auditAutonomousBuilder(context, actions, instruction);
+  trace.push(autonomousAuditSummary(autonomousAudit));
+
+  if (autonomousAudit.unresolvedCritical > 0) {
+    notes.push(
+      `Post-build QA found ${autonomousAudit.unresolvedCritical} critical issue${autonomousAudit.unresolvedCritical === 1 ? "" : "s"}; execution must remain inside the existing validation/rollback boundary.`,
+    );
+  }
+
+  notes.push(
+    `Autonomous quality coverage: ${Object.entries(autonomousAudit.capabilities)
+      .filter(([, status]) => status !== "requires-runtime")
+      .length} deterministic capabilities active; runtime-only checks remain explicitly separated.`,
+  );
 
   /* ---------------------------------------------------------------------- */
   /* Final deterministic plan                                                */
