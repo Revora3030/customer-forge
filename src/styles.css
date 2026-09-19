@@ -567,6 +567,181 @@ a[href*="lovable.app"][target="_blank"][class*="fixed"],
   }
 }
 
+/* ---------------------------------------------------------------------------
+   Rendered visual autopilot — premium depth around the hero product preview.
+   GPU-safe transforms only; no layout thrash and no effect on tenant sites.
+--------------------------------------------------------------------------- */
+.dashboard-3d-stage {
+  perspective: 1500px;
+  transform-style: preserve-3d;
+}
+
+.dashboard-3d-stage > .dashboard-preview-shell {
+  position: relative;
+  transform: rotateY(-1.2deg) rotateX(0.7deg) translateZ(0);
+  transform-origin: 50% 55%;
+  transition:
+    transform 500ms cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 500ms ease;
+  box-shadow:
+    0 28px 70px -38px rgb(0 0 0 / 88%),
+    0 0 0 1px color-mix(in oklab, var(--color-gold) 18%, transparent);
+}
+
+.dashboard-3d-stage:hover > .dashboard-preview-shell {
+  transform: rotateY(-0.35deg) rotateX(0.25deg) translateY(-4px) translateZ(18px);
+  box-shadow:
+    0 38px 90px -42px rgb(0 0 0 / 92%),
+    0 0 0 1px color-mix(in oklab, var(--color-gold) 34%, transparent),
+    0 18px 55px -35px color-mix(in oklab, var(--color-gold) 30%, transparent);
+}
+
+.dashboard-preview-shell {
+  position: relative;
+  overflow: hidden;
+}
+
+.dashboard-preview-shell::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(115deg, transparent 0 44%, color-mix(in oklab, white 7%, transparent) 50%, transparent 56%),
+    radial-gradient(60% 40% at 90% 0%, color-mix(in oklab, var(--color-gold) 8%, transparent), transparent 75%);
+  opacity: 0.7;
+  transform: translateX(-115%);
+  animation: dashboard-sheen 8s ease-in-out infinite;
+  z-index: 2;
+}
+
+.dashboard-preview-topbar {
+  position: relative;
+  z-index: 3;
+}
+
+.dashboard-window-dots {
+  display: inline-flex;
+  gap: 4px;
+}
+
+.dashboard-window-dots i {
+  width: 5px;
+  height: 5px;
+  border-radius: 999px;
+  background: var(--color-muted-foreground);
+  opacity: 0.5;
+}
+
+.hero-live-badge {
+  position: absolute;
+  right: -10px;
+  top: 18px;
+  z-index: 4;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 10px;
+  border: 1px solid color-mix(in oklab, var(--color-gold) 32%, var(--color-border));
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--color-card) 88%, transparent);
+  box-shadow: 0 14px 30px -18px rgb(0 0 0 / 85%);
+  backdrop-filter: blur(10px);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: var(--color-primary);
+  text-transform: uppercase;
+}
+
+.hero-live-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--color-success);
+  box-shadow: 0 0 0 4px color-mix(in oklab, var(--color-success) 14%, transparent);
+}
+
+.hero-live-divider {
+  width: 1px;
+  height: 11px;
+  background: var(--color-border);
+}
+
+.preview-orbit {
+  position: absolute;
+  inset: 4% -5% 8% 8%;
+  z-index: -1;
+  pointer-events: none;
+  border: 1px solid color-mix(in oklab, var(--color-gold) 9%, transparent);
+  border-radius: 40%;
+  transform: rotate(-7deg) perspective(900px) rotateX(62deg);
+  filter: blur(0.2px);
+  opacity: 0.65;
+}
+
+.preview-orbit-dot {
+  position: absolute;
+  right: 8%;
+  top: -4px;
+  width: 5px;
+  height: 5px;
+  border-radius: 999px;
+  background: var(--color-gold-soft);
+  box-shadow: 0 0 18px 5px color-mix(in oklab, var(--color-gold) 30%, transparent);
+}
+
+@keyframes dashboard-sheen {
+  0%, 45% {
+    transform: translateX(-115%);
+  }
+  65%, 100% {
+    transform: translateX(115%);
+  }
+}
+
+@media (max-width: 1023px) {
+  .hero-live-badge {
+    right: 8px;
+    top: 10px;
+  }
+}
+
+@media (max-width: 640px) {
+  .dashboard-3d-stage > .dashboard-preview-shell {
+    transform: none;
+  }
+
+  .dashboard-3d-stage:hover > .dashboard-preview-shell {
+    transform: translateY(-2px);
+  }
+
+  .preview-orbit {
+    inset: 3% -10% 6% 4%;
+    opacity: 0.35;
+  }
+
+  .hero-live-badge {
+    position: relative;
+    right: auto;
+    top: auto;
+    width: fit-content;
+    margin: 10px 0 0 auto;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dashboard-3d-stage > .dashboard-preview-shell,
+  .dashboard-3d-stage:hover > .dashboard-preview-shell {
+    transform: none;
+    transition: none;
+  }
+
+  .dashboard-preview-shell::before {
+    animation: none;
+  }
+}
+
 /* Dashboard chart bars grow from the baseline when the preview enters. */
 @keyframes grow-up {
   from {
