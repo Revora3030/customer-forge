@@ -1392,3 +1392,171 @@ a[href*="lovable.app"][target="_blank"][class*="fixed"],
     transform: none !important;
   }
 }
+
+
+/* -------------------------------------------------------------------------- */
+/* Elite generated-site visual output                                          */
+/* -------------------------------------------------------------------------- */
+
+/* Semantic visual tokens emitted by the builder are intentionally finite.
+   They make the persisted design model visible in the public renderer without
+   allowing generated arbitrary CSS. */
+.rv-section {
+  position: relative;
+  isolation: isolate;
+}
+
+.rv-layout-layered .rv-hero-grid,
+.rv-layout-split .rv-hero-grid,
+.rv-layout-image_left .rv-hero-grid,
+.rv-layout-image_right .rv-hero-grid {
+  display: grid;
+  gap: clamp(1.5rem, 4vw, 4rem);
+  align-items: center;
+}
+
+.rv-layout-layered .rv-hero-grid,
+.rv-layout-image_right .rv-hero-grid,
+.rv-layout-split .rv-hero-grid {
+  grid-template-columns: minmax(0, 1.1fr) minmax(280px, .9fr);
+}
+
+.rv-layout-image_left .rv-hero-grid {
+  grid-template-columns: minmax(280px, .9fr) minmax(0, 1.1fr);
+}
+
+.rv-layout-centered .rv-hero-grid,
+.rv-layout-stacked .rv-hero-grid {
+  grid-template-columns: 1fr;
+}
+
+.rv-density-airy {
+  --rv-section-gap: clamp(1.5rem, 3vw, 3rem);
+}
+
+.rv-density-balanced {
+  --rv-section-gap: 1.25rem;
+}
+
+.rv-density-dense {
+  --rv-section-gap: .75rem;
+}
+
+.rv-spacing-tight > * {
+  margin-block: .65rem;
+}
+
+.rv-spacing-standard > * {
+  margin-block: 1rem;
+}
+
+.rv-spacing-generous > * {
+  margin-block: 1.5rem;
+}
+
+.rv-cards-glass .panel,
+.rv-cards-floating .panel,
+.rv-cards-soft .panel,
+.rv-cards-elevated .panel {
+  border-color: color-mix(in srgb, currentColor 12%, transparent);
+  background: color-mix(in srgb, hsl(var(--card)) 78%, transparent);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+.rv-cards-floating .panel {
+  box-shadow: 0 24px 70px -34px rgb(0 0 0 / .55);
+  transform: translateY(-1px);
+}
+
+.rv-cards-editorial .panel {
+  border-radius: 1rem;
+  box-shadow: none;
+}
+
+.rv-image-cinematic .rv-media-frame,
+.rv-image-full_bleed .rv-media-frame {
+  box-shadow: 0 28px 80px -40px rgb(0 0 0 / .65);
+}
+
+.rv-image-glass_frame .rv-media-frame,
+.rv-image-soft_shadow .rv-media-frame {
+  border: 1px solid color-mix(in srgb, currentColor 12%, transparent);
+  box-shadow: 0 18px 50px -28px rgb(0 0 0 / .5);
+}
+
+.rv-hero-media {
+  min-height: clamp(260px, 42vw, 560px);
+  box-shadow: 0 34px 90px -45px rgb(0 0 0 / .65);
+}
+
+.rv-generated-media {
+  position: relative;
+  z-index: 2;
+}
+
+.rv-media-frame {
+  min-width: 0;
+  background: color-mix(in srgb, hsl(var(--card)) 86%, transparent);
+}
+
+.rv-media-frame img {
+  display: block;
+  max-width: 100%;
+}
+
+.rv-variant-hero-editorial .rv-hero-media {
+  border-radius: 2rem 0.75rem 2rem 0.75rem;
+}
+
+.rv-variant-hero-focus .rv-hero-media {
+  transform: perspective(1200px) rotateY(-2deg);
+}
+
+.rv-variant-gallery-mosaic .rv-generated-media {
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+}
+
+.rv-variant-gallery-mosaic .rv-media-frame:first-child {
+  grid-column: span 7;
+  grid-row: span 2;
+}
+
+.rv-variant-gallery-mosaic .rv-media-frame:nth-child(n + 2) {
+  grid-column: span 5;
+}
+
+.rv-variant-cta-fullbleed {
+  overflow: hidden;
+}
+
+@media (max-width: 767px) {
+  .rv-layout-layered .rv-hero-grid,
+  .rv-layout-split .rv-hero-grid,
+  .rv-layout-image_left .rv-hero-grid,
+  .rv-layout-image_right .rv-hero-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .rv-hero-media {
+    min-height: 240px;
+    order: 2;
+  }
+
+  .rv-variant-gallery-mosaic .rv-generated-media {
+    grid-template-columns: 1fr;
+  }
+
+  .rv-variant-gallery-mosaic .rv-media-frame:first-child,
+  .rv-variant-gallery-mosaic .rv-media-frame:nth-child(n + 2) {
+    grid-column: auto;
+    grid-row: auto;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rv-variant-hero-focus .rv-hero-media,
+  .rv-cards-floating .panel {
+    transform: none;
+  }
+}
