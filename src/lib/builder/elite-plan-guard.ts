@@ -76,7 +76,7 @@ function safeAction(action: AgentAction, known: KnownIds): boolean {
       return known.components.has(action.componentId);
 
     case "add_section":
-      return knownOrTemp(action.pageId, known.pages) && knownOrTemp(action.ref ?? "", new Set());
+      return knownOrTemp(action.pageId, known.pages) && (!action.ref || /^temp_[a-z0-9_]{1,30}$/i.test(action.ref));
 
     case "add_component":
       return knownOrTemp(action.sectionId, known.sections);
