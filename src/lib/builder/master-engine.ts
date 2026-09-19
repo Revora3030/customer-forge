@@ -41,7 +41,7 @@ import { compileResponsiveRepairs, isResponsiveRequest, responsiveSummary } from
 import { auditAutonomousBuilder, autonomousAuditSummary } from "./autonomous-builder-intelligence";
 import { compileQaAutoRepairs, qaRepairSummary } from "./qa-auto-repair";
 import { auditCompleteBuilderCapabilities, capabilitySummary, buildOptimizationPlan } from "./complete-builder-capabilities";
-import { compileSafeOptimizationRepairs, findOptimizationOpportunities, optimizationSummary } from "./optimization-intelligence";
+import { compileSafeOptimizationRepairs, findOptimizationOpportunities, optimizationSummary } from "./optimization-intelligence";\nimport { auditRoadmap161to170, roadmap161to170Summary, compileRoadmap161to170SafeRepairs } from "./roadmap-161-170-intelligence";
 
 /* -------------------------------------------------------------------------- */
 /* Limits                                                                     */
@@ -1629,6 +1629,31 @@ export function buildDeterministicPlan(
 
   /* ---------------------------------------------------------------------- */
   /* Complete capability audit / optimization queue                          */
+
+  const roadmapAudit = auditRoadmap161to170(context, instruction);
+  trace.push(roadmap161to170Summary(roadmapAudit));
+
+  const roadmapRepairs = compileRoadmap161to170SafeRepairs(
+    context,
+    instruction,
+    Math.min(8, cap - actions.length),
+  );
+  const beforeRoadmapRepairs = actions.length;
+  for (const repair of roadmapRepairs) pushUnique(actions, repair, cap);
+
+  if (actions.length > beforeRoadmapRepairs) {
+    notes.push(
+      "Applied bounded conversion repairs from roadmap #161-#170 using existing site structure only; CRO, runtime QA, visual regression and telemetry remain evidence-gated.",
+    );
+  }
+
+  if (roadmapAudit.runtimeRequired.length > 0) {
+    notes.push(
+      "Roadmap #161-#170 runtime boundaries: " +
+        roadmapAudit.runtimeRequired.join(", ") +
+        " require live rendered verification rather than static inference.",
+    );
+  }
 
   const optimizationOpportunities = findOptimizationOpportunities(context, instruction);
   trace.push(optimizationSummary(optimizationOpportunities));
