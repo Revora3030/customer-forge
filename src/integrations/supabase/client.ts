@@ -31,11 +31,17 @@ function createSupabaseFetch(supabaseKey: string): typeof fetch {
 }
 
 function createSupabaseClient() {
-  // Use import.meta.env for client-side (Vite build-time replacement)
-  // Fall back to process.env for SSR (server-side rendering)
-  const SUPABASE_URL = import.meta.env["VITE_SUPABASE_URL"] || process.env["SUPABASE_URL"];
+  // Client builds receive VITE_* values from Vite. The process.env fallback is
+  // only for SSR; never dereference process in a browser where it may not
+  // exist. A missing preview env should produce our explicit configuration
+  // error, not a secondary "process is not defined" crash.
+  const serverEnv =
+    typeof process !== "undefined" && process.env ? process.env : undefined;
+  const SUPABASE_URL =
+    import.meta.env["VITE_SUPABASE_URL"] || serverEnv?.["SUPABASE_URL"];
   const SUPABASE_PUBLISHABLE_KEY =
-    import.meta.env["VITE_SUPABASE_PUBLISHABLE_KEY"] || process.env["SUPABASE_PUBLISHABLE_KEY"];
+    import.meta.env["VITE_SUPABASE_PUBLISHABLE_KEY"] ||
+    serverEnv?.["SUPABASE_PUBLISHABLE_KEY"];
 
   if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {
     const missing = [
