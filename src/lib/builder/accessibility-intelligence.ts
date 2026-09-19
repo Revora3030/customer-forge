@@ -41,6 +41,12 @@ export type AccessibilityFinding = {
 const ACCESSIBILITY_TERMS =
   /\b(accessibility|accessible|a11y|screen reader|keyboard|alt text|aria|contrast|wcag)\b/i;
 
+const MEDIA_KINDS = new Set(["image", "gallery", "video"]);
+
+function isMedia(component: Component): boolean {
+  return MEDIA_KINDS.has(component.kind.trim().toLowerCase());
+}
+
 function visiblePages(context: AgentContext) {
   return context.pages.filter((page) => page.is_visible && !page.noindex);
 }
@@ -52,9 +58,7 @@ function visibleSections(context: AgentContext): Section[] {
 }
 
 function visibleComponents(context: AgentContext): Component[] {
-  return visibleSections(context).flatMap((section) =>
-    section.components.filter((component) => component.is_visible),
-  );
+  return visibleSections(context).flatMap((section) => section.components);
 }
 
 function scoreDimension(value: number): number {
@@ -105,7 +109,7 @@ export function findAccessibilityFindings(
           break;
         }
 
-        if (component.media_url && !mediaAlt(component)) {
+        if (isMedia(component) && !mediaAlt(component)) {
           findings.push({
             pageId: page.id,
             sectionId: section.id,
@@ -199,7 +203,7 @@ export function scoreAccessibility(context: AgentContext): AccessibilityScore {
   }
 
   const headingMissing = sections.filter((section) => !section.heading?.trim()).length;
-  const media = components.filter((component) => Boolean(component.media_url));
+  const media = components.filter(isMedia);
   const mediaMissingAlt = media.filter((component) => !mediaAlt(component)).length;
   const interactive = components.filter(isInteractive);
   const unlabeledInteractive = interactive.filter(
