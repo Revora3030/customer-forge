@@ -38,6 +38,9 @@ import { compileSitewideCtaRepairs, sitewideCtaSummary } from "./sitewide-cta";
 import { compileGlobalSeoRepairs, globalSeoSummary } from "./global-seo-intelligence";
 import { designQualitySummary, scoreDesignQuality } from "./design-quality";
 import { compileResponsiveRepairs, isResponsiveRequest, responsiveSummary } from "./responsive-intelligence";
+import { auditAutonomousBuilder, autonomousAuditSummary } from "./autonomous-builder-intelligence";
+import { compileQaAutoRepairs, qaRepairSummary } from "./qa-auto-repair";
+import { auditCompleteBuilderCapabilities, capabilitySummary, buildOptimizationPlan } from "./complete-builder-capabilities";
 
 /* -------------------------------------------------------------------------- */
 /* Limits                                                                     */
@@ -1585,6 +1588,60 @@ export function buildDeterministicPlan(
           actions.length === 1 ? "" : "s"
         } across ${summaryBits.join(", ") || "your site"}.`
       : "I could not safely turn that request into a website change without guessing.";
+
+  /* ---------------------------------------------------------------------- */
+  /* Safe QA repair pass                                                     */
+
+  const repairRequested =
+    /\\b(fix|repair|qa|quality|broken|errors?|issues?|audit|improve)\\b/i.test(instruction) ||
+    intent.wholeSite;
+
+  if (repairRequested) {
+    const qaRepairs = compileQaAutoRepairs(context, instruction, Math.min(8, cap - actions.length));
+    const beforeRepairs = actions.length;
+    for (const repair of qaRepairs) {
+      pushUnique(actions, repair.action, cap);
+    }
+    trace.push(qaRepairSummary(qaRepairs));
+    if (actions.length > beforeRepairs) {
+      notes.push("Applied only deterministic QA repairs derived from the current site map; ambiguous findings remain unresolved rather than guessed.");
+    }
+  }
+
+  /* ---------------------------------------------------------------------- */
+  /* Unified autonomous quality orchestration                                */
+
+  const autonomousAudit = auditAutonomousBuilder(context, actions, instruction);
+  trace.push(autonomousAuditSummary(autonomousAudit));
+
+  if (autonomousAudit.unresolvedCritical > 0) {
+    notes.push(
+      `Post-build QA found ${autonomousAudit.unresolvedCritical} critical issue${autonomousAudit.unresolvedCritical === 1 ? "" : "s"}; execution must remain inside the existing validation/rollback boundary.`,
+    );
+  }
+
+  notes.push(
+    `Autonomous quality coverage: ${Object.entries(autonomousAudit.capabilities)
+      .filter(([, status]) => status !== "requires-runtime")
+      .length} deterministic capabilities active; runtime-only checks remain explicitly separated.`,
+  );
+
+  /* ---------------------------------------------------------------------- */
+  /* Complete capability audit / optimization queue                          */
+
+  const capabilityAudit = auditCompleteBuilderCapabilities(context, actions);
+  trace.push(capabilitySummary(capabilityAudit));
+  const optimizationQueue = buildOptimizationPlan(capabilityAudit);
+  if (optimizationQueue.length > 0) {
+    notes.push("Optimization queue: " + optimizationQueue.slice(0, 5).join("; ") + ".");
+  }
+  if (capabilityAudit.runtimeRequired.length > 0) {
+    notes.push(
+      "Runtime-only capabilities are explicitly separated: " +
+        capabilityAudit.runtimeRequired.join(", ") +
+        ".",
+    );
+  }
 
   /* ---------------------------------------------------------------------- */
   /* Final deterministic plan                                                */
