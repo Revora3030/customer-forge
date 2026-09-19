@@ -16,7 +16,7 @@ describe("error fingerprinting", () => {
 
   it("ignores tenant ids so one bug is one issue", () => {
     const a = fingerprintOf({ message: "org 11111111-2222-3333-4444-555555555555 failed" });
-    const b = fingerprintOf({ message: "org 99999999-8888-7777-6666-999999999999 failed" });
+    const b = fingerprintOf({ message: "org 99999999-8888-7777-6666-777777777777 failed" });
     expect(a).toBe(b);
   });
 });
