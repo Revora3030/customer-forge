@@ -41,6 +41,7 @@ import { compileResponsiveRepairs, isResponsiveRequest, responsiveSummary } from
 import { auditAutonomousBuilder, autonomousAuditSummary } from "./autonomous-builder-intelligence";
 import { compileQaAutoRepairs, qaRepairSummary } from "./qa-auto-repair";
 import { auditCompleteBuilderCapabilities, capabilitySummary, buildOptimizationPlan } from "./complete-builder-capabilities";
+import { compileSafeOptimizationRepairs, findOptimizationOpportunities, optimizationSummary } from "./optimization-intelligence";
 
 /* -------------------------------------------------------------------------- */
 /* Limits                                                                     */
@@ -1628,6 +1629,13 @@ export function buildDeterministicPlan(
 
   /* ---------------------------------------------------------------------- */
   /* Complete capability audit / optimization queue                          */
+
+  const optimizationOpportunities = findOptimizationOpportunities(context, instruction);
+  trace.push(optimizationSummary(optimizationOpportunities));
+  const optimizationRepairs = compileSafeOptimizationRepairs(context, instruction, Math.min(8, cap - actions.length));
+  const beforeOptimization = actions.length;
+  for (const repair of optimizationRepairs) pushUnique(actions, repair, cap);
+  if (actions.length > beforeOptimization) notes.push("Applied bounded optimization repairs using existing page data only; speculative changes remain audit-only.");
 
   const capabilityAudit = auditCompleteBuilderCapabilities(context, actions);
   trace.push(capabilitySummary(capabilityAudit));
