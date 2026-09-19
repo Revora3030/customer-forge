@@ -36,7 +36,6 @@ const context: AgentContext = {
       is_visible: true,
       seo_title: "Home",
       seo_description: "Home",
-      seo_canonical: null,
       og_title: null,
       og_description: null,
       noindex: false,
