@@ -468,22 +468,22 @@ export function readComponentVisual(settings: unknown): PersistedComponentVisual
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
   const value = raw as Record<string, unknown>;
   const out: PersistedComponentVisual = {};
-  if (typeof value.alt === "string") out.alt = value.alt.slice(0, 160);
-  if (value.object_fit === "cover" || value.object_fit === "contain") out.object_fit = value.object_fit;
-  if (typeof value.object_position === "string") out.object_position = value.object_position;
-  if (["none", "soft", "dark", "brand", "gradient"].includes(String(value.overlay))) {
-    out.overlay = value.overlay as PersistedComponentVisual["overlay"];
+  if (typeof value["alt"] === "string") out.alt = value["alt"].slice(0, 160);
+  if (value["object_fit"] === "cover" || value["object_fit"] === "contain") out.object_fit = value["object_fit"];
+  if (typeof value["object_position"] === "string") out.object_position = value["object_position"];
+  if (["none", "soft", "dark", "brand", "gradient"].includes(String(value["overlay"]))) {
+    out.overlay = value["overlay"] as PersistedComponentVisual["overlay"];
   }
-  if (["none", "small", "medium", "large", "pill"].includes(String(value.radius))) {
-    out.radius = value.radius as PersistedComponentVisual["radius"];
+  if (["none", "small", "medium", "large", "pill"].includes(String(value["radius"]))) {
+    out.radius = value["radius"] as PersistedComponentVisual["radius"];
   }
-  if (["none", "soft", "medium", "strong"].includes(String(value.shadow))) {
-    out.shadow = value.shadow as PersistedComponentVisual["shadow"];
+  if (["none", "soft", "medium", "strong"].includes(String(value["shadow"]))) {
+    out.shadow = value["shadow"] as PersistedComponentVisual["shadow"];
   }
-  if (["1:1", "4:3", "3:2", "16:9", "21:9"].includes(String(value.aspect_ratio))) {
-    out.aspect_ratio = value.aspect_ratio as PersistedComponentVisual["aspect_ratio"];
+  if (["1:1", "4:3", "3:2", "16:9", "21:9"].includes(String(value["aspect_ratio"]))) {
+    out.aspect_ratio = value["aspect_ratio"] as PersistedComponentVisual["aspect_ratio"];
   }
-  if (typeof value.focal_point === "string") out.focal_point = value.focal_point;
+  if (typeof value["focal_point"] === "string") out.focal_point = value["focal_point"];
   return out;
 }
 
