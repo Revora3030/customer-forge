@@ -32,8 +32,11 @@ describe("authoritative funnel", () => {
     expect(source).toContain("? null");
   });
 
-  it("provisions workspaces through the single transactional function", () => {
-    expect(source).toContain('rpc("provision_workspace"');
+  it("provisions workspaces through the server-only transactional function", () => {
+    expect(source).toContain('rpc("provision_workspace_server"');
+    expect(source).toContain("_user_id: context.userId");
+    expect(source).toContain("supabaseAdmin");
+    expect(source).not.toContain('rpc("provision_workspace",');
   });
 
   it("labels browser telemetry as sessions, not verified visitors", () => {
