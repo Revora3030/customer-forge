@@ -9,7 +9,7 @@ export function imageQualitySignals(components: Array<{ kind: string; label?: st
   let missingAlt = 0, missingFocalPoint = 0, poorAspectCount = 0;
   for (const component of media) {
     const settings = component.settings && typeof component.settings === "object" ? component.settings as Record<string, unknown> : {};
-    const visual = settings.visual && typeof settings.visual === "object" ? settings.visual as Record<string, unknown> : {};
+    const visual = settings["visual"] && typeof settings["visual"] === "object" ? settings["visual"] as Record<string, unknown> : {};
     if (!String(visual["alt"] ?? component.label ?? "").trim()) missingAlt++;
     if (!String(visual["focal_point"] ?? "").trim()) missingFocalPoint++;
     if (!["1:1", "4:3", "3:2", "16:9", "21:9"].includes(String(visual["aspect_ratio"] ?? ""))) poorAspectCount++;
