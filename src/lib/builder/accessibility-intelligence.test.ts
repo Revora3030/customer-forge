@@ -8,10 +8,10 @@ const context: AgentContext = {
     id: "home", slug: "", title: "Home", kind: "home", sort_order: 0, is_visible: true, seo_title: "Home", seo_description: "Home", seo_canonical: null, og_title: null, og_description: null, noindex: false,
     sections: [
       { id: "hero", kind: "hero", variant: "default", heading: "Clean spaces", subheading: null, body: null, settings: {}, sort_order: 0, is_visible: true, components: [
-        { id: "image", kind: "image", label: null, body: null,  link_url: null, link_label: null, settings: {}, sort_order: 0, is_visible: true },
-        { id: "book", section_id: "hero", kind: "button", label: "Book today", body: null, media_url: null, link_url: "/book", link_label: null, settings: {}, sort_order: 1, is_visible: true },
+        { id: "image", kind: "image", label: null, body: null, link_url: null, link_label: null, settings: {}, sort_order: 0 },
+        { id: "book", kind: "button", label: "Book today", body: null, link_url: "/book", link_label: null, settings: {}, sort_order: 1 },
       ]},
-      { id: "services", page_id: "home", kind: "services", variant: "default", heading: null, subheading: null, body: null, settings: {}, sort_order: 1, is_visible: true, components: [] },
+      { id: "services", kind: "services", variant: "default", heading: null, subheading: null, body: null, settings: {}, sort_order: 1, is_visible: true, components: [] },
     ],
   }],
   sectionKinds: ["hero", "services"], pageKinds: ["home"],
