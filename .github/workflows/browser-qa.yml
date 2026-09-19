@@ -33,8 +33,9 @@ jobs:
 
       - name: Install dependencies and browser
         run: |
-          npm install --no-audit --no-fund
-          npm install --global @playwright/cli@latest
+          npm cache clean --force
+          npm install --no-audit --no-fund --prefer-online
+          npm install --global @playwright/cli@1.55.0
           npx playwright install --with-deps chromium
 
       - name: Start application
