@@ -157,3 +157,30 @@ section and component tree back in a single database transaction, or not at all.
 
 Publish from Lovable. Migrations are additive — never rewrite a deployed migration; add a new
 one and backfill safely. Before shipping, run typecheck, lint, tests and the production build.
+
+
+## Production quality contract
+
+Customer Forge treats security, reliability, builder quality, accessibility, SEO, and conversion as
+release requirements rather than optional polish.
+
+Run the complete local gate with:
+
+```sh
+npm run quality
+```
+
+This runs TypeScript checks, linting, the repository secret/environment audit, the complete test suite,
+and the production build. CI also runs the security audit and CodeQL.
+
+### Credential safety
+
+Real environment files are intentionally excluded from Git. Use `.env.example` as the template and
+inject production secrets through the deployment platform. If a credential was ever committed, rotate
+or revoke it before deleting the file; repository deletion alone does not invalidate a copied secret.
+
+### Release discipline
+
+Every production change should pass the repository gates before merge. High-risk changes affecting
+authentication, tenancy, billing, publishing, database schema, or customer data require targeted
+tests and a documented rollback path. See `SECURITY.md` and `docs/PRODUCTION_READINESS.md`.
