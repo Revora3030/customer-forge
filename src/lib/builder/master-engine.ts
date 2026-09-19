@@ -44,7 +44,9 @@ import { auditCompleteBuilderCapabilities, capabilitySummary, buildOptimizationP
 import { auditAdvancedBuilderIntelligence, advancedBuilderSummary, compileAdvancedSafeRepairs } from "./advanced-builder-intelligence";
 import { compileSafeOptimizationRepairs, findOptimizationOpportunities, optimizationSummary } from "./optimization-intelligence";
 import { auditRoadmap161to170, roadmap161to170Summary, compileRoadmap161to170SafeRepairs } from "./roadmap-161-170-intelligence";
-import { compileAutonomousEngineering } from "./autonomous-engineering";\nimport { buildVerificationContract } from "./autonomous-verification";\nimport { guardBuilderPlan } from "./elite-plan-guard";
+import { compileAutonomousEngineering } from "./autonomous-engineering";
+import { buildVerificationContract } from "./autonomous-verification";
+import { guardBuilderPlan } from "./elite-plan-guard";
 import { auditEliteBuilderQuality } from "./elite-quality";
 
 /* -------------------------------------------------------------------------- */
