@@ -40,7 +40,9 @@ import { designQualitySummary, scoreDesignQuality } from "./design-quality";
 import { compileResponsiveRepairs, isResponsiveRequest, responsiveSummary } from "./responsive-intelligence";
 import { auditAutonomousBuilder, autonomousAuditSummary } from "./autonomous-builder-intelligence";
 import { compileQaAutoRepairs, qaRepairSummary } from "./qa-auto-repair";
-import { auditCompleteBuilderCapabilities, capabilitySummary, buildOptimizationPlan } from "./complete-builder-capabilities";\nimport { auditAdvancedBuilderIntelligence, advancedBuilderSummary, compileAdvancedSafeRepairs } from "./advanced-builder-intelligence";
+import { auditCompleteBuilderCapabilities, capabilitySummary, buildOptimizationPlan } from "./complete-builder-capabilities";
+import { auditAdvancedBuilderIntelligence, advancedBuilderSummary, compileAdvancedSafeRepairs } from "./advanced-builder-intelligence";
+import { compileSafeOptimizationRepairs, findOptimizationOpportunities, optimizationSummary } from "./optimization-intelligence";
 
 /* -------------------------------------------------------------------------- */
 /* Limits                                                                     */
@@ -1629,7 +1631,30 @@ export function buildDeterministicPlan(
   /* ---------------------------------------------------------------------- */
   /* Complete capability audit / optimization queue                          */
 
-  const advancedAudit = auditAdvancedBuilderIntelligence(context, instruction, options.history ?? []);\n  trace.push(advancedBuilderSummary(advancedAudit));\n\n  const advancedRepairs = compileAdvancedSafeRepairs(\n    context,\n    instruction,\n    Math.min(8, cap - actions.length),\n  );\n  const beforeAdvancedRepairs = actions.length;\n  for (const repair of advancedRepairs) pushUnique(actions, repair, cap);\n  if (actions.length > beforeAdvancedRepairs) {\n    notes.push(\n      "Applied bounded advanced repairs using existing site data; design, media, motion, responsive, accessibility, performance, SEO and architecture signals remain evidence-driven.",\n    );\n  }\n\n  const capabilityAudit = auditCompleteBuilderCapabilities(context, actions);
+  const optimizationOpportunities = findOptimizationOpportunities(context, instruction);
+  trace.push(optimizationSummary(optimizationOpportunities));
+  const optimizationRepairs = compileSafeOptimizationRepairs(context, instruction, Math.min(8, cap - actions.length));
+  const beforeOptimization = actions.length;
+  for (const repair of optimizationRepairs) pushUnique(actions, repair, cap);
+  if (actions.length > beforeOptimization) notes.push("Applied bounded optimization repairs using existing page data only; speculative changes remain audit-only.");
+
+  const advancedAudit = auditAdvancedBuilderIntelligence(context, instruction, options.history ?? []);
+  trace.push(advancedBuilderSummary(advancedAudit));
+
+  const advancedRepairs = compileAdvancedSafeRepairs(
+    context,
+    instruction,
+    Math.min(8, cap - actions.length),
+  );
+  const beforeAdvancedRepairs = actions.length;
+  for (const repair of advancedRepairs) pushUnique(actions, repair, cap);
+  if (actions.length > beforeAdvancedRepairs) {
+    notes.push(
+      "Applied bounded advanced repairs using existing site data; design, media, motion, responsive, accessibility, performance, SEO and architecture signals remain evidence-driven.",
+    );
+  }
+
+  const capabilityAudit = auditCompleteBuilderCapabilities(context, actions);
   trace.push(capabilitySummary(capabilityAudit));
   const optimizationQueue = buildOptimizationPlan(capabilityAudit);
   if (optimizationQueue.length > 0) {
