@@ -393,6 +393,17 @@ export type PersistedSectionVisual = {
   image_ratio?: "1:1" | "4:3" | "3:2" | "16:9" | "21:9";
 };
 
+const SECTION_VISUAL_VALUES = {
+  layout: new Set(["split", "centered", "image_left", "image_right", "full_bleed", "editorial", "layered", "stacked"]),
+  density: new Set(["airy", "balanced", "dense"]),
+  image_position: new Set(["left", "right", "center", "background"]),
+  image_treatment: new Set(["natural", "rounded", "soft_shadow", "glass_frame", "duotone", "gradient_overlay", "cinematic", "cutout", "full_bleed"]),
+  spacing: new Set(["tight", "standard", "generous"]),
+  max_width: new Set(["narrow", "standard", "wide", "edge"]),
+  card_style: new Set(["soft", "sharp", "pill", "glass", "editorial", "floating"]),
+  image_ratio: new Set(["1:1", "4:3", "3:2", "16:9", "21:9"]),
+} as const;
+
 const VISUAL_KEYS = [
   "layout",
   "density",
@@ -411,7 +422,13 @@ export function readSectionVisual(settings: unknown): PersistedSectionVisual {
   const out: Record<string, string> = {};
   for (const key of VISUAL_KEYS) {
     const value = (raw as Record<string, unknown>)[key];
-    if (typeof value === "string" && value.length <= 32) out[key] = value;
+    if (
+      typeof value === "string" &&
+      value.length <= 32 &&
+      SECTION_VISUAL_VALUES[key].has(value as never)
+    ) {
+      out[key] = value;
+    }
   }
   return out as PersistedSectionVisual;
 }
@@ -454,10 +471,18 @@ export function readComponentVisual(settings: unknown): PersistedComponentVisual
   if (typeof value.alt === "string") out.alt = value.alt.slice(0, 160);
   if (value.object_fit === "cover" || value.object_fit === "contain") out.object_fit = value.object_fit;
   if (typeof value.object_position === "string") out.object_position = value.object_position;
-  if (typeof value.overlay === "string") out.overlay = value.overlay as PersistedComponentVisual["overlay"];
-  if (typeof value.radius === "string") out.radius = value.radius as PersistedComponentVisual["radius"];
-  if (typeof value.shadow === "string") out.shadow = value.shadow as PersistedComponentVisual["shadow"];
-  if (typeof value.aspect_ratio === "string") out.aspect_ratio = value.aspect_ratio as PersistedComponentVisual["aspect_ratio"];
+  if (["none", "soft", "dark", "brand", "gradient"].includes(String(value.overlay))) {
+    out.overlay = value.overlay as PersistedComponentVisual["overlay"];
+  }
+  if (["none", "small", "medium", "large", "pill"].includes(String(value.radius))) {
+    out.radius = value.radius as PersistedComponentVisual["radius"];
+  }
+  if (["none", "soft", "medium", "strong"].includes(String(value.shadow))) {
+    out.shadow = value.shadow as PersistedComponentVisual["shadow"];
+  }
+  if (["1:1", "4:3", "3:2", "16:9", "21:9"].includes(String(value.aspect_ratio))) {
+    out.aspect_ratio = value.aspect_ratio as PersistedComponentVisual["aspect_ratio"];
+  }
   if (typeof value.focal_point === "string") out.focal_point = value.focal_point;
   return out;
 }
