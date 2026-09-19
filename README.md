@@ -184,3 +184,4 @@ or revoke it before deleting the file; repository deletion alone does not invali
 Every production change should pass the repository gates before merge. High-risk changes affecting
 authentication, tenancy, billing, publishing, database schema, or customer data require targeted
 tests and a documented rollback path. See `SECURITY.md` and `docs/PRODUCTION_READINESS.md`.
+\n\nRun `npm run production:readiness` to validate the repository production-evidence contract. Runtime and database evidence must still be verified in their owning environments.\n
