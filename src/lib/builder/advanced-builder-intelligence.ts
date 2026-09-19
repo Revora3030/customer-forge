@@ -142,10 +142,12 @@ export function compileAdvancedSafeRepairs(
 ):AgentAction[] {
   const audit=auditAdvancedBuilderIntelligence(context,instruction);
   const out:AgentAction[]=[];
+  const repairedPages=new Set<string>();
   for(const f of audit.findings.filter(x=>x.repairable && x.area==="seo")) {
     if(out.length>=cap) break;
     const p=context.pages.find(x=>x.id===f.pageId);
-    if(!p) continue;
+    if(!p || repairedPages.has(p.id)) continue;
+    repairedPages.add(p.id);
     out.push({
       type:"set_page",
       pageId:p.id,
