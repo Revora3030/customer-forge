@@ -31,9 +31,11 @@ jobs:
         with:
           node-version: 22
 
+      - name: Pin npm
+        run: npm install --global npm@11.6.0
+
       - name: Install dependencies and browser
         run: |
-          npm cache clean --force
           npm install --no-audit --no-fund --prefer-online
           npm install --global @playwright/cli@1.55.0
           npx playwright install --with-deps chromium
