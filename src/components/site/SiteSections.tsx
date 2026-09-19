@@ -66,7 +66,7 @@ const IMAGE_COMPONENT_KINDS = new Set(["image", "gallery", "media", "photo", "he
 
 function safeObjectPosition(value: string | undefined): string {
   if (!value) return "center";
-  return /^(left|center|right)(\\s+(top|center|bottom))?$/i.test(value) ? value : "center";
+  return /^(left|center|right)(\s+(top|center|bottom))?$/i.test(value) ? value : "center";
 }
 
 function ratioClass(ratio: string | undefined): string {
