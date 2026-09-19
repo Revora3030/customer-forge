@@ -19,12 +19,9 @@ export default defineConfig({
     server: { entry: "server" },
   },
   vite: {
-    // Dev only: client sites are served on the customer's own domain, so the dev
-    // server accepts the platform domain, preview hosts and connected client
-    // domains. Revora-owned client subdomains are not a hosting product.
-    server: {
-      allowedHosts: [".revoragrowthsystems.com", ".lovable.app", "localhost"],
-    },
+    // The Lovable TanStack config owns preview/sandbox host detection. Do not
+    // override its allowed-host list: Lovable editor/mobile previews can arrive
+    // through sandbox/proxy hosts that are not customer domains.
     resolve: {
       alias: {
         "entities/lib/decode.js": path.resolve(
