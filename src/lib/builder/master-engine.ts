@@ -41,7 +41,9 @@ import { compileResponsiveRepairs, isResponsiveRequest, responsiveSummary } from
 import { auditAutonomousBuilder, autonomousAuditSummary } from "./autonomous-builder-intelligence";
 import { compileQaAutoRepairs, qaRepairSummary } from "./qa-auto-repair";
 import { auditCompleteBuilderCapabilities, capabilitySummary, buildOptimizationPlan } from "./complete-builder-capabilities";
-import { compileSafeOptimizationRepairs, findOptimizationOpportunities, optimizationSummary } from "./optimization-intelligence";\nimport { auditRoadmap161to170, roadmap161to170Summary, compileRoadmap161to170SafeRepairs } from "./roadmap-161-170-intelligence";
+import { auditAdvancedBuilderIntelligence, advancedBuilderSummary, compileAdvancedSafeRepairs } from "./advanced-builder-intelligence";
+import { compileSafeOptimizationRepairs, findOptimizationOpportunities, optimizationSummary } from "./optimization-intelligence";
+import { auditRoadmap161to170, roadmap161to170Summary, compileRoadmap161to170SafeRepairs } from "./roadmap-161-170-intelligence";
 
 /* -------------------------------------------------------------------------- */
 /* Limits                                                                     */
@@ -1632,27 +1634,14 @@ export function buildDeterministicPlan(
 
   const roadmapAudit = auditRoadmap161to170(context, instruction);
   trace.push(roadmap161to170Summary(roadmapAudit));
-
-  const roadmapRepairs = compileRoadmap161to170SafeRepairs(
-    context,
-    instruction,
-    Math.min(8, cap - actions.length),
-  );
+  const roadmapRepairs = compileRoadmap161to170SafeRepairs(context, instruction, Math.min(8, cap - actions.length));
   const beforeRoadmapRepairs = actions.length;
   for (const repair of roadmapRepairs) pushUnique(actions, repair, cap);
-
   if (actions.length > beforeRoadmapRepairs) {
-    notes.push(
-      "Applied bounded conversion repairs from roadmap #161-#170 using existing site structure only; CRO, runtime QA, visual regression and telemetry remain evidence-gated.",
-    );
+    notes.push("Applied bounded conversion repairs from roadmap #161-#170 using existing site structure only; CRO, runtime QA, visual regression and telemetry remain evidence-gated.");
   }
-
   if (roadmapAudit.runtimeRequired.length > 0) {
-    notes.push(
-      "Roadmap #161-#170 runtime boundaries: " +
-        roadmapAudit.runtimeRequired.join(", ") +
-        " require live rendered verification rather than static inference.",
-    );
+    notes.push("Roadmap #161-#170 runtime boundaries: " + roadmapAudit.runtimeRequired.join(", ") + " require live rendered verification rather than static inference.");
   }
 
   const optimizationOpportunities = findOptimizationOpportunities(context, instruction);
@@ -1661,6 +1650,22 @@ export function buildDeterministicPlan(
   const beforeOptimization = actions.length;
   for (const repair of optimizationRepairs) pushUnique(actions, repair, cap);
   if (actions.length > beforeOptimization) notes.push("Applied bounded optimization repairs using existing page data only; speculative changes remain audit-only.");
+
+  const advancedAudit = auditAdvancedBuilderIntelligence(context, instruction, options.history ?? []);
+  trace.push(advancedBuilderSummary(advancedAudit));
+
+  const advancedRepairs = compileAdvancedSafeRepairs(
+    context,
+    instruction,
+    Math.min(8, cap - actions.length),
+  );
+  const beforeAdvancedRepairs = actions.length;
+  for (const repair of advancedRepairs) pushUnique(actions, repair, cap);
+  if (actions.length > beforeAdvancedRepairs) {
+    notes.push(
+      "Applied bounded advanced repairs using existing site data; design, media, motion, responsive, accessibility, performance, SEO and architecture signals remain evidence-driven.",
+    );
+  }
 
   const capabilityAudit = auditCompleteBuilderCapabilities(context, actions);
   trace.push(capabilitySummary(capabilityAudit));
