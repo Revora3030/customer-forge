@@ -1548,7 +1548,7 @@ export function buildDeterministicPlan(
   /* External reasoning flag                                                 */
   /* ---------------------------------------------------------------------- */
 
-  const requiresExternalReasoning = actions.length === 0;
+  let requiresExternalReasoning = actions.length === 0;
 
   let externalReason: string | null = null;
 
@@ -1580,12 +1580,12 @@ export function buildDeterministicPlan(
 
   const summaryBits = Array.from(completed);
 
-  const summary =
+  let summary =
     summaryBits.length > 0
       ? `Master builder improved ${summaryBits.join(", ")} using your existing business data.`
       : "No safe website change was generated from this request.";
 
-  const reply =
+  let reply =
     actions.length > 0
       ? `I understood the request and prepared ${actions.length} website update${
           actions.length === 1 ? "" : "s"
@@ -1596,7 +1596,7 @@ export function buildDeterministicPlan(
   /* Safe QA repair pass                                                     */
 
   const repairRequested =
-    /\\b(fix|repair|qa|quality|broken|errors?|issues?|audit|improve)\\b/i.test(instruction) ||
+    /\b(fix|repair|qa|quality|broken|errors?|issues?|audit|improve)\b/i.test(instruction) ||
     intent.wholeSite;
 
   if (repairRequested) {
@@ -1682,12 +1682,89 @@ export function buildDeterministicPlan(
   }
 
   /* ---------------------------------------------------------------------- */
+  /* Elite plan guard + final quality gate                                   */
+  /* ---------------------------------------------------------------------- */
+
+  const guardedPlan = guardBuilderPlan(context, actions, cap);
+  actions.splice(0, actions.length, ...guardedPlan.actions);
+
+  if (guardedPlan.dropped > 0) {
+    notes.push(
+      `Elite plan guard removed ${guardedPlan.dropped} unsafe or duplicate action${guardedPlan.dropped === 1 ? "" : "s"} before execution.`,
+    );
+  }
+
+  const eliteQuality = auditEliteBuilderQuality(context, actions, instruction);
+  trace.push(eliteQuality.summary);
+
+  for (const finding of eliteQuality.findings.slice(0, 8)) {
+    trace.push(
+      `Elite quality [${finding.severity}] ${finding.area}: ${finding.message}`,
+    );
+  }
+
+  if (eliteQuality.strengths.length > 0) {
+    notes.push(`Elite strengths: ${eliteQuality.strengths.join(", ")}.`);
+  }
+
+  if (eliteQuality.blockers.length > 0) {
+    notes.push(`Elite review blockers: ${eliteQuality.blockers.join(", ")}.`);
+  }
+
+  notes.push(
+    `Elite quality score: ${eliteQuality.score}/100. Runtime-only claims remain evidence-gated.`,
+  );
+
+  const finalRecognised =
+    intent.verbs.length > 0 ||
+    intent.sectionKinds.length > 0 ||
+    intent.moods.length > 0 ||
+    intent.goals.length > 0 ||
+    intent.newPages.length > 0;
+
+  if (actions.length === 0) {
+    coverage = "none";
+  } else if (finalRecognised && intent.unrecognised.length === 0) {
+    coverage = "full";
+  } else {
+    coverage = "partial";
+  }
+
+  const finalRequiresExternalReasoning = actions.length === 0;
+
+  if (finalRequiresExternalReasoning) {
+    externalReason =
+      options.attachments?.some(
+        (attachment) =>
+          attachment.kind === "image" || attachment.kind === "video" || attachment.kind === "audio",
+      )
+        ? "The uploaded content must be interpreted before safe edits can be selected."
+        : "The request did not map to a supported website change.";
+  } else {
+    externalReason = null;
+  }
+
+  requiresExternalReasoning = finalRequiresExternalReasoning;
+
+  const finalSummaryBits = Array.from(completed);
+
+  const finalSummary =
+    finalSummaryBits.length > 0
+      ? `Master builder improved ${finalSummaryBits.join(", ")} using your existing business data. Elite quality ${eliteQuality.score}/100.`
+      : `No safe website change was generated from this request. Elite quality ${eliteQuality.score}/100.`;
+
+  const finalReply =
+    actions.length > 0
+      ? `I understood the request and prepared ${actions.length} website update${actions.length === 1 ? "" : "s"} across ${finalSummaryBits.join(", ") || "your site"}. Quality gate: ${eliteQuality.score}/100.`
+      : "I could not safely turn that request into a website change without guessing.";
+
+  /* ---------------------------------------------------------------------- */
   /* Final deterministic plan                                                */
   /* ---------------------------------------------------------------------- */
 
   return {
-    reply,
-    summary,
+    reply: finalReply,
+    summary: finalSummary,
     actions,
     questions: [...new Set(questions)].slice(0, 1),
     notes: [...new Set(notes)].slice(0, 10),
