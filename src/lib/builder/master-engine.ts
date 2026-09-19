@@ -44,7 +44,7 @@ import { auditCompleteBuilderCapabilities, capabilitySummary, buildOptimizationP
 import { auditAdvancedBuilderIntelligence, advancedBuilderSummary, compileAdvancedSafeRepairs } from "./advanced-builder-intelligence";
 import { compileSafeOptimizationRepairs, findOptimizationOpportunities, optimizationSummary } from "./optimization-intelligence";
 import { auditRoadmap161to170, roadmap161to170Summary, compileRoadmap161to170SafeRepairs } from "./roadmap-161-170-intelligence";
-import { guardBuilderPlan } from "./elite-plan-guard";
+import { compileAutonomousEngineering } from "./autonomous-engineering";\nimport { guardBuilderPlan } from "./elite-plan-guard";
 import { auditEliteBuilderQuality } from "./elite-quality";
 
 /* -------------------------------------------------------------------------- */
@@ -1611,6 +1611,50 @@ export function buildDeterministicPlan(
     `Autonomous quality coverage: ${Object.entries(autonomousAudit.capabilities)
       .filter(([, status]) => status !== "requires-runtime")
       .length} deterministic capabilities active; runtime-only checks remain explicitly separated.`,
+  );
+
+  /* ---------------------------------------------------------------------- */
+  /* Autonomous Engineering 2.0 operating system                             */
+  /* ---------------------------------------------------------------------- */
+
+  const autonomousEngineering = compileAutonomousEngineering(
+    context,
+    instruction,
+    intent.wholeSite,
+    Math.min(24, cap - actions.length),
+  );
+
+  trace.push(autonomousEngineering.summary);
+
+  for (const finding of autonomousEngineering.findings.slice(0, 10)) {
+    trace.push(
+      `Autonomous Engineering [${finding.severity}] ${finding.phase}: ${finding.message}`,
+    );
+  }
+
+  for (const action of autonomousEngineering.actions) {
+    pushUnique(actions, action, cap);
+  }
+
+  if (autonomousEngineering.blocked.length > 0) {
+    notes.push(
+      "Autonomous Engineering safety boundaries: " +
+        autonomousEngineering.blocked.slice(0, 4).join("; ") +
+        ".",
+    );
+  }
+
+  if (autonomousEngineering.runtimeRequired.length > 0) {
+    notes.push(
+      "Autonomous Engineering runtime verification queue: " +
+        autonomousEngineering.runtimeRequired.slice(0, 6).join(", ") +
+        ".",
+    );
+  }
+
+  notes.push(
+    "Autonomous recovery strategy: " +
+      autonomousEngineering.recoveryStrategy.slice(0, 3).join(" "),
   );
 
   /* ---------------------------------------------------------------------- */
