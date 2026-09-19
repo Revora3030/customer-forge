@@ -230,7 +230,7 @@ function SiteSectionBody({ site, section }: { site: Site; section: Section }) {
                 ) : null}
                 <SectionButtons site={site} components={components} />
               </div>
-              {profile.hero_image_url ? (
+              {profile?.hero_image_url ? (
                 <div className="rv-hero-media overflow-hidden rounded-2xl">
                   <img
                     src={profile.hero_image_url}
