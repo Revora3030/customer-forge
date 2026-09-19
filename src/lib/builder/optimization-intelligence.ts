@@ -50,7 +50,7 @@ export function compileSafeOptimizationRepairs(context: AgentContext, instructio
     if(!o.safe||out.length>=Math.min(12,Math.max(1,limit))) continue;
     if(o.area==="seo"&&o.pageId){
       const p=pages.get(o.pageId); if(!p) continue;
-      out.push({type:"set_page",pageId:p.id,seo_title:p.seo_title?.trim()||p.title.slice(0,60),seo_description:p.seo_description?.trim()||p.title.slice(0,160)});
+      out.push({type:"set_page",pageId:p.id,patch:{seo_title:p.seo_title?.trim()||p.title.slice(0,60),seo_description:p.seo_description?.trim()||p.title.slice(0,160)}});
     }
   }
   const seen=new Set<string>();
