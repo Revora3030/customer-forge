@@ -21,7 +21,8 @@
     "browser:smoke": "node scripts/browser-smoke.mjs",
     "production:readiness:max": "node scripts/production-readiness-max-audit.mjs",
     "production:readiness:max:test": "node scripts/production-readiness-max-audit.test.mjs",
-    "repo:visual-output": "node scripts/whole-repo-visual-output-audit.mjs"
+    "repo:visual-output": "node scripts/whole-repo-visual-output-audit.mjs",
+    "builder:ultimate-audit": "node scripts/builder-ultimate-audit.mjs"
   },
   "overrides": {
     "rolldown": "1.2.1"
