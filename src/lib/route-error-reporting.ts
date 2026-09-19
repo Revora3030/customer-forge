@@ -40,14 +40,12 @@ export function reportRouteError(error: unknown, context: RouteErrorContext = {}
     }
   }
 
-  const componentStack = context.componentStack?.slice(0, 4000);
-  void reportClientError({
-    data: {
-      message,
-      stack,
-      route: route(),
-      mechanism: context.mechanism ?? "tanstack_route",
-      componentStack,
-    },
-  }).catch(() => undefined);
+  const data: Parameters<typeof reportClientError>[0]["data"] = {
+    message,
+    stack,
+    route: route(),
+    mechanism: context.mechanism ?? "tanstack_route",
+  };
+  if (context.componentStack) data.componentStack = context.componentStack.slice(0, 4000);
+  void reportClientError({ data }).catch(() => undefined);
 }
