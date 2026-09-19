@@ -233,7 +233,7 @@ function SiteSectionBody({ site, section }: { site: Site; section: Section }) {
               {profile?.hero_image_url ? (
                 <div className="rv-hero-media overflow-hidden rounded-2xl">
                   <img
-                    src={profile.hero_image_url}
+                    src={profile?.hero_image_url ?? ""}
                     alt={org.name + " featured work"}
                     width={1200}
                     height={800}
