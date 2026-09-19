@@ -206,7 +206,10 @@ export function SiteChatbot({
             (result.verification ? ` ${result.verification.summary}` : "") +
             (result.failed
               ? ` ${result.failed} step${result.failed === 1 ? "" : "s"} couldn't be applied.`
-              : ""),
+              : "") +
+            (result.verification
+              ? ` Verification: ${result.verification.score}% quality, ${result.verification.passed} checks passed, ${result.verification.warnings} improvement${result.verification.warnings === 1 ? "" : "s"} noted.`
+              : " Verification could not run, so no claim was made about the rendered result."),
         },
       ]);
       setPlan(null);
