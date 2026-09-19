@@ -36,3 +36,7 @@ rollback consideration and targeted tests.
 
 Do not publish suspected secrets or exploit details in a public issue. Use a private security-reporting
 channel available to repository maintainers.
+
+## Response hardening
+
+The platform applies baseline response protections including MIME sniffing prevention, strict referrer policy, clickjacking protection, cross-origin isolation controls, DNS-prefetch suppression, and HSTS on HTTPS responses. HTML responses additionally receive the explicit CSP and Permissions Policy defined in `src/lib/security-headers.ts`.
