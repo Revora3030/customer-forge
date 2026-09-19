@@ -801,7 +801,7 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
             const settings = writeComponentVisual(current?.["settings"] ?? null, action.patch);
             const mediaUrl = action.patch["media_url"];
             const patch: Record<string, unknown> = { settings };
-            if (mediaUrl !== undefined) patch.media_url = safeLinkUrl(mediaUrl);
+            if (mediaUrl !== undefined) patch["media_url"] = safeLinkUrl(mediaUrl);
             return supabase
               .from("website_components")
               .update(patch as never)
