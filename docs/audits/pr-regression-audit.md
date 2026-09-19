@@ -12,7 +12,7 @@ Read-only historical inventory covered PRs #1–#169, followed by a current-main
 3. PRs #145/#146 accessibility work are closed without merge. Current code search did not find the unmerged findAccessibilityFindings implementation, so their review findings do not survive into main.
 4. PR #162 had a Codacy/TSQLLint syntax-near-$ comment. Current main contains valid PostgreSQL dollar-quoted PL/pgSQL; the historical tooling finding is not evidence of a surviving runtime defect.
 5. PR #167 had historical Stylelint findings. Stylelint is not currently a required repository quality step, so these are recorded as tooling/configuration debt rather than falsely marked fixed.
-6. Live Supabase still reports 1 authenticated SECURITY DEFINER execution warning, 1 leaked-password-protection warning, 3 missing FK indexes, and 7 RLS auth init-plan warnings. Repository migrations intended to remediate these are not present in the live migration history. This is confirmed deployment drift.
+6. Live Supabase initially reported 1 authenticated SECURITY DEFINER execution warning, 1 leaked-password-protection warning, 3 missing FK indexes, and 7 RLS auth init-plan warnings. The source-controlled final hardening migration existed in main but had not been applied to live. The additive hardening migration was then applied to the connected project and re-checked; the SECURITY DEFINER, FK, and RLS findings cleared. Only the manual Auth leaked-password-protection setting remains.
 7. Sentry production delivery is inconclusive because the current toolset exposes no Sentry project/event connector. Source code has an in-app error store and optional Sentry forwarding.
 
 ## Complete PR inventory
@@ -152,15 +152,13 @@ Read-only historical inventory covered PRs #1–#169, followed by a current-main
 
 ## Supabase live evidence
 
-- Security: authenticated execution of public.provision_workspace(...).
-- Security: leaked-password protection disabled.
-- Performance: 3 missing FK indexes.
-- Performance: 7 RLS auth init-plan warnings.
-- Performance: 107 unused-index INFO notices.
+- Security before remediation: authenticated execution of public.provision_workspace(...).
+- Security after remediation: authenticated execution is false for the legacy and server provisioning RPCs; service_role execution is true for the server-only RPC.
+- Security remaining: leaked-password protection is disabled in Supabase Auth.
+- Performance before remediation: 3 missing FK indexes and 7 RLS auth init-plan warnings.
+- Performance after remediation: those 10 findings cleared; unused-index INFO notices remain and were not deleted.
 
-The three FK indexes and seven RLS rewrites are represented in repository migrations. Live migration history does not include the 20260919 workspace-provisioning/outcome-RLS hardening migrations.
-
-Production DB migration was not applied during this source repair because the repository's server-only provisioning migration reconstructs the privileged function body and must be verified on a non-production database before release. This remains an explicit manual release item.
+The live migration was applied additively and did not modify customer records. The repository's source-controlled hardening migration remains the canonical code artifact; the live project now reflects its intended security/performance controls.
 
 ## Sentry
 
@@ -180,3 +178,83 @@ Recent history contains typecheck, lint, whole-repository visual-contract, serve
 ## Conclusion
 
 No historical branch was rewritten or reopened. Repairs target current main on a dedicated branch. CI is the final execution evidence before merge.
+
+## PR inventory continuation: #101–#169
+
+| PR | Title | State |
+|---:|---|---|
+| 101 | feat: autonomous build inspect fix verify loop | merged |
+| 102 | feat: finish autonomous builder master upgrades | merged |
+| 103 | feat: free-first growth connector foundation | merged |
+| 104 | feat: harden website audits and add optional n8n bridge | merged |
+| 105 | security: keep Revora core independent of connectors | merged |
+| 106 | fix: restore Revora CI after autonomous builder upgrades | merged |
+| 107 | fix: stabilize Revora master audit quality gate | merged |
+| 108 | feat: make Revora builder prompt-first and context-aware | merged |
+| 109 | feat: upgrade Revora autonomous builder intelligence | merged |
+| 110 | feat: route agent planning through autonomous brain | merged |
+| 111 | feat: upgrade autonomous brain with normalized intent | merged |
+| 112 | feat: add autonomous plan quality gate v4 | merged |
+| 113 | feat: add autonomous plan self-critique v5 | merged |
+| 114 | feat: unify primary Site Forge planner with Autonomous Brain | merged |
+| 115 | feat: deterministic Site Forge context targeting | merged |
+| 116 | docs: establish Revora production-excellence release contract | merged |
+| 117 | feat: make the AI command center goal-first and guided | merged |
+| 118 | Feat/revora ai builder 10x | merged |
+| 119 | Feat/revora ai builder visual director | merged |
+| 120 | feat(builder): add prompt-to-site blueprint planner | merged |
+| 121 | feat(builder): add prompt-to-site blueprint planning workspace | merged |
+| 122 | feat(builder): add prompt-to-site blueprint and safe launch workflow | merged |
+| 123 | feat(builder): add outcome-based improvement workflow | merged |
+| 124 | feat(builder): enforce evidence-gated AI recommendation review | merged |
+| 125 | feat(builder): major multi-pass autonomous builder intelligence | merged |
+| 126 | feat(builder): add adaptive self-critique recovery loop | merged |
+| 127 | feat(builder): make self-critique requirement aware | merged |
+| 128 | feat(builder): add contextual visual edit intelligence | merged |
+| 129 | feat(builder): add context-aware site diagnosis | merged |
+| 130 | feat(builder): add dependency-aware execution blueprint planning | merged |
+| 131 | feat(verification): add deep served-page verification intelligence | merged |
+| 132 | feat(builder): add site-wide context graph intelligence | merged |
+| 133 | feat(builder): add autonomous navigation intelligence | merged |
+| 134 | feat(builder): add section-level visual composition intelligence | merged |
+| 135 | feat(builder): add site-wide CTA intelligence | merged |
+| 136 | feat(builder): add true plan mode risk and approval blueprint | merged |
+| 137 | feat(builder): add cross-page consistency intelligence | merged |
+| 138 | feat(builder): add global SEO intelligence and safe metadata repair | merged |
+| 139 | feat(builder): add sitewide visual consistency mode | merged |
+| 140 | feat(builder): add deterministic design quality intelligence | merged |
+| 141 | feat(builder): add responsive mobile intelligence | merged |
+| 142 | feat(builder): add deterministic mobile quality intelligence | merged |
+| 143 | fix(builder): correct mobile quality interaction scoring | merged |
+| 144 | fix(builder): resolve PR 142 mobile quality test failure | merged |
+| 145 | feat(builder): add deterministic accessibility intelligence | closed, not merged |
+| 146 | feat(builder): add deterministic accessibility intelligence v2 | closed, not merged |
+| 147 | feat(builder): add browser-style autonomous QA intelligence | merged |
+| 148 | feat(builder): add safe QA auto-repair intelligence | merged |
+| 149 | feat(builder): unify remaining autonomous builder intelligence | merged |
+| 150 | feat(builder): massive autonomous optimization intelligence | merged |
+| 151 | feat(builder): bundle roadmap intelligence #151-#160 | merged |
+| 152 | feat(builder): bundle roadmap intelligence #161-#170 | merged |
+| 153 | feat(builder): 10/10 elite quality gate, plan guard, and final orchestration | merged |
+| 154 | feat(marketing): autonomous rendered visual polish pass | merged |
+| 155 | feat(builder): final 10/10 served-site quality hardening | merged |
+| 156 | fix(builder): repair final quality gate test failures | merged |
+| 157 | fix(builder): stabilize served-page conversion verification | merged |
+| 158 | feat(platform): production-grade security, quality, and release hardening | merged |
+| 159 | feat(builder): autonomous engineering 2.0 maximum upgrade | merged |
+| 160 | feat(builder): maximum 531-capability intelligence expansion | merged |
+| 161 | feat(builder): maximum 285-upgrade intelligence expansion | merged |
+| 162 | security/performance: harden workspace provisioning and optimize outcome RLS | merged |
+| 163 | feat(platform): maximum production readiness and reliability hardening | merged |
+| 164 | production: comprehensive security, reliability, QA, and readiness hardening | merged |
+| 165 | feat(repo): maximum whole-repository intelligence, safety, QA and builder upgrade | merged |
+| 166 | feat(platform): maximum 10/10 autonomous browser QA and production hardening | merged |
+| 167 | feat(builder): maximum whole-repo visual output and real-site rendering upgrade | merged |
+| 168 | feat(builder): ultimate 10/10 generated-site quality autopilot | merged |
+| 169 | fix(production): harden mobile route crashes and capture root-cause telemetry | merged |
+
+## New focused observability repair
+
+The audit found a source-controlled observability defect in `src/lib/monitoring.server.ts`: the Sentry event contained `stacktrace: { frames: [] }` even when a real stack was available. The repair branch now parses common JavaScript stack-frame formats, bounds the number of forwarded frames, and strips URL query strings/fragments from filenames. A regression test locks the contract.
+
+This does not claim live Sentry delivery is healthy; the repository still needs controlled Sentry event verification because no connected Sentry event API is available in this tool session.
