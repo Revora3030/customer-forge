@@ -15,6 +15,7 @@ import { ensureProfile, enforceSessionPolicy, resolvePostLoginPath } from "@/lib
 import { OG_IMAGE, ORGANIZATION_SCHEMA, WEBSITE_SCHEMA } from "@/lib/seo";
 import { RouteError, RouteNotFound } from "@/components/app/RouteStates";
 import { PlatformAnalytics } from "@/components/marketing/PlatformAnalytics";
+import { reportRouteError } from "@/lib/route-error-reporting";
 
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
   head: () => ({
@@ -135,6 +136,30 @@ function RootComponent() {
     });
     return () => data.subscription.unsubscribe();
   }, [router, queryClient]);
+
+  useEffect(() => {
+    // React route boundaries catch render/loader failures, while these listeners
+    // cover errors that escape the router boundary or occur during hydration.
+    const onError = (event: ErrorEvent) => {
+      reportRouteError(event.error ?? event.message, {
+        boundary: "window_error",
+        mechanism: "window_error",
+      });
+    };
+    const onUnhandledRejection = (event: PromiseRejectionEvent) => {
+      reportRouteError(event.reason, {
+        boundary: "window_unhandled_rejection",
+        mechanism: "unhandled_rejection",
+      });
+    };
+
+    window.addEventListener("error", onError);
+    window.addEventListener("unhandledrejection", onUnhandledRejection);
+    return () => {
+      window.removeEventListener("error", onError);
+      window.removeEventListener("unhandledrejection", onUnhandledRejection);
+    };
+  }, []);
 
   return (
     <QueryClientProvider client={queryClient}>

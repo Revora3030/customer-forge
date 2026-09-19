@@ -10,6 +10,7 @@ import { Link, useRouter } from "@tanstack/react-router";
 import { useEffect } from "react";
 
 import { reportLovableError } from "@/lib/lovable-error-reporting";
+import { reportRouteError } from "@/lib/route-error-reporting";
 
 export function RouteNotFound() {
   return (
@@ -46,19 +47,10 @@ export function RouteError({ error, reset }: { error: Error; reset?: () => void 
   useEffect(() => {
     console.error(error);
     reportLovableError(error, { boundary: "tanstack_route_error_component" });
-    // Also record it in Revora's own production error tracker so the platform
-    // admin sees real client-side crashes, not just local console noise.
-    void import("@/lib/monitoring.functions")
-      .then(({ reportClientError }) =>
-        reportClientError({
-          data: {
-            message: error?.message ?? "Unknown client error",
-            stack: error?.stack ?? "",
-            route: typeof window === "undefined" ? "" : window.location.pathname,
-          },
-        }),
-      )
-      .catch(() => {});
+    reportRouteError(error, {
+      boundary: "tanstack_route_error_component",
+      mechanism: "react_error_boundary",
+    });
   }, [error]);
 
   return (

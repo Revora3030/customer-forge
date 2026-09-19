@@ -16,6 +16,7 @@ function ActivityTicker() {
   const [index, setIndex] = useState(0);
 
   useEffect(() => {
+    if (typeof window.matchMedia !== "function") return;
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     if (reduced) return;
     const timer = window.setInterval(() => setIndex((i) => (i + 1) % ACTIVITY.length), 3200);

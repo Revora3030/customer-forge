@@ -29,7 +29,8 @@ export type PublicationCheck =
   | "resources"
   | "runtime"
   | "performance"
-  | "tenant-safety";
+  | "tenant-safety"
+  | "seo";
 
 export type PublicationResult = {
   publishable: boolean;
@@ -136,11 +137,11 @@ export function canonicalActivationEvent(input: {
 
 export function redactSensitiveText(value: string) {
   return value
-    .replace(/sk_(?:live|test)_[A-Za-z0-9_\-]+/g, "[REDACTED_STRIPE_KEY]")
-    .replace(/whsec_[A-Za-z0-9_\-]+/g, "[REDACTED_WEBHOOK_SECRET]")
-    .replace(/sb_secret_[A-Za-z0-9_\-]+/g, "[REDACTED_SUPABASE_SECRET]")
-    .replace(/AIza[0-9A-Za-z_\-]+/g, "[REDACTED_GOOGLE_KEY]")
-    .replace(/Bearer\s+[A-Za-z0-9._\-]+/gi, "Bearer [REDACTED]")
+    .replace(/sk_(?:live|test)_[A-Za-z0-9_-]+/g, "[REDACTED_STRIPE_KEY]")
+    .replace(/whsec_[A-Za-z0-9_-]+/g, "[REDACTED_WEBHOOK_SECRET]")
+    .replace(/sb_secret_[A-Za-z0-9_-]+/g, "[REDACTED_SUPABASE_SECRET]")
+    .replace(/AIza[0-9A-Za-z_-]+/g, "[REDACTED_GOOGLE_KEY]")
+    .replace(/Bearer\s+[A-Za-z0-9._-]+/gi, "Bearer [REDACTED]")
     .replace(/SUPABASE_SERVICE_ROLE_KEY\s*[=:]\s*[^\s,;]+/gi, "SUPABASE_SERVICE_ROLE_KEY=[REDACTED]");
 }
 

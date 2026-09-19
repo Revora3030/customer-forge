@@ -45,11 +45,11 @@ export function compileUltimateSiteQuality(context: AgentContext, instruction: s
   for (const action of compileDesignSystemActions(sections, direction, Math.min(18, cap))) push(action);
   for (const action of compileImageQualityActions(sections, context.business.name, Math.min(14, cap - actions.length))) push(action);
 
-  const target = context.business.phone ? "tel:" + context.business.phone : context.business.email ? "mailto:" + context.business.email : "/contact";
+  const target = (context.business.phone ? "tel:" + context.business.phone : null) ?? (context.business.email ? "mailto:" + context.business.email : null) ?? "/contact";
   for (const action of compileConversionArchitecture(pages, target, "Get Started", Math.min(10, cap - actions.length))) push(action);
   for (const action of compileResponsiveAutopilot(sections, Math.min(8, cap - actions.length))) push(action);
   for (const action of compileAccessibilityAutopilot(sections, context.business.name, Math.min(6, cap - actions.length))) push(action);
-  for (const action of compileSeoAutopilot(pages, context.business.name, context.business.industry, context.business.city, Math.min(6, cap - actions.length))) push(action);
+  for (const action of compileSeoAutopilot(pages, context.business.name, (context.business.industry ?? "business"), context.business.city, Math.min(6, cap - actions.length))) push(action);
 
   const media = sections.flatMap((s) => s.components).filter((c) => ["image","gallery","media","photo","hero_image"].includes(c.kind)).length;
   const ctaPages = pages.filter((p) => p.sections.some((s) => s.kind === "cta" || s.components.some((c) => c.kind === "button"))).length;

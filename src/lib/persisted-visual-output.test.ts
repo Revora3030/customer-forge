@@ -42,7 +42,7 @@ describe("persisted visual output contract", () => {
 
   it("preserves unrelated settings", () => {
     const settings = writeSectionVisual({ seo: { anchor: "services" } }, { layout: "editorial" });
-    expect(settings.seo).toEqual({ anchor: "services" });
+    expect((settings as Record<string, unknown>)["seo"]).toEqual({ anchor: "services" });
     expect(readSectionVisual(settings).layout).toBe("editorial");
   });
 });

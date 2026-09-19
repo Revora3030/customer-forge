@@ -28,7 +28,20 @@ async function normalizeCatastrophicSsrResponse(response: Response): Promise<Res
   const body = await response.clone().text();
   if (!isH3SwallowedErrorBody(body)) return response;
 
-  console.error(consumeLastCapturedError() ?? new Error(`h3 swallowed SSR error: ${body}`));
+  const captured = consumeLastCapturedError() ?? new Error(`h3 swallowed SSR error: ${body}`);
+  console.error(captured);
+  try {
+    const { captureError } = await import("./lib/monitoring.server");
+    await captureError(captured, {
+      source: "server",
+      level: "fatal",
+      statusCode: 500,
+      route: new URL(response.url || "http://localhost/").pathname,
+      context: { mechanism: "h3_swallowed_ssr_error" },
+    });
+  } catch {
+    // Never let observability failure mask the production error response.
+  }
   return new Response(renderErrorPage(), {
     status: 500,
     headers: { "content-type": "text/html; charset=utf-8" },

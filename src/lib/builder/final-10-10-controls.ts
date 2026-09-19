@@ -769,6 +769,76 @@ export const FINAL_10_10_CONTROLS:FinalControl[]=[
     "name": "change audit",
     "mode": "deterministic",
     "blocking": false
+  },
+  {
+    "id": "F10-111",
+    "category": "Browser",
+    "name": "viewport overflow detection",
+    "mode": "runtime",
+    "blocking": false
+  },
+  {
+    "id": "F10-112",
+    "category": "Builder",
+    "name": "instruction ambiguity detection",
+    "mode": "deterministic",
+    "blocking": false
+  },
+  {
+    "id": "F10-113",
+    "category": "Builder",
+    "name": "site-wide consistency pass",
+    "mode": "deterministic",
+    "blocking": false
+  },
+  {
+    "id": "F10-114",
+    "category": "SEO",
+    "name": "social metadata",
+    "mode": "deterministic",
+    "blocking": false
+  },
+  {
+    "id": "F10-115",
+    "category": "Performance",
+    "name": "lazy loading coverage",
+    "mode": "deterministic",
+    "blocking": false
+  },
+  {
+    "id": "F10-116",
+    "category": "Performance",
+    "name": "resource priority hints",
+    "mode": "deterministic",
+    "blocking": false
+  },
+  {
+    "id": "F10-117",
+    "category": "Accessibility",
+    "name": "semantic control names",
+    "mode": "deterministic",
+    "blocking": false
+  },
+  {
+    "id": "F10-118",
+    "category": "Operations",
+    "name": "deployment health evidence",
+    "mode": "runtime",
+    "blocking": false
+  },
+  {
+    "id": "F10-119",
+    "category": "Operations",
+    "name": "error budget signal",
+    "mode": "runtime",
+    "blocking": false
+  },
+  {
+    "id": "F10-120",
+    "category": "Publication",
+    "name": "published-route smoke test",
+    "mode": "runtime",
+    "blocking": true
   }
 ];
 export function auditFinal10Controls(){return {total:FINAL_10_10_CONTROLS.length,deterministic:FINAL_10_10_CONTROLS.filter(c=>c.mode==="deterministic").length,runtime:FINAL_10_10_CONTROLS.filter(c=>c.mode==="runtime").length,blocking:FINAL_10_10_CONTROLS.filter(c=>c.blocking).length,categories:[...new Set(FINAL_10_10_CONTROLS.map(c=>c.category))]};}

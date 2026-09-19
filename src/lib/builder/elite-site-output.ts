@@ -12,7 +12,6 @@
 
 import type { AgentAction } from "@/lib/site-agent";
 import type { AgentContext } from "@/lib/site-agent.server";
-import { pickVisualDirection } from "@/lib/visual-direction";
 import { recommendDirections } from "@/lib/design-directions";
 import { compileVisualComposition } from "./visual-composition";
 
@@ -127,11 +126,11 @@ export function compileEliteSiteOutput(
       services: context.business.services.map((service) => ({ name: service.name })),
       city: context.business.city,
       count: 1,
-    })[0] ??
-    pickVisualDirection({
-      industry: context.business.industry,
-      services: context.business.services.map((service) => ({ name: service.name })),
-    });
+    })[0];
+
+  if (!direction) {
+    return { actions: [], directionId: null, directionName: null, visualSystem: [], imageSlots: [] };
+  }
 
   const dark = direction.secondary !== "#ffffff" && !/^#f/i.test(direction.secondary);
   const actions: AgentAction[] = [

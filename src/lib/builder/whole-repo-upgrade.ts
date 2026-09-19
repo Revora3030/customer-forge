@@ -199,7 +199,7 @@ export function compileWholeRepoUpgrades(
   }
 
   for (const page of context.pages.slice(0, 24)) {
-    const visible = page.sections.filter((section) => section.visible !== false);
+    const visible = page.sections.filter((section) => section.is_visible);
     const empty = visible.filter((section) => !hasRealText(section));
     if (empty.length > 0) {
       pushFinding(findings, {
@@ -271,7 +271,7 @@ export function compileWholeRepoUpgrades(
     });
   }
 
-  if (/performance|speed|core web vitals|lcp|cls|inp/.test(lower)) {
+  if (/performance|speed|faster|fast|core web vitals|lcp|cls|inp/.test(lower)) {
     runtimeRequired.push("real-browser Core Web Vitals measurement");
     pushFinding(findings, {
       area: "performance",

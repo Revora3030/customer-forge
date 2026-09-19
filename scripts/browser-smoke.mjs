@@ -11,11 +11,27 @@ const routes = (process.env.BROWSER_QA_ROUTES || "/")
 mkdirSync("browser-qa-artifacts", { recursive: true });
 
 function run(args) {
-  return execFileSync("playwright-cli", args, {
-    encoding: "utf8",
-    stdio: ["ignore", "pipe", "pipe"],
-    timeout: 15000,
-  });
+  try {
+    return execFileSync("playwright-cli", args, {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+      timeout: 60000,
+    });
+  } catch (error) {
+    const stderr =
+      error && typeof error === "object" && "stderr" in error
+        ? String(error.stderr || "")
+        : "";
+    const stdout =
+      error && typeof error === "object" && "stdout" in error
+        ? String(error.stdout || "")
+        : "";
+    const detail = [stderr.trim(), stdout.trim()].filter(Boolean).join("\n");
+    const code = error && typeof error === "object" && "status" in error ? String(error.status ?? "") : "";
+    const signal = error && typeof error === "object" && "signal" in error ? String(error.signal ?? "") : "";
+    throw new Error(
+      `playwright-cli ${args.join(" ")} failed${code ? ` (exit ${code})` : ""}${signal ? ` (signal ${signal})` : ""}${detail ? `:\n${detail}` : ""}`,
+    );  }
 }
 
 const report = [];
