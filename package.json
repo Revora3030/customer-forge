@@ -13,9 +13,11 @@
     "test": "vitest run",
     "format": "prettier --write .",
     "security:audit": "node scripts/security-audit.mjs",
-    "quality": "npm run typecheck && npm run lint && npm run security:audit && npm test && npm run build",
+    "quality": "npm run typecheck && npm run lint && npm run security:audit && npm run repo:audit && npm run repo:audit:test && npm test && npm run build",
     "production:readiness": "node scripts/production-readiness-audit.mjs",
-    "production:controls": "node scripts/production-control-audit.mjs"
+    "production:controls": "node scripts/production-control-audit.mjs",
+    "repo:audit": "node scripts/whole-repo-upgrade-audit.mjs",
+    "repo:audit:test": "node scripts/whole-repo-upgrade-audit.test.mjs"
   },
   "overrides": {
     "rolldown": "1.2.1"
