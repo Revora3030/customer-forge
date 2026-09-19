@@ -104,7 +104,7 @@ export function findAccessibilityFindings(
         });
       }
 
-      for (const component of section.components.filter((item) => item.is_visible)) {
+      for (const component of section.components) {
         if (findings.length >= limit) {
           break;
         }
