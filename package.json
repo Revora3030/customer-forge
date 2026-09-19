@@ -20,7 +20,8 @@
     "repo:audit:test": "node scripts/whole-repo-upgrade-audit.test.mjs",
     "browser:smoke": "node scripts/browser-smoke.mjs",
     "production:readiness:max": "node scripts/production-readiness-max-audit.mjs",
-    "production:readiness:max:test": "node scripts/production-readiness-max-audit.test.mjs"
+    "production:readiness:max:test": "node scripts/production-readiness-max-audit.test.mjs",
+    "repo:visual-output": "node scripts/whole-repo-visual-output-audit.mjs"
   },
   "overrides": {
     "rolldown": "1.2.1"
