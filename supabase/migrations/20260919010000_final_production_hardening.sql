@@ -46,7 +46,7 @@ BEGIN
     RAISE EXCEPTION 'INVALID_PROFILE';
   END IF;
 
-  IF jsonb_object_length(_profile) > 20 THEN
+  IF (SELECT count(*) FROM jsonb_object_keys(_profile)) > 20 THEN
     RAISE EXCEPTION 'PROFILE_TOO_LARGE';
   END IF;
 
