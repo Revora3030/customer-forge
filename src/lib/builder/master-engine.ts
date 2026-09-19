@@ -41,6 +41,7 @@ import { compileResponsiveRepairs, isResponsiveRequest, responsiveSummary } from
 import { auditAutonomousBuilder, autonomousAuditSummary } from "./autonomous-builder-intelligence";
 import { compileQaAutoRepairs, qaRepairSummary } from "./qa-auto-repair";
 import { auditCompleteBuilderCapabilities, capabilitySummary, buildOptimizationPlan } from "./complete-builder-capabilities";
+import { auditAdvancedBuilderIntelligence, advancedBuilderSummary, compileAdvancedSafeRepairs } from "./advanced-builder-intelligence";
 import { compileSafeOptimizationRepairs, findOptimizationOpportunities, optimizationSummary } from "./optimization-intelligence";
 
 /* -------------------------------------------------------------------------- */
@@ -1636,6 +1637,22 @@ export function buildDeterministicPlan(
   const beforeOptimization = actions.length;
   for (const repair of optimizationRepairs) pushUnique(actions, repair, cap);
   if (actions.length > beforeOptimization) notes.push("Applied bounded optimization repairs using existing page data only; speculative changes remain audit-only.");
+
+  const advancedAudit = auditAdvancedBuilderIntelligence(context, instruction, options.history ?? []);
+  trace.push(advancedBuilderSummary(advancedAudit));
+
+  const advancedRepairs = compileAdvancedSafeRepairs(
+    context,
+    instruction,
+    Math.min(8, cap - actions.length),
+  );
+  const beforeAdvancedRepairs = actions.length;
+  for (const repair of advancedRepairs) pushUnique(actions, repair, cap);
+  if (actions.length > beforeAdvancedRepairs) {
+    notes.push(
+      "Applied bounded advanced repairs using existing site data; design, media, motion, responsive, accessibility, performance, SEO and architecture signals remain evidence-driven.",
+    );
+  }
 
   const capabilityAudit = auditCompleteBuilderCapabilities(context, actions);
   trace.push(capabilitySummary(capabilityAudit));
