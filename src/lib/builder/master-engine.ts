@@ -55,6 +55,7 @@ import { createBrowserVerificationPlan } from "../agent/browser-verification-con
 import { evaluateSiteQuality } from "./site-quality-contract";
 import { inspectBuilderPrompt } from "../security/ai-prompt-security";
 import { auditFinal10Controls } from "./final-10-10-controls";
+import { compileEliteSiteOutput } from "./elite-site-output";
 
 /* -------------------------------------------------------------------------- */
 /* Limits                                                                     */
@@ -1703,6 +1704,32 @@ export function buildDeterministicPlan(
     "Autonomous recovery strategy: " +
       autonomousEngineering.recoveryStrategy.slice(0, 3).join(" "),
   );
+
+  /* ---------------------------------------------------------------------- */
+  /* Elite site output compiler                                               */
+  /* ---------------------------------------------------------------------- */
+
+  const eliteSiteOutput = compileEliteSiteOutput(
+    context,
+    instruction,
+    Math.min(40, Math.max(0, cap - actions.length)),
+  );
+
+  if (eliteSiteOutput.actions.length > 0) {
+    const beforeEliteOutput = actions.length;
+    for (const action of eliteSiteOutput.actions) {
+      pushUnique(actions, action, cap);
+    }
+    trace.push(
+      `Elite site output: ${eliteSiteOutput.directionName ?? "adaptive direction"} with ${eliteSiteOutput.actions.length} bounded visual actions.`,
+    );
+    notes.push(
+      "Visual output is persisted through the normal website action pipeline: palette, backdrop, section variants, composition and media treatment.",
+    );
+    if (actions.length === beforeEliteOutput) {
+      notes.push("Elite visual actions were fully deduplicated against earlier work; no redundant mutations were added.");
+    }
+  }
 
   /* ---------------------------------------------------------------------- */
   /* 246-upgrade operating matrix                                            */
