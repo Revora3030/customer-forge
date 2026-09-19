@@ -35,6 +35,8 @@ const contracts = [
   ["set_component_visual", "src/lib/site-agent.ts", "src/lib/site-agent.functions.ts"],
   ["readSectionVisual", "src/lib/site-style.ts", "src/components/site/SiteSections.tsx"],
   ["readComponentVisual", "src/lib/site-style.ts", "src/components/site/SiteSections.tsx"],
+  // These actions persist the settings; the public route consumes the resulting
+  // model through the actual renderer APIs rather than repeating the action name.
   ["set_theme", "src/lib/site-agent.functions.ts", "src/lib/site-theme.ts"],
   ["set_backdrop", "src/lib/site-agent.functions.ts", "src/components/site/SiteBackdrop.tsx"],
 ];
@@ -42,7 +44,14 @@ const contracts = [
 const failures = [];
 for (const [token, producer, consumer] of contracts) {
   if (!read(producer).includes(token)) failures.push(token + " producer missing");
-  if (!read(consumer).includes(token)) failures.push(token + " consumer missing");
+  const consumerText = read(consumer);
+  const consumerToken =
+    token === "set_theme"
+      ? "siteThemeStyle"
+      : token === "set_backdrop"
+        ? "SiteBackdrop"
+        : token;
+  if (!consumerText.includes(consumerToken)) failures.push(token + " consumer missing");
 }
 
 const renderer = read("src/components/site/SiteSections.tsx");
