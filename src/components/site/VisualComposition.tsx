@@ -31,7 +31,9 @@ export function VisualComposition({
   useEffect(() => {
     const node = ref.current;
     if (!node || (!wantsPointer && !wantsScroll)) return;
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    if (typeof window.matchMedia !== "function") return;
+    const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (prefersReducedMotion) return;
     if (wantsPointer && !window.matchMedia("(pointer: fine)").matches && !wantsScroll) return;
 
     let frame = 0;
