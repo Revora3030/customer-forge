@@ -80,13 +80,16 @@ export async function verifyWorkspaceSite(
   if (!slug) return null;
 
   const base = origin();
-  const list = (pages.data ?? []).slice(0, 4);
+  // Inspect the whole visible site, with a hard cap so verification stays fast
+  // even for large workspaces. This is intentionally broader than the old
+  // four-page sample: a successful home page must not hide a broken inner page.
+  const list = (pages.data ?? []).slice(0, 8);
   const home = list.find((page) => page["kind"] === "home") ?? list[0];
   const targets: { path: string; label: string }[] = [
     { path: `/s/${slug}`, label: String(home?.["title"] ?? "Home") },
     ...list
       .filter((page) => page !== home && page["slug"])
-      .slice(0, 3)
+      .slice(0, 7)
       .map((page) => ({
         path: `/s/${slug}/${String(page["slug"])}`,
         label: String(page["title"] ?? page["slug"]),
@@ -122,7 +125,7 @@ export async function verifyWorkspaceSite(
   // Every menu and button link on those pages is followed once, so a change can
   // never quietly leave a dead end behind.
   const known = new Set(targets.map((target) => target.path));
-  const followable = [...linkTargets].filter((link) => !known.has(link)).slice(0, 8);
+  const followable = [...linkTargets].filter((link) => !known.has(link)).slice(0, 16);
   for (const link of followable) {
     const { status } = await load(`${base}${link}`, 6000);
     checks.push({
