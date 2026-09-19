@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 const read = (path: string) => readFileSync(new URL(path, import.meta.url), "utf8");
 
 describe("workspace provisioning security boundary", () => {
-  const migration = read("../supabase/migrations/20260919000000_workspace_provisioning_and_outcome_rls_hardening.sql");
+  const migration = read("../../supabase/migrations/20260919000000_workspace_provisioning_and_outcome_rls_hardening.sql");
   const source = read("./platform-funnel.functions.ts");
 
   it("revokes public/anonymous/authenticated execution of the legacy RPC", () => {
@@ -32,7 +32,7 @@ describe("workspace provisioning security boundary", () => {
 });
 
 describe("outcome RLS hardening", () => {
-  const migration = read("../supabase/migrations/20260919000000_workspace_provisioning_and_outcome_rls_hardening.sql");
+  const migration = read("../../supabase/migrations/20260919000000_workspace_provisioning_and_outcome_rls_hardening.sql");
 
   it("keeps all seven policy names and scopes", () => {
     for (const name of [
