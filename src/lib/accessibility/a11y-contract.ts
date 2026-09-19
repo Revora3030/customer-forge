@@ -1,0 +1,2 @@
+export interface AccessibilitySignals { missingLabels:number; contrastFailures:number; keyboardFailures:number; focusFailures:number; headingOrderFailures:number; touchTargetFailures:number; reducedMotionFailures:number; }
+export function evaluateAccessibility(s:AccessibilitySignals){const failures=Object.entries(s).filter(([,value])=>value>0).map(([key,value])=>({key,value}));return {passed:failures.length===0,failures,score:Math.max(0,100-failures.reduce((n,x)=>n+Math.min(20,x.value*5),0))};}
