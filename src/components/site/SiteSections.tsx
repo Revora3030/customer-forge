@@ -109,7 +109,7 @@ function SectionMedia({ site, section }: { site: Site; section: Section }) {
   return (
     <div className="rv-generated-media mx-auto grid max-w-6xl gap-4 px-4 pb-10 md:grid-cols-2">
       {items.slice(0, 4).map((component) => {
-        const visual = readComponentVisual(component.settings);
+        const visual = readComponentVisual((component as Component & { settings?: unknown }).settings);
         const src = safeLinkUrl(component.media_url);
         if (!src) return null;
         const overlayClass = visual.overlay ? "rv-overlay-" + visual.overlay : "";
