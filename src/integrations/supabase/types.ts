@@ -3773,6 +3773,16 @@ export type Database = {
         }
         Returns: string
       }
+      provision_workspace_server: {
+        Args: {
+          _industry?: string
+          _name: string
+          _profile?: Json
+          _trial_days?: number
+          _user_id: string
+        }
+        Returns: string
+      }
       restore_website_state: {
         Args: { _organization_id: string; _snapshot: Json }
         Returns: Json
