@@ -85,6 +85,13 @@ export function inspectHtml(html: string, where: string): PageInspection {
 
   const title = stripped(/<title[^>]*>([\s\S]*?)<\/title>/i.exec(html)?.[1] ?? "");
   add("The browser tab has a title", title.length > 2, "warning", title.slice(0, 80), "seo");
+  add(
+    "The page title is a useful search length",
+    title.length >= 10 && title.length <= 65,
+    "warning",
+    title.length ? `${title.length} characters` : "missing",
+    "seo",
+  );
 
   const metas = html.match(/<meta\b[^>]*>/gi) ?? [];
   const description = metas
@@ -96,6 +103,13 @@ export function inspectHtml(html: string, where: string): PageInspection {
     Boolean(description && description.length > 20),
     "warning",
     undefined,
+    "seo",
+  );
+  add(
+    "The search description is a useful length",
+    Boolean(description && description.length >= 50 && description.length <= 170),
+    "warning",
+    description ? `${description.length} characters` : "missing",
     "seo",
   );
 
@@ -115,6 +129,18 @@ export function inspectHtml(html: string, where: string): PageInspection {
   const lang = /<html\b[^>]*\blang\s*=\s*["'][^"']+["']/i.test(html);
   add("The document declares a language", lang, "warning", undefined, "accessibility");
 
+  const unlabeledAnchors = (html.match(/<a\b[^>]*>([\s\S]*?)<\/a>/gi) ?? []).filter((tag) => {
+    const label = stripped(tag);
+    return !label && !attr(tag, "aria-label") && !attr(tag, "title");
+  }).length;
+  add(
+    "Interactive links have accessible labels",
+    unlabeledAnchors === 0,
+    "warning",
+    unlabeledAnchors ? `${unlabeledAnchors} link(s) have no accessible label` : undefined,
+    "accessibility",
+  );
+
   const forms = html.match(/<form\b[^>]*>/gi) ?? [];
   const submitSignals = /<(?:button|input)\b[^>]*(?:type\s*=\s*["']submit["']|>[^<]*(?:book|quote|contact|call|get started|schedule|request))/i.test(html);
   add(
@@ -122,6 +148,15 @@ export function inspectHtml(html: string, where: string): PageInspection {
     submitSignals || /href\s*=\s*["'][^"']*(?:book|quote|contact|call|schedule|get-started|start)/i.test(html),
     "warning",
     `${forms.length} form(s)`,
+    "conversion",
+  );
+
+  const conversionLinks = (html.match(/href\s*=\s*["'][^"']*(?:tel:|mailto:|sms:)[^"']*["']/gi) ?? []).length;
+  add(
+    "Direct contact actions are available when a site exposes them",
+    forms.length > 0 || conversionLinks > 0 || submitSignals,
+    "warning",
+    conversionLinks ? `${conversionLinks} direct contact action(s)` : undefined,
     "conversion",
   );
 
@@ -138,6 +173,23 @@ export function inspectHtml(html: string, where: string): PageInspection {
     "critical",
     `${body.length} characters`,
     "content",
+  );
+
+  const insecureResources = (html.match(/(?:src|href)\s*=\s*["']http:\/\//gi) ?? []).length;
+  add(
+    "The page does not request insecure HTTP resources",
+    insecureResources === 0,
+    "warning",
+    insecureResources ? `${insecureResources} insecure resource link(s)` : undefined,
+    "security",
+  );
+
+  add(
+    "The served document is reasonably lean",
+    html.length <= 750_000,
+    "warning",
+    `${Math.round(html.length / 1024)} KB HTML`,
+    "technical",
   );
   const placeholder = PLACEHOLDER.exec(body);
   add(
