@@ -10,7 +10,7 @@ const visible=(c:AgentContext)=>c.pages.filter(p=>p.is_visible&&!p.noindex);
 const text=(s:{heading:string|null;subheading:string|null;body:string|null})=>[s.heading,s.subheading,s.body].map(v=>v??"").join(" ").trim();
 export function auditCompleteBuilderCapabilities(context:AgentContext,actions:AgentAction[]=[]):CapabilityAudit{
  const pages=visible(context), sections=pages.flatMap(p=>p.sections.filter(s=>s.is_visible)), components=sections.flatMap(s=>s.components), findings:CapabilityFinding[]=[];
- const links=components.filter(c=>Boolean(c.link_url)), ctas=components.filter(c=>/\b(book|quote|estimate|contact|call|get started|schedule|appointment|start|buy)\b/i.test((c.label??"")+" "+(c.link_label??"")));
+ const ctas=components.filter(c=>/\b(book|quote|estimate|contact|call|get started|schedule|appointment|start|buy)\b/i.test((c.label??"")+" "+(c.link_label??"")));
  const media=components.filter(c=>["image","gallery","video"].includes(c.kind.toLowerCase())), long=sections.filter(s=>text(s).length>700), dense=sections.filter(s=>s.components.length>8);
  const missingTitles=pages.filter(p=>!p.seo_title?.trim()),missingDescriptions=pages.filter(p=>!p.seo_description?.trim()),missingHeadings=sections.filter(s=>!s.heading?.trim());
  const urls=new Set(pages.map(p=>p.slug?"/"+p.slug:"/"));
