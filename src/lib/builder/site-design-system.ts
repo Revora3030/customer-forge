@@ -16,7 +16,9 @@ function luminance(hex: string): number {
   if (!HEX.test(hex)) return 0.18;
   const channels = hex.slice(1).match(/../g);
   if (!channels || channels.length !== 3) return 0.18;
-  const [r, g, b] = channels.map((v) => parseInt(v ?? "00", 16) / 255);
+  const r = parseInt(channels[0]!, 16) / 255;
+  const g = parseInt(channels[1]!, 16) / 255;
+  const b = parseInt(channels[2]!, 16) / 255;
   const linear = [r, g, b].map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
   return 0.2126 * linear[0]! + 0.7152 * linear[1]! + 0.0722 * linear[2]!;
 }
