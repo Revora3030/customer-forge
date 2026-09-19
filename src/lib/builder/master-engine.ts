@@ -49,6 +49,7 @@ import { buildVerificationContract } from "./autonomous-verification";
 import { guardBuilderPlan } from "./elite-plan-guard";
 import { auditEliteBuilderQuality } from "./elite-quality";
 import { audit246Upgrades } from "./upgrade-catalog";
+import { audit285Expansion } from "./upgrade-expansion-285";
 
 /* -------------------------------------------------------------------------- */
 /* Limits                                                                     */
@@ -1670,6 +1671,16 @@ export function buildDeterministicPlan(
     notes.push(`246-upgrade focus areas: ${upgradeMatrix.matchedCategories.slice(0, 8).join(", ")}.`);
   }
   notes.push(`246-upgrade evidence split: ${upgradeMatrix.active.length} deterministic active, ${upgradeMatrix.runtimeRequired.length} runtime-required, ${upgradeMatrix.evidenceRequired.length} environment-evidence-required.`);
+
+  /* ---------------------------------------------------------------------- */
+  /* 285-upgrade expansion operating matrix                                  */
+
+  const expansion285 = audit285Expansion(context, instruction);
+  trace.push(expansion285.summary);
+  if (expansion285.matchedCategories.length > 0) {
+    notes.push(`285-upgrade focus areas: ${expansion285.matchedCategories.slice(0, 10).join(", ")}.`);
+  }
+  notes.push(`285-upgrade evidence split: ${expansion285.active.length} deterministic active, ${expansion285.runtimeRequired.length} runtime-required.`);
 
   /* ---------------------------------------------------------------------- */
   /* Deterministic verification contract                                     */
