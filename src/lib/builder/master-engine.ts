@@ -40,6 +40,7 @@ import { designQualitySummary, scoreDesignQuality } from "./design-quality";
 import { compileResponsiveRepairs, isResponsiveRequest, responsiveSummary } from "./responsive-intelligence";
 import { auditAutonomousBuilder, autonomousAuditSummary } from "./autonomous-builder-intelligence";
 import { compileQaAutoRepairs, qaRepairSummary } from "./qa-auto-repair";
+import { auditCompleteBuilderCapabilities, capabilitySummary, buildOptimizationPlan } from "./complete-builder-capabilities";
 
 /* -------------------------------------------------------------------------- */
 /* Limits                                                                     */
@@ -1624,6 +1625,23 @@ export function buildDeterministicPlan(
       .filter(([, status]) => status !== "requires-runtime")
       .length} deterministic capabilities active; runtime-only checks remain explicitly separated.`,
   );
+
+  /* ---------------------------------------------------------------------- */
+  /* Complete capability audit / optimization queue                          */
+
+  const capabilityAudit = auditCompleteBuilderCapabilities(context, actions);
+  trace.push(capabilitySummary(capabilityAudit));
+  const optimizationQueue = buildOptimizationPlan(capabilityAudit);
+  if (optimizationQueue.length > 0) {
+    notes.push("Optimization queue: " + optimizationQueue.slice(0, 5).join("; ") + ".");
+  }
+  if (capabilityAudit.runtimeRequired.length > 0) {
+    notes.push(
+      "Runtime-only capabilities are explicitly separated: " +
+        capabilityAudit.runtimeRequired.join(", ") +
+        ".",
+    );
+  }
 
   /* ---------------------------------------------------------------------- */
   /* Final deterministic plan                                                */
