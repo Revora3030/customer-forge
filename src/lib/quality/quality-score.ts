@@ -1,0 +1,2 @@
+export interface QualityDomain {name:string;score:number;verified:boolean;}
+export function aggregateQuality(domains:QualityDomain[]){const safe=domains.map(d=>({...d,score:Math.max(0,Math.min(100,d.score))}));const score=safe.length?Math.round(safe.reduce((sum,d)=>sum+d.score,0)/safe.length):0;const unverified=safe.filter(d=>!d.verified).map(d=>d.name);return {score,verified:unverified.length===0,unverified};}
