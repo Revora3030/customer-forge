@@ -20,7 +20,7 @@ export const getRouter = () => {
       reportRouteError(error, {
         boundary: "tanstack_router_default_on_catch",
         mechanism: "router_catch_boundary",
-        componentStack: errorInfo?.componentStack,
+        ...(errorInfo?.componentStack ? { componentStack: errorInfo.componentStack } : {}),
       });
     },
     defaultNotFoundComponent: RouteNotFound,
