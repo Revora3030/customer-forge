@@ -6,7 +6,7 @@
  * findings for human/agent review.
  */
 
-import type { AgentAction } from "@/lib/builder/types";
+import { type AgentAction } from "@/lib/site-agent";
 import type { AgentContext } from "@/lib/site-agent.server";
 import {
   runBrowserStyleQa,
