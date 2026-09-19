@@ -41,6 +41,9 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      - name: Production readiness contract
+        run: npm run production:readiness
+
       - name: Start E2E server
         run: |
           npm run dev -- --host 127.0.0.1 --port 8080 > /tmp/revora-e2e.log 2>&1 &
