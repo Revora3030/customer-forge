@@ -69,6 +69,39 @@ function environment() {
   return process.env["NODE_ENV"] === "production" ? "production" : "development";
 }
 
+function stacktraceFrames(stack: string | null | undefined) {
+  if (!stack) return [];
+  return stack
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const match = line.match(/^at\\s+(.*?)\\s+\\((.*?):(\\d+):(\\d+)\\)$/) ??
+        line.match(/^at\\s+(.*?):(\\d+):(\\d+)$/);
+      if (!match) return null;
+      if (match.length === 5) {
+        const [, fn, rawUrl, lineNo, colNo] = match;
+        return {
+          function: fn || "<anonymous>",
+          filename: String(rawUrl).split(/[?#]/, 1)[0],
+          lineno: Number(lineNo),
+          colno: Number(colNo),
+          in_app: true,
+        };
+      }
+      const [, rawUrl, lineNo, colNo] = match;
+      return {
+        function: "<anonymous>",
+        filename: String(rawUrl).split(/[?#]/, 1)[0],
+        lineno: Number(lineNo),
+        colno: Number(colNo),
+        in_app: true,
+      };
+    })
+    .filter((frame): frame is NonNullable<typeof frame> => frame !== null)
+    .slice(-50);
+}
+
 async function forwardToSentry(event: CapturedError, fingerprint: string): Promise<boolean> {
   const dsn = process.env["SENTRY_DSN"];
   if (!dsn) return false;
@@ -98,7 +131,7 @@ async function forwardToSentry(event: CapturedError, fingerprint: string): Promi
           {
             type: event.source === "client" ? "ClientError" : "ServerError",
             value: event.message.slice(0, MAX_MESSAGE),
-            stacktrace: event.stack ? { frames: [] } : undefined,
+            stacktrace: event.stack ? { frames: stacktraceFrames(event.stack) } : undefined,
           },
         ],
       },
