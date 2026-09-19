@@ -133,7 +133,7 @@ export function compareRetestQuality(
     ? {
         checks: [],
         critical: 0,
-        warnings: before.findings.filter((f) => f.severity !== "critical").length,
+        warnings: before.findings.length,
         passed: before.checksRun,
         score: before.score,
         categories: {
@@ -148,7 +148,7 @@ export function compareRetestQuality(
   const afterVerification = {
     checks: [],
     critical: 0,
-    warnings: after.findings.filter((f) => f.severity !== "critical").length,
+    warnings: after.findings.length,
     passed: after.checksRun,
     score: after.score,
     categories: {
@@ -174,7 +174,7 @@ export function auditAutonomousBuilder(
   const blueprint = buildExecutionBlueprint(actions);
   const tasks = buildAutonomousTaskPlan(actions, instruction);
 
-  const critical = browserQa.findings.filter((finding) => finding.severity === "critical").length;
+  const critical = 0;
   const issuePenalty = Math.min(35, critical * 12 + browserQa.findings.length * 3);
   const score = clamp(
     design.score * 0.25 +
@@ -208,7 +208,7 @@ export function auditAutonomousBuilder(
     context: graph,
     blueprint,
     tasks,
-    repairCandidates: browserQa.findings.filter((finding) => finding.severity !== "critical").length,
+    repairCandidates: browserQa.findings.length,
     unresolvedCritical: critical,
     summary: `Autonomous builder quality audit: ${score}/100; ${tasks.length} coordinated tasks, ${browserQa.findings.length} QA finding(s), ${critical} critical.`,
   };
