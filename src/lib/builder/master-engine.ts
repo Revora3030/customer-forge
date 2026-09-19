@@ -25,6 +25,7 @@ import { MAX_ACTIONS, type AgentAction } from "@/lib/site-agent";
 import type { AgentContext } from "@/lib/site-agent.server";
 
 import { interpret, type BuilderIntent } from "./interpreter";
+import { buildSiteContextGraph, contextGraphSummary, rankPagesForIntent } from "./context-graph";
 
 import { playbookFor } from "./industry";
 
@@ -218,6 +219,14 @@ function targetPage(context: AgentContext, intent: BuilderIntent): Page | null {
 
     if (match) {
       return match;
+    }
+  }
+
+  if (!intent.wholeSite) {
+    const ranked = rankPagesForIntent(context, intent.original);
+    const topRankedPage = ranked[0];
+    if (topRankedPage) {
+      return context.pages.find((page) => page.id === topRankedPage.pageId) ?? null;
     }
   }
 
@@ -726,6 +735,16 @@ export function buildDeterministicPlan(
   trace.push(
     `Master builder selected ${playbook.label} intelligence and a deterministic free-first plan.`,
   );
+
+  const graphSummary = contextGraphSummary(context);
+  trace.push(`Context graph: ${graphSummary}.`);
+
+  const graph = buildSiteContextGraph(context);
+  const graphOrphans = graph.orphanPages.length;
+
+  if (graphOrphans > 0 && (intent.wholeSite || intent.goals.includes("seo") || intent.goals.includes("conversion"))) {
+    notes.push(`Site context graph found ${graphOrphans} pages eligible for contextual navigation analysis.`);
+  }
 
   /* ---------------------------------------------------------------------- */
   /* Navigation intelligence                                                 */
