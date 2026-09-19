@@ -48,6 +48,7 @@ import { compileAutonomousEngineering } from "./autonomous-engineering";
 import { buildVerificationContract } from "./autonomous-verification";
 import { guardBuilderPlan } from "./elite-plan-guard";
 import { auditEliteBuilderQuality } from "./elite-quality";
+import { audit246Upgrades } from "./upgrade-catalog";
 
 /* -------------------------------------------------------------------------- */
 /* Limits                                                                     */
@@ -1658,6 +1659,17 @@ export function buildDeterministicPlan(
     "Autonomous recovery strategy: " +
       autonomousEngineering.recoveryStrategy.slice(0, 3).join(" "),
   );
+
+  /* ---------------------------------------------------------------------- */
+  /* 246-upgrade operating matrix                                            */
+  /* ---------------------------------------------------------------------- */
+
+  const upgradeMatrix = audit246Upgrades(context, instruction);
+  trace.push(upgradeMatrix.summary);
+  if (upgradeMatrix.matchedCategories.length > 0) {
+    notes.push(`246-upgrade focus areas: ${upgradeMatrix.matchedCategories.slice(0, 8).join(", ")}.`);
+  }
+  notes.push(`246-upgrade evidence split: ${upgradeMatrix.active.length} deterministic active, ${upgradeMatrix.runtimeRequired.length} runtime-required, ${upgradeMatrix.evidenceRequired.length} environment-evidence-required.`);
 
   /* ---------------------------------------------------------------------- */
   /* Deterministic verification contract                                     */
