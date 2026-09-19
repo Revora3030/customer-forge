@@ -1,0 +1,3 @@
+export type Impact="low"|"medium"|"high"|"critical";
+export interface ChangeImpactInput { files:string[]; touchesAuth:boolean; touchesBilling:boolean; touchesSchema:boolean; touchesRls:boolean; touchesPublishing:boolean; }
+export function classifyChangeImpact(i:ChangeImpactInput){const reasons:string[]=[];if(i.touchesAuth)reasons.push("authentication");if(i.touchesBilling)reasons.push("billing");if(i.touchesSchema)reasons.push("schema");if(i.touchesRls)reasons.push("RLS");if(i.touchesPublishing)reasons.push("publishing");const level:Impact=i.touchesBilling||i.touchesRls?"critical":i.touchesAuth||i.touchesSchema||i.touchesPublishing?"high":i.files.length>20?"medium":"low";return {level,reasons,requiresExtraVerification:level!=="low"};}

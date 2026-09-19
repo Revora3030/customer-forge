@@ -1,0 +1,75 @@
+name: Revora Browser QA
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: "Optional externally hosted URL to inspect"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: revora-browser-qa-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  browser:
+    name: Chromium rendered-site QA
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Pin npm
+        run: npm install --global npm@11.6.0
+
+      - name: Install dependencies and browser
+        run: |
+          npm install --no-audit --no-fund --prefer-online
+          npm install --global @playwright/cli
+          npx playwright install --with-deps chromium
+
+      - name: Start application
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.base_url == '' }}
+        run: |
+          npm run dev -- --host 127.0.0.1 --port 8080 > /tmp/revora-browser.log 2>&1 &
+          echo $! > /tmp/revora-browser.pid
+          for attempt in {1..45}; do
+            if curl --fail --silent --show-error http://127.0.0.1:8080/ >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/revora-browser.log
+          exit 1
+
+      - name: Browser smoke
+        env:
+          BROWSER_QA_BASE_URL: ${{ inputs.base_url || 'http://127.0.0.1:8080' }}
+          BROWSER_QA_ROUTES: "/"
+        run: npm run browser:smoke
+
+      - name: Upload browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: revora-browser-qa-${{ github.run_id }}
+          path: browser-qa-artifacts
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Stop application
+        if: always()
+        run: |
+          if [ -f /tmp/revora-browser.pid ]; then
+            kill "$(cat /tmp/revora-browser.pid)" 2>/dev/null || true
+          fi

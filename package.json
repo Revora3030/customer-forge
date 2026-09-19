@@ -17,7 +17,10 @@
     "production:readiness": "node scripts/production-readiness-audit.mjs",
     "production:controls": "node scripts/production-control-audit.mjs",
     "repo:audit": "node scripts/whole-repo-upgrade-audit.mjs",
-    "repo:audit:test": "node scripts/whole-repo-upgrade-audit.test.mjs"
+    "repo:audit:test": "node scripts/whole-repo-upgrade-audit.test.mjs",
+    "browser:smoke": "node scripts/browser-smoke.mjs",
+    "production:readiness:max": "node scripts/production-readiness-max-audit.mjs",
+    "production:readiness:max:test": "node scripts/production-readiness-max-audit.test.mjs"
   },
   "overrides": {
     "rolldown": "1.2.1"
