@@ -41,6 +41,8 @@ import { compileResponsiveRepairs, isResponsiveRequest, responsiveSummary } from
 import { auditAutonomousBuilder, autonomousAuditSummary } from "./autonomous-builder-intelligence";
 import { compileQaAutoRepairs, qaRepairSummary } from "./qa-auto-repair";
 import { auditCompleteBuilderCapabilities, capabilitySummary, buildOptimizationPlan } from "./complete-builder-capabilities";
+import { buildBuilderMemory } from "./builder-memory";
+
 
 /* -------------------------------------------------------------------------- */
 /* Limits                                                                     */
@@ -701,6 +703,7 @@ export function buildDeterministicPlan(
   options: BuilderOptions = {},
 ): DeterministicPlan {
   const intent = interpret(instruction, options.history ?? []);
+  const builderMemory = buildBuilderMemory(options.history ?? []);
 
   const facts = factsOf(context);
 
@@ -734,6 +737,11 @@ export function buildDeterministicPlan(
       done: claimed || actions.length > before,
     });
   };
+
+  trace.push(`Long-task context: ${builderMemory.summary}`);
+  if (builderMemory.unresolvedSignals.length > 0) {
+    notes.push("Prior unresolved builder signals retained for continuity; the current instruction remains authoritative.");
+  }
 
   trace.push(
     `Master builder selected ${playbook.label} intelligence and a deterministic free-first plan.`,
