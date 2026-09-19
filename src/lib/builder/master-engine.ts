@@ -51,9 +51,9 @@ import { auditEliteBuilderQuality } from "./elite-quality";
 import { audit246Upgrades } from "./upgrade-catalog";
 import { audit285Expansion } from "./upgrade-expansion-285";
 import { compileWholeRepoUpgrades } from "./whole-repo-upgrade";
-import { createBrowserVerificationPlan } from "./agent/browser-verification-contract";
-import { evaluateSiteQuality } from "./builder/site-quality-contract";
-import { inspectBuilderPrompt } from "./security/ai-prompt-security";
+import { createBrowserVerificationPlan } from "../agent/browser-verification-contract";
+import { evaluateSiteQuality } from "./site-quality-contract";
+import { inspectBuilderPrompt } from "../security/ai-prompt-security";
 
 /* -------------------------------------------------------------------------- */
 /* Limits                                                                     */
