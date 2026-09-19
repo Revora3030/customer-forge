@@ -59,3 +59,14 @@ describe("outcome RLS hardening", () => {
     expect(migration).toContain("outcome_snapshots_created_by_idx");
   });
 });
+
+
+describe("client error attribution boundary", () => {
+  const monitoring = read("./monitoring.functions.ts");
+
+  it("does not accept a client-supplied organization id", () => {
+    expect(monitoring).not.toContain("organizationId?: string;");
+    expect(monitoring).not.toContain("input?.organizationId");
+    expect(monitoring).not.toContain("organizationId: data.organizationId");
+  });
+});
