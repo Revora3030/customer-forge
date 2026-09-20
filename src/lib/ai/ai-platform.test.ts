@@ -92,6 +92,7 @@ describe("provider configuration", () => {
     delete process.env["GROQ_API_KEY"];
     delete process.env["NVIDIA_NIM_API_KEY"];
     delete process.env["NVIDIA_API_KEY"];
+    delete process.env["LLM7_API_KEY"];
     delete process.env["GOOGLE_AI_FREE_API_KEY"];
     delete process.env["GOOGLE_AI_FREE_TIER"];
   });
