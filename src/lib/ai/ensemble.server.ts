@@ -392,9 +392,16 @@ export async function runEnsemble<T>(
   let cursor = 0;
   const queue = [...assignments];
 
+  // Live vote tally, so an ensemble can settle as soon as enough models agree
+  // instead of making the owner wait for every model to repeat the same answer.
+  const liveVotes = new Map<string, number>();
+  const settleAt = request.settleWhenAgreed ?? 0;
+  let settled = false;
+
   async function worker() {
     for (;;) {
       if (cursor >= queue.length) return;
+      if (settled) return;
       if (request.signal?.aborted) return;
       if (Date.now() >= deadline) {
         deadlineHit = true;
