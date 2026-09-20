@@ -217,7 +217,9 @@ export async function freeModelPool(
   }[] = [];
   await refreshDurableRuntime();
   for (const entry of freeProviderChain(role)) {
-    if (!freeBudgetAllows(entry.name)) continue;
+    // Pictures are metered separately from words: one generated picture costs
+    // far more of the free daily allowance than one short answer.
+    if (!freeBudgetAllows(entry.name, role)) continue;
     // Shared counters: skip a provider another worker has already exhausted.
     if (durableBudgetExhausted(entry.name, freeBudgetCap(entry.name))) continue;
     if (durableProviderResting(entry.name)) continue;
@@ -423,7 +425,7 @@ async function run<T>(
         const timer = setTimeout(() => controller.abort(), limits.requestTimeoutMs);
         try {
           if (candidate.free) {
-            noteFreeUse(candidate.free);
+            noteFreeUse(candidate.free, role);
             void noteDurableFreeUse(candidate.free, freeBudgetCap(candidate.free));
           }
           const result = await execute({ adapter, config, model, signal: controller.signal });

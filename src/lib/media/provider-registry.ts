@@ -35,6 +35,14 @@ export type MediaEnvironment = {
   ownerAssetCount: number;
   /** Names of credentials present. Values are never read here. */
   presentSecrets: readonly string[];
+  /**
+   * The LIVE state of free AI picture making, measured by
+   * `imageGenerationCapability()`. It is passed in rather than read here so this
+   * module stays pure and so nothing can be reported as available on the
+   * strength of code existing. Omitted means "not measured", which is treated
+   * as not available.
+   */
+  aiGeneration?: { state: MediaSourceState; reason: string };
 };
 
 const STOCK_SECRETS = ["PEXELS_API_KEY", "UNSPLASH_ACCESS_KEY", "OPENVERSE_CLIENT_ID"];
@@ -46,6 +54,7 @@ const STOCK_SECRETS = ["PEXELS_API_KEY", "UNSPLASH_ACCESS_KEY", "OPENVERSE_CLIEN
 export function resolveMediaSources(env: MediaEnvironment): MediaSource[] {
   const present = new Set(env.presentSecrets);
   const stock = STOCK_SECRETS.find((name) => present.has(name));
+  const ai = env.aiGeneration;
 
   return [
     {
@@ -80,9 +89,15 @@ export function resolveMediaSources(env: MediaEnvironment): MediaSource[] {
       id: "ai_generation",
       kind: "ai_generation",
       label: "AI image generation",
-      state: "blocked",
-      reason: "Every image model reachable here costs credits per picture, which breaks the zero-cost rule for website building.",
-      zeroCost: false,
+      // Only ever "available" when a live check confirmed a free provider, a
+      // free-verified model and unspent daily allowance.
+      state: ai?.state ?? "not_configured",
+      reason:
+        ai?.reason ??
+        "Free picture making has not been measured in this environment, so it is treated as unavailable.",
+      // A picture is only ever generated inside a provider's free allowance;
+      // paid image models can never be selected.
+      zeroCost: true,
     },
   ];
 }
@@ -146,6 +161,19 @@ export function planMedia(env: MediaEnvironment, options?: { mustBeReal?: boolea
       considered,
       usesGeneratedArt: false,
       explanation: "Using a free stock photo within that provider's free-tier limits.",
+    };
+  }
+
+  // Free AI picture making, but only when a live check says a free provider, a
+  // free-verified model and today's allowance are all genuinely there.
+  const generated = byId("ai_generation");
+  if (generated.state === "available") {
+    return {
+      source: generated,
+      considered,
+      usesGeneratedArt: false,
+      explanation:
+        "Making a picture with the connected free picture service, inside its free daily allowance.",
     };
   }
 
