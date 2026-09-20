@@ -22,7 +22,7 @@ const DAY = 86_400_000;
 
 function toneFor(rating: VitalSummary["rating"]) {
   if (rating === "good") return "signal" as const;
-  if (rating === "not-measured") return "muted" as const;
+  if (rating === "not-measured") return "neutral" as const;
   return "attention" as const;
 }
 
