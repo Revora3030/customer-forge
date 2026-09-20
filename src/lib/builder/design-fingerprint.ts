@@ -309,9 +309,14 @@ export function createDesignFingerprint(
   const density: DesignFingerprint["density"] =
     densityHint === "rich" ? "compact" : densityHint === "light" ? "airy" : ((seed >>> 9) % 3 === 0 ? "airy" : "balanced");
 
+  const motionPattern = motionLevel === "none"
+    ? "none"
+    : pick(MOTION_PATTERNS.filter((pattern) => pattern !== "none"), seed, "motion", blocked);
+
   return {
     id: `fp_${seed.toString(36)}`,
     seed,
+    family: pick(DESIGN_FAMILIES, seed, "family", blocked),
     heroComposition: pick(heroPool, seed, "hero", blocked),
     backgroundSystem: pick(BACKGROUND_SYSTEMS, seed, "background", blocked),
     sectionRhythm: pick(SECTION_COMPOSITIONS, seed, "section", blocked),
@@ -323,11 +328,16 @@ export function createDesignFingerprint(
     faqLayout: pick(FAQ_LAYOUTS, seed, "faq", blocked),
     galleryLayout: pick(GALLERY_LAYOUTS, seed, "gallery", blocked),
     statsLayout: pick(STATS_LAYOUTS, seed, "stats", blocked),
+    timelineLayout: pick(TIMELINE_LAYOUTS, seed, "timeline", blocked),
     formLayout: pick(FORM_LAYOUTS, seed, "form", blocked),
     footerSystem: pick(FOOTER_SYSTEMS, seed, "footer", blocked),
     decorativeSystem: pick(decorativePool, seed, "decor", blocked),
     typeSystem: pick(TYPE_SYSTEMS, seed, "type", blocked),
     colorSystem: pick(COLOR_SYSTEMS, seed, "color", blocked),
+    sectionTransition: pick(SECTION_TRANSITIONS, seed, "transition", blocked),
+    pageShell: pick(PAGE_SHELLS, seed, "shell", blocked),
+    imageTreatment: photos > 0 ? pick(IMAGE_TREATMENTS, seed, "imagetreat", blocked) : "plain",
+    motionPattern,
     motionLevel,
     density,
     artDirection: {
@@ -345,9 +355,10 @@ export function createDesignFingerprint(
 /** How many distinct design combinations the pools can express. */
 export function fingerprintVocabularySize(): number {
   return (
-    HERO_COMPOSITIONS.length * BACKGROUND_SYSTEMS.length * SECTION_COMPOSITIONS.length *
-    NAV_SYSTEMS.length * CTA_SYSTEMS.length * CARD_SYSTEMS.length * DECORATIVE_SYSTEMS.length *
-    TYPE_SYSTEMS.length * COLOR_SYSTEMS.length
+    DESIGN_FAMILIES.length * HERO_COMPOSITIONS.length * BACKGROUND_SYSTEMS.length *
+    SECTION_COMPOSITIONS.length * NAV_SYSTEMS.length * CTA_SYSTEMS.length *
+    CARD_SYSTEMS.length * DECORATIVE_SYSTEMS.length * TYPE_SYSTEMS.length *
+    COLOR_SYSTEMS.length * PAGE_SHELLS.length * SECTION_TRANSITIONS.length
   );
 }
 
