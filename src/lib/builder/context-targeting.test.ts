@@ -139,3 +139,18 @@ describe("page names that are also ordinary words", () => {
     expect(pageWords("shorten the faq")).toContain("faq");
   });
 });
+
+describe("a page that already exists is not created again", () => {
+  const newPages = (text: string) => interpret(text, []).newPages;
+
+  it("treats 'make the home page headline clearer' as an edit, not a new page", () => {
+    expect(newPages("make the home page headline clearer")).toEqual([]);
+    expect(newPages("make the about page wording friendlier")).toEqual([]);
+    expect(newPages("add a stronger button to the services page")).toEqual([]);
+  });
+
+  it("still creates a page the owner genuinely asks for", () => {
+    expect(newPages("add a careers page")).toContain("careers");
+    expect(newPages("create a page for commercial roofing")).toContain("commercial roofing");
+  });
+});
