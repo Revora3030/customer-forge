@@ -17,7 +17,12 @@ const ROOT = join(process.cwd(), "src");
 const ALLOWED = [
   join("src", "lib", "ai", "providers"),
   join("src", "lib", "ai", "free-models.server.ts"),
+  // The paid master-orchestrator lane is its own adapter: it is deliberately
+  // outside the free worker router (it must never be selectable for a worker
+  // role) and carries its own hard spend cap, ledger and fail-open behaviour.
+  join("src", "lib", "ai", "luna.server.ts"),
 ];
+
 
 const ENDPOINTS = [
   "generativelanguage.googleapis.com",
