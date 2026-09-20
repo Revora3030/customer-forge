@@ -15,6 +15,11 @@ import type { DesignDirection } from "@/lib/design-directions";
 import { writeSectionEffect } from "@/lib/site-effects";
 import { writeSectionVisual } from "@/lib/site-style";
 import { compositionForKind, variantForKind } from "@/lib/builder/elite-site-output";
+import {
+  resolveArchetypeText,
+  type ArchetypeSection,
+  type SiteArchetype,
+} from "@/lib/site-archetypes";
 
 type Db = SupabaseClient;
 
@@ -57,6 +62,8 @@ export type MaterializeInput = {
   hasBooking: boolean;
   /** The industry-specific visual identity selected for this first build. */
   direction?: DesignDirection | null;
+  /** The kind of website this business needs (restaurant, clinic, shop …). */
+  archetype?: SiteArchetype | null;
 };
 
 type Component = {
