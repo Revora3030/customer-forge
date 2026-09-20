@@ -345,10 +345,11 @@ function AdminAnalytics() {
             />
           </div>
 
-          <Panel
-            title="Where they stop"
-            description="Each workspace is counted once, at the furthest step it actually reached."
-          >
+          <Panel className="space-y-3">
+            <PanelHeading
+              title="Where they stop"
+              description="Each workspace is counted once, at the furthest step it actually reached."
+            />
             <ol className="divide-y divide-border text-[13px]">
               {(builder.data?.stages ?? []).map((stage) => (
                 <li
@@ -371,10 +372,11 @@ function AdminAnalytics() {
           </Panel>
 
           <div className="grid gap-3 lg:grid-cols-2">
-            <Panel
-              title="Why publishing was refused"
-              description="Recorded by the server when it declined to take a website live."
-            >
+            <Panel className="space-y-3">
+              <PanelHeading
+                title="Why publishing was refused"
+                description="Recorded by the server when it declined to take a website live."
+              />
               {(builder.data?.publishBlockers ?? []).length === 0 ? (
                 <p className="text-[13px] text-muted-foreground">
                   No workspace was refused in this window.
@@ -399,10 +401,11 @@ function AdminAnalytics() {
               </p>
             </Panel>
 
-            <Panel
-              title="Why a build request failed"
-              description="Requests Revora could not carry out on the website."
-            >
+            <Panel className="space-y-3">
+              <PanelHeading
+                title="Why a build request failed"
+                description="Requests Revora could not carry out on the website."
+              />
               {(builder.data?.buildFailures ?? []).length === 0 ? (
                 <p className="text-[13px] text-muted-foreground">
                   Every build request in this window was carried out.
@@ -596,6 +599,16 @@ function AdminAnalytics() {
           </Button>
         </div>
       </Panel>
+    </div>
+  );
+}
+
+/** Small title + one line of explanation above a panel's numbers. */
+function PanelHeading({ title, description }: { title: string; description: string }) {
+  return (
+    <div>
+      <h3 className="font-display text-[15px] font-semibold">{title}</h3>
+      <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">{description}</p>
     </div>
   );
 }
