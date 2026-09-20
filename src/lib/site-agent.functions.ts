@@ -407,6 +407,8 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
         retryable: boolean;
         instruction: string;
       } | null,
+      composition:
+        null as import("@/lib/builder/composition-preview").CompositionPreview | null,
     });
 
     // Revora's native engine is the primary brain: whenever it produced real,
@@ -604,9 +606,9 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
       unavailable: null as { reason: string; retryable: boolean; instruction: string } | null,
       // The look and page blocks the AI chose, with its reasoning, so the owner
       // can preview, approve or adjust before anything is applied.
-      composition: composed
-        ? (composed.preview as import("@/lib/builder/ai-composition.server").CompositionPreview)
-        : null,
+      composition: (composed
+        ? composed.preview
+        : null) as import("@/lib/builder/composition-preview").CompositionPreview | null,
     };
 
 
