@@ -437,7 +437,7 @@ function WebsitePage() {
         />
       </div>
 
-      <div className="order-1 space-y-5 lg:order-2">
+      <div className="order-1 min-w-0 space-y-5 lg:order-2">
         <EnvironmentBanner status={production} />
         <BuilderNeeds needs={needs} />
         {firstRun ? (
