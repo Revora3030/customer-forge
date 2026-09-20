@@ -391,7 +391,7 @@ export async function runEnsemble<T>(
 
   const globalLimit = request.concurrency ?? positiveEnv("ENSEMBLE_CONCURRENCY", 12);
   const providerLimit =
-    request.perProviderConcurrency ?? positiveEnv("ENSEMBLE_PROVIDER_CONCURRENCY", 2);
+    request.perProviderConcurrency ?? positiveEnv("ENSEMBLE_PROVIDER_CONCURRENCY", 3);
   const deadline = started + (request.deadlineMs ?? positiveEnv("ENSEMBLE_DEADLINE_MS", 120_000));
 
   const outcomes: EnsembleOutcome<T>[] = [];
