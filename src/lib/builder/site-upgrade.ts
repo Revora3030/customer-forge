@@ -687,7 +687,7 @@ export function planWholeSiteUpgrade(
         if (section.components.length > 0) continue;
         for (const service of realServices.slice(0, serviceBudget)) {
           if (actions.length >= cap) break;
-          const price = (service.price ?? service.startingPrice ?? "").toString().trim();
+          const price = priceLabel(service);
           push({
             type: "add_component",
             sectionId: section.id,
@@ -723,9 +723,7 @@ export function planWholeSiteUpgrade(
   /* 23. NO PRICE BLOCK WITHOUT REAL PRICES                            */
   /* ---------------------------------------------------------------- */
 
-  const hasRealPrice = context.business.services.some((service) =>
-    Boolean((service.price ?? service.startingPrice ?? "").toString().trim()),
-  );
+  const hasRealPrice = context.business.services.some((service) => priceLabel(service) !== null);
   if (!hasRealPrice) {
     let pricingBudget = 2;
     for (const page of context.pages) {
@@ -796,6 +794,15 @@ const HEADING_SLOTS: HeadingSlot[] = [
   "contact",
   "intro",
 ];
+
+/** A real price, written from the number the owner entered. Never invented. */
+function priceLabel(service: { price: number | null; startingPrice: number | null }): string | null {
+  if (typeof service.price === "number" && service.price > 0) return `$${service.price}`;
+  if (typeof service.startingPrice === "number" && service.startingPrice > 0) {
+    return `From $${service.startingPrice}`;
+  }
+  return null;
+}
 
 /** Button wording that tells a visitor nothing about what happens next. */
 const VAGUE_BUTTON_LABELS = new Set([
@@ -868,8 +875,8 @@ function shareMetadata(context: AgentContext, page: SiteMapPage) {
   const patch: { og_title?: string; og_description?: string } = {};
   const title = page.seo_title?.trim() || (page.title?.trim() ? `${page.title.trim()} | ${name}` : name);
   const description = page.seo_description?.trim() || context.business.description?.trim() || null;
-  if (!page.og_title?.trim() && title) patch.og_title = title.slice(0, 70);
-  if (!page.og_description?.trim() && description && description.length >= 24) {
+  if (title) patch.og_title = title.slice(0, 70);
+  if (description && description.length >= 24) {
     patch.og_description = description.slice(0, 200);
   }
   return patch.og_title || patch.og_description ? patch : null;
