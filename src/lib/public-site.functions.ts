@@ -324,31 +324,35 @@ export const submitPublicLead = createServerFn({ method: "POST" })
       const ownerEmail = profile?.email || profile?.owner_email || null;
       const alertEmail = alertRecipient((profile ?? {}) as Record<string, never>);
 
-      const { deliverRun, sendLeadAlert } = await import("@/lib/messaging.server");
+      const { deliverRun, sendLeadAlert, sendLeadAlertCopyToRevora } = await import(
+        "@/lib/messaging.server"
+      );
+      const { logAlertDelivery } = await import("@/lib/notifications.server");
+
+      const alertData = {
+        businessName: org.name,
+        kind: titles[data.kind]?.split(":")[0] ?? "New lead",
+        leadName: data.name,
+        leadEmail: data.email || undefined,
+        leadPhone: data.phone || undefined,
+        city: data.city || undefined,
+        service: data.serviceInterest || undefined,
+        estimate: data.quote
+          ? `$${data.quote.min}–$${data.quote.max}`
+          : data.estimatedValue
+            ? `$${data.estimatedValue}`
+            : undefined,
+        message: data.message || undefined,
+        when: data.booking ? new Date(data.booking.startsAt).toLocaleString() : undefined,
+      };
 
       if (alertEmail) {
         const alert = await sendLeadAlert(
           alertEmail,
-          {
-            businessName: org.name,
-            kind: titles[data.kind]?.split(":")[0] ?? "New lead",
-            leadName: data.name,
-            leadEmail: data.email || undefined,
-            leadPhone: data.phone || undefined,
-            city: data.city || undefined,
-            service: data.serviceInterest || undefined,
-            estimate: data.quote
-              ? `$${data.quote.min}–$${data.quote.max}`
-              : data.estimatedValue
-                ? `$${data.estimatedValue}`
-                : undefined,
-            message: data.message || undefined,
-            when: data.booking ? new Date(data.booking.startsAt).toLocaleString() : undefined,
-          },
+          alertData,
           // One alert per lead, even if the submit is retried.
           `lead-alert-${lead.id}`,
         );
-        const { logAlertDelivery } = await import("@/lib/notifications.server");
         await logAlertDelivery(null, {
           organizationId: orgId,
           leadId: lead.id,
@@ -358,6 +362,18 @@ export const submitPublicLead = createServerFn({ method: "POST" })
         });
         if (!alert.ok) console.warn("lead alert not delivered", alert.reason);
       }
+
+      // Revora's own inbox gets every lead, whether or not the business set up
+      // its own alerts. A failure here is logged, never hidden.
+      const copy = await sendLeadAlertCopyToRevora(alertData, `lead-alert-${lead.id}`, alertEmail);
+      if (copy)
+        await logAlertDelivery(null, {
+          organizationId: orgId,
+          leadId: lead.id,
+          recipient: copy.recipient,
+          kind: `${data.kind}_revora_copy`,
+          result: copy.result,
+        });
 
       const { enqueueAutomations } = await import("@/lib/automation-engine");
       await enqueueAutomations(
