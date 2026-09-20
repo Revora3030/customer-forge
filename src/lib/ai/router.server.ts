@@ -199,7 +199,9 @@ async function buildChain(role: ModelRole): Promise<Candidate[]> {
         if (!models.includes(model) && isFreeEligibleModel(entry.name, model)) models.push(model);
       };
       try {
-        await refreshFreeModels(entry.name, entry.credentials);
+        // Image models come from a different catalogue endpoint, so the role is
+        // passed through and the right pool is refreshed.
+        await refreshFreeModels(entry.name, entry.credentials, role);
         for (const model of pickDiscoveredModels(entry.name, role, FREE_MODELS_PER_PROVIDER))
           consider(model);
       } catch {
