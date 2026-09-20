@@ -18,7 +18,7 @@ import { notConfigured, zeroCostBlocked } from "@/lib/ai/errors";
  * only ever contain `google` or `openai`, and only when an operator has
  * explicitly opted out of free-only mode.
  */
-export type ProviderName = "google" | "openai" | "cloudflare" | "openrouter";
+export type ProviderName = "google" | "openai" | "cloudflare" | "openrouter" | "groq";
 
 /** Providers that bill Revora per call. */
 export type PaidProviderName = "google" | "openai";

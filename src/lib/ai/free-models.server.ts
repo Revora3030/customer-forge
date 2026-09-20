@@ -98,6 +98,25 @@ async function cloudflareFreeModels(credentials: FreeProviderCredentials) {
 }
 
 /**
+ * Groq: every model on the free developer tier is listed; the speech and safety
+ * models are dropped by the eligibility rule because they are not chat models.
+ */
+async function groqFreeModels(credentials: FreeProviderCredentials) {
+  const payload = await fetchJson("https://api.groq.com/openai/v1/models", {
+    authorization: `Bearer ${credentials.apiKey}`,
+  });
+  const data = (payload as { data?: unknown[] } | null)?.data;
+  if (!Array.isArray(data)) return [];
+  const free: string[] = [];
+  for (const raw of data) {
+    const entry = raw as { id?: unknown };
+    if (typeof entry.id !== "string") continue;
+    if (isFreeEligibleModel("groq", entry.id)) free.push(entry.id);
+  }
+  return free;
+}
+
+/**
  * Refreshes one provider's free pool. Safe to call often: it returns the cached
  * list until the TTL expires and swallows every provider failure.
  */
@@ -112,7 +131,9 @@ export async function refreshFreeModels(
       ? await openRouterFreeModels(credentials)
       : provider === "cloudflare"
         ? await cloudflareFreeModels(credentials)
-        : [];
+        : provider === "groq"
+          ? await groqFreeModels(credentials)
+          : [];
   // Cache even an empty answer so a failing discovery endpoint isn't polled on
   // every builder request.
   cache.set(provider, { at: Date.now(), models });

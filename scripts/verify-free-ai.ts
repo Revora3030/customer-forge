@@ -15,11 +15,14 @@ async function probe(label: string, order: string, role: "primary" | "fast" | "c
     console.log(label, "FAIL", (e as Error).message);
   }
 }
-for (const p of ["cloudflare", "openrouter", "google"] as const) {
+for (const p of ["cloudflare", "groq", "openrouter", "google"] as const) {
   console.log("chain", p, JSON.stringify(freeProviderChain("primary").filter((c) => c.name === p).map((c) => c.model)));
 }
 await probe("cloudflare/primary", "cloudflare", "primary");
 await probe("cloudflare/fast", "cloudflare", "fast");
+await probe("groq/primary", "groq", "primary");
+await probe("groq/fast", "groq", "fast");
+await probe("groq/coding", "groq", "coding");
 await probe("openrouter/primary", "openrouter", "primary");
 await probe("openrouter/fast", "openrouter", "fast");
 await probe("openrouter/coding", "openrouter", "coding");

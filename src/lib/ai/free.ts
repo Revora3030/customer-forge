@@ -19,9 +19,14 @@
 
 import type { ModelRole, ProviderName } from "@/lib/ai/config";
 
-export type FreeProviderName = "cloudflare" | "openrouter" | "google";
+export type FreeProviderName = "cloudflare" | "groq" | "openrouter" | "google";
 
-export const FREE_PROVIDERS: FreeProviderName[] = ["cloudflare", "openrouter", "google"];
+export const FREE_PROVIDERS: FreeProviderName[] = [
+  "cloudflare",
+  "groq",
+  "openrouter",
+  "google",
+];
 
 export function isFreeProvider(name: string): name is FreeProviderName {
   return (FREE_PROVIDERS as string[]).includes(name);
@@ -39,6 +44,11 @@ export const FREE_ALLOWANCE: Record<
   cloudflare: {
     label: "Cloudflare Workers AI",
     allowance: "Workers Free: 10,000 Neurons per day (shared across models).",
+    dailyRequestCap: null,
+  },
+  groq: {
+    label: "Groq free developer tier",
+    allowance: "Free developer tier: per-minute and per-day request limits per model.",
     dailyRequestCap: null,
   },
   openrouter: {
@@ -67,6 +77,14 @@ const FREE_MODEL_DEFAULTS: Record<FreeProviderName, Partial<Record<ModelRole, st
     fast: "@cf/meta/llama-3.2-3b-instruct",
     coding: "@cf/qwen/qwen2.5-coder-32b-instruct",
     vision: "@cf/meta/llama-4-scout-17b-16e-instruct",
+  },
+  // Verified live against Groq's free developer-tier catalogue. Groq serves no
+  // multimodal model to this key, so `vision` is deliberately absent and the
+  // router moves on to a provider that can read pictures.
+  groq: {
+    primary: "openai/gpt-oss-120b",
+    fast: "openai/gpt-oss-20b",
+    coding: "qwen/qwen3.8-27b",
   },
   // Verified live against OpenRouter's zero-price pool. `openrouter/free` is
   // its free auto-router, so it survives individual models being retired.
@@ -146,16 +164,37 @@ function openRouterFree(model: string) {
  *
  * - OpenRouter: only explicit `:free` ids.
  * - Google: only free-tier-eligible flash/lite/gemma class models, never `pro`.
+ * - Groq: chat models on its free developer tier, excluding the speech and
+ *   safety models, which are not text generation at all.
  * - Cloudflare: any Workers AI model slug that isn't a known paid name; the
  *   Neuron allowance covers models Cloudflare serves on the free tier, and
  *   restricted models are filtered by live discovery before they get here.
  */
+const GROQ_NON_CHAT = /whisper|orpheus|prompt-guard|safeguard|tts|playai/i;
+
+/**
+ * Groq ids are vendor-prefixed (`openai/gpt-oss-120b`), so the paid-name check
+ * has to run on the model part as well — otherwise a prefix would smuggle a
+ * paid family past it. `gpt-oss` is OpenAI's open-weight family Groq serves
+ * free, so it is the one explicitly allowed `gpt-` name.
+ */
+function groqFreeEligible(name: string) {
+  if (GROQ_NON_CHAT.test(name)) return false;
+  const model = name.includes("/") ? name.slice(name.lastIndexOf("/") + 1) : name;
+  if (/^gpt-oss/i.test(model)) return true;
+  return !PAID_MODEL_PATTERNS.some((pattern) => pattern.test(model));
+}
+
 export function isFreeEligibleModel(provider: FreeProviderName, model: string): boolean {
   const name = model.trim();
   if (name.length === 0) return false;
-  if (PAID_MODEL_PATTERNS.some((pattern) => pattern.test(name))) return false;
+  const unprefixed = provider === "groq" ? name.replace(/^openai\/(?=gpt-oss)/i, "") : name;
+  if (PAID_MODEL_PATTERNS.some((pattern) => pattern.test(unprefixed))) {
+    if (!(provider === "groq" && /^gpt-oss/i.test(unprefixed))) return false;
+  }
   if (provider === "openrouter") return openRouterFree(name);
   if (provider === "google") return /flash|lite|gemma/i.test(name);
+  if (provider === "groq") return groqFreeEligible(name);
   return name.startsWith("@cf/");
 }
 
@@ -180,6 +219,10 @@ export function freeProviderCredentials(
     const apiKey = env("OPENROUTER_API_KEY");
     return apiKey ? { apiKey } : null;
   }
+  if (provider === "groq") {
+    const apiKey = env("GROQ_API_KEY");
+    return apiKey ? { apiKey } : null;
+  }
   // Gemini needs its OWN free-tier key. A general Google key may sit on a
   // billing-enabled project, where the same models are charged — so it is only
   // treated as free when an operator opts in explicitly.
@@ -198,7 +241,7 @@ export function freeModelFor(provider: FreeProviderName, role: ModelRole): strin
 
 /* --------------------------------- ordering -------------------------------- */
 
-const DEFAULT_ORDER: FreeProviderName[] = ["cloudflare", "openrouter", "google"];
+const DEFAULT_ORDER: FreeProviderName[] = ["cloudflare", "groq", "openrouter", "google"];
 
 /**
  * An in-process priority override an authorised admin can set. It is deliberately

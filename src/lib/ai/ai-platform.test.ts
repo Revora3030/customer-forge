@@ -89,6 +89,7 @@ describe("provider configuration", () => {
     delete process.env["CLOUDFLARE_API_TOKEN"];
     delete process.env["CLOUDFLARE_ACCOUNT_ID"];
     delete process.env["OPENROUTER_API_KEY"];
+    delete process.env["GROQ_API_KEY"];
     delete process.env["GOOGLE_AI_FREE_API_KEY"];
     delete process.env["GOOGLE_AI_FREE_TIER"];
   });

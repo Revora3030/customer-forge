@@ -24,6 +24,7 @@ const ENV_KEYS = [
   "CLOUDFLARE_AI_API_TOKEN",
   "CLOUDFLARE_ACCOUNT_ID",
   "OPENROUTER_API_KEY",
+  "GROQ_API_KEY",
   "GOOGLE_AI_FREE_API_KEY",
   "GOOGLE_AI_API_KEY",
   "OPENAI_API_KEY",
@@ -243,6 +244,7 @@ describe("free provider credentials never reach the browser", () => {
     "CLOUDFLARE_API_TOKEN",
     "CLOUDFLARE_ACCOUNT_ID",
     "OPENROUTER_API_KEY",
+    "GROQ_API_KEY",
     "GOOGLE_AI_FREE_API_KEY",
   ];
 
