@@ -179,8 +179,18 @@ function freeCandidate(
  * instead of a fixed list; a discovered id must still pass the free-eligibility
  * check before it can replace the configured model.
  */
-/** How many models of one provider's free pool may back a single role. */
-const FREE_MODELS_PER_PROVIDER = 3;
+/**
+ * How deep one provider's free pool may back a single role.
+ *
+ * There is NO fixed cap: the whole verified free catalogue of every configured
+ * provider is usable. `FREE_AI_MODELS_PER_PROVIDER` exists only as an operator
+ * safety valve (set a positive number to trim the failover depth); unset or 0
+ * means "use the entire verified free pool".
+ */
+export function freeModelPoolDepth(): number {
+  const raw = Number(process.env["FREE_AI_MODELS_PER_PROVIDER"] ?? "");
+  return Number.isFinite(raw) && raw > 0 ? Math.floor(raw) : Number.POSITIVE_INFINITY;
+}
 
 async function buildChain(role: ModelRole): Promise<Candidate[]> {
   // First choice per provider (breadth), then each provider's remaining free
