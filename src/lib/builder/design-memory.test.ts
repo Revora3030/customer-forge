@@ -16,7 +16,7 @@ describe("design memory", () => {
   });
 
   it("merges newest first without duplicates and caps the list", () => {
-    let memory = { notes: [] as string[] };
+    let memory: import("./design-memory").DesignMemory = { notes: [] };
     memory = mergeDesignMemory(memory, "Never use red anywhere.");
     memory = mergeDesignMemory(memory, "Keep the phone number exactly as entered.");
     memory = mergeDesignMemory(memory, "Never use red anywhere.");
