@@ -1406,14 +1406,14 @@ a[href*="lovable.app"][target="_blank"][class*="fixed"],
   isolation: isolate;
 }
 
-.rv-section > section > div {
+.rv-section section > div {
   width: 100%;
 }
 
-.rv-width-narrow > section > div { max-width: 48rem; }
-.rv-width-standard > section > div { max-width: 64rem; }
-.rv-width-wide > section > div { max-width: 76rem; }
-.rv-width-edge > section > div { max-width: min(92rem, calc(100vw - 2rem)); }
+.rv-width-narrow section > div { max-width: 48rem; }
+.rv-width-standard section > div { max-width: 64rem; }
+.rv-width-wide section > div { max-width: 76rem; }
+.rv-width-edge section > div { max-width: min(92rem, calc(100vw - 2rem)); }
 
 .rv-layout-layered .rv-hero-grid,
 .rv-layout-split .rv-hero-grid,
