@@ -65,8 +65,7 @@ function ctx(overrides: { business?: Partial<AgentContext["business"]> } = {}): 
     sectionKinds: ["hero", "services", "reviews", "faq", "cta", "contact"],
     pageKinds: ["home"],
     componentKinds: [],
-    ...overrides,
-  } as AgentContext;
+  };
 }
 
 describe("planWholeSiteUpgrade", () => {
@@ -111,7 +110,7 @@ describe("planWholeSiteUpgrade", () => {
 
   it("adds a reviews section when the workspace actually has published reviews", () => {
     const plan = planWholeSiteUpgrade(
-      ctx({ business: { publishedReviewCount: 12 } as never }),
+      ctx({ business: { publishedReviewCount: 12 } }),
       interpret("rebuild my whole website for conversions", []),
     );
     const added = plan.filter((a) => a.type === "add_section").map((a) => (a as { kind: string }).kind);
@@ -133,9 +132,7 @@ describe("planWholeSiteUpgrade", () => {
   });
 
   it("prefers the tagline when it's present", () => {
-    const line = factualHeadline(
-      ctx({ business: { tagline: "Same-day plumbing across Austin" } as never }),
-    );
+    const line = factualHeadline(ctx({ business: { tagline: "Same-day plumbing across Austin" } }));
     expect(line).toBe("Same-day plumbing across Austin");
   });
 });
