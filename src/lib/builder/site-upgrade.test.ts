@@ -133,9 +133,7 @@ describe("planWholeSiteUpgrade", () => {
 
   it("prefers the tagline when it's present", () => {
     const line = factualHeadline(
-      ctx({ business: { tagline: "Same-day plumbing across Austin" } as never }).business
-        ? (ctx({ business: { tagline: "Same-day plumbing across Austin" } as never }) as never)
-        : (undefined as never),
+      ctx({ business: { tagline: "Same-day plumbing across Austin" } as never }),
     );
     expect(line).toBe("Same-day plumbing across Austin");
   });
