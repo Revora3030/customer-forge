@@ -373,6 +373,12 @@ export type AgentAction =
     }
 
   | {
+      type: "reorder_components";
+      sectionId: string;
+      componentIds: string[];
+    }
+
+  | {
       type: "set_component";
       componentId: string;
       patch: ComponentPatch;
@@ -387,6 +393,11 @@ export type AgentAction =
   | {
       type: "add_component";
       sectionId: string;
+      /**
+       * Temporary reference so a newly-created component can be edited or
+       * restyled later in the same approved plan.
+       */
+      ref?: string | undefined;
       kind: string;
       label?: string | undefined;
       body?: string | undefined;
@@ -995,6 +1006,9 @@ export function readActions(
   const sectionRefs =
     new Set<string>();
 
+  const componentRefs =
+    new Set<string>();
+
   const knownPage = (
     id: string,
   ) =>
@@ -1006,6 +1020,12 @@ export function readActions(
   ) =>
     known.sectionIds.has(id) ||
     sectionRefs.has(id);
+
+  const knownComponent = (
+    id: string,
+  ) =>
+    known.componentIds.has(id) ||
+    componentRefs.has(id);
 
   for (
     const raw of value.slice(
@@ -1063,8 +1083,7 @@ export function readActions(
           );
 
         if (
-          !UUID.test(sectionId) ||
-          !known.sectionIds.has(
+          !knownSection(
             sectionId,
           )
         ) {
@@ -1094,7 +1113,7 @@ export function readActions(
 
       case "set_section_visibility": {
         if (
-          !known.sectionIds.has(
+          !knownSection(
             sectionId,
           )
         ) {
@@ -1124,7 +1143,7 @@ export function readActions(
           );
 
         if (
-          !known.sectionIds.has(
+          !knownSection(
             sectionId,
           ) ||
           !KIND.test(variant)
@@ -1147,7 +1166,7 @@ export function readActions(
 
       case "set_section_visual": {
         if (
-          !known.sectionIds.has(
+          !knownSection(
             sectionId,
           )
         ) {
@@ -1204,20 +1223,17 @@ export function readActions(
             40,
           );
 
+        if (sectionRef && TEMP_REF.test(sectionRef) && sectionRefs.has(sectionRef)) {
+          break;
+        }
+
         const usableRef =
-          TEMP_REF.test(
-            sectionRef,
-          ) &&
-          !sectionRefs.has(
-            sectionRef,
-          )
+          TEMP_REF.test(sectionRef)
             ? sectionRef
             : "";
 
         if (usableRef) {
-          sectionRefs.add(
-            usableRef,
-          );
+          sectionRefs.add(usableRef);
         }
 
         out.push({
@@ -1270,7 +1286,7 @@ export function readActions(
 
       case "delete_section": {
         if (
-          !known.sectionIds.has(
+          !knownSection(
             sectionId,
           )
         ) {
@@ -1290,28 +1306,17 @@ export function readActions(
       /* ------------------------------------------------------------------ */
 
       case "reorder_sections": {
-        const ids =
-          Array.isArray(
-            row["sectionIds"],
-          )
-            ? (
-                row[
-                  "sectionIds"
-                ] as unknown[]
-              )
-                .map((id) =>
-                  text(id, 80),
-                )
-                .filter((id) =>
-                  known.sectionIds.has(
-                    id,
-                  ),
-                )
+        const rawIds =
+          Array.isArray(row["sectionIds"])
+            ? (row["sectionIds"] as unknown[]).map((id) => text(id, 80))
             : [];
+        const ids = rawIds.filter(Boolean);
 
         if (
           !knownPage(pageId) ||
-          ids.length < 2
+          ids.length < 2 ||
+          ids.some((id) => !knownSection(id)) ||
+          new Set(ids).size !== ids.length
         ) {
           break;
         }
@@ -1322,6 +1327,35 @@ export function readActions(
           sectionIds: [
             ...new Set(ids),
           ],
+        });
+
+        break;
+      }
+
+      /* ------------------------------------------------------------------ */
+      /* REORDER COMPONENTS                                                 */
+      /* ------------------------------------------------------------------ */
+
+      case "reorder_components": {
+        const rawIds =
+          Array.isArray(row["componentIds"])
+            ? (row["componentIds"] as unknown[]).map((id) => text(id, 80))
+            : [];
+        const ids = rawIds.filter(Boolean);
+
+        if (
+          !knownSection(sectionId) ||
+          ids.length < 2 ||
+          ids.some((id) => !knownComponent(id)) ||
+          new Set(ids).size !== ids.length
+        ) {
+          break;
+        }
+
+        out.push({
+          type,
+          sectionId,
+          componentIds: [...new Set(ids)],
         });
 
         break;
@@ -1418,7 +1452,7 @@ export function readActions(
         }
 
         if (
-          !known.componentIds.has(
+          !knownComponent(
             componentId,
           ) ||
           Object.keys(
@@ -1443,7 +1477,7 @@ export function readActions(
 
       case "set_component_visual": {
         if (
-          !known.componentIds.has(
+          !knownComponent(
             componentId,
           )
         ) {
@@ -1492,9 +1526,31 @@ export function readActions(
           break;
         }
 
+        const ref =
+          text(
+            row["ref"],
+            40,
+          );
+
+        if (ref && TEMP_REF.test(ref) && componentRefs.has(ref)) {
+          break;
+        }
+
+        const usableRef =
+          TEMP_REF.test(ref)
+            ? ref
+            : "";
+
+        if (usableRef) {
+          componentRefs.add(usableRef);
+        }
+
         out.push({
           type,
           sectionId,
+          ref:
+            usableRef ||
+            undefined,
           kind,
 
           label:
@@ -1537,7 +1593,7 @@ export function readActions(
 
       case "delete_component": {
         if (
-          !known.componentIds.has(
+          !knownComponent(
             componentId,
           )
         ) {
@@ -1592,16 +1648,17 @@ export function readActions(
             40,
           );
 
+        if (ref && TEMP_REF.test(ref) && pageRefs.has(ref)) {
+          break;
+        }
+
         const usable =
-          TEMP_REF.test(ref) &&
-          !pageRefs.has(ref)
+          TEMP_REF.test(ref)
             ? ref
             : "";
 
         if (usable) {
-          pageRefs.add(
-            usable,
-          );
+          pageRefs.add(usable);
         }
 
         out.push({
@@ -1899,7 +1956,7 @@ export function readActions(
           );
 
         if (
-          !known.sectionIds.has(
+          !knownSection(
             sectionId,
           ) ||
           !isSectionEffectId(
@@ -2265,6 +2322,15 @@ export function describeActions(
             destructive:
               false,
 
+            action,
+          };
+
+        case "reorder_components":
+          return {
+            key,
+            title: "Reorder the items in this section",
+            where: locate(index, { sectionId: action.sectionId }),
+            destructive: false,
             action,
           };
 

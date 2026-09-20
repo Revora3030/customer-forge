@@ -41,4 +41,105 @@ describe("building a page and filling it in one plan", () => {
     expect(actions).toHaveLength(1);
     expect(actions[0]).toMatchObject({ type: "add_page", ref: undefined });
   });
+  it("lets one plan create and then edit a section and component", () => {
+    const actions = readActions(
+      [
+        { type: "add_page", kind: "custom", title: "Services", slug: "services", ref: "temp_page" },
+        { type: "add_section", pageId: "temp_page", kind: "services", ref: "temp_section", heading: "Services" },
+        { type: "set_section_text", sectionId: "temp_section", field: "heading", value: "Our services" },
+        { type: "add_component", sectionId: "temp_section", kind: "button", ref: "temp_component", label: "Book" },
+        { type: "set_component", componentId: "temp_component", patch: { label: "Book now" } },
+        { type: "set_component_visual", componentId: "temp_component", patch: { radius: "pill", shadow: "medium" } },
+      ],
+      known,
+    );
+    expect(actions).toHaveLength(6);
+    expect(actions[2]).toMatchObject({ sectionId: "temp_section" });
+    expect(actions[4]).toMatchObject({ componentId: "temp_component" });
+    expect(actions[5]).toMatchObject({ componentId: "temp_component" });
+  });
+
+  it("drops references used before they are declared", () => {
+    const actions = readActions(
+      [
+        { type: "set_component", componentId: "temp_component", patch: { label: "Too early" } },
+        { type: "add_component", sectionId: "temp_section", kind: "button", ref: "temp_component", label: "Book" },
+      ],
+      { ...known, sectionIds: new Set(["section-1"]) },
+    );
+    expect(actions).toHaveLength(0);
+  });
+
+  it("rejects duplicate temporary component refs", () => {
+    const actions = readActions(
+      [
+        { type: "add_component", sectionId: "section-1", kind: "button", ref: "temp_component", label: "One" },
+        { type: "add_component", sectionId: "section-1", kind: "button", ref: "temp_component", label: "Two" },
+        { type: "set_component", componentId: "temp_component", patch: { label: "Edited" } },
+      ],
+      { ...known, sectionIds: new Set(["section-1"]) },
+    );
+    expect(actions).toHaveLength(2);
+    expect(actions[0]).toMatchObject({ type: "add_component", ref: "temp_component" });
+    expect(actions[1]).toMatchObject({ type: "set_component", componentId: "temp_component" });
+  });
+
+  it("keeps newly-created section refs inside a reorder action", () => {
+    const actions = readActions(
+      [
+        { type: "add_section", pageId: "page-1", kind: "cta", ref: "temp_section", heading: "Ready?" },
+        {
+          type: "reorder_sections",
+          pageId: "page-1",
+          sectionIds: ["section-1", "temp_section"],
+        },
+      ],
+      { ...known, pageIds: new Set(["page-1"]), sectionIds: new Set(["section-1"]) },
+    );
+    expect(actions).toHaveLength(2);
+    expect(actions[1]).toMatchObject({
+      type: "reorder_sections",
+      sectionIds: ["section-1", "temp_section"],
+    });
+  });
+
+  it("supports component reordering with the same-plan component refs", () => {
+    const actions = readActions(
+      [
+        { type: "add_component", sectionId: "section-1", kind: "button", ref: "temp_component", label: "Book" },
+        { type: "reorder_components", sectionId: "section-1", componentIds: ["component-1", "temp_component"] },
+      ],
+      { ...known, sectionIds: new Set(["section-1"]), componentIds: new Set(["component-1"]) },
+    );
+    expect(actions).toHaveLength(2);
+    expect(actions[1]).toMatchObject({
+      type: "reorder_components",
+      sectionId: "section-1",
+      componentIds: ["component-1", "temp_component"],
+    });
+  });
+  it("rejects duplicate temporary component creators instead of silently creating a second item", () => {
+    const actions = readActions(
+      [
+        { type: "add_component", sectionId: "section-1", kind: "button", ref: "temp_component", label: "One" },
+        { type: "add_component", sectionId: "section-1", kind: "button", ref: "temp_component", label: "Two" },
+        { type: "set_component", componentId: "temp_component", patch: { label: "Edited" } },
+      ],
+      { ...known, sectionIds: new Set(["section-1"]) },
+    );
+    expect(actions).toHaveLength(2);
+    expect(actions[0]).toMatchObject({ type: "add_component", ref: "temp_component" });
+    expect(actions[1]).toMatchObject({ type: "set_component", componentId: "temp_component" });
+  });
+
+  it("rejects partial component reorders instead of silently dropping unknown ids", () => {
+    const actions = readActions(
+      [
+        { type: "reorder_components", sectionId: "section-1", componentIds: ["component-1", "missing-component"] },
+      ],
+      { ...known, sectionIds: new Set(["section-1"]), componentIds: new Set(["component-1"]) },
+    );
+    expect(actions).toHaveLength(0);
+  });
+
 });

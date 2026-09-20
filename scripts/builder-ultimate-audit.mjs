@@ -30,6 +30,10 @@ const required = [
   ["renderer", "src/components/site/SiteSections.tsx", "readSectionVisual"],
   ["media-overlay", "src/styles.css", "rv-overlay-gradient"],
   ["catalog", "src/lib/builder/remaining-upgrades-catalog.ts", "REMAINING_SITE_UPGRADES"],
+  ["dependency-plan", "src/lib/builder/plan-quality.ts", "isAllowedReference"],
+  ["component-temp-ref", "src/lib/site-agent.ts", "componentRefs"],
+  ["reorder-action", "src/lib/site-agent.ts", "reorder_components"],
+  ["atomic-visual-journal", "src/lib/site-agent.atomic.ts", "set_component_visual"],
 ];
 
 const failures = [];

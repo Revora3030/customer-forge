@@ -21,4 +21,9 @@ jobs:
           node-version: 22
       - name: Repository security audit
         run: node scripts/security-audit.mjs
-      - name: Focused security tests
+      - name: Production security controls
+        run: node scripts/production-control-audit.mjs
+      - name: Production readiness contract
+        run: node scripts/production-readiness-audit.mjs
+      - name: Whole repository security contract
+        run: node scripts/whole-repo-upgrade-audit.contract.mjs

@@ -22,10 +22,6 @@ function ids(context: AgentContext): KnownIds {
   return { pages, sections, components };
 }
 
-function knownOrTemp(value: string, known: Set<string>): boolean {
-  return known.has(value) || /^temp_[a-z0-9_]{1,30}$/i.test(value);
-}
-
 function key(action: AgentAction): string {
   switch (action.type) {
     case "set_section_text":
@@ -44,6 +40,8 @@ function key(action: AgentAction): string {
       return `${action.type}:${action.pageId}:${action.ref ?? action.kind}`;
     case "add_component":
       return `${action.type}:${action.sectionId}:${action.kind}:${action.label ?? ""}`;
+    case "reorder_components":
+      return `${action.type}:${action.sectionId}`;
     case "reorder_sections":
       return `${action.type}:${action.pageId}`;
     case "add_page":
@@ -60,7 +58,11 @@ function key(action: AgentAction): string {
   }
 }
 
-function safeAction(action: AgentAction, known: KnownIds): boolean {
+function safeAction(
+  action: AgentAction,
+  known: KnownIds,
+  refs: { pages: Set<string>; sections: Set<string>; components: Set<string> },
+): boolean {
   switch (action.type) {
     case "set_section_text":
     case "set_section_visibility":
@@ -68,34 +70,42 @@ function safeAction(action: AgentAction, known: KnownIds): boolean {
     case "set_section_visual":
     case "delete_section":
     case "set_section_effect":
-      return knownOrTemp(action.sectionId, known.sections);
+      return known.sections.has(action.sectionId) || refs.sections.has(action.sectionId);
 
     case "set_component":
     case "set_component_visual":
     case "delete_component":
-      return known.components.has(action.componentId);
+      return known.components.has(action.componentId) || refs.components.has(action.componentId);
 
     case "add_section":
-      return knownOrTemp(action.pageId, known.pages) && (!action.ref || /^temp_[a-z0-9_]{1,30}$/i.test(action.ref));
+      return (known.pages.has(action.pageId) || refs.pages.has(action.pageId)) &&
+        (!action.ref || /^temp_[a-z0-9_]{1,30}$/i.test(action.ref));
 
     case "add_component":
-      return knownOrTemp(action.sectionId, known.sections);
+      return (known.sections.has(action.sectionId) || refs.sections.has(action.sectionId)) &&
+        (!action.ref || /^temp_[a-z0-9_]{1,30}$/i.test(action.ref));
 
     case "reorder_sections":
-      return knownOrTemp(action.pageId, known.pages) &&
-        action.sectionIds.every((id) => knownOrTemp(id, known.sections));
+      return (known.pages.has(action.pageId) || refs.pages.has(action.pageId)) &&
+        action.sectionIds.every((id) => known.sections.has(id) || refs.sections.has(id));
+
+    case "reorder_components":
+      return (known.sections.has(action.sectionId) || refs.sections.has(action.sectionId)) &&
+        action.componentIds.every((id) => known.components.has(id) || refs.components.has(id));
 
     case "add_page":
       return !action.ref || /^temp_[a-z0-9_]{1,30}$/i.test(action.ref);
 
     case "set_page":
     case "delete_page":
-      return knownOrTemp(action.pageId, known.pages);
+      return known.pages.has(action.pageId) || refs.pages.has(action.pageId);
 
     case "set_theme":
     case "set_backdrop":
     case "set_business_fact":
       return true;
+    default:
+      return false;
   }
 }
 
@@ -114,13 +124,31 @@ export function guardBuilderPlan(
   const known = ids(context);
   const seen = new Set<string>();
   const output: AgentAction[] = [];
+  const refs = {
+    pages: new Set<string>(),
+    sections: new Set<string>(),
+    components: new Set<string>(),
+  };
   let duplicates = 0;
   let unsafe = 0;
 
   for (const action of actions) {
     if (output.length >= Math.min(cap, MAX_ACTIONS)) break;
 
-    if (!safeAction(action, known)) {
+    if (action.type === "add_page" && action.ref && refs.pages.has(action.ref)) {
+      duplicates += 1;
+      continue;
+    }
+    if (action.type === "add_section" && action.ref && refs.sections.has(action.ref)) {
+      duplicates += 1;
+      continue;
+    }
+    if (action.type === "add_component" && action.ref && refs.components.has(action.ref)) {
+      duplicates += 1;
+      continue;
+    }
+
+    if (!safeAction(action, known, refs)) {
       unsafe += 1;
       continue;
     }
@@ -134,8 +162,18 @@ export function guardBuilderPlan(
     seen.add(signature);
     output.push(action);
 
-    if (action.type === "add_page" && action.ref) known.pages.add(action.ref);
-    if (action.type === "add_section" && action.ref) known.sections.add(action.ref);
+    if (action.type === "add_page" && action.ref) {
+      refs.pages.add(action.ref);
+      known.pages.add(action.ref);
+    }
+    if (action.type === "add_section" && action.ref) {
+      refs.sections.add(action.ref);
+      known.sections.add(action.ref);
+    }
+    if (action.type === "add_component" && action.ref) {
+      refs.components.add(action.ref);
+      known.components.add(action.ref);
+    }
   }
 
   return {

@@ -145,4 +145,57 @@ describe("guardAutonomousPlan", () => {
     expect(result.notes.some((item) => item.includes("duplicate action"))).toBe(true);
     expect(result.notes.some((item) => item.includes("invalid or unresolved reference"))).toBe(true);
   });
+  test("keeps temp refs only after their creator action", () => {
+    const result = guardAutonomousPlan(
+      context,
+      plan([
+        { type: "set_component", componentId: "temp_component", patch: { label: "Too early" } },
+        { type: "add_component", sectionId: "section-1", kind: "button", ref: "temp_component", label: "Book" },
+        { type: "set_component", componentId: "temp_component", patch: { label: "Book now" } },
+      ]),
+    );
+    expect(result.actions).toHaveLength(2);
+    expect(result.actions[0]).toMatchObject({ type: "add_component", ref: "temp_component" });
+    expect(result.actions[1]).toMatchObject({ type: "set_component", componentId: "temp_component" });
+    expect(result.notes.some((item) => item.includes("invalid or unresolved reference"))).toBe(true);
+  });
+
+  test("rejects duplicate page slugs in one native plan", () => {
+    const result = guardAutonomousPlan(
+      context,
+      plan([
+        { type: "add_page", kind: "custom", title: "About", slug: "about", ref: "temp_about" },
+        { type: "add_page", kind: "custom", title: "About two", slug: "about", ref: "temp_about_two" },
+      ]),
+    );
+    expect(result.actions).toHaveLength(1);
+    expect(result.notes.some((item) => item.includes("duplicate page slug"))).toBe(true);
+  });
+
+  test("validates every component in a reorder action", () => {
+    const result = guardAutonomousPlan(
+      context,
+      plan([
+        {
+          type: "reorder_components",
+          sectionId: "section-1",
+          componentIds: ["component-1", "missing-component"],
+        },
+      ]),
+    );
+    expect(result.actions).toHaveLength(0);
+    expect(result.notes.some((item) => item.includes("invalid or unresolved reference"))).toBe(true);
+  });
+  test("drops duplicate temporary creator refs even with different payloads", () => {
+    const result = guardAutonomousPlan(
+      context,
+      plan([
+        { type: "add_section", pageId: "page-1", kind: "cta", ref: "temp_section", heading: "One" },
+        { type: "add_section", pageId: "page-1", kind: "cta", ref: "temp_section", heading: "Two" },
+      ]),
+    );
+    expect(result.actions).toHaveLength(1);
+    expect(result.notes.some((item) => item.includes("duplicate temporary section reference"))).toBe(true);
+  });
+
 });
