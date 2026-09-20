@@ -221,69 +221,77 @@ function LeadsPage() {
         </div>
       </div>
 
-      {/* Board */}
-      <div className="-mx-4 overflow-x-auto px-4">
-        <div className="flex w-max gap-3">
-          {LEAD_STATUSES.map((status) => {
-            const column = filtered.filter((l) => l.status === status.value);
-            const value = column.reduce((sum, l) => sum + Number(l.estimated_value ?? 0), 0);
-            return (
-              <section key={status.value} className="w-64 shrink-0">
-                <div className="mb-2 flex items-center justify-between">
-                  <span className="eyebrow">{status.label}</span>
-                  <span className="tnum rounded-full bg-elevated px-1.5 py-0.5 text-[10px] font-semibold">
-                    {column.length} · {currency(value)}
-                  </span>
-                </div>
-                <div className="space-y-2">
-                  {column.map((lead) => (
-                    <button
-                      key={lead.id}
-                      type="button"
-                      onClick={() => {
-                        setSelectedId(lead.id);
-                        setNote("");
-                      }}
-                      className="panel w-full cursor-pointer p-3 text-left transition-colors hover:border-muted-foreground/40"
-                    >
-                      <p className="truncate text-[13px] font-medium">{lead.name}</p>
-                      <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
-                        {[lead.service_interest, sourceLabel(lead.source)]
-                          .filter(Boolean)
-                          .join(" · ")}
-                      </p>
-                      <div className="mt-2 flex items-center justify-between">
-                        <span className="tnum text-[11px] text-muted-foreground">
-                          {currency(Number(lead.estimated_value ?? 0))}
-                        </span>
-                        <span className="text-[10px] text-muted-foreground">
-                          {relative(lead.created_at)}
-                        </span>
-                      </div>
-                      {lead.next_follow_up_at ? (
-                        <p className="mt-1.5 text-[10px] text-accent">
-                          Follow up {relative(lead.next_follow_up_at)}
+      {/* Board — only shown once there is at least one real lead, so a new
+          account sees one clear next step instead of seven empty columns. */}
+      {(leads ?? []).length > 0 ? (
+        <div className="-mx-4 overflow-x-auto px-4">
+          <div className="flex w-max gap-3">
+            {LEAD_STATUSES.map((status) => {
+              const column = filtered.filter((l) => l.status === status.value);
+              const value = column.reduce((sum, l) => sum + Number(l.estimated_value ?? 0), 0);
+              return (
+                <section key={status.value} className="w-64 shrink-0">
+                  <div className="mb-2 flex items-center justify-between">
+                    <span className="eyebrow">{status.label}</span>
+                    <span className="tnum rounded-full bg-elevated px-1.5 py-0.5 text-[10px] font-semibold">
+                      {column.length} · {currency(value)}
+                    </span>
+                  </div>
+                  <div className="space-y-2">
+                    {column.map((lead) => (
+                      <button
+                        key={lead.id}
+                        type="button"
+                        onClick={() => {
+                          setSelectedId(lead.id);
+                          setNote("");
+                        }}
+                        className="panel w-full cursor-pointer p-3 text-left transition-colors hover:border-muted-foreground/40"
+                      >
+                        <p className="truncate text-[13px] font-medium">{lead.name}</p>
+                        <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
+                          {[lead.service_interest, sourceLabel(lead.source)]
+                            .filter(Boolean)
+                            .join(" · ")}
                         </p>
-                      ) : null}
-                    </button>
-                  ))}
-                  {column.length === 0 ? (
-                    <p className="rounded-md border border-dashed border-border px-3 py-6 text-center text-[11px] text-muted-foreground">
-                      Nothing here
-                    </p>
-                  ) : null}
-                </div>
-              </section>
-            );
-          })}
+                        <div className="mt-2 flex items-center justify-between">
+                          <span className="tnum text-[11px] text-muted-foreground">
+                            {currency(Number(lead.estimated_value ?? 0))}
+                          </span>
+                          <span className="text-[10px] text-muted-foreground">
+                            {relative(lead.created_at)}
+                          </span>
+                        </div>
+                        {lead.next_follow_up_at ? (
+                          <p className="mt-1.5 text-[10px] text-accent">
+                            Follow up {relative(lead.next_follow_up_at)}
+                          </p>
+                        ) : null}
+                      </button>
+                    ))}
+                    {column.length === 0 ? (
+                      <p className="rounded-md border border-dashed border-border px-3 py-6 text-center text-[11px] text-muted-foreground">
+                        Nothing here
+                      </p>
+                    ) : null}
+                  </div>
+                </section>
+              );
+            })}
+          </div>
         </div>
-      </div>
-
-      {(leads ?? []).length === 0 ? (
+      ) : (
         <EmptyState
           title="No leads yet"
-          description="Leads from your website, quote calculator and booking form all land here automatically."
+          description="Leads from your website, quote calculator and booking form all land here automatically. You can also add one yourself with “Add lead”."
         />
+      )}
+
+      {(leads ?? []).length > 0 && filtered.length === 0 ? (
+        <p className="text-[13px] text-muted-foreground">
+          No leads match what you searched for. Clear the search or choose “All” to see everyone
+          again.
+        </p>
       ) : null}
 
       {/* Detail */}
