@@ -155,7 +155,8 @@ export function BuilderShell({
 
       <div className="flex gap-6">
         {/* -------------------------- Left nav -------------------------- */}
-        <nav className="hidden w-56 shrink-0 lg:block">
+        {/* One-area workspaces (the builder) need no nav at all. */}
+        <nav className={cn("hidden w-56 shrink-0", sections.length > 1 && "lg:block")}>
           <div className="sticky top-24 space-y-1">
             {sections.map((section) => (
               <NavItem
@@ -179,7 +180,7 @@ export function BuilderShell({
       </div>
 
       {/* --------------------- Mobile section sheet -------------------- */}
-      {navOpen ? (
+      {navOpen && sections.length > 1 ? (
         <div className="fixed inset-0 z-50 lg:hidden">
           <button
             type="button"
@@ -215,7 +216,12 @@ export function BuilderShell({
       ) : null}
 
       {/* ------------------ Mobile bottom quick switcher ---------------- */}
-      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-background/95 backdrop-blur lg:hidden">
+      <div
+        className={cn(
+          "fixed inset-x-0 bottom-0 z-30 border-t border-border bg-background/95 backdrop-blur lg:hidden",
+          sections.length <= 1 && "hidden",
+        )}
+      >
         <nav
           aria-label="Builder modes"
           className="grid px-1 py-1.5"
