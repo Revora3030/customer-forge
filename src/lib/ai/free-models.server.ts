@@ -303,7 +303,7 @@ export function pickDiscoveredModels(
   role: ModelRole,
   limit = 4,
 ): string[] {
-  const models = discoveredFreeModels(provider);
+  const models = discoveredFreeModels(provider, role);
   if (models.length === 0 || limit <= 0) return [];
   const ranked: string[] = [];
   const add = (model: string) => {
