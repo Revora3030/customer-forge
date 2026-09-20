@@ -131,7 +131,9 @@ export async function refreshFreeModels(
       ? await openRouterFreeModels(credentials)
       : provider === "cloudflare"
         ? await cloudflareFreeModels(credentials)
-        : [];
+        : provider === "groq"
+          ? await groqFreeModels(credentials)
+          : [];
   // Cache even an empty answer so a failing discovery endpoint isn't polled on
   // every builder request.
   cache.set(provider, { at: Date.now(), models });
