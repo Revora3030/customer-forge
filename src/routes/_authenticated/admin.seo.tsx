@@ -10,6 +10,7 @@ import { useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { Search } from "lucide-react";
 import { EmptyState, MetricCard, Panel, Pill, SectionHeading } from "@/components/app/Bits";
+import { GoogleLocalListing, GoogleSearchGrowth } from "@/components/app/GoogleSearchGrowth";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { seoAuditSummary } from "@/lib/seo-audit";
@@ -94,9 +95,12 @@ function AdminSeo() {
         )}
       </Panel>
 
+      <GoogleSearchGrowth />
+      <GoogleLocalListing />
+
       <Panel className="p-0">
         <div className="border-b border-border px-4 py-3">
-          <p className="font-display text-[15px] font-semibold">Your Search Console results</p>
+          <p className="font-display text-[15px] font-semibold">Or paste a Search Console export</p>
           <p className="mt-1 text-[12px] text-muted-foreground">
             In Search Console open Performance, then Export, then copy the sheet or the CSV and
             paste it below. Revora reads it here in your browser and ranks what to work on. Nothing

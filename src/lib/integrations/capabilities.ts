@@ -218,21 +218,25 @@ export const PROVIDERS: ProviderDefinition[] = [
     id: "google-maps",
     label: "Google Maps Platform",
     capabilities: ["maps.places"],
-    credentials: ["GOOGLE_MAPS_API_KEY"],
+    credentials: ["LOVABLE_API_KEY", "GOOGLE_MAPS_API_KEY"],
+    // Google bills every Maps request, so it stays out of automatic builder
+    // paths: it is only reached from an explicit admin lookup.
     cost: "paid",
     scope: "platform",
-    implemented: false,
-    permission: "Server key through the connector gateway only; never called from the browser.",
+    implemented: true,
+    permission:
+      "Read-only public listing facts (address, phone, website, rating) through the connector gateway. Server key only; never called from the browser. Cached for six hours.",
   },
   {
     id: "google-search-console",
     label: "Google Search Console",
     capabilities: ["seo.search_console"],
-    credentials: ["GOOGLE_SEARCH_CONSOLE_SITE_URL", "GOOGLE_SERVICE_ACCOUNT_JSON"],
+    credentials: ["LOVABLE_API_KEY", "GOOGLE_SEARCH_CONSOLE_API_KEY"],
     cost: "free",
     scope: "tenant",
-    implemented: false,
-    permission: "Read-only search performance for a site the customer has authorized.",
+    implemented: true,
+    permission:
+      "Read-only search performance for verified properties on the connected account. Revora asks which property to use instead of guessing.",
   },
   {
     id: "google-analytics",
