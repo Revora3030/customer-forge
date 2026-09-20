@@ -412,6 +412,7 @@ export function AiRequestPanel({
                     </li>
                   ))}
                 </ul>
+                </>
               ) : null}
 
               <div className="mt-3 flex flex-wrap gap-2">
@@ -422,8 +423,7 @@ export function AiRequestPanel({
                     disabled={busy || approvedSteps(task).length === 0}
                     onClick={() => build.mutate(task)}
                   >
-                    Build {approvedSteps(task).length} step
-                    {approvedSteps(task).length === 1 ? "" : "s"}
+                    Approve &amp; apply
                   </Button>
                 ) : null}
                 {task.state === "failed" || task.retryable ? (
