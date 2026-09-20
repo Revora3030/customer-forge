@@ -271,12 +271,12 @@ export function isFreeEligibleModel(provider: FreeProviderName, model: string): 
   if (PAID_MODEL_PATTERNS.some((pattern) => pattern.test(unprefixed))) {
     if (!(provider === "groq" && /^gpt-oss/i.test(unprefixed))) return false;
   }
-  if (provider === "openrouter") return openRouterFree(name);
-  if (provider === "google") return /flash|lite|gemma/i.test(name);
+  if (provider === "openrouter") return openRouterFree(name) && !NON_CHAT_MODEL.test(name);
+  if (provider === "google") return /flash|lite|gemma|transcribe/i.test(name);
   if (provider === "groq") return groqFreeEligible(name);
   if (provider === "nvidia") return nvidiaFreeEligible(name);
   if (provider === "llm7") return llm7FreeEligible(name);
-  return name.startsWith("@cf/");
+  return name.startsWith("@cf/") && !NON_CHAT_MODEL.test(name);
 }
 
 /* ------------------------------- credentials ------------------------------- */
