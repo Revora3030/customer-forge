@@ -883,6 +883,12 @@ export async function callPinnedFreeModel(
               provider: call.provider,
             })
           : providerUnavailable(call.provider, (rawError as Error)?.message?.slice(0, 120));
+    void noteDurableProviderResult({
+      provider: call.provider,
+      ok: false,
+      latencyMs: Date.now() - started,
+      rateLimited: error.category === "rate_limited",
+    });
     void recordAiEvent({
       requestId,
       provider: call.provider as ProviderName,
