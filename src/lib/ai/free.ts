@@ -235,6 +235,35 @@ function nvidiaFreeEligible(name: string) {
   return !PAID_MODEL_PATTERNS.some((pattern) => pattern.test(model));
 }
 
+/**
+ * LLM7 hosts free and usage-based (paid-balance) models on one endpoint, and the
+ * id alone does not say which is which. So Revora keeps an allowlist: the ids it
+ * verified as free, plus any id live discovery saw flagged as not usage-based.
+ * Anything else — including every paid-balance model on the same endpoint — is
+ * rejected before a request can be spent on it.
+ */
+const LLM7_VERIFIED_FREE = new Set(
+  ["GLM-5.3-Flash", "codestral-latest", "minimax-m2.7", "mistral-Nemo-Instruct-2407"].map((id) =>
+    id.toLowerCase(),
+  ),
+);
+
+const llm7DiscoveredFree = new Set<string>();
+
+/** Records ids LLM7 currently reports as not usage-based (i.e. free). */
+export function noteLlm7FreeModels(ids: string[]) {
+  for (const id of ids) llm7DiscoveredFree.add(id.trim().toLowerCase());
+}
+
+export function resetLlm7FreeModels() {
+  llm7DiscoveredFree.clear();
+}
+
+function llm7FreeEligible(name: string) {
+  const id = name.trim().toLowerCase();
+  return LLM7_VERIFIED_FREE.has(id) || llm7DiscoveredFree.has(id);
+}
+
 export function isFreeEligibleModel(provider: FreeProviderName, model: string): boolean {
   const name = model.trim();
   if (name.length === 0) return false;
