@@ -111,7 +111,31 @@ describe("free-only enforcement", () => {
       expect(isFreeEligibleModel("openrouter", model)).toBe(false);
       expect(isFreeEligibleModel("google", model)).toBe(false);
       expect(isFreeEligibleModel("cloudflare", model)).toBe(false);
+      expect(isFreeEligibleModel("groq", model)).toBe(false);
     }
+  });
+
+  it("accepts Groq's free chat models and rejects its speech and safety models", async () => {
+    const { isFreeEligibleModel } = await free();
+    expect(isFreeEligibleModel("groq", "openai/gpt-oss-120b")).toBe(true);
+    expect(isFreeEligibleModel("groq", "qwen/qwen3.8-27b")).toBe(true);
+    expect(isFreeEligibleModel("groq", "whisper-large-v3")).toBe(false);
+    expect(isFreeEligibleModel("groq", "meta-llama/llama-prompt-guard-2-22m")).toBe(false);
+    expect(isFreeEligibleModel("groq", "canopylabs/orpheus-v1-english")).toBe(false);
+  });
+
+  it("puts Groq in the free chain once its key is configured", async () => {
+    process.env["GROQ_API_KEY"] = "groq-key";
+    const { freeProviderChain } = await free();
+    const chain = freeProviderChain("primary");
+    expect(chain.map((entry) => entry.name)).toContain("groq");
+    expect(chain.find((entry) => entry.name === "groq")?.model).toBe("openai/gpt-oss-120b");
+  });
+
+  it("does not offer Groq for pictures, since it serves no multimodal model", async () => {
+    process.env["GROQ_API_KEY"] = "groq-key";
+    const { freeProviderChain } = await free();
+    expect(freeProviderChain("vision").map((entry) => entry.name)).not.toContain("groq");
   });
 
   it("accepts the documented free models", async () => {
