@@ -12,6 +12,7 @@ import {
   SectionHeading,
 } from "@/components/app/Bits";
 import { CapabilityCenter } from "@/components/app/CapabilityCenter";
+import { FreeModelCollective } from "@/components/app/FreeModelCollective";
 import { getAiHealth } from "@/lib/ai/health.functions";
 
 export const Route = createFileRoute("/_authenticated/admin/ai")({
@@ -294,6 +295,8 @@ function AdminAi() {
           </div>
         </Panel>
       </div>
+
+      <FreeModelCollective />
 
       <CapabilityCenter />
     </div>
