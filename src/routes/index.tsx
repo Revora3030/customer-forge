@@ -25,11 +25,7 @@ import { LongTermValue } from "@/components/marketing/ConversionKit";
 import { AiClarity, AutomationFlow, SleepEngine } from "@/components/marketing/AiClarity";
 import { ProductTour } from "@/components/marketing/ProductTour";
 import { ValueStack } from "@/components/marketing/ValueStack";
-import {
-  FreeAccessBanner,
-  FreeAccessButton,
-  FreeAccessSection,
-} from "@/components/marketing/FreeAccess";
+import { FreeAccessButton, FreeAccessSection } from "@/components/marketing/FreeAccess";
 import { Panel, Pill, SectionHeading } from "@/components/app/Bits";
 import { Button } from "@/components/ui/button";
 import { INDUSTRIES, industrySlug } from "@/lib/domain";
