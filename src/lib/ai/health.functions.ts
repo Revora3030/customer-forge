@@ -294,6 +294,8 @@ export type AiModelInventory = {
   /** The last few multi-model builds, with each model's part in them. */
   runs: import("@/lib/ai/ensemble.server").EnsembleRun[];
   lanes: { id: string; title: string; capability: string }[];
+  /** Measured reliability/latency per model, derived only from recorded calls. */
+  benchmarks: import("@/lib/ai/benchmark.server").ModelBenchmark[];
 };
 
 /**
