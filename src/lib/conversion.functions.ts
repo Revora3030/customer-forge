@@ -129,7 +129,6 @@ export const recordConversion = createServerFn({ method: "POST" })
       } else if ((count ?? 0) >= RATE_LIMIT_PER_WINDOW) {
         return { ok: true, throttled: true };
       }
-      if ((count ?? 0) >= RATE_LIMIT_PER_WINDOW) return { ok: true, throttled: true };
     }
 
     const { error } = await supabaseAdmin.from("marketing_conversions").insert({
