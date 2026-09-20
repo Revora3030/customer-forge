@@ -371,5 +371,6 @@ export const getAiModelInventory = createServerFn({ method: "GET" })
         title: lane.title,
         capability: lane.capability,
       })),
+      benchmarks: await modelBenchmarks(),
     };
   });
