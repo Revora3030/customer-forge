@@ -37,7 +37,7 @@ describe("dropUnchangedActions", () => {
   it("keeps everything it cannot compare", () => {
     const actions: AgentAction[] = [
       { type: "set_section_text", sectionId: "unknown", field: "heading", value: "x" },
-      { type: "set_section_effect", sectionId: "s1", effect: "aurora" } as AgentAction,
+      { type: "set_section_visibility", sectionId: "unknown", visible: false },
     ];
     expect(dropUnchangedActions(actions, sections).actions).toHaveLength(2);
   });
