@@ -172,13 +172,29 @@ function openRouterFree(model: string) {
  */
 const GROQ_NON_CHAT = /whisper|orpheus|prompt-guard|safeguard|tts|playai/i;
 
+/**
+ * Groq ids are vendor-prefixed (`openai/gpt-oss-120b`), so the paid-name check
+ * has to run on the model part as well — otherwise a prefix would smuggle a
+ * paid family past it. `gpt-oss` is OpenAI's open-weight family Groq serves
+ * free, so it is the one explicitly allowed `gpt-` name.
+ */
+function groqFreeEligible(name: string) {
+  if (GROQ_NON_CHAT.test(name)) return false;
+  const model = name.includes("/") ? name.slice(name.lastIndexOf("/") + 1) : name;
+  if (/^gpt-oss/i.test(model)) return true;
+  return !PAID_MODEL_PATTERNS.some((pattern) => pattern.test(model));
+}
+
 export function isFreeEligibleModel(provider: FreeProviderName, model: string): boolean {
   const name = model.trim();
   if (name.length === 0) return false;
-  if (PAID_MODEL_PATTERNS.some((pattern) => pattern.test(name))) return false;
+  const unprefixed = provider === "groq" ? name.replace(/^openai\/(?=gpt-oss)/i, "") : name;
+  if (PAID_MODEL_PATTERNS.some((pattern) => pattern.test(unprefixed))) {
+    if (!(provider === "groq" && /^gpt-oss/i.test(unprefixed))) return false;
+  }
   if (provider === "openrouter") return openRouterFree(name);
   if (provider === "google") return /flash|lite|gemma/i.test(name);
-  if (provider === "groq") return !GROQ_NON_CHAT.test(name);
+  if (provider === "groq") return groqFreeEligible(name);
   return name.startsWith("@cf/");
 }
 
