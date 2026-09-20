@@ -147,6 +147,14 @@ ACTION SHAPES (use exactly these)
    {"type":"steps"|"checklist","items":[{"label":"...","body":"..."}]}
    {"type":"tabs","items":[{"label":"...","body":"..."}]}
    {"type":"metrics","items":[{"label":"Years in business","value":"12"}]}
+   {"type":"accordion","items":[{"label":"Do you cover my area?","body":"..."}]}
+   {"type":"timeline","items":[{"marker":"Day 1","label":"Site survey","body":"..."}]}
+   {"type":"filter","items":[{"label":"Bathroom refit","body":"...","tags":["Bathrooms","Full refit"]}]}
+   {"type":"eligibility","note":"Guide only ...","questions":[{"prompt":"Is the property within 20 miles?"}],
+    "pass":{"label":"You're covered","body":"..."},"fail":{"label":"Ask us first","body":"..."}}
+   {"type":"booking","note":"We confirm every request by phone ...","services":["Service A"],"times":["Weekday mornings"],
+    "ctaLabel":"Request this time","ctaHref":"#contact"}
+   {"type":"gauge","note":"...","items":[{"label":"Jobs completed on time","value":96,"caption":"..."}]}
    Only ever use figures, prices and wording the owner actually supplied. An estimator must
    carry a "note" saying the result is an estimate. Add the section first with
    {"type":"add_section","kind":"custom","ref":"temp_block_1", ...} and then target that ref.)

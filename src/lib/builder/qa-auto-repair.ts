@@ -12,6 +12,11 @@ import {
   runBrowserStyleQa,
   type BrowserQaFinding,
 } from "./browser-qa-intelligence";
+import {
+  decideRepair,
+  describeRepairDecision,
+  type RepairEvidence,
+} from "./repair-evidence";
 
 export type QaRepair = {
   finding: BrowserQaFinding;
@@ -100,11 +105,24 @@ export function compileQaAutoRepairs(
   return repairs;
 }
 
-export function qaRepairSummary(repairs: QaRepair[]): string {
+export function qaRepairSummary(repairs: QaRepair[], evidence?: RepairEvidencePair): string {
   if (!repairs.length) {
     return "QA auto-repair: no deterministic safe repairs were identified.";
   }
 
   const kinds = [...new Set(repairs.map((repair) => repair.finding.kind))].join(", ");
-  return `QA auto-repair: ${repairs.length} bounded repair(s) prepared for ${kinds} finding(s).`;
+  const head = `QA auto-repair: ${repairs.length} bounded repair(s) prepared for ${kinds} finding(s).`;
+
+  // A repair is only ever reported as kept when rendered before/after evidence
+  // says the page actually improved. Without that evidence the honest state is
+  // NOT_VERIFIED, never a pass.
+  const decision = decideRepair(evidence?.before, evidence?.after);
+  return `${head} ${describeRepairDecision("Verification", decision)}`;
 }
+
+export type RepairEvidencePair = {
+  before?: RepairEvidence | null;
+  after?: RepairEvidence | null;
+};
+
+export { decideRepair, summariseRepairDecisions } from "./repair-evidence";

@@ -292,6 +292,224 @@ function Figures({ spec }: { spec: Extract<CustomBlockSpec, { type: "metrics" }>
   );
 }
 
+function Accordion({ spec }: { spec: Extract<CustomBlockSpec, { type: "accordion" }> }) {
+  return (
+    <div>
+      <Title title={spec.title} />
+      <div className="mt-6 grid gap-3">
+        {spec.items.map((item) => (
+          <details key={item.label} className="group rounded-2xl border border-border bg-card/40 p-4">
+            <summary className="min-h-11 cursor-pointer list-none text-[15px] font-medium marker:hidden">
+              {item.label}
+            </summary>
+            <p className="mt-2 text-[14px] leading-relaxed whitespace-pre-line text-muted-foreground">
+              {item.body}
+            </p>
+          </details>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function Timeline({ spec }: { spec: Extract<CustomBlockSpec, { type: "timeline" }> }) {
+  return (
+    <div>
+      <Title title={spec.title} />
+      <ol className="mt-6 grid gap-4 border-l border-border pl-5">
+        {spec.items.map((item) => (
+          <li key={`${item.marker}-${item.label}`} className="relative">
+            <span
+              aria-hidden="true"
+              className="absolute top-2 -left-[27px] size-3 rounded-full border-2 border-background bg-primary"
+            />
+            <p className="eyebrow">{item.marker}</p>
+            <p className="mt-1 text-[15px] font-medium">{item.label}</p>
+            {item.body ? (
+              <p className="mt-1 text-[14px] leading-relaxed text-muted-foreground">{item.body}</p>
+            ) : null}
+          </li>
+        ))}
+      </ol>
+    </div>
+  );
+}
+
+function FilterList({ spec }: { spec: Extract<CustomBlockSpec, { type: "filter" }> }) {
+  const tags = useMemo(() => [...new Set(spec.items.flatMap((item) => item.tags))], [spec]);
+  const [active, setActive] = useState<string | null>(null);
+  const shown = active ? spec.items.filter((item) => item.tags.includes(active)) : spec.items;
+
+  return (
+    <div>
+      <Title title={spec.title} />
+      <div className="mt-6 flex flex-wrap gap-2">
+        {[null, ...tags].map((tag) => {
+          const selected = active === tag;
+          return (
+            <button
+              key={tag ?? "all"}
+              type="button"
+              aria-pressed={selected}
+              onClick={() => setActive(tag)}
+              className={`min-h-11 rounded-full border px-4 text-[14px] transition ${
+                selected
+                  ? "border-primary bg-primary/10 text-foreground"
+                  : "border-border text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {tag ?? "All"}
+            </button>
+          );
+        })}
+      </div>
+      <ul aria-live="polite" className="mt-5 grid gap-3 sm:grid-cols-2">
+        {shown.map((item) => (
+          <li key={item.label} className="rounded-2xl border border-border bg-card/40 p-4">
+            <p className="text-[15px] font-medium">{item.label}</p>
+            {item.body ? (
+              <p className="mt-1 text-[14px] leading-relaxed text-muted-foreground">{item.body}</p>
+            ) : null}
+            <p className="mt-2 text-[12px] text-muted-foreground">{item.tags.join(" · ")}</p>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function EligibilityChecker({ spec }: { spec: Extract<CustomBlockSpec, { type: "eligibility" }> }) {
+  const [answers, setAnswers] = useState<Record<string, boolean>>({});
+  const answered = spec.questions.filter((question) => question.id in answers).length;
+  const complete = answered === spec.questions.length;
+  const passed = complete && spec.questions.every((question) => answers[question.id]);
+  const result = complete ? (passed ? spec.pass : spec.fail) : null;
+
+  return (
+    <div>
+      <Title title={spec.title} />
+      <div className="mt-6 grid gap-4">
+        {spec.questions.map((question) => (
+          <fieldset key={question.id} className="grid gap-2">
+            <legend className="text-[15px] font-medium">{question.prompt}</legend>
+            <div className="flex gap-2">
+              {[true, false].map((value) => (
+                <button
+                  key={String(value)}
+                  type="button"
+                  aria-pressed={answers[question.id] === value}
+                  onClick={() => setAnswers((current) => ({ ...current, [question.id]: value }))}
+                  className={`min-h-11 rounded-full border px-5 text-[14px] transition ${
+                    answers[question.id] === value
+                      ? "border-primary bg-primary/10 text-foreground"
+                      : "border-border text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {value ? "Yes" : "No"}
+                </button>
+              ))}
+            </div>
+          </fieldset>
+        ))}
+      </div>
+      <div aria-live="polite" className="mt-6 rounded-2xl border border-border bg-card/60 p-5">
+        {result ? (
+          <>
+            <p className="font-display text-[22px] font-semibold">{result.label}</p>
+            {result.body ? (
+              <p className="mt-2 text-[14px] leading-relaxed text-muted-foreground">{result.body}</p>
+            ) : null}
+          </>
+        ) : (
+          <p className="text-[13px] text-muted-foreground">
+            {answered} of {spec.questions.length} answered.
+          </p>
+        )}
+        <p className="mt-3 text-[13px] text-muted-foreground">{spec.note}</p>
+      </div>
+    </div>
+  );
+}
+
+function BookingSelector({ spec }: { spec: Extract<CustomBlockSpec, { type: "booking" }> }) {
+  const [service, setService] = useState(spec.services[0] ?? "");
+  const [time, setTime] = useState(spec.times[0] ?? "");
+
+  return (
+    <div>
+      <Title title={spec.title} />
+      <div className="mt-6 grid gap-4 sm:grid-cols-2">
+        <label className="grid gap-2 text-[14px]">
+          <span className="font-medium">What do you need?</span>
+          <select
+            className="min-h-11 rounded-xl border border-border bg-background px-3 text-[15px]"
+            value={service}
+            onChange={(event) => setService(event.target.value)}
+          >
+            {spec.services.map((item) => (
+              <option key={item} value={item}>
+                {item}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="grid gap-2 text-[14px]">
+          <span className="font-medium">When suits you?</span>
+          <select
+            className="min-h-11 rounded-xl border border-border bg-background px-3 text-[15px]"
+            value={time}
+            onChange={(event) => setTime(event.target.value)}
+          >
+            {spec.times.map((item) => (
+              <option key={item} value={item}>
+                {item}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+      <div className="mt-5 rounded-2xl border border-border bg-card/60 p-5">
+        <p aria-live="polite" className="text-[15px] font-medium">
+          {service} — {time}
+        </p>
+        <p className="mt-2 text-[13px] text-muted-foreground">{spec.note}</p>
+        <Button asChild variant="signal" className="mt-4 min-h-11">
+          <a href={spec.ctaHref}>{spec.ctaLabel}</a>
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function GaugeStrip({ spec }: { spec: Extract<CustomBlockSpec, { type: "gauge" }> }) {
+  return (
+    <div>
+      <Title title={spec.title} />
+      <dl className="mt-6 grid gap-4 sm:grid-cols-2">
+        {spec.items.map((item) => (
+          <div key={item.label} className="rounded-2xl border border-border bg-card/40 p-4">
+            <dt className="text-[14px] font-medium">{item.label}</dt>
+            <dd className="mt-2">
+              <div
+                role="img"
+                aria-label={`${item.label}: ${item.value} percent`}
+                className="h-2 w-full overflow-hidden rounded-full bg-border"
+              >
+                <div className="h-full rounded-full bg-primary" style={{ width: `${item.value}%` }} />
+              </div>
+              <span className="mt-2 block font-display text-[22px] font-semibold">{item.value}%</span>
+              {item.caption ? (
+                <span className="mt-1 block text-[13px] text-muted-foreground">{item.caption}</span>
+              ) : null}
+            </dd>
+          </div>
+        ))}
+      </dl>
+      {spec.note ? <p className="mt-4 text-[13px] text-muted-foreground">{spec.note}</p> : null}
+    </div>
+  );
+}
+
 export function CustomBlock({ spec }: { spec: CustomBlockSpec }) {
   switch (spec.type) {
     case "calculator":
@@ -307,5 +525,17 @@ export function CustomBlock({ spec }: { spec: CustomBlockSpec }) {
       return <Tabbed spec={spec} />;
     case "metrics":
       return <Figures spec={spec} />;
+    case "accordion":
+      return <Accordion spec={spec} />;
+    case "timeline":
+      return <Timeline spec={spec} />;
+    case "filter":
+      return <FilterList spec={spec} />;
+    case "eligibility":
+      return <EligibilityChecker spec={spec} />;
+    case "booking":
+      return <BookingSelector spec={spec} />;
+    case "gauge":
+      return <GaugeStrip spec={spec} />;
   }
 }
