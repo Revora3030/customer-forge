@@ -315,6 +315,7 @@ export const getAiModelInventory = createServerFn({ method: "GET" })
 
     const { buildFreeModelRegistry } = await import("@/lib/ai/registry.server");
     const { ensembleRuns, ENSEMBLE_LANES } = await import("@/lib/ai/ensemble.server");
+    const { modelBenchmarks } = await import("@/lib/ai/benchmark.server");
 
     const deduped = new Map<string, InventoryModel>();
     for (const role of ["design", "primary", "coding", "fast", "vision"] as const) {
