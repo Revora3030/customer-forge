@@ -33,3 +33,28 @@
 - Still open and honestly labelled: free image generation (no genuinely free image provider
   in this workspace — every option costs credits, which breaks the $0-AI rule), and the
   paid frontier-model quality ceiling (a deliberate cost choice, not a defect).
+
+## Design identity + generated artwork (closes the media and sameness gaps)
+- Every website now has a lasting design identity derived from the business itself
+  (name, trade, town, audience, goal, how much content and how many photos exist):
+  hero composition, background system, section rhythm, navigation, calls to action,
+  cards, proof, pricing, FAQ, gallery, stats, forms, footer, decoration, type and
+  colour, motion level and density. It is deterministic, so a rebuild keeps the same
+  character, and wide enough that two firms in the same trade get materially
+  different sites. Styles the owner rejects are never offered again.
+- Where no photo exists, the page now shows abstract artwork generated from that
+  identity (soft shapes, arcs, rings, waves, dot fields, bars) instead of an empty
+  frame. It is drawn from a data-only spec by a trusted component — no provider, no
+  cost, nothing generated runs in a visitor's browser — is hidden from screen
+  readers, and never depicts or implies anything about the business.
+- Media sources now report an honest state: owner photos (available only when real
+  photos exist), generated artwork (always available, free), free stock search (only
+  when a free-tier key is actually stored), and AI image generation (BLOCKED — every
+  image model reachable here costs credits per picture). Spots that need a real
+  photograph of the business are left out rather than filled with artwork.
+- VERIFIED: real browser check of a live customer site with no hero photo at 1280px
+  and 390px — artwork renders behind the hero, no overflow, no console errors.
+  1,082 tests, typecheck and production build pass.
+- Still open and honestly labelled: free AI image generation (no genuinely free
+  provider here), transactional email and CRM live checks (no keys), and the paid
+  frontier-model quality ceiling (a deliberate cost choice).
