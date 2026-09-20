@@ -39,10 +39,12 @@ describe("no third-party AI gateway remains", () => {
     expect(offenders).toEqual([]);
   });
 
-  it("reads LOVABLE_API_KEY only for email and the Stripe connector, never for AI", () => {
-    // Email delivery and the Stripe connector gateway are separate Lovable
-    // integrations that have nothing to do with running a model.
-    const allowed = ["email", "stripe.server.ts"];
+  it("reads LOVABLE_API_KEY only for email, Stripe and Google data, never for AI", () => {
+    // Email delivery, Stripe, and the Google Search Console / Maps connectors
+    // are separate Lovable integrations that never run a model. The capability
+    // registry only names the credential so the admin page can show whether a
+    // connection exists.
+    const allowed = ["email", "stripe.server.ts", "integrations/google.server", "integrations/capabilities.ts"];
     const offenders = APP_FILES.filter((file) => {
       if (!readFileSync(file, "utf8").includes("LOVABLE_API_KEY")) return false;
       return !allowed.some((fragment) => file.includes(fragment));
