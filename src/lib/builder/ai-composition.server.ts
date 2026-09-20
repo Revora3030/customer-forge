@@ -480,16 +480,30 @@ type ComposeOptions = {
   userId?: string | null;
 };
 
-/** The design lanes that have an opinion about structure and look-and-feel. */
+/**
+ * Every specialist seat that can judge structure and look-and-feel. The whole
+ * agency sits on a composition now, not just the design seats, so accessibility,
+ * mobile, fact protection and QA opinions shape the layout before it is voted
+ * on. Lanes whose capability no verified free model covers simply drop out.
+ */
 const COMPOSITION_LANES = [
   "architect",
+  "frontend",
   "uiux",
   "visual",
   "brand",
   "cro",
   "seo",
+  "accessibility",
+  "mobile",
+  "performance",
+  "copy",
+  "facts",
   "navigation",
+  "qa",
+  "regression",
   "critic",
+  "synthesizer",
 ] as const;
 
 /**
