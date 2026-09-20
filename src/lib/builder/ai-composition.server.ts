@@ -359,35 +359,24 @@ export async function proposeSiteComposition(
     ? [chosen, ...directions.filter((entry) => entry.id !== chosen.id)]
     : directions;
 
-  try {
-    const { generateStructuredOutput } = await import("@/lib/ai/router.server");
-    const result = await generateStructuredOutput(
-      {
-        task: "site.compose",
-        organizationId: options.organizationId ?? null,
-        userId: options.userId ?? null,
-      },
-      {
-        // Look-and-feel and page composition are creative judgement, so this
-        // runs on the strongest free model available, not the cheapest.
-        role: "design",
-        json: true,
-        messages: [
-          { role: "system", content: SYSTEM },
-          {
-            role: "user",
-            content: `OWNER'S REQUEST (context only — do not write copy):\n${options.instruction}\n\n${
-              chosen
-                ? `The owner already chose the look "${chosen.name}" (id ${chosen.id}). Use that directionId.\n\n`
-                : ""
-            }WORKSPACE:\n${brief(context, candidates)}`,
-          },
-        ],
-      },
-    );
+  const userBrief = `OWNER'S REQUEST (context only — do not write copy):\n${options.instruction}\n\n${
+    chosen
+      ? `The owner already chose the look "${chosen.name}" (id ${chosen.id}). Use that directionId.\n\n`
+      : ""
+  }WORKSPACE:\n${brief(context, candidates)}`;
 
-    const proposal = parseProposal(result.data, context, candidates);
+  try {
+    // MULTI-MODEL FIRST. Several verified free models independently propose a
+    // direction and a section order; identical proposals are one vote each and
+    // the proposal the most models arrived at wins. Every proposal is validated
+    // against the real workspace first, so a consensus can only ever be reached
+    // between answers that were already safe.
+    const ensembleProof = await composeByEnsemble(context, candidates, userBrief, options);
+    const proposal =
+      ensembleProof?.winner ??
+      (await composeBySingleModel(context, candidates, userBrief, options));
     if (!proposal) return null;
+    const ensembleNotes = ensembleProof ? [proofSummaryLine(ensembleProof)] : [];
 
     // The owner's own choices are final, so they override the model's palette.
     const branded = applyBrandPreference(chosen ?? proposal.direction, brand);
