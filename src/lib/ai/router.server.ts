@@ -493,20 +493,62 @@ export async function generateStructuredOutput(
   caller: AiCaller,
   request: AiRequest,
 ): Promise<AiJsonResult> {
-  const result = await generateText(caller, { ...request, json: true });
-  const cleaned = result.text
+  guardRequest(request.messages);
+  const limits = aiLimits();
+  // The shape check runs INSIDE the provider loop, so a model that answers with
+  // something unparseable is treated as that provider failing: the next free
+  // provider is tried, and only when none can answer does the caller fall back
+  // to Revora's deterministic engine.
+  const outcome = await run(
+    caller,
+    request.role ?? "primary",
+    async ({ adapter, config, model, signal }) => {
+      const result = await adapter.chat({
+        apiKey: config.apiKey,
+        model,
+        messages: request.messages,
+        json: true,
+        maxOutputTokens: Math.min(
+          request.maxOutputTokens ?? limits.maxOutputTokens,
+          limits.maxOutputTokens,
+        ),
+        ...(request.temperature === undefined ? {} : { temperature: request.temperature }),
+        signal,
+      });
+      return {
+        value: { text: result.text, data: parseJsonObject(result.text) },
+        inputTokens: result.usage.inputTokens,
+        outputTokens: result.usage.outputTokens,
+      };
+    },
+  );
+  return {
+    text: outcome.value.text,
+    data: outcome.value.data,
+    provider: outcome.provider,
+    model: outcome.model,
+    usage: { inputTokens: outcome.inputTokens, outputTokens: outcome.outputTokens },
+    fallbackUsed: outcome.fallbackUsed,
+    requestId: outcome.requestId,
+  };
+}
+
+/** Parses a model's JSON answer, tolerating a fenced code block. */
+function parseJsonObject(text: string): Record<string, unknown> {
+  const cleaned = text
     .replace(/^```(?:json)?/i, "")
     .replace(/```$/, "")
     .trim();
   try {
     const parsed = JSON.parse(cleaned) as unknown;
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("shape");
-    return { ...result, data: parsed as Record<string, unknown> };
+    return parsed as Record<string, unknown>;
   } catch {
     throw new RevoraAiError(502, "Revora AI returned an unexpected response. Try rewording.", {
       category: "bad_response",
     });
   }
+
 }
 
 /** Code and structured reasoning work; routes to the coding model. */
