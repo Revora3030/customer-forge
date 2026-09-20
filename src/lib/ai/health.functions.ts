@@ -26,8 +26,30 @@ export type AiTaskStat = {
   estimatedCostUsd: number | null;
 };
 
+export type AiFreeProviderStatus = {
+  name: string;
+  label: string;
+  allowance: string;
+  configured: boolean;
+  healthy: boolean;
+  cooldownUntil: number | null;
+  remainingToday: number | null;
+  models: { role: string; model: string }[];
+};
+
+export type AiFreeStatus = {
+  freeAiEnabled: boolean;
+  freeOnly: boolean;
+  paidFallbackReachable: boolean;
+  providers: AiFreeProviderStatus[];
+};
+
 export type AiHealth = {
   configured: boolean;
+  /** Free-AI-first status: what is reachable at no cost right now. */
+  free: AiFreeStatus;
+  /** Whether the builder can reach any model at all (free or explicitly paid). */
+  builderAiAvailable: boolean;
   /** The exact sentence users see when Revora owns no provider key. */
   unconfiguredMessage: string;
   providers: AiProviderStatus[];
@@ -72,6 +94,10 @@ export const getAiHealth = createServerFn({ method: "GET" })
           : [],
       };
     });
+
+    const { freeAiStatus } = await import("@/lib/ai/router.server");
+    const { builderAiAvailable } = await import("@/lib/ai/availability");
+    const free = freeAiStatus() as AiFreeStatus;
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
@@ -168,7 +194,9 @@ export const getAiHealth = createServerFn({ method: "GET" })
     }
 
     return {
-      configured: chain.length > 0,
+      configured: chain.length > 0 || free.providers.some((entry) => entry.configured),
+      free,
+      builderAiAvailable: builderAiAvailable(),
       unconfiguredMessage: AI_NOT_CONFIGURED_MESSAGE,
       providers,
       window: { calls: events.length, failures, fallbacks, toolCalls },
@@ -198,4 +226,29 @@ export const getAiHealth = createServerFn({ method: "GET" })
       byModel: [...models.values()].sort((a, b) => b.calls - a.calls).slice(0, 20),
       refusedToolCalls: [...refused.values()].sort((a, b) => b.count - a.count).slice(0, 20),
     };
+  });
+
+/**
+ * Provider priority, for the platform admin only.
+ *
+ * Changes the order free providers are tried in for this server process. It
+ * cannot introduce a paid provider and it never touches credentials.
+ */
+export const setFreeAiProviderOrder = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { order: string[] | null }) => ({
+    order: input.order === null ? null : input.order.slice(0, 8).map((name) => String(name)),
+  }))
+  .handler(async ({ data, context }) => {
+    const { assertSuperAdmin } = await import("@/lib/admin.server");
+    await assertSuperAdmin(
+      context.supabase as unknown as Parameters<typeof assertSuperAdmin>[0],
+      String(context.userId),
+    );
+    const { setRuntimeFreeProviderOrder, isFreeProvider, freeProviderOrder } =
+      await import("@/lib/ai/free");
+    if (data.order && data.order.some((name) => !isFreeProvider(name)))
+      throw new Error("Only free providers can be ordered here.");
+    setRuntimeFreeProviderOrder(data.order);
+    return { order: freeProviderOrder() };
   });
