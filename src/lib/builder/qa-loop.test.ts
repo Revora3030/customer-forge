@@ -110,7 +110,7 @@ function siteWithMissingSeo(): Site {
 describe("post-apply QA loop", () => {
   it("fixes the page's own missing search title and re-checks the saved rows", async () => {
     const tables = siteWithMissingSeo();
-    const { db, updates } = fakeDb(tables);
+    const { db } = fakeDb(tables);
 
     const result = await runQaRepairLoop(db, ORG, "polish the home page");
 
