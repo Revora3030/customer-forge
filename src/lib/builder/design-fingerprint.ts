@@ -111,6 +111,7 @@ export const NAV_SYSTEMS = [
   "bordered-bar", "transparent-overlay", "sticky-condensed", "two-row", "mega-panel",
   "drawer-mobile", "sheet-mobile", "bottom-actions", "icon-compact", "contrast-bar",
   "floating-capsule", "inline-phone", "cta-emphasis", "quiet-minimal", "boxed-logo",
+  "rail-vertical", "hours-strip", "search-lead", "breadcrumb-bar", "segmented-tabs",
 ] as const;
 
 export const CTA_SYSTEMS = [
@@ -118,55 +119,71 @@ export const CTA_SYSTEMS = [
   "inline-pair", "panel-offset", "full-bleed", "bordered-frame", "gradient-band",
   "quote-lead", "phone-first", "booking-first", "checklist-cta", "two-step",
   "testimonial-backed", "urgency-strip", "quiet-link", "boxed-contrast", "footer-merge",
+  "map-side", "faq-adjacent", "stat-backed", "dual-audience", "callback-request",
 ] as const;
 
 export const CARD_SYSTEMS = [
   "soft", "sharp", "pill", "outlined", "elevated", "flat-tinted", "glass",
   "bordered-top", "numbered", "icon-lead", "media-top", "media-side", "split-tone",
   "hover-lift", "hover-tint", "minimal-rule", "stacked-rows", "compact-list",
-  "wide-feature", "badge-corner",
+  "wide-feature", "badge-corner", "ruled-columns", "gradient-edge", "inset-shadow",
+  "monoline-icon", "tall-portrait",
 ] as const;
 
 export const PROOF_LAYOUTS = [
   "quote-grid", "quote-rail", "single-spotlight", "stacked-quotes", "rating-band",
   "avatar-row", "logo-wall", "quote-with-metric", "columns-two", "columns-three",
   "bordered-rows", "card-carousel", "editorial-pullquote", "compact-list", "mixed-proof",
+  "quote-over-media", "rating-with-list", "sidebar-quotes", "banner-quote", "grouped-by-service",
 ] as const;
 
 export const PRICING_LAYOUTS = [
   "three-tier", "two-tier", "single-offer", "table-compare", "list-rows",
   "feature-matrix", "starting-from", "package-cards", "estimator-lead", "tier-highlight",
   "inline-band", "bordered-columns", "stacked-mobile", "toggle-interval", "quote-only",
+  "per-service-rows", "bundle-pair", "range-band", "callout-plus-list", "contact-for-quote",
 ] as const;
 
 export const FAQ_LAYOUTS = [
   "accordion", "two-column-accordion", "open-list", "grouped", "bordered-rows",
   "card-grid", "sidebar-nav", "numbered", "compact", "split-intro",
   "inline-cta", "search-lead", "tabbed", "quiet-list", "wide-rows",
+  "two-column-open", "question-first", "topic-chips", "boxed-contrast", "footer-adjacent",
 ] as const;
 
 export const GALLERY_LAYOUTS = [
   "grid-3", "grid-4", "masonry", "rail", "before-after", "mosaic", "full-bleed-strip",
   "framed-grid", "duotone-grid", "captioned", "lightbox-grid", "staggered",
-  "single-feature", "two-up", "compact-thumbs",
+  "single-feature", "two-up", "compact-thumbs", "filmstrip", "quilt", "offset-pairs",
+  "wide-feature-plus-thumbs", "category-tabs",
 ] as const;
 
 export const STATS_LAYOUTS = [
   "band-four", "band-three", "card-grid", "inline-row", "bordered-columns",
   "big-number", "icon-pair", "stacked-rows", "split-with-copy", "ring-set",
   "bar-set", "compact-strip", "contrast-band", "quiet-list", "metric-with-proof",
+  "two-up-large", "counter-band", "table-figures", "sidebar-metrics", "footer-strip",
+] as const;
+
+export const TIMELINE_LAYOUTS = [
+  "vertical-line", "horizontal-rail", "numbered-steps", "stepped-cards", "zigzag-path",
+  "milestone-band", "process-columns", "arrow-flow", "checklist-steps", "phase-tabs",
+  "compact-list", "two-column-steps", "calendar-band", "day-plan", "before-during-after",
+  "icon-path", "progress-bar", "annotated-rail", "quarter-grid", "story-scroll",
 ] as const;
 
 export const FORM_LAYOUTS = [
   "single-column", "two-column", "card-panel", "split-with-copy", "inline-band",
   "stepped", "sidebar-contact", "boxed-contrast", "minimal-rows", "phone-first",
   "booking-calendar", "quote-wizard", "compact", "full-width", "footer-embedded",
+  "map-side", "service-picker-lead", "callback-slot", "upload-supported", "two-step-confirm",
 ] as const;
 
 export const FOOTER_SYSTEMS = [
   "simple-center", "three-column", "four-column", "split-cta", "contrast-band",
   "compact-bar", "sitemap-wide", "logo-lead", "hours-panel", "area-list",
   "newsletter-lead", "phone-emphasis", "bordered-top", "stacked-mobile", "quiet-minimal",
+  "map-embedded", "two-tier", "credential-row", "service-links", "dark-band",
 ] as const;
 
 export const DECORATIVE_SYSTEMS = [
@@ -179,12 +196,46 @@ export const TYPE_SYSTEMS = [
   "display-grotesque", "editorial-serif", "humanist-sans", "geometric-sans",
   "condensed-impact", "literary-serif", "technical-mono-accent", "rounded-friendly",
   "high-contrast-didone", "neutral-swiss", "warm-slab", "modern-variable",
+  "grotesque-with-serif-lede", "wide-display", "compact-ui-sans", "elegant-oldstyle",
+  "industrial-stencil-accent", "soft-geometric", "newsprint-serif", "mono-display",
 ] as const;
 
 export const COLOR_SYSTEMS = [
   "light-neutral", "light-tinted", "warm-cream", "cool-paper", "dark-charcoal",
   "dark-ink", "high-contrast", "duotone", "muted-earth", "vivid-accent",
-  "monochrome-accent", "pastel-calm",
+  "monochrome-accent", "pastel-calm", "deep-forest", "clay-warm", "slate-cool",
+  "ivory-gold", "midnight-teal", "sand-terracotta", "graphite-lime", "plum-quiet",
+] as const;
+
+export const DESIGN_FAMILIES = [
+  "luxury-editorial", "premium-minimal", "cinematic", "bold-statement", "glass-modern",
+  "organic-soft", "startup-bright", "technical-precise", "warm-local", "hospitality-inviting",
+  "professional-high-trust", "industrial-robust", "wellness-calm", "creative-expressive",
+  "futuristic", "playful", "elegant-classic", "dark-focused", "light-airy", "documentary-honest",
+] as const;
+
+export const MOTION_PATTERNS = [
+  "none", "fade-in-sections", "rise-on-scroll", "stagger-cards", "soft-parallax",
+  "hover-lift", "underline-sweep", "counter-count-up", "image-zoom-slow", "border-draw",
+  "sticky-reveal", "gradient-drift", "cursor-accent", "marquee-band", "step-highlight",
+] as const;
+
+export const IMAGE_TREATMENTS = [
+  "plain", "rounded-soft", "sharp-edge", "framed-border", "duotone", "warm-grade",
+  "cool-grade", "high-contrast", "desaturated", "gradient-overlay", "arch-mask",
+  "inset-shadow", "offset-outline", "split-tone", "grain-overlay",
+] as const;
+
+export const SECTION_TRANSITIONS = [
+  "hard-edge", "hairline-rule", "tone-shift", "soft-fade", "curve-top",
+  "angled-cut", "wave-edge", "overlap-card", "inset-notch", "shadow-lift",
+  "band-divider", "double-rule", "arc-cut", "stepped-edge", "quiet-gap",
+] as const;
+
+export const PAGE_SHELLS = [
+  "full-width", "boxed-centered", "wide-with-gutters", "framed-canvas", "rail-sidebar",
+  "sticky-aside", "split-screen", "magazine-columns", "narrow-reading", "hero-overlap",
+  "floating-header", "grid-shell", "bordered-page", "panelled", "continuous-scroll",
 ] as const;
 
 const ART_STYLES = [
