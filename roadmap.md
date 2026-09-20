@@ -99,3 +99,22 @@
   review by a vision model on every build, live Core Web Vitals measurement,
   picture editing (no free edit-capable model), and email/CRM/Stripe checks
   (need credentials).
+
+## Real website speed measurement (VERIFIED_LIVE 2026-09-20)
+- Published customer sites now measure the visitor's actual experience in their
+  own browser (main content paint, layout steadiness, tap response, first paint,
+  server response) using standard browser APIs — no third-party script, no cost,
+  nothing personal stored beyond an opaque per-visit token.
+- New `site_vitals` table: visitors' browsers may record only for published
+  sites, one row per visit/metric/page (unique index), members read, nobody can
+  edit or delete recorded numbers.
+- Owner sees the measured figures on the Analytics page at the 75th percentile,
+  with anything unmeasured shown as "not measured yet" instead of scored.
+- VERIFIED: real browser visit to a live customer site recorded lcp/fcp/cls/ttfb
+  rows; a second visit produced its own single set (no double counting); the
+  owner panel renders at 390px and 1280px with no overflow and no console errors.
+  1,135 tests (172 files), typecheck clean.
+- Still open: click-and-drag canvas is built (BuilderCanvas), free-form code
+  generation, draft/branch experiments, vision review of screenshots, large-build
+  speed, motion depth, multi-page storytelling. Picture editing BLOCKED (no free
+  edit-capable model). Email/CRM + Stripe BLOCKED on credentials.

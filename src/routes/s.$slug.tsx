@@ -13,6 +13,7 @@ import { readCopy } from "@/lib/site-engine";
 import { canonicalSiteUrl } from "@/lib/revora-address";
 import { SiteNav, SitePageView } from "@/routes/s.$slug.$page";
 import { StickyCallBar } from "@/components/site/SiteSections";
+import { SiteVitals } from "@/components/site/SiteVitals";
 import { businessFacts } from "@/lib/builder/facts";
 import { placeDisplay } from "@/lib/builder/presentation";
 import { playbookFor, schemaTypeFor } from "@/lib/builder/industry";
@@ -591,6 +592,7 @@ function TemplateSiteView({
         </footer>
 
         <StickyCallBar site={site} label={ctaLabel} />
+        <SiteVitals slug={org.slug} preview={preview} />
       </div>
     </div>
   );

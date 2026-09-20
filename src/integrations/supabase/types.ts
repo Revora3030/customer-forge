@@ -2812,6 +2812,57 @@ export type Database = {
           },
         ]
       }
+      site_vitals: {
+        Row: {
+          created_at: string
+          device: string | null
+          id: string
+          metric: string
+          organization_id: string
+          path: string | null
+          rating: string
+          session_id: string | null
+          value: number
+        }
+        Insert: {
+          created_at?: string
+          device?: string | null
+          id?: string
+          metric: string
+          organization_id: string
+          path?: string | null
+          rating: string
+          session_id?: string | null
+          value: number
+        }
+        Update: {
+          created_at?: string
+          device?: string | null
+          id?: string
+          metric?: string
+          organization_id?: string
+          path?: string | null
+          rating?: string
+          session_id?: string | null
+          value?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "site_vitals_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "site_vitals_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "public_organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       social_profiles: {
         Row: {
           created_at: string

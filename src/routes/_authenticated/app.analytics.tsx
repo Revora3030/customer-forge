@@ -8,6 +8,7 @@ import { currency, dateShort } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { ConversionOptimizer } from "@/components/app/ConversionOptimizer";
 import { TrafficMonitor } from "@/components/app/TrafficMonitor";
+import { SitePerformance } from "@/components/app/SitePerformance";
 import { canManage } from "@/lib/domain";
 import { useWebsiteSettings } from "@/lib/queries";
 
@@ -224,6 +225,8 @@ function AnalyticsPage() {
           </ul>
         </Panel>
       </div>
+
+      <SitePerformance organizationId={orgId} days={days} />
 
       <TrafficMonitor
         organizationId={orgId}
