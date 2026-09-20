@@ -20,7 +20,8 @@
  * and cheap — it does not call any external service.
  */
 
-import type { AgentAction, AgentContext } from "@/lib/site-agent.server";
+import type { AgentAction } from "@/lib/site-agent";
+import type { AgentContext } from "@/lib/site-agent.server";
 import type { BuilderIntent } from "@/lib/builder/interpreter";
 import { recommendDirections } from "@/lib/design-directions";
 

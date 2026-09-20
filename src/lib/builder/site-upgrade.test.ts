@@ -91,7 +91,8 @@ describe("planWholeSiteUpgrade", () => {
 
   it("preserves an owner-authored hero heading and never overwrites it", () => {
     const context = ctx();
-    context.pages[0].sections[0].heading = "Same-day repairs, no callout fee";
+    const page = context.pages[0]!;
+    page.sections[0]!.heading = "Same-day repairs, no callout fee";
     const plan = planWholeSiteUpgrade(context, interpret("redesign my whole website", []));
     const rewrite = plan.find(
       (a) => a.type === "set_section_text" && a.sectionId === "s1" && a.field === "heading",
