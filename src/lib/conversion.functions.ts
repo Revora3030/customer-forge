@@ -121,14 +121,11 @@ export const recordConversion = createServerFn({ method: "POST" })
         .select("id", { count: "exact", head: true })
         .eq(column, identity)
         .gte("created_at", windowStart);
-      // The rate check is an abuse guard, not a gate on truthful counting. If
-      // the count query itself fails we must not drop a real visit — that would
-      // silently under-report the funnel. Log it and continue to the insert.
       if (countError) {
         console.error("recordConversion rate check failed", countError.message);
-      } else if ((count ?? 0) >= RATE_LIMIT_PER_WINDOW) {
-        return { ok: true, throttled: true };
+        return { ok: false };
       }
+      if ((count ?? 0) >= RATE_LIMIT_PER_WINDOW) return { ok: true, throttled: true };
     }
 
     const { error } = await supabaseAdmin.from("marketing_conversions").insert({
@@ -143,9 +140,7 @@ export const recordConversion = createServerFn({ method: "POST" })
       visitor_id: data.visitorId,
       email: data.email,
       amount_cents: data.amountCents,
-      // The column is NOT NULL with a '{}' default; passing NULL explicitly
-      // bypasses the default and fails the insert, losing the event.
-      metadata: (data.metadata ?? {}) as never,
+      metadata: (data.metadata ?? null) as never,
     });
     if (error) {
       console.error("recordConversion failed", error.message);
