@@ -33,9 +33,17 @@ import {
 } from "@/lib/ai/config";
 import { RevoraAiError, freeAiUnavailable, providerUnavailable } from "@/lib/ai/errors";
 import {
+  durableBudgetExhausted,
+  durableProviderResting,
+  noteDurableFreeUse,
+  noteDurableProviderResult,
+  refreshDurableRuntime,
+} from "@/lib/ai/durable-health.server";
+import {
   freeAiEnabled,
   freeAiOnly,
   freeBudgetAllows,
+  freeBudgetCap,
   freeBudgetRemaining,
   freeProviderChain,
   freeProviderCredentials,
