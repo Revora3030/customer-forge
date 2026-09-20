@@ -74,7 +74,7 @@ export function FreeAccessBanner({ className = "" }: { className?: string }) {
           {usd(GROWTH_SYSTEM.monthlyPrice)}/month. Cancel anytime.
         </p>
       </div>
-      <FreeAccessButton size="sm" className="shrink-0 sm:w-auto" label="START FREE ACCESS" />
+      <FreeAccessButton size="sm" className="shrink-0 @md:w-auto" label="START FREE ACCESS" />
     </div>
   );
 }
