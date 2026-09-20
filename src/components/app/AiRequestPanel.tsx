@@ -76,6 +76,7 @@ export function AiRequestPanel({
     Array<{ role: "user" | "assistant"; content: string }>
   >([]);
   const [ideasOpen, setIdeasOpen] = useState(false);
+  const [showAllIdeas, setShowAllIdeas] = useState(false);
   const queryClient = useQueryClient();
 
   // Honest report of what this device can do. Building never depends on it.
@@ -295,22 +296,35 @@ export function AiRequestPanel({
         }}
       />
 
-      {/* Outcome-focused starters, visible without opening anything. */}
+      {/* Three strong starters up front; the rest stay one tap away, so the
+          request box is never buried under a wall of choices. */}
       <div className="mt-2.5 flex flex-wrap gap-1.5">
-        {BUILDER_PRIMARY_ACTIONS.map((action) => (
+        {(showAllIdeas ? BUILDER_PRIMARY_ACTIONS : BUILDER_PRIMARY_ACTIONS.slice(0, 3)).map(
+          (action) => (
+            <button
+              key={action.label}
+              type="button"
+              disabled={!ready}
+              onClick={() => queue(action.instruction)}
+              className={cn(
+                "min-h-9 cursor-pointer rounded-full border border-border px-3 py-1.5 text-[12.5px] text-muted-foreground transition-colors",
+                "hover:bg-elevated hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none disabled:opacity-50",
+              )}
+            >
+              {action.label}
+            </button>
+          ),
+        )}
+        {BUILDER_PRIMARY_ACTIONS.length > 3 ? (
           <button
-            key={action.label}
             type="button"
-            disabled={!ready}
-            onClick={() => queue(action.instruction)}
-            className={cn(
-              "min-h-9 cursor-pointer rounded-full border border-border px-3 py-1.5 text-[12.5px] text-muted-foreground transition-colors",
-              "hover:bg-elevated hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none disabled:opacity-50",
-            )}
+            onClick={() => setShowAllIdeas((open) => !open)}
+            aria-expanded={showAllIdeas}
+            className="min-h-9 cursor-pointer rounded-full px-3 py-1.5 text-[12.5px] font-medium text-primary transition-colors hover:bg-primary/10 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
           >
-            {action.label}
+            {showAllIdeas ? "Fewer ideas" : `More ideas (${BUILDER_PRIMARY_ACTIONS.length - 3})`}
           </button>
-        ))}
+        ) : null}
       </div>
 
       <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -410,10 +424,18 @@ export function AiRequestPanel({
               ) : null}
 
               {task.steps.length ? (
-                <>
-                  {task.state === "waiting_for_approval" ? (
-                    <p className="mt-2 text-[12.5px] font-medium">Here's what I'll change:</p>
-                  ) : null}
+                <details
+                  className="group mt-2"
+                  open={task.steps.length <= 8 && task.state === "waiting_for_approval"}
+                >
+                  <summary className="cursor-pointer text-[12.5px] font-medium">
+                    {task.state === "waiting_for_approval"
+                      ? `Here's what I'll change — ${task.steps.length} update${task.steps.length === 1 ? "" : "s"}`
+                      : `${task.steps.length} update${task.steps.length === 1 ? "" : "s"} in this request`}
+                    <span className="ml-1 font-normal text-muted-foreground group-open:hidden">
+                      (tap to review)
+                    </span>
+                  </summary>
                   <ul className="mt-2 space-y-1">
                     {task.steps.map((step, index) => (
                       <li key={step.key} className="flex items-center gap-2 text-[12px]">
@@ -491,7 +513,7 @@ export function AiRequestPanel({
                       </li>
                     ))}
                   </ul>
-                </>
+                </details>
               ) : null}
 
               <div className="mt-3 flex flex-wrap gap-2">
