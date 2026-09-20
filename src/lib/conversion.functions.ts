@@ -16,7 +16,16 @@ const EVENTS = [
   "builder_opened",
   /** Owner asked Revora to build or change something in the builder. */
   "build_requested",
+  /** Revora applied the owner's request to the website. */
+  "build_applied",
+  /** The apply pipeline could not carry out the request. */
+  "build_failed",
+  /** Publishing was refused: not paid, not ready, or not permitted. */
+  "publish_blocked",
+  /** Publishing broke on the way out (network, service hiccup). */
+  "publish_failed",
   "site_published",
+
   "first_quote_request",
   "first_booking",
   "checkout_started",
