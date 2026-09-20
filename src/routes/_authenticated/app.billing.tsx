@@ -139,8 +139,11 @@ function BillingPage() {
             {subscription ? subscription.status.replace("_", " ") : "No subscription"}
           </Pill>
 
+          {/* Never claim card payments are live when checkout cannot take one. */}
           <Pill tone="neutral">
-            Card payments {billing?.environment === "sandbox" ? "test" : "live"}
+            {!cardsReady
+              ? "Card payments unavailable"
+              : `Card payments ${billing?.environment === "sandbox" ? "test" : "live"}`}
           </Pill>
         </div>
       </div>
