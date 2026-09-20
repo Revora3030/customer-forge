@@ -66,7 +66,7 @@ const FREE_MODEL_DEFAULTS: Record<FreeProviderName, Partial<Record<ModelRole, st
     primary: "@cf/openai/gpt-oss-120b",
     fast: "@cf/meta/llama-3.2-3b-instruct",
     coding: "@cf/qwen/qwen2.5-coder-32b-instruct",
-    vision: "@cf/meta/llama-3.2-11b-vision-instruct",
+    vision: "@cf/meta/llama-4-scout-17b-16e-instruct",
   },
   openrouter: {
     primary: "openrouter/auto:free",
