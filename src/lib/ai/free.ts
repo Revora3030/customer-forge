@@ -155,10 +155,13 @@ const FREE_MODEL_DEFAULTS: Record<FreeProviderName, Partial<Record<ModelRole, st
 /**
  * Roles no free provider serves: Revora falls back to its native engine and
  * reports the capability as unavailable rather than pretending otherwise.
- * Image generation stays here because no configured provider serves an image
- * model on its free tier (Gemini's free tier refuses them with a quota error).
+ *
+ * Image generation is no longer here: Cloudflare Workers AI serves
+ * `@cf/black-forest-labs/flux-1-schnell` inside the free Neuron allowance, and
+ * it was verified live on this account. Gemini's image models are still refused
+ * on the free tier, so Google keeps no image entry above.
  */
-export const FREE_UNSERVED_ROLES: ModelRole[] = ["image"];
+export const FREE_UNSERVED_ROLES: ModelRole[] = [];
 
 function env(name: string) {
   const value = process.env[name];
