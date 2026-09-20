@@ -525,8 +525,356 @@ export function planWholeSiteUpgrade(
     depthBudget -= 1;
   }
 
+  /* ---------------------------------------------------------------- */
+  /* 14. HEADLINE PICTURES STAY READABLE BEHIND THE WORDS              */
+  /* ---------------------------------------------------------------- */
+
+  let overlayBudget = 4;
+  for (const page of context.pages) {
+    if (!page.is_visible || overlayBudget <= 0 || actions.length >= cap) break;
+    const hero = page.sections.find((section) => section.is_visible && section.kind === "hero");
+    if (!hero) continue;
+    const media = hero.components.find((component) => MEDIA_COMPONENT_KINDS.has(component.kind));
+    if (!media) continue;
+    push({
+      type: "set_component_visual",
+      componentId: media.id,
+      patch: { overlay: "soft", object_fit: "cover", object_position: "center" },
+    });
+    overlayBudget -= 1;
+  }
+
+  /* ---------------------------------------------------------------- */
+  /* 15. VAGUE BUTTONS SAY WHAT THEY DO                                */
+  /* ---------------------------------------------------------------- */
+
+  if (ctaTarget) {
+    let labelBudget = 6;
+    for (const page of context.pages) {
+      if (!page.is_visible || labelBudget <= 0 || actions.length >= cap) break;
+      for (const section of page.sections) {
+        if (!section.is_visible || labelBudget <= 0 || actions.length >= cap) break;
+        for (const component of section.components) {
+          if (labelBudget <= 0 || actions.length >= cap) break;
+          if (component.kind !== "button" && component.kind !== "link") continue;
+          if (!isVagueButtonLabel(component.label ?? component.link_label)) continue;
+          push({
+            type: "set_component",
+            componentId: component.id,
+            patch: { label: ctaTarget.label, link_label: ctaTarget.label },
+          });
+          labelBudget -= 1;
+        }
+      }
+    }
+  }
+
+  /* ---------------------------------------------------------------- */
+  /* 16. REAL WAYS TO GET IN TOUCH, ONE TAP AWAY                       */
+  /* ---------------------------------------------------------------- */
+
+  const phone = usablePhone(context);
+  const email = context.business.email?.trim() || null;
+  let contactBudget = 4;
+  for (const page of context.pages) {
+    if (!page.is_visible || contactBudget <= 0 || actions.length >= cap) break;
+    for (const section of page.sections) {
+      if (!section.is_visible || contactBudget <= 0 || actions.length >= cap) break;
+      if (!CLOSING_KINDS.includes(section.kind)) continue;
+      const links = section.components.map((component) => component.link_url ?? "");
+      if (phone && !links.some((url) => url.startsWith("tel:"))) {
+        push({
+          type: "add_component",
+          sectionId: section.id,
+          kind: "link",
+          label: `Call ${phone.display}`,
+          link_label: `Call ${phone.display}`,
+          link_url: `tel:${phone.dial}`,
+        });
+        contactBudget -= 1;
+      }
+      if (email && email.includes("@") && !links.some((url) => url.startsWith("mailto:"))) {
+        push({
+          type: "add_component",
+          sectionId: section.id,
+          kind: "link",
+          label: `Email ${email}`,
+          link_label: `Email ${email}`,
+          link_url: `mailto:${email}`,
+        });
+        contactBudget -= 1;
+      }
+    }
+  }
+
+  /* ---------------------------------------------------------------- */
+  /* 17. A PROOF STRIP, ONLY WHEN THERE IS REAL PROOF                  */
+  /* ---------------------------------------------------------------- */
+
+  if (
+    home &&
+    actions.length < cap &&
+    allowedSectionKinds.has("trust_bar") &&
+    !pageHasSection(home, "trust_bar") &&
+    hasRealProof(context)
+  ) {
+    const name = context.business.name?.trim();
+    push({
+      type: "add_section",
+      pageId: home.id,
+      kind: "trust_bar",
+      heading: name ? `${name} at a glance` : "At a glance",
+    });
+  }
+
+  /* ---------------------------------------------------------------- */
+  /* 18. NOTHING EMPTY STAYS ON SHOW                                   */
+  /* ---------------------------------------------------------------- */
+
+  let emptyBudget = 6;
+  for (const page of context.pages) {
+    if (!page.is_visible || emptyBudget <= 0 || actions.length >= cap) break;
+    for (const section of page.sections) {
+      if (!section.is_visible || emptyBudget <= 0 || actions.length >= cap) break;
+      if (section.kind === "hero") continue;
+      if (!isEmptySection(section)) continue;
+      push({ type: "set_section_visibility", sectionId: section.id, visible: false });
+      emptyBudget -= 1;
+    }
+  }
+
+  /* ---------------------------------------------------------------- */
+  /* 19. EVERY PAGE HAS A PROPER NAME                                  */
+  /* ---------------------------------------------------------------- */
+
+  let titleBudget = 4;
+  for (const page of context.pages) {
+    if (!page.is_visible || titleBudget <= 0 || actions.length >= cap) break;
+    if (!looksTemplated(page.title)) continue;
+    const derived = titleFromSlug(page.slug);
+    if (!derived) continue;
+    push({ type: "set_page", pageId: page.id, patch: { title: derived } });
+    titleBudget -= 1;
+  }
+
+  /* ---------------------------------------------------------------- */
+  /* 20. SHARING A LINK SHOWS THE RIGHT THING                          */
+  /* ---------------------------------------------------------------- */
+
+  let shareBudget = 5;
+  for (const page of context.pages) {
+    if (!page.is_visible || page.noindex || shareBudget <= 0 || actions.length >= cap) break;
+    const patch = shareMetadata(context, page);
+    if (!patch) continue;
+    push({ type: "set_page", pageId: page.id, patch });
+    shareBudget -= 1;
+  }
+
+  /* ---------------------------------------------------------------- */
+  /* 21. SERVICE LISTS SHOW THE REAL SERVICES                          */
+  /* ---------------------------------------------------------------- */
+
+  const realServices = context.business.services.filter(
+    (service) => (service.name ?? "").trim().length > 1,
+  );
+  if (realServices.length > 0) {
+    let serviceBudget = 6;
+    for (const page of context.pages) {
+      if (!page.is_visible || serviceBudget <= 0 || actions.length >= cap) break;
+      for (const section of page.sections) {
+        if (!section.is_visible || serviceBudget <= 0 || actions.length >= cap) break;
+        if (section.kind !== "services") continue;
+        if (section.components.length > 0) continue;
+        for (const service of realServices.slice(0, serviceBudget)) {
+          if (actions.length >= cap) break;
+          const price = (service.price ?? service.startingPrice ?? "").toString().trim();
+          push({
+            type: "add_component",
+            sectionId: section.id,
+            kind: "text",
+            label: service.name.trim(),
+            ...(price ? { body: price } : {}),
+          });
+          serviceBudget -= 1;
+        }
+      }
+    }
+  }
+
+  /* ---------------------------------------------------------------- */
+  /* 22. NO EMPTY PHOTO WALLS                                          */
+  /* ---------------------------------------------------------------- */
+
+  if (context.business.photoCount <= 0) {
+    let galleryBudget = 3;
+    for (const page of context.pages) {
+      if (!page.is_visible || galleryBudget <= 0 || actions.length >= cap) break;
+      for (const section of page.sections) {
+        if (!section.is_visible || galleryBudget <= 0 || actions.length >= cap) break;
+        if (section.kind !== "gallery" && section.kind !== "portfolio") continue;
+        if (section.components.some((component) => MEDIA_COMPONENT_KINDS.has(component.kind))) continue;
+        push({ type: "set_section_visibility", sectionId: section.id, visible: false });
+        galleryBudget -= 1;
+      }
+    }
+  }
+
+  /* ---------------------------------------------------------------- */
+  /* 23. NO PRICE BLOCK WITHOUT REAL PRICES                            */
+  /* ---------------------------------------------------------------- */
+
+  const hasRealPrice = context.business.services.some((service) =>
+    Boolean((service.price ?? service.startingPrice ?? "").toString().trim()),
+  );
+  if (!hasRealPrice) {
+    let pricingBudget = 2;
+    for (const page of context.pages) {
+      if (!page.is_visible || pricingBudget <= 0 || actions.length >= cap) break;
+      for (const section of page.sections) {
+        if (!section.is_visible || pricingBudget <= 0 || actions.length >= cap) break;
+        if (section.kind !== "pricing") continue;
+        if (section.components.length > 0) continue;
+        push({ type: "set_section_visibility", sectionId: section.id, visible: false });
+        pricingBudget -= 1;
+      }
+    }
+  }
+
+  /* ---------------------------------------------------------------- */
+  /* 24. EVERY SECTION HAS A HEADING TO SCAN                           */
+  /* ---------------------------------------------------------------- */
+
+  let headingBudget = 8;
+  for (const page of context.pages) {
+    if (!page.is_visible || headingBudget <= 0 || actions.length >= cap) break;
+    for (const section of page.sections) {
+      if (!section.is_visible || headingBudget <= 0 || actions.length >= cap) break;
+      if (section.kind === "hero") continue;
+      if ((section.heading ?? "").trim().length > 0) continue;
+      if (isEmptySection(section)) continue;
+      if (!HEADING_SLOTS.includes(section.kind as HeadingSlot)) continue;
+      push({
+        type: "set_section_text",
+        sectionId: section.id,
+        field: "heading",
+        value: variation.heading(section.kind as HeadingSlot),
+      });
+      headingBudget -= 1;
+    }
+  }
+
+  /* ---------------------------------------------------------------- */
+  /* 25. A CONTACT PAGE THAT ACTUALLY LETS PEOPLE ENQUIRE              */
+  /* ---------------------------------------------------------------- */
+
+  for (const page of context.pages) {
+    if (actions.length >= cap) break;
+    if (!page.is_visible) continue;
+    const isContactPage = page.kind === "contact" || /contact|book|quote/i.test(page.slug);
+    if (!isContactPage) continue;
+    if (page.sections.some((section) => section.is_visible && CLOSING_KINDS.includes(section.kind))) continue;
+    if (!allowedSectionKinds.has("contact")) continue;
+    push({ type: "add_section", pageId: page.id, kind: "contact", heading: "Get in touch" });
+  }
+
   return actions;
 }
+
+/** Every heading slot the site variation can write a factual heading for. */
+const HEADING_SLOTS: HeadingSlot[] = [
+  "services",
+  "process",
+  "benefits",
+  "pricing",
+  "gallery",
+  "reviews",
+  "areas",
+  "faq",
+  "quote",
+  "booking",
+  "cta",
+  "contact",
+  "intro",
+];
+
+/** Button wording that tells a visitor nothing about what happens next. */
+const VAGUE_BUTTON_LABELS = new Set([
+  "click here",
+  "click",
+  "here",
+  "submit",
+  "send",
+  "go",
+  "button",
+  "read more",
+  "more",
+  "link",
+  "learn more",
+]);
+
+function isVagueButtonLabel(value: string | null | undefined): boolean {
+  const text = (value ?? "").trim().toLowerCase();
+  if (text.length === 0) return true;
+  return VAGUE_BUTTON_LABELS.has(text);
+}
+
+/** The business's own phone number, in a display form and a dialable form. */
+function usablePhone(context: AgentContext): { display: string; dial: string } | null {
+  const raw = context.business.phone?.trim();
+  if (!raw) return null;
+  const digits = raw.replace(/\D/g, "");
+  if (digits.length < 7) return null;
+  return { display: raw, dial: raw.replace(/[^\d+]/g, "") };
+}
+
+/** True only when the workspace holds something real to be proud of. */
+function hasRealProof(context: AgentContext): boolean {
+  const years = Number(context.business.yearsInBusiness ?? 0);
+  return years >= 1 || context.business.publishedReviewCount > 0 || context.business.photoCount > 0;
+}
+
+/** A section with no words and nothing in it — dead space on the page. */
+function isEmptySection(section: {
+  heading: string | null;
+  subheading: string | null;
+  body: string | null;
+  components: unknown[];
+}): boolean {
+  const text = [section.heading, section.subheading, section.body]
+    .map((value) => (value ?? "").trim())
+    .join("");
+  return text.length === 0 && section.components.length === 0;
+}
+
+/** Turn a page address into a readable page name: "/our-services" → "Our Services". */
+function titleFromSlug(slug: string): string | null {
+  const cleaned = slug.replace(/^\/+|\/+$/g, "").split("/").pop() ?? "";
+  if (cleaned.length < 2) return null;
+  const words = cleaned
+    .split(/[-_]+/)
+    .filter((word) => word.length > 0)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1));
+  if (words.length === 0) return null;
+  return words.join(" ").slice(0, 60);
+}
+
+/**
+ * Sharing metadata built only from wording that already exists on the page or
+ * from real business facts. Empty fields only — never an overwrite.
+ */
+function shareMetadata(context: AgentContext, page: SiteMapPage) {
+  const name = context.business.name?.trim();
+  if (!name) return null;
+  const patch: { og_title?: string; og_description?: string } = {};
+  const title = page.seo_title?.trim() || (page.title?.trim() ? `${page.title.trim()} | ${name}` : name);
+  const description = page.seo_description?.trim() || context.business.description?.trim() || null;
+  if (!page.og_title?.trim() && title) patch.og_title = title.slice(0, 70);
+  if (!page.og_description?.trim() && description && description.length >= 24) {
+    patch.og_description = description.slice(0, 200);
+  }
+  return patch.og_title || patch.og_description ? patch : null;
+}
+
 
 /** Component kinds that carry a picture. */
 const MEDIA_COMPONENT_KINDS = new Set([
