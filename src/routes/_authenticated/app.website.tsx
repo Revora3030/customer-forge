@@ -422,8 +422,8 @@ function WebsitePage() {
 
   /** The whole workspace: a conversation, their website, and what it needs. */
   const workspace = (
-    <div className="grid gap-5 lg:grid-cols-[minmax(380px,420px)_minmax(0,1fr)]">
-      <div className="order-2 lg:order-1 lg:sticky lg:top-24 lg:self-start">
+    <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(380px,420px)_minmax(0,1fr)]">
+      <div className="order-2 min-w-0 lg:order-1 lg:sticky lg:top-24 lg:self-start">
         <BuilderAssistant
           organizationId={orgId ?? null}
           requests={requests}
@@ -437,7 +437,7 @@ function WebsitePage() {
         />
       </div>
 
-      <div className="order-1 space-y-5 lg:order-2">
+      <div className="order-1 min-w-0 space-y-5 lg:order-2">
         <EnvironmentBanner status={production} />
         <BuilderNeeds needs={needs} />
         {firstRun ? (
