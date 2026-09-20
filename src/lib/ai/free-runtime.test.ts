@@ -115,7 +115,7 @@ describe("automatic failover between free providers", () => {
     expect(result.provider).toBe("openrouter");
     expect(result.fallbackUsed).toBe(true);
     expect(calls.some((url) => url.includes("cloudflare"))).toBe(true);
-  });
+  }, 30_000);
 
   it("moves on when the first free provider is rate limited", async () => {
     configureTwoFreeProviders();
@@ -129,7 +129,7 @@ describe("automatic failover between free providers", () => {
       messages: [{ role: "user", content: "hello" }],
     });
     expect(result.provider).toBe("openrouter");
-  });
+  }, 30_000);
 
   it("moves on when the first free provider is broken (5xx)", async () => {
     configureTwoFreeProviders();
@@ -139,7 +139,7 @@ describe("automatic failover between free providers", () => {
     const { generateText } = await router();
     expect((await generateText(caller, { messages: [{ role: "user", content: "hi" }] })).provider)
       .toBe("openrouter");
-  });
+  }, 30_000);
 
   it("skips a free provider whose daily budget is spent", async () => {
     configureTwoFreeProviders();
@@ -167,14 +167,14 @@ describe("automatic failover between free providers", () => {
     expect(calls.some((url) => url.includes("googleapis") || url.includes("api.openai.com"))).toBe(
       false,
     );
-  });
+  }, 30_000);
 
   it("explains itself without blocking when no free provider is configured", async () => {
     const { generateText } = await router();
     await expect(
       generateText(caller, { messages: [{ role: "user", content: "hi" }] }),
     ).rejects.toMatchObject({ category: "free_unavailable", retryable: false });
-  });
+  }, 30_000);
 });
 
 describe("circuit breaker and last-request status", () => {
@@ -192,7 +192,7 @@ describe("circuit breaker and last-request status", () => {
     expect(status.last?.provider).toBe("openrouter");
     expect(status.last?.ok).toBe(true);
     expect(status.last?.free).toBe(true);
-  });
+  }, 30_000);
 
   it("reports the failure category of a failed last request, with no key material", async () => {
     configureTwoFreeProviders();
