@@ -29,7 +29,11 @@ import type { VerificationReport } from "@/lib/agent/verify";
 import type { QaLoopResult } from "@/lib/builder/qa-loop.server";
 
 import { safeLinkUrl } from "@/lib/website-content";
-import { preflightActions, stalePlanMessage } from "@/lib/builder/apply-plan";
+import {
+  dropUnchangedActions,
+  preflightActions,
+  stalePlanMessage,
+} from "@/lib/builder/apply-plan";
 import { captureUndo, rollback, type JournalClient, type UndoStep } from "@/lib/site-agent.atomic";
 
 /** A real database id, as opposed to a plan's temporary page name. */
@@ -747,7 +751,14 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
       sectionIds: new Set(site.sections.map((section) => section.id)),
       componentIds: new Set(site.components.map((component) => component.id)),
     });
-    const actions = preflight.ok;
+    // A step whose result is already true of the site is not a change. Dropping
+    // those here is what keeps the reported numbers honest: the owner is told how
+    // many things actually changed, not how many rows were written over.
+    const settled = dropUnchangedActions(
+      preflight.ok,
+      new Map(site.sections.map((section) => [section.id, section])),
+    );
+    const actions = settled.actions;
     const staleNotice = stalePlanMessage(preflight.stale, planned.length);
     if (actions.length > MAX_ACTIONS) {
       throw new Error(
@@ -756,6 +767,11 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
     }
     if (!actions.length) {
       if (preflight.stale.length) throw new Error(staleNotice);
+      if (settled.unchanged) {
+        throw new Error(
+          "Your website already matches that, so there was nothing to change. Nothing was touched.",
+        );
+      }
       throw new Error("Nothing to apply.");
     }
 
@@ -1289,6 +1305,7 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
         applied: applied.length,
         failed: failed.length,
         stale: preflight.stale.length,
+        unchanged: settled.unchanged,
         duplicates: preflight.duplicates,
         staleNotice,
         appliedLabels: applied,
@@ -1384,6 +1401,8 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
       failed: failed.length,
       /** Steps that could not run because their target no longer exists. */
       stale: preflight.stale.length,
+      /** Steps that needed no write because the site already matched them. */
+      unchanged: settled.unchanged,
       staleNotice,
       duplicates: preflight.duplicates,
       /** Per-operation outcomes for the collapsed diagnostics panel. */
@@ -1391,6 +1410,7 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
         ...applied.map((label) => `applied ${label}`),
         ...failed.map((label) => `skipped ${label}`),
         ...preflight.stale.map((entry) => `stale ${entry.type} (${entry.reason})`),
+        ...settled.unchangedLabels,
         ...(qa?.repaired ?? []).map((entry) => `repaired ${entry}`),
         ...(qa?.failed ?? []).map((entry) => `repair skipped ${entry}`),
       ],

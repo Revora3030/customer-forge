@@ -177,6 +177,53 @@ export function auditActionTargets(actions: AgentAction[], known: KnownTargets):
   return { ok, stale };
 }
 
+/* ----------------------------- already correct ---------------------------- */
+
+/** The fields of a live section a plan can be compared against. */
+export type CurrentSectionState = {
+  heading?: string | null;
+  subheading?: string | null;
+  body?: string | null;
+  variant?: string | null;
+  is_visible?: boolean | null;
+};
+
+const sameText = (a: string | null | undefined, b: string) => (a ?? "").trim() === b.trim();
+
+/**
+ * Removes steps whose result is already true of the site. A plan that says
+ * "set this headline to X" when the headline is already X is not a change, and
+ * counting it as applied is what made the builder's own numbers untrustworthy.
+ * Only exact, comparable fields are considered — anything uncertain is kept.
+ */
+export function dropUnchangedActions(
+  actions: AgentAction[],
+  sections: Map<string, CurrentSectionState>,
+): { actions: AgentAction[]; unchanged: number; unchangedLabels: string[] } {
+  const out: AgentAction[] = [];
+  const unchangedLabels: string[] = [];
+
+  for (const action of actions) {
+    let noop = false;
+
+    if (action.type === "set_section_text") {
+      const current = sections.get(action.sectionId);
+      if (current && sameText(current[action.field], action.value)) noop = true;
+    } else if (action.type === "set_section_variant") {
+      const current = sections.get(action.sectionId);
+      if (current && (current.variant ?? "") === action.variant) noop = true;
+    } else if (action.type === "set_section_visibility") {
+      const current = sections.get(action.sectionId);
+      if (current && current.is_visible === action.visible) noop = true;
+    }
+
+    if (noop) unchangedLabels.push(`${action.type} (already correct)`);
+    else out.push(action);
+  }
+
+  return { actions: out, unchanged: unchangedLabels.length, unchangedLabels };
+}
+
 /* ------------------------------ messages ---------------------------------- */
 
 /**
