@@ -667,7 +667,11 @@ function SiteSectionBody({ site, section }: { site: Site; section: Section }) {
         typeof parsed.title === "string" &&
         typeof section.heading === "string" &&
         parsed.title.trim().toLowerCase() === section.heading.trim().toLowerCase();
-      const spec = sameTitle ? { ...parsed, title: undefined } : parsed;
+      let spec = parsed;
+      if (sameTitle) {
+        const { title: _omitted, ...rest } = parsed;
+        spec = rest as typeof parsed;
+      }
       return (
         <Shell wide>
           {section.heading || section.subheading || section.body ? <Heading section={section} /> : null}
