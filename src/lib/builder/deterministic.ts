@@ -750,6 +750,8 @@ export function buildDeterministicPlan(
             })
           ) {
             changed = true;
+            // Lock it: later passes cannot rewrite wording the owner gave us.
+            lockedText.add(`${section.id}:${directive.field}`);
           }
           continue;
         }
