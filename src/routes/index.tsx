@@ -256,7 +256,7 @@ function PrimaryCta({ className = "" }: { className?: string }) {
           <ArrowRight className="size-4" aria-hidden="true" />
         </Link>
       </Button>
-      <Button asChild variant="ghost" size="lg">
+      <Button asChild variant="link" size="lg">
         <a href="#see-it">{GROWTH_SYSTEM.ctaDemo}</a>
       </Button>
     </div>

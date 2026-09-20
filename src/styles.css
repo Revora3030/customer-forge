@@ -635,8 +635,8 @@ a[href*="lovable.app"][target="_blank"][class*="fixed"],
 
 .hero-live-badge {
   position: absolute;
-  right: -10px;
-  top: 18px;
+  right: 14px;
+  bottom: -15px;
   z-index: 4;
   display: inline-flex;
   align-items: center;
@@ -703,7 +703,7 @@ a[href*="lovable.app"][target="_blank"][class*="fixed"],
 @media (max-width: 1023px) {
   .hero-live-badge {
     right: 8px;
-    top: 10px;
+    bottom: -14px;
   }
 }
 
