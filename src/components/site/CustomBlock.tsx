@@ -8,6 +8,7 @@
  */
 import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { FreeformBlock } from "@/components/site/FreeformBlock";
 import type { CustomBlockSpec } from "@/lib/builder/custom-block";
 
 function Title({ title }: { title?: string | undefined }) {
@@ -537,5 +538,7 @@ export function CustomBlock({ spec }: { spec: CustomBlockSpec }) {
       return <BookingSelector spec={spec} />;
     case "gauge":
       return <GaugeStrip spec={spec} />;
+    case "freeform":
+      return <FreeformBlock spec={spec} />;
   }
 }

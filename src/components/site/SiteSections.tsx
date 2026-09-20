@@ -659,8 +659,19 @@ function SiteSectionBody({ site, section }: { site: Site; section: Section }) {
     // Data-only spec, rendered by trusted components; an invalid spec renders
     // nothing rather than a broken section.
     case "custom": {
-      const spec = readCustomBlock(section.settings);
-      if (!spec) return null;
+      const parsed = readCustomBlock(section.settings);
+      if (!parsed) return null;
+      // The section heading and the block title often say the same thing. Show
+      // it once rather than stacking the same words twice.
+      const sameTitle =
+        typeof parsed.title === "string" &&
+        typeof section.heading === "string" &&
+        parsed.title.trim().toLowerCase() === section.heading.trim().toLowerCase();
+      let spec = parsed;
+      if (sameTitle) {
+        const { title: _omitted, ...rest } = parsed;
+        spec = rest as typeof parsed;
+      }
       return (
         <Shell wide>
           {section.heading || section.subheading || section.body ? <Heading section={section} /> : null}

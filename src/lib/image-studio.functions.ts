@@ -45,8 +45,23 @@ const MIME_EXTENSION: Record<string, string> = {
   "image/webp": "webp",
 };
 
+type MembershipReader = {
+  from: (table: "memberships") => {
+    select: (columns: string) => {
+      eq: (column: string, value: unknown) => {
+        eq: (column: string, value: unknown) => {
+          maybeSingle: () => Promise<{
+            data: { role: string | null } | null;
+            error: { message: string } | null;
+          }>;
+        };
+      };
+    };
+  };
+};
+
 async function assertCanManage(
-  supabase: { from: (table: string) => any },
+  supabase: MembershipReader,
   organizationId: string,
   userId: unknown,
 ) {
