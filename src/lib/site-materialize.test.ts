@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { planSiteContent, type MaterializeInput } from "@/lib/site-materialize.server";
+import { materializedSectionDesign } from "@/lib/site-materialize.server";
+import { DESIGN_DIRECTIONS } from "@/lib/design-directions";
 
 const input: MaterializeInput = {
   businessName: "Journey Detailing",
@@ -72,5 +74,22 @@ describe("planSiteContent", () => {
     expect(kinds).not.toContain("benefits");
     expect(kinds).not.toContain("trust_bar");
     expect(bare.map((page) => page.slug)).not.toContain("pricing");
+  });
+
+  it("gives every first-build section a visible, industry-specific design contract", () => {
+    const direction = DESIGN_DIRECTIONS.find((item) => item.id === "coastal-blue");
+    expect(direction).toBeTruthy();
+    const hero = materializedSectionDesign("hero", direction);
+    const services = materializedSectionDesign("services", direction);
+    expect(hero.variant).toMatch(/^hero-/);
+    expect(hero.settings).toMatchObject({
+      effect: direction?.heroEffect,
+      visual: { layout: "layered", max_width: "wide", image_treatment: "rounded" },
+    });
+    expect(services.variant).toMatch(/^cards-/);
+    expect(services.settings).toMatchObject({
+      effect: direction?.bodyEffect,
+      visual: { layout: "editorial", card_style: "soft" },
+    });
   });
 });

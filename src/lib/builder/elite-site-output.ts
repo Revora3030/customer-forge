@@ -32,9 +32,9 @@ function stableScore(value: string): number {
   return hash >>> 0;
 }
 
-function variantFor(section: Section, directionId: string): string {
-  const seed = stableScore(directionId + ":" + section.kind) % 4;
-  switch (section.kind) {
+export function variantForKind(kind: string, directionId: string): string {
+  const seed = stableScore(directionId + ":" + kind) % 4;
+  switch (kind) {
     case "hero": return ["hero-split", "hero-editorial", "hero-layered", "hero-focus"][seed]!;
     case "services": return ["cards-elevated", "cards-floating", "cards-editorial", "cards-clean"][seed]!;
     case "gallery": return ["gallery-editorial", "gallery-grid", "gallery-mosaic", "gallery-cinematic"][seed]!;
@@ -49,8 +49,8 @@ function variantFor(section: Section, directionId: string): string {
   }
 }
 
-function compositionFor(section: Section, dark: boolean) {
-  switch (section.kind) {
+export function compositionForKind(kind: string, dark: boolean) {
+  switch (kind) {
     case "hero":
       return {
         layout: "layered" as const,
@@ -158,13 +158,13 @@ export function compileEliteSiteOutput(
     actions.push({
       type: "set_section_variant",
       sectionId: section.id,
-      variant: variantFor(section, direction.id),
+      variant: variantForKind(section.kind, direction.id),
     });
     if (actions.length >= cap) break;
     actions.push({
       type: "set_section_visual",
       sectionId: section.id,
-      patch: compositionFor(section, dark),
+      patch: compositionForKind(section.kind, dark),
     });
     if (actions.length >= cap) break;
     const effect =

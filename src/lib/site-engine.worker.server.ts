@@ -304,7 +304,18 @@ async function runJob(
 
   // Materialize the plan into real pages/sections/components so the owner has
   // something to edit and publish. Skipped when the workspace already has pages.
-  const { materializeSiteContent } = await import("@/lib/site-materialize.server");
+  const [{ materializeSiteContent }, { recommendDirections }] = await Promise.all([
+    import("@/lib/site-materialize.server"),
+    import("@/lib/design-directions"),
+  ]);
+  const direction = recommendDirections({
+    businessName: org.data.name ?? "",
+    industry: org.data.industry ?? null,
+    services: serviceRows.map((service) => ({ name: service.name })),
+    city: (p["city"] as string) ?? null,
+    currentFont: (p["font_preference"] as string) ?? null,
+    count: 1,
+  })[0] ?? null;
   const built = await materializeSiteContent(db, orgId, {
     businessName: org.data.name ?? "",
     copy,
@@ -318,7 +329,30 @@ async function runJob(
     photoCount: (media.data ?? []).length,
     hasQuoteForm: (forms.data ?? []).length > 0,
     hasBooking: (bookable.data ?? []).length > 0,
+    direction,
   });
+
+  // A brand chosen by the owner wins. Only replace the untouched generated
+  // defaults during a first build, so onboarding produces a distinctive site
+  // without overwriting deliberate colours on an existing workspace.
+  const hasOwnerBrand = Boolean(
+    (p["font_preference"] as string) ||
+      (p["secondary_color"] as string) ||
+      (p["accent_color"] as string) ||
+      ((p["primary_color"] as string) && (p["primary_color"] as string).toLowerCase() !== "#34d399"),
+  );
+  if (!built.skipped && direction && !hasOwnerBrand) {
+    const { error: themeError } = await db
+      .from("business_profiles")
+      .update({
+        primary_color: direction.primary,
+        secondary_color: direction.secondary,
+        accent_color: direction.accent,
+        font_preference: direction.font,
+      } as never)
+      .eq("organization_id", orgId);
+    if (themeError) throw new Error(themeError.message);
+  }
 
   const report = {
     builtAt: new Date().toISOString(),
@@ -352,7 +386,13 @@ async function runJob(
     {
       organization_id: orgId,
       template: plan.template,
-      generation: { ...plan, copy, brief, report } as unknown as Record<string, unknown>,
+      generation: {
+        ...plan,
+        copy,
+        brief,
+        report,
+        ...(!built.skipped && direction ? { effects: { backdrop: direction.backdrop } } : {}),
+      } as unknown as Record<string, unknown>,
       generated_at: new Date().toISOString(),
       review_state: "ready_for_review",
       publish_state: keepState,

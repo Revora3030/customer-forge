@@ -288,10 +288,12 @@ export function BuilderCanvas({
   organizationId,
   pages,
   canManage,
+  refreshing = false,
 }: {
   organizationId: string | undefined;
   pages: ContentPage[];
   canManage: boolean;
+  refreshing?: boolean;
 }) {
   const [pageId, setPageId] = React.useState<string | null>(null);
   const [device, setDevice] = React.useState<Device>("desktop");
@@ -414,7 +416,12 @@ export function BuilderCanvas({
   };
 
   return (
-    <section className="panel overflow-hidden p-0">
+    <section className="panel relative overflow-hidden p-0" aria-busy={refreshing}>
+      {refreshing ? (
+        <div className="absolute inset-x-0 top-0 z-30 flex items-center justify-center bg-background/90 px-3 py-2 text-[12px] font-medium text-foreground backdrop-blur" role="status">
+          Updating your preview…
+        </div>
+      ) : null}
       <header className="flex flex-wrap items-center gap-2 border-b border-border p-3">
         <select
           aria-label="Page to edit"

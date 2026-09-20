@@ -55,6 +55,7 @@ export function useBuilderRequests({
     Array<{ role: "user" | "assistant"; content: string }>
   >([]);
   const [brand, setBrand] = useState<BrandPreference | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
   const queryClient = useQueryClient();
 
   // Honest report of what this device can do. Building never depends on it.
@@ -79,11 +80,19 @@ export function useBuilderRequests({
   const actionsRef = useRef(new Map<string, AgentStep>());
   const runningRef = useRef(false);
 
-  const refresh = () => {
-    void queryClient.invalidateQueries({ queryKey: ["website_content", organizationId] });
-    void queryClient.invalidateQueries({ queryKey: ["website_versions", organizationId] });
-    void queryClient.invalidateQueries({ queryKey: ["business-profile", organizationId] });
-    void queryClient.invalidateQueries({ queryKey: ["build_readiness"] });
+  const refresh = async () => {
+    setRefreshing(true);
+    try {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["website_content", organizationId] }),
+        queryClient.invalidateQueries({ queryKey: ["website_versions", organizationId] }),
+        queryClient.invalidateQueries({ queryKey: ["business_profile", organizationId] }),
+        queryClient.invalidateQueries({ queryKey: ["website_settings", organizationId] }),
+        queryClient.invalidateQueries({ queryKey: ["build_readiness", organizationId] }),
+      ]);
+    } finally {
+      setRefreshing(false);
+    }
   };
 
   const patch = (id: string, next: Partial<QueueTask>) =>
@@ -126,7 +135,7 @@ export function useBuilderRequests({
           metadata: { organization_id: organizationId ?? "", reason: "nothing_to_change" },
         });
         toast.error(message);
-        refresh();
+        await refresh();
         return;
       }
       patch(task.id, {
@@ -152,11 +161,12 @@ export function useBuilderRequests({
       });
       // Changes really reached the website — the step before going live.
       trackConversion("build_applied", { metadata: { organization_id: organizationId ?? "" } });
-      toast.success(
+      const toastMessage =
         `${result.applied} change${result.applied === 1 ? "" : "s"} applied to your draft.` +
-          (skipped ? ` ${skipped} skipped.` : ""),
-      );
-      refresh();
+        (skipped ? ` ${skipped} skipped.` : "");
+      if (partial) toast.warning(toastMessage);
+      else toast.success(toastMessage);
+      await refresh();
     } catch (error) {
       const message = friendlyError(error as Error, "Couldn't apply those changes.");
       patch(task.id, { state: "failed", error: message, retryable: true });
@@ -164,7 +174,7 @@ export function useBuilderRequests({
         metadata: { organization_id: organizationId ?? "", reason: "service_unavailable" },
       });
       toast.error(message);
-      refresh();
+      await refresh();
     }
   };
 
@@ -256,6 +266,7 @@ export function useBuilderRequests({
   return {
     tasks,
     busy,
+    refreshing,
     ready,
     summary,
     capabilities,

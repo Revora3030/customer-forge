@@ -22,6 +22,8 @@ export type PlanStep = {
   destructive: boolean;
   /** Unapproved steps are never sent to the builder. */
   included: boolean;
+  before?: string;
+  after?: string;
 };
 
 export type QueueTask = {
@@ -92,7 +94,7 @@ export function updateTask(tasks: QueueTask[], id: string, patch: Partial<QueueT
 }
 
 export function toPlanSteps(
-  steps: { key: string; title: string; where: string; destructive?: boolean }[],
+  steps: { key: string; title: string; where: string; destructive?: boolean; before?: string; after?: string }[],
 ): PlanStep[] {
   return steps.map((step) => ({
     key: step.key,
@@ -100,6 +102,8 @@ export function toPlanSteps(
     where: step.where,
     destructive: Boolean(step.destructive),
     included: true,
+    ...(step.before !== undefined ? { before: step.before } : {}),
+    ...(step.after !== undefined ? { after: step.after } : {}),
   }));
 }
 
