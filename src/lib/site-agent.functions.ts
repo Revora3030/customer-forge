@@ -122,6 +122,54 @@ type SupabaseLike = {
 
 /* --------------------------------- planning -------------------------------- */
 
+/** Words that mean "change how the pages are put together", not just the paint. */
+const COMPOSITION_WORDS = [
+  "layout",
+  "structure",
+  "sections",
+  "blocks",
+  "order",
+  "rearrange",
+  "reorder",
+  "redesign",
+  "design",
+  "look",
+  "style",
+  "rebuild",
+  "compose",
+  "restructure",
+  "homepage",
+  "home page",
+];
+
+function wantsComposition(instruction: string): boolean {
+  const text = instruction.toLowerCase();
+  return COMPOSITION_WORDS.some((word) => text.includes(word));
+}
+
+/** The owner's brand choices, read off the request before anything is composed. */
+function readBrand(
+  input: unknown,
+): import("@/lib/builder/ai-composition.server").BrandPreference | null {
+  if (!input || typeof input !== "object") return null;
+  const record = input as Record<string, unknown>;
+  const hex = (value: unknown) =>
+    typeof value === "string" && /^#[0-9a-fA-F]{6}$/.test(value) ? value : null;
+  const tone =
+    record['tone'] === "light" || record['tone'] === "dark" || record['tone'] === "any"
+      ? (record['tone'] as "light" | "dark" | "any")
+      : null;
+  const brand = {
+    tone,
+    primaryColor: hex(record['primaryColor']),
+    secondaryColor: hex(record['secondaryColor']),
+    accentColor: hex(record['accentColor']),
+    font: typeof record['font'] === "string" ? str(record['font'], 60) || null : null,
+    directionId: typeof record['directionId'] === "string" ? str(record['directionId'], 60) || null : null,
+  };
+  return Object.values(brand).some(Boolean) ? brand : null;
+}
+
 export const planWebsiteChanges = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator(
@@ -130,6 +178,7 @@ export const planWebsiteChanges = createServerFn({ method: "POST" })
       instruction: string;
       history?: { role: string; content: string }[];
       attachments?: unknown;
+      brand?: unknown;
     }) => {
       const organizationId = orgIdOf(input);
       const instruction = str(input?.instruction, PLAN_INSTRUCTION_LIMIT);
@@ -147,9 +196,10 @@ export const planWebsiteChanges = createServerFn({ method: "POST" })
             }))
             .filter((turn) => turn.content.length > 0)
         : [];
-      return { organizationId, instruction, history, attachments };
+      return { organizationId, instruction, history, attachments, brand: readBrand(input?.brand) };
     },
   )
+
 
   .handler(async ({ data, context }) =>
     planImpl(context.supabase as unknown as SupabaseLike, String(context.userId), data),
