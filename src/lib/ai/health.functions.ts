@@ -294,6 +294,8 @@ export type AiModelInventory = {
   /** The last few multi-model builds, with each model's part in them. */
   runs: import("@/lib/ai/ensemble.server").EnsembleRun[];
   lanes: { id: string; title: string; capability: string }[];
+  /** Measured reliability/latency per model, derived only from recorded calls. */
+  benchmarks: import("@/lib/ai/benchmark.server").ModelBenchmark[];
 };
 
 /**
@@ -313,6 +315,7 @@ export const getAiModelInventory = createServerFn({ method: "GET" })
 
     const { buildFreeModelRegistry } = await import("@/lib/ai/registry.server");
     const { ensembleRuns, ENSEMBLE_LANES } = await import("@/lib/ai/ensemble.server");
+    const { modelBenchmarks } = await import("@/lib/ai/benchmark.server");
 
     const deduped = new Map<string, InventoryModel>();
     for (const role of ["design", "primary", "coding", "fast", "vision"] as const) {
@@ -368,5 +371,6 @@ export const getAiModelInventory = createServerFn({ method: "GET" })
         title: lane.title,
         capability: lane.capability,
       })),
+      benchmarks: await modelBenchmarks(),
     };
   });
