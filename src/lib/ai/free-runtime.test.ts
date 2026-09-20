@@ -250,6 +250,7 @@ describe("free provider credentials never reach the browser", () => {
     "GROQ_API_KEY",
     "NVIDIA_NIM_API_KEY",
     "NVIDIA_API_KEY",
+    "LLM7_API_KEY",
     "GOOGLE_AI_FREE_API_KEY",
   ];
 
