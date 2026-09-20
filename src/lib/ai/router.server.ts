@@ -252,10 +252,16 @@ async function buildChain(role: ModelRole): Promise<Candidate[]> {
     for (const config of providerChain())
       candidates.push({ config, model: config.models[role], free: null });
 
-  return [
+  const ordered = [
     ...candidates.filter((entry) => providerHealthy(entry.config.name)),
     ...candidates.filter((entry) => !providerHealthy(entry.config.name)),
   ];
+  // The POOL is unlimited; one single request's FAILOVER depth is not, so a
+  // simple call can never turn into a 60-model latency wall. The ensemble
+  // orchestrator uses the full pool in parallel instead.
+  const failoverLimit = Number(process.env["AI_MAX_FAILOVER_CANDIDATES"] ?? "");
+  const cap = Number.isFinite(failoverLimit) && failoverLimit > 0 ? Math.floor(failoverLimit) : 8;
+  return ordered.slice(0, cap);
 }
 
 /**
