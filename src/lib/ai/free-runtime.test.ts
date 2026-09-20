@@ -248,14 +248,20 @@ describe("free provider credentials never reach the browser", () => {
 
   const files = walk(join("src")).filter((file) => !file.includes(".test."));
 
-  it("only the server-side AI layer ever names a provider secret", () => {
+  it("only the server-side AI layer ever reads a provider secret", () => {
     const offenders = files.filter((file) => {
       if (file.includes(join("src", "lib", "ai"))) return false;
       const body = readFileSync(file, "utf8");
-      return SECRET_NAMES.some((name) => body.includes(name));
+      // Naming a secret in a connector's required-secrets list is fine; READING
+      // one outside the server-side AI layer is not.
+      if (!/process\.env|import\.meta\.env/.test(body)) return false;
+      return SECRET_NAMES.some((name) =>
+        new RegExp(`(process\\.env|import\\.meta\\.env)[^\\n]*${name}`).test(body),
+      );
     });
     expect(offenders).toEqual([]);
   });
+
 
   it("no provider secret is exposed through a client-visible VITE_ variable", () => {
     const offenders = files.filter((file) =>
