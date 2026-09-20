@@ -225,27 +225,21 @@ export function AiRequestPanel({
 
   return (
     <section className="panel p-4 sm:p-5">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <h2 className="text-[18px] font-semibold tracking-tight">What do you want to build next?</h2>
-          <p className="mt-1 text-[12.5px] text-muted-foreground">
-            Tell Revora the result you want. It figures out the work.
-          </p>
-        </div>
+      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
+        <h2 className="min-w-0 text-[18px] font-semibold tracking-tight">
+          What do you want to change?
+        </h2>
         {conversation.length ? (
           <span className="shrink-0 rounded-full border border-border px-2 py-1 text-[10px] text-muted-foreground">
             Context on
           </span>
         ) : null}
       </div>
-      {capabilities ? (
-        <p className="mt-1 text-[12px] text-muted-foreground">{capabilities.summary}</p>
-      ) : null}
 
       <Textarea
-        className="mt-3 min-h-24 text-[13px]"
-        placeholder="Describe what you want to build or change…"
-        aria-label="Describe what you want to change"
+        className="mt-3 min-h-24 text-[14px]"
+        placeholder="Tell Revora what you want…"
+        aria-label="Tell Revora what you want"
         value={value}
         maxLength={INSTRUCTION_LIMIT}
         disabled={!ready}
@@ -254,6 +248,24 @@ export function AiRequestPanel({
           if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) queue(value);
         }}
       />
+
+      {/* Outcome-focused starters, visible without opening anything. */}
+      <div className="mt-2.5 flex flex-wrap gap-1.5">
+        {BUILDER_PRIMARY_ACTIONS.map((action) => (
+          <button
+            key={action.label}
+            type="button"
+            disabled={!ready}
+            onClick={() => queue(action.instruction)}
+            className={cn(
+              "min-h-9 cursor-pointer rounded-full border border-border px-3 py-1.5 text-[12.5px] text-muted-foreground transition-colors",
+              "hover:bg-elevated hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none disabled:opacity-50",
+            )}
+          >
+            {action.label}
+          </button>
+        ))}
+      </div>
 
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <Button
