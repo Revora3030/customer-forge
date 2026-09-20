@@ -118,3 +118,15 @@
   generation, draft/branch experiments, vision review of screenshots, large-build
   speed, motion depth, multi-page storytelling. Picture editing BLOCKED (no free
   edit-capable model). Email/CRM + Stripe BLOCKED on credentials.
+
+## Security warnings closed (2026-09-20)
+- Domain/SEO probes: every outbound check (redirects, robots/sitemap/canonical,
+  SEO report) already runs through net-guard.server guardedFetch — public DNS
+  names only, resolved addresses verified globally routable, no IP literals,
+  no credentials in the URL, standard ports only, redirects never auto-followed.
+  Re-verified: no unguarded fetch of a user-supplied host remains.
+- Billing: live policy check shows members can only read their subscription row;
+  insert/update/delete are denied by restrictive policies. No self-granting.
+- Link addresses: now enforced in the database itself
+  (website_components_link_url_safe_scheme) plus the two remaining code paths
+  (QA repair, page duplicate). New src/lib/link-safety.test.ts.
