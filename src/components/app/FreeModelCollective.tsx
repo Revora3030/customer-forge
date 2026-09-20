@@ -196,6 +196,54 @@ export function FreeModelCollective() {
               </div>
             )}
           </Panel>
+
+          <Panel className="space-y-3">
+            <SectionHeading
+              title="Measured model performance"
+              description="Trust is earned from recorded calls only. A model with too little history stays unproven and keeps getting work."
+            />
+            {data.benchmarks.length === 0 ? (
+              <EmptyState
+                icon={<Users className="size-5" />}
+                title="No measurements yet"
+                description="Once builds have run, each model's real success rate and speed appear here."
+              />
+            ) : (
+              <ul className="space-y-1">
+                {data.benchmarks.slice(0, 40).map((entry, index) => (
+                  <li
+                    key={`${entry.provider}-${entry.model}-${entry.task}-${index}`}
+                    className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-card/40 px-3 py-2 text-[12px]"
+                  >
+                    <span className="break-all">
+                      {label(entry.provider)} · {entry.model}
+                      <span className="text-muted-foreground"> · {entry.task}</span>
+                    </span>
+                    <span className="flex items-center gap-2 text-muted-foreground">
+                      <span>
+                        {Math.round(entry.reliability * 100)}% of {entry.samples} calls
+                        {entry.medianLatencyMs !== null
+                          ? ` · ${(entry.medianLatencyMs / 1000).toFixed(1)}s`
+                          : ""}
+                      </span>
+                      <Pill
+                        tone={
+                          entry.verdict === "PROVEN"
+                            ? "success"
+                            : entry.verdict === "DEGRADED"
+                              ? "danger"
+                              : "neutral"
+                        }
+                        dot
+                      >
+                        {entry.verdict.toLowerCase()}
+                      </Pill>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Panel>
         </>
       ) : null}
     </div>
