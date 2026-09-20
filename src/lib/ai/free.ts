@@ -207,6 +207,16 @@ function openRouterFree(model: string) {
 const GROQ_NON_CHAT = /whisper|orpheus|prompt-guard|safeguard|tts|playai/i;
 
 /**
+ * Models that are not text generation at all, wherever they are hosted:
+ * safety/guard classifiers, embedders, rerankers, speech models and the LoRA
+ * adapter variants Cloudflare lists alongside real models. Live discovery would
+ * otherwise offer one of these as a writer and waste a request on a useless
+ * answer, so they are rejected for every provider that has no stricter filter.
+ */
+const NON_CHAT_MODEL =
+  /guard|safety|safeguard|moderation|embed|rerank|retriev|whisper|orpheus|\btts\b|-lora\b|lora$|classifier/i;
+
+/**
  * Groq ids are vendor-prefixed (`openai/gpt-oss-120b`), so the paid-name check
  * has to run on the model part as well — otherwise a prefix would smuggle a
  * paid family past it. `gpt-oss` is OpenAI's open-weight family Groq serves
