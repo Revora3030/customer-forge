@@ -435,7 +435,17 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
     let composed: Awaited<
       ReturnType<typeof import("@/lib/builder/ai-composition.server").proposeSiteComposition>
     > = null;
-    if ((deterministic.intent.wholeSite || wantsComposition(instruction)) && !zeroCost) {
+    // The agency sits on every substantial request now, not only a whole-site
+    // redesign: any request that is not a tiny literal edit gets the full free
+    // pool composing structure and look-and-feel. A one-word or one-colour fix
+    // stays deterministic and instant, and the owner's saved brand still wins
+    // unless they actually asked for a new look (see brand-lock).
+    const { ensembleModeFor } = await import("@/lib/ai/ensemble.server");
+    const composeWanted =
+      deterministic.intent.wholeSite ||
+      wantsComposition(instruction) ||
+      ensembleModeFor(instruction) !== "minimal";
+    if (composeWanted && !zeroCost) {
       const { proposeSiteComposition } = await import("@/lib/builder/ai-composition.server");
       composed = await proposeSiteComposition(agentContext, {
         instruction,
