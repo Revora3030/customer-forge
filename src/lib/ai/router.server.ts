@@ -43,7 +43,7 @@ import {
   noteFreeUse,
   type FreeProviderName,
 } from "@/lib/ai/free";
-import { pickDiscoveredModel, refreshFreeModels } from "@/lib/ai/free-models.server";
+import { pickDiscoveredModels, refreshFreeModels } from "@/lib/ai/free-models.server";
 import { cloudflareAdapter } from "@/lib/ai/providers/cloudflare";
 import { googleAdapter } from "@/lib/ai/providers/google";
 import { groqAdapter } from "@/lib/ai/providers/groq";
