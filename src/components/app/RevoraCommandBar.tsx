@@ -73,7 +73,7 @@ export function RevoraCommandBar({ className }: { className?: string }) {
           placeholder="e.g. I want more emergency callouts from my home page"
           autoComplete="off"
         />
-        <Button type="submit" disabled={!value.trim()}>
+        <Button type="submit" disabled={!value.trim()} className="shrink-0 whitespace-nowrap">
           Go <ArrowRight className="ml-2 size-4" aria-hidden />
         </Button>
       </form>

@@ -146,9 +146,9 @@ export function BuilderShell({
             </div>
           </div>
 
-          {/* Wraps onto a second line on a phone instead of sliding half of the
-              actions off the edge of the screen. */}
-          <div className="flex w-full min-w-0 flex-wrap items-center justify-end gap-2 sm:w-auto sm:flex-nowrap [&_a]:whitespace-nowrap [&_button]:shrink-0 [&_button]:whitespace-nowrap">
+          {/* On a phone the actions form an even two-column block instead of
+              wrapping into a ragged line with one stranded button. */}
+          <div className="grid w-full min-w-0 grid-cols-2 items-center gap-2 sm:flex sm:w-auto sm:flex-nowrap sm:justify-end [&>a]:w-full [&>a]:justify-center [&>a]:whitespace-nowrap [&>button]:w-full [&>button]:justify-center [&>button]:whitespace-nowrap sm:[&>a]:w-auto sm:[&>button]:w-auto">
             <UndoRedo />
             {actions}
           </div>
