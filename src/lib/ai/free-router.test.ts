@@ -276,9 +276,16 @@ describe("builder availability", () => {
 
   it("reports voice as available from the free tier, and pictures too", async () => {
     process.env["GOOGLE_AI_FREE_API_KEY"] = "google-free-key";
+    process.env["CLOUDFLARE_AI_API_TOKEN"] = "cf-token";
+    process.env["CLOUDFLARE_ACCOUNT_ID"] = "cf-account";
     vi.resetModules();
     const { builderMediaAvailability } = await import("@/lib/ai/availability");
-    expect(builderMediaAvailability()).toEqual({ vision: true, voice: true, source: "free" });
+    expect(builderMediadAvailabilityShape(builderMediaAvailability())).toEqual({
+      vision: true,
+      voice: true,
+      images: true,
+      source: "free",
+    });
   });
 });
 
