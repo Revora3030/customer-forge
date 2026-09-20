@@ -96,6 +96,10 @@ const FREE_MODEL_DEFAULTS: Record<FreeProviderName, Partial<Record<ModelRole, st
     fast: "@cf/meta/llama-3.2-3b-instruct",
     coding: "@cf/qwen/qwen2.5-coder-32b-instruct",
     vision: "@cf/meta/llama-4-scout-17b-16e-instruct",
+    // Live-verified on this account: returns a JPEG inside the free Neuron
+    // allowance. Cloudflare's other zero-price image models are reached through
+    // live discovery as backups.
+    image: "@cf/black-forest-labs/flux-1-schnell",
   },
   // Verified live against Groq's free developer-tier catalogue. Groq serves no
   // multimodal model to this key, so `vision` is deliberately absent and the
