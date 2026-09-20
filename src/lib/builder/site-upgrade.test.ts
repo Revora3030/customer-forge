@@ -232,3 +232,114 @@ describe("planWholeSiteUpgrade — site-wide passes", () => {
     expect(reorder && "componentIds" in reorder ? reorder.componentIds : []).toEqual(["txt", "btn"]);
   });
 });
+
+describe("planWholeSiteUpgrade — honesty and detail passes", () => {
+  const intent = () => interpret("redesign my whole website", []);
+
+  it("adds one-tap call and email links to a closing section from real details only", () => {
+    const context = ctx({ business: { phone: "(512) 555-0134", email: "hi@bluebird.com" } });
+    const page = context.pages[0]!;
+    page.sections.push({
+      id: "s3",
+      kind: "contact",
+      variant: "default",
+      is_visible: true,
+      heading: "Get in touch",
+      subheading: null,
+      body: null,
+      sort_order: 2,
+      components: [],
+    });
+    const plan = planWholeSiteUpgrade(context, intent(), { cap: 60 });
+    const urls = plan
+      .filter((a) => a.type === "add_component")
+      .map((a) => (a as { link_url?: string }).link_url ?? "");
+    expect(urls.some((url) => url.startsWith("tel:"))).toBe(true);
+    expect(urls.some((url) => url.startsWith("mailto:"))).toBe(true);
+  });
+
+  it("never adds contact links when the workspace has no phone or email", () => {
+    const plan = planWholeSiteUpgrade(ctx(), intent(), { cap: 60 });
+    const urls = plan
+      .filter((a) => a.type === "add_component")
+      .map((a) => (a as { link_url?: string }).link_url ?? "");
+    expect(urls.some((url) => url.startsWith("tel:") || url.startsWith("mailto:"))).toBe(false);
+  });
+
+  it("rewrites a vague button label into a real next step", () => {
+    const context = ctx({ business: { phone: "512-555-0134" } });
+    const page = context.pages[0]!;
+    page.sections[1]!.components.push({
+      id: "btn",
+      kind: "button",
+      label: "Click here",
+      body: null,
+      link_label: null,
+      link_url: null,
+      sort_order: 0,
+    });
+    const plan = planWholeSiteUpgrade(context, intent(), { cap: 60 });
+    const relabel = plan.find((a) => a.type === "set_component" && a.componentId === "btn");
+    expect(relabel).toBeDefined();
+  });
+
+  it("hides an empty section and a photo wall with no photos", () => {
+    const context = ctx();
+    const page = context.pages[0]!;
+    page.sections.push(
+      {
+        id: "empty",
+        kind: "intro",
+        variant: "default",
+        is_visible: true,
+        heading: null,
+        subheading: null,
+        body: null,
+        sort_order: 3,
+        components: [],
+      },
+      {
+        id: "gal",
+        kind: "gallery",
+        variant: "default",
+        is_visible: true,
+        heading: "Our work",
+        subheading: null,
+        body: null,
+        sort_order: 4,
+        components: [],
+      },
+    );
+    const plan = planWholeSiteUpgrade(context, intent(), { cap: 60 });
+    const hidden = plan
+      .filter((a) => a.type === "set_section_visibility")
+      .map((a) => (a as { sectionId: string }).sectionId);
+    expect(hidden).toContain("empty");
+    expect(hidden).toContain("gal");
+  });
+
+  it("lists the owner's real services with their real prices only", () => {
+    const context = ctx({
+      business: {
+        services: [
+          { name: "Emergency plumbing", price: null, startingPrice: 120 },
+          { name: "Boiler service", price: 89, startingPrice: null },
+        ],
+      },
+    });
+    const plan = planWholeSiteUpgrade(context, intent(), { cap: 60 });
+    const added = plan.filter((a) => a.type === "add_component" && a.sectionId === "s2");
+    const labels = added.map((a) => (a as { label?: string }).label);
+    expect(labels).toContain("Emergency plumbing");
+    const bodies = added.map((a) => (a as { body?: string }).body ?? "");
+    expect(bodies.join(" ")).toMatch(/From \$120|\$89/);
+  });
+
+  it("gives every indexable page sharing metadata built from its own words", () => {
+    const plan = planWholeSiteUpgrade(ctx(), intent(), { cap: 60 });
+    const share = plan.find(
+      (a) => a.type === "set_page" && Boolean((a as { patch: { og_title?: string } }).patch.og_title),
+    );
+    expect(share).toBeDefined();
+  });
+});
