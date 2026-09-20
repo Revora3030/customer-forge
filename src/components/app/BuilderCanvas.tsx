@@ -500,7 +500,7 @@ export function BuilderCanvas({
       >
         {/* Layers */}
         {showLayers ? (
-          <aside className="max-h-[70vh] overflow-auto border-b border-border bg-card/30 p-2 lg:border-r lg:border-b-0">
+          <aside className="max-h-[70vh] overflow-auto border-b border-border bg-card/30 p-2 @min-[960px]:border-r @min-[960px]:border-b-0">
             <p className="px-1 pb-1 text-[11px] tracking-wide text-muted-foreground uppercase">
               Page structure
             </p>
@@ -916,7 +916,7 @@ export function BuilderCanvas({
         </div>
 
         {/* Inspector */}
-        <aside className="border-t border-border bg-card/40 p-4 lg:border-t-0 lg:border-l">
+        <aside className="border-t border-border bg-card/40 p-4 @min-[760px]:border-t-0 @min-[760px]:border-l">
           {!selectedSection ? (
             <>
               <p className="text-[13px] font-medium">Nothing selected</p>
