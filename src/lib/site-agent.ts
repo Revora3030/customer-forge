@@ -7,6 +7,7 @@ import {
   type SectionEffectId,
 } from "@/lib/site-effects";
 import { safeLinkUrl } from "@/lib/website-content";
+import { describeCustomBlock, parseCustomBlock, type CustomBlockSpec } from "@/lib/builder/custom-block";
 
 /**
  * REVORA SITE AGENT — MASTER ACTION CONTRACT
