@@ -658,9 +658,8 @@ function Landing() {
               The only website you'll ever have to think about again.
             </h2>
             <p className="mx-auto mt-4 max-w-xl text-[15px] leading-relaxed text-muted-foreground">
-              Stop losing customers between the first click and the final booking. Website, leads,
-              quotes, bookings, follow-up, reviews and analytics — one system, running around the
-              clock.
+              Website, leads, quotes, bookings, follow-up, reviews and analytics — one system,
+              running around the clock.
             </p>
             <div className="mt-8 flex flex-col items-center gap-4">
               <PrimaryCta className="justify-center" />
