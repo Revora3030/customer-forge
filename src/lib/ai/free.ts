@@ -112,6 +112,14 @@ const FREE_MODEL_DEFAULTS: Record<FreeProviderName, Partial<Record<ModelRole, st
     coding: "nvidia/nemotron-3-super-120b-a12b",
     vision: "meta/llama-3.2-11b-vision-instruct",
   },
+  // Verified live against LLM7's catalogue: only its non usage-based (free)
+  // chat models. LLM7 serves no free multimodal model, so `vision` is absent
+  // and the router moves on to a provider that can read pictures.
+  llm7: {
+    primary: "codestral-latest",
+    fast: "mistral-Nemo-Instruct-2407",
+    coding: "codestral-latest",
+  },
   // Verified live against OpenRouter's zero-price pool. `openrouter/free` is
   // its free auto-router, so it survives individual models being retired.
   openrouter: {
