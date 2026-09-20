@@ -481,6 +481,13 @@ async function run<T>(
                 : providerUnavailable(config.name, (rawError as Error)?.message?.slice(0, 120));
           lastError = error;
           noteFailure(config.name);
+          if (candidate.free)
+            void noteDurableProviderResult({
+              provider: candidate.free,
+              ok: false,
+              latencyMs: Date.now() - started,
+              rateLimited: error.category === "rate_limited",
+            });
           lastOutcome = {
             at: Date.now(),
             provider: config.name,
