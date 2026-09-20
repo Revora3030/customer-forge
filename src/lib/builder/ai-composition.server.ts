@@ -368,7 +368,9 @@ export async function proposeSiteComposition(
         userId: options.userId ?? null,
       },
       {
-        role: "primary",
+        // Look-and-feel and page composition are creative judgement, so this
+        // runs on the strongest free model available, not the cheapest.
+        role: "design",
         json: true,
         messages: [
           { role: "system", content: SYSTEM },
