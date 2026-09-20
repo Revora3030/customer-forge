@@ -199,15 +199,58 @@ async function llm7FreeModels(credentials: FreeProviderCredentials) {
 }
 
 /**
+ * Cloudflare image models Revora may run: the text-to-image catalogue, minus
+ * anything priced above zero, minus partner models with unverified pricing, and
+ * minus the inpainting model (it needs a mask Revora does not supply). Every id
+ * still passes `isFreeEligibleModel`, so a billed model can never enter a chain.
+ */
+async function cloudflareFreeImageModels(credentials: FreeProviderCredentials) {
+  if (!credentials.accountId) return [];
+  const payload = await fetchJson(
+    `https://api.cloudflare.com/client/v4/accounts/${credentials.accountId}/ai/models/search?task=Text-to-Image&per_page=100`,
+    { authorization: `Bearer ${credentials.apiKey}` },
+  );
+  const result = (payload as { result?: unknown[] } | null)?.result;
+  if (!Array.isArray(result)) return [];
+  const free: string[] = [];
+  for (const raw of result) {
+    const entry = raw as { name?: unknown; properties?: unknown[] };
+    if (typeof entry.name !== "string") continue;
+    if (/inpainting|img2img/i.test(entry.name)) continue;
+    const properties = Array.isArray(entry.properties) ? entry.properties : [];
+    let billed = false;
+    for (const property of properties) {
+      const item = property as { property_id?: unknown; value?: unknown };
+      const id = String(item.property_id ?? "").toLowerCase();
+      if (id === "partner" && String(item.value ?? "").toLowerCase() === "true") billed = true;
+      if (id === "price" && Array.isArray(item.value))
+        for (const price of item.value as { price?: unknown }[])
+          if (Number(price?.price ?? 0) > 0) billed = true;
+    }
+    if (!billed && isFreeEligibleModel("cloudflare", entry.name)) free.push(entry.name);
+  }
+  return free;
+}
+
+/**
  * Refreshes one provider's free pool. Safe to call often: it returns the cached
- * list until the TTL expires and swallows every provider failure.
+ * list until the TTL expires and swallows every provider failure. Pass
+ * `role: "image"` to refresh the text-to-image pool instead of the text pool.
  */
 export async function refreshFreeModels(
   provider: FreeProviderName,
   credentials: FreeProviderCredentials,
+  role?: ModelRole,
 ): Promise<string[]> {
-  const cached = cache.get(provider);
+  const key = poolKey(provider, role);
+  const cached = cache.get(key);
   if (cached && Date.now() - cached.at < TTL_MS) return cached.models;
+  if (role === "image") {
+    // Cloudflare is the only configured provider serving free image models.
+    const images = provider === "cloudflare" ? await cloudflareFreeImageModels(credentials) : [];
+    cache.set(key, { at: Date.now(), models: images });
+    return images;
+  }
   const models =
     provider === "openrouter"
       ? await openRouterFreeModels(credentials)
