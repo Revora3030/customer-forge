@@ -580,10 +580,20 @@ function readNewPages(text: string): string[] {
     for (const match of text.matchAll(pattern)) {
       const label = clean(match[1] ?? "")
         .replace(/\b(new|another|the|my|a|an)\b/gi, "")
+        .replace(/\s+/g, " ")
         .trim();
 
-      if (
+      // A page name is short and self-contained. Anything carrying a preposition
+      // or naming part of a page ("stronger button to the services") describes
+      // work on an existing page, not a page to create.
+      const looksLikeAPageName =
         label.length > 1 &&
+        label.split(" ").length <= 4 &&
+        !/\b(?:to|on|in|of|for|from|with|and)\b/i.test(label) &&
+        !new RegExp(`\\b(?:${PAGE_PART})\\b`, "i").test(label);
+
+      if (
+        looksLikeAPageName &&
         !isWholeSiteLabel(label) &&
         !out.some((existing) => lower(existing) === lower(label))
       ) {
@@ -591,6 +601,7 @@ function readNewPages(text: string): string[] {
       }
     }
   }
+
 
   return out.slice(0, 8);
 }
