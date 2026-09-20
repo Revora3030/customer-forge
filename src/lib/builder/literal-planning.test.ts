@@ -15,16 +15,7 @@ const HOME_ID = "33333333-3333-4333-8333-333333333333";
 const HERO_ID = "11111111-1111-4111-8111-111111111111";
 const BUTTON_ID = "44444444-4444-4444-8444-444444444444";
 
-const SECTION_KINDS = [
-  "hero",
-  "intro",
-  "services",
-  "pricing",
-  "reviews",
-  "faq",
-  "contact",
-  "cta",
-];
+const SECTION_KINDS = ["hero", "intro", "services", "pricing", "reviews", "faq", "contact", "cta"];
 
 function context(): AgentContext {
   return {
@@ -133,10 +124,7 @@ describe("exact wording requests are applied, not questioned", () => {
   });
 
   it("updates a real contact detail when asked, and never invents one", () => {
-    const plan = buildDeterministicPlan(
-      context(),
-      "Change my phone number to 0113 496 1234",
-    );
+    const plan = buildDeterministicPlan(context(), "Change my phone number to 0113 496 1234");
 
     expect(plan.actions.find((action) => action.type === "set_business_fact")).toMatchObject({
       field: "phone",

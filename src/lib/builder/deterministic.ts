@@ -61,32 +61,15 @@
 import type { AgentAction } from "@/lib/site-agent";
 import type { AgentContext } from "@/lib/site-agent.server";
 
-import {
-  interpret,
-  type BuilderIntent,
-} from "./interpreter";
+import { interpret, type BuilderIntent } from "./interpreter";
 
 import { readLiteralDirectives } from "./literal";
 
+import { playbookFor, type IndustryPlaybook } from "./industry";
 
-import {
-  playbookFor,
-  type IndustryPlaybook,
-} from "./industry";
+import { designDecision, hierarchySort } from "./design";
 
-import {
-  designDecision,
-  hierarchySort,
-} from "./design";
-
-import {
-  ctaTarget,
-  faqQuestions,
-  pageSeo,
-  place,
-  sectionCopy,
-  type CopyFacts,
-} from "./copy";
+import { ctaTarget, faqQuestions, pageSeo, place, sectionCopy, type CopyFacts } from "./copy";
 
 /* -------------------------------------------------------------------------- */
 /* Constants                                                                  */
@@ -259,12 +242,9 @@ const factsOf = (context: Ctx): CopyFacts => ({
 /* -------------------------------------------------------------------------- */
 
 const cleanText = (value: unknown): string =>
-  typeof value === "string"
-    ? value.replace(/\s+/g, " ").trim()
-    : "";
+  typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "";
 
-const lower = (value: string): string =>
-  cleanText(value).toLowerCase();
+const lower = (value: string): string => cleanText(value).toLowerCase();
 
 const slugify = (value: string): string =>
   cleanText(value)
@@ -278,11 +258,9 @@ const titleCase = (value: string): string =>
     .replace(/\b\w/g, (character) => character.toUpperCase())
     .slice(0, 120);
 
-const unique = <T>(values: T[]): T[] =>
-  [...new Set(values)];
+const unique = <T>(values: T[]): T[] => [...new Set(values)];
 
-const hasText = (value: string | null | undefined): boolean =>
-  Boolean(cleanText(value));
+const hasText = (value: string | null | undefined): boolean => Boolean(cleanText(value));
 
 /* -------------------------------------------------------------------------- */
 /* Page resolution                                                            */
@@ -294,13 +272,8 @@ const hasText = (value: string | null | undefined): boolean =>
  * Matching is intentionally conservative.
  * We never manufacture a page ID.
  */
-function targetPage(
-  context: Ctx,
-  intent: BuilderIntent,
-): Page | null {
-  const hints = intent.pageHints
-    .map((hint) => lower(hint))
-    .filter(Boolean);
+function targetPage(context: Ctx, intent: BuilderIntent): Page | null {
+  const hints = intent.pageHints.map((hint) => lower(hint)).filter(Boolean);
 
   for (const hint of hints) {
     const match = context.pages.find((page) => {
@@ -308,12 +281,7 @@ function targetPage(
       const title = lower(page.title);
       const kind = lower(page.kind);
 
-      return (
-        slug === hint ||
-        slug === hint.replace(/^\/+/, "") ||
-        title === hint ||
-        kind === hint
-      );
+      return slug === hint || slug === hint.replace(/^\/+/, "") || title === hint || kind === hint;
     });
 
     if (match) return match;
@@ -334,34 +302,19 @@ function targetPage(
 /* Section helpers                                                            */
 /* -------------------------------------------------------------------------- */
 
-const sectionsOf = (
-  page: Page | null,
-): Section[] => page?.sections ?? [];
+const sectionsOf = (page: Page | null): Section[] => page?.sections ?? [];
 
-const findSection = (
-  page: Page | null,
-  kind: string,
-): Section | undefined =>
-  sectionsOf(page).find(
-    (section) => lower(section.kind) === lower(kind),
-  );
+const findSection = (page: Page | null, kind: string): Section | undefined =>
+  sectionsOf(page).find((section) => lower(section.kind) === lower(kind));
 
-const findSections = (
-  page: Page | null,
-  kind: string,
-): Section[] =>
-  sectionsOf(page).filter(
-    (section) => lower(section.kind) === lower(kind),
-  );
+const findSections = (page: Page | null, kind: string): Section[] =>
+  sectionsOf(page).filter((section) => lower(section.kind) === lower(kind));
 
 /**
  * Avoid creating duplicate sections when a page already contains the same
  * semantic block.
  */
-const hasSectionKind = (
-  page: Page | null,
-  kind: string,
-): boolean =>
+const hasSectionKind = (page: Page | null, kind: string): boolean =>
   Boolean(findSection(page, kind));
 
 /* -------------------------------------------------------------------------- */
@@ -375,92 +328,47 @@ const hasSectionKind = (
  * Generic fallback exists only because custom industries/pages may not have
  * a dedicated page recipe.
  */
-function pageSectionPlan(
-  kind: string,
-  playbook: IndustryPlaybook,
-): string[] {
+function pageSectionPlan(kind: string, playbook: IndustryPlaybook): string[] {
   const normalized = lower(kind);
 
   if (normalized === "services") {
-    return unique([
-      ...playbook.servicePageSections,
-      "faq",
-      "cta",
-    ]).slice(0, MAX_SECTIONS_PER_PAGE);
+    return unique([...playbook.servicePageSections, "faq", "cta"]).slice(0, MAX_SECTIONS_PER_PAGE);
   }
 
   if (normalized === "about") {
-    return unique([
-      "hero",
-      "intro",
-      "benefits",
-      "area",
-      "cta",
-    ]).slice(0, MAX_SECTIONS_PER_PAGE);
+    return unique(["hero", "intro", "benefits", "area", "cta"]).slice(0, MAX_SECTIONS_PER_PAGE);
   }
 
   if (normalized === "contact") {
-    return unique([
-      "hero",
-      "contact",
-      "area",
-      "cta",
-    ]).slice(0, MAX_SECTIONS_PER_PAGE);
+    return unique(["hero", "contact", "area", "cta"]).slice(0, MAX_SECTIONS_PER_PAGE);
   }
 
   if (normalized === "pricing") {
-    return unique([
-      "hero",
-      "pricing",
-      "faq",
-      "cta",
-    ]).slice(0, MAX_SECTIONS_PER_PAGE);
+    return unique(["hero", "pricing", "faq", "cta"]).slice(0, MAX_SECTIONS_PER_PAGE);
   }
 
-  if (
-    normalized === "book" ||
-    normalized === "booking"
-  ) {
-    return unique([
-      "hero",
-      "booking",
-      "cta",
-    ]).slice(0, MAX_SECTIONS_PER_PAGE);
+  if (normalized === "book" || normalized === "booking") {
+    return unique(["hero", "booking", "cta"]).slice(0, MAX_SECTIONS_PER_PAGE);
   }
 
   if (normalized === "gallery") {
-    return unique([
-      "hero",
-      "gallery",
-      "cta",
-    ]).slice(0, MAX_SECTIONS_PER_PAGE);
+    return unique(["hero", "gallery", "cta"]).slice(0, MAX_SECTIONS_PER_PAGE);
   }
 
   if (normalized === "reviews") {
-    return unique([
-      "hero",
-      "reviews",
-      "cta",
-    ]).slice(0, MAX_SECTIONS_PER_PAGE);
+    return unique(["hero", "reviews", "cta"]).slice(0, MAX_SECTIONS_PER_PAGE);
   }
 
-  return unique([
-    "hero",
-    "intro",
-    "services",
-    "benefits",
-    "faq",
-    "cta",
-  ]).slice(0, MAX_SECTIONS_PER_PAGE);
+  return unique(["hero", "intro", "services", "benefits", "faq", "cta"]).slice(
+    0,
+    MAX_SECTIONS_PER_PAGE,
+  );
 }
 
 /**
  * Infer a page kind from an owner-created page name.
  */
-function pageKindFromLabel(
-  label: string,
-  slug: string,
-): string {
+function pageKindFromLabel(label: string, slug: string): string {
   const text = `${label} ${slug}`.toLowerCase();
 
   const map: Array<[RegExp, string]> = [
@@ -492,8 +400,7 @@ function pageKindFromLabel(
  * JSON.stringify is safe here because AgentAction is a plain discriminated
  * union with deterministic property order produced by this compiler.
  */
-const actionKey = (action: AgentAction): string =>
-  JSON.stringify(action);
+const actionKey = (action: AgentAction): string => JSON.stringify(action);
 
 /**
  * Push an action only once.
@@ -505,9 +412,7 @@ function createActionCollector(cap: number) {
   const actions: AgentAction[] = [];
   const seen = new Set<string>();
 
-  const push = (
-    action: AgentAction,
-  ): boolean => {
+  const push = (action: AgentAction): boolean => {
     if (actions.length >= cap) return false;
 
     const key = actionKey(action);
@@ -522,8 +427,7 @@ function createActionCollector(cap: number) {
   return {
     actions,
     push,
-    has: (action: AgentAction) =>
-      seen.has(actionKey(action)),
+    has: (action: AgentAction) => seen.has(actionKey(action)),
   };
 }
 
@@ -541,10 +445,7 @@ function tempPageRef(index: number): string {
   return `temp_page_${index}`;
 }
 
-function tempSectionRef(
-  pageIndex: number,
-  sectionIndex: number,
-): string {
+function tempSectionRef(pageIndex: number, sectionIndex: number): string {
   return `temp_section_${pageIndex}_${sectionIndex}`;
 }
 
@@ -568,17 +469,12 @@ function tempSectionRef(
  *
  * Each section is paired with the verbs belonging to its clause.
  */
-function sectionOperations(
-  intent: BuilderIntent,
-): {
+function sectionOperations(intent: BuilderIntent): {
   kind: string;
   verbs: BuilderIntent["verbs"];
 }[] {
   const clauseOperations = intent.operations
-    .filter(
-      (operation) =>
-        operation.sectionKinds.length > 0,
-    )
+    .filter((operation) => operation.sectionKinds.length > 0)
     .flatMap((operation) =>
       operation.sectionKinds.map((kind) => ({
         kind,
@@ -600,23 +496,15 @@ function sectionOperations(
 /* Existing page checks                                                       */
 /* -------------------------------------------------------------------------- */
 
-function pageAlreadyExists(
-  context: Ctx,
-  slug: string,
-): boolean {
+function pageAlreadyExists(context: Ctx, slug: string): boolean {
   const normalized = slug.replace(/^\/+/, "");
 
   return context.pages.some(
-    (page) =>
-      page.slug
-        .replace(/^\/+/, "")
-        .toLowerCase() === normalized.toLowerCase(),
+    (page) => page.slug.replace(/^\/+/, "").toLowerCase() === normalized.toLowerCase(),
   );
 }
 
-function pageIsVisible(
-  page: Page,
-): boolean {
+function pageIsVisible(page: Page): boolean {
   /**
    * The AgentContext contract does not guarantee an `is_visible` property
    * on the page object in every version of the application.
@@ -638,19 +526,11 @@ function sectionTextActions(
   facts: CopyFacts,
   playbook: IndustryPlaybook,
 ): number {
-  const copy = sectionCopy(
-    section.kind,
-    facts,
-    playbook,
-  );
+  const copy = sectionCopy(section.kind, facts, playbook);
 
   let count = 0;
 
-  if (
-    copy.heading &&
-    cleanText(copy.heading) !==
-      cleanText(section.heading)
-  ) {
+  if (copy.heading && cleanText(copy.heading) !== cleanText(section.heading)) {
     if (
       push({
         type: "set_section_text",
@@ -663,11 +543,7 @@ function sectionTextActions(
     }
   }
 
-  if (
-    copy.subheading &&
-    cleanText(copy.subheading) !==
-      cleanText(section.subheading)
-  ) {
+  if (copy.subheading && cleanText(copy.subheading) !== cleanText(section.subheading)) {
     if (
       push({
         type: "set_section_text",
@@ -680,11 +556,7 @@ function sectionTextActions(
     }
   }
 
-  if (
-    copy.body &&
-    cleanText(copy.body) !==
-      cleanText(section.body)
-  ) {
+  if (copy.body && cleanText(copy.body) !== cleanText(section.body)) {
     if (
       push({
         type: "set_section_text",
@@ -711,25 +583,15 @@ export function buildDeterministicPlan(
 ): DeterministicPlan {
   const originalInstruction = cleanText(instruction);
 
-  const intent = interpret(
-    originalInstruction,
-    options.history ?? [],
-  );
+  const intent = interpret(originalInstruction, options.history ?? []);
 
-  const playbook =
-    intent.industry ??
-    playbookFor(
-      context.business.industry,
-      originalInstruction,
-    );
+  const playbook = intent.industry ?? playbookFor(context.business.industry, originalInstruction);
 
   const facts = factsOf(context);
 
   const wholeSite = Boolean(intent.wholeSite);
 
-  const cap = wholeSite
-    ? MAX_ACTIONS_WHOLE_SITE
-    : MAX_ACTIONS;
+  const cap = wholeSite ? MAX_ACTIONS_WHOLE_SITE : MAX_ACTIONS;
 
   const collector = createActionCollector(cap);
 
@@ -743,24 +605,15 @@ export function buildDeterministicPlan(
 
   const completedAreas = new Set<string>();
 
-  const page = targetPage(
-    context,
-    intent,
-  );
+  const page = targetPage(context, intent);
 
-  const allowedSections =
-    new Set(context.sectionKinds);
+  const allowedSections = new Set(context.sectionKinds);
 
-  const attachments =
-    options.attachments ?? [];
+  const attachments = options.attachments ?? [];
 
-  trace.push(
-    `Parsed the request locally using Revora's deterministic builder.`,
-  );
+  trace.push(`Parsed the request locally using Revora's deterministic builder.`);
 
-  trace.push(
-    `Selected the ${playbook.label} industry playbook.`,
-  );
+  trace.push(`Selected the ${playbook.label} industry playbook.`);
 
   if (wholeSite) {
     trace.push(
@@ -772,10 +625,7 @@ export function buildDeterministicPlan(
   /* Task helper                                                              */
   /* ------------------------------------------------------------------------ */
 
-  const task = (
-    title: string,
-    work: () => boolean,
-  ) => {
+  const task = (title: string, work: () => boolean) => {
     const before = actions.length;
 
     let completed = false;
@@ -787,22 +637,16 @@ export function buildDeterministicPlan(
        * The compiler must never take down the builder because one optional
        * planning branch failed.
        */
-      notes.push(
-        `${title} could not be planned safely and was skipped.`,
-      );
+      notes.push(`${title} could not be planned safely and was skipped.`);
 
       trace.push(
         `Planner branch recovered from an internal planning error: ${String(
-          error instanceof Error
-            ? error.message
-            : error,
+          error instanceof Error ? error.message : error,
         ).slice(0, 180)}`,
       );
     }
 
-    const changed =
-      completed ||
-      actions.length > before;
+    const changed = completed || actions.length > before;
 
     tasks.push({
       title,
@@ -844,13 +688,10 @@ export function buildDeterministicPlan(
           continue;
         }
 
-        const hinted = directive.sectionKind
-          ? findSection(page, directive.sectionKind)
-          : undefined;
+        const hinted = directive.sectionKind ? findSection(page, directive.sectionKind) : undefined;
 
         if (directive.kind === "section_text") {
-          const section =
-            hinted ?? findSection(page, "hero") ?? sectionsOf(page)[0];
+          const section = hinted ?? findSection(page, "hero") ?? sectionsOf(page)[0];
 
           if (
             section &&
@@ -868,9 +709,7 @@ export function buildDeterministicPlan(
 
         /* Button wording: edit the existing button the owner meant. */
         const button =
-          (hinted
-            ? hinted.components.find(isButton)
-            : undefined) ??
+          (hinted ? hinted.components.find(isButton) : undefined) ??
           (findSection(page, "hero")?.components ?? []).find(isButton) ??
           sectionsOf(page)
             .flatMap((section) => section.components)
@@ -893,8 +732,7 @@ export function buildDeterministicPlan(
         }
 
         /* No button exists yet: add one that points at a real contact route. */
-        const host =
-          hinted ?? findSection(page, "hero") ?? sectionsOf(page)[0];
+        const host = hinted ?? findSection(page, "hero") ?? sectionsOf(page)[0];
 
         if (
           host &&
@@ -929,11 +767,7 @@ export function buildDeterministicPlan(
   /* DESIGN                                                                   */
   /* ------------------------------------------------------------------------ */
 
-
-  const wantsDesign =
-    wholeSite ||
-    intent.verbs.includes("restyle") ||
-    intent.moods.length > 0;
+  const wantsDesign = wholeSite || intent.verbs.includes("restyle") || intent.moods.length > 0;
 
   const design = designDecision(
     playbook,
@@ -947,104 +781,86 @@ export function buildDeterministicPlan(
   );
 
   if (wantsDesign) {
-    task(
-      "Set one coordinated design direction",
-      () => {
-        let changed = false;
+    task("Set one coordinated design direction", () => {
+      let changed = false;
 
+      if (
+        push({
+          type: "set_theme",
+          patch: design.theme,
+        })
+      ) {
+        changed = true;
+      }
+
+      if (
+        push({
+          type: "set_backdrop",
+          backdrop: design.backdrop,
+        })
+      ) {
+        changed = true;
+      }
+
+      const hero = findSection(page, "hero") ?? sectionsOf(page)[0];
+
+      if (hero) {
         if (
           push({
-            type: "set_theme",
-            patch: design.theme,
+            type: "set_section_effect",
+            sectionId: hero.id,
+            effect: design.heroEffect,
           })
         ) {
           changed = true;
         }
 
-        if (
-          push({
-            type: "set_backdrop",
-            backdrop: design.backdrop,
-          })
-        ) {
-          changed = true;
-        }
+        if (hero.kind === "hero" && design.density !== "standard") {
+          const variant = HERO_LAYOUT[design.density];
 
-        const hero =
-          findSection(page, "hero") ??
-          sectionsOf(page)[0];
-
-        if (hero) {
           if (
             push({
-              type: "set_section_effect",
+              type: "set_section_variant",
               sectionId: hero.id,
-              effect: design.heroEffect,
+              variant,
             })
           ) {
             changed = true;
           }
+        }
+      }
 
+      /**
+       * Keep body motion restrained.
+       *
+       * Premium does not mean every block gets an animation.
+       */
+      if (design.bodyEffect !== "none" && page) {
+        for (const section of sectionsOf(page).slice(1, 5)) {
           if (
-            hero.kind === "hero" &&
-            design.density !== "standard"
+            push({
+              type: "set_section_effect",
+              sectionId: section.id,
+              effect: design.bodyEffect,
+            })
           ) {
-            const variant =
-              HERO_LAYOUT[design.density];
-
-            if (
-              push({
-                type: "set_section_variant",
-                sectionId: hero.id,
-                variant,
-              })
-            ) {
-              changed = true;
-            }
+            changed = true;
           }
         }
+      }
 
-        /**
-         * Keep body motion restrained.
-         *
-         * Premium does not mean every block gets an animation.
-         */
-        if (
-          design.bodyEffect !== "none" &&
-          page
-        ) {
-          for (
-            const section of sectionsOf(page).slice(1, 5)
-          ) {
-            if (
-              push({
-                type: "set_section_effect",
-                sectionId: section.id,
-                effect: design.bodyEffect,
-              })
-            ) {
-              changed = true;
-            }
-          }
-        }
+      if (design.rationale.length) {
+        notes.push(...design.rationale.slice(0, 4));
+      }
 
-        if (design.rationale.length) {
-          notes.push(
-            ...design.rationale.slice(0, 4),
-          );
-        }
+      trace.push("Applied one coordinated visual direction instead of unrelated style changes.");
 
-        trace.push(
-          "Applied one coordinated visual direction instead of unrelated style changes.",
-        );
+      if (changed) {
+        completedAreas.add("design");
+      }
 
-        if (changed) {
-          completedAreas.add("design");
-        }
-
-        return changed;
-      },
-    );
+      return changed;
+    });
   }
 
   /* ------------------------------------------------------------------------ */
@@ -1052,473 +868,294 @@ export function buildDeterministicPlan(
   /* ------------------------------------------------------------------------ */
 
   if (wholeSite) {
-    task(
-      "Build the site's essential pages",
-      () => {
-        let changed = false;
-        let pageIndex = 0;
+    task("Build the site's essential pages", () => {
+      let changed = false;
+      let pageIndex = 0;
 
-        for (
-          const wanted of playbook.pages
+      for (const wanted of playbook.pages) {
+        if (actions.length >= cap) break;
+
+        const slug = slugify(wanted.slug || wanted.title);
+
+        if (!slug) continue;
+
+        if (pageAlreadyExists(context, slug)) {
+          continue;
+        }
+
+        const requestedKind = cleanText(wanted.kind) || "custom";
+
+        const kind = context.pageKinds.includes(requestedKind)
+          ? requestedKind
+          : context.pageKinds.includes("custom")
+            ? "custom"
+            : (context.pageKinds[0] ?? "custom");
+
+        const ref = tempPageRef(pageIndex++);
+
+        if (
+          push({
+            type: "add_page",
+            kind,
+            title: cleanText(wanted.title) || titleCase(slug),
+            slug,
+            ref,
+          })
         ) {
-          if (actions.length >= cap) break;
+          changed = true;
+        }
 
-          const slug = slugify(
-            wanted.slug ||
-              wanted.title,
-          );
+        const sectionPlan = pageSectionPlan(requestedKind, playbook);
 
-          if (!slug) continue;
+        let position = 0;
+        let sectionIndex = 0;
 
-          if (
-            pageAlreadyExists(
-              context,
-              slug,
-            )
-          ) {
+        for (const sectionKind of sectionPlan) {
+          if (actions.length >= cap) {
+            break;
+          }
+
+          if (!allowedSections.has(sectionKind)) {
             continue;
           }
 
-          const requestedKind =
-            cleanText(wanted.kind) ||
-            "custom";
+          const copy = sectionCopy(sectionKind, facts, playbook);
 
-          const kind =
-            context.pageKinds.includes(
-              requestedKind,
-            )
-              ? requestedKind
-              : context.pageKinds.includes(
-                    "custom",
-                  )
-                ? "custom"
-                : context.pageKinds[0] ??
-                  "custom";
-
-          const ref =
-            tempPageRef(pageIndex++);
+          const sectionRef = tempSectionRef(pageIndex, sectionIndex++);
 
           if (
             push({
-              type: "add_page",
-              kind,
-              title:
-                cleanText(wanted.title) ||
-                titleCase(slug),
-              slug,
-              ref,
-            })
-          ) {
-            changed = true;
-          }
-
-          const sectionPlan =
-            pageSectionPlan(
-              requestedKind,
-              playbook,
-            );
-
-          let position = 0;
-          let sectionIndex = 0;
-
-          for (
-            const sectionKind of sectionPlan
-          ) {
-            if (
-              actions.length >= cap
-            ) {
-              break;
-            }
-
-            if (
-              !allowedSections.has(
-                sectionKind,
-              )
-            ) {
-              continue;
-            }
-
-            const copy =
-              sectionCopy(
-                sectionKind,
-                facts,
-                playbook,
-              );
-
-            const sectionRef =
-              tempSectionRef(
-                pageIndex,
-                sectionIndex++,
-              );
-
-            if (
-              push({
-                type: "add_section",
-                pageId: ref,
-                ref: sectionRef,
-                kind: sectionKind,
-                heading:
-                  copy.heading ||
-                  undefined,
-                subheading:
-                  copy.subheading ||
-                  undefined,
-                body:
-                  copy.body ||
-                  undefined,
-                position: position++,
-              })
-            ) {
-              changed = true;
-            }
-
-            /**
-             * FAQ questions are safe to add because they are questions,
-             * not fabricated answers or reviews.
-             */
-            if (
-              sectionKind === "faq"
-            ) {
-              for (
-                const question of faqQuestions(
-                  playbook,
-                ).slice(
-                  0,
-                  MAX_FAQ_ITEMS,
-                )
-              ) {
-                if (
-                  actions.length >= cap
-                ) {
-                  break;
-                }
-
-                push({
-                  type: "add_component",
-                  sectionId:
-                    sectionRef,
-                  kind: "faq",
-                  label: question,
-                });
-              }
-            }
-          }
-
-          const seo =
-            pageSeo(
-              wanted.title ||
-                titleCase(slug),
-              facts,
-              playbook,
-            );
-
-          if (
-            push({
-              type: "set_page",
+              type: "add_section",
               pageId: ref,
-              patch: seo,
+              ref: sectionRef,
+              kind: sectionKind,
+              heading: copy.heading || undefined,
+              subheading: copy.subheading || undefined,
+              body: copy.body || undefined,
+              position: position++,
             })
           ) {
             changed = true;
           }
+
+          /**
+           * FAQ questions are safe to add because they are questions,
+           * not fabricated answers or reviews.
+           */
+          if (sectionKind === "faq") {
+            for (const question of faqQuestions(playbook).slice(0, MAX_FAQ_ITEMS)) {
+              if (actions.length >= cap) {
+                break;
+              }
+
+              push({
+                type: "add_component",
+                sectionId: sectionRef,
+                kind: "faq",
+                label: question,
+              });
+            }
+          }
         }
 
-        if (changed) {
-          completedAreas.add(
-            "pages",
-          );
+        const seo = pageSeo(wanted.title || titleCase(slug), facts, playbook);
 
-          trace.push(
-            "Created missing industry pages as complete page experiences rather than empty shells.",
-          );
+        if (
+          push({
+            type: "set_page",
+            pageId: ref,
+            patch: seo,
+          })
+        ) {
+          changed = true;
         }
+      }
 
-        return changed;
-      },
-    );
+      if (changed) {
+        completedAreas.add("pages");
+
+        trace.push(
+          "Created missing industry pages as complete page experiences rather than empty shells.",
+        );
+      }
+
+      return changed;
+    });
 
     /* ---------------------------------------------------------------------- */
     /* HOME PAGE                                                              */
     /* ---------------------------------------------------------------------- */
 
-    task(
-      "Complete the home page",
-      () => {
-        if (!page) return false;
+    task("Complete the home page", () => {
+      if (!page) return false;
 
-        let changed = false;
+      let changed = false;
 
-        let position =
-          sectionsOf(page).length;
+      let position = sectionsOf(page).length;
 
-        for (
-          const sectionKind of playbook.homeSections
+      for (const sectionKind of playbook.homeSections) {
+        if (actions.length >= cap) {
+          break;
+        }
+
+        if (position >= MAX_SECTIONS_PER_PAGE) {
+          break;
+        }
+
+        if (!allowedSections.has(sectionKind)) {
+          continue;
+        }
+
+        if (hasSectionKind(page, sectionKind)) {
+          continue;
+        }
+
+        const copy = sectionCopy(sectionKind, facts, playbook);
+
+        if (
+          push({
+            type: "add_section",
+            pageId: page.id,
+            kind: sectionKind,
+            heading: copy.heading || undefined,
+            subheading: copy.subheading || undefined,
+            body: copy.body || undefined,
+            position,
+          })
         ) {
-          if (
-            actions.length >= cap
-          ) {
-            break;
-          }
-
-          if (
-            position >=
-            MAX_SECTIONS_PER_PAGE
-          ) {
-            break;
-          }
-
-          if (
-            !allowedSections.has(
-              sectionKind,
-            )
-          ) {
-            continue;
-          }
-
-          if (
-            hasSectionKind(
-              page,
-              sectionKind,
-            )
-          ) {
-            continue;
-          }
-
-          const copy =
-            sectionCopy(
-              sectionKind,
-              facts,
-              playbook,
-            );
-
-          if (
-            push({
-              type: "add_section",
-              pageId: page.id,
-              kind: sectionKind,
-              heading:
-                copy.heading ||
-                undefined,
-              subheading:
-                copy.subheading ||
-                undefined,
-              body:
-                copy.body ||
-                undefined,
-              position,
-            })
-          ) {
-            changed = true;
-            position++;
-          }
+          changed = true;
+          position++;
         }
+      }
 
-        if (changed) {
-          completedAreas.add(
-            "sections",
-          );
+      if (changed) {
+        completedAreas.add("sections");
 
-          trace.push(
-            "Completed missing home-page sections using the industry's buyer decision order.",
-          );
-        }
+        trace.push(
+          "Completed missing home-page sections using the industry's buyer decision order.",
+        );
+      }
 
-        return changed;
-      },
-    );
+      return changed;
+    });
 
     /* ---------------------------------------------------------------------- */
     /* HOME COPY                                                              */
     /* ---------------------------------------------------------------------- */
 
-    task(
-      "Repair missing home-page copy",
-      () => {
-        if (!page) return false;
+    task("Repair missing home-page copy", () => {
+      if (!page) return false;
 
-        let changed = false;
+      let changed = false;
 
-        for (
-          const section of sectionsOf(
-            page,
-          ).slice(
-            0,
-            MAX_COPY_SECTIONS,
-          )
-        ) {
-          if (
-            actions.length >= cap
-          ) {
-            break;
-          }
-
-          const added =
-            sectionTextActions(
-              push,
-              section,
-              facts,
-              playbook,
-            );
-
-          if (added > 0) {
-            changed = true;
-          }
+      for (const section of sectionsOf(page).slice(0, MAX_COPY_SECTIONS)) {
+        if (actions.length >= cap) {
+          break;
         }
 
-        if (changed) {
-          completedAreas.add(
-            "copy",
-          );
+        const added = sectionTextActions(push, section, facts, playbook);
 
-          trace.push(
-            "Filled weak or missing section copy from the business's own stored facts.",
-          );
+        if (added > 0) {
+          changed = true;
         }
+      }
 
-        return changed;
-      },
-    );
+      if (changed) {
+        completedAreas.add("copy");
+
+        trace.push("Filled weak or missing section copy from the business's own stored facts.");
+      }
+
+      return changed;
+    });
 
     /* ---------------------------------------------------------------------- */
     /* FAQ                                                                    */
     /* ---------------------------------------------------------------------- */
 
-    task(
-      "Add useful customer questions",
-      () => {
-        if (!page) return false;
+    task("Add useful customer questions", () => {
+      if (!page) return false;
 
-        const faq =
-          findSection(
-            page,
-            "faq",
-          );
+      const faq = findSection(page, "faq");
 
-        if (!faq) {
-          return false;
+      if (!faq) {
+        return false;
+      }
+
+      const existing = new Set(
+        faq.components.map((component) => cleanText(component.label).toLowerCase()).filter(Boolean),
+      );
+
+      let changed = false;
+
+      for (const question of faqQuestions(playbook).slice(0, MAX_FAQ_ITEMS)) {
+        if (actions.length >= cap) {
+          break;
         }
 
-        const existing = new Set(
-          faq.components
-            .map(
-              (component) =>
-                cleanText(
-                  component.label,
-                ).toLowerCase(),
-            )
-            .filter(Boolean),
-        );
+        const normalized = cleanText(question).toLowerCase();
 
-        let changed = false;
+        if (existing.has(normalized)) {
+          continue;
+        }
 
-        for (
-          const question of faqQuestions(
-            playbook,
-          ).slice(
-            0,
-            MAX_FAQ_ITEMS,
-          )
+        if (
+          push({
+            type: "add_component",
+            sectionId: faq.id,
+            kind: "faq",
+            label: question,
+          })
         ) {
-          if (
-            actions.length >= cap
-          ) {
-            break;
-          }
-
-          const normalized =
-            cleanText(
-              question,
-            ).toLowerCase();
-
-          if (
-            existing.has(
-              normalized,
-            )
-          ) {
-            continue;
-          }
-
-          if (
-            push({
-              type: "add_component",
-              sectionId: faq.id,
-              kind: "faq",
-              label: question,
-            })
-          ) {
-            existing.add(
-              normalized,
-            );
-            changed = true;
-          }
+          existing.add(normalized);
+          changed = true;
         }
+      }
 
-        if (changed) {
-          completedAreas.add(
-            "faq",
-          );
-        }
+      if (changed) {
+        completedAreas.add("faq");
+      }
 
-        return changed;
-      },
-    );
+      return changed;
+    });
   }
 
   /* ------------------------------------------------------------------------ */
   /* EXPLICIT SECTION OPERATIONS                                              */
   /* ------------------------------------------------------------------------ */
 
-  for (
-    const operation of sectionOperations(
-      intent,
-    )
-  ) {
-    if (
-      actions.length >= cap
-    ) {
+  for (const operation of sectionOperations(intent)) {
+    if (actions.length >= cap) {
       break;
     }
 
-    const kind =
-      cleanText(operation.kind);
+    const kind = cleanText(operation.kind);
 
     if (!kind) continue;
 
-    if (
-      !allowedSections.has(kind)
-    ) {
+    if (!allowedSections.has(kind)) {
       notes.push(
         `The "${kind}" section is not supported by the current site section library, so it was not invented.`,
       );
       continue;
     }
 
-    const existing =
-      findSection(
-        page,
-        kind,
-      );
+    const existing = findSection(page, kind);
 
-    const verbs =
-      operation.verbs;
+    const verbs = operation.verbs;
 
     /* ---------------------------------------------------------------------- */
     /* REMOVE                                                                 */
     /* ---------------------------------------------------------------------- */
 
-    if (
-      verbs.includes("remove")
-    ) {
+    if (verbs.includes("remove")) {
       if (existing) {
         push({
           type: "delete_section",
-          sectionId:
-            existing.id,
+          sectionId: existing.id,
         });
 
-        completedAreas.add(
-          "sections",
-        );
+        completedAreas.add("sections");
       }
 
       continue;
@@ -1528,20 +1165,15 @@ export function buildDeterministicPlan(
     /* HIDE                                                                   */
     /* ---------------------------------------------------------------------- */
 
-    if (
-      verbs.includes("hide")
-    ) {
+    if (verbs.includes("hide")) {
       if (existing) {
         push({
           type: "set_section_visibility",
-          sectionId:
-            existing.id,
+          sectionId: existing.id,
           visible: false,
         });
 
-        completedAreas.add(
-          "visibility",
-        );
+        completedAreas.add("visibility");
       }
 
       continue;
@@ -1551,20 +1183,15 @@ export function buildDeterministicPlan(
     /* SHOW                                                                   */
     /* ---------------------------------------------------------------------- */
 
-    if (
-      verbs.includes("show")
-    ) {
+    if (verbs.includes("show")) {
       if (existing) {
         push({
           type: "set_section_visibility",
-          sectionId:
-            existing.id,
+          sectionId: existing.id,
           visible: true,
         });
 
-        completedAreas.add(
-          "visibility",
-        );
+        completedAreas.add("visibility");
       }
 
       continue;
@@ -1574,44 +1201,27 @@ export function buildDeterministicPlan(
     /* RESIZE                                                                 */
     /* ---------------------------------------------------------------------- */
 
-    if (
-      verbs.includes("resize")
-    ) {
-      if (
-        existing?.kind ===
-        "hero"
-      ) {
-        const bigger =
-          /\b(bigger|larger|taller|full[\s-]?screen|huge)\b/i.test(
-            intent.original,
-          );
+    if (verbs.includes("resize")) {
+      if (existing?.kind === "hero") {
+        const bigger = /\b(bigger|larger|taller|full[\s-]?screen|huge)\b/i.test(intent.original);
 
-        const variant =
-          bigger
-            ? HERO_LAYOUT.full
-            : HERO_LAYOUT.compact;
+        const variant = bigger ? HERO_LAYOUT.full : HERO_LAYOUT.compact;
 
         push({
           type: "set_section_variant",
-          sectionId:
-            existing.id,
+          sectionId: existing.id,
           variant,
         });
 
-        if (
-          bigger
-        ) {
+        if (bigger) {
           push({
             type: "set_section_effect",
-            sectionId:
-              existing.id,
+            sectionId: existing.id,
             effect: "rise",
           });
         }
 
-        completedAreas.add(
-          "layout",
-        );
+        completedAreas.add("layout");
       }
 
       continue;
@@ -1621,22 +1231,12 @@ export function buildDeterministicPlan(
     /* REWRITE                                                                */
     /* ---------------------------------------------------------------------- */
 
-    if (
-      verbs.includes("rewrite")
-    ) {
+    if (verbs.includes("rewrite")) {
       if (existing) {
-        const added =
-          sectionTextActions(
-            push,
-            existing,
-            facts,
-            playbook,
-          );
+        const added = sectionTextActions(push, existing, facts, playbook);
 
         if (added > 0) {
-          completedAreas.add(
-            "copy",
-          );
+          completedAreas.add("copy");
         }
       }
 
@@ -1647,38 +1247,20 @@ export function buildDeterministicPlan(
     /* ADD                                                                    */
     /* ---------------------------------------------------------------------- */
 
-    if (
-      !existing &&
-      page
-    ) {
-      const copy =
-        sectionCopy(
-          kind,
-          facts,
-          playbook,
-        );
+    if (!existing && page) {
+      const copy = sectionCopy(kind, facts, playbook);
 
       push({
         type: "add_section",
         pageId: page.id,
         kind,
-        heading:
-          copy.heading ||
-          undefined,
-        subheading:
-          copy.subheading ||
-          undefined,
-        body:
-          copy.body ||
-          undefined,
-        position:
-          sectionsOf(page)
-            .length,
+        heading: copy.heading || undefined,
+        subheading: copy.subheading || undefined,
+        body: copy.body || undefined,
+        position: sectionsOf(page).length,
       });
 
-      completedAreas.add(
-        "sections",
-      );
+      completedAreas.add("sections");
     }
   }
 
@@ -1686,119 +1268,64 @@ export function buildDeterministicPlan(
   /* WHOLE-PAGE REWRITE                                                       */
   /* ------------------------------------------------------------------------ */
 
-  if (
-    intent.verbs.includes(
-      "rewrite",
-    ) &&
-    intent.sectionKinds.length ===
-      0 &&
-    page
-  ) {
-    task(
-      "Rewrite the page around the business's own facts",
-      () => {
-        let changed = false;
+  if (intent.verbs.includes("rewrite") && intent.sectionKinds.length === 0 && page) {
+    task("Rewrite the page around the business's own facts", () => {
+      let changed = false;
 
-        for (
-          const section of sectionsOf(
-            page,
-          ).slice(
-            0,
-            MAX_COPY_SECTIONS,
-          )
-        ) {
-          if (
-            actions.length >= cap
-          ) {
-            break;
-          }
-
-          const added =
-            sectionTextActions(
-              push,
-              section,
-              facts,
-              playbook,
-            );
-
-          if (added > 0) {
-            changed = true;
-          }
+      for (const section of sectionsOf(page).slice(0, MAX_COPY_SECTIONS)) {
+        if (actions.length >= cap) {
+          break;
         }
 
-        if (changed) {
-          completedAreas.add(
-            "copy",
-          );
-        }
+        const added = sectionTextActions(push, section, facts, playbook);
 
-        return changed;
-      },
-    );
+        if (added > 0) {
+          changed = true;
+        }
+      }
+
+      if (changed) {
+        completedAreas.add("copy");
+      }
+
+      return changed;
+    });
   }
 
   /* ------------------------------------------------------------------------ */
   /* HIERARCHY                                                               */
   /* ------------------------------------------------------------------------ */
 
-  if (
-    intent.verbs.includes(
-      "hierarchy",
-    ) &&
-    page &&
-    sectionsOf(page).length >
-      2
-  ) {
-    task(
-      "Improve the page's visual decision order",
-      () => {
-        const current =
-          sectionsOf(page);
+  if (intent.verbs.includes("hierarchy") && page && sectionsOf(page).length > 2) {
+    task("Improve the page's visual decision order", () => {
+      const current = sectionsOf(page);
 
-        const sorted =
-          hierarchySort(
-            current,
-          );
+      const sorted = hierarchySort(current);
 
-        const changed =
-          sorted.some(
-            (
-              section,
-              index,
-            ) =>
-              section.id !==
-              current[index]?.id,
-          );
+      const changed = sorted.some((section, index) => section.id !== current[index]?.id);
 
-        if (!changed) {
-          return false;
-        }
-
-        if (
-          push({
-            type: "reorder_sections",
-            pageId: page.id,
-            sectionIds:
-              sorted.map(
-                (section) =>
-                  section.id,
-              ),
-          })
-        ) {
-          completedAreas.add(
-            "hierarchy",
-          );
-
-          trace.push(
-            "Reordered the page around visitor decision-making instead of arbitrary section order.",
-          );
-
-          return true;
-        }
-
+      if (!changed) {
         return false;
-      },
-    );
+      }
+
+      if (
+        push({
+          type: "reorder_sections",
+          pageId: page.id,
+          sectionIds: sorted.map((section) => section.id),
+        })
+      ) {
+        completedAreas.add("hierarchy");
+
+        trace.push(
+          "Reordered the page around visitor decision-making instead of arbitrary section order.",
+        );
+
+        return true;
+      }
+
+      return false;
+    });
   }
 
   /* ------------------------------------------------------------------------ */
@@ -1807,60 +1334,33 @@ export function buildDeterministicPlan(
 
   let namedPageIndex = 0;
 
-  for (
-    const label of intent.newPages
-  ) {
-    if (
-      actions.length >= cap
-    ) {
+  for (const label of intent.newPages) {
+    if (actions.length >= cap) {
       break;
     }
 
-    const cleanLabel =
-      cleanText(label);
+    const cleanLabel = cleanText(label);
 
-    const slug =
-      slugify(cleanLabel);
+    const slug = slugify(cleanLabel);
 
     if (!slug) continue;
 
-    if (
-      pageAlreadyExists(
-        context,
-        slug,
-      )
-    ) {
-      notes.push(
-        `The /${slug} page already exists, so Revora left the existing page intact.`,
-      );
+    if (pageAlreadyExists(context, slug)) {
+      notes.push(`The /${slug} page already exists, so Revora left the existing page intact.`);
       continue;
     }
 
-    const guessedKind =
-      pageKindFromLabel(
-        cleanLabel,
-        slug,
-      );
+    const guessedKind = pageKindFromLabel(cleanLabel, slug);
 
-    const kind =
-      context.pageKinds.includes(
-        guessedKind,
-      )
-        ? guessedKind
-        : context.pageKinds.includes(
-              "custom",
-            )
-          ? "custom"
-          : context.pageKinds[0] ??
-            "custom";
+    const kind = context.pageKinds.includes(guessedKind)
+      ? guessedKind
+      : context.pageKinds.includes("custom")
+        ? "custom"
+        : (context.pageKinds[0] ?? "custom");
 
-    const title =
-      titleCase(
-        cleanLabel,
-      );
+    const title = titleCase(cleanLabel);
 
-    const pageRef =
-      `temp_named_page_${namedPageIndex++}`;
+    const pageRef = `temp_named_page_${namedPageIndex++}`;
 
     push({
       type: "add_page",
@@ -1870,84 +1370,44 @@ export function buildDeterministicPlan(
       ref: pageRef,
     });
 
-    const sections =
-      pageSectionPlan(
-        guessedKind,
-        playbook,
-      );
+    const sections = pageSectionPlan(guessedKind, playbook);
 
     let position = 0;
     let sectionIndex = 0;
 
-    for (
-      const sectionKind of sections
-    ) {
-      if (
-        actions.length >= cap
-      ) {
+    for (const sectionKind of sections) {
+      if (actions.length >= cap) {
         break;
       }
 
-      if (
-        !allowedSections.has(
-          sectionKind,
-        )
-      ) {
+      if (!allowedSections.has(sectionKind)) {
         continue;
       }
 
-      const copy =
-        sectionCopy(
-          sectionKind,
-          facts,
-          playbook,
-        );
+      const copy = sectionCopy(sectionKind, facts, playbook);
 
-      const sectionRef =
-        tempSectionRef(
-          namedPageIndex,
-          sectionIndex++,
-        );
+      const sectionRef = tempSectionRef(namedPageIndex, sectionIndex++);
 
       push({
         type: "add_section",
         pageId: pageRef,
         ref: sectionRef,
         kind: sectionKind,
-        heading:
-          copy.heading ||
-          undefined,
-        subheading:
-          copy.subheading ||
-          undefined,
-        body:
-          copy.body ||
-          undefined,
+        heading: copy.heading || undefined,
+        subheading: copy.subheading || undefined,
+        body: copy.body || undefined,
         position: position++,
       });
 
-      if (
-        sectionKind ===
-        "faq"
-      ) {
-        for (
-          const question of faqQuestions(
-            playbook,
-          ).slice(
-            0,
-            MAX_FAQ_ITEMS,
-          )
-        ) {
-          if (
-            actions.length >= cap
-          ) {
+      if (sectionKind === "faq") {
+        for (const question of faqQuestions(playbook).slice(0, MAX_FAQ_ITEMS)) {
+          if (actions.length >= cap) {
             break;
           }
 
           push({
             type: "add_component",
-            sectionId:
-              sectionRef,
+            sectionId: sectionRef,
             kind: "faq",
             label: question,
           });
@@ -1958,390 +1418,226 @@ export function buildDeterministicPlan(
     push({
       type: "set_page",
       pageId: pageRef,
-      patch: pageSeo(
-        title,
-        facts,
-        playbook,
-      ),
+      patch: pageSeo(title, facts, playbook),
     });
 
-    notes.push(
-      `Created /${slug} as a complete page plan instead of leaving it as an empty shell.`,
-    );
+    notes.push(`Created /${slug} as a complete page plan instead of leaving it as an empty shell.`);
 
-    completedAreas.add(
-      "pages",
-    );
+    completedAreas.add("pages");
   }
 
   /* ------------------------------------------------------------------------ */
   /* CTA                                                                      */
   /* ------------------------------------------------------------------------ */
 
-  if (
-    intent.verbs.includes("cta") ||
-    wholeSite
-  ) {
-    task(
-      "Strengthen the primary visitor next step",
-      () => {
-        const target =
-          ctaTarget(facts);
+  if (intent.verbs.includes("cta") || wholeSite) {
+    task("Strengthen the primary visitor next step", () => {
+      const target = ctaTarget(facts);
 
-        if (!target) {
-          return false;
+      if (!target) {
+        return false;
+      }
+
+      const candidates =
+        intent.everyPage || wholeSite
+          ? context.pages.slice(0, MAX_EXISTING_PAGES_FOR_BROAD_ACTIONS)
+          : page
+            ? [page]
+            : [];
+
+      let changed = false;
+
+      for (const candidate of candidates) {
+        if (actions.length >= cap) {
+          break;
         }
 
-        const candidates =
-          intent.everyPage ||
-          wholeSite
-            ? context.pages.slice(
-                0,
-                MAX_EXISTING_PAGES_FOR_BROAD_ACTIONS,
-              )
-            : page
-              ? [page]
-              : [];
+        const host = findSection(candidate, "hero") ?? sectionsOf(candidate)[0];
 
-        let changed = false;
+        if (!host) {
+          continue;
+        }
 
-        for (
-          const candidate of candidates
-        ) {
-          if (
-            actions.length >= cap
-          ) {
-            break;
-          }
+        const alreadyHasButton = host.components.some(
+          (component) => component.kind === "button" || component.link_url === target.url,
+        );
 
-          const host =
-            findSection(
-              candidate,
-              "hero",
-            ) ??
-            sectionsOf(
-              candidate,
-            )[0];
-
-          if (!host) {
-            continue;
-          }
-
-          const alreadyHasButton =
-            host.components.some(
-              (component) =>
-                component.kind ===
-                  "button" ||
-                component.link_url ===
-                  target.url,
-            );
-
-          if (
-            alreadyHasButton
-          ) {
-            continue;
-          }
-
-          if (
-            push({
-              type: "add_component",
-              sectionId:
-                host.id,
-              kind: "button",
-              label:
-                playbook
-                  .ctaLabels
-                  .primary,
-              link_url:
-                target.url,
-              link_label:
-                playbook
-                  .ctaLabels
-                  .primary,
-            })
-          ) {
-            changed = true;
-          }
+        if (alreadyHasButton) {
+          continue;
         }
 
         if (
-          !facts.phone &&
-          !facts.email
+          push({
+            type: "add_component",
+            sectionId: host.id,
+            kind: "button",
+            label: playbook.ctaLabels.primary,
+            link_url: target.url,
+            link_label: playbook.ctaLabels.primary,
+          })
         ) {
-          questions.push(
-            "What phone number or email should visitors use for the main contact action?",
-          );
-
-          notes.push(
-            "No phone or email is stored, so Revora keeps the CTA pointed at the existing contact route rather than inventing contact information.",
-          );
+          changed = true;
         }
+      }
 
-        if (changed) {
-          completedAreas.add(
-            "buttons",
-          );
+      if (!facts.phone && !facts.email) {
+        questions.push(
+          "What phone number or email should visitors use for the main contact action?",
+        );
 
-          trace.push(
-            "Added conversion actions without inventing contact information.",
-          );
-        }
+        notes.push(
+          "No phone or email is stored, so Revora keeps the CTA pointed at the existing contact route rather than inventing contact information.",
+        );
+      }
 
-        return changed;
-      },
-    );
+      if (changed) {
+        completedAreas.add("buttons");
+
+        trace.push("Added conversion actions without inventing contact information.");
+      }
+
+      return changed;
+    });
   }
 
   /* ------------------------------------------------------------------------ */
   /* SEO                                                                      */
   /* ------------------------------------------------------------------------ */
 
-  if (
-    intent.verbs.includes("seo") ||
-    wholeSite
-  ) {
-    task(
-      "Complete missing page SEO",
-      () => {
-        let changed = false;
+  if (intent.verbs.includes("seo") || wholeSite) {
+    task("Complete missing page SEO", () => {
+      let changed = false;
 
-        for (
-          const candidate of context.pages.slice(
-            0,
-            MAX_EXISTING_PAGES_FOR_BROAD_ACTIONS,
-          )
+      for (const candidate of context.pages.slice(0, MAX_EXISTING_PAGES_FOR_BROAD_ACTIONS)) {
+        if (actions.length >= cap) {
+          break;
+        }
+
+        /**
+         * Only repair missing metadata.
+         *
+         * Explicit SEO requests can safely regenerate metadata, but
+         * ordinary whole-site generation should avoid needlessly replacing
+         * existing custom SEO written by the owner.
+         */
+        const needsSeo = !hasText(candidate.seo_title) || !hasText(candidate.seo_description);
+
+        if (!needsSeo && !intent.verbs.includes("seo")) {
+          continue;
+        }
+
+        const seo = pageSeo(candidate.title || "Home", facts, playbook);
+
+        if (
+          push({
+            type: "set_page",
+            pageId: candidate.id,
+            patch: seo,
+          })
         ) {
-          if (
-            actions.length >= cap
-          ) {
-            break;
-          }
-
-          /**
-           * Only repair missing metadata.
-           *
-           * Explicit SEO requests can safely regenerate metadata, but
-           * ordinary whole-site generation should avoid needlessly replacing
-           * existing custom SEO written by the owner.
-           */
-          const needsSeo =
-            !hasText(
-              candidate.seo_title,
-            ) ||
-            !hasText(
-              candidate.seo_description,
-            );
-
-          if (
-            !needsSeo &&
-            !intent.verbs.includes(
-              "seo",
-            )
-          ) {
-            continue;
-          }
-
-          const seo =
-            pageSeo(
-              candidate.title ||
-                "Home",
-              facts,
-              playbook,
-            );
-
-          if (
-            push({
-              type: "set_page",
-              pageId:
-                candidate.id,
-              patch: seo,
-            })
-          ) {
-            changed = true;
-          }
+          changed = true;
         }
+      }
 
-        if (changed) {
-          completedAreas.add(
-            "seo",
-          );
+      if (changed) {
+        completedAreas.add("seo");
 
-          trace.push(
-            "Generated deterministic SEO metadata from real business facts only.",
-          );
-        }
+        trace.push("Generated deterministic SEO metadata from real business facts only.");
+      }
 
-        return changed;
-      },
-    );
+      return changed;
+    });
   }
 
   /* ------------------------------------------------------------------------ */
   /* MOBILE                                                                   */
   /* ------------------------------------------------------------------------ */
 
-  if (
-    intent.verbs.includes(
-      "mobile",
-    ) ||
-    wholeSite
-  ) {
-    task(
-      "Improve mobile conversion access",
-      () => {
-        if (!page) {
-          return false;
-        }
+  if (intent.verbs.includes("mobile") || wholeSite) {
+    task("Improve mobile conversion access", () => {
+      if (!page) {
+        return false;
+      }
 
-        /**
-         * The section renderer already owns responsive layout.
-         * We do not fabricate CSS or inject arbitrary mobile markup here.
-         *
-         * A sticky CTA is therefore the only deterministic mobile enhancement
-         * this planner can safely request when the section library supports it.
-         */
-        const sticky =
-          findSection(
-            page,
-            "sticky_cta",
-          );
+      /**
+       * The section renderer already owns responsive layout.
+       * We do not fabricate CSS or inject arbitrary mobile markup here.
+       *
+       * A sticky CTA is therefore the only deterministic mobile enhancement
+       * this planner can safely request when the section library supports it.
+       */
+      const sticky = findSection(page, "sticky_cta");
 
-        if (
-          sticky ||
-          !allowedSections.has(
-            "sticky_cta",
-          )
-        ) {
-          notes.push(
-            "Responsive behavior remains owned by the existing renderer; no unsafe mobile markup was injected.",
-          );
-
-          return false;
-        }
-
-        const copy =
-          sectionCopy(
-            "sticky_cta",
-            facts,
-            playbook,
-          );
-
-        if (
-          push({
-            type: "add_section",
-            pageId: page.id,
-            kind: "sticky_cta",
-            heading:
-              copy.heading ||
-              undefined,
-            subheading:
-              copy.subheading ||
-              undefined,
-            body:
-              copy.body ||
-              undefined,
-            position:
-              sectionsOf(page)
-                .length,
-          })
-        ) {
-          completedAreas.add(
-            "mobile",
-          );
-
-          notes.push(
-            "Added the existing sticky CTA section so the primary action remains easy to reach on phones.",
-          );
-
-          return true;
-        }
+      if (sticky || !allowedSections.has("sticky_cta")) {
+        notes.push(
+          "Responsive behavior remains owned by the existing renderer; no unsafe mobile markup was injected.",
+        );
 
         return false;
-      },
-    );
+      }
+
+      const copy = sectionCopy("sticky_cta", facts, playbook);
+
+      if (
+        push({
+          type: "add_section",
+          pageId: page.id,
+          kind: "sticky_cta",
+          heading: copy.heading || undefined,
+          subheading: copy.subheading || undefined,
+          body: copy.body || undefined,
+          position: sectionsOf(page).length,
+        })
+      ) {
+        completedAreas.add("mobile");
+
+        notes.push(
+          "Added the existing sticky CTA section so the primary action remains easy to reach on phones.",
+        );
+
+        return true;
+      }
+
+      return false;
+    });
   }
 
   /* ------------------------------------------------------------------------ */
   /* ATTACHMENTS                                                              */
   /* ------------------------------------------------------------------------ */
 
-  if (
-    attachments.length >
-    0
-  ) {
-    const kinds =
-      unique(
-        attachments
-          .map(
-            (item) =>
-              cleanText(
-                item.kind,
-              ),
-          )
-          .filter(Boolean),
-      );
+  if (attachments.length > 0) {
+    const kinds = unique(attachments.map((item) => cleanText(item.kind)).filter(Boolean));
 
     notes.push(
       `Kept ${attachments.length} attachment${attachments.length === 1 ? "" : "s"} associated with this request${kinds.length ? ` (${kinds.join(", ")})` : ""}.`,
     );
 
-    trace.push(
-      "Attachments were not sent to an outside provider automatically.",
-    );
+    trace.push("Attachments were not sent to an outside provider automatically.");
   }
 
   /* ------------------------------------------------------------------------ */
   /* MISSING BUSINESS FACTS                                                   */
   /* ------------------------------------------------------------------------ */
 
-  const currentPlace =
-    place(facts);
+  const currentPlace = place(facts);
 
-  if (
-    intent.locationHint
-  ) {
-    const hint =
-      cleanText(
-        intent.locationHint,
-      );
+  if (intent.locationHint) {
+    const hint = cleanText(intent.locationHint);
 
-    const hintTown =
-      hint
-        .split(",")[0]
-        ?.trim()
-        .toLowerCase() ??
-      "";
+    const hintTown = hint.split(",")[0]?.trim().toLowerCase() ?? "";
 
-    const stored =
-      currentPlace
-        ?.toLowerCase()
-        .includes(
-          hintTown,
-        ) ??
-      false;
+    const stored = currentPlace?.toLowerCase().includes(hintTown) ?? false;
 
-    if (
-      hintTown &&
-      !stored
-    ) {
+    if (hintTown && !stored) {
       questions.unshift(
         currentPlace
           ? `You mentioned "${hint}" — should that replace the current service area "${currentPlace}", or was it only for this request?`
           : `You mentioned "${hint}" — should that become the business's service area?`,
       );
     }
-  } else if (
-    !currentPlace &&
-    (
-      wholeSite ||
-      intent.verbs.includes(
-        "seo",
-      )
-    )
-  ) {
-    questions.push(
-      "Which town or service area should the website use?",
-    );
+  } else if (!currentPlace && (wholeSite || intent.verbs.includes("seo"))) {
+    questions.push("Which town or service area should the website use?");
   }
 
   /* ------------------------------------------------------------------------ */
@@ -2353,10 +1649,7 @@ export function buildDeterministicPlan(
    *
    * This check exists as an explicit compiler invariant.
    */
-  if (
-    !facts.phone &&
-    !facts.email
-  ) {
+  if (!facts.phone && !facts.email) {
     trace.push(
       "No contact details were invented; the existing contact route remains the fallback CTA.",
     );
@@ -2365,15 +1658,7 @@ export function buildDeterministicPlan(
   /**
    * Do not claim reviews exist merely because a reviews section exists.
    */
-  if (
-    context.business.publishedReviewCount ===
-      0 &&
-    page &&
-    findSection(
-      page,
-      "reviews",
-    )
-  ) {
+  if (context.business.publishedReviewCount === 0 && page && findSection(page, "reviews")) {
     notes.push(
       "A reviews section is present, but no published review count is stored, so no review text or ratings were invented.",
     );
@@ -2382,15 +1667,7 @@ export function buildDeterministicPlan(
   /**
    * Same rule for galleries.
    */
-  if (
-    context.business.photoCount ===
-      0 &&
-    page &&
-    findSection(
-      page,
-      "gallery",
-    )
-  ) {
+  if (context.business.photoCount === 0 && page && findSection(page, "gallery")) {
     notes.push(
       "A gallery section is present, but no business photos are stored, so no fake project imagery or project claims were created.",
     );
@@ -2400,37 +1677,21 @@ export function buildDeterministicPlan(
   /* FINAL PLAN SELF-CHECK                                                    */
   /* ------------------------------------------------------------------------ */
 
-  const uniqueActions =
-    unique(
-      actions.map(
-        (action) =>
-          actionKey(action),
-      ),
-    );
+  const uniqueActions = unique(actions.map((action) => actionKey(action)));
 
   /**
    * The collector already deduplicates, but this invariant makes the contract
    * explicit and protects the plan if future planning branches change.
    */
-  if (
-    uniqueActions.length !==
-    actions.length
-  ) {
-    trace.push(
-      "Removed duplicate actions during final plan validation.",
-    );
+  if (uniqueActions.length !== actions.length) {
+    trace.push("Removed duplicate actions during final plan validation.");
   }
 
   /**
    * Never exceed the executor's safe ceiling.
    */
-  if (
-    actions.length >
-    cap
-  ) {
-    actions.splice(
-      cap,
-    );
+  if (actions.length > cap) {
+    actions.splice(cap);
 
     notes.push(
       "The request was larger than one safe execution batch; the highest-priority deterministic changes were retained.",
@@ -2443,10 +1704,8 @@ export function buildDeterministicPlan(
 
   const recognized =
     intent.verbs.length > 0 ||
-    intent.sectionKinds.length >
-      0 ||
-    intent.newPages.length >
-      0 ||
+    intent.sectionKinds.length > 0 ||
+    intent.newPages.length > 0 ||
     intent.moods.length > 0;
 
   /**
@@ -2455,20 +1714,13 @@ export function buildDeterministicPlan(
    * unsupported work.
    */
   const coverage: DeterministicPlan["coverage"] =
-    actions.length === 0
-      ? "none"
-      : intent.unrecognised.length ===
-          0
-        ? "full"
-        : "partial";
+    actions.length === 0 ? "none" : intent.unrecognised.length === 0 ? "full" : "partial";
 
   /* ------------------------------------------------------------------------ */
   /* Optional external reasoning                                              */
   /* ------------------------------------------------------------------------ */
 
-  let externalReason:
-    | string
-    | null = null;
+  let externalReason: string | null = null;
 
   /**
    * IMPORTANT:
@@ -2481,29 +1733,18 @@ export function buildDeterministicPlan(
    * 1. There is no deterministic website action, OR
    * 2. An attachment genuinely needs semantic inspection.
    */
-  if (
-    actions.length ===
-      0 &&
-    attachments.length >
-      0
-  ) {
+  if (actions.length === 0 && attachments.length > 0) {
     externalReason =
       "An attachment may need semantic inspection before a safe website change can be planned.";
-  } else if (
-    actions.length ===
-      0 &&
-    !recognized
-  ) {
-    externalReason =
-      "No supported website operation was confidently recognized.";
+  } else if (actions.length === 0 && !recognized) {
+    externalReason = "No supported website operation was confidently recognized.";
   }
 
   /* ------------------------------------------------------------------------ */
   /* Summary                                                                  */
   /* ------------------------------------------------------------------------ */
 
-  const summaryAreas =
-    [...completedAreas];
+  const summaryAreas = [...completedAreas];
 
   const summary =
     summaryAreas.length > 0
@@ -2523,20 +1764,12 @@ export function buildDeterministicPlan(
     `Final plan contains ${actions.length} unique action${actions.length === 1 ? "" : "s"}.`,
   );
 
-  trace.push(
-    `Coverage: ${coverage}.`,
-  );
+  trace.push(`Coverage: ${coverage}.`);
 
-  if (
-    externalReason
-  ) {
-    trace.push(
-      `Optional reasoning reason: ${externalReason}`,
-    );
+  if (externalReason) {
+    trace.push(`Optional reasoning reason: ${externalReason}`);
   } else {
-    trace.push(
-      "The request can be handled without an external AI provider.",
-    );
+    trace.push("The request can be handled without an external AI provider.");
   }
 
   /* ------------------------------------------------------------------------ */
@@ -2553,35 +1786,19 @@ export function buildDeterministicPlan(
     /**
      * Keep customer-facing questions short and useful.
      */
-    questions:
-      unique(
-        questions
-          .map(cleanText)
-          .filter(Boolean),
-      ).slice(0, 2),
+    questions: unique(questions.map(cleanText).filter(Boolean)).slice(0, 2),
 
-    notes:
-      unique(
-        notes
-          .map(cleanText)
-          .filter(Boolean),
-      ).slice(0, 10),
+    notes: unique(notes.map(cleanText).filter(Boolean)).slice(0, 10),
 
     coverage,
 
-    trace:
-      unique(
-        trace
-          .map(cleanText)
-          .filter(Boolean),
-      ),
+    trace: unique(trace.map(cleanText).filter(Boolean)),
 
     intent,
 
     tasks,
 
-    requiresExternalReasoning:
-      externalReason !== null,
+    requiresExternalReasoning: externalReason !== null,
 
     externalReason,
   };
@@ -2594,36 +1811,26 @@ export function buildDeterministicPlan(
 /**
  * True only when the deterministic engine considers the request fully handled.
  */
-export const isFullyHandled = (
-  plan: DeterministicPlan,
-): boolean =>
-  plan.coverage === "full";
+export const isFullyHandled = (plan: DeterministicPlan): boolean => plan.coverage === "full";
 
 /**
  * Useful for callers that need to know whether a plan actually changes
  * anything before attempting execution.
  */
-export const hasDeterministicActions = (
-  plan: DeterministicPlan,
-): boolean =>
+export const hasDeterministicActions = (plan: DeterministicPlan): boolean =>
   plan.actions.length > 0;
 
 /**
  * Useful for the agent layer when deciding whether a plan is safe to execute.
  */
-export const actionCount = (
-  plan: DeterministicPlan,
-): number =>
-  plan.actions.length;
+export const actionCount = (plan: DeterministicPlan): number => plan.actions.length;
 
 /**
  * Human-readable internal diagnostics.
  *
  * This is intentionally pure and has no database/network side effects.
  */
-export function deterministicPlanSummary(
-  plan: DeterministicPlan,
-): string {
+export function deterministicPlanSummary(plan: DeterministicPlan): string {
   return [
     `coverage=${plan.coverage}`,
     `actions=${plan.actions.length}`,

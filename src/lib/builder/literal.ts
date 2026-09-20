@@ -47,7 +47,8 @@ const TARGETS: [RegExp, LiteralDirective["kind"] | "subheading" | "body" | "phon
   [/\b(e-?mail( address)?)\b/, "email"],
 ];
 
-const CHANGE_VERB = /\b(change|set|make|update|rename|replace|edit|reword|put|say|says|read|reads)\b/;
+const CHANGE_VERB =
+  /\b(change|set|make|update|rename|replace|edit|reword|put|say|says|read|reads)\b/;
 
 const VALUE_LEAD =
   /(?:\bto\s+(?:say\s+|read\s+)?|\bsay\s+|\bsays\s+|\breads?\s+|\binto\s+|\bwith\s+|:\s*)/;
