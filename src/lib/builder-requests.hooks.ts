@@ -106,17 +106,50 @@ export function useBuilderRequests({
     }
     patch(task.id, { state: "building", applied: 0, notice: "", details: [] });
     try {
-      const result = await applyFn({
+      const allActions = steps
+        .map((step) => actionsRef.current.get(step.key)?.action)
+        .filter((action): action is AgentStep["action"] => Boolean(action));
+      const label = (task.summary || task.instruction).slice(0, 110) || "Before Revora changes";
+      // A big request is installed in safe batches instead of being refused: the
+      // server accepts a limited number of changes at once, so the whole plan is
+      // walked through in order until every approved step has had its turn.
+      const batches: AgentStep["action"][][] = [];
+      for (let index = 0; index < allActions.length; index += APPLY_BATCH_SIZE)
+        batches.push(allActions.slice(index, index + APPLY_BATCH_SIZE));
+      if (!batches.length) batches.push([]);
+
+      let result = await applyFn({
         data: {
           organizationId: organizationId!,
-          actions: steps
-            .map((step) => actionsRef.current.get(step.key)?.action)
-            .filter((action): action is AgentStep["action"] => Boolean(action)),
-          label: (task.summary || task.instruction).slice(0, 110) || "Before Revora changes",
+          actions: batches[0]!,
+          label,
           // Stable per-request key: pressing apply twice cannot write twice.
           operationKey: task.id,
         },
       });
+      for (let index = 1; index < batches.length; index += 1) {
+        // Nothing landed from the previous batch: stop rather than keep pushing
+        // changes at a website that has moved on. The owner is told to retry,
+        // which replans against the current site.
+        if (!result.applied) break;
+        patch(task.id, { applied: result.applied });
+        const next = await applyFn({
+          data: {
+            organizationId: organizationId!,
+            actions: batches[index]!,
+            label,
+            operationKey: `${task.id}:${index + 1}`,
+          },
+        });
+        result = {
+          ...next,
+          applied: result.applied + next.applied,
+          failed: (result.failed ?? 0) + (next.failed ?? 0),
+          stale: (result.stale ?? 0) + (next.stale ?? 0),
+          details: [...(result.details ?? []), ...(next.details ?? [])],
+          staleNotice: next.staleNotice || result.staleNotice,
+        };
+      }
       const skipped = (result.failed ?? 0) + (result.stale ?? 0);
       const partial = result.applied > 0 && skipped > 0;
       if (result.applied === 0) {
