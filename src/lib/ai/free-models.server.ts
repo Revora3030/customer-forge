@@ -284,7 +284,9 @@ const ROLE_HINTS: Record<ModelRole, RegExp[]> = {
   design: [/235b|480b|120b|70b|72b|maverick|scout|nemotron|glm|qwen3|deepseek/i, /32b|27b|30b/i],
   coding: [/cod(?:e|er)|qwen|glm|nemotron/i],
   vision: [/vision|vl|gemma|multimodal|image/i],
-  image: [],
+  // Text-to-image families Revora has verified as free on Workers AI. Fastest
+  // and cleanest first (flux schnell), then the diffusion family as backup.
+  image: [/flux-1|schnell/i, /stable-diffusion|sdxl|dreamshaper/i],
   transcription: [],
 };
 
