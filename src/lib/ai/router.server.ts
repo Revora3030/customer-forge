@@ -51,6 +51,8 @@ import type {
 const ADAPTERS: Record<ProviderName, ProviderAdapter> = {
   google: googleAdapter,
   openai: openAiAdapter,
+  cloudflare: cloudflareAdapter,
+  openrouter: openRouterAdapter,
 };
 
 /* ----------------------------- circuit breaker ----------------------------- */
