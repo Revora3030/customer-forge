@@ -255,6 +255,15 @@ export function planSiteContent(input: MaterializeInput): Page[] {
     ],
   };
 
+  // Shape the home page for the kind of business this is, before the closing CTA.
+  if (input.archetype) {
+    const extra = archetypeSections(input.archetype.homeSections, input, place).filter(
+      (section) => !home.sections.some((existing) => existing.kind === section.kind),
+    );
+    const closing = home.sections.findIndex((section) => section.kind === "cta");
+    home.sections.splice(closing >= 0 ? closing : home.sections.length, 0, ...extra);
+  }
+
   const pages: Page[] = [home];
 
   if (serviceCards.length)
@@ -340,6 +349,32 @@ export function planSiteContent(input: MaterializeInput): Page[] {
         { kind: "booking", heading: "Book a time", subheading: "Pick a slot that suits you." },
       ],
     });
+
+  // Pages that only this kind of business needs — a menu, rooms, listings,
+  // programmes, a timetable — instead of one universal service-site shape.
+  for (const page of input.archetype?.pages ?? []) {
+    if (pages.some((existing) => existing.slug === page.slug)) continue;
+    const sections = archetypeSections(page.sections, input, place);
+    if (!sections.length) continue;
+    const title = resolveArchetypeText(page.title, { businessName: input.businessName, place });
+    pages.push({
+      slug: page.slug,
+      title,
+      kind: page.kind,
+      seo_title: clean(`${title} — ${input.businessName}`),
+      seo_description: clean(copy.metaDescription),
+      sections: sections.map((section) =>
+        section.kind === "cta"
+          ? {
+              ...section,
+              components: [
+                { kind: "button", label: primaryCta, link_label: primaryCta, link_url: primaryTarget },
+              ],
+            }
+          : section,
+      ),
+    });
+  }
 
   pages.push({
     slug: "contact",
