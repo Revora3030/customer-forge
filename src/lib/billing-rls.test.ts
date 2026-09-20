@@ -135,4 +135,24 @@ describe("billing RLS — organizations billing columns stay server-frozen", () 
       /create trigger protect_org_billing_columns[\s\S]*?on public\.organizations/i,
     );
   });
+
+  it("revokes direct execution of SECURITY DEFINER trigger helpers", () => {
+    const hardening =
+      ALL.find((m) => m.name.includes("harden_private_security_definer_execute"))?.sql ?? "";
+
+    expect(hardening).not.toBe("");
+
+    for (const signature of [
+      "private.protect_org_billing_columns()",
+      "private.production_unlocked(uuid)",
+      "private.guard_production_activation()",
+      "private.default_org_billing_columns()",
+      "private.freeze_organization_id()",
+    ]) {
+      expect(hardening.toLowerCase()).toContain(
+        `revoke all on function ${signature.toLowerCase()} from public`,
+      );
+    }
+  });
+
 });
