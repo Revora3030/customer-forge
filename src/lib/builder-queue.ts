@@ -10,6 +10,8 @@
  * the state machine can be tested exactly as the owner experiences it.
  */
 
+import type { CompositionPreview } from "@/lib/builder/composition-preview";
+
 export type QueueState =
   "queued" | "planning" | "waiting_for_approval" | "building" | "complete" | "failed" | "skipped";
 
