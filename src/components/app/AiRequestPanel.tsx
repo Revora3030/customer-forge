@@ -424,10 +424,18 @@ export function AiRequestPanel({
               ) : null}
 
               {task.steps.length ? (
-                <>
-                  {task.state === "waiting_for_approval" ? (
-                    <p className="mt-2 text-[12.5px] font-medium">Here's what I'll change:</p>
-                  ) : null}
+                <details
+                  className="group mt-2"
+                  open={task.steps.length <= 8 && task.state === "waiting_for_approval"}
+                >
+                  <summary className="cursor-pointer text-[12.5px] font-medium">
+                    {task.state === "waiting_for_approval"
+                      ? `Here's what I'll change — ${task.steps.length} update${task.steps.length === 1 ? "" : "s"}`
+                      : `${task.steps.length} update${task.steps.length === 1 ? "" : "s"} in this request`}
+                    <span className="ml-1 font-normal text-muted-foreground group-open:hidden">
+                      (tap to review)
+                    </span>
+                  </summary>
                   <ul className="mt-2 space-y-1">
                     {task.steps.map((step, index) => (
                       <li key={step.key} className="flex items-center gap-2 text-[12px]">
