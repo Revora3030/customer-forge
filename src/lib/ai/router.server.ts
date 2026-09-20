@@ -805,6 +805,18 @@ export async function callPinnedFreeModel(
     });
   if (!providerHealthy(call.provider as ProviderName))
     throw providerUnavailable(call.provider, "cooling down after repeated failures");
+  // SHARED STATE: many workers spend one free allowance, so the cross-worker
+  // counters get a say too. They may only ever add caution, never remove it,
+  // and an unreachable store simply leaves the local gates in charge.
+  const cap = freeBudgetCap(call.provider);
+  await refreshDurableRuntime();
+  if (durableBudgetExhausted(call.provider, cap))
+    throw new RevoraAiError(429, "That free provider is out of budget for today.", {
+      category: "rate_limited",
+      provider: call.provider,
+    });
+  if (durableProviderResting(call.provider))
+    throw providerUnavailable(call.provider, "cooling down after repeated failures");
   const credentials = freeProviderCredentials(call.provider);
   if (!credentials) throw freeAiUnavailable(`${call.provider} has no credentials configured`);
 
@@ -818,6 +830,7 @@ export async function callPinnedFreeModel(
   const requestId = caller.requestId ?? newRequestId();
   try {
     noteFreeUse(call.provider);
+    void noteDurableFreeUse(call.provider, cap);
     const result = await adapter.chat({
       apiKey: credentials.apiKey,
       model: call.model,
