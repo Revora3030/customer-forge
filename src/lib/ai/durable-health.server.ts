@@ -161,7 +161,7 @@ export async function noteDurableFreeUse(
     if (!client) return null;
     const { data, error } = await client.rpc("ai_note_free_use", {
       _provider: provider,
-      _cap: cap ?? null,
+      ...(cap === null ? {} : { _cap: cap }),
     });
     if (error) return null;
     const remaining = typeof data === "number" ? data : null;
