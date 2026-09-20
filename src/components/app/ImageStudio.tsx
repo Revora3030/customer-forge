@@ -258,6 +258,55 @@ export function ImageStudio({
         </div>
       ) : null}
 
+      {status.data ? (
+        <div
+          className={cn(
+            "mt-4 rounded-lg border p-3.5",
+            status.data.available ? "border-border bg-elevated" : "border-amber-500/40 bg-amber-500/5",
+          )}
+        >
+          <div className="flex flex-wrap items-center gap-2">
+            <Pill tone={status.data.available ? "positive" : "warning"}>
+              {status.data.available ? "Picture making ready" : "Picture making unavailable"}
+            </Pill>
+            {status.data.available && status.data.remainingToday !== null ? (
+              <span className="text-[12px] text-muted-foreground">
+                {status.data.remainingToday} free pictures left today
+              </span>
+            ) : null}
+            {status.data.available && !status.data.editSupported ? (
+              <span className="text-[12px] text-muted-foreground">
+                New pictures only — changing an existing picture isn&apos;t available
+              </span>
+            ) : null}
+          </div>
+          <p className="mt-1.5 text-[12.5px] text-muted-foreground">{status.data.message}</p>
+        </div>
+      ) : null}
+
+      <div className="mt-4">
+        <p className="text-[12px] uppercase tracking-wide text-muted-foreground">Shape</p>
+        <div className="mt-2 flex flex-wrap gap-2">
+          {["16:9", "4:3", "1:1", "3:2", "21:9", "9:16"].map((ratio) => (
+            <button
+              key={ratio}
+              type="button"
+              onClick={() => setAspectRatio(ratio)}
+              aria-pressed={aspectRatio === ratio}
+              disabled={!canManage}
+              className={cn(
+                "cursor-pointer rounded-full border px-3 py-1.5 text-[12px] transition-all disabled:cursor-not-allowed disabled:opacity-60",
+                aspectRatio === ratio
+                  ? "border-primary bg-primary/15 text-primary"
+                  : "border-border text-muted-foreground hover:bg-elevated",
+              )}
+            >
+              {ratio}
+            </button>
+          ))}
+        </div>
+      </div>
+
       <div className="mt-4 rounded-lg border border-border bg-elevated p-3.5">
         <p className="text-[12px] uppercase tracking-wide text-muted-foreground">
           Visual direction
