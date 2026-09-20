@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { LoadingRows } from "@/components/app/Bits";
 import { Button } from "@/components/ui/button";
@@ -23,6 +23,7 @@ import { BuilderHistoryProvider } from "@/lib/builder-history.hooks";
 import { GroupTabs } from "@/components/app/BuilderGroups";
 import { BuilderAssistant } from "@/components/app/BuilderAssistant";
 import { BuilderNeeds, type BuilderNeed } from "@/components/app/BuilderNeeds";
+import { builderNeedKeys, type BuilderNeedKey } from "@/lib/builder-needs";
 import { useBuilderRequests } from "@/lib/builder-requests.hooks";
 import { ConversionOptimizer } from "@/components/app/ConversionOptimizer";
 import { normalizeBuilderMode } from "@/lib/builder-modes";
@@ -319,6 +320,8 @@ function WebsitePage() {
     setJump({ step: "business", nonce: Date.now() });
   };
 
+  const publishState = settings?.publish_state ?? "draft";
+
   /** Only what this website actually needs, in the owner's words. */
   const mediaCount = facts.data?.mediaCount ?? 0;
   const brandSet = Boolean(profile?.["primary_color"]) && Boolean(profile?.["logo_url"]);
@@ -416,7 +419,6 @@ function WebsitePage() {
 
   /** Nothing built yet: one conversation and nothing else. */
   const firstRun = (pages ?? []).length === 0;
-  const publishState = settings?.publish_state ?? "draft";
 
   /** The whole workspace: a conversation, their website, and what it needs. */
   const workspace = (
