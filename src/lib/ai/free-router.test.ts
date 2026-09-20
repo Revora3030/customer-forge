@@ -21,6 +21,8 @@ const KEYS = [
   "OPENAI_API_KEY",
   "OPENROUTER_API_KEY",
   "GROQ_API_KEY",
+  "NVIDIA_NIM_API_KEY",
+  "NVIDIA_API_KEY",
   "CLOUDFLARE_AI_API_TOKEN",
   "CLOUDFLARE_API_TOKEN",
   "CLOUDFLARE_ACCOUNT_ID",
@@ -112,6 +114,7 @@ describe("free-only enforcement", () => {
       expect(isFreeEligibleModel("google", model)).toBe(false);
       expect(isFreeEligibleModel("cloudflare", model)).toBe(false);
       expect(isFreeEligibleModel("groq", model)).toBe(false);
+      expect(isFreeEligibleModel("nvidia", model)).toBe(false);
     }
   });
 
@@ -137,6 +140,29 @@ describe("free-only enforcement", () => {
     const { freeProviderChain } = await free();
     expect(freeProviderChain("vision").map((entry) => entry.name)).not.toContain("groq");
   });
+
+  it("accepts NVIDIA's hosted chat models and rejects its non-chat models", async () => {
+    const { isFreeEligibleModel } = await free();
+    expect(isFreeEligibleModel("nvidia", "nvidia/nemotron-3-super-120b-a12b")).toBe(true);
+    expect(isFreeEligibleModel("nvidia", "meta/llama-3.2-11b-vision-instruct")).toBe(true);
+    expect(isFreeEligibleModel("nvidia", "nvidia/nemotron-3-embed-1b")).toBe(false);
+    expect(isFreeEligibleModel("nvidia", "nvidia/llama-3.1-nemoguard-8b-content-safety")).toBe(
+      false,
+    );
+    expect(isFreeEligibleModel("nvidia", "nvidia/nemotron-parse-2.0")).toBe(false);
+    expect(isFreeEligibleModel("nvidia", "nvidia/riva-translate-4b-instruct")).toBe(false);
+  });
+
+  it("puts NVIDIA in the free chain once its key is configured", async () => {
+    process.env["NVIDIA_NIM_API_KEY"] = "nvidia-key";
+    const { freeProviderChain } = await free();
+    const chain = freeProviderChain("primary");
+    expect(chain.map((entry) => entry.name)).toContain("nvidia");
+    expect(chain.find((entry) => entry.name === "nvidia")?.model).toBe(
+      "nvidia/nemotron-3-super-120b-a12b",
+    );
+  });
+
 
   it("accepts the documented free models", async () => {
     const { isFreeEligibleModel } = await free();

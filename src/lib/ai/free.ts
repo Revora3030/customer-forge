@@ -19,11 +19,12 @@
 
 import type { ModelRole, ProviderName } from "@/lib/ai/config";
 
-export type FreeProviderName = "cloudflare" | "groq" | "openrouter" | "google";
+export type FreeProviderName = "cloudflare" | "groq" | "nvidia" | "openrouter" | "google";
 
 export const FREE_PROVIDERS: FreeProviderName[] = [
   "cloudflare",
   "groq",
+  "nvidia",
   "openrouter",
   "google",
 ];
@@ -49,6 +50,11 @@ export const FREE_ALLOWANCE: Record<
   groq: {
     label: "Groq free developer tier",
     allowance: "Free developer tier: per-minute and per-day request limits per model.",
+    dailyRequestCap: null,
+  },
+  nvidia: {
+    label: "NVIDIA NIM free developer allowance",
+    allowance: "Free developer allowance: rate-limited requests to hosted NIM models.",
     dailyRequestCap: null,
   },
   openrouter: {
@@ -85,6 +91,14 @@ const FREE_MODEL_DEFAULTS: Record<FreeProviderName, Partial<Record<ModelRole, st
     primary: "openai/gpt-oss-120b",
     fast: "openai/gpt-oss-20b",
     coding: "qwen/qwen3.8-27b",
+  },
+  // Verified live against this NVIDIA key's hosted NIM catalogue. Only these
+  // answered; several listed ids are retired or not served to this account.
+  nvidia: {
+    primary: "nvidia/nemotron-3-super-120b-a12b",
+    fast: "nvidia/nemotron-3.5-lightning-30b-a3b",
+    coding: "nvidia/nemotron-3-super-120b-a12b",
+    vision: "meta/llama-3.2-11b-vision-instruct",
   },
   // Verified live against OpenRouter's zero-price pool. `openrouter/free` is
   // its free auto-router, so it survives individual models being retired.
@@ -185,6 +199,22 @@ function groqFreeEligible(name: string) {
   return !PAID_MODEL_PATTERNS.some((pattern) => pattern.test(model));
 }
 
+/**
+ * NVIDIA NIM ids are vendor-prefixed (`nvidia/nemotron-3-super-120b-a12b`). The
+ * hosted catalogue also lists embedders, retrievers, guard/safety models,
+ * parsers and translators, none of which are chat generation — they are
+ * rejected so the router never spends an attempt on one.
+ */
+const NVIDIA_NON_CHAT =
+  /embed|retriev|rerank|guard|safety|topic-control|parse|nvclip|translate|reward|detector|ocr|diffusion/i;
+
+function nvidiaFreeEligible(name: string) {
+  if (!name.includes("/")) return false;
+  if (NVIDIA_NON_CHAT.test(name)) return false;
+  const model = name.slice(name.lastIndexOf("/") + 1);
+  return !PAID_MODEL_PATTERNS.some((pattern) => pattern.test(model));
+}
+
 export function isFreeEligibleModel(provider: FreeProviderName, model: string): boolean {
   const name = model.trim();
   if (name.length === 0) return false;
@@ -195,6 +225,7 @@ export function isFreeEligibleModel(provider: FreeProviderName, model: string): 
   if (provider === "openrouter") return openRouterFree(name);
   if (provider === "google") return /flash|lite|gemma/i.test(name);
   if (provider === "groq") return groqFreeEligible(name);
+  if (provider === "nvidia") return nvidiaFreeEligible(name);
   return name.startsWith("@cf/");
 }
 
@@ -223,6 +254,10 @@ export function freeProviderCredentials(
     const apiKey = env("GROQ_API_KEY");
     return apiKey ? { apiKey } : null;
   }
+  if (provider === "nvidia") {
+    const apiKey = env("NVIDIA_NIM_API_KEY") ?? env("NVIDIA_API_KEY");
+    return apiKey ? { apiKey } : null;
+  }
   // Gemini needs its OWN free-tier key. A general Google key may sit on a
   // billing-enabled project, where the same models are charged — so it is only
   // treated as free when an operator opts in explicitly.
@@ -241,7 +276,13 @@ export function freeModelFor(provider: FreeProviderName, role: ModelRole): strin
 
 /* --------------------------------- ordering -------------------------------- */
 
-const DEFAULT_ORDER: FreeProviderName[] = ["cloudflare", "groq", "openrouter", "google"];
+const DEFAULT_ORDER: FreeProviderName[] = [
+  "cloudflare",
+  "groq",
+  "nvidia",
+  "openrouter",
+  "google",
+];
 
 /**
  * An in-process priority override an authorised admin can set. It is deliberately
