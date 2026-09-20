@@ -280,7 +280,7 @@ describe("builder availability", () => {
     process.env["CLOUDFLARE_ACCOUNT_ID"] = "cf-account";
     vi.resetModules();
     const { builderMediaAvailability } = await import("@/lib/ai/availability");
-    expect(builderMediadAvailabilityShape(builderMediaAvailability())).toEqual({
+    expect(builderMediaAvailability()).toEqual({
       vision: true,
       voice: true,
       images: true,
