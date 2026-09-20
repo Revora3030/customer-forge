@@ -150,6 +150,21 @@ function WebsitePage() {
     if (sectionParam) setSection(normalizeBuilderMode(sectionParam));
   }, [sectionParam]);
 
+  // Builder → publish completion: one "opened" per workspace per browser
+  // session, so the published count can be read as a share of real attempts.
+  useEffect(() => {
+    if (!orgId) return;
+    const key = `revora.builder.opened.${orgId}`;
+    try {
+      if (window.sessionStorage.getItem(key)) return;
+      window.sessionStorage.setItem(key, "1");
+    } catch {
+      /* storage unavailable — record it anyway */
+    }
+    trackConversion("builder_opened", { metadata: { organization_id: orgId } });
+  }, [orgId]);
+
+
   const requiredCount = (readiness?.requiredGaps ?? []).length;
 
   // One server-verified launch path for every publish button on this page.
