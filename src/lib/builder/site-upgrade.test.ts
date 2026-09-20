@@ -174,4 +174,61 @@ describe("planWholeSiteUpgrade — site-wide passes", () => {
     const actions = planWholeSiteUpgrade(ctx(), interpret("redesign my whole website", []), { cap: 5 });
     expect(actions.length).toBeLessThanOrEqual(5);
   });
+
+  it("lays out every section and skips that when keeping the look", () => {
+    const intent = interpret("redesign my whole website", []);
+    const withLook = planWholeSiteUpgrade(ctx(), intent, { cap: 120 });
+    const keepLook = planWholeSiteUpgrade(ctx(), intent, { cap: 120, keepLook: true });
+    expect(withLook.some((a) => a.type === "set_section_visual")).toBe(true);
+    expect(keepLook.some((a) => a.type === "set_section_visual")).toBe(false);
+  });
+
+  it("describes every picture using only real details", () => {
+    const context = ctx();
+    context.pages[0]!.sections[1]!.components.push({
+      id: "c1",
+      kind: "image",
+      label: null,
+      body: null,
+      link_label: null,
+      link_url: null,
+      sort_order: 0,
+    });
+    const actions = planWholeSiteUpgrade(context, interpret("redesign my whole website", []), {
+      cap: 120,
+    });
+    const media = actions.filter((a) => a.type === "set_component_visual");
+    expect(media.length).toBeGreaterThan(0);
+    expect(JSON.stringify(media)).toContain("Bluebird Plumbing");
+  });
+
+  it("puts the wording before the button inside a section", () => {
+    const context = ctx();
+    context.pages[0]!.sections[1]!.components.push(
+      {
+        id: "btn",
+        kind: "button",
+        label: "Call us",
+        body: null,
+        link_label: "Call us",
+        link_url: "tel:+15125550000",
+        sort_order: 0,
+      },
+      {
+        id: "txt",
+        kind: "text",
+        label: "What we do",
+        body: "Emergency plumbing across Austin.",
+        link_label: null,
+        link_url: null,
+        sort_order: 1,
+      },
+    );
+    const actions = planWholeSiteUpgrade(context, interpret("redesign my whole website", []), {
+      cap: 120,
+    });
+    const reorder = actions.find((a) => a.type === "reorder_components");
+    expect(reorder).toBeDefined();
+    expect(reorder && "componentIds" in reorder ? reorder.componentIds : []).toEqual(["txt", "btn"]);
+  });
 });

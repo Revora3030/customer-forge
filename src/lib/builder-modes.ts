@@ -73,6 +73,11 @@ export const BUILDER_PRIMARY_ACTIONS: BuilderQuickAction[] = [
       "Upgrade every page of my website, not just the home page: give each page a readable order, a clear closing ask, an obvious next step in the first screen, and a search title and description written only from my real business details. Do not invent anything.",
   },
   {
+    label: "Perfect the details",
+    instruction:
+      "Go through my whole website and perfect the details: lay every section out properly, frame every picture and describe it for people who cannot see it, put the wording before the buttons, link every page so nothing is stranded, and give thin pages something useful. Use only my real business details.",
+  },
+  {
     label: "Improve my website",
     instruction:
       "Improve my whole website: clearer wording, tidier layout, consistent spacing and a stronger first screen. Keep all of my real business details exactly as they are.",

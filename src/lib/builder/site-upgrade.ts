@@ -20,11 +20,12 @@
  * and cheap — it does not call any external service.
  */
 
-import type { AgentAction } from "@/lib/site-agent";
+import type { AgentAction, SectionVisualPatch } from "@/lib/site-agent";
 import type { AgentContext, SiteMapPage } from "@/lib/site-agent.server";
 import type { BuilderIntent } from "@/lib/builder/interpreter";
 import { recommendDirections } from "@/lib/design-directions";
-import { siteVariation } from "@/lib/site-variation";
+import { siteVariation, type HeadingSlot } from "@/lib/site-variation";
+import { compileNavigationRepairs } from "@/lib/builder/navigation-intelligence";
 
 /** Section kinds that should never appear twice on the same page. */
 const HIGH_VALUE_SECTIONS = ["reviews", "faq", "cta", "contact"] as const;
@@ -426,7 +427,238 @@ export function planWholeSiteUpgrade(
     seoBudget -= 1;
   }
 
+  /* ---------------------------------------------------------------- */
+  /* 9. SECTION COMPOSITION — how each section is laid out             */
+  /* ---------------------------------------------------------------- */
+
+  if (!keepLook) {
+    let compositionBudget = 14;
+    for (const page of context.pages) {
+      if (!page.is_visible || compositionBudget <= 0 || actions.length >= cap) break;
+      for (const section of page.sections) {
+        if (!section.is_visible) continue;
+        if (compositionBudget <= 0 || actions.length >= cap) break;
+        const patch = compositionFor(section.kind, variation);
+        if (!patch) continue;
+        push({ type: "set_section_visual", sectionId: section.id, patch });
+        compositionBudget -= 1;
+      }
+    }
+  }
+
+  /* ---------------------------------------------------------------- */
+  /* 10. EVERY PICTURE GETS A DESCRIPTION AND A SENSIBLE FRAME         */
+  /* ---------------------------------------------------------------- */
+
+  let mediaBudget = 12;
+  for (const page of context.pages) {
+    if (!page.is_visible || mediaBudget <= 0 || actions.length >= cap) break;
+    for (const section of page.sections) {
+      if (!section.is_visible) continue;
+      for (const component of section.components) {
+        if (mediaBudget <= 0 || actions.length >= cap) break;
+        if (!MEDIA_COMPONENT_KINDS.has(component.kind)) continue;
+        const alt = factualAltText(context, page, section, component);
+        if (!alt) continue;
+        push({
+          type: "set_component_visual",
+          componentId: component.id,
+          patch: {
+            alt,
+            object_fit: "cover",
+            object_position: "center",
+            aspect_ratio: section.kind === "hero" ? "16:9" : "4:3",
+            radius: section.kind === "hero" ? "large" : "medium",
+            shadow: section.kind === "hero" ? "medium" : "soft",
+          },
+        });
+        mediaBudget -= 1;
+      }
+    }
+  }
+
+  /* ---------------------------------------------------------------- */
+  /* 11. READ THE WORDS FIRST, THEN THE BUTTON                         */
+  /* ---------------------------------------------------------------- */
+
+  let orderBudget = 6;
+  for (const page of context.pages) {
+    if (!page.is_visible || orderBudget <= 0 || actions.length >= cap) break;
+    for (const section of page.sections) {
+      if (!section.is_visible) continue;
+      if (orderBudget <= 0 || actions.length >= cap) break;
+      const ordered = readingOrderedComponentIds(section);
+      if (!ordered) continue;
+      push({ type: "reorder_components", sectionId: section.id, componentIds: ordered });
+      orderBudget -= 1;
+    }
+  }
+
+  /* ---------------------------------------------------------------- */
+  /* 12. NO PAGE LEFT UNREACHABLE                                      */
+  /* ---------------------------------------------------------------- */
+
+  if (actions.length < cap) {
+    const { actions: linkActions } = compileNavigationRepairs(
+      context,
+      "add internal links between pages",
+      Math.min(4, cap - actions.length),
+    );
+    for (const action of linkActions) push(action);
+  }
+
+  /* ---------------------------------------------------------------- */
+  /* 13. PAGES WITH TOO LITTLE ON THEM GET SOMETHING USEFUL            */
+  /* ---------------------------------------------------------------- */
+
+  let depthBudget = 3;
+  for (const page of context.pages) {
+    if (!page.is_visible || depthBudget <= 0 || actions.length >= cap) break;
+    if (page.id === home?.id) continue;
+    const visibleSections = page.sections.filter((section) => section.is_visible);
+    if (visibleSections.length === 0 || visibleSections.length > 2) continue;
+    const kind = DEPTH_SECTIONS.find(
+      (candidate) => allowedSectionKinds.has(candidate) && !pageHasSection(page, candidate),
+    );
+    if (!kind) continue;
+    push({ type: "add_section", pageId: page.id, kind, heading: variation.heading(kind) });
+    depthBudget -= 1;
+  }
+
   return actions;
+}
+
+/** Component kinds that carry a picture. */
+const MEDIA_COMPONENT_KINDS = new Set([
+  "image",
+  "gallery",
+  "media",
+  "photo",
+  "hero_image",
+  "logo",
+]);
+
+/** Component kinds that are an action rather than something to read. */
+const ACTION_COMPONENT_KINDS = new Set(["button", "link", "cta", "form"]);
+
+/** Sections worth adding to a page that has almost nothing on it. */
+const DEPTH_SECTIONS: HeadingSlot[] = ["services", "faq", "cta"];
+
+/**
+ * A description for a picture, written only from text that already exists in
+ * this workspace. Returns null when there is nothing real to say.
+ */
+function factualAltText(
+  context: AgentContext,
+  page: SiteMapPage,
+  section: { kind: string; heading: string | null },
+  component: { label: string | null; body: string | null },
+): string | null {
+  const own = component.label?.trim() || component.body?.trim();
+  if (own && own.length >= 3) return own.slice(0, 160);
+
+  const name = context.business.name?.trim();
+  if (!name) return null;
+
+  const sectionHeading = section.heading?.trim();
+  if (sectionHeading && sectionHeading.length >= 3) {
+    return `${sectionHeading} — ${name}`.slice(0, 160);
+  }
+
+  const pageTitle = page.title?.trim();
+  if (pageTitle && pageTitle.length >= 3 && page.kind !== "home") {
+    return `${pageTitle} — ${name}`.slice(0, 160);
+  }
+
+  const service = primaryService(context);
+  return (service ? `${service} by ${name}` : name).slice(0, 160);
+}
+
+/**
+ * Words before buttons inside a section. Returns null when the section already
+ * reads in that order, so we never emit a no-op change.
+ */
+function readingOrderedComponentIds(section: {
+  components: { id: string; kind: string; sort_order: number }[];
+}): string[] | null {
+  const components = section.components.slice().sort((a, b) => a.sort_order - b.sort_order);
+  if (components.length < 2) return null;
+  const desired = components
+    .map((component, index) => ({
+      component,
+      index,
+      rank: ACTION_COMPONENT_KINDS.has(component.kind) ? 1 : 0,
+    }))
+    .sort((a, b) => a.rank - b.rank || a.index - b.index)
+    .map((entry) => entry.component.id);
+  const current = components.map((component) => component.id);
+  if (desired.every((id, index) => id === current[index])) return null;
+  return desired;
+}
+
+/**
+ * Layout composition per section kind, keyed to this business's own variation
+ * so two workspaces in the same trade don't come out identical.
+ */
+function compositionFor(
+  kind: string,
+  variation: ReturnType<typeof siteVariation>,
+): SectionVisualPatch | null {
+  const airy = variation.heroVariant.length % 2 === 0;
+  switch (kind) {
+    case "hero":
+      return {
+        layout: airy ? "split" : "centered",
+        image_position: airy ? "right" : "background",
+        image_treatment: airy ? "soft_shadow" : "cinematic",
+        spacing: "generous",
+        max_width: "wide",
+        image_ratio: "16:9",
+        density: "airy",
+      };
+    case "services":
+    case "features":
+    case "benefits":
+    case "pricing":
+      return {
+        layout: "centered",
+        card_style: airy ? "soft" : "floating",
+        spacing: "standard",
+        max_width: "standard",
+        density: "balanced",
+      };
+    case "gallery":
+    case "portfolio":
+      return {
+        layout: "full_bleed",
+        image_treatment: "rounded",
+        spacing: "standard",
+        max_width: "wide",
+        image_ratio: "4:3",
+      };
+    case "reviews":
+      return { layout: "centered", card_style: "editorial", spacing: "generous", max_width: "standard" };
+    case "about":
+    case "intro":
+    case "process":
+      return {
+        layout: airy ? "image_left" : "editorial",
+        spacing: "standard",
+        max_width: "narrow",
+        density: "airy",
+      };
+    case "faq":
+      return { layout: "stacked", spacing: "standard", max_width: "narrow", density: "balanced" };
+    case "cta":
+    case "offer":
+      return { layout: "centered", spacing: "generous", max_width: "standard", card_style: "glass" };
+    case "contact":
+    case "booking":
+    case "quote":
+      return { layout: "split", spacing: "standard", max_width: "standard", card_style: "soft" };
+    default:
+      return null;
+  }
 }
 
 /** Section kinds that already close a page with an ask. */
