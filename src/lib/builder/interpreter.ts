@@ -41,14 +41,7 @@ export type BuilderVerb =
   | "fix";
 
 export type StyleMood =
-  | "professional"
-  | "premium"
-  | "minimal"
-  | "bold"
-  | "friendly"
-  | "modern"
-  | "dark"
-  | "bright";
+  "professional" | "premium" | "minimal" | "bold" | "friendly" | "modern" | "dark" | "bright";
 
 export type BuilderGoal =
   | "launch"
@@ -65,13 +58,7 @@ export type BuilderGoal =
   | "visual";
 
 export type BuilderConstraint =
-  | "keep_facts"
-  | "no_invention"
-  | "mobile_first"
-  | "fast"
-  | "accessible"
-  | "simple"
-  | "free_engine";
+  "keep_facts" | "no_invention" | "mobile_first" | "fast" | "accessible" | "simple" | "free_engine";
 
 export type BuilderOperation = {
   raw: string;
@@ -108,15 +95,7 @@ export type BuilderIntent = {
 /* -------------------------------------------------------------------------- */
 
 const SECTION_WORDS: Record<string, string[]> = {
-  hero: [
-    "hero",
-    "banner",
-    "header",
-    "headline area",
-    "main heading",
-    "main title",
-    "first screen",
-  ],
+  hero: ["hero", "banner", "header", "headline area", "main heading", "main title", "first screen"],
 
   trust_bar: [
     "trust bar",
@@ -128,24 +107,9 @@ const SECTION_WORDS: Record<string, string[]> = {
     "licensed and insured",
   ],
 
-  intro: [
-    "intro",
-    "introduction",
-    "about us",
-    "who we are",
-    "welcome",
-    "our story",
-    "team",
-  ],
+  intro: ["intro", "introduction", "about us", "who we are", "welcome", "our story", "team"],
 
-  services: [
-    "services",
-    "service list",
-    "what we do",
-    "offerings",
-    "treatments",
-    "menu",
-  ],
+  services: ["services", "service list", "what we do", "offerings", "treatments", "menu"],
 
   pricing: [
     "pricing",
@@ -158,21 +122,9 @@ const SECTION_WORDS: Record<string, string[]> = {
     "payment plans",
   ],
 
-  quote: [
-    "quote form",
-    "quote request",
-    "estimate form",
-    "request a quote",
-    "estimate",
-  ],
+  quote: ["quote form", "quote request", "estimate form", "request a quote", "estimate"],
 
-  booking: [
-    "booking",
-    "book online",
-    "appointment",
-    "calendar",
-    "scheduler",
-  ],
+  booking: ["booking", "book online", "appointment", "calendar", "scheduler"],
 
   reviews: [
     "reviews",
@@ -185,52 +137,17 @@ const SECTION_WORDS: Record<string, string[]> = {
     "5 star",
   ],
 
-  gallery: [
-    "gallery",
-    "photos",
-    "portfolio",
-    "our work",
-    "before and after",
-    "images",
-    "projects",
-  ],
+  gallery: ["gallery", "photos", "portfolio", "our work", "before and after", "images", "projects"],
 
-  faq: [
-    "faq",
-    "faqs",
-    "questions",
-    "common questions",
-    "q and a",
-  ],
+  faq: ["faq", "faqs", "questions", "common questions", "q and a"],
 
-  guarantee: [
-    "guarantee",
-    "warranty",
-    "promise",
-  ],
+  guarantee: ["guarantee", "warranty", "promise"],
 
-  offer: [
-    "offer",
-    "promotion",
-    "deal",
-    "discount",
-    "special",
-  ],
+  offer: ["offer", "promotion", "deal", "discount", "special"],
 
-  cta: [
-    "cta",
-    "call to action",
-    "closing section",
-    "final push",
-  ],
+  cta: ["cta", "call to action", "closing section", "final push"],
 
-  sticky_cta: [
-    "sticky",
-    "floating button",
-    "sticky bar",
-    "always visible button",
-    "floating cta",
-  ],
+  sticky_cta: ["sticky", "floating button", "sticky bar", "always visible button", "floating cta"],
 
   area: [
     "areas",
@@ -243,34 +160,13 @@ const SECTION_WORDS: Record<string, string[]> = {
     "towns we serve",
   ],
 
-  contact: [
-    "contact",
-    "contact details",
-    "get in touch",
-    "phone number section",
-    "address",
-  ],
+  contact: ["contact", "contact details", "get in touch", "phone number section", "address"],
 
-  process: [
-    "process",
-    "how it works",
-    "steps",
-    "what happens next",
-  ],
+  process: ["process", "how it works", "steps", "what happens next"],
 
-  benefits: [
-    "benefits",
-    "why choose us",
-    "why us",
-    "reasons",
-  ],
+  benefits: ["benefits", "why choose us", "why us", "reasons"],
 
-  lead_magnet: [
-    "lead magnet",
-    "free guide",
-    "download",
-    "checklist",
-  ],
+  lead_magnet: ["lead magnet", "free guide", "download", "checklist"],
 };
 
 /* -------------------------------------------------------------------------- */
@@ -303,15 +199,7 @@ const MOOD_WORDS: Record<StyleMood, string[]> = {
     "refined",
   ],
 
-  minimal: [
-    "minimal",
-    "clean",
-    "simple",
-    "uncluttered",
-    "less busy",
-    "tidy",
-    "understated",
-  ],
+  minimal: ["minimal", "clean", "simple", "uncluttered", "less busy", "tidy", "understated"],
 
   bold: [
     "bold",
@@ -347,23 +235,9 @@ const MOOD_WORDS: Record<StyleMood, string[]> = {
     "futuristic",
   ],
 
-  dark: [
-    "dark",
-    "dark mode",
-    "black",
-    "night",
-    "black background",
-  ],
+  dark: ["dark", "dark mode", "black", "night", "black background"],
 
-  bright: [
-    "bright",
-    "light",
-    "airy",
-    "white",
-    "colourful",
-    "colorful",
-    "vibrant",
-  ],
+  bright: ["bright", "light", "airy", "white", "colourful", "colorful", "vibrant"],
 };
 
 /* -------------------------------------------------------------------------- */
@@ -389,41 +263,13 @@ const VERB_WORDS: Record<BuilderVerb, string[]> = {
     "start over",
   ],
 
-  add: [
-    "add",
-    "put in",
-    "include",
-    "insert",
-    "create",
-    "i need a",
-    "i want a",
-    "give me a",
-  ],
+  add: ["add", "put in", "include", "insert", "create", "i need a", "i want a", "give me a"],
 
-  remove: [
-    "remove",
-    "delete",
-    "get rid of",
-    "take off",
-    "take out",
-    "drop",
-  ],
+  remove: ["remove", "delete", "get rid of", "take off", "take out", "drop"],
 
-  hide: [
-    "hide",
-    "turn off",
-    "don't show",
-    "dont show",
-    "disable",
-  ],
+  hide: ["hide", "turn off", "don't show", "dont show", "disable"],
 
-  show: [
-    "show",
-    "turn on",
-    "unhide",
-    "enable",
-    "bring back",
-  ],
+  show: ["show", "turn on", "unhide", "enable", "bring back"],
 
   rewrite: [
     "rewrite",
@@ -436,7 +282,20 @@ const VERB_WORDS: Record<BuilderVerb, string[]> = {
     "make the copy better",
     "make it clearer",
     "more persuasive",
+    // Plain ways owners ask for the same thing.
+    "clearer",
+    "clarify",
+    "punchier",
+    "sharper",
+    "more compelling",
+    "headline",
+    "heading",
+    "tagline",
+    "better wording",
+    "what we do",
+    "explain what",
   ],
+
 
   restyle: [
     "restyle",
@@ -453,15 +312,7 @@ const VERB_WORDS: Record<BuilderVerb, string[]> = {
     "vibe",
   ],
 
-  resize: [
-    "bigger",
-    "larger",
-    "smaller",
-    "taller",
-    "shorter",
-    "full screen",
-    "fullscreen",
-  ],
+  resize: ["bigger", "larger", "smaller", "taller", "shorter", "full screen", "fullscreen"],
 
   reorder: [
     "reorder",
@@ -503,14 +354,7 @@ const VERB_WORDS: Record<BuilderVerb, string[]> = {
     "conversion",
   ],
 
-  mobile: [
-    "mobile",
-    "phone",
-    "responsive",
-    "tablet",
-    "small screen",
-    "on my phone",
-  ],
+  mobile: ["mobile", "phone", "responsive", "tablet", "small screen", "on my phone"],
 
   hierarchy: [
     "hierarchy",
@@ -522,16 +366,7 @@ const VERB_WORDS: Record<BuilderVerb, string[]> = {
     "better flow",
   ],
 
-  fix: [
-    "fix",
-    "broken",
-    "not working",
-    "wrong",
-    "error",
-    "bug",
-    "doesn't work",
-    "doesnt work",
-  ],
+  fix: ["fix", "broken", "not working", "wrong", "error", "bug", "doesn't work", "doesnt work"],
 };
 
 /* -------------------------------------------------------------------------- */
@@ -539,98 +374,27 @@ const VERB_WORDS: Record<BuilderVerb, string[]> = {
 /* -------------------------------------------------------------------------- */
 
 const GOAL_WORDS: Record<BuilderGoal, string[]> = {
-  launch: [
-    "launch",
-    "publish",
-    "go live",
-    "ready to launch",
-    "live",
-  ],
+  launch: ["launch", "publish", "go live", "ready to launch", "live"],
 
-  redesign: [
-    "redesign",
-    "refresh",
-    "revamp",
-    "modernize",
-    "modernise",
-    "make over",
-    "overhaul",
-  ],
+  redesign: ["redesign", "refresh", "revamp", "modernize", "modernise", "make over", "overhaul"],
 
-  conversion: [
-    "convert",
-    "conversion",
-    "sell",
-    "sales",
-    "turn visitors",
-    "more customers",
-  ],
+  conversion: ["convert", "conversion", "sell", "sales", "turn visitors", "more customers"],
 
-  leads: [
-    "lead",
-    "leads",
-    "enquiry",
-    "enquiries",
-    "inquiry",
-    "inquiries",
-    "contact requests",
-  ],
+  leads: ["lead", "leads", "enquiry", "enquiries", "inquiry", "inquiries", "contact requests"],
 
-  booking: [
-    "book",
-    "booking",
-    "appointments",
-    "schedule",
-    "scheduler",
-  ],
+  booking: ["book", "booking", "appointments", "schedule", "scheduler"],
 
-  calls: [
-    "call",
-    "calls",
-    "phone leads",
-    "phone calls",
-  ],
+  calls: ["call", "calls", "phone leads", "phone calls"],
 
-  seo: [
-    "seo",
-    "google",
-    "search",
-    "ranking",
-    "traffic",
-  ],
+  seo: ["seo", "google", "search", "ranking", "traffic"],
 
-  local_seo: [
-    "local seo",
-    "near me",
-    "service area",
-    "city",
-    "town",
-    "local customers",
-  ],
+  local_seo: ["local seo", "near me", "service area", "city", "town", "local customers"],
 
-  trust: [
-    "trust",
-    "credibility",
-    "proof",
-    "reviews",
-    "testimonials",
-    "reassurance",
-  ],
+  trust: ["trust", "credibility", "proof", "reviews", "testimonials", "reassurance"],
 
-  speed: [
-    "fast",
-    "faster",
-    "performance",
-    "speed",
-    "lightweight",
-    "quick loading",
-  ],
+  speed: ["fast", "faster", "performance", "speed", "lightweight", "quick loading"],
 
-  mobile: [
-    "mobile",
-    "phone",
-    "responsive",
-  ],
+  mobile: ["mobile", "phone", "responsive"],
 
   visual: [
     "3d",
@@ -672,39 +436,15 @@ const CONSTRAINT_WORDS: Record<BuilderConstraint, string[]> = {
     "dont make up",
   ],
 
-  mobile_first: [
-    "mobile first",
-    "phone first",
-  ],
+  mobile_first: ["mobile first", "phone first"],
 
-  fast: [
-    "fast",
-    "quick loading",
-    "lightweight",
-    "performance",
-  ],
+  fast: ["fast", "quick loading", "lightweight", "performance"],
 
-  accessible: [
-    "accessible",
-    "accessibility",
-    "easy to read",
-    "readable",
-  ],
+  accessible: ["accessible", "accessibility", "easy to read", "readable"],
 
-  simple: [
-    "simple",
-    "easy to use",
-    "easy to edit",
-    "not complicated",
-  ],
+  simple: ["simple", "easy to use", "easy to edit", "not complicated"],
 
-  free_engine: [
-    "free builder",
-    "free engine",
-    "no paid ai",
-    "no credits",
-    "without credits",
-  ],
+  free_engine: ["free builder", "free engine", "no paid ai", "no credits", "without credits"],
 };
 
 /* -------------------------------------------------------------------------- */
@@ -728,20 +468,61 @@ const PAGE_WORDS = [
   "quote",
 ];
 
+/**
+ * Several page names are also ordinary English words, and reading one as a page
+ * name derails the whole request: "make the headline clearer about what we do"
+ * is not a request about the About page, and "book more jobs" is not about the
+ * booking page. Those words only count as a page when the owner writes them
+ * like a page — "the about page", "/about", "about us", "booking section".
+ * Everything else ("home", "services", "pricing", "faq", "gallery", "blog")
+ * only ever means a page here, so a plain mention is enough.
+ */
+const AMBIGUOUS_PAGE_WORDS = new Set([
+  "about",
+  "book",
+  "booking",
+  "quote",
+  "contact",
+  "home",
+  "menu",
+  "reviews",
+]);
+
+/** True when the text names this page the way an owner names a page. */
+function pageWordMentioned(word: string, text: string): boolean {
+  if (!AMBIGUOUS_PAGE_WORDS.has(word)) {
+    return new RegExp(`\\b${word}\\b`, "i").test(text);
+  }
+  const patterns = [
+    // "the about page", "booking section", "menu tab"
+    new RegExp(`\\b${word}\\s+(?:page|pages|section|sections|screen|tab)\\b`, "i"),
+    // "/about", "page: /booking"
+    new RegExp(`/${word}\\b`, "i"),
+    // "on about", "go to contact" — a destination, not a description
+    new RegExp(
+      `\\b(?:on|to|at)\\s+(?:the\\s+|my\\s+|our\\s+)?${word}\\b(?!\\s+(?:what|how|why|us\\b))`,
+      "i",
+    ),
+  ];
+  if (word === "about" || word === "contact") {
+    // "about us" / "contact us" is how owners name these two pages.
+    patterns.push(new RegExp(`\\b${word}\\s+us\\b`, "i"));
+  }
+  if (word === "home") {
+    patterns.push(/\bhome\s*page\b/i, /\bhomepage\b/i);
+  }
+  return patterns.some((pattern) => pattern.test(text));
+}
+
 /* -------------------------------------------------------------------------- */
 /* HELPERS                                                                    */
 /* -------------------------------------------------------------------------- */
 
-const clean = (value: string): string =>
-  value.replace(/\s+/g, " ").trim();
+const clean = (value: string): string => value.replace(/\s+/g, " ").trim();
 
-const lower = (value: string): string =>
-  clean(value).toLowerCase();
+const lower = (value: string): string => clean(value).toLowerCase();
 
-function matchWords<T extends string>(
-  text: string,
-  map: Record<T, string[]>,
-): T[] {
+function matchWords<T extends string>(text: string, map: Record<T, string[]>): T[] {
   const hits: T[] = [];
 
   for (const [key, words] of Object.entries(map) as [T, string[]][]) {
@@ -783,11 +564,7 @@ function splitClauses(text: string): string[] {
     .split(
       /\s+and then\s+|\s+and also\s+|\s*,\s*and\s+|\s*,\s*then\s+|\s*,\s*also\s+|;\s*|\s+then\s+|\s+also\s+|\s+and\s+/i,
     )
-    .map((part) =>
-      part
-        .replace(/⁃/g, " ")
-        .trim(),
-    )
+    .map((part) => part.replace(/⁃/g, " ").trim())
     .filter(Boolean);
 }
 
@@ -798,27 +575,45 @@ function splitClauses(text: string): string[] {
 function readNewPages(text: string): string[] {
   const out: string[] = [];
 
+  // "Make the home page headline clearer" is a request to rewrite a headline on
+  // a page that already exists — not a request to create a page called "home".
+  // So a new page is only read from an indefinite phrasing ("add a careers
+  // page"), and never when the words after "page" name part of that page.
+  const PAGE_PART =
+    "headline|heading|title|subheading|copy|text|wording|content|button|buttons|link|links|section|sections|image|images|photo|photos|colour|color|colours|colors|price|prices|pricing|form|layout|design|seo";
+  // A page can legitimately be called "Pricing" or "Design", so only the parts a
+  // page is made of disqualify a label.
+  const NOT_A_PAGE_NAME =
+    "headline|heading|subheading|copy|wording|button|buttons|link|links|section|sections|image|images|photo|photos|colour|color|colours|colors";
+
   const patterns = [
-    /(?:add|create|make|build|need|want)\s+(?:me\s+)?(?:a|an|another)?\s*([a-z0-9 &'-]{2,60}?)\s+page/gi,
+    new RegExp(
+      `(?:add|create|build|make|need|want)\\s+(?:me\\s+)?(?:a|an|another|one)\\s+([a-z0-9 &'-]{2,60}?)\\s+page\\b(?!\\s+(?:${PAGE_PART})\\b)`,
+      "gi",
+    ),
     /\bpage\s+(?:for|about|on)\s+([a-z0-9 &'-]{2,60})/gi,
   ];
 
   for (const pattern of patterns) {
     for (const match of text.matchAll(pattern)) {
       const label = clean(match[1] ?? "")
-        .replace(
-          /\b(new|another|the|my|a|an)\b/gi,
-          "",
-        )
+        .replace(/\b(new|another|the|my|a|an)\b/gi, "")
+        .replace(/\s+/g, " ")
         .trim();
 
-      if (
+      // A page name is short and self-contained. Anything carrying a preposition
+      // or naming part of a page ("stronger button to the services") describes
+      // work on an existing page, not a page to create.
+      const looksLikeAPageName =
         label.length > 1 &&
+        label.split(" ").length <= 4 &&
+        !/\b(?:to|on|in|of|for|from|with|and)\b/i.test(label) &&
+        !new RegExp(`\\b(?:${NOT_A_PAGE_NAME})\\b`, "i").test(label);
+
+      if (
+        looksLikeAPageName &&
         !isWholeSiteLabel(label) &&
-        !out.some(
-          (existing) =>
-            lower(existing) === lower(label),
-        )
+        !out.some((existing) => lower(existing) === lower(label))
       ) {
         out.push(label);
       }
@@ -833,25 +628,14 @@ function readNewPages(text: string): string[] {
  * page", "company website for ...") is not the name of a single page. Treating
  * it as a page title produces a duplicated whole-site request.
  */
-function isWholeSiteLabel(
-  label: string,
-): boolean {
-  const normalized =
-    lower(label);
+function isWholeSiteLabel(label: string): boolean {
+  const normalized = lower(label);
 
-  if (
-    normalized.match(
-      /\bwebsite\b|\bweb ?site\b|\bsite\b|\bcompany website\b/,
-    )
-  ) {
+  if (normalized.match(/\bwebsite\b|\bweb ?site\b|\bsite\b|\bcompany website\b/)) {
     return true;
   }
 
-  if (
-    /\b(company|business|firm|practice)\s+website\b/.test(
-      normalized,
-    )
-  ) {
+  if (/\b(company|business|firm|practice)\s+website\b/.test(normalized)) {
     return true;
   }
 
@@ -881,13 +665,9 @@ function readLocationHint(original: string): string | null {
   for (const match of original.matchAll(pattern)) {
     const candidate = clean(match[1] ?? "");
 
-    const first =
-      candidate.split(/[\s,]/)[0] ?? "";
+    const first = candidate.split(/[\s,]/)[0] ?? "";
 
-    if (
-      candidate &&
-      !LOCATION_STOPWORDS.has(first)
-    ) {
+    if (candidate && !LOCATION_STOPWORDS.has(first)) {
       return candidate;
     }
   }
@@ -899,9 +679,7 @@ function readLocationHint(original: string): string | null {
 /* AUDIENCE EXTRACTION                                                        */
 /* -------------------------------------------------------------------------- */
 
-function readAudienceHint(
-  original: string,
-): string | null {
+function readAudienceHint(original: string): string | null {
   const patterns = [
     /\bfor\s+(homeowners|business owners|families|parents|professionals|contractors|property managers|first[- ]time buyers|local businesses|small businesses)\b/i,
 
@@ -925,18 +703,10 @@ function readAudienceHint(
 /* VISUAL INTENSITY                                                           */
 /* -------------------------------------------------------------------------- */
 
-function visualIntensity(
-  text: string,
-  moods: StyleMood[],
-  goals: BuilderGoal[],
-): 0 | 1 | 2 | 3 {
+function visualIntensity(text: string, moods: StyleMood[], goals: BuilderGoal[]): 0 | 1 | 2 | 3 {
   let score = 0;
 
-  if (
-    moods.includes("premium") ||
-    moods.includes("bold") ||
-    moods.includes("modern")
-  ) {
+  if (moods.includes("premium") || moods.includes("bold") || moods.includes("modern")) {
     score += 1;
   }
 
@@ -952,113 +722,65 @@ function visualIntensity(
     score += 2;
   }
 
-  if (
-    /\b(subtle|light motion|tasteful|restrained)\b/i.test(text)
-  ) {
+  if (/\b(subtle|light motion|tasteful|restrained)\b/i.test(text)) {
     score = Math.max(0, score - 1);
   }
 
-  return Math.min(
-    3,
-    score,
-  ) as 0 | 1 | 2 | 3;
+  return Math.min(3, score) as 0 | 1 | 2 | 3;
 }
 
 /* -------------------------------------------------------------------------- */
 /* PUBLIC INTERPRETER                                                         */
 /* -------------------------------------------------------------------------- */
 
-export function interpret(
-  instruction: string,
-  history: string[] = [],
-): BuilderIntent {
-  const normalised = normalise(
-    instruction,
-    history,
-  );
+export function interpret(instruction: string, history: string[] = []): BuilderIntent {
+  const normalised = normalise(instruction, history);
 
   const original = normalised.original;
   const text = normalised.text;
 
-  const verbs = matchWords(
-    text,
-    VERB_WORDS,
-  );
+  const verbs = matchWords(text, VERB_WORDS);
 
-  const sectionKinds = matchWords(
-    text,
-    SECTION_WORDS,
-  );
+  const sectionKinds = matchWords(text, SECTION_WORDS);
 
-  const moods = matchWords(
-    text,
-    MOOD_WORDS,
-  );
+  const moods = matchWords(text, MOOD_WORDS);
 
-  const goals = matchWords(
-    text,
-    GOAL_WORDS,
-  );
+  const goals = matchWords(text, GOAL_WORDS);
 
-  const constraints = matchWords(
-    text,
-    CONSTRAINT_WORDS,
-  );
+  const constraints = matchWords(text, CONSTRAINT_WORDS);
 
   /* ---------------------------------------------------------------------- */
   /* OPERATION-LEVEL UNDERSTANDING                                          */
   /* ---------------------------------------------------------------------- */
 
-  const operations: BuilderOperation[] =
-    splitClauses(text)
-      .map((clause) => ({
-        raw: clause,
+  const operations: BuilderOperation[] = splitClauses(text)
+    .map((clause) => ({
+      raw: clause,
 
-        verbs: matchWords(
-          clause,
-          VERB_WORDS,
-        ),
+      verbs: matchWords(clause, VERB_WORDS),
 
-        sectionKinds: matchWords(
-          clause,
-          SECTION_WORDS,
-        ),
+      sectionKinds: matchWords(clause, SECTION_WORDS),
 
-        moods: matchWords(
-          clause,
-          MOOD_WORDS,
-        ),
+      moods: matchWords(clause, MOOD_WORDS),
 
-        goals: matchWords(
-          clause,
-          GOAL_WORDS,
-        ),
+      goals: matchWords(clause, GOAL_WORDS),
 
-        constraints: matchWords(
-          clause,
-          CONSTRAINT_WORDS,
-        ),
-      }))
-      .filter(
-        (operation) =>
-          operation.verbs.length > 0 ||
-          operation.sectionKinds.length > 0 ||
-          operation.moods.length > 0 ||
-          operation.goals.length > 0 ||
-          operation.constraints.length > 0,
-      );
+      constraints: matchWords(clause, CONSTRAINT_WORDS),
+    }))
+    .filter(
+      (operation) =>
+        operation.verbs.length > 0 ||
+        operation.sectionKinds.length > 0 ||
+        operation.moods.length > 0 ||
+        operation.goals.length > 0 ||
+        operation.constraints.length > 0,
+    );
 
   /* ---------------------------------------------------------------------- */
   /* PAGE UNDERSTANDING                                                      */
   /* ---------------------------------------------------------------------- */
 
-  const pageHints = PAGE_WORDS.filter(
-    (page) =>
-      new RegExp(
-        `\\b${page}\\b`,
-        "i",
-      ).test(text),
-  );
+  const pageHints = PAGE_WORDS.filter((page) => pageWordMentioned(page, text));
 
   const newPages = readNewPages(text);
 
@@ -1066,24 +788,17 @@ export function interpret(
   /* INDUSTRY UNDERSTANDING                                                  */
   /* ---------------------------------------------------------------------- */
 
-  const matchedIndustry =
-    playbookFor(original);
+  const matchedIndustry = playbookFor(original);
 
-  const industry =
-    matchedIndustry.slug ===
-    "local_business"
-      ? null
-      : matchedIndustry;
+  const industry = matchedIndustry.slug === "local_business" ? null : matchedIndustry;
 
   /* ---------------------------------------------------------------------- */
   /* CONTEXT                                                                 */
   /* ---------------------------------------------------------------------- */
 
-  const locationHint =
-    readLocationHint(original);
+  const locationHint = readLocationHint(original);
 
-  const audienceHint =
-    readAudienceHint(original);
+  const audienceHint = readAudienceHint(original);
 
   /* ---------------------------------------------------------------------- */
   /* SITE-WIDE INTENT                                                        */
@@ -1137,13 +852,7 @@ export function interpret(
   /* FACT SAFETY                                                             */
   /* ---------------------------------------------------------------------- */
 
-  const keepFacts =
-    constraints.includes(
-      "keep_facts",
-    ) ||
-    constraints.includes(
-      "no_invention",
-    );
+  const keepFacts = constraints.includes("keep_facts") || constraints.includes("no_invention");
 
   /* ---------------------------------------------------------------------- */
   /* UNRECOGNISED INTENT                                                    */
@@ -1161,9 +870,7 @@ export function interpret(
     Boolean(audienceHint);
 
   if (!hasMeaningfulIntent) {
-    unrecognised.push(
-      original,
-    );
+    unrecognised.push(original);
   }
 
   /* ---------------------------------------------------------------------- */
@@ -1197,19 +904,13 @@ export function interpret(
 
     keepFacts,
 
-    carried:
-      normalised.carried,
+    carried: normalised.carried,
 
     locationHint,
 
     audienceHint,
 
-    visualIntensity:
-      visualIntensity(
-        text,
-        moods,
-        goals,
-      ),
+    visualIntensity: visualIntensity(text, moods, goals),
 
     unrecognised,
   };

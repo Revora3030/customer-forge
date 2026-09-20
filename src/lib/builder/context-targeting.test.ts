@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { AgentContext } from "@/lib/site-agent.server";
-import type { BuilderIntent } from "./interpreter";
+import { interpret, type BuilderIntent } from "./interpreter";
 import { scopeContextForIntent } from "./context-targeting";
 
 const context: AgentContext = {
@@ -116,5 +116,41 @@ describe("scopeContextForIntent", () => {
 
     expect(bySlug.matched).toBe(true);
     expect(byTitle.matched).toBe(true);
+  });
+});
+
+describe("page names that are also ordinary words", () => {
+  const pageWords = (text: string) => interpret(text, []).pageHints;
+
+  it("does not read 'about what we do' as the About page", () => {
+    expect(pageWords("make the headline clearer about what we do")).not.toContain("about");
+  });
+
+  it("does not read 'book more jobs' as the booking page", () => {
+    expect(pageWords("help me book more jobs")).not.toContain("book");
+  });
+
+  it("still understands an owner naming a page", () => {
+    expect(pageWords("rewrite the about page")).toContain("about");
+    expect(pageWords("tidy up /booking")).toContain("booking");
+    expect(pageWords("fix the about us wording")).toContain("about");
+    expect(pageWords("make the home page headline clearer")).toContain("home");
+    expect(pageWords("add prices to the services page")).toContain("services");
+    expect(pageWords("shorten the faq")).toContain("faq");
+  });
+});
+
+describe("a page that already exists is not created again", () => {
+  const newPages = (text: string) => interpret(text, []).newPages;
+
+  it("treats 'make the home page headline clearer' as an edit, not a new page", () => {
+    expect(newPages("make the home page headline clearer")).toEqual([]);
+    expect(newPages("make the about page wording friendlier")).toEqual([]);
+    expect(newPages("add a stronger button to the services page")).toEqual([]);
+  });
+
+  it("still creates a page the owner genuinely asks for", () => {
+    expect(newPages("add a careers page")).toContain("careers");
+    expect(newPages("create a page for commercial roofing")).toContain("commercial roofing");
   });
 });

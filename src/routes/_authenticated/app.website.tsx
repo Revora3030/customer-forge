@@ -34,6 +34,8 @@ import {
   ProductionReadinessPanel,
 } from "@/components/app/ProductionLaunch";
 import { useLaunchFlow, useProductionReadiness, useProductionStatus } from "@/lib/production.hooks";
+import { PublishRetryBar } from "@/components/app/PublishRetryBar";
+
 import { AssistantShowcase } from "@/components/app/AssistantShowcase";
 import { EffectStudio } from "@/components/app/EffectStudio";
 import { ImageStudio } from "@/components/app/ImageStudio";
@@ -405,10 +407,7 @@ function WebsitePage() {
               buildReady={requiredCount === 0 && visibleSections > 0}
               requiredAnswers={requiredCount}
               isPublishing={launchFlow.isLaunching || saveSettings.isPending}
-              onPublish={() => {
-                trackConversion("site_published", { metadata: { organization_id: orgId ?? "" } });
-                launchFlow.launch();
-              }}
+              onPublish={launchFlow.launch}
               onGoTo={goTo}
             />
           </Disclosure>
@@ -652,10 +651,7 @@ function WebsitePage() {
             hasSections={visibleSections > 0}
             publishState={settings?.publish_state ?? "draft"}
             isPublishing={launchFlow.isLaunching || saveSettings.isPending}
-            onPublishNow={() => {
-              trackConversion("site_published", { metadata: { organization_id: orgId ?? "" } });
-              launchFlow.launch();
-            }}
+            onPublishNow={launchFlow.launch}
           />
           <Disclosure
             label="Improve my website"
@@ -854,12 +850,7 @@ function WebsitePage() {
                   size="sm"
                   variant="signal"
                   disabled={launchFlow.isLaunching}
-                  onClick={() => {
-                    trackConversion("site_published", {
-                      metadata: { organization_id: orgId ?? "" },
-                    });
-                    launchFlow.launch();
-                  }}
+                  onClick={launchFlow.launch}
                 >
                   {launchFlow.isLaunching ? "Launching…" : "Launch"}
                 </Button>
@@ -913,6 +904,14 @@ function WebsitePage() {
         open={launchFlow.lockedOpen}
         onClose={launchFlow.closeLocked}
         reason={launchFlow.result?.reason ?? null}
+      />
+
+      {/* A publish that broke on a glitch stays recoverable, not a dead end. */}
+      <PublishRetryBar
+        message={launchFlow.retryable}
+        isRetrying={launchFlow.isLaunching}
+        onRetry={launchFlow.retry}
+        onDismiss={launchFlow.dismissRetry}
       />
     </>
   );
