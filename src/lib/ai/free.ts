@@ -239,6 +239,12 @@ const GROQ_NON_CHAT = /whisper|orpheus|prompt-guard|safeguard|tts|playai/i;
  * otherwise offer one of these as a writer and waste a request on a useless
  * answer, so they are rejected for every provider that has no stricter filter.
  */
+/**
+ * Cloudflare model families that are billed, or whose partner pricing Revora
+ * has not verified as zero. Rejected for every role.
+ */
+const CLOUDFLARE_PAID_MODEL = /leonardo|flux-2/i;
+
 const NON_CHAT_MODEL =
   /guard|safety|safeguard|moderation|embed|rerank|retriev|whisper|orpheus|\btts\b|-lora\b|lora$|classifier/i;
 
