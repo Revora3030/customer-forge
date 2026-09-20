@@ -417,6 +417,17 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
       } as Record<string, unknown>;
     };
 
+    // The orchestrator's brief is collected only after Revora's own engine has
+    // already planned, so a paid coordination call never delays the customer.
+    // If it is off, capped, unreachable or slow, `lunaBrief` is simply absent
+    // and everything downstream behaves exactly as before.
+    const lunaBrief = await lunaOrchestration;
+    if (lunaBrief) {
+      data.history = [{ role: "user" as const, content: lunaBrief }, ...data.history];
+    }
+
+
+
     const runAgent = async () => {
       const result = await orchestrate({
         context: agentContext,
