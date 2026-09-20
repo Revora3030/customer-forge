@@ -215,8 +215,12 @@ export async function freeModelPool(
     credentials: { apiKey: string; accountId?: string };
     models: string[];
   }[] = [];
+  await refreshDurableRuntime();
   for (const entry of freeProviderChain(role)) {
     if (!freeBudgetAllows(entry.name)) continue;
+    // Shared counters: skip a provider another worker has already exhausted.
+    if (durableBudgetExhausted(entry.name, freeBudgetCap(entry.name))) continue;
+    if (durableProviderResting(entry.name)) continue;
     const models: string[] = [];
     const consider = (model: string) => {
       // Belt and braces: never dispatch a model that isn't free-eligible.
