@@ -55,8 +55,14 @@ function client(publishState: string) {
   };
 }
 
-const DRAFT_HTML =
-  "<html><head><title>Demo Co</title></head><body><h1>Demo Co</h1><main><p>Real content for visitors.</p><a href='/s/demo-co/services'>Services</a></main></body></html>";
+const DRAFT_HTML = [
+  "<html lang='en'><head><title>Demo Co</title>",
+  "<meta name='viewport' content='width=device-width, initial-scale=1' />",
+  "<meta name='description' content='Demo Co keeps cars spotless across the city.' />",
+  "</head><body><h1>Demo Co — spotless cars, at your door</h1><main>",
+  `<p>${"Demo Co cleans cars at home and at work across the city, with a fixed price agreed before any work starts. ".repeat(4)}</p>`,
+  "<a href='/s/demo-co/services'>Services</a></main></body></html>",
+].join("");
 
 afterEach(() => {
   vi.unstubAllGlobals();
