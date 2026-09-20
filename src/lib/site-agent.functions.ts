@@ -210,7 +210,9 @@ type PlanInput = {
   instruction: string;
   history: AgentTurn[];
   attachments: AgentAttachment[];
+  brand?: import("@/lib/builder/ai-composition.server").BrandPreference | null;
 };
+
 
 async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput) {
   {
