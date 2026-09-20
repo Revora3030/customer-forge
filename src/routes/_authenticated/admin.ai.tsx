@@ -14,6 +14,8 @@ import {
 import { CapabilityCenter } from "@/components/app/CapabilityCenter";
 import { FreeModelCollective } from "@/components/app/FreeModelCollective";
 import { getAiHealth } from "@/lib/ai/health.functions";
+import { getLunaStatus } from "@/lib/ai/luna.functions";
+
 
 export const Route = createFileRoute("/_authenticated/admin/ai")({
   head: () => ({
