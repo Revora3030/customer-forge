@@ -37,7 +37,7 @@ export type DesignDirection = {
   source: "model" | "fallback";
 };
 
-const DESIGN_ROLE: ModelRole = "fast";
+const DESIGN_ROLE: ModelRole = "design";
 
 const SYSTEM = `You are a senior brand designer, UX designer and conversion strategist working on a
 real local business website. You write the DESIGN DIRECTION before anyone edits the site.

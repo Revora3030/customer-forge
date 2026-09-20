@@ -228,11 +228,39 @@ export async function refreshFreeModels(
 const ROLE_HINTS: Record<ModelRole, RegExp[]> = {
   fast: [/flash|lite|mini|small|8b|4b|instruct/i],
   primary: [/120b|70b|72b|32b|large|nemotron|glm|qwen|llama/i],
+  // Creative judgement: the biggest reasoning-class models first, then the
+  // strong mid-size ones. A tiny model picks bland, repetitive palettes.
+  design: [/235b|480b|120b|70b|72b|maverick|scout|nemotron|glm|qwen3|deepseek/i, /32b|27b|30b/i],
   coding: [/cod(?:e|er)|qwen|glm|nemotron/i],
   vision: [/vision|vl|gemma|multimodal|image/i],
   image: [],
   transcription: [],
 };
+
+/** Roles where a name-based guess is unsafe, so only an explicit match counts. */
+const STRICT_ROLES: ModelRole[] = ["image", "transcription"];
+
+/**
+ * Every discovered free model that suits a role, best match first, then the
+ * rest of the pool. The router turns this into a deep failover list, so one
+ * provider's whole free catalogue can cover a request instead of a single id.
+ */
+export function pickDiscoveredModels(
+  provider: FreeProviderName,
+  role: ModelRole,
+  limit = 4,
+): string[] {
+  const models = discoveredFreeModels(provider);
+  if (models.length === 0 || limit <= 0) return [];
+  const ranked: string[] = [];
+  const add = (model: string) => {
+    if (!ranked.includes(model) && ranked.length < limit) ranked.push(model);
+  };
+  for (const pattern of ROLE_HINTS[role])
+    for (const model of models) if (pattern.test(model)) add(model);
+  if (!STRICT_ROLES.includes(role)) for (const model of models) add(model);
+  return ranked;
+}
 
 /**
  * Picks a discovered free model for a role, preferring ids whose name matches
@@ -240,11 +268,5 @@ const ROLE_HINTS: Record<ModelRole, RegExp[]> = {
  * falls back to the configured default.
  */
 export function pickDiscoveredModel(provider: FreeProviderName, role: ModelRole): string | null {
-  const models = discoveredFreeModels(provider);
-  if (models.length === 0) return null;
-  for (const pattern of ROLE_HINTS[role]) {
-    const match = models.find((model) => pattern.test(model));
-    if (match) return match;
-  }
-  return role === "image" || role === "transcription" ? null : (models[0] ?? null);
+  return pickDiscoveredModels(provider, role, 1)[0] ?? null;
 }

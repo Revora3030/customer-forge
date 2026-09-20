@@ -73,6 +73,24 @@ describe("google free-model discovery", () => {
     expect(pickDiscoveredModel("google", "transcription")).toBeNull();
   });
 
+  it("offers the whole free pool as ranked failover candidates per role", async () => {
+    stubCatalogue([
+      { name: "models/gemini-3.5-flash-lite", supportedGenerationMethods: ["generateContent"] },
+      { name: "models/gemini-3.6-flash", supportedGenerationMethods: ["generateContent"] },
+      { name: "models/gemma-3-27b-it", supportedGenerationMethods: ["generateContent"] },
+    ]);
+    const { refreshFreeModels, pickDiscoveredModels } = await discovery();
+    await refreshFreeModels("google", { apiKey: "google-free-key" });
+
+    const design = pickDiscoveredModels("google", "design", 3);
+    expect(design.length).toBeGreaterThan(1);
+    expect(new Set(design).size).toBe(design.length);
+    // Design prefers the bigger model, not the cheap lite one.
+    expect(design[0]).toContain("27b");
+    // Strict roles still refuse a name-based guess.
+    expect(pickDiscoveredModels("google", "image", 3)).toEqual([]);
+  });
+
   it("treats a failing catalogue as no discovery, never as an error", async () => {
     vi.stubGlobal(
       "fetch",

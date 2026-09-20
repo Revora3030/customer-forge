@@ -31,7 +31,20 @@ export type ProviderName =
 export type PaidProviderName = "google" | "openai";
 
 /** The kinds of work Revora routes; each maps to a model per provider. */
-export type ModelRole = "primary" | "fast" | "vision" | "coding" | "image" | "transcription";
+/**
+ * `design` is the creative-judgement role: palette, backdrop, section mix and
+ * page order. It is deliberately separate from `primary` so the strongest
+ * available model can be pointed at look-and-feel decisions while cheap models
+ * keep doing the short, mechanical work.
+ */
+export type ModelRole =
+  | "primary"
+  | "design"
+  | "fast"
+  | "vision"
+  | "coding"
+  | "image"
+  | "transcription";
 
 export type ProviderConfig = {
   name: ProviderName;
@@ -47,6 +60,7 @@ export type ProviderConfig = {
 const DEFAULT_MODELS: Record<PaidProviderName, Record<ModelRole, string>> = {
   google: {
     primary: "gemini-2.5-pro",
+    design: "gemini-2.5-pro",
     fast: "gemini-2.5-flash",
     vision: "gemini-2.5-flash",
     coding: "gemini-2.5-pro",
@@ -55,6 +69,7 @@ const DEFAULT_MODELS: Record<PaidProviderName, Record<ModelRole, string>> = {
   },
   openai: {
     primary: "gpt-4.1",
+    design: "gpt-4.1",
     fast: "gpt-4.1-mini",
     vision: "gpt-4.1",
     coding: "gpt-4.1",
@@ -68,7 +83,15 @@ const KEY_ENV: Record<PaidProviderName, string> = {
   openai: "OPENAI_API_KEY",
 };
 
-const ROLES: ModelRole[] = ["primary", "fast", "vision", "coding", "image", "transcription"];
+const ROLES: ModelRole[] = [
+  "primary",
+  "design",
+  "fast",
+  "vision",
+  "coding",
+  "image",
+  "transcription",
+];
 
 function env(name: string) {
   const value = process.env[name];

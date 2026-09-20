@@ -92,6 +92,7 @@ const FREE_MODEL_DEFAULTS: Record<FreeProviderName, Partial<Record<ModelRole, st
   // widen this, and every id is still re-checked for free eligibility.
   cloudflare: {
     primary: "@cf/openai/gpt-oss-120b",
+    design: "@cf/openai/gpt-oss-120b",
     fast: "@cf/meta/llama-3.2-3b-instruct",
     coding: "@cf/qwen/qwen2.5-coder-32b-instruct",
     vision: "@cf/meta/llama-4-scout-17b-16e-instruct",
@@ -101,6 +102,7 @@ const FREE_MODEL_DEFAULTS: Record<FreeProviderName, Partial<Record<ModelRole, st
   // router moves on to a provider that can read pictures.
   groq: {
     primary: "openai/gpt-oss-120b",
+    design: "openai/gpt-oss-120b",
     fast: "openai/gpt-oss-20b",
     coding: "qwen/qwen3.8-27b",
   },
@@ -112,6 +114,7 @@ const FREE_MODEL_DEFAULTS: Record<FreeProviderName, Partial<Record<ModelRole, st
   // model the account cannot invoke.
   nvidia: {
     primary: "nvidia/nemotron-3-super-120b-a12b",
+    design: "nvidia/nemotron-3-super-120b-a12b",
     fast: "nvidia/nemotron-3.5-lightning-30b-a3b",
     coding: "nvidia/nemotron-3-super-120b-a12b",
     vision: "meta/llama-3.2-11b-vision-instruct",
@@ -121,6 +124,7 @@ const FREE_MODEL_DEFAULTS: Record<FreeProviderName, Partial<Record<ModelRole, st
   // and the router moves on to a provider that can read pictures.
   llm7: {
     primary: "codestral-latest",
+    design: "mistral-Nemo-Instruct-2407",
     fast: "mistral-Nemo-Instruct-2407",
     coding: "codestral-latest",
   },
@@ -128,6 +132,7 @@ const FREE_MODEL_DEFAULTS: Record<FreeProviderName, Partial<Record<ModelRole, st
   // its free auto-router, so it survives individual models being retired.
   openrouter: {
     primary: "nvidia/nemotron-3-super-120b-a12b:free",
+    design: "nvidia/nemotron-3-super-120b-a12b:free",
     fast: "openrouter/free",
     coding: "cohere/north-mini-code:free",
     vision: "inclusionai/ling-3.0-flash-vl:free",
@@ -139,6 +144,7 @@ const FREE_MODEL_DEFAULTS: Record<FreeProviderName, Partial<Record<ModelRole, st
   // exceeded" on the free tier, so image generation stays an unserved role.
   google: {
     primary: "gemini-3.6-flash",
+    design: "gemini-3.6-flash",
     fast: "gemini-3.5-flash-lite",
     coding: "gemini-3.6-flash",
     vision: "gemini-3.6-flash",
@@ -430,7 +436,7 @@ export function freeProviderReadiness() {
       label: FREE_ALLOWANCE[name].label,
       allowance: FREE_ALLOWANCE[name].allowance,
       configured: credentials !== null,
-      models: (["primary", "fast", "coding", "vision"] as ModelRole[])
+      models: (["primary", "design", "fast", "coding", "vision", "transcription"] as ModelRole[])
         .map((role) => ({ role, model: freeModelFor(name, role) }))
         .filter((entry): entry is { role: ModelRole; model: string } => entry.model !== null),
     };
