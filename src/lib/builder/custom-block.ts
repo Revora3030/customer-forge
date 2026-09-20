@@ -501,11 +501,15 @@ export function parseCustomBlock(raw: unknown): ParseResult {
       return { ok: true, spec: { type: "gauge", ...(title ? { title } : {}), ...(note ? { note } : {}), items } };
     }
 
+    /* Anything with no ready-made shape: a validated free-form tree. */
+    case "freeform":
+      return parseFreeformBlock(row);
+
     default:
       return {
         ok: false,
         reason:
-          "unknown block type — use calculator, quiz, comparison, checklist, steps, tabs, metrics, accordion, timeline, filter, eligibility, booking or gauge",
+          "unknown block type — use calculator, quiz, comparison, checklist, steps, tabs, metrics, accordion, timeline, filter, eligibility, booking, gauge or freeform",
       };
   }
 }
@@ -557,5 +561,7 @@ export function describeCustomBlock(spec: CustomBlockSpec): string {
       return `${spec.title ?? "Booking selector"} — ${spec.services.length} services, ${spec.times.length} time choices`;
     case "gauge":
       return `${spec.title ?? "Progress strip"} — ${spec.items.length} values`;
+    case "freeform":
+      return describeFreeformBlock(spec);
   }
 }
