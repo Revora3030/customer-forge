@@ -595,7 +595,7 @@ function readNewPages(text: string): string[] {
         label.length > 1 &&
         label.split(" ").length <= 4 &&
         !/\b(?:to|on|in|of|for|from|with|and)\b/i.test(label) &&
-        !new RegExp(`\\b(?:${PAGE_PART})\\b`, "i").test(label);
+        !new RegExp(`\\b(?:${NOT_A_PAGE_NAME})\\b`, "i").test(label);
 
       if (
         looksLikeAPageName &&
