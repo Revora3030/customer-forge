@@ -38,6 +38,7 @@ import {
   freeBudgetAllows,
   freeBudgetRemaining,
   freeProviderChain,
+  freeProviderCredentials,
   freeProviderReadiness,
   isFreeEligibleModel,
   noteFreeUse,
