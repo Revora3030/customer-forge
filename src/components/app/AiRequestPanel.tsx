@@ -76,6 +76,7 @@ export function AiRequestPanel({
     Array<{ role: "user" | "assistant"; content: string }>
   >([]);
   const [ideasOpen, setIdeasOpen] = useState(false);
+  const [showAllIdeas, setShowAllIdeas] = useState(false);
   const queryClient = useQueryClient();
 
   // Honest report of what this device can do. Building never depends on it.
