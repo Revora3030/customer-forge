@@ -251,7 +251,10 @@ export function AiRequestPanel({
     if (!text || !ready) return;
     setTasks((current) => [...current, newTask(text)]);
     setValue("");
+    // Funnel stage: an owner actually asked for a build (never the text itself).
+    trackConversion("build_requested", { metadata: { organization_id: organizationId ?? "" } });
   };
+
 
   const summary = useMemo(() => queueSummary(tasks), [tasks]);
 
