@@ -398,6 +398,17 @@ async function run<T>(
                 : providerUnavailable(config.name, (rawError as Error)?.message?.slice(0, 120));
           lastError = error;
           noteFailure(config.name);
+          lastOutcome = {
+            at: Date.now(),
+            provider: config.name,
+            model,
+            task: caller.task,
+            ok: false,
+            category: error.category,
+            fallbackUsed,
+            free: candidate.free !== null,
+          };
+
           void recordAiEvent({
             requestId,
             provider: config.name,
