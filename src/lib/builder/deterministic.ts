@@ -598,7 +598,21 @@ export function buildDeterministicPlan(
   const collector = createActionCollector(cap);
 
   const actions = collector.actions;
-  const push = collector.push;
+
+  /**
+   * WORDING THE OWNER TYPED IS FINAL. Once an exact-wording directive has set a
+   * heading, subheading or body, no later pass in the same request may rewrite
+   * that same field — a site-wide copy refresh must never replace the words the
+   * owner just asked for.
+   */
+  const lockedText = new Set<string>();
+
+  const push = (action: AgentAction) => {
+    if (action.type === "set_section_text") {
+      if (lockedText.has(`${action.sectionId}:${action.field}`)) return false;
+    }
+    return collector.push(action);
+  };
 
   const notes: string[] = [];
   const questions: string[] = [];
