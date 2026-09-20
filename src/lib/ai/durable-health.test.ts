@@ -33,11 +33,17 @@ describe("shared free-AI usage and health state", () => {
     expect(durableBudgetRemaining("groq", 100)).toBeNull();
   });
 
-  it("never throws when the shared store cannot be reached", async () => {
+  it("records without throwing, whether or not the shared store answers", async () => {
+    // A real provider name is never used here: the test must not spend or skew
+    // a live free allowance. Both outcomes are acceptable — a number when the
+    // shared store answered, null when it could not be reached.
+    const probe = "vitest-probe";
     await expect(refreshDurableRuntime(true)).resolves.toBeInstanceOf(Map);
-    await expect(noteDurableFreeUse("groq", 100)).resolves.toBeNull();
-    await expect(noteDurableProviderResult({ provider: "groq", ok: false })).resolves.toBeNull();
-    // Still permissive: a store we cannot read must not block free calls.
+    const remaining = await noteDurableFreeUse(probe, 100_000);
+    expect(remaining === null || typeof remaining === "number").toBe(true);
+    const result = await noteDurableProviderResult({ provider: probe, ok: true, latencyMs: 12 });
+    expect(result === null || result.provider === probe).toBe(true);
+    // Unknown or unreachable state must never block a free call.
     expect(durableBudgetExhausted("groq", 100)).toBe(false);
   });
 
