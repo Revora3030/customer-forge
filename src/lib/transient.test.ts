@@ -7,7 +7,7 @@ describe("transient failures", () => {
     for (const message of [
       "Failed to fetch",
       "network error",
-      "The connection was reset",
+      "Connection reset by peer",
       "Request timeout",
       "502 Bad Gateway",
       "503 Service Unavailable",
