@@ -46,6 +46,50 @@ export function normalizeBuilderMode(key: string | undefined): BuilderModeKey {
 export type BuilderQuickAction = { label: string; instruction: string };
 
 /**
+ * The seven outcomes a first-time owner actually wants, shown up front in the
+ * request box. Each one is a real instruction for the same plan → approve →
+ * apply pipeline; nothing here is decorative, and "Publish my site" routes
+ * through the existing launch checks rather than bypassing them.
+ */
+export const BUILDER_PRIMARY_ACTIONS: BuilderQuickAction[] = [
+  {
+    label: "Improve my website",
+    instruction:
+      "Improve my whole website: clearer wording, tidier layout, consistent spacing and a stronger first screen. Keep all of my real business details exactly as they are.",
+  },
+  {
+    label: "Get more leads",
+    instruction:
+      "Make it easier for customers to contact me: a clear call and quote button on every page, a short form high on the home page, and wording that says what happens next.",
+  },
+  {
+    label: "Build a page",
+    instruction:
+      "Add the page my website is missing most, fill it with real sections, wording and a clear button, and link it from the menu.",
+  },
+  {
+    label: "Make it look better",
+    instruction:
+      "Make my website look more premium: generous spacing, refined typography, calmer colours and larger imagery, without changing any of my real details.",
+  },
+  {
+    label: "Improve Google search",
+    instruction:
+      "Improve how my website shows up in Google: a clear title and description for every page, headings that match what customers search for, and links between related pages.",
+  },
+  {
+    label: "Fix problems",
+    instruction:
+      "Find and fix problems on my website: anything cut off or overlapping on a phone, missing buttons or links, empty sections, and text that is hard to read.",
+  },
+  {
+    label: "Publish my site",
+    instruction:
+      "Run the final checks on my website, fix anything that would block going live, and tell me exactly what is left before I publish.",
+  },
+];
+
+/**
  * Everyday requests in the owner's words. Each one is a real instruction the
  * assistant plans and executes — never a decorative button.
  */

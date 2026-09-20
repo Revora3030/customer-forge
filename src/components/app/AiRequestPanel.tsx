@@ -30,7 +30,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { askAssistant } from "@/lib/assistant-bridge";
-import { BUILDER_QUICK_ACTIONS } from "@/lib/builder-modes";
+import { BUILDER_PRIMARY_ACTIONS, BUILDER_QUICK_ACTIONS } from "@/lib/builder-modes";
 import {
   approvedSteps,
   canAutoApply,
@@ -69,7 +69,9 @@ export function AiRequestPanel({
   const [howOpen, setHowOpen] = useState(false);
   const [tasks, setTasks] = useState<QueueTask[]>([]);
   const [capabilities, setCapabilities] = useState<BuilderCapabilities | null>(null);
-  const [conversation, setConversation] = useState<Array<{ role: "user" | "assistant"; content: string }>>([]);
+  const [conversation, setConversation] = useState<
+    Array<{ role: "user" | "assistant"; content: string }>
+  >([]);
   const [ideasOpen, setIdeasOpen] = useState(false);
   const queryClient = useQueryClient();
 
@@ -225,27 +227,21 @@ export function AiRequestPanel({
 
   return (
     <section className="panel p-4 sm:p-5">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <h2 className="text-[18px] font-semibold tracking-tight">What do you want to build next?</h2>
-          <p className="mt-1 text-[12.5px] text-muted-foreground">
-            Tell Revora the result you want. It figures out the work.
-          </p>
-        </div>
+      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
+        <h2 className="min-w-0 text-[18px] font-semibold tracking-tight">
+          What do you want to change?
+        </h2>
         {conversation.length ? (
           <span className="shrink-0 rounded-full border border-border px-2 py-1 text-[10px] text-muted-foreground">
             Context on
           </span>
         ) : null}
       </div>
-      {capabilities ? (
-        <p className="mt-1 text-[12px] text-muted-foreground">{capabilities.summary}</p>
-      ) : null}
 
       <Textarea
-        className="mt-3 min-h-24 text-[13px]"
-        placeholder="Describe what you want to build or change…"
-        aria-label="Describe what you want to change"
+        className="mt-3 min-h-24 text-[14px]"
+        placeholder="Tell Revora what you want…"
+        aria-label="Tell Revora what you want"
         value={value}
         maxLength={INSTRUCTION_LIMIT}
         disabled={!ready}
@@ -254,6 +250,24 @@ export function AiRequestPanel({
           if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) queue(value);
         }}
       />
+
+      {/* Outcome-focused starters, visible without opening anything. */}
+      <div className="mt-2.5 flex flex-wrap gap-1.5">
+        {BUILDER_PRIMARY_ACTIONS.map((action) => (
+          <button
+            key={action.label}
+            type="button"
+            disabled={!ready}
+            onClick={() => queue(action.instruction)}
+            className={cn(
+              "min-h-9 cursor-pointer rounded-full border border-border px-3 py-1.5 text-[12.5px] text-muted-foreground transition-colors",
+              "hover:bg-elevated hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none disabled:opacity-50",
+            )}
+          >
+            {action.label}
+          </button>
+        ))}
+      </div>
 
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <Button
@@ -267,7 +281,7 @@ export function AiRequestPanel({
           ) : (
             <Wand2 className="mr-1.5 size-4" aria-hidden />
           )}
-          {busy ? "Working…" : tasks.length ? "Add to queue" : "Build with Revora"}
+          {busy ? "Working…" : tasks.length ? "Add to list" : "Ask Revora"}
         </Button>
         <Button
           size="sm"
@@ -276,7 +290,7 @@ export function AiRequestPanel({
           disabled={!ready}
           title={capabilities ? (attachmentNotice(capabilities, "image") ?? undefined) : undefined}
         >
-          <ImageIcon className="mr-1.5 size-4" aria-hidden /> Add photo or video
+          <ImageIcon className="mr-1.5 size-4" aria-hidden /> Add photo
         </Button>
         <Button size="sm" variant="outline" onClick={onOpenAi} disabled={!ready}>
           <Mic className="mr-1.5 size-4" aria-hidden /> Speak
@@ -319,83 +333,88 @@ export function AiRequestPanel({
               ) : null}
 
               {task.steps.length ? (
-                <ul className="mt-2 space-y-1">
-                  {task.steps.map((step, index) => (
-                    <li key={step.key} className="flex items-center gap-2 text-[12px]">
-                      <input
-                        type="checkbox"
-                        checked={step.included}
-                        disabled={task.state !== "waiting_for_approval"}
-                        aria-label={`Include: ${step.title}`}
-                        onChange={() =>
-                          setTasks((current) =>
-                            current.map((t) => (t.id === task.id ? toggleStep(t, step.key) : t)),
-                          )
-                        }
-                        className="size-4 shrink-0 accent-current"
-                      />
-                      <span
-                        className={cn(
-                          "min-w-0 flex-1 truncate",
-                          !step.included && "text-muted-foreground line-through",
-                        )}
-                      >
-                        {step.title} <span className="opacity-70">({step.where})</span>
-                        {step.destructive ? (
-                          <span className="ml-1 opacity-80">— removes content</span>
-                        ) : null}
-                      </span>
-                      {task.state === "waiting_for_approval" ? (
-                        <span className="flex shrink-0 items-center gap-1">
-                          <button
-                            type="button"
-                            aria-label={`Move up: ${step.title}`}
-                            disabled={index === 0}
-                            onClick={() =>
-                              setTasks((current) =>
-                                current.map((t) =>
-                                  t.id === task.id ? moveStep(t, step.key, -1) : t,
-                                ),
-                              )
-                            }
-                            className="cursor-pointer rounded p-1 text-muted-foreground hover:text-foreground disabled:opacity-40"
-                          >
-                            <ArrowUp className="size-3.5" aria-hidden />
-                          </button>
-                          <button
-                            type="button"
-                            aria-label={`Move down: ${step.title}`}
-                            disabled={index === task.steps.length - 1}
-                            onClick={() =>
-                              setTasks((current) =>
-                                current.map((t) =>
-                                  t.id === task.id ? moveStep(t, step.key, 1) : t,
-                                ),
-                              )
-                            }
-                            className="cursor-pointer rounded p-1 text-muted-foreground hover:text-foreground disabled:opacity-40"
-                          >
-                            <ArrowDown className="size-3.5" aria-hidden />
-                          </button>
-                          <button
-                            type="button"
-                            aria-label={`Remove: ${step.title}`}
-                            onClick={() =>
-                              setTasks((current) =>
-                                current.map((t) =>
-                                  t.id === task.id ? removeStep(t, step.key) : t,
-                                ),
-                              )
-                            }
-                            className="cursor-pointer rounded p-1 text-muted-foreground hover:text-foreground"
-                          >
-                            <Trash2 className="size-3.5" aria-hidden />
-                          </button>
+                <>
+                  {task.state === "waiting_for_approval" ? (
+                    <p className="mt-2 text-[12.5px] font-medium">Here's what I'll change:</p>
+                  ) : null}
+                  <ul className="mt-2 space-y-1">
+                    {task.steps.map((step, index) => (
+                      <li key={step.key} className="flex items-center gap-2 text-[12px]">
+                        <input
+                          type="checkbox"
+                          checked={step.included}
+                          disabled={task.state !== "waiting_for_approval"}
+                          aria-label={`Include: ${step.title}`}
+                          onChange={() =>
+                            setTasks((current) =>
+                              current.map((t) => (t.id === task.id ? toggleStep(t, step.key) : t)),
+                            )
+                          }
+                          className="size-4 shrink-0 accent-current"
+                        />
+                        <span
+                          className={cn(
+                            "min-w-0 flex-1 truncate",
+                            !step.included && "text-muted-foreground line-through",
+                          )}
+                        >
+                          {step.title} <span className="opacity-70">({step.where})</span>
+                          {step.destructive ? (
+                            <span className="ml-1 opacity-80">— removes content</span>
+                          ) : null}
                         </span>
-                      ) : null}
-                    </li>
-                  ))}
-                </ul>
+                        {task.state === "waiting_for_approval" ? (
+                          <span className="flex shrink-0 items-center gap-1">
+                            <button
+                              type="button"
+                              aria-label={`Move up: ${step.title}`}
+                              disabled={index === 0}
+                              onClick={() =>
+                                setTasks((current) =>
+                                  current.map((t) =>
+                                    t.id === task.id ? moveStep(t, step.key, -1) : t,
+                                  ),
+                                )
+                              }
+                              className="cursor-pointer rounded p-1 text-muted-foreground hover:text-foreground disabled:opacity-40"
+                            >
+                              <ArrowUp className="size-3.5" aria-hidden />
+                            </button>
+                            <button
+                              type="button"
+                              aria-label={`Move down: ${step.title}`}
+                              disabled={index === task.steps.length - 1}
+                              onClick={() =>
+                                setTasks((current) =>
+                                  current.map((t) =>
+                                    t.id === task.id ? moveStep(t, step.key, 1) : t,
+                                  ),
+                                )
+                              }
+                              className="cursor-pointer rounded p-1 text-muted-foreground hover:text-foreground disabled:opacity-40"
+                            >
+                              <ArrowDown className="size-3.5" aria-hidden />
+                            </button>
+                            <button
+                              type="button"
+                              aria-label={`Remove: ${step.title}`}
+                              onClick={() =>
+                                setTasks((current) =>
+                                  current.map((t) =>
+                                    t.id === task.id ? removeStep(t, step.key) : t,
+                                  ),
+                                )
+                              }
+                              className="cursor-pointer rounded p-1 text-muted-foreground hover:text-foreground"
+                            >
+                              <Trash2 className="size-3.5" aria-hidden />
+                            </button>
+                          </span>
+                        ) : null}
+                      </li>
+                    ))}
+                  </ul>
+                </>
               ) : null}
 
               <div className="mt-3 flex flex-wrap gap-2">
@@ -406,8 +425,7 @@ export function AiRequestPanel({
                     disabled={busy || approvedSteps(task).length === 0}
                     onClick={() => build.mutate(task)}
                   >
-                    Build {approvedSteps(task).length} step
-                    {approvedSteps(task).length === 1 ? "" : "s"}
+                    Approve &amp; apply
                   </Button>
                 ) : null}
                 {task.state === "failed" || task.retryable ? (
@@ -438,46 +456,27 @@ export function AiRequestPanel({
         </ol>
       ) : null}
 
-      {compact ? null : (
-        <div className="mt-4">
+      <div className="mt-4 flex flex-wrap items-center gap-3">
+        {compact ? null : (
           <button
             type="button"
             aria-expanded={ideasOpen}
             onClick={() => setIdeasOpen((open) => !open)}
-            className="flex cursor-pointer items-center gap-1 text-[12px] font-medium text-muted-foreground hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+            className="flex cursor-pointer items-center gap-1 text-[12px] text-muted-foreground hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
           >
-            Ideas to get started
-            <ChevronDown className={cn("size-3.5 transition-transform", ideasOpen && "rotate-180")} />
+            More ideas
+            <ChevronDown
+              className={cn("size-3.5 transition-transform", ideasOpen && "rotate-180")}
+            />
           </button>
-          {ideasOpen ? (
-            <div className="mt-2 flex flex-wrap gap-1.5">
-              {BUILDER_QUICK_ACTIONS.map((action) => (
-                <button
-                  key={action.label}
-                  type="button"
-                  disabled={!ready}
-                  onClick={() => queue(action.instruction)}
-                  className={cn(
-                    "min-h-9 cursor-pointer rounded-full border border-border px-3 py-1.5 text-[12px] text-muted-foreground transition-colors",
-                    "hover:bg-elevated hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none disabled:opacity-50",
-                  )}
-                >
-                  {action.label}
-                </button>
-              ))}
-            </div>
-          ) : null}
-        </div>
-      )}
-
-      <div className="mt-4 flex flex-wrap items-center gap-3">
+        )}
         <button
           type="button"
           aria-expanded={howOpen}
           onClick={() => setHowOpen((open) => !open)}
           className="flex cursor-pointer items-center gap-1 text-[12px] text-muted-foreground hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
         >
-          How it works
+          Details
           <ChevronDown className={cn("size-3.5 transition-transform", howOpen && "rotate-180")} />
         </button>
         <button
@@ -489,17 +488,34 @@ export function AiRequestPanel({
           }}
           className="cursor-pointer text-[12px] text-muted-foreground hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
         >
-          Open the full assistant
+          Open assistant
         </button>
       </div>
+      {ideasOpen && !compact ? (
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          {BUILDER_QUICK_ACTIONS.map((action) => (
+            <button
+              key={action.label}
+              type="button"
+              disabled={!ready}
+              onClick={() => queue(action.instruction)}
+              className={cn(
+                "min-h-9 cursor-pointer rounded-full border border-border px-3 py-1.5 text-[12px] text-muted-foreground transition-colors",
+                "hover:bg-elevated hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none disabled:opacity-50",
+              )}
+            >
+              {action.label}
+            </button>
+          ))}
+        </div>
+      ) : null}
       {howOpen ? (
-        <ol className="mt-2 space-y-1 text-[12px] text-muted-foreground">
-          <li>1. Add as many requests as you like — they run in order, one at a time.</li>
-          <li>2. Revora works out the exact steps and applies safe ones straight away.</li>
-          <li>3. You can untick, reorder or delete any step before it runs.</li>
-          <li>4. Anything that removes content waits for you to press Build.</li>
-          <li>5. Every change lands on your draft, with a version saved first.</li>
-        </ol>
+        <ul className="mt-2 space-y-1 text-[12px] text-muted-foreground">
+          <li>Requests run one at a time, in order.</li>
+          <li>Safe changes apply straight away; anything that removes content waits for you.</li>
+          <li>Every change lands on your draft, with a version saved first, so you can undo it.</li>
+          {capabilities ? <li>{capabilities.summary}</li> : null}
+        </ul>
       ) : null}
     </section>
   );
