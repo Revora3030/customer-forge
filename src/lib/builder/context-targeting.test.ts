@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { AgentContext } from "@/lib/site-agent.server";
-import type { BuilderIntent } from "./interpreter";
+import { interpret, type BuilderIntent } from "./interpreter";
 import { scopeContextForIntent } from "./context-targeting";
 
 const context: AgentContext = {
