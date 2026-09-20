@@ -40,7 +40,8 @@ describe("generative artwork", () => {
 
 describe("media provider registry", () => {
   it("never reports paid image generation as available", () => {
-    const sources = resolveMediaSources({ ownerAssetCount: 0, presentSecrets: ["OPENAI_API_KEY"] });
+    // Even with paid provider credentials present, generation stays blocked.
+    const sources = resolveMediaSources({ ownerAssetCount: 0, presentSecrets: ["A_PAID_IMAGE_PROVIDER_KEY"] });
     const ai = sources.find((source) => source.id === "ai_generation")!;
     expect(ai.state).toBe("blocked");
     expect(ai.zeroCost).toBe(false);
