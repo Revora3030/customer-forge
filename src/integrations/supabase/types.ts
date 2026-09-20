@@ -1492,6 +1492,87 @@ export type Database = {
           },
         ]
       }
+      luna_budget_state: {
+        Row: {
+          calls: number
+          cap_microcents: number
+          month: string
+          spent_microcents: number
+          updated_at: string
+        }
+        Insert: {
+          calls?: number
+          cap_microcents?: number
+          month: string
+          spent_microcents?: number
+          updated_at?: string
+        }
+        Update: {
+          calls?: number
+          cap_microcents?: number
+          month?: string
+          spent_microcents?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      luna_usage_events: {
+        Row: {
+          cached_input_tokens: number
+          cost_microcents: number
+          created_at: string
+          id: string
+          input_tokens: number
+          model: string
+          organization_id: string | null
+          outcome: string
+          output_tokens: number
+          purpose: string
+          reason: string | null
+        }
+        Insert: {
+          cached_input_tokens?: number
+          cost_microcents?: number
+          created_at?: string
+          id?: string
+          input_tokens?: number
+          model: string
+          organization_id?: string | null
+          outcome: string
+          output_tokens?: number
+          purpose: string
+          reason?: string | null
+        }
+        Update: {
+          cached_input_tokens?: number
+          cost_microcents?: number
+          created_at?: string
+          id?: string
+          input_tokens?: number
+          model?: string
+          organization_id?: string | null
+          outcome?: string
+          output_tokens?: number
+          purpose?: string
+          reason?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "luna_usage_events_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "luna_usage_events_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "public_organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       marketing_conversions: {
         Row: {
           amount_cents: number | null
@@ -3849,6 +3930,19 @@ export type Database = {
         }
       }
       is_safe_link_url: { Args: { value: string }; Returns: boolean }
+      luna_budget_reserve: {
+        Args: { _cap_microcents?: number; _estimate_microcents: number }
+        Returns: {
+          allowed: boolean
+          calls: number
+          cap_microcents: number
+          spent_microcents: number
+        }[]
+      }
+      luna_budget_settle: {
+        Args: { _actual_microcents: number; _estimate_microcents: number }
+        Returns: number
+      }
       org_team_members: {
         Args: { _organization_id: string }
         Returns: {
