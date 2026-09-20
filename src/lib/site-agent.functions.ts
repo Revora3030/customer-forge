@@ -374,9 +374,37 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
     const { builderAiAvailable } = await import("@/lib/ai/availability");
     const zeroCost = !builderAiAvailable();
 
+    // DESIGN UNIQUENESS: for a whole-site redesign, a free provider composes the
+    // section mix, page order and visual direction for THIS business before the
+    // deterministic plan is applied on top. Structure only — it writes no copy
+    // and states no fact — and any failure leaves the deterministic plan alone.
+    let composed: Awaited<
+      ReturnType<typeof import("@/lib/builder/ai-composition.server").proposeSiteComposition>
+    > = null;
+    if (deterministic.intent.wholeSite && !zeroCost) {
+      const { proposeSiteComposition } = await import("@/lib/builder/ai-composition.server");
+      composed = await proposeSiteComposition(agentContext, {
+        instruction,
+        organizationId: orgId,
+        userId,
+      });
+    }
+
     if (deterministic.actions.length && !deterministic.requiresExternalReasoning) {
-      // Handled entirely by Revora's own rules: no provider call is made at all.
+      // Handled entirely by Revora's own rules unless a composition was proposed.
       raw = deterministicRaw()!;
+      if (composed) {
+        raw['actions'] = [
+          ...composed.actions,
+          ...deterministic.actions,
+        ] as unknown;
+        trace = [
+          ...trace,
+          `Layout composed for this business: ${composed.because}`,
+          ...composed.notes,
+        ];
+      }
+    
     } else if (zeroCost) {
       if (deterministic.actions.length) {
         raw = deterministicRaw()!;
