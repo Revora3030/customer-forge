@@ -97,6 +97,60 @@ const clean = (value: string | null | undefined) => {
   return text.length ? text : null;
 };
 
+/**
+ * Keeps an archetype section only when the business actually supplied the facts
+ * it would display. An empty gallery or price list is worse than no section.
+ */
+function archetypeSectionSupported(kind: string, input: MaterializeInput): boolean {
+  const priced = input.services.some(
+    (service) => service.price !== null || service.starting_price !== null,
+  );
+  const place = Boolean(
+    clean([input.city, input.state].filter(Boolean).join(", ")) ?? clean(input.serviceArea),
+  );
+  switch (kind) {
+    case "gallery":
+      return input.photoCount > 0;
+    case "pricing":
+      return priced;
+    case "reviews":
+    case "offer":
+      return false; // no supplied testimonials or offers at first build
+    case "stats":
+      return input.yearsInBusiness !== null;
+    case "area":
+    case "areas":
+      return place;
+    case "quote":
+      return input.hasQuoteForm;
+    case "booking":
+      return input.hasBooking;
+    case "services":
+      return input.services.length > 0 || input.copy.serviceCards.length > 0;
+    case "benefits":
+      return input.copy.benefits.length > 0;
+    case "faq":
+      return input.copy.faqs.length > 0;
+    default:
+      return true;
+  }
+}
+
+function archetypeSections(
+  sections: ArchetypeSection[],
+  input: MaterializeInput,
+  place: string | null,
+): Section[] {
+  const context = { businessName: input.businessName, place };
+  return sections
+    .filter((section) => archetypeSectionSupported(section.kind, input))
+    .map((section) => ({
+      kind: section.kind,
+      heading: resolveArchetypeText(section.heading, context),
+      subheading: section.subheading ? resolveArchetypeText(section.subheading, context) : null,
+    }));
+}
+
 /** Builds the page tree. Pure — easy to reason about and to test. */
 export function planSiteContent(input: MaterializeInput): Page[] {
   const { copy, services } = input;
