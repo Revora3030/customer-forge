@@ -95,7 +95,10 @@ describe("provider configuration", () => {
     expect(providerConfig("google")).toBeNull();
   });
 
-  it("fails closed with exactly one message when no provider is configured", async () => {
+  it("fails closed with one clear message when no provider is configured", async () => {
+    // FREE-AI-FIRST: with no free credentials and no paid opt-in the router
+    // contacts nobody and reports the free-unavailable state, which callers
+    // treat as "use the deterministic engine" rather than an error to retry.
     const { generateText } = await import("@/lib/ai/router.server");
     await expect(
       generateText(
@@ -104,7 +107,8 @@ describe("provider configuration", () => {
           messages: [{ role: "user", content: "hello" }],
         },
       ),
-    ).rejects.toThrow(AI_NOT_CONFIGURED_MESSAGE);
+    ).rejects.toMatchObject({ category: "free_unavailable", retryable: false });
+    expect(AI_NOT_CONFIGURED_MESSAGE).toContain("Revora AI is not configured");
   }, 20000);
 
   it("puts the configured default provider first and the fallback second", () => {
