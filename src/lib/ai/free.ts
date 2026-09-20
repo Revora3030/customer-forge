@@ -312,6 +312,11 @@ export function isFreeEligibleModel(provider: FreeProviderName, model: string): 
   if (provider === "groq") return groqFreeEligible(name);
   if (provider === "nvidia") return nvidiaFreeEligible(name);
   if (provider === "llm7") return llm7FreeEligible(name);
+  // Cloudflare's catalogue also carries partner image models that are billed
+  // per tile/step (Leonardo) or carry partner pricing Revora has not verified as
+  // free (the flux-2 line). Those are rejected by name so neither a default nor
+  // live discovery can put a billed model in a free-only chain.
+  if (CLOUDFLARE_PAID_MODEL.test(name)) return false;
   return name.startsWith("@cf/") && !NON_CHAT_MODEL.test(name);
 }
 
