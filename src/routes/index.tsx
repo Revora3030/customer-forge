@@ -350,9 +350,8 @@ function Landing() {
               <span className="gold-text">losing it between the click and the booking</span>.
             </h2>
             <p className="mt-4 max-w-2xl text-[14px] leading-relaxed text-muted-foreground">
-              Your customers are ready to book. The only question is who answers first. Here are the
-              five leaks that quietly cost local businesses the most work every month — and exactly
-              what Revora does about each one, starting on day one of your free access.
+              Five leaks that quietly cost local businesses work every month — and what Revora does
+              about each one.
             </p>
             <div className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
               {PROBLEMS.map((p) => (
