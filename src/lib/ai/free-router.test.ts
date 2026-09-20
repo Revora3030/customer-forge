@@ -264,9 +264,14 @@ describe("builder availability", () => {
     const chain = freeProviderChain("transcription");
     expect(chain.map((entry) => entry.name)).toEqual(["google"]);
     expect(chain[0]?.model).toBe("gemini-3.5-flash");
-    // Image generation has no free provider, and Revora still says so.
-    expect(FREE_UNSERVED_ROLES).toEqual(["image"]);
-    expect(freeProviderChain("image")).toEqual([]);
+    // Every role now has a free provider, so nothing is declared unserved.
+    expect(FREE_UNSERVED_ROLES).toEqual([]);
+    // Pictures come from Cloudflare's free image model once its token is set.
+    process.env["CLOUDFLARE_AI_API_TOKEN"] = "cf-token";
+    process.env["CLOUDFLARE_ACCOUNT_ID"] = "cf-account";
+    const images = freeProviderChain("image");
+    expect(images.map((entry) => entry.name)).toEqual(["cloudflare"]);
+    expect(images[0]?.model).toBe("@cf/black-forest-labs/flux-1-schnell");
   });
 
   it("reports voice as available from the free tier, and pictures too", async () => {
