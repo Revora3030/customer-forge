@@ -158,6 +158,12 @@ export async function buildFreeModelRegistry(role: ModelRole): Promise<RegistryM
       if (!isFreeEligibleModel(pool.provider, model)) continue;
       const capabilities = inferCapabilities(model, role);
       const state = health.get(pool.provider);
+      // The shared (cross-worker) record is the fuller truth about usage and
+      // resting periods: this worker may not have made the calls that spent the
+      // allowance. Whichever picture is more cautious is the one shown.
+      const shared = durableRuntimeFor(pool.provider);
+      const sharedRemaining = durableBudgetRemaining(pool.provider, freeBudgetCap(pool.provider));
+      const localRemaining = freeBudgetRemaining(pool.provider);
       models.push({
         provider: pool.provider,
         model,
@@ -177,13 +183,18 @@ export async function buildFreeModelRegistry(role: ModelRole): Promise<RegistryM
         streaming: role !== "image" && role !== "transcription",
         contextWindow: null,
         health: {
-          healthy: state?.healthy ?? true,
-          failures: state?.failures ?? 0,
-          cooldownUntil: state?.cooldownUntil ?? null,
+          healthy: (state?.healthy ?? true) && !durableProviderResting(pool.provider),
+          failures: Math.max(state?.failures ?? 0, shared?.failures ?? 0),
+          cooldownUntil: Math.max(state?.cooldownUntil ?? 0, shared?.openUntil ?? 0) || null,
         },
         quota: {
           allowance: FREE_ALLOWANCE[pool.provider].allowance,
-          remainingToday: freeBudgetRemaining(pool.provider),
+          remainingToday:
+            localRemaining === null
+              ? sharedRemaining
+              : sharedRemaining === null
+                ? localRemaining
+                : Math.min(localRemaining, sharedRemaining),
         },
       });
     }
