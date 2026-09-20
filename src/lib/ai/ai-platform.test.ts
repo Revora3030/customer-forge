@@ -143,6 +143,9 @@ describe("provider fallback", () => {
 
   beforeEach(() => {
     process.env["ZERO_AI_COST_MODE"] = "false";
+    // These tests cover the optional PAID chain, so the free chain is off.
+    process.env["FREE_AI_ENABLED"] = "false";
+    process.env["FREE_AI_ONLY"] = "false";
     process.env["GOOGLE_AI_API_KEY"] = "test-google";
     process.env["OPENAI_API_KEY"] = "test-openai";
     process.env["AI_DEFAULT_PROVIDER"] = "google";

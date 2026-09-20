@@ -144,7 +144,8 @@ function freeCandidate(
 async function buildChain(role: ModelRole): Promise<Candidate[]> {
   const candidates: Candidate[] = [];
 
-  for (const entry of freeProviderChain(role)) {
+  if (freeAiEnabled())
+    for (const entry of freeProviderChain(role)) {
     if (!freeBudgetAllows(entry.name)) continue;
     let model = entry.model;
     try {
