@@ -323,74 +323,66 @@ function WebsitePage() {
   const mediaCount = facts.data?.mediaCount ?? 0;
   const brandSet = Boolean(profile?.["primary_color"]) && Boolean(profile?.["logo_url"]);
   const failingChecks = preflightResult.checks.filter((check) => check.status === "fail");
-  const needs = useMemo<BuilderNeed[]>(() => {
-    if (!manage) return [];
-    const list: BuilderNeed[] = [];
-    if (requiredCount > 0)
-      list.push({
-        key: "answers",
-        title: `${requiredCount} thing${requiredCount === 1 ? "" : "s"} needed before you go live`,
-        body: "Answer them once — Revora reuses them across your pages, buttons, forms and search settings.",
-        actionLabel: "Answer them",
-        onAction: openSetup,
-        blocking: true,
-      });
-    if ((pages ?? []).length > 0 && mediaCount === 0)
-      list.push({
-        key: "photos",
-        title: "Add your photos",
-        body: "Your own pictures of your work make the biggest difference to how your site feels.",
-        actionLabel: "Add photos",
-        onAction: () => setAdvanced("photos"),
-      });
-    if ((pages ?? []).length > 0 && !brandSet)
-      list.push({
-        key: "look",
-        title: "Choose your look",
-        body: "Set your logo and colour so every page matches your business.",
-        actionLabel: "Choose your look",
-        onAction: () => setAdvanced("look"),
-      });
-    if (settings?.publish_state === "published" && !domainVerified)
-      list.push({
-        key: "domain",
-        title: "Connect your own web address",
-        body: "Your site is live on the Revora address. Connecting your own address looks more professional.",
-        actionLabel: "Connect it",
-        onAction: () => setAdvanced("launch"),
-      });
-    if ((pages ?? []).length > 0 && captureCount === 0)
-      list.push({
-        key: "enquiries",
-        title: "Enquiries have nowhere to go",
-        body: "Add an enquiry form or a booking option so customers can actually reach you.",
-        actionLabel: "Set up enquiries",
-        onAction: () => setAdvanced("enquiries"),
-      });
-    if (failingChecks.length > 0)
-      list.push({
-        key: "broken",
-        title: `${failingChecks.length} thing${failingChecks.length === 1 ? "" : "s"} look wrong`,
-        body: failingChecks
-          .slice(0, 2)
-          .map((check) => check.label)
-          .join(" · "),
-        actionLabel: "Let Revora fix it",
-        onAction: () => setAdvanced("launch"),
-      });
-    return list;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    manage,
-    requiredCount,
-    pages,
+  const needKeys = builderNeedKeys({
+    canManage: manage,
+    requiredAnswers: requiredCount,
+    pagesCount: (pages ?? []).length,
     mediaCount,
     brandSet,
-    settings?.publish_state,
+    publishState,
     domainVerified,
     captureCount,
-    failingChecks.length,
-  ]);
+    failingChecks: failingChecks.length,
+  });
+  const needCopy: Record<BuilderNeedKey, BuilderNeed> = {
+    answers: {
+      key: "answers",
+      title: `${requiredCount} thing${requiredCount === 1 ? "" : "s"} needed before you go live`,
+      body: "Answer them once — Revora reuses them across your pages, buttons, forms and search settings.",
+      actionLabel: "Answer them",
+      onAction: openSetup,
+      blocking: true,
+    },
+    photos: {
+      key: "photos",
+      title: "Add your photos",
+      body: "Your own pictures of your work make the biggest difference to how your site feels.",
+      actionLabel: "Add photos",
+      onAction: () => setAdvanced("photos"),
+    },
+    look: {
+      key: "look",
+      title: "Choose your look",
+      body: "Set your logo and colour so every page matches your business.",
+      actionLabel: "Choose your look",
+      onAction: () => setAdvanced("look"),
+    },
+    domain: {
+      key: "domain",
+      title: "Connect your own web address",
+      body: "Your site is live on the Revora address. Connecting your own address looks more professional.",
+      actionLabel: "Connect it",
+      onAction: () => setAdvanced("launch"),
+    },
+    enquiries: {
+      key: "enquiries",
+      title: "Enquiries have nowhere to go",
+      body: "Add an enquiry form or a booking option so customers can actually reach you.",
+      actionLabel: "Set up enquiries",
+      onAction: () => setAdvanced("enquiries"),
+    },
+    broken: {
+      key: "broken",
+      title: `${failingChecks.length} thing${failingChecks.length === 1 ? "" : "s"} look wrong`,
+      body: failingChecks
+        .slice(0, 2)
+        .map((check) => check.label)
+        .join(" · "),
+      actionLabel: "Let Revora fix it",
+      onAction: () => setAdvanced("launch"),
+    },
+  };
+  const needs: BuilderNeed[] = needKeys.map((key) => needCopy[key]);
 
   if (profileQuery.isLoading || settingsQuery.isLoading) return <LoadingRows rows={5} />;
 
