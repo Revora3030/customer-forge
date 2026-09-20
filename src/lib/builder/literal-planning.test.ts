@@ -131,4 +131,20 @@ describe("exact wording requests are applied, not questioned", () => {
       value: "0113 496 1234",
     });
   });
+
+  it("does not let a site-wide polish overwrite wording asked for in the same request", () => {
+    const plan = buildDeterministicPlan(
+      context(),
+      "Redesign the whole website and make the homepage headline say 'Reliable service, done right'",
+    );
+
+    const headings = plan.actions.filter(
+      (action) => action.type === "set_section_text" && action.field === "heading",
+    );
+
+    expect(headings.length).toBeGreaterThan(0);
+    for (const heading of headings) {
+      expect(heading).toMatchObject({ value: "Reliable service, done right" });
+    }
+  });
 });
