@@ -364,11 +364,14 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
     // not for attachments, not on an error, not on a retry. The native engine
     // answers, and a request it cannot place comes back as a plain question
     // rather than anything about providers, keys or credits.
-    const { zeroAiCostMode, builderExternalAiAllowed } = await import("@/lib/ai/config");
-    // The website builder has its own switch on top of zero-cost mode, so an
-    // operator can enable outside AI elsewhere in Revora while customer website
-    // building stays free to run.
-    const zeroCost = zeroAiCostMode() || !builderExternalAiAllowed();
+    // FREE-AI-FIRST: the builder may use a provider whose configured usage is
+    // actually free (Cloudflare Workers AI, OpenRouter free models, the Gemini
+    // free tier). Paid provider accounts stay unreachable unless an operator
+    // explicitly opted out of both zero-cost and free-only mode, so customer
+    // website building never needs a paid plan. With no free provider reachable,
+    // the native engine answers exactly as before.
+    const { builderAiAvailable } = await import("@/lib/ai/availability");
+    const zeroCost = !builderAiAvailable();
 
     if (deterministic.actions.length && !deterministic.requiresExternalReasoning) {
       // Handled entirely by Revora's own rules: no provider call is made at all.
@@ -1489,12 +1492,13 @@ export const runWebsiteTask = createServerFn({ method: "POST" })
  * the buttons say what will happen instead of failing after the recording.
  */
 export const builderMediaCapabilities = createServerFn({ method: "GET" }).handler(async () => {
-  const { zeroAiCostMode, builderExternalAiAllowed, providerChain } =
-    await import("@/lib/ai/config");
-  const blocked = zeroAiCostMode() || !builderExternalAiAllowed() || providerChain().length === 0;
+  const { builderMediaAvailability } = await import("@/lib/ai/availability");
+  const media = builderMediaAvailability();
   return {
-    voice: !blocked,
-    vision: !blocked,
-    note: blocked ? "Type your request — photos stay attached for you to place." : "",
+    voice: media.voice,
+    vision: media.vision,
+    note: media.vision
+      ? ""
+      : "Type your request — photos stay attached for you to place.",
   };
 });
