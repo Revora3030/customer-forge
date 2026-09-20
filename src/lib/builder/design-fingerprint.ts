@@ -395,15 +395,17 @@ export function rejectStyle(fingerprint: DesignFingerprint, style: string): Desi
 export function fingerprintBrief(fingerprint: DesignFingerprint): string {
   return [
     "Design identity already established for this website. Keep it consistent unless this request asks to change it:",
+    `- Design family: ${fingerprint.family}; page shell: ${fingerprint.pageShell}`,
     `- Hero composition: ${fingerprint.heroComposition}`,
     `- Background system: ${fingerprint.backgroundSystem}`,
-    `- Section rhythm: ${fingerprint.sectionRhythm}`,
+    `- Section rhythm: ${fingerprint.sectionRhythm}; section transition: ${fingerprint.sectionTransition}`,
     `- Navigation: ${fingerprint.navSystem}; CTA: ${fingerprint.ctaSystem}; Cards: ${fingerprint.cardSystem}`,
     `- Proof: ${fingerprint.proofLayout}; Pricing: ${fingerprint.pricingLayout}; FAQ: ${fingerprint.faqLayout}`,
-    `- Gallery: ${fingerprint.galleryLayout}; Stats: ${fingerprint.statsLayout}; Forms: ${fingerprint.formLayout}; Footer: ${fingerprint.footerSystem}`,
+    `- Gallery: ${fingerprint.galleryLayout}; Stats: ${fingerprint.statsLayout}; Process: ${fingerprint.timelineLayout}; Forms: ${fingerprint.formLayout}; Footer: ${fingerprint.footerSystem}`,
     `- Decoration: ${fingerprint.decorativeSystem}; Type: ${fingerprint.typeSystem}; Colour: ${fingerprint.colorSystem}`,
-    `- Motion: ${fingerprint.motionLevel}; Density: ${fingerprint.density}`,
+    `- Motion: ${fingerprint.motionLevel} (${fingerprint.motionPattern}); Density: ${fingerprint.density}; Image treatment: ${fingerprint.imageTreatment}`,
     `- Art direction: ${fingerprint.artDirection.style}, ${fingerprint.artDirection.crop} crop, ${fingerprint.artDirection.overlay} overlay, ${fingerprint.artDirection.aspectRatio}`,
     fingerprint.rejected.length ? `- Never use again (owner rejected): ${fingerprint.rejected.join(", ")}` : "",
+    "This identity describes design only. It is never a source of business facts, prices, reviews or claims.",
   ].filter(Boolean).join("\n");
 }
