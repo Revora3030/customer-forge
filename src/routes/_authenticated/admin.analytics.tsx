@@ -330,20 +330,97 @@ function AdminAnalytics() {
           description="As soon as a workspace opens the builder, its progress through to publish appears here."
         />
       ) : (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <MetricCard label="Opened the builder" value={number(builder.data?.opened ?? 0)} />
-          <MetricCard
-            label="Asked Revora to build"
-            value={`${number(builder.data?.requested ?? 0)} (${builder.data?.requestRate ?? 0}%)`}
-          />
-          <MetricCard label="Published" value={number(builder.data?.published ?? 0)} />
-          <MetricCard
-            label="Opened → published"
-            value={`${builder.data?.publishRate ?? 0}%`}
-            hint="Share of workspaces that got all the way live"
-          />
-        </div>
+        <>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <MetricCard label="Opened the builder" value={number(builder.data?.opened ?? 0)} />
+            <MetricCard
+              label="Asked Revora to build"
+              value={`${number(builder.data?.requested ?? 0)} (${builder.data?.requestRate ?? 0}%)`}
+            />
+            <MetricCard label="Went live" value={number(builder.data?.published ?? 0)} />
+            <MetricCard
+              label="Opened → live"
+              value={`${builder.data?.publishRate ?? 0}%`}
+              hint="Share of workspaces that got all the way live"
+            />
+          </div>
+
+          <Panel
+            title="Where they stop"
+            description="Each workspace is counted once, at the furthest step it actually reached."
+          >
+            <ol className="divide-y divide-border text-[13px]">
+              {(builder.data?.stages ?? []).map((stage) => (
+                <li key={stage.key} className="flex flex-wrap items-baseline gap-x-3 gap-y-1 py-2.5">
+                  <span className="min-w-0 flex-1 font-medium">{stage.label}</span>
+                  <span className="tnum text-muted-foreground">
+                    {number(stage.count)} ({stage.rate}%)
+                  </span>
+                  <span className="tnum w-full text-muted-foreground sm:w-auto">
+                    {stage.droppedHere > 0
+                      ? `${number(stage.droppedHere)} stopped here (${stage.dropRate}%)`
+                      : "—"}
+                  </span>
+                  <span className="w-full text-[12px] text-muted-foreground">{stage.blurb}</span>
+                </li>
+              ))}
+            </ol>
+          </Panel>
+
+          <div className="grid gap-3 lg:grid-cols-2">
+            <Panel
+              title="Why publishing was refused"
+              description="Recorded by the server when it declined to take a website live."
+            >
+              {(builder.data?.publishBlockers ?? []).length === 0 ? (
+                <p className="text-[13px] text-muted-foreground">
+                  No workspace was refused in this window.
+                </p>
+              ) : (
+                <ul className="divide-y divide-border text-[13px]">
+                  {(builder.data?.publishBlockers ?? []).map((item) => (
+                    <li key={item.reason} className="flex items-baseline gap-3 py-2">
+                      <span className="min-w-0 flex-1">{item.label}</span>
+                      <span className="tnum text-muted-foreground">
+                        {number(item.workspaces)} workspace{item.workspaces === 1 ? "" : "s"}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <p className="mt-3 text-[12px] text-muted-foreground">
+                {number(builder.data?.publishGlitches ?? 0)} workspace
+                {(builder.data?.publishGlitches ?? 0) === 1 ? "" : "s"} hit a passing error and were
+                offered a retry. {number(builder.data?.stuckAtPublish ?? 0)} tried to go live and
+                still have not.
+              </p>
+            </Panel>
+
+            <Panel
+              title="Why a build request failed"
+              description="Requests Revora could not carry out on the website."
+            >
+              {(builder.data?.buildFailures ?? []).length === 0 ? (
+                <p className="text-[13px] text-muted-foreground">
+                  Every build request in this window was carried out.
+                </p>
+              ) : (
+                <ul className="divide-y divide-border text-[13px]">
+                  {(builder.data?.buildFailures ?? []).map((item) => (
+                    <li key={item.reason} className="flex items-baseline gap-3 py-2">
+                      <span className="min-w-0 flex-1">{item.label}</span>
+                      <span className="tnum text-muted-foreground">
+                        {number(item.workspaces)} workspace{item.workspaces === 1 ? "" : "s"}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </Panel>
+          </div>
+        </>
       )}
+
 
       <SectionHeading
         eyebrow="Marketing traffic"
