@@ -40,7 +40,15 @@ async function fetchJson(url: string, headers: Record<string, string>) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), DISCOVERY_TIMEOUT_MS);
   try {
-    const response = await fetch(url, { headers, signal: controller.signal });
+    const response = await fetch(url, {
+      // Identify Revora: some catalogue endpoints refuse an unidentified client.
+      headers: {
+        accept: "application/json",
+        "user-agent": "RevoraGrowthSystems/1.0 (+https://revoragrowthsystems.com)",
+        ...headers,
+      },
+      signal: controller.signal,
+    });
     if (!response.ok) return null;
     return (await response.json()) as unknown;
   } catch {
