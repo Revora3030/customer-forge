@@ -10,3 +10,5 @@
 
 ## Open (blocked on external keys)
 - [ ] Transactional email (Resend/Brevo) and CRM (HubSpot/Salesforce) live verification — blocked: no API keys in this workspace.
+
+- [x] Website variety: 26 site archetypes (restaurant, clinic, shop, fitness, hotel, real estate, agency, nonprofit, education, care, automotive, portfolio, SaaS, venue, travel, pets, legal/finance, industrial, weddings, consulting, emergency, catering, salon, construction, therapy, local service) classify each business and drive first-build structure plus assistant whole-site plans. Structure only — no invented facts.

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { planSiteContent, type MaterializeInput } from "@/lib/site-materialize.server";
 import { materializedSectionDesign } from "@/lib/site-materialize.server";
 import { DESIGN_DIRECTIONS } from "@/lib/design-directions";
+import { classifyArchetype } from "@/lib/site-archetypes";
 
 const input: MaterializeInput = {
   businessName: "Journey Detailing",
@@ -91,5 +92,43 @@ describe("planSiteContent", () => {
       effect: direction?.bodyEffect,
       visual: { layout: "editorial", card_style: "soft" },
     });
+  });
+});
+
+describe("planSiteContent with a website archetype", () => {
+  it("shapes the site for the kind of business it is", () => {
+    const restaurant = classifyArchetype({ industry: "Restaurant" });
+    const pages = planSiteContent({ ...input, photoCount: 6, archetype: restaurant });
+    expect(pages.map((page) => page.slug)).toEqual(expect.arrayContaining(["menu", "visit"]));
+    const home = pages[0]!;
+    expect(home.sections.map((s) => s.kind)).toContain("gallery");
+    // the closing CTA stays last (before the sticky bar)
+    const kinds = home.sections.map((s) => s.kind);
+    expect(kinds.indexOf("cta")).toBeGreaterThan(kinds.indexOf("gallery"));
+  });
+
+  it("gives different industries different structures", () => {
+    const shapes = ["Restaurant", "Dental", "Gym", "Hotel", "Law"].map((industry) =>
+      planSiteContent({
+        ...input,
+        photoCount: 4,
+        archetype: classifyArchetype({ industry }),
+      })
+        .map((page) => page.slug)
+        .join(","),
+    );
+    expect(new Set(shapes).size).toBe(shapes.length);
+  });
+
+  it("leaves out archetype sections with no supplied facts", () => {
+    const pages = planSiteContent({
+      ...input,
+      photoCount: 0,
+      services: [],
+      archetype: classifyArchetype({ industry: "Restaurant" }),
+    });
+    const kinds = pages.flatMap((page) => page.sections.map((s) => s.kind));
+    expect(kinds).not.toContain("gallery");
+    expect(kinds).not.toContain("reviews");
   });
 });

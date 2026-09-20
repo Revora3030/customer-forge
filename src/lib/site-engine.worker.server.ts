@@ -304,10 +304,20 @@ async function runJob(
 
   // Materialize the plan into real pages/sections/components so the owner has
   // something to edit and publish. Skipped when the workspace already has pages.
-  const [{ materializeSiteContent }, { recommendDirections }] = await Promise.all([
-    import("@/lib/site-materialize.server"),
-    import("@/lib/design-directions"),
-  ]);
+  const [{ materializeSiteContent }, { recommendDirections }, { classifyArchetype }] =
+    await Promise.all([
+      import("@/lib/site-materialize.server"),
+      import("@/lib/design-directions"),
+      import("@/lib/site-archetypes"),
+    ]);
+  // Decide what kind of website this business needs (restaurant, clinic, shop,
+  // studio, venue …) so the structure fits the industry, not one template.
+  const archetype = classifyArchetype({
+    industry: org.data.industry ?? null,
+    businessName: org.data.name ?? null,
+    description: (p["description"] as string) ?? null,
+    services: serviceRows.map((service) => ({ name: service.name })),
+  });
   const direction = recommendDirections({
     businessName: org.data.name ?? "",
     industry: org.data.industry ?? null,
@@ -330,6 +340,7 @@ async function runJob(
     hasQuoteForm: (forms.data ?? []).length > 0,
     hasBooking: (bookable.data ?? []).length > 0,
     direction,
+    archetype,
   });
 
   // A brand chosen by the owner wins. Only replace the untouched generated

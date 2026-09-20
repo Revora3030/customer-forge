@@ -15,6 +15,11 @@ import type { DesignDirection } from "@/lib/design-directions";
 import { writeSectionEffect } from "@/lib/site-effects";
 import { writeSectionVisual } from "@/lib/site-style";
 import { compositionForKind, variantForKind } from "@/lib/builder/elite-site-output";
+import {
+  resolveArchetypeText,
+  type ArchetypeSection,
+  type SiteArchetype,
+} from "@/lib/site-archetypes";
 
 type Db = SupabaseClient;
 
@@ -57,6 +62,8 @@ export type MaterializeInput = {
   hasBooking: boolean;
   /** The industry-specific visual identity selected for this first build. */
   direction?: DesignDirection | null;
+  /** The kind of website this business needs (restaurant, clinic, shop …). */
+  archetype?: SiteArchetype | null;
 };
 
 type Component = {
@@ -89,6 +96,60 @@ const clean = (value: string | null | undefined) => {
   const text = (value ?? "").trim();
   return text.length ? text : null;
 };
+
+/**
+ * Keeps an archetype section only when the business actually supplied the facts
+ * it would display. An empty gallery or price list is worse than no section.
+ */
+function archetypeSectionSupported(kind: string, input: MaterializeInput): boolean {
+  const priced = input.services.some(
+    (service) => service.price !== null || service.starting_price !== null,
+  );
+  const place = Boolean(
+    clean([input.city, input.state].filter(Boolean).join(", ")) ?? clean(input.serviceArea),
+  );
+  switch (kind) {
+    case "gallery":
+      return input.photoCount > 0;
+    case "pricing":
+      return priced;
+    case "reviews":
+    case "offer":
+      return false; // no supplied testimonials or offers at first build
+    case "stats":
+      return input.yearsInBusiness !== null;
+    case "area":
+    case "areas":
+      return place;
+    case "quote":
+      return input.hasQuoteForm;
+    case "booking":
+      return input.hasBooking;
+    case "services":
+      return input.services.length > 0 || input.copy.serviceCards.length > 0;
+    case "benefits":
+      return input.copy.benefits.length > 0;
+    case "faq":
+      return input.copy.faqs.length > 0;
+    default:
+      return true;
+  }
+}
+
+function archetypeSections(
+  sections: ArchetypeSection[],
+  input: MaterializeInput,
+  place: string | null,
+): Section[] {
+  const context = { businessName: input.businessName, place };
+  return sections
+    .filter((section) => archetypeSectionSupported(section.kind, input))
+    .map((section) => ({
+      kind: section.kind,
+      heading: resolveArchetypeText(section.heading, context),
+      subheading: section.subheading ? resolveArchetypeText(section.subheading, context) : null,
+    }));
+}
 
 /** Builds the page tree. Pure — easy to reason about and to test. */
 export function planSiteContent(input: MaterializeInput): Page[] {
@@ -194,6 +255,15 @@ export function planSiteContent(input: MaterializeInput): Page[] {
     ],
   };
 
+  // Shape the home page for the kind of business this is, before the closing CTA.
+  if (input.archetype) {
+    const extra = archetypeSections(input.archetype.homeSections, input, place).filter(
+      (section) => !home.sections.some((existing) => existing.kind === section.kind),
+    );
+    const closing = home.sections.findIndex((section) => section.kind === "cta");
+    home.sections.splice(closing >= 0 ? closing : home.sections.length, 0, ...extra);
+  }
+
   const pages: Page[] = [home];
 
   if (serviceCards.length)
@@ -279,6 +349,32 @@ export function planSiteContent(input: MaterializeInput): Page[] {
         { kind: "booking", heading: "Book a time", subheading: "Pick a slot that suits you." },
       ],
     });
+
+  // Pages that only this kind of business needs — a menu, rooms, listings,
+  // programmes, a timetable — instead of one universal service-site shape.
+  for (const page of input.archetype?.pages ?? []) {
+    if (pages.some((existing) => existing.slug === page.slug)) continue;
+    const sections = archetypeSections(page.sections, input, place);
+    if (!sections.length) continue;
+    const title = resolveArchetypeText(page.title, { businessName: input.businessName, place });
+    pages.push({
+      slug: page.slug,
+      title,
+      kind: page.kind,
+      seo_title: clean(`${title} — ${input.businessName}`),
+      seo_description: clean(copy.metaDescription),
+      sections: sections.map((section) =>
+        section.kind === "cta"
+          ? {
+              ...section,
+              components: [
+                { kind: "button", label: primaryCta, link_label: primaryCta, link_url: primaryTarget },
+              ],
+            }
+          : section,
+      ),
+    });
+  }
 
   pages.push({
     slug: "contact",
