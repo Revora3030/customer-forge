@@ -21,8 +21,7 @@ Object.assign(process.env, serverEnv);
 const PUBLIC_SUPABASE_URL = "https://smqngrtayopyirrqcbhq.supabase.co";
 const PUBLIC_SUPABASE_PUBLISHABLE_KEY = "sb_publishable_4g9xDdoVG7smhhZDGvNWAQ_GfmuWgO6";
 
-process.env["VITE_SUPABASE_URL"] ||=
-  process.env["SUPABASE_URL"] || PUBLIC_SUPABASE_URL;
+process.env["VITE_SUPABASE_URL"] ||= process.env["SUPABASE_URL"] || PUBLIC_SUPABASE_URL;
 process.env["VITE_SUPABASE_PUBLISHABLE_KEY"] ||=
   process.env["SUPABASE_PUBLISHABLE_KEY"] || PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 process.env["SUPABASE_URL"] ||= process.env["VITE_SUPABASE_URL"];
