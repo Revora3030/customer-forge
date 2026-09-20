@@ -141,6 +141,7 @@ export function ImageStudio({
             altText: altTextFor(shot, businessName),
             category: shot.slot === "hero" ? "hero" : shot.slot === "about" ? "team" : "work",
             label: `${shot.slot}-${style.id}`,
+            aspectRatio,
           },
         });
 
@@ -200,6 +201,7 @@ export function ImageStudio({
             altText: altTextFor(entry, businessName),
             category: entry.slot === "hero" ? "hero" : entry.slot === "about" ? "team" : "work",
             label: `starter-${entry.slot}`,
+            aspectRatio: entry.slot === "hero" ? "16:9" : "4:3",
           },
         });
         if (!result.ok) {
