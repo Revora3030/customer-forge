@@ -25,6 +25,7 @@ import { Route as ManifestDotwebmanifestRouteImport } from './routes/manifest[.]
 import { Route as PortalRouteImport } from './routes/portal'
 import { Route as PricingRouteImport } from './routes/pricing'
 import { Route as PrivacyRouteImport } from './routes/privacy'
+import { Route as QaCustomBlockRouteImport } from './routes/qa-custom-block'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as RobotsDottxtRouteImport } from './routes/robots[.]txt'
 import { Route as ShareRouteImport } from './routes/share'
@@ -176,6 +177,11 @@ const PricingRoute = PricingRouteImport.update({
 const PrivacyRoute = PrivacyRouteImport.update({
   id: '/privacy',
   path: '/privacy',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const QaCustomBlockRoute = QaCustomBlockRouteImport.update({
+  id: '/qa-custom-block',
+  path: '/qa-custom-block',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ResetPasswordRoute = ResetPasswordRouteImport.update({
@@ -579,6 +585,7 @@ export interface FileRoutesByFullPath {
   '/portal': typeof PortalRoute
   '/pricing': typeof PricingRoute
   '/privacy': typeof PrivacyRoute
+  '/qa-custom-block': typeof QaCustomBlockRoute
   '/reset-password': typeof ResetPasswordRoute
   '/robots.txt': typeof RobotsDottxtRoute
   '/share': typeof ShareRoute
@@ -667,6 +674,7 @@ export interface FileRoutesByTo {
   '/portal': typeof PortalRoute
   '/pricing': typeof PricingRoute
   '/privacy': typeof PrivacyRoute
+  '/qa-custom-block': typeof QaCustomBlockRoute
   '/reset-password': typeof ResetPasswordRoute
   '/robots.txt': typeof RobotsDottxtRoute
   '/share': typeof ShareRoute
@@ -756,6 +764,7 @@ export interface FileRoutesById {
   '/portal': typeof PortalRoute
   '/pricing': typeof PricingRoute
   '/privacy': typeof PrivacyRoute
+  '/qa-custom-block': typeof QaCustomBlockRoute
   '/reset-password': typeof ResetPasswordRoute
   '/robots.txt': typeof RobotsDottxtRoute
   '/share': typeof ShareRoute
@@ -848,6 +857,7 @@ export interface FileRouteTypes {
     | '/portal'
     | '/pricing'
     | '/privacy'
+    | '/qa-custom-block'
     | '/reset-password'
     | '/robots.txt'
     | '/share'
@@ -936,6 +946,7 @@ export interface FileRouteTypes {
     | '/portal'
     | '/pricing'
     | '/privacy'
+    | '/qa-custom-block'
     | '/reset-password'
     | '/robots.txt'
     | '/share'
@@ -1024,6 +1035,7 @@ export interface FileRouteTypes {
     | '/portal'
     | '/pricing'
     | '/privacy'
+    | '/qa-custom-block'
     | '/reset-password'
     | '/robots.txt'
     | '/share'
@@ -1116,6 +1128,7 @@ export interface RootRouteChildren {
   PortalRoute: typeof PortalRoute
   PricingRoute: typeof PricingRoute
   PrivacyRoute: typeof PrivacyRoute
+  QaCustomBlockRoute: typeof QaCustomBlockRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
   RobotsDottxtRoute: typeof RobotsDottxtRoute
   ShareRoute: typeof ShareRoute
@@ -1260,6 +1273,13 @@ declare module '@tanstack/react-router' {
       path: '/privacy'
       fullPath: '/privacy'
       preLoaderRoute: typeof PrivacyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/qa-custom-block': {
+      id: '/qa-custom-block'
+      path: '/qa-custom-block'
+      fullPath: '/qa-custom-block'
+      preLoaderRoute: typeof QaCustomBlockRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/reset-password': {
@@ -1954,6 +1974,7 @@ const rootRouteChildren: RootRouteChildren = {
   PortalRoute: PortalRoute,
   PricingRoute: PricingRoute,
   PrivacyRoute: PrivacyRoute,
+  QaCustomBlockRoute: QaCustomBlockRoute,
   ResetPasswordRoute: ResetPasswordRoute,
   RobotsDottxtRoute: RobotsDottxtRoute,
   ShareRoute: ShareRoute,
