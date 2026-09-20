@@ -542,7 +542,7 @@ const MEDIA_COMPONENT_KINDS = new Set([
 const ACTION_COMPONENT_KINDS = new Set(["button", "link", "cta", "form"]);
 
 /** Sections worth adding to a page that has almost nothing on it. */
-const DEPTH_SECTIONS = ["services", "faq", "cta"];
+const DEPTH_SECTIONS: HeadingSlot[] = ["services", "faq", "cta"];
 
 /**
  * A description for a picture, written only from text that already exists in
