@@ -454,46 +454,27 @@ export function AiRequestPanel({
         </ol>
       ) : null}
 
-      {compact ? null : (
-        <div className="mt-4">
+      <div className="mt-4 flex flex-wrap items-center gap-3">
+        {compact ? null : (
           <button
             type="button"
             aria-expanded={ideasOpen}
             onClick={() => setIdeasOpen((open) => !open)}
-            className="flex cursor-pointer items-center gap-1 text-[12px] font-medium text-muted-foreground hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+            className="flex cursor-pointer items-center gap-1 text-[12px] text-muted-foreground hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
           >
-            Ideas to get started
-            <ChevronDown className={cn("size-3.5 transition-transform", ideasOpen && "rotate-180")} />
+            More ideas
+            <ChevronDown
+              className={cn("size-3.5 transition-transform", ideasOpen && "rotate-180")}
+            />
           </button>
-          {ideasOpen ? (
-            <div className="mt-2 flex flex-wrap gap-1.5">
-              {BUILDER_QUICK_ACTIONS.map((action) => (
-                <button
-                  key={action.label}
-                  type="button"
-                  disabled={!ready}
-                  onClick={() => queue(action.instruction)}
-                  className={cn(
-                    "min-h-9 cursor-pointer rounded-full border border-border px-3 py-1.5 text-[12px] text-muted-foreground transition-colors",
-                    "hover:bg-elevated hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none disabled:opacity-50",
-                  )}
-                >
-                  {action.label}
-                </button>
-              ))}
-            </div>
-          ) : null}
-        </div>
-      )}
-
-      <div className="mt-4 flex flex-wrap items-center gap-3">
+        )}
         <button
           type="button"
           aria-expanded={howOpen}
           onClick={() => setHowOpen((open) => !open)}
           className="flex cursor-pointer items-center gap-1 text-[12px] text-muted-foreground hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
         >
-          How it works
+          Details
           <ChevronDown className={cn("size-3.5 transition-transform", howOpen && "rotate-180")} />
         </button>
         <button
@@ -505,17 +486,34 @@ export function AiRequestPanel({
           }}
           className="cursor-pointer text-[12px] text-muted-foreground hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
         >
-          Open the full assistant
+          Open assistant
         </button>
       </div>
+      {ideasOpen && !compact ? (
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          {BUILDER_QUICK_ACTIONS.map((action) => (
+            <button
+              key={action.label}
+              type="button"
+              disabled={!ready}
+              onClick={() => queue(action.instruction)}
+              className={cn(
+                "min-h-9 cursor-pointer rounded-full border border-border px-3 py-1.5 text-[12px] text-muted-foreground transition-colors",
+                "hover:bg-elevated hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none disabled:opacity-50",
+              )}
+            >
+              {action.label}
+            </button>
+          ))}
+        </div>
+      ) : null}
       {howOpen ? (
-        <ol className="mt-2 space-y-1 text-[12px] text-muted-foreground">
-          <li>1. Add as many requests as you like — they run in order, one at a time.</li>
-          <li>2. Revora works out the exact steps and applies safe ones straight away.</li>
-          <li>3. You can untick, reorder or delete any step before it runs.</li>
-          <li>4. Anything that removes content waits for you to press Build.</li>
-          <li>5. Every change lands on your draft, with a version saved first.</li>
-        </ol>
+        <ul className="mt-2 space-y-1 text-[12px] text-muted-foreground">
+          <li>Requests run one at a time, in order.</li>
+          <li>Safe changes apply straight away; anything that removes content waits for you.</li>
+          <li>Every change lands on your draft, with a version saved first, so you can undo it.</li>
+          {capabilities ? <li>{capabilities.summary}</li> : null}
+        </ul>
       ) : null}
     </section>
   );
