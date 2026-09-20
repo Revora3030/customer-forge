@@ -280,7 +280,6 @@ export function SiteChatbot({
         </ul>
       </details>
 
-
       {!hasSections ? (
         <p className="mt-4 text-[13px] text-accent">
           Build your pages and sections first, then the assistant can change anything on them.

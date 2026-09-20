@@ -1495,9 +1495,6 @@ export const builderMediaCapabilities = createServerFn({ method: "GET" }).handle
   return {
     voice: !blocked,
     vision: !blocked,
-    note: blocked
-      ? "Type your request — photos stay attached for you to place."
-      : "",
-
+    note: blocked ? "Type your request — photos stay attached for you to place." : "",
   };
 });
