@@ -454,6 +454,12 @@ export async function runEnsemble<T>(
           reason: value === null ? "answer failed validation" : null,
           value,
         });
+        if (settleAt > 0 && value !== null) {
+          const key = request.consensusKey(value);
+          const votes = (liveVotes.get(key) ?? 0) + 1;
+          liveVotes.set(key, votes);
+          if (votes >= settleAt) settled = true;
+        }
       } catch (error) {
         outcomes.push({
           lane: assignment.lane,
