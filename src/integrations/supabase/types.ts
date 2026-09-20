@@ -3941,7 +3941,7 @@ export type Database = {
       }
       luna_budget_settle: {
         Args: { _actual_microcents: number; _estimate_microcents: number }
-        Returns: number
+        Returns: undefined
       }
       org_team_members: {
         Args: { _organization_id: string }

@@ -16,4 +16,4 @@
 - Builder pass: model team settles as soon as 3 seats agree or after 10s (faster big requests); every design variant now has real CSS + scroll-in motion; apply reports only genuine changes (already-correct steps counted separately).
 
 ## Luna paid orchestrator
-- Luna (gpt-5.6-luna) wired as coordinator-only lane with $20/month hard cap ledger. BLOCKED on a real OPENAI_API_KEY: the stored key is a placeholder and returns 401, so live orchestration is NOT_VERIFIED.
+- Luna (gpt-5.6-luna) wired as coordinator-only lane with a $20/month hard cap ledger. VERIFIED_LIVE: real call returned text, spend recorded, admin panel reads it.
