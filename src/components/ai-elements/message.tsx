@@ -12,10 +12,6 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-import { cjk } from "@streamdown/cjk";
-import { code } from "@streamdown/code";
-import { math } from "@streamdown/math";
-import { mermaid } from "@streamdown/mermaid";
 import type { UIMessage } from "ai";
 import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
 import type { ComponentProps, HTMLAttributes, ReactElement } from "react";
@@ -28,7 +24,6 @@ import {
   useMemo,
   useState,
 } from "react";
-import { Streamdown } from "streamdown";
 
 export type MessageProps = HTMLAttributes<HTMLDivElement> & {
   from: UIMessage["role"];
@@ -319,20 +314,24 @@ export const MessageBranchPage = ({
   );
 };
 
-export type MessageResponseProps = ComponentProps<typeof Streamdown>;
-
-const streamdownPlugins = { cjk, code, math, mermaid };
+/**
+ * Plain-text assistant reply.
+ *
+ * The bundled markdown renderer (Streamdown) cannot be built for this project's
+ * Worker target — its html parser needs a newer `entities` than the pinned one.
+ * Revora's assistant replies are plain sentences, so this renders them directly
+ * with line breaks preserved.
+ */
+export type MessageResponseProps = Omit<ComponentProps<"div">, "children"> & {
+  children?: string;
+  isAnimating?: boolean;
+};
 
 export const MessageResponse = memo(
-  ({ className, ...props }: MessageResponseProps) => (
-    <Streamdown
-      className={cn(
-        "size-full [&>*:first-child]:mt-0 [&>*:last-child]:mb-0",
-        className
-      )}
-      plugins={streamdownPlugins}
-      {...props}
-    />
+  ({ className, children, isAnimating: _isAnimating, ...props }: MessageResponseProps) => (
+    <div className={cn("size-full whitespace-pre-line", className)} {...props}>
+      {children}
+    </div>
   ),
   (prevProps, nextProps) =>
     prevProps.children === nextProps.children &&
