@@ -124,8 +124,8 @@ async function openAiCompatibleFreeModels(
 }
 
 /**
- * LLM7: the catalogue flags each model's billing mode. Only models that are NOT
- * usage-based are free, so those ids are recorded as free-eligible and the
+ * LLM7: the catalogue flags each model's billing mode and whether it supports
+ * JSON mode. Only models that are NOT usage-based are free, so those ids are recorded as free-eligible and the
  * paid-balance models on the same endpoint stay unreachable.
  */
 async function llm7FreeModels(credentials: FreeProviderCredentials) {
@@ -136,10 +136,18 @@ async function llm7FreeModels(credentials: FreeProviderCredentials) {
   if (!Array.isArray(data)) return [];
   const free: string[] = [];
   for (const raw of data) {
-    const entry = raw as { id?: unknown; model_type?: unknown; usage_based_only?: unknown };
+    const entry = raw as {
+      id?: unknown;
+      model_type?: unknown;
+      usage_based_only?: unknown;
+      json_mode?: unknown;
+    };
     if (typeof entry.id !== "string") continue;
     if (entry.usage_based_only !== false) continue;
     if (entry.model_type !== "chat") continue;
+    // Revora asks these models for structured JSON, and LLM7 rejects the
+    // request outright on a model without JSON mode — so those are left out.
+    if (entry.json_mode !== true) continue;
     free.push(entry.id);
   }
   noteLlm7FreeModels(free);
