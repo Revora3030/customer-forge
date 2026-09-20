@@ -377,6 +377,48 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
       if (saved.error) console.warn("design memory not saved", saved.error.message);
     }
 
+    // PAID MASTER ORCHESTRATOR (Luna). Luna never writes the website and is
+    // never a worker: it reads the request plus the workspace's own facts and
+    // returns a short coordination brief (what the owner is really asking for,
+    // which specialists matter, what design intent must hold). The free model
+    // workforce and the deterministic engine still do all the work. This starts
+    // now and is awaited only after the native plan exists, so it cannot slow a
+    // build down, and every failure path leaves the build untouched.
+    const lunaOrchestration = (async (): Promise<string | null> => {
+      try {
+        const { callLuna } = await import("@/lib/ai/luna.server");
+        const result = await callLuna({
+          purpose: "intent",
+          organizationId: orgId,
+          maxOutputTokens: 500,
+          system: [
+            "You coordinate a website builder. You never write the website yourself.",
+            "Reply with at most 6 short bullet lines of coordination guidance:",
+            "what the owner is really asking for, which pages/sections it touches,",
+            "and the design intent to hold. Never invent facts, prices, reviews,",
+            "awards or results. Never rewrite wording the owner quoted exactly.",
+          ].join(" "),
+          user: [
+            brief ? `Standing instructions: ${brief}` : "",
+            `Business: ${agentContext.business?.name ?? "unnamed"} (${
+              agentContext.business?.industry ?? "unknown industry"
+            })`,
+            `Pages: ${agentContext.pages.map((page) => page.title).join(", ")}`,
+            `Request: ${instruction}`,
+          ]
+            .filter(Boolean)
+            .join("\n"),
+        });
+        if (!result.ok) return null;
+        return `Coordination brief from the master planner (guidance only, never a fact source):\n${result.text}`;
+      } catch {
+        // A coordination brief is an optional enhancement, never a dependency.
+        return null;
+      }
+    })();
+
+
+
     // FREE-FIRST: Revora's own deterministic builder answers first. It uses the
     // trade playbooks, the section library, the design system and the
     // workspace's own facts — no AI provider, no credits, no per-request cost.
