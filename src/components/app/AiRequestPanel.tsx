@@ -279,7 +279,7 @@ export function AiRequestPanel({
           ) : (
             <Wand2 className="mr-1.5 size-4" aria-hidden />
           )}
-          {busy ? "Working…" : tasks.length ? "Add to queue" : "Build with Revora"}
+          {busy ? "Working…" : tasks.length ? "Add to list" : "Ask Revora"}
         </Button>
         <Button
           size="sm"
