@@ -290,7 +290,7 @@ export async function planChanges(
   } catch (error) {
     if (
       error instanceof RevoraAiError &&
-      ["not_configured", "unauthorized", "quota", "policy", "rate_limited", "too_large"].includes(
+      ["not_configured", "free_unavailable", "unauthorized", "quota", "policy", "rate_limited", "too_large"].includes(
         error.category,
       )
     )

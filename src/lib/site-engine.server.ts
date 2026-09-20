@@ -108,7 +108,7 @@ async function chatJson(
     // Revora builder finish the site from the owner's own details.
     if (
       error instanceof RevoraAiError &&
-      ["not_configured", "unauthorized", "quota", "policy"].includes(error.category)
+      ["not_configured", "free_unavailable", "unauthorized", "quota", "policy"].includes(error.category)
     )
       markAiUnavailable();
     throw error;
@@ -350,7 +350,7 @@ Never assert reviews, credentials, prices, guarantees or history that were not s
     // Credit and policy failures must surface so the queue can pause correctly.
     if (
       error instanceof RevoraAiError &&
-      ["not_configured", "unauthorized", "quota", "policy", "rate_limited"].includes(error.category)
+      ["not_configured", "free_unavailable", "unauthorized", "quota", "policy", "rate_limited"].includes(error.category)
     )
       throw error;
     data = await attempt(COPY_ROLE);
