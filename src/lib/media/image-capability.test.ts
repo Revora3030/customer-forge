@@ -153,6 +153,8 @@ describe("media source registry reflects live generation state", () => {
       { mustBeReal: true },
     );
     expect(plan.usesGeneratedArt).toBe(false);
-    expect(plan.source.id).not.toBe("ai_generation");
+    // Nothing is shown in a spot that needs a genuine photo of the business.
+    expect(plan.source.state).toBe("blocked");
+    expect(plan.explanation).toMatch(/Nothing was invented/i);
   });
 });

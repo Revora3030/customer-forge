@@ -39,12 +39,13 @@ describe("generative artwork", () => {
 });
 
 describe("media provider registry", () => {
-  it("never reports paid image generation as available", () => {
-    // Even with paid provider credentials present, generation stays blocked.
+  it("never reports picture making as available without a live free check", () => {
+    // A stored paid provider key proves nothing: generation is only available
+    // when the live free capability check says a free provider is ready.
     const sources = resolveMediaSources({ ownerAssetCount: 0, presentSecrets: ["A_PAID_IMAGE_PROVIDER_KEY"] });
     const ai = sources.find((source) => source.id === "ai_generation")!;
-    expect(ai.state).toBe("blocked");
-    expect(ai.zeroCost).toBe(false);
+    expect(ai.state).toBe("not_configured");
+    expect(ai.reason).toMatch(/treated as unavailable/i);
   });
 
   it("only enables stock search when a free-tier key is actually stored", () => {
