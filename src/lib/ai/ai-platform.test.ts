@@ -83,6 +83,14 @@ describe("provider configuration", () => {
     delete process.env["OPENAI_API_KEY"];
     delete process.env["AI_DEFAULT_PROVIDER"];
     delete process.env["AI_FALLBACK_PROVIDER"];
+    // A real free credential may be configured in this environment; these tests
+    // describe the unconfigured case, so clear every free provider credential.
+    delete process.env["CLOUDFLARE_AI_API_TOKEN"];
+    delete process.env["CLOUDFLARE_API_TOKEN"];
+    delete process.env["CLOUDFLARE_ACCOUNT_ID"];
+    delete process.env["OPENROUTER_API_KEY"];
+    delete process.env["GOOGLE_AI_FREE_API_KEY"];
+    delete process.env["GOOGLE_AI_FREE_TIER"];
   });
 
   afterEach(() => {
