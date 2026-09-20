@@ -345,9 +345,7 @@ function AuthPage() {
                 Use a different Google account
               </button>
               <p className="mt-2 text-center text-[11px] leading-relaxed text-muted-foreground">
-                You can connect as many Google accounts as you like — each one gets its own Revora
-                workspace. Google shows our secure sign-in provider on the consent screen; you're
-                signing into <span className="gold-hl">Revora</span>.
+                Each Google account gets its own <span className="gold-hl">Revora</span> workspace.
               </p>
 
               <div className="my-5 flex items-center gap-3">

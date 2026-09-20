@@ -239,7 +239,9 @@ export function GrowthAssessment({ mode = "assessment" }: { mode?: "assessment" 
           </div>
 
           <div>
-            <p className="eyebrow">Step 5 — where should we send the report?</p>
+            <label className="eyebrow block" htmlFor="ga-email">
+              Step 5 — where should we send the report?
+            </label>
             <div className="mt-3 flex flex-col gap-2 sm:flex-row">
               <Input
                 id="ga-email"
@@ -247,10 +249,12 @@ export function GrowthAssessment({ mode = "assessment" }: { mode?: "assessment" 
                 type="email"
                 required
                 autoComplete="email"
+                aria-label="Your email address"
                 value={answers.email}
                 onChange={(e) => set("email", e.target.value)}
                 placeholder="you@yourbusiness.com"
               />
+
               <Button
                 type="submit"
                 variant="signal"
