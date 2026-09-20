@@ -250,8 +250,7 @@ export function SiteChatbot({
   return (
     <Panel id="website-assistant" className="scroll-mt-24 p-5">
       <SectionHeading
-        eyebrow="Start here · Website assistant"
-        title="Tell Revora what you want and it turns your site into a lead generator"
+        title="What do you want to change?"
         action={
           messages.length ? (
             <Button
@@ -267,43 +266,19 @@ export function SiteChatbot({
           ) : null
         }
       />
-      <div className="mt-2 rounded-md border border-primary/30 bg-primary/5 p-3.5">
-        <p className="text-[12.5px] font-medium text-primary">
-          Tell Revora what you want in your own words — it'll handle the rest
-        </p>
-        <ol className="mt-1.5 grid gap-1 text-[12px] text-muted-foreground">
+      <details className="mt-2">
+        <summary className="cursor-pointer text-[12px] text-muted-foreground">
+          What Revora can do
+        </summary>
+        <ul className="mt-1.5 grid gap-1 text-[12px] text-muted-foreground">
+          <li>Say it however you'd say it out loud — one tweak or a full brief.</li>
+          <li>Revora shows the exact changes first, then applies them when you approve.</li>
           <li>
-            1. Describe the change however you'd say it out loud — no Revora wording to learn.
+            Pages, sections, wording, buttons, forms, colours, fonts and your Google search text all
+            update together.
           </li>
-          <li>2. Revora shows a plan of the exact changes before anything is written.</li>
-          <li>3. Approve it and your pages, buttons, forms and search text update together.</li>
-        </ol>
-        <p className="mt-2 text-[12px] text-muted-foreground">
-          Revora works out the pages, sections, copy, design, search text, photos, buttons and
-          functionality your request needs, and only asks a question when a fact is genuinely
-          missing.
-        </p>
-        <p className="mt-2 text-[12px] text-muted-foreground">
-          Ask for lead-generator work, not decoration: clear call, text, book and quote buttons on
-          every page, prices, proof, answers to the questions that stop people buying, and a
-          follow-up path for every enquiry.
-        </p>
-      </div>
-      <p className="mt-3 max-w-2xl text-[13px] text-muted-foreground">
-        Write as little or as much as you like — a single tweak or a full brief. Revora can rewrite
-        copy, add and remove sections and pages, reorder the layout, edit items and buttons, write
-        your search and social text, and change colours and fonts. It can also install premium
-        visuals on request —{" "}
-        <span className="text-gold">
-          starfield, aurora, nebula, tech grid or spotlight backgrounds
-        </span>{" "}
-        and{" "}
-        <span className="text-gold">
-          3D floating, tilted, frosted-glass, gold-glow or shine sections
-        </span>
-        . Add photos or a short video, or just speak your request — Revora reads and listens too.
-        You review the plan, then it's applied for you. No support request, no waiting.
-      </p>
+        </ul>
+      </details>
 
       {!hasSections ? (
         <p className="mt-4 text-[13px] text-accent">

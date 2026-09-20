@@ -35,6 +35,14 @@ export type QueueTask = {
   /** Real result of the build, never assumed. */
   applied?: number;
   failedCount?: number;
+  /** Steps skipped because their target no longer existed. */
+  staleCount?: number;
+  /** True when some updates landed and some did not. */
+  partial?: boolean;
+  /** Plain-English note about a partial or stale apply. */
+  notice?: string;
+  /** Per-operation outcomes, collapsed behind "Details". */
+  details?: string[];
   error?: string;
   retryable?: boolean;
 };
@@ -155,4 +163,33 @@ export function queueSummary(tasks: QueueTask[]): string {
   if (waiting) parts.push(`${waiting} waiting`);
   if (failed) parts.push(`${failed} didn't work`);
   return parts.join(" · ");
+}
+
+/**
+ * One compact execution timeline per request, so the owner reads a single line
+ * of progress instead of a stack of "I understood the request" cards.
+ * Thinking → Planning → Applying X/Y → Validating → Verified.
+ */
+export function timelineFor(task: QueueTask): { stages: string[]; current: number } {
+  const total = task.steps.filter((step) => step.included).length;
+  const stages = [
+    "Thinking",
+    "Planning",
+    total ? `Applying ${task.applied ?? 0}/${total}` : "Applying",
+    "Validating",
+    task.partial ? "Partly applied" : "Verified",
+  ];
+  const current =
+    task.state === "queued"
+      ? 0
+      : task.state === "planning"
+        ? 1
+        : task.state === "waiting_for_approval"
+          ? 1
+          : task.state === "building"
+            ? 2
+            : task.state === "complete"
+              ? 4
+              : 3;
+  return { stages, current };
 }

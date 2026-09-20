@@ -41,6 +41,7 @@ import {
   queueSummary,
   removeStep,
   terminalStateForEmptyPlan,
+  timelineFor,
   toPlanSteps,
   toggleStep,
   updateTask,
@@ -113,7 +114,7 @@ export function AiRequestPanel({
       patch(task.id, { state: "skipped" });
       return;
     }
-    patch(task.id, { state: "building" });
+    patch(task.id, { state: "building", applied: 0, notice: "", details: [] });
     try {
       const result = await applyFn({
         data: {
@@ -122,22 +123,51 @@ export function AiRequestPanel({
             .map((step) => actionsRef.current.get(step.key)?.action)
             .filter((action): action is AgentStep["action"] => Boolean(action)),
           label: (task.summary || task.instruction).slice(0, 110) || "Before Revora changes",
+          // Stable per-request key: pressing apply twice cannot write twice.
+          operationKey: task.id,
         },
       });
+      const skipped = (result.failed ?? 0) + (result.stale ?? 0);
+      const partial = result.applied > 0 && skipped > 0;
+      if (result.applied === 0) {
+        // Never report success when nothing was actually written.
+        const message =
+          result.staleNotice ||
+          "None of those updates could be applied, so your website is exactly as it was.";
+        patch(task.id, {
+          state: "failed",
+          error: message,
+          retryable: true,
+          details: result.details ?? [],
+        });
+        toast.error(message);
+        refresh();
+        return;
+      }
       patch(task.id, {
         state: "complete",
         applied: result.applied,
         failedCount: result.failed,
+        staleCount: result.stale ?? 0,
+        partial,
+        notice: partial
+          ? result.staleNotice ||
+            "Some updates were kept and the rest were skipped — nothing was left half-finished."
+          : result.alreadyApplied
+            ? "These updates were already applied, so Revora didn't repeat them."
+            : "",
+        details: result.details ?? [],
       });
       toast.success(
         `${result.applied} change${result.applied === 1 ? "" : "s"} applied to your draft.` +
-          (result.failed ? ` ${result.failed} couldn't be applied.` : ""),
+          (skipped ? ` ${skipped} skipped.` : ""),
       );
       refresh();
     } catch (error) {
       const message = friendlyError(error as Error, "Couldn't apply those changes.");
-      patch(task.id, { state: "failed", error: message });
+      patch(task.id, { state: "failed", error: message, retryable: true });
       toast.error(message);
+      refresh();
     }
   };
 
@@ -317,11 +347,44 @@ export function AiRequestPanel({
                 <p className="mt-1.5 text-[12.5px] text-muted-foreground">{task.reply}</p>
               ) : null}
               {task.error ? <p className="mt-1.5 text-[12.5px]">{task.error}</p> : null}
+              {task.state === "building" || task.state === "complete" ? (
+                <p className="mt-1.5 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[11.5px] text-muted-foreground">
+                  {timelineFor(task).stages.map((stage, index) => (
+                    <span key={stage} className="flex items-center gap-1.5">
+                      {index > 0 ? <span aria-hidden>·</span> : null}
+                      <span
+                        className={cn(
+                          index === timelineFor(task).current && "text-foreground font-medium",
+                          index > timelineFor(task).current && "opacity-50",
+                        )}
+                      >
+                        {stage}
+                      </span>
+                    </span>
+                  ))}
+                </p>
+              ) : null}
               {task.state === "complete" ? (
                 <p className="mt-1.5 text-[12px] text-muted-foreground">
                   {task.applied ?? 0} change{(task.applied ?? 0) === 1 ? "" : "s"} applied
-                  {task.failedCount ? `, ${task.failedCount} couldn't be applied` : ""}.
+                  {task.failedCount ? `, ${task.failedCount} couldn't be applied` : ""}
+                  {task.staleCount ? `, ${task.staleCount} skipped` : ""}.
                 </p>
+              ) : null}
+              {task.notice ? <p className="mt-1.5 text-[12.5px]">{task.notice}</p> : null}
+              {task.details?.length ? (
+                <details className="mt-1.5">
+                  <summary className="cursor-pointer text-[12px] text-muted-foreground">
+                    Details
+                  </summary>
+                  <ul className="mt-1 space-y-0.5 text-[11.5px] text-muted-foreground">
+                    {task.details.map((line, index) => (
+                      <li key={`${line}-${index}`} className="break-words">
+                        {line}
+                      </li>
+                    ))}
+                  </ul>
+                </details>
               ) : null}
 
               {task.questions.length ? (
