@@ -487,10 +487,15 @@ export function BuilderCanvas({
         </nav>
       ) : null}
 
+      {/* Container query, not viewport: the editor now sits in a column, so it
+          splits into layers/canvas/settings only when it is genuinely wide. */}
+      <div className="@container">
       <div
         className={cn(
           "grid gap-0",
-          showLayers ? "lg:grid-cols-[220px_1fr_300px]" : "lg:grid-cols-[1fr_300px]",
+          showLayers
+            ? "@min-[960px]:grid-cols-[220px_1fr_300px]"
+            : "@min-[760px]:grid-cols-[1fr_300px]",
         )}
       >
         {/* Layers */}
