@@ -256,7 +256,7 @@ function PrimaryCta({ className = "" }: { className?: string }) {
           <ArrowRight className="size-4" aria-hidden="true" />
         </Link>
       </Button>
-      <Button asChild variant="ghost" size="lg">
+      <Button asChild variant="link" size="lg">
         <a href="#see-it">{GROWTH_SYSTEM.ctaDemo}</a>
       </Button>
     </div>
@@ -289,11 +289,10 @@ function Landing() {
           {/* grid-cols-1 pins the mobile column to minmax(0,1fr); without it the
               implicit auto column grows to the widest child's min-content width
               and the hero text is clipped off-screen on phones. */}
-          <div className="mx-auto grid max-w-6xl grid-cols-1 gap-12 px-4 py-14 lg:grid-cols-[1.02fr_0.98fr] lg:items-start lg:gap-10 lg:py-20">
-            <div className="hero-stagger min-w-0 lg:pt-4">
+          <div className="mx-auto grid max-w-6xl grid-cols-1 gap-12 px-4 py-14 lg:grid-cols-[1.02fr_0.98fr] lg:items-center lg:gap-10 lg:py-20">
+            <div className="hero-stagger min-w-0">
               <Pill tone="signal">
-                <Sparkles className="size-3.5" aria-hidden="true" /> REVORA™ — AI growth system for
-                local businesses
+                <Sparkles className="size-3.5" aria-hidden="true" /> REVORA™ — AI growth system
               </Pill>
               <h1 className="mt-5 font-display text-[clamp(2.1rem,5vw,3.5rem)] leading-[1.04] font-semibold tracking-tight">
                 Your business books jobs{" "}
@@ -325,6 +324,25 @@ function Landing() {
                   </div>
                 ))}
               </dl>
+
+              {/* Fills the hero's lower left and answers "is this for me?" with
+                  the industries the system already ships pages and copy for. */}
+              <div className="mt-8 border-t border-border pt-5">
+                <p className="eyebrow">Built for trades and local services</p>
+                <ul className="mt-3 flex flex-wrap gap-1.5">
+                  {TRUST_INDUSTRIES.slice(0, 9).map((trade) => (
+                    <li
+                      key={trade}
+                      className="rounded-full border border-border bg-card/60 px-2.5 py-1 text-[11.5px] text-muted-foreground"
+                    >
+                      {trade}
+                    </li>
+                  ))}
+                  <li className="rounded-full border border-primary/30 px-2.5 py-1 text-[11.5px] text-primary">
+                    + {INDUSTRIES.length} industries
+                  </li>
+                </ul>
+              </div>
             </div>
             <div className="preview-stage dashboard-3d-stage">
               <div className="preview-orbit" aria-hidden="true">
@@ -353,7 +371,7 @@ function Landing() {
               Five leaks that quietly cost local businesses work every month — and what Revora does
               about each one.
             </p>
-            <div className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+            <div className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {PROBLEMS.map((p) => (
                 <Panel key={p.title} className="card-lift flex flex-col p-5">
                   <h3 className="font-display text-[13px] font-bold tracking-[0.12em] uppercase">

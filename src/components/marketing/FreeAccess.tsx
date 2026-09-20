@@ -55,8 +55,10 @@ export function FreeAccessButton({
 /** Compact gold banner that tells visitors the free access exists and how to get it. */
 export function FreeAccessBanner({ className = "" }: { className?: string }) {
   return (
+    // Container query, not a viewport query: this banner is reused inside narrow
+    // pricing columns, where a viewport-width row layout cramped the text.
     <div
-      className={`gold-glow flex flex-col gap-3 rounded-lg border border-primary/35 bg-primary/5 p-4 sm:flex-row sm:items-center sm:justify-between ${className}`}
+      className={`gold-glow @container flex flex-col gap-3 rounded-lg border border-primary/35 bg-primary/5 p-4 @md:flex-row @md:items-center @md:justify-between ${className}`}
     >
       <div className="min-w-0">
         <p className="text-[13px] leading-snug">
@@ -72,7 +74,7 @@ export function FreeAccessBanner({ className = "" }: { className?: string }) {
           {usd(GROWTH_SYSTEM.monthlyPrice)}/month. Cancel anytime.
         </p>
       </div>
-      <FreeAccessButton size="sm" className="shrink-0 sm:w-auto" label="START FREE ACCESS" />
+      <FreeAccessButton size="sm" className="shrink-0 @md:w-auto" label="START FREE ACCESS" />
     </div>
   );
 }
