@@ -22,3 +22,4 @@ jobs:
       - name: Repository security audit
         run: node scripts/security-audit.mjs
       - name: Focused security tests
+        run: npm test -- --run src/lib/security src/lib/stripe-webhook.test.ts src/lib/billing-rls.test.ts
