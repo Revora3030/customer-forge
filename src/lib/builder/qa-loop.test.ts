@@ -59,7 +59,7 @@ function fakeDb(tables: Record<string, Row[]>) {
 
 const ORG = "11111111-1111-1111-1111-111111111111";
 
-function siteWithMissingSeo() {
+function siteWithMissingSeo(): Record<string, Row[]> {
   return {
     website_pages: [
       {
@@ -102,7 +102,7 @@ function siteWithMissingSeo() {
         sort_order: 0,
       },
     ],
-  } satisfies Record<string, Row[]>;
+  };
 }
 
 describe("post-apply QA loop", () => {
