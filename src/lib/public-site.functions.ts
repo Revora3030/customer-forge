@@ -516,3 +516,70 @@ export const trackPublicEvent = createServerFn({ method: "POST" })
     });
     return { ok: true };
   });
+
+/**
+ * Records real speed measurements taken in a visitor's browser on a published
+ * site. Anonymous and de-duplicated: the database unique index means one visit
+ * can contribute each metric on each page once, so a page that reloads its
+ * script cannot inflate or double-count the numbers the owner sees.
+ */
+export const recordSiteVitals = createServerFn({ method: "POST" })
+  .inputValidator(
+    (input: {
+      slug: string;
+      path?: string;
+      device?: string;
+      sessionId?: string;
+      samples: Array<{ metric: string; value: number; rating: string }>;
+    }) => {
+      if (!/^[a-z0-9-]{1,80}$/.test(String(input?.slug ?? "")))
+        throw new Error("Invalid business address");
+      const metrics = ["lcp", "cls", "inp", "ttfb", "fcp"];
+      const ratings = ["good", "needs-improvement", "poor"];
+      const samples = (Array.isArray(input?.samples) ? input.samples : [])
+        .filter(
+          (sample) =>
+            metrics.includes(String(sample?.metric)) &&
+            ratings.includes(String(sample?.rating)) &&
+            Number.isFinite(Number(sample?.value)) &&
+            Number(sample.value) >= 0 &&
+            Number(sample.value) <= 3_600_000,
+        )
+        .slice(0, 5)
+        .map((sample) => ({
+          metric: String(sample.metric),
+          value: Number(sample.value),
+          rating: String(sample.rating),
+        }));
+      const device = String(input?.device ?? "").toLowerCase();
+      return {
+        slug: input.slug,
+        path: analyticsText(input.path, 200),
+        device: ["mobile", "tablet", "desktop"].includes(device) ? device : null,
+        sessionId: /^[A-Za-z0-9_-]{6,60}$/.test(String(input?.sessionId ?? ""))
+          ? String(input.sessionId)
+          : null,
+        samples,
+      };
+    },
+  )
+  .handler(async ({ data }) => {
+    if (data.samples.length === 0) return { ok: false, recorded: 0 };
+    const supabase = publicClient();
+    const org = await publicOrganization(data.slug);
+    if (!org?.id) return { ok: false, recorded: 0 };
+    const { error } = await supabase.from("site_vitals").upsert(
+      data.samples.map((sample) => ({
+        organization_id: org.id as string,
+        metric: sample.metric,
+        value: sample.value,
+        rating: sample.rating,
+        path: data.path,
+        device: data.device,
+        session_id: data.sessionId,
+      })),
+      { onConflict: "organization_id,session_id,metric,path", ignoreDuplicates: true },
+    );
+    if (error) return { ok: false, recorded: 0 };
+    return { ok: true, recorded: data.samples.length };
+  });
