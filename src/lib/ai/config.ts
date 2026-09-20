@@ -60,6 +60,7 @@ export type ProviderConfig = {
 const DEFAULT_MODELS: Record<PaidProviderName, Record<ModelRole, string>> = {
   google: {
     primary: "gemini-2.5-pro",
+    design: "gemini-2.5-pro",
     fast: "gemini-2.5-flash",
     vision: "gemini-2.5-flash",
     coding: "gemini-2.5-pro",
@@ -68,6 +69,7 @@ const DEFAULT_MODELS: Record<PaidProviderName, Record<ModelRole, string>> = {
   },
   openai: {
     primary: "gpt-4.1",
+    design: "gpt-4.1",
     fast: "gpt-4.1-mini",
     vision: "gpt-4.1",
     coding: "gpt-4.1",
@@ -81,7 +83,15 @@ const KEY_ENV: Record<PaidProviderName, string> = {
   openai: "OPENAI_API_KEY",
 };
 
-const ROLES: ModelRole[] = ["primary", "fast", "vision", "coding", "image", "transcription"];
+const ROLES: ModelRole[] = [
+  "primary",
+  "design",
+  "fast",
+  "vision",
+  "coding",
+  "image",
+  "transcription",
+];
 
 function env(name: string) {
   const value = process.env[name];
