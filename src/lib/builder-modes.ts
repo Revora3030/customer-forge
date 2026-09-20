@@ -78,6 +78,12 @@ export const BUILDER_PRIMARY_ACTIONS: BuilderQuickAction[] = [
       "Go through my whole website and perfect the details: lay every section out properly, frame every picture and describe it for people who cannot see it, put the wording before the buttons, link every page so nothing is stranded, and give thin pages something useful. Use only my real business details.",
   },
   {
+    label: "Tidy up and make it honest",
+    instruction:
+      "Go through my whole website and tidy it up: make headline pictures readable behind the words, make every button say what it does, add my real phone number and email as one-tap contact links, give every section a heading, name every page properly, hide anything empty, remove photo walls with no photos and price blocks with no prices, list my real services, and make shared links show the right title. Use only my real business details and invent nothing.",
+  },
+  {
+
     label: "Improve my website",
     instruction:
       "Improve my whole website: clearer wording, tidier layout, consistent spacing and a stronger first screen. Keep all of my real business details exactly as they are.",
