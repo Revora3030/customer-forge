@@ -226,6 +226,8 @@ function SiteSectionBody({ site, section }: { site: Site; section: Section }) {
   const rating = reviews.length
     ? reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length
     : null;
+  const heroArtwork = siteArtwork(site);
+
 
   switch (section.kind) {
     case "hero":
