@@ -79,6 +79,48 @@ export type Database = {
           },
         ]
       }
+      ai_provider_runtime: {
+        Row: {
+          created_at: string
+          day: string
+          failures: number
+          last_failure_at: string | null
+          last_latency_ms: number | null
+          last_success_at: string | null
+          open_until: string | null
+          provider: string
+          rate_limited_at: string | null
+          updated_at: string
+          used: number
+        }
+        Insert: {
+          created_at?: string
+          day?: string
+          failures?: number
+          last_failure_at?: string | null
+          last_latency_ms?: number | null
+          last_success_at?: string | null
+          open_until?: string | null
+          provider: string
+          rate_limited_at?: string | null
+          updated_at?: string
+          used?: number
+        }
+        Update: {
+          created_at?: string
+          day?: string
+          failures?: number
+          last_failure_at?: string | null
+          last_latency_ms?: number | null
+          last_success_at?: string | null
+          open_until?: string | null
+          provider?: string
+          rate_limited_at?: string | null
+          updated_at?: string
+          used?: number
+        }
+        Relationships: []
+      }
       ai_tool_audit: {
         Row: {
           created_at: string
@@ -3751,6 +3793,61 @@ export type Database = {
       }
     }
     Functions: {
+      ai_note_free_use: {
+        Args: { _cap?: number; _provider: string }
+        Returns: number
+      }
+      ai_note_provider_result: {
+        Args: {
+          _cooldown_seconds?: number
+          _failure_threshold?: number
+          _latency_ms?: number
+          _ok: boolean
+          _provider: string
+          _rate_limited?: boolean
+        }
+        Returns: {
+          created_at: string
+          day: string
+          failures: number
+          last_failure_at: string | null
+          last_latency_ms: number | null
+          last_success_at: string | null
+          open_until: string | null
+          provider: string
+          rate_limited_at: string | null
+          updated_at: string
+          used: number
+        }
+        SetofOptions: {
+          from: "*"
+          to: "ai_provider_runtime"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      ai_runtime_snapshot: {
+        Args: never
+        Returns: {
+          created_at: string
+          day: string
+          failures: number
+          last_failure_at: string | null
+          last_latency_ms: number | null
+          last_success_at: string | null
+          open_until: string | null
+          provider: string
+          rate_limited_at: string | null
+          updated_at: string
+          used: number
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "ai_provider_runtime"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       is_safe_link_url: { Args: { value: string }; Returns: boolean }
       org_team_members: {
         Args: { _organization_id: string }
