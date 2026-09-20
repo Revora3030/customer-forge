@@ -1496,7 +1496,8 @@ export const builderMediaCapabilities = createServerFn({ method: "GET" }).handle
     voice: !blocked,
     vision: !blocked,
     note: blocked
-      ? "Revora's own engine writes and builds your website for free, but it can't listen to a recording or read a photo. Type what you want instead — attached photos are kept with your request for you to place yourself."
+      ? "Type your request — photos stay attached for you to place."
       : "",
+
   };
 });
