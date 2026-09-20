@@ -94,7 +94,12 @@ export function retryDelayMs(attempt: number): number {
  */
 export async function withTransientRetry<T>(
   action: (attempt: number) => Promise<T>,
-  options: { attempts?: number; onRetry?: (attempt: number, error: unknown) => void } = {},
+  options: {
+    attempts?: number;
+    onRetry?: (attempt: number, error: unknown) => void;
+    /** Overrides the wait between attempts; used by tests to run instantly. */
+    delayMs?: (attempt: number) => number;
+  } = {},
 ): Promise<T> {
   const attempts = Math.max(1, options.attempts ?? 3);
   let lastError: unknown;
@@ -105,7 +110,8 @@ export async function withTransientRetry<T>(
       lastError = error;
       if (attempt >= attempts || !isTransientFailure(error)) throw error;
       options.onRetry?.(attempt, error);
-      await new Promise((resolve) => setTimeout(resolve, retryDelayMs(attempt)));
+      const wait = options.delayMs?.(attempt) ?? retryDelayMs(attempt);
+      await new Promise((resolve) => setTimeout(resolve, wait));
     }
   }
   throw lastError;
