@@ -33,8 +33,8 @@ export function EnvironmentBanner({ status }: { status: ProductionStatus | undef
           </p>
           <p className="mt-1 max-w-2xl text-[12px] text-muted-foreground">
             {live
-              ? "Edits you make now stay in draft until you publish them, so the live site never changes underneath your customers."
-              : `Build, configure and test everything — website, AI tools, CRM, quotes, booking, automations, SEO and analytics. Publishing to a live address and activating your domain become available once your one-time ${usd(GROWTH_SYSTEM.setupPrice)} setup is confirmed.`}
+              ? "Your edits stay in draft until you publish them."
+              : `Build and test everything now. Publishing and your own domain unlock once the one-time ${usd(GROWTH_SYSTEM.setupPrice)} setup is paid.`}
           </p>
         </div>
         {!live ? (
