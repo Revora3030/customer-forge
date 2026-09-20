@@ -56,6 +56,11 @@ function AdminAnalytics() {
     queryKey: ["admin", "traffic", days],
     queryFn: () => trafficFn({ data: { days } }),
   });
+  const builder = useQuery({
+    queryKey: ["admin", "builder-publish", days],
+    queryFn: () => builderFn({ data: { days } }),
+  });
+
   const funnel = useQuery({
     queryKey: ["admin", "funnel", days],
     queryFn: () => funnelFn({ data: { days } }),
