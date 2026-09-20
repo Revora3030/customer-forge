@@ -2296,6 +2296,35 @@ export function describeActions(
             action,
           };
 
+        case "set_custom_block":
+          return {
+            key,
+
+            title:
+              "Build a custom interactive block for this section",
+
+            where:
+              locate(
+                index,
+                {
+                  sectionId:
+                    action.sectionId,
+                },
+              ),
+
+            after:
+              describeCustomBlock(
+                action.spec,
+              ),
+
+            destructive:
+              false,
+
+            action,
+          };
+
+
+
         case "add_section":
           return {
             key,
