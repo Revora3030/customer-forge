@@ -121,9 +121,13 @@ export const recordConversion = createServerFn({ method: "POST" })
         .select("id", { count: "exact", head: true })
         .eq(column, identity)
         .gte("created_at", windowStart);
+      // The rate check is an abuse guard, not a gate on truthful counting. If
+      // the count query itself fails we must not drop a real visit — that would
+      // silently under-report the funnel. Log it and continue to the insert.
       if (countError) {
         console.error("recordConversion rate check failed", countError.message);
-        return { ok: false };
+      } else if ((count ?? 0) >= RATE_LIMIT_PER_WINDOW) {
+        return { ok: true, throttled: true };
       }
       if ((count ?? 0) >= RATE_LIMIT_PER_WINDOW) return { ok: true, throttled: true };
     }
