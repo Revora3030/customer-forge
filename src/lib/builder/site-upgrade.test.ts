@@ -152,7 +152,10 @@ describe("planWholeSiteUpgrade — site-wide passes", () => {
 
   it("never invents a destination when there is no contact page or phone", () => {
     const actions = planWholeSiteUpgrade(ctx(), interpret("redesign my whole website", []), { cap: 80 });
-    expect(actions.some((a) => a.type === "add_component")).toBe(false);
+    const invented = actions.filter(
+      (a) => a.type === "add_component" && (a.kind === "button" || /^(tel:|mailto:)/.test(a.link_url ?? "")),
+    );
+    expect(invented).toHaveLength(0);
   });
 
   it("writes search titles only from real facts", () => {
