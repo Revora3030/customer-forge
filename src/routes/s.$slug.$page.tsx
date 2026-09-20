@@ -18,6 +18,7 @@ import { siteFontHref, siteFontStyle, siteThemeStyle } from "@/lib/site-theme";
 import { readComposition } from "@/lib/visual-composition";
 import { readBackdrop } from "@/lib/site-effects";
 import { getPublicSite, trackPublicEvent, type PublicSite } from "@/lib/public-site.functions";
+import { SiteVitals } from "@/components/site/SiteVitals";
 import { styleSheet } from "@/lib/site-style";
 import { readSeo } from "@/lib/site-seo";
 import { readCopy } from "@/lib/site-engine";
@@ -196,6 +197,7 @@ export function SitePageView({
         </footer>
 
         <StickyCallBar site={site} label={ctaLabel} />
+        <SiteVitals slug={org.slug} preview={preview} />
       </div>
     </div>
   );
