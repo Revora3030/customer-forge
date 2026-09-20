@@ -35,8 +35,17 @@ export type QueueTask = {
   /** Real result of the build, never assumed. */
   applied?: number;
   failedCount?: number;
+  /** Steps skipped because their target no longer existed. */
+  staleCount?: number;
+  /** True when some updates landed and some did not. */
+  partial?: boolean;
+  /** Plain-English note about a partial or stale apply. */
+  notice?: string;
+  /** Per-operation outcomes, collapsed behind "Details". */
+  details?: string[];
   error?: string;
   retryable?: boolean;
+
 };
 
 export const QUEUE_LABELS: Record<QueueState, string> = {
