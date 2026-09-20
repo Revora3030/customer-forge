@@ -371,7 +371,7 @@ function Landing() {
               Five leaks that quietly cost local businesses work every month — and what Revora does
               about each one.
             </p>
-            <div className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+            <div className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {PROBLEMS.map((p) => (
                 <Panel key={p.title} className="card-lift flex flex-col p-5">
                   <h3 className="font-display text-[13px] font-bold tracking-[0.12em] uppercase">
