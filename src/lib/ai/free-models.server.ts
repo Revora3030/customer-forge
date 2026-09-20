@@ -124,6 +124,34 @@ async function openAiCompatibleFreeModels(
 }
 
 /**
+ * Google: the Gemini catalogue lists every model this key can address. Only
+ * models that actually answer `generateContent` are kept, and each id still has
+ * to pass the free-eligibility rule — which admits the flash/lite/gemma classes
+ * and rejects the `pro` classes and anything billed. Without this, Gemini's two
+ * configured ids would silently rot when Google retires them.
+ */
+async function googleFreeModels(credentials: FreeProviderCredentials) {
+  const payload = await fetchJson("https://generativelanguage.googleapis.com/v1beta/models", {
+    "x-goog-api-key": credentials.apiKey,
+  });
+  const models = (payload as { models?: unknown[] } | null)?.models;
+  if (!Array.isArray(models)) return [];
+  const free: string[] = [];
+  for (const raw of models) {
+    const entry = raw as { name?: unknown; supportedGenerationMethods?: unknown[] };
+    if (typeof entry.name !== "string") continue;
+    const methods = Array.isArray(entry.supportedGenerationMethods)
+      ? entry.supportedGenerationMethods.map(String)
+      : [];
+    if (methods.length > 0 && !methods.includes("generateContent")) continue;
+    const id = entry.name.replace(/^models\//, "");
+    if (isFreeEligibleModel("google", id)) free.push(id);
+  }
+  return free;
+}
+
+
+/**
  * LLM7: the catalogue flags each model's billing mode and whether it supports
  * JSON mode. Only models that are NOT usage-based are free, so those ids are recorded as free-eligible and the
  * paid-balance models on the same endpoint stay unreachable.
