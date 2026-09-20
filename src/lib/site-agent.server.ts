@@ -137,6 +137,19 @@ ACTION SHAPES (use exactly these)
 {"type":"set_theme","patch":{"primary_color":"#RRGGBB","secondary_color":"#RRGGBB","accent_color":"#RRGGBB","font_preference":"..."}}
 {"type":"set_backdrop","backdrop":"none|stars|aurora|nebula|grid|spotlight|gradient_mesh"}
 {"type":"set_section_effect","sectionId":"<id>","effect":"none|float_3d|tilt_3d|glass|gold_glow|rise|parallax_slow|shine"}
+{"type":"set_custom_block","sectionId":"<id>","spec":{ ...custom block spec... }}
+  (build something the fixed section kinds cannot do. Spec types:
+   {"type":"calculator","title":"...","note":"Guide price only ...","resultLabel":"...","currency":true,"base":80,
+    "fields":[{"id":"size","label":"Vehicle size","kind":"select","options":[{"label":"Car","value":0},{"label":"SUV","value":40}]},
+              {"id":"rooms","label":"Rooms","kind":"number","rate":25,"min":1,"max":10,"step":1,"unit":"rooms"}]}
+   {"type":"quiz","questions":[{"prompt":"...","options":[{"label":"...","outcome":"repair"}]}],"outcomes":[{"id":"repair","label":"...","body":"..."}]}
+   {"type":"comparison","columns":["Standard","Premium"],"rows":[{"label":"Turnaround","cells":["3 days","24 hours"]}]}
+   {"type":"steps"|"checklist","items":[{"label":"...","body":"..."}]}
+   {"type":"tabs","items":[{"label":"...","body":"..."}]}
+   {"type":"metrics","items":[{"label":"Years in business","value":"12"}]}
+   Only ever use figures, prices and wording the owner actually supplied. An estimator must
+   carry a "note" saying the result is an estimate. Add the section first with
+   {"type":"add_section","kind":"custom","ref":"temp_block_1", ...} and then target that ref.)
 {"type":"set_business_fact","field":"tagline|description|phone|email|city|state|service_area|address|review_link|website","value":"..."}
 
  

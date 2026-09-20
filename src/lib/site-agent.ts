@@ -7,6 +7,7 @@ import {
   type SectionEffectId,
 } from "@/lib/site-effects";
 import { safeLinkUrl } from "@/lib/website-content";
+import { describeCustomBlock, parseCustomBlock, type CustomBlockSpec } from "@/lib/builder/custom-block";
 
 /**
  * REVORA SITE AGENT — MASTER ACTION CONTRACT
@@ -343,6 +344,18 @@ export type AgentAction =
       sectionId: string;
       patch: SectionVisualPatch;
     }
+
+  /**
+   * Installs a validated custom interactive block (estimator, guided picker,
+   * comparison table, steps, checklist, tabs, figures) on a section. The spec
+   * is data only — it is rendered by trusted components, never executed.
+   */
+  | {
+      type: "set_custom_block";
+      sectionId: string;
+      spec: CustomBlockSpec;
+    }
+
 
   | {
       type: "add_section";
@@ -1193,6 +1206,38 @@ export function readActions(
 
         break;
       }
+
+      /* ------------------------------------------------------------------ */
+      /* CUSTOM INTERACTIVE BLOCK                                           */
+      /* ------------------------------------------------------------------ */
+
+      case "set_custom_block": {
+        if (
+          !knownSection(
+            sectionId,
+          )
+        ) {
+          break;
+        }
+
+        const parsed =
+          parseCustomBlock(
+            row["spec"],
+          );
+
+        if (!parsed.ok) {
+          break;
+        }
+
+        out.push({
+          type,
+          sectionId,
+          spec: parsed.spec,
+        });
+
+        break;
+      }
+
 
       /* ------------------------------------------------------------------ */
       /* ADD SECTION                                                        */
@@ -2250,6 +2295,35 @@ export function describeActions(
 
             action,
           };
+
+        case "set_custom_block":
+          return {
+            key,
+
+            title:
+              "Build a custom interactive block for this section",
+
+            where:
+              locate(
+                index,
+                {
+                  sectionId:
+                    action.sectionId,
+                },
+              ),
+
+            after:
+              describeCustomBlock(
+                action.spec,
+              ),
+
+            destructive:
+              false,
+
+            action,
+          };
+
+
 
         case "add_section":
           return {

@@ -17,3 +17,19 @@
 
 ## Luna paid orchestrator
 - Luna (gpt-5.6-luna) wired as coordinator-only lane with a $20/month hard cap ledger. VERIFIED_LIVE: real call returned text, spend recorded, admin panel reads it.
+
+## Custom interactive blocks (the "build me something new" gap)
+- The builder can now create blocks that do not exist in the fixed section list: price
+  estimators, guided "which service fits" pickers, comparison tables, step-by-step
+  timelines, checklists, tabbed panels and figure strips.
+- Each one is a validated data-only spec stored on the section and drawn by trusted
+  components — nothing generated ever runs in a visitor's browser, and an invalid spec is
+  rejected with an exact reason instead of shipping broken.
+- Estimators must carry an "estimate only" note; every figure and word comes from what the
+  owner supplied.
+- VERIFIED: real browser check at 390px and 1280px — estimator maths correct ($80 base +
+  SUV $40 + 2 seats x $15 = $150), picker result appears, tabs switch, no overflow, no
+  console errors. 1,060 tests, typecheck and production build pass.
+- Still open and honestly labelled: free image generation (no genuinely free image provider
+  in this workspace — every option costs credits, which breaks the $0-AI rule), and the
+  paid frontier-model quality ceiling (a deliberate cost choice, not a defect).

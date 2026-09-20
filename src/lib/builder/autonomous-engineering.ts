@@ -67,6 +67,7 @@ function actionSignature(action: AgentAction): string {
     case "set_section_visibility":
     case "set_section_variant":
     case "set_section_visual":
+    case "set_custom_block":
     case "set_section_effect":
     case "delete_section":
       return `${action.type}:${action.sectionId}`;

@@ -65,6 +65,7 @@ export function targetOf(action: AgentAction): Target | null {
     case "set_section_visibility":
     case "set_section_variant":
     case "set_section_visual":
+    case "set_custom_block":
     case "set_section_effect":
       return { kind: "update", table: "website_sections", id: action.sectionId };
     case "reorder_sections":
