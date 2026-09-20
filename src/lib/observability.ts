@@ -18,6 +18,8 @@ export type ActivityEvent = {
   title: string;
   /** The real detail behind it, when there is one. */
   detail?: string;
+  /** How many identical entries in a row this line stands for. */
+  repeats?: number;
   at: string;
   /** Where the owner goes to act on it. */
   to?: string;
