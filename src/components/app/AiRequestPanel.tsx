@@ -347,12 +347,46 @@ export function AiRequestPanel({
                 <p className="mt-1.5 text-[12.5px] text-muted-foreground">{task.reply}</p>
               ) : null}
               {task.error ? <p className="mt-1.5 text-[12.5px]">{task.error}</p> : null}
+              {task.state === "building" || task.state === "complete" ? (
+                <p className="mt-1.5 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[11.5px] text-muted-foreground">
+                  {timelineFor(task).stages.map((stage, index) => (
+                    <span key={stage} className="flex items-center gap-1.5">
+                      {index > 0 ? <span aria-hidden>·</span> : null}
+                      <span
+                        className={cn(
+                          index === timelineFor(task).current && "text-foreground font-medium",
+                          index > timelineFor(task).current && "opacity-50",
+                        )}
+                      >
+                        {stage}
+                      </span>
+                    </span>
+                  ))}
+                </p>
+              ) : null}
               {task.state === "complete" ? (
                 <p className="mt-1.5 text-[12px] text-muted-foreground">
                   {task.applied ?? 0} change{(task.applied ?? 0) === 1 ? "" : "s"} applied
-                  {task.failedCount ? `, ${task.failedCount} couldn't be applied` : ""}.
+                  {task.failedCount ? `, ${task.failedCount} couldn't be applied` : ""}
+                  {task.staleCount ? `, ${task.staleCount} skipped` : ""}.
                 </p>
               ) : null}
+              {task.notice ? <p className="mt-1.5 text-[12.5px]">{task.notice}</p> : null}
+              {task.details?.length ? (
+                <details className="mt-1.5">
+                  <summary className="cursor-pointer text-[12px] text-muted-foreground">
+                    Details
+                  </summary>
+                  <ul className="mt-1 space-y-0.5 text-[11.5px] text-muted-foreground">
+                    {task.details.map((line, index) => (
+                      <li key={`${line}-${index}`} className="break-words">
+                        {line}
+                      </li>
+                    ))}
+                  </ul>
+                </details>
+              ) : null}
+
 
               {task.questions.length ? (
                 <ul className="mt-2 space-y-1 text-[12px]">
