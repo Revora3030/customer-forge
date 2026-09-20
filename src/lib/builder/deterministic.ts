@@ -71,6 +71,8 @@ import { designDecision, hierarchySort } from "./design";
 
 import { ctaTarget, faqQuestions, pageSeo, place, sectionCopy, type CopyFacts } from "./copy";
 
+import { planWholeSiteUpgrade } from "./site-upgrade";
+
 /* -------------------------------------------------------------------------- */
 /* Constants                                                                  */
 /* -------------------------------------------------------------------------- */
@@ -619,6 +621,18 @@ export function buildDeterministicPlan(
     trace.push(
       "Whole-site mode enabled because the request explicitly describes a site-wide build or redesign.",
     );
+
+    // Lift the whole workspace with a designer direction, factual hero copy,
+    // missing high-value sections and a conversion-ordered home page — all as
+    // ordinary AgentActions so apply/verify/rollback still guard the changes.
+    const upgrade = planWholeSiteUpgrade(context, intent, { cap: Math.max(1, cap - 8) });
+    let installed = 0;
+    for (const action of upgrade) {
+      if (push(action)) installed += 1;
+    }
+    if (installed > 0) {
+      trace.push(`Installed a whole-site upgrade pass (${installed} action${installed === 1 ? "" : "s"}).`);
+    }
   }
 
   /* ------------------------------------------------------------------------ */
