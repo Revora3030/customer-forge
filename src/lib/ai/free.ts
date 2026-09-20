@@ -76,11 +76,13 @@ const FREE_MODEL_DEFAULTS: Record<FreeProviderName, Partial<Record<ModelRole, st
     coding: "cohere/north-mini-code:free",
     vision: "inclusionai/ling-3.0-flash-vl:free",
   },
+  // Verified live against the Gemini free-tier catalogue; the 2.5 line is no
+  // longer served to new keys, so the current flash/flash-lite class is used.
   google: {
-    primary: "gemini-2.5-flash",
-    fast: "gemini-2.5-flash-lite",
-    coding: "gemini-2.5-flash",
-    vision: "gemini-2.5-flash",
+    primary: "gemini-3.6-flash",
+    fast: "gemini-3.5-flash-lite",
+    coding: "gemini-3.6-flash",
+    vision: "gemini-3.6-flash",
   },
 };
 
