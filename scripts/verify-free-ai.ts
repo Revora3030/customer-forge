@@ -15,7 +15,7 @@ async function probe(label: string, order: string, role: "primary" | "fast" | "c
     console.log(label, "FAIL", (e as Error).message);
   }
 }
-for (const p of ["cloudflare", "groq", "nvidia", "openrouter", "google"] as const) {
+for (const p of ["cloudflare", "groq", "nvidia", "llm7", "openrouter", "google"] as const) {
   console.log("chain", p, JSON.stringify(freeProviderChain("primary").filter((c) => c.name === p).map((c) => c.model)));
 }
 await probe("cloudflare/primary", "cloudflare", "primary");
@@ -26,6 +26,9 @@ await probe("groq/coding", "groq", "coding");
 await probe("nvidia/primary", "nvidia", "primary");
 await probe("nvidia/fast", "nvidia", "fast");
 await probe("nvidia/coding", "nvidia", "coding");
+await probe("llm7/primary", "llm7", "primary");
+await probe("llm7/fast", "llm7", "fast");
+await probe("llm7/coding", "llm7", "coding");
 await probe("openrouter/primary", "openrouter", "primary");
 await probe("openrouter/fast", "openrouter", "fast");
 await probe("openrouter/coding", "openrouter", "coding");
