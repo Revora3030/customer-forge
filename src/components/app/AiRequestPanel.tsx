@@ -30,6 +30,8 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { askAssistant } from "@/lib/assistant-bridge";
+import { trackConversion } from "@/lib/conversion";
+
 import { BUILDER_PRIMARY_ACTIONS, BUILDER_QUICK_ACTIONS } from "@/lib/builder-modes";
 import {
   approvedSteps,
@@ -251,6 +253,8 @@ export function AiRequestPanel({
     if (!text || !ready) return;
     setTasks((current) => [...current, newTask(text)]);
     setValue("");
+    // Funnel stage: an owner actually asked for a build (never the text itself).
+    trackConversion("build_requested", { metadata: { organization_id: organizationId ?? "" } });
   };
 
   const summary = useMemo(() => queueSummary(tasks), [tasks]);

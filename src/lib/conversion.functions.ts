@@ -12,6 +12,10 @@ const EVENTS = [
   "signup_started",
   "signup_completed",
   "workspace_provisioned",
+  /** Owner opened the website builder (once per browser session). */
+  "builder_opened",
+  /** Owner asked Revora to build or change something in the builder. */
+  "build_requested",
   "site_published",
   "first_quote_request",
   "first_booking",
@@ -427,5 +431,66 @@ export const getTrafficReport = createServerFn({ method: "GET" })
       topPages,
       topSources,
       daily,
+    };
+  });
+
+/**
+ * Builder → publish completion: how many workspaces opened the builder, asked
+ * Revora for something, and reached a published site. Counted per organization
+ * (not per click), so one owner pressing publish twice counts once.
+ */
+export const getBuilderPublishFunnel = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input?: { days?: number }) => ({
+    days: Math.min(365, Math.max(1, Math.round(Number(input?.days ?? 30)))),
+  }))
+  .handler(async ({ context, data }) => {
+    const { assertSuperAdmin } = await import("@/lib/admin.server");
+    await assertSuperAdmin(context.supabase, context.userId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const since = new Date(Date.now() - data.days * 86_400_000).toISOString();
+
+    const opened = new Set<string>();
+    const requested = new Set<string>();
+    const published = new Set<string>();
+
+    for (let page = 0; page < 200; page += 1) {
+      const { data: batch, error } = await supabaseAdmin
+        .from("marketing_conversions")
+        .select("event_name, session_id, metadata, created_at")
+        .in("event_name", ["builder_opened", "build_requested", "site_published"])
+        .gte("created_at", since)
+        .order("created_at", { ascending: false })
+        .range(page * 1000, page * 1000 + 999);
+      if (error) throw new Error("Analytics unavailable");
+      for (const row of batch ?? []) {
+        const meta = (row.metadata ?? null) as { organization_id?: unknown } | null;
+        const org = typeof meta?.organization_id === "string" ? meta.organization_id.trim() : "";
+        // Without a workspace id the row cannot be attributed to one builder.
+        const key = org || (typeof row.session_id === "string" ? row.session_id : "");
+        if (!key) continue;
+        if (row.event_name === "builder_opened") opened.add(key);
+        else if (row.event_name === "build_requested") requested.add(key);
+        else published.add(key);
+      }
+      if ((batch?.length ?? 0) < 1000) break;
+    }
+
+    // Asking or publishing implies the builder was opened, even if that event
+    // was lost (older sessions, storage blocked), so the top stage never
+    // under-counts the ones below it.
+    for (const key of requested) opened.add(key);
+    for (const key of published) opened.add(key);
+
+    const rate = (part: number, whole: number) =>
+      whole > 0 ? Math.round((part / whole) * 1000) / 10 : 0;
+
+    return {
+      days: data.days,
+      opened: opened.size,
+      requested: requested.size,
+      published: published.size,
+      requestRate: rate(requested.size, opened.size),
+      publishRate: rate(published.size, opened.size),
     };
   });

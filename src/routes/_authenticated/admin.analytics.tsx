@@ -16,7 +16,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { getTrafficReport } from "@/lib/conversion.functions";
+import { getBuilderPublishFunnel, getTrafficReport } from "@/lib/conversion.functions";
 import { getFunnelDetails, getPlatformFunnel } from "@/lib/platform-funnel.functions";
 import { getPlatformSettings, setGaMeasurementId } from "@/lib/platform-settings.functions";
 import { number } from "@/lib/format";
@@ -41,6 +41,8 @@ const STAGE_TITLES: Record<string, string> = {
 function AdminAnalytics() {
   const qc = useQueryClient();
   const trafficFn = useServerFn(getTrafficReport);
+  const builderFn = useServerFn(getBuilderPublishFunnel);
+
   const funnelFn = useServerFn(getPlatformFunnel);
   const detailsFn = useServerFn(getFunnelDetails);
   const settingsFn = useServerFn(getPlatformSettings);
@@ -54,6 +56,11 @@ function AdminAnalytics() {
     queryKey: ["admin", "traffic", days],
     queryFn: () => trafficFn({ data: { days } }),
   });
+  const builder = useQuery({
+    queryKey: ["admin", "builder-publish", days],
+    queryFn: () => builderFn({ data: { days } }),
+  });
+
   const funnel = useQuery({
     queryKey: ["admin", "funnel", days],
     queryFn: () => funnelFn({ data: { days } }),
@@ -303,6 +310,40 @@ function AdminAnalytics() {
           </ul>
         )}
       </Panel>
+
+      <SectionHeading
+        eyebrow="Builder"
+        title="How many reach publish"
+        description="Counted per workspace, not per click. Opening the builder counts once per browsing visit; asking Revora for anything counts as an attempt; published means the site actually went live."
+      />
+
+      {builder.isLoading ? (
+        <LoadingRows rows={2} />
+      ) : builder.isError ? (
+        <EmptyState
+          title="Builder numbers unavailable"
+          description="These could not be read from the database right now."
+        />
+      ) : (builder.data?.opened ?? 0) === 0 ? (
+        <EmptyState
+          title="No builder visits recorded yet"
+          description="As soon as a workspace opens the builder, its progress through to publish appears here."
+        />
+      ) : (
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <MetricCard label="Opened the builder" value={number(builder.data?.opened ?? 0)} />
+          <MetricCard
+            label="Asked Revora to build"
+            value={`${number(builder.data?.requested ?? 0)} (${builder.data?.requestRate ?? 0}%)`}
+          />
+          <MetricCard label="Published" value={number(builder.data?.published ?? 0)} />
+          <MetricCard
+            label="Opened → published"
+            value={`${builder.data?.publishRate ?? 0}%`}
+            hint="Share of workspaces that got all the way live"
+          />
+        </div>
+      )}
 
       <SectionHeading
         eyebrow="Marketing traffic"

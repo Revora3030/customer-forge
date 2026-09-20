@@ -50,8 +50,8 @@ const verify = (over: Record<string, unknown> = {}) =>
 
 describe("Revora Stripe catalog", () => {
   it("pins the real live product ids", () => {
-    expect(live.setup.stripeProductId).toBe("prod_VBq4xtUVHcn8j7");
-    expect(live.monthly.stripeProductId).toBe("prod_VBqB72oW5LZEEM");
+    expect(live.setup.stripeProductId).toBe("prod_V9zmxmIK9gzVz2");
+    expect(live.monthly.stripeProductId).toBe("prod_V9zmDZI7XZZhxT");
     expect(live.setup.priceLookupKey).toBe("revora_system_setup");
     expect(live.monthly.priceLookupKey).toBe("revora_system_monthly");
   });
