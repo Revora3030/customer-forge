@@ -620,6 +620,23 @@ export function BuilderCanvas({
                 >
                   <Copy className="size-3.5" aria-hidden />
                 </Button>
+                {onRewriteSection ? (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    aria-label="Ask Revora to improve this section"
+                    title="Improve this section"
+                    onClick={() =>
+                      onRewriteSection({
+                        pageTitle: page.title,
+                        sectionKind: selectedSection.kind,
+                        sectionLabel: sectionLabel(selectedSection.kind),
+                      })
+                    }
+                  >
+                    <Wand2 className="size-3.5" aria-hidden />
+                  </Button>
+                ) : null}
                 <Button
                   size="sm"
                   variant="outline"
