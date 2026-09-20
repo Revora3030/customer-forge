@@ -144,7 +144,9 @@ export function BuilderShell({
             </div>
           </div>
 
-          <div className="flex w-full min-w-0 flex-nowrap items-center justify-end gap-2 overflow-x-auto sm:w-auto [&_a]:whitespace-nowrap [&_button]:shrink-0 [&_button]:whitespace-nowrap">
+          {/* Wraps onto a second line on a phone instead of sliding half of the
+              actions off the edge of the screen. */}
+          <div className="flex w-full min-w-0 flex-wrap items-center justify-end gap-2 sm:w-auto sm:flex-nowrap [&_a]:whitespace-nowrap [&_button]:shrink-0 [&_button]:whitespace-nowrap">
             <UndoRedo />
             {actions}
           </div>
