@@ -68,6 +68,11 @@ export const BUILDER_PRIMARY_ACTIONS: BuilderQuickAction[] = [
       "Refresh the whole look of my website: a fresh colour palette, refined typography and calmer, more confident section styles across every page. Do not change any of my real business details.",
   },
   {
+    label: "Polish every page",
+    instruction:
+      "Upgrade every page of my website, not just the home page: give each page a readable order, a clear closing ask, an obvious next step in the first screen, and a search title and description written only from my real business details. Do not invent anything.",
+  },
+  {
     label: "Improve my website",
     instruction:
       "Improve my whole website: clearer wording, tidier layout, consistent spacing and a stronger first screen. Keep all of my real business details exactly as they are.",

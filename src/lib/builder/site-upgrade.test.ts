@@ -137,3 +137,41 @@ describe("planWholeSiteUpgrade", () => {
     expect(line).toBe("Same-day plumbing across Austin");
   });
 });
+
+describe("planWholeSiteUpgrade — site-wide passes", () => {
+  it("gives every hero a real next step when a phone number exists", () => {
+    const actions = planWholeSiteUpgrade(
+      ctx({ business: { phone: "(512) 555-0134" } }),
+      interpret("redesign my whole website", []),
+      { cap: 80 },
+    );
+    const button = actions.find((a) => a.type === "add_component");
+    expect(button).toBeTruthy();
+    expect(JSON.stringify(button)).toContain("tel:");
+  });
+
+  it("never invents a destination when there is no contact page or phone", () => {
+    const actions = planWholeSiteUpgrade(ctx(), interpret("redesign my whole website", []), { cap: 80 });
+    expect(actions.some((a) => a.type === "add_component")).toBe(false);
+  });
+
+  it("writes search titles only from real facts", () => {
+    const actions = planWholeSiteUpgrade(ctx(), interpret("redesign my whole website", []), { cap: 80 });
+    const seo = actions.filter((a) => a.type === "set_page");
+    expect(seo.length).toBeGreaterThan(0);
+    expect(JSON.stringify(seo)).toContain("Bluebird Plumbing");
+  });
+
+  it("picks layout variants for the look and skips them when keeping the look", () => {
+    const intent = interpret("redesign my whole website", []);
+    const withLook = planWholeSiteUpgrade(ctx(), intent, { cap: 80 });
+    const keepLook = planWholeSiteUpgrade(ctx(), intent, { cap: 80, keepLook: true });
+    expect(withLook.some((a) => a.type === "set_section_variant")).toBe(true);
+    expect(keepLook.some((a) => a.type === "set_section_variant")).toBe(false);
+  });
+
+  it("respects the action budget", () => {
+    const actions = planWholeSiteUpgrade(ctx(), interpret("redesign my whole website", []), { cap: 5 });
+    expect(actions.length).toBeLessThanOrEqual(5);
+  });
+});

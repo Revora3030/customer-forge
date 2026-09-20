@@ -21,9 +21,10 @@
  */
 
 import type { AgentAction } from "@/lib/site-agent";
-import type { AgentContext } from "@/lib/site-agent.server";
+import type { AgentContext, SiteMapPage } from "@/lib/site-agent.server";
 import type { BuilderIntent } from "@/lib/builder/interpreter";
 import { recommendDirections } from "@/lib/design-directions";
+import { siteVariation } from "@/lib/site-variation";
 
 /** Section kinds that should never appear twice on the same page. */
 const HIGH_VALUE_SECTIONS = ["reviews", "faq", "cta", "contact"] as const;
@@ -332,5 +333,177 @@ export function planWholeSiteUpgrade(
     }
   }
 
+  /* ---------------------------------------------------------------- */
+  /* 5. LAYOUT VARIANTS — a look that is unique to this business       */
+  /* ---------------------------------------------------------------- */
+
+  const variation = siteVariation({
+    businessName: context.business.name,
+    industry: context.business.industry,
+    city: context.business.city,
+  });
+
+  if (!keepLook) {
+    let variantBudget = 12;
+    for (const page of context.pages) {
+      if (!page.is_visible) continue;
+      for (const section of page.sections) {
+        if (!section.is_visible) continue;
+        if (variantBudget <= 0 || actions.length >= cap) break;
+        const variant = variantFor(section.kind, variation);
+        if (!variant || variant === section.variant) continue;
+        push({ type: "set_section_variant", sectionId: section.id, variant });
+        variantBudget -= 1;
+      }
+      if (actions.length >= cap) break;
+    }
+  }
+
+  /* ---------------------------------------------------------------- */
+  /* 6. EVERY PAGE GETS A CLOSING ASK + A READABLE ORDER              */
+  /* ---------------------------------------------------------------- */
+
+  let closingBudget = 4;
+  for (const page of context.pages) {
+    if (actions.length >= cap) break;
+    if (!page.is_visible || page.id === home?.id) continue;
+
+    if (
+      closingBudget > 0 &&
+      allowedSectionKinds.has("cta") &&
+      !CLOSING_KINDS.some((kind) => pageHasSection(page, kind))
+    ) {
+      push({ type: "add_section", pageId: page.id, kind: "cta", heading: variation.heading("cta") });
+      closingBudget -= 1;
+    }
+
+    const currentIds = page.sections
+      .filter((section) => section.is_visible)
+      .slice()
+      .sort((a, b) => a.sort_order - b.sort_order)
+      .map((section) => section.id);
+    const desiredIds = conversionOrderedIds(page);
+    if (needsReorder(currentIds, desiredIds)) {
+      push({ type: "reorder_sections", pageId: page.id, sectionIds: desiredIds });
+    }
+  }
+
+  /* ---------------------------------------------------------------- */
+  /* 7. AN OBVIOUS NEXT STEP IN EVERY HERO                            */
+  /* ---------------------------------------------------------------- */
+
+  const ctaTarget = primaryCtaTarget(context);
+  if (ctaTarget) {
+    let ctaBudget = 4;
+    for (const page of context.pages) {
+      if (!page.is_visible || ctaBudget <= 0 || actions.length >= cap) break;
+      const hero = page.sections.find((section) => section.is_visible && section.kind === "hero");
+      if (!hero) continue;
+      if (hero.components.some((component) => component.kind === "button" || component.link_url)) continue;
+      push({
+        type: "add_component",
+        sectionId: hero.id,
+        kind: "button",
+        label: ctaTarget.label,
+        link_url: ctaTarget.url,
+        link_label: ctaTarget.label,
+      });
+      ctaBudget -= 1;
+    }
+  }
+
+  /* ---------------------------------------------------------------- */
+  /* 8. SEARCH TITLES AND DESCRIPTIONS WHERE THEY ARE MISSING         */
+  /* ---------------------------------------------------------------- */
+
+  let seoBudget = 6;
+  for (const page of context.pages) {
+    if (seoBudget <= 0 || actions.length >= cap) break;
+    if (!page.is_visible || page.noindex) continue;
+    const patch = factualPageSeo(context, page);
+    if (!patch) continue;
+    push({ type: "set_page", pageId: page.id, patch });
+    seoBudget -= 1;
+  }
+
   return actions;
+}
+
+/** Section kinds that already close a page with an ask. */
+const CLOSING_KINDS = ["cta", "contact", "booking", "quote"];
+
+function variantFor(kind: string, variation: ReturnType<typeof siteVariation>): string | null {
+  switch (kind) {
+    case "hero":
+      return variation.heroVariant;
+    case "services":
+      return variation.serviceVariant;
+    case "reviews":
+      return variation.proofVariant;
+    case "cta":
+      return variation.ctaVariant;
+    default:
+      return null;
+  }
+}
+
+/**
+ * The safest real destination for a headline button: an existing contact-style
+ * page, otherwise the business's own phone number. Never a made-up link.
+ */
+function primaryCtaTarget(context: AgentContext): { label: string; url: string } | null {
+  const contactPage = context.pages.find(
+    (page) => page.is_visible && (page.kind === "contact" || /contact|book|quote/i.test(page.slug)),
+  );
+  if (contactPage) {
+    const slug = contactPage.slug.startsWith("/") ? contactPage.slug : `/${contactPage.slug}`;
+    return { label: "Get in touch", url: slug };
+  }
+  const phone = context.business.phone?.trim();
+  if (phone && phone.replace(/\D/g, "").length >= 7) {
+    return { label: `Call ${phone}`, url: `tel:${phone.replace(/[^\d+]/g, "")}` };
+  }
+  return null;
+}
+
+/**
+ * Build page search text only from real facts, and only for the fields that
+ * are actually empty — an owner-written title or description is untouched.
+ */
+function factualPageSeo(context: AgentContext, page: SiteMapPage) {
+  const name = context.business.name?.trim();
+  if (!name) return null;
+
+  const title = page.title?.trim() || (page.kind === "home" ? "Home" : "");
+  if (!title) return null;
+
+  const location = locationPhrase(context);
+  const patch: { seo_title?: string; seo_description?: string } = {};
+
+  if (!page.seo_title?.trim()) {
+    patch.seo_title = (page.kind === "home" && location
+      ? `${name} — ${location}`
+      : page.kind === "home"
+        ? name
+        : `${title} | ${name}`
+    ).slice(0, 60);
+  }
+
+  if (!page.seo_description?.trim()) {
+    const description = context.business.description?.trim();
+    const service = primaryService(context);
+    const sentence =
+      description && description.length >= 24
+        ? description
+        : service && location
+          ? `${name} provides ${service.toLowerCase()} in ${location}. See services and get in touch.`
+          : service
+            ? `${name} provides ${service.toLowerCase()}. See services and get in touch.`
+            : location
+              ? `${name}, serving ${location}. See what we do and get in touch.`
+              : null;
+    if (sentence) patch.seo_description = sentence.slice(0, 160);
+  }
+
+  return patch.seo_title || patch.seo_description ? patch : null;
 }
