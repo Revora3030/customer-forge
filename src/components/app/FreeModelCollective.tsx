@@ -26,7 +26,7 @@ const PROVIDER_LABEL: Record<string, string> = {
 const label = (name: string) => PROVIDER_LABEL[name] ?? name;
 
 const verdictTone = (verdict: string) =>
-  verdict === "PASS" ? "signal" : verdict === "BLOCKED" ? "warning" : "danger";
+  verdict === "PASS" ? "signal" : verdict === "BLOCKED" ? "attention" : "danger";
 
 export function FreeModelCollective() {
   const load = useServerFn(getAiModelInventory);
@@ -91,7 +91,7 @@ export function FreeModelCollective() {
                       >
                         <span className="font-medium">{label(row.provider)}</span>
                         <span className="flex items-center gap-2">
-                          <Pill tone={row.healthy ? "signal" : "warning"} dot>
+                          <Pill tone={row.healthy ? "signal" : "attention"} dot>
                             {row.healthy ? "Answering" : "Resting"}
                           </Pill>
                           <span className="text-muted-foreground">{row.models} free models</span>
