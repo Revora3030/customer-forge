@@ -132,7 +132,9 @@ const PAID_MODEL_PATTERNS: RegExp[] = [
 
 /** Free OpenRouter model ids are suffixed `:free` (or the free auto router). */
 function openRouterFree(model: string) {
-  return /:free$/i.test(model) || model === "openrouter/auto:free";
+  // `:free` ids are priced at zero by OpenRouter; `openrouter/free` and
+  // `openrouter/auto:free` are its zero-price auto routers.
+  return /:free$/i.test(model) || model === "openrouter/free" || model === "openrouter/auto:free";
 }
 
 /**
