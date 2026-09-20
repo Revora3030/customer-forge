@@ -56,7 +56,8 @@ describe("google free-model discovery", () => {
     expect(models).toEqual(["gemini-3.6-flash", "gemini-3.5-flash-lite", "gemma-4-31b-it"]);
     expect(discoveredFreeModels("google")).toEqual(models);
     // The key travels in a header, never in the logged URL.
-    expect(String(fetchMock.mock.calls[0]?.[0])).not.toContain("google-free-key");
+    const calls = fetchMock.mock.calls as unknown as unknown[][];
+    expect(String(calls[0]?.[0])).not.toContain("google-free-key");
   });
 
   it("picks a discovered model per role and never one for image or voice", async () => {
