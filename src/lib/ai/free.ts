@@ -64,6 +64,11 @@ export const FREE_ALLOWANCE: Record<
     allowance: "Free developer allowance: rate-limited requests to hosted NIM models.",
     dailyRequestCap: null,
   },
+  llm7: {
+    label: "LLM7.io free tier",
+    allowance: "Free tier: rate-limited requests to its non usage-based models.",
+    dailyRequestCap: null,
+  },
   openrouter: {
     label: "OpenRouter free models",
     allowance: "Free plan: free-tier models only, 50 requests per day.",
