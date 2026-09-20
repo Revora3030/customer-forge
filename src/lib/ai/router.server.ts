@@ -276,13 +276,15 @@ async function run<T>(
   inputTokens: number | null;
   outputTokens: number | null;
 }> {
-  // ZERO-COST GATE. Checked on the server before anything else happens, so no
-  // key, adapter, URL or retry path can be reached while it is on.
-  if (zeroAiCostMode()) throw zeroCostBlocked();
-
   const limits = aiLimits();
   const requestId = caller.requestId ?? newRequestId();
-  const chain = requireProviderChain();
+
+  // FREE-FIRST GATE. Free providers are tried first; paid providers are only in
+  // this chain when an operator has explicitly opted out of free-only and
+  // zero-cost mode. An empty chain is not a crash: the caller falls back to
+  // Revora's deterministic engine and the owner gets a precise explanation.
+  const chain = await buildChain(role);
+  if (chain.length === 0) throw freeAiUnavailable("no free provider configured or in budget");
 
   const verdict = await checkAiLimits(caller);
   if (!verdict.allowed) throw new RevoraAiError(429, verdict.reason, { category: "rate_limited" });
