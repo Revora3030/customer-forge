@@ -11,6 +11,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { writeBackdrop, writeSectionEffect } from "@/lib/site-effects";
 import { writeComponentVisual, writeSectionVisual } from "@/lib/site-style";
+import { writeCustomBlock } from "@/lib/builder/custom-block";
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import {
@@ -1110,6 +1111,22 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
             return supabase
               .from("website_sections")
               .update({ settings } as never)
+              .eq("id", action.sectionId)
+              .eq("organization_id", orgId);
+          });
+          break;
+        case "set_custom_block":
+          await run(action.type, async () => {
+            const { data: current } = await supabase
+              .from("website_sections")
+              .select("settings")
+              .eq("id", action.sectionId)
+              .eq("organization_id", orgId)
+              .maybeSingle();
+            const settings = writeCustomBlock(current?.["settings"] ?? null, action.spec);
+            return supabase
+              .from("website_sections")
+              .update({ kind: "custom", settings } as never)
               .eq("id", action.sectionId)
               .eq("organization_id", orgId);
           });
