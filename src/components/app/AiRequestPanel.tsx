@@ -183,7 +183,6 @@ export function AiRequestPanel({
     }
   };
 
-
   const runPlan = async (task: QueueTask) => {
     patch(task.id, { state: "planning" });
     try {

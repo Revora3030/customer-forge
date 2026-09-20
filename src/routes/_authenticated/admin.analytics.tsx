@@ -313,7 +313,7 @@ function AdminAnalytics() {
 
       <SectionHeading
         eyebrow="Builder"
-        title="How many reach publish"
+        title="How many reach a live website"
         description="Counted per workspace, not per click. Opening the builder counts once per browsing visit; asking Revora for anything counts as an attempt; published means the site actually went live."
       />
 
@@ -351,7 +351,10 @@ function AdminAnalytics() {
           >
             <ol className="divide-y divide-border text-[13px]">
               {(builder.data?.stages ?? []).map((stage) => (
-                <li key={stage.key} className="flex flex-wrap items-baseline gap-x-3 gap-y-1 py-2.5">
+                <li
+                  key={stage.key}
+                  className="flex flex-wrap items-baseline gap-x-3 gap-y-1 py-2.5"
+                >
                   <span className="min-w-0 flex-1 font-medium">{stage.label}</span>
                   <span className="tnum text-muted-foreground">
                     {number(stage.count)} ({stage.rate}%)
@@ -420,7 +423,6 @@ function AdminAnalytics() {
           </div>
         </>
       )}
-
 
       <SectionHeading
         eyebrow="Marketing traffic"

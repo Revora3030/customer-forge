@@ -484,4 +484,3 @@ export const getBuilderPublishFunnel = createServerFn({ method: "GET" })
 
     return summarizeBuilderFunnel(rows, data.days);
   });
-

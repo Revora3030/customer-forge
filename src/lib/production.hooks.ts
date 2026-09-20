@@ -71,20 +71,17 @@ export function useLaunchFlow(organizationId: string | undefined) {
 
   const mutation = useMutation<ActivationResult>({
     mutationFn: () =>
-      withTransientRetry(
-        () => activateProduction({ data: { organizationId: organizationId! } }),
-        {
-          attempts: 3,
-          onRetry: (attempt) => {
-            toast.loading(
-              attempt === 1
-                ? "The connection dropped — trying again…"
-                : "Still trying to take your website live…",
-              { id: "launch-retry" },
-            );
-          },
+      withTransientRetry(() => activateProduction({ data: { organizationId: organizationId! } }), {
+        attempts: 3,
+        onRetry: (attempt) => {
+          toast.loading(
+            attempt === 1
+              ? "The connection dropped — trying again…"
+              : "Still trying to take your website live…",
+            { id: "launch-retry" },
+          );
         },
-      ),
+      }),
     onSuccess: (data) => {
       toast.dismiss("launch-retry");
       setResult(data);
