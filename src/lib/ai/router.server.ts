@@ -33,9 +33,17 @@ import {
 } from "@/lib/ai/config";
 import { RevoraAiError, freeAiUnavailable, providerUnavailable } from "@/lib/ai/errors";
 import {
+  durableBudgetExhausted,
+  durableProviderResting,
+  noteDurableFreeUse,
+  noteDurableProviderResult,
+  refreshDurableRuntime,
+} from "@/lib/ai/durable-health.server";
+import {
   freeAiEnabled,
   freeAiOnly,
   freeBudgetAllows,
+  freeBudgetCap,
   freeBudgetRemaining,
   freeProviderChain,
   freeProviderCredentials,
@@ -207,8 +215,12 @@ export async function freeModelPool(
     credentials: { apiKey: string; accountId?: string };
     models: string[];
   }[] = [];
+  await refreshDurableRuntime();
   for (const entry of freeProviderChain(role)) {
     if (!freeBudgetAllows(entry.name)) continue;
+    // Shared counters: skip a provider another worker has already exhausted.
+    if (durableBudgetExhausted(entry.name, freeBudgetCap(entry.name))) continue;
+    if (durableProviderResting(entry.name)) continue;
     const models: string[] = [];
     const consider = (model: string) => {
       // Belt and braces: never dispatch a model that isn't free-eligible.
@@ -410,9 +422,18 @@ async function run<T>(
         const controller = new AbortController();
         const timer = setTimeout(() => controller.abort(), limits.requestTimeoutMs);
         try {
-          if (candidate.free) noteFreeUse(candidate.free);
+          if (candidate.free) {
+            noteFreeUse(candidate.free);
+            void noteDurableFreeUse(candidate.free, freeBudgetCap(candidate.free));
+          }
           const result = await execute({ adapter, config, model, signal: controller.signal });
           noteSuccess(config.name);
+          if (candidate.free)
+            void noteDurableProviderResult({
+              provider: candidate.free,
+              ok: true,
+              latencyMs: Date.now() - started,
+            });
           lastOutcome = {
             at: Date.now(),
             provider: config.name,
@@ -460,6 +481,13 @@ async function run<T>(
                 : providerUnavailable(config.name, (rawError as Error)?.message?.slice(0, 120));
           lastError = error;
           noteFailure(config.name);
+          if (candidate.free)
+            void noteDurableProviderResult({
+              provider: candidate.free,
+              ok: false,
+              latencyMs: Date.now() - started,
+              rateLimited: error.category === "rate_limited",
+            });
           lastOutcome = {
             at: Date.now(),
             provider: config.name,
@@ -797,6 +825,18 @@ export async function callPinnedFreeModel(
     });
   if (!providerHealthy(call.provider as ProviderName))
     throw providerUnavailable(call.provider, "cooling down after repeated failures");
+  // SHARED STATE: many workers spend one free allowance, so the cross-worker
+  // counters get a say too. They may only ever add caution, never remove it,
+  // and an unreachable store simply leaves the local gates in charge.
+  const cap = freeBudgetCap(call.provider);
+  await refreshDurableRuntime();
+  if (durableBudgetExhausted(call.provider, cap))
+    throw new RevoraAiError(429, "That free provider is out of budget for today.", {
+      category: "rate_limited",
+      provider: call.provider,
+    });
+  if (durableProviderResting(call.provider))
+    throw providerUnavailable(call.provider, "cooling down after repeated failures");
   const credentials = freeProviderCredentials(call.provider);
   if (!credentials) throw freeAiUnavailable(`${call.provider} has no credentials configured`);
 
@@ -810,6 +850,7 @@ export async function callPinnedFreeModel(
   const requestId = caller.requestId ?? newRequestId();
   try {
     noteFreeUse(call.provider);
+    void noteDurableFreeUse(call.provider, cap);
     const result = await adapter.chat({
       apiKey: credentials.apiKey,
       model: call.model,
@@ -824,6 +865,7 @@ export async function callPinnedFreeModel(
     });
     noteSuccess(call.provider as ProviderName);
     const latencyMs = Date.now() - started;
+    void noteDurableProviderResult({ provider: call.provider, ok: true, latencyMs });
     void recordAiEvent({
       requestId,
       provider: call.provider as ProviderName,
@@ -861,6 +903,12 @@ export async function callPinnedFreeModel(
               provider: call.provider,
             })
           : providerUnavailable(call.provider, (rawError as Error)?.message?.slice(0, 120));
+    void noteDurableProviderResult({
+      provider: call.provider,
+      ok: false,
+      latencyMs: Date.now() - started,
+      rateLimited: error.category === "rate_limited",
+    });
     void recordAiEvent({
       requestId,
       provider: call.provider as ProviderName,

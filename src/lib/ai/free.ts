@@ -476,10 +476,20 @@ function today() {
   return new Date().toISOString().slice(0, 10);
 }
 
-function budgetCap(provider: FreeProviderName) {
+/**
+ * Today's request cap for a provider: the operator override when set, otherwise
+ * the allowance the provider publishes. `null` means the provider publishes no
+ * daily request cap. Exported so the shared (cross-worker) counters can be
+ * measured against exactly the same number as the in-process ones.
+ */
+export function freeBudgetCap(provider: FreeProviderName): number | null {
   const override = Number(env(`FREE_AI_${provider.toUpperCase()}_DAILY_CAP`));
   if (Number.isFinite(override) && override > 0) return Math.floor(override);
   return FREE_ALLOWANCE[provider].dailyRequestCap;
+}
+
+function budgetCap(provider: FreeProviderName) {
+  return freeBudgetCap(provider);
 }
 
 export function freeBudgetRemaining(provider: FreeProviderName): number | null {
