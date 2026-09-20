@@ -1281,9 +1281,9 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
       result: {
         operationId,
         operationKey: data.operationKey || null,
-        applied,
-        failed,
-        stale: preflight.stale,
+        applied: applied.length,
+        failed: failed.length,
+        stale: preflight.stale.length,
         duplicates: preflight.duplicates,
         staleNotice,
         appliedLabels: applied,
