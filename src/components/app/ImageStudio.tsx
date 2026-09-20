@@ -1,11 +1,11 @@
 import { useMemo, useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2, Sparkles, Wand2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Panel, Pill, SectionHeading } from "@/components/app/Bits";
 import { cn } from "@/lib/utils";
-import { generateStudioImage } from "@/lib/image-studio.functions";
+import { generateStudioImage, studioImageStatus } from "@/lib/image-studio.functions";
 import {
   CANDIDATE_STYLES,
   REFINEMENTS,
@@ -78,6 +78,19 @@ export function ImageStudio({
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
   const [candidates, setCandidates] = useState<Candidate[]>([]);
+  const [aspectRatio, setAspectRatio] = useState<string>("16:9");
+
+  /**
+   * Live picture-making status. It is measured on the server (connected service,
+   * verified free model, today's remaining free allowance) so this panel never
+   * offers something it cannot actually do.
+   */
+  const status = useQuery({
+    queryKey: ["studio-image-status", organizationId],
+    enabled: Boolean(organizationId) && canManage,
+    staleTime: 60_000,
+    queryFn: () => studioImageStatus({ data: { organizationId: organizationId! } }),
+  });
 
   const shot: PlannedShot | undefined = shots[shotIndex];
 
