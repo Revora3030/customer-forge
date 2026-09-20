@@ -390,7 +390,7 @@ export async function proposeSiteComposition(
     const { directionTone } = await import("@/lib/design-directions");
     return {
       actions: composed.actions,
-      notes: composed.notes,
+      notes: [...composed.notes, ...ensembleNotes],
       directionId: branded.direction.id,
       because: proposal.because,
       preview: {
