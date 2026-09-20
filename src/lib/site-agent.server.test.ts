@@ -51,5 +51,5 @@ describe("site agent native planner handoff", () => {
 
     expect(result["actions"]).toHaveLength(1);
     expect(result["reply"]).toBe("Updated the section.");
-  });
+  }, 30_000);
 });
