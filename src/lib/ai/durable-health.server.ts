@@ -192,7 +192,7 @@ export async function noteDurableProviderResult(input: {
     const { data, error } = await client.rpc("ai_note_provider_result", {
       _provider: input.provider,
       _ok: input.ok,
-      _latency_ms: input.latencyMs ?? null,
+      ...(input.latencyMs == null ? {} : { _latency_ms: input.latencyMs }),
       _rate_limited: input.rateLimited === true,
       _failure_threshold: input.failureThreshold ?? 3,
       _cooldown_seconds: input.cooldownSeconds ?? 60,
