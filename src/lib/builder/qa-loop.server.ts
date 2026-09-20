@@ -216,9 +216,12 @@ async function writeRepair(
   if (action.type === "set_component") {
     const patch = (action["patch"] ?? {}) as Record<string, unknown>;
     if (typeof patch["link_url"] !== "string") return { ok: false };
+    // A repair must never widen what a visitor's browser can be asked to run.
+    const safeLink = safeLinkUrl(patch["link_url"]);
+    if (!safeLink) return { ok: false };
     const { error } = await client
       .from("website_components")
-      .update({ link_url: patch["link_url"] })
+      .update({ link_url: safeLink })
       .eq("id", String(action["componentId"] ?? ""))
       .eq("organization_id", orgId);
     return { ok: !error };

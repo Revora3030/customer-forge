@@ -697,7 +697,7 @@ export function useDuplicatePage(organizationId: string | undefined) {
             label: component.label,
             body: component.body,
             media_url: component.media_url,
-            link_url: component.link_url,
+            link_url: safeLinkUrl(component.link_url),
             link_label: component.link_label,
             settings: component.settings,
             sort_order: component.sort_order,
