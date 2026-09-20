@@ -31,8 +31,22 @@ import {
   type ProviderName,
   zeroAiCostMode,
 } from "@/lib/ai/config";
-import { RevoraAiError, providerUnavailable, zeroCostBlocked } from "@/lib/ai/errors";
+import { RevoraAiError, freeAiUnavailable, providerUnavailable } from "@/lib/ai/errors";
+import {
+  freeAiEnabled,
+  freeAiOnly,
+  freeBudgetAllows,
+  freeBudgetRemaining,
+  freeProviderChain,
+  freeProviderReadiness,
+  isFreeEligibleModel,
+  noteFreeUse,
+  type FreeProviderName,
+} from "@/lib/ai/free";
+import { pickDiscoveredModel, refreshFreeModels } from "@/lib/ai/free-models.server";
+import { cloudflareAdapter } from "@/lib/ai/providers/cloudflare";
 import { googleAdapter } from "@/lib/ai/providers/google";
+import { openRouterAdapter } from "@/lib/ai/providers/openrouter";
 import { openAiAdapter } from "@/lib/ai/providers/openai";
 import { base64ByteLength } from "@/lib/ai/providers/shared";
 import { checkAiLimits, recordAiEvent } from "@/lib/ai/telemetry.server";
