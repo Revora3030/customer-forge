@@ -267,3 +267,106 @@ export const setFreeAiProviderOrder = createServerFn({ method: "POST" })
     setRuntimeFreeProviderOrder(data.order);
     return { order: freeProviderOrder() };
   });
+
+/* --------------------------- free model inventory -------------------------- */
+
+export type InventoryModel = {
+  provider: string;
+  model: string;
+  displayName: string;
+  modality: string;
+  capabilities: string[];
+  weight: number;
+  /** "live" when the provider's own catalogue listed it, "configured" otherwise. */
+  confidence: string;
+  freeEvidence: string;
+  structuredOutput: boolean;
+  streaming: boolean;
+  healthy: boolean;
+  remainingToday: number | null;
+};
+
+export type AiModelInventory = {
+  /** Every verified free model Revora can actually reach right now. */
+  models: InventoryModel[];
+  totals: { models: number; providers: number; free: number };
+  byProvider: { provider: string; models: number; healthy: boolean }[];
+  /** The last few multi-model builds, with each model's part in them. */
+  runs: import("@/lib/ai/ensemble.server").EnsembleRun[];
+  lanes: { id: string; title: string; capability: string }[];
+};
+
+/**
+ * The live inventory of the free model pool, for the platform admin only.
+ *
+ * Nothing is listed as reachable unless the free-eligibility gate accepts it,
+ * and no credential value is ever returned.
+ */
+export const getAiModelInventory = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }): Promise<AiModelInventory> => {
+    const { assertSuperAdmin } = await import("@/lib/admin.server");
+    await assertSuperAdmin(
+      context.supabase as unknown as Parameters<typeof assertSuperAdmin>[0],
+      String(context.userId),
+    );
+
+    const { buildFreeModelRegistry } = await import("@/lib/ai/registry.server");
+    const { ensembleRuns, ENSEMBLE_LANES } = await import("@/lib/ai/ensemble.server");
+
+    const deduped = new Map<string, InventoryModel>();
+    for (const role of ["design", "primary", "coding", "fast", "vision"] as const) {
+      let models: Awaited<ReturnType<typeof buildFreeModelRegistry>> = [];
+      try {
+        models = await buildFreeModelRegistry(role);
+      } catch {
+        // A provider catalogue being unreachable means fewer rows, not an error page.
+      }
+      for (const entry of models) {
+        const key = `${entry.provider}|${entry.model}`;
+        const existing = deduped.get(key);
+        if (existing && existing.capabilities.length >= entry.capabilities.length) continue;
+        deduped.set(key, {
+          provider: entry.provider,
+          model: entry.model,
+          displayName: entry.displayName,
+          modality: entry.modality,
+          capabilities: entry.capabilities,
+          weight: entry.weight,
+          confidence: entry.confidence,
+          freeEvidence: entry.freeEvidence,
+          structuredOutput: entry.structuredOutput,
+          streaming: entry.streaming,
+          healthy: entry.health.healthy,
+          remainingToday: entry.quota.remainingToday,
+        });
+      }
+    }
+
+    const models = [...deduped.values()].sort(
+      (a, b) => a.provider.localeCompare(b.provider) || b.weight - a.weight,
+    );
+    const providers = new Map<string, { provider: string; models: number; healthy: boolean }>();
+    for (const entry of models) {
+      const row = providers.get(entry.provider) ?? {
+        provider: entry.provider,
+        models: 0,
+        healthy: false,
+      };
+      row.models += 1;
+      row.healthy = row.healthy || entry.healthy;
+      providers.set(entry.provider, row);
+    }
+
+    return {
+      models,
+      totals: { models: models.length, providers: providers.size, free: models.length },
+      byProvider: [...providers.values()].sort((a, b) => b.models - a.models),
+      runs: ensembleRuns(),
+      lanes: ENSEMBLE_LANES.map((lane) => ({
+        id: lane.id,
+        title: lane.title,
+        capability: lane.capability,
+      })),
+    };
+  });

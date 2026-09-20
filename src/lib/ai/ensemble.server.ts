@@ -330,6 +330,8 @@ export async function runEnsemble<T>(
   request: EnsembleRequest<T>,
 ): Promise<EnsembleProof<T>> {
   const started = Date.now();
+  // Recorded with the run so the admin page can name the job each model served.
+  runTask = caller.task;
   const lanes = (request.lanes ?? ENSEMBLE_LANES.map((lane) => lane.id)).map(laneById);
   const roles = [...new Set(lanes.map((lane) => request.role ?? lane.role))];
 
@@ -353,7 +355,7 @@ export async function runEnsemble<T>(
   const { assignments, skipped } = assignLanes([...deduped.values()], lanes, request.mode);
 
   if (assignments.length === 0)
-    return {
+    return recordRun({
       mode: request.mode,
       attempted: [],
       outcomes: [],
@@ -371,7 +373,7 @@ export async function runEnsemble<T>(
       blockedReason: "No verified free model is available right now.",
       results: [],
       winner: null,
-    };
+    });
 
   const globalLimit = request.concurrency ?? positiveEnv("ENSEMBLE_CONCURRENCY", 6);
   const providerLimit =
@@ -487,7 +489,7 @@ export async function runEnsemble<T>(
   );
   const winner = ranked[0] ?? null;
 
-  return {
+  return recordRun({
     mode: request.mode,
     attempted: assignments,
     outcomes,
@@ -505,7 +507,84 @@ export async function runEnsemble<T>(
     blockedReason: null,
     results,
     winner: winner?.value ?? null,
-  };
+  });
+}
+
+/* ------------------------------ observability ------------------------------ */
+
+export type EnsembleRun = {
+  at: number;
+  task: string;
+  mode: EnsembleMode;
+  verdict: EnsembleProof<unknown>["verdict"];
+  modelsInvoked: number;
+  distinctModels: number;
+  providers: string[];
+  lanes: LaneId[];
+  succeeded: number;
+  failed: number;
+  distinct: number;
+  agreement: number;
+  conflicts: number;
+  totalLatencyMs: number;
+  deadlineHit: boolean;
+  /** Per model: whether it answered, and why not when it did not. */
+  participants: {
+    provider: string;
+    model: string;
+    lane: LaneId;
+    ok: boolean;
+    latencyMs: number;
+    reason: string | null;
+  }[];
+  /** Models Revora deliberately did not call, with the honest reason. */
+  skipped: SkippedModel[];
+};
+
+let lastRuns: EnsembleRun[] = [];
+let runTask = "ensemble";
+
+/** The most recent ensemble runs in this server process, newest first. */
+export function ensembleRuns(): EnsembleRun[] {
+  return lastRuns;
+}
+
+export function resetEnsembleRuns() {
+  lastRuns = [];
+}
+
+function recordRun<T>(proof: EnsembleProof<T>): EnsembleProof<T> {
+  lastRuns = [
+    {
+      at: Date.now(),
+      task: runTask,
+      mode: proof.mode,
+      verdict: proof.verdict,
+      modelsInvoked: proof.attempted.length,
+      distinctModels: new Set(proof.attempted.map((entry) => `${entry.provider}|${entry.model}`))
+        .size,
+      providers: proof.providers,
+      lanes: proof.lanes,
+      succeeded: proof.succeeded,
+      failed: proof.failed,
+      distinct: proof.distinct,
+      agreement: proof.agreement,
+      conflicts: proof.conflicts,
+      totalLatencyMs: proof.totalLatencyMs,
+      deadlineHit: proof.deadlineHit,
+      participants: proof.outcomes.map((entry) => ({
+        provider: entry.provider,
+        model: entry.model,
+        lane: entry.lane,
+        ok: entry.ok,
+        latencyMs: entry.latencyMs,
+        reason: entry.reason,
+      })),
+      skipped: proof.skipped,
+    },
+    ...lastRuns,
+  ].slice(0, 5);
+  return proof;
 }
 
 /** A one-line, owner-readable summary of an ensemble run. */
