@@ -282,7 +282,20 @@ const VERB_WORDS: Record<BuilderVerb, string[]> = {
     "make the copy better",
     "make it clearer",
     "more persuasive",
+    // Plain ways owners ask for the same thing.
+    "clearer",
+    "clarify",
+    "punchier",
+    "sharper",
+    "more compelling",
+    "headline",
+    "heading",
+    "tagline",
+    "better wording",
+    "what we do",
+    "explain what",
   ],
+
 
   restyle: [
     "restyle",
