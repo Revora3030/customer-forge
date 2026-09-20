@@ -33,6 +33,7 @@ Tests enforce the boundary (`src/lib/ai/free-runtime.test.ts`).
 | `CLOUDFLARE_AI_API_TOKEN` | Cloudflare Workers AI | Needs an account-scoped Workers AI token |
 | `CLOUDFLARE_ACCOUNT_ID` | Cloudflare Workers AI | Required alongside the token |
 | `OPENROUTER_API_KEY` | OpenRouter free models | Only `:free` model ids are ever selected |
+| `GROQ_API_KEY` | Groq free developer tier | Chat models only; speech and safety models are never selected |
 | `GOOGLE_AI_FREE_API_KEY` | Gemini API free tier | Use a key from a project with **no billing** attached |
 
 Half a provider's credentials simply marks that provider unavailable — it never
@@ -42,6 +43,7 @@ throws and never blocks the builder.
 
 - Cloudflare Workers Free: 10,000 Neurons per day, shared across models.
 - OpenRouter Free plan: free-tier models only, 50 requests per day.
+- Groq free developer tier: per-minute and per-day request limits per model.
 - Gemini API free tier: per-minute and per-day limits per model.
 
 Each provider has a per-day request budget (`FREE_AI_<PROVIDER>_DAILY_CAP`), a
