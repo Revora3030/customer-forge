@@ -344,6 +344,18 @@ export type AgentAction =
       patch: SectionVisualPatch;
     }
 
+  /**
+   * Installs a validated custom interactive block (estimator, guided picker,
+   * comparison table, steps, checklist, tabs, figures) on a section. The spec
+   * is data only — it is rendered by trusted components, never executed.
+   */
+  | {
+      type: "set_custom_block";
+      sectionId: string;
+      spec: CustomBlockSpec;
+    }
+
+
   | {
       type: "add_section";
       pageId: string;
