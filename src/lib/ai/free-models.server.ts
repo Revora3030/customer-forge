@@ -134,8 +134,18 @@ export async function refreshFreeModels(
       : provider === "cloudflare"
         ? await cloudflareFreeModels(credentials)
         : provider === "groq"
-          ? await groqFreeModels(credentials)
-          : [];
+          ? await openAiCompatibleFreeModels(
+              "groq",
+              "https://api.groq.com/openai/v1/models",
+              credentials,
+            )
+          : provider === "nvidia"
+            ? await openAiCompatibleFreeModels(
+                "nvidia",
+                "https://integrate.api.nvidia.com/v1/models",
+                credentials,
+              )
+            : [];
   // Cache even an empty answer so a failing discovery endpoint isn't polled on
   // every builder request.
   cache.set(provider, { at: Date.now(), models });
