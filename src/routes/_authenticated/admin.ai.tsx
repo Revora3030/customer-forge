@@ -88,8 +88,60 @@ function AdminAi() {
 
       <Panel>
         <SectionHeading
-          title="Providers"
-          description="The order Revora tries them in. A provider is only usable when Revora owns a key for it."
+          title="Free AI"
+          description="Revora tries these free providers first, in this order. A provider is only usable when its own credentials are set, and only models that provider currently serves for free are ever chosen."
+        />
+        {health.isLoading ? <LoadingRows /> : null}
+        <div className="space-y-2">
+          {(data?.free.providers ?? []).map((provider) => (
+            <div
+              key={provider.name}
+              className="rounded-lg border border-border bg-card/40 p-3 text-[13px]"
+            >
+              <div className="flex flex-wrap items-center gap-2">
+                <Pill
+                  tone={
+                    !provider.configured ? "attention" : provider.healthy ? "signal" : "attention"
+                  }
+                >
+                  {!provider.configured
+                    ? "Not set up"
+                    : provider.healthy
+                      ? "Free · ready"
+                      : "Paused briefly"}
+                </Pill>
+                <span className="font-medium">{provider.label}</span>
+                {provider.remainingToday !== null ? (
+                  <span className="text-muted-foreground">
+                    {provider.remainingToday} requests left today
+                  </span>
+                ) : null}
+              </div>
+              <p className="mt-1.5 text-muted-foreground">{provider.allowance}</p>
+              {provider.models.length ? (
+                <p className="mt-1 text-muted-foreground">
+                  {provider.models.map((entry) => `${entry.role}: ${entry.model}`).join(" · ")}
+                </p>
+              ) : null}
+            </div>
+          ))}
+        </div>
+        {data ? (
+          <p className="mt-3 text-[13px] text-muted-foreground">
+            {data.builderAiAvailable
+              ? "Free AI is reachable, so the builder can use it. "
+              : "No free AI is reachable, so the builder runs on Revora's own engine — nothing is blocked. "}
+            {data.free.paidFallbackReachable
+              ? "A paid provider has been explicitly switched on as a backup."
+              : "Paid providers are switched off and cannot be reached."}
+          </p>
+        ) : null}
+      </Panel>
+
+      <Panel>
+        <SectionHeading
+          title="Paid providers"
+          description="Only reachable when an operator explicitly turns off free-only mode. Nothing here is required to run the builder."
         />
         {health.isLoading ? <LoadingRows /> : null}
         {health.error ? <ErrorNote message={(health.error as Error).message} /> : null}
