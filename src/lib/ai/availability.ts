@@ -38,8 +38,9 @@ export function builderAiAvailable(role: ModelRole = "primary") {
 
 /**
  * Honest media capability for the builder UI: vision needs a free multimodal
- * model, voice needs transcription which no free provider in Revora's chain
- * serves, so voice stays off unless a paid account is explicitly enabled.
+ * model and voice needs a free transcription model (Gemini's free tier serves
+ * one, verified live). Either falls back to a paid account only when an
+ * operator has explicitly enabled one; otherwise the capability reads off.
  */
 export function builderMediaAvailability() {
   const vision = builderAiAvailable("vision");

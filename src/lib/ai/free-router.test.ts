@@ -242,6 +242,39 @@ describe("builder availability", () => {
     expect(builderAiAvailable()).toBe(false);
     expect(builderMediaAvailability()).toEqual({ vision: false, voice: false, source: null });
   });
+
+  it("never offers a safety, guard or adapter model as a writer", async () => {
+    const { isFreeEligibleModel } = await free();
+    expect(isFreeEligibleModel("cloudflare", "@cf/meta/llama-guard-3-8b")).toBe(false);
+    expect(isFreeEligibleModel("cloudflare", "@cf/google/gemma-2b-it-lora")).toBe(false);
+    expect(isFreeEligibleModel("cloudflare", "@cf/mistral/mistral-7b-instruct-v0.2-lora")).toBe(
+      false,
+    );
+    expect(isFreeEligibleModel("openrouter", "nvidia/nemotron-3.5-content-safety:free")).toBe(
+      false,
+    );
+    // Real writers on the same providers are still accepted.
+    expect(isFreeEligibleModel("cloudflare", "@cf/openai/gpt-oss-120b")).toBe(true);
+    expect(isFreeEligibleModel("openrouter", "z-ai/glm-5.2:free")).toBe(true);
+  });
+
+  it("transcribes voice on a free Google model once its free-tier key is set", async () => {
+    process.env["GOOGLE_AI_FREE_API_KEY"] = "google-free-key";
+    const { freeProviderChain, FREE_UNSERVED_ROLES } = await free();
+    const chain = freeProviderChain("transcription");
+    expect(chain.map((entry) => entry.name)).toEqual(["google"]);
+    expect(chain[0]?.model).toBe("gemini-3.5-flash");
+    // Image generation has no free provider, and Revora still says so.
+    expect(FREE_UNSERVED_ROLES).toEqual(["image"]);
+    expect(freeProviderChain("image")).toEqual([]);
+  });
+
+  it("reports voice as available from the free tier, and pictures too", async () => {
+    process.env["GOOGLE_AI_FREE_API_KEY"] = "google-free-key";
+    vi.resetModules();
+    const { builderMediaAvailability } = await import("@/lib/ai/availability");
+    expect(builderMediaAvailability()).toEqual({ vision: true, voice: true, source: "free" });
+  });
 });
 
 describe("no free provider available", () => {

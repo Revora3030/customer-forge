@@ -106,6 +106,10 @@ const FREE_MODEL_DEFAULTS: Record<FreeProviderName, Partial<Record<ModelRole, st
   },
   // Verified live against this NVIDIA key's hosted NIM catalogue. Only these
   // answered; several listed ids are retired or not served to this account.
+  // Every dedicated code model in the catalogue (codestral, codegemma,
+  // codellama, granite-code, starcoder, deepseek-coder) answered 404 for this
+  // key, so `coding` deliberately reuses the general model rather than naming a
+  // model the account cannot invoke.
   nvidia: {
     primary: "nvidia/nemotron-3-super-120b-a12b",
     fast: "nvidia/nemotron-3.5-lightning-30b-a3b",
@@ -130,16 +134,25 @@ const FREE_MODEL_DEFAULTS: Record<FreeProviderName, Partial<Record<ModelRole, st
   },
   // Verified live against the Gemini free-tier catalogue; the 2.5 line is no
   // longer served to new keys, so the current flash/flash-lite class is used.
+  // `transcription` was verified live with real audio on the free tier. Gemini's
+  // image models are NOT included: every one of them answers 429 "quota
+  // exceeded" on the free tier, so image generation stays an unserved role.
   google: {
     primary: "gemini-3.6-flash",
     fast: "gemini-3.5-flash-lite",
     coding: "gemini-3.6-flash",
     vision: "gemini-3.6-flash",
+    transcription: "gemini-3.5-flash",
   },
 };
 
-/** Roles no free provider serves: Revora falls back to its native engine. */
-export const FREE_UNSERVED_ROLES: ModelRole[] = ["image", "transcription"];
+/**
+ * Roles no free provider serves: Revora falls back to its native engine and
+ * reports the capability as unavailable rather than pretending otherwise.
+ * Image generation stays here because no configured provider serves an image
+ * model on its free tier (Gemini's free tier refuses them with a quota error).
+ */
+export const FREE_UNSERVED_ROLES: ModelRole[] = ["image"];
 
 function env(name: string) {
   const value = process.env[name];
@@ -207,6 +220,16 @@ function openRouterFree(model: string) {
 const GROQ_NON_CHAT = /whisper|orpheus|prompt-guard|safeguard|tts|playai/i;
 
 /**
+ * Models that are not text generation at all, wherever they are hosted:
+ * safety/guard classifiers, embedders, rerankers, speech models and the LoRA
+ * adapter variants Cloudflare lists alongside real models. Live discovery would
+ * otherwise offer one of these as a writer and waste a request on a useless
+ * answer, so they are rejected for every provider that has no stricter filter.
+ */
+const NON_CHAT_MODEL =
+  /guard|safety|safeguard|moderation|embed|rerank|retriev|whisper|orpheus|\btts\b|-lora\b|lora$|classifier/i;
+
+/**
  * Groq ids are vendor-prefixed (`openai/gpt-oss-120b`), so the paid-name check
  * has to run on the model part as well — otherwise a prefix would smuggle a
  * paid family past it. `gpt-oss` is OpenAI's open-weight family Groq serves
@@ -271,12 +294,12 @@ export function isFreeEligibleModel(provider: FreeProviderName, model: string): 
   if (PAID_MODEL_PATTERNS.some((pattern) => pattern.test(unprefixed))) {
     if (!(provider === "groq" && /^gpt-oss/i.test(unprefixed))) return false;
   }
-  if (provider === "openrouter") return openRouterFree(name);
-  if (provider === "google") return /flash|lite|gemma/i.test(name);
+  if (provider === "openrouter") return openRouterFree(name) && !NON_CHAT_MODEL.test(name);
+  if (provider === "google") return /flash|lite|gemma|transcribe/i.test(name);
   if (provider === "groq") return groqFreeEligible(name);
   if (provider === "nvidia") return nvidiaFreeEligible(name);
   if (provider === "llm7") return llm7FreeEligible(name);
-  return name.startsWith("@cf/");
+  return name.startsWith("@cf/") && !NON_CHAT_MODEL.test(name);
 }
 
 /* ------------------------------- credentials ------------------------------- */

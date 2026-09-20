@@ -40,7 +40,15 @@ async function fetchJson(url: string, headers: Record<string, string>) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), DISCOVERY_TIMEOUT_MS);
   try {
-    const response = await fetch(url, { headers, signal: controller.signal });
+    const response = await fetch(url, {
+      // Identify Revora: some catalogue endpoints refuse an unidentified client.
+      headers: {
+        accept: "application/json",
+        "user-agent": "RevoraGrowthSystems/1.0 (+https://revoragrowthsystems.com)",
+        ...headers,
+      },
+      signal: controller.signal,
+    });
     if (!response.ok) return null;
     return (await response.json()) as unknown;
   } catch {
@@ -124,6 +132,34 @@ async function openAiCompatibleFreeModels(
 }
 
 /**
+ * Google: the Gemini catalogue lists every model this key can address. Only
+ * models that actually answer `generateContent` are kept, and each id still has
+ * to pass the free-eligibility rule — which admits the flash/lite/gemma classes
+ * and rejects the `pro` classes and anything billed. Without this, Gemini's two
+ * configured ids would silently rot when Google retires them.
+ */
+async function googleFreeModels(credentials: FreeProviderCredentials) {
+  const payload = await fetchJson("https://generativelanguage.googleapis.com/v1beta/models", {
+    "x-goog-api-key": credentials.apiKey,
+  });
+  const models = (payload as { models?: unknown[] } | null)?.models;
+  if (!Array.isArray(models)) return [];
+  const free: string[] = [];
+  for (const raw of models) {
+    const entry = raw as { name?: unknown; supportedGenerationMethods?: unknown[] };
+    if (typeof entry.name !== "string") continue;
+    const methods = Array.isArray(entry.supportedGenerationMethods)
+      ? entry.supportedGenerationMethods.map(String)
+      : [];
+    if (methods.length > 0 && !methods.includes("generateContent")) continue;
+    const id = entry.name.replace(/^models\//, "");
+    if (isFreeEligibleModel("google", id)) free.push(id);
+  }
+  return free;
+}
+
+
+/**
  * LLM7: the catalogue flags each model's billing mode and whether it supports
  * JSON mode. Only models that are NOT usage-based are free, so those ids are recorded as free-eligible and the
  * paid-balance models on the same endpoint stay unreachable.
@@ -177,10 +213,12 @@ export async function refreshFreeModels(
             )
           : provider === "llm7"
             ? await llm7FreeModels(credentials)
-            : // NVIDIA's hosted catalogue lists ids this account cannot invoke
-            // (retired or not provisioned), so discovery would swap a verified
-            // model for a dead one. The verified defaults stand.
-            [];
+            : provider === "google"
+              ? await googleFreeModels(credentials)
+              : // NVIDIA's hosted catalogue lists ids this account cannot invoke
+              // (retired or not provisioned), so discovery would swap a verified
+              // model for a dead one. The verified defaults stand.
+              [];
   // Cache even an empty answer so a failing discovery endpoint isn't polled on
   // every builder request.
   cache.set(provider, { at: Date.now(), models });
