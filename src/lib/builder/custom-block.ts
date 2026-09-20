@@ -44,7 +44,8 @@ export type CustomBlockKind =
   | "filter"
   | "eligibility"
   | "booking"
-  | "gauge";
+  | "gauge"
+  | "freeform";
 
 export type CalculatorField = {
   id: string;
@@ -61,6 +62,7 @@ export type CalculatorField = {
 };
 
 export type CustomBlockSpec =
+  | FreeformSpec
   | {
       type: "calculator";
       title?: string;
