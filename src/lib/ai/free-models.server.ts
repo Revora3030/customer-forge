@@ -101,17 +101,19 @@ async function cloudflareFreeModels(credentials: FreeProviderCredentials) {
  * Groq: every model on the free developer tier is listed; the speech and safety
  * models are dropped by the eligibility rule because they are not chat models.
  */
-async function groqFreeModels(credentials: FreeProviderCredentials) {
-  const payload = await fetchJson("https://api.groq.com/openai/v1/models", {
-    authorization: `Bearer ${credentials.apiKey}`,
-  });
+async function openAiCompatibleFreeModels(
+  provider: FreeProviderName,
+  url: string,
+  credentials: FreeProviderCredentials,
+) {
+  const payload = await fetchJson(url, { authorization: `Bearer ${credentials.apiKey}` });
   const data = (payload as { data?: unknown[] } | null)?.data;
   if (!Array.isArray(data)) return [];
   const free: string[] = [];
   for (const raw of data) {
     const entry = raw as { id?: unknown };
     if (typeof entry.id !== "string") continue;
-    if (isFreeEligibleModel("groq", entry.id)) free.push(entry.id);
+    if (isFreeEligibleModel(provider, entry.id)) free.push(entry.id);
   }
   return free;
 }
