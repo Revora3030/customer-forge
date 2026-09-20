@@ -148,7 +148,7 @@ export function BuilderShell({
 
           {/* On a phone the actions form an even two-column block instead of
               wrapping into a ragged line with one stranded button. */}
-          <div className="grid w-full min-w-0 grid-cols-2 items-center gap-2 sm:flex sm:w-auto sm:flex-nowrap sm:justify-end [&>*]:w-full sm:[&>*]:w-auto [&_a]:w-full [&_a]:justify-center [&_a]:whitespace-nowrap sm:[&_a]:w-auto [&_button]:w-full [&_button]:justify-center [&_button]:whitespace-nowrap sm:[&_button]:w-auto">
+          <div className="grid w-full min-w-0 grid-cols-2 items-center gap-2 sm:flex sm:w-auto sm:flex-nowrap sm:justify-end [&>a]:w-full [&>a]:justify-center [&>a]:whitespace-nowrap [&>button]:w-full [&>button]:justify-center [&>button]:whitespace-nowrap sm:[&>a]:w-auto sm:[&>button]:w-auto">
             <UndoRedo />
             {actions}
           </div>
