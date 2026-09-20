@@ -422,9 +422,18 @@ async function run<T>(
         const controller = new AbortController();
         const timer = setTimeout(() => controller.abort(), limits.requestTimeoutMs);
         try {
-          if (candidate.free) noteFreeUse(candidate.free);
+          if (candidate.free) {
+            noteFreeUse(candidate.free);
+            void noteDurableFreeUse(candidate.free, freeBudgetCap(candidate.free));
+          }
           const result = await execute({ adapter, config, model, signal: controller.signal });
           noteSuccess(config.name);
+          if (candidate.free)
+            void noteDurableProviderResult({
+              provider: candidate.free,
+              ok: true,
+              latencyMs: Date.now() - started,
+            });
           lastOutcome = {
             at: Date.now(),
             provider: config.name,
