@@ -1096,13 +1096,7 @@ export function interpret(
   /* PAGE UNDERSTANDING                                                      */
   /* ---------------------------------------------------------------------- */
 
-  const pageHints = PAGE_WORDS.filter(
-    (page) =>
-      new RegExp(
-        `\\b${page}\\b`,
-        "i",
-      ).test(text),
-  );
+  const pageHints = PAGE_WORDS.filter((page) => pageWordMentioned(page, text));
 
   const newPages = readNewPages(text);
 
