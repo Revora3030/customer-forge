@@ -903,6 +903,15 @@ function WebsitePage() {
         onClose={launchFlow.closeLocked}
         reason={launchFlow.result?.reason ?? null}
       />
+
+      {/* A publish that broke on a glitch stays recoverable, not a dead end. */}
+      <PublishRetryBar
+        message={launchFlow.retryable}
+        isRetrying={launchFlow.isLaunching}
+        onRetry={launchFlow.retry}
+        onDismiss={launchFlow.dismissRetry}
+      />
+
     </>
   );
 }
