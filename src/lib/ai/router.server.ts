@@ -192,6 +192,44 @@ export function freeModelPoolDepth(): number {
   return Number.isFinite(raw) && raw > 0 ? Math.floor(raw) : Number.POSITIVE_INFINITY;
 }
 
+/**
+ * Every verified free model available for one role, grouped by provider and in
+ * preference order. This is the authoritative pool: no fixed per-provider cap.
+ */
+export async function freeModelPool(
+  role: ModelRole,
+): Promise<{ provider: FreeProviderName; credentials: { apiKey: string; accountId?: string }; models: string[] }[]> {
+  if (!freeAiEnabled()) return [];
+  const depth = freeModelPoolDepth();
+  const pools: {
+    provider: FreeProviderName;
+    credentials: { apiKey: string; accountId?: string };
+    models: string[];
+  }[] = [];
+  for (const entry of freeProviderChain(role)) {
+    if (!freeBudgetAllows(entry.name)) continue;
+    const models: string[] = [];
+    const consider = (model: string) => {
+      // Belt and braces: never dispatch a model that isn't free-eligible.
+      if (models.length >= depth) return;
+      if (!models.includes(model) && isFreeEligibleModel(entry.name, model)) models.push(model);
+    };
+    try {
+      // Image models come from a different catalogue endpoint, so the role is
+      // passed through and the right pool is refreshed.
+      await refreshFreeModels(entry.name, entry.credentials, role);
+      // No truncation: the provider's whole verified free catalogue for this
+      // role is ranked and offered.
+      for (const model of pickDiscoveredModels(entry.name, role, depth)) consider(model);
+    } catch {
+      // Discovery is advisory only; the configured free model still runs.
+    }
+    consider(entry.model);
+    if (models.length) pools.push({ provider: entry.name, credentials: entry.credentials, models });
+  }
+  return pools;
+}
+
 async function buildChain(role: ModelRole): Promise<Candidate[]> {
   // First choice per provider (breadth), then each provider's remaining free
   // models (depth). Breadth first means a provider outage costs one attempt,
@@ -200,30 +238,12 @@ async function buildChain(role: ModelRole): Promise<Candidate[]> {
   const first: Candidate[] = [];
   const deeper: Candidate[] = [];
 
-  if (freeAiEnabled())
-    for (const entry of freeProviderChain(role)) {
-      if (!freeBudgetAllows(entry.name)) continue;
-      const models: string[] = [];
-      const consider = (model: string) => {
-        // Belt and braces: never dispatch a model that isn't free-eligible.
-        if (!models.includes(model) && isFreeEligibleModel(entry.name, model)) models.push(model);
-      };
-      try {
-        // Image models come from a different catalogue endpoint, so the role is
-        // passed through and the right pool is refreshed.
-        await refreshFreeModels(entry.name, entry.credentials, role);
-        for (const model of pickDiscoveredModels(entry.name, role, FREE_MODELS_PER_PROVIDER))
-          consider(model);
-      } catch {
-        // Discovery is advisory only; the configured free model still runs.
-      }
-      consider(entry.model);
-      models.slice(0, FREE_MODELS_PER_PROVIDER).forEach((model, index) => {
-        const candidate = freeCandidate(entry.name, entry.credentials.apiKey, model, role);
-        if (index === 0) first.push(candidate);
-        else deeper.push(candidate);
-      });
-    }
+  for (const pool of await freeModelPool(role))
+    pool.models.forEach((model, index) => {
+      const candidate = freeCandidate(pool.provider, pool.credentials.apiKey, model, role);
+      if (index === 0) first.push(candidate);
+      else deeper.push(candidate);
+    });
 
   const candidates = [...first, ...deeper];
 
