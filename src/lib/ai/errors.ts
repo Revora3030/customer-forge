@@ -18,7 +18,8 @@ export type AiErrorCategory =
   | "too_large"
   | "timeout"
   | "provider_unavailable"
-  | "bad_response";
+  | "bad_response"
+  | "free_unavailable";
 
 /** Categories where sending the same request again can succeed. */
 const RETRYABLE: AiErrorCategory[] = ["rate_limited", "timeout", "provider_unavailable"];
@@ -99,4 +100,20 @@ export function providerUnavailable(provider: string, detail?: string) {
     `Revora's AI provider (${provider}) is temporarily unavailable. ${detail ?? "Try again shortly."}`.trim(),
     { category: "provider_unavailable", provider },
   );
+}
+
+/**
+ * FREE-AI-FIRST message. Shown when a request needed a generative model and no
+ * free provider could serve it. It is deliberately non-blocking: Revora's own
+ * deterministic engine still does the work, so this explains a reduced
+ * capability rather than a failure.
+ */
+export const AI_FREE_UNAVAILABLE_MESSAGE =
+  "No free AI provider is available right now, so Revora is completing this from your own business details. Nothing is blocked and no paid AI is required.";
+
+export function freeAiUnavailable(detail?: string) {
+  return new RevoraAiError(503, AI_FREE_UNAVAILABLE_MESSAGE, {
+    category: "free_unavailable",
+    detail: detail ?? null,
+  });
 }
