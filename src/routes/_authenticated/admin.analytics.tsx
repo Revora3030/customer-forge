@@ -41,6 +41,8 @@ const STAGE_TITLES: Record<string, string> = {
 function AdminAnalytics() {
   const qc = useQueryClient();
   const trafficFn = useServerFn(getTrafficReport);
+  const builderFn = useServerFn(getBuilderPublishFunnel);
+
   const funnelFn = useServerFn(getPlatformFunnel);
   const detailsFn = useServerFn(getFunnelDetails);
   const settingsFn = useServerFn(getPlatformSettings);
