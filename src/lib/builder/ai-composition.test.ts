@@ -156,3 +156,34 @@ describe("AI-composed site structure", () => {
     expect(actions.length).toBeLessThanOrEqual(3);
   });
 });
+
+describe("brand choices the owner made", () => {
+  it("uses the owner's colours and font instead of the look's own", async () => {
+    const { applyBrandPreference } = await import("@/lib/builder/ai-composition.server");
+    const { DESIGN_DIRECTIONS } = await import("@/lib/design-directions");
+    const base = DESIGN_DIRECTIONS[0]!;
+    const result = applyBrandPreference(base, {
+      tone: "dark",
+      primaryColor: "#123456",
+      secondaryColor: null,
+      accentColor: "#abcdef",
+      font: "Lora",
+      directionId: null,
+    });
+    expect(result.locked).toBe(true);
+    expect(result.direction.primary).toBe("#123456");
+    expect(result.direction.accent).toBe("#abcdef");
+    expect(result.direction.secondary).toBe(base.secondary);
+    expect(result.direction.font).toBe("Lora");
+    expect(result.direction.fontNote).toContain("you");
+  });
+
+  it("leaves the look untouched when nothing was chosen", async () => {
+    const { applyBrandPreference } = await import("@/lib/builder/ai-composition.server");
+    const { DESIGN_DIRECTIONS } = await import("@/lib/design-directions");
+    const base = DESIGN_DIRECTIONS[1]!;
+    const result = applyBrandPreference(base, null);
+    expect(result.locked).toBe(false);
+    expect(result.direction).toEqual(base);
+  });
+});

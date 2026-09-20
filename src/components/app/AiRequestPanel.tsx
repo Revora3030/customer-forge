@@ -33,6 +33,9 @@ import { askAssistant } from "@/lib/assistant-bridge";
 import { trackConversion } from "@/lib/conversion";
 
 import { BUILDER_PRIMARY_ACTIONS, BUILDER_QUICK_ACTIONS } from "@/lib/builder-modes";
+import { BrandChoices, hasBrandChoices } from "@/components/app/BrandChoices";
+import { CompositionPreviewCard } from "@/components/app/CompositionPreviewCard";
+import type { BrandPreference } from "@/lib/builder/composition-preview";
 import {
   approvedSteps,
   canAutoApply,
@@ -76,6 +79,8 @@ export function AiRequestPanel({
     Array<{ role: "user" | "assistant"; content: string }>
   >([]);
   const [ideasOpen, setIdeasOpen] = useState(false);
+  /** The owner's style, colour and font choices, sent with every request. */
+  const [brand, setBrand] = useState<BrandPreference | null>(null);
   const [showAllIdeas, setShowAllIdeas] = useState(false);
   const queryClient = useQueryClient();
 
@@ -193,6 +198,7 @@ export function AiRequestPanel({
           instruction: task.instruction,
           history: conversation.slice(-8),
           attachments: [],
+          ...(brand && hasBrandChoices(brand) ? { brand } : {}),
         },
       });
       const steps = result.steps as AgentStep[];
@@ -207,6 +213,7 @@ export function AiRequestPanel({
         summary: result.summary,
         questions,
         retryable: Boolean(result.unavailable?.retryable),
+        composition: result.composition ?? null,
       };
       // A request that ended in nothing actionable must never sit in a silent
       // hold with no working button. Empty plans become an honest, retryable
@@ -231,7 +238,10 @@ export function AiRequestPanel({
         ...(result.reply ? [{ role: "assistant" as const, content: result.reply }] : []),
       ] satisfies Array<{ role: "user" | "assistant"; content: string }>;
       setConversation(nextConversation.slice(-8));
-      if (!result.unavailable && canAutoApply(planned)) await runBuild(planned);
+      // A composed look and page structure is always previewed first: the owner
+      // approves or adjusts it before anything is written.
+      if (!result.unavailable && !planned.composition && canAutoApply(planned))
+        await runBuild(planned);
     } catch (error) {
       patch(task.id, {
         state: "failed",
@@ -327,6 +337,8 @@ export function AiRequestPanel({
         ) : null}
       </div>
 
+      <BrandChoices organizationId={organizationId} disabled={!ready} onChange={setBrand} />
+
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <Button
           size="sm"
@@ -421,6 +433,10 @@ export function AiRequestPanel({
                     <li key={question}>{question}</li>
                   ))}
                 </ul>
+              ) : null}
+
+              {task.composition ? (
+                <CompositionPreviewCard composition={task.composition} />
               ) : null}
 
               {task.steps.length ? (

@@ -10,6 +10,8 @@
  * the state machine can be tested exactly as the owner experiences it.
  */
 
+import type { CompositionPreview } from "@/lib/builder/composition-preview";
+
 export type QueueState =
   "queued" | "planning" | "waiting_for_approval" | "building" | "complete" | "failed" | "skipped";
 
@@ -45,7 +47,14 @@ export type QueueTask = {
   details?: string[];
   error?: string;
   retryable?: boolean;
+  /**
+   * The look and page blocks the AI composed for this request, with its
+   * reasoning. Present means the owner gets a preview to approve or adjust
+   * before anything is written.
+   */
+  composition?: CompositionPreview | null;
 };
+
 
 export const QUEUE_LABELS: Record<QueueState, string> = {
   queued: "Waiting",

@@ -122,6 +122,54 @@ type SupabaseLike = {
 
 /* --------------------------------- planning -------------------------------- */
 
+/** Words that mean "change how the pages are put together", not just the paint. */
+const COMPOSITION_WORDS = [
+  "layout",
+  "structure",
+  "sections",
+  "blocks",
+  "order",
+  "rearrange",
+  "reorder",
+  "redesign",
+  "design",
+  "look",
+  "style",
+  "rebuild",
+  "compose",
+  "restructure",
+  "homepage",
+  "home page",
+];
+
+function wantsComposition(instruction: string): boolean {
+  const text = instruction.toLowerCase();
+  return COMPOSITION_WORDS.some((word) => text.includes(word));
+}
+
+/** The owner's brand choices, read off the request before anything is composed. */
+function readBrand(
+  input: unknown,
+): import("@/lib/builder/ai-composition.server").BrandPreference | null {
+  if (!input || typeof input !== "object") return null;
+  const record = input as Record<string, unknown>;
+  const hex = (value: unknown) =>
+    typeof value === "string" && /^#[0-9a-fA-F]{6}$/.test(value) ? value : null;
+  const tone =
+    record['tone'] === "light" || record['tone'] === "dark" || record['tone'] === "any"
+      ? (record['tone'] as "light" | "dark" | "any")
+      : null;
+  const brand = {
+    tone,
+    primaryColor: hex(record['primaryColor']),
+    secondaryColor: hex(record['secondaryColor']),
+    accentColor: hex(record['accentColor']),
+    font: typeof record['font'] === "string" ? str(record['font'], 60) || null : null,
+    directionId: typeof record['directionId'] === "string" ? str(record['directionId'], 60) || null : null,
+  };
+  return Object.values(brand).some(Boolean) ? brand : null;
+}
+
 export const planWebsiteChanges = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator(
@@ -130,6 +178,7 @@ export const planWebsiteChanges = createServerFn({ method: "POST" })
       instruction: string;
       history?: { role: string; content: string }[];
       attachments?: unknown;
+      brand?: unknown;
     }) => {
       const organizationId = orgIdOf(input);
       const instruction = str(input?.instruction, PLAN_INSTRUCTION_LIMIT);
@@ -147,9 +196,10 @@ export const planWebsiteChanges = createServerFn({ method: "POST" })
             }))
             .filter((turn) => turn.content.length > 0)
         : [];
-      return { organizationId, instruction, history, attachments };
+      return { organizationId, instruction, history, attachments, brand: readBrand(input?.brand) };
     },
   )
+
 
   .handler(async ({ data, context }) =>
     planImpl(context.supabase as unknown as SupabaseLike, String(context.userId), data),
@@ -160,7 +210,9 @@ type PlanInput = {
   instruction: string;
   history: AgentTurn[];
   attachments: AgentAttachment[];
+  brand?: import("@/lib/builder/ai-composition.server").BrandPreference | null;
 };
+
 
 async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput) {
   {
@@ -355,6 +407,8 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
         retryable: boolean;
         instruction: string;
       } | null,
+      composition:
+        null as import("@/lib/builder/composition-preview").CompositionPreview | null,
     });
 
     // Revora's native engine is the primary brain: whenever it produced real,
@@ -381,14 +435,16 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
     let composed: Awaited<
       ReturnType<typeof import("@/lib/builder/ai-composition.server").proposeSiteComposition>
     > = null;
-    if (deterministic.intent.wholeSite && !zeroCost) {
+    if ((deterministic.intent.wholeSite || wantsComposition(instruction)) && !zeroCost) {
       const { proposeSiteComposition } = await import("@/lib/builder/ai-composition.server");
       composed = await proposeSiteComposition(agentContext, {
         instruction,
         organizationId: orgId,
         userId,
+        brand: data.brand ?? null,
       });
     }
+
 
     if (deterministic.actions.length && !deterministic.requiresExternalReasoning) {
       // Handled entirely by Revora's own rules unless a composition was proposed.
@@ -461,6 +517,8 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
             requirements: [] as { label: string; covered: boolean }[],
             trace: [...deterministic.trace, "Nothing changed — waiting on one detail."],
             unavailable: null,
+            composition:
+              null as import("@/lib/builder/composition-preview").CompositionPreview | null,
           };
         }
       }
@@ -548,7 +606,13 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
       // What the agent actually did to get here, stage by stage.
       trace: trace.slice(0, 8),
       unavailable: null as { reason: string; retryable: boolean; instruction: string } | null,
+      // The look and page blocks the AI chose, with its reasoning, so the owner
+      // can preview, approve or adjust before anything is applied.
+      composition: (composed
+        ? composed.preview
+        : null) as import("@/lib/builder/composition-preview").CompositionPreview | null,
     };
+
 
     await supabase.from("ai_generations").insert({
       organization_id: orgId,
