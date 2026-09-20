@@ -233,7 +233,7 @@ export function parseCustomBlock(raw: unknown): ParseResult {
         });
       }
       const ids = new Set(parsedOutcomes.map((outcome) => outcome.id));
-      const parsedQuestions: CustomBlockSpec extends { type: "quiz" } ? never : {
+      const parsedQuestions: {
         id: string;
         prompt: string;
         options: { label: string; outcome: string }[];
