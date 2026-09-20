@@ -12,7 +12,16 @@
 
 import { notConfigured, zeroCostBlocked } from "@/lib/ai/errors";
 
-export type ProviderName = "google" | "openai";
+/**
+ * Every provider Revora can address. `cloudflare` and `openrouter` exist only
+ * as free providers (see `src/lib/ai/free.ts`); the paid chain below can still
+ * only ever contain `google` or `openai`, and only when an operator has
+ * explicitly opted out of free-only mode.
+ */
+export type ProviderName = "google" | "openai" | "cloudflare" | "openrouter";
+
+/** Providers that bill Revora per call. */
+export type PaidProviderName = "google" | "openai";
 
 /** The kinds of work Revora routes; each maps to a model per provider. */
 export type ModelRole = "primary" | "fast" | "vision" | "coding" | "image" | "transcription";
