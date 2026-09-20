@@ -328,6 +328,15 @@ export type EnsembleRequest<T> = {
    * every model in the pool to repeat it.
    */
   settleWhenAgreed?: number;
+  /**
+   * Soft settle. Models rarely produce a byte-identical answer, so waiting for
+   * full agreement can mean waiting for the hard deadline every time. Once at
+   * least `softSettleMinValid` models have produced a VALID answer and this much
+   * time has passed, stop dispatching and decide on what is in hand. The owner
+   * gets a verified multi-model decision without the long tail.
+   */
+  softSettleAfterMs?: number;
+  softSettleMinValid?: number;
 };
 
 function positiveEnv(name: string, fallback: number) {
@@ -406,10 +415,18 @@ export async function runEnsemble<T>(
   const settleAt = request.settleWhenAgreed ?? 0;
   let settled = false;
 
+  // Soft settle bookkeeping (see softSettleAfterMs).
+  const softAfter = request.softSettleAfterMs ?? 0;
+  const softMinValid = Math.max(1, request.softSettleMinValid ?? 2);
+  let validCount = 0;
+  const softSettled = () =>
+    softAfter > 0 && validCount >= softMinValid && Date.now() - started >= softAfter;
+
   async function worker() {
     for (;;) {
       if (cursor >= queue.length) return;
       if (settled) return;
+      if (softSettled()) return;
       if (request.signal?.aborted) return;
       if (Date.now() >= deadline) {
         deadlineHit = true;
@@ -462,6 +479,7 @@ export async function runEnsemble<T>(
           reason: value === null ? "answer failed validation" : null,
           value,
         });
+        if (value !== null) validCount += 1;
         if (settleAt > 0 && value !== null) {
           const key = request.consensusKey(value);
           const votes = (liveVotes.get(key) ?? 0) + 1;

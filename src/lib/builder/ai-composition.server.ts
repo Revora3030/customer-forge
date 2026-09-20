@@ -535,9 +535,14 @@ async function composeByEnsemble(
         // The owner is waiting. Once three models have independently agreed on
         // the same look and page order, that is the decision — the rest of the
         // pool repeating it only adds waiting time.
-        settleWhenAgreed: 3,
-        deadlineMs: 45_000,
-        timeoutMsPerCall: 20_000,
+        settleWhenAgreed: 2,
+        // Soft settle: as soon as three seats have produced a valid, fact-checked
+        // proposal and 10s have passed, decide on those instead of waiting for
+        // the whole pool. Full agreement still settles instantly.
+        softSettleAfterMs: 10_000,
+        softSettleMinValid: 3,
+        deadlineMs: 30_000,
+        timeoutMsPerCall: 15_000,
         role: "design",
         prompt: ({ lane }) => [
           { role: "system", content: SYSTEM },
