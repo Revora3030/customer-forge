@@ -602,7 +602,6 @@ function readNewPages(text: string): string[] {
     }
   }
 
-
   return out.slice(0, 8);
 }
 
