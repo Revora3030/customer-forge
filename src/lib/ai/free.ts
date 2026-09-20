@@ -60,11 +60,13 @@ export const FREE_ALLOWANCE: Record<
  * free-eligibility rules below before it can be used.
  */
 const FREE_MODEL_DEFAULTS: Record<FreeProviderName, Partial<Record<ModelRole, string>>> = {
+  // Verified against Cloudflare's live Workers AI catalogue; live discovery can
+  // widen this, and every id is still re-checked for free eligibility.
   cloudflare: {
-    primary: "@cf/nvidia/nemotron-3-120b",
-    fast: "@cf/zhipuai/glm-4.7-flash",
-    coding: "@cf/nvidia/nemotron-3-120b",
-    vision: "@cf/google/gemma-4-26b-a4b",
+    primary: "@cf/openai/gpt-oss-120b",
+    fast: "@cf/meta/llama-3.2-3b-instruct",
+    coding: "@cf/qwen/qwen2.5-coder-32b-instruct",
+    vision: "@cf/meta/llama-3.2-11b-vision-instruct",
   },
   openrouter: {
     primary: "openrouter/auto:free",
