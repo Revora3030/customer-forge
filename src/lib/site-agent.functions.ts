@@ -1176,7 +1176,18 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
       kind: "agent_apply",
       model: "applied",
       instruction: snapshotLabel,
-      result: { operationId, applied, failed, mutations: undoSteps.length } as unknown as never,
+      result: {
+        operationId,
+        operationKey: data.operationKey || null,
+        applied,
+        failed,
+        stale: preflight.stale,
+        duplicates: preflight.duplicates,
+        snapshotLabel,
+        snapshotVersion,
+        mutations: undoSteps.length,
+      } as unknown as never,
+
       created_by: userId,
     });
 
