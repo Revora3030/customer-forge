@@ -655,6 +655,24 @@ export function classifyArchetype(input: {
   return best?.archetype ?? SITE_ARCHETYPES[0]!;
 }
 
+/**
+ * Same as `classifyArchetype` but returns null when nothing matched, so a
+ * caller can tell "no signal" apart from "local service business".
+ */
+export function matchArchetype(text: string | null | undefined): SiteArchetype | null {
+  const haystack = (text ?? "").toLowerCase().slice(0, HAYSTACK_LIMIT);
+  if (!haystack.trim()) return null;
+  let best: { archetype: SiteArchetype; score: number } | null = null;
+  for (const archetype of SITE_ARCHETYPES) {
+    let score = 0;
+    for (const keyword of archetype.keywords) {
+      if (haystack.includes(keyword)) score += 1 + keyword.length / 20;
+    }
+    if (score > 0 && (!best || score > best.score)) best = { archetype, score };
+  }
+  return best?.archetype ?? null;
+}
+
 export const archetypeById = (id: string | null | undefined): SiteArchetype | null =>
   SITE_ARCHETYPES.find((archetype) => archetype.id === id) ?? null;
 
