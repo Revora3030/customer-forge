@@ -144,11 +144,9 @@ export function AiRequestPanel({
         });
         // Recorded so the drop-off report can show why owners stall here.
         trackConversion("build_failed", {
-          metadata: {
-            organization_id: organizationId ?? "",
-            reason: result.stale ? "nothing_to_change" : "nothing_to_change",
-          },
+          metadata: { organization_id: organizationId ?? "", reason: "nothing_to_change" },
         });
+
         toast.error(message);
         refresh();
         return;
