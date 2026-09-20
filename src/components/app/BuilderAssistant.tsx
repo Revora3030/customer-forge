@@ -16,7 +16,7 @@ import {
   ConversationEmptyState,
   ConversationScrollButton,
 } from "@/components/ai-elements/conversation";
-import { Message, MessageContent, MessageResponse } from "@/components/ai-elements/message";
+import { Message, MessageContent } from "@/components/ai-elements/message";
 import {
   PromptInput,
   PromptInputButton,
@@ -192,7 +192,7 @@ function TaskBody({ task, requests }: { task: QueueTask; requests: BuilderReques
         </p>
       )}
 
-      {task.reply ? <MessageResponse>{task.reply}</MessageResponse> : null}
+      {task.reply ? <p className="text-[13px] whitespace-pre-line">{task.reply}</p> : null}
       {task.error ? <p className="text-[12.5px]">{task.error}</p> : null}
 
       {task.state === "building" || task.state === "complete" ? (
