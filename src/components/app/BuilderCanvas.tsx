@@ -1245,6 +1245,7 @@ export function BuilderCanvas({
           )}
         </aside>
       </div>
+      </div>
     </section>
   );
 }
