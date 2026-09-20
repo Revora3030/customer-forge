@@ -16,6 +16,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { detectCapabilities, type BuilderCapabilities } from "@/lib/builder/capabilities";
+import { applySummary } from "@/lib/builder/apply-report";
 import type { BrandPreference } from "@/lib/builder/composition-preview";
 import { hasBrandChoices } from "@/components/app/BrandChoices";
 import {
