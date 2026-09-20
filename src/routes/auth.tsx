@@ -348,7 +348,6 @@ function AuthPage() {
                 Each Google account gets its own <span className="gold-hl">Revora</span> workspace.
               </p>
 
-
               <div className="my-5 flex items-center gap-3">
                 <span className="h-px flex-1 bg-border" />
                 <span className="text-[11px] tracking-wider uppercase text-muted-foreground">

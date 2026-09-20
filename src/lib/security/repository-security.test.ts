@@ -2,7 +2,13 @@ import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
-const forbiddenEnvFiles = [".env", ".env.development", ".env.production", ".env.test", ".env.local"];
+const forbiddenEnvFiles = [
+  ".env",
+  ".env.development",
+  ".env.production",
+  ".env.test",
+  ".env.local",
+];
 
 function trackedFiles(paths: string[]): string[] {
   // Local, untracked env files are expected during development; the security
@@ -20,7 +26,6 @@ describe("repository security boundary", () => {
     const present = forbiddenEnvFiles.filter(existsSync);
     expect(trackedFiles(present)).toEqual([]);
   });
-
 
   it("keeps the committed environment template credential-free", () => {
     const example = readFileSync(".env.example", "utf8");
