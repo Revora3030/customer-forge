@@ -1265,14 +1265,28 @@ export function buildDeterministicPlan(
   }
 
   /* ------------------------------------------------------------------------ */
-  /* WHOLE-PAGE REWRITE                                                       */
+  /* PAGE REWRITE                                                             */
   /* ------------------------------------------------------------------------ */
 
-  if (intent.verbs.includes("rewrite") && intent.sectionKinds.length === 0 && page) {
+  /**
+   * A rewrite request is honoured whether or not the owner also named a part of
+   * the page. "Make the home page headline clearer and add a strong call to
+   * action" names the CTA, so the rewrite is scoped to the named sections and
+   * falls back to the whole page when none of them exist yet.
+   */
+  if (intent.verbs.includes("rewrite") && page) {
     task("Rewrite the page around the business's own facts", () => {
+      const all = sectionsOf(page);
+
+      const named = intent.sectionKinds.length
+        ? all.filter((section) => intent.sectionKinds.includes(section.kind))
+        : [];
+
+      const targets = (named.length ? named : all).slice(0, MAX_COPY_SECTIONS);
+
       let changed = false;
 
-      for (const section of sectionsOf(page).slice(0, MAX_COPY_SECTIONS)) {
+      for (const section of targets) {
         if (actions.length >= cap) {
           break;
         }
@@ -1291,6 +1305,7 @@ export function buildDeterministicPlan(
       return changed;
     });
   }
+
 
   /* ------------------------------------------------------------------------ */
   /* HIERARCHY                                                               */
