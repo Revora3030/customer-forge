@@ -14,7 +14,7 @@ import { SiteSection, StickyCallBar } from "@/components/site/SiteSections";
 import { businessFacts } from "@/lib/builder/facts";
 import { safeText } from "@/lib/builder/presentation";
 import { SiteBackdrop } from "@/components/site/SiteBackdrop";
-import { siteThemeStyle } from "@/lib/site-theme";
+import { siteFontHref, siteFontStyle, siteThemeStyle } from "@/lib/site-theme";
 import { readComposition } from "@/lib/visual-composition";
 import { readBackdrop } from "@/lib/site-effects";
 import { getPublicSite, trackPublicEvent, type PublicSite } from "@/lib/public-site.functions";
@@ -66,7 +66,19 @@ export const Route = createFileRoute("/s/$slug/$page")({
           : []),
         ...(page.noindex ? [{ name: "robots", content: "noindex" }] : []),
       ],
-      links: [{ rel: "canonical", href: url }],
+      links: [
+        { rel: "canonical", href: url },
+        // Same as the home page: the chosen heading font has to be requested
+        // here or it is stored but never seen.
+        ...(siteFontHref(loaderData.profile?.font_preference)
+          ? [
+              {
+                rel: "stylesheet",
+                href: siteFontHref(loaderData.profile?.font_preference) as string,
+              },
+            ]
+          : []),
+      ],
     };
   },
   component: SitePageRoute,
@@ -124,11 +136,14 @@ export function SitePageView({
   return (
     <div
       className="min-h-screen bg-background"
-      style={siteThemeStyle({
-        primaryColor: profile?.primary_color ?? null,
-        secondaryColor: profile?.secondary_color ?? null,
-        accentColor: profile?.accent_color ?? null,
-      })}
+      style={{
+        ...siteThemeStyle({
+          primaryColor: profile?.primary_color ?? null,
+          secondaryColor: profile?.secondary_color ?? null,
+          accentColor: profile?.accent_color ?? null,
+        }),
+        ...siteFontStyle(profile?.font_preference ?? null),
+      }}
     >
       <SiteBackdrop
         backdrop={readBackdrop(site.settings?.generation ?? null)}

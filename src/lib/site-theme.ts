@@ -111,3 +111,93 @@ export function siteThemeStyle(input: {
 
   return vars as CSSProperties;
 }
+
+/**
+ * Heading fonts a client website may use.
+ *
+ * Every design direction picks from this list, and only these names are ever
+ * turned into a stylesheet request — a stored value that isn't here is ignored
+ * rather than injected into a URL. The value is the Google Fonts family spec
+ * (family plus the weights the renderer actually uses).
+ */
+export const SITE_HEADING_FONTS: Record<string, string> = {
+  Anton: "Anton",
+  "Archivo Black": "Archivo+Black",
+  "Bebas Neue": "Bebas+Neue",
+  "Bricolage Grotesque": "Bricolage+Grotesque:wght@500;600;700",
+  Chivo: "Chivo:wght@500;600;700",
+  "Cormorant Garamond": "Cormorant+Garamond:wght@500;600;700",
+  "DM Serif Display": "DM+Serif+Display",
+  Epilogue: "Epilogue:wght@500;600;700",
+  Figtree: "Figtree:wght@500;600;700",
+  Fraunces: "Fraunces:wght@500;600;700",
+  Geist: "Geist:wght@500;600;700",
+  "IBM Plex Sans": "IBM+Plex+Sans:wght@500;600;700",
+  Inter: "Inter:wght@500;600;700",
+  "Instrument Serif": "Instrument+Serif",
+  Jost: "Jost:wght@500;600;700",
+  Karla: "Karla:wght@500;600;700",
+  "Libre Baskerville": "Libre+Baskerville:wght@400;700",
+  Lora: "Lora:wght@500;600;700",
+  Manrope: "Manrope:wght@500;600;700",
+  Marcellus: "Marcellus",
+  Merriweather: "Merriweather:wght@400;700",
+  Oswald: "Oswald:wght@500;600;700",
+  Outfit: "Outfit:wght@500;600;700",
+  "Playfair Display": "Playfair+Display:wght@500;600;700",
+  "Plus Jakarta Sans": "Plus+Jakarta+Sans:wght@500;600;700",
+  "Public Sans": "Public+Sans:wght@500;600;700",
+  Rubik: "Rubik:wght@500;600;700",
+  "Schibsted Grotesk": "Schibsted+Grotesk:wght@500;600;700",
+  Sora: "Sora:wght@500;600;700",
+  "Space Grotesk": "Space+Grotesk:wght@500;600;700",
+  Spectral: "Spectral:wght@500;600;700",
+  Syne: "Syne:wght@600;700;800",
+  Urbanist: "Urbanist:wght@500;600;700",
+  "Work Sans": "Work+Sans:wght@500;600;700",
+};
+
+const SERIF_FONTS = new Set([
+  "Cormorant Garamond",
+  "DM Serif Display",
+  "Fraunces",
+  "Instrument Serif",
+  "Libre Baskerville",
+  "Lora",
+  "Marcellus",
+  "Merriweather",
+  "Playfair Display",
+  "Spectral",
+]);
+
+/** The allowlisted font name for a stored preference, or null. */
+export function siteHeadingFont(value: string | null | undefined): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const match = Object.keys(SITE_HEADING_FONTS).find(
+    (name) => name.toLowerCase() === trimmed.toLowerCase(),
+  );
+  return match ?? null;
+}
+
+/**
+ * The stylesheet a site needs for its chosen heading font. Returns null when
+ * the site uses the default face, so no extra request is made.
+ */
+export function siteFontHref(value: string | null | undefined): string | null {
+  const font = siteHeadingFont(value);
+  if (!font) return null;
+  return `https://fonts.googleapis.com/css2?family=${SITE_HEADING_FONTS[font]}&display=swap`;
+}
+
+/**
+ * CSS variable override that makes the chosen heading font actually render.
+ * Without this a client's font choice was stored but never seen.
+ */
+export function siteFontStyle(value: string | null | undefined): CSSProperties | undefined {
+  const font = siteHeadingFont(value);
+  if (!font) return undefined;
+  const fallback = SERIF_FONTS.has(font) ? "Georgia, serif" : "system-ui, sans-serif";
+  return { "--font-heading": `"${font}", ${fallback}` } as CSSProperties;
+}

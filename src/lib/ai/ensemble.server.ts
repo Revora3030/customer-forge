@@ -314,6 +314,12 @@ export type EnsembleRequest<T> = {
   deadlineMs?: number;
   timeoutMsPerCall?: number;
   signal?: AbortSignal;
+  /**
+   * Stop dispatching further models once this many of them have independently
+   * produced the same validated answer. The owner waits for a decision, not for
+   * every model in the pool to repeat it.
+   */
+  settleWhenAgreed?: number;
 };
 
 function positiveEnv(name: string, fallback: number) {

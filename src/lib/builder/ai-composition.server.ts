@@ -288,28 +288,39 @@ export function composeActions(
 const HEX = /^#[0-9a-fA-F]{6}$/;
 
 /**
- * Folds the owner's own brand choices over the AI's chosen direction. Their
- * colours and font always win; the AI still decides layout, motion and backdrop.
+ * Folds the owner's own brand choices over the chosen direction.
+ *
+ * Their colours and font win for ordinary edits. When the request itself asks
+ * for a new look ("redesign", "make it premium", "pick colours that suit my
+ * industry"), the chosen palette wins instead — otherwise a redesign made
+ * dozens of changes and left the site looking identical. A stated "keep my
+ * colours" always wins over both. The previous palette is still in the restore
+ * history, so one undo brings it back.
  */
 export function applyBrandPreference(
   direction: DesignDirection,
   brand?: BrandPreference | null,
+  mode: "keep_owner_colours" | "restyle" = "keep_owner_colours",
 ): { direction: DesignDirection; locked: boolean } {
   if (!brand) return { direction, locked: false };
   const next = { ...direction };
   let locked = false;
-  if (brand.primaryColor && HEX.test(brand.primaryColor)) {
-    next.primary = brand.primaryColor;
-    locked = true;
+  if (mode !== "restyle") {
+    if (brand.primaryColor && HEX.test(brand.primaryColor)) {
+      next.primary = brand.primaryColor;
+      locked = true;
+    }
+    if (brand.secondaryColor && HEX.test(brand.secondaryColor)) {
+      next.secondary = brand.secondaryColor;
+      locked = true;
+    }
+    if (brand.accentColor && HEX.test(brand.accentColor)) {
+      next.accent = brand.accentColor;
+      locked = true;
+    }
   }
-  if (brand.secondaryColor && HEX.test(brand.secondaryColor)) {
-    next.secondary = brand.secondaryColor;
-    locked = true;
-  }
-  if (brand.accentColor && HEX.test(brand.accentColor)) {
-    next.accent = brand.accentColor;
-    locked = true;
-  }
+  // A font the owner explicitly chose is a typed decision, not a palette, so
+  // it survives a restyle unless they also asked for new type.
   if (brand.font && brand.font.trim().length > 1) {
     next.font = brand.font.trim().slice(0, 60);
     next.fontNote = "chosen by you";
@@ -338,6 +349,8 @@ export async function proposeSiteComposition(
   if (!visiblePages(context).length) return null;
 
   const brand = options.brand ?? null;
+  const { brandLockMode, brandLockNote } = await import("./brand-lock");
+  const lockMode = brandLockMode(options.instruction);
   // Each request draws a fresh set of candidate identities, so the same
   // business asking twice is never handed the same look twice.
   const refresh = hashText(`${options.instruction}|${new Date().toISOString().slice(0, 13)}`);
@@ -376,10 +389,40 @@ export async function proposeSiteComposition(
       ensembleProof?.winner ??
       (await composeBySingleModel(context, candidates, userBrief, options));
     if (!proposal) return null;
-    const ensembleNotes = ensembleProof ? [proofSummaryLine(ensembleProof)] : [];
+    const ensembleNotes = [
+      ...(ensembleProof ? [proofSummaryLine(ensembleProof)] : []),
+      brandLockNote(lockMode),
+    ];
 
-    // The owner's own choices are final, so they override the model's palette.
-    const branded = applyBrandPreference(chosen ?? proposal.direction, brand);
+    // Two businesses in the same trade must not end up with the same hex
+    // values, so the chosen palette is nudged by a small, stable, per-business
+    // amount before anything else looks at it.
+    const { varyIndustryVisual } = await import("@/lib/color-variation");
+    const personalisedSource = chosen ?? proposal.direction;
+    const varied = varyIndustryVisual(
+      {
+        primary: personalisedSource.primary,
+        secondary: personalisedSource.secondary,
+        accent: personalisedSource.accent,
+        font: personalisedSource.font,
+        backdrop: personalisedSource.backdrop,
+      },
+      {
+        organizationId: options.organizationId ?? null,
+        businessName: context.business.name ?? "",
+        industry: context.business.industry ?? "",
+        city: context.business.city ?? "",
+      },
+    );
+    const personalised: DesignDirection = {
+      ...personalisedSource,
+      primary: varied.primary,
+      accent: varied.accent,
+    };
+
+    // The owner's own choices are final for ordinary edits; a request that asks
+    // for a new look installs the chosen palette instead.
+    const branded = applyBrandPreference(personalised, brand, lockMode);
     const composed = composeActions(
       context,
       { direction: branded.direction, pages: proposal.pages },
