@@ -30,7 +30,7 @@ export async function generateImageBase64(
     return { ok: true, base64: result.base64 };
   } catch (error) {
     if (error instanceof RevoraAiError) {
-      const blocked = ["not_configured", "unauthorized", "quota", "policy"].includes(
+      const blocked = ["not_configured", "free_unavailable", "unauthorized", "quota", "policy"].includes(
         error.category,
       );
       return { ok: false, blocked, message: error.message };

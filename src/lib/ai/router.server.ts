@@ -25,14 +25,28 @@
 
 import {
   aiLimits,
-  requireProviderChain,
+  providerChain,
   type ModelRole,
   type ProviderConfig,
   type ProviderName,
   zeroAiCostMode,
 } from "@/lib/ai/config";
-import { RevoraAiError, providerUnavailable, zeroCostBlocked } from "@/lib/ai/errors";
+import { RevoraAiError, freeAiUnavailable, providerUnavailable } from "@/lib/ai/errors";
+import {
+  freeAiEnabled,
+  freeAiOnly,
+  freeBudgetAllows,
+  freeBudgetRemaining,
+  freeProviderChain,
+  freeProviderReadiness,
+  isFreeEligibleModel,
+  noteFreeUse,
+  type FreeProviderName,
+} from "@/lib/ai/free";
+import { pickDiscoveredModel, refreshFreeModels } from "@/lib/ai/free-models.server";
+import { cloudflareAdapter } from "@/lib/ai/providers/cloudflare";
 import { googleAdapter } from "@/lib/ai/providers/google";
+import { openRouterAdapter } from "@/lib/ai/providers/openrouter";
 import { openAiAdapter } from "@/lib/ai/providers/openai";
 import { base64ByteLength } from "@/lib/ai/providers/shared";
 import { checkAiLimits, recordAiEvent } from "@/lib/ai/telemetry.server";
@@ -51,6 +65,8 @@ import type {
 const ADAPTERS: Record<ProviderName, ProviderAdapter> = {
   google: googleAdapter,
   openai: openAiAdapter,
+  cloudflare: cloudflareAdapter,
+  openrouter: openRouterAdapter,
 };
 
 /* ----------------------------- circuit breaker ----------------------------- */
@@ -89,6 +105,94 @@ export function providerHealth() {
       cooldownUntil: state && state.openUntil > Date.now() ? state.openUntil : null,
     };
   });
+}
+
+/* ------------------------------ the free chain ----------------------------- */
+
+type Candidate = { config: ProviderConfig; model: string; free: FreeProviderName | null };
+
+function freeCandidate(
+  name: FreeProviderName,
+  apiKey: string,
+  model: string,
+  role: ModelRole,
+): Candidate {
+  const models = {
+    primary: model,
+    fast: model,
+    vision: model,
+    coding: model,
+    image: model,
+    transcription: model,
+  } as Record<ModelRole, string>;
+  models[role] = model;
+  return { config: { name: name as ProviderName, apiKey, models }, model, free: name };
+}
+
+/**
+ * The provider order for one request:
+ *
+ * 1. every configured FREE provider that has a free-eligible model for the
+ *    role, still inside its daily budget, healthiest first;
+ * 2. a paid provider ONLY when an operator has explicitly turned off both
+ *    free-only mode and zero-cost mode. There is no implicit paid fallback.
+ *
+ * Live discovery is consulted first so a provider's current free pool is used
+ * instead of a fixed list; a discovered id must still pass the free-eligibility
+ * check before it can replace the configured model.
+ */
+async function buildChain(role: ModelRole): Promise<Candidate[]> {
+  const candidates: Candidate[] = [];
+
+  if (freeAiEnabled())
+    for (const entry of freeProviderChain(role)) {
+    if (!freeBudgetAllows(entry.name)) continue;
+    let model = entry.model;
+    try {
+      await refreshFreeModels(entry.name, entry.credentials);
+      const discovered = pickDiscoveredModel(entry.name, role);
+      if (discovered && isFreeEligibleModel(entry.name, discovered)) model = discovered;
+    } catch {
+      // Discovery is advisory only; the configured free model still runs.
+    }
+    // Belt and braces: never dispatch a model that isn't free-eligible.
+    if (!isFreeEligibleModel(entry.name, model)) continue;
+    candidates.push(freeCandidate(entry.name, entry.credentials.apiKey, model, role));
+  }
+
+  // Paid providers stay unreachable unless BOTH guards are explicitly off.
+  if (!freeAiOnly() && !zeroAiCostMode())
+    for (const config of providerChain())
+      candidates.push({ config, model: config.models[role], free: null });
+
+  return [
+    ...candidates.filter((entry) => providerHealthy(entry.config.name)),
+    ...candidates.filter((entry) => !providerHealthy(entry.config.name)),
+  ];
+}
+
+/**
+ * Free AI status for the admin surface. Reports what is configured, what the
+ * provider publishes as its free allowance, what budget is left in this
+ * process, and which providers are in a breaker cooldown. No key material and
+ * no secret-derived value is included.
+ */
+export function freeAiStatus() {
+  return {
+    freeAiEnabled: freeAiEnabled(),
+    freeOnly: freeAiOnly(),
+    paidFallbackReachable: !freeAiOnly() && !zeroAiCostMode(),
+    providers: freeProviderReadiness().map((entry) => {
+      const state = breaker.get(entry.name as ProviderName);
+      const cooling = state && state.openUntil > Date.now();
+      return {
+        ...entry,
+        healthy: !cooling,
+        cooldownUntil: cooling ? state.openUntil : null,
+        remainingToday: freeBudgetRemaining(entry.name),
+      };
+    }),
+  };
 }
 
 /* ------------------------------- concurrency ------------------------------- */
@@ -173,13 +277,15 @@ async function run<T>(
   inputTokens: number | null;
   outputTokens: number | null;
 }> {
-  // ZERO-COST GATE. Checked on the server before anything else happens, so no
-  // key, adapter, URL or retry path can be reached while it is on.
-  if (zeroAiCostMode()) throw zeroCostBlocked();
-
   const limits = aiLimits();
   const requestId = caller.requestId ?? newRequestId();
-  const chain = requireProviderChain();
+
+  // FREE-FIRST GATE. Free providers are tried first; paid providers are only in
+  // this chain when an operator has explicitly opted out of free-only and
+  // zero-cost mode. An empty chain is not a crash: the caller falls back to
+  // Revora's deterministic engine and the owner gets a precise explanation.
+  const chain = await buildChain(role);
+  if (chain.length === 0) throw freeAiUnavailable("no free provider configured or in budget");
 
   const verdict = await checkAiLimits(caller);
   if (!verdict.allowed) throw new RevoraAiError(429, verdict.reason, { category: "rate_limited" });
@@ -191,16 +297,14 @@ async function run<T>(
     });
 
   try {
-    const ordered = [
-      ...chain.filter((entry) => providerHealthy(entry.name)),
-      ...chain.filter((entry) => !providerHealthy(entry.name)),
-    ];
+    const ordered = chain;
     let lastError: unknown = null;
 
     for (let index = 0; index < ordered.length; index += 1) {
-      const config = ordered[index]!;
+      const candidate = ordered[index]!;
+      const config = candidate.config;
       const adapter = ADAPTERS[config.name];
-      const model = config.models[role];
+      const model = candidate.model;
       const fallbackUsed = index > 0;
 
       for (let attempt = 1; attempt <= limits.maxAttemptsPerProvider; attempt += 1) {
@@ -208,6 +312,7 @@ async function run<T>(
         const controller = new AbortController();
         const timer = setTimeout(() => controller.abort(), limits.requestTimeoutMs);
         try {
+          if (candidate.free) noteFreeUse(candidate.free);
           const result = await execute({ adapter, config, model, signal: controller.signal });
           noteSuccess(config.name);
           void recordAiEvent({
@@ -280,7 +385,7 @@ async function run<T>(
 
     throw lastError instanceof RevoraAiError
       ? lastError
-      : providerUnavailable(ordered[0]?.name ?? "google");
+      : providerUnavailable(ordered[0]?.config.name ?? "cloudflare");
   } finally {
     release(concurrencyKey);
   }
