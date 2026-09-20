@@ -2,10 +2,12 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   Outlet,
   createRootRouteWithContext,
+  notFound,
   useRouter,
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
+
 import { useEffect, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
@@ -18,6 +20,31 @@ import { PlatformAnalytics } from "@/components/marketing/PlatformAnalytics";
 import { reportRouteError } from "@/lib/route-error-reporting";
 
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
+  /**
+   * Keeps Revora's own site and published client websites completely apart.
+   *
+   * On a client's verified domain, Revora's own pages (sign-in, dashboard,
+   * billing, marketing, share links) are simply not there — they return "page
+   * not found" instead of leaking Revora's site onto the client's address. The
+   * check only runs on addresses that are not Revora's own, so nothing on
+   * revoragrowthsystems.com is affected.
+   */
+  beforeLoad: async ({ location }) => {
+    if (typeof window === "undefined") return;
+    const { isPossibleTenantHost, isRevoraOnlyPath } = await import("@/lib/revora-address");
+    if (!isPossibleTenantHost(window.location.hostname)) return;
+    if (!isRevoraOnlyPath(location.pathname)) return;
+    const { getHostSite } = await import("@/lib/host-site.functions");
+    try {
+      const response = await getHostSite({ data: {} });
+      if (response?.tenant) throw notFound();
+    } catch (error) {
+      // A failed lookup must not take Revora's own pages down, so only a
+      // confirmed client address blocks the path.
+      if (error && typeof error === "object" && "routerCode" in error) throw error;
+    }
+  },
+
   head: () => ({
     meta: [
       { charSet: "utf-8" },

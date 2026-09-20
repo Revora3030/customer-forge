@@ -208,3 +208,53 @@ export function canonicalSiteUrl(
   if (!base) return null;
   return isHome ? base : `${base}/${page}`;
 }
+
+/**
+ * Paths that belong to REVORA ONLY — the marketing site, the dashboard, sign-in,
+ * billing and the share/preview paths.
+ *
+ * A client's own domain must never serve any of these: a visitor on
+ * `joesplumbing.com/pricing` sees Joe's prices, and `joesplumbing.com/get-started`
+ * is simply a page that doesn't exist on Joe's website rather than Revora's
+ * signup form. Paths shared with client websites (`/`, `/about`, `/contact`,
+ * `/pricing`, and any single-segment client page) are deliberately absent here —
+ * those routes resolve the client's own page themselves.
+ */
+const REVORA_ONLY_PREFIXES = [
+  "/app",
+  "/admin",
+  "/my",
+  "/auth",
+  "/portal",
+  "/onboarding",
+  "/get-started",
+  "/reset-password",
+  "/invite",
+  "/share",
+  "/s/",
+  "/p/",
+  "/demo",
+  "/guides",
+  "/industries",
+  "/locations",
+  "/local",
+  "/states",
+  "/compare",
+  "/crm",
+  "/tools",
+  "/website-audit",
+  "/growth-assessment",
+  "/privacy",
+  "/terms",
+];
+
+/** True when this path is Revora's own and must 404 on a client's domain. */
+export function isRevoraOnlyPath(pathname: string | null | undefined) {
+  const path = String(pathname ?? "").toLowerCase();
+  const clean = path.length > 1 ? path.replace(/\/+$/, "") : path;
+  return REVORA_ONLY_PREFIXES.some(
+    (prefix) =>
+      clean === prefix.replace(/\/$/, "") ||
+      clean.startsWith(prefix.endsWith("/") ? prefix : `${prefix}/`),
+  );
+}
