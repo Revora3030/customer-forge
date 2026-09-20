@@ -307,3 +307,80 @@ function AdminAi() {
     </div>
   );
 }
+
+/**
+ * The paid master planner's own panel: whether it is switched on, how much of
+ * this month's hard cap is used, and what happened on its recent calls. No key,
+ * prompt or generated content is shown here.
+ */
+function LunaPanel() {
+  const load = useServerFn(getLunaStatus);
+  const status = useQuery({
+    queryKey: ["admin-luna-status"],
+    queryFn: () => load({}),
+    refetchInterval: 60_000,
+  });
+  const data = status.data;
+
+  return (
+    <Panel>
+      <SectionHeading
+        title="Master planner (paid)"
+        description="One paid model coordinates the free workforce. It never builds a website itself, and it stops for the month the moment this cap is reached — websites keep building on the free engine either way."
+      />
+      {status.isLoading ? <LoadingRows /> : null}
+      {status.error ? <ErrorNote message="Could not read the master planner's spending." /> : null}
+      {data ? (
+        <>
+          <div className="mb-3 flex flex-wrap items-center gap-2">
+            <Pill tone={data.enabled && !data.blocked ? "signal" : "attention"}>
+              {!data.keyPresent
+                ? "No key set"
+                : !data.enabled
+                  ? "Switched off"
+                  : data.blocked
+                    ? "Paused — cap reached"
+                    : "Active"}
+            </Pill>
+            <span className="text-[13px] text-muted-foreground">{data.model}</span>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <MetricCard label="Monthly cap" value={money(data.capUsd)} hint={data.month} />
+            <MetricCard label="Used" value={money(data.spentUsd)} hint="This calendar month" />
+            <MetricCard label="Remaining" value={money(data.remainingUsd)} hint="No auto top-up" />
+            <MetricCard label="Calls" value={count(data.calls)} hint="This calendar month" />
+          </div>
+          <div className="mt-3 space-y-2">
+            {data.events.length === 0 ? (
+              <EmptyState
+                icon={<Sparkles className="size-5" />}
+                title="No coordination calls yet"
+                description="Nothing has been spent this month."
+              />
+            ) : (
+              data.events.map((event) => (
+                <div
+                  key={event.id}
+                  className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-card/40 p-3 text-[13px]"
+                >
+                  <Pill tone={event.outcome === "succeeded" ? "signal" : "attention"}>
+                    {event.outcome}
+                  </Pill>
+                  <span className="font-medium">{event.purpose.replace(/_/g, " ")}</span>
+                  <span className="text-muted-foreground">{money(event.costUsd)}</span>
+                  <span className="text-muted-foreground">
+                    {count(event.inputTokens)} in · {count(event.cachedInputTokens)} reused ·{" "}
+                    {count(event.outputTokens)} out
+                  </span>
+                  {event.reason ? (
+                    <span className="text-muted-foreground">{event.reason}</span>
+                  ) : null}
+                </div>
+              ))
+            )}
+          </div>
+        </>
+      ) : null}
+    </Panel>
+  );
+}
