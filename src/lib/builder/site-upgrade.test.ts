@@ -109,7 +109,6 @@ describe("planWholeSiteUpgrade", () => {
   });
 
   it("adds a reviews section when the workspace actually has published reviews", () => {
-    console.log("REVIEWS TEST business:", JSON.stringify(Object.keys(ctx({ business: { publishedReviewCount: 12 } }).business)));
     const plan = planWholeSiteUpgrade(
       ctx({ business: { publishedReviewCount: 12 } }),
       interpret("rebuild my whole website for conversions", []),
