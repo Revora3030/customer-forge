@@ -23,6 +23,14 @@
  * supplied. Estimators must carry a note saying the result is an estimate.
  */
 
+import {
+  describeFreeformBlock,
+  parseFreeformBlock,
+  type FreeformSpec,
+} from "@/lib/builder/freeform";
+
+export type { FreeformSpec };
+
 export type CustomBlockKind =
   | "calculator"
   | "quiz"
