@@ -380,19 +380,56 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
           "Built with Revora's own engine — no outside AI involved.",
         ];
       } else {
-        return {
-          reply:
-            "I want to get this right rather than guess. Tell me which part of your website you'd like changed — for example the top of the home page, your services, your prices, or how it looks — and I'll do it.",
-          summary: "",
-          steps: [] as AgentStep[],
-          questions: deterministic.questions.length
-            ? deterministic.questions
-            : ["Which part of your website should I change?"],
-          notes: deterministic.notes,
-          requirements: [] as { label: string; covered: boolean }[],
-          trace: [...deterministic.trace, "Nothing changed — waiting on one detail."],
-          unavailable: null,
-        };
+        // The request was too vague to place directly. Rather than answering
+        // with a question, Revora reads the real site map and does the single
+        // most valuable thing it can see, and says plainly why it chose it.
+        const { resolveVagueIntent } = await import("@/lib/builder/intent-resolution");
+        const resolved = resolveVagueIntent(agentContext);
+        const retry = resolved
+          ? buildAutonomousPlan(agentContext, resolved.instruction, {
+              history: data.history
+                .filter((turn) => turn.role === "user")
+                .map((turn) => turn.content)
+                .slice(-6),
+              attachments: data.attachments.map((attachment) => ({
+                kind: attachment.kind,
+                name: attachment.name,
+              })),
+            })
+          : null;
+
+        if (resolved && retry?.actions.length) {
+          requirements = [...new Set(retry.intent.verbs)].map((verb) => ({
+            label: verb,
+            covered: true,
+          }));
+          trace = [
+            ...retry.trace,
+            `You weren't specific, so Revora chose this: ${resolved.because}.`,
+            "Built with Revora's own engine — no outside AI involved.",
+          ];
+          raw = {
+            reply: `I wasn't sure which part you meant, so I went with the biggest win — ${resolved.because}. Here's the plan.`,
+            summary: retry.summary,
+            actions: retry.actions as unknown,
+            questions: retry.questions,
+            notes: retry.notes,
+          } as Record<string, unknown>;
+        } else {
+          return {
+            reply:
+              "I want to get this right rather than guess. Tell me which part of your website you'd like changed — for example the top of the home page, your services, your prices, or how it looks — and I'll do it.",
+            summary: "",
+            steps: [] as AgentStep[],
+            questions: deterministic.questions.length
+              ? deterministic.questions
+              : ["Which part of your website should I change?"],
+            notes: deterministic.notes,
+            requirements: [] as { label: string; covered: boolean }[],
+            trace: [...deterministic.trace, "Nothing changed — waiting on one detail."],
+            unavailable: null,
+          };
+        }
       }
     } else {
       let attempt = 0;
@@ -665,10 +702,7 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
     for (const section of site.sections) {
       nextSectionSort.set(
         section.page_id,
-        Math.max(
-          nextSectionSort.get(section.page_id) ?? 0,
-          Number(section.sort_order) + 1,
-        ),
+        Math.max(nextSectionSort.get(section.page_id) ?? 0, Number(section.sort_order) + 1),
       );
     }
 
@@ -714,7 +748,10 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
         };
       }
       if ("componentId" in resolved && newComponents.has(resolved.componentId))
-        resolved = { ...resolved, componentId: newComponents.get(resolved.componentId)! } as AgentAction;
+        resolved = {
+          ...resolved,
+          componentId: newComponents.get(resolved.componentId)!,
+        } as AgentAction;
       const action = resolved;
 
       if (action.type === "reorder_sections") {

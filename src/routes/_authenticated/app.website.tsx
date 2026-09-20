@@ -615,7 +615,6 @@ function WebsitePage() {
               launchFlow.launch();
             }}
           />
-          <AssistantShowcase />
           <Disclosure
             label="Improve my website"
             hint="Revora checks your site and fixes what it finds"

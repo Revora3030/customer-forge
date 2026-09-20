@@ -351,9 +351,7 @@ export function SiteChatbot({
           rows={messages.length ? 3 : 5}
           value={instruction}
           onChange={(event) => setInstruction(event.target.value.slice(0, PLAN_INSTRUCTION_LIMIT))}
-          placeholder={
-            "e.g. I want more emergency callouts — make the home page about that and make it easy to phone me."
-          }
+          placeholder="Tell Revora what you want…"
           disabled={!canManage || !hasSections}
           aria-label="Tell Revora what to change"
           className="min-h-[96px] scroll-mt-28"
@@ -410,119 +408,62 @@ export function SiteChatbot({
               that request
             </Button>
           ) : null}
-          <span className="text-[11px] text-muted-foreground">
-            {instruction.length.toLocaleString()} / {PLAN_INSTRUCTION_LIMIT.toLocaleString()}{" "}
-            characters
-          </span>
         </div>
-        <p className="text-[11px] text-muted-foreground">
-          Unlimited requests, edits, rebuilds and publishes — the builder is included in your Revora
-          subscription. There are no credits, tokens or per-change charges.
-        </p>
 
-        <label className="flex cursor-pointer items-start gap-2.5 rounded-md border border-primary/30 bg-primary/5 p-3">
+        <label className="flex cursor-pointer items-center gap-2.5 text-[12px]">
           <input
             type="checkbox"
             checked={autoApply}
             onChange={(event) => setAutoApply(event.target.checked)}
             disabled={!canManage}
-            className="mt-0.5 size-4 accent-primary"
+            className="size-4 accent-primary"
           />
-          <span className="min-w-0">
-            <span className="block text-[12.5px] font-medium text-primary">
-              Auto-install safe changes the moment they're ready
-            </span>
-            <span className="mt-0.5 block text-[11.5px] text-muted-foreground">
-              Revora writes every change straight onto your site when nothing is being removed and
-              nothing is missing. A rollback point is still saved first. Anything that removes
-              content always waits for your approval.
-            </span>
-          </span>
+          <span>Apply safe changes automatically</span>
         </label>
-        <div className="space-y-2">
-          <p className="text-[11px] font-medium text-muted-foreground" id="quick-commands-label">
-            Quick commands — tap to pick, gold means picked · or say it out loud
-          </p>
-          <div className="flex flex-wrap gap-2" role="group" aria-labelledby="quick-commands-label">
-            {QUICK_COMMANDS.map((command) => {
-              const text = command.instruction.slice(0, PLAN_INSTRUCTION_LIMIT);
-              const active = picked.has(text);
-              return (
-                <button
-                  key={command.label}
-                  type="button"
-                  disabled={!canManage || !hasSections}
-                  aria-pressed={active}
-                  className={`${active ? CHIP_PICKED : CHIP} disabled:cursor-not-allowed disabled:opacity-50`}
-                  onClick={() => togglePick(text)}
-                >
-                  {active ? <Check className="mr-1 inline size-3" aria-hidden="true" /> : null}
-                  {command.label}
-                </button>
-              );
-            })}
-          </div>
-        </div>
 
-        <div className="space-y-2">
-          <p className="text-[11px] font-medium text-muted-foreground" id="media-templates-label">
-            Guided photo &amp; video briefs — tap to pick, attach the files, then send
-          </p>
-          <div
-            className="flex flex-wrap gap-2"
-            role="group"
-            aria-labelledby="media-templates-label"
-          >
-            {MULTIMODAL_TEMPLATES.map((template) => {
-              const text = template.instruction.slice(0, PLAN_INSTRUCTION_LIMIT);
-              const active = picked.has(text);
-              return (
-                <button
-                  key={template.key}
-                  type="button"
-                  disabled={!canManage || !hasSections}
-                  title={`Attach: ${template.attach}`}
-                  aria-pressed={active}
-                  className={`${active ? CHIP_PICKED : CHIP} disabled:cursor-not-allowed disabled:opacity-50`}
-                  onClick={() => togglePick(text)}
-                >
-                  {active ? (
-                    <Check className="mr-1 inline size-3" aria-hidden="true" />
-                  ) : (
-                    <Clapperboard className="mr-1 inline size-3" aria-hidden="true" />
-                  )}
-                  {template.label}
-                  <span className="sr-only"> — attach {template.attach}</span>
-                </button>
-              );
-            })}
+        <details className="rounded-md border border-border/70 p-3">
+          <summary className="cursor-pointer text-[12px] font-medium">Examples</summary>
+          <div className="mt-2.5 space-y-3">
+            <div className="flex flex-wrap gap-2" role="group" aria-label="Quick commands">
+              {[
+                ...QUICK_COMMANDS.map((command) => ({
+                  key: command.label,
+                  label: command.label,
+                  text: command.instruction.slice(0, PLAN_INSTRUCTION_LIMIT),
+                })),
+                ...MULTIMODAL_TEMPLATES.map((template) => ({
+                  key: template.key,
+                  label: template.label,
+                  text: template.instruction.slice(0, PLAN_INSTRUCTION_LIMIT),
+                })),
+                ...EXAMPLES.map((example) => ({
+                  key: example,
+                  label: example,
+                  text: example,
+                })),
+              ].map((option) => {
+                const active = picked.has(option.text);
+                return (
+                  <button
+                    key={option.key}
+                    type="button"
+                    disabled={!canManage || !hasSections}
+                    aria-pressed={active}
+                    className={`${active ? CHIP_PICKED : CHIP} disabled:cursor-not-allowed disabled:opacity-50`}
+                    onClick={() => togglePick(option.text)}
+                  >
+                    {active ? <Check className="mr-1 inline size-3" aria-hidden="true" /> : null}
+                    {option.label}
+                  </button>
+                );
+              })}
+            </div>
+            <p className="text-[11px] text-muted-foreground">
+              Tap to fill the box, then edit it in your own words. Nothing that removes content is
+              applied without your approval, and every change can be rolled back.
+            </p>
           </div>
-          <p className="text-[11px] text-muted-foreground">
-            {MULTIMODAL_TEMPLATES.map((template) => `${template.label}: ${template.attach}`).join(
-              " · ",
-            )}
-          </p>
-        </div>
-
-        {!messages.length ? (
-          <div className="flex flex-wrap gap-2">
-            {EXAMPLES.map((example) => {
-              const active = picked.has(example);
-              return (
-                <button
-                  key={example}
-                  type="button"
-                  aria-pressed={active}
-                  className={active ? CHIP_PICKED : CHIP}
-                  onClick={() => togglePick(example)}
-                >
-                  {active ? <Check className="mr-1 inline size-3" aria-hidden="true" /> : null}
-                  {example}
-                </button>
-              );
-            })}
-          </div>
-        ) : null}
+        </details>
 
         {transcripts.length ? (
           <section
