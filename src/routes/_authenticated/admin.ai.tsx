@@ -88,7 +88,10 @@ function AdminAi() {
         />
       </div>
 
+      <LunaPanel />
+
       <Panel>
+
         <SectionHeading
           title="Free AI"
           description="Revora tries these free providers first, in this order. A provider is only usable when its own credentials are set, and only models that provider currently serves for free are ever chosen."
