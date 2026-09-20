@@ -259,7 +259,7 @@ export function useBuilderRequests({
     dismiss: (id: string) => setTasks((current) => current.filter((task) => task.id !== id)),
     toggleStep: (id: string, key: string) =>
       setTasks((current) => current.map((t) => (t.id === id ? toggleStep(t, key) : t))),
-    moveStep: (id: string, key: string, delta: number) =>
+    moveStep: (id: string, key: string, delta: -1 | 1) =>
       setTasks((current) => current.map((t) => (t.id === id ? moveStep(t, key, delta) : t))),
     dropStep: (id: string, key: string) =>
       setTasks((current) => current.map((t) => (t.id === id ? removeStep(t, key) : t))),

@@ -157,7 +157,7 @@ export function BuilderAssistant({
               </PromptInputButton>
             </PromptInputTools>
             <PromptInputSubmit
-              status={requests.busy ? "submitted" : undefined}
+              {...(requests.busy ? { status: "submitted" as const } : {})}
               disabled={!requests.ready || !value.trim()}
             />
           </PromptInputFooter>
