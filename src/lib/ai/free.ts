@@ -276,7 +276,13 @@ export function freeModelFor(provider: FreeProviderName, role: ModelRole): strin
 
 /* --------------------------------- ordering -------------------------------- */
 
-const DEFAULT_ORDER: FreeProviderName[] = ["cloudflare", "groq", "openrouter", "google"];
+const DEFAULT_ORDER: FreeProviderName[] = [
+  "cloudflare",
+  "groq",
+  "nvidia",
+  "openrouter",
+  "google",
+];
 
 /**
  * An in-process priority override an authorised admin can set. It is deliberately
