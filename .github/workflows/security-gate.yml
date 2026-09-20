@@ -19,9 +19,11 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Install dependencies
-        run: npm install --no-audit --no-fund
       - name: Repository security audit
         run: node scripts/security-audit.mjs
-      - name: Focused security tests
-        run: npm test -- --run src/lib/security src/lib/stripe-webhook.test.ts src/lib/billing-rls.test.ts
+      - name: Production security controls
+        run: node scripts/production-control-audit.mjs
+      - name: Production readiness contract
+        run: node scripts/production-readiness-audit.mjs
+      - name: Whole repository security contract
+        run: node scripts/whole-repo-upgrade-audit.contract.mjs
