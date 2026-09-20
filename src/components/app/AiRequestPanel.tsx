@@ -142,6 +142,13 @@ export function AiRequestPanel({
           retryable: true,
           details: result.details ?? [],
         });
+        // Recorded so the drop-off report can show why owners stall here.
+        trackConversion("build_failed", {
+          metadata: {
+            organization_id: organizationId ?? "",
+            reason: result.stale ? "nothing_to_change" : "nothing_to_change",
+          },
+        });
         toast.error(message);
         refresh();
         return;
@@ -160,6 +167,8 @@ export function AiRequestPanel({
             : "",
         details: result.details ?? [],
       });
+      // Changes really reached the website — the step before going live.
+      trackConversion("build_applied", { metadata: { organization_id: organizationId ?? "" } });
       toast.success(
         `${result.applied} change${result.applied === 1 ? "" : "s"} applied to your draft.` +
           (skipped ? ` ${skipped} skipped.` : ""),
@@ -168,10 +177,14 @@ export function AiRequestPanel({
     } catch (error) {
       const message = friendlyError(error as Error, "Couldn't apply those changes.");
       patch(task.id, { state: "failed", error: message, retryable: true });
+      trackConversion("build_failed", {
+        metadata: { organization_id: organizationId ?? "", reason: "service_unavailable" },
+      });
       toast.error(message);
       refresh();
     }
   };
+
 
   const runPlan = async (task: QueueTask) => {
     patch(task.id, { state: "planning" });
