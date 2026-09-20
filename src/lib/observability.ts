@@ -162,7 +162,35 @@ export function buildTimeline(input: {
   }
 
   events.sort((a, b) => (a.at < b.at ? 1 : a.at > b.at ? -1 : 0));
-  return typeof input.limit === "number" ? events.slice(0, input.limit) : events;
+  const collapsed = collapseRepeats(events);
+  return typeof input.limit === "number" ? collapsed.slice(0, input.limit) : collapsed;
+}
+
+/**
+ * The same thing happening ten times in a row is one fact, not ten. Repeats of
+ * an identical title are folded into the newest entry and the real count is
+ * stated — no event is hidden and no count is invented.
+ */
+function collapseRepeats(events: ActivityEvent[]): ActivityEvent[] {
+  const out: ActivityEvent[] = [];
+  for (const event of events) {
+    const previous = out[out.length - 1];
+    if (previous && previous.title === event.title && previous.level === event.level) {
+      const repeats = (previous.repeats ?? 1) + 1;
+      out[out.length - 1] = {
+        ...previous,
+        repeats,
+        detail: previous.detail ?? `${repeats} times, most recently here`,
+      };
+      continue;
+    }
+    out.push(event);
+  }
+  return out.map((event) =>
+    event.repeats && event.repeats > 1
+      ? { ...event, detail: `${event.repeats} times — newest shown` }
+      : event,
+  );
 }
 
 export type SystemHealth = {
