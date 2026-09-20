@@ -439,7 +439,7 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
         instruction,
         organizationId: orgId,
         userId,
-        brand: data.brand,
+        brand: data.brand ?? null,
       });
     }
 
