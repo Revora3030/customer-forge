@@ -37,7 +37,7 @@ export type ProviderConfig = {
  * (`AI_GOOGLE_MODEL_PRIMARY`, `AI_OPENAI_MODEL_FAST`, …) so a model change
  * never requires a deploy of new code.
  */
-const DEFAULT_MODELS: Record<ProviderName, Record<ModelRole, string>> = {
+const DEFAULT_MODELS: Record<PaidProviderName, Record<ModelRole, string>> = {
   google: {
     primary: "gemini-2.5-pro",
     fast: "gemini-2.5-flash",
@@ -56,7 +56,7 @@ const DEFAULT_MODELS: Record<ProviderName, Record<ModelRole, string>> = {
   },
 };
 
-const KEY_ENV: Record<ProviderName, string> = {
+const KEY_ENV: Record<PaidProviderName, string> = {
   google: "GOOGLE_AI_API_KEY",
   openai: "OPENAI_API_KEY",
 };
@@ -74,7 +74,7 @@ function numberEnv(name: string, fallback: number) {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
 
-function modelsFor(provider: ProviderName): Record<ModelRole, string> {
+function modelsFor(provider: PaidProviderName): Record<ModelRole, string> {
   const upper = provider.toUpperCase();
   const defaults = DEFAULT_MODELS[provider];
   const models = {} as Record<ModelRole, string>;
@@ -116,13 +116,13 @@ export function builderExternalAiAllowed(): boolean {
 }
 
 /** A provider is available only when Revora's own key for it is present. */
-export function providerConfig(provider: ProviderName): ProviderConfig | null {
+export function providerConfig(provider: PaidProviderName): ProviderConfig | null {
   const apiKey = env(KEY_ENV[provider]);
   if (!apiKey) return null;
   return { name: provider, apiKey, models: modelsFor(provider) };
 }
 
-function readProviderName(value: string | null): ProviderName | null {
+function readProviderName(value: string | null): PaidProviderName | null {
   return value === "google" || value === "openai" ? value : null;
 }
 
@@ -138,9 +138,9 @@ export function providerChain(): ProviderConfig[] {
   const preferred = [
     readProviderName(env("AI_DEFAULT_PROVIDER")),
     readProviderName(env("AI_FALLBACK_PROVIDER")),
-    "google" as ProviderName,
-    "openai" as ProviderName,
-  ].filter((name): name is ProviderName => name !== null);
+    "google" as PaidProviderName,
+    "openai" as PaidProviderName,
+  ].filter((name): name is PaidProviderName => name !== null);
 
   const chain: ProviderConfig[] = [];
   for (const name of preferred) {
