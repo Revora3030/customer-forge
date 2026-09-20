@@ -96,3 +96,39 @@ describe("observability timeline", () => {
     expect(systemHealth(events).summary).toMatch(/needs attention/i);
   });
 });
+
+describe("blocked and repeated audit events", () => {
+  const audit = (id: string, action: string, created_at: string) => ({
+    id,
+    action,
+    entity: null,
+    created_at,
+  });
+
+  it("never presents a blocked publish as a success", () => {
+    const events = buildTimeline({
+      jobs: [],
+      runs: [],
+      audits: [audit("a1", "PUBLISH_BLOCKED", "2026-01-01T10:00:00.000Z")],
+    });
+    expect(events[0]?.level).toBe("problem");
+    expect(events[0]?.title).toBe("A publish was stopped before it went live");
+    expect(systemHealth(events).problems).toBe(1);
+    expect(systemHealth(events).summary).not.toMatch(/completed successfully/i);
+  });
+
+  it("folds identical repeats into one honest line with the real count", () => {
+    const events = buildTimeline({
+      jobs: [],
+      runs: [],
+      audits: [
+        audit("a1", "publish_blocked", "2026-01-03T10:00:00.000Z"),
+        audit("a2", "publish_blocked", "2026-01-02T10:00:00.000Z"),
+        audit("a3", "publish_blocked", "2026-01-01T10:00:00.000Z"),
+      ],
+    });
+    expect(events).toHaveLength(1);
+    expect(events[0]?.repeats).toBe(3);
+    expect(events[0]?.detail).toBe("3 times — newest shown");
+  });
+});
