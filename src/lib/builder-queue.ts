@@ -102,8 +102,8 @@ export function toPlanSteps(
     where: step.where,
     destructive: Boolean(step.destructive),
     included: true,
-    before: step.before,
-    after: step.after,
+    ...(step.before !== undefined ? { before: step.before } : {}),
+    ...(step.after !== undefined ? { after: step.after } : {}),
   }));
 }
 
