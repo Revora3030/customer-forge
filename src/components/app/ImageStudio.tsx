@@ -266,7 +266,7 @@ export function ImageStudio({
           )}
         >
           <div className="flex flex-wrap items-center gap-2">
-            <Pill tone={status.data.available ? "positive" : "warning"}>
+            <Pill tone={status.data.available ? "signal" : "attention"}>
               {status.data.available ? "Picture making ready" : "Picture making unavailable"}
             </Pill>
             {status.data.available && status.data.remainingToday !== null ? (
