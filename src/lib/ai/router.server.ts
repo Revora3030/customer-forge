@@ -296,16 +296,14 @@ async function run<T>(
     });
 
   try {
-    const ordered = [
-      ...chain.filter((entry) => providerHealthy(entry.name)),
-      ...chain.filter((entry) => !providerHealthy(entry.name)),
-    ];
+    const ordered = chain;
     let lastError: unknown = null;
 
     for (let index = 0; index < ordered.length; index += 1) {
-      const config = ordered[index]!;
+      const candidate = ordered[index]!;
+      const config = candidate.config;
       const adapter = ADAPTERS[config.name];
-      const model = config.models[role];
+      const model = candidate.model;
       const fallbackUsed = index > 0;
 
       for (let attempt = 1; attempt <= limits.maxAttemptsPerProvider; attempt += 1) {
@@ -313,6 +311,7 @@ async function run<T>(
         const controller = new AbortController();
         const timer = setTimeout(() => controller.abort(), limits.requestTimeoutMs);
         try {
+          if (candidate.free) noteFreeUse(candidate.free);
           const result = await execute({ adapter, config, model, signal: controller.signal });
           noteSuccess(config.name);
           void recordAiEvent({
