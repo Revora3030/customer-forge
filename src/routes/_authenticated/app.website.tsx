@@ -34,6 +34,8 @@ import {
   ProductionReadinessPanel,
 } from "@/components/app/ProductionLaunch";
 import { useLaunchFlow, useProductionReadiness, useProductionStatus } from "@/lib/production.hooks";
+import { PublishRetryBar } from "@/components/app/PublishRetryBar";
+
 import { AssistantShowcase } from "@/components/app/AssistantShowcase";
 import { EffectStudio } from "@/components/app/EffectStudio";
 import { ImageStudio } from "@/components/app/ImageStudio";
