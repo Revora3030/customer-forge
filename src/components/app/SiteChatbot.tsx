@@ -351,9 +351,7 @@ export function SiteChatbot({
           rows={messages.length ? 3 : 5}
           value={instruction}
           onChange={(event) => setInstruction(event.target.value.slice(0, PLAN_INSTRUCTION_LIMIT))}
-          placeholder={
-            "e.g. I want more emergency callouts — make the home page about that and make it easy to phone me."
-          }
+          placeholder="Tell Revora what you want…"
           disabled={!canManage || !hasSections}
           aria-label="Tell Revora what to change"
           className="min-h-[96px] scroll-mt-28"
