@@ -63,6 +63,11 @@ export function createOpenAiCompatibleAdapter(options: CompatAdapterOptions): Pr
     return {
       "content-type": "application/json",
       authorization: `Bearer ${apiKey}`,
+      // Some providers sit behind an edge that refuses requests with no client
+      // identity at all (Groq answers 403 "1010" to an unidentified client), so
+      // Revora always identifies itself.
+      "user-agent": "RevoraGrowthSystems/1.0 (+https://revoragrowthsystems.com)",
+      accept: "application/json",
       ...(options.extraHeaders?.() ?? {}),
     };
   }
