@@ -517,6 +517,8 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
             requirements: [] as { label: string; covered: boolean }[],
             trace: [...deterministic.trace, "Nothing changed — waiting on one detail."],
             unavailable: null,
+            composition:
+              null as import("@/lib/builder/composition-preview").CompositionPreview | null,
           };
         }
       }
