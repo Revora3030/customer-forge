@@ -355,7 +355,7 @@ export async function runEnsemble<T>(
   const { assignments, skipped } = assignLanes([...deduped.values()], lanes, request.mode);
 
   if (assignments.length === 0)
-    return {
+    return recordRun({
       mode: request.mode,
       attempted: [],
       outcomes: [],
