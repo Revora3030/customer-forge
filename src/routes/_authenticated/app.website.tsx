@@ -460,7 +460,12 @@ function WebsitePage() {
             </Button>
           </section>
         ) : (
-          <BuilderCanvas organizationId={orgId} pages={pages ?? []} canManage={manage} />
+          <BuilderCanvas
+            organizationId={orgId}
+            pages={pages ?? []}
+            canManage={manage}
+            refreshing={requests.refreshing}
+          />
         )}
         <div className="flex flex-wrap items-center gap-3">
           <Button size="sm" variant="ghost" onClick={() => setAdvanced("pages")}>

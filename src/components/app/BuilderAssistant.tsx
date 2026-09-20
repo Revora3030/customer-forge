@@ -195,7 +195,7 @@ function TaskBody({ task, requests }: { task: QueueTask; requests: BuilderReques
       {task.reply ? <p className="text-[13px] whitespace-pre-line">{task.reply}</p> : null}
       {task.error ? <p className="text-[12.5px]">{task.error}</p> : null}
 
-      {task.state === "building" || task.state === "complete" ? (
+      {task.state === "planning" || task.state === "waiting_for_approval" || task.state === "building" || task.state === "complete" ? (
         <p className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[11.5px] text-muted-foreground">
           {timeline.stages.map((stage, index) => (
             <span key={stage} className="flex items-center gap-1.5">
@@ -260,7 +260,7 @@ function TaskBody({ task, requests }: { task: QueueTask; requests: BuilderReques
           </summary>
           <ul className="mt-2 space-y-1">
             {task.steps.map((step, index) => (
-              <li key={step.key} className="flex items-center gap-2 text-[12px]">
+              <li key={step.key} className="flex items-start gap-2 rounded-md border border-border/60 p-2 text-[12px]">
                 <input
                   type="checkbox"
                   checked={step.included}
@@ -271,11 +271,18 @@ function TaskBody({ task, requests }: { task: QueueTask; requests: BuilderReques
                 />
                 <span
                   className={cn(
-                    "min-w-0 flex-1 truncate",
+                    "min-w-0 flex-1",
                     !step.included && "text-muted-foreground line-through",
                   )}
                 >
-                  {step.title} <span className="opacity-70">({step.where})</span>
+                  <span className="block font-medium">{step.title}</span>
+                  <span className="block opacity-70">{step.where}</span>
+                  {step.before || step.after ? (
+                    <span className="mt-1 grid gap-1 text-[11px] leading-relaxed">
+                      {step.before ? <span className="line-clamp-2 text-muted-foreground">Before: {step.before}</span> : null}
+                      {step.after ? <span className="line-clamp-2 text-foreground">After: {step.after}</span> : null}
+                    </span>
+                  ) : null}
                   {step.destructive ? <span className="ml-1 opacity-80">— removes content</span> : null}
                 </span>
                 {task.state === "waiting_for_approval" ? (

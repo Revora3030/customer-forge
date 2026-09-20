@@ -11,6 +11,10 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { safeLinkUrl } from "@/lib/website-content";
+import type { DesignDirection } from "@/lib/design-directions";
+import { writeSectionEffect } from "@/lib/site-effects";
+import { writeSectionVisual } from "@/lib/site-style";
+import { compositionForKind, variantForKind } from "@/lib/builder/elite-site-output";
 
 type Db = SupabaseClient;
 
@@ -51,6 +55,8 @@ export type MaterializeInput = {
   photoCount: number;
   hasQuoteForm: boolean;
   hasBooking: boolean;
+  /** The industry-specific visual identity selected for this first build. */
+  direction?: DesignDirection | null;
 };
 
 type Component = {
@@ -292,6 +298,32 @@ export function planSiteContent(input: MaterializeInput): Page[] {
 }
 
 /**
+ * Gives every newly generated section a complete, renderable design contract.
+ * This runs during first-site generation, rather than waiting for the owner to
+ * ask the assistant to redesign an otherwise generic template.
+ */
+export function materializedSectionDesign(
+  kind: string,
+  direction: DesignDirection | null | undefined,
+): { variant: string; settings: Record<string, unknown> } {
+  if (!direction) return { variant: "default", settings: {} };
+  const dark = direction.secondary !== "#ffffff" && !/^#f/i.test(direction.secondary);
+  const effect =
+    kind === "hero"
+      ? direction.heroEffect
+      : kind === "cta" || kind === "offer" || kind === "sticky_cta"
+        ? direction.ctaEffect
+        : kind === "quote" || kind === "booking" || kind === "contact"
+          ? direction.formEffect
+          : direction.bodyEffect;
+  const visual = writeSectionVisual({}, compositionForKind(kind, dark));
+  return {
+    variant: variantForKind(kind, direction.id),
+    settings: writeSectionEffect(visual, effect),
+  };
+}
+
+/**
  * Writes the tree for an organisation. Returns counts, and `skipped: true` when
  * the workspace already has pages (the owner's site is never replaced).
  */
@@ -329,18 +361,20 @@ export async function materializeSiteContent(
     if (pageError) throw new Error(pageError.message);
 
     for (const [sectionIndex, section] of page.sections.entries()) {
+      const design = materializedSectionDesign(section.kind, input.direction);
       const { data: sectionRow, error: sectionError } = await db
         .from("website_sections")
         .insert({
           organization_id: orgId,
           page_id: (pageRow as { id: string }).id,
           kind: section.kind,
-          variant: section.variant ?? "default",
+          variant: section.variant ?? design.variant,
           heading: section.heading ?? null,
           subheading: section.subheading ?? null,
           body: section.body ?? null,
           is_visible: true,
           sort_order: sectionIndex,
+          settings: design.settings,
         } as never)
         .select("id")
         .single();
