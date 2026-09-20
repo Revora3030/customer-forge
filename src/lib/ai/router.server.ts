@@ -107,6 +107,93 @@ export function providerHealth() {
   });
 }
 
+/* ------------------------------ the free chain ----------------------------- */
+
+type Candidate = { config: ProviderConfig; model: string; free: FreeProviderName | null };
+
+function freeCandidate(
+  name: FreeProviderName,
+  apiKey: string,
+  model: string,
+  role: ModelRole,
+): Candidate {
+  const models = {
+    primary: model,
+    fast: model,
+    vision: model,
+    coding: model,
+    image: model,
+    transcription: model,
+  } as Record<ModelRole, string>;
+  models[role] = model;
+  return { config: { name: name as ProviderName, apiKey, models }, model, free: name };
+}
+
+/**
+ * The provider order for one request:
+ *
+ * 1. every configured FREE provider that has a free-eligible model for the
+ *    role, still inside its daily budget, healthiest first;
+ * 2. a paid provider ONLY when an operator has explicitly turned off both
+ *    free-only mode and zero-cost mode. There is no implicit paid fallback.
+ *
+ * Live discovery is consulted first so a provider's current free pool is used
+ * instead of a fixed list; a discovered id must still pass the free-eligibility
+ * check before it can replace the configured model.
+ */
+async function buildChain(role: ModelRole): Promise<Candidate[]> {
+  const candidates: Candidate[] = [];
+
+  for (const entry of freeProviderChain(role)) {
+    if (!freeBudgetAllows(entry.name)) continue;
+    let model = entry.model;
+    try {
+      await refreshFreeModels(entry.name, entry.credentials);
+      const discovered = pickDiscoveredModel(entry.name, role);
+      if (discovered && isFreeEligibleModel(entry.name, discovered)) model = discovered;
+    } catch {
+      // Discovery is advisory only; the configured free model still runs.
+    }
+    // Belt and braces: never dispatch a model that isn't free-eligible.
+    if (!isFreeEligibleModel(entry.name, model)) continue;
+    candidates.push(freeCandidate(entry.name, entry.credentials.apiKey, model, role));
+  }
+
+  // Paid providers stay unreachable unless BOTH guards are explicitly off.
+  if (!freeAiOnly() && !zeroAiCostMode())
+    for (const config of providerChain())
+      candidates.push({ config, model: config.models[role], free: null });
+
+  return [
+    ...candidates.filter((entry) => providerHealthy(entry.config.name)),
+    ...candidates.filter((entry) => !providerHealthy(entry.config.name)),
+  ];
+}
+
+/**
+ * Free AI status for the admin surface. Reports what is configured, what the
+ * provider publishes as its free allowance, what budget is left in this
+ * process, and which providers are in a breaker cooldown. No key material and
+ * no secret-derived value is included.
+ */
+export function freeAiStatus() {
+  return {
+    freeAiEnabled: freeAiEnabled(),
+    freeOnly: freeAiOnly(),
+    paidFallbackReachable: !freeAiOnly() && !zeroAiCostMode(),
+    providers: freeProviderReadiness().map((entry) => {
+      const state = breaker.get(entry.name as ProviderName);
+      const cooling = state && state.openUntil > Date.now();
+      return {
+        ...entry,
+        healthy: !cooling,
+        cooldownUntil: cooling ? state.openUntil : null,
+        remainingToday: freeBudgetRemaining(entry.name),
+      };
+    }),
+  };
+}
+
 /* ------------------------------- concurrency ------------------------------- */
 
 const inFlight = new Map<string, number>();
