@@ -98,6 +98,26 @@ export async function deliverRun(
   return { ok: true };
 }
 
+/**
+ * Every lead also lands in Revora's own inbox, so nothing is missed even when a
+ * customer hasn't set up their own notification address yet. The copy is sent
+ * separately from the customer's alert: if one delivery fails the other still
+ * goes out, and both outcomes are reported truthfully.
+ */
+export async function sendLeadAlertCopyToRevora(
+  data: Record<string, unknown>,
+  idempotencyKey: string,
+  ownerRecipient?: string | null,
+): Promise<{ recipient: string; result: DeliveryResult } | null> {
+  const { REVORA } = await import("@/lib/brand");
+  const inbox = REVORA.email.trim();
+  // No second copy when the business already alerts this same inbox.
+  if (!inbox || (ownerRecipient ?? "").trim().toLowerCase() === inbox.toLowerCase()) return null;
+  const result = await sendLeadAlert(inbox, data, `${idempotencyKey}-revora-copy`);
+  if (!result.ok) console.warn("revora lead copy not delivered", result.reason);
+  return { recipient: inbox, result };
+}
+
 /** Owner-facing alert when a new lead / quote / booking lands. */
 export async function sendLeadAlert(
   to: string,
