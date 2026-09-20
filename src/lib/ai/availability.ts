@@ -38,16 +38,20 @@ export function builderAiAvailable(role: ModelRole = "primary") {
 
 /**
  * Honest media capability for the builder UI: vision needs a free multimodal
- * model and voice needs a free transcription model (Gemini's free tier serves
- * one, verified live). Either falls back to a paid account only when an
- * operator has explicitly enabled one; otherwise the capability reads off.
+ * model, voice needs a free transcription model (Gemini's free tier serves one,
+ * verified live) and pictures need a free text-to-image model (Cloudflare
+ * Workers AI serves one inside its free allowance, verified live). Each falls
+ * back to a paid account only when an operator has explicitly enabled one;
+ * otherwise the capability reads off.
  */
 export function builderMediaAvailability() {
   const vision = builderAiAvailable("vision");
   const voice = freeAiAvailable("transcription") || paidAiAllowedForBuilder();
+  const images = freeAiAvailable("image") || paidAiAllowedForBuilder();
   return {
     vision,
     voice,
+    images,
     source: freeAiAvailable("vision") ? ("free" as const) : vision ? ("paid" as const) : null,
   };
 }

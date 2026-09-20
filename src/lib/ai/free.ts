@@ -96,6 +96,10 @@ const FREE_MODEL_DEFAULTS: Record<FreeProviderName, Partial<Record<ModelRole, st
     fast: "@cf/meta/llama-3.2-3b-instruct",
     coding: "@cf/qwen/qwen2.5-coder-32b-instruct",
     vision: "@cf/meta/llama-4-scout-17b-16e-instruct",
+    // Live-verified on this account: returns a JPEG inside the free Neuron
+    // allowance. Cloudflare's other zero-price image models are reached through
+    // live discovery as backups.
+    image: "@cf/black-forest-labs/flux-1-schnell",
   },
   // Verified live against Groq's free developer-tier catalogue. Groq serves no
   // multimodal model to this key, so `vision` is deliberately absent and the
@@ -155,10 +159,13 @@ const FREE_MODEL_DEFAULTS: Record<FreeProviderName, Partial<Record<ModelRole, st
 /**
  * Roles no free provider serves: Revora falls back to its native engine and
  * reports the capability as unavailable rather than pretending otherwise.
- * Image generation stays here because no configured provider serves an image
- * model on its free tier (Gemini's free tier refuses them with a quota error).
+ *
+ * Image generation is no longer here: Cloudflare Workers AI serves
+ * `@cf/black-forest-labs/flux-1-schnell` inside the free Neuron allowance, and
+ * it was verified live on this account. Gemini's image models are still refused
+ * on the free tier, so Google keeps no image entry above.
  */
-export const FREE_UNSERVED_ROLES: ModelRole[] = ["image"];
+export const FREE_UNSERVED_ROLES: ModelRole[] = [];
 
 function env(name: string) {
   const value = process.env[name];
@@ -232,6 +239,12 @@ const GROQ_NON_CHAT = /whisper|orpheus|prompt-guard|safeguard|tts|playai/i;
  * otherwise offer one of these as a writer and waste a request on a useless
  * answer, so they are rejected for every provider that has no stricter filter.
  */
+/**
+ * Cloudflare model families that are billed, or whose partner pricing Revora
+ * has not verified as zero. Rejected for every role.
+ */
+const CLOUDFLARE_PAID_MODEL = /leonardo|flux-2/i;
+
 const NON_CHAT_MODEL =
   /guard|safety|safeguard|moderation|embed|rerank|retriev|whisper|orpheus|\btts\b|-lora\b|lora$|classifier/i;
 
@@ -305,6 +318,11 @@ export function isFreeEligibleModel(provider: FreeProviderName, model: string): 
   if (provider === "groq") return groqFreeEligible(name);
   if (provider === "nvidia") return nvidiaFreeEligible(name);
   if (provider === "llm7") return llm7FreeEligible(name);
+  // Cloudflare's catalogue also carries partner image models that are billed
+  // per tile/step (Leonardo) or carry partner pricing Revora has not verified as
+  // free (the flux-2 line). Those are rejected by name so neither a default nor
+  // live discovery can put a billed model in a free-only chain.
+  if (CLOUDFLARE_PAID_MODEL.test(name)) return false;
   return name.startsWith("@cf/") && !NON_CHAT_MODEL.test(name);
 }
 
@@ -436,7 +454,9 @@ export function freeProviderReadiness() {
       label: FREE_ALLOWANCE[name].label,
       allowance: FREE_ALLOWANCE[name].allowance,
       configured: credentials !== null,
-      models: (["primary", "design", "fast", "coding", "vision", "transcription"] as ModelRole[])
+      models: (
+        ["primary", "design", "fast", "coding", "vision", "image", "transcription"] as ModelRole[]
+      )
         .map((role) => ({ role, model: freeModelFor(name, role) }))
         .filter((entry): entry is { role: ModelRole; model: string } => entry.model !== null),
     };
