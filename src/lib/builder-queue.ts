@@ -45,7 +45,14 @@ export type QueueTask = {
   details?: string[];
   error?: string;
   retryable?: boolean;
+  /**
+   * The look and page blocks the AI composed for this request, with its
+   * reasoning. Present means the owner gets a preview to approve or adjust
+   * before anything is written.
+   */
+  composition?: CompositionPreview | null;
 };
+
 
 export const QUEUE_LABELS: Record<QueueState, string> = {
   queued: "Waiting",
