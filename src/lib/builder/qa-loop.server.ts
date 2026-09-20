@@ -28,6 +28,7 @@ import {
   type BrowserQaFinding,
   type BrowserQaReport,
 } from "./browser-qa-intelligence";
+import { safeLinkUrl } from "@/lib/website-content";
 import { compileQaAutoRepairs } from "./qa-auto-repair";
 
 type Db = SupabaseClient<never>;
