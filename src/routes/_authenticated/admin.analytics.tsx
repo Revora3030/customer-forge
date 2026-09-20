@@ -305,10 +305,45 @@ function AdminAnalytics() {
       </Panel>
 
       <SectionHeading
+        eyebrow="Builder"
+        title="How many reach publish"
+        description="Counted per workspace, not per click. Opening the builder counts once per browsing visit; asking Revora for anything counts as an attempt; published means the site actually went live."
+      />
+
+      {builder.isLoading ? (
+        <LoadingRows rows={2} />
+      ) : builder.isError ? (
+        <EmptyState
+          title="Builder numbers unavailable"
+          description="These could not be read from the database right now."
+        />
+      ) : (builder.data?.opened ?? 0) === 0 ? (
+        <EmptyState
+          title="No builder visits recorded yet"
+          description="As soon as a workspace opens the builder, its progress through to publish appears here."
+        />
+      ) : (
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <MetricCard label="Opened the builder" value={number(builder.data?.opened ?? 0)} />
+          <MetricCard
+            label="Asked Revora to build"
+            value={`${number(builder.data?.requested ?? 0)} (${builder.data?.requestRate ?? 0}%)`}
+          />
+          <MetricCard label="Published" value={number(builder.data?.published ?? 0)} />
+          <MetricCard
+            label="Opened → published"
+            value={`${builder.data?.publishRate ?? 0}%`}
+            hint="Share of workspaces that got all the way live"
+          />
+        </div>
+      )}
+
+      <SectionHeading
         eyebrow="Marketing traffic"
         title="Who reaches revoragrowthsystems.com"
         description="Public page views only. Your own admin and workspace screens, plus customer website previews, are never counted here — so these numbers are visitors, not you working. A unique session is one browsing visit."
       />
+
 
       {traffic.isLoading ? (
         <LoadingRows rows={3} />
