@@ -1077,7 +1077,6 @@ export function readActions(
           );
 
         if (
-          !UUID.test(sectionId) ||
           !knownSection(
             sectionId,
           )

@@ -549,6 +549,22 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
     }
     if (!actions.length) throw new Error("Nothing to apply.");
 
+    // Fail before taking a restore point when a generated batch would collide
+    // with an existing page slug or create the same slug twice.
+    const plannedSlugs = new Set(
+      site.pages.map((page) => page.slug.replace(/^\/+|\/+$/g, "").toLowerCase()),
+    );
+    for (const action of actions) {
+      if (action.type !== "add_page") continue;
+      const slug = action.slug.replace(/^\/+|\/+$/g, "").toLowerCase();
+      if (plannedSlugs.has(slug)) {
+        throw new Error(
+          `Revora stopped before changing your site because the plan would create a duplicate page address: /${slug || "(home)"}.`,
+        );
+      }
+      plannedSlugs.add(slug);
+    }
+
     // Snapshot first, so an unwanted change can always be rolled back.
     const snapshotLabel = data.label || "Before assistant changes";
     const { snapshotContent } = await import("@/lib/website-content");
@@ -674,6 +690,14 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
         resolved = { ...resolved, pageId: newPages.get(resolved.pageId)! } as AgentAction;
       if ("sectionId" in resolved && newSections.has(resolved.sectionId))
         resolved = { ...resolved, sectionId: newSections.get(resolved.sectionId)! } as AgentAction;
+      if (resolved.type === "reorder_sections") {
+        resolved = {
+          ...resolved,
+          sectionIds: resolved.sectionIds.map(
+            (sectionId) => newSections.get(sectionId) ?? sectionId,
+          ),
+        };
+      }
       if ("componentId" in resolved && newComponents.has(resolved.componentId))
         resolved = { ...resolved, componentId: newComponents.get(resolved.componentId)! } as AgentAction;
       const action = resolved;

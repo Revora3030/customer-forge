@@ -84,4 +84,23 @@ describe("building a page and filling it in one plan", () => {
     expect(actions[1]).toMatchObject({ type: "set_component", componentId: "temp_component" });
   });
 
+  it("keeps newly-created section refs inside a reorder action", () => {
+    const actions = readActions(
+      [
+        { type: "add_section", pageId: "page-1", kind: "cta", ref: "temp_section", heading: "Ready?" },
+        {
+          type: "reorder_sections",
+          pageId: "page-1",
+          sectionIds: ["section-1", "temp_section"],
+        },
+      ],
+      { ...known, pageIds: new Set(["page-1"]), sectionIds: new Set(["section-1"]) },
+    );
+    expect(actions).toHaveLength(2);
+    expect(actions[1]).toMatchObject({
+      type: "reorder_sections",
+      sectionIds: ["section-1", "temp_section"],
+    });
+  });
+
 });
