@@ -83,17 +83,32 @@ const automationLevel = (status: string): ActivityLevel =>
 const AUDIT_LABELS: Record<string, string> = {
   "billing.lifecycle": "Billing update processed",
   "website.published": "Website published",
+  "publish.blocked": "A publish was stopped before it went live",
+  publish_blocked: "A publish was stopped before it went live",
   "domain.verified": "Domain verified",
   "selfheal.applied": "Revora repaired part of your site",
   "selfheal.rolled_back": "A repair was undone and your site restored",
 };
 
-const auditTitle = (row: AuditRow): string =>
-  AUDIT_LABELS[row.action] ??
-  row.action.replace(/[._]/g, " ").replace(/^\w/, (c) => c.toUpperCase());
+/**
+ * Audit actions are recorded in whatever case the writing code used, so every
+ * lookup and every level check normalises first. A blocked action must never be
+ * presented as a success.
+ */
+const auditKey = (action: string): string => action.trim().toLowerCase();
+
+const auditTitle = (row: AuditRow): string => {
+  const key = auditKey(row.action);
+  return (
+    AUDIT_LABELS[key] ??
+    key.replace(/[._]/g, " ").replace(/^\w/, (c: string) => c.toUpperCase())
+  );
+};
 
 const auditLevel = (action: string): ActivityLevel =>
-  /fail|error|rolled_back|declin|past_due/.test(action) ? "problem" : "ok";
+  /fail|error|rolled_back|declin|past_due|block|denied|reject|refus|unauthori/.test(auditKey(action))
+    ? "problem"
+    : "ok";
 
 /**
  * Merges the three real activity sources into one newest-first timeline.
