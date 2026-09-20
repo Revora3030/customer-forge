@@ -568,6 +568,11 @@ function readNewPages(text: string): string[] {
   // page"), and never when the words after "page" name part of that page.
   const PAGE_PART =
     "headline|heading|title|subheading|copy|text|wording|content|button|buttons|link|links|section|sections|image|images|photo|photos|colour|color|colours|colors|price|prices|pricing|form|layout|design|seo";
+  // A page can legitimately be called "Pricing" or "Design", so only the parts a
+  // page is made of disqualify a label.
+  const NOT_A_PAGE_NAME =
+    "headline|heading|subheading|copy|wording|button|buttons|link|links|section|sections|image|images|photo|photos|colour|color|colours|colors";
+
   const patterns = [
     new RegExp(
       `(?:add|create|build|make|need|want)\\s+(?:me\\s+)?(?:a|an|another|one)\\s+([a-z0-9 &'-]{2,60}?)\\s+page\\b(?!\\s+(?:${PAGE_PART})\\b)`,
