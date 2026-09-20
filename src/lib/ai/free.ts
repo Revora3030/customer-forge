@@ -164,16 +164,21 @@ function openRouterFree(model: string) {
  *
  * - OpenRouter: only explicit `:free` ids.
  * - Google: only free-tier-eligible flash/lite/gemma class models, never `pro`.
+ * - Groq: chat models on its free developer tier, excluding the speech and
+ *   safety models, which are not text generation at all.
  * - Cloudflare: any Workers AI model slug that isn't a known paid name; the
  *   Neuron allowance covers models Cloudflare serves on the free tier, and
  *   restricted models are filtered by live discovery before they get here.
  */
+const GROQ_NON_CHAT = /whisper|orpheus|prompt-guard|safeguard|tts|playai/i;
+
 export function isFreeEligibleModel(provider: FreeProviderName, model: string): boolean {
   const name = model.trim();
   if (name.length === 0) return false;
   if (PAID_MODEL_PATTERNS.some((pattern) => pattern.test(name))) return false;
   if (provider === "openrouter") return openRouterFree(name);
   if (provider === "google") return /flash|lite|gemma/i.test(name);
+  if (provider === "groq") return !GROQ_NON_CHAT.test(name);
   return name.startsWith("@cf/");
 }
 
