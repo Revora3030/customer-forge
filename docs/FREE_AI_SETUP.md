@@ -35,6 +35,7 @@ Tests enforce the boundary (`src/lib/ai/free-runtime.test.ts`).
 | `OPENROUTER_API_KEY` | OpenRouter free models | Only `:free` model ids are ever selected |
 | `GROQ_API_KEY` | Groq free developer tier | Chat models only; speech and safety models are never selected |
 | `NVIDIA_NIM_API_KEY` | NVIDIA NIM free developer allowance | Chat models only; embedders, guards, parsers and translators are never selected |
+| `LLM7_API_KEY` | LLM7.io free tier | Only its non usage-based models are ever selected |
 | `GOOGLE_AI_FREE_API_KEY` | Gemini API free tier | Use a key from a project with **no billing** attached |
 
 Half a provider's credentials simply marks that provider unavailable — it never

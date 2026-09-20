@@ -47,6 +47,7 @@ import { pickDiscoveredModel, refreshFreeModels } from "@/lib/ai/free-models.ser
 import { cloudflareAdapter } from "@/lib/ai/providers/cloudflare";
 import { googleAdapter } from "@/lib/ai/providers/google";
 import { groqAdapter } from "@/lib/ai/providers/groq";
+import { llm7Adapter } from "@/lib/ai/providers/llm7";
 import { nvidiaAdapter } from "@/lib/ai/providers/nvidia";
 import { openRouterAdapter } from "@/lib/ai/providers/openrouter";
 import { openAiAdapter } from "@/lib/ai/providers/openai";
@@ -71,6 +72,7 @@ const ADAPTERS: Record<ProviderName, ProviderAdapter> = {
   openrouter: openRouterAdapter,
   groq: groqAdapter,
   nvidia: nvidiaAdapter,
+  llm7: llm7Adapter,
 };
 
 /* ----------------------------- circuit breaker ----------------------------- */

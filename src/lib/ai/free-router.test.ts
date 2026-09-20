@@ -23,6 +23,7 @@ const KEYS = [
   "GROQ_API_KEY",
   "NVIDIA_NIM_API_KEY",
   "NVIDIA_API_KEY",
+  "LLM7_API_KEY",
   "CLOUDFLARE_AI_API_TOKEN",
   "CLOUDFLARE_API_TOKEN",
   "CLOUDFLARE_ACCOUNT_ID",
@@ -163,6 +164,31 @@ describe("free-only enforcement", () => {
     );
   });
 
+
+  it("accepts only LLM7's free models and rejects its paid-balance models", async () => {
+    const { isFreeEligibleModel } = await free();
+    expect(isFreeEligibleModel("llm7", "codestral-latest")).toBe(true);
+    expect(isFreeEligibleModel("llm7", "mistral-Nemo-Instruct-2407")).toBe(true);
+    expect(isFreeEligibleModel("llm7", "GLM-5.3-Flash")).toBe(true);
+    // Usage-based (paid balance) models live on the same endpoint.
+    expect(isFreeEligibleModel("llm7", "DeepSeek-V4.1-Flash")).toBe(false);
+    expect(isFreeEligibleModel("llm7", "Inkling")).toBe(false);
+    expect(isFreeEligibleModel("llm7", "gpt-5.5")).toBe(false);
+  });
+
+  it("puts LLM7 in the free chain once its key is configured", async () => {
+    process.env["LLM7_API_KEY"] = "llm7-key";
+    const { freeProviderChain } = await free();
+    const chain = freeProviderChain("primary");
+    expect(chain.map((entry) => entry.name)).toContain("llm7");
+    expect(chain.find((entry) => entry.name === "llm7")?.model).toBe("codestral-latest");
+  });
+
+  it("does not offer LLM7 for pictures, since it serves no free multimodal model", async () => {
+    process.env["LLM7_API_KEY"] = "llm7-key";
+    const { freeProviderChain } = await free();
+    expect(freeProviderChain("vision").map((entry) => entry.name)).not.toContain("llm7");
+  });
 
   it("accepts the documented free models", async () => {
     const { isFreeEligibleModel } = await free();

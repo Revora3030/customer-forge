@@ -19,12 +19,19 @@
 
 import type { ModelRole, ProviderName } from "@/lib/ai/config";
 
-export type FreeProviderName = "cloudflare" | "groq" | "nvidia" | "openrouter" | "google";
+export type FreeProviderName =
+  | "cloudflare"
+  | "groq"
+  | "nvidia"
+  | "llm7"
+  | "openrouter"
+  | "google";
 
 export const FREE_PROVIDERS: FreeProviderName[] = [
   "cloudflare",
   "groq",
   "nvidia",
+  "llm7",
   "openrouter",
   "google",
 ];
@@ -55,6 +62,11 @@ export const FREE_ALLOWANCE: Record<
   nvidia: {
     label: "NVIDIA NIM free developer allowance",
     allowance: "Free developer allowance: rate-limited requests to hosted NIM models.",
+    dailyRequestCap: null,
+  },
+  llm7: {
+    label: "LLM7.io free tier",
+    allowance: "Free tier: rate-limited requests to its non usage-based models.",
     dailyRequestCap: null,
   },
   openrouter: {
@@ -99,6 +111,14 @@ const FREE_MODEL_DEFAULTS: Record<FreeProviderName, Partial<Record<ModelRole, st
     fast: "nvidia/nemotron-3.5-lightning-30b-a3b",
     coding: "nvidia/nemotron-3-super-120b-a12b",
     vision: "meta/llama-3.2-11b-vision-instruct",
+  },
+  // Verified live against LLM7's catalogue: only its non usage-based (free)
+  // chat models. LLM7 serves no free multimodal model, so `vision` is absent
+  // and the router moves on to a provider that can read pictures.
+  llm7: {
+    primary: "codestral-latest",
+    fast: "mistral-Nemo-Instruct-2407",
+    coding: "codestral-latest",
   },
   // Verified live against OpenRouter's zero-price pool. `openrouter/free` is
   // its free auto-router, so it survives individual models being retired.
@@ -215,6 +235,35 @@ function nvidiaFreeEligible(name: string) {
   return !PAID_MODEL_PATTERNS.some((pattern) => pattern.test(model));
 }
 
+/**
+ * LLM7 hosts free and usage-based (paid-balance) models on one endpoint, and the
+ * id alone does not say which is which. So Revora keeps an allowlist: the ids it
+ * verified as free, plus any id live discovery saw flagged as not usage-based.
+ * Anything else — including every paid-balance model on the same endpoint — is
+ * rejected before a request can be spent on it.
+ */
+const LLM7_VERIFIED_FREE = new Set(
+  ["GLM-5.3-Flash", "codestral-latest", "minimax-m2.7", "mistral-Nemo-Instruct-2407"].map((id) =>
+    id.toLowerCase(),
+  ),
+);
+
+const llm7DiscoveredFree = new Set<string>();
+
+/** Records ids LLM7 currently reports as not usage-based (i.e. free). */
+export function noteLlm7FreeModels(ids: string[]) {
+  for (const id of ids) llm7DiscoveredFree.add(id.trim().toLowerCase());
+}
+
+export function resetLlm7FreeModels() {
+  llm7DiscoveredFree.clear();
+}
+
+function llm7FreeEligible(name: string) {
+  const id = name.trim().toLowerCase();
+  return LLM7_VERIFIED_FREE.has(id) || llm7DiscoveredFree.has(id);
+}
+
 export function isFreeEligibleModel(provider: FreeProviderName, model: string): boolean {
   const name = model.trim();
   if (name.length === 0) return false;
@@ -226,6 +275,7 @@ export function isFreeEligibleModel(provider: FreeProviderName, model: string): 
   if (provider === "google") return /flash|lite|gemma/i.test(name);
   if (provider === "groq") return groqFreeEligible(name);
   if (provider === "nvidia") return nvidiaFreeEligible(name);
+  if (provider === "llm7") return llm7FreeEligible(name);
   return name.startsWith("@cf/");
 }
 
@@ -258,6 +308,10 @@ export function freeProviderCredentials(
     const apiKey = env("NVIDIA_NIM_API_KEY") ?? env("NVIDIA_API_KEY");
     return apiKey ? { apiKey } : null;
   }
+  if (provider === "llm7") {
+    const apiKey = env("LLM7_API_KEY");
+    return apiKey ? { apiKey } : null;
+  }
   // Gemini needs its OWN free-tier key. A general Google key may sit on a
   // billing-enabled project, where the same models are charged — so it is only
   // treated as free when an operator opts in explicitly.
@@ -280,6 +334,7 @@ const DEFAULT_ORDER: FreeProviderName[] = [
   "cloudflare",
   "groq",
   "nvidia",
+  "llm7",
   "openrouter",
   "google",
 ];

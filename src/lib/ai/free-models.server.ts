@@ -12,7 +12,12 @@
  */
 
 import type { ModelRole } from "@/lib/ai/config";
-import { isFreeEligibleModel, type FreeProviderCredentials, type FreeProviderName } from "@/lib/ai/free";
+import {
+  isFreeEligibleModel,
+  noteLlm7FreeModels,
+  type FreeProviderCredentials,
+  type FreeProviderName,
+} from "@/lib/ai/free";
 
 const TTL_MS = 6 * 60 * 60 * 1000;
 const DISCOVERY_TIMEOUT_MS = 6000;
@@ -119,6 +124,37 @@ async function openAiCompatibleFreeModels(
 }
 
 /**
+ * LLM7: the catalogue flags each model's billing mode and whether it supports
+ * JSON mode. Only models that are NOT usage-based are free, so those ids are recorded as free-eligible and the
+ * paid-balance models on the same endpoint stay unreachable.
+ */
+async function llm7FreeModels(credentials: FreeProviderCredentials) {
+  const payload = await fetchJson("https://api.llm7.io/v1/models", {
+    authorization: `Bearer ${credentials.apiKey}`,
+  });
+  const data = (payload as { data?: unknown[] } | null)?.data;
+  if (!Array.isArray(data)) return [];
+  const free: string[] = [];
+  for (const raw of data) {
+    const entry = raw as {
+      id?: unknown;
+      model_type?: unknown;
+      usage_based_only?: unknown;
+      json_mode?: unknown;
+    };
+    if (typeof entry.id !== "string") continue;
+    if (entry.usage_based_only !== false) continue;
+    if (entry.model_type !== "chat") continue;
+    // Revora asks these models for structured JSON, and LLM7 rejects the
+    // request outright on a model without JSON mode — so those are left out.
+    if (entry.json_mode !== true) continue;
+    free.push(entry.id);
+  }
+  noteLlm7FreeModels(free);
+  return free.filter((id) => isFreeEligibleModel("llm7", id));
+}
+
+/**
  * Refreshes one provider's free pool. Safe to call often: it returns the cached
  * list until the TTL expires and swallows every provider failure.
  */
@@ -139,7 +175,9 @@ export async function refreshFreeModels(
               "https://api.groq.com/openai/v1/models",
               credentials,
             )
-          : // NVIDIA's hosted catalogue lists ids this account cannot invoke
+          : provider === "llm7"
+            ? await llm7FreeModels(credentials)
+            : // NVIDIA's hosted catalogue lists ids this account cannot invoke
             // (retired or not provisioned), so discovery would swap a verified
             // model for a dead one. The verified defaults stand.
             [];
