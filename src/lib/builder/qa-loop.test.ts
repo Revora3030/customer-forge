@@ -59,7 +59,9 @@ function fakeDb(tables: Record<string, Row[]>) {
 
 const ORG = "11111111-1111-1111-1111-111111111111";
 
-function siteWithMissingSeo(): Record<string, Row[]> {
+type Site = { website_pages: Row[]; website_sections: Row[]; website_components: Row[] };
+
+function siteWithMissingSeo(): Site {
   return {
     website_pages: [
       {
