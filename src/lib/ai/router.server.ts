@@ -25,7 +25,7 @@
 
 import {
   aiLimits,
-  requireProviderChain,
+  providerChain,
   type ModelRole,
   type ProviderConfig,
   type ProviderName,
@@ -384,7 +384,7 @@ async function run<T>(
 
     throw lastError instanceof RevoraAiError
       ? lastError
-      : providerUnavailable(ordered[0]?.name ?? "google");
+      : providerUnavailable(ordered[0]?.config.name ?? "cloudflare");
   } finally {
     release(concurrencyKey);
   }
