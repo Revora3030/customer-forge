@@ -12,6 +12,10 @@ const EVENTS = [
   "signup_started",
   "signup_completed",
   "workspace_provisioned",
+  /** Owner opened the website builder (once per browser session). */
+  "builder_opened",
+  /** Owner asked Revora to build or change something in the builder. */
+  "build_requested",
   "site_published",
   "first_quote_request",
   "first_booking",
