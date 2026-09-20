@@ -712,15 +712,20 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
       });
       if (previous) {
         const result = previous["result"] as Record<string, unknown>;
+        const labels = (key: string) =>
+          Array.isArray(result[key]) ? (result[key] as unknown[]).map((item) => String(item)) : [];
         return {
-          applied: Number(result["applied"] ?? 0),
-          failed: Number(result["failed"] ?? 0),
-          stale: Number(result["stale"] ?? 0),
-          staleNotice: "",
-          duplicates: 0,
-          details: [] as string[],
+          applied: Number(result["applied"] ?? 0) || 0,
+          failed: Number(result["failed"] ?? 0) || 0,
+          stale: Number(result["stale"] ?? 0) || 0,
+          staleNotice: String(result["staleNotice"] ?? ""),
+          duplicates: Number(result["duplicates"] ?? 0) || 0,
+          details: [
+            ...labels("appliedLabels").map((label) => `applied ${label}`),
+            ...labels("skippedLabels").map((label) => `skipped ${label}`),
+          ],
           snapshotLabel: String(result["snapshotLabel"] ?? ""),
-          snapshotVersion: Number(result["snapshotVersion"] ?? 0),
+          snapshotVersion: Number(result["snapshotVersion"] ?? 0) || 0,
           operationId: String(result["operationId"] ?? ""),
           alreadyApplied: true,
           verification: null as VerificationReport | null,
@@ -1281,10 +1286,13 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
       result: {
         operationId,
         operationKey: data.operationKey || null,
-        applied,
-        failed,
-        stale: preflight.stale,
+        applied: applied.length,
+        failed: failed.length,
+        stale: preflight.stale.length,
         duplicates: preflight.duplicates,
+        staleNotice,
+        appliedLabels: applied,
+        skippedLabels: failed,
         snapshotLabel,
         snapshotVersion,
         mutations: undoSteps.length,

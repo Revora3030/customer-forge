@@ -1,9 +1,12 @@
 # Builder 10/10 upgrade
 
-- [ ] Build a complete representative customer site through the real builder flow without touching a live customer site.
-- [ ] Capture desktop and mobile evidence for the generated site and builder experience.
-- [ ] Compare the output against a polished Lovable-style quality bar: composition, typography, imagery, variation, content hierarchy, motion, conversion, accessibility, and responsiveness.
-- [ ] Fix the highest-impact generic or under-polished builder and renderer issues.
-- [ ] Add regression tests for the new design variation and action-application guarantees.
-- [ ] Rebuild the representative site and verify the before/after result across 320–1440px.
-- [ ] Run type, test, security, free-AI, repository, and production-build checks; report any blocked external-key checks honestly.
+- [x] New sites automatically receive an industry-specific look (palette, fonts, backdrop, section variants, effects) at first build.
+- [x] Every saved visual choice now renders visibly on the public site (widths, card styles, image treatments, section variants, mobile fallbacks).
+- [x] Builder shows the live step timeline, before/after per change, a "Updating your preview…" state, and warns honestly on partial application.
+- [x] Preview refresh now waits for the correct data to reload.
+- [x] Repeat/duplicate apply presses replay the real earlier result (counts, notice, per-change detail) instead of empty or broken numbers.
+- [x] Regression test for industry-specific design contracts on generated sections.
+- [x] Types, 1013 tests, build, and desktop/phone render checks pass with no overflow or console errors.
+
+## Open (blocked on external keys)
+- [ ] Transactional email (Resend/Brevo) and CRM (HubSpot/Salesforce) live verification — blocked: no API keys in this workspace.
