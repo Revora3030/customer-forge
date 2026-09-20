@@ -53,6 +53,21 @@ export type BuilderQuickAction = { label: string; instruction: string };
  */
 export const BUILDER_PRIMARY_ACTIONS: BuilderQuickAction[] = [
   {
+    label: "Redesign it premium",
+    instruction:
+      "Redesign my whole website to feel premium and designer-grade: pick a look that fits my industry, install it across every page and section, rewrite empty or template hero copy from my real business details, and keep every fact I've entered exactly as it is.",
+  },
+  {
+    label: "Rebuild for conversions",
+    instruction:
+      "Rebuild my whole website around conversions: reorder every page so the most persuasive content comes first, add a proof strip, reviews, FAQ and a strong closing call to action where they are missing, and make sure a call and quote button are obvious on every page. Keep all my real details exactly as they are.",
+  },
+  {
+    label: "Refresh the look",
+    instruction:
+      "Refresh the whole look of my website: a fresh colour palette, refined typography and calmer, more confident section styles across every page. Do not change any of my real business details.",
+  },
+  {
     label: "Improve my website",
     instruction:
       "Improve my whole website: clearer wording, tidier layout, consistent spacing and a stronger first screen. Keep all of my real business details exactly as they are.",
