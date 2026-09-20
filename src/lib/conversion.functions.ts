@@ -143,7 +143,9 @@ export const recordConversion = createServerFn({ method: "POST" })
       visitor_id: data.visitorId,
       email: data.email,
       amount_cents: data.amountCents,
-      metadata: (data.metadata ?? null) as never,
+      // The column is NOT NULL with a '{}' default; passing NULL explicitly
+      // bypasses the default and fails the insert, losing the event.
+      metadata: (data.metadata ?? {}) as never,
     });
     if (error) {
       console.error("recordConversion failed", error.message);
