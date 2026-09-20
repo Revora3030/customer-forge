@@ -381,14 +381,16 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
     let composed: Awaited<
       ReturnType<typeof import("@/lib/builder/ai-composition.server").proposeSiteComposition>
     > = null;
-    if (deterministic.intent.wholeSite && !zeroCost) {
+    if ((deterministic.intent.wholeSite || wantsComposition(instruction)) && !zeroCost) {
       const { proposeSiteComposition } = await import("@/lib/builder/ai-composition.server");
       composed = await proposeSiteComposition(agentContext, {
         instruction,
         organizationId: orgId,
         userId,
+        brand: data.brand,
       });
     }
+
 
     if (deterministic.actions.length && !deterministic.requiresExternalReasoning) {
       // Handled entirely by Revora's own rules unless a composition was proposed.
