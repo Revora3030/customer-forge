@@ -550,7 +550,13 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
       // What the agent actually did to get here, stage by stage.
       trace: trace.slice(0, 8),
       unavailable: null as { reason: string; retryable: boolean; instruction: string } | null,
+      // The look and page blocks the AI chose, with its reasoning, so the owner
+      // can preview, approve or adjust before anything is applied.
+      composition: composed
+        ? (composed.preview as import("@/lib/builder/ai-composition.server").CompositionPreview)
+        : null,
     };
+
 
     await supabase.from("ai_generations").insert({
       organization_id: orgId,
