@@ -315,12 +315,48 @@ function WebsitePage() {
     setJump({ step: "business", nonce: Date.now() });
   };
 
+  /** Nothing built yet: one request box and one publish button, nothing else. */
+  const firstRun = (pages ?? []).length === 0;
+
   const sections: BuilderSection[] = [
     {
       key: "build",
       label: "Build",
-      hint: "Ask, preview, edit anything",
-      node: (
+      hint: firstRun ? "Ask for your website" : "Ask, preview, edit anything",
+      node: firstRun ? (
+        <div className="space-y-5">
+          <EnvironmentBanner status={production} />
+          <section className="panel p-4">
+            <p className="text-[15px] font-medium">Describe your business.</p>
+            <p className="mt-1 text-[13px] text-muted-foreground">
+              Revora builds the pages, writes the words and sets up your enquiry form. You publish
+              when it looks right.
+            </p>
+          </section>
+          <AiRequestPanel
+            organizationId={orgId ?? null}
+            canManage={manage}
+            onOpenAi={() => goTo("ai")}
+          />
+          <section className="panel p-4">
+            <p className="text-[13px] font-medium">Then publish it</p>
+            <p className="mt-0.5 text-[12px] text-muted-foreground">
+              Available as soon as your first page exists.
+            </p>
+            <Button className="mt-3" size="sm" variant="signal" disabled>
+              Publish
+            </Button>
+          </section>
+          <Disclosure label="Do it yourself instead" hint="Add pages and sections by hand">
+            <EmptyHint
+              title="Build it page by page."
+              hint="Add your first page, then drop in sections yourself."
+              actionLabel="Open pages"
+              onAction={() => goTo("pages")}
+            />
+          </Disclosure>
+        </div>
+      ) : (
         <div className="space-y-5">
           <EnvironmentBanner status={production} />
           <AiRequestPanel
@@ -342,16 +378,8 @@ function WebsitePage() {
               </Button>
             </section>
           ) : null}
-          {(pages ?? []).length === 0 ? (
-            <EmptyHint
-              title="Your website needs a page."
-              hint="Add your first page, or ask Revora to build a complete website for you."
-              actionLabel="Open pages"
-              onAction={() => goTo("pages")}
-            />
-          ) : (
-            <BuilderCanvas organizationId={orgId} pages={pages ?? []} canManage={manage} />
-          )}
+          <BuilderCanvas organizationId={orgId} pages={pages ?? []} canManage={manage} />
+
           <Disclosure label="Next steps" hint="Setup, payment and going live">
             <ClientOnboardingFlow
               organizationId={orgId}
