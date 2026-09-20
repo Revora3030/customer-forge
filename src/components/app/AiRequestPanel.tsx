@@ -30,7 +30,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { askAssistant } from "@/lib/assistant-bridge";
-import { BUILDER_QUICK_ACTIONS } from "@/lib/builder-modes";
+import { BUILDER_PRIMARY_ACTIONS, BUILDER_QUICK_ACTIONS } from "@/lib/builder-modes";
 import {
   approvedSteps,
   canAutoApply,
@@ -69,7 +69,9 @@ export function AiRequestPanel({
   const [howOpen, setHowOpen] = useState(false);
   const [tasks, setTasks] = useState<QueueTask[]>([]);
   const [capabilities, setCapabilities] = useState<BuilderCapabilities | null>(null);
-  const [conversation, setConversation] = useState<Array<{ role: "user" | "assistant"; content: string }>>([]);
+  const [conversation, setConversation] = useState<
+    Array<{ role: "user" | "assistant"; content: string }>
+  >([]);
   const [ideasOpen, setIdeasOpen] = useState(false);
   const queryClient = useQueryClient();
 
@@ -335,83 +337,83 @@ export function AiRequestPanel({
                   {task.state === "waiting_for_approval" ? (
                     <p className="mt-2 text-[12.5px] font-medium">Here's what I'll change:</p>
                   ) : null}
-                <ul className="mt-2 space-y-1">
-                  {task.steps.map((step, index) => (
-                    <li key={step.key} className="flex items-center gap-2 text-[12px]">
-                      <input
-                        type="checkbox"
-                        checked={step.included}
-                        disabled={task.state !== "waiting_for_approval"}
-                        aria-label={`Include: ${step.title}`}
-                        onChange={() =>
-                          setTasks((current) =>
-                            current.map((t) => (t.id === task.id ? toggleStep(t, step.key) : t)),
-                          )
-                        }
-                        className="size-4 shrink-0 accent-current"
-                      />
-                      <span
-                        className={cn(
-                          "min-w-0 flex-1 truncate",
-                          !step.included && "text-muted-foreground line-through",
-                        )}
-                      >
-                        {step.title} <span className="opacity-70">({step.where})</span>
-                        {step.destructive ? (
-                          <span className="ml-1 opacity-80">— removes content</span>
-                        ) : null}
-                      </span>
-                      {task.state === "waiting_for_approval" ? (
-                        <span className="flex shrink-0 items-center gap-1">
-                          <button
-                            type="button"
-                            aria-label={`Move up: ${step.title}`}
-                            disabled={index === 0}
-                            onClick={() =>
-                              setTasks((current) =>
-                                current.map((t) =>
-                                  t.id === task.id ? moveStep(t, step.key, -1) : t,
-                                ),
-                              )
-                            }
-                            className="cursor-pointer rounded p-1 text-muted-foreground hover:text-foreground disabled:opacity-40"
-                          >
-                            <ArrowUp className="size-3.5" aria-hidden />
-                          </button>
-                          <button
-                            type="button"
-                            aria-label={`Move down: ${step.title}`}
-                            disabled={index === task.steps.length - 1}
-                            onClick={() =>
-                              setTasks((current) =>
-                                current.map((t) =>
-                                  t.id === task.id ? moveStep(t, step.key, 1) : t,
-                                ),
-                              )
-                            }
-                            className="cursor-pointer rounded p-1 text-muted-foreground hover:text-foreground disabled:opacity-40"
-                          >
-                            <ArrowDown className="size-3.5" aria-hidden />
-                          </button>
-                          <button
-                            type="button"
-                            aria-label={`Remove: ${step.title}`}
-                            onClick={() =>
-                              setTasks((current) =>
-                                current.map((t) =>
-                                  t.id === task.id ? removeStep(t, step.key) : t,
-                                ),
-                              )
-                            }
-                            className="cursor-pointer rounded p-1 text-muted-foreground hover:text-foreground"
-                          >
-                            <Trash2 className="size-3.5" aria-hidden />
-                          </button>
+                  <ul className="mt-2 space-y-1">
+                    {task.steps.map((step, index) => (
+                      <li key={step.key} className="flex items-center gap-2 text-[12px]">
+                        <input
+                          type="checkbox"
+                          checked={step.included}
+                          disabled={task.state !== "waiting_for_approval"}
+                          aria-label={`Include: ${step.title}`}
+                          onChange={() =>
+                            setTasks((current) =>
+                              current.map((t) => (t.id === task.id ? toggleStep(t, step.key) : t)),
+                            )
+                          }
+                          className="size-4 shrink-0 accent-current"
+                        />
+                        <span
+                          className={cn(
+                            "min-w-0 flex-1 truncate",
+                            !step.included && "text-muted-foreground line-through",
+                          )}
+                        >
+                          {step.title} <span className="opacity-70">({step.where})</span>
+                          {step.destructive ? (
+                            <span className="ml-1 opacity-80">— removes content</span>
+                          ) : null}
                         </span>
-                      ) : null}
-                    </li>
-                  ))}
-                </ul>
+                        {task.state === "waiting_for_approval" ? (
+                          <span className="flex shrink-0 items-center gap-1">
+                            <button
+                              type="button"
+                              aria-label={`Move up: ${step.title}`}
+                              disabled={index === 0}
+                              onClick={() =>
+                                setTasks((current) =>
+                                  current.map((t) =>
+                                    t.id === task.id ? moveStep(t, step.key, -1) : t,
+                                  ),
+                                )
+                              }
+                              className="cursor-pointer rounded p-1 text-muted-foreground hover:text-foreground disabled:opacity-40"
+                            >
+                              <ArrowUp className="size-3.5" aria-hidden />
+                            </button>
+                            <button
+                              type="button"
+                              aria-label={`Move down: ${step.title}`}
+                              disabled={index === task.steps.length - 1}
+                              onClick={() =>
+                                setTasks((current) =>
+                                  current.map((t) =>
+                                    t.id === task.id ? moveStep(t, step.key, 1) : t,
+                                  ),
+                                )
+                              }
+                              className="cursor-pointer rounded p-1 text-muted-foreground hover:text-foreground disabled:opacity-40"
+                            >
+                              <ArrowDown className="size-3.5" aria-hidden />
+                            </button>
+                            <button
+                              type="button"
+                              aria-label={`Remove: ${step.title}`}
+                              onClick={() =>
+                                setTasks((current) =>
+                                  current.map((t) =>
+                                    t.id === task.id ? removeStep(t, step.key) : t,
+                                  ),
+                                )
+                              }
+                              className="cursor-pointer rounded p-1 text-muted-foreground hover:text-foreground"
+                            >
+                              <Trash2 className="size-3.5" aria-hidden />
+                            </button>
+                          </span>
+                        ) : null}
+                      </li>
+                    ))}
+                  </ul>
                 </>
               ) : null}
 
