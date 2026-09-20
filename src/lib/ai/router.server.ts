@@ -179,24 +179,41 @@ function freeCandidate(
  * instead of a fixed list; a discovered id must still pass the free-eligibility
  * check before it can replace the configured model.
  */
+/** How many models of one provider's free pool may back a single role. */
+const FREE_MODELS_PER_PROVIDER = 3;
+
 async function buildChain(role: ModelRole): Promise<Candidate[]> {
-  const candidates: Candidate[] = [];
+  // First choice per provider (breadth), then each provider's remaining free
+  // models (depth). Breadth first means a provider outage costs one attempt,
+  // while depth means a single retired or rate-limited model is covered by
+  // another model from the same free catalogue.
+  const first: Candidate[] = [];
+  const deeper: Candidate[] = [];
 
   if (freeAiEnabled())
     for (const entry of freeProviderChain(role)) {
-    if (!freeBudgetAllows(entry.name)) continue;
-    let model = entry.model;
-    try {
-      await refreshFreeModels(entry.name, entry.credentials);
-      const discovered = pickDiscoveredModel(entry.name, role);
-      if (discovered && isFreeEligibleModel(entry.name, discovered)) model = discovered;
-    } catch {
-      // Discovery is advisory only; the configured free model still runs.
+      if (!freeBudgetAllows(entry.name)) continue;
+      const models: string[] = [];
+      const consider = (model: string) => {
+        // Belt and braces: never dispatch a model that isn't free-eligible.
+        if (!models.includes(model) && isFreeEligibleModel(entry.name, model)) models.push(model);
+      };
+      try {
+        await refreshFreeModels(entry.name, entry.credentials);
+        for (const model of pickDiscoveredModels(entry.name, role, FREE_MODELS_PER_PROVIDER))
+          consider(model);
+      } catch {
+        // Discovery is advisory only; the configured free model still runs.
+      }
+      consider(entry.model);
+      models.slice(0, FREE_MODELS_PER_PROVIDER).forEach((model, index) => {
+        const candidate = freeCandidate(entry.name, entry.credentials.apiKey, model, role);
+        if (index === 0) first.push(candidate);
+        else deeper.push(candidate);
+      });
     }
-    // Belt and braces: never dispatch a model that isn't free-eligible.
-    if (!isFreeEligibleModel(entry.name, model)) continue;
-    candidates.push(freeCandidate(entry.name, entry.credentials.apiKey, model, role));
-  }
+
+  const candidates = [...first, ...deeper];
 
   // Paid providers stay unreachable unless BOTH guards are explicitly off.
   if (!freeAiOnly() && !zeroAiCostMode())
