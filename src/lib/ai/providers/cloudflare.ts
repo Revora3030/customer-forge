@@ -84,7 +84,7 @@ export const cloudflareAdapter: ProviderAdapter = {
         throw new RevoraAiError(502, "Revora's Cloudflare image model returned no picture.", {
           category: "bad_response",
           provider: "cloudflare",
-          detail: payload.errors?.[0]?.message?.slice(0, 200),
+          detail: payload.errors?.[0]?.message?.slice(0, 200) ?? null,
         });
       // Workers AI returns JPEG bytes for the flux family.
       return { base64, mimeType: "image/jpeg" };
