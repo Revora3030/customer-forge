@@ -14,6 +14,8 @@ import { Pill } from "@/components/app/Bits";
 import { BookingForm, QuoteCalculator } from "@/components/site/SiteForms";
 import { DirectContact, mailHref, telHref } from "@/components/site/ContactDetails";
 import type { PublicSite } from "@/lib/public-site.functions";
+import { readCustomBlock } from "@/lib/builder/custom-block";
+import { CustomBlock } from "@/components/site/CustomBlock";
 import { currency, dateShort } from "@/lib/format";
 import { safeLinkUrl } from "@/lib/website-content";
 import { readSectionEffect, sectionEffectClass } from "@/lib/site-effects";
@@ -619,6 +621,22 @@ function SiteSectionBody({ site, section }: { site: Site; section: Section }) {
 
     case "sticky_cta":
       return null; // rendered once, fixed to the viewport
+
+    // A custom interactive block the builder created for this business.
+    // Data-only spec, rendered by trusted components; an invalid spec renders
+    // nothing rather than a broken section.
+    case "custom": {
+      const spec = readCustomBlock(section.settings);
+      if (!spec) return null;
+      return (
+        <Shell wide>
+          {section.heading || section.subheading || section.body ? <Heading section={section} /> : null}
+          <div className="mt-2">
+            <CustomBlock spec={spec} />
+          </div>
+        </Shell>
+      );
+    }
 
     case "offer":
     case "guarantee":
