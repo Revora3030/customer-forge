@@ -513,7 +513,7 @@ export function AiRequestPanel({
                       </li>
                     ))}
                   </ul>
-                </>
+                </details>
               ) : null}
 
               <div className="mt-3 flex flex-wrap gap-2">
