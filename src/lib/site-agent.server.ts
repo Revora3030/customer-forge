@@ -155,6 +155,28 @@ ACTION SHAPES (use exactly these)
    {"type":"booking","note":"We confirm every request by phone ...","services":["Service A"],"times":["Weekday mornings"],
     "ctaLabel":"Request this time","ctaHref":"#contact"}
    {"type":"gauge","note":"...","items":[{"label":"Jobs completed on time","value":96,"caption":"..."}]}
+   {"type":"freeform","title":"...","note":"Guide only ...","root":[ ...parts... ]}
+    USE THIS when the request does not fit any shape above — build the panel part by part.
+    Parts: {"node":"stack","direction":"row|column","gap":0-8,"align":"start|center|end","children":[...]}
+           {"node":"grid","columns":1-4,"gap":0-8,"children":[...]}
+           {"node":"card","tone":"surface|muted|accent|outline","children":[...]}
+           {"node":"heading","level":2|3|4,"text":"..."}
+           {"node":"text","text":"...","tone":"default|muted","size":"sm|md|lg"}
+           {"node":"badge","text":"...","tone":"signal|attention|neutral"}
+           {"node":"list","ordered":false,"items":["...","..."]}
+           {"node":"image","src":"https://... or /path","alt":"...","ratio":"16:9|4:3|1:1|3:2"}
+           {"node":"link","text":"...","href":"#contact","variant":"primary|secondary|quiet"}
+           {"node":"divider"}
+           {"node":"field","id":"rooms","kind":"number","label":"Rooms","min":1,"max":12,"step":1,"value":3,"unit":"rooms"}
+           {"node":"field","id":"depth","kind":"select","label":"...","options":[{"label":"Regular","value":30}]}
+           {"node":"field","id":"pets","kind":"toggle","label":"Pets at home?","value":0}
+           {"node":"value","label":"Visit length","format":"number|currency|percent|duration","caption":"...",
+            "expr":{"op":"mul","args":[{"op":"ref","id":"rooms"},{"op":"ref","id":"depth"}]}}
+           {"node":"when","expr":{"op":"gt","args":[{"op":"ref","id":"rooms"},6]},"children":[...]}
+    Calculation steps: num, ref, add, sub, mul, div, min, max, round for figures;
+    gt, gte, lt, lte, eq, and, or, not for a "when" test. A "ref" may only name a
+    "field" id declared EARLIER in the same block. A block that works out a figure
+    must carry a "note" saying the result is a guide. At most 12 inputs, 160 parts.
    Only ever use figures, prices and wording the owner actually supplied. An estimator must
    carry a "note" saying the result is an estimate. Add the section first with
    {"type":"add_section","kind":"custom","ref":"temp_block_1", ...} and then target that ref.)
