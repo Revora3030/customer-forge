@@ -94,6 +94,36 @@ function noteSuccess(provider: ProviderName) {
   breaker.delete(provider);
 }
 
+/* --------------------------- last-request visibility ----------------------- */
+
+/**
+ * What happened on the most recent model call, for the admin surface. Provider,
+ * model, task, whether a backup covered it and the failure category only —
+ * never a prompt, never any part of a credential.
+ */
+export type LastAiOutcome = {
+  at: number;
+  provider: ProviderName;
+  model: string;
+  task: string;
+  ok: boolean;
+  category: string | null;
+  fallbackUsed: boolean;
+  free: boolean;
+};
+
+let lastOutcome: LastAiOutcome | null = null;
+
+export function lastAiOutcome(): LastAiOutcome | null {
+  return lastOutcome;
+}
+
+/** Test/operations helper: forgets breaker state and the last outcome. */
+export function resetAiRuntimeStatus() {
+  lastOutcome = null;
+  breaker.clear();
+}
+
 /** Provider health as the admin dashboard reports it — measured, not guessed. */
 export function providerHealth() {
   return Object.keys(ADAPTERS).map((name) => {
@@ -102,10 +132,12 @@ export function providerHealth() {
     return {
       provider,
       healthy: providerHealthy(provider),
+      failures: state?.failures ?? 0,
       cooldownUntil: state && state.openUntil > Date.now() ? state.openUntil : null,
     };
   });
 }
+
 
 /* ------------------------------ the free chain ----------------------------- */
 
