@@ -46,6 +46,7 @@ import {
 import { pickDiscoveredModel, refreshFreeModels } from "@/lib/ai/free-models.server";
 import { cloudflareAdapter } from "@/lib/ai/providers/cloudflare";
 import { googleAdapter } from "@/lib/ai/providers/google";
+import { groqAdapter } from "@/lib/ai/providers/groq";
 import { openRouterAdapter } from "@/lib/ai/providers/openrouter";
 import { openAiAdapter } from "@/lib/ai/providers/openai";
 import { base64ByteLength } from "@/lib/ai/providers/shared";
