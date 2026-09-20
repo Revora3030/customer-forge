@@ -288,7 +288,7 @@ export function AiRequestPanel({
           disabled={!ready}
           title={capabilities ? (attachmentNotice(capabilities, "image") ?? undefined) : undefined}
         >
-          <ImageIcon className="mr-1.5 size-4" aria-hidden /> Add photo or video
+          <ImageIcon className="mr-1.5 size-4" aria-hidden /> Add photo
         </Button>
         <Button size="sm" variant="outline" onClick={onOpenAi} disabled={!ready}>
           <Mic className="mr-1.5 size-4" aria-hidden /> Speak
