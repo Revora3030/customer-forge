@@ -62,7 +62,9 @@ export function resolveVagueIntent(context: AgentContext): ResolvedIntent | null
       (section) =>
         section.is_visible &&
         (LEAD_SECTIONS.has(section.kind) ||
-          section.components.some((component) => component.kind === "button" && component.link_url)),
+          section.components.some(
+            (component) => component.kind === "button" && component.link_url,
+          )),
     ),
   );
   if (!hasLeadPath)

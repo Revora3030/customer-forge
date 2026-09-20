@@ -465,7 +465,6 @@ export function SiteChatbot({
           </div>
         </details>
 
-
         {transcripts.length ? (
           <section
             aria-label="Voice request transcripts"

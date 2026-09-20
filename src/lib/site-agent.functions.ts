@@ -702,10 +702,7 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
     for (const section of site.sections) {
       nextSectionSort.set(
         section.page_id,
-        Math.max(
-          nextSectionSort.get(section.page_id) ?? 0,
-          Number(section.sort_order) + 1,
-        ),
+        Math.max(nextSectionSort.get(section.page_id) ?? 0, Number(section.sort_order) + 1),
       );
     }
 
@@ -751,7 +748,10 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
         };
       }
       if ("componentId" in resolved && newComponents.has(resolved.componentId))
-        resolved = { ...resolved, componentId: newComponents.get(resolved.componentId)! } as AgentAction;
+        resolved = {
+          ...resolved,
+          componentId: newComponents.get(resolved.componentId)!,
+        } as AgentAction;
       const action = resolved;
 
       if (action.type === "reorder_sections") {
