@@ -107,17 +107,19 @@ export function generateArtwork(system: string, seed: number): ArtworkSpec {
   const tones: ArtLayer["tone"][] = ["primary", "accent", "secondary"];
 
   const layers: ArtLayer[] = kinds.slice(0, MAX_LAYERS).map((kind, index) => {
+    // Hairline strokes and centre-biased placement keep the artwork quiet
+    // behind text rather than reading as heavy graphics.
     const stroke = kind === "ring" || kind === "arc" || kind === "wave" || kind === "rays"
-      ? Math.round(1 + next() * 3)
+      ? Number((0.5 + next() * 1.1).toFixed(2))
       : undefined;
     const repeat = kind === "dots" ? 40 + Math.round(next() * 40)
       : kind === "bar" || kind === "tile" ? 3 + Math.round(next() * 4)
       : undefined;
     return {
       kind,
-      x: Math.round(next() * 100),
-      y: Math.round(next() * 100),
-      size: Math.round(18 + next() * 62),
+      x: Math.round(22 + next() * 56),
+      y: Math.round(20 + next() * 58),
+      size: Math.round(24 + next() * 44),
       rotate: Math.round(next() * 360),
       opacity: Number((0.06 + next() * 0.22).toFixed(3)),
       tone: tones[(index + seed) % tones.length] as ArtLayer["tone"],
