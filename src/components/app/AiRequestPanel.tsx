@@ -331,6 +331,10 @@ export function AiRequestPanel({
               ) : null}
 
               {task.steps.length ? (
+                <>
+                  {task.state === "waiting_for_approval" ? (
+                    <p className="mt-2 text-[12.5px] font-medium">Here's what I'll change:</p>
+                  ) : null}
                 <ul className="mt-2 space-y-1">
                   {task.steps.map((step, index) => (
                     <li key={step.key} className="flex items-center gap-2 text-[12px]">
