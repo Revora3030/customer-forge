@@ -13,6 +13,7 @@ set_section_text  sectionId=temp_section_1
 add_component     sectionId=temp_section_1 ref=temp_component_1
 set_component     componentId=temp_component_1
 set_component_visual componentId=temp_component_1
+reorder_components sectionId=temp_section_1 componentIds=[component_a, temp_component_1]
 ```
 
 Temporary references are valid only after the action that creates them. Page, section, and component references use separate namespaces.
@@ -31,9 +32,12 @@ The dependency guards remain fail-closed:
 - references used before their creator are rejected;
 - duplicate temporary references are rejected;
 - duplicate page slugs are rejected before execution;
+- reorder targets are checked against their parent page/section so one site area cannot reorder another site's structure;
 - real IDs remain scoped to the current workspace;
 - writes still use the authenticated RLS path;
 - every approved apply still gets a restore point, atomic undo, and post-apply verification.
+
+Visual edits and multi-row reorder edits are now journaled too, so rollback restores the same state across content, styling, and ordering.
 
 The finite visual vocabulary remains authoritative. This feature does not add arbitrary CSS, JavaScript, SQL, credentials, or network access.
 

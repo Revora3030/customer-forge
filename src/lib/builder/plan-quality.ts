@@ -55,6 +55,12 @@ function actionIsSafe(
     if (sectionIds.some((id) => !isAllowedReference(id, ids.sections, refs.sections))) return false;
   }
 
+  if (item["type"] === "reorder_components") {
+    const componentIds = item["componentIds"];
+    if (!Array.isArray(componentIds)) return false;
+    if (componentIds.some((id) => !isAllowedReference(id, ids.components, refs.components))) return false;
+  }
+
   return typeof item["type"] === "string" && item["type"].length > 0;
 }
 

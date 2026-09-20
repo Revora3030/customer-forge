@@ -683,6 +683,13 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
       );
     }
 
+    // Parent maps make reorder operations tenant-safe and section-safe even
+    // when a generated plan contains IDs from multiple parts of the site.
+    const sectionPage = new Map(site.sections.map((section) => [section.id, section.page_id]));
+    const componentSection = new Map(
+      site.components.map((component) => [component.id, component.section_id]),
+    );
+
     for (const rawAction of actions as AgentAction[]) {
       if (fatal) break;
       let resolved: AgentAction = rawAction;
@@ -701,8 +708,29 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
       if ("componentId" in resolved && newComponents.has(resolved.componentId))
         resolved = { ...resolved, componentId: newComponents.get(resolved.componentId)! } as AgentAction;
       const action = resolved;
+
+      if (action.type === "reorder_sections") {
+        const wrongPage = action.sectionIds.find((id) => sectionPage.get(id) !== action.pageId);
+        if (wrongPage) {
+          fatal = new Error("A section reorder tried to cross page boundaries.");
+          failed.push("reorder_sections:cross_page_target");
+          break;
+        }
+      }
+      if (action.type === "reorder_components") {
+        const wrongSection = action.componentIds.find(
+          (id) => componentSection.get(id) !== action.sectionId,
+        );
+        if (wrongSection) {
+          fatal = new Error("A component reorder tried to cross section boundaries.");
+          failed.push("reorder_components:cross_section_target");
+          break;
+        }
+      }
+
       // A step that still points at a section which was never created is
       // skipped rather than written against a made-up id.
+
       if ("sectionId" in action && !UUID_ID.test(action.sectionId)) {
         failed.push(`${action.type}:unresolved_section`);
         continue;
@@ -789,6 +817,7 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
             {
               const id = String(created.id);
               if (action.ref) newSections.set(action.ref, id);
+              sectionPage.set(id, action.pageId);
               nextComponentSort.set(id, 0);
               undoSteps.push({
                 label: "add_section:remove",
@@ -881,6 +910,7 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
 
             const id = String(created.id);
             nextComponentSort.set(action.sectionId, sortOrder + 1);
+            componentSection.set(id, action.sectionId);
             if (action.ref) newComponents.set(action.ref, id);
 
             undoSteps.push({

@@ -124,6 +124,7 @@ ACTION SHAPES (use exactly these)
 {"type":"add_section","pageId":"<id>","kind":"<section kind>","heading":"...","subheading":"...","body":"...","position":2}
 {"type":"delete_section","sectionId":"<id>"}
 {"type":"reorder_sections","pageId":"<id>","sectionIds":["<id>","<id>", "..."]}
+{"type":"reorder_components","sectionId":"<id>","componentIds":["<id>","<id>", "..."]}
 {"type":"set_component","componentId":"<id>","patch":{"label":"...","body":"...","link_label":"...","link_url":"...","is_visible":true}}
 {"type":"add_component","sectionId":"<id>","ref":"temp_component_1","kind":"<component kind>","label":"...","body":"...","link_label":"...","link_url":"/contact"}
   (give a new component a "ref" when later actions in the SAME plan need to edit, style or remove it)

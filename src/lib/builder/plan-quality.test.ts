@@ -172,4 +172,19 @@ describe("guardAutonomousPlan", () => {
     expect(result.notes.some((item) => item.includes("duplicate page slug"))).toBe(true);
   });
 
+  test("validates every component in a reorder action", () => {
+    const result = guardAutonomousPlan(
+      context,
+      plan([
+        {
+          type: "reorder_components",
+          sectionId: "section-1",
+          componentIds: ["component-1", "missing-component"],
+        },
+      ]),
+    );
+    expect(result.actions).toHaveLength(0);
+    expect(result.notes.some((item) => item.includes("invalid or unresolved reference"))).toBe(true);
+  });
+
 });

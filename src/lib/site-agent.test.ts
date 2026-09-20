@@ -103,4 +103,20 @@ describe("building a page and filling it in one plan", () => {
     });
   });
 
+  it("supports component reordering with the same-plan component refs", () => {
+    const actions = readActions(
+      [
+        { type: "add_component", sectionId: "section-1", kind: "button", ref: "temp_component", label: "Book" },
+        { type: "reorder_components", sectionId: "section-1", componentIds: ["component-1", "temp_component"] },
+      ],
+      { ...known, sectionIds: new Set(["section-1"]), componentIds: new Set(["component-1"]) },
+    );
+    expect(actions).toHaveLength(2);
+    expect(actions[1]).toMatchObject({
+      type: "reorder_components",
+      sectionId: "section-1",
+      componentIds: ["component-1", "temp_component"],
+    });
+  });
+
 });

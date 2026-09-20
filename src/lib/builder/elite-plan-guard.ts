@@ -87,6 +87,10 @@ function safeAction(
       return (known.pages.has(action.pageId) || refs.pages.has(action.pageId)) &&
         action.sectionIds.every((id) => known.sections.has(id) || refs.sections.has(id));
 
+    case "reorder_components":
+      return (known.sections.has(action.sectionId) || refs.sections.has(action.sectionId)) &&
+        action.componentIds.every((id) => known.components.has(id) || refs.components.has(id));
+
     case "add_page":
       return !action.ref || /^temp_[a-z0-9_]{1,30}$/i.test(action.ref);
 

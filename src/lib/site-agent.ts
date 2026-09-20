@@ -373,6 +373,12 @@ export type AgentAction =
     }
 
   | {
+      type: "reorder_components";
+      sectionId: string;
+      componentIds: string[];
+    }
+
+  | {
       type: "set_component";
       componentId: string;
       patch: ComponentPatch;
@@ -1339,6 +1345,34 @@ export function readActions(
       }
 
       /* ------------------------------------------------------------------ */
+      /* REORDER COMPONENTS                                                 */
+      /* ------------------------------------------------------------------ */
+
+      case "reorder_components": {
+        const ids =
+          Array.isArray(row["componentIds"])
+            ? (row["componentIds"] as unknown[])
+                .map((id) => text(id, 80))
+                .filter((id) => knownComponent(id))
+            : [];
+
+        if (
+          !knownSection(sectionId) ||
+          ids.length < 2
+        ) {
+          break;
+        }
+
+        out.push({
+          type,
+          sectionId,
+          componentIds: [...new Set(ids)],
+        });
+
+        break;
+      }
+
+      /* ------------------------------------------------------------------ */
       /* SET COMPONENT                                                      */
       /* ------------------------------------------------------------------ */
 
@@ -2295,6 +2329,15 @@ export function describeActions(
             destructive:
               false,
 
+            action,
+          };
+
+        case "reorder_components":
+          return {
+            key,
+            title: "Reorder the items in this section",
+            where: locate(index, { sectionId: action.sectionId }),
+            destructive: false,
             action,
           };
 
