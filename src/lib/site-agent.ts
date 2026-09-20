@@ -1208,6 +1208,38 @@ export function readActions(
       }
 
       /* ------------------------------------------------------------------ */
+      /* CUSTOM INTERACTIVE BLOCK                                           */
+      /* ------------------------------------------------------------------ */
+
+      case "set_custom_block": {
+        if (
+          !knownSection(
+            sectionId,
+          )
+        ) {
+          break;
+        }
+
+        const parsed =
+          parseCustomBlock(
+            row["spec"],
+          );
+
+        if (!parsed.ok) {
+          break;
+        }
+
+        out.push({
+          type,
+          sectionId,
+          spec: parsed.spec,
+        });
+
+        break;
+      }
+
+
+      /* ------------------------------------------------------------------ */
       /* ADD SECTION                                                        */
       /* ------------------------------------------------------------------ */
 
