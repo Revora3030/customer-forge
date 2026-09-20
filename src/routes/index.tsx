@@ -303,27 +303,21 @@ function Landing() {
                 Your business books jobs{" "}
                 <span className="gold-text">while you're on the job, and while you sleep</span>.
               </h1>
-              <p className="mt-3 text-[13px] font-medium tracking-wide text-primary/90">
-                The AI growth system that turns your website into your hardest-working employee.
-              </p>
               <p className="mt-4 max-w-xl text-[15px] leading-relaxed text-muted-foreground">
-                Every call you miss, every quote that goes unchased, every lead that goes quiet is
-                money your competitor invoices. Revora's AI runs your entire customer pipeline —{" "}
+                Revora's AI runs your{" "}
                 <span className="text-foreground">
                   website, quotes, booking, follow-up, reviews and local SEO
                 </span>{" "}
-                — so the work finds you, books itself, and shows up in your calendar while you work.
+                — so the work finds you and books itself while you work.
               </p>
 
               {/* The two doors, right in the hero: create an account, or sign
                   back into an existing one. Signed-in visitors see their
-                  dashboard here instead. */}
-              <AuthActions className="mt-8" />
+                  dashboard here instead. One CTA stack only — the repeated
+                  banner and price block live further down the page. */}
+              <AuthActions className="mt-7" />
               <AuthHint className="mt-3" />
-
-              <PrimaryCta className="mt-6" />
               <PriceLine className="mt-4" />
-              <FreeAccessBanner className="mt-6 max-w-xl" />
 
               <dl className="mt-9 grid grid-cols-1 gap-x-6 gap-y-5 border-t border-border pt-6 sm:max-w-lg sm:grid-cols-3">
                 {HERO_PROOF.map(([value, label]) => (
