@@ -78,6 +78,14 @@ const FREE_MODEL_DEFAULTS: Record<FreeProviderName, Partial<Record<ModelRole, st
     coding: "@cf/qwen/qwen2.5-coder-32b-instruct",
     vision: "@cf/meta/llama-4-scout-17b-16e-instruct",
   },
+  // Verified live against Groq's free developer-tier catalogue. Groq serves no
+  // multimodal model to this key, so `vision` is deliberately absent and the
+  // router moves on to a provider that can read pictures.
+  groq: {
+    primary: "openai/gpt-oss-120b",
+    fast: "openai/gpt-oss-20b",
+    coding: "qwen/qwen3.8-27b",
+  },
   // Verified live against OpenRouter's zero-price pool. `openrouter/free` is
   // its free auto-router, so it survives individual models being retired.
   openrouter: {
