@@ -12,6 +12,22 @@ import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 const serverEnv = loadEnv(process.env["NODE_ENV"] ?? "development", process.cwd(), "");
 Object.assign(process.env, serverEnv);
 
+// Public backend identifiers. The local .env is gitignored, so a build that runs
+// outside the sandbox (hosting/CI) has no VITE_SUPABASE_* values and every page
+// then fails client-side with "Missing Supabase environment variable(s)". These
+// two values are publishable by design (project URL + publishable anon key, both
+// protected by RLS), so committing them as a last-resort fallback keeps the
+// deployed site working everywhere. Real env values always win.
+const PUBLIC_SUPABASE_URL = "https://smqngrtayopyirrqcbhq.supabase.co";
+const PUBLIC_SUPABASE_PUBLISHABLE_KEY = "sb_publishable_4g9xDdoVG7smhhZDGvNWAQ_GfmuWgO6";
+
+process.env["VITE_SUPABASE_URL"] ||=
+  process.env["SUPABASE_URL"] || PUBLIC_SUPABASE_URL;
+process.env["VITE_SUPABASE_PUBLISHABLE_KEY"] ||=
+  process.env["SUPABASE_PUBLISHABLE_KEY"] || PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+process.env["SUPABASE_URL"] ||= process.env["VITE_SUPABASE_URL"];
+process.env["SUPABASE_PUBLISHABLE_KEY"] ||= process.env["VITE_SUPABASE_PUBLISHABLE_KEY"];
+
 export default defineConfig({
   tanstackStart: {
     // Redirect TanStack Start's bundled server entry to src/server.ts (our SSR error wrapper).
