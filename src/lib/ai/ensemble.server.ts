@@ -330,6 +330,8 @@ export async function runEnsemble<T>(
   request: EnsembleRequest<T>,
 ): Promise<EnsembleProof<T>> {
   const started = Date.now();
+  // Recorded with the run so the admin page can name the job each model served.
+  runTask = caller.task;
   const lanes = (request.lanes ?? ENSEMBLE_LANES.map((lane) => lane.id)).map(laneById);
   const roles = [...new Set(lanes.map((lane) => request.role ?? lane.role))];
 
