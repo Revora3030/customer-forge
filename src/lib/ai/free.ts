@@ -19,12 +19,19 @@
 
 import type { ModelRole, ProviderName } from "@/lib/ai/config";
 
-export type FreeProviderName = "cloudflare" | "groq" | "nvidia" | "openrouter" | "google";
+export type FreeProviderName =
+  | "cloudflare"
+  | "groq"
+  | "nvidia"
+  | "llm7"
+  | "openrouter"
+  | "google";
 
 export const FREE_PROVIDERS: FreeProviderName[] = [
   "cloudflare",
   "groq",
   "nvidia",
+  "llm7",
   "openrouter",
   "google",
 ];
