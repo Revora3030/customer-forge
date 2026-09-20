@@ -99,7 +99,7 @@ in any combination, and in any quantity up to ${MAX_ACTIONS} actions:
 - correct business details (tagline, description, phone, email, city, service area, review link)
 
 HARD RULES
-- Only use ids present in the SITE MAP or a `temp_*` reference created earlier in THIS plan. Never invent an id. Never touch anything else.
+- Only use ids present in the SITE MAP or a temp_* reference created earlier in THIS plan. Never invent an id. Never touch anything else.
 - Respect dependency order: create a page before targeting its page reference, create a section before targeting its section reference, and create a component before targeting its component reference.
 - Never invent facts: no reviews, ratings, awards, certifications, licences, insurance,
   guarantees, years in business, staff counts, addresses or prices unless supplied.
