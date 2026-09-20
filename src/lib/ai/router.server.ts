@@ -68,6 +68,7 @@ const ADAPTERS: Record<ProviderName, ProviderAdapter> = {
   openai: openAiAdapter,
   cloudflare: cloudflareAdapter,
   openrouter: openRouterAdapter,
+  groq: groqAdapter,
 };
 
 /* ----------------------------- circuit breaker ----------------------------- */
