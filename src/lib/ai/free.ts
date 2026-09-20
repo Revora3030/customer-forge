@@ -19,11 +19,12 @@
 
 import type { ModelRole, ProviderName } from "@/lib/ai/config";
 
-export type FreeProviderName = "cloudflare" | "groq" | "openrouter" | "google";
+export type FreeProviderName = "cloudflare" | "groq" | "nvidia" | "openrouter" | "google";
 
 export const FREE_PROVIDERS: FreeProviderName[] = [
   "cloudflare",
   "groq",
+  "nvidia",
   "openrouter",
   "google",
 ];
@@ -49,6 +50,11 @@ export const FREE_ALLOWANCE: Record<
   groq: {
     label: "Groq free developer tier",
     allowance: "Free developer tier: per-minute and per-day request limits per model.",
+    dailyRequestCap: null,
+  },
+  nvidia: {
+    label: "NVIDIA NIM free developer allowance",
+    allowance: "Free developer allowance: rate-limited requests to hosted NIM models.",
     dailyRequestCap: null,
   },
   openrouter: {
