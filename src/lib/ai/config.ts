@@ -24,7 +24,8 @@ export type ProviderName =
   | "cloudflare"
   | "openrouter"
   | "groq"
-  | "nvidia";
+  | "nvidia"
+  | "llm7";
 
 /** Providers that bill Revora per call. */
 export type PaidProviderName = "google" | "openai";

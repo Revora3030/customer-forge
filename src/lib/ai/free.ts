@@ -275,6 +275,7 @@ export function isFreeEligibleModel(provider: FreeProviderName, model: string): 
   if (provider === "google") return /flash|lite|gemma/i.test(name);
   if (provider === "groq") return groqFreeEligible(name);
   if (provider === "nvidia") return nvidiaFreeEligible(name);
+  if (provider === "llm7") return llm7FreeEligible(name);
   return name.startsWith("@cf/");
 }
 
@@ -307,6 +308,10 @@ export function freeProviderCredentials(
     const apiKey = env("NVIDIA_NIM_API_KEY") ?? env("NVIDIA_API_KEY");
     return apiKey ? { apiKey } : null;
   }
+  if (provider === "llm7") {
+    const apiKey = env("LLM7_API_KEY");
+    return apiKey ? { apiKey } : null;
+  }
   // Gemini needs its OWN free-tier key. A general Google key may sit on a
   // billing-enabled project, where the same models are charged — so it is only
   // treated as free when an operator opts in explicitly.
@@ -329,6 +334,7 @@ const DEFAULT_ORDER: FreeProviderName[] = [
   "cloudflare",
   "groq",
   "nvidia",
+  "llm7",
   "openrouter",
   "google",
 ];
