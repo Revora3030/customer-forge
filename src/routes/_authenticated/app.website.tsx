@@ -376,7 +376,10 @@ function WebsitePage() {
     },
     broken: {
       key: "broken",
-      title: `${failingChecks.length} thing${failingChecks.length === 1 ? "" : "s"} look wrong`,
+      title:
+        failingChecks.length === 1
+          ? "1 thing looks wrong"
+          : `${failingChecks.length} things look wrong`,
       body: failingChecks
         .slice(0, 2)
         .map((check) => check.label)
