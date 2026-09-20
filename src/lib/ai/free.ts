@@ -172,7 +172,12 @@ export function freeProviderCredentials(
     const apiKey = env("OPENROUTER_API_KEY");
     return apiKey ? { apiKey } : null;
   }
-  const apiKey = env("GOOGLE_AI_FREE_API_KEY") ?? env("GOOGLE_AI_API_KEY");
+  // Gemini needs its OWN free-tier key. A general Google key may sit on a
+  // billing-enabled project, where the same models are charged — so it is only
+  // treated as free when an operator opts in explicitly.
+  const apiKey =
+    env("GOOGLE_AI_FREE_API_KEY") ??
+    (env("GOOGLE_AI_FREE_TIER") === "true" ? env("GOOGLE_AI_API_KEY") : null);
   return apiKey ? { apiKey } : null;
 }
 
