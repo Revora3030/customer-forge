@@ -257,7 +257,10 @@ function SiteSectionBody({ site, section }: { site: Site; section: Section }) {
                 <SectionButtons site={site} components={components} />
               </div>
               {profile?.hero_image_url ? (
-                <div className="rv-hero-media overflow-hidden rounded-2xl">
+                // The frame keeps a steady, wide shape at every screen size, so a
+                // square or tall photo is cropped to the centre instead of
+                // stretching the top of the page out of proportion.
+                <div className="rv-hero-media aspect-[4/3] overflow-hidden rounded-2xl sm:aspect-[3/2] lg:aspect-[16/10]">
                   <img
                     src={profile?.hero_image_url ?? ""}
                     alt={org.name + " featured work"}
@@ -265,7 +268,7 @@ function SiteSectionBody({ site, section }: { site: Site; section: Section }) {
                     height={800}
                     fetchPriority="high"
                     decoding="async"
-                    className="h-full min-h-64 w-full object-cover"
+                    className="h-full w-full object-cover object-center"
                   />
                 </div>
               ) : (
