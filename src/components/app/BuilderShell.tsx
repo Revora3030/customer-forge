@@ -118,6 +118,7 @@ export function BuilderShell({
       {/* ---------------------------- Top bar ---------------------------- */}
       <div className="sticky top-0 z-30 -mx-4 mb-4 border-b border-border bg-background/95 px-4 py-2.5 backdrop-blur">
         <div className="flex flex-wrap items-center gap-2">
+          {sections.length > 1 ? (
           <button
             type="button"
             aria-label="Open builder sections"
@@ -126,6 +127,7 @@ export function BuilderShell({
           >
             <Menu className="size-4" aria-hidden />
           </button>
+          ) : null}
 
           <div className="min-w-0 flex-1">
             <p className="truncate text-[13px] font-medium">{projectName}</p>
@@ -171,10 +173,12 @@ export function BuilderShell({
         </nav>
 
         {/* --------------------------- Canvas --------------------------- */}
-        <div className="min-w-0 flex-1 pb-24 lg:pb-6">
-          <div className="mb-3 lg:hidden">
-            <p className="eyebrow">{current?.label}</p>
-          </div>
+        <div className={cn("min-w-0 flex-1 lg:pb-6", sections.length > 1 ? "pb-24" : "pb-6")}>
+          {sections.length > 1 ? (
+            <div className="mb-3 lg:hidden">
+              <p className="eyebrow">{current?.label}</p>
+            </div>
+          ) : null}
           {current?.node}
         </div>
       </div>
