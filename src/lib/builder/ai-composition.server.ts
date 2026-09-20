@@ -237,9 +237,14 @@ export function composeActions(
   context: AgentContext,
   proposal: { direction: DesignDirection; pages: PageProposal[] },
   cap: number,
-): { actions: AgentAction[]; notes: string[] } {
+): {
+  actions: AgentAction[];
+  notes: string[];
+  pages: { pageId: string; title: string; blocks: string[]; added: string[] }[];
+} {
   const actions: AgentAction[] = [];
   const notes: string[] = [];
+  const preview: { pageId: string; title: string; blocks: string[]; added: string[] }[] = [];
   const pages = visiblePages(context);
 
   actions.push(
@@ -257,13 +262,13 @@ export function composeActions(
 
     // Missing kinds become new sections at the position the director asked for.
     const present = new Set(existing.map((section) => section.kind));
-    let added = 0;
+    const addedKinds: string[] = [];
     for (const [index, kind] of page.order.entries()) {
       if (present.has(kind)) continue;
-      if (actions.length >= cap || added >= 3) break;
+      if (actions.length >= cap || addedKinds.length >= 3) break;
       actions.push({ type: "add_section", pageId: page.pageId, kind, position: index });
       present.add(kind);
-      added += 1;
+      addedKinds.push(kind);
     }
 
     // Existing sections are resequenced into the composed order; anything the
@@ -283,10 +288,54 @@ export function composeActions(
         sectionIds: ordered.map((section) => section.id),
       });
     }
-    if (added) notes.push(`${real.title}: added ${added} missing section(s).`);
+    if (addedKinds.length)
+      notes.push(`${real.title}: added ${addedKinds.length} missing section(s).`);
+
+    // What the page will look like once this plan runs, in owner-friendly words.
+    const finalKinds = page.order.filter((kind) => present.has(kind));
+    for (const section of ordered) if (!finalKinds.includes(section.kind)) finalKinds.push(section.kind);
+    preview.push({
+      pageId: page.pageId,
+      title: real.title,
+      blocks: finalKinds.map(blockLabel),
+      added: addedKinds.map(blockLabel),
+    });
   }
 
-  return { actions: actions.slice(0, cap), notes };
+  return { actions: actions.slice(0, cap), notes, pages: preview };
+}
+
+const HEX = /^#[0-9a-fA-F]{6}$/;
+
+/**
+ * Folds the owner's own brand choices over the AI's chosen direction. Their
+ * colours and font always win; the AI still decides layout, motion and backdrop.
+ */
+export function applyBrandPreference(
+  direction: DesignDirection,
+  brand?: BrandPreference | null,
+): { direction: DesignDirection; locked: boolean } {
+  if (!brand) return { direction, locked: false };
+  const next = { ...direction };
+  let locked = false;
+  if (brand.primaryColor && HEX.test(brand.primaryColor)) {
+    next.primary = brand.primaryColor;
+    locked = true;
+  }
+  if (brand.secondaryColor && HEX.test(brand.secondaryColor)) {
+    next.secondary = brand.secondaryColor;
+    locked = true;
+  }
+  if (brand.accentColor && HEX.test(brand.accentColor)) {
+    next.accent = brand.accentColor;
+    locked = true;
+  }
+  if (brand.font && brand.font.trim().length > 1) {
+    next.font = brand.font.trim().slice(0, 60);
+    next.fontNote = "chosen by you";
+    locked = true;
+  }
+  return { direction: next, locked };
 }
 
 /**
@@ -300,20 +349,35 @@ export async function proposeSiteComposition(
     organizationId?: string | null;
     userId?: string | null;
     cap?: number;
+    /** The owner's style, colour and font choices, made before composing. */
+    brand?: BrandPreference | null;
   },
 ): Promise<ComposedSitePlan | null> {
   const { builderAiAvailable } = await import("@/lib/ai/availability");
   if (!builderAiAvailable()) return null;
   if (!visiblePages(context).length) return null;
 
+  const brand = options.brand ?? null;
+  // Each request draws a fresh set of candidate identities, so the same
+  // business asking twice is never handed the same look twice.
+  const refresh = hashText(`${options.instruction}|${new Date().toISOString().slice(0, 13)}`);
+  const tone = brand?.tone && brand.tone !== "any" ? brand.tone : undefined;
+  const chosen = brand?.directionId
+    ? DESIGN_DIRECTIONS.find((entry) => entry.id === brand.directionId)
+    : undefined;
   const directions = recommendDirections({
     businessName: context.business.name,
     industry: context.business.industry,
     services: context.business.services,
     city: context.business.city,
-    currentFont: context.business.fontPreference,
+    currentFont: brand?.font ?? context.business.fontPreference,
     count: 8,
+    refresh,
+    ...(tone ? { tone } : {}),
   });
+  const candidates = chosen
+    ? [chosen, ...directions.filter((entry) => entry.id !== chosen.id)]
+    : directions;
 
   try {
     const { generateStructuredOutput } = await import("@/lib/ai/router.server");
@@ -330,26 +394,49 @@ export async function proposeSiteComposition(
           { role: "system", content: SYSTEM },
           {
             role: "user",
-            content: `OWNER'S REQUEST (context only — do not write copy):\n${options.instruction}\n\nWORKSPACE:\n${brief(
-              context,
-              directions,
-            )}`,
+            content: `OWNER'S REQUEST (context only — do not write copy):\n${options.instruction}\n\n${
+              chosen
+                ? `The owner already chose the look "${chosen.name}" (id ${chosen.id}). Use that directionId.\n\n`
+                : ""
+            }WORKSPACE:\n${brief(context, candidates)}`,
           },
         ],
       },
     );
 
-    const proposal = parseProposal(result.data, context, directions);
+    const proposal = parseProposal(result.data, context, candidates);
     if (!proposal) return null;
 
-    const composed = composeActions(context, proposal, options.cap ?? 40);
+    // The owner's own choices are final, so they override the model's palette.
+    const branded = applyBrandPreference(chosen ?? proposal.direction, brand);
+    const composed = composeActions(
+      context,
+      { direction: branded.direction, pages: proposal.pages },
+      options.cap ?? 40,
+    );
     if (!composed.actions.length) return null;
 
+    const { directionTone } = await import("@/lib/design-directions");
     return {
       actions: composed.actions,
       notes: composed.notes,
-      directionId: proposal.direction.id,
+      directionId: branded.direction.id,
       because: proposal.because,
+      preview: {
+        styleName: branded.direction.name,
+        mood: branded.direction.mood,
+        tone: directionTone(branded.direction),
+        font: branded.direction.font,
+        fontNote: branded.direction.fontNote,
+        colors: {
+          primary: branded.direction.primary,
+          secondary: branded.direction.secondary,
+          accent: branded.direction.accent,
+        },
+        because: proposal.because,
+        pages: composed.pages,
+        brandLocked: branded.locked,
+      },
     };
   } catch {
     // Free provider unavailable, rate limited, resting or unparseable: the
@@ -357,3 +444,14 @@ export async function proposeSiteComposition(
     return null;
   }
 }
+
+/** Small stable hash, used only to vary the candidate set per request. */
+function hashText(value: string): number {
+  let hash = 2166136261;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return Math.abs(hash) % 100000;
+}
+
