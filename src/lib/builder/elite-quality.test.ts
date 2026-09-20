@@ -106,5 +106,14 @@ describe("elite builder quality", () => {
     expect(result.actions[1]).toMatchObject({ type: "set_component", componentId: "temp_component" });
     expect(result.unsafe).toBe(1);
   });
+  it("rejects duplicate temporary creator refs even with different payloads", () => {
+    const actions: AgentAction[] = [
+      { type: "add_component", sectionId: "section-hero", kind: "button", ref: "temp_component", label: "One" },
+      { type: "add_component", sectionId: "section-hero", kind: "button", ref: "temp_component", label: "Two" },
+    ];
+    const result = guardBuilderPlan(context, actions, 60);
+    expect(result.actions).toHaveLength(1);
+    expect(result.duplicates).toBe(1);
+  });
 
 });

@@ -186,5 +186,16 @@ describe("guardAutonomousPlan", () => {
     expect(result.actions).toHaveLength(0);
     expect(result.notes.some((item) => item.includes("invalid or unresolved reference"))).toBe(true);
   });
+  test("drops duplicate temporary creator refs even with different payloads", () => {
+    const result = guardAutonomousPlan(
+      context,
+      plan([
+        { type: "add_section", pageId: "page-1", kind: "cta", ref: "temp_section", heading: "One" },
+        { type: "add_section", pageId: "page-1", kind: "cta", ref: "temp_section", heading: "Two" },
+      ]),
+    );
+    expect(result.actions).toHaveLength(1);
+    expect(result.notes.some((item) => item.includes("duplicate temporary section reference"))).toBe(true);
+  });
 
 });

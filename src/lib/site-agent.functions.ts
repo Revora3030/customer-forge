@@ -705,6 +705,14 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
           ),
         };
       }
+      if (resolved.type === "reorder_components") {
+        resolved = {
+          ...resolved,
+          componentIds: resolved.componentIds.map(
+            (componentId) => newComponents.get(componentId) ?? componentId,
+          ),
+        };
+      }
       if ("componentId" in resolved && newComponents.has(resolved.componentId))
         resolved = { ...resolved, componentId: newComponents.get(resolved.componentId)! } as AgentAction;
       const action = resolved;

@@ -118,5 +118,28 @@ describe("building a page and filling it in one plan", () => {
       componentIds: ["component-1", "temp_component"],
     });
   });
+  it("rejects duplicate temporary component creators instead of silently creating a second item", () => {
+    const actions = readActions(
+      [
+        { type: "add_component", sectionId: "section-1", kind: "button", ref: "temp_component", label: "One" },
+        { type: "add_component", sectionId: "section-1", kind: "button", ref: "temp_component", label: "Two" },
+        { type: "set_component", componentId: "temp_component", patch: { label: "Edited" } },
+      ],
+      { ...known, sectionIds: new Set(["section-1"]) },
+    );
+    expect(actions).toHaveLength(2);
+    expect(actions[0]).toMatchObject({ type: "add_component", ref: "temp_component" });
+    expect(actions[1]).toMatchObject({ type: "set_component", componentId: "temp_component" });
+  });
+
+  it("rejects partial component reorders instead of silently dropping unknown ids", () => {
+    const actions = readActions(
+      [
+        { type: "reorder_components", sectionId: "section-1", componentIds: ["component-1", "missing-component"] },
+      ],
+      { ...known, sectionIds: new Set(["section-1"]), componentIds: new Set(["component-1"]) },
+    );
+    expect(actions).toHaveLength(0);
+  });
 
 });

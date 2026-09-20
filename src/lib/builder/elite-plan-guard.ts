@@ -135,6 +135,19 @@ export function guardBuilderPlan(
   for (const action of actions) {
     if (output.length >= Math.min(cap, MAX_ACTIONS)) break;
 
+    if (action.type === "add_page" && action.ref && refs.pages.has(action.ref)) {
+      duplicates += 1;
+      continue;
+    }
+    if (action.type === "add_section" && action.ref && refs.sections.has(action.ref)) {
+      duplicates += 1;
+      continue;
+    }
+    if (action.type === "add_component" && action.ref && refs.components.has(action.ref)) {
+      duplicates += 1;
+      continue;
+    }
+
     if (!safeAction(action, known, refs)) {
       unsafe += 1;
       continue;

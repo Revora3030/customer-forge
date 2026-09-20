@@ -86,6 +86,18 @@ export function guardAutonomousPlan(
   const pageSlugs = new Map(
     context.pages.map((page) => [page.slug.replace(/^\/+|\/+$/g, "").toLowerCase(), page.id]),
   );
+  const sectionPage = new Map(
+    context.pages.flatMap((page) =>
+      page.sections.map((section) => [section.id, page.id] as const),
+    ),
+  );
+  const componentSection = new Map(
+    context.pages.flatMap((page) =>
+      page.sections.flatMap((section) =>
+        section.components.map((component) => [component.id, section.id] as const),
+      ),
+    ),
+  );
 
   for (const action of critiqued.actions.slice(0, MAX_PLAN_ACTIONS)) {
     const key = JSON.stringify(action) ?? "";
@@ -95,8 +107,46 @@ export function guardAutonomousPlan(
     }
     seen.add(key);
 
+    if (action.type === "reorder_sections") {
+      const crossPage = action.sectionIds.some(
+        (sectionId) =>
+          ids.sections.has(sectionId) &&
+          !refs.sections.has(sectionId) &&
+          sectionPage.get(sectionId) !== action.pageId,
+      );
+      if (crossPage) {
+        issues.push("Removed cross-page section reorder.");
+        continue;
+      }
+    }
+    if (action.type === "reorder_components") {
+      const crossSection = action.componentIds.some(
+        (componentId) =>
+          ids.components.has(componentId) &&
+          !refs.components.has(componentId) &&
+          componentSection.get(componentId) !== action.sectionId,
+      );
+      if (crossSection) {
+        issues.push("Removed cross-section component reorder.");
+        continue;
+      }
+    }
+
     if (!actionIsSafe(action, ids, refs)) {
       issues.push(`Removed an action with an invalid or unresolved reference: ${action.type}.`);
+      continue;
+    }
+
+    if (action.type === "add_page" && action.ref && refs.pages.has(action.ref)) {
+      issues.push("Removed duplicate temporary page reference: " + action.ref + ".");
+      continue;
+    }
+    if (action.type === "add_section" && action.ref && refs.sections.has(action.ref)) {
+      issues.push("Removed duplicate temporary section reference: " + action.ref + ".");
+      continue;
+    }
+    if (action.type === "add_component" && action.ref && refs.components.has(action.ref)) {
+      issues.push("Removed duplicate temporary component reference: " + action.ref + ".");
       continue;
     }
 

@@ -1223,20 +1223,17 @@ export function readActions(
             40,
           );
 
+        if (sectionRef && TEMP_REF.test(sectionRef) && sectionRefs.has(sectionRef)) {
+          break;
+        }
+
         const usableRef =
-          TEMP_REF.test(
-            sectionRef,
-          ) &&
-          !sectionRefs.has(
-            sectionRef,
-          )
+          TEMP_REF.test(sectionRef)
             ? sectionRef
             : "";
 
         if (usableRef) {
-          sectionRefs.add(
-            usableRef,
-          );
+          sectionRefs.add(usableRef);
         }
 
         out.push({
@@ -1309,26 +1306,17 @@ export function readActions(
       /* ------------------------------------------------------------------ */
 
       case "reorder_sections": {
-        const ids =
-          Array.isArray(
-            row["sectionIds"],
-          )
-            ? (
-                row[
-                  "sectionIds"
-                ] as unknown[]
-              )
-                .map((id) =>
-                  text(id, 80),
-                )
-                .filter((id) =>
-                  knownSection(id),
-                )
+        const rawIds =
+          Array.isArray(row["sectionIds"])
+            ? (row["sectionIds"] as unknown[]).map((id) => text(id, 80))
             : [];
+        const ids = rawIds.filter(Boolean);
 
         if (
           !knownPage(pageId) ||
-          ids.length < 2
+          ids.length < 2 ||
+          ids.some((id) => !knownSection(id)) ||
+          new Set(ids).size !== ids.length
         ) {
           break;
         }
@@ -1349,16 +1337,17 @@ export function readActions(
       /* ------------------------------------------------------------------ */
 
       case "reorder_components": {
-        const ids =
+        const rawIds =
           Array.isArray(row["componentIds"])
-            ? (row["componentIds"] as unknown[])
-                .map((id) => text(id, 80))
-                .filter((id) => knownComponent(id))
+            ? (row["componentIds"] as unknown[]).map((id) => text(id, 80))
             : [];
+        const ids = rawIds.filter(Boolean);
 
         if (
           !knownSection(sectionId) ||
-          ids.length < 2
+          ids.length < 2 ||
+          ids.some((id) => !knownComponent(id)) ||
+          new Set(ids).size !== ids.length
         ) {
           break;
         }
@@ -1543,9 +1532,12 @@ export function readActions(
             40,
           );
 
+        if (ref && TEMP_REF.test(ref) && componentRefs.has(ref)) {
+          break;
+        }
+
         const usableRef =
-          TEMP_REF.test(ref) &&
-          !componentRefs.has(ref)
+          TEMP_REF.test(ref)
             ? ref
             : "";
 
@@ -1656,16 +1648,17 @@ export function readActions(
             40,
           );
 
+        if (ref && TEMP_REF.test(ref) && pageRefs.has(ref)) {
+          break;
+        }
+
         const usable =
-          TEMP_REF.test(ref) &&
-          !pageRefs.has(ref)
+          TEMP_REF.test(ref)
             ? ref
             : "";
 
         if (usable) {
-          pageRefs.add(
-            usable,
-          );
+          pageRefs.add(usable);
         }
 
         out.push({
