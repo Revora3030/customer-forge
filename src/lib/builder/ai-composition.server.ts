@@ -518,6 +518,12 @@ async function composeByEnsemble(
       {
         mode: ensembleModeFor(options.instruction),
         lanes: [...COMPOSITION_LANES],
+        // The owner is waiting. Once three models have independently agreed on
+        // the same look and page order, that is the decision — the rest of the
+        // pool repeating it only adds waiting time.
+        settleWhenAgreed: 3,
+        deadlineMs: 45_000,
+        timeoutMsPerCall: 20_000,
         role: "design",
         prompt: ({ lane }) => [
           { role: "system", content: SYSTEM },
