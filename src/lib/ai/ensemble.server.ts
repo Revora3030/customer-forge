@@ -373,7 +373,7 @@ export async function runEnsemble<T>(
       blockedReason: "No verified free model is available right now.",
       results: [],
       winner: null,
-    };
+    });
 
   const globalLimit = request.concurrency ?? positiveEnv("ENSEMBLE_CONCURRENCY", 6);
   const providerLimit =
