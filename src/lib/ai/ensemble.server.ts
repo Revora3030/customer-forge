@@ -487,7 +487,7 @@ export async function runEnsemble<T>(
   );
   const winner = ranked[0] ?? null;
 
-  return {
+  return recordRun({
     mode: request.mode,
     attempted: assignments,
     outcomes,
