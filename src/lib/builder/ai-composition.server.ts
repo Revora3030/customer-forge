@@ -107,7 +107,7 @@ Rules:
   Two different businesses should get genuinely different structures.
 - Pick the direction that suits the trade and audience, not the safest one.`;
 
-function parseProposal(
+export function parseProposal(
   data: Record<string, unknown>,
   context: AgentContext,
   directions: DesignDirection[],
@@ -173,7 +173,7 @@ function parseProposal(
  * Turns a validated proposal into real actions: reorder what already exists,
  * add only the missing kinds, and never delete or hide anything.
  */
-function composeActions(
+export function composeActions(
   context: AgentContext,
   proposal: { direction: DesignDirection; pages: PageProposal[] },
   cap: number,
