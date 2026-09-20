@@ -214,18 +214,22 @@ export function freeAiStatus() {
     freeAiEnabled: freeAiEnabled(),
     freeOnly: freeAiOnly(),
     paidFallbackReachable: !freeAiOnly() && !zeroAiCostMode(),
+    /** The most recent model call: who served it and how it ended. */
+    last: lastAiOutcome(),
     providers: freeProviderReadiness().map((entry) => {
       const state = breaker.get(entry.name as ProviderName);
       const cooling = state && state.openUntil > Date.now();
       return {
         ...entry,
         healthy: !cooling,
+        openFailures: state?.failures ?? 0,
         cooldownUntil: cooling ? state.openUntil : null,
         remainingToday: freeBudgetRemaining(entry.name),
       };
     }),
   };
 }
+
 
 /* ------------------------------- concurrency ------------------------------- */
 
