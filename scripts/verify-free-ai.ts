@@ -1,6 +1,6 @@
 import { generateStructuredOutput, generateText, freeAiStatus, lastAiOutcome } from "../src/lib/ai/router.server";
 import { builderAiAvailable, builderMediaAvailability } from "../src/lib/ai/availability";
-import { freeChainFor } from "../src/lib/ai/free";
+import { freeProviderChain } from "../src/lib/ai/free";
 
 const caller = { task: "verify.live" };
 async function probe(label: string, order: string, role: "primary" | "fast" | "coding") {
@@ -17,7 +17,7 @@ async function probe(label: string, order: string, role: "primary" | "fast" | "c
   }
 }
 for (const p of ["cloudflare", "openrouter", "google"] as const) {
-  console.log("chain", p, JSON.stringify(freeChainFor("primary").filter((c) => c.name === p).map((c) => c.model)));
+  console.log("chain", p, JSON.stringify(freeProviderChain("primary").filter((c) => c.name === p).map((c) => c.model)));
 }
 await probe("cloudflare/primary", "cloudflare", "primary");
 await probe("cloudflare/fast", "cloudflare", "fast");
