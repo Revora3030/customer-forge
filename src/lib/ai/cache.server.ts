@@ -93,7 +93,7 @@ const pending = new Map<string, Promise<unknown>>();
 
 /** Run `work` once per identical request within the cache window. */
 export async function withAnalysisCache<T>(
-  scope: string,
+  scope: AnalysisCacheScope,
   payload: unknown,
   work: () => Promise<T>,
 ): Promise<T> {
