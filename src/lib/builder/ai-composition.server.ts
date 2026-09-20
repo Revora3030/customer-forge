@@ -426,3 +426,107 @@ function hashText(value: string): number {
   return Math.abs(hash) % 100000;
 }
 
+
+/* --------------------------- multi-model composition ----------------------- */
+
+type ValidatedProposal = { direction: DesignDirection; pages: PageProposal[]; because: string };
+
+type ComposeOptions = {
+  instruction: string;
+  organizationId?: string | null;
+  userId?: string | null;
+};
+
+/** The design lanes that have an opinion about structure and look-and-feel. */
+const COMPOSITION_LANES = [
+  "architect",
+  "uiux",
+  "visual",
+  "brand",
+  "cro",
+  "seo",
+  "navigation",
+  "critic",
+] as const;
+
+/**
+ * Asks every compatible verified free model — across every configured free
+ * provider — to compose this site, then takes the consensus. Each answer is
+ * validated against the real workspace before it can vote, so an invalid or
+ * fact-inventing answer is discarded rather than argued with.
+ *
+ * Returns null when no free model is reachable, and the single-model path (and
+ * ultimately the deterministic planner) still stands.
+ */
+async function composeByEnsemble(
+  context: AgentContext,
+  candidates: DesignDirection[],
+  userBrief: string,
+  options: ComposeOptions,
+) {
+  try {
+    const { ensembleModeFor, runEnsemble } = await import("@/lib/ai/ensemble.server");
+    const proof = await runEnsemble<ValidatedProposal>(
+      {
+        task: "site.compose",
+        organizationId: options.organizationId ?? null,
+        userId: options.userId ?? null,
+      },
+      {
+        mode: ensembleModeFor(options.instruction),
+        lanes: [...COMPOSITION_LANES],
+        role: "design",
+        prompt: ({ lane }) => [
+          { role: "system", content: SYSTEM },
+          {
+            role: "user",
+            content: `YOUR SEAT ON THE TEAM: ${lane.title}. Judge this site from that seat.\n\n${userBrief}`,
+          },
+        ],
+        // The existing validator is the gate: unknown ids, banned section kinds
+        // and fact-gated blocks without the facts are all rejected here.
+        parse: ({ data }) => parseProposal(data, context, candidates),
+        consensusKey: (value) =>
+          `${value.direction.id}|${value.pages
+            .map((page) => `${page.pageId}:${page.order.join(",")}`)
+            .sort()
+            .join("|")}`,
+      },
+    );
+    return proof.verdict === "PASS" ? proof : null;
+  } catch {
+    return null;
+  }
+}
+
+function proofSummaryLine(proof: { mode: string; attempted: unknown[]; providers: string[]; succeeded: number; failed: number; distinct: number; agreement: number }) {
+  return `Composed by ${proof.succeeded} of ${proof.attempted.length} free models across ${proof.providers.length} provider(s); ${proof.agreement} agreed on this layout (${proof.distinct} distinct proposals, ${proof.failed} did not answer).`;
+}
+
+/** The original single-call path, kept as the ensemble's backstop. */
+async function composeBySingleModel(
+  context: AgentContext,
+  candidates: DesignDirection[],
+  userBrief: string,
+  options: ComposeOptions,
+): Promise<ValidatedProposal | null> {
+  const { generateStructuredOutput } = await import("@/lib/ai/router.server");
+  const result = await generateStructuredOutput(
+    {
+      task: "site.compose",
+      organizationId: options.organizationId ?? null,
+      userId: options.userId ?? null,
+    },
+    {
+      // Look-and-feel and page composition are creative judgement, so this
+      // runs on the strongest free model available, not the cheapest.
+      role: "design",
+      json: true,
+      messages: [
+        { role: "system", content: SYSTEM },
+        { role: "user", content: userBrief },
+      ],
+    },
+  );
+  return parseProposal(result.data, context, candidates);
+}
