@@ -1238,11 +1238,23 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
     return {
       applied: applied.length,
       failed: failed.length,
+      /** Steps that could not run because their target no longer exists. */
+      stale: preflight.stale.length,
+      staleNotice,
+      duplicates: preflight.duplicates,
+      /** Per-operation outcomes for the collapsed diagnostics panel. */
+      details: [
+        ...applied.map((label) => `applied ${label}`),
+        ...failed.map((label) => `skipped ${label}`),
+        ...preflight.stale.map((entry) => `stale ${entry.type} (${entry.reason})`),
+      ],
       snapshotLabel,
       snapshotVersion,
       operationId,
+      alreadyApplied: false,
       verification,
     };
+
   }
 }
 
