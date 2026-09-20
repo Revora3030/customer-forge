@@ -116,6 +116,16 @@ function AdminAi() {
                     {provider.remainingToday} requests left today
                   </span>
                 ) : null}
+                {provider.cooldownUntil ? (
+                  <span className="text-muted-foreground">
+                    resting until {new Date(provider.cooldownUntil).toLocaleTimeString("en-US")}
+                  </span>
+                ) : provider.openFailures > 0 ? (
+                  <span className="text-muted-foreground">
+                    {provider.openFailures} recent problem
+                    {provider.openFailures === 1 ? "" : "s"}
+                  </span>
+                ) : null}
               </div>
               <p className="mt-1.5 text-muted-foreground">{provider.allowance}</p>
               {provider.models.length ? (
@@ -126,6 +136,17 @@ function AdminAi() {
             </div>
           ))}
         </div>
+        {data?.free.last ? (
+          <p className="mt-3 text-[13px] text-muted-foreground">
+            Last request: <span className="font-medium capitalize">{data.free.last.provider}</span>{" "}
+            {data.free.last.model} · {data.free.last.task} ·{" "}
+            {data.free.last.ok
+              ? "answered"
+              : `failed (${data.free.last.category?.replace(/_/g, " ") ?? "unknown"})`}
+            {data.free.last.fallbackUsed ? " · a backup provider covered it" : ""}
+            {data.free.last.free ? " · free" : ""}
+          </p>
+        ) : null}
         {data ? (
           <p className="mt-3 text-[13px] text-muted-foreground">
             {data.builderAiAvailable
@@ -136,6 +157,7 @@ function AdminAi() {
               : "Paid providers are switched off and cannot be reached."}
           </p>
         ) : null}
+
       </Panel>
 
       <Panel>

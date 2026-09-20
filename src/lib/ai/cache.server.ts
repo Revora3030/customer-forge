@@ -56,7 +56,14 @@ export function writeAnalysisCache<T>(key: string, value: T) {
 
 export function resetAnalysisCache() {
   store.clear();
+  pending.clear();
 }
+
+/**
+ * Identical requests that arrive while one is still running share that one call,
+ * so a double-click or two tabs cannot spend the free allowance twice.
+ */
+const pending = new Map<string, Promise<unknown>>();
 
 /** Run `work` once per identical request within the cache window. */
 export async function withAnalysisCache<T>(
@@ -67,7 +74,20 @@ export async function withAnalysisCache<T>(
   const key = await analysisCacheKey(scope, payload);
   const hit = readAnalysisCache<T>(key);
   if (hit !== null) return hit;
-  const value = await work();
-  writeAnalysisCache(key, value);
-  return value;
+
+  const inFlight = pending.get(key);
+  if (inFlight) return (await inFlight) as T;
+
+  const run = (async () => {
+    const value = await work();
+    writeAnalysisCache(key, value);
+    return value;
+  })();
+  pending.set(key, run);
+  try {
+    return await run;
+  } finally {
+    pending.delete(key);
+  }
 }
+

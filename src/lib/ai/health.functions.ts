@@ -32,17 +32,32 @@ export type AiFreeProviderStatus = {
   allowance: string;
   configured: boolean;
   healthy: boolean;
+  openFailures: number;
   cooldownUntil: number | null;
   remainingToday: number | null;
   models: { role: string; model: string }[];
+};
+
+export type AiLastOutcome = {
+  at: number;
+  provider: string;
+  model: string;
+  task: string;
+  ok: boolean;
+  category: string | null;
+  fallbackUsed: boolean;
+  free: boolean;
 };
 
 export type AiFreeStatus = {
   freeAiEnabled: boolean;
   freeOnly: boolean;
   paidFallbackReachable: boolean;
+  /** Who served the most recent request, and how it ended. */
+  last: AiLastOutcome | null;
   providers: AiFreeProviderStatus[];
 };
+
 
 export type AiHealth = {
   configured: boolean;

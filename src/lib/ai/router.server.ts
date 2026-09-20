@@ -94,6 +94,36 @@ function noteSuccess(provider: ProviderName) {
   breaker.delete(provider);
 }
 
+/* --------------------------- last-request visibility ----------------------- */
+
+/**
+ * What happened on the most recent model call, for the admin surface. Provider,
+ * model, task, whether a backup covered it and the failure category only —
+ * never a prompt, never any part of a credential.
+ */
+export type LastAiOutcome = {
+  at: number;
+  provider: ProviderName;
+  model: string;
+  task: string;
+  ok: boolean;
+  category: string | null;
+  fallbackUsed: boolean;
+  free: boolean;
+};
+
+let lastOutcome: LastAiOutcome | null = null;
+
+export function lastAiOutcome(): LastAiOutcome | null {
+  return lastOutcome;
+}
+
+/** Test/operations helper: forgets breaker state and the last outcome. */
+export function resetAiRuntimeStatus() {
+  lastOutcome = null;
+  breaker.clear();
+}
+
 /** Provider health as the admin dashboard reports it — measured, not guessed. */
 export function providerHealth() {
   return Object.keys(ADAPTERS).map((name) => {
@@ -102,10 +132,12 @@ export function providerHealth() {
     return {
       provider,
       healthy: providerHealthy(provider),
+      failures: state?.failures ?? 0,
       cooldownUntil: state && state.openUntil > Date.now() ? state.openUntil : null,
     };
   });
 }
+
 
 /* ------------------------------ the free chain ----------------------------- */
 
@@ -182,18 +214,22 @@ export function freeAiStatus() {
     freeAiEnabled: freeAiEnabled(),
     freeOnly: freeAiOnly(),
     paidFallbackReachable: !freeAiOnly() && !zeroAiCostMode(),
+    /** The most recent model call: who served it and how it ended. */
+    last: lastAiOutcome(),
     providers: freeProviderReadiness().map((entry) => {
       const state = breaker.get(entry.name as ProviderName);
       const cooling = state && state.openUntil > Date.now();
       return {
         ...entry,
         healthy: !cooling,
+        openFailures: state?.failures ?? 0,
         cooldownUntil: cooling ? state.openUntil : null,
         remainingToday: freeBudgetRemaining(entry.name),
       };
     }),
   };
 }
+
 
 /* ------------------------------- concurrency ------------------------------- */
 
@@ -315,6 +351,17 @@ async function run<T>(
           if (candidate.free) noteFreeUse(candidate.free);
           const result = await execute({ adapter, config, model, signal: controller.signal });
           noteSuccess(config.name);
+          lastOutcome = {
+            at: Date.now(),
+            provider: config.name,
+            model,
+            task: caller.task,
+            ok: true,
+            category: null,
+            fallbackUsed,
+            free: candidate.free !== null,
+          };
+
           void recordAiEvent({
             requestId,
             provider: config.name,
@@ -351,6 +398,17 @@ async function run<T>(
                 : providerUnavailable(config.name, (rawError as Error)?.message?.slice(0, 120));
           lastError = error;
           noteFailure(config.name);
+          lastOutcome = {
+            at: Date.now(),
+            provider: config.name,
+            model,
+            task: caller.task,
+            ok: false,
+            category: error.category,
+            fallbackUsed,
+            free: candidate.free !== null,
+          };
+
           void recordAiEvent({
             requestId,
             provider: config.name,
@@ -435,20 +493,62 @@ export async function generateStructuredOutput(
   caller: AiCaller,
   request: AiRequest,
 ): Promise<AiJsonResult> {
-  const result = await generateText(caller, { ...request, json: true });
-  const cleaned = result.text
+  guardRequest(request.messages);
+  const limits = aiLimits();
+  // The shape check runs INSIDE the provider loop, so a model that answers with
+  // something unparseable is treated as that provider failing: the next free
+  // provider is tried, and only when none can answer does the caller fall back
+  // to Revora's deterministic engine.
+  const outcome = await run(
+    caller,
+    request.role ?? "primary",
+    async ({ adapter, config, model, signal }) => {
+      const result = await adapter.chat({
+        apiKey: config.apiKey,
+        model,
+        messages: request.messages,
+        json: true,
+        maxOutputTokens: Math.min(
+          request.maxOutputTokens ?? limits.maxOutputTokens,
+          limits.maxOutputTokens,
+        ),
+        ...(request.temperature === undefined ? {} : { temperature: request.temperature }),
+        signal,
+      });
+      return {
+        value: { text: result.text, data: parseJsonObject(result.text) },
+        inputTokens: result.usage.inputTokens,
+        outputTokens: result.usage.outputTokens,
+      };
+    },
+  );
+  return {
+    text: outcome.value.text,
+    data: outcome.value.data,
+    provider: outcome.provider,
+    model: outcome.model,
+    usage: { inputTokens: outcome.inputTokens, outputTokens: outcome.outputTokens },
+    fallbackUsed: outcome.fallbackUsed,
+    requestId: outcome.requestId,
+  };
+}
+
+/** Parses a model's JSON answer, tolerating a fenced code block. */
+function parseJsonObject(text: string): Record<string, unknown> {
+  const cleaned = text
     .replace(/^```(?:json)?/i, "")
     .replace(/```$/, "")
     .trim();
   try {
     const parsed = JSON.parse(cleaned) as unknown;
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("shape");
-    return { ...result, data: parsed as Record<string, unknown> };
+    return parsed as Record<string, unknown>;
   } catch {
     throw new RevoraAiError(502, "Revora AI returned an unexpected response. Try rewording.", {
       category: "bad_response",
     });
   }
+
 }
 
 /** Code and structured reasoning work; routes to the coding model. */
