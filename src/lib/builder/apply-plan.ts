@@ -187,10 +187,11 @@ export function auditActionTargets(actions: AgentAction[], known: KnownTargets):
 export function stalePlanMessage(stale: StaleTarget[], total: number): string {
   if (!stale.length) return "";
   const allGone = stale.length >= total;
-  const what =
-    stale.every((entry) => entry.reason === "missing_page") ? "page" :
-    stale.every((entry) => entry.reason === "missing_component") ? "button or card" :
-    "section";
+  const what = stale.every((entry) => entry.reason === "missing_page")
+    ? "page"
+    : stale.every((entry) => entry.reason === "missing_component")
+      ? "button or card"
+      : "section";
   return allGone
     ? `Your website changed while Revora was working, so this plan no longer fits it — the ${what} it was going to update isn't there any more. Ask again and Revora will plan against your website as it is now.`
     : `${stale.length} of those ${total} updates pointed at a ${what} that isn't there any more. Revora kept the updates that still fit and skipped the rest.`;

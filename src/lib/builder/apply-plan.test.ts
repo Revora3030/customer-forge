@@ -44,7 +44,11 @@ describe("orderActionsForApply", () => {
 describe("dedupeActions", () => {
   it("drops an exact repeat so a retry cannot write the same change twice", () => {
     const one: AgentAction = { type: "add_section", pageId: PAGE, kind: "cta" };
-    const result = dedupeActions([one, { ...one }, { type: "add_section", pageId: PAGE, kind: "faq" }]);
+    const result = dedupeActions([
+      one,
+      { ...one },
+      { type: "add_section", pageId: PAGE, kind: "faq" },
+    ]);
     expect(result.duplicates).toBe(1);
     expect(result.actions).toHaveLength(2);
   });
@@ -61,19 +65,36 @@ describe("dedupeActions", () => {
 describe("auditActionTargets", () => {
   it("reports a deleted section instead of silently dropping the step", () => {
     const audit = auditActionTargets(
-      [{ type: "set_section_text", sectionId: "44444444-4444-4444-8444-444444444444", field: "heading", value: "Hi" }],
+      [
+        {
+          type: "set_section_text",
+          sectionId: "44444444-4444-4444-8444-444444444444",
+          field: "heading",
+          value: "Hi",
+        },
+      ],
       known(),
     );
     expect(audit.ok).toHaveLength(0);
     expect(audit.stale).toEqual([
-      { type: "set_section_text", target: "44444444-4444-4444-8444-444444444444", reason: "missing_section" },
+      {
+        type: "set_section_text",
+        target: "44444444-4444-4444-8444-444444444444",
+        reason: "missing_section",
+      },
     ]);
   });
 
   it("accepts references created earlier in the same batch", () => {
     const audit = auditActionTargets(
       [
-        { type: "add_page", kind: "custom", title: "Services", slug: "services", ref: "temp_page_1" },
+        {
+          type: "add_page",
+          kind: "custom",
+          title: "Services",
+          slug: "services",
+          ref: "temp_page_1",
+        },
         { type: "add_section", pageId: "temp_page_1", kind: "hero", ref: "temp_hero" },
         { type: "add_component", sectionId: "temp_hero", kind: "button", link_url: "/contact" },
       ],
@@ -85,7 +106,13 @@ describe("auditActionTargets", () => {
 
   it("rejects a reorder that names a section which no longer exists", () => {
     const audit = auditActionTargets(
-      [{ type: "reorder_sections", pageId: PAGE, sectionIds: [SECTION, "55555555-5555-4555-8555-555555555555"] }],
+      [
+        {
+          type: "reorder_sections",
+          pageId: PAGE,
+          sectionIds: [SECTION, "55555555-5555-4555-8555-555555555555"],
+        },
+      ],
       known(),
     );
     expect(audit.ok).toHaveLength(0);
@@ -107,12 +134,18 @@ describe("auditActionTargets", () => {
 
 describe("stalePlanMessage", () => {
   it("asks for a fresh plan when nothing in the batch still fits", () => {
-    const message = stalePlanMessage([{ type: "set_section_text", target: "x", reason: "missing_section" }], 1);
+    const message = stalePlanMessage(
+      [{ type: "set_section_text", target: "x", reason: "missing_section" }],
+      1,
+    );
     expect(message).toContain("changed while Revora was working");
   });
 
   it("explains a partial skip without asking for a new plan", () => {
-    const message = stalePlanMessage([{ type: "delete_component", target: "x", reason: "missing_component" }], 4);
+    const message = stalePlanMessage(
+      [{ type: "delete_component", target: "x", reason: "missing_component" }],
+      4,
+    );
     expect(message).toContain("kept the updates that still fit");
   });
 
@@ -128,7 +161,12 @@ describe("preflightActions", () => {
         { type: "add_section", pageId: "temp_page_1", kind: "hero" },
         { type: "add_page", kind: "custom", title: "S", slug: "s", ref: "temp_page_1" },
         { type: "add_page", kind: "custom", title: "S", slug: "s", ref: "temp_page_1" },
-        { type: "set_section_text", sectionId: "99999999-9999-4999-8999-999999999999", field: "heading", value: "x" },
+        {
+          type: "set_section_text",
+          sectionId: "99999999-9999-4999-8999-999999999999",
+          field: "heading",
+          value: "x",
+        },
       ],
       known(),
     );

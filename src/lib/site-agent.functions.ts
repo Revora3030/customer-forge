@@ -31,7 +31,6 @@ import { safeLinkUrl } from "@/lib/website-content";
 import { preflightActions, stalePlanMessage } from "@/lib/builder/apply-plan";
 import { captureUndo, rollback, type JournalClient, type UndoStep } from "@/lib/site-agent.atomic";
 
-
 /** A real database id, as opposed to a plan's temporary page name. */
 const UUID_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -603,9 +602,7 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
       const previous = (recent ?? []).find((row) => {
         const result = row?.["result"] as { operationKey?: unknown } | null;
         const at = Date.parse(String(row?.["created_at"] ?? ""));
-        return (
-          result?.operationKey === data.operationKey && Number.isFinite(at) && at >= cutoff
-        );
+        return result?.operationKey === data.operationKey && Number.isFinite(at) && at >= cutoff;
       });
       if (previous) {
         const result = previous["result"] as Record<string, unknown>;
@@ -650,7 +647,6 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
       if (preflight.stale.length) throw new Error(staleNotice);
       throw new Error("Nothing to apply.");
     }
-
 
     // Fail before taking a restore point when a generated batch would collide
     // with an existing page slug or create the same slug twice.
@@ -1254,7 +1250,6 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
       alreadyApplied: false,
       verification,
     };
-
   }
 }
 

@@ -42,7 +42,6 @@ import {
   removeStep,
   terminalStateForEmptyPlan,
   timelineFor,
-
   toPlanSteps,
   toggleStep,
   updateTask,
@@ -170,7 +169,6 @@ export function AiRequestPanel({
       toast.error(message);
       refresh();
     }
-
   };
 
   const runPlan = async (task: QueueTask) => {
@@ -388,7 +386,6 @@ export function AiRequestPanel({
                   </ul>
                 </details>
               ) : null}
-
 
               {task.questions.length ? (
                 <ul className="mt-2 space-y-1 text-[12px]">

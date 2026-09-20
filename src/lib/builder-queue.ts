@@ -45,7 +45,6 @@ export type QueueTask = {
   details?: string[];
   error?: string;
   retryable?: boolean;
-
 };
 
 export const QUEUE_LABELS: Record<QueueState, string> = {
