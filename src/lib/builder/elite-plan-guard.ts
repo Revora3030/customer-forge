@@ -40,6 +40,8 @@ function key(action: AgentAction): string {
       return `${action.type}:${action.pageId}:${action.ref ?? action.kind}`;
     case "add_component":
       return `${action.type}:${action.sectionId}:${action.kind}:${action.label ?? ""}`;
+    case "reorder_components":
+      return `${action.type}:${action.sectionId}`;
     case "reorder_sections":
       return `${action.type}:${action.pageId}`;
     case "add_page":
@@ -102,6 +104,8 @@ function safeAction(
     case "set_backdrop":
     case "set_business_fact":
       return true;
+    default:
+      return false;
   }
 }
 

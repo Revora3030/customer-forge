@@ -80,6 +80,8 @@ function actionSignature(action: AgentAction): string {
       return `${action.type}:${action.sectionId}:${action.kind}:${action.label ?? ""}`;
     case "reorder_sections":
       return `${action.type}:${action.pageId}`;
+    case "reorder_components":
+      return `${action.type}:${action.sectionId}`;
     case "add_page":
       return `${action.type}:${action.ref ?? action.slug}`;
     case "set_page":
