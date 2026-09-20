@@ -342,6 +342,41 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
     const instruction =
       data.instruction || "(see the attached file(s) — follow what they show or say)";
 
+    // MEMORY ACROSS TURNS: standing instructions the owner already gave ("keep
+    // the headline exactly as written", "stay on the coastal blue look") are
+    // remembered for this website and read before anything is planned, so a
+    // later request cannot quietly undo them. Only the owner's own words are
+    // stored — never an invented preference and never a business fact.
+    const { designMemoryBrief, mergeDesignMemory, readDesignMemory } = await import(
+      "@/lib/builder/design-memory"
+    );
+    const settingsRow = await supabase
+      .from("website_settings")
+      .select("generation")
+      .eq("organization_id", orgId)
+      .maybeSingle();
+    const priorMemory = readDesignMemory(
+      (settingsRow.data as { generation?: unknown } | null)?.generation,
+    );
+    const brief = designMemoryBrief(priorMemory);
+    if (brief) data.history = [{ role: "user" as const, content: brief }, ...data.history];
+    const nextMemory = mergeDesignMemory(priorMemory, data.instruction);
+    if (nextMemory !== priorMemory && settingsRow.data) {
+      const generation = {
+        ...(((settingsRow.data as { generation?: unknown }).generation ?? {}) as Record<
+          string,
+          unknown
+        >),
+        designMemory: nextMemory,
+      };
+      const saved = await supabase
+        .from("website_settings")
+        .update({ generation: generation as never })
+        .eq("organization_id", orgId);
+      // A memory write must never block the build; it is only ever a preference.
+      if (saved.error) console.warn("design memory not saved", saved.error.message);
+    }
+
     // FREE-FIRST: Revora's own deterministic builder answers first. It uses the
     // trade playbooks, the section library, the design system and the
     // workspace's own facts — no AI provider, no credits, no per-request cost.
