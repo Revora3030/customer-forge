@@ -61,17 +61,31 @@ export async function deliverEmail(
 }
 
 /**
- * Text-message delivery. No SMS provider is connected to this project yet, so
- * this reports an honest, non-retryable reason instead of pretending a text was
- * sent. Once a provider is connected, implement the send here.
+ * Text-message delivery, resolved through the capability registry so the reason
+ * is always the true one: no provider implemented, awaiting authorization, or
+ * blocked because it bills per message. Delivery is never reported unless a
+ * provider confirms it — and none can yet, so this never claims success.
  */
 export async function deliverSms(run: DeliverableRun): Promise<DeliveryResult> {
   const to = (run.recipient ?? "").trim();
   if (!to) return { ok: false, retry: false, reason: "no_phone_number" };
   if (!isE164ish(to)) return { ok: false, retry: false, reason: "invalid_phone_number" };
-  if (!process.env["TWILIO_API_KEY"]) {
-    return { ok: false, retry: false, reason: "sms_provider_not_connected" };
+
+  const { resolveCapability } = await import("@/lib/integrations/registry.server");
+  const resolution = await resolveCapability("messaging.sms");
+  if (!resolution.provider) {
+    return {
+      ok: false,
+      retry: false,
+      reason:
+        resolution.reason === "paid_provider_blocked_by_free_only"
+          ? "sms_provider_blocked_by_cost_policy"
+          : resolution.reason === "needs_connection"
+            ? "sms_provider_not_connected"
+            : "sms_provider_not_implemented",
+    };
   }
+  // A provider resolved but no send path exists yet: say so, never claim a send.
   return { ok: false, retry: false, reason: "sms_provider_not_configured" };
 }
 
