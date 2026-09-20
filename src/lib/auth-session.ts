@@ -20,15 +20,28 @@ export function useSession(): SessionState {
 
   useEffect(() => {
     let active = true;
-    supabase.auth.getSession().then(({ data }) => {
-      if (active) setState({ loading: false, user: data.session?.user ?? null });
-    });
-    const { data } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (active) setState({ loading: false, user: session?.user ?? null });
-    });
+    // Public surfaces must keep rendering as signed-out when the auth client
+    // cannot start, instead of throwing out of render and blanking the page.
+    let unsubscribe: (() => void) | undefined;
+    try {
+      supabase.auth
+        .getSession()
+        .then(({ data }) => {
+          if (active) setState({ loading: false, user: data.session?.user ?? null });
+        })
+        .catch(() => {
+          if (active) setState({ loading: false, user: null });
+        });
+      const { data } = supabase.auth.onAuthStateChange((_event, session) => {
+        if (active) setState({ loading: false, user: session?.user ?? null });
+      });
+      unsubscribe = () => data.subscription.unsubscribe();
+    } catch {
+      setState({ loading: false, user: null });
+    }
     return () => {
       active = false;
-      data.subscription.unsubscribe();
+      unsubscribe?.();
     };
   }, []);
 
