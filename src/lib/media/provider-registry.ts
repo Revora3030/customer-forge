@@ -164,6 +164,19 @@ export function planMedia(env: MediaEnvironment, options?: { mustBeReal?: boolea
     };
   }
 
+  // Free AI picture making, but only when a live check says a free provider, a
+  // free-verified model and today's allowance are all genuinely there.
+  const generated = byId("ai_generation");
+  if (generated.state === "available") {
+    return {
+      source: generated,
+      considered,
+      usesGeneratedArt: false,
+      explanation:
+        "Making a picture with the connected free picture service, inside its free daily allowance.",
+    };
+  }
+
   return {
     source: byId("generated_art"),
     considered,
