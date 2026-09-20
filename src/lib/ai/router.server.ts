@@ -38,6 +38,7 @@ import {
   freeBudgetAllows,
   freeBudgetRemaining,
   freeProviderChain,
+  freeProviderCredentials,
   freeProviderReadiness,
   isFreeEligibleModel,
   noteFreeUse,
@@ -179,8 +180,56 @@ function freeCandidate(
  * instead of a fixed list; a discovered id must still pass the free-eligibility
  * check before it can replace the configured model.
  */
-/** How many models of one provider's free pool may back a single role. */
-const FREE_MODELS_PER_PROVIDER = 3;
+/**
+ * How deep one provider's free pool may back a single role.
+ *
+ * There is NO fixed cap: the whole verified free catalogue of every configured
+ * provider is usable. `FREE_AI_MODELS_PER_PROVIDER` exists only as an operator
+ * safety valve (set a positive number to trim the failover depth); unset or 0
+ * means "use the entire verified free pool".
+ */
+export function freeModelPoolDepth(): number {
+  const raw = Number(process.env["FREE_AI_MODELS_PER_PROVIDER"] ?? "");
+  return Number.isFinite(raw) && raw > 0 ? Math.floor(raw) : Number.POSITIVE_INFINITY;
+}
+
+/**
+ * Every verified free model available for one role, grouped by provider and in
+ * preference order. This is the authoritative pool: no fixed per-provider cap.
+ */
+export async function freeModelPool(
+  role: ModelRole,
+): Promise<{ provider: FreeProviderName; credentials: { apiKey: string; accountId?: string }; models: string[] }[]> {
+  if (!freeAiEnabled()) return [];
+  const depth = freeModelPoolDepth();
+  const pools: {
+    provider: FreeProviderName;
+    credentials: { apiKey: string; accountId?: string };
+    models: string[];
+  }[] = [];
+  for (const entry of freeProviderChain(role)) {
+    if (!freeBudgetAllows(entry.name)) continue;
+    const models: string[] = [];
+    const consider = (model: string) => {
+      // Belt and braces: never dispatch a model that isn't free-eligible.
+      if (models.length >= depth) return;
+      if (!models.includes(model) && isFreeEligibleModel(entry.name, model)) models.push(model);
+    };
+    try {
+      // Image models come from a different catalogue endpoint, so the role is
+      // passed through and the right pool is refreshed.
+      await refreshFreeModels(entry.name, entry.credentials, role);
+      // No truncation: the provider's whole verified free catalogue for this
+      // role is ranked and offered.
+      for (const model of pickDiscoveredModels(entry.name, role, depth)) consider(model);
+    } catch {
+      // Discovery is advisory only; the configured free model still runs.
+    }
+    consider(entry.model);
+    if (models.length) pools.push({ provider: entry.name, credentials: entry.credentials, models });
+  }
+  return pools;
+}
 
 async function buildChain(role: ModelRole): Promise<Candidate[]> {
   // First choice per provider (breadth), then each provider's remaining free
@@ -190,30 +239,12 @@ async function buildChain(role: ModelRole): Promise<Candidate[]> {
   const first: Candidate[] = [];
   const deeper: Candidate[] = [];
 
-  if (freeAiEnabled())
-    for (const entry of freeProviderChain(role)) {
-      if (!freeBudgetAllows(entry.name)) continue;
-      const models: string[] = [];
-      const consider = (model: string) => {
-        // Belt and braces: never dispatch a model that isn't free-eligible.
-        if (!models.includes(model) && isFreeEligibleModel(entry.name, model)) models.push(model);
-      };
-      try {
-        // Image models come from a different catalogue endpoint, so the role is
-        // passed through and the right pool is refreshed.
-        await refreshFreeModels(entry.name, entry.credentials, role);
-        for (const model of pickDiscoveredModels(entry.name, role, FREE_MODELS_PER_PROVIDER))
-          consider(model);
-      } catch {
-        // Discovery is advisory only; the configured free model still runs.
-      }
-      consider(entry.model);
-      models.slice(0, FREE_MODELS_PER_PROVIDER).forEach((model, index) => {
-        const candidate = freeCandidate(entry.name, entry.credentials.apiKey, model, role);
-        if (index === 0) first.push(candidate);
-        else deeper.push(candidate);
-      });
-    }
+  for (const pool of await freeModelPool(role))
+    pool.models.forEach((model, index) => {
+      const candidate = freeCandidate(pool.provider, pool.credentials.apiKey, model, role);
+      if (index === 0) first.push(candidate);
+      else deeper.push(candidate);
+    });
 
   const candidates = [...first, ...deeper];
 
@@ -222,10 +253,16 @@ async function buildChain(role: ModelRole): Promise<Candidate[]> {
     for (const config of providerChain())
       candidates.push({ config, model: config.models[role], free: null });
 
-  return [
+  const ordered = [
     ...candidates.filter((entry) => providerHealthy(entry.config.name)),
     ...candidates.filter((entry) => !providerHealthy(entry.config.name)),
   ];
+  // The POOL is unlimited; one single request's FAILOVER depth is not, so a
+  // simple call can never turn into a 60-model latency wall. The ensemble
+  // orchestrator uses the full pool in parallel instead.
+  const failoverLimit = Number(process.env["AI_MAX_FAILOVER_CANDIDATES"] ?? "");
+  const cap = Number.isFinite(failoverLimit) && failoverLimit > 0 ? Math.floor(failoverLimit) : 8;
+  return ordered.slice(0, cap);
 }
 
 /**
@@ -706,4 +743,150 @@ export async function streamResponse(
     model: outcome.model,
     requestId: outcome.requestId,
   };
+}
+
+/* ---------------------- pinned free-model calls (ensemble) ------------------ */
+
+/**
+ * One call against ONE named free model.
+ *
+ * The ensemble orchestrator needs to run many specific models side by side
+ * rather than take the first that answers, so this is the router's pinned
+ * entry point. It stays inside the router on purpose: the free-eligibility
+ * gate, the daily budget, the circuit breaker, the request guard, the timeout
+ * and the telemetry are all the same ones the failover chain uses, so no
+ * caller can reach a provider directly and no paid model can be pinned.
+ */
+export type PinnedFreeCall = {
+  provider: FreeProviderName;
+  model: string;
+  role: ModelRole;
+  messages: AiMessage[];
+  json?: boolean;
+  maxOutputTokens?: number;
+  temperature?: number;
+  /** Overrides the router timeout for one call; never raises it above the limit. */
+  timeoutMs?: number;
+};
+
+export type PinnedFreeResult = {
+  provider: FreeProviderName;
+  model: string;
+  text: string;
+  data: Record<string, unknown> | null;
+  latencyMs: number;
+  inputTokens: number | null;
+  outputTokens: number | null;
+};
+
+export async function callPinnedFreeModel(
+  caller: AiCaller,
+  call: PinnedFreeCall,
+): Promise<PinnedFreeResult> {
+  if (!freeAiEnabled()) throw freeAiUnavailable("free AI is disabled");
+  // ZERO-COST INVARIANT: a pinned id must be free-eligible for that provider.
+  if (!isFreeEligibleModel(call.provider, call.model))
+    throw new RevoraAiError(403, "That model is not verified free, so Revora will not call it.", {
+      category: "invalid_request",
+      provider: call.provider,
+    });
+  if (!freeBudgetAllows(call.provider))
+    throw new RevoraAiError(429, "That free provider is out of budget for today.", {
+      category: "rate_limited",
+      provider: call.provider,
+    });
+  if (!providerHealthy(call.provider as ProviderName))
+    throw providerUnavailable(call.provider, "cooling down after repeated failures");
+  const credentials = freeProviderCredentials(call.provider);
+  if (!credentials) throw freeAiUnavailable(`${call.provider} has no credentials configured`);
+
+  guardRequest(call.messages);
+  const limits = aiLimits();
+  const adapter = ADAPTERS[call.provider as ProviderName];
+  const controller = new AbortController();
+  const timeout = Math.min(call.timeoutMs ?? limits.requestTimeoutMs, limits.requestTimeoutMs);
+  const timer = setTimeout(() => controller.abort(), timeout);
+  const started = Date.now();
+  const requestId = caller.requestId ?? newRequestId();
+  try {
+    noteFreeUse(call.provider);
+    const result = await adapter.chat({
+      apiKey: credentials.apiKey,
+      model: call.model,
+      messages: call.messages,
+      json: call.json === true,
+      maxOutputTokens: Math.min(
+        call.maxOutputTokens ?? limits.maxOutputTokens,
+        limits.maxOutputTokens,
+      ),
+      ...(call.temperature === undefined ? {} : { temperature: call.temperature }),
+      signal: controller.signal,
+    });
+    noteSuccess(call.provider as ProviderName);
+    const latencyMs = Date.now() - started;
+    void recordAiEvent({
+      requestId,
+      provider: call.provider as ProviderName,
+      model: call.model,
+      task: caller.task,
+      organizationId: caller.organizationId ?? null,
+      userId: caller.userId ?? null,
+      latencyMs,
+      ok: true,
+      errorCategory: null,
+      inputTokens: result.usage.inputTokens,
+      outputTokens: result.usage.outputTokens,
+      fallbackUsed: false,
+      toolCalls: 0,
+    });
+    return {
+      provider: call.provider,
+      model: call.model,
+      text: result.text,
+      // A malformed answer is the model's failure, not a crash: the ensemble
+      // scores it out instead of the whole build stopping.
+      data: call.json === true ? safeJsonObject(result.text) : null,
+      latencyMs,
+      inputTokens: result.usage.inputTokens,
+      outputTokens: result.usage.outputTokens,
+    };
+  } catch (rawError) {
+    noteFailure(call.provider as ProviderName);
+    const error =
+      rawError instanceof RevoraAiError
+        ? rawError
+        : controller.signal.aborted
+          ? new RevoraAiError(408, "Revora AI took too long to answer.", {
+              category: "timeout",
+              provider: call.provider,
+            })
+          : providerUnavailable(call.provider, (rawError as Error)?.message?.slice(0, 120));
+    void recordAiEvent({
+      requestId,
+      provider: call.provider as ProviderName,
+      model: call.model,
+      task: caller.task,
+      organizationId: caller.organizationId ?? null,
+      userId: caller.userId ?? null,
+      latencyMs: Date.now() - started,
+      ok: false,
+      errorCategory: error.category,
+      inputTokens: null,
+      outputTokens: null,
+      fallbackUsed: false,
+      toolCalls: 0,
+    });
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/** JSON parse that reports failure as null instead of throwing. */
+function safeJsonObject(text: string): Record<string, unknown> | null {
+  try {
+    return parseJsonObject(text);
+  } catch {
+    return null;
+  }
 }

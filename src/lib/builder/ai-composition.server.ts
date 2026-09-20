@@ -359,35 +359,24 @@ export async function proposeSiteComposition(
     ? [chosen, ...directions.filter((entry) => entry.id !== chosen.id)]
     : directions;
 
-  try {
-    const { generateStructuredOutput } = await import("@/lib/ai/router.server");
-    const result = await generateStructuredOutput(
-      {
-        task: "site.compose",
-        organizationId: options.organizationId ?? null,
-        userId: options.userId ?? null,
-      },
-      {
-        // Look-and-feel and page composition are creative judgement, so this
-        // runs on the strongest free model available, not the cheapest.
-        role: "design",
-        json: true,
-        messages: [
-          { role: "system", content: SYSTEM },
-          {
-            role: "user",
-            content: `OWNER'S REQUEST (context only — do not write copy):\n${options.instruction}\n\n${
-              chosen
-                ? `The owner already chose the look "${chosen.name}" (id ${chosen.id}). Use that directionId.\n\n`
-                : ""
-            }WORKSPACE:\n${brief(context, candidates)}`,
-          },
-        ],
-      },
-    );
+  const userBrief = `OWNER'S REQUEST (context only — do not write copy):\n${options.instruction}\n\n${
+    chosen
+      ? `The owner already chose the look "${chosen.name}" (id ${chosen.id}). Use that directionId.\n\n`
+      : ""
+  }WORKSPACE:\n${brief(context, candidates)}`;
 
-    const proposal = parseProposal(result.data, context, candidates);
+  try {
+    // MULTI-MODEL FIRST. Several verified free models independently propose a
+    // direction and a section order; identical proposals are one vote each and
+    // the proposal the most models arrived at wins. Every proposal is validated
+    // against the real workspace first, so a consensus can only ever be reached
+    // between answers that were already safe.
+    const ensembleProof = await composeByEnsemble(context, candidates, userBrief, options);
+    const proposal =
+      ensembleProof?.winner ??
+      (await composeBySingleModel(context, candidates, userBrief, options));
     if (!proposal) return null;
+    const ensembleNotes = ensembleProof ? [proofSummaryLine(ensembleProof)] : [];
 
     // The owner's own choices are final, so they override the model's palette.
     const branded = applyBrandPreference(chosen ?? proposal.direction, brand);
@@ -401,7 +390,7 @@ export async function proposeSiteComposition(
     const { directionTone } = await import("@/lib/design-directions");
     return {
       actions: composed.actions,
-      notes: composed.notes,
+      notes: [...composed.notes, ...ensembleNotes],
       directionId: branded.direction.id,
       because: proposal.because,
       preview: {
@@ -437,3 +426,107 @@ function hashText(value: string): number {
   return Math.abs(hash) % 100000;
 }
 
+
+/* --------------------------- multi-model composition ----------------------- */
+
+type ValidatedProposal = { direction: DesignDirection; pages: PageProposal[]; because: string };
+
+type ComposeOptions = {
+  instruction: string;
+  organizationId?: string | null;
+  userId?: string | null;
+};
+
+/** The design lanes that have an opinion about structure and look-and-feel. */
+const COMPOSITION_LANES = [
+  "architect",
+  "uiux",
+  "visual",
+  "brand",
+  "cro",
+  "seo",
+  "navigation",
+  "critic",
+] as const;
+
+/**
+ * Asks every compatible verified free model — across every configured free
+ * provider — to compose this site, then takes the consensus. Each answer is
+ * validated against the real workspace before it can vote, so an invalid or
+ * fact-inventing answer is discarded rather than argued with.
+ *
+ * Returns null when no free model is reachable, and the single-model path (and
+ * ultimately the deterministic planner) still stands.
+ */
+async function composeByEnsemble(
+  context: AgentContext,
+  candidates: DesignDirection[],
+  userBrief: string,
+  options: ComposeOptions,
+) {
+  try {
+    const { ensembleModeFor, runEnsemble } = await import("@/lib/ai/ensemble.server");
+    const proof = await runEnsemble<ValidatedProposal>(
+      {
+        task: "site.compose",
+        organizationId: options.organizationId ?? null,
+        userId: options.userId ?? null,
+      },
+      {
+        mode: ensembleModeFor(options.instruction),
+        lanes: [...COMPOSITION_LANES],
+        role: "design",
+        prompt: ({ lane }) => [
+          { role: "system", content: SYSTEM },
+          {
+            role: "user",
+            content: `YOUR SEAT ON THE TEAM: ${lane.title}. Judge this site from that seat.\n\n${userBrief}`,
+          },
+        ],
+        // The existing validator is the gate: unknown ids, banned section kinds
+        // and fact-gated blocks without the facts are all rejected here.
+        parse: ({ data }) => parseProposal(data, context, candidates),
+        consensusKey: (value) =>
+          `${value.direction.id}|${value.pages
+            .map((page) => `${page.pageId}:${page.order.join(",")}`)
+            .sort()
+            .join("|")}`,
+      },
+    );
+    return proof.verdict === "PASS" ? proof : null;
+  } catch {
+    return null;
+  }
+}
+
+function proofSummaryLine(proof: { mode: string; attempted: unknown[]; providers: string[]; succeeded: number; failed: number; distinct: number; agreement: number }) {
+  return `Composed by ${proof.succeeded} of ${proof.attempted.length} free models across ${proof.providers.length} provider(s); ${proof.agreement} agreed on this layout (${proof.distinct} distinct proposals, ${proof.failed} did not answer).`;
+}
+
+/** The original single-call path, kept as the ensemble's backstop. */
+async function composeBySingleModel(
+  context: AgentContext,
+  candidates: DesignDirection[],
+  userBrief: string,
+  options: ComposeOptions,
+): Promise<ValidatedProposal | null> {
+  const { generateStructuredOutput } = await import("@/lib/ai/router.server");
+  const result = await generateStructuredOutput(
+    {
+      task: "site.compose",
+      organizationId: options.organizationId ?? null,
+      userId: options.userId ?? null,
+    },
+    {
+      // Look-and-feel and page composition are creative judgement, so this
+      // runs on the strongest free model available, not the cheapest.
+      role: "design",
+      json: true,
+      messages: [
+        { role: "system", content: SYSTEM },
+        { role: "user", content: userBrief },
+      ],
+    },
+  );
+  return parseProposal(result.data, context, candidates);
+}
