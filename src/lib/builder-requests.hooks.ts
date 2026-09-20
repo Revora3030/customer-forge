@@ -16,6 +16,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { detectCapabilities, type BuilderCapabilities } from "@/lib/builder/capabilities";
+import { applySummary } from "@/lib/builder/apply-report";
 import type { BrandPreference } from "@/lib/builder/composition-preview";
 import { hasBrandChoices } from "@/components/app/BrandChoices";
 import {
@@ -135,7 +136,14 @@ export function useBuilderRequests({
         staleCount: result.stale ?? 0,
         partial,
         notice: partial
-          ? result.staleNotice ||
+          ? // Say exactly how many landed and why the rest didn't, in plain words.
+            applySummary({
+              applied: result.applied,
+              failed: result.failed ?? 0,
+              stale: result.stale ?? 0,
+              details: result.details ?? [],
+            }) ||
+            result.staleNotice ||
             "Some updates were kept and the rest were skipped — nothing was left half-finished."
           : result.alreadyApplied
             ? "These updates were already applied, so Revora didn't repeat them."
