@@ -205,10 +205,12 @@ export async function refreshFreeModels(
             )
           : provider === "llm7"
             ? await llm7FreeModels(credentials)
-            : // NVIDIA's hosted catalogue lists ids this account cannot invoke
-            // (retired or not provisioned), so discovery would swap a verified
-            // model for a dead one. The verified defaults stand.
-            [];
+            : provider === "google"
+              ? await googleFreeModels(credentials)
+              : // NVIDIA's hosted catalogue lists ids this account cannot invoke
+              // (retired or not provisioned), so discovery would swap a verified
+              // model for a dead one. The verified defaults stand.
+              [];
   // Cache even an empty answer so a failing discovery endpoint isn't polled on
   // every builder request.
   cache.set(provider, { at: Date.now(), models });
