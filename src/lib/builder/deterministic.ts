@@ -66,6 +66,7 @@ import { interpret, type BuilderIntent } from "./interpreter";
 import { readLiteralDirectives } from "./literal";
 
 import { playbookFor, type IndustryPlaybook } from "./industry";
+import { archetypeFor, enrichPlaybookWithArchetype } from "./archetype-playbook";
 
 import { designDecision, hierarchySort } from "./design";
 
@@ -587,7 +588,17 @@ export function buildDeterministicPlan(
 
   const intent = interpret(originalInstruction, options.history ?? []);
 
-  const playbook = intent.industry ?? playbookFor(context.business.industry, originalInstruction);
+  const basePlaybook =
+    intent.industry ?? playbookFor(context.business.industry, originalInstruction);
+
+  // Shape the plan around the KIND of website this business needs, so a
+  // restaurant, clinic, hotel, shop or studio gets its own pages and sections.
+  const archetype = archetypeFor(
+    { name: context.business.name, industry: context.business.industry ?? null },
+    originalInstruction,
+  );
+
+  const playbook = enrichPlaybookWithArchetype(basePlaybook, archetype);
 
   const facts = factsOf(context);
 
