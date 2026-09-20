@@ -68,11 +68,13 @@ const FREE_MODEL_DEFAULTS: Record<FreeProviderName, Partial<Record<ModelRole, st
     coding: "@cf/qwen/qwen2.5-coder-32b-instruct",
     vision: "@cf/meta/llama-4-scout-17b-16e-instruct",
   },
+  // Verified live against OpenRouter's zero-price pool. `openrouter/free` is
+  // its free auto-router, so it survives individual models being retired.
   openrouter: {
-    primary: "openrouter/auto:free",
-    fast: "openrouter/auto:free",
-    coding: "openrouter/auto:free",
-    vision: "openrouter/auto:free",
+    primary: "nvidia/nemotron-3-super-120b-a12b:free",
+    fast: "openrouter/free",
+    coding: "cohere/north-mini-code:free",
+    vision: "inclusionai/ling-3.0-flash-vl:free",
   },
   google: {
     primary: "gemini-2.5-flash",
@@ -132,7 +134,9 @@ const PAID_MODEL_PATTERNS: RegExp[] = [
 
 /** Free OpenRouter model ids are suffixed `:free` (or the free auto router). */
 function openRouterFree(model: string) {
-  return /:free$/i.test(model) || model === "openrouter/auto:free";
+  // `:free` ids are priced at zero by OpenRouter; `openrouter/free` and
+  // `openrouter/auto:free` are its zero-price auto routers.
+  return /:free$/i.test(model) || model === "openrouter/free" || model === "openrouter/auto:free";
 }
 
 /**
