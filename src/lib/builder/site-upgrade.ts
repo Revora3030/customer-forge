@@ -21,9 +21,10 @@
  */
 
 import type { AgentAction } from "@/lib/site-agent";
-import type { AgentContext } from "@/lib/site-agent.server";
+import type { AgentContext, SiteMapPage } from "@/lib/site-agent.server";
 import type { BuilderIntent } from "@/lib/builder/interpreter";
 import { recommendDirections } from "@/lib/design-directions";
+import { siteVariation } from "@/lib/site-variation";
 
 /** Section kinds that should never appear twice on the same page. */
 const HIGH_VALUE_SECTIONS = ["reviews", "faq", "cta", "contact"] as const;
