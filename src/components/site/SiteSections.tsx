@@ -245,7 +245,14 @@ function SiteSectionBody({ site, section }: { site: Site; section: Section }) {
                     className="h-full min-h-64 w-full object-cover"
                   />
                 </div>
-              ) : null}
+              ) : (
+                // No photo supplied: show artwork generated from this site's own
+                // design identity rather than an empty frame. It is abstract and
+                // makes no claim about the business.
+                <div className="rv-hero-media overflow-hidden rounded-2xl border border-border bg-card/40">
+                  <DecorativeArt spec={heroArtwork} className="h-full min-h-64 w-full" />
+                </div>
+              )}
             </div>
           </div>
         </section>
