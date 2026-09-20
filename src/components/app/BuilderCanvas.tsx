@@ -289,11 +289,21 @@ export function BuilderCanvas({
   pages,
   canManage,
   refreshing = false,
+  onRewriteSection,
 }: {
   organizationId: string | undefined;
   pages: ContentPage[];
   canManage: boolean;
   refreshing?: boolean;
+  /**
+   * Hands the selected section to the assistant so the owner can improve just
+   * that part of the page instead of describing the whole website again.
+   */
+  onRewriteSection?: (target: {
+    pageTitle: string;
+    sectionKind: string;
+    sectionLabel: string;
+  }) => void;
 }) {
   const [pageId, setPageId] = React.useState<string | null>(null);
   const [device, setDevice] = React.useState<Device>("desktop");
