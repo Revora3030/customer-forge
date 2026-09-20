@@ -116,6 +116,37 @@ export const generateStudioImage = createServerFn({ method: "POST" })
       `${data.label || "revora-image"}.${extension}`,
     );
 
+    // An identical request that was already made and stored for this business is
+    // reused, so the same picture is never saved to the library twice.
+    if (image.cached) {
+      const { data: existing } = await supabase
+        .from("media")
+        .select("id, url")
+        .eq("organization_id", data.organizationId)
+        .eq("size_bytes", bytes.byteLength)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      const existingPath = existing?.["url"] ? String(existing["url"]) : null;
+      if (existingPath) {
+        const { data: reusedSigned } = await supabase.storage
+          .from(MEDIA_BUCKET)
+          .createSignedUrl(existingPath, 60 * 60);
+        return {
+          ok: true,
+          code: "READY",
+          path: existingPath,
+          preview: reusedSigned?.signedUrl ?? existingPath,
+          source: "generated",
+          provider: image.provider,
+          model: image.model,
+          cached: true,
+          ...(existing?.["id"] ? { mediaId: String(existing["id"]) } : {}),
+        };
+      }
+    }
+
+
     const { error: uploadError } = await supabase.storage
       .from(MEDIA_BUCKET)
       .upload(path, bytes, { contentType: image.mimeType, upsert: false });
