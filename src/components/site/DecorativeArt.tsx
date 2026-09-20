@@ -22,8 +22,8 @@ function Layer({ layer, index }: { layer: ArtLayer; index: number }) {
   const x = clamp(layer.x, -20, 120);
   const y = clamp(layer.y, -20, 120);
   const size = clamp(layer.size, 4, 120);
-  const opacity = clamp(layer.opacity, 0.02, 0.45);
-  const stroke = clamp(layer.stroke ?? 2, 0.5, 6);
+  const opacity = clamp(layer.opacity, 0.02, 0.26);
+  const stroke = clamp(layer.stroke ?? 1, 0.4, 2.2);
   const repeat = Math.round(clamp(layer.repeat ?? 3, 1, 90));
   const color = TONE_VAR[layer.tone] ?? TONE_VAR.primary;
   const transform = `rotate(${clamp(layer.rotate, 0, 360)} ${x} ${y})`;
@@ -75,8 +75,8 @@ function Layer({ layer, index }: { layer: ArtLayer; index: number }) {
               key={ray}
               x1={x}
               y1={y}
-              x2={x + Math.cos((ray / 12) * Math.PI * 2) * size}
-              y2={y + Math.sin((ray / 12) * Math.PI * 2) * size}
+              x2={x + Math.cos((ray / 12) * Math.PI * 2) * (size / 2)}
+              y2={y + Math.sin((ray / 12) * Math.PI * 2) * (size / 2)}
               stroke={color}
               strokeWidth={stroke / 2}
             />
