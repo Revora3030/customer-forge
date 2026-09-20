@@ -289,11 +289,21 @@ export function BuilderCanvas({
   pages,
   canManage,
   refreshing = false,
+  onRewriteSection,
 }: {
   organizationId: string | undefined;
   pages: ContentPage[];
   canManage: boolean;
   refreshing?: boolean;
+  /**
+   * Hands the selected section to the assistant so the owner can improve just
+   * that part of the page instead of describing the whole website again.
+   */
+  onRewriteSection?: (target: {
+    pageTitle: string;
+    sectionKind: string;
+    sectionLabel: string;
+  }) => void;
 }) {
   const [pageId, setPageId] = React.useState<string | null>(null);
   const [device, setDevice] = React.useState<Device>("desktop");
@@ -620,6 +630,23 @@ export function BuilderCanvas({
                 >
                   <Copy className="size-3.5" aria-hidden />
                 </Button>
+                {onRewriteSection ? (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    aria-label="Ask Revora to improve this section"
+                    title="Improve this section"
+                    onClick={() =>
+                      onRewriteSection({
+                        pageTitle: page.title,
+                        sectionKind: selectedSection.kind,
+                        sectionLabel: sectionLabel(selectedSection.kind),
+                      })
+                    }
+                  >
+                    <Wand2 className="size-3.5" aria-hidden />
+                  </Button>
+                ) : null}
                 <Button
                   size="sm"
                   variant="outline"

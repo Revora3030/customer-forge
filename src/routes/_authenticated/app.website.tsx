@@ -465,6 +465,13 @@ function WebsitePage() {
             pages={pages ?? []}
             canManage={manage}
             refreshing={requests.refreshing}
+            onRewriteSection={(target) =>
+              // One press turns the selected block into a normal request, so the
+              // owner never has to describe the rest of the website again.
+              requests.queue(
+                `Improve the ${target.sectionLabel.toLowerCase()} section on the ${target.pageTitle} page. Keep every fact, name, price and phone number exactly as it is, and keep it consistent with the rest of the website's look.`,
+              )
+            }
           />
         )}
         <div className="flex flex-wrap items-center gap-3">
