@@ -28,6 +28,36 @@ import {
   type DesignDirection,
 } from "@/lib/design-directions";
 
+/** The owner's brand choices, made before the AI composes anything. */
+export type BrandPreference = {
+  /** A light or dark website. */
+  tone?: "light" | "dark" | "any" | null;
+  /** Hex brand colours the owner picked. */
+  primaryColor?: string | null;
+  secondaryColor?: string | null;
+  accentColor?: string | null;
+  /** A specific heading font. */
+  font?: string | null;
+  /** A specific look from the library, when the owner already chose one. */
+  directionId?: string | null;
+};
+
+/** Everything the owner sees and approves before a single change is applied. */
+export type CompositionPreview = {
+  styleName: string;
+  mood: string;
+  tone: "light" | "dark";
+  font: string;
+  fontNote: string;
+  colors: { primary: string; secondary: string; accent: string };
+  /** Why this look and this order, in one plain sentence. */
+  because: string;
+  /** What each page will contain, in order, in owner-friendly words. */
+  pages: { pageId: string; title: string; blocks: string[]; added: string[] }[];
+  /** True when the owner's own brand choices overrode the AI's palette. */
+  brandLocked: boolean;
+};
+
 export type ComposedSitePlan = {
   actions: AgentAction[];
   notes: string[];
@@ -35,6 +65,8 @@ export type ComposedSitePlan = {
   directionId: string;
   /** One short plain-language line explaining the structural choice. */
   because: string;
+  /** The approvable, previewable description of the same plan. */
+  preview: CompositionPreview;
 };
 
 /** Sections that must never be proposed twice on one page. */
@@ -44,6 +76,34 @@ const MAX_SECTIONS_PER_PAGE = 10;
 const FACT_GATED_KINDS = new Set(["reviews", "testimonials", "pricing", "gallery", "portfolio"]);
 
 type PageProposal = { pageId: string; order: string[] };
+
+/** Owner-friendly names for the blocks shown in the preview. */
+const BLOCK_LABELS: Record<string, string> = {
+  hero: "First screen",
+  trust_bar: "Trust strip",
+  intro: "Introduction",
+  services: "What you do",
+  features: "Why choose you",
+  benefits: "Benefits",
+  process: "How it works",
+  gallery: "Photos",
+  portfolio: "Recent work",
+  reviews: "Customer reviews",
+  testimonials: "Customer reviews",
+  pricing: "Prices",
+  faq: "Questions answered",
+  cta: "Call to action",
+  contact: "Contact details",
+  booking: "Booking",
+  quote: "Get a price",
+  about: "About you",
+  team: "Your team",
+  areas: "Areas covered",
+};
+
+export const blockLabel = (kind: string): string =>
+  BLOCK_LABELS[kind] ?? kind.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
+
 
 function visiblePages(context: AgentContext): SiteMapPage[] {
   return context.pages.filter((page) => page.is_visible !== false);
