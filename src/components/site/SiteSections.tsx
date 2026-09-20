@@ -29,6 +29,24 @@ type Site = NonNullable<PublicSite>;
 type Section = NonNullable<Site["content"]>["sections"][number];
 type Component = NonNullable<Section["components"]>[number];
 
+/**
+ * Artwork for this website, taken from its stored design identity when one
+ * exists and otherwise derived from the business itself. Deterministic, so the
+ * same site always looks the same between visits and rebuilds.
+ */
+function siteArtwork(site: Site) {
+  const settings = (site as { settings?: { generation?: unknown } | null }).settings ?? null;
+  const profile = (site.profile ?? null) as { industry?: string | null; city?: string | null } | null;
+  const stored = readDesignFingerprint(settings?.generation);
+  const fingerprint = stored ?? createDesignFingerprint({
+    businessName: site.org?.name ?? null,
+    industry: profile?.industry ?? null,
+    city: profile?.city ?? null,
+  });
+  return generateArtwork(fingerprint.decorativeSystem, fingerprint.seed);
+}
+
+
 const Shell = ({
   children,
   wide = false,
