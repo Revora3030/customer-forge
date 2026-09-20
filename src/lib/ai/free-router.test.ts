@@ -240,7 +240,7 @@ describe("builder availability", () => {
       "@/lib/ai/availability"
     );
     expect(builderAiAvailable()).toBe(false);
-    expect(builderMediaAvailability()).toEqual({ vision: false, voice: false, source: null });
+    expect(builderMediaAvailability()).toEqual({ vision: false, voice: false, images: false, source: null });
   });
 
   it("never offers a safety, guard or adapter model as a writer", async () => {
