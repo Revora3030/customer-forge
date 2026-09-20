@@ -229,7 +229,7 @@ export function FreeModelCollective() {
                       <Pill
                         tone={
                           entry.verdict === "PROVEN"
-                            ? "success"
+                            ? "signal"
                             : entry.verdict === "DEGRADED"
                               ? "danger"
                               : "neutral"
