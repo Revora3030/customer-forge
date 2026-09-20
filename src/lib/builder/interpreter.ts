@@ -728,6 +728,50 @@ const PAGE_WORDS = [
   "quote",
 ];
 
+/**
+ * Several page names are also ordinary English words, and reading one as a page
+ * name derails the whole request: "make the headline clearer about what we do"
+ * is not a request about the About page, and "book more jobs" is not about the
+ * booking page. Those words only count as a page when the owner writes them
+ * like a page — "the about page", "/about", "about us", "booking section".
+ * Everything else ("home", "services", "pricing", "faq", "gallery", "blog")
+ * only ever means a page here, so a plain mention is enough.
+ */
+const AMBIGUOUS_PAGE_WORDS = new Set([
+  "about",
+  "book",
+  "booking",
+  "quote",
+  "contact",
+  "home",
+  "menu",
+  "reviews",
+]);
+
+/** True when the text names this page the way an owner names a page. */
+function pageWordMentioned(word: string, text: string): boolean {
+  if (!AMBIGUOUS_PAGE_WORDS.has(word)) {
+    return new RegExp(`\\b${word}\\b`, "i").test(text);
+  }
+  const patterns = [
+    // "the about page", "booking section", "menu tab"
+    new RegExp(`\\b${word}\\s+(?:page|pages|section|sections|screen|tab)\\b`, "i"),
+    // "/about", "page: /booking"
+    new RegExp(`/${word}\\b`, "i"),
+    // "on about", "go to contact" — a destination, not a description
+    new RegExp(`\\b(?:on|to|at)\\s+(?:the\\s+|my\\s+|our\\s+)?${word}\\b(?!\\s+(?:what|how|why|us\\b))`, "i"),
+  ];
+  if (word === "about" || word === "contact") {
+    // "about us" / "contact us" is how owners name these two pages.
+    patterns.push(new RegExp(`\\b${word}\\s+us\\b`, "i"));
+  }
+  if (word === "home") {
+    patterns.push(/\bhome\s*page\b/i, /\bhomepage\b/i);
+  }
+  return patterns.some((pattern) => pattern.test(text));
+}
+
+
 /* -------------------------------------------------------------------------- */
 /* HELPERS                                                                    */
 /* -------------------------------------------------------------------------- */
