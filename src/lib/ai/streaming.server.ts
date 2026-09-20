@@ -91,7 +91,7 @@ export async function consumeVerifiedStream<T>(
       }
 
       const remaining = Math.min(timeoutMs - elapsed, Math.max(idleMs - (Date.now() - lastChunkAt), 1));
-      let settled: { done: boolean; value?: Uint8Array | string } | "expired";
+      let settled: ReadableStreamReadResult<Uint8Array | string> | "expired";
       try {
         settled = await Promise.race([
           reader.read(),
