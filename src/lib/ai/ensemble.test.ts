@@ -145,7 +145,10 @@ describe("no 3-model-per-provider cap", () => {
     expect(ensembleModeFor("rebuild my whole site and make it the best possible")).toBe("maximum");
 
     const small = await runEnsemble(caller, request({ mode: "minimal", lanes: ["architect"] }));
-    expect(small.attempted.length).toBe(1);
+    // A tiny edit still gets a cross-checked pair, never the whole agency.
+    expect(small.attempted.length).toBe(2);
+    const standard = await runEnsemble(caller, request({ mode: "standard", lanes: ["architect"] }));
+    expect(standard.attempted.length).toBe(24);
     const big = await runEnsemble(caller, request({ mode: "maximum", lanes: ["architect"] }));
     expect(big.attempted.length).toBe(24);
   });
