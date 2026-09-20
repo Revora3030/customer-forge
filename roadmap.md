@@ -14,3 +14,6 @@
 - [x] Website variety: 26 site archetypes (restaurant, clinic, shop, fitness, hotel, real estate, agency, nonprofit, education, care, automotive, portfolio, SaaS, venue, travel, pets, legal/finance, industrial, weddings, consulting, emergency, catering, salon, construction, therapy, local service) classify each business and drive first-build structure plus assistant whole-site plans. Structure only — no invented facts.
 
 - Builder pass: model team settles as soon as 3 seats agree or after 10s (faster big requests); every design variant now has real CSS + scroll-in motion; apply reports only genuine changes (already-correct steps counted separately).
+
+## Luna paid orchestrator
+- Luna (gpt-5.6-luna) wired as coordinator-only lane with $20/month hard cap ledger. BLOCKED on a real OPENAI_API_KEY: the stored key is a placeholder and returns 401, so live orchestration is NOT_VERIFIED.
