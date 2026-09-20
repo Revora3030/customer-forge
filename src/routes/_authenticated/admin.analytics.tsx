@@ -351,7 +351,6 @@ function AdminAnalytics() {
         description="Public page views only. Your own admin and workspace screens, plus customer website previews, are never counted here — so these numbers are visitors, not you working. A unique session is one browsing visit."
       />
 
-
       {traffic.isLoading ? (
         <LoadingRows rows={3} />
       ) : traffic.isError ? (

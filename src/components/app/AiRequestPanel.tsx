@@ -257,7 +257,6 @@ export function AiRequestPanel({
     trackConversion("build_requested", { metadata: { organization_id: organizationId ?? "" } });
   };
 
-
   const summary = useMemo(() => queueSummary(tasks), [tasks]);
 
   return (

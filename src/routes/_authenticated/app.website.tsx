@@ -164,7 +164,6 @@ function WebsitePage() {
     trackConversion("builder_opened", { metadata: { organization_id: orgId } });
   }, [orgId]);
 
-
   const requiredCount = (readiness?.requiredGaps ?? []).length;
 
   // One server-verified launch path for every publish button on this page.
