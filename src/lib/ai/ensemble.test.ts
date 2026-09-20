@@ -69,19 +69,22 @@ function model(
   };
 }
 
-/** A pool of N verified free models spread over the six free providers. */
+/**
+ * A pool of N verified free models spread over the free providers, each id in
+ * the shape that provider's real free-eligibility gate accepts.
+ */
 function pool(count: number): RegistryModel[] {
-  const providers: RegistryModel["provider"][] = [
-    "cloudflare",
-    "groq",
-    "nvidia",
-    "llm7",
-    "openrouter",
-    "google",
+  const shapes: [RegistryModel["provider"], (i: number) => string][] = [
+    ["cloudflare", (i) => `@cf/meta/llama-3.3-70b-${i}`],
+    ["groq", (i) => `llama-3.3-70b-versatile-${i}`],
+    ["nvidia", (i) => `meta/llama-3.3-70b-instruct-${i}`],
+    ["openrouter", (i) => `qwen/qwen3-72b-${i}:free`],
+    ["google", (i) => `gemini-2.0-flash-${i}`],
   ];
-  return Array.from({ length: count }, (_, index) =>
-    model(providers[index % providers.length]!, `free-model-${index}-70b`),
-  );
+  return Array.from({ length: count }, (_, index) => {
+    const [provider, id] = shapes[index % shapes.length]!;
+    return model(provider, id(index));
+  });
 }
 
 const caller = { task: "test.ensemble" };
