@@ -576,7 +576,6 @@ function readNewPages(text: string): string[] {
     /\bpage\s+(?:for|about|on)\s+([a-z0-9 &'-]{2,60})/gi,
   ];
 
-
   for (const pattern of patterns) {
     for (const match of text.matchAll(pattern)) {
       const label = clean(match[1] ?? "")
