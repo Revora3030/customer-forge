@@ -20,9 +20,10 @@ describe("design memory", () => {
     memory = mergeDesignMemory(memory, "Never use red anywhere.");
     memory = mergeDesignMemory(memory, "Keep the phone number exactly as entered.");
     memory = mergeDesignMemory(memory, "Never use red anywhere.");
+    // Repeating a rule moves it to the front: it is the most recent intent.
     expect(memory.notes).toEqual([
-      "Keep the phone number exactly as entered.",
       "Never use red anywhere.",
+      "Keep the phone number exactly as entered.",
     ]);
     expect(memory.updatedAt).toBeTruthy();
   });
