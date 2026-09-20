@@ -119,22 +119,36 @@ function RootComponent() {
 
     // Returning client with a persisted session landing on a public entry page.
     // Session-only ("remember me" off) logins are ended first.
-    void enforceSessionPolicy().then(async (cleared) => {
-      if (cleared) return;
-      const { data } = await supabase.auth.getSession();
-      if (data.session) void sendToDashboard();
-    });
+    //
+    // Auth is a progressive enhancement for public pages: if the auth client
+    // cannot start (e.g. a deployment built without its backend configuration),
+    // every marketing page must still render instead of the whole app failing.
+    void enforceSessionPolicy()
+      .then(async (cleared) => {
+        if (cleared) return;
+        const { data } = await supabase.auth.getSession();
+        if (data.session) void sendToDashboard();
+      })
+      .catch((error: unknown) => {
+        reportRouteError(error, { boundary: "root_session_bootstrap" });
+      });
 
-    const { data } = supabase.auth.onAuthStateChange((event) => {
-      if (event !== "SIGNED_IN" && event !== "SIGNED_OUT" && event !== "USER_UPDATED") return;
-      if (event !== "SIGNED_OUT") void ensureProfile();
-      router.invalidate();
-      if (event !== "SIGNED_OUT") {
-        queryClient.invalidateQueries();
-        if (event === "SIGNED_IN") void sendToDashboard();
-      }
-    });
-    return () => data.subscription.unsubscribe();
+    let unsubscribe: (() => void) | undefined;
+    try {
+      const { data } = supabase.auth.onAuthStateChange((event) => {
+        if (event !== "SIGNED_IN" && event !== "SIGNED_OUT" && event !== "USER_UPDATED") return;
+        if (event !== "SIGNED_OUT") void ensureProfile();
+        router.invalidate();
+        if (event !== "SIGNED_OUT") {
+          queryClient.invalidateQueries();
+          if (event === "SIGNED_IN") void sendToDashboard();
+        }
+      });
+      unsubscribe = () => data.subscription.unsubscribe();
+    } catch (error) {
+      reportRouteError(error, { boundary: "root_auth_listener" });
+    }
+    return () => unsubscribe?.();
   }, [router, queryClient]);
 
   useEffect(() => {
