@@ -66,6 +66,9 @@ import {
   type BuilderIntent,
 } from "./interpreter";
 
+import { readLiteralDirectives } from "./literal";
+
+
 import {
   playbookFor,
   type IndustryPlaybook,
