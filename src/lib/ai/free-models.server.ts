@@ -23,15 +23,23 @@ const TTL_MS = 6 * 60 * 60 * 1000;
 const DISCOVERY_TIMEOUT_MS = 6000;
 
 type Entry = { at: number; models: string[] };
-const cache = new Map<FreeProviderName, Entry>();
+/**
+ * Text and image pools are discovered from different catalogue endpoints, so
+ * they are cached separately: an image key is `"<provider>#image"`.
+ */
+const cache = new Map<string, Entry>();
+
+function poolKey(provider: FreeProviderName, role?: ModelRole) {
+  return role === "image" ? `${provider}#image` : provider;
+}
 
 export function resetFreeModelDiscovery() {
   cache.clear();
 }
 
 /** Free model ids Revora has confirmed with the provider, newest first. */
-export function discoveredFreeModels(provider: FreeProviderName): string[] {
-  const entry = cache.get(provider);
+export function discoveredFreeModels(provider: FreeProviderName, role?: ModelRole): string[] {
+  const entry = cache.get(poolKey(provider, role));
   if (!entry || Date.now() - entry.at > TTL_MS) return [];
   return entry.models;
 }
