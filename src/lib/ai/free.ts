@@ -500,18 +500,65 @@ export function freeBudgetRemaining(provider: FreeProviderName): number | null {
   return Math.max(0, cap - used);
 }
 
-export function freeBudgetAllows(provider: FreeProviderName) {
+export function freeBudgetAllows(provider: FreeProviderName, role?: ModelRole) {
+  if (role === "image" && !freeImageBudgetAllows(provider)) return false;
   const remaining = freeBudgetRemaining(provider);
   return remaining === null || remaining > 0;
 }
 
-export function noteFreeUse(provider: FreeProviderName) {
+export function noteFreeUse(provider: FreeProviderName, role?: ModelRole) {
   const day = today();
-  const entry = budget.get(provider);
-  budget.set(
-    provider,
-    entry && entry.day === day ? { day, used: entry.used + 1 } : { day, used: 1 },
-  );
+  const keys = role === "image" ? [provider, imageKey(provider)] : [provider];
+  for (const key of keys) {
+    const entry = budget.get(key);
+    budget.set(key, entry && entry.day === day ? { day, used: entry.used + 1 } : { day, used: 1 });
+  }
+}
+
+/* --------------------------- free image allowance --------------------------- */
+
+/**
+ * Pictures are metered differently from words. Cloudflare Workers AI includes a
+ * daily Neuron allowance on the free plan, and one generated picture costs far
+ * more Neurons than one short answer — so Revora keeps its own conservative
+ * daily picture cap in front of it. Once the cap is reached, picture-making is
+ * reported as temporarily unavailable rather than quietly spending money.
+ *
+ * Override with `FREE_AI_IMAGE_DAILY_CAP` (all providers) or
+ * `FREE_AI_<PROVIDER>_IMAGE_DAILY_CAP` (one provider).
+ */
+const DEFAULT_IMAGE_DAILY_CAP = 40;
+
+function imageKey(provider: FreeProviderName) {
+  return `${provider}#image`;
+}
+
+export function freeImageBudgetCap(provider: FreeProviderName): number {
+  const specific = Number(env(`FREE_AI_${provider.toUpperCase()}_IMAGE_DAILY_CAP`));
+  if (Number.isFinite(specific) && specific > 0) return Math.floor(specific);
+  const shared = Number(env("FREE_AI_IMAGE_DAILY_CAP"));
+  if (Number.isFinite(shared) && shared > 0) return Math.floor(shared);
+  return DEFAULT_IMAGE_DAILY_CAP;
+}
+
+export function freeImageBudgetRemaining(provider: FreeProviderName): number {
+  const entry = budget.get(imageKey(provider));
+  const used = entry && entry.day === today() ? entry.used : 0;
+  return Math.max(0, freeImageBudgetCap(provider) - used);
+}
+
+export function freeImageBudgetAllows(provider: FreeProviderName) {
+  return freeImageBudgetRemaining(provider) > 0;
+}
+
+/**
+ * Which Cloudflare image models can change an existing picture rather than only
+ * make a new one. Editing needs an image-to-image or inpainting model, so the
+ * builder only offers "edit this picture" when such a model is actually selected
+ * — never by assuming a text-to-image model can do it.
+ */
+export function imageEditCapableModel(model: string) {
+  return /img2img|image-to-image|inpaint/i.test(model);
 }
 
 /** Test and operations helper: clears the in-process budget counters. */
