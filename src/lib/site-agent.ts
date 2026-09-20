@@ -387,6 +387,11 @@ export type AgentAction =
   | {
       type: "add_component";
       sectionId: string;
+      /**
+       * Temporary reference so a newly-created component can be edited or
+       * restyled later in the same approved plan.
+       */
+      ref?: string | undefined;
       kind: string;
       label?: string | undefined;
       body?: string | undefined;
@@ -995,6 +1000,9 @@ export function readActions(
   const sectionRefs =
     new Set<string>();
 
+  const componentRefs =
+    new Set<string>();
+
   const knownPage = (
     id: string,
   ) =>
@@ -1006,6 +1014,12 @@ export function readActions(
   ) =>
     known.sectionIds.has(id) ||
     sectionRefs.has(id);
+
+  const knownComponent = (
+    id: string,
+  ) =>
+    known.componentIds.has(id) ||
+    componentRefs.has(id);
 
   for (
     const raw of value.slice(
@@ -1064,7 +1078,7 @@ export function readActions(
 
         if (
           !UUID.test(sectionId) ||
-          !known.sectionIds.has(
+          !knownSection(
             sectionId,
           )
         ) {
@@ -1094,7 +1108,7 @@ export function readActions(
 
       case "set_section_visibility": {
         if (
-          !known.sectionIds.has(
+          !knownSection(
             sectionId,
           )
         ) {
@@ -1124,7 +1138,7 @@ export function readActions(
           );
 
         if (
-          !known.sectionIds.has(
+          !knownSection(
             sectionId,
           ) ||
           !KIND.test(variant)
@@ -1147,7 +1161,7 @@ export function readActions(
 
       case "set_section_visual": {
         if (
-          !known.sectionIds.has(
+          !knownSection(
             sectionId,
           )
         ) {
@@ -1270,7 +1284,7 @@ export function readActions(
 
       case "delete_section": {
         if (
-          !known.sectionIds.has(
+          !knownSection(
             sectionId,
           )
         ) {
@@ -1303,9 +1317,7 @@ export function readActions(
                   text(id, 80),
                 )
                 .filter((id) =>
-                  known.sectionIds.has(
-                    id,
-                  ),
+                  knownSection(id),
                 )
             : [];
 
@@ -1418,7 +1430,7 @@ export function readActions(
         }
 
         if (
-          !known.componentIds.has(
+          !knownComponent(
             componentId,
           ) ||
           Object.keys(
@@ -1443,7 +1455,7 @@ export function readActions(
 
       case "set_component_visual": {
         if (
-          !known.componentIds.has(
+          !knownComponent(
             componentId,
           )
         ) {
@@ -1492,9 +1504,28 @@ export function readActions(
           break;
         }
 
+        const ref =
+          text(
+            row["ref"],
+            40,
+          );
+
+        const usableRef =
+          TEMP_REF.test(ref) &&
+          !componentRefs.has(ref)
+            ? ref
+            : "";
+
+        if (usableRef) {
+          componentRefs.add(usableRef);
+        }
+
         out.push({
           type,
           sectionId,
+          ref:
+            usableRef ||
+            undefined,
           kind,
 
           label:
@@ -1537,7 +1568,7 @@ export function readActions(
 
       case "delete_component": {
         if (
-          !known.componentIds.has(
+          !knownComponent(
             componentId,
           )
         ) {
@@ -1899,7 +1930,7 @@ export function readActions(
           );
 
         if (
-          !known.sectionIds.has(
+          !knownSection(
             sectionId,
           ) ||
           !isSectionEffectId(

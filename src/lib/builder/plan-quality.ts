@@ -29,22 +29,30 @@ function allowedIds(context: AgentContext) {
   };
 }
 
-function isAllowedReference(value: unknown, ids: Set<string>) {
-  return typeof value === "string" && (TEMP_REF.test(value) || ids.has(value));
+function isAllowedReference(
+  value: unknown,
+  ids: Set<string>,
+  refs: Set<string>,
+) {
+  return typeof value === "string" && (ids.has(value) || refs.has(value));
 }
 
-function actionIsSafe(action: unknown, ids: ReturnType<typeof allowedIds>): boolean {
+function actionIsSafe(
+  action: unknown,
+  ids: ReturnType<typeof allowedIds>,
+  refs: { pages: Set<string>; sections: Set<string>; components: Set<string> },
+): boolean {
   if (!action || typeof action !== "object") return false;
   const item = action as Record<string, unknown>;
 
-  if ("pageId" in item && !isAllowedReference(item["pageId"], ids.pages)) return false;
-  if ("sectionId" in item && !isAllowedReference(item["sectionId"], ids.sections)) return false;
-  if ("componentId" in item && !isAllowedReference(item["componentId"], ids.components)) return false;
+  if ("pageId" in item && !isAllowedReference(item["pageId"], ids.pages, refs.pages)) return false;
+  if ("sectionId" in item && !isAllowedReference(item["sectionId"], ids.sections, refs.sections)) return false;
+  if ("componentId" in item && !isAllowedReference(item["componentId"], ids.components, refs.components)) return false;
 
   if (item["type"] === "reorder_sections") {
     const sectionIds = item["sectionIds"];
     if (!Array.isArray(sectionIds)) return false;
-    if (sectionIds.some((id) => !isAllowedReference(id, ids.sections))) return false;
+    if (sectionIds.some((id) => !isAllowedReference(id, ids.sections, refs.sections))) return false;
   }
 
   return typeof item["type"] === "string" && item["type"].length > 0;
@@ -64,6 +72,14 @@ export function guardAutonomousPlan(
   const issues: string[] = [];
   const seen = new Set<string>();
   const actions = [] as DeterministicPlan["actions"];
+  const refs = {
+    pages: new Set<string>(),
+    sections: new Set<string>(),
+    components: new Set<string>(),
+  };
+  const pageSlugs = new Map(
+    context.pages.map((page) => [page.slug.replace(/^\/+|\/+$/g, "").toLowerCase(), page.id]),
+  );
 
   for (const action of critiqued.actions.slice(0, MAX_PLAN_ACTIONS)) {
     const key = JSON.stringify(action) ?? "";
@@ -73,10 +89,22 @@ export function guardAutonomousPlan(
     }
     seen.add(key);
 
-    if (!actionIsSafe(action, ids)) {
+    if (!actionIsSafe(action, ids, refs)) {
       issues.push(`Removed an action with an invalid or unresolved reference: ${action.type}.`);
       continue;
     }
+
+    if (action.type === "add_page") {
+      const slug = action.slug.replace(/^\/+|\/+$/g, "").toLowerCase();
+      if (pageSlugs.has(slug)) {
+        issues.push("Removed duplicate page slug: " + action.slug + ".");
+        continue;
+      }
+      pageSlugs.set(slug, action.ref ?? "__planned_page_" + actions.length);
+      if (action.ref) refs.pages.add(action.ref);
+    }
+    if (action.type === "add_section" && action.ref) refs.sections.add(action.ref);
+    if (action.type === "add_component" && action.ref) refs.components.add(action.ref);
 
     actions.push(action);
   }

@@ -94,4 +94,17 @@ describe("elite builder quality", () => {
     expect(a.score).toBeLessThanOrEqual(100);
     expect(a.findings.length).toBeLessThanOrEqual(24);
   });
+  it("accepts a component ref only after its creator action", () => {
+    const actions: AgentAction[] = [
+      { type: "set_component", componentId: "temp_component", patch: { label: "Too early" } },
+      { type: "add_component", sectionId: "section-hero", kind: "button", ref: "temp_component", label: "Book" },
+      { type: "set_component", componentId: "temp_component", patch: { label: "Book now" } },
+    ];
+    const result = guardBuilderPlan(context, actions, 60);
+    expect(result.actions).toHaveLength(2);
+    expect(result.actions[0]).toMatchObject({ type: "add_component", ref: "temp_component" });
+    expect(result.actions[1]).toMatchObject({ type: "set_component", componentId: "temp_component" });
+    expect(result.unsafe).toBe(1);
+  });
+
 });

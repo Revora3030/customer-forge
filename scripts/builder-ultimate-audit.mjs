@@ -30,6 +30,8 @@ const required = [
   ["renderer", "src/components/site/SiteSections.tsx", "readSectionVisual"],
   ["media-overlay", "src/styles.css", "rv-overlay-gradient"],
   ["catalog", "src/lib/builder/remaining-upgrades-catalog.ts", "REMAINING_SITE_UPGRADES"],
+  ["dependency-plan", "src/lib/builder/plan-quality.ts", "isAllowedReference"],
+  ["component-temp-ref", "src/lib/site-agent.ts", "componentRefs"],
 ];
 
 const failures = [];

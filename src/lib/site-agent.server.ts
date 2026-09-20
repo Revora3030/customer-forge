@@ -99,7 +99,8 @@ in any combination, and in any quantity up to ${MAX_ACTIONS} actions:
 - correct business details (tagline, description, phone, email, city, service area, review link)
 
 HARD RULES
-- Only use the ids present in the SITE MAP. Never invent an id. Never touch anything else.
+- Only use ids present in the SITE MAP or a `temp_*` reference created earlier in THIS plan. Never invent an id. Never touch anything else.
+- Respect dependency order: create a page before targeting its page reference, create a section before targeting its section reference, and create a component before targeting its component reference.
 - Never invent facts: no reviews, ratings, awards, certifications, licences, insurance,
   guarantees, years in business, staff counts, addresses or prices unless supplied.
   If a claim needs a fact you do not have, put the request in "questions" instead.
@@ -124,7 +125,8 @@ ACTION SHAPES (use exactly these)
 {"type":"delete_section","sectionId":"<id>"}
 {"type":"reorder_sections","pageId":"<id>","sectionIds":["<id>","<id>", "..."]}
 {"type":"set_component","componentId":"<id>","patch":{"label":"...","body":"...","link_label":"...","link_url":"...","is_visible":true}}
-{"type":"add_component","sectionId":"<id>","kind":"<component kind>","label":"...","body":"...","link_label":"...","link_url":"/contact"}
+{"type":"add_component","sectionId":"<id>","ref":"temp_component_1","kind":"<component kind>","label":"...","body":"...","link_label":"...","link_url":"/contact"}
+  (give a new component a "ref" when later actions in the SAME plan need to edit, style or remove it)
 {"type":"delete_component","componentId":"<id>"}
 {"type":"add_page","kind":"<page kind>","title":"...","slug":"...","ref":"temp_1"}
   (give every new page a "ref" like temp_1, temp_2 — later actions in the SAME plan may use
@@ -135,6 +137,9 @@ ACTION SHAPES (use exactly these)
 {"type":"set_backdrop","backdrop":"none|stars|aurora|nebula|grid|spotlight|gradient_mesh"}
 {"type":"set_section_effect","sectionId":"<id>","effect":"none|float_3d|tilt_3d|glass|gold_glow|rise|parallax_slow|shine"}
 {"type":"set_business_fact","field":"tagline|description|phone|email|city|state|service_area|address|review_link|website","value":"..."}
+
+ 
+Temporary references can be used in any later action in the same plan. Each namespace is separate: page refs target pages, section refs target sections, and component refs target components. Do not reuse a reference name.
 
 RESPONSE FORMAT — a single JSON object, no markdown:
 {

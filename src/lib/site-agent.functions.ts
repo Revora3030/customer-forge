@@ -641,9 +641,31 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
     // Same idea for sections: a section created in this run can be filled with
     // buttons and cards straight away.
     const newSections = new Map<string, string>();
-    const nextSort = new Map<string, number>();
-    for (const section of site.sections)
-      nextSort.set(section.page_id, (nextSort.get(section.page_id) ?? 0) + 1);
+    // Components get temporary references too, allowing one plan to create
+    // and then refine a button/card/image without another round trip.
+    const newComponents = new Map<string, string>();
+
+    const nextSectionSort = new Map<string, number>();
+    for (const section of site.sections) {
+      nextSectionSort.set(
+        section.page_id,
+        Math.max(
+          nextSectionSort.get(section.page_id) ?? 0,
+          Number(section.sort_order) + 1,
+        ),
+      );
+    }
+
+    const nextComponentSort = new Map<string, number>();
+    for (const component of site.components) {
+      nextComponentSort.set(
+        component.section_id,
+        Math.max(
+          nextComponentSort.get(component.section_id) ?? 0,
+          Number(component.sort_order) + 1,
+        ),
+      );
+    }
 
     for (const rawAction of actions as AgentAction[]) {
       if (fatal) break;
@@ -652,6 +674,8 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
         resolved = { ...resolved, pageId: newPages.get(resolved.pageId)! } as AgentAction;
       if ("sectionId" in resolved && newSections.has(resolved.sectionId))
         resolved = { ...resolved, sectionId: newSections.get(resolved.sectionId)! } as AgentAction;
+      if ("componentId" in resolved && newComponents.has(resolved.componentId))
+        resolved = { ...resolved, componentId: newComponents.get(resolved.componentId)! } as AgentAction;
       const action = resolved;
       // A step that still points at a section which was never created is
       // skipped rather than written against a made-up id.
@@ -719,9 +743,9 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
         case "add_section": {
           // Several sections added to the same page in one run must not all
           // claim the same slot, so the running count is used, not the snapshot.
-          const used = nextSort.get(action.pageId) ?? 0;
+          const used = nextSectionSort.get(action.pageId) ?? 0;
           const position = action.position ?? used;
-          nextSort.set(action.pageId, Math.max(used, position) + 1);
+          nextSectionSort.set(action.pageId, Math.max(used, position) + 1);
           await run(action.type, async () => {
             const { data: created, error } = await supabase
               .from("website_sections")
@@ -737,9 +761,11 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
               .select("id")
               .maybeSingle();
             if (error) return { error };
-            if (created?.id) {
+            if (!created?.id) return { error: new Error("Section was not created.") };
+            {
               const id = String(created.id);
               if (action.ref) newSections.set(action.ref, id);
+              nextComponentSort.set(id, 0);
               undoSteps.push({
                 label: "add_section:remove",
                 run: async () => {
@@ -810,18 +836,41 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
           });
           break;
         case "add_component":
-          await run(action.type, () =>
-            supabase.from("website_components").insert({
-              organization_id: orgId,
-              section_id: action.sectionId,
-              kind: action.kind,
-              label: action.label ?? null,
-              body: action.body ?? null,
-              link_url: safeLinkUrl(action.link_url),
-              link_label: action.link_label ?? null,
-              sort_order: site.components.filter((c) => c.section_id === action.sectionId).length,
-            }),
-          );
+          await run(action.type, async () => {
+            const sortOrder = nextComponentSort.get(action.sectionId) ?? 0;
+            const { data: created, error } = await supabase
+              .from("website_components")
+              .insert({
+                organization_id: orgId,
+                section_id: action.sectionId,
+                kind: action.kind,
+                label: action.label ?? null,
+                body: action.body ?? null,
+                link_url: safeLinkUrl(action.link_url),
+                link_label: action.link_label ?? null,
+                sort_order: sortOrder,
+              })
+              .select("id")
+              .maybeSingle();
+            if (error) return { error };
+            if (!created?.id) return { error: new Error("Component was not created.") };
+
+            const id = String(created.id);
+            nextComponentSort.set(action.sectionId, sortOrder + 1);
+            if (action.ref) newComponents.set(action.ref, id);
+
+            undoSteps.push({
+              label: "add_component:remove",
+              run: async () => {
+                await supabase
+                  .from("website_components")
+                  .delete()
+                  .eq("id", id)
+                  .eq("organization_id", orgId);
+              },
+            });
+            return null;
+          });
           break;
         case "delete_component":
           await run(action.type, () =>
@@ -846,7 +895,8 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
               .select("id")
               .maybeSingle();
             if (error) return { error };
-            if (created?.id) {
+            if (!created?.id) return { error: new Error("Page was not created.") };
+            {
               const id = String(created.id);
               if (action.ref) newPages.set(action.ref, id);
               undoSteps.push({
