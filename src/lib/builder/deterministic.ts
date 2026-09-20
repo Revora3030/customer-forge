@@ -617,6 +617,17 @@ export function buildDeterministicPlan(
 
   trace.push(`Selected the ${playbook.label} industry playbook.`);
 
+  /**
+   * EXACT WORDING IS READ FIRST. The owner's own words outrank every other
+   * pass, so they are parsed before anything else is planned and the whole-site
+   * upgrade is told not to rewrite headline copy in the same request.
+   */
+  const literalDirectives = readLiteralDirectives(originalInstruction);
+
+  const literalCopyRequested = literalDirectives.some(
+    (directive) => directive.kind === "section_text",
+  );
+
   if (wholeSite) {
     trace.push(
       "Whole-site mode enabled because the request explicitly describes a site-wide build or redesign.",
@@ -625,13 +636,21 @@ export function buildDeterministicPlan(
     // Lift the whole workspace with a designer direction, factual hero copy,
     // missing high-value sections and a conversion-ordered home page — all as
     // ordinary AgentActions so apply/verify/rollback still guard the changes.
-    const upgrade = planWholeSiteUpgrade(context, intent, { cap: Math.max(1, cap - 8) });
+    const upgrade = planWholeSiteUpgrade(context, intent, {
+      cap: Math.max(1, cap - 8),
+      keepHeroCopy: literalCopyRequested,
+    });
     let installed = 0;
     for (const action of upgrade) {
       if (push(action)) installed += 1;
     }
     if (installed > 0) {
       trace.push(`Installed a whole-site upgrade pass (${installed} action${installed === 1 ? "" : "s"}).`);
+    }
+    if (literalCopyRequested) {
+      trace.push(
+        "Kept the wording you asked for: the site-wide pass did not touch headline copy in this request.",
+      );
     }
   }
 
@@ -677,9 +696,9 @@ export function buildDeterministicPlan(
   /**
    * "Change my headline to 'Reliable service, done right'" is the most common
    * request an owner makes. The wording is theirs, so it is applied exactly as
-   * typed — no model, no rewriting, no invented claims.
+   * typed — no model, no rewriting, no invented claims. The directives were
+   * read at the top of this compiler, before any other pass could plan copy.
    */
-  const literalDirectives = readLiteralDirectives(originalInstruction);
 
   const isButton = (component: Section["components"][number]): boolean =>
     lower(component.kind) === "button";

@@ -26,6 +26,7 @@ import {
   type SiteIndex,
 } from "@/lib/site-agent";
 import type { VerificationReport } from "@/lib/agent/verify";
+import type { QaLoopResult } from "@/lib/builder/qa-loop.server";
 
 import { safeLinkUrl } from "@/lib/website-content";
 import { preflightActions, stalePlanMessage } from "@/lib/builder/apply-plan";
@@ -1234,6 +1235,40 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
       }
     }
 
+    // CHECK, REPAIR, CHECK AGAIN. The writes are in place and the live pages
+    // verified, so Revora now runs its own QA pass over the saved rows, applies
+    // only the repairs it can prove from the site's own data, and re-runs the
+    // same checks so the report is measured rather than assumed. Anything
+    // ambiguous stays a reported finding — it is never guessed at. A failure in
+    // this stage is reported, never fatal: it must not undo a good apply.
+    let qa: QaLoopResult | null = null;
+    if (data.verify !== false) {
+      try {
+        const { runQaRepairLoop } = await import("@/lib/builder/qa-loop.server");
+        qa = await runQaRepairLoop(supabase as unknown as never, orgId, data.label);
+        if (qa.repaired.length) {
+          invalidateWorkspaceContext(orgId);
+          await supabase.from("ai_generations").insert({
+            organization_id: orgId,
+            kind: "agent_qa_repair",
+            model: "applied",
+            instruction: snapshotLabel,
+            result: {
+              operationId,
+              before: qa.before,
+              after: qa.after,
+              repaired: qa.repaired,
+              failed: qa.failed,
+              reported: qa.reported,
+            } as unknown as never,
+            created_by: userId,
+          });
+        }
+      } catch (error) {
+        console.error("[site-agent] post-apply QA loop could not run", error);
+      }
+    }
+
     return {
       applied: applied.length,
       failed: failed.length,
@@ -1246,12 +1281,16 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
         ...applied.map((label) => `applied ${label}`),
         ...failed.map((label) => `skipped ${label}`),
         ...preflight.stale.map((entry) => `stale ${entry.type} (${entry.reason})`),
+        ...(qa?.repaired ?? []).map((entry) => `repaired ${entry}`),
+        ...(qa?.failed ?? []).map((entry) => `repair skipped ${entry}`),
       ],
       snapshotLabel,
       snapshotVersion,
       operationId,
       alreadyApplied: false,
       verification,
+      /** Checked → repaired → checked again, measured on the saved rows. */
+      qa,
     };
   }
 }

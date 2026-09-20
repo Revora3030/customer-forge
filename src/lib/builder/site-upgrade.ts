@@ -194,6 +194,12 @@ export type SiteUpgradeOptions = {
   cap?: number;
   /** Skip the visual pass (theme/backdrop/effects) when true. */
   keepLook?: boolean;
+  /**
+   * EXACT WORDING WINS. When the same request also tells Revora what a headline
+   * must say, the upgrade pass must not rewrite headline copy in that request —
+   * otherwise a site-wide polish could quietly replace the owner's own words.
+   */
+  keepHeroCopy?: boolean;
 };
 
 export function planWholeSiteUpgrade(
@@ -267,22 +273,31 @@ export function planWholeSiteUpgrade(
   const heading = factualHeadline(context);
   const subheading = factualSubheading(context);
 
-  for (const page of context.pages) {
-    if (!page.is_visible) continue;
-    for (const section of page.sections) {
-      if (section.kind !== "hero" || !section.is_visible) continue;
-      if (heading && looksTemplated(section.heading)) {
-        push({ type: "set_section_text", sectionId: section.id, field: "heading", value: heading });
+  const keepHeroCopy = Boolean(options.keepHeroCopy);
+
+  if (!keepHeroCopy) {
+    for (const page of context.pages) {
+      if (!page.is_visible) continue;
+      for (const section of page.sections) {
+        if (section.kind !== "hero" || !section.is_visible) continue;
+        if (heading && looksTemplated(section.heading)) {
+          push({
+            type: "set_section_text",
+            sectionId: section.id,
+            field: "heading",
+            value: heading,
+          });
+        }
+        if (subheading && looksTemplated(section.subheading)) {
+          push({
+            type: "set_section_text",
+            sectionId: section.id,
+            field: "subheading",
+            value: subheading,
+          });
+        }
+        if (actions.length >= cap) return actions;
       }
-      if (subheading && looksTemplated(section.subheading)) {
-        push({
-          type: "set_section_text",
-          sectionId: section.id,
-          field: "subheading",
-          value: subheading,
-        });
-      }
-      if (actions.length >= cap) return actions;
     }
   }
 
