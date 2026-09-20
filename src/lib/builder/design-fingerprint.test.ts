@@ -6,6 +6,28 @@ import {
   readDesignFingerprint,
   rejectStyle,
   writeDesignFingerprint,
+  BACKGROUND_SYSTEMS,
+  CARD_SYSTEMS,
+  COLOR_SYSTEMS,
+  CTA_SYSTEMS,
+  DECORATIVE_SYSTEMS,
+  DESIGN_FAMILIES,
+  FAQ_LAYOUTS,
+  FOOTER_SYSTEMS,
+  FORM_LAYOUTS,
+  GALLERY_LAYOUTS,
+  HERO_COMPOSITIONS,
+  IMAGE_TREATMENTS,
+  MOTION_PATTERNS,
+  NAV_SYSTEMS,
+  PAGE_SHELLS,
+  PRICING_LAYOUTS,
+  PROOF_LAYOUTS,
+  SECTION_COMPOSITIONS,
+  SECTION_TRANSITIONS,
+  STATS_LAYOUTS,
+  TIMELINE_LAYOUTS,
+  TYPE_SYSTEMS,
 } from "./design-fingerprint";
 
 const base = { businessName: "Harbour Plumbing", industry: "home_services", city: "Bristol" };
@@ -74,5 +96,65 @@ describe("design fingerprint", () => {
     const brief = fingerprintBrief(createDesignFingerprint(base));
     expect(brief).toMatch(/Design identity already established/);
     expect(brief).toMatch(/Hero composition/);
+  });
+});
+
+describe("design vocabulary breadth", () => {
+  it("meets the required option counts in every pool", () => {
+    const pools: Array<[string, readonly unknown[], number]> = [
+      ["heroes", HERO_COMPOSITIONS, 30],
+      ["navs", NAV_SYSTEMS, 25],
+      ["backgrounds", BACKGROUND_SYSTEMS, 25],
+      ["colors", COLOR_SYSTEMS, 20],
+      ["type", TYPE_SYSTEMS, 20],
+      ["ctas", CTA_SYSTEMS, 25],
+      ["cards", CARD_SYSTEMS, 25],
+      ["sections", SECTION_COMPOSITIONS, 25],
+      ["proof", PROOF_LAYOUTS, 20],
+      ["pricing", PRICING_LAYOUTS, 20],
+      ["faq", FAQ_LAYOUTS, 20],
+      ["gallery", GALLERY_LAYOUTS, 20],
+      ["stats", STATS_LAYOUTS, 20],
+      ["timeline", TIMELINE_LAYOUTS, 20],
+      ["forms", FORM_LAYOUTS, 20],
+      ["footers", FOOTER_SYSTEMS, 20],
+      ["decorative", DECORATIVE_SYSTEMS, 15],
+      ["motion", MOTION_PATTERNS, 15],
+      ["image treatments", IMAGE_TREATMENTS, 15],
+      ["section transitions", SECTION_TRANSITIONS, 15],
+      ["page shells", PAGE_SHELLS, 15],
+      ["families", DESIGN_FAMILIES, 20],
+    ];
+    for (const [name, pool, minimum] of pools) {
+      expect(pool.length, name).toBeGreaterThanOrEqual(minimum);
+      expect(new Set(pool).size, `${name} duplicates`).toBe(pool.length);
+    }
+  });
+
+  it("assigns a design family, shell, transition and motion pattern", () => {
+    const fingerprint = createDesignFingerprint(base);
+    expect(DESIGN_FAMILIES).toContain(fingerprint.family);
+    expect(PAGE_SHELLS).toContain(fingerprint.pageShell);
+    expect(SECTION_TRANSITIONS).toContain(fingerprint.sectionTransition);
+    expect(MOTION_PATTERNS).toContain(fingerprint.motionPattern);
+    expect(TIMELINE_LAYOUTS).toContain(fingerprint.timelineLayout);
+  });
+
+  it("uses no motion pattern when the identity asks for no motion", () => {
+    const quiet = [
+      "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L",
+    ]
+      .map((name) => createDesignFingerprint({ ...base, businessName: name }))
+      .filter((fingerprint) => fingerprint.motionLevel === "none");
+    for (const fingerprint of quiet) expect(fingerprint.motionPattern).toBe("none");
+  });
+
+  it("leaves image treatment plain until real photos exist", () => {
+    expect(createDesignFingerprint({ ...base, photoCount: 0 }).imageTreatment).toBe("plain");
+    expect(IMAGE_TREATMENTS).toContain(createDesignFingerprint({ ...base, photoCount: 8 }).imageTreatment);
+  });
+
+  it("states in the brief that the identity is never a source of facts", () => {
+    expect(fingerprintBrief(createDesignFingerprint(base))).toMatch(/never a source of business facts/i);
   });
 });

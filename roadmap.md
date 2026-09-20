@@ -58,3 +58,18 @@
 - Still open and honestly labelled: free AI image generation (no genuinely free
   provider here), transactional email and CRM live checks (no keys), and the paid
   frontier-model quality ceiling (a deliberate cost choice).
+
+## Design vocabulary + identity wiring (VERIFIED_LIVE 2026-09-20)
+- design-fingerprint.ts pools widened to the required minimums: 32 heroes, 25 navs,
+  32 backgrounds, 20 colour systems, 20 type systems, 25 CTAs, 25 card systems,
+  25 section compositions, 20 each of proof/pricing/FAQ/gallery/stats/process/forms/footers,
+  15 decorative, 15 motion patterns, 15 image treatments, 15 section transitions,
+  15 page shells, 20 design families. New fields: family, timelineLayout,
+  sectionTransition, pageShell, imageTreatment, motionPattern.
+- The identity is now read (or created once) and briefed to the planner on every
+  builder request in site-agent.functions.ts, and persisted into
+  website_settings.generation.designFingerprint so later edits cannot redesign the site.
+- Evidence: 1,087 tests, typecheck clean, production build OK, browser render at
+  320/390/768/1280/1440 with zero horizontal overflow.
+- Still BLOCKED on external credentials: free AI image generation (no zero-cost provider),
+  transactional email (Resend/Brevo), CRM (HubSpot/Salesforce).

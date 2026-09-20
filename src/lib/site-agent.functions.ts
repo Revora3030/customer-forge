@@ -362,14 +362,34 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
     const brief = designMemoryBrief(priorMemory);
     if (brief) data.history = [{ role: "user" as const, content: brief }, ...data.history];
     const nextMemory = mergeDesignMemory(priorMemory, data.instruction);
-    if (nextMemory !== priorMemory && settingsRow.data) {
-      const generation = {
-        ...(((settingsRow.data as { generation?: unknown }).generation ?? {}) as Record<
-          string,
-          unknown
-        >),
-        designMemory: nextMemory,
-      };
+
+    // DESIGN IDENTITY. Worked out once from what the business actually is, then
+    // reused on every later request so unrelated edits cannot quietly redesign
+    // the site. Design choices only — never a business fact and never copy.
+    const { createDesignFingerprint, fingerprintBrief, readDesignFingerprint, writeDesignFingerprint } =
+      await import("@/lib/builder/design-fingerprint");
+    const storedGeneration = ((settingsRow.data as { generation?: unknown } | null)?.generation ??
+      {}) as Record<string, unknown>;
+    const priorFingerprint = readDesignFingerprint(storedGeneration);
+    const fingerprint =
+      priorFingerprint ??
+      createDesignFingerprint({
+        businessName: agentContext.business.name || null,
+        industry: agentContext.business.industry ?? null,
+        city: agentContext.business.city ?? null,
+        audience: agentContext.business.serviceArea ?? null,
+        goal: null,
+        photoCount: agentContext.business.photoCount ?? 0,
+        contentDensity: "balanced",
+      });
+    data.history = [{ role: "user" as const, content: fingerprintBrief(fingerprint) }, ...data.history];
+
+    const memoryChanged = nextMemory !== priorMemory;
+    const fingerprintNew = !priorFingerprint;
+    if ((memoryChanged || fingerprintNew) && settingsRow.data) {
+      let generation: Record<string, unknown> = { ...storedGeneration };
+      if (memoryChanged) generation["designMemory"] = nextMemory;
+      if (fingerprintNew) generation = writeDesignFingerprint(generation, fingerprint);
       const saved = await supabase
         .from("website_settings")
         .update({ generation: generation as never })
