@@ -21,6 +21,9 @@ import { safeLinkUrl } from "@/lib/website-content";
 import { readSectionEffect, sectionEffectClass } from "@/lib/site-effects";
 import { businessFacts, factsAddressLine } from "@/lib/builder/facts";
 import { phoneDisplay, phoneLink, safeParagraph, safeText } from "@/lib/builder/presentation";
+import { DecorativeArt } from "@/components/site/DecorativeArt";
+import { generateArtwork } from "@/lib/media/generative-art";
+import { createDesignFingerprint, readDesignFingerprint } from "@/lib/builder/design-fingerprint";
 
 type Site = NonNullable<PublicSite>;
 type Section = NonNullable<Site["content"]>["sections"][number];
