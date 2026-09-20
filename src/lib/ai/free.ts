@@ -46,6 +46,11 @@ export const FREE_ALLOWANCE: Record<
     allowance: "Workers Free: 10,000 Neurons per day (shared across models).",
     dailyRequestCap: null,
   },
+  groq: {
+    label: "Groq free developer tier",
+    allowance: "Free developer tier: per-minute and per-day request limits per model.",
+    dailyRequestCap: null,
+  },
   openrouter: {
     label: "OpenRouter free models",
     allowance: "Free plan: free-tier models only, 50 requests per day.",
