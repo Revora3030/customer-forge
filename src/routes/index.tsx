@@ -324,6 +324,25 @@ function Landing() {
                   </div>
                 ))}
               </dl>
+
+              {/* Fills the hero's lower left and answers "is this for me?" with
+                  the industries the system already ships pages and copy for. */}
+              <div className="mt-8 border-t border-border pt-5">
+                <p className="eyebrow">Built for trades and local services</p>
+                <ul className="mt-3 flex flex-wrap gap-1.5">
+                  {TRUST_INDUSTRIES.slice(0, 9).map((trade) => (
+                    <li
+                      key={trade}
+                      className="rounded-full border border-border bg-card/60 px-2.5 py-1 text-[11.5px] text-muted-foreground"
+                    >
+                      {trade}
+                    </li>
+                  ))}
+                  <li className="rounded-full border border-primary/30 px-2.5 py-1 text-[11.5px] text-primary">
+                    + {INDUSTRIES.length} industries
+                  </li>
+                </ul>
+              </div>
             </div>
             <div className="preview-stage dashboard-3d-stage">
               <div className="preview-orbit" aria-hidden="true">
