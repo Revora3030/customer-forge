@@ -123,12 +123,20 @@ export function ensembleModeFor(instruction: string): EnsembleMode {
   return "standard";
 }
 
-/** Models per lane for a mode. `Infinity` means "all compatible models". */
+/**
+ * Models per lane for a mode. `Infinity` means "all compatible models".
+ *
+ * `standard` is now as wide as `maximum`: every ordinary build request also gets
+ * the whole verified free pool. Latency stays bounded by the caller's settle
+ * threshold, deadline and the concurrency limits below, not by a model cap.
+ */
 export function laneWidth(mode: EnsembleMode): number {
-  if (mode === "minimal") return 1;
-  if (mode === "standard") return 3;
   const override = Number(process.env["ENSEMBLE_MAX_MODELS_PER_LANE"] ?? "");
-  return Number.isFinite(override) && override > 0 ? Math.floor(override) : Number.POSITIVE_INFINITY;
+  if (Number.isFinite(override) && override > 0 && mode !== "minimal") {
+    return Math.floor(override);
+  }
+  if (mode === "minimal") return 2;
+  return Number.POSITIVE_INFINITY;
 }
 
 /* ------------------------------- assignment ------------------------------- */
