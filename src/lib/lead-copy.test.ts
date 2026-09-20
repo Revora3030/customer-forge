@@ -4,7 +4,7 @@
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const sent: { to: string; key?: string }[] = [];
+const sent: { to: string; key: string | undefined }[] = [];
 
 vi.mock("@/lib/email-templates/send-email", () => ({
   sendTemplateEmail: async (_template: string, to: string, options: { idempotencyKey?: string }) => {
