@@ -10,6 +10,7 @@ import { useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { Search } from "lucide-react";
 import { EmptyState, MetricCard, Panel, Pill, SectionHeading } from "@/components/app/Bits";
+import { GoogleLocalListing, GoogleSearchGrowth } from "@/components/app/GoogleSearchGrowth";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { seoAuditSummary } from "@/lib/seo-audit";
