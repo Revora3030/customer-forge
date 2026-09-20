@@ -31,7 +31,20 @@ export type ProviderName =
 export type PaidProviderName = "google" | "openai";
 
 /** The kinds of work Revora routes; each maps to a model per provider. */
-export type ModelRole = "primary" | "fast" | "vision" | "coding" | "image" | "transcription";
+/**
+ * `design` is the creative-judgement role: palette, backdrop, section mix and
+ * page order. It is deliberately separate from `primary` so the strongest
+ * available model can be pointed at look-and-feel decisions while cheap models
+ * keep doing the short, mechanical work.
+ */
+export type ModelRole =
+  | "primary"
+  | "design"
+  | "fast"
+  | "vision"
+  | "coding"
+  | "image"
+  | "transcription";
 
 export type ProviderConfig = {
   name: ProviderName;
