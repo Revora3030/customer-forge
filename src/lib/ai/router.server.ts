@@ -845,6 +845,7 @@ export async function callPinnedFreeModel(
     });
     noteSuccess(call.provider as ProviderName);
     const latencyMs = Date.now() - started;
+    void noteDurableProviderResult({ provider: call.provider, ok: true, latencyMs });
     void recordAiEvent({
       requestId,
       provider: call.provider as ProviderName,
