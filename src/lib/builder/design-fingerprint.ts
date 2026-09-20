@@ -34,6 +34,8 @@ export type DesignFingerprint = {
   /** Stable id for this identity — safe to show in admin/proof reports. */
   id: string;
   seed: number;
+  /** The overall design family this website belongs to (luxury, technical, ...). */
+  family: string;
   heroComposition: string;
   backgroundSystem: string;
   sectionRhythm: string;
@@ -45,11 +47,20 @@ export type DesignFingerprint = {
   faqLayout: string;
   galleryLayout: string;
   statsLayout: string;
+  timelineLayout: string;
   formLayout: string;
   footerSystem: string;
   decorativeSystem: string;
   typeSystem: string;
   colorSystem: string;
+  /** How one section meets the next. */
+  sectionTransition: string;
+  /** Page-level shell/frame composition. */
+  pageShell: string;
+  /** How imagery is treated when real photography exists. */
+  imageTreatment: string;
+  /** The specific motion pattern used, within the motion level below. */
+  motionPattern: string;
   motionLevel: "none" | "subtle" | "expressive";
   density: "compact" | "balanced" | "airy";
   /** Art direction for imagery — never invents what the photo depicts. */
