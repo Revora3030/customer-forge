@@ -199,6 +199,22 @@ function groqFreeEligible(name: string) {
   return !PAID_MODEL_PATTERNS.some((pattern) => pattern.test(model));
 }
 
+/**
+ * NVIDIA NIM ids are vendor-prefixed (`nvidia/nemotron-3-super-120b-a12b`). The
+ * hosted catalogue also lists embedders, retrievers, guard/safety models,
+ * parsers and translators, none of which are chat generation — they are
+ * rejected so the router never spends an attempt on one.
+ */
+const NVIDIA_NON_CHAT =
+  /embed|retriev|rerank|guard|safety|topic-control|parse|nvclip|translate|reward|detector|ocr|diffusion/i;
+
+function nvidiaFreeEligible(name: string) {
+  if (!name.includes("/")) return false;
+  if (NVIDIA_NON_CHAT.test(name)) return false;
+  const model = name.slice(name.lastIndexOf("/") + 1);
+  return !PAID_MODEL_PATTERNS.some((pattern) => pattern.test(model));
+}
+
 export function isFreeEligibleModel(provider: FreeProviderName, model: string): boolean {
   const name = model.trim();
   if (name.length === 0) return false;
@@ -209,6 +225,7 @@ export function isFreeEligibleModel(provider: FreeProviderName, model: string): 
   if (provider === "openrouter") return openRouterFree(name);
   if (provider === "google") return /flash|lite|gemma/i.test(name);
   if (provider === "groq") return groqFreeEligible(name);
+  if (provider === "nvidia") return nvidiaFreeEligible(name);
   return name.startsWith("@cf/");
 }
 
