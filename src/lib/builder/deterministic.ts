@@ -813,6 +813,119 @@ export function buildDeterministicPlan(
   };
 
   /* ------------------------------------------------------------------------ */
+  /* EXACT WORDING (highest priority)                                         */
+  /* ------------------------------------------------------------------------ */
+
+  /**
+   * "Change my headline to 'Reliable service, done right'" is the most common
+   * request an owner makes. The wording is theirs, so it is applied exactly as
+   * typed — no model, no rewriting, no invented claims.
+   */
+  const literalDirectives = readLiteralDirectives(originalInstruction);
+
+  const isButton = (component: Section["components"][number]): boolean =>
+    lower(component.kind) === "button";
+
+  if (literalDirectives.length > 0) {
+    task("Use the exact wording you asked for", () => {
+      let changed = false;
+
+      for (const directive of literalDirectives) {
+        if (directive.kind === "fact") {
+          if (
+            push({
+              type: "set_business_fact",
+              field: directive.field,
+              value: directive.value,
+            })
+          ) {
+            changed = true;
+          }
+          continue;
+        }
+
+        const hinted = directive.sectionKind
+          ? findSection(page, directive.sectionKind)
+          : undefined;
+
+        if (directive.kind === "section_text") {
+          const section =
+            hinted ?? findSection(page, "hero") ?? sectionsOf(page)[0];
+
+          if (
+            section &&
+            push({
+              type: "set_section_text",
+              sectionId: section.id,
+              field: directive.field,
+              value: directive.value,
+            })
+          ) {
+            changed = true;
+          }
+          continue;
+        }
+
+        /* Button wording: edit the existing button the owner meant. */
+        const button =
+          (hinted
+            ? hinted.components.find(isButton)
+            : undefined) ??
+          (findSection(page, "hero")?.components ?? []).find(isButton) ??
+          sectionsOf(page)
+            .flatMap((section) => section.components)
+            .find(isButton);
+
+        if (button) {
+          if (
+            push({
+              type: "set_component",
+              componentId: button.id,
+              patch: {
+                label: directive.value,
+                link_label: directive.value,
+              },
+            })
+          ) {
+            changed = true;
+          }
+          continue;
+        }
+
+        /* No button exists yet: add one that points at a real contact route. */
+        const host =
+          hinted ?? findSection(page, "hero") ?? sectionsOf(page)[0];
+
+        if (
+          host &&
+          push({
+            type: "add_component",
+            sectionId: host.id,
+            kind: "button",
+            label: directive.value,
+            link_label: directive.value,
+            link_url: ctaTarget(context).url,
+          })
+        ) {
+          changed = true;
+        }
+      }
+
+      if (changed) {
+        completedAreas.add("wording");
+
+        trace.push(
+          `Applied ${literalDirectives.length} exact wording change${
+            literalDirectives.length === 1 ? "" : "s"
+          } using your own words.`,
+        );
+      }
+
+      return changed;
+    });
+  }
+
+
   /* DESIGN                                                                   */
   /* ------------------------------------------------------------------------ */
 
