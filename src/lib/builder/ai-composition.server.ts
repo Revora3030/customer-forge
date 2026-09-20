@@ -28,35 +28,15 @@ import {
   type DesignDirection,
 } from "@/lib/design-directions";
 
-/** The owner's brand choices, made before the AI composes anything. */
-export type BrandPreference = {
-  /** A light or dark website. */
-  tone?: "light" | "dark" | "any" | null;
-  /** Hex brand colours the owner picked. */
-  primaryColor?: string | null;
-  secondaryColor?: string | null;
-  accentColor?: string | null;
-  /** A specific heading font. */
-  font?: string | null;
-  /** A specific look from the library, when the owner already chose one. */
-  directionId?: string | null;
-};
+export type {
+  BrandPreference,
+  CompositionPreview,
+} from "@/lib/builder/composition-preview";
+import type {
+  BrandPreference,
+  CompositionPreview,
+} from "@/lib/builder/composition-preview";
 
-/** Everything the owner sees and approves before a single change is applied. */
-export type CompositionPreview = {
-  styleName: string;
-  mood: string;
-  tone: "light" | "dark";
-  font: string;
-  fontNote: string;
-  colors: { primary: string; secondary: string; accent: string };
-  /** Why this look and this order, in one plain sentence. */
-  because: string;
-  /** What each page will contain, in order, in owner-friendly words. */
-  pages: { pageId: string; title: string; blocks: string[]; added: string[] }[];
-  /** True when the owner's own brand choices overrode the AI's palette. */
-  brandLocked: boolean;
-};
 
 export type ComposedSitePlan = {
   actions: AgentAction[];
