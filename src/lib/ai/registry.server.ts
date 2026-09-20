@@ -16,7 +16,13 @@
 
 import type { ModelRole } from "@/lib/ai/config";
 import {
+  durableBudgetRemaining,
+  durableProviderResting,
+  durableRuntimeFor,
+} from "@/lib/ai/durable-health.server";
+import {
   FREE_ALLOWANCE,
+  freeBudgetCap,
   freeBudgetRemaining,
   isFreeEligibleModel,
   type FreeProviderName,
