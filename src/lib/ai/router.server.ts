@@ -351,6 +351,17 @@ async function run<T>(
           if (candidate.free) noteFreeUse(candidate.free);
           const result = await execute({ adapter, config, model, signal: controller.signal });
           noteSuccess(config.name);
+          lastOutcome = {
+            at: Date.now(),
+            provider: config.name,
+            model,
+            task: caller.task,
+            ok: true,
+            category: null,
+            fallbackUsed,
+            free: candidate.free !== null,
+          };
+
           void recordAiEvent({
             requestId,
             provider: config.name,
