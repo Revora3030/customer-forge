@@ -272,7 +272,7 @@ export async function refreshFreeModels(
               [];
   // Cache even an empty answer so a failing discovery endpoint isn't polled on
   // every builder request.
-  cache.set(provider, { at: Date.now(), models });
+  cache.set(key, { at: Date.now(), models });
   return models;
 }
 
