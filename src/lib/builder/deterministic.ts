@@ -904,7 +904,7 @@ export function buildDeterministicPlan(
             kind: "button",
             label: directive.value,
             link_label: directive.value,
-            link_url: ctaTarget(context).url,
+            link_url: ctaTarget(facts)?.url ?? "/contact",
           })
         ) {
           changed = true;
