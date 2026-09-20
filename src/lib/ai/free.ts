@@ -92,6 +92,14 @@ const FREE_MODEL_DEFAULTS: Record<FreeProviderName, Partial<Record<ModelRole, st
     fast: "openai/gpt-oss-20b",
     coding: "qwen/qwen3.8-27b",
   },
+  // Verified live against this NVIDIA key's hosted NIM catalogue. Only these
+  // answered; several listed ids are retired or not served to this account.
+  nvidia: {
+    primary: "nvidia/nemotron-3-super-120b-a12b",
+    fast: "nvidia/nemotron-3.5-lightning-30b-a3b",
+    coding: "nvidia/nemotron-3-super-120b-a12b",
+    vision: "meta/llama-3.2-11b-vision-instruct",
+  },
   // Verified live against OpenRouter's zero-price pool. `openrouter/free` is
   // its free auto-router, so it survives individual models being retired.
   openrouter: {
