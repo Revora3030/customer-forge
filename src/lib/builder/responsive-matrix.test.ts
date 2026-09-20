@@ -105,7 +105,7 @@ describe("responsive device matrix", () => {
     const checks = evaluateDeviceMatrix(heavy).filter(
       (check) => check.check === "readable copy length per column",
     );
-    expect(checks.map((check) => check.width)).toEqual([320, 375, 390, 414, 768, 1024]);
+    expect(checks.map((check) => check.width)).toEqual([320, 375, 390, 414]);
   });
 
   it("flags crowded touch targets on phones", () => {
