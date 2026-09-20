@@ -314,6 +314,12 @@ export type EnsembleRequest<T> = {
   deadlineMs?: number;
   timeoutMsPerCall?: number;
   signal?: AbortSignal;
+  /**
+   * Stop dispatching further models once this many of them have independently
+   * produced the same validated answer. The owner waits for a decision, not for
+   * every model in the pool to repeat it.
+   */
+  settleWhenAgreed?: number;
 };
 
 function positiveEnv(name: string, fallback: number) {
@@ -386,9 +392,16 @@ export async function runEnsemble<T>(
   let cursor = 0;
   const queue = [...assignments];
 
+  // Live vote tally, so an ensemble can settle as soon as enough models agree
+  // instead of making the owner wait for every model to repeat the same answer.
+  const liveVotes = new Map<string, number>();
+  const settleAt = request.settleWhenAgreed ?? 0;
+  let settled = false;
+
   async function worker() {
     for (;;) {
       if (cursor >= queue.length) return;
+      if (settled) return;
       if (request.signal?.aborted) return;
       if (Date.now() >= deadline) {
         deadlineHit = true;
@@ -441,6 +454,12 @@ export async function runEnsemble<T>(
           reason: value === null ? "answer failed validation" : null,
           value,
         });
+        if (settleAt > 0 && value !== null) {
+          const key = request.consensusKey(value);
+          const votes = (liveVotes.get(key) ?? 0) + 1;
+          liveVotes.set(key, votes);
+          if (votes >= settleAt) settled = true;
+        }
       } catch (error) {
         outcomes.push({
           lane: assignment.lane,

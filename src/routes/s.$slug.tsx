@@ -18,7 +18,7 @@ import { placeDisplay } from "@/lib/builder/presentation";
 import { playbookFor, schemaTypeFor } from "@/lib/builder/industry";
 import { safeLinkUrl } from "@/lib/website-content";
 import { SiteBackdrop } from "@/components/site/SiteBackdrop";
-import { siteThemeStyle } from "@/lib/site-theme";
+import { siteFontHref, siteFontStyle, siteThemeStyle } from "@/lib/site-theme";
 import { readComposition } from "@/lib/visual-composition";
 import { readBackdrop } from "@/lib/site-effects";
 
@@ -76,7 +76,19 @@ export const Route = createFileRoute("/s/$slug")({
           : []),
         ...(page?.noindex ? [{ name: "robots", content: "noindex" }] : []),
       ],
-      links: [{ rel: "canonical", href: url }],
+      links: [
+        { rel: "canonical", href: url },
+        // The owner's chosen heading font has to be requested here or their
+        // look-and-feel choice would be stored but never seen.
+        ...(siteFontHref(loaderData.profile?.font_preference)
+          ? [
+              {
+                rel: "stylesheet",
+                href: siteFontHref(loaderData.profile?.font_preference) as string,
+              },
+            ]
+          : []),
+      ],
     };
   },
   component: PublicSiteRoute,
@@ -215,11 +227,14 @@ function TemplateSiteView({
   return (
     <div
       className="min-h-screen bg-background"
-      style={siteThemeStyle({
-        primaryColor: profile?.primary_color ?? null,
-        secondaryColor: profile?.secondary_color ?? null,
-        accentColor: profile?.accent_color ?? null,
-      })}
+      style={{
+        ...siteThemeStyle({
+          primaryColor: profile?.primary_color ?? null,
+          secondaryColor: profile?.secondary_color ?? null,
+          accentColor: profile?.accent_color ?? null,
+        }),
+        ...siteFontStyle(profile?.font_preference ?? null),
+      }}
     >
       <SiteBackdrop
         backdrop={readBackdrop(site.settings?.generation ?? null)}
