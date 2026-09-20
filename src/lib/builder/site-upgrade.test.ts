@@ -3,28 +3,29 @@ import { planWholeSiteUpgrade, factualHeadline } from "./site-upgrade";
 import { interpret } from "./interpreter";
 import type { AgentContext } from "@/lib/site-agent.server";
 
-function ctx(overrides: Partial<AgentContext> = {}): AgentContext {
+function ctx(overrides: { business?: Partial<AgentContext["business"]> } = {}): AgentContext {
+  const business: AgentContext["business"] = {
+    name: "Bluebird Plumbing",
+    industry: "plumbing",
+    tagline: null,
+    description: null,
+    city: "Austin",
+    state: "TX",
+    serviceArea: null,
+    phone: null,
+    email: null,
+    yearsInBusiness: 12,
+    primaryColor: null,
+    secondaryColor: null,
+    accentColor: null,
+    fontPreference: null,
+    services: [{ name: "Emergency plumbing", price: null, startingPrice: null }],
+    publishedReviewCount: 0,
+    photoCount: 0,
+    ...overrides.business,
+  };
   return {
-    business: {
-      name: "Bluebird Plumbing",
-      industry: "plumbing",
-      tagline: null,
-      description: null,
-      city: "Austin",
-      state: "TX",
-      serviceArea: null,
-      phone: null,
-      email: null,
-      yearsInBusiness: 12,
-      primaryColor: null,
-      secondaryColor: null,
-      accentColor: null,
-      fontPreference: null,
-      services: [{ name: "Emergency plumbing", price: null, startingPrice: null }],
-      publishedReviewCount: 0,
-      photoCount: 0,
-      ...overrides.business,
-    },
+    business,
     pages: [
       {
         id: "p1",
