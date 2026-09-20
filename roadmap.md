@@ -73,3 +73,29 @@
   320/390/768/1280/1440 with zero horizontal overflow.
 - Still BLOCKED on external credentials: free AI image generation (no zero-cost provider),
   transactional email (Resend/Brevo), CRM (HubSpot/Salesforce).
+
+## Gap-closing pass: interactive blocks + evidence-gated repair
+- The builder can now create six further interactive things beyond the original
+  seven: expandable answers (accordion), timelines, filterable lists with tag
+  chips, yes/no eligibility checkers, booking selectors (service + time, routed
+  to the existing contact path) and progress strips. All are validated data-only
+  specs drawn by trusted components — nothing generated runs in a visitor's
+  browser, off-site call-to-action links are rewritten to the contact anchor,
+  and every figure and word comes from the owner.
+- Auto-repair is now evidence-gated: a repair is only ever reported as kept when
+  rendered before/after evidence shows measured problems fell. Missing evidence
+  is NOT_VERIFIED and the repair is rolled back; a repair that leaves blocking
+  problems or makes things worse is FAIL and rolled back.
+- VERIFIED: real browser check at 320/390/768/1280/1440 — all six blocks render,
+  zero sideways overflow at every width, no console errors; tag filter narrows
+  the list, the eligibility checker returns the pass result after two answers,
+  the accordion opens.
+- Billing safety re-verified against the live database: members can only read
+  subscription rows; every write is denied to members and anon and must come
+  through the payment webhook path.
+- 1,128 tests (171 files), typecheck clean, production build OK.
+- Still open and honestly labelled: visual click-to-edit canvas, draft/branch
+  experiments, free-form generated code beyond the safe block format, screenshot
+  review by a vision model on every build, live Core Web Vitals measurement,
+  picture editing (no free edit-capable model), and email/CRM/Stripe checks
+  (need credentials).

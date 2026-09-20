@@ -30,7 +30,13 @@ export type CustomBlockKind =
   | "checklist"
   | "steps"
   | "tabs"
-  | "metrics";
+  | "metrics"
+  | "accordion"
+  | "timeline"
+  | "filter"
+  | "eligibility"
+  | "booking"
+  | "gauge";
 
 export type CalculatorField = {
   id: string;
@@ -66,7 +72,28 @@ export type CustomBlockSpec =
   | { type: "checklist"; title?: string; items: { label: string; body?: string }[] }
   | { type: "steps"; title?: string; items: { label: string; body?: string }[] }
   | { type: "tabs"; title?: string; items: { label: string; body: string }[] }
-  | { type: "metrics"; title?: string; items: { label: string; value: string }[] };
+  | { type: "metrics"; title?: string; items: { label: string; value: string }[] }
+  | { type: "accordion"; title?: string; items: { label: string; body: string }[] }
+  | { type: "timeline"; title?: string; items: { marker: string; label: string; body?: string }[] }
+  | { type: "filter"; title?: string; items: { label: string; body?: string; tags: string[] }[] }
+  | {
+      type: "eligibility";
+      title?: string;
+      note: string;
+      questions: { id: string; prompt: string }[];
+      pass: { label: string; body?: string };
+      fail: { label: string; body?: string };
+    }
+  | {
+      type: "booking";
+      title?: string;
+      note: string;
+      services: string[];
+      times: string[];
+      ctaLabel: string;
+      ctaHref: string;
+    }
+  | { type: "gauge"; title?: string; note?: string; items: { label: string; value: number; caption?: string }[] };
 
 export type ParseResult =
   | { ok: true; spec: CustomBlockSpec }
@@ -329,11 +356,146 @@ export function parseCustomBlock(raw: unknown): ParseResult {
       return { ok: true, spec: { type: "metrics", ...(title ? { title } : {}), items } };
     }
 
+    case "accordion": {
+      const result = labelledItems(row["items"], { min: 2, max: 12, bodyRequired: true });
+      if ("reason" in result) return { ok: false, reason: result.reason };
+      return {
+        ok: true,
+        spec: {
+          type: "accordion",
+          ...(title ? { title } : {}),
+          items: result.items.map((item) => ({ label: item.label, body: item.body ?? "" })),
+        },
+      };
+    }
+
+    case "timeline": {
+      const rows = list(row["items"]);
+      if (!rows || rows.length < 2 || rows.length > 12) {
+        return { ok: false, reason: "a timeline needs between 2 and 12 entries" };
+      }
+      const items: { marker: string; label: string; body?: string }[] = [];
+      for (const entry of rows) {
+        const marker = clean(entry["marker"], 32);
+        const label = clean(entry["label"], MAX_LABEL);
+        if (!marker || !label) {
+          return { ok: false, reason: "every timeline entry needs a short marker and a label" };
+        }
+        const body = clean(entry["body"], MAX_BODY);
+        items.push({ marker, label, ...(body ? { body } : {}) });
+      }
+      return { ok: true, spec: { type: "timeline", ...(title ? { title } : {}), items } };
+    }
+
+    case "filter": {
+      const rows = list(row["items"]);
+      if (!rows || rows.length < 3 || rows.length > 24) {
+        return { ok: false, reason: "a filterable list needs between 3 and 24 entries" };
+      }
+      const items: { label: string; body?: string; tags: string[] }[] = [];
+      for (const entry of rows) {
+        const label = clean(entry["label"], MAX_LABEL);
+        if (!label) return { ok: false, reason: "every entry needs a plain-text label" };
+        const tagsRaw = Array.isArray(entry["tags"]) ? entry["tags"] : null;
+        const tags = (tagsRaw ?? []).map((tag) => clean(tag, 32)).filter((tag): tag is string => !!tag);
+        if (!tagsRaw || tags.length !== tagsRaw.length || tags.length < 1 || tags.length > 4) {
+          return { ok: false, reason: "every entry needs between 1 and 4 plain-text tags" };
+        }
+        const body = clean(entry["body"], MAX_BODY);
+        items.push({ label, ...(body ? { body } : {}), tags });
+      }
+      const groups = new Set(items.flatMap((item) => item.tags));
+      if (groups.size < 2 || groups.size > 12) {
+        return { ok: false, reason: "a filterable list needs between 2 and 12 distinct tags" };
+      }
+      return { ok: true, spec: { type: "filter", ...(title ? { title } : {}), items } };
+    }
+
+    case "eligibility": {
+      const note = clean(row["note"], MAX_BODY);
+      if (!note) {
+        return { ok: false, reason: "an eligibility checker must carry a note saying it is a guide only" };
+      }
+      const rows = list(row["questions"]);
+      if (!rows || rows.length < 1 || rows.length > 8) {
+        return { ok: false, reason: "an eligibility checker needs between 1 and 8 yes/no questions" };
+      }
+      const questions: { id: string; prompt: string }[] = [];
+      for (const [index, entry] of rows.entries()) {
+        const prompt = clean(entry["prompt"], MAX_BODY);
+        if (!prompt) return { ok: false, reason: "every eligibility question needs a prompt" };
+        questions.push({ id: slug(entry["id"] ?? prompt, index), prompt });
+      }
+      const outcome = (value: unknown, which: string) => {
+        if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+        const entry = value as Record<string, unknown>;
+        const label = clean(entry["label"], MAX_LABEL);
+        if (!label) return null;
+        const body = clean(entry["body"], MAX_BODY);
+        void which;
+        return body ? { label, body } : { label };
+      };
+      const pass = outcome(row["pass"], "pass");
+      const fail = outcome(row["fail"], "fail");
+      if (!pass || !fail) {
+        return { ok: false, reason: "an eligibility checker needs both a pass and a fail result with labels" };
+      }
+      return {
+        ok: true,
+        spec: { type: "eligibility", ...(title ? { title } : {}), note, questions, pass, fail },
+      };
+    }
+
+    case "booking": {
+      const note = clean(row["note"], MAX_BODY);
+      if (!note) {
+        return { ok: false, reason: "a booking selector must carry a note about how requests are handled" };
+      }
+      const strings = (value: unknown, min: number, max: number) => {
+        const raw = Array.isArray(value) ? value : null;
+        if (!raw) return null;
+        const items = raw.map((item) => clean(item, MAX_LABEL)).filter((item): item is string => !!item);
+        if (items.length !== raw.length || items.length < min || items.length > max) return null;
+        return items;
+      };
+      const services = strings(row["services"], 1, 8);
+      const times = strings(row["times"], 1, 8);
+      if (!services || !times) {
+        return { ok: false, reason: "a booking selector needs 1-8 services and 1-8 time choices" };
+      }
+      const hrefRaw = clean(row["ctaHref"], 120) ?? "#contact";
+      const ctaHref = /^(#|\/)[A-Za-z0-9/_?&=.%#-]*$/.test(hrefRaw) ? hrefRaw : "#contact";
+      const ctaLabel = clean(row["ctaLabel"], MAX_LABEL) ?? "Request this time";
+      return {
+        ok: true,
+        spec: { type: "booking", ...(title ? { title } : {}), note, services, times, ctaLabel, ctaHref },
+      };
+    }
+
+    case "gauge": {
+      const rows = list(row["items"]);
+      if (!rows || rows.length < 2 || rows.length > 6) {
+        return { ok: false, reason: "a progress strip needs between 2 and 6 entries" };
+      }
+      const items: { label: string; value: number; caption?: string }[] = [];
+      for (const entry of rows) {
+        const label = clean(entry["label"], MAX_LABEL);
+        const value = num(entry["value"], null);
+        if (!label || value === null || value < 0 || value > 100) {
+          return { ok: false, reason: "every progress entry needs a label and a value between 0 and 100" };
+        }
+        const caption = clean(entry["caption"], MAX_BODY);
+        items.push({ label, value: Math.round(value), ...(caption ? { caption } : {}) });
+      }
+      const note = clean(row["note"], MAX_BODY);
+      return { ok: true, spec: { type: "gauge", ...(title ? { title } : {}), ...(note ? { note } : {}), items } };
+    }
+
     default:
       return {
         ok: false,
         reason:
-          "unknown block type — use calculator, quiz, comparison, checklist, steps, tabs or metrics",
+          "unknown block type — use calculator, quiz, comparison, checklist, steps, tabs, metrics, accordion, timeline, filter, eligibility, booking or gauge",
       };
   }
 }
@@ -373,5 +535,17 @@ export function describeCustomBlock(spec: CustomBlockSpec): string {
       return `${spec.title ?? "Tabbed panel"} — ${spec.items.length} tabs`;
     case "metrics":
       return `${spec.title ?? "Figures"} — ${spec.items.length} values`;
+    case "accordion":
+      return `${spec.title ?? "Expandable answers"} — ${spec.items.length} entries`;
+    case "timeline":
+      return `${spec.title ?? "Timeline"} — ${spec.items.length} entries`;
+    case "filter":
+      return `${spec.title ?? "Filterable list"} — ${spec.items.length} entries, ${new Set(spec.items.flatMap((item) => item.tags)).size} tags`;
+    case "eligibility":
+      return `${spec.title ?? "Eligibility checker"} — ${spec.questions.length} yes/no questions`;
+    case "booking":
+      return `${spec.title ?? "Booking selector"} — ${spec.services.length} services, ${spec.times.length} time choices`;
+    case "gauge":
+      return `${spec.title ?? "Progress strip"} — ${spec.items.length} values`;
   }
 }
