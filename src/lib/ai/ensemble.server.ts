@@ -389,7 +389,7 @@ export async function runEnsemble<T>(
       winner: null,
     });
 
-  const globalLimit = request.concurrency ?? positiveEnv("ENSEMBLE_CONCURRENCY", 6);
+  const globalLimit = request.concurrency ?? positiveEnv("ENSEMBLE_CONCURRENCY", 12);
   const providerLimit =
     request.perProviderConcurrency ?? positiveEnv("ENSEMBLE_PROVIDER_CONCURRENCY", 2);
   const deadline = started + (request.deadlineMs ?? positiveEnv("ENSEMBLE_DEADLINE_MS", 120_000));
