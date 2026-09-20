@@ -37,14 +37,14 @@ export const STRIPE_CATALOG: Record<
 > = Object.freeze({
   live: Object.freeze({
     setup: Object.freeze({
-      stripeProductId: "prod_VBq4xtUVHcn8j7",
-      stripePriceId: "price_1UBSOCJiPGcf7LJp0zspwkhI",
+      stripeProductId: "prod_V9zmxmIK9gzVz2",
+      stripePriceId: "price_1UHbVYJiPGcf7LJpNHniO2Zb",
       priceLookupKey: SETUP_PRICE_LOOKUP_KEY,
       taxCode: SAAS_TAX_CODE,
     }),
     monthly: Object.freeze({
-      stripeProductId: "prod_VBqB72oW5LZEEM",
-      stripePriceId: "price_1UBSbzJiPGcf7LJpASaaMW9c",
+      stripeProductId: "prod_V9zmDZI7XZZhxT",
+      stripePriceId: "price_1UHbVXJiPGcf7LJppBjfJU0L",
       priceLookupKey: MONTHLY_PRICE_LOOKUP_KEY,
       taxCode: SAAS_TAX_CODE,
     }),
