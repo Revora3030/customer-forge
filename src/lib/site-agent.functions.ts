@@ -541,11 +541,18 @@ export type WebsitePlan = Awaited<ReturnType<typeof planImpl>>;
 export const applyWebsiteChanges = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator(
-    (input: { organizationId: string; actions: unknown; label?: string; verify?: boolean }) => ({
+    (input: {
+      organizationId: string;
+      actions: unknown;
+      label?: string;
+      verify?: boolean;
+      operationKey?: string;
+    }) => ({
       organizationId: orgIdOf(input),
       actions: input?.actions,
       label: str(input?.label, 120),
       verify: input?.verify !== false,
+      operationKey: str(input?.operationKey, 80),
     }),
   )
   .handler(async ({ data, context }) =>
@@ -557,7 +564,12 @@ type ApplyInput = {
   actions: unknown;
   label: string;
   verify?: boolean | undefined;
+  /** Stable per-request key so a double press cannot write the batch twice. */
+  operationKey?: string | undefined;
 };
+
+/** Accepts any id, so a batch can be read exactly as it was planned. */
+const ANY_ID = { has: () => true } as unknown as Set<string>;
 
 async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInput) {
   {
@@ -573,18 +585,70 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
     const { invalidateWorkspaceContext } = await import("@/lib/agent/workspace-context.server");
     invalidateWorkspaceContext(orgId);
 
+    // Idempotency: the same request key applied moments ago is answered with the
+    // result of that run instead of writing everything a second time. This is
+    // what stops a double press, an impatient retry or a reconnect from
+    // duplicating sections.
+    if (data.operationKey) {
+      const { data: recent } = await supabase
+        .from("ai_generations")
+        .select("result, created_at")
+        .eq("organization_id", orgId)
+        .eq("kind", "agent_apply")
+        .order("created_at", { ascending: false })
+        .limit(20);
+      const cutoff = Date.now() - 15 * 60 * 1000;
+      const previous = (recent ?? []).find((row) => {
+        const result = row?.["result"] as { operationKey?: unknown } | null;
+        const at = Date.parse(String(row?.["created_at"] ?? ""));
+        return (
+          result?.operationKey === data.operationKey && Number.isFinite(at) && at >= cutoff
+        );
+      });
+      if (previous) {
+        const result = previous["result"] as Record<string, unknown>;
+        return {
+          applied: Number(result["applied"] ?? 0),
+          failed: Number(result["failed"] ?? 0),
+          stale: Number(result["stale"] ?? 0),
+          staleNotice: "",
+          duplicates: 0,
+          details: [] as string[],
+          snapshotLabel: String(result["snapshotLabel"] ?? ""),
+          snapshotVersion: Number(result["snapshotVersion"] ?? 0),
+          operationId: String(result["operationId"] ?? ""),
+          alreadyApplied: true,
+          verification: null as VerificationReport | null,
+        };
+      }
+    }
+
     const site = await loadSite(supabase as unknown as SupabaseLike, orgId);
-    const actions = readActions(data.actions, {
+    // Read the batch exactly as planned, then check it against the site as it is
+    // right now. A step whose target was deleted or renamed after planning is
+    // reported with a reason rather than being dropped in silence.
+    const planned = readActions(data.actions, {
+      pageIds: ANY_ID,
+      sectionIds: ANY_ID,
+      componentIds: ANY_ID,
+    });
+    const preflight = preflightActions(planned, {
       pageIds: new Set(site.pages.map((page) => page.id)),
       sectionIds: new Set(site.sections.map((section) => section.id)),
       componentIds: new Set(site.components.map((component) => component.id)),
     });
+    const actions = preflight.ok;
+    const staleNotice = stalePlanMessage(preflight.stale, planned.length);
     if (actions.length > MAX_ACTIONS) {
       throw new Error(
         `That batch contains ${actions.length} supported changes, but Revora can safely install up to ${MAX_ACTIONS} at once. Untick a few upgrades, install those first, then continue with the rest.`,
       );
     }
-    if (!actions.length) throw new Error("Nothing to apply.");
+    if (!actions.length) {
+      if (preflight.stale.length) throw new Error(staleNotice);
+      throw new Error("Nothing to apply.");
+    }
+
 
     // Fail before taking a restore point when a generated batch would collide
     // with an existing page slug or create the same slug twice.
