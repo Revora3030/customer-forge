@@ -568,7 +568,10 @@ export const recordSiteVitals = createServerFn({ method: "POST" })
     const supabase = publicClient();
     const org = await publicOrganization(data.slug);
     if (!org?.id) return { ok: false, recorded: 0 };
-    const { error } = await supabase.from("site_vitals").upsert(
+    // Plain insert: the partial unique index rejects a repeat of the same
+    // visit/metric/page, and that rejection is the de-duplication. A rejected
+    // duplicate is reported honestly as nothing recorded, never as a success.
+    const { error } = await supabase.from("site_vitals").insert(
       data.samples.map((sample) => ({
         organization_id: org.id as string,
         metric: sample.metric,
@@ -578,8 +581,7 @@ export const recordSiteVitals = createServerFn({ method: "POST" })
         device: data.device,
         session_id: data.sessionId,
       })),
-      { onConflict: "organization_id,session_id,metric,path", ignoreDuplicates: true },
     );
-    if (error) return { ok: false, recorded: 0 };
+    if (error) return { ok: false, recorded: 0, reason: "duplicate_or_rejected" as const };
     return { ok: true, recorded: data.samples.length };
   });
