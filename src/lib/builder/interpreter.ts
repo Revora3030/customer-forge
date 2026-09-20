@@ -562,10 +562,20 @@ function splitClauses(text: string): string[] {
 function readNewPages(text: string): string[] {
   const out: string[] = [];
 
+  // "Make the home page headline clearer" is a request to rewrite a headline on
+  // a page that already exists — not a request to create a page called "home".
+  // So a new page is only read from an indefinite phrasing ("add a careers
+  // page"), and never when the words after "page" name part of that page.
+  const PAGE_PART =
+    "headline|heading|title|subheading|copy|text|wording|content|button|buttons|link|links|section|sections|image|images|photo|photos|colour|color|colours|colors|price|prices|pricing|form|layout|design|seo";
   const patterns = [
-    /(?:add|create|make|build|need|want)\s+(?:me\s+)?(?:a|an|another)?\s*([a-z0-9 &'-]{2,60}?)\s+page/gi,
+    new RegExp(
+      `(?:add|create|build|make|need|want)\\s+(?:me\\s+)?(?:a|an|another|one)\\s+([a-z0-9 &'-]{2,60}?)\\s+page\\b(?!\\s+(?:${PAGE_PART})\\b)`,
+      "gi",
+    ),
     /\bpage\s+(?:for|about|on)\s+([a-z0-9 &'-]{2,60})/gi,
   ];
+
 
   for (const pattern of patterns) {
     for (const match of text.matchAll(pattern)) {
