@@ -7,6 +7,12 @@
  * not stored: the key is a digest, and only the model's answer is held, briefly,
  * in memory. Never cache anything that writes to a customer's site.
  *
+ * TENANT ISOLATION: every key carries the workspace it belongs to and the
+ * version of that workspace's site context, so one business can never be served
+ * another's answer, and an edit to the site retires the answers about it. The
+ * scope carries the role and capability version, so a changed role or prompt
+ * contract cannot reuse an old answer either.
+ *
  * Server-only.
  */
 
@@ -15,6 +21,16 @@ const MAX_ENTRIES = 200;
 
 type Entry<T> = { at: number; value: T };
 const store = new Map<string, Entry<unknown>>();
+
+/** Who the answer belongs to, and which version of their site it describes. */
+export type AnalysisCacheScope = {
+  /** The workspace (tenant). Required: there is no shared, tenant-less cache. */
+  organizationId: string;
+  /** Free-form scope: role, capability version, model, prompt contract. */
+  scope: string;
+  /** Bumped whenever the site changes, so stale answers fall out. */
+  contextVersion?: string | number | null;
+};
 
 async function digest(input: string) {
   const bytes = new TextEncoder().encode(input);
@@ -25,8 +41,18 @@ async function digest(input: string) {
     .slice(0, 32);
 }
 
-export async function analysisCacheKey(scope: string, payload: unknown) {
-  return `${scope}:${await digest(JSON.stringify(payload))}`;
+export async function analysisCacheKey(scope: AnalysisCacheScope, payload: unknown) {
+  const organizationId = String(scope.organizationId ?? "").trim();
+  if (!organizationId) throw new Error("analysisCacheKey requires an organizationId");
+  const version = scope.contextVersion == null ? "0" : String(scope.contextVersion);
+  return `${organizationId}:${scope.scope}:${version}:${await digest(JSON.stringify(payload))}`;
+}
+
+/** Forget every cached answer for one workspace (after a site change). */
+export function invalidateAnalysisCache(organizationId: string) {
+  const prefix = `${String(organizationId ?? "").trim()}:`;
+  if (prefix === ":") return;
+  for (const key of [...store.keys()]) if (key.startsWith(prefix)) store.delete(key);
 }
 
 function prune() {
