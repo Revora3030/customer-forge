@@ -9,7 +9,6 @@ async function probe(label: string, order: string, role: "primary" | "fast" | "c
     const r = await generateStructuredOutput(caller, {
       role,
       messages: [{ role: "user", content: 'Answer with JSON only: {"ok":true}' }],
-      maxOutputTokens: 60,
     });
     console.log(label, "OK", r.provider, r.model, "fallbackUsed=", r.fallbackUsed, JSON.stringify(r.data).slice(0, 60));
   } catch (e) {
@@ -26,7 +25,7 @@ await probe("openrouter/fast", "openrouter", "fast");
 await probe("openrouter/coding", "openrouter", "coding");
 await probe("google/primary", "google", "primary");
 delete process.env["FREE_AI_PROVIDER_ORDER"];
-const t = await generateText(caller, { role: "fast", messages: [{ role: "user", content: "Say hello in five words." }], maxOutputTokens: 40 });
+const t = await generateText(caller, { role: "fast", messages: [{ role: "user", content: "Say hello in five words." }] });
 console.log("text", t.provider, t.model, JSON.stringify(t.text.slice(0, 80)));
 console.log("builderAiAvailable", builderAiAvailable(), "media", JSON.stringify(builderMediaAvailability()));
 console.log("status", JSON.stringify(freeAiStatus(), null, 1));
