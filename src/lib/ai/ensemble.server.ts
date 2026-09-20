@@ -505,7 +505,84 @@ export async function runEnsemble<T>(
     blockedReason: null,
     results,
     winner: winner?.value ?? null,
-  };
+  });
+}
+
+/* ------------------------------ observability ------------------------------ */
+
+export type EnsembleRun = {
+  at: number;
+  task: string;
+  mode: EnsembleMode;
+  verdict: EnsembleProof<unknown>["verdict"];
+  modelsInvoked: number;
+  distinctModels: number;
+  providers: string[];
+  lanes: LaneId[];
+  succeeded: number;
+  failed: number;
+  distinct: number;
+  agreement: number;
+  conflicts: number;
+  totalLatencyMs: number;
+  deadlineHit: boolean;
+  /** Per model: whether it answered, and why not when it did not. */
+  participants: {
+    provider: string;
+    model: string;
+    lane: LaneId;
+    ok: boolean;
+    latencyMs: number;
+    reason: string | null;
+  }[];
+  /** Models Revora deliberately did not call, with the honest reason. */
+  skipped: SkippedModel[];
+};
+
+let lastRuns: EnsembleRun[] = [];
+let runTask = "ensemble";
+
+/** The most recent ensemble runs in this server process, newest first. */
+export function ensembleRuns(): EnsembleRun[] {
+  return lastRuns;
+}
+
+export function resetEnsembleRuns() {
+  lastRuns = [];
+}
+
+function recordRun<T>(proof: EnsembleProof<T>): EnsembleProof<T> {
+  lastRuns = [
+    {
+      at: Date.now(),
+      task: runTask,
+      mode: proof.mode,
+      verdict: proof.verdict,
+      modelsInvoked: proof.attempted.length,
+      distinctModels: new Set(proof.attempted.map((entry) => `${entry.provider}|${entry.model}`))
+        .size,
+      providers: proof.providers,
+      lanes: proof.lanes,
+      succeeded: proof.succeeded,
+      failed: proof.failed,
+      distinct: proof.distinct,
+      agreement: proof.agreement,
+      conflicts: proof.conflicts,
+      totalLatencyMs: proof.totalLatencyMs,
+      deadlineHit: proof.deadlineHit,
+      participants: proof.outcomes.map((entry) => ({
+        provider: entry.provider,
+        model: entry.model,
+        lane: entry.lane,
+        ok: entry.ok,
+        latencyMs: entry.latencyMs,
+        reason: entry.reason,
+      })),
+      skipped: proof.skipped,
+    },
+    ...lastRuns,
+  ].slice(0, 5);
+  return proof;
 }
 
 /** A one-line, owner-readable summary of an ensemble run. */
