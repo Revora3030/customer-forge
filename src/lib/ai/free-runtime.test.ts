@@ -209,6 +209,8 @@ describe("circuit breaker and last-request status", () => {
 });
 
 describe("identical requests are not paid for twice", () => {
+  const tenantA = { organizationId: "org-a", scope: "scope", contextVersion: 1 };
+
   it("runs one call for two identical in-flight analyses", async () => {
     const { withAnalysisCache, resetAnalysisCache } = await import("@/lib/ai/cache.server");
     resetAnalysisCache();
@@ -219,13 +221,59 @@ describe("identical requests are not paid for twice", () => {
       return "answer";
     };
     const [a, b] = await Promise.all([
-      withAnalysisCache("scope", { page: 1 }, work),
-      withAnalysisCache("scope", { page: 1 }, work),
+      withAnalysisCache(tenantA, { page: 1 }, work),
+      withAnalysisCache(tenantA, { page: 1 }, work),
     ]);
     expect([a, b]).toEqual(["answer", "answer"]);
     expect(runs).toBe(1);
-    expect(await withAnalysisCache("scope", { page: 1 }, work)).toBe("answer");
+    expect(await withAnalysisCache(tenantA, { page: 1 }, work)).toBe("answer");
     expect(runs).toBe(1);
+    resetAnalysisCache();
+  });
+
+  it("never serves one workspace's answer to another", async () => {
+    const { withAnalysisCache, resetAnalysisCache } = await import("@/lib/ai/cache.server");
+    resetAnalysisCache();
+    const answers = ["first", "second"];
+    const work = async () => answers.shift() ?? "exhausted";
+    expect(await withAnalysisCache(tenantA, { page: 1 }, work)).toBe("first");
+    expect(
+      await withAnalysisCache({ ...tenantA, organizationId: "org-b" }, { page: 1 }, work),
+    ).toBe("second");
+    resetAnalysisCache();
+  });
+
+  it("retires answers when the site context version changes", async () => {
+    const { withAnalysisCache, resetAnalysisCache } = await import("@/lib/ai/cache.server");
+    resetAnalysisCache();
+    const answers = ["v1", "v2"];
+    const work = async () => answers.shift() ?? "exhausted";
+    expect(await withAnalysisCache(tenantA, { page: 1 }, work)).toBe("v1");
+    expect(await withAnalysisCache({ ...tenantA, contextVersion: 2 }, { page: 1 }, work)).toBe(
+      "v2",
+    );
+    resetAnalysisCache();
+  });
+
+  it("refuses a key with no workspace", async () => {
+    const { analysisCacheKey } = await import("@/lib/ai/cache.server");
+    await expect(analysisCacheKey({ organizationId: "", scope: "s" }, {})).rejects.toThrow(
+      /organizationId/,
+    );
+  });
+
+  it("forgets only the changed workspace's answers", async () => {
+    const { withAnalysisCache, resetAnalysisCache, invalidateAnalysisCache } = await import(
+      "@/lib/ai/cache.server"
+    );
+    resetAnalysisCache();
+    await withAnalysisCache(tenantA, { page: 1 }, async () => "a1");
+    await withAnalysisCache({ ...tenantA, organizationId: "org-b" }, { page: 1 }, async () => "b1");
+    invalidateAnalysisCache("org-a");
+    expect(await withAnalysisCache(tenantA, { page: 1 }, async () => "a2")).toBe("a2");
+    expect(
+      await withAnalysisCache({ ...tenantA, organizationId: "org-b" }, { page: 1 }, async () => "b2"),
+    ).toBe("b1");
     resetAnalysisCache();
   });
 });
