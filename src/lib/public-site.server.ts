@@ -6,7 +6,7 @@
  * unpublished draft may be served, which the caller states explicitly.
  */
 import { createClient } from "@supabase/supabase-js";
-import type { Database } from "@/integrations/supabase/types";
+import type { Database, Json } from "@/integrations/supabase/types";
 import { safeLinkUrl } from "@/lib/website-content";
 
 export function publicClient() {
@@ -51,14 +51,14 @@ export async function publicOrganization(by: { slug: string } | { id: string }):
   return data ?? null;
 }
 
-export type SiteSectionSettings = {
+export type SiteSectionSettings = ({
   seo?: {
     anchor?: string;
     seo_heading_level?: "h2" | "h3";
     include_in_schema?: boolean;
     image_alt?: string;
   };
-} | null;
+} & { [key: string]: Json | undefined }) | null;
 
 export type SiteComponent = {
   id: string;
@@ -71,7 +71,7 @@ export type SiteComponent = {
   url: string | null;
   link_url: string | null;
   link_label: string | null;
-  settings: Record<string, unknown> | null;
+  settings: Json;
   sort_order: number;
 };
 
