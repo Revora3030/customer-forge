@@ -29,6 +29,8 @@ import { BuilderHistoryProvider } from "@/lib/builder-history.hooks";
 import { GroupTabs, orderGroups } from "@/components/app/BuilderGroups";
 import { BuilderAssistant } from "@/components/app/BuilderAssistant";
 import { BuilderNeeds, type BuilderNeed } from "@/components/app/BuilderNeeds";
+import { BuilderStatus } from "@/components/app/BuilderStatus";
+import { builderHomeStatus } from "@/lib/builder/home-status";
 import { builderNeedKeys, type BuilderNeedKey } from "@/lib/builder-needs";
 import { useBuilderRequests } from "@/lib/builder-requests.hooks";
 import { ConversionOptimizer } from "@/components/app/ConversionOptimizer";
