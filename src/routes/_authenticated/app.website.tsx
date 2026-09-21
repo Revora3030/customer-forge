@@ -29,6 +29,8 @@ import { BuilderHistoryProvider } from "@/lib/builder-history.hooks";
 import { GroupTabs, orderGroups } from "@/components/app/BuilderGroups";
 import { BuilderAssistant } from "@/components/app/BuilderAssistant";
 import { BuilderNeeds, type BuilderNeed } from "@/components/app/BuilderNeeds";
+import { BuilderStatus } from "@/components/app/BuilderStatus";
+import { builderHomeStatus } from "@/lib/builder/home-status";
 import { builderNeedKeys, type BuilderNeedKey } from "@/lib/builder-needs";
 import { useBuilderRequests } from "@/lib/builder-requests.hooks";
 import { ConversionOptimizer } from "@/components/app/ConversionOptimizer";
@@ -387,6 +389,39 @@ function WebsitePage() {
     captureCount,
     failingChecks: failingChecks.length,
   });
+  /**
+ * The builder home, answered as four plain questions. Every value comes from
+ * the checks this page already ran — nothing is assumed.
+ */
+  const qualityCheck = (productionReadiness?.checks ?? []).find((check) => check.key === "quality");
+  const activeTask = requests.tasks.find(
+    (task) => task.state !== "complete" && task.state !== "failed",
+  );
+  const homeAnswers = builderHomeStatus({
+    businessName: org?.name ?? null,
+    industry: (org?.industry as string | undefined) ?? null,
+    pagesCount: (pages ?? []).length,
+    visibleSectionsCount: visibleSections,
+    publishState,
+    working: requests.busy,
+    currentRequest: activeTask?.instruction ?? null,
+    queuedCount: requests.tasks.filter((task) => task.state === "queued").length,
+    blockingCount: failingChecks.length,
+    topBlocking: failingChecks[0]?.label ?? null,
+    improvementCount: preflightResult.checks.filter((check) => check.status === "warn").length,
+    score: preflightResult.score,
+    measured: qualityCheck?.ok === true,
+  });
+
+  /** The four cards hand their next move back to the panels this page owns. */
+  const goHome = (target: string) => {
+    if (target === "chat") {
+      setWorkspaceMode("chat");
+      return;
+    }
+    goTo(target);
+  };
+
   const needCopy: Record<BuilderNeedKey, BuilderNeed> = {
     answers: {
       key: "answers",
@@ -506,6 +541,7 @@ function WebsitePage() {
       </div>
 
       <EnvironmentBanner status={production} />
+      <BuilderStatus answers={homeAnswers} onGo={goHome} />
       <BuilderNeeds needs={needs} />
 
       {firstRun ? (
