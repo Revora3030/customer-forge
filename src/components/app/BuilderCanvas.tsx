@@ -287,6 +287,17 @@ function ItemCard({
   );
 }
 
+import {
+  discardEdit,
+  hasPending,
+  stageEdit,
+  stagedCount,
+  stagedEdits,
+  stagedFieldSummary,
+  withPending,
+  type StagedState,
+} from "@/lib/builder/staged-edit";
+
 /**
  * Picture framing and provenance. Cropping here is non-destructive: the frame
  * shape and the focal point decide what is shown, so the original file is never
@@ -431,16 +442,6 @@ function PictureControls({
   );
 }
 
-import {
-  discardEdit,
-  hasPending,
-  stageEdit,
-  stagedCount,
-  stagedEdits,
-  stagedFieldSummary,
-  withPending,
-  type StagedState,
-} from "@/lib/builder/staged-edit";
 
 export function BuilderCanvas({
   organizationId,
