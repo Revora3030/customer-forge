@@ -414,7 +414,7 @@ export function planSiteContent(input: MaterializeInput): Page[] {
           body: "Tell us what you're dealing with and we'll point you the right way.",
           components: [
             { kind: "button", label: primaryCta, link_label: primaryCta, link_url: primaryTarget },
-            ...(asset ? [imageComponent(asset)] : []),
+            ...(ctaAsset ? [imageComponent(ctaAsset)] : []),
           ],
         },
       ],
@@ -438,15 +438,6 @@ export function planSiteContent(input: MaterializeInput): Page[] {
       sections: [
         {
           kind: "hero",
-          heading: `Pricing from ${input.businessName}`,
-          subheading: "Review the prices supplied for available services.",
-          components: [
-            { kind: "button", label: primaryCta, link_label: primaryCta, link_url: primaryTarget },
-            ...(backgroundAsset ? [imageComponent(backgroundAsset, "hero_image")] : []),
-          ],
-        },
-        {
-          kind: "hero",
           heading: service.name,
           subheading: description,
           components: [
@@ -467,6 +458,7 @@ export function planSiteContent(input: MaterializeInput): Page[] {
                 }]
               : []),
             { kind: "button", label: primaryCta, link_label: primaryCta, link_url: primaryTarget },
+            ...(asset ? [imageComponent(asset)] : []),
           ],
         },
         ...(copy.faqs.length
@@ -495,6 +487,15 @@ export function planSiteContent(input: MaterializeInput): Page[] {
       kind: "pricing",
       seo_title: clean(`Pricing — ${input.businessName}`),
       sections: [
+        {
+          kind: "hero",
+          heading: `Pricing from ${input.businessName}`,
+          subheading: "Review the prices supplied for available services.",
+          components: [
+            { kind: "button", label: primaryCta, link_label: primaryCta, link_url: primaryTarget },
+            ...(backgroundAsset ? [imageComponent(backgroundAsset, "hero_image")] : []),
+          ],
+        },
         {
           kind: "pricing",
           heading: "Pricing",
