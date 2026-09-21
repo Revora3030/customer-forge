@@ -68,6 +68,24 @@ function safeSlot(shot: PlannedShot) {
   return !/team|result|completed work|proof/i.test(`${shot.label} ${shot.purpose}`);
 }
 
+/**
+ * The art-direction sentence for this slot, taken from the creative brief that
+ * was decided before any page row existed. Presentation only — never a claim.
+ */
+function artDirectionNote(creative: FirstBuildCreativeDirection, shot: PlannedShot): string {
+  const spec = creative.brief?.imageInventory.find(
+    (item) => item.slot === shot.slot && item.label === shot.label,
+  );
+  if (!spec) return "";
+  return [
+    `Art direction: ${spec.camera}.`,
+    `Framing: ${spec.framing}.`,
+    `Mood: ${spec.mood}.`,
+    `Keep clear negative space on the ${spec.negativeSpace} for headline text.`,
+    `${spec.mobileCrop}.`,
+  ].join(" ");
+}
+
 function fileStem(shot: PlannedShot, index: number) {
   return `first-build-${index + 1}-${shot.slot}-${shot.label || "image"}`;
 }
@@ -160,8 +178,12 @@ export async function generateFirstBuildImages(
       primaryColor: input.creative.fingerprint.colorSystem,
       accentColor: input.creative.fingerprint.colorSystem,
       seed: `${input.organizationId}:${shot.slot}:${index}`,
-      extra:
+      extra: [
+        artDirectionNote(input.creative, shot),
         "Starter website image only. Do not depict a real employee, actual customer, award, review, brand logo, licence plate, address, or before-and-after result.",
+      ]
+        .filter(Boolean)
+        .join(" "),
     });
 
     type Made = { base64: string; mimeType: string; provider: string; model: string };

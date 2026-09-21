@@ -14,6 +14,7 @@ import {
 } from "@/lib/builder/design-fingerprint";
 import { pickVisualDirection, planShots, type PlannedShot } from "@/lib/visual-direction";
 import { assetPlanFor, type AssetPlan } from "@/lib/builder/asset-intelligence";
+import { compileCreativeBrief, type CreativeBrief } from "@/lib/builder/creative-brief";
 
 export type FirstBuildCreativeInput = {
   organizationId: string;
@@ -64,6 +65,8 @@ export type FirstBuildCreativeDirection = {
     shots: PlannedShot[];
     assetPlan: AssetPlan;
   };
+  /** Art direction decided before any page row is written. */
+  brief: CreativeBrief;
   unknowns: string[];
 };
 
@@ -127,6 +130,21 @@ export function compileFirstBuildCreativeDirection(
     },
   );
 
+  const brief = compileCreativeBrief({
+    fingerprint,
+    direction: visual,
+    shots,
+    industryLabel: playbook.label,
+    industrySignals: [input.industry, playbook.slug, input.description, serviceNames.join(" ")]
+      .filter(Boolean)
+      .join(" "),
+    primaryCta: dna.primaryCta,
+    secondaryCta: dna.secondaryCta,
+    conversionPlacements: [...playbook.conversion.placement],
+    stickyMobile: playbook.conversion.stickyMobile,
+    hasOwnerPhotos: input.photoCount > 0,
+  });
+
   return {
     version: 1,
     industry: {
@@ -156,6 +174,7 @@ export function compileFirstBuildCreativeDirection(
       shots,
       assetPlan,
     },
+    brief,
     unknowns: dna.needed,
   };
 }
