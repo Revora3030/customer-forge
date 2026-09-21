@@ -209,6 +209,51 @@ export const VISUAL_DIRECTIONS: VisualDirection[] = [
     ],
   },
   {
+    id: "pet-care",
+    label: "Warm pet care",
+    language: "Playful but polished pet-care photography with warmth, texture and calm handling",
+    subjects: [
+      "a freshly groomed dog in a bright calm studio, no branded accessories",
+      "close detail of clean grooming tools and soft natural textures",
+      "a calm pet-care setting prepared for an appointment, without identifiable people",
+      "a relaxed dog or cat in a clean welcoming care environment",
+    ],
+    lighting: "soft daylight with warm highlights and clear natural colour",
+    environment: "clean grooming studio, veterinary reception or safe outdoor pet setting",
+    treatment: "warm editorial colour, lively framing, tactile detail, never childish clip art",
+    affinity: ["pet", "groom", "veterinar", "animal", "dog", "cat", "kennel", "boarding"],
+  },
+  {
+    id: "secure-trade",
+    label: "Precision and security",
+    language: "Confident technical trade photography focused on precision tools, access and protection",
+    subjects: [
+      "a precision lock mechanism and professional locksmith tools in close detail",
+      "a clean modern door hardware installation photographed at an architectural angle",
+      "organised specialist tools prepared for a local service call",
+      "a secured residential entry in crisp evening light",
+    ],
+    lighting: "controlled directional light with crisp metal highlights",
+    environment: "modern residential or commercial entryway",
+    treatment: "dark premium surfaces, sharp detail, restrained amber accents",
+    affinity: ["locksmith", "lock", "key", "access control", "safe"],
+  },
+  {
+    id: "moving-logistics",
+    label: "Organised movement",
+    language: "Bright editorial logistics photography showing care, order and useful space",
+    subjects: [
+      "carefully packed unbranded boxes in a bright uncluttered home",
+      "an organised unbranded moving vehicle with clean protective equipment",
+      "protected furniture and moving equipment arranged with care",
+      "a clean cleared space ready for its next use",
+    ],
+    lighting: "clear natural daylight with soft dimensional shadows",
+    environment: "tidy residential interior, driveway or neutral loading space",
+    treatment: "confident wide framing, clean neutrals, practical detail, no staged smiling crews",
+    affinity: ["moving", "mover", "relocation", "junk", "hauling", "removal", "storage"],
+  },
+  {
     id: "events",
     label: "Atmosphere and moment",
     language: "Story-driven photography with mood and movement",
@@ -238,6 +283,9 @@ export const VISUAL_DIRECTIONS: VisualDirection[] = [
     treatment: "sharp, cool tones, engineered and deliberate",
     affinity: [
       "solar",
+      "renewable",
+      "panel",
+      "battery",
       "security",
       "camera",
       "network",
@@ -561,9 +609,10 @@ export function buildImageBrief(input: {
 /** Deterministic alt text for accessibility and SEO. */
 export function altTextFor(shot: PlannedShot, businessName?: string | null): string {
   const who = businessName?.trim() ? businessName.trim() : "the business";
+  const subject = shot.subjectHint?.trim();
   switch (shot.slot) {
     case "hero":
-      return `Professional work by ${who}`;
+      return subject ? `${subject} — website image for ${who}` : `Featured service image for ${who}`;
     case "service":
       return `${shot.subjectHint ?? "Service"} carried out by ${who}`;
     case "about":
@@ -571,7 +620,7 @@ export function altTextFor(shot: PlannedShot, businessName?: string | null): str
     case "proof":
       return `Completed work by ${who}`;
     case "cta":
-      return `Book ${who}`;
+      return subject ? `${subject} — enquiry image for ${who}` : `Enquiry image for ${who}`;
     case "social":
       return `${who} website preview image`;
     default:
