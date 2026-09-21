@@ -47,12 +47,12 @@ export function VisualCheckPanel({
   const [result, setResult] = useState<VisualReport | null>(null);
   const autoRunRef = useRef<string | null>(null);
 
-  const run = useCallback(async (automatic = false) => {
-    if (!organizationId || !slug || running) return;
+  const run = useCallback(async (automatic = false): Promise<boolean> => {
+    if (!organizationId || !slug || running) return false;
     const visible = (content ?? []).filter((page) => page.is_visible);
     if (!visible.length) {
       toast.error("Add a page first — there is nothing to check yet.");
-      return;
+      return false;
     }
     setRunning(true);
     setResult(null);
@@ -98,8 +98,12 @@ export function VisualCheckPanel({
       void queryClient.invalidateQueries({ queryKey: ["production-readiness"] });
       void queryClient.invalidateQueries({ queryKey: ["production-status"] });
       void queryClient.invalidateQueries({ queryKey: ["build_readiness"] });
+      return true;
     } catch (error) {
-      toast.error(friendlyError(error, "The visual check couldn't run. Please try again."));
+      if (!automatic) {
+        toast.error(friendlyError(error, "The visual check couldn't run. Please try again."));
+      }
+      return false;
     } finally {
       setRunning(false);
       setProgress(null);
@@ -120,8 +124,10 @@ export function VisualCheckPanel({
     const key = `revora:visual-check:${organizationId}:${job.id}`;
     if (autoRunRef.current === key || window.localStorage.getItem(key)) return;
     autoRunRef.current = key;
-    window.localStorage.setItem(key, new Date().toISOString());
-    void run(true);
+    void run(true).then((completed) => {
+      if (completed) window.localStorage.setItem(key, new Date().toISOString());
+      else autoRunRef.current = null;
+    });
   }, [canManage, latestJob, organizationId, run, running, slug]);
 
   return (
