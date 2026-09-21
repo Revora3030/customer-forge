@@ -211,6 +211,24 @@ export type StudioCapability = {
   remainingToday: number | null;
   /** Provider labels only — never a credential value. */
   providers: { provider: string; models: number; remainingToday: number; dailyCap: number }[];
+  /**
+   * Premium picture models (Sunburst / Flare). Reported honestly: a model the
+   * account cannot reach shows as unavailable with the reason, never as a
+   * silent fallback. Never a credential value.
+   */
+  premium: {
+    available: boolean;
+    message: string;
+    tiers: {
+      tier: string;
+      model: string;
+      purpose: string;
+      editing: boolean;
+      available: boolean;
+      detail: string;
+      pricePerImage: string;
+    }[];
+  };
 };
 
 /**
@@ -238,6 +256,7 @@ export const studioImageStatus = createServerFn({ method: "POST" })
         editSupported: false,
         remainingToday: null,
         providers: [],
+        premium: { available: false, message: denied, tiers: [] },
       };
 
     const { imageGenerationCapability, verifyImageEditing } = await import(
@@ -247,6 +266,8 @@ export const studioImageStatus = createServerFn({ method: "POST" })
     // Picture changing is only reported as available once a real sample change
     // has actually succeeded — a model name is never treated as proof.
     const editSupported = capability.editSupported ? await verifyImageEditing() : false;
+    const { paidImageCapability } = await import("@/lib/ai/paid-image.server");
+    const premium = await paidImageCapability();
     return {
       available: capability.available,
       reason: capability.reason,
@@ -261,6 +282,11 @@ export const studioImageStatus = createServerFn({ method: "POST" })
         remainingToday: entry.remainingToday,
         dailyCap: entry.dailyCap,
       })),
+      premium: {
+        available: premium.available,
+        message: premium.message,
+        tiers: premium.tiers.map((tier) => ({ ...tier })),
+      },
     };
   });
 

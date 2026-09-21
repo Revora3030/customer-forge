@@ -170,3 +170,22 @@ export const openAiAdapter: ProviderAdapter = {
     return { text: (payload.text ?? "").trim() };
   },
 };
+
+/**
+ * Asks the account whether a model is actually reachable, WITHOUT generating
+ * anything (so it costs nothing). Used to prove premium picture availability
+ * instead of assuming it from a model name. Only the router calls this.
+ */
+export async function openaiModelReachable(
+  apiKey: string,
+  model: string,
+): Promise<{ available: boolean; status: number | null }> {
+  try {
+    const response = await fetch(`${BASE}/models/${encodeURIComponent(model)}`, {
+      headers: { authorization: `Bearer ${apiKey}` },
+    });
+    return { available: response.ok, status: response.status };
+  } catch {
+    return { available: false, status: null };
+  }
+}

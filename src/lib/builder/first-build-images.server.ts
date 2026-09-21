@@ -205,10 +205,13 @@ export async function generateFirstBuildImages(
     }
 
     if (!made && paid.allowed) {
-      const backup = await generatePaidImageBase64(brief.prompt, {
-        organizationId: input.organizationId,
-        userId: input.userId,
-      });
+      // Job-aware routing: the hero frame the page is composed around goes to the
+      // premium picture tier, supporting photography to the fast tier.
+      const backup = await generatePaidImageBase64(
+        brief.prompt,
+        { organizationId: input.organizationId, userId: input.userId },
+        shot.slot === "hero" ? "hero_master" : shot.slot === "service" ? "service_photo" : "starter_photo",
+      );
       if (backup.ok) {
         made = backup;
         paidCostMicrocents += backup.costMicrocents;

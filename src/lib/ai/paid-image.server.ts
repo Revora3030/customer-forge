@@ -1,24 +1,42 @@
 /**
- * PAID STARTER-PICTURE FALLBACK LANE
- * ==================================
+ * PAID PREMIUM PICTURE LANE
+ * =========================
  *
  * Free picture making always runs first. This lane only exists for the case where
  * the free service is genuinely unavailable AND the operator has explicitly
- * switched paid pictures on. It is deliberately strict:
+ * switched paid pictures on, plus for the precision changes the free fabric has
+ * never been able to prove it can do. It is deliberately strict:
  *
  *  1. off unless `PAID_IMAGE_ENABLED` is explicitly opted in,
  *  2. off unless the paid lane as a whole is enabled and an OpenAI key exists,
- *  3. every picture is reserved against the SAME durable monthly cap as the paid
+ *  3. the model is chosen by JOB, not by caller: the premium Sunburst tier makes
+ *     the hero/editorial frames and every change to an existing picture, the fast
+ *     Flare tier makes supporting photos, iterations and variations,
+ *  4. every picture is reserved against the SAME durable monthly cap as the paid
  *     text lane (default $20/month, enforced in our own database), settled after
  *     the call and written to the usage ledger,
- *  4. no auto-top-up and no silent overage: once the cap binds, the answer is a
- *     precise blocked reason and the caller keeps its own artwork.
+ *  5. no auto-top-up and no silent overage: once the cap binds, the answer is a
+ *     precise blocked reason and the caller keeps its own artwork,
+ *  6. availability is PROVEN against the account, never assumed from a model name:
+ *     a model the project cannot reach is reported as a blocker, not a fallback.
  *
  * Server-only. The key is read inside functions and never returned to a caller.
  */
 
 import { providerConfig } from "@/lib/ai/config";
-import { callPinnedPaidImage } from "@/lib/ai/router.server";
+import { callPinnedPaidImage, paidImageModelReachable } from "@/lib/ai/router.server";
+import {
+  DEFAULT_IMAGE_TIER_MODELS,
+  DEFAULT_IMAGE_TIER_PRICE_USD,
+  IMAGE_TIERS,
+  IMAGE_TIER_MODEL_ENV,
+  IMAGE_TIER_PRICE_ENV,
+  describeImageTier,
+  planImageWork,
+  type ImagePurpose,
+  type ImageTier,
+} from "@/lib/ai/image-tiers";
+import { validateGeneratedImage } from "@/lib/image-studio.server";
 import {
   MICROCENTS_PER_DOLLAR,
   formatUsd,
@@ -32,8 +50,11 @@ import {
 export type PaidImageBlockReason =
   | "disabled"
   | "no_key"
+  | "unsupported_job"
+  | "model_unavailable"
   | "budget_exhausted"
   | "ledger_unavailable"
+  | "invalid_image"
   | "provider_error";
 
 export type PaidImageResult =
@@ -43,6 +64,7 @@ export type PaidImageResult =
       mimeType: string;
       provider: "openai";
       model: string;
+      tier: ImageTier;
       costMicrocents: number;
     }
   | { ok: false; reason: PaidImageBlockReason; message: string };
@@ -57,14 +79,26 @@ function optedIn(name: string): boolean {
   return raw === "true" || raw === "1" || raw === "on" || raw === "yes";
 }
 
-/** Conservative per-picture price, deliberately over-estimated. */
-export function paidImagePriceMicrocents(): number {
-  const raw = Number(env("PAID_IMAGE_PRICE_USD") ?? "");
-  const dollars = Number.isFinite(raw) && raw >= 0 ? raw : 0.12;
+/** The model wired for a tier: environment override first, then the pinned default. */
+export function paidImageTierModel(tier: ImageTier): string {
+  const override = env(IMAGE_TIER_MODEL_ENV[tier]);
+  if (override) return override;
+  if (tier === "sunburst") {
+    const legacy = env("PAID_IMAGE_MODEL") ?? providerConfig("openai")?.models.image ?? null;
+    if (legacy) return legacy;
+  }
+  return DEFAULT_IMAGE_TIER_MODELS[tier];
+}
+
+/** Conservative per-picture price for a tier, deliberately over-estimated. */
+export function paidImagePriceMicrocents(tier: ImageTier = "sunburst"): number {
+  const override = env(IMAGE_TIER_PRICE_ENV[tier]) ?? env("PAID_IMAGE_PRICE_USD");
+  const raw = override === null ? Number.NaN : Number(override);
+  const dollars = Number.isFinite(raw) && raw > 0 ? raw : DEFAULT_IMAGE_TIER_PRICE_USD[tier];
   return Math.round(dollars * MICROCENTS_PER_DOLLAR);
 }
 
-/** True only when a paid starter picture may genuinely be attempted right now. */
+/** True only when a paid picture may genuinely be attempted right now. */
 export function paidImageAllowed(): boolean {
   return optedIn("PAID_IMAGE_ENABLED") && lunaEnabled();
 }
@@ -74,7 +108,7 @@ export function paidImageStatus(): { allowed: boolean; message: string } {
   if (!optedIn("PAID_IMAGE_ENABLED"))
     return {
       allowed: false,
-      message: "Paid starter pictures are switched off, so only the free picture service is used.",
+      message: "Paid premium pictures are switched off, so only the free picture service is used.",
     };
   if (!lunaEnabled())
     return {
@@ -84,40 +118,167 @@ export function paidImageStatus(): { allowed: boolean; message: string } {
     };
   return {
     allowed: true,
-    message: `Paid starter pictures can be used as a backup, inside the monthly spending cap of ${formatUsd(
+    message: `Premium pictures can be used as a backup, inside the monthly spending cap of ${formatUsd(
       lunaMonthlyCapMicrocents(),
     )}.`,
   };
 }
 
+/** Back-compatible default model accessor (the premium tier). */
 export function paidImageModel(): string {
-  return env("PAID_IMAGE_MODEL") ?? providerConfig("openai")?.models.image ?? "gpt-image-2";
+  return paidImageTierModel("sunburst");
+}
+
+/* ------------------------- live account capability ------------------------- */
+
+type TierProbe = { available: boolean; detail: string; at: number };
+const PROBE_TTL_MS = 30 * 60 * 1000;
+const probes = new Map<string, TierProbe>();
+
+/** Forgets cached capability answers (used by tests and after a key change). */
+export function resetPaidImageCapability() {
+  probes.clear();
 }
 
 /**
- * Makes ONE paid starter picture, fully accounted against the durable cap.
+ * Asks the account whether it can actually reach a model, without generating a
+ * picture (so it costs nothing). A model that exists in our routing table but is
+ * not enabled on the project is reported as unavailable — never silently swapped.
+ */
+async function probeTier(tier: ImageTier, _apiKey: string): Promise<TierProbe> {
+  const model = paidImageTierModel(tier);
+  const cached = probes.get(model);
+  const now = Date.now();
+  if (cached && now - cached.at < PROBE_TTL_MS) return cached;
+  // The check itself goes through the router, like every other provider call.
+  const result = await paidImageModelReachable(model);
+  const probe: TierProbe = { available: result.available, detail: result.detail, at: now };
+  probes.set(model, probe);
+  return probe;
+}
+
+export type PaidImageTierCapability = {
+  tier: ImageTier;
+  model: string;
+  purpose: string;
+  editing: boolean;
+  available: boolean;
+  detail: string;
+  pricePerImage: string;
+};
+
+export type PaidImageCapability = {
+  /** True only when at least one premium picture model can actually be reached. */
+  available: boolean;
+  /** Plain-language sentence, safe to show a business owner. No secrets. */
+  message: string;
+  tiers: PaidImageTierCapability[];
+};
+
+/**
+ * The honest answer to "can Revora make a premium picture right now?".
+ * Nothing here trusts the existence of code or a model name.
+ */
+export async function paidImageCapability(): Promise<PaidImageCapability> {
+  const status = paidImageStatus();
+  const listed = (available: boolean, detail: string): PaidImageTierCapability[] =>
+    IMAGE_TIERS.map((tier) => ({
+      tier,
+      model: paidImageTierModel(tier),
+      purpose: describeImageTier(tier),
+      editing: tier === "sunburst",
+      available,
+      detail,
+      pricePerImage: formatUsd(paidImagePriceMicrocents(tier)),
+    }));
+
+  if (!status.allowed)
+    return { available: false, message: status.message, tiers: listed(false, "switched off") };
+
+  const apiKey = env("OPENAI_API_KEY");
+  if (!apiKey)
+    return {
+      available: false,
+      message: "Premium picture making is not connected, so Revora uses the free service only.",
+      tiers: listed(false, "no credential configured"),
+    };
+
+  const tiers: PaidImageTierCapability[] = [];
+  for (const tier of IMAGE_TIERS) {
+    const probe = await probeTier(tier, apiKey);
+    tiers.push({
+      tier,
+      model: paidImageTierModel(tier),
+      purpose: describeImageTier(tier),
+      editing: tier === "sunburst",
+      available: probe.available,
+      detail: probe.detail,
+      pricePerImage: formatUsd(paidImagePriceMicrocents(tier)),
+    });
+  }
+  const available = tiers.some((entry) => entry.available);
+  return {
+    available,
+    message: available
+      ? `Premium pictures are available inside the monthly spending cap of ${formatUsd(lunaMonthlyCapMicrocents())}.`
+      : "The premium picture models are not enabled on the connected account yet, so Revora uses the free service and its own artwork.",
+    tiers,
+  };
+}
+
+/* ------------------------------ the real call ------------------------------ */
+
+export type PaidImageJob = {
+  prompt: string;
+  purpose: ImagePurpose;
+  /** Required for a change to an existing picture; ignored for a fresh frame. */
+  source?: { dataUrl: string; mimeType: string } | null;
+};
+
+/**
+ * Makes or changes ONE premium picture, fully accounted against the durable cap.
  * Never throws: every failure comes back as a precise blocked reason.
  */
-export async function generatePaidImageBase64(
-  prompt: string,
+export async function generatePaidImage(
+  job: PaidImageJob,
   caller: { organizationId: string | null; userId?: string | null },
 ): Promise<PaidImageResult> {
   if (!paidImageAllowed())
-    return {
-      ok: false,
-      reason: "disabled",
-      message: paidImageStatus().message,
-    };
+    return { ok: false, reason: "disabled", message: paidImageStatus().message };
 
   const apiKey = env("OPENAI_API_KEY");
   if (!apiKey)
     return {
       ok: false,
       reason: "no_key",
-      message: "Paid picture making is not connected, so Revora used its own artwork instead.",
+      message: "Premium picture making is not connected, so Revora used its own artwork instead.",
     };
 
-  const estimate = paidImagePriceMicrocents();
+  const plan = planImageWork(job.purpose);
+  if (!plan.supported)
+    return {
+      ok: false,
+      reason: "unsupported_job",
+      message: "That picture change is not something the premium picture models can do here.",
+    };
+  const source = plan.editing ? (job.source ?? null) : null;
+  if (plan.editing && !source)
+    return {
+      ok: false,
+      reason: "unsupported_job",
+      message: "No original picture was supplied, so there was nothing to change.",
+    };
+
+  const probe = await probeTier(plan.tier, apiKey);
+  if (!probe.available)
+    return {
+      ok: false,
+      reason: "model_unavailable",
+      message: `The premium picture model is not available yet (${probe.detail}), so Revora used its own artwork instead. Nothing was charged.`,
+    };
+
+  const model = paidImageTierModel(plan.tier);
+  const estimate = paidImagePriceMicrocents(plan.tier);
   const reservation = await reserveBudget(estimate, caller.organizationId);
   if (!reservation)
     return {
@@ -130,7 +291,7 @@ export async function generatePaidImageBase64(
     await recordUsage({
       organizationId: caller.organizationId,
       purpose: "image_generation",
-      model: paidImageModel(),
+      model,
       usage: { inputTokens: 0, cachedInputTokens: 0, outputTokens: 0 },
       cost: 0,
       outcome: "skipped",
@@ -143,14 +304,38 @@ export async function generatePaidImageBase64(
     };
   }
 
-  const model = paidImageModel();
   try {
     // Every model call goes through the router, including this pinned one.
     const result = await callPinnedPaidImage(
-      { task: "image_generation", organizationId: caller.organizationId, userId: caller.userId ?? null },
-      prompt,
+      {
+        task: plan.editing ? "image_edit" : "image_generation",
+        organizationId: caller.organizationId,
+        userId: caller.userId ?? null,
+      },
+      job.prompt,
       model,
+      source,
     );
+    const check = validateGeneratedImage({ base64: result.base64, mimeType: result.mimeType });
+    if (!check.ok) {
+      // The call happened, so it is settled and recorded honestly, but the asset
+      // is dropped rather than attached to a customer's website.
+      await settleBudget(caller.organizationId, estimate, estimate);
+      await recordUsage({
+        organizationId: caller.organizationId,
+        purpose: "image_generation",
+        model,
+        usage: { inputTokens: 0, cachedInputTokens: 0, outputTokens: 0 },
+        cost: estimate,
+        outcome: "failed",
+        reason: "invalid_image",
+      });
+      return {
+        ok: false,
+        reason: "invalid_image",
+        message: `Revora didn't keep that picture because ${check.problem}. Nothing was saved.`,
+      };
+    }
     await settleBudget(caller.organizationId, estimate, estimate);
     await recordUsage({
       organizationId: caller.organizationId,
@@ -167,6 +352,7 @@ export async function generatePaidImageBase64(
       mimeType: result.mimeType,
       provider: "openai",
       model,
+      tier: plan.tier,
       costMicrocents: estimate,
     };
   } catch (error) {
@@ -184,7 +370,25 @@ export async function generatePaidImageBase64(
       ok: false,
       reason: "provider_error",
       message:
-        "The paid picture service did not return a picture, so Revora used its own artwork instead. Nothing was charged for it.",
+        "The premium picture service did not return a picture, so Revora used its own artwork instead. Nothing was charged for it.",
     };
   }
+}
+
+/** Back-compatible entry point for a fresh supporting picture. */
+export async function generatePaidImageBase64(
+  prompt: string,
+  caller: { organizationId: string | null; userId?: string | null },
+  purpose: ImagePurpose = "starter_photo",
+): Promise<PaidImageResult> {
+  return generatePaidImage({ prompt, purpose }, caller);
+}
+
+/** Precision change to an existing picture — premium tier only. */
+export async function editPaidImage(
+  prompt: string,
+  source: { dataUrl: string; mimeType: string },
+  caller: { organizationId: string | null; userId?: string | null },
+): Promise<PaidImageResult> {
+  return generatePaidImage({ prompt, purpose: "precision_edit", source }, caller);
 }
