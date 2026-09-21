@@ -122,6 +122,51 @@ export function SectionHeading({
   );
 }
 
+/**
+ * One page header for every screen: where you are, what this page is for in
+ * one plain sentence, and the single main action. Keeps every route stating
+ * one clear purpose instead of a wall of controls.
+ */
+export function PageHead({
+  eyebrow,
+  title,
+  purpose,
+  action,
+  className,
+}: {
+  /** Where this sits in the product, e.g. "Pipeline". */
+  eyebrow: string;
+  title: string;
+  /** One sentence: what this page is for. Plain words, no jargon. */
+  purpose?: string;
+  /** The single primary action for this page. */
+  action?: ReactNode;
+  className?: string;
+}) {
+  return (
+    <header
+      className={cn("flex flex-wrap items-end justify-between gap-3", className)}
+      data-testid="page-head"
+    >
+      <div className="min-w-0">
+        <p className="eyebrow flex items-center gap-2">
+          <span aria-hidden="true" className="h-3 w-0.5 rounded-full bg-primary" />
+          <span className="text-primary/90">{eyebrow}</span>
+        </p>
+        <h1 className="mt-1.5 font-display text-[24px] leading-tight font-semibold text-balance">
+          {title}
+        </h1>
+        {purpose ? (
+          <p className="mt-1.5 max-w-prose text-[13px] leading-relaxed text-muted-foreground">
+            {purpose}
+          </p>
+        ) : null}
+      </div>
+      {action ? <div className="flex shrink-0 flex-wrap items-center gap-2">{action}</div> : null}
+    </header>
+  );
+}
+
 export function MetricCard({
   label,
   value,
