@@ -1134,7 +1134,9 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
         continue;
       }
       try {
-        undoSteps.push(...(await captureUndo(supabase as unknown as JournalClient, orgId, action)));
+        undoSteps.push(
+          ...captureUndoFrom(supabase as unknown as JournalClient, orgId, action, undoSnapshot),
+        );
       } catch (error) {
         console.error("[site-agent] could not record an undo step", action.type, error);
         fatal = error;
