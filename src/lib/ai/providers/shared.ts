@@ -6,6 +6,7 @@
 
 import { RevoraAiError, categoryForStatus } from "@/lib/ai/errors";
 import type { ProviderName } from "@/lib/ai/config";
+import { decodeBase64Bytes } from "@/lib/base64";
 
 export function base64FromDataUrl(dataUrl: string) {
   const comma = dataUrl.indexOf(",");
@@ -13,10 +14,13 @@ export function base64FromDataUrl(dataUrl: string) {
 }
 
 export function bytesFromDataUrl(dataUrl: string) {
-  const binary = atob(base64FromDataUrl(dataUrl));
-  const bytes = new Uint8Array(binary.length);
-  for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
-  return bytes;
+  return decodeBase64Bytes(base64FromDataUrl(dataUrl));
+}
+
+export function arrayBufferFromBytes(bytes: Uint8Array): ArrayBuffer {
+  const copy = new Uint8Array(bytes.byteLength);
+  copy.set(bytes);
+  return copy.buffer;
 }
 
 /** Approximate byte size of a base64 payload, without decoding it. */

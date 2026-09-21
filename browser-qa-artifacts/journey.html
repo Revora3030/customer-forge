@@ -5,29 +5,29 @@ td,th{border:1px solid #ddd;padding:6px;vertical-align:top;text-align:left}th{ba
 </head><body>
 <h1>Customer Forge browser journey</h1>
 <p><strong>Status:</strong> PASSED &middot; base URL http://localhost:8080 &middot;
-20 passed, 0 failed, 5 not tested &middot;
-67775 ms</p>
+21 passed, 0 failed, 4 not tested &middot;
+79004 ms</p>
 <table><thead><tr><th>Step</th><th>What it proves</th><th>Status</th><th>Duration</th><th>Evidence</th></tr></thead>
-<tbody><tr><td>01_app_loads</td><td>The application loads</td><td style="color:#0a7;font-weight:600">PASS</td><td>3790 ms</td><td><pre style="white-space:pre-wrap;margin:0;font-size:12px">{
+<tbody><tr><td>01_app_loads</td><td>The application loads</td><td style="color:#0a7;font-weight:600">PASS</td><td>5236 ms</td><td><pre style="white-space:pre-wrap;margin:0;font-size:12px">{
  &quot;httpStatus&quot;: 200,
  &quot;heading&quot;: &quot;Your business books jobs while you&#x27;re on the job, and while you sleep.&quot;,
  &quot;screenshot&quot;: &quot;browser-qa-artifacts/journey-home.png&quot;,
  &quot;url&quot;: &quot;http://localhost:8080/&quot;,
  &quot;viewport&quot;: &quot;1440x1800&quot;
-}</pre></td></tr><tr><td>02_no_error_screen</td><td>No global error screen</td><td style="color:#0a7;font-weight:600">PASS</td><td>13 ms</td><td><pre style="white-space:pre-wrap;margin:0;font-size:12px">{
+}</pre></td></tr><tr><td>02_no_error_screen</td><td>No global error screen</td><td style="color:#0a7;font-weight:600">PASS</td><td>23 ms</td><td><pre style="white-space:pre-wrap;margin:0;font-size:12px">{
  &quot;note&quot;: &quot;No global error screen and no page errors.&quot;,
  &quot;url&quot;: &quot;http://localhost:8080/&quot;,
  &quot;viewport&quot;: &quot;1440x1800&quot;
-}</pre></td></tr><tr><td>03_auth_session</td><td>Signed-out gate holds and a session signs in</td><td style="color:#0a7;font-weight:600">PASS</td><td>5233 ms</td><td><pre style="white-space:pre-wrap;margin:0;font-size:12px">{
+}</pre></td></tr><tr><td>03_auth_session</td><td>Signed-out gate holds and a session signs in</td><td style="color:#0a7;font-weight:600">PASS</td><td>7731 ms</td><td><pre style="white-space:pre-wrap;margin:0;font-size:12px">{
  &quot;note&quot;: &quot;Signed out /app redirected to http://localhost:8080/auth; restored session reached the workspace.&quot;,
  &quot;screenshot&quot;: &quot;browser-qa-artifacts/journey-dashboard.png&quot;,
  &quot;url&quot;: &quot;http://localhost:8080/app&quot;,
  &quot;viewport&quot;: &quot;1440x1800&quot;
-}</pre></td></tr><tr><td>04_fixture_workspace</td><td>A deterministic workspace is entered</td><td style="color:#0a7;font-weight:600">PASS</td><td>5 ms</td><td><pre style="white-space:pre-wrap;margin:0;font-size:12px">{
+}</pre></td></tr><tr><td>04_fixture_workspace</td><td>A deterministic workspace is entered</td><td style="color:#0a7;font-weight:600">PASS</td><td>7 ms</td><td><pre style="white-space:pre-wrap;margin:0;font-size:12px">{
  &quot;workspace&quot;: &quot;Enejeh&quot;,
  &quot;url&quot;: &quot;http://localhost:8080/app&quot;,
  &quot;viewport&quot;: &quot;1440x1800&quot;
-}</pre></td></tr><tr><td>05_builder_opens</td><td>The builder opens</td><td style="color:#0a7;font-weight:600">PASS</td><td>3110 ms</td><td><pre style="white-space:pre-wrap;margin:0;font-size:12px">{
+}</pre></td></tr><tr><td>05_builder_opens</td><td>The builder opens</td><td style="color:#0a7;font-weight:600">PASS</td><td>6088 ms</td><td><pre style="white-space:pre-wrap;margin:0;font-size:12px">{
  &quot;note&quot;: &quot;Builder opened. Project status chip: LIVE&quot;,
  &quot;screenshot&quot;: &quot;browser-qa-artifacts/journey-builder.png&quot;,
  &quot;url&quot;: &quot;http://localhost:8080/app/website&quot;,
@@ -36,15 +36,16 @@ td,th{border:1px solid #ddd;padding:6px;vertical-align:top;text-align:left}th{ba
  &quot;note&quot;: &quot;Builder loaded with no console errors and no failed requests.&quot;,
  &quot;url&quot;: &quot;http://localhost:8080/app/website&quot;,
  &quot;viewport&quot;: &quot;1440x1800&quot;
-}</pre></td></tr><tr><td>07_build_request</td><td>A deterministic build request is submitted</td><td style="color:#a70;font-weight:600">NOT_TESTED</td><td>0 ms</td><td><pre style="white-space:pre-wrap;margin:0;font-size:12px">{
- &quot;reason&quot;: &quot;Set JOURNEY_ALLOW_BUILD=1 to submit a real build request. It writes website content to the fixture workspace, so it is off by default.&quot;,
+}</pre></td></tr><tr><td>07_build_request</td><td>A deterministic build request is submitted</td><td style="color:#0a7;font-weight:600">PASS</td><td>1217 ms</td><td><pre style="white-space:pre-wrap;margin:0;font-size:12px">{
+ &quot;note&quot;: &quot;Deterministic build request submitted.&quot;,
+ &quot;screenshot&quot;: &quot;browser-qa-artifacts/journey-build-request.png&quot;,
  &quot;url&quot;: &quot;http://localhost:8080/app/website&quot;,
  &quot;viewport&quot;: &quot;1440x1800&quot;
 }</pre></td></tr><tr><td>08_build_stages</td><td>Build progresses through the user-facing stages</td><td style="color:#a70;font-weight:600">NOT_TESTED</td><td>4 ms</td><td><pre style="white-space:pre-wrap;margin:0;font-size:12px">{
  &quot;reason&quot;: &quot;No build is in progress or recorded in this workspace, so the user-facing stages (Understanding -&gt; Ready) could not be observed. Run with JOURNEY_ALLOW_BUILD=1.&quot;,
  &quot;url&quot;: &quot;http://localhost:8080/app/website&quot;,
  &quot;viewport&quot;: &quot;1440x1800&quot;
-}</pre></td></tr><tr><td>09_preview_renders</td><td>The generated site renders</td><td style="color:#0a7;font-weight:600">PASS</td><td>1659 ms</td><td><pre style="white-space:pre-wrap;margin:0;font-size:12px">{
+}</pre></td></tr><tr><td>09_preview_renders</td><td>The generated site renders</td><td style="color:#0a7;font-weight:600">PASS</td><td>2337 ms</td><td><pre style="white-space:pre-wrap;margin:0;font-size:12px">{
  &quot;previewPath&quot;: &quot;/s/eilte&quot;,
  &quot;contentChars&quot;: 2257,
  &quot;internalPages&quot;: [
@@ -57,12 +58,12 @@ td,th{border:1px solid #ddd;padding:6px;vertical-align:top;text-align:left}th{ba
  ],
  &quot;url&quot;: &quot;http://localhost:8080/app/website&quot;,
  &quot;viewport&quot;: &quot;1440x1800&quot;
-}</pre></td></tr><tr><td>10_page_navigation</td><td>Navigation between generated pages works</td><td style="color:#0a7;font-weight:600">PASS</td><td>3477 ms</td><td><pre style="white-space:pre-wrap;margin:0;font-size:12px">{
+}</pre></td></tr><tr><td>10_page_navigation</td><td>Navigation between generated pages works</td><td style="color:#0a7;font-weight:600">PASS</td><td>3795 ms</td><td><pre style="white-space:pre-wrap;margin:0;font-size:12px">{
  &quot;from&quot;: &quot;/s/eilte&quot;,
  &quot;to&quot;: &quot;/s/eilte/services&quot;,
  &quot;url&quot;: &quot;http://localhost:8080/app/website&quot;,
  &quot;viewport&quot;: &quot;1440x1800&quot;
-}</pre></td></tr><tr><td>11_mobile_widths</td><td>Mobile layout at 320/375/390/414px</td><td style="color:#0a7;font-weight:600">PASS</td><td>12933 ms</td><td><pre style="white-space:pre-wrap;margin:0;font-size:12px">{
+}</pre></td></tr><tr><td>11_mobile_widths</td><td>Mobile layout at 320/375/390/414px</td><td style="color:#0a7;font-weight:600">PASS</td><td>15246 ms</td><td><pre style="white-space:pre-wrap;margin:0;font-size:12px">{
  &quot;measurements&quot;: [
   {
    &quot;width&quot;: 320,
@@ -91,7 +92,7 @@ td,th{border:1px solid #ddd;padding:6px;vertical-align:top;text-align:left}th{ba
  ],
  &quot;url&quot;: &quot;http://localhost:8080/app/website&quot;,
  &quot;viewport&quot;: &quot;1440x1800&quot;
-}</pre></td></tr><tr><td>12_desktop_widths</td><td>Desktop layout at 1280/1440px</td><td style="color:#0a7;font-weight:600">PASS</td><td>11948 ms</td><td><pre style="white-space:pre-wrap;margin:0;font-size:12px">{
+}</pre></td></tr><tr><td>12_desktop_widths</td><td>Desktop layout at 1280/1440px</td><td style="color:#0a7;font-weight:600">PASS</td><td>6733 ms</td><td><pre style="white-space:pre-wrap;margin:0;font-size:12px">{
  &quot;measurements&quot;: [
   {
    &quot;width&quot;: 1280,
@@ -120,55 +121,55 @@ td,th{border:1px solid #ddd;padding:6px;vertical-align:top;text-align:left}th{ba
  &quot;maxOverflowPx&quot;: 0,
  &quot;url&quot;: &quot;http://localhost:8080/app/website&quot;,
  &quot;viewport&quot;: &quot;1440x1800&quot;
-}</pre></td></tr><tr><td>14_actionable</td><td>Important buttons and links are actionable</td><td style="color:#0a7;font-weight:600">PASS</td><td>5181 ms</td><td><pre style="white-space:pre-wrap;margin:0;font-size:12px">{
+}</pre></td></tr><tr><td>14_actionable</td><td>Important buttons and links are actionable</td><td style="color:#0a7;font-weight:600">PASS</td><td>4610 ms</td><td><pre style="white-space:pre-wrap;margin:0;font-size:12px">{
  &quot;links&quot;: 33,
  &quot;deadLinks&quot;: 0,
  &quot;buttons&quot;: 2,
  &quot;disabledButtons&quot;: 0,
  &quot;url&quot;: &quot;http://localhost:8080/app/website&quot;,
  &quot;viewport&quot;: &quot;1440x1800&quot;
-}</pre></td></tr><tr><td>15_real_content</td><td>The page carries real content</td><td style="color:#0a7;font-weight:600">PASS</td><td>1691 ms</td><td><pre style="white-space:pre-wrap;margin:0;font-size:12px">{
+}</pre></td></tr><tr><td>15_real_content</td><td>The page carries real content</td><td style="color:#0a7;font-weight:600">PASS</td><td>2501 ms</td><td><pre style="white-space:pre-wrap;margin:0;font-size:12px">{
  &quot;heading&quot;: &quot;Premium Auto Detailing in Raleigh&quot;,
  &quot;sections&quot;: 13,
  &quot;headings&quot;: 12,
- &quot;chars&quot;: 2257,
+ &quot;chars&quot;: 2272,
  &quot;url&quot;: &quot;http://localhost:8080/app/website&quot;,
  &quot;viewport&quot;: &quot;1440x1800&quot;
-}</pre></td></tr><tr><td>16_builder_edit</td><td>One deterministic builder edit is applied</td><td style="color:#0a7;font-weight:600">PASS</td><td>3499 ms</td><td><pre style="white-space:pre-wrap;margin:0;font-size:12px">{
+}</pre></td></tr><tr><td>16_builder_edit</td><td>One deterministic builder edit is applied</td><td style="color:#0a7;font-weight:600">PASS</td><td>5048 ms</td><td><pre style="white-space:pre-wrap;margin:0;font-size:12px">{
  &quot;note&quot;: &quot;Staged one heading edit and applied it.&quot;,
  &quot;from&quot;: &quot;Premium Auto Detailing in Raleigh&quot;,
- &quot;to&quot;: &quot;Smoke check 1789972913&quot;,
+ &quot;to&quot;: &quot;Smoke check 1790012769&quot;,
  &quot;screenshot&quot;: &quot;browser-qa-artifacts/journey-edit-applied.png&quot;,
  &quot;url&quot;: &quot;http://localhost:8080/app/website&quot;,
  &quot;viewport&quot;: &quot;1440x1800&quot;
-}</pre></td></tr><tr><td>17_edit_visible</td><td>The edit appears in the rendered preview</td><td style="color:#0a7;font-weight:600">PASS</td><td>1538 ms</td><td><pre style="white-space:pre-wrap;margin:0;font-size:12px">{
+}</pre></td></tr><tr><td>17_edit_visible</td><td>The edit appears in the rendered preview</td><td style="color:#0a7;font-weight:600">PASS</td><td>2045 ms</td><td><pre style="white-space:pre-wrap;margin:0;font-size:12px">{
  &quot;note&quot;: &quot;The applied edit renders on the generated page.&quot;,
- &quot;text&quot;: &quot;Smoke check 1789972913&quot;,
+ &quot;text&quot;: &quot;Smoke check 1790012769&quot;,
  &quot;url&quot;: &quot;http://localhost:8080/app/website&quot;,
  &quot;viewport&quot;: &quot;1440x1800&quot;
-}</pre></td></tr><tr><td>18_edit_persists</td><td>The edit survives a refresh</td><td style="color:#0a7;font-weight:600">PASS</td><td>4757 ms</td><td><pre style="white-space:pre-wrap;margin:0;font-size:12px">{
+}</pre></td></tr><tr><td>18_edit_persists</td><td>The edit survives a refresh</td><td style="color:#0a7;font-weight:600">PASS</td><td>6180 ms</td><td><pre style="white-space:pre-wrap;margin:0;font-size:12px">{
  &quot;note&quot;: &quot;The edit survived a full page refresh.&quot;,
  &quot;screenshot&quot;: &quot;browser-qa-artifacts/journey-edit-persisted.png&quot;,
  &quot;url&quot;: &quot;http://localhost:8080/app/website&quot;,
  &quot;viewport&quot;: &quot;1440x1800&quot;
-}</pre></td></tr><tr><td>19_rollback</td><td>Undo / rollback is available and used</td><td style="color:#0a7;font-weight:600">PASS</td><td>2695 ms</td><td><pre style="white-space:pre-wrap;margin:0;font-size:12px">{
+}</pre></td></tr><tr><td>19_rollback</td><td>Undo / rollback is available and used</td><td style="color:#0a7;font-weight:600">PASS</td><td>2051 ms</td><td><pre style="white-space:pre-wrap;margin:0;font-size:12px">{
  &quot;method&quot;: &quot;restore-original-heading&quot;,
  &quot;restoring&quot;: &quot;Premium Auto Detailing in Raleigh&quot;,
  &quot;url&quot;: &quot;http://localhost:8080/app/website&quot;,
  &quot;viewport&quot;: &quot;1440x1800&quot;
-}</pre></td></tr><tr><td>20_rollback_restores</td><td>Rollback restores the previous state</td><td style="color:#0a7;font-weight:600">PASS</td><td>3377 ms</td><td><pre style="white-space:pre-wrap;margin:0;font-size:12px">{
+}</pre></td></tr><tr><td>20_rollback_restores</td><td>Rollback restores the previous state</td><td style="color:#0a7;font-weight:600">PASS</td><td>3842 ms</td><td><pre style="white-space:pre-wrap;margin:0;font-size:12px">{
  &quot;note&quot;: &quot;Rollback restored the previous state.&quot;,
  &quot;restored&quot;: &quot;Premium Auto Detailing in Raleigh&quot;,
  &quot;url&quot;: &quot;http://localhost:8080/app/website&quot;,
  &quot;viewport&quot;: &quot;1440x1800&quot;
-}</pre></td></tr><tr><td>21_publish_gated</td><td>Publishing stays gated and nothing is published</td><td style="color:#0a7;font-weight:600">PASS</td><td>18 ms</td><td><pre style="white-space:pre-wrap;margin:0;font-size:12px">{
+}</pre></td></tr><tr><td>21_publish_gated</td><td>Publishing stays gated and nothing is published</td><td style="color:#0a7;font-weight:600">PASS</td><td>26 ms</td><td><pre style="white-space:pre-wrap;margin:0;font-size:12px">{
  &quot;note&quot;: &quot;Publish control present and never pressed; no publish request was issued.&quot;,
  &quot;statusLabelBefore&quot;: &quot;LIVE&quot;,
  &quot;publishDisabled&quot;: false,
  &quot;statusLabel&quot;: &quot;LIVE&quot;,
  &quot;url&quot;: &quot;http://localhost:8080/app/website&quot;,
  &quot;viewport&quot;: &quot;1440x1800&quot;
-}</pre></td></tr><tr><td>22_dashboard_return</td><td>The app returns to the dashboard cleanly</td><td style="color:#0a7;font-weight:600">PASS</td><td>2109 ms</td><td><pre style="white-space:pre-wrap;margin:0;font-size:12px">{
+}</pre></td></tr><tr><td>22_dashboard_return</td><td>The app returns to the dashboard cleanly</td><td style="color:#0a7;font-weight:600">PASS</td><td>2991 ms</td><td><pre style="white-space:pre-wrap;margin:0;font-size:12px">{
  &quot;note&quot;: &quot;Returned to the dashboard cleanly.&quot;,
  &quot;screenshot&quot;: &quot;browser-qa-artifacts/journey-dashboard-return.png&quot;,
  &quot;url&quot;: &quot;http://localhost:8080/app&quot;,

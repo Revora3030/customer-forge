@@ -9,7 +9,7 @@
 
 import type { AiMessage, AiPart, AiUsage, ProviderAdapter } from "@/lib/ai/types";
 import { RevoraAiError } from "@/lib/ai/errors";
-import { bytesFromDataUrl, providerHttpError } from "@/lib/ai/providers/shared";
+import { arrayBufferFromBytes, bytesFromDataUrl, providerHttpError } from "@/lib/ai/providers/shared";
 
 const BASE = "https://api.openai.com/v1";
 
@@ -120,11 +120,8 @@ export const openAiAdapter: ProviderAdapter = {
       const form = new FormData();
       form.append("model", model);
       form.append("prompt", prompt);
-      form.append(
-        "image",
-        new Blob([bytesFromDataUrl(source.dataUrl)], { type: source.mimeType }),
-        "source.png",
-      );
+      const sourceBytes = bytesFromDataUrl(source.dataUrl);
+      form.append("image", new Blob([arrayBufferFromBytes(sourceBytes)], { type: source.mimeType }), "source.png");
       response = await fetch(`${BASE}/images/edits`, {
         method: "POST",
         headers: { authorization: `Bearer ${apiKey}` },
@@ -154,11 +151,8 @@ export const openAiAdapter: ProviderAdapter = {
     const extension = audio.mimeType.split("/")[1]?.replace(/[^a-z0-9]/g, "") || "webm";
     const form = new FormData();
     form.append("model", model);
-    form.append(
-      "file",
-      new Blob([bytesFromDataUrl(audio.dataUrl)], { type: audio.mimeType }),
-      `${audio.name || "voice"}.${extension}`,
-    );
+    const audioBytes = bytesFromDataUrl(audio.dataUrl);
+    form.append("file", new Blob([arrayBufferFromBytes(audioBytes)], { type: audio.mimeType }), `${audio.name || "voice"}.${extension}`);
     const response = await fetch(`${BASE}/audio/transcriptions`, {
       method: "POST",
       headers: { authorization: `Bearer ${apiKey}` },

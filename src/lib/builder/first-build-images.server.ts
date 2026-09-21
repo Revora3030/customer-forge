@@ -171,7 +171,7 @@ export async function generateFirstBuildImages(
     const image = await generateImageBase64(brief.prompt, {
       organizationId: input.organizationId,
       userId: input.userId,
-    });
+    }, { paidFallback: true });
     if (!image.ok) {
       firstBlockedMessage = firstBlockedMessage ?? image.message;
       skipped.push({ slot: shot.slot, label: shot.label, reason: image.message });
@@ -215,7 +215,7 @@ export async function generateFirstBuildImages(
       continue;
     }
 
-    provider = image.provider;
+    provider = provider ?? image.provider;
     models.add(image.model);
     assets.push({
       slot: shot.slot,
@@ -232,6 +232,7 @@ export async function generateFirstBuildImages(
   }
 
   const status = assets.length ? "generated" : skipped.length ? "fallback_artwork" : "failed";
+  const providerLabel = provider === "openai" ? "the explicitly enabled paid picture fallback" : "the free picture service";
   return {
     assets,
     evidence: {
@@ -243,7 +244,7 @@ export async function generateFirstBuildImages(
       provider,
       models: [...models],
       message: assets.length
-        ? `Generated ${assets.length} starter website image(s) from the free picture service.`
+        ? `Generated ${assets.length} starter website image(s) from ${providerLabel}.`
         : (firstBlockedMessage ?? "Starter picture generation did not complete, so Revora used abstract artwork."),
     },
   };
