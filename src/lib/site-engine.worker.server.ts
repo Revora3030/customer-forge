@@ -304,11 +304,19 @@ async function runJob(
 
   // Materialize the plan into real pages/sections/components so the owner has
   // something to edit and publish. Skipped when the workspace already has pages.
-  const [{ materializeSiteContent }, { recommendDirections }, { classifyArchetype }] =
+  const [
+    { materializeSiteContent },
+    { recommendDirections },
+    { classifyArchetype },
+    { compileFirstBuildCreativeDirection },
+    { playbookFor },
+  ] =
     await Promise.all([
       import("@/lib/site-materialize.server"),
       import("@/lib/design-directions"),
       import("@/lib/site-archetypes"),
+      import("@/lib/builder/first-build-creative"),
+      import("@/lib/builder/industry"),
     ]);
   // Decide what kind of website this business needs (restaurant, clinic, shop,
   // studio, venue …) so the structure fits the industry, not one template.
@@ -326,6 +334,30 @@ async function runJob(
     currentFont: (p["font_preference"] as string) ?? null,
     count: 1,
   })[0] ?? null;
+  const creative = compileFirstBuildCreativeDirection({
+    organizationId: orgId,
+    businessName: org.data.name ?? "",
+    industry: org.data.industry ?? null,
+    description: (p["description"] as string) ?? null,
+    city: (p["city"] as string) ?? null,
+    state: (p["state"] as string) ?? null,
+    serviceArea: (p["service_area"] as string) ?? null,
+    phone: (p["phone"] as string) ?? null,
+    email: (p["email"] as string) ?? null,
+    yearsInBusiness: (p["years_in_business"] as number) ?? null,
+    services: serviceRows,
+    goals,
+    conversionGoal: org.data.conversion_goal ?? null,
+    photoCount: (media.data ?? []).length + ((p["hero_image_url"] as string) ? 1 : 0),
+    testimonialCount: testimonials.length,
+    bookableServices: (bookable.data ?? []).length,
+    hasHours: Boolean(p["hours"] && Object.keys(p["hours"] as object).length),
+  });
+  const industryPlaybook = playbookFor(
+    org.data.industry ?? null,
+    (p["description"] as string) ?? null,
+    serviceRows.map((service) => service.name).join(" "),
+  );
   const built = await materializeSiteContent(db, orgId, {
     businessName: org.data.name ?? "",
     copy,
@@ -341,6 +373,8 @@ async function runJob(
     hasBooking: (bookable.data ?? []).length > 0,
     direction,
     archetype,
+    fingerprint: creative.fingerprint,
+    industryPlaybook,
   });
 
   // A brand chosen by the owner wins. Only replace the untouched generated
@@ -402,6 +436,8 @@ async function runJob(
         copy,
         brief,
         report,
+        firstBuildCreative: creative,
+        designFingerprint: { ...creative.fingerprint, updatedAt: new Date().toISOString() },
         ...(!built.skipped && direction ? { effects: { backdrop: direction.backdrop } } : {}),
       } as unknown as Record<string, unknown>,
       generated_at: new Date().toISOString(),
