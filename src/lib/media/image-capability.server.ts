@@ -34,6 +34,43 @@ import { discoveredFreeModels, refreshFreeModels } from "@/lib/ai/free-models.se
 
 const IMAGE_ROLE: ModelRole = "image";
 
+/**
+ * 64x64 sample picture used to VERIFY — not assume — that the free service can
+ * actually change an existing picture right now.
+ */
+const EDIT_PROBE_PNG_BASE64 =
+  "iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAIAAAAlC+aJAAAAY0lEQVR4nO3PsQ3AIADAMOB+ZmZO7REMVqX4gmTes8efLR3wqgGtAa0BrQGtAa0BrQGtAa0BrQGtAa0BrQGtAa0BrQGtAa0BrQGtAa0BrQGtAa0BrQGtAa0BrQGtAa0BrQHtAxL/AkICwWnpAAAAAElFTkSuQmCC";
+
+/** Probe result cache. Kept short so an upstream recovery is picked up quickly. */
+let editProbe: { ok: boolean; at: number } | null = null;
+const EDIT_PROBE_TTL_MS = 30 * 60 * 1000;
+
+/**
+ * Asks the free service to change one tiny sample picture, and remembers the
+ * answer for a while.
+ *
+ * An edit-capable model EXISTING is not evidence that editing WORKS: Cloudflare's
+ * inpainting endpoint can be serving errors, or the account may not be allowed to
+ * use it. Revora therefore never promises picture changing on the strength of a
+ * model name — it proves it with a real call first.
+ */
+export async function verifyImageEditing(): Promise<boolean> {
+  const now = Date.now();
+  if (editProbe && now - editProbe.at < EDIT_PROBE_TTL_MS) return editProbe.ok;
+  try {
+    const { editImage } = await import("@/lib/ai/router.server");
+    const result = await editImage(
+      { task: "image.edit", organizationId: null, userId: null },
+      "the same picture, slightly warmer light",
+      { dataUrl: EDIT_PROBE_PNG_BASE64, mimeType: "image/png" },
+    );
+    editProbe = { ok: result.base64.length > 0, at: now };
+  } catch {
+    editProbe = { ok: false, at: now };
+  }
+  return editProbe.ok;
+}
+
 export type ImageCapabilityReason =
   | "ready"
   | "free_ai_disabled"
