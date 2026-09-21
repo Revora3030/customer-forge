@@ -29,6 +29,14 @@ afterEach(() => {
 });
 
 describe("luna configuration", () => {
+  it("requires explicit operator opt-in even when a key exists", () => {
+    process.env["OPENAI_API_KEY"] = "configured";
+    delete process.env["LUNA_ENABLED"];
+    expect(lunaEnabled()).toBe(false);
+    process.env["LUNA_ENABLED"] = "true";
+    expect(lunaEnabled()).toBe(true);
+  });
+
   it("defaults to the GPT-5.6 Luna orchestrator model", () => {
     delete process.env["LUNA_MODEL"];
     expect(lunaModel()).toBe(DEFAULT_LUNA_MODEL);

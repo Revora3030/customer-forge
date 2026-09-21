@@ -56,11 +56,11 @@ function dollarsEnv(name: string, fallback: number): number {
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
 }
 
-/** Luna is on unless an operator explicitly turns it off. */
+/** Luna is off unless an operator explicitly enables diagnostics. */
 export function lunaEnabled(): boolean {
   const raw = (env("LUNA_ENABLED") ?? "").toLowerCase();
-  if (raw === "false" || raw === "0" || raw === "off" || raw === "no") return false;
-  return Boolean(env("OPENAI_API_KEY"));
+  const optedIn = raw === "true" || raw === "1" || raw === "on" || raw === "yes";
+  return optedIn && Boolean(env("OPENAI_API_KEY"));
 }
 
 export function lunaModel(): string {
