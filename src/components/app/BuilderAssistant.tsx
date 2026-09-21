@@ -192,17 +192,35 @@ function TaskBody({
   const working = task.state === "planning" || task.state === "building";
   const timeline = timelineFor(task);
   // The steps the server has genuinely recorded for this build, shown live.
-  const { latest } = useBuildProgress(organizationId, working);
+  const { latest, steps } = useBuildProgress(organizationId, working);
+  // Steps already finished, oldest first, so the owner watches the work land
+  // instead of staring at one line. Only genuinely recorded steps are shown.
+  const done = working ? steps.slice(1).reverse() : [];
   return (
     <div className="space-y-2">
       {working ? (
-        <Shimmer>
-          {latest
-            ? `${latest.stage}…`
-            : task.state === "planning"
-              ? "Working out the change…"
-              : "Applying…"}
-        </Shimmer>
+        <div className="space-y-1">
+          {done.length ? (
+            <ul className="space-y-0.5">
+              {done.map((step) => (
+                <li
+                  key={`${step.stage}-${step.at}`}
+                  className="text-[12px] text-muted-foreground flex items-center gap-1.5"
+                >
+                  <span aria-hidden="true">✓</span>
+                  <span>{step.stage}</span>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+          <Shimmer>
+            {latest
+              ? `${latest.stage}…`
+              : task.state === "planning"
+                ? "Working out the change…"
+                : "Applying…"}
+          </Shimmer>
+        </div>
       ) : (
         <p className="text-[11px] tracking-wide text-muted-foreground uppercase">
           {QUEUE_LABELS[task.state]}
