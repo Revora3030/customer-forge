@@ -477,11 +477,11 @@ function SiteSectionBody({ site, section }: { site: Site; section: Section }) {
         <Shell>
           <Heading section={section} />
           {rows.length ? (
-            <ul className="mt-7 space-y-2">
+            <ul className="rv-pricing-list mt-7 space-y-2">
               {rows.map((row) => (
                 <li
                   key={row.id}
-                  className="flex items-baseline justify-between gap-4 border-b border-border py-2.5"
+                  className="rv-pricing-item flex items-baseline justify-between gap-4 border-b border-border py-2.5"
                 >
                   <span className="text-[14px]">{row.label}</span>
                   <span className="tnum text-[14px] font-semibold text-primary">{row.body}</span>

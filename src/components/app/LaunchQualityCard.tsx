@@ -27,9 +27,9 @@ export function LaunchQualityCard({ report, onImprove, className = '' }: LaunchQ
     <section className={`rounded-2xl border border-white/10 bg-card p-5 shadow-sm ${className}`} aria-labelledby="launch-quality-title">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">AI launch review</p>
-          <h2 id="launch-quality-title" className="mt-1 text-xl font-semibold tracking-tight">Your site quality</h2>
-          <p className="mt-1 text-sm text-muted-foreground">A clear, prioritized review of the work that will make your site more effective before launch.</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Launch readiness review</p>
+          <h2 id="launch-quality-title" className="mt-1 text-xl font-semibold tracking-tight">Measured launch readiness</h2>
+          <p className="mt-1 text-sm text-muted-foreground">This score covers configured content and completed checks. It is not a subjective visual-design rating.</p>
         </div>
         <div className={`rounded-xl border px-3 py-2 text-right ${gradeTone[report.grade]}`}>
           <p className="text-3xl font-bold leading-none">{report.score}<span className="text-base font-medium">/100</span></p>

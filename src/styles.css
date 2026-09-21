@@ -2045,14 +2045,14 @@ a[href*="lovable.app"][target="_blank"][class*="fixed"],
   z-index: 2;
   padding-block: clamp(2rem, 6vw, 5rem);
 }
-.rv-variant-pricing-cards ul,
-.rv-variant-pricing-matrix ul {
+.rv-variant-pricing-cards .rv-pricing-list,
+.rv-variant-pricing-matrix .rv-pricing-list {
   display: grid;
   gap: 1rem;
   grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
 }
-.rv-variant-pricing-cards ul > li,
-.rv-variant-pricing-feature ul > li {
+.rv-variant-pricing-cards .rv-pricing-item,
+.rv-variant-pricing-feature .rv-pricing-item {
   display: grid;
   min-height: 9rem;
   align-content: space-between;
@@ -2060,7 +2060,7 @@ a[href*="lovable.app"][target="_blank"][class*="fixed"],
   padding: 1.25rem;
   background: color-mix(in srgb, var(--card) 72%, transparent);
 }
-.rv-variant-pricing-feature ul > li:first-child {
+.rv-variant-pricing-feature .rv-pricing-item:first-child {
   border-color: var(--primary);
   box-shadow: 0 24px 70px -40px color-mix(in srgb, var(--primary) 65%, transparent);
 }
@@ -2156,13 +2156,13 @@ a[href*="lovable.app"][target="_blank"][class*="fixed"],
   padding-inline-start: clamp(1rem, 3vw, 2rem);
 }
 
-.rv-variant-faq-clean dl > div {
+.rv-variant-faq-clean .rv-faq-list details {
   border-bottom: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
 }
-.rv-variant-faq-editorial dl {
+.rv-variant-faq-editorial .rv-faq-list {
   gap: 1.5rem;
 }
-.rv-variant-faq-editorial dl > div {
+.rv-variant-faq-editorial .rv-faq-list details {
   padding: 1rem 1.25rem;
   border-radius: 1rem;
   background: color-mix(in srgb, var(--card) 55%, transparent);

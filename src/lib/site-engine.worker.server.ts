@@ -244,7 +244,7 @@ async function runJob(
       .eq("organization_id", orgId)
       .eq("is_active", true)
       .order("sort_order"),
-    db.from("media").select("id").eq("organization_id", orgId),
+    db.from("media").select("id, category").eq("organization_id", orgId),
     db.from("social_profiles").select("*").eq("organization_id", orgId).maybeSingle(),
     db.from("quote_forms").select("id").eq("organization_id", orgId).eq("is_active", true),
     db.from("services").select("id").eq("organization_id", orgId).eq("bookable", true),
