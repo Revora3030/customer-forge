@@ -57,10 +57,8 @@ describe("live CRM hand-off", () => {
 describe("live transactional email", () => {
   emailIt("accepts a lead notification for delivery", async () => {
     const { sendTemplateEmail } = await import("@/lib/email-templates/send-email");
-    const result = await sendTemplateEmail({
-      to: env["INTEGRATION_TEST_EMAIL_TO"]!,
-      template: "lead_notification",
-      data: {
+    const result = await sendTemplateEmail("lead_notification", env["INTEGRATION_TEST_EMAIL_TO"]!, {
+      variables: {
         businessName: "Integration Test",
         leadName: "Integration Test",
         leadEmail: "integration@revoratest.dev",
