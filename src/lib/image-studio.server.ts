@@ -222,3 +222,12 @@ export function decodeBase64(base64: string): Uint8Array {
   for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
   return bytes;
 }
+
+/** Encodes raw picture bytes back into base64 for a provider edit request. */
+export function encodeBase64(bytes: Uint8Array): string {
+  let binary = "";
+  const chunk = 0x8000;
+  for (let index = 0; index < bytes.length; index += chunk)
+    binary += String.fromCharCode(...bytes.subarray(index, index + chunk));
+  return btoa(binary);
+}
