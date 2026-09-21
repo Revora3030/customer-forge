@@ -210,7 +210,7 @@ export function factGaps(input: FactInput): FactGap[] {
     return /^(.{1,2})\1{2,}$/.test(compact);
   };
 
-  if (weakText(input.businessName, 2))
+  if (input.businessName !== undefined && weakText(input.businessName, 2))
     gaps.push({
       key: "business-name",
       label: "Your real business name",
