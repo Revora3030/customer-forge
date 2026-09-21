@@ -3,8 +3,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const calls: { model: string; hasSource: boolean }[] = [];
 const usage: { outcome: string; reason: string | null; model?: string }[] = [];
 let reservationAllowed = true;
+let modelReachable = { available: true, detail: "available on this account" };
 
 vi.mock("@/lib/ai/router.server", () => ({
+  paidImageModelReachable: vi.fn(async () => modelReachable),
   callPinnedPaidImage: vi.fn(
     async (
       _caller: unknown,
@@ -58,6 +60,7 @@ beforeEach(() => {
   calls.length = 0;
   usage.length = 0;
   reservationAllowed = true;
+  modelReachable = { available: true, detail: "available on this account" };
   for (const key of ENV_KEYS) saved.set(key, process.env[key]);
   process.env["PAID_IMAGE_ENABLED"] = "true";
   process.env["LUNA_ENABLED"] = "true";
@@ -131,10 +134,10 @@ describe("premium picture lane", () => {
   });
 
   it("reports a model the account cannot reach as a blocker, not a fallback", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async () => new Response("no access", { status: 403 })),
-    );
+    modelReachable = {
+      available: false,
+      detail: "this account does not have access to the model yet",
+    };
     const { generatePaidImageBase64, paidImageCapability } = await paidImage();
     const result = await generatePaidImageBase64("hero", { organizationId: "org" }, "hero_master");
     expect(result.ok === false && result.reason).toBe("model_unavailable");
