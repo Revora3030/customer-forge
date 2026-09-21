@@ -506,6 +506,7 @@ function WebsitePage() {
       </div>
 
       <EnvironmentBanner status={production} />
+      <BuilderStatus answers={homeAnswers} onGo={goHome} />
       <BuilderNeeds needs={needs} />
 
       {firstRun ? (
