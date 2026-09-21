@@ -373,6 +373,16 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
     );
     const brief = designMemoryBrief(priorMemory);
     if (brief) data.history = [{ role: "user" as const, content: brief }, ...data.history];
+
+    // LONG-SESSION MEMORY: the durable journal for this website — standing
+    // rules, earlier requests, what was already done and what did not work — is
+    // recalled before anything is planned, so the builder does not start from
+    // scratch in a new session or repeat work it already finished. Guidance
+    // only: the live website is still read and remains the source of truth, and
+    // a recall failure simply means no brief.
+    const { recallBrief } = await import("@/lib/builder/session-memory.server");
+    const recall = await recallBrief(supabase as never, orgId);
+    if (recall) data.history = [{ role: "user" as const, content: recall }, ...data.history];
     const nextMemory = mergeDesignMemory(priorMemory, data.instruction);
 
     // DESIGN IDENTITY. Worked out once from what the business actually is, then
