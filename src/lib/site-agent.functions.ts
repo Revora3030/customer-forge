@@ -35,7 +35,13 @@ import {
   preflightActions,
   stalePlanMessage,
 } from "@/lib/builder/apply-plan";
-import { captureUndo, rollback, type JournalClient, type UndoStep } from "@/lib/site-agent.atomic";
+import {
+  captureUndoFrom,
+  loadUndoSnapshot,
+  rollback,
+  type JournalClient,
+  type UndoStep,
+} from "@/lib/site-agent.atomic";
 
 /** A real database id, as opposed to a plan's temporary page name. */
 const UUID_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -985,6 +991,36 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
     const undoSteps: UndoStep[] = [];
     let fatal: unknown = null;
 
+    // SPEED: the pre-write state of everything this batch touches is read once,
+    // here, instead of once per step. The writes themselves stay strictly in
+    // order — that ordering is what makes a failed batch reversible — but a large
+    // build no longer pays a database round trip just to look at a row it is
+    // about to change.
+    const undoSnapshot = await loadUndoSnapshot(
+      supabase as unknown as JournalClient,
+      orgId,
+      actions as AgentAction[],
+    );
+
+    // Steps that change part of a JSON column (a section's look, a custom block,
+    // a backdrop) need the column's current value. It comes from the snapshot,
+    // and every write records its new value here so a second step touching the
+    // same row in the same batch still builds on the first one.
+    const overlay = new Map<string, Record<string, unknown>>();
+    const rowKey = (table: string, id: string | null) => `${table}:${id ?? "org"}`;
+    const readColumn = (table: string, id: string | null, column: string): unknown => {
+      const patched = overlay.get(rowKey(table, id));
+      if (patched && column in patched) return patched[column] ?? null;
+      const row = id
+        ? undoSnapshot.rows.get(table)?.get(id)
+        : (undoSnapshot.orgRows.get(table) ?? null);
+      return row ? (row[column] ?? null) : null;
+    };
+    const noteColumn = (table: string, id: string | null, column: string, value: unknown) => {
+      const key = rowKey(table, id);
+      overlay.set(key, { ...(overlay.get(key) ?? {}), [column]: value });
+    };
+
     const run = async (label: string, work: () => PromiseLike<unknown>) => {
       if (fatal) return;
       try {
@@ -1098,7 +1134,9 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
         continue;
       }
       try {
-        undoSteps.push(...(await captureUndo(supabase as unknown as JournalClient, orgId, action)));
+        undoSteps.push(
+          ...captureUndoFrom(supabase as unknown as JournalClient, orgId, action, undoSnapshot),
+        );
       } catch (error) {
         console.error("[site-agent] could not record an undo step", action.type, error);
         fatal = error;
@@ -1133,14 +1171,12 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
           );
           break;
         case "set_section_visual":
-          await run(action.type, async () => {
-            const { data: current } = await supabase
-              .from("website_sections")
-              .select("settings")
-              .eq("id", action.sectionId)
-              .eq("organization_id", orgId)
-              .maybeSingle();
-            const settings = writeSectionVisual(current?.["settings"] ?? null, action.patch);
+          await run(action.type, () => {
+            const settings = writeSectionVisual(
+              readColumn("website_sections", action.sectionId, "settings"),
+              action.patch,
+            );
+            noteColumn("website_sections", action.sectionId, "settings", settings);
             return supabase
               .from("website_sections")
               .update({ settings } as never)
@@ -1149,14 +1185,12 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
           });
           break;
         case "set_custom_block":
-          await run(action.type, async () => {
-            const { data: current } = await supabase
-              .from("website_sections")
-              .select("settings")
-              .eq("id", action.sectionId)
-              .eq("organization_id", orgId)
-              .maybeSingle();
-            const settings = writeCustomBlock(current?.["settings"] ?? null, action.spec);
+          await run(action.type, () => {
+            const settings = writeCustomBlock(
+              readColumn("website_sections", action.sectionId, "settings"),
+              action.spec,
+            );
+            noteColumn("website_sections", action.sectionId, "settings", settings);
             return supabase
               .from("website_sections")
               .update({ kind: "custom", settings } as never)
@@ -1242,14 +1276,12 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
           break;
         }
         case "set_component_visual":
-          await run(action.type, async () => {
-            const { data: current } = await supabase
-              .from("website_components")
-              .select("settings,media_url")
-              .eq("id", action.componentId)
-              .eq("organization_id", orgId)
-              .maybeSingle();
-            const settings = writeComponentVisual(current?.["settings"] ?? null, action.patch);
+          await run(action.type, () => {
+            const settings = writeComponentVisual(
+              readColumn("website_components", action.componentId, "settings"),
+              action.patch,
+            );
+            noteColumn("website_components", action.componentId, "settings", settings);
             const mediaUrl = action.patch["media_url"];
             const patch: Record<string, unknown> = { settings };
             if (mediaUrl !== undefined) patch["media_url"] = safeLinkUrl(mediaUrl);
@@ -1366,13 +1398,12 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
           );
           break;
         case "set_backdrop":
-          await run(action.type, async () => {
-            const { data: current } = await supabase
-              .from("website_settings")
-              .select("generation")
-              .eq("organization_id", orgId)
-              .maybeSingle();
-            const generation = writeBackdrop(current?.["generation"] ?? null, action.backdrop);
+          await run(action.type, () => {
+            const generation = writeBackdrop(
+              readColumn("website_settings", null, "generation"),
+              action.backdrop,
+            );
+            noteColumn("website_settings", null, "generation", generation);
             return supabase
               .from("website_settings")
               .upsert({ organization_id: orgId, generation } as never, {
@@ -1381,14 +1412,12 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
           });
           break;
         case "set_section_effect":
-          await run(action.type, async () => {
-            const { data: current } = await supabase
-              .from("website_sections")
-              .select("settings")
-              .eq("id", action.sectionId)
-              .eq("organization_id", orgId)
-              .maybeSingle();
-            const settings = writeSectionEffect(current?.["settings"] ?? null, action.effect);
+          await run(action.type, () => {
+            const settings = writeSectionEffect(
+              readColumn("website_sections", action.sectionId, "settings"),
+              action.effect,
+            );
+            noteColumn("website_sections", action.sectionId, "settings", settings);
             return supabase
               .from("website_sections")
               .update({ settings } as never)
