@@ -23,7 +23,11 @@ import { businessFacts, factsAddressLine } from "@/lib/builder/facts";
 import { phoneDisplay, phoneLink, safeParagraph, safeText } from "@/lib/builder/presentation";
 import { DecorativeArt } from "@/components/site/DecorativeArt";
 import { generateArtwork } from "@/lib/media/generative-art";
-import { createDesignFingerprint, readDesignFingerprint } from "@/lib/builder/design-fingerprint";
+import {
+  createDesignFingerprint,
+  readDesignFingerprint,
+  type DesignFingerprint,
+} from "@/lib/builder/design-fingerprint";
 
 type Site = NonNullable<PublicSite>;
 type Section = NonNullable<Site["content"]>["sections"][number];
@@ -44,6 +48,17 @@ function siteArtwork(site: Site) {
     city: profile?.city ?? null,
   });
   return generateArtwork(fingerprint.decorativeSystem, fingerprint.seed);
+}
+
+export function siteDesignFingerprint(site: Site): DesignFingerprint {
+  const settings = (site as { settings?: { generation?: unknown } | null }).settings ?? null;
+  const profile = (site.profile ?? null) as { industry?: string | null; city?: string | null } | null;
+  return readDesignFingerprint(settings?.generation) ?? createDesignFingerprint({
+    businessName: site.org?.name ?? null,
+    industry: profile?.industry ?? null,
+    city: profile?.city ?? null,
+    photoCount: site.gallery?.length ?? 0,
+  });
 }
 
 

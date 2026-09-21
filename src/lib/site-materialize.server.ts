@@ -16,6 +16,11 @@ import { writeSectionEffect } from "@/lib/site-effects";
 import { writeSectionVisual } from "@/lib/site-style";
 import { compositionForKind, variantForKind } from "@/lib/builder/elite-site-output";
 import {
+  sectionDesignFromFingerprint,
+  type DesignFingerprint,
+} from "@/lib/builder/design-fingerprint";
+import type { IndustryPlaybook } from "@/lib/builder/industry";
+import {
   resolveArchetypeText,
   type ArchetypeSection,
   type SiteArchetype,
@@ -64,6 +69,10 @@ export type MaterializeInput = {
   direction?: DesignDirection | null;
   /** The kind of website this business needs (restaurant, clinic, shop …). */
   archetype?: SiteArchetype | null;
+  /** Complete composition identity resolved before first materialization. */
+  fingerprint?: DesignFingerprint | null;
+  /** Full industry strategy used to order the home narrative. */
+  industryPlaybook?: IndustryPlaybook | null;
 };
 
 type Component = {
@@ -264,6 +273,26 @@ export function planSiteContent(input: MaterializeInput): Page[] {
     home.sections.splice(closing >= 0 ? closing : home.sections.length, 0, ...extra);
   }
 
+  // The industry playbook controls the narrative order. Unsupported or
+  // fact-dependent blocks remain absent; this only reorders real content.
+  if (input.industryPlaybook) {
+    const aliases: Record<string, string> = { area: "areas", case_studies: "gallery" };
+    const preferred = input.industryPlaybook.homeSections.map((kind) => aliases[kind] ?? kind);
+    const rank = (kind: string) => {
+      if (kind === "hero") return -100;
+      if (kind === "sticky_cta") return 10_000;
+      const found = preferred.indexOf(kind);
+      if (found >= 0) return found;
+      if (kind === "cta") return preferred.length + 20;
+      if (kind === "contact") return preferred.length + 30;
+      return preferred.length + 10;
+    };
+    home.sections = home.sections
+      .map((section, index) => ({ section, index }))
+      .sort((a, b) => rank(a.section.kind) - rank(b.section.kind) || a.index - b.index)
+      .map(({ section }) => section);
+  }
+
   const pages: Page[] = [home];
 
   if (serviceCards.length)
@@ -401,6 +430,8 @@ export function planSiteContent(input: MaterializeInput): Page[] {
 export function materializedSectionDesign(
   kind: string,
   direction: DesignDirection | null | undefined,
+  fingerprint?: DesignFingerprint | null,
+  index = 0,
 ): { variant: string; settings: Record<string, unknown> } {
   if (!direction) return { variant: "default", settings: {} };
   const dark = direction.secondary !== "#ffffff" && !/^#f/i.test(direction.secondary);
@@ -412,9 +443,22 @@ export function materializedSectionDesign(
         : kind === "quote" || kind === "booking" || kind === "contact"
           ? direction.formEffect
           : direction.bodyEffect;
-  const visual = writeSectionVisual({}, compositionForKind(kind, dark));
+  const identity = fingerprint ? sectionDesignFromFingerprint(kind, fingerprint, index) : null;
+  const visual = writeSectionVisual(
+    {},
+    identity
+      ? {
+          ...compositionForKind(kind, dark),
+          layout: identity.layout,
+          card_style: identity.cardStyle,
+          image_treatment: identity.imageTreatment,
+          max_width: identity.maxWidth,
+          density: fingerprint?.density === "compact" ? "dense" : fingerprint?.density ?? "balanced",
+        }
+      : compositionForKind(kind, dark),
+  );
   return {
-    variant: variantForKind(kind, direction.id),
+    variant: identity?.variant ?? variantForKind(kind, direction.id),
     settings: writeSectionEffect(visual, effect),
   };
 }
@@ -457,7 +501,7 @@ export async function materializeSiteContent(
     if (pageError) throw new Error(pageError.message);
 
     for (const [sectionIndex, section] of page.sections.entries()) {
-      const design = materializedSectionDesign(section.kind, input.direction);
+      const design = materializedSectionDesign(section.kind, input.direction, input.fingerprint, sectionIndex);
       const { data: sectionRow, error: sectionError } = await db
         .from("website_sections")
         .insert({

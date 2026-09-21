@@ -3,6 +3,8 @@ import { planSiteContent, type MaterializeInput } from "@/lib/site-materialize.s
 import { materializedSectionDesign } from "@/lib/site-materialize.server";
 import { DESIGN_DIRECTIONS } from "@/lib/design-directions";
 import { classifyArchetype } from "@/lib/site-archetypes";
+import { createDesignFingerprint } from "@/lib/builder/design-fingerprint";
+import { playbookFor } from "@/lib/builder/industry";
 
 const input: MaterializeInput = {
   businessName: "Journey Detailing",
@@ -92,6 +94,25 @@ describe("planSiteContent", () => {
       effect: direction?.bodyEffect,
       visual: { layout: "editorial", card_style: "soft" },
     });
+  });
+
+  it("turns the full fingerprint into materially different rendered contracts", () => {
+    const direction = DESIGN_DIRECTIONS.find((item) => item.id === "coastal-blue");
+    const a = createDesignFingerprint({ businessName: "Journey Detailing", industry: "automotive", city: "Tampa", photoCount: 4 });
+    const b = createDesignFingerprint({ businessName: "Northstar Dental", industry: "dental", city: "Tampa", photoCount: 4 });
+    const first = materializedSectionDesign("hero", direction, a, 0);
+    const second = materializedSectionDesign("hero", direction, b, 0);
+    expect(first.variant).not.toBe(second.variant);
+    expect(first.settings).not.toEqual(second.settings);
+  });
+
+  it("orders the home story from the detected industry's conversion playbook", () => {
+    const playbook = playbookFor("Emergency plumbing");
+    const home = planSiteContent({ ...input, industryPlaybook: playbook })[0]!;
+    const kinds = home.sections.map((section) => section.kind);
+    expect(kinds[0]).toBe("hero");
+    expect(kinds.at(-1)).toBe("sticky_cta");
+    expect(kinds.indexOf("services")).toBeLessThan(kinds.indexOf("faq"));
   });
 });
 

@@ -409,3 +409,98 @@ export function fingerprintBrief(fingerprint: DesignFingerprint): string {
     "This identity describes design only. It is never a source of business facts, prices, reviews or claims.",
   ].filter(Boolean).join("\n");
 }
+
+const safeToken = (value: string) => value.toLowerCase().replace(/[^a-z0-9-]/g, "").slice(0, 40);
+
+/** Finite public-renderer classes for the site-wide identity. */
+export function fingerprintClassNames(fingerprint: DesignFingerprint): string {
+  return [
+    "rv-site",
+    `rv-family-${safeToken(fingerprint.family)}`,
+    `rv-shell-${safeToken(fingerprint.pageShell)}`,
+    `rv-nav-${safeToken(fingerprint.navSystem)}`,
+    `rv-footer-${safeToken(fingerprint.footerSystem)}`,
+    `rv-background-${safeToken(fingerprint.backgroundSystem)}`,
+    `rv-type-${safeToken(fingerprint.typeSystem)}`,
+    `rv-motion-${safeToken(fingerprint.motionPattern)}`,
+    `rv-transition-${safeToken(fingerprint.sectionTransition)}`,
+    `rv-density-site-${safeToken(fingerprint.density)}`,
+  ].join(" ");
+}
+
+/** Converts the wide identity vocabulary into renderer-supported section tokens. */
+export function sectionDesignFromFingerprint(
+  kind: string,
+  fingerprint: DesignFingerprint,
+  index = 0,
+): {
+  variant: string;
+  layout: "split" | "centered" | "image_left" | "image_right" | "full_bleed" | "editorial" | "layered" | "stacked";
+  cardStyle: "soft" | "sharp" | "pill" | "glass" | "editorial" | "floating";
+  imageTreatment: "natural" | "rounded" | "soft_shadow" | "glass_frame" | "duotone" | "gradient_overlay" | "cinematic" | "cutout" | "full_bleed";
+  maxWidth: "narrow" | "standard" | "wide" | "edge";
+} {
+  const hero = fingerprint.heroComposition;
+  const layout = kind === "hero"
+    ? /full-bleed|poster|spotlight|banner|wide-statement/.test(hero)
+      ? "full_bleed"
+      : /centered|type-first|quiet|minimal|stacked/.test(hero)
+        ? "centered"
+        : /left|tall-portrait/.test(hero)
+          ? "image_left"
+          : /right|split/.test(hero)
+            ? "image_right"
+            : /layer|overlap|collage|floating|inset/.test(hero)
+              ? "layered"
+              : "editorial"
+    : kind === "cta" || kind === "offer"
+      ? "full_bleed"
+      : index % 3 === 1
+        ? "editorial"
+        : index % 3 === 2
+          ? "split"
+          : "stacked";
+  const card = fingerprint.cardSystem;
+  const cardStyle = /sharp|rule|minimal/.test(card)
+    ? "sharp"
+    : /pill/.test(card)
+      ? "pill"
+      : /glass|inset/.test(card)
+        ? "glass"
+        : /editorial|media-side|wide-feature/.test(card)
+          ? "editorial"
+          : /elevated|floating|hover-lift|gradient-edge/.test(card)
+            ? "floating"
+            : "soft";
+  const image = fingerprint.imageTreatment;
+  const imageTreatment = /duotone|desaturated/.test(image)
+    ? "duotone"
+    : /gradient|grain/.test(image)
+      ? "gradient_overlay"
+      : /full-bleed/.test(image)
+        ? "full_bleed"
+        : /framed|outline/.test(image)
+          ? "glass_frame"
+          : /high-contrast/.test(image)
+            ? "cinematic"
+            : /rounded|arch/.test(image)
+              ? "rounded"
+              : "natural";
+  const source = kind === "services" ? fingerprint.cardSystem
+    : kind === "reviews" ? fingerprint.proofLayout
+      : kind === "pricing" ? fingerprint.pricingLayout
+        : kind === "faq" ? fingerprint.faqLayout
+          : kind === "gallery" ? fingerprint.galleryLayout
+            : kind === "process" ? fingerprint.timelineLayout
+              : kind === "quote" || kind === "booking" || kind === "contact" ? fingerprint.formLayout
+                : kind === "cta" || kind === "offer" ? fingerprint.ctaSystem
+                  : kind === "hero" ? fingerprint.heroComposition
+                    : fingerprint.sectionRhythm;
+  return {
+    variant: `${kind}-${safeToken(source)}`,
+    layout,
+    cardStyle,
+    imageTreatment,
+    maxWidth: /full-bleed|edge|wide|mosaic|band/.test(source) ? "edge" : layout === "centered" ? "standard" : "wide",
+  };
+}
