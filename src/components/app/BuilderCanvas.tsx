@@ -284,6 +284,17 @@ function ItemCard({
   );
 }
 
+import {
+  discardEdit,
+  hasPending,
+  stageEdit,
+  stagedCount,
+  stagedEdits,
+  stagedFieldSummary,
+  withPending,
+  type StagedState,
+} from "@/lib/builder/staged-edit";
+
 export function BuilderCanvas({
   organizationId,
   pages,
@@ -317,6 +328,8 @@ export function BuilderCanvas({
   const [undoable, setUndoable] = React.useState<
     { kind: "section"; row: ContentSection } | { kind: "component"; row: ContentComponent } | null
   >(null);
+  /** Field edits wait here until the owner presses Apply. */
+  const [staged, setStaged] = React.useState<StagedState>({});
 
   React.useEffect(() => {
     setShowLayers(editingMode === "visual");
@@ -340,7 +353,43 @@ export function BuilderCanvas({
     [pages],
   );
   const page = ordered.find((p) => p.id === pageId) ?? ordered[0] ?? null;
-  const sections = React.useMemo(() => (page ? orderedSections(page) : []), [page]);
+  const savedSections = React.useMemo(() => (page ? orderedSections(page) : []), [page]);
+  /** What the owner sees: saved content with their pending edits laid over it. */
+  const sections = React.useMemo(
+    () =>
+      savedSections.map((section) => ({
+        ...withPending(staged, "section", section),
+        components: section.components.map((item) => withPending(staged, "component", item)),
+      })),
+    [savedSections, staged],
+  );
+
+  const stageSection = (id: string, patch: Record<string, unknown>) => {
+    const savedRow = savedSections.find((s) => s.id === id);
+    if (!savedRow) return;
+    setStaged((current) =>
+      stageEdit(current, "section", id, patch, savedRow as unknown as Record<string, unknown>),
+    );
+  };
+
+  const stageComponent = (id: string, patch: Record<string, unknown>) => {
+    const savedRow = savedSections
+      .flatMap((section) => section.components)
+      .find((item) => item.id === id);
+    if (!savedRow) return;
+    setStaged((current) =>
+      stageEdit(current, "component", id, patch, savedRow as unknown as Record<string, unknown>),
+    );
+  };
+
+  /** Writes every pending edit, then empties the buffer. */
+  const applyStaged = () => {
+    for (const edit of stagedEdits(staged)) {
+      if (edit.kind === "section") saveSection.mutate({ id: edit.id, patch: edit.patch });
+      else saveComponent.mutate({ id: edit.id, patch: edit.patch });
+    }
+    setStaged({});
+  };
 
   const selectedSectionId =
     selection && selection.type !== "page" ? selection.sectionId : (null as string | null);
@@ -670,13 +719,11 @@ export function BuilderCanvas({
                   }
                   onClick={() =>
                     selectedComponent
-                      ? saveComponent.mutate({
-                          id: selectedComponent.id,
-                          patch: { is_visible: !selectedComponent.is_visible },
+                      ? stageComponent(selectedComponent.id, {
+                          is_visible: !selectedComponent.is_visible,
                         })
-                      : saveSection.mutate({
-                          id: selectedSection.id,
-                          patch: { is_visible: !selectedSection.is_visible },
+                      : stageSection(selectedSection.id, {
+                          is_visible: !selectedSection.is_visible,
                         })
                   }
                 >
@@ -790,25 +837,21 @@ export function BuilderCanvas({
                     placeholder="Add a headline"
                     editable={canManage}
                     className="mt-2 font-display text-[18px] leading-snug font-semibold"
-                    onCommit={(heading) =>
-                      saveSection.mutate({ id: section.id, patch: { heading } })
-                    }
+                    onCommit={(heading) => stageSection(section.id, { heading })}
                   />
                   <InlineText
                     value={section.subheading ?? ""}
                     placeholder="Add a supporting line"
                     editable={canManage}
                     className="mt-1.5 text-[13px] text-muted-foreground"
-                    onCommit={(subheading) =>
-                      saveSection.mutate({ id: section.id, patch: { subheading } })
-                    }
+                    onCommit={(subheading) => stageSection(section.id, { subheading })}
                   />
                   <InlineText
                     value={section.body ?? ""}
                     placeholder="Add body text"
                     editable={canManage}
                     className="mt-2 text-[13px] leading-relaxed"
-                    onCommit={(body) => saveSection.mutate({ id: section.id, patch: { body } })}
+                    onCommit={(body) => stageSection(section.id, { body })}
                   />
 
                   {section.components.length ? (
@@ -839,7 +882,7 @@ export function BuilderCanvas({
                               componentId: item.id,
                             })
                           }
-                          onCommit={(patch) => saveComponent.mutate({ id: item.id, patch })}
+                          onCommit={(patch) => stageComponent(item.id, patch)}
                           onDragStart={() => setDragId(item.id)}
                           onDragOver={(position) => setHint({ id: item.id, position })}
                           onDrop={() => commitDrag(item.id, hint?.position ?? "after")}
@@ -864,10 +907,7 @@ export function BuilderCanvas({
                                   title={item.is_visible ? "Hide element" : "Show element"}
                                   onClick={(event) => {
                                     event.stopPropagation();
-                                    saveComponent.mutate({
-                                      id: item.id,
-                                      patch: { is_visible: !item.is_visible },
-                                    });
+                                    stageComponent(item.id, { is_visible: !item.is_visible });
                                   }}
                                 >
                                   {item.is_visible ? (
