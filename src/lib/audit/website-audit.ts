@@ -1,3 +1,5 @@
+import { guardedFetch, isFetchableHostname } from "@/lib/net-guard.server";
+
 export type AuditSeverity = "high" | "medium" | "low" | "pass";
 export type AuditCategory =
   | "performance"
@@ -51,27 +53,12 @@ const MAX_HTML_BYTES = 1_500_000;
 const TIMEOUT_MS = 10_000;
 const MAX_REDIRECTS = 5;
 
-function isPrivateHostname(hostname: string) {
-  const host = hostname.toLowerCase().replace(/\.$/, "");
-  if (host === "localhost" || host === "localhost.localdomain" || host.endsWith(".local")) return true;
-  if (/^127\./.test(host) || /^10\./.test(host) || /^192\.168\./.test(host)) return true;
-  if (/^169\.254\./.test(host)) return true;
-  const parts = host.split(".").map(Number);
-  if (parts.length === 4 && parts.every((part) => Number.isInteger(part) && part >= 0 && part <= 255)) {
-    const a = parts[0];
-    const b = parts[1];
-    if (a === 172 && b !== undefined && b >= 16 && b <= 31) return true;
-    if (a === 0) return true;
-  }
-  return false;
-}
-
 export function validatePublicWebsiteUrl(raw: string) {
   const value = raw.trim();
   if (!value) throw new Error("Enter a website URL.");
   const url = new URL(/^https?:\/\//i.test(value) ? value : `https://${value}`);
   if (url.protocol !== "https:" && url.protocol !== "http:") throw new Error("Only HTTP and HTTPS websites can be audited.");
-  if (isPrivateHostname(url.hostname)) throw new Error("That address is not a public website.");
+  if (!isFetchableHostname(url.hostname)) throw new Error("That address is not a public website.");
   url.username = "";
   url.password = "";
   url.hash = "";
@@ -82,7 +69,7 @@ async function fetchPublicHtml(startUrl: URL, signal: AbortSignal) {
   let currentUrl = startUrl;
 
   for (let redirectCount = 0; redirectCount <= MAX_REDIRECTS; redirectCount += 1) {
-    const response = await fetch(currentUrl, {
+    const response = await guardedFetch(currentUrl.toString(), {
       redirect: "manual",
       signal,
       headers: {
