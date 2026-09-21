@@ -18,7 +18,14 @@ const KEY = "website_content";
 
 function useInvalidateContent(organizationId: string | undefined) {
   const queryClient = useQueryClient();
-  return () => queryClient.invalidateQueries({ queryKey: [KEY, organizationId] });
+  return async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: [KEY, organizationId] }),
+      queryClient.invalidateQueries({ queryKey: ["production-readiness", organizationId] }),
+      queryClient.invalidateQueries({ queryKey: ["production-status", organizationId] }),
+      queryClient.invalidateQueries({ queryKey: ["build_readiness", organizationId] }),
+    ]);
+  };
 }
 
 /** Loads the full page → section → component tree for a workspace. */

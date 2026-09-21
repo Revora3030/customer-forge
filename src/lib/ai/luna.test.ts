@@ -16,6 +16,7 @@ import {
   lunaEnabled,
   lunaModel,
   lunaMonthlyCapMicrocents,
+  lunaTenantMonthlyCapMicrocents,
   readText,
   readUsage,
 } from "@/lib/ai/luna.server";
@@ -92,6 +93,15 @@ describe("monthly hard cap", () => {
   it("ignores a nonsense cap rather than spending without a limit", () => {
     process.env["LUNA_MONTHLY_CAP_USD"] = "not-a-number";
     expect(lunaMonthlyCapMicrocents()).toBe(DEFAULT_MONTHLY_CAP_MICROCENTS);
+  });
+
+  it("keeps every workspace allocation beneath the global cap", () => {
+    process.env["LUNA_MONTHLY_CAP_USD"] = "20";
+    process.env["LUNA_TENANT_MONTHLY_CAP_USD"] = "25";
+    expect(lunaTenantMonthlyCapMicrocents()).toBe(20 * MICROCENTS_PER_DOLLAR);
+
+    process.env["LUNA_TENANT_MONTHLY_CAP_USD"] = "3";
+    expect(lunaTenantMonthlyCapMicrocents()).toBe(3 * MICROCENTS_PER_DOLLAR);
   });
 });
 

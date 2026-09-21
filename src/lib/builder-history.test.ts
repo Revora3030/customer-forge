@@ -4,6 +4,7 @@ import {
   emptyHistory,
   type HistoryEntry,
   inversePatch,
+  parseHistoryState,
   record,
   redo,
   undo,
@@ -99,6 +100,23 @@ describe("undo / redo stack", () => {
     for (let i = 0; i < 6; i++) state = record(state, entry({ id: `e${i}` }), 3);
     expect(state.past).toHaveLength(3);
     expect(state.past[0]?.id).toBe("e3");
+  });
+});
+
+describe("persisted history", () => {
+  it("restores a valid bounded history state after reload", () => {
+    const state = { past: Array.from({ length: 60 }, (_, index) => entry({ id: `e${index}` })), future: [entry({ id: "redo" })] };
+    const restored = parseHistoryState(JSON.stringify(state));
+    expect(restored.past).toHaveLength(50);
+    expect(restored.past[0]?.id).toBe("e10");
+    expect(restored.future[0]?.id).toBe("redo");
+  });
+
+  it("rejects malformed or corrupted stored history", () => {
+    expect(parseHistoryState("not-json")).toEqual(emptyHistory);
+    expect(parseHistoryState(JSON.stringify({ past: [{ table: "profiles" }], future: [] }))).toEqual(
+      emptyHistory,
+    );
   });
 });
 

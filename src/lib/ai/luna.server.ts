@@ -81,6 +81,16 @@ export function lunaMonthlyCapMicrocents(): number {
   return Math.round(dollars * MICROCENTS_PER_DOLLAR);
 }
 
+/** Per-workspace diagnostic allocation; it can never exceed the global cap. */
+export function lunaTenantMonthlyCapMicrocents(): number {
+  const globalCap = lunaMonthlyCapMicrocents();
+  const configured = Math.round(
+    dollarsEnv("LUNA_TENANT_MONTHLY_CAP_USD", globalCap / MICROCENTS_PER_DOLLAR) *
+      MICROCENTS_PER_DOLLAR,
+  );
+  return Math.min(configured, globalCap);
+}
+
 /** Per-million-token prices in dollars; conservative and env-tunable. */
 export function lunaPrices() {
   return {
@@ -145,17 +155,29 @@ type ReserveRow = {
   spent_microcents: number;
   cap_microcents: number;
   calls: number;
+  tenant_spent_microcents: number;
+  tenant_cap_microcents: number;
 };
 
-/** Atomically reserves the estimate against this month's cap. */
+/** Atomically reserves against both the workspace allocation and global cap. */
 export async function reserveBudget(
   estimate: number,
-): Promise<{ allowed: boolean; spent: number; cap: number; calls: number } | null> {
+  organizationId: string | null = null,
+): Promise<{
+  allowed: boolean;
+  spent: number;
+  cap: number;
+  calls: number;
+  tenantSpent: number;
+  tenantCap: number;
+} | null> {
   const client = await admin();
   if (!client) return null;
-  const { data, error } = await client.rpc("luna_budget_reserve", {
+  const { data, error } = await client.rpc("luna_budget_reserve_tenant", {
+    _organization_id: organizationId,
     _estimate_microcents: estimate,
-    _cap_microcents: lunaMonthlyCapMicrocents(),
+    _global_cap_microcents: lunaMonthlyCapMicrocents(),
+    _tenant_cap_microcents: lunaTenantMonthlyCapMicrocents(),
   });
   if (error || !Array.isArray(data) || !data.length) return null;
   const row = data[0] as ReserveRow;
@@ -164,14 +186,17 @@ export async function reserveBudget(
     spent: Number(row.spent_microcents) || 0,
     cap: Number(row.cap_microcents) || 0,
     calls: Number(row.calls) || 0,
+    tenantSpent: Number(row.tenant_spent_microcents) || 0,
+    tenantCap: Number(row.tenant_cap_microcents) || 0,
   };
 }
 
 /** Replaces the reservation with the real cost once usage is known. */
-async function settleBudget(estimate: number, actual: number) {
+async function settleBudget(organizationId: string | null, estimate: number, actual: number) {
   const client = await admin();
   if (!client) return;
-  await client.rpc("luna_budget_settle", {
+  await client.rpc("luna_budget_settle_tenant", {
+    _organization_id: organizationId,
     _estimate_microcents: estimate,
     _actual_microcents: actual,
   });
@@ -227,19 +252,26 @@ export async function callLuna(request: LunaRequest): Promise<LunaResult> {
   const maxOutputTokens = Math.max(request.maxOutputTokens ?? 900, 64);
   const promptChars = request.system.length + request.user.length;
   const estimate = estimateMicrocents(promptChars, maxOutputTokens);
+  const organizationId = request.organizationId ?? null;
 
-  const reservation = await reserveBudget(estimate);
+  const reservation = await reserveBudget(estimate, organizationId);
   if (!reservation) return skip("ledger_unavailable", "spend ledger unreachable");
   if (!reservation.allowed) {
     await recordUsage({
-      organizationId: request.organizationId ?? null,
+      organizationId,
       purpose: request.purpose,
       usage: { inputTokens: 0, cachedInputTokens: 0, outputTokens: 0 },
       cost: 0,
       outcome: "skipped",
       reason: "monthly cap reached",
     });
-    return skip("budget_exhausted", `cap ${formatUsd(reservation.cap)} reached`);
+    const tenantBlocked = reservation.tenantSpent + estimate > reservation.tenantCap;
+    return skip(
+      "budget_exhausted",
+      tenantBlocked
+        ? `workspace allocation ${formatUsd(reservation.tenantCap)} reached`
+        : `global cap ${formatUsd(reservation.cap)} reached`,
+    );
   }
 
   const base = env("LUNA_BASE_URL") ?? "https://api.openai.com/v1";
@@ -265,10 +297,10 @@ export async function callLuna(request: LunaRequest): Promise<LunaResult> {
       }),
     });
   } catch (error) {
-    await settleBudget(estimate, 0);
+    await settleBudget(organizationId, estimate, 0);
     const detail = error instanceof Error ? error.message : "network error";
     await recordUsage({
-      organizationId: request.organizationId ?? null,
+      organizationId,
       purpose: request.purpose,
       usage: { inputTokens: 0, cachedInputTokens: 0, outputTokens: 0 },
       cost: 0,
@@ -279,7 +311,7 @@ export async function callLuna(request: LunaRequest): Promise<LunaResult> {
   }
 
   if (!response.ok) {
-    await settleBudget(estimate, 0);
+    await settleBudget(organizationId, estimate, 0);
     const reason: LunaSkipReason =
       response.status === 401 || response.status === 403
         ? "unauthorized"
@@ -288,7 +320,7 @@ export async function callLuna(request: LunaRequest): Promise<LunaResult> {
           : "provider_unavailable";
     const detail = `${response.status}`;
     await recordUsage({
-      organizationId: request.organizationId ?? null,
+      organizationId,
       purpose: request.purpose,
       usage: { inputTokens: 0, cachedInputTokens: 0, outputTokens: 0 },
       cost: 0,
@@ -302,18 +334,18 @@ export async function callLuna(request: LunaRequest): Promise<LunaResult> {
   try {
     payload = await response.json();
   } catch {
-    await settleBudget(estimate, 0);
+    await settleBudget(organizationId, estimate, 0);
     return skip("bad_response", "unreadable body");
   }
 
   const usage = readUsage(payload);
   const actual = costMicrocents(usage);
-  await settleBudget(estimate, actual);
+  await settleBudget(organizationId, estimate, actual);
 
   const text = readText(payload);
   if (!text) {
     await recordUsage({
-      organizationId: request.organizationId ?? null,
+      organizationId,
       purpose: request.purpose,
       usage,
       cost: actual,
@@ -324,7 +356,7 @@ export async function callLuna(request: LunaRequest): Promise<LunaResult> {
   }
 
   await recordUsage({
-    organizationId: request.organizationId ?? null,
+    organizationId,
     purpose: request.purpose,
     usage,
     cost: actual,
