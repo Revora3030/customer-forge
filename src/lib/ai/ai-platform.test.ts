@@ -51,7 +51,7 @@ describe("no third-party AI gateway remains", () => {
       "stripe.server.ts",
       "integrations/google.server",
       "integrations/capabilities.ts",
-      "integrations/live-credentials.ts",
+      "integrations/live-credentials",
     ];
     const offenders = APP_FILES.filter((file) => {
       if (!readFileSync(file, "utf8").includes("LOVABLE_API_KEY")) return false;
