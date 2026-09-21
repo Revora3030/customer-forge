@@ -81,13 +81,13 @@ function optedIn(name: string): boolean {
 
 /** The model wired for a tier: environment override first, then the pinned default. */
 export function paidImageTierModel(tier: ImageTier): string {
-  return (
-    env(IMAGE_TIER_MODEL_ENV[tier]) ??
-    (tier === "sunburst"
-      ? (env("PAID_IMAGE_MODEL") ?? providerConfig("openai")?.models.image ?? null)
-      : null) ??
-    DEFAULT_IMAGE_TIER_MODELS[tier]
-  );
+  const override = env(IMAGE_TIER_MODEL_ENV[tier]);
+  if (override) return override;
+  if (tier === "sunburst") {
+    const legacy = env("PAID_IMAGE_MODEL") ?? providerConfig("openai")?.models.image ?? null;
+    if (legacy) return legacy;
+  }
+  return DEFAULT_IMAGE_TIER_MODELS[tier];
 }
 
 /** Conservative per-picture price for a tier, deliberately over-estimated. */
