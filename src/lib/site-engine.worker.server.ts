@@ -711,6 +711,7 @@ async function runJob(
             (screenshotReference as { applied?: unknown }).applied === true,
         },
         firstBuildCreative: creative,
+        siteCampaign: built.campaign,
         nativeSynthesis: synthesis,
         screenshotReference,
         screenshotReferenceObservations: storedReferenceObservations ?? null,

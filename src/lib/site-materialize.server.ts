@@ -32,6 +32,7 @@ import {
   writeExecutableCreativeSection,
 } from "@/lib/builder/executable-creative";
 import { slugify } from "@/lib/format";
+import { compileSiteCampaign, type SiteCampaign } from "@/lib/builder/site-campaign";
 
 type Db = SupabaseClient;
 
@@ -695,13 +696,13 @@ export async function materializeSiteContent(
   db: Db,
   orgId: string,
   input: MaterializeInput,
-): Promise<{ pages: number; sections: number; components: number; skipped: boolean }> {
+): Promise<{ pages: number; sections: number; components: number; skipped: boolean; campaign: SiteCampaign | null }> {
   const { count } = await db
     .from("website_pages")
     .select("id", { count: "exact", head: true })
     .eq("organization_id", orgId);
   if ((count ?? 0) > 0) {
-    if (!input.replaceExisting) return { pages: 0, sections: 0, components: 0, skipped: true };
+    if (!input.replaceExisting) return { pages: 0, sections: 0, components: 0, skipped: true, campaign: null };
     const { error: componentDeleteError } = await db.from("website_components").delete().eq("organization_id", orgId);
     if (componentDeleteError)
       throw new Error(`Couldn't clear old components before rebuilding: ${componentDeleteError.message}`);
@@ -714,6 +715,21 @@ export async function materializeSiteContent(
   }
 
   const tree = planSiteContent(input);
+  const campaign = input.fingerprint && input.creativeBrief
+    ? compileSiteCampaign({
+        fingerprint: input.fingerprint,
+        brief: input.creativeBrief,
+        pages: tree.map((page) => ({
+          slug: page.slug,
+          kind: page.kind,
+          sectionKinds: page.sections.map((section) => section.kind),
+        })),
+        primaryAction: clean(input.copy.primaryCta) ?? "Get in touch",
+        primaryTarget: input.hasQuoteForm ? "/#quote" : input.hasBooking ? "/book" : "/contact",
+        hasPhone: Boolean(clean(input.phone)),
+        hasPlace: Boolean(clean(input.city) || clean(input.state) || clean(input.serviceArea)),
+      })
+    : null;
   let sections = 0;
   let components = 0;
 
@@ -743,7 +759,7 @@ export async function materializeSiteContent(
         section.kind,
         input.direction,
         input.fingerprint,
-        sectionIndex,
+        pageIndex * 37 + sectionIndex,
         input.creativeBrief,
       );
       const { data: sectionRow, error: sectionError } = await db
@@ -786,5 +802,5 @@ export async function materializeSiteContent(
     }
   }
 
-  return { pages: tree.length, sections, components, skipped: false };
+  return { pages: tree.length, sections, components, skipped: false, campaign };
 }
