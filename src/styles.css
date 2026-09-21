@@ -2017,6 +2017,53 @@ a[href*="lovable.app"][target="_blank"][class*="fixed"],
   max-width: 100%;
 }
 
+.rv-service-detail-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(17rem, 0.65fr);
+  gap: clamp(2rem, 6vw, 6rem);
+  align-items: start;
+}
+
+.rv-service-detail-copy h2 {
+  max-width: 14ch;
+  font-size: clamp(2.25rem, 6vw, 5.5rem);
+  line-height: 0.96;
+  letter-spacing: -0.045em;
+}
+
+.rv-service-detail-copy > p {
+  max-width: 42rem;
+  font-size: clamp(1rem, 1.4vw, 1.2rem);
+}
+
+.rv-service-detail-kicker {
+  display: block;
+  margin-bottom: 1rem;
+  color: var(--primary);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.rv-service-detail-action {
+  position: sticky;
+  top: 6rem;
+  padding: clamp(1.25rem, 3vw, 2rem);
+  box-shadow: 0 28px 80px -45px rgb(0 0 0 / 0.75);
+}
+
+@media (max-width: 767px) {
+  .rv-service-detail-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1.75rem;
+  }
+
+  .rv-service-detail-action {
+    position: static;
+  }
+}
+
 .rv-variant-hero-editorial .rv-hero-media {
   border-radius: 2rem 0.75rem 2rem 0.75rem;
 }
