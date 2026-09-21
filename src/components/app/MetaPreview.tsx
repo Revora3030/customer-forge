@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Check, Copy, Search } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/lib/ui/notify";
 import { Panel } from "@/components/app/Bits";
 import { Button } from "@/components/ui/button";
 import type { PrivateMetaResult } from "@/lib/app-meta";

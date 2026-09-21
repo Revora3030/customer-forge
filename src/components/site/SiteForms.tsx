@@ -1,6 +1,6 @@
 import { useEffect, useId, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { toast } from "sonner";
+import { toast } from "@/lib/ui/notify";
 import { friendlyError } from "@/lib/user-error";
 import { Check, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";

@@ -9,7 +9,7 @@ import * as React from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { Copy, RefreshCw } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/lib/ui/notify";
 import { friendlyError } from "@/lib/user-error";
 import { Button } from "@/components/ui/button";
 import { getPortalCode, setPortalCode } from "@/lib/portal.functions";

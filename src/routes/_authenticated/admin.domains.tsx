@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { toast } from "sonner";
+import { toast } from "@/lib/ui/notify";
 import { friendlyError } from "@/lib/user-error";
 import { Globe, RefreshCw } from "lucide-react";
 import { EmptyState, LoadingRows, Panel, Pill, SectionHeading } from "@/components/app/Bits";

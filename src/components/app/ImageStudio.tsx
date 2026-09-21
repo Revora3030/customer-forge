@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2, Sparkles, Wand2 } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/lib/ui/notify";
 import { Button } from "@/components/ui/button";
 import { Panel, Pill, SectionHeading } from "@/components/app/Bits";
 import { cn } from "@/lib/utils";

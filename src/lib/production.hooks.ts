@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/lib/ui/notify";
 import { friendlyError } from "@/lib/user-error";
 import { isTransientFailure, withTransientRetry } from "@/lib/transient";
 import { trackConversion } from "@/lib/conversion";

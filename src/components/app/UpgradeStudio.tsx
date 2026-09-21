@@ -11,7 +11,7 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { toast } from "sonner";
+import { toast } from "@/lib/ui/notify";
 import { friendlyError } from "@/lib/user-error";
 import { Check, History, Loader2, RefreshCw, Sparkles, Wand2 } from "lucide-react";
 import { Panel, Pill, SectionHeading } from "@/components/app/Bits";

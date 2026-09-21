@@ -9,7 +9,7 @@ import { useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation } from "@tanstack/react-query";
 import { CheckCircle2, Loader2, RefreshCw, TriangleAlert } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/lib/ui/notify";
 import { Panel, Pill, SectionHeading } from "@/components/app/Bits";
 import { Button } from "@/components/ui/button";
 import { checkLiveSync, type LiveSyncResult } from "@/lib/live-sync.functions";

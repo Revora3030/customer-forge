@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
-import { LoadingRows, MetricCard, Panel, SectionHeading } from "@/components/app/Bits";
+import { LoadingRows, MetricCard, PageHead, Panel, SectionHeading } from "@/components/app/Bits";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -107,11 +107,11 @@ function QuotesPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <p className="eyebrow">Instant estimates</p>
-          <h1 className="mt-1 font-display text-[24px] font-semibold">Quote calculator</h1>
-        </div>
+      <PageHead
+        eyebrow="Instant estimates"
+        title="Quote calculator"
+        purpose="Set your prices so visitors get an estimate straight away."
+      >
         {slug ? (
           <Button asChild variant="outline">
             <Link to="/s/$slug" params={{ slug }} target="_blank">
@@ -119,7 +119,7 @@ function QuotesPage() {
             </Link>
           </Button>
         ) : null}
-      </div>
+      </PageHead>
 
       <div className="grid gap-3 sm:grid-cols-3">
         <MetricCard label="Quote requests" value={String((requests ?? []).length)} tone="signal" />

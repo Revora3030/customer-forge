@@ -1,8 +1,15 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { Copy, Eye, EyeOff, Send, Star } from "lucide-react";
-import { toast } from "sonner";
-import { EmptyState, LoadingRows, Panel, Pill, SectionHeading } from "@/components/app/Bits";
+import { toast } from "@/lib/ui/notify";
+import {
+  EmptyState,
+  LoadingRows,
+  PageHead,
+  Panel,
+  Pill,
+  SectionHeading,
+} from "@/components/app/Bits";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -78,9 +85,10 @@ function ReviewsPage() {
 
   return (
     <div className="space-y-5">
-      <SectionHeading
+      <PageHead
         eyebrow="Reputation"
         title="Reviews"
+        purpose="Ask happy customers for a review, and see what they said."
         action={
           <Button
             variant="signal"

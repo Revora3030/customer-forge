@@ -1,7 +1,7 @@
 import { useCallback, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ImagePlus, Loader2, Star, Trash2, UploadCloud } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/lib/ui/notify";
 import { friendlyError } from "@/lib/user-error";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";

@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { Check, Copy, ExternalLink } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/lib/ui/notify";
 
 import { Panel, Pill, SectionHeading } from "@/components/app/Bits";
 import { Button } from "@/components/ui/button";

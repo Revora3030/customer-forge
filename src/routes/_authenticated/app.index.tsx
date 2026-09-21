@@ -9,6 +9,7 @@ import {
   LoadingRows,
   EmptyState,
   KeyLabel,
+  PageHead,
 } from "@/components/app/Bits";
 import { OnboardingJourney } from "@/components/app/OnboardingJourney";
 import { ProductionSummaryCard } from "@/components/app/ProductionLaunch";
@@ -298,22 +299,18 @@ function Dashboard() {
     <div className="space-y-5 sm:space-y-6">
       <RevoraCommandBar />
       <div className="space-y-3">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <p className="eyebrow">Business growth center</p>
-            <h1 className="mt-1 font-display text-[22px] leading-tight font-semibold text-balance sm:text-[26px]">
-              {org?.name ?? "Your business"}
-            </h1>
-            <p className="mt-1 text-[12px] text-muted-foreground">
-              {window.label} · updated {relative(new Date())}
-            </p>
-          </div>
-          <Button asChild size="sm" variant="signal" className="shrink-0">
-            <Link to="/app/leads">
-              Work leads <ArrowRight className="size-4" aria-hidden="true" />
-            </Link>
-          </Button>
-        </div>
+        <PageHead
+          eyebrow="Business growth center"
+          title={org?.name ?? "Your business"}
+          purpose={`${window.label} · updated ${relative(new Date())}`}
+          action={
+            <Button asChild size="sm" variant="signal" className="shrink-0">
+              <Link to="/app/leads">
+                Work leads <ArrowRight className="size-4" aria-hidden="true" />
+              </Link>
+            </Button>
+          }
+        />
 
         <div
           role="group"

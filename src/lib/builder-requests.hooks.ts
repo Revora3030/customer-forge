@@ -14,7 +14,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { toast } from "sonner";
+import { toast } from "@/lib/ui/notify";
 import { detectCapabilities, type BuilderCapabilities } from "@/lib/builder/capabilities";
 import { applySummary } from "@/lib/builder/apply-report";
 import type { BrandPreference } from "@/lib/builder/composition-preview";
