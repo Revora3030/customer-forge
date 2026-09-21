@@ -73,14 +73,11 @@ function DomainPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <p className="eyebrow">Domain</p>
-        <h1 className="mt-1 font-display text-[24px] font-semibold">Your domain</h1>
-        <p className="mt-1 max-w-2xl text-[13px] text-muted-foreground">
-          Buy a new web address or connect one you already own. You can do all of it yourself — no
-          support request needed.
-        </p>
-      </div>
+      <PageHead
+        eyebrow="Domain"
+        title="Your domain"
+        purpose="Buy a new web address or connect one you already own — you can do all of it yourself, no support request needed."
+      />
 
       {workspaceQuery.error ? (
         <ErrorNote message={(workspaceQuery.error as Error).message} />
