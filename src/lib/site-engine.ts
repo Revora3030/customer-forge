@@ -2,8 +2,8 @@
  * Revora Site Engine — shared, browser-safe types and scoring.
  *
  * The engine turns the information a client supplies into a website: a
- * deterministic structure (see `website-plan.ts`) plus AI-written marketing
- * copy. Nothing here invents facts: reviews, awards, certifications,
+ * deterministic structure (see `website-plan.ts`) plus native marketing copy.
+ * Nothing here invents facts: reviews, awards, certifications,
  * guarantees, prices, addresses and history are only ever passed through from
  * what the client entered.
  */
@@ -23,7 +23,7 @@ export const GENERATION_STEPS: GenerationStep[] = [
   { key: "conversion", label: "Conversion system configured", progress: 74 },
   { key: "leads", label: "Lead capture connected", progress: 84 },
   { key: "mobile", label: "Mobile experience optimised", progress: 94 },
-  { key: "ready", label: "Website ready", progress: 100 },
+  { key: "ready", label: "Draft ready for browser review", progress: 100 },
 ];
 
 export const stepLabel = (key: string | null | undefined) =>
