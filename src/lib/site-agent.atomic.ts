@@ -220,6 +220,181 @@ export async function captureUndo(
   ];
 }
 
+/* --------------------------- batched undo capture -------------------------- */
+
+/**
+ * The pre-write state of every table a batch is about to touch, read once.
+ *
+ * `captureUndo` above reads the database again for every single step, which on a
+ * large build (a five-page site is dozens of steps) is dozens of extra round
+ * trips before any work happens. This snapshot is taken once, immediately before
+ * the first write, and answers all of those reads from memory. It is exactly the
+ * same information: the state of the site *before* the batch ran, which is the
+ * only state an undo is allowed to restore to.
+ */
+export type UndoSnapshot = {
+  /** table -> id -> full row, as it was before the batch. */
+  rows: Map<string, Map<string, Row>>;
+  /** table -> the single per-organisation row, or null when there is none. */
+  orgRows: Map<string, Row | null>;
+  /** table -> ids that existed before the batch, for undoing inserts. */
+  ids: Map<string, Set<string>>;
+  /** The moment the snapshot was taken; inserts are undone from here forward. */
+  since: string;
+  /** How many database reads the snapshot itself cost. Used by the speed tests. */
+  reads: number;
+};
+
+/** Reads the pre-write state of every table this batch touches, in one pass. */
+export async function loadUndoSnapshot(
+  client: JournalClient,
+  orgId: string,
+  actions: AgentAction[],
+): Promise<UndoSnapshot> {
+  const rowTables = new Set<string>();
+  const orgTables = new Set<string>();
+  for (const action of actions) {
+    const target = targetOf(action);
+    if (!target) continue;
+    if (target.kind === "org") orgTables.add(target.table);
+    else rowTables.add(target.table);
+  }
+
+  const snapshot: UndoSnapshot = {
+    rows: new Map(),
+    orgRows: new Map(),
+    ids: new Map(),
+    since: new Date().toISOString(),
+    reads: 0,
+  };
+
+  await Promise.all([
+    ...[...rowTables].map(async (table) => {
+      const { data } = await client.from(table).select("*").eq("organization_id", orgId);
+      const rows = (data ?? []) as Row[];
+      snapshot.rows.set(table, new Map(rows.map((row) => [String(row["id"]), row])));
+      snapshot.ids.set(table, new Set(rows.map((row) => String(row["id"]))));
+      snapshot.reads += 1;
+    }),
+    ...[...orgTables].map(async (table) => {
+      const { data } = await client
+        .from(table)
+        .select("*")
+        .eq("organization_id", orgId)
+        .maybeSingle();
+      snapshot.orgRows.set(table, (data ?? null) as Row | null);
+      snapshot.reads += 1;
+    }),
+  ]);
+
+  return snapshot;
+}
+
+/**
+ * The undo steps for one action, resolved from the snapshot instead of a fresh
+ * read. Rows created earlier in the same batch are deliberately absent from the
+ * snapshot: their own insert step already removes them, so restoring a value
+ * they only had mid-batch would be wrong as well as slower.
+ */
+export function captureUndoFrom(
+  client: JournalClient,
+  orgId: string,
+  action: AgentAction,
+  snapshot: UndoSnapshot,
+): UndoStep[] {
+  const target = targetOf(action);
+  if (!target) return [];
+  const table = target.table;
+
+  if (target.kind === "update" || target.kind === "delete") {
+    const row = snapshot.rows.get(table)?.get(target.id) ?? null;
+    if (!row) return [];
+    if (target.kind === "update")
+      return [
+        {
+          label: `${action.type}:restore`,
+          run: async () => {
+            await client
+              .from(table)
+              .update(restorable(row))
+              .eq("id", target.id)
+              .eq("organization_id", orgId);
+          },
+        },
+      ];
+    return [
+      {
+        label: `${action.type}:reinsert`,
+        run: async () => {
+          await client.from(table).insert(row);
+        },
+      },
+    ];
+  }
+
+  if (target.kind === "updateMany") {
+    const byId = snapshot.rows.get(table);
+    return target.ids
+      .map((id) => byId?.get(id))
+      .filter((row): row is Row => Boolean(row))
+      .map((row) => ({
+        label: `${action.type}:restore`,
+        run: async () => {
+          await client
+            .from(table)
+            .update(restorable(row))
+            .eq("id", String(row["id"]))
+            .eq("organization_id", orgId);
+        },
+      }));
+  }
+
+  if (target.kind === "org") {
+    const row = snapshot.orgRows.get(table) ?? null;
+    if (!row)
+      return [
+        {
+          label: `${action.type}:remove`,
+          run: async () => {
+            await client.from(table).delete().eq("organization_id", orgId);
+          },
+        },
+      ];
+    return [
+      {
+        label: `${action.type}:restore`,
+        run: async () => {
+          await client.from(table).update(restorable(row)).eq("organization_id", orgId);
+        },
+      },
+    ];
+  }
+
+  const before = snapshot.ids.get(table) ?? new Set<string>();
+  const since = snapshot.since;
+  return [
+    {
+      label: `${action.type}:delete-new`,
+      run: async () => {
+        const { data: after } = await client
+          .from(table)
+          .select("id, created_at")
+          .eq("organization_id", orgId)
+          .gte("created_at", since);
+        for (const row of ((after ?? []) as Row[]).filter(
+          (candidate) => !before.has(String(candidate["id"])),
+        )) {
+          await client
+            .from(table)
+            .delete()
+            .eq("id", String(row["id"]))
+            .eq("organization_id", orgId);
+        }
+      },
+    },
+  ];
+}
+
 /**
  * Runs every recorded undo step, newest first. Failures are collected rather
  * than thrown: the caller is already handling an error, and a half-finished
