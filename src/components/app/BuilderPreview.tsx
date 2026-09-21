@@ -59,6 +59,7 @@ export function BuilderPreview({
         fullscreen && "fixed inset-0 z-50 rounded-none bg-background",
       )}
       aria-label="Live website preview"
+      data-testid="builder-preview"
     >
       <header className="flex flex-wrap items-center gap-2 border-b border-border bg-card/80 p-2.5 backdrop-blur">
         <div className="min-w-0 flex-1 overflow-x-auto">
@@ -69,6 +70,8 @@ export function BuilderPreview({
                 type="button"
                 size="sm"
                 variant={item.id === page?.id ? "secondary" : "ghost"}
+                data-testid="builder-preview-page"
+                aria-current={item.id === page?.id ? "page" : undefined}
                 onClick={() => setPageId(item.id)}
                 className="shrink-0"
               >
@@ -146,6 +149,8 @@ export function BuilderPreview({
         >
           <iframe
             key={`${source}-${refreshKey}-${refreshing ? "updating" : "ready"}`}
+            data-testid="builder-preview-frame"
+            data-preview-src={source}
             title={`${page?.title ?? "Website"} preview`}
             src={source}
             className="origin-top-left border-0 bg-background"

@@ -1,0 +1,329 @@
+{
+  "status": "FAILED",
+  "baseUrl": "http://localhost:8080",
+  "browser": "chromium",
+  "mutationsAllowed": true,
+  "buildAllowed": false,
+  "mobileWidths": [
+    320,
+    375,
+    390,
+    414
+  ],
+  "desktopWidths": [
+    1280,
+    1440
+  ],
+  "passed": 18,
+  "failed": 2,
+  "notTested": 5,
+  "durationMs": 51355,
+  "steps": [
+    {
+      "id": "01_app_loads",
+      "title": "The application loads",
+      "status": "PASS",
+      "httpStatus": 200,
+      "heading": "Your business books jobs while you're on the job, and while you sleep.",
+      "screenshot": "browser-qa-artifacts/journey-home.png",
+      "durationMs": 2695,
+      "url": "http://localhost:8080/",
+      "viewport": "1440x1800",
+      "consoleErrors": [
+        "A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:\n\n- A server/client branch `if (typeof window !== 'undefined')`.\n- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.\n- Date formatting in a user's locale which doesn't match the server.\n- External changing data without sending a snapshot of it along with the HTML.\n- Invalid HTML tag nesting.\n\nIt can also happen if the client has a browser extension installed which messes with the HTML before React loaded.\n\n%s%s https://react.dev/link/hydration-mismatch \n\n  ...\n    <MatchInnerImpl matchId=\"//\">\n      <Lazy>\n        <HomeRoute>\n          <Landing data-tsd-source=\"/src/route...\">\n            <div className=\"min-h-screen\" data-tsd-source=\"/src/route...\">\n              <VisualComposition>\n              <SiteHeader>\n              <main data-tsd-source=\"/src/route...\">\n                <section>\n                <section>\n                <section>\n                <section>\n                <section>\n                <section>\n                <section>\n                <section>\n                <section>\n                <section>\n                <section id=\"roi\" className=\"border-b b...\" data-tsd-source=\"/src/route...\">\n                  <div className=\"mx-auto ma...\" data-tsd-source=\"/src/route...\">\n                    <SectionHeading>\n                    <div className=\"mt-8\" data-tsd-source=\"/src/route...\">\n                      <ROICalculator data-tsd-source=\"/src/route...\">\n                        <div className=\"grid gap-4...\" data-tsd-source=\"/src/compo...\">\n                          <Panel className=\"min-w-0 p-...\" data-tsd-source=\"/src/compo...\">\n                            <section ref={undefined} className=\"panel min-...\" data-tsd-source=\"/src/compo...\">\n                              <p>\n                              <div className=\"mt-5 space...\" data-"
+      ],
+      "failedRequests": []
+    },
+    {
+      "id": "02_no_error_screen",
+      "title": "No global error screen",
+      "status": "PASS",
+      "note": "No global error screen and no page errors.",
+      "durationMs": 11,
+      "url": "http://localhost:8080/",
+      "viewport": "1440x1800",
+      "consoleErrors": [],
+      "failedRequests": []
+    },
+    {
+      "id": "03_auth_session",
+      "title": "Signed-out gate holds and a session signs in",
+      "status": "PASS",
+      "note": "Signed out /app redirected to http://localhost:8080/auth; restored session reached the workspace.",
+      "screenshot": "browser-qa-artifacts/journey-dashboard.png",
+      "durationMs": 5692,
+      "url": "http://localhost:8080/app",
+      "viewport": "1440x1800",
+      "consoleErrors": [],
+      "failedRequests": []
+    },
+    {
+      "id": "04_fixture_workspace",
+      "title": "A deterministic workspace is entered",
+      "status": "PASS",
+      "workspace": "Enejeh",
+      "durationMs": 5,
+      "url": "http://localhost:8080/app",
+      "viewport": "1440x1800",
+      "consoleErrors": [],
+      "failedRequests": []
+    },
+    {
+      "id": "05_builder_opens",
+      "title": "The builder opens",
+      "status": "PASS",
+      "note": "Builder opened. Project status chip: LIVE",
+      "screenshot": "browser-qa-artifacts/journey-builder.png",
+      "durationMs": 2618,
+      "url": "http://localhost:8080/app/website",
+      "viewport": "1440x1800",
+      "consoleErrors": [],
+      "failedRequests": []
+    },
+    {
+      "id": "06_builder_console_clean",
+      "title": "The builder loads without console errors",
+      "status": "PASS",
+      "note": "Builder loaded with no console errors and no failed requests.",
+      "durationMs": 0,
+      "url": "http://localhost:8080/app/website",
+      "viewport": "1440x1800",
+      "consoleErrors": [],
+      "failedRequests": []
+    },
+    {
+      "id": "07_build_request",
+      "title": "A deterministic build request is submitted",
+      "status": "NOT_TESTED",
+      "reason": "Set JOURNEY_ALLOW_BUILD=1 to submit a real build request. It writes website content to the fixture workspace, so it is off by default.",
+      "durationMs": 0,
+      "url": "http://localhost:8080/app/website",
+      "viewport": "1440x1800",
+      "consoleErrors": [],
+      "failedRequests": []
+    },
+    {
+      "id": "08_build_stages",
+      "title": "Build progresses through the user-facing stages",
+      "status": "NOT_TESTED",
+      "reason": "No build is in progress or recorded in this workspace, so the user-facing stages (Understanding -> Ready) could not be observed. Run with JOURNEY_ALLOW_BUILD=1.",
+      "durationMs": 4,
+      "url": "http://localhost:8080/app/website",
+      "viewport": "1440x1800",
+      "consoleErrors": [],
+      "failedRequests": []
+    },
+    {
+      "id": "09_preview_renders",
+      "title": "The generated site renders",
+      "status": "PASS",
+      "previewPath": "/s/eilte",
+      "contentChars": 2257,
+      "internalPages": [
+        "/s/eilte/services",
+        "/s/eilte/all",
+        "/s/eilte/ejejej",
+        "/s/eilte/dueh",
+        "/s/eilte/pricing",
+        "/s/eilte/book"
+      ],
+      "durationMs": 1849,
+      "url": "http://localhost:8080/app/website",
+      "viewport": "1440x1800",
+      "consoleErrors": [],
+      "failedRequests": []
+    },
+    {
+      "id": "10_page_navigation",
+      "title": "Navigation between generated pages works",
+      "status": "PASS",
+      "from": "/s/eilte",
+      "to": "/s/eilte/services",
+      "durationMs": 2700,
+      "url": "http://localhost:8080/app/website",
+      "viewport": "1440x1800",
+      "consoleErrors": [],
+      "failedRequests": []
+    },
+    {
+      "id": "11_mobile_widths",
+      "title": "Mobile layout at 320/375/390/414px",
+      "status": "FAIL",
+      "error": "320px reported {'consoleErrors': ['A tree hydrated but some attributes of the server rendered HTML didn\\'t match the client properties. This won\\'t be patched up. This can happen if a SSR-ed Client Component used:\\n\\n- A server/client branch `if (typeof window !== \\'undefined\\')`.\\n- Variable input such as `Date.now()` or `Math.random()` which changes each time it\\'s called.\\n- Date formatting in a user\\'s locale which doesn\\'t match the server.\\n- External changing data without sending a snapshot of it along with the HTML.\\n- Invalid HTML tag nesting.\\n\\nIt can also happen if the client has a browser extension installed which messes with the HTML before React loaded.\\n\\n%s%s https://react.dev/link/hydration-mismatch \\n\\n  ...\\n    <SitePageView site={{...}} preview={false} data-tsd-source=\"/src/route...\">\\n      <div className=\"min-h-scre...\" data-rv-family=\"dark-focused\" data-rv-hero=\"quiet-minimal\" style={{...}} ...>\\n        <SiteBackdrop>\\n        <div className=\"relative z...\" data-tsd-source=\"/src/route...\">\\n          <header>\\n          <ResponsiveStyles>\\n          <main data-tsd-source=\"/src/route...\">\\n            <SiteSection>\\n            <SiteSection>\\n            <SiteSection>\\n            <SiteSection>\\n            <SiteSection>\\n            <SiteSection>\\n            <SiteSection>\\n            <SiteSection>\\n            <SiteSection>\\n            <SiteSection site={{...}} section={{id:\"44aef5...\", ...}} data-tsd-source=\"/src/route...\">\\n              <div className=\"fx-sec fx-...\" data-tsd-source=\"/src/compo...\">\\n                <div className=\"rv-section...\" data-rv-variant=\"default\" data-tsd-source=\"/src/compo...\">\\n                  <SectionMedia>\\n                  <SiteSectionBody site={{...}} section={{id:\"44aef5...\", ...}} data-tsd-source=\"/src/compo...\">\\n                    <Shell wide={true} id=\"book\" data-tsd-source=\"/src/compo...\">\\n                      <section id=\"book\" className=\"scroll-mt-...\" data-tsd-source=\"/src/compo...\">\\n                        <div className=\"mx-auto px...\" data-tsd-source=\"/src/comp'], 'failedRequests': []}",
+      "retried": false,
+      "screenshot": "browser-qa-artifacts/journey-fail-11_mobile_widths.png",
+      "durationMs": 5649,
+      "url": "http://localhost:8080/app/website",
+      "viewport": "1440x1800",
+      "consoleErrors": [],
+      "failedRequests": []
+    },
+    {
+      "id": "12_desktop_widths",
+      "title": "Desktop layout at 1280/1440px",
+      "status": "FAIL",
+      "error": "1280px reported {'consoleErrors': ['A tree hydrated but some attributes of the server rendered HTML didn\\'t match the client properties. This won\\'t be patched up. This can happen if a SSR-ed Client Component used:\\n\\n- A server/client branch `if (typeof window !== \\'undefined\\')`.\\n- Variable input such as `Date.now()` or `Math.random()` which changes each time it\\'s called.\\n- Date formatting in a user\\'s locale which doesn\\'t match the server.\\n- External changing data without sending a snapshot of it along with the HTML.\\n- Invalid HTML tag nesting.\\n\\nIt can also happen if the client has a browser extension installed which messes with the HTML before React loaded.\\n\\n%s%s https://react.dev/link/hydration-mismatch \\n\\n  ...\\n    <SitePageView site={{...}} preview={false} data-tsd-source=\"/src/route...\">\\n      <div className=\"min-h-scre...\" data-rv-family=\"dark-focused\" data-rv-hero=\"quiet-minimal\" style={{...}} ...>\\n        <SiteBackdrop>\\n        <div className=\"relative z...\" data-tsd-source=\"/src/route...\">\\n          <header>\\n          <ResponsiveStyles>\\n          <main data-tsd-source=\"/src/route...\">\\n            <SiteSection>\\n            <SiteSection>\\n            <SiteSection>\\n            <SiteSection>\\n            <SiteSection>\\n            <SiteSection>\\n            <SiteSection>\\n            <SiteSection>\\n            <SiteSection>\\n            <SiteSection site={{...}} section={{id:\"44aef5...\", ...}} data-tsd-source=\"/src/route...\">\\n              <div className=\"fx-sec fx-...\" data-tsd-source=\"/src/compo...\">\\n                <div className=\"rv-section...\" data-rv-variant=\"default\" data-tsd-source=\"/src/compo...\">\\n                  <SectionMedia>\\n                  <SiteSectionBody site={{...}} section={{id:\"44aef5...\", ...}} data-tsd-source=\"/src/compo...\">\\n                    <Shell wide={true} id=\"book\" data-tsd-source=\"/src/compo...\">\\n                      <section id=\"book\" className=\"scroll-mt-...\" data-tsd-source=\"/src/compo...\">\\n                        <div className=\"mx-auto px...\" data-tsd-source=\"/src/comp'], 'failedRequests': []}",
+      "retried": false,
+      "screenshot": "browser-qa-artifacts/journey-fail-12_desktop_widths.png",
+      "durationMs": 4634,
+      "url": "http://localhost:8080/app/website",
+      "viewport": "1440x1800",
+      "consoleErrors": [],
+      "failedRequests": []
+    },
+    {
+      "id": "13_no_overflow",
+      "title": "No horizontal overflow at any width",
+      "status": "PASS",
+      "widths": [
+        320,
+        1280
+      ],
+      "maxOverflowPx": 0,
+      "durationMs": 0,
+      "url": "http://localhost:8080/app/website",
+      "viewport": "1440x1800",
+      "consoleErrors": [],
+      "failedRequests": []
+    },
+    {
+      "id": "14_actionable",
+      "title": "Important buttons and links are actionable",
+      "status": "PASS",
+      "links": 33,
+      "deadLinks": 0,
+      "buttons": 2,
+      "disabledButtons": 0,
+      "durationMs": 4442,
+      "url": "http://localhost:8080/app/website",
+      "viewport": "1440x1800",
+      "consoleErrors": [],
+      "failedRequests": []
+    },
+    {
+      "id": "15_real_content",
+      "title": "The page carries real content",
+      "status": "PASS",
+      "heading": "Premium Auto Detailing in Raleigh",
+      "sections": 13,
+      "headings": 12,
+      "chars": 2257,
+      "durationMs": 1573,
+      "url": "http://localhost:8080/app/website",
+      "viewport": "1440x1800",
+      "consoleErrors": [],
+      "failedRequests": []
+    },
+    {
+      "id": "16_builder_edit",
+      "title": "One deterministic builder edit is applied",
+      "status": "PASS",
+      "note": "Staged one heading edit and applied it.",
+      "from": "Premium Auto Detailing in Raleigh",
+      "to": "Smoke check 1789971739",
+      "screenshot": "browser-qa-artifacts/journey-edit-applied.png",
+      "durationMs": 2837,
+      "url": "http://localhost:8080/app/website",
+      "viewport": "1440x1800",
+      "consoleErrors": [],
+      "failedRequests": []
+    },
+    {
+      "id": "17_edit_visible",
+      "title": "The edit appears in the rendered preview",
+      "status": "PASS",
+      "note": "The applied edit renders on the generated page.",
+      "text": "Smoke check 1789971739",
+      "durationMs": 1553,
+      "url": "http://localhost:8080/app/website",
+      "viewport": "1440x1800",
+      "consoleErrors": [],
+      "failedRequests": []
+    },
+    {
+      "id": "18_edit_persists",
+      "title": "The edit survives a refresh",
+      "status": "PASS",
+      "note": "The edit survived a full page refresh.",
+      "screenshot": "browser-qa-artifacts/journey-edit-persisted.png",
+      "durationMs": 4942,
+      "url": "http://localhost:8080/app/website",
+      "viewport": "1440x1800",
+      "consoleErrors": [
+        "A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:\n\n- A server/client branch `if (typeof window !== 'undefined')`.\n- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.\n- Date formatting in a user's locale which doesn't match the server.\n- External changing data without sending a snapshot of it along with the HTML.\n- Invalid HTML tag nesting.\n\nIt can also happen if the client has a browser extension installed which messes with the HTML before React loaded.\n\n%s%s https://react.dev/link/hydration-mismatch \n\n  ...\n    <SitePageView site={{...}} preview={false} data-tsd-source=\"/src/route...\">\n      <div className=\"min-h-scre...\" data-rv-family=\"dark-focused\" data-rv-hero=\"quiet-minimal\" style={{...}} ...>\n        <SiteBackdrop>\n        <div className=\"relative z...\" data-tsd-source=\"/src/route...\">\n          <header>\n          <ResponsiveStyles>\n          <main data-tsd-source=\"/src/route...\">\n            <SiteSection>\n            <SiteSection>\n            <SiteSection>\n            <SiteSection>\n            <SiteSection>\n            <SiteSection>\n            <SiteSection>\n            <SiteSection>\n            <SiteSection>\n            <SiteSection site={{...}} section={{id:\"44aef5...\", ...}} data-tsd-source=\"/src/route...\">\n              <div className=\"fx-sec fx-...\" data-tsd-source=\"/src/compo...\">\n                <div className=\"rv-section...\" data-rv-variant=\"default\" data-tsd-source=\"/src/compo...\">\n                  <SectionMedia>\n                  <SiteSectionBody site={{...}} section={{id:\"44aef5...\", ...}} data-tsd-source=\"/src/compo...\">\n                    <Shell wide={true} id=\"book\" data-tsd-source=\"/src/compo...\">\n                      <section id=\"book\" className=\"scroll-mt-...\" data-tsd-source=\"/src/compo...\">\n                        <div className=\"mx-auto px...\" data-tsd-source=\"/src/comp"
+      ],
+      "failedRequests": []
+    },
+    {
+      "id": "19_rollback",
+      "title": "Undo / rollback is available and used",
+      "status": "PASS",
+      "method": "restore-original-heading",
+      "restoring": "Premium Auto Detailing in Raleigh",
+      "durationMs": 2924,
+      "url": "http://localhost:8080/app/website",
+      "viewport": "1440x1800",
+      "consoleErrors": [],
+      "failedRequests": []
+    },
+    {
+      "id": "20_rollback_restores",
+      "title": "Rollback restores the previous state",
+      "status": "PASS",
+      "note": "Rollback restored the previous state.",
+      "restored": "Premium Auto Detailing in Raleigh",
+      "durationMs": 3764,
+      "url": "http://localhost:8080/app/website",
+      "viewport": "1440x1800",
+      "consoleErrors": [],
+      "failedRequests": []
+    },
+    {
+      "id": "21_publish_gated",
+      "title": "Publishing stays gated and nothing is published",
+      "status": "PASS",
+      "note": "Publish control present and never pressed; no publish request was issued.",
+      "statusLabelBefore": "LIVE",
+      "publishDisabled": false,
+      "statusLabel": "LIVE",
+      "durationMs": 38,
+      "url": "http://localhost:8080/app/website",
+      "viewport": "1440x1800",
+      "consoleErrors": [],
+      "failedRequests": []
+    },
+    {
+      "id": "22_dashboard_return",
+      "title": "The app returns to the dashboard cleanly",
+      "status": "PASS",
+      "note": "Returned to the dashboard cleanly.",
+      "screenshot": "browser-qa-artifacts/journey-dashboard-return.png",
+      "durationMs": 2543,
+      "url": "http://localhost:8080/app",
+      "viewport": "1440x1800",
+      "consoleErrors": [],
+      "failedRequests": []
+    },
+    {
+      "id": "ext_stripe",
+      "title": "Live Stripe checkout and webhooks",
+      "status": "NOT_TESTED",
+      "reason": "External payment credentials are not part of this CI-safe suite. Covered by `bun run test:integrations` when STRIPE_SANDBOX_API_KEY is configured.",
+      "durationMs": 0
+    },
+    {
+      "id": "ext_email",
+      "title": "Live transactional email delivery",
+      "status": "NOT_TESTED",
+      "reason": "External email credentials are not part of this CI-safe suite. Covered by `bun run test:integrations` when LOVABLE_API_KEY and INTEGRATION_TEST_EMAIL_TO are set.",
+      "durationMs": 0
+    },
+    {
+      "id": "ext_crm",
+      "title": "Live CRM hand-off",
+      "status": "NOT_TESTED",
+      "reason": "External CRM credentials are not part of this CI-safe suite. Covered by `bun run test:integrations` when INTEGRATION_TEST_CRM_WEBHOOK_URL is set.",
+      "durationMs": 0
+    }
+  ]
+}
