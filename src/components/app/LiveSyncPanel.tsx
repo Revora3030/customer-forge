@@ -43,7 +43,7 @@ export function LiveSyncPanel({
     <Panel>
       <SectionHeading
         title="Is every change on my site?"
-        hint="Checks your saved content against the site a visitor actually loads."
+        description="Checks your saved content against the site a visitor actually loads."
       />
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <Button
