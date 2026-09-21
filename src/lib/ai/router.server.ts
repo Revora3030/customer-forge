@@ -207,6 +207,12 @@ export function freeModelPoolDepth(): number {
  */
 export async function freeModelPool(
   role: ModelRole,
+  /**
+   * Optional extra gate on top of free-eligibility, for a request that needs a
+   * specific capability (editing an existing picture needs an image-to-image or
+   * inpainting model, so a text-to-image model must never be dispatched).
+   */
+  capable?: (model: string) => boolean,
 ): Promise<{ provider: FreeProviderName; credentials: { apiKey: string; accountId?: string }; models: string[] }[]> {
   if (!freeAiEnabled()) return [];
   const depth = freeModelPoolDepth();

@@ -218,7 +218,6 @@ async function cloudflareFreeImageModels(credentials: FreeProviderCredentials) {
   for (const raw of result) {
     const entry = raw as { name?: unknown; properties?: unknown[] };
     if (typeof entry.name !== "string") continue;
-    if (/inpainting|img2img/i.test(entry.name)) continue;
     const properties = Array.isArray(entry.properties) ? entry.properties : [];
     let billed = false;
     for (const property of properties) {
