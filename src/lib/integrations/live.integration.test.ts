@@ -113,7 +113,7 @@ describe("live payments", () => {
     expect(good.type).toBe("checkout.session.completed");
 
     await expect(
-      verifyWebhook(body, `t=${timestamp},v1=${"0".repeat(64)}`, "sandbox"),
+      verifyWebhook(request(`t=${timestamp},v1=${"0".repeat(64)}`), "sandbox"),
     ).rejects.toBeTruthy();
   }, 60_000);
 });
