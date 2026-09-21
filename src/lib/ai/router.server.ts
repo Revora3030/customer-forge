@@ -233,6 +233,7 @@ export async function freeModelPool(
     const consider = (model: string) => {
       // Belt and braces: never dispatch a model that isn't free-eligible.
       if (models.length >= depth) return;
+      if (capable && !capable(model)) return;
       if (!models.includes(model) && isFreeEligibleModel(entry.name, model)) models.push(model);
     };
     try {
