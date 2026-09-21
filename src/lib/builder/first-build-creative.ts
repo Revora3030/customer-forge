@@ -65,6 +65,8 @@ export type FirstBuildCreativeDirection = {
     shots: PlannedShot[];
     assetPlan: AssetPlan;
   };
+  /** Art direction decided before any page row is written. */
+  brief: CreativeBrief;
   unknowns: string[];
 };
 
