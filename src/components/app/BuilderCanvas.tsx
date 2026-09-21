@@ -330,6 +330,8 @@ export function BuilderCanvas({
   >(null);
   /** Field edits wait here until the owner presses Apply. */
   const [staged, setStaged] = React.useState<StagedState>({});
+  /** Bumped on cancel so in-place fields re-read the saved text. */
+  const [editNonce, setEditNonce] = React.useState(0);
 
   React.useEffect(() => {
     setShowLayers(editingMode === "visual");
@@ -389,6 +391,12 @@ export function BuilderCanvas({
       else saveComponent.mutate({ id: edit.id, patch: edit.patch });
     }
     setStaged({});
+  };
+
+  /** Throws pending edits away and puts the saved wording back on screen. */
+  const cancelStaged = () => {
+    setStaged({});
+    setEditNonce((value) => value + 1);
   };
 
   const selectedSectionId =
@@ -773,13 +781,42 @@ export function BuilderCanvas({
               </div>
             ) : null}
 
+            {stagedCount(staged) > 0 ? (
+              <div
+                className="sticky top-0 z-20 flex flex-wrap items-center gap-2 rounded-xl border border-primary/50 bg-card/95 px-3 py-2 backdrop-blur"
+                role="status"
+              >
+                <span className="text-[12px] font-medium">
+                  {stagedCount(staged) === 1
+                    ? "1 unsaved change"
+                    : `${stagedCount(staged)} unsaved changes`}
+                  {stagedFieldSummary(staged) ? ` — ${stagedFieldSummary(staged)}` : ""}
+                </span>
+                <span className="text-[11px] text-muted-foreground">
+                  Only you can see these until you apply them.
+                </span>
+                <div className="ml-auto flex gap-2">
+                  <Button size="sm" variant="ghost" onClick={cancelStaged}>
+                    Cancel
+                  </Button>
+                  <Button
+                    size="sm"
+                    disabled={!canManage || saveSection.isPending || saveComponent.isPending}
+                    onClick={applyStaged}
+                  >
+                    Apply changes
+                  </Button>
+                </div>
+              </div>
+            ) : null}
+
             {sections.map((section, index) => {
               const isSelected = selectedSectionId === section.id;
               const sectionHint = hint?.id === section.id ? hint.position : null;
               const sectionStyle = readBlockStyle(section.settings, device);
               return (
                 <div
-                  key={section.id}
+                  key={`${section.id}-${editNonce}`}
                   role="button"
                   tabIndex={0}
                   draggable={canManage}
@@ -865,7 +902,7 @@ export function BuilderCanvas({
                     >
                       {orderedComponents(section).map((item) => (
                         <ItemCard
-                          key={item.id}
+                          key={`${item.id}-${editNonce}`}
                           item={item}
                           device={device}
                           editable={canManage}
@@ -1083,7 +1120,7 @@ export function BuilderCanvas({
               </Field>
               <Field label="Image URL" hint="An https image link, or leave empty for no image">
                 <Input
-                  key={`m-${selectedComponent.id}`}
+                  key={`m-${selectedComponent.id}-${editNonce}`}
                   defaultValue={selectedComponent.media_url ?? ""}
                   disabled={!canManage}
                   onBlur={(event) =>
@@ -1094,7 +1131,7 @@ export function BuilderCanvas({
               </Field>
               <Field label="Image description (alt text)">
                 <Input
-                  key={`alt-${selectedComponent.id}`}
+                  key={`alt-${selectedComponent.id}-${editNonce}`}
                   defaultValue={readAlt(selectedComponent.settings)}
                   disabled={!canManage}
                   onBlur={(event) =>
