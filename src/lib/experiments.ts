@@ -88,7 +88,7 @@ export function trackExposure<K extends ExperimentKey>(key: K, variant: Variant<
 }
 
 export const START_FREE_COPY: Record<string, string> = {
-  trial_days: "TRY 3 DAYS FREE — FULL ACCESS",
+  trial_days: "TRY 1 DAY FREE — FULL ACCESS",
   no_card: "START FREE — NO CARD REQUIRED",
   start_free: "START FREE ACCESS NOW",
 };

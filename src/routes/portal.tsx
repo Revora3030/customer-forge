@@ -228,7 +228,7 @@ function PortalPage() {
                 </Link>{" "}
                 or{" "}
                 <Link to="/get-started" className="text-primary underline">
-                  start your 3-day access
+                  start your 1-day access
                 </Link>
                 .
               </p>

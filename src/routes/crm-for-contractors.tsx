@@ -15,7 +15,7 @@ import { GROWTH_SYSTEM } from "@/lib/offer";
 
 const TITLE = "CRM for Contractors — Leads, Quotes & Follow-Up | Revora";
 const DESCRIPTION =
-  "A contractor CRM built into your website: capture leads, send quotes, chase follow-ups, book jobs and collect reviews in one system. 3 days free full access.";
+  "A contractor CRM built into your website: capture leads, send quotes, chase follow-ups, book jobs and collect reviews in one system. 1 day free full access.";
 const URL = "https://revoragrowthsystems.com/crm-for-contractors";
 
 export const Route = createFileRoute("/crm-for-contractors")({
@@ -105,7 +105,7 @@ function ContractorCrmPage() {
         <div className="mt-8 flex flex-wrap items-center gap-3">
           <Button asChild variant="signal" size="lg">
             <Link to="/auth" search={{ mode: "signup", redirect: "/get-started" }}>
-              Start 3 days free <ArrowRight className="size-4" aria-hidden="true" />
+              Start 1 day free <ArrowRight className="size-4" aria-hidden="true" />
             </Link>
           </Button>
           <Button asChild variant="outline" size="lg">
@@ -194,7 +194,7 @@ function ContractorCrmPage() {
         <section className="panel mt-16 flex flex-col items-start gap-4 p-6 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 className="font-display text-[18px] font-semibold">
-              Try the whole system free for 3 days
+              Try the whole system free for 1 day
             </h2>
             <p className="mt-1.5 text-[13px] text-muted-foreground">
               No card needed to start. Add your business details and your site, CRM and quoting are

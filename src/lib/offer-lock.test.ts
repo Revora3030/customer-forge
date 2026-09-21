@@ -27,11 +27,11 @@ const monthly = {
 };
 
 describe("canonical Revora offer", () => {
-  it("is exactly $750 setup, $100/month, 30-day trial, 3-day full access", () => {
+  it("is exactly $750 setup, $100/month, 30-day trial, 1-day full access", () => {
     expect(GROWTH_SYSTEM.setupPrice).toBe(750);
     expect(GROWTH_SYSTEM.monthlyPrice).toBe(100);
     expect(GROWTH_SYSTEM.trialDays).toBe(30);
-    expect(GROWTH_SYSTEM.fullAccessTrialDays).toBe(3);
+    expect(GROWTH_SYSTEM.fullAccessTrialDays).toBe(1);
     expect(CANONICAL_OFFER_RATES).toEqual({ setupPrice: 750, monthlyPrice: 100 });
   });
 

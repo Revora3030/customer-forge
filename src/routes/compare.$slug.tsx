@@ -136,7 +136,7 @@ function ComparePage() {
 
         <div className="mt-10 flex flex-wrap gap-3">
           <Button asChild size="lg">
-            <Link to="/get-started">Start free for 3 days</Link>
+            <Link to="/get-started">Start free for 1 day</Link>
           </Button>
           <Button asChild size="lg" variant="outline">
             <Link to="/pricing">

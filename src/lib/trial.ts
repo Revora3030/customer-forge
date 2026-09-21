@@ -7,7 +7,7 @@
  * `created_at + TRIAL_DAYS` so the client always gets the free access promised
  * on the marketing site.
  */
-export const TRIAL_DAYS = 3;
+export const TRIAL_DAYS = 1;
 const DAY_MS = 86_400_000;
 
 export type TrialOrgFields = {

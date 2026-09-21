@@ -112,7 +112,7 @@ export const Route = createFileRoute("/")({
               {
                 property: "og:description",
                 content:
-                  "Website, instant quotes, booking, CRM, follow-up, reviews, local SEO and analytics in one AI-run system. Built, launched and managed for you. Try it free for 3 days.",
+                  "Website, instant quotes, booking, CRM, follow-up, reviews, local SEO and analytics in one AI-run system. Built, launched and managed for you. Try it free for 1 day.",
               },
               { property: "og:type", content: "website" },
               { name: "twitter:card", content: "summary_large_image" },

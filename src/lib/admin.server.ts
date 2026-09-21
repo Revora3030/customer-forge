@@ -324,7 +324,7 @@ export async function provisionClient(admin: SupabaseClient, input: NewClientInp
       industry: input.industry ?? null,
       plan_id: input.plan_id ?? null,
       subscription_status: "trialing",
-      trial_ends_at: new Date(Date.now() + 3 * 86_400_000).toISOString(),
+      trial_ends_at: newTrialEndsAt(),
       conversion_goal: input.conversion_goal ?? null,
       onboarding_step: 4,
       onboarding_completed: true,
@@ -431,7 +431,7 @@ export async function provisionClient(admin: SupabaseClient, input: NewClientInp
     plan_id: input.plan_id ?? null,
     status: "trialing",
     billing_interval: "monthly",
-    trial_ends_at: new Date(Date.now() + 3 * 86_400_000).toISOString(),
+    trial_ends_at: newTrialEndsAt(),
   });
 
   await admin.from("notifications").insert({

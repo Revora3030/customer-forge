@@ -128,7 +128,7 @@ session so RLS enforces tenant isolation.
 ## Billing
 
 - $750 one-time setup, first month of $100/month free, then $100/month.
-- 3-day trials are recorded in `platform_trials`; accounts in `platform_accounts`.
+- 1-day trials are recorded in `platform_trials`; accounts in `platform_accounts`.
 - Live and sandbox Stripe are fully isolated: sandbox events are bookkept separately and can
   never change production entitlement, trials, access or revenue metrics.
 - Payment identity is `organization_id` + provider + environment. Refunds use the environment

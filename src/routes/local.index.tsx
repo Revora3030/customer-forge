@@ -52,7 +52,7 @@ function LocalHub() {
         </p>
         <div className="mt-6 flex flex-wrap gap-3">
           <Button asChild>
-            <Link to="/get-started">Start free for 3 days</Link>
+            <Link to="/get-started">Start free for 1 day</Link>
           </Button>
           <Button asChild variant="outline">
             <Link to="/tools">Free calculators</Link>
