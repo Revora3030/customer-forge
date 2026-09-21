@@ -94,7 +94,12 @@ describe("long-session memory storage", () => {
 
   it("forgets the oldest ordinary notes once the journal is full", async () => {
     const rows = Array.from({ length: 45 }, (_, index) =>
-      row(`r${index}`, "decision", `ask ${index}`, `2024-01-${String(index + 1).padStart(2, "0")}`),
+      row(
+        `r${index}`,
+        "decision",
+        `ask ${index}`,
+        new Date(Date.UTC(2024, 0, 1, 0, index)).toISOString(),
+      ),
     );
     const { client, deleted } = fakeClient(rows);
     const result = await rememberExchange(client, "org", null, { instruction: "one more ask" });
