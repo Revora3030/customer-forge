@@ -68,6 +68,7 @@ async def main(urls):
                         if await page.evaluate("[...document.images].every((img) => img.complete)"):
                             break
                         await page.wait_for_timeout(500)
+                    await page.evaluate("window.scrollTo(0, 0)")
                     await page.wait_for_timeout(600)
                     measured = await page.evaluate(MEASURE)
                     measured["width"] = width
