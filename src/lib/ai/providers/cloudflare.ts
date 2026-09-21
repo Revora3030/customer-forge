@@ -13,6 +13,8 @@
  */
 
 import { RevoraAiError } from "@/lib/ai/errors";
+import { imageEditCapableModel } from "@/lib/ai/free";
+import { buildCloudflareImageBody } from "@/lib/ai/providers/cloudflare-image";
 import { createOpenAiCompatibleAdapter } from "@/lib/ai/providers/openai-compatible";
 import { providerHttpError } from "@/lib/ai/providers/shared";
 import type { ProviderAdapter } from "@/lib/ai/types";
@@ -69,7 +71,7 @@ export const cloudflareAdapter: ProviderAdapter = {
           "user-agent": "RevoraGrowthSystems/1.0 (+https://revoragrowthsystems.com)",
           accept: "application/json, image/*",
         },
-        body: JSON.stringify({ prompt }),
+        body: JSON.stringify(buildCloudflareImageBody(prompt, source)),
         signal,
       },
     );
