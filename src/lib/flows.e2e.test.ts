@@ -36,6 +36,22 @@ beforeAll(async () => {
   if (!reachable) return;
   const sitemap = await get("/sitemap.xml");
   publicSite = /<loc>[^<]*(\/s\/[a-z0-9-]+)<\/loc>/i.exec(sitemap.body)?.[1] ?? null;
+  // The platform sitemap deliberately keeps /s/ previews out of search, so it
+  // can never advertise a tenant site. An explicit slug (E2E_TENANT_SLUG,
+  // comma-separated, first one that serves) is the supported discovery path.
+  if (!publicSite) {
+    const slugs = (process.env["E2E_TENANT_SLUG"] ?? "")
+      .split(",")
+      .map((slug) => slug.trim())
+      .filter(Boolean);
+    for (const slug of slugs) {
+      const candidate = `/s/${slug}`;
+      if ((await get(candidate)).status === 200) {
+        publicSite = candidate;
+        break;
+      }
+    }
+  }
 }, 60_000);
 
 /**
@@ -73,14 +89,17 @@ const live = (name: string, fn: () => Promise<void>, timeout = 30_000) =>
  * An explicitly optional flow: it depends on state no test can create from
  * outside (a tenant having published a site). It still fails when the app is
  * unreachable — only the missing tenant state may skip it, and every skip is
- * announced so it can never be read as a pass.
+ * announced so it can never be read as a pass. Point E2E_TENANT_SLUG at a
+ * published site slug (e.g. E2E_TENANT_SLUG=elite-mobile-detailing) to run it.
  */
 const optional = (name: string, fn: () => Promise<void>, timeout = 30_000) =>
   live(
     `${name} [optional: needs a published tenant site]`,
     async () => {
       if (!publicSite) {
-        console.warn(`[e2e] SKIPPED (no published tenant site, NOT VERIFIED): ${name}`);
+        console.warn(
+          `[e2e] SKIPPED (no published tenant site, NOT VERIFIED): ${name} — set E2E_TENANT_SLUG to run this`,
+        );
         return;
       }
       await fn();
