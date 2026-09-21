@@ -13,6 +13,7 @@ import {
   type DesignFingerprint,
 } from "@/lib/builder/design-fingerprint";
 import { pickVisualDirection, planShots, type PlannedShot } from "@/lib/visual-direction";
+import { assetPlanFor, type AssetPlan } from "@/lib/builder/asset-intelligence";
 
 export type FirstBuildCreativeInput = {
   organizationId: string;
@@ -61,6 +62,7 @@ export type FirstBuildCreativeDirection = {
     treatment: string;
     status: "owner_photos" | "artwork_only";
     shots: PlannedShot[];
+    assetPlan: AssetPlan;
   };
   unknowns: string[];
 };
@@ -115,6 +117,15 @@ export function compileFirstBuildCreativeDirection(
     hasHeroImage: input.photoCount > 0,
     mediaCount: input.photoCount,
   });
+  const assetPlan = assetPlanFor(
+    { businessName: input.businessName, logoUrl: null, heroImageUrl: null },
+    playbook,
+    playbook.homeSections,
+    {
+      hasHeroImage: input.photoCount > 0,
+      galleryPhotoCount: input.photoCount,
+    },
+  );
 
   return {
     version: 1,
@@ -143,6 +154,7 @@ export function compileFirstBuildCreativeDirection(
       treatment: visual.treatment,
       status: input.photoCount > 0 ? "owner_photos" : "artwork_only",
       shots,
+      assetPlan,
     },
     unknowns: dna.needed,
   };

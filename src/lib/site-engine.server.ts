@@ -60,19 +60,27 @@ export type CopyFacts = {
 
 /**
  * Included-builder mode. Every generation stage has a deterministic Revora
- * fallback, so once the AI provider denies a request we stop calling it for a
- * cooldown window. Builds then complete instantly from the owner's own business
- * details instead of spending time on calls that are certain to be denied.
+ * fallback. Provider denial is isolated to the tenant whose request failed:
+ * one customer's outage must never force unrelated customers onto fallback
+ * copy. This memory is only an optimization; provider routing remains the
+ * source of truth for eligibility and quota enforcement.
  */
 const AI_COOLDOWN_MS = 30 * 60 * 1000;
-let aiUnavailableUntil = 0;
+const aiUnavailableUntilByTenant = new Map<string, number>();
+const aiTenantKey = (organizationId?: string | null) => organizationId?.trim() || "anonymous";
 
-export function markAiUnavailable() {
-  aiUnavailableUntil = Date.now() + AI_COOLDOWN_MS;
+export function markAiUnavailable(organizationId?: string | null) {
+  aiUnavailableUntilByTenant.set(aiTenantKey(organizationId), Date.now() + AI_COOLDOWN_MS);
 }
 
-export function isAiAvailable() {
-  return Date.now() >= aiUnavailableUntil;
+export function isAiAvailable(organizationId?: string | null) {
+  const key = aiTenantKey(organizationId);
+  const unavailableUntil = aiUnavailableUntilByTenant.get(key) ?? 0;
+  if (Date.now() >= unavailableUntil) {
+    aiUnavailableUntilByTenant.delete(key);
+    return true;
+  }
+  return false;
 }
 
 async function chatJson(
@@ -81,7 +89,7 @@ async function chatJson(
   role: ModelRole = COPY_ROLE,
   caller?: { organizationId?: string | null; userId?: string | null; task?: string },
 ): Promise<Record<string, unknown>> {
-  if (!isAiAvailable())
+  if (!isAiAvailable(caller?.organizationId))
     throw new RevoraAiError(402, "Revora is writing this build from your own business details.", {
       category: "quota",
     });
@@ -110,7 +118,7 @@ async function chatJson(
       error instanceof RevoraAiError &&
       ["not_configured", "free_unavailable", "unauthorized", "quota", "policy"].includes(error.category)
     )
-      markAiUnavailable();
+      markAiUnavailable(caller?.organizationId);
     throw error;
   }
 }
