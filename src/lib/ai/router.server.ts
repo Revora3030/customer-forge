@@ -410,7 +410,7 @@ async function run<T>(
   // this chain when an operator has explicitly opted out of free-only and
   // zero-cost mode. An empty chain is not a crash: the caller falls back to
   // Revora's deterministic engine and the owner gets a precise explanation.
-  const chain = await buildChain(role);
+  const chain = await buildChain(role, options?.capable);
   if (chain.length === 0) throw freeAiUnavailable("no free provider configured or in budget");
 
   const verdict = await checkAiLimits(caller);
