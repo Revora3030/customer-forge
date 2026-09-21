@@ -67,12 +67,13 @@ describe("vision review", () => {
   });
 
   it("marks a page clean only when the model answered with an empty list", () => {
-    expect(parseVisionReview({ issues: [] }).clean).toBe(false);
+    expect(parseVisionReview({ issues: [] }).clean).toBe(true);
     expect(parseVisionReview({ issues: [{ kind: "nope", detail: "x" }] }).clean).toBe(false);
     const clean = parseVisionReview({ issues: [] });
     expect(clean.score).toBe(100);
     expect(clean.verdict).toBe("good");
-    expect(visionSummary(clean)).toContain("could not produce");
+    expect(visionSummary(clean)).toContain("nothing to flag");
+    expect(visionSummary(parseVisionReview({ issues: [{ kind: "nope", detail: "x" }] }))).toContain("could not produce");
   });
 
   it("defaults an unknown severity to the mildest", () => {

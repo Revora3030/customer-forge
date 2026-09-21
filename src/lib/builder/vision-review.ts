@@ -54,7 +54,7 @@ export type VisionReview = {
   findings: VisionFinding[];
   /** Problems named by the model that Revora could not understand. */
   discarded: number;
-  /** True when the model answered but named no problem. */
+  /** True when the model answered with no problem at all, and nothing had to be discarded. */
   clean: boolean;
 };
 
@@ -151,7 +151,7 @@ export function parseVisionReview(data: unknown): VisionReview {
         ? "needs_work"
         : "good";
 
-  return { score, verdict, findings, discarded, clean: raw.length > 0 && findings.length === 0 };
+  return { score, verdict, findings, discarded, clean: findings.length === 0 && discarded === 0 };
 }
 
 /* ----------------------------------------------------------------- repairs */
