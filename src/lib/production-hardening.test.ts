@@ -20,7 +20,9 @@ import worker from "../../cloudflare/worker.js";
 describe("security headers", () => {
   it("locks down executable sources while allowing the real integrations", () => {
     expect(CONTENT_SECURITY_POLICY).toContain("object-src 'none'");
-    expect(CONTENT_SECURITY_POLICY).toContain("frame-ancestors 'none'");
+    // Same-origin framing only: other origins still cannot frame Revora.
+    expect(CONTENT_SECURITY_POLICY).toContain("frame-ancestors 'self'");
+    expect(CONTENT_SECURITY_POLICY).not.toContain("frame-ancestors *");
     expect(CONTENT_SECURITY_POLICY).toContain("https://js.stripe.com");
     expect(CONTENT_SECURITY_POLICY).toContain("wss://*.supabase.co");
     expect(CONTENT_SECURITY_POLICY).toContain("https://fonts.gstatic.com");

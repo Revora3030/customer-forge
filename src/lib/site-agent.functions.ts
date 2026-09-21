@@ -223,6 +223,12 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
   {
     const orgId = data.organizationId;
 
+    // Visible progress for the owner. Cosmetic only — a failed write here can
+    // never affect the build.
+    const { noteStage } = await import("@/lib/builder/progress.server");
+    const runId = crypto.randomUUID();
+    noteStage(orgId, runId, "reading your business");
+
     const { planChanges } = await import("@/lib/site-agent.server");
     const { orchestrate } = await import("@/lib/agent/orchestrator.server");
     const { getWorkspaceContext, workspaceSummary } =
@@ -370,6 +376,7 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
       await import("@/lib/builder/design-fingerprint");
     const storedGeneration = ((settingsRow.data as { generation?: unknown } | null)?.generation ??
       {}) as Record<string, unknown>;
+    noteStage(orgId, runId, "recalling your design identity");
     const priorFingerprint = readDesignFingerprint(storedGeneration);
     const fingerprint =
       priorFingerprint ??
@@ -794,6 +801,9 @@ const ANY_ID = { has: () => true } as unknown as Set<string>;
 async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInput) {
   {
     const orgId = data.organizationId;
+    const { noteStage: noteApplyStage } = await import("@/lib/builder/progress.server");
+    const applyRunId = crypto.randomUUID();
+    noteApplyStage(orgId, applyRunId, "checking the plan is safe");
     // One id for this whole apply. Every row it touches, the restore point it
     // took, and any rollback it had to run are all recorded against this id, so
     // a change is always traceable as a single operation rather than a scatter
@@ -900,6 +910,7 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
       plannedSlugs.add(slug);
     }
 
+    noteApplyStage(orgId, applyRunId, "saving a restore point");
     // Snapshot first, so an unwanted change can always be rolled back.
     const snapshotLabel = data.label || "Before assistant changes";
     const { snapshotContent } = await import("@/lib/website-content");
@@ -962,6 +973,7 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
       );
     }
 
+    noteApplyStage(orgId, applyRunId, "writing the pages");
     const sortOf = new Map(site.sections.map((section) => [section.id, section.sort_order]));
     const applied: string[] = [];
     const failed: string[] = [];
