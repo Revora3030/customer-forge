@@ -18,6 +18,8 @@ import { WebsiteReview } from "@/components/app/WebsiteReview";
 import { InteractionHealth } from "@/components/app/InteractionHealth";
 import { MemoryPanel } from "@/components/app/MemoryPanel";
 import { StockPhotoPanel } from "@/components/app/StockPhotoPanel";
+import { SearchSettings } from "@/components/app/SearchSettings";
+import { GoogleSearchGrowth } from "@/components/app/GoogleSearchGrowth";
 import { TemplateGalleryPanel } from "@/components/app/TemplateGalleryPanel";
 
 import { BuilderWizard } from "@/components/app/BuilderWizard";
@@ -100,13 +102,44 @@ import { useBuildReadiness, useScoreFacts } from "@/lib/site-engine.hooks";
 import { useWebsiteContent } from "@/lib/website-content.hooks";
 import { websiteQa, type WizardStepKey } from "@/lib/website-content";
 
-/** Old deep links land on the matching door in the simplified workspace. */
-const ADVANCED_GROUP: Record<string, string> = {
-  design: "look",
+/**
+ * The settings groups, in the order an owner works in:
+ * build → design → content → images → search → pages → checks → publish.
+ * Enquiries stays available at the end; no capability was removed.
+ */
+const GROUP_ORDER = [
+  "build",
+  "design",
+  "content",
+  "images",
+  "seo",
+  "pages",
+  "qa",
+  "publish",
+  "enquiries",
+];
+
+/** Old deep links and older group names land on the matching new door. */
+const GROUP_ALIAS: Record<string, string> = {
+  design: "design",
+  look: "design",
   pages: "pages",
-  launch: "launch",
-  ai: "assistant",
+  launch: "publish",
+  publish: "publish",
+  ai: "content",
+  assistant: "content",
+  words: "content",
+  photos: "images",
+  images: "images",
+  reports: "qa",
+  qa: "qa",
+  build: "build",
+  seo: "seo",
+  enquiries: "enquiries",
 };
+
+const resolveGroup = (key: string | null | undefined) =>
+  (key ? GROUP_ALIAS[key] : undefined) ?? "build";
 
 export const Route = createFileRoute("/_authenticated/app/website")({
   // Deep links from audit findings land on the exact builder area that fixes them.
@@ -177,13 +210,13 @@ function WebsitePage() {
       setAdvanced(null);
       return;
     }
-    setAdvanced(ADVANCED_GROUP[mode] ?? "pages");
+    setAdvanced(resolveGroup(mode));
   };
   // A finding elsewhere can deep-link straight into the area that fixes it.
   useEffect(() => {
     if (!sectionParam) return;
     const mode = normalizeBuilderMode(sectionParam);
-    setAdvanced(mode === "build" ? null : (ADVANCED_GROUP[mode] ?? "pages"));
+    setAdvanced(mode === "build" ? null : resolveGroup(mode));
   }, [sectionParam]);
 
   // Builder → publish completion: one "opened" per workspace per browser
@@ -545,11 +578,11 @@ function WebsitePage() {
       )}
 
       <div className="flex flex-wrap items-center gap-3">
-        <Button size="sm" variant="outline" onClick={() => setAdvanced("look")}>
+        <Button size="sm" variant="outline" onClick={() => setAdvanced("build")}>
           All settings
         </Button>
         <span className="text-[11.5px] text-muted-foreground">
-          Look, words, photos, enquiries, pages, checks and going live.
+          Build, design, content, images, search, pages, checks and publishing — in that order.
         </span>
       </div>
     </div>
@@ -624,13 +657,13 @@ function WebsitePage() {
         onClose={() => setAdvanced(null)}
       >
         <GroupTabs
-          key={advanced ?? "pages"}
+          key={resolveGroup(advanced)}
           label="Settings groups"
-          initialKey={advanced ?? "pages"}
+          initialKey={resolveGroup(advanced)}
           groups={orderGroups([
             {
-              key: "look",
-              label: "Look",
+              key: "design",
+              label: "Design",
               node: (
                 <>
                   <DesignIdentity
@@ -670,8 +703,8 @@ function WebsitePage() {
               ),
             },
             {
-              key: "photos",
-              label: "Photos",
+              key: "images",
+              label: "Images",
               node: (
                 <>
                   <ImageStudio
@@ -709,24 +742,69 @@ function WebsitePage() {
               ),
             },
             {
-              key: "pages",
-              label: "Pages",
+              key: "build",
+              label: "Build",
               node: (
                 <>
                   <SiteEnginePanel organizationId={orgId} canManage={manage} hasCopy={!!copy} />
+                  <Disclosure label="Build a full website for me" hint="Describe it, Revora writes it">
+                    <RevoraGenius
+                      organizationId={orgId}
+                      canManage={manage}
+                      pages={pages ?? []}
+                      facts={geniusFacts}
+                    />
+                  </Disclosure>
                   <TemplateGalleryPanel
                     canManage={manage}
                     industry={(profile?.["industry"] as string) ?? null}
                     description={(profile?.["description"] as string) ?? null}
                     businessName={org?.name ?? null}
                   />
-                  <WebsiteStructure organizationId={orgId} canManage={manage} />
                 </>
               ),
             },
             {
-              key: "launch",
-              label: "Go live",
+              key: "seo",
+              label: "Search",
+              node: (
+                <>
+                  <SearchSettings
+                    seo={seo}
+                    businessName={org?.name ?? null}
+                    previewUrl={
+                      settings?.custom_domain
+                        ? `https://${settings.custom_domain}/`
+                        : org?.slug
+                          ? `/s/${org.slug}`
+                          : null
+                    }
+                    canManage={manage}
+                    isSaving={saveSettings.isPending}
+                    onSave={(next) => saveSettings.mutate({ seo: next })}
+                  />
+                  <Disclosure
+                    label="Real Google results"
+                    hint="Only for a website you have already verified in Google"
+                  >
+                    <GoogleSearchGrowth />
+                  </Disclosure>
+                </>
+              ),
+            },
+            {
+              key: "pages",
+              label: "Pages",
+              node: (
+                <>
+                  <WebsiteStructure organizationId={orgId} canManage={manage} />
+                  <InteractionHealth pages={pages ?? []} onFix={() => setAdvanced(null)} />
+                </>
+              ),
+            },
+            {
+              key: "publish",
+              label: "Publish",
               node: (
                 <>
                   {launchReview ? (
@@ -820,8 +898,8 @@ function WebsitePage() {
               ),
             },
             {
-              key: "assistant",
-              label: "Words",
+              key: "content",
+              label: "Content",
               node: (
                 <>
                   <SiteChatbot
@@ -852,14 +930,6 @@ function WebsitePage() {
                       }}
                     />
                   </Disclosure>
-                  <Disclosure label="Build a full website for me" hint="Describe it, Revora writes it">
-                    <RevoraGenius
-                      organizationId={orgId}
-                      canManage={manage}
-                      pages={pages ?? []}
-                      facts={geniusFacts}
-                    />
-                  </Disclosure>
                   <Disclosure label="Wording" hint="Edit the words Revora wrote">
                     <AiCopyAssistant
                       organizationId={orgId}
@@ -876,7 +946,7 @@ function WebsitePage() {
               ),
             },
             {
-              key: "reports",
+              key: "qa",
               label: "Checks",
               node: (
                 <>
@@ -892,7 +962,6 @@ function WebsitePage() {
                     publishState={publishState}
                     canManage={manage}
                   />
-                  <InteractionHealth pages={pages ?? []} onFix={() => setAdvanced(null)} />
                   <MemoryPanel organizationId={orgId ?? null} canManage={manage} />
                   <RevoraScorePanel
                     score={siteScore.score}
@@ -957,7 +1026,7 @@ function WebsitePage() {
                 </>
               ),
             },
-          ], ["look", "assistant", "photos", "enquiries", "pages", "reports", "launch"])}
+          ], GROUP_ORDER)}
         />
       </OverlayPanel>
 

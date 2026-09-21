@@ -323,7 +323,22 @@
 .rv-family-premium-minimal .panel, .rv-family-documentary-honest .panel { box-shadow: none; background: transparent; }
 .rv-family-organic-soft .panel, .rv-family-wellness-calm .panel { border-radius: 1.5rem; }
 .rv-family-technical-precise .panel, .rv-family-industrial-robust .panel { border-radius: .125rem; }
-.rv-family-creative-expressive .rv-section:nth-child(even) section > div { transform: translateX(clamp(0rem, 2vw, 1.5rem)); }
+/* The expressive offset only runs where there is real room beside the content.
+   Below 1024px the shift pushed a full-width container past the screen edge and
+   created sideways scrolling. */
+@media (min-width: 1024px) {
+  .rv-family-creative-expressive .rv-section:nth-child(even) section > div { transform: translateX(clamp(0rem, 1vw, 1.5rem)); }
+}
+/* Decorative offsets and artwork must never create a sideways scrollbar. */
+.rv-site .rv-section, .rv-site .fx-sec { overflow-x: clip; }
+
+/* Comfortable touch targets in the site header on phones. */
+@media (max-width: 767px) {
+  .rv-site .rv-site-header a,
+  .rv-site .rv-site-header button { min-height: 44px; }
+  .rv-site .rv-site-header a { display: flex; flex-direction: column; justify-content: center; }
+  .rv-site .rv-site-header a.inline-flex { flex-direction: row; align-items: center; }
+}
 
 .rv-background-paper { background-image: linear-gradient(color-mix(in srgb, var(--foreground) 2%, transparent) 1px, transparent 1px); background-size: 100% 2rem; }
 .rv-background-fine-grid, .rv-background-blueprint { background-image: linear-gradient(var(--border) 1px, transparent 1px), linear-gradient(90deg, var(--border) 1px, transparent 1px); background-size: 48px 48px; }

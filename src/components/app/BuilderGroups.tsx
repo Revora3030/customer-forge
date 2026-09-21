@@ -6,7 +6,7 @@
  * and `EmptyHint` gives every workspace a useful empty state. Both are
  * presentation only — no builder logic lives here.
  */
-import { useState, type ReactNode } from "react";
+import { useState, type KeyboardEvent, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -24,11 +24,39 @@ export function GroupTabs({
 }) {
   const [active, setActive] = useState(initialKey ?? groups[0]?.key ?? "");
   const current = groups.find((group) => group.key === active) ?? groups[0];
+  const activeIndex = Math.max(
+    0,
+    groups.findIndex((group) => group.key === current?.key),
+  );
+
+  /** One keyboard vocabulary for every group switcher in the builder. */
+  const onKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    const keys = ["ArrowLeft", "ArrowRight", "Home", "End"];
+    if (!keys.includes(event.key)) return;
+    event.preventDefault();
+    const last = groups.length - 1;
+    const next =
+      event.key === "Home"
+        ? 0
+        : event.key === "End"
+          ? last
+          : event.key === "ArrowLeft"
+            ? (activeIndex + last) % groups.length
+            : (activeIndex + 1) % groups.length;
+    const target = groups[next];
+    if (!target) return;
+    setActive(target.key);
+    const node = document.getElementById(`builder-group-tab-${target.key}`);
+    node?.focus();
+    node?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  };
+
   return (
     <div className="space-y-4">
       <div
         role="tablist"
         aria-label={label}
+        onKeyDown={onKeyDown}
         className="-mx-1 flex snap-x gap-1.5 overflow-x-auto px-1 pb-1"
       >
         {groups.map((group) => {
@@ -36,9 +64,12 @@ export function GroupTabs({
           return (
             <button
               key={group.key}
+              id={`builder-group-tab-${group.key}`}
               type="button"
               role="tab"
               aria-selected={isActive}
+              aria-controls={`builder-group-panel-${group.key}`}
+              tabIndex={isActive ? 0 : -1}
               onClick={() => setActive(group.key)}
               className={cn(
                 "min-h-9 shrink-0 snap-start cursor-pointer rounded-full border px-3 py-1.5 text-[12.5px] whitespace-nowrap transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
@@ -52,7 +83,15 @@ export function GroupTabs({
           );
         })}
       </div>
-      <div className="space-y-5">{current?.node}</div>
+      <div
+        role="tabpanel"
+        id={`builder-group-panel-${current?.key ?? ""}`}
+        {...(current ? { "aria-labelledby": `builder-group-tab-${current.key}` } : {})}
+        tabIndex={-1}
+        className="space-y-5"
+      >
+        {current?.node}
+      </div>
     </div>
   );
 }

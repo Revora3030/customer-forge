@@ -1095,6 +1095,12 @@ export const MEASURE_SCRIPT = `(() => {
   const visible = (el) => {
     if (!el) return false;
 
+    // Deliberately hidden from assistive technology (spam traps, decoration).
+    // Judging these as real controls produced false failures.
+    if (el.closest('[aria-hidden="true"]')) {
+      return false;
+    }
+
     const style =
       getComputedStyle(el);
 
@@ -1124,7 +1130,14 @@ export const MEASURE_SCRIPT = `(() => {
     ...document.querySelectorAll(
       "a[href], button, [role='button'], input, select, textarea, summary"
     )
-  ].filter(visible);
+  ].filter(
+    (el) =>
+      // A switched-off control is correctly skipped by the keyboard, so it is
+      // not a keyboard defect.
+      !el.hasAttribute("disabled") &&
+      el.getAttribute("aria-disabled") !== "true" &&
+      visible(el)
+  );
 
   /* ---------------------------------------------------------------------- */
   /* OVERFLOW                                                                */
@@ -1862,7 +1875,14 @@ export const MEASURE_SCRIPT = `(() => {
         ).trim();
       }
 
-      if (el.tagName === "BUTTON") {
+      if (
+        el.tagName === "BUTTON" ||
+        el.tagName === "INPUT" ||
+        el.tagName === "SELECT" ||
+        el.tagName === "TEXTAREA" ||
+        el.tagName === "SUMMARY"
+      ) {
+        // Natively focusable: no tabindex needed.
         return true;
       }
 
