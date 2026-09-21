@@ -68,6 +68,7 @@ import { ClientOnboardingFlow } from "@/components/app/ClientOnboardingFlow";
 import { LaunchChecks } from "@/components/app/LaunchChecks";
 import { VisualCheckPanel } from "@/components/app/VisualCheckPanel";
 import { VisionReviewPanel } from "@/components/app/VisionReviewPanel";
+import { LiveSyncPanel } from "@/components/app/LiveSyncPanel";
 import { SiteUpgradePanel } from "@/components/app/SiteUpgradePanel";
 import { PortalAccess } from "@/components/app/PortalAccess";
 import { PreviewLinks, PreviewSiteButton } from "@/components/app/PreviewLinks";
@@ -962,6 +963,7 @@ function WebsitePage() {
                     publishState={publishState}
                     canManage={manage}
                   />
+                  <LiveSyncPanel organizationId={orgId} canManage={manage} />
                   <MemoryPanel organizationId={orgId ?? null} canManage={manage} />
                   <RevoraScorePanel
                     score={siteScore.score}
