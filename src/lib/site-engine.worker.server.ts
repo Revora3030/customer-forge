@@ -7,8 +7,8 @@
  *    process the same job
  *  - progress is written to the job row at every stage, so the client sees
  *    reliable progress even if the browser reloads
- *  - the queue pauses itself when AI credits run out or AI is blocked, and
- *    backs off on rate limits
+ *  - customer builds use Revora's native engine and never dispatch content to
+ *    an outside model
  */
 import { nextPublishState } from "@/lib/publish-state";
 
@@ -121,12 +121,8 @@ async function runJob(
   const { captureQa } = await import("@/lib/launch-qa");
   const { gatherBriefFacts } = await import("@/lib/site-brief.server");
   const {
-    generateSiteCopy,
-    analyzeBusiness,
     fallbackBrief,
     fallbackCopy,
-    RevoraAiError,
-    COPY_ROLE,
   } = await import("@/lib/site-engine.server");
 
   const done: string[] = [];
@@ -219,30 +215,13 @@ async function runJob(
   const priorGeneration = (priorSettings.data?.generation ?? {}) as Record<string, unknown>;
   const approvedBrief = readBrief(priorGeneration["brief"]);
 
-  // When AI is unavailable (credits/policy) the build degrades to the
-  // deterministic, fact-only writer instead of failing — the client always ends
-  // up with a real publishable site. Rate limits still bubble up so the queue
-  // can back off and retry with AI.
-  let aiDenied = false;
-  let brief = approvedBrief?.approved ? approvedBrief : fallbackBrief(copyFacts);
+  const brief = approvedBrief?.approved ? approvedBrief : fallbackBrief(copyFacts);
   if (!approvedBrief?.approved) {
-    try {
-      brief = {
-        ...(await analyzeBusiness(copyFacts)),
-        factAnswers: approvedBrief?.factAnswers ?? {},
-        approved: false,
-      };
-    } catch (error) {
-      if (error instanceof RevoraAiError && error.status === 429) throw error;
-      if (error instanceof RevoraAiError && [402, 403].includes(error.status)) aiDenied = true;
-      console.error("[site-engine] analysis fell back to rules", error);
-    }
-
     await db.from("ai_generations").insert({
       organization_id: orgId,
       job_id: job.id,
       kind: "business_brief",
-      model: brief.source,
+      model: "revora-native",
       instruction: null,
       result: brief as unknown as never,
       created_by: job.created_by,
@@ -270,18 +249,8 @@ async function runJob(
   await step("structure");
 
   const copyFactsForWrite = { ...copyFacts, ctaLabel: plan.primaryCtaLabel };
-  let copy = fallbackCopy(copyFactsForWrite, brief);
-  let copyModel = "revora-rules";
-  if (!aiDenied) {
-    try {
-      copy = await generateSiteCopy(copyFactsForWrite, brief);
-      copyModel = COPY_ROLE;
-    } catch (error) {
-      if (error instanceof RevoraAiError && error.status === 429) throw error;
-      if (error instanceof RevoraAiError && [402, 403].includes(error.status)) aiDenied = true;
-      console.error("[site-engine] copy fell back to rules", error);
-    }
-  }
+  const copy = fallbackCopy(copyFactsForWrite, brief);
+  const copyModel = "revora-native";
   await step("copy");
 
   await db.from("ai_generations").insert({
@@ -309,6 +278,7 @@ async function runJob(
     { recommendDirections },
     { classifyArchetype },
     { compileFirstBuildCreativeDirection },
+    { synthesizeNativeFirstBuild },
     { playbookFor },
   ] =
     await Promise.all([
@@ -316,6 +286,7 @@ async function runJob(
       import("@/lib/design-directions"),
       import("@/lib/site-archetypes"),
       import("@/lib/builder/first-build-creative"),
+      import("@/lib/builder/native-first-build"),
       import("@/lib/builder/industry"),
     ]);
   // Decide what kind of website this business needs (restaurant, clinic, shop,
@@ -358,6 +329,43 @@ async function runJob(
     (p["description"] as string) ?? null,
     serviceRows.map((service) => service.name).join(" "),
   );
+  const synthesis = synthesizeNativeFirstBuild({
+    facts: {
+      businessName: copyFacts.businessName,
+      industry: copyFacts.industry,
+      services: copyFacts.services.map((service) => service.name),
+      description: copyFacts.description,
+      city: copyFacts.city,
+      region: copyFacts.state,
+      serviceArea: copyFacts.serviceArea,
+      phone: copyFacts.phone,
+      email: copyFacts.email,
+      yearsInBusiness: copyFacts.yearsInBusiness,
+      hasPrices: copyFacts.services.some((service) => service.price != null || service.starting_price != null),
+      goals: copyFacts.goals,
+      hasHours: copyFacts.hasHours,
+    },
+    language: typeof p["language"] === "string" ? (p["language"] as string) : "English",
+    brief,
+    plan,
+    copy,
+    creative,
+  });
+  if (!synthesis.valid) {
+    throw new Error(
+      synthesis.findings.find((finding) => finding.severity === "blocker")?.detail ??
+        "The native quality review blocked unsafe website content.",
+    );
+  }
+  await db.from("ai_generations").insert({
+    organization_id: orgId,
+    job_id: job.id,
+    kind: "native_first_build_synthesis",
+    model: "revora-native",
+    instruction: null,
+    result: synthesis as unknown as never,
+    created_by: job.created_by,
+  } as never);
   const built = await materializeSiteContent(db, orgId, {
     businessName: org.data.name ?? "",
     copy,
@@ -432,7 +440,7 @@ async function runJob(
       reason: "Browser, visual, mobile and performance evidence must be recorded after rendering.",
     },
     briefSource: brief.source,
-    copyModel: COPY_ROLE,
+    copyModel,
     checks: qa.checks,
     attention: [
       ...qa.blockers.map((c) => c.fix),
@@ -456,6 +464,7 @@ async function runJob(
         brief,
         report,
         firstBuildCreative: creative,
+        nativeSynthesis: synthesis,
         designFingerprint: { ...creative.fingerprint, updatedAt: new Date().toISOString() },
         ...(!built.skipped && direction ? { effects: { backdrop: direction.backdrop } } : {}),
       } as unknown as Record<string, unknown>,
@@ -495,9 +504,7 @@ async function runJob(
   await db.from("notifications").insert({
     organization_id: orgId,
     title: "Your website draft is ready to review",
-    body: aiDenied
-      ? "Revora built your site from your business information. AI writing was unavailable for this build, so the copy is fact-based — run the assistant later to polish it."
-      : leadCapture
+    body: leadCapture
         ? "Revora built your site from your information and connected lead capture."
         : "Revora built your site. Turn on the quote calculator or online booking to capture leads.",
     kind: "website",
