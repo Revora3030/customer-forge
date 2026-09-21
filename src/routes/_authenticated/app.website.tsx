@@ -568,9 +568,16 @@ function WebsitePage() {
               node: (
                 <>
                   <SiteEnginePanel organizationId={orgId} canManage={manage} hasCopy={!!copy} />
+                  <TemplateGalleryPanel
+                    canManage={manage}
+                    industry={(profile?.["industry"] as string) ?? null}
+                    description={(profile?.["description"] as string) ?? null}
+                    businessName={org?.name ?? null}
+                  />
                   <WebsiteStructure organizationId={orgId} canManage={manage} />
                 </>
               ),
+
             },
             {
               key: "look",
