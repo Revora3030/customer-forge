@@ -97,6 +97,9 @@ import {
   itemsCss,
   readBlockStyle,
   writeBlockStyle,
+  FOCAL_POINTS,
+  readComponentVisual,
+  writeComponentVisual,
   type BlockStyle,
   type Device,
   type StyleKey,
@@ -280,6 +283,150 @@ function ItemCard({
         </span>
       ) : null}
       {selected && actions ? <div className="mt-2 flex flex-wrap gap-1">{actions}</div> : null}
+    </div>
+  );
+}
+
+/**
+ * Picture framing and provenance. Cropping here is non-destructive: the frame
+ * shape and the focal point decide what is shown, so the original file is never
+ * altered and any choice can be undone.
+ */
+function PictureControls({
+  settings,
+  disabled,
+  onChange,
+}: {
+  settings: unknown;
+  disabled: boolean;
+  onChange: (patch: {
+    aspect_ratio?: "1:1" | "4:3" | "3:2" | "16:9" | "21:9";
+    object_fit?: "cover" | "contain";
+    focal_point?: string;
+    source?: "customer" | "stock" | "generated" | "unknown";
+    credit?: string;
+    license?: string;
+    source_url?: string;
+  }) => void;
+}) {
+  const visual = readComponentVisual(settings);
+  const focal = visual.focal_point ?? "50% 50%";
+  const ratios = ["1:1", "4:3", "3:2", "16:9", "21:9"] as const;
+  const sources = [
+    { value: "customer", label: "Our own photo" },
+    { value: "stock", label: "Stock photo" },
+    { value: "generated", label: "Made by Revora" },
+    { value: "unknown", label: "Not sure yet" },
+  ] as const;
+  return (
+    <div className="space-y-3 rounded-xl border border-border p-3">
+      <p className="text-[12px] font-medium">Picture framing</p>
+      <Field label="Frame shape" hint="Crops what shows without changing the file">
+        <div className="flex flex-wrap gap-1.5">
+          {ratios.map((ratio) => (
+            <button
+              key={ratio}
+              type="button"
+              disabled={disabled}
+              onClick={() => onChange({ aspect_ratio: ratio })}
+              aria-pressed={visual.aspect_ratio === ratio}
+              className={cn(
+                "min-h-8 rounded-full border px-2.5 text-[11px]",
+                visual.aspect_ratio === ratio
+                  ? "border-primary text-foreground"
+                  : "border-border text-muted-foreground hover:text-foreground",
+              )}
+            >
+              {ratio}
+            </button>
+          ))}
+        </div>
+      </Field>
+      <Field label="Fill the frame">
+        <div className="flex gap-1.5">
+          {(["cover", "contain"] as const).map((fit) => (
+            <button
+              key={fit}
+              type="button"
+              disabled={disabled}
+              onClick={() => onChange({ object_fit: fit })}
+              aria-pressed={(visual.object_fit ?? "cover") === fit}
+              className={cn(
+                "min-h-8 rounded-full border px-2.5 text-[11px]",
+                (visual.object_fit ?? "cover") === fit
+                  ? "border-primary text-foreground"
+                  : "border-border text-muted-foreground hover:text-foreground",
+              )}
+            >
+              {fit === "cover" ? "Fill the frame" : "Show all of it"}
+            </button>
+          ))}
+        </div>
+      </Field>
+      <Field label="Keep this part in view" hint="Choose the part of the photo that matters most">
+        <div className="grid w-fit grid-cols-3 gap-1">
+          {FOCAL_POINTS.map((point) => (
+            <button
+              key={point.value}
+              type="button"
+              disabled={disabled}
+              aria-label={point.label}
+              aria-pressed={focal === point.value}
+              onClick={() => onChange({ focal_point: point.value })}
+              className={cn(
+                "size-8 rounded-md border",
+                focal === point.value
+                  ? "border-primary bg-primary/15"
+                  : "border-border hover:bg-elevated",
+              )}
+            >
+              <span className="sr-only">{point.label}</span>
+            </button>
+          ))}
+        </div>
+      </Field>
+      <Field label="Where this picture came from">
+        <div className="flex flex-wrap gap-1.5">
+          {sources.map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              disabled={disabled}
+              aria-pressed={(visual.source ?? "unknown") === option.value}
+              onClick={() => onChange({ source: option.value })}
+              className={cn(
+                "min-h-8 rounded-full border px-2.5 text-[11px]",
+                (visual.source ?? "unknown") === option.value
+                  ? "border-primary text-foreground"
+                  : "border-border text-muted-foreground hover:text-foreground",
+              )}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+      </Field>
+      <Field label="Credit" hint="Shown under the picture when the source asks for it">
+        <Input
+          defaultValue={visual.credit ?? ""}
+          disabled={disabled}
+          onBlur={(event) => onChange({ credit: event.target.value.trim().slice(0, 120) })}
+        />
+      </Field>
+      <Field label="Licence">
+        <Input
+          defaultValue={visual.license ?? ""}
+          disabled={disabled}
+          onBlur={(event) => onChange({ license: event.target.value.trim().slice(0, 80) })}
+        />
+      </Field>
+      <Field label="Source link">
+        <Input
+          defaultValue={visual.source_url ?? ""}
+          disabled={disabled}
+          onBlur={(event) => onChange({ source_url: event.target.value.trim().slice(0, 500) })}
+        />
+      </Field>
     </div>
   );
 }
@@ -1170,6 +1317,17 @@ export function BuilderCanvas({
                   }
                 />
               </Field>
+              {selectedComponent.media_url ? (
+                <PictureControls
+                  settings={selectedComponent.settings}
+                  disabled={!canManage}
+                  onChange={(patch) =>
+                    stageComponent(selectedComponent.id, {
+                      settings: writeComponentVisual(selectedComponent.settings, patch),
+                    })
+                  }
+                />
+              ) : null}
               {editingMode === "visual" ? <StyleControls
                 scope="component"
                 device={device}
