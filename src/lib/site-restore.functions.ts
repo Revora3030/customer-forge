@@ -25,16 +25,31 @@ const uuid = (value: unknown) => {
   return id;
 };
 
-async function readState(
-  supabase: {
-    from: (table: string) => {
-      select: (columns: string) => {
-        eq: (column: string, value: string) => Promise<{ data: unknown; error: unknown }>;
-      };
+export type StateReader = {
+  from: (table: string) => {
+    select: (columns: string) => {
+      eq: (column: string, value: string) => Promise<{ data: unknown; error: unknown }>;
     };
-  },
+  };
+};
+
+export type RestoreClient = {
+  from: SupabaseClient["from"];
+  rpc: (
+    name: string,
+    args: Record<string, unknown>,
+  ) => Promise<{ data: unknown; error: { message: string } | null }>;
+};
+
+/**
+ * Reads the whole editable website as an exact snapshot, through the caller's
+ * own session so row level security still applies. Shared with draft branches.
+ */
+export async function readWebsiteState(
+  supabase: StateReader,
   organizationId: string,
 ): Promise<FullSnapshot> {
+
   const [pages, sections, components] = await Promise.all([
     supabase
       .from("website_pages")
