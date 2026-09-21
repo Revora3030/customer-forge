@@ -44,7 +44,15 @@ describe("no third-party AI gateway remains", () => {
     // are separate Lovable integrations that never run a model. The capability
     // registry only names the credential so the admin page can show whether a
     // connection exists.
-    const allowed = ["email", "stripe.server.ts", "integrations/google.server", "integrations/capabilities.ts"];
+    // integrations/live-credentials.ts only lists the credential NAME so the
+    // live email suite can say whether it may run. It never calls a model.
+    const allowed = [
+      "email",
+      "stripe.server.ts",
+      "integrations/google.server",
+      "integrations/capabilities.ts",
+      "integrations/live-credentials.ts",
+    ];
     const offenders = APP_FILES.filter((file) => {
       if (!readFileSync(file, "utf8").includes("LOVABLE_API_KEY")) return false;
       return !allowed.some((fragment) => file.includes(fragment));
