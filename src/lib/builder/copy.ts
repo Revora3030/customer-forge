@@ -36,6 +36,14 @@
  */
 
 import type { IndustryPlaybook } from "./industry";
+import {
+  depthIsFactSafe,
+  objectionBlock,
+  processBlock,
+  questionDepth,
+  type DepthFacts,
+} from "./copy-depth";
+
 
 /* -------------------------------------------------------------------------- */
 /* Types                                                                      */
