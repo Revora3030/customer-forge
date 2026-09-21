@@ -104,7 +104,33 @@ const IMAGE_COMPONENT_KINDS = new Set(["image", "gallery", "media", "photo", "he
 
 function safeObjectPosition(value: string | undefined): string {
   if (!value) return "center";
-  return /^(left|center|right)(\s+(top|center|bottom))?$/i.test(value) ? value : "center";
+  const keyword = /^(left|center|right)(\s+(top|center|bottom))?$/i;
+  // Focal points chosen in the editor are stored as a percentage pair.
+  const percentage = /^\d{1,3}%\s+\d{1,3}%$/;
+  return keyword.test(value) || percentage.test(value) ? value : "center";
+}
+
+/**
+ * A credit line, shown only when the picture actually carries one. Stock and
+ * generated pictures must credit their source; the customer's own photos don't.
+ */
+function MediaCredit({ visual }: { visual: PersistedComponentVisual }) {
+  const credit = visual.credit?.trim();
+  const license = visual.license?.trim();
+  if (!credit && !license) return null;
+  const text = [credit, license].filter(Boolean).join(" · ");
+  const href = safeLinkUrl(visual.source_url ?? null);
+  return (
+    <figcaption className="mt-1.5 text-[11px] text-muted-foreground">
+      {href ? (
+        <a href={href} rel="nofollow noopener noreferrer" target="_blank" className="underline">
+          {text}
+        </a>
+      ) : (
+        text
+      )}
+    </figcaption>
+  );
 }
 
 function ratioClass(ratio: string | undefined): string {
@@ -159,8 +185,9 @@ function SectionMedia({ site, section }: { site: Site; section: Section }) {
               loading="lazy"
               decoding="async"
               className={visualImageClass(visual)}
-              style={{ objectPosition: safeObjectPosition(visual.object_position) }}
+              style={{ objectPosition: safeObjectPosition(visual.focal_point ?? visual.object_position) }}
             />
+            <MediaCredit visual={visual} />
           </figure>
         );
       })}
