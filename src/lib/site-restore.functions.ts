@@ -87,10 +87,66 @@ export const captureSiteState = createServerFn({ method: "POST" })
     label: String(data?.label ?? "Before this change").slice(0, 120),
   }))
   .handler(async ({ data, context }) => {
-    const supabase = context.supabase as never as Parameters<typeof readState>[0];
-    const snapshot = await readState(supabase, data.organizationId);
+    const supabase = context.supabase as never as StateReader;
+    const snapshot = await readWebsiteState(supabase, data.organizationId);
     return { snapshot, label: data.label, counts: countSnapshot(snapshot) };
   });
+
+/**
+ * Puts the website back to an exact snapshot, in one database transaction, and
+ * verifies the result instead of reporting success blindly. Shared by restore
+ * points and by throwing a draft branch away.
+ */
+export async function applyWebsiteRestore(
+  supabase: RestoreClient,
+  orgId: string,
+  snapshot: FullSnapshot,
+) {
+  const before = await readWebsiteState(supabase as never as StateReader, orgId);
+  const plan = planRestore(before, snapshot);
+
+  // One database transaction: the restore either lands completely or not at
+  // all. A half-restored website is never possible, even if a single row
+  // fails, because Postgres rolls the whole function back.
+  const { error } = await supabase.rpc("restore_website_state", {
+    _organization_id: orgId,
+    _snapshot: snapshot as never,
+  });
+  if (error) {
+    await supabase.from("audit_logs").insert({
+      organization_id: orgId,
+      action: "SITE_STATE_RESTORE_FAILED",
+      entity_type: "website",
+      entity_id: orgId,
+      metadata: { reason: error.message.slice(0, 300) } as never,
+    });
+    throw new Error(
+      error.message.includes("FORBIDDEN") || error.message.includes("row-level security")
+        ? "You don't have permission to restore this website."
+        : "The restore didn't run, so nothing was changed. Your website is exactly as it was.",
+    );
+  }
+
+  // Verify the restore really landed instead of reporting success blindly.
+  const after = await readWebsiteState(supabase as never as StateReader, orgId);
+  const exact = snapshotsMatch(after, snapshot);
+
+  await supabase.from("audit_logs").insert({
+    organization_id: orgId,
+    action: exact ? "SITE_STATE_RESTORED" : "SITE_STATE_RESTORE_PARTIAL",
+    entity_type: "website",
+    entity_id: orgId,
+    metadata: { ...countSnapshot(snapshot), exact } as never,
+  });
+
+  return {
+    exact,
+    summary: exact
+      ? plan.summary
+      : "Your website was put back, but a few items didn't match exactly. Check the pages before publishing.",
+    counts: countSnapshot(after),
+  };
+}
 
 export const restoreSiteState = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -99,57 +155,11 @@ export const restoreSiteState = createServerFn({ method: "POST" })
     if (!snapshot) throw new Error("That saved state can no longer be read.");
     return { organizationId: uuid(data?.organizationId), snapshot };
   })
-  .handler(async ({ data, context }) => {
-    const supabase = context.supabase as never as {
-      from: SupabaseClient["from"];
-      rpc: (
-        name: string,
-        args: Record<string, unknown>,
-      ) => Promise<{ data: unknown; error: { message: string } | null }>;
-    };
-    const orgId = data.organizationId;
-    const before = await readState(supabase as never as Parameters<typeof readState>[0], orgId);
-    const plan = planRestore(before, data.snapshot);
+  .handler(({ data, context }) =>
+    applyWebsiteRestore(
+      context.supabase as never as RestoreClient,
+      data.organizationId,
+      data.snapshot,
+    ),
+  );
 
-    // One database transaction: the restore either lands completely or not at
-    // all. A half-restored website is never possible, even if a single row
-    // fails, because Postgres rolls the whole function back.
-    const { error } = await supabase.rpc("restore_website_state", {
-      _organization_id: orgId,
-      _snapshot: data.snapshot as never,
-    });
-    if (error) {
-      await supabase.from("audit_logs").insert({
-        organization_id: orgId,
-        action: "SITE_STATE_RESTORE_FAILED",
-        entity_type: "website",
-        entity_id: orgId,
-        metadata: { reason: error.message.slice(0, 300) } as never,
-      });
-      throw new Error(
-        error.message.includes("FORBIDDEN") || error.message.includes("row-level security")
-          ? "You don't have permission to restore this website."
-          : "The restore didn't run, so nothing was changed. Your website is exactly as it was.",
-      );
-    }
-
-    // Verify the restore really landed instead of reporting success blindly.
-    const after = await readState(supabase as never as Parameters<typeof readState>[0], orgId);
-    const exact = snapshotsMatch(after, data.snapshot);
-
-    await supabase.from("audit_logs").insert({
-      organization_id: orgId,
-      action: exact ? "SITE_STATE_RESTORED" : "SITE_STATE_RESTORE_PARTIAL",
-      entity_type: "website",
-      entity_id: orgId,
-      metadata: { ...countSnapshot(data.snapshot), exact } as never,
-    });
-
-    return {
-      exact,
-      summary: exact
-        ? plan.summary
-        : "Your website was put back, but a few items didn't match exactly. Check the pages before publishing.",
-      counts: countSnapshot(after),
-    };
-  });
