@@ -11,6 +11,7 @@
  * write path still reads the database directly and clears the entry.
  */
 
+import { formatLocality, formatServiceArea } from "@/lib/locality";
 import type { AgentContext } from "@/lib/site-agent.server";
 
 type Entry = { context: AgentContext; at: number };
@@ -59,7 +60,7 @@ export function workspaceSummary(context: AgentContext): string {
   const lines = [
     `Business: ${business.name || "unnamed"}${business.industry ? ` (${business.industry})` : ""}`,
     business.city || business.state || business.serviceArea
-      ? `Serves: ${[business.city, business.state, business.serviceArea].filter(Boolean).join(", ")}`
+      ? `Serves: ${[formatLocality(business.city, business.state), formatServiceArea(business.serviceArea)].filter(Boolean).join(", ")}`
       : "Serves: not recorded",
     `Services on file: ${business.services.length ? business.services.map((service) => service.name).join(", ") : "none"}`,
     `Published reviews: ${business.publishedReviewCount}. Photos in the library: ${business.photoCount}.`,

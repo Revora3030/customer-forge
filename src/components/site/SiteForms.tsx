@@ -142,7 +142,7 @@ export function QuoteCalculator({ site }: { site: Site }) {
                       }}
                       aria-pressed={active}
                       className={cn(
-                        "cursor-pointer rounded-md border px-3.5 py-2.5 text-left text-[13px] transition-colors",
+                        "min-h-11 cursor-pointer rounded-md border px-3.5 py-2.5 text-left text-[13px] transition-colors",
                         active
                           ? "border-primary bg-primary/10 text-foreground"
                           : "border-border hover:bg-elevated",
@@ -175,7 +175,7 @@ export function QuoteCalculator({ site }: { site: Site }) {
                         )
                       }
                       className={cn(
-                        "cursor-pointer rounded-md border px-3.5 py-2.5 text-left text-[13px] transition-colors",
+                        "min-h-11 cursor-pointer rounded-md border px-3.5 py-2.5 text-left text-[13px] transition-colors",
                         active
                           ? "border-primary bg-primary/10 text-foreground"
                           : "border-border hover:bg-elevated",
@@ -399,7 +399,7 @@ export function BookingForm({ site }: { site: Site }) {
             id={fid("service")}
             value={serviceId}
             onChange={(e) => setServiceId(e.target.value)}
-            className="h-9 w-full rounded-md border border-input bg-transparent px-3 text-[13px]"
+            className="h-11 w-full rounded-md border border-input bg-transparent px-3 text-[13px] sm:h-10"
           >
             {bookable.map((s) => (
               <option key={s.id} value={s.id}>
@@ -442,7 +442,7 @@ export function BookingForm({ site }: { site: Site }) {
         ) : null}
       </div>
       {bookable.length ? (
-        <p className="text-[11px] text-muted-foreground">
+        <p className="text-[12px] text-muted-foreground">
           {/* Real limitation, not just copy: nothing in this codebase stores the
               business's own timezone, so a time typed here is captured in the
               visitor's own device timezone. If a customer books while set to a
@@ -465,7 +465,7 @@ export function BookingForm({ site }: { site: Site }) {
       <Button type="submit" variant="signal" disabled={pending}>
         {pending ? <Loader2 className="size-4 animate-spin" /> : null} Request appointment
       </Button>
-      <p className="text-[11px] text-muted-foreground">
+      <p className="text-[12px] text-muted-foreground">
         No payment now — you'll get a confirmation before anything is charged.
       </p>
     </form>

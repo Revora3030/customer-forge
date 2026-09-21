@@ -11,6 +11,7 @@
 import type { Tone } from "@/lib/domain";
 import { INDUSTRIES } from "@/lib/domain";
 import { slugify } from "@/lib/format";
+import { formatLocality, formatServiceArea } from "@/lib/locality";
 
 /**
  * The only Revora-owned host. A client website lives on the domain the client
@@ -232,8 +233,9 @@ const templateFor = (industry: string) =>
 const primaryGoal = (goals: GoalKey[]): GoalKey => goals[0] ?? "quote";
 
 function placeName(input: GenerationInput) {
-  const parts = [input.city, input.state].filter(Boolean);
-  return parts.length ? parts.join(", ") : (input.serviceArea ?? "");
+  return (
+    formatLocality(input.city, input.state) || formatServiceArea(input.serviceArea ?? null)
+  );
 }
 
 /** Builds the website structure and copy from real client information only. */
