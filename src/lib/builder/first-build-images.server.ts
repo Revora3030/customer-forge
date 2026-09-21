@@ -59,7 +59,7 @@ export type FirstBuildImageResult = {
 
 function maxStarterImages() {
   const raw = Number(process.env["FIRST_BUILD_IMAGE_MAX"] ?? "");
-  return Number.isFinite(raw) && raw > 0 ? Math.min(Math.floor(raw), 6) : 4;
+  return Number.isFinite(raw) && raw > 0 ? Math.min(Math.floor(raw), 8) : 6;
 }
 
 function safeSlot(shot: PlannedShot) {
@@ -76,8 +76,15 @@ function artDirectionNote(creative: FirstBuildCreativeDirection, shot: PlannedSh
   const spec = creative.brief?.imageInventory.find(
     (item) => item.slot === shot.slot && item.label === shot.label,
   );
-  if (!spec) return "";
+  const campaign = [
+    creative.imagery.language,
+    creative.imagery.treatment,
+    creative.brief?.photography.lighting,
+    creative.brief?.photography.environment,
+  ].filter(Boolean).join(". ");
+  if (!spec) return campaign ? `Campaign direction: ${campaign}.` : "";
   return [
+    `Campaign direction: ${campaign}.`,
     `Art direction: ${spec.camera}.`,
     `Framing: ${spec.framing}.`,
     `Mood: ${spec.mood}.`,
@@ -94,17 +101,20 @@ export function firstBuildImageShots(
   creative: FirstBuildCreativeDirection,
   photoCount: number,
 ): PlannedShot[] {
-  if (photoCount > 0) return [];
   const unique = new Set<string>();
   const shots: PlannedShot[] = [];
   for (const shot of creative.imagery.shots) {
     if (!safeSlot(shot)) continue;
+    // An existing owner picture is presumed to cover the hero first. It should
+    // not suppress safe supporting marketing pictures for the rest of the site.
+    if (photoCount > 0 && shot.slot === "hero") continue;
     const key = `${shot.slot}:${shot.label.toLowerCase()}`;
     if (unique.has(key)) continue;
     unique.add(key);
     shots.push(shot);
   }
-  return shots.slice(0, maxStarterImages());
+  const openSlots = Math.max(0, maxStarterImages() - Math.min(photoCount, 3));
+  return shots.slice(0, openSlots);
 }
 
 export async function generateFirstBuildImages(
@@ -118,22 +128,6 @@ export async function generateFirstBuildImages(
     creative: FirstBuildCreativeDirection;
   },
 ): Promise<FirstBuildImageResult> {
-  if (input.photoCount > 0) {
-    return {
-      assets: [],
-      evidence: {
-        status: "owner_photos",
-        requested: 0,
-        generated: 0,
-        attached: 0,
-        skipped: [],
-        provider: null,
-        models: [],
-        message: "Owner-supplied photos were already present, so generated starter images were not used.",
-      },
-    };
-  }
-
   const direction =
     VISUAL_DIRECTIONS.find((item) => item.id === input.creative.imagery.directionId) ?? null;
   const shots = firstBuildImageShots(input.creative, input.photoCount);

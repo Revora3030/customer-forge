@@ -110,24 +110,17 @@ export function auditEliteBuilderQuality(
           return slug && slug !== "" && !knownSlugs.has(slug);
         }).length * 8))
       : 100,
-    visual: clamp(
-      78 +
-        Math.min(10, actionCount(actions, "set_section_visual") * 2) +
-        Math.min(8, actionCount(actions, "set_section_effect") * 2) +
-        (actionCount(actions, "set_theme") ? 4 : 0),
-    ),
-    responsive: clamp(82 + Math.min(18, actionCount(actions, "set_section_visual") * 2)),
+    // Planning actions are not rendered evidence. These remain unverified until
+    // the browser QA lane supplies measurements.
+    visual: 0,
+    responsive: 0,
     accessibility: clamp(
       78 +
         Math.min(12, components.filter((component) => text(component.label) || text(component.link_label)).length),
     ),
-    performance: clamp(
-      94 -
-        Math.min(20, actionCount(actions, "set_section_effect") * 2) -
-        Math.min(10, actionCount(actions, "set_backdrop") * 2),
-    ),
+    performance: 0,
     safety: clamp(safeActionRatio),
-    autonomy: clamp(76 + Math.min(24, actionDiversity * 2)),
+    autonomy: actions.length ? clamp(Math.min(70, actionDiversity * 8)) : 0,
   };
 
   const weights: Record<EliteQualityFinding["area"], number> = {

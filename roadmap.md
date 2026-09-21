@@ -1,5 +1,13 @@
 # Builder 10/10 upgrade
 
+## Premium rendered-output contract
+- [x] Add a versioned, data-only creative contract and persist it on every newly materialized section.
+- [x] Give pricing, statistics, and process sections dedicated renderer families instead of generic fallback variants.
+- [x] Let owner photos fill their roles without suppressing safe supporting first-build imagery.
+- [x] Carry Sol/Terra photography language into the real image prompt.
+- [x] Remove hardcoded and action-count visual confidence; unmeasured rendered quality now remains unverified.
+- [ ] Complete premium section markup, screenshot-based perceptual grading, automatic visual repair, and fresh owner-site proof across 320–1440px.
+
 ## Hall-of-Fame master workspace upgrade
 - [x] Make the real customer preview the primary builder surface with Build / Chat / Edit / Visual Edit modes.
 - [x] Add uncluttered page, viewport, zoom, refresh and fullscreen preview controls.

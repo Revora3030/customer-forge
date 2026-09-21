@@ -29,8 +29,12 @@ describe("design quality scoring", () => {
     expect(first.score).toBeGreaterThan(0);
     expect(first.score).toBeLessThanOrEqual(100);
     expect(first.dimensions.structure).toBeGreaterThanOrEqual(80);
-    expect(first.dimensions.hierarchy).toBe(100);
+    expect(first.dimensions.hierarchy).toBeLessThan(100);
     expect(first.dimensions.conversion).toBeGreaterThan(0);
     expect(designQualitySummary(first)).toContain("Deterministic design-quality scan:");
+  });
+  it("does not reward generic filler as meaningful content", () => {
+    const result = scoreDesignQuality(context);
+    expect(result.dimensions.content).toBeLessThan(100);
   });
 });

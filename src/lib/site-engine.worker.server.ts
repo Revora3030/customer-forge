@@ -570,6 +570,7 @@ async function runJob(
     direction,
     archetype,
     fingerprint: creative.fingerprint,
+    creativeBrief: creative.brief,
     industryPlaybook,
     generatedAssets: starterImages.assets,
     replaceExisting: freshReplace,
