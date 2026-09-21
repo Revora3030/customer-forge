@@ -162,6 +162,7 @@ describe("provider fallback", () => {
 
   beforeEach(() => {
     process.env["ZERO_AI_COST_MODE"] = "false";
+    process.env["BUILDER_EXTERNAL_AI_ALLOWED"] = "true";
     // These tests cover the optional PAID chain, so the free chain is off.
     process.env["FREE_AI_ENABLED"] = "false";
     process.env["FREE_AI_ONLY"] = "false";
