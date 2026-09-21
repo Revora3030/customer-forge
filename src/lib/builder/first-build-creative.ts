@@ -174,6 +174,7 @@ export function compileFirstBuildCreativeDirection(
       shots,
       assetPlan,
     },
+    brief,
     unknowns: dna.needed,
   };
 }
