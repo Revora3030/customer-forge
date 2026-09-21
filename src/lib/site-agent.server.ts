@@ -53,7 +53,10 @@ export type SiteMapPage = {
       link_label: string | null;
       link_url: string | null;
       sort_order: number;
+      media_url?: string | null;
+      settings?: unknown;
     }[];
+    settings?: unknown;
   }[];
 };
 

@@ -28,4 +28,17 @@ describe("browser-style content intelligence", () => {
     expect(report.findings.filter((finding) => finding.kind === "page")).toHaveLength(2);
     expect(report.score).toBeLessThan(100);
   });
+
+  it("flags shallow interior pages without a deliberate opening or action", () => {
+    const context = {
+      pages: [{
+        id: "about", slug: "about", title: "About", seo_title: "About us", seo_description: "Our story.",
+        is_visible: true, noindex: false,
+        sections: [{ id: "copy", kind: "text", heading: "Our story", subheading: null, body: "A short story.", is_visible: true, components: [] }],
+      }],
+    } as unknown as AgentContext;
+    const report = runBrowserStyleQa(context);
+    expect(report.findings.some((finding) => finding.kind === "richness")).toBe(true);
+    expect(report.findings.some((finding) => finding.kind === "cta")).toBe(true);
+  });
 });

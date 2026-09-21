@@ -40,6 +40,13 @@ export function SitePageLink({
   children: ReactNode;
 }) {
   const ownAddress = useOwnAddress();
+  if (page?.startsWith("#")) {
+    return (
+      <a href={ownAddress ? `/${page}` : `/s/${encodeURIComponent(slug)}${page}`} className={className}>
+        {children}
+      </a>
+    );
+  }
   if (ownAddress) {
     return (
       <a href={page ? `/${page}` : "/"} className={className}>

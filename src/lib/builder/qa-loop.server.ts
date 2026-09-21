@@ -99,11 +99,11 @@ export async function loadQaContext(db: Db, orgId: string): Promise<AgentContext
     ),
     read(
       "website_sections",
-      "id, page_id, kind, variant, is_visible, heading, subheading, body, sort_order",
+      "id, page_id, kind, variant, is_visible, heading, subheading, body, settings, sort_order",
     ),
     read(
       "website_components",
-      "id, section_id, kind, label, body, link_label, link_url, sort_order",
+      "id, section_id, kind, label, body, link_label, link_url, media_url, settings, sort_order",
     ),
   ]);
 
@@ -135,6 +135,7 @@ export async function loadQaContext(db: Db, orgId: string): Promise<AgentContext
         subheading: (section["subheading"] as string | null) ?? null,
         body: (section["body"] as string | null) ?? null,
         sort_order: Number(section["sort_order"] ?? 0),
+        settings: section["settings"] ?? null,
         components: (componentsBySection.get(String(section["id"])) ?? []).map((component) => ({
           id: String(component["id"]),
           kind: String(component["kind"] ?? "text"),
@@ -143,6 +144,8 @@ export async function loadQaContext(db: Db, orgId: string): Promise<AgentContext
           link_label: (component["link_label"] as string | null) ?? null,
           link_url: (component["link_url"] as string | null) ?? null,
           sort_order: Number(component["sort_order"] ?? 0),
+          media_url: (component["media_url"] as string | null) ?? null,
+          settings: component["settings"] ?? null,
         })),
       })),
   })) as SiteMapPage[];

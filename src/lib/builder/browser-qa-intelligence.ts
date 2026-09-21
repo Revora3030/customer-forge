@@ -16,7 +16,9 @@ export type BrowserQaCheckKind =
   | "form"
   | "mobile"
   | "seo"
-  | "accessibility";
+  | "accessibility"
+  | "richness"
+  | "consistency";
 
 const TEMPLATE_FILLER = /\b(?:lorem ipsum|your business name|your company name|business name here|service name here|insert (?:text|copy|headline)|coming soon)\b|\[(?:business|company|service|city|state|headline|description)(?: name)?\]/i;
 
@@ -53,9 +55,43 @@ function sections(context: AgentContext): Section[] {
 }
 
 function pageHasInternalDestination(context: AgentContext, url: string): boolean {
+  if (url.startsWith("/#") || url.startsWith("#")) return true;
   return context.pages.some((page) => page.is_visible && !page.noindex && (
     url === "/" || url === page.slug || url === `/${page.slug}`
   ));
+}
+
+function runRichnessChecks(context: AgentContext, findings: BrowserQaFinding[]): void {
+  const visible = pages(context);
+  for (const page of visible) {
+    const pageSections = page.sections.filter((section) => section.is_visible && section.kind !== "sticky_cta");
+    if (pageSections.length < 2) {
+      findings.push({ kind: "richness", pageId: page.id, message: "Page has fewer than two meaningful sections.", severity: "warning" });
+    }
+    const hasOpening = page.slug === "home" || pageSections.some((section) => section.kind === "hero" || section.kind === "intro");
+    if (!hasOpening) {
+      findings.push({ kind: "richness", pageId: page.id, message: "Interior page has no deliberate opening section.", severity: "warning" });
+    }
+    const hasAction = pageSections.some((section) => section.components.some((component) => Boolean(component.link_url)));
+    if (!hasAction && !pageSections.some((section) => /contact|quote|booking/.test(section.kind))) {
+      findings.push({ kind: "cta", pageId: page.id, message: "Page has no clear next action.", severity: "warning" });
+    }
+    const mediaCount = pageSections.flatMap((section) => section.components).filter((component) => Boolean(component.media_url)).length;
+    const artCapable = pageSections.some((section) => ["hero", "intro", "area", "cta", "offer", "guarantee"].includes(section.kind));
+    if (mediaCount === 0 && !artCapable) {
+      findings.push({ kind: "richness", pageId: page.id, message: "Page has neither assigned media nor a designed artwork composition.", severity: "warning" });
+    }
+  }
+
+  const anatomy = new Map<string, string[]>();
+  for (const page of visible) {
+    const key = page.sections.filter((section) => section.is_visible).map((section) => section.kind).join(">");
+    anatomy.set(key, [...(anatomy.get(key) ?? []), page.id]);
+  }
+  for (const ids of anatomy.values()) {
+    if (ids.length < 3) continue;
+    for (const pageId of ids.slice(2)) findings.push({ kind: "consistency", pageId, message: "Three or more pages repeat the same section anatomy.", severity: "warning" });
+  }
 }
 
 function runPageChecks(context: AgentContext, findings: BrowserQaFinding[]): void {
@@ -186,9 +222,10 @@ export function runBrowserStyleQa(
   runNavigationChecks(context, findings);
   const conversionPaths = runConversionChecks(context, findings);
   runAccessibilityChecks(context, findings);
+  runRichnessChecks(context, findings);
   runMobileChecks(context, instruction, findings);
 
-  const checksRun = Math.max(1, visiblePages.length * 5);
+  const checksRun = Math.max(1, visiblePages.length * 8);
   const penalty = Math.min(100, findings.filter((finding) => finding.severity === "warning").length * 8);
   const score = Math.max(0, 100 - penalty);
 

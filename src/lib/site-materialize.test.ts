@@ -127,6 +127,19 @@ describe("planSiteContent", () => {
       ?.components?.map((component) => component.link_url);
     expect(serviceLinks).toContain(`/services/${input.services[0]!.name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`);
   });
+
+  it("gives core interior pages a deliberate opening, useful body, and closing action", () => {
+    const pages = planSiteContent(input);
+    for (const slug of ["services", "pricing", "about", "book"]) {
+      const page = pages.find((candidate) => candidate.slug === slug)!;
+      expect(page.sections[0]?.kind).toBe("hero");
+      expect(page.sections.at(-1)?.kind).toBe("cta");
+      expect(page.sections.length).toBeGreaterThanOrEqual(3);
+    }
+    const contact = pages.find((page) => page.slug === "contact")!;
+    expect(contact.sections[0]?.kind).toBe("hero");
+    expect(contact.sections.map((section) => section.kind)).toContain("quote");
+  });
 });
 
 describe("planSiteContent with a website archetype", () => {

@@ -59,7 +59,9 @@ export type FirstBuildImageResult = {
 
 function maxStarterImages() {
   const raw = Number(process.env["FIRST_BUILD_IMAGE_MAX"] ?? "");
-  return Number.isFinite(raw) && raw > 0 ? Math.min(Math.floor(raw), 8) : 6;
+  // Enough coverage for the hero, several service pages and campaign support,
+  // while keeping generation finite and respecting the configured cost lane.
+  return Number.isFinite(raw) && raw > 0 ? Math.min(Math.floor(raw), 12) : 10;
 }
 
 function safeSlot(shot: PlannedShot) {
