@@ -61,6 +61,7 @@ import { SiteUpgradePanel } from "@/components/app/SiteUpgradePanel";
 import { PortalAccess } from "@/components/app/PortalAccess";
 import { PreviewLinks, PreviewSiteButton } from "@/components/app/PreviewLinks";
 import { VersionDiff } from "@/components/app/VersionDiff";
+import { DraftBranchPanel } from "@/components/app/DraftBranchPanel";
 import { RestorePointPanel } from "@/components/app/RestorePointPanel";
 import { PlatformEngine } from "@/components/app/PlatformEngine";
 import { DesignIdentity } from "@/components/app/DesignIdentity";
@@ -542,6 +543,7 @@ function WebsitePage() {
           description="Every change Revora and your team made — restore any earlier version."
           onClose={() => setHistoryOpen(false)}
         >
+          <DraftBranchPanel organizationId={orgId ?? null} canManage={manage} />
           <RestorePointPanel organizationId={orgId} canManage={manage} />
           <VersionHistory organizationId={orgId} canManage={manage} />
           <VersionDiff organizationId={orgId} />
