@@ -30,6 +30,7 @@ export type BuildStage = (typeof BUILD_STAGES)[number] | string;
 
 function clean(value: string, max: number): string {
   return String(value ?? "")
+    // eslint-disable-next-line no-control-regex -- control characters are deliberately stripped from persisted progress text
     .replace(/[\u0000-\u001f\u007f]/g, " ")
     .replace(/\s+/g, " ")
     .trim()

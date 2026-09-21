@@ -51,6 +51,8 @@ import { UpgradeStudio } from "@/components/app/UpgradeStudio";
 import { RevoraGenius } from "@/components/app/RevoraGenius";
 import { BuilderAudit } from "@/components/app/BuilderAudit";
 import { BuilderCanvas } from "@/components/app/BuilderCanvas";
+import { BuilderPreview } from "@/components/app/BuilderPreview";
+import { MessageCircle, MousePointer2, Paintbrush, Sparkles } from "lucide-react";
 import { PreFlightPanel } from "@/components/app/PreFlight";
 import { preflight } from "@/lib/preflight";
 import { usePreflightFacts } from "@/lib/preflight.hooks";
@@ -151,6 +153,7 @@ function WebsitePage() {
   const [setupOpen, setSetupOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [advanced, setAdvanced] = useState<string | null>(null);
+  const [workspaceMode, setWorkspaceMode] = useState<"build" | "chat" | "edit" | "visual">("build");
 
   /** One request engine for the whole workspace. */
   const requests = useBuilderRequests({ organizationId: orgId ?? null, canManage: manage });
@@ -430,27 +433,49 @@ function WebsitePage() {
   /** Nothing built yet: one conversation and nothing else. */
   const firstRun = (pages ?? []).length === 0;
 
-  /** The whole workspace: a conversation, their website, and what it needs. */
+  const workspaceModes = [
+    { key: "build" as const, label: "Build", icon: Sparkles },
+    { key: "chat" as const, label: "Chat", icon: MessageCircle },
+    { key: "edit" as const, label: "Edit", icon: MousePointer2 },
+    { key: "visual" as const, label: "Visual Edit", icon: Paintbrush },
+  ];
+
+  /** The whole workspace: the real preview first, with complexity revealed only when requested. */
   const workspace = (
-    <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(380px,420px)_minmax(0,1fr)]">
-      <div className="order-2 min-w-0 lg:order-1 lg:sticky lg:top-24 lg:self-start">
-        <BuilderAssistant
-          organizationId={orgId ?? null}
-          requests={requests}
-          onOpenExtras={() => setAdvanced("assistant")}
-          emptyTitle={firstRun ? "Describe your business" : "Tell Revora what to change"}
-          emptyHint={
-            firstRun
-              ? "Revora builds the pages, writes the words and sets up your enquiry form. You publish when it looks right."
-              : "Ask for anything — a new page, better wording, a fresh look, more enquiries."
-          }
-        />
+    <div className="space-y-3">
+      <div className="flex items-center gap-1 overflow-x-auto rounded-md border border-border bg-card/70 p-1" role="tablist" aria-label="Builder mode">
+        {workspaceModes.map((mode) => {
+          const Icon = mode.icon;
+          return (
+            <Button
+              key={mode.key}
+              type="button"
+              size="sm"
+              variant={workspaceMode === mode.key ? "secondary" : "ghost"}
+              role="tab"
+              aria-selected={workspaceMode === mode.key}
+              onClick={() => setWorkspaceMode(mode.key)}
+              className="shrink-0"
+            >
+              <Icon className="size-4" aria-hidden />
+              {mode.label}
+            </Button>
+          );
+        })}
       </div>
 
-      <div className="order-1 min-w-0 space-y-5 lg:order-2">
-        <EnvironmentBanner status={production} />
-        <BuilderNeeds needs={needs} />
-        {firstRun ? (
+      <EnvironmentBanner status={production} />
+      <BuilderNeeds needs={needs} />
+
+      {firstRun ? (
+        <div className="mx-auto max-w-3xl">
+          <BuilderAssistant
+            organizationId={orgId ?? null}
+            requests={requests}
+            onOpenExtras={() => setAdvanced("assistant")}
+            emptyTitle="Describe your business"
+            emptyHint="Revora builds the pages, writes the words and sets up your enquiry form. You publish when it looks right."
+          />
           <section className="panel p-5 text-center">
             <p className="text-[14px] font-medium">Your website will appear here</p>
             <p className="mt-1 text-[12.5px] text-muted-foreground">
@@ -466,12 +491,41 @@ function WebsitePage() {
               Add a page myself
             </Button>
           </section>
-        ) : (
+        </div>
+      ) : workspaceMode === "build" ? (
+        <div className="grid min-w-0 gap-3 xl:grid-cols-[minmax(0,1fr)_360px]">
+          {org?.slug ? (
+            <BuilderPreview slug={org.slug} pages={pages ?? []} refreshing={requests.refreshing} />
+          ) : null}
+          <div className="min-w-0 xl:sticky xl:top-24 xl:self-start">
+            <BuilderAssistant
+              compact
+              organizationId={orgId ?? null}
+              requests={requests}
+              onOpenExtras={() => setAdvanced("assistant")}
+              emptyTitle="Tell Revora what to change"
+              emptyHint="Ask for anything — a new page, better wording, a fresh look, more enquiries."
+            />
+          </div>
+        </div>
+      ) : workspaceMode === "chat" ? (
+        <div className="mx-auto max-w-3xl">
+          <BuilderAssistant
+            organizationId={orgId ?? null}
+            requests={requests}
+            onOpenExtras={() => setAdvanced("assistant")}
+            emptyTitle="Tell Revora what to change"
+            emptyHint="Ask for anything — a new page, better wording, a fresh look, more enquiries."
+          />
+        </div>
+      ) : (
+        <div className="min-w-0">
           <BuilderCanvas
             organizationId={orgId}
             pages={pages ?? []}
             canManage={manage}
             refreshing={requests.refreshing}
+            editingMode={workspaceMode === "visual" ? "visual" : "content"}
             onRewriteSection={(target) =>
               // One press turns the selected block into a normal request, so the
               // owner never has to describe the rest of the website again.
@@ -480,15 +534,16 @@ function WebsitePage() {
               )
             }
           />
-        )}
-        <div className="flex flex-wrap items-center gap-3">
-          <Button size="sm" variant="ghost" onClick={() => setAdvanced("pages")}>
-            Advanced settings
-          </Button>
-          <span className="text-[11.5px] text-muted-foreground">
-            Pages, look, photos, enquiries, launch checks and reports.
-          </span>
         </div>
+      )}
+
+      <div className="flex flex-wrap items-center gap-3">
+        <Button size="sm" variant="ghost" onClick={() => setAdvanced("pages")}>
+          Advanced settings
+        </Button>
+        <span className="text-[11.5px] text-muted-foreground">
+          Pages, look, photos, enquiries, launch checks and reports.
+        </span>
       </div>
     </div>
   );

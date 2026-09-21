@@ -68,6 +68,7 @@ const MAX_FINDINGS = 12;
 
 function clean(value: unknown, max: number): string {
   if (typeof value !== "string") return "";
+  // eslint-disable-next-line no-control-regex -- model output is untrusted and control characters must be removed
   const text = value.replace(/[\u0000-\u001f\u007f]/g, " ").replace(/\s+/g, " ").trim();
   if (CLAIM_LIKE.test(text)) return "";
   return text.slice(0, max);

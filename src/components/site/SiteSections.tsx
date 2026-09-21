@@ -202,6 +202,7 @@ export function SiteSection({ site, section }: { site: Site; section: Section })
   const style = readBlockStyle(section.settings);
   const visual = readSectionVisual(section.settings);
   const variant = /^[a-z0-9-]{1,40}$/i.test(section.variant ?? "") ? section.variant : "default";
+  const rendererVariant = variant.split("--", 1)[0] ?? variant;
   let inner = <SiteSectionBody site={site} section={section} />;
 
   const css = blockCss(style);
@@ -216,6 +217,7 @@ export function SiteSection({ site, section }: { site: Site; section: Section })
   const visualClass = [
     "rv-section",
     `rv-variant-${variant}`,
+    rendererVariant !== variant ? `rv-variant-${rendererVariant}` : "",
     visual.layout ? `rv-layout-${visual.layout}` : "",
     visual.density ? `rv-density-${visual.density}` : "",
     visual.spacing ? `rv-spacing-${visual.spacing}` : "",
