@@ -206,7 +206,7 @@ export function factGaps(input: FactInput): FactGap[] {
     const text = (value ?? "").trim();
     if (text.length < minimum) return true;
     const compact = text.toLowerCase().replace(/[^a-z0-9]/g, "");
-    if (/^(?:test|sample|businessname|mybusiness|companyname|qwerty|asdfgh|none|na)$/.test(compact)) return true;
+    if (/^(?:test|sample|businessname|mybusiness|companyname|qwerty|asdfgh|asdasd|none|na)$/.test(compact)) return true;
     return /^(.{1,2})\1{2,}$/.test(compact);
   };
 
