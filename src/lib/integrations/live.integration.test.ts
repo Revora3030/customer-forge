@@ -102,9 +102,15 @@ describe("live payments", () => {
     });
     const timestamp = Math.floor(Date.now() / 1000);
     const signature = createHmac("sha256", secret).update(`${timestamp}.${body}`).digest("hex");
+    const request = (sig: string) =>
+      new Request("https://revoragrowthsystems.com/api/public/stripe-webhook", {
+        method: "POST",
+        headers: { "stripe-signature": sig, "content-type": "application/json" },
+        body,
+      });
 
-    const good = await verifyWebhook(body, `t=${timestamp},v1=${signature}`, "sandbox");
-    expect((good as { type?: string }).type).toBe("checkout.session.completed");
+    const good = await verifyWebhook(request(`t=${timestamp},v1=${signature}`), "sandbox");
+    expect(good.type).toBe("checkout.session.completed");
 
     await expect(
       verifyWebhook(body, `t=${timestamp},v1=${"0".repeat(64)}`, "sandbox"),
