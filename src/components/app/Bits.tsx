@@ -132,6 +132,7 @@ export function PageHead({
   title,
   purpose,
   action,
+  children,
   className,
 }: {
   /** Where this sits in the product, e.g. "Pipeline". */
@@ -141,8 +142,11 @@ export function PageHead({
   purpose?: string;
   /** The single primary action for this page. */
   action?: ReactNode;
+  /** Same slot as `action`, for pages that pass controls as children. */
+  children?: ReactNode;
   className?: string;
 }) {
+  const controls = action ?? children;
   return (
     <header
       className={cn("flex flex-wrap items-end justify-between gap-3", className)}
