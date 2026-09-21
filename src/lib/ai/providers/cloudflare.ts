@@ -48,13 +48,16 @@ export const cloudflareAdapter: ProviderAdapter = {
         category: "not_configured",
         provider: "cloudflare",
       });
-    // Editing an existing picture needs a mask-capable model Revora has not
-    // verified on this account, so the router moves on rather than pretending.
-    if (source)
-      throw new RevoraAiError(403, "Revora's free Cloudflare models cannot edit a picture.", {
+    // Editing an existing picture only works on an image-to-image / inpainting
+    // model. The router filters the chain down to those before calling, so a
+    // text-to-image model reaching here with a source is a routing fault, not a
+    // request Revora may quietly answer with an unrelated new picture.
+    if (source && !imageEditCapableModel(model))
+      throw new RevoraAiError(403, "That Cloudflare picture model cannot change a picture.", {
         category: "policy",
         provider: "cloudflare",
       });
+
 
     const response = await fetch(
       `https://api.cloudflare.com/client/v4/accounts/${id}/ai/run/${model}`,
