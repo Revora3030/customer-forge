@@ -50,3 +50,15 @@ describe("premium picture tiers", () => {
     expect(DEFAULT_IMAGE_TIER_PRICE_USD.flare).toBeGreaterThan(0);
   });
 });
+
+describe("premium picture pricing", () => {
+  it("uses the pinned per-tier price when no override is configured", async () => {
+    const { paidImagePriceMicrocents } = await import("./paid-image.server");
+    expect(paidImagePriceMicrocents("sunburst")).toBe(
+      Math.round(DEFAULT_IMAGE_TIER_PRICE_USD.sunburst * 100_000_000),
+    );
+    expect(paidImagePriceMicrocents("flare")).toBeLessThan(
+      paidImagePriceMicrocents("sunburst"),
+    );
+  });
+});
