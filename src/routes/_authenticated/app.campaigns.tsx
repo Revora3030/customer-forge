@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import QRCode from "qrcode";
 import { Copy, Download, Plus, QrCode, Trash2 } from "lucide-react";
-import { EmptyState, LoadingRows, Panel, Pill, SectionHeading } from "@/components/app/Bits";
+import { EmptyState, LoadingRows, PageHead, Panel, Pill, SectionHeading } from "@/components/app/Bits";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -152,9 +152,10 @@ function CampaignsPage() {
 
   return (
     <div className="space-y-5">
-      <SectionHeading
+      <PageHead
         eyebrow="Attribution"
         title="Campaigns & QR codes"
+        purpose="Tracked links and printable codes that show where your enquiries came from."
         action={
           <Button variant="signal" size="sm" onClick={() => setEditing({ ...blank })}>
             <Plus className="size-4" /> New campaign

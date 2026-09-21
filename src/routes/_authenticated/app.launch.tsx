@@ -5,7 +5,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { toast } from "@/lib/ui/notify";
 import { friendlyError } from "@/lib/user-error";
 import { CheckCircle2, Circle, ExternalLink, RefreshCw } from "lucide-react";
-import { LoadingRows, MetricCard, Panel, Pill, SectionHeading } from "@/components/app/Bits";
+import { LoadingRows, MetricCard, PageHead, Panel, Pill, SectionHeading } from "@/components/app/Bits";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -127,9 +127,10 @@ function Launch() {
 
   return (
     <div className="space-y-6">
-      <SectionHeading
+      <PageHead
         eyebrow="Launch"
         title="Website readiness"
+        purpose="What is left to check before your site goes live to visitors."
         action={
           <Button asChild size="sm" variant="outline">
             <Link to="/s/$slug" params={{ slug: org?.slug ?? "" }} target="_blank">
