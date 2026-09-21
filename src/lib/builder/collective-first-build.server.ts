@@ -153,7 +153,7 @@ export async function refineFirstBuildWithCollective(input: {
   let solProposal: Record<string, unknown> | null = null;
   if (!solCall.ok) {
     passes.push(
-      record("sol", "content_strategy", {
+      record(solCall.wanted, "content_strategy", {
         skipped: solCall.detail ?? solCall.reason,
       }),
     );
@@ -195,7 +195,7 @@ export async function refineFirstBuildWithCollective(input: {
     });
     if (!terraCall.ok) {
       passes.push(
-        record("terra", "specialist_review", {
+        record(terraCall.wanted, "specialist_review", {
           skipped: terraCall.detail ?? terraCall.reason,
         }),
       );
@@ -267,7 +267,7 @@ export async function refineFirstBuildWithCollective(input: {
   });
 
   if (!lunaCall.ok) {
-    passes.push(record("luna", "metadata", { skipped: lunaCall.detail ?? lunaCall.reason }));
+    passes.push(record(lunaCall.wanted, "metadata", { skipped: lunaCall.detail ?? lunaCall.reason }));
   } else {
     const proposal = parseRefinement(lunaCall.text);
     const gated = reviewRefinement({ proposal, facts: input.facts, baseline: copy });
