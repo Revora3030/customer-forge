@@ -36,6 +36,14 @@
  */
 
 import type { IndustryPlaybook } from "./industry";
+import {
+  depthIsFactSafe,
+  objectionBlock,
+  processBlock,
+  questionDepth,
+  type DepthFacts,
+} from "./copy-depth";
+
 
 /* -------------------------------------------------------------------------- */
 /* Types                                                                      */
@@ -1061,28 +1069,48 @@ export function sectionCopy(
     };
   }
 
-  return {
-    heading:
-      truncate(
-        generic.heading,
-        140,
-      ),
-
-    subheading:
-      truncate(
-        generic.subheading,
-        220,
-      ),
-
-    body:
-      omitIfEmpty(
-        truncate(
-          generic.body,
-          700,
-        ),
-      ),
-  };
+  return withDepth(kind, normalized, playbook, {
+    heading: truncate(generic.heading, 140),
+    subheading: truncate(generic.subheading, 220),
+    body: omitIfEmpty(truncate(generic.body, 700)),
+  });
 }
+
+/**
+ * Industry depth: for the sections where a thin line reads as filler, the body
+ * is replaced with the industry depth layer's own wording. Only used when the
+ * depth text passes the fact-safety net, so it can never introduce a claim.
+ */
+function withDepth(
+  kind: string,
+  facts: CopyFacts,
+  playbook: IndustryPlaybook,
+  copy: SectionCopy,
+): SectionCopy {
+  const depthFacts: DepthFacts = {
+    name: normalizeFacts(facts).name || null,
+    city: normalizeFacts(facts).city || null,
+    serviceArea: normalizeFacts(facts).serviceArea || null,
+    services: [],
+  };
+
+  const block =
+    kind === "faq"
+      ? questionDepth(playbook, depthFacts)
+      : kind === "process" || kind === "steps" || kind === "how_it_works"
+        ? processBlock(playbook, depthFacts)
+        : kind === "guarantee" || kind === "trust" || kind === "why_us"
+          ? objectionBlock(playbook, depthFacts)
+          : null;
+
+  if (!block || !depthIsFactSafe(block)) return copy;
+
+  const deeper = [...block.paragraphs, ...block.bullets].join(" ").trim();
+  if (deeper.length <= (copy.body ?? "").length) return copy;
+
+  return { ...copy, body: omitIfEmpty(truncate(deeper, 700)) };
+}
+
 
 /* -------------------------------------------------------------------------- */
 /* FAQ intelligence                                                           */

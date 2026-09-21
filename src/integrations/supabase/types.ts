@@ -1669,32 +1669,50 @@ export type Database = {
       media: {
         Row: {
           alt_text: string | null
+          attribution: string | null
           category: string | null
           created_at: string
+          creator: string | null
           file_name: string | null
           id: string
+          license: string | null
+          license_url: string | null
           organization_id: string
           size_bytes: number | null
+          source: string | null
+          source_page: string | null
           url: string
         }
         Insert: {
           alt_text?: string | null
+          attribution?: string | null
           category?: string | null
           created_at?: string
+          creator?: string | null
           file_name?: string | null
           id?: string
+          license?: string | null
+          license_url?: string | null
           organization_id: string
           size_bytes?: number | null
+          source?: string | null
+          source_page?: string | null
           url: string
         }
         Update: {
           alt_text?: string | null
+          attribution?: string | null
           category?: string | null
           created_at?: string
+          creator?: string | null
           file_name?: string | null
           id?: string
+          license?: string | null
+          license_url?: string | null
           organization_id?: string
           size_bytes?: number | null
+          source?: string | null
+          source_page?: string | null
           url?: string
         }
         Relationships: [
