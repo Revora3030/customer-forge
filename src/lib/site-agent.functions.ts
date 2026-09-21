@@ -35,7 +35,13 @@ import {
   preflightActions,
   stalePlanMessage,
 } from "@/lib/builder/apply-plan";
-import { captureUndo, rollback, type JournalClient, type UndoStep } from "@/lib/site-agent.atomic";
+import {
+  captureUndoFrom,
+  loadUndoSnapshot,
+  rollback,
+  type JournalClient,
+  type UndoStep,
+} from "@/lib/site-agent.atomic";
 
 /** A real database id, as opposed to a plan's temporary page name. */
 const UUID_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
