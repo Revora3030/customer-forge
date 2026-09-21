@@ -117,6 +117,12 @@
   --chart-4: oklch(0.7729 0.1535 163.22);
   --chart-5: oklch(0.645 0.2154 16.44);
 
+  /* Generated-site image overlays stay cinematic even when the chosen site
+     surface is light. These roles are intentionally independent of --background. */
+  --site-hero-ink: oklch(0.985 0 0);
+  --site-hero-muted: oklch(0.84 0.01 85);
+  --site-hero-scrim: oklch(0.08 0.01 255);
+
   --sidebar: oklch(0.1621 0.0034 286);
   --sidebar-foreground: oklch(0.9842 0 0);
   --sidebar-primary: var(--gold);
@@ -534,14 +540,18 @@
   inset: 0;
   z-index: -1;
   background:
-    linear-gradient(90deg, color-mix(in srgb, var(--background) 94%, transparent) 0%, color-mix(in srgb, var(--background) 58%, transparent) 58%, transparent 100%),
-    linear-gradient(0deg, color-mix(in srgb, var(--background) 92%, transparent), transparent 65%);
+    linear-gradient(90deg, color-mix(in srgb, var(--site-hero-scrim) 92%, transparent) 0%, color-mix(in srgb, var(--site-hero-scrim) 54%, transparent) 58%, transparent 100%),
+    linear-gradient(0deg, color-mix(in srgb, var(--site-hero-scrim) 88%, transparent), transparent 65%);
 }
 .rv-site .rv-media-role-background .rv-hero-copy {
   position: relative;
   z-index: 2;
   width: min(100%, 76rem);
   margin-inline: auto;
+  color: var(--site-hero-ink);
+}
+.rv-site .rv-media-role-background .rv-hero-copy p {
+  color: var(--site-hero-muted);
 }
 .rv-site .rv-media-role-background .rv-hero-copy h1 {
   font-size: clamp(3rem, 8vw, 7.5rem);
@@ -586,7 +596,7 @@
   position: absolute;
   inset: 0;
   z-index: -1;
-  background: linear-gradient(90deg, color-mix(in srgb, var(--background) 96%, transparent), color-mix(in srgb, var(--background) 54%, transparent));
+  background: linear-gradient(90deg, color-mix(in srgb, var(--site-hero-scrim) 94%, transparent), color-mix(in srgb, var(--site-hero-scrim) 52%, transparent));
 }
 .rv-template-hero-image .rv-template-hero-inner {
   min-height: min(78vh, 54rem);
@@ -596,6 +606,13 @@
   font-size: clamp(3rem, 8vw, 6.75rem);
   line-height: 0.94;
   max-width: 12ch;
+}
+.rv-template-hero-image .rv-template-hero-copy {
+  color: var(--site-hero-ink);
+}
+.rv-template-hero-image .rv-template-hero-copy p,
+.rv-template-hero-image .rv-template-hero-copy dd {
+  color: var(--site-hero-muted);
 }
 .rv-site [data-rv-variant*="hero-centered"] .rv-hero-grid,
 .rv-site [data-rv-variant*="hero-type-first"] .rv-hero-grid,

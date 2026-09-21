@@ -9,6 +9,7 @@
 - [x] Remove first-build media blockers: generic uploads no longer suppress the hero or all service imagery; cinematic compositions stay eligible before images are generated.
 - [x] Render creative background-media heroes as full-bleed cinematic compositions and give legacy fallbacks an image-led opener.
 - [x] Prioritize the premium carbon/gold direction for automotive detailing while preserving explicit owner brand choices.
+- [x] Block obvious template/filler intake before it can produce an unfinished first build.
 - [ ] Complete screenshot-based perceptual grading, automatic visual repair, and fresh owner-site proof across 320–1440px.
 
 ## Hall-of-Fame master workspace upgrade
