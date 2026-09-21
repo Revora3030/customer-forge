@@ -89,7 +89,7 @@ export function objectionBlock(playbook: IndustryPlaybook, facts: DepthFacts): D
 
 /** A deeper "how it works" written in the trade's own words. */
 export function processBlock(playbook: IndustryPlaybook, facts: DepthFacts): DepthBlock {
-  const words = terminologyFor(playbook, 4);
+  const words = terminologyFor(playbook).slice(0, 4);
   const town = place(facts);
   const opening = town
     ? `How working with ${who(facts)} in ${town} usually goes.`
