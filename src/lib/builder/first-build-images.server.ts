@@ -160,8 +160,12 @@ export async function generateFirstBuildImages(
       primaryColor: input.creative.fingerprint.colorSystem,
       accentColor: input.creative.fingerprint.colorSystem,
       seed: `${input.organizationId}:${shot.slot}:${index}`,
-      extra:
+      extra: [
+        artDirectionNote(input.creative, shot),
         "Starter website image only. Do not depict a real employee, actual customer, award, review, brand logo, licence plate, address, or before-and-after result.",
+      ]
+        .filter(Boolean)
+        .join(" "),
     });
 
     type Made = { base64: string; mimeType: string; provider: string; model: string };
