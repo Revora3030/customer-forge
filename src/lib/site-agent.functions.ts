@@ -1171,14 +1171,12 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
           );
           break;
         case "set_section_visual":
-          await run(action.type, async () => {
-            const { data: current } = await supabase
-              .from("website_sections")
-              .select("settings")
-              .eq("id", action.sectionId)
-              .eq("organization_id", orgId)
-              .maybeSingle();
-            const settings = writeSectionVisual(current?.["settings"] ?? null, action.patch);
+          await run(action.type, () => {
+            const settings = writeSectionVisual(
+              readColumn("website_sections", action.sectionId, "settings"),
+              action.patch,
+            );
+            noteColumn("website_sections", action.sectionId, "settings", settings);
             return supabase
               .from("website_sections")
               .update({ settings } as never)
@@ -1187,14 +1185,12 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
           });
           break;
         case "set_custom_block":
-          await run(action.type, async () => {
-            const { data: current } = await supabase
-              .from("website_sections")
-              .select("settings")
-              .eq("id", action.sectionId)
-              .eq("organization_id", orgId)
-              .maybeSingle();
-            const settings = writeCustomBlock(current?.["settings"] ?? null, action.spec);
+          await run(action.type, () => {
+            const settings = writeCustomBlock(
+              readColumn("website_sections", action.sectionId, "settings"),
+              action.spec,
+            );
+            noteColumn("website_sections", action.sectionId, "settings", settings);
             return supabase
               .from("website_sections")
               .update({ kind: "custom", settings } as never)
