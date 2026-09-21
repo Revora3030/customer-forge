@@ -55,6 +55,12 @@ export const DESIGN_DIRECTIONS: DesignDirection[] = [
     formEffect: "glass",
     bodyEffect: "rise",
     affinity: [
+      "auto",
+      "car",
+      "detail",
+      "vehicle",
+      "ceramic",
+      "wrap",
       "roof",
       "remodel",
       "landscap",

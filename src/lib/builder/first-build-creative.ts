@@ -31,6 +31,8 @@ export type FirstBuildCreativeInput = {
   goals: string[];
   conversionGoal: string | null;
   photoCount: number;
+  /** A real owner image specifically assigned to the hero role. */
+  hasHeroImage?: boolean;
   testimonialCount: number;
   bookableServices: number;
   hasHours: boolean;
@@ -117,7 +119,9 @@ export function compileFirstBuildCreativeDirection(
   const shots = planShots({
     direction: visual,
     serviceNames,
-    hasHeroImage: input.photoCount > 0,
+    // A general media-library count does not prove the hero is covered. One
+    // work photo must not suppress the cinematic opening image.
+    hasHeroImage: input.hasHeroImage === true,
     mediaCount: input.photoCount,
   });
   const assetPlan = assetPlanFor(
@@ -125,7 +129,7 @@ export function compileFirstBuildCreativeDirection(
     playbook,
     playbook.homeSections,
     {
-      hasHeroImage: input.photoCount > 0,
+      hasHeroImage: input.hasHeroImage === true,
       galleryPhotoCount: input.photoCount,
     },
   );

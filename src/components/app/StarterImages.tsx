@@ -31,7 +31,7 @@ type StarterRow = {
 function statusLine(report: StarterImageReport | null) {
   if (!report) return { tone: "neutral" as const, text: "No picture report from the last build yet." };
   if (report.status === "owner_photos")
-    return { tone: "signal" as const, text: "Your own photos are being used — nothing was generated." };
+    return { tone: "signal" as const, text: "Your own photos cover every planned picture role." };
   if (report.attached > 0)
     return {
       tone: "signal" as const,

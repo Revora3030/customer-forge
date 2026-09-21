@@ -3,6 +3,7 @@ import { compileFirstBuildCreativeDirection } from "./first-build-creative";
 import {
   compileExecutableCreativeSection,
   readExecutableCreativeSection,
+  resolveExecutableCreativeSection,
   writeExecutableCreativeSection,
 } from "./executable-creative";
 
@@ -36,5 +37,28 @@ describe("executable creative contract", () => {
 
   it("fails closed for malformed stored data", () => {
     expect(readExecutableCreativeSection({ creative: { version: 9, family: "bad" } })).toBeNull();
+  });
+
+  it("upgrades image-backed legacy dark heroes without overwriting stored contracts", () => {
+    const fingerprint = { ...creative.fingerprint, family: "dark-focused" };
+    const inferred = resolveExecutableCreativeSection({
+      kind: "hero",
+      settings: {},
+      fingerprint,
+      hasMedia: true,
+    });
+    expect(inferred).toMatchObject({
+      composition: "full-bleed-overlay",
+      mediaRole: "background",
+      headingTreatment: "statement",
+    });
+
+    const stored = compileExecutableCreativeSection("hero", fingerprint, creative.brief);
+    expect(resolveExecutableCreativeSection({
+      kind: "hero",
+      settings: writeExecutableCreativeSection({}, stored),
+      fingerprint,
+      hasMedia: true,
+    })).toEqual(stored);
   });
 });

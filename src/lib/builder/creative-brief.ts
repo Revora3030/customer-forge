@@ -387,7 +387,10 @@ function imageBriefFor(
       "no recognisable real people or brands",
       "never presented as proof of completed work, reviews, awards or results",
     ],
-    evidenceTag: hasOwnerPhotos ? BUSINESS_PROVIDED_EVIDENCE : AI_GENERATED_MARKETING_VISUAL,
+    // This function briefs generated starter imagery. Existing owner photos may
+    // guide which slots remain open, but they never change generated media into
+    // business-provided evidence.
+    evidenceTag: AI_GENERATED_MARKETING_VISUAL,
   };
 }
 

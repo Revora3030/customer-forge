@@ -65,6 +65,8 @@ export function gradeFirstBuildImages(assets: FirstBuildImageAsset[]): ImageQaOu
   const rejected: ImageQaFinding[] = [];
   const seenPaths = new Set<string>();
   const seenSlotLabels = new Set<string>();
+  const seenSingularSlots = new Set<string>();
+  const singularSlots = new Set(["hero", "background", "cta", "social"]);
 
   for (const asset of assets) {
     const reason =
@@ -72,6 +74,9 @@ export function gradeFirstBuildImages(assets: FirstBuildImageAsset[]): ImageQaOu
       provenanceProblem(asset) ??
       altTextProblem(asset) ??
       (seenPaths.has(asset.path) ? "the same picture was produced twice" : null) ??
+      (singularSlots.has(asset.slot) && seenSingularSlots.has(asset.slot)
+        ? "that spot already had a starter picture"
+        : null) ??
       (seenSlotLabels.has(`${asset.slot}:${asset.label.toLowerCase()}`)
         ? "that spot already had a starter picture"
         : null);
@@ -81,6 +86,7 @@ export function gradeFirstBuildImages(assets: FirstBuildImageAsset[]): ImageQaOu
       continue;
     }
     seenPaths.add(asset.path);
+    if (singularSlots.has(asset.slot)) seenSingularSlots.add(asset.slot);
     seenSlotLabels.add(`${asset.slot}:${asset.label.toLowerCase()}`);
     accepted.push(asset);
   }

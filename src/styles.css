@@ -117,6 +117,12 @@
   --chart-4: oklch(0.7729 0.1535 163.22);
   --chart-5: oklch(0.645 0.2154 16.44);
 
+  /* Generated-site image overlays stay cinematic even when the chosen site
+     surface is light. These roles are intentionally independent of --background. */
+  --site-hero-ink: oklch(0.985 0 0);
+  --site-hero-muted: oklch(0.84 0.01 85);
+  --site-hero-scrim: oklch(0.08 0.01 255);
+
   --sidebar: oklch(0.1621 0.0034 286);
   --sidebar-foreground: oklch(0.9842 0 0);
   --sidebar-primary: var(--gold);
@@ -505,6 +511,109 @@
   min-height: min(78vh, 52rem);
   align-content: center;
 }
+
+/* Cinematic hero contract: a creative brief that marks the media as background
+   renders as a real full-bleed composition, not a two-column template with a
+   large picture beside it. */
+.rv-site .rv-media-role-background .rv-hero {
+  min-height: min(82vh, 58rem);
+  overflow: hidden;
+  background: var(--background);
+}
+.rv-site .rv-media-role-background .rv-hero > div {
+  max-width: none;
+  padding: 0;
+}
+.rv-site .rv-media-role-background .rv-hero-grid {
+  position: relative;
+  display: grid;
+  min-height: min(82vh, 58rem);
+  margin: 0;
+  padding: clamp(4rem, 10vw, 8rem) var(--rv-gutter);
+  align-content: end;
+  grid-template-columns: minmax(0, 1fr);
+  isolation: isolate;
+}
+.rv-site .rv-media-role-background .rv-hero-grid::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--site-hero-scrim) 92%, transparent) 0%, color-mix(in srgb, var(--site-hero-scrim) 54%, transparent) 58%, transparent 100%),
+    linear-gradient(0deg, color-mix(in srgb, var(--site-hero-scrim) 88%, transparent), transparent 65%);
+}
+.rv-site .rv-media-role-background .rv-hero-copy {
+  position: relative;
+  z-index: 2;
+  width: min(100%, 76rem);
+  margin-inline: auto;
+  color: var(--site-hero-ink);
+}
+.rv-site .rv-media-role-background .rv-hero-copy p {
+  color: var(--site-hero-muted);
+}
+.rv-site .rv-media-role-background .rv-hero-copy h1 {
+  font-size: clamp(3rem, 8vw, 7.5rem);
+  line-height: 0.92;
+  max-width: 12ch;
+}
+.rv-site .rv-media-role-background .rv-hero-media-background {
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  min-height: 100%;
+  aspect-ratio: auto;
+  border-radius: 0;
+  box-shadow: none;
+}
+.rv-site .rv-media-role-background .rv-hero-media-background img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Legacy/template-only sites still receive an image-led opening rather than a
+   blank split panel while they wait for a structured rebuild. */
+.rv-template-hero {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+.rv-template-hero-image {
+  min-height: min(78vh, 54rem);
+}
+.rv-template-hero-media {
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.rv-template-hero-image::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--site-hero-scrim) 94%, transparent), color-mix(in srgb, var(--site-hero-scrim) 52%, transparent));
+}
+.rv-template-hero-image .rv-template-hero-inner {
+  min-height: min(78vh, 54rem);
+  align-items: end;
+}
+.rv-template-hero-image .rv-template-hero-copy h1 {
+  font-size: clamp(3rem, 8vw, 6.75rem);
+  line-height: 0.94;
+  max-width: 12ch;
+}
+.rv-template-hero-image .rv-template-hero-copy {
+  color: var(--site-hero-ink);
+}
+.rv-template-hero-image .rv-template-hero-copy p,
+.rv-template-hero-image .rv-template-hero-copy dd {
+  color: var(--site-hero-muted);
+}
 .rv-site [data-rv-variant*="hero-centered"] .rv-hero-grid,
 .rv-site [data-rv-variant*="hero-type-first"] .rv-hero-grid,
 .rv-site [data-rv-variant*="hero-quiet"] .rv-hero-grid {
@@ -601,6 +710,20 @@
   .rv-site [data-rv-variant*="hero-poster"] h1,
   .rv-site [data-rv-variant*="hero-wide-statement"] h1 {
     font-size: clamp(2.5rem, 13vw, 4.25rem);
+    overflow-wrap: anywhere;
+  }
+  .rv-site .rv-media-role-background .rv-hero,
+  .rv-site .rv-media-role-background .rv-hero-grid,
+  .rv-template-hero-image,
+  .rv-template-hero-image .rv-template-hero-inner {
+    min-height: min(76svh, 48rem);
+  }
+  .rv-site .rv-media-role-background .rv-hero-grid {
+    padding-block: clamp(3.5rem, 16vw, 6rem);
+  }
+  .rv-site .rv-media-role-background .rv-hero-copy h1,
+  .rv-template-hero-image .rv-template-hero-copy h1 {
+    font-size: clamp(2.75rem, 13vw, 4.5rem);
     overflow-wrap: anywhere;
   }
 }

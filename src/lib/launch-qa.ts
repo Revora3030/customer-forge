@@ -181,12 +181,14 @@ export type FactGap = {
 };
 
 export type FactInput = {
+  businessName?: string | null;
   description: string | null;
   phone: string | null;
   email: string | null;
   city: string | null;
   serviceArea: string | null;
   servicesCount: number;
+  serviceNames?: string[];
   photoCount: number;
   hasHours: boolean;
   /** Extra requests the AI analysis raised, in plain language. */
@@ -200,14 +202,27 @@ export type FactInput = {
 export function factGaps(input: FactInput): FactGap[] {
   const gaps: FactGap[] = [];
   const blank = (v: string | null | undefined) => !v || !v.trim();
+  const weakText = (value: string | null | undefined, minimum: number) => {
+    const text = (value ?? "").trim();
+    if (text.length < minimum) return true;
+    const compact = text.toLowerCase().replace(/[^a-z0-9]/g, "");
+    if (/^(?:test|sample|businessname|mybusiness|companyname|qwerty|asdfgh|asdasd|none|na)$/.test(compact)) return true;
+    return /^(.{1,2})\1{2,}$/.test(compact);
+  };
 
-  // Whatever the owner writes is accepted as-is. Revora never rejects an answer
-  // for being short — a blank is the only thing that blocks a build.
-  if (blank(input.description))
+  if (input.businessName !== undefined && weakText(input.businessName, 2))
+    gaps.push({
+      key: "business-name",
+      label: "Your real business name",
+      prompt: "Add the name customers know your business by.",
+      required: true,
+      field: "business_name",
+    });
+  if (weakText(input.description, 12))
     gaps.push({
       key: "description",
       label: "What your business does",
-      prompt: "Describe your business in your own words — any detail is accepted.",
+      prompt: "Describe what you do and who you help in one clear sentence.",
       required: true,
       field: "description",
       multiline: true,
@@ -228,7 +243,10 @@ export function factGaps(input: FactInput): FactGap[] {
       required: true,
       field: "city",
     });
-  if (input.servicesCount < 1)
+  if (
+    input.servicesCount < 1 ||
+    (input.serviceNames?.length && input.serviceNames.every((name) => weakText(name, 5)))
+  )
     gaps.push({
       key: "services",
       label: "Services you offer",

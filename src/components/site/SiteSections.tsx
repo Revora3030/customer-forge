@@ -34,7 +34,7 @@ import {
   readDesignFingerprint,
   type DesignFingerprint,
 } from "@/lib/builder/design-fingerprint";
-import { readExecutableCreativeSection } from "@/lib/builder/executable-creative";
+import { resolveExecutableCreativeSection } from "@/lib/builder/executable-creative";
 
 type Site = NonNullable<PublicSite>;
 type Section = NonNullable<Site["content"]>["sections"][number];
@@ -241,7 +241,15 @@ export function SiteSection({ site, section }: { site: Site; section: Section })
   const visual = readSectionVisual(section.settings);
   const variant = /^[a-z0-9-]{1,40}$/i.test(section.variant ?? "") ? section.variant : "default";
   const rendererVariant = variant.split("--", 1)[0] ?? variant;
-  const creative = readExecutableCreativeSection(section.settings);
+  const fingerprint = siteDesignFingerprint(site);
+  const hasMedia = section.components.some((component) => Boolean(componentImageUrl(component))) ||
+    (section.kind === "hero" && Boolean(site.profile?.hero_image_url));
+  const creative = resolveExecutableCreativeSection({
+    kind: section.kind,
+    settings: section.settings,
+    fingerprint,
+    hasMedia,
+  });
   let inner = <SiteSectionBody site={site} section={section} />;
 
   const css = blockCss(style);
@@ -292,6 +300,13 @@ function SiteSectionBody({ site, section }: { site: Site; section: Section }) {
     ? readComponentVisual((heroImage as Component & { settings?: unknown }).settings)
     : null;
   const heroImageSrc = heroImage ? componentImageUrl(heroImage) : null;
+  const heroCreative = resolveExecutableCreativeSection({
+    kind: section.kind,
+    settings: section.settings,
+    fingerprint: siteDesignFingerprint(site),
+    hasMedia: Boolean(profile?.hero_image_url || heroImageSrc),
+  });
+  const backgroundHero = heroCreative?.mediaRole === "background";
 
 
   switch (section.kind) {
@@ -325,7 +340,13 @@ function SiteSectionBody({ site, section }: { site: Site; section: Section }) {
                 // The frame keeps a steady, wide shape at every screen size, so a
                 // square or tall photo is cropped to the centre instead of
                 // stretching the top of the page out of proportion.
-                <figure className="rv-hero-media aspect-[4/3] !min-h-0 w-full overflow-hidden rounded-2xl sm:aspect-[3/2] lg:aspect-[16/10]">
+                <figure
+                  className={`rv-hero-media w-full overflow-hidden ${
+                    backgroundHero
+                      ? "rv-hero-media-background"
+                      : "aspect-[4/3] !min-h-0 rounded-2xl sm:aspect-[3/2] lg:aspect-[16/10]"
+                  }`}
+                >
                   <img
                     src={profile?.hero_image_url ?? heroImageSrc ?? ""}
                     alt={heroImageVisual?.alt || org.name + " featured work"}

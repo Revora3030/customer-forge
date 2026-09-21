@@ -43,6 +43,18 @@ describe("first-build creative direction", () => {
     });
     expect(result.imagery.status).toBe("artwork_only");
     expect(result.unknowns.join(" ")).toMatch(/photo/i);
+    expect(result.imagery.shots.some((shot) => shot.slot === "hero")).toBe(true);
+  });
+
+  it("distinguishes a work upload from an assigned hero image", () => {
+    const result = compileFirstBuildCreativeDirection({
+      ...base,
+      industry: "Automotive detailing",
+      services: [{ name: "Interior detail" }],
+      photoCount: 1,
+      hasHeroImage: false,
+    });
+    expect(result.imagery.shots.some((shot) => shot.slot === "hero")).toBe(true);
   });
 
   it("gives materially different industries different strategy and composition", () => {

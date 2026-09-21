@@ -6,7 +6,11 @@
 - [x] Let owner photos fill their roles without suppressing safe supporting first-build imagery.
 - [x] Carry Sol/Terra photography language into the real image prompt.
 - [x] Remove hardcoded and action-count visual confidence; unmeasured rendered quality now remains unverified.
-- [ ] Complete premium section markup, screenshot-based perceptual grading, automatic visual repair, and fresh owner-site proof across 320–1440px.
+- [x] Remove first-build media blockers: generic uploads no longer suppress the hero or all service imagery; cinematic compositions stay eligible before images are generated.
+- [x] Render creative background-media heroes as full-bleed cinematic compositions and give legacy fallbacks an image-led opener.
+- [x] Prioritize the premium carbon/gold direction for automotive detailing while preserving explicit owner brand choices.
+- [x] Block obvious template/filler intake before it can produce an unfinished first build.
+- [ ] Complete screenshot-based perceptual grading, automatic visual repair, and fresh owner-site proof across 320–1440px.
 
 ## Hall-of-Fame master workspace upgrade
 - [x] Make the real customer preview the primary builder surface with Build / Chat / Edit / Visual Edit modes.

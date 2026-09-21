@@ -99,23 +99,23 @@ function fileStem(shot: PlannedShot, index: number) {
 
 export function firstBuildImageShots(
   creative: FirstBuildCreativeDirection,
-  photoCount: number,
-  occupiedSlots: ReadonlySet<PlannedShot["slot"]> = new Set(photoCount > 0 ? ["hero"] : []),
+  _photoCount: number,
+  occupiedSlots: ReadonlySet<PlannedShot["slot"]> = new Set(),
 ): PlannedShot[] {
   const unique = new Set<string>();
+  const singularSlots = new Set<PlannedShot["slot"]>(["hero", "background", "cta", "social"]);
   const shots: PlannedShot[] = [];
   for (const shot of creative.imagery.shots) {
     if (!safeSlot(shot)) continue;
     // An existing owner picture is presumed to cover the hero first. It should
     // not suppress safe supporting marketing pictures for the rest of the site.
     if (occupiedSlots.has(shot.slot)) continue;
-    const key = `${shot.slot}:${shot.label.toLowerCase()}`;
+    const key = singularSlots.has(shot.slot) ? shot.slot : `${shot.slot}:${shot.label.toLowerCase()}`;
     if (unique.has(key)) continue;
     unique.add(key);
     shots.push(shot);
   }
-  const openSlots = Math.max(0, maxStarterImages() - occupiedSlots.size);
-  return shots.slice(0, openSlots);
+  return shots.slice(0, maxStarterImages());
 }
 
 export async function generateFirstBuildImages(
@@ -134,7 +134,7 @@ export async function generateFirstBuildImages(
     VISUAL_DIRECTIONS.find((item) => item.id === input.creative.imagery.directionId) ?? null;
   const shots = firstBuildImageShots(input.creative, input.photoCount, input.occupiedSlots);
   if (!direction || shots.length === 0) {
-    const ownerCovered = input.photoCount > 0 && shots.length === 0;
+    const ownerCovered = input.occupiedSlots?.size && shots.length === 0;
     return {
       assets: [],
       evidence: {
