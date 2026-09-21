@@ -1535,6 +1535,8 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
       }
     }
 
+    noteApplyStage(orgId, applyRunId, "finishing up");
+
     return {
       applied: applied.length,
       failed: failed.length,
