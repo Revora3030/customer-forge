@@ -134,7 +134,7 @@ export async function generateImageBase64(
       ok: false,
       blocked: true,
       message:
-        "The connected free picture service can make new pictures but cannot change an existing one, so nothing was altered.",
+        "The free picture service can make new pictures, but changing an existing picture isn't working right now, so nothing was altered.",
       code: "IMAGE_GENERATION_UNAVAILABLE",
       reason: "no_free_model",
     };
