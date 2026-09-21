@@ -49,11 +49,15 @@ function fixture() {
 
 describe("native first-build synthesis", () => {
   it("joins every deterministic stage and records field provenance", () => {
-    const result = synthesizeNativeFirstBuild({ facts, language: "English", ...fixture() });
+    const result = synthesizeNativeFirstBuild({
+      facts: { ...facts, services: facts.services.map((service) => service.name) },
+      language: "English",
+      ...fixture(),
+    });
     expect(result.engine).toBe("revora-native");
     expect(result.stages).toContain("adversarial_review");
-    expect(result.provenance.description).toBe("SUPPLIED");
-    expect(result.provenance.creativeDirection).toBe("DERIVED");
+    expect(result.provenance["description"]).toBe("SUPPLIED");
+    expect(result.provenance["creativeDirection"]).toBe("DERIVED");
     expect(result.lockedText).toContain("We repair and replace roofs.");
     expect(result.pageStrategy.some((page) => page.slug === "contact")).toBe(true);
     expect(result.valid).toBe(true);
@@ -63,18 +67,27 @@ describe("native first-build synthesis", () => {
     const built = fixture();
     built.copy.about = "Award-winning roofers trusted by hundreds.";
     const result = synthesizeNativeFirstBuild({
-      facts: { ...facts, description: null, phone: null },
+      facts: {
+        ...facts,
+        services: facts.services.map((service) => service.name),
+        description: null,
+        phone: null,
+      },
       language: "English",
       ...built,
     });
     expect(result.valid).toBe(false);
     expect(result.findings.some((finding) => finding.reviewer === "facts")).toBe(true);
-    expect(result.provenance.description).toBe("UNKNOWN");
-    expect(result.provenance.phone).toBe("UNKNOWN");
+    expect(result.provenance["description"]).toBe("UNKNOWN");
+    expect(result.provenance["phone"]).toBe("UNKNOWN");
   });
 
   it("preserves the requested language as a lock", () => {
-    const result = synthesizeNativeFirstBuild({ facts, language: "Español", ...fixture() });
+    const result = synthesizeNativeFirstBuild({
+      facts: { ...facts, services: facts.services.map((service) => service.name) },
+      language: "Español",
+      ...fixture(),
+    });
     expect(result.language).toEqual({ requested: "Español", preserved: true });
   });
 });

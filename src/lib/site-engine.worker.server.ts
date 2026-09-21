@@ -440,7 +440,7 @@ async function runJob(
       reason: "Browser, visual, mobile and performance evidence must be recorded after rendering.",
     },
     briefSource: brief.source,
-    copyModel: COPY_ROLE,
+    copyModel,
     checks: qa.checks,
     attention: [
       ...qa.blockers.map((c) => c.fix),
