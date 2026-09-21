@@ -25,7 +25,7 @@ function sourceFor(kind: string, fingerprint: DesignFingerprint): string {
   if (kind === "stats") return fingerprint.statsLayout;
   if (kind === "process") return fingerprint.timelineLayout;
   if (["quote", "booking", "contact"].includes(kind)) return fingerprint.formLayout;
-  if (["cta", "offer"].includes(kind)) return fingerprint.ctaSystem;
+  if (["cta", "offer", "guarantee", "lead_magnet"].includes(kind)) return fingerprint.ctaSystem;
   return fingerprint.sectionRhythm;
 }
 
@@ -45,7 +45,7 @@ export function compileExecutableCreativeSection(
   const statement = /poster|statement|spotlight|impact|full-bleed|cinematic/.test(
     `${source} ${fingerprint.family} ${brief?.heroComposition ?? ""}`.toLowerCase(),
   );
-  const featureMedia = ["hero", "gallery", "services", "reviews", "cta"].includes(kind);
+  const featureMedia = ["hero", "gallery", "services", "service_detail", "reviews", "cta", "offer", "lead_magnet"].includes(kind);
   return {
     version: CREATIVE_CONTRACT_VERSION,
     family: token(fingerprint.family),
@@ -56,7 +56,7 @@ export function compileExecutableCreativeSection(
       ? "background"
       : featureMedia
         ? "feature"
-        : kind === "intro" || kind === "process"
+        : ["intro", "process", "area", "guarantee", "policy"].includes(kind)
           ? "supporting"
           : "none",
     mobileOrder: /image-left|media-first|portrait/.test(

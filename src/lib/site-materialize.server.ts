@@ -233,6 +233,7 @@ export function planSiteContent(input: MaterializeInput): Page[] {
   const secondaryCta = clean(copy.secondaryCta) ?? "See services";
   const heroAsset = firstAsset(input, "hero");
   const ctaAsset = firstAsset(input, "cta");
+  const backgroundAsset = firstAsset(input, "background");
   const ogAsset = firstAsset(input, "social") ?? heroAsset;
 
   const serviceCards: Component[] = (
@@ -288,7 +289,12 @@ export function planSiteContent(input: MaterializeInput): Page[] {
       },
       ...(trustItems.length ? [{ kind: "trust_bar", components: trustItems }] : []),
       ...(clean(copy.intro)
-        ? [{ kind: "intro", heading: `About ${input.businessName}`, body: clean(copy.intro) }]
+        ? [{
+            kind: "intro",
+            heading: `About ${input.businessName}`,
+            body: clean(copy.intro),
+            components: backgroundAsset ? [imageComponent(backgroundAsset)] : [],
+          }]
         : []),
       ...(serviceCards.length
         ? [
@@ -388,6 +394,15 @@ export function planSiteContent(input: MaterializeInput): Page[] {
         og_image_url: ogAsset?.path ?? null,
       sections: [
         {
+          kind: "hero",
+          heading: `Services from ${input.businessName}`,
+          subheading: place ? `Explore services available across ${place}.` : clean(copy.intro),
+          components: [
+            { kind: "button", label: primaryCta, link_label: primaryCta, link_url: primaryTarget },
+            ...(heroAsset ? [imageComponent(heroAsset, "hero_image")] : []),
+          ],
+        },
+        {
           kind: "services",
           heading: "Our services",
           subheading: clean(copy.intro),
@@ -399,6 +414,7 @@ export function planSiteContent(input: MaterializeInput): Page[] {
           body: "Tell us what you're dealing with and we'll point you the right way.",
           components: [
             { kind: "button", label: primaryCta, link_label: primaryCta, link_url: primaryTarget },
+            ...(asset ? [imageComponent(asset)] : []),
           ],
         },
       ],
@@ -420,6 +436,15 @@ export function planSiteContent(input: MaterializeInput): Page[] {
       seo_description: clean(description ?? copy.metaDescription),
       og_image_url: asset?.path ?? ogAsset?.path ?? null,
       sections: [
+        {
+          kind: "hero",
+          heading: `Pricing from ${input.businessName}`,
+          subheading: "Review the prices supplied for available services.",
+          components: [
+            { kind: "button", label: primaryCta, link_label: primaryCta, link_url: primaryTarget },
+            ...(backgroundAsset ? [imageComponent(backgroundAsset, "hero_image")] : []),
+          ],
+        },
         {
           kind: "hero",
           heading: service.name,
@@ -482,6 +507,11 @@ export function planSiteContent(input: MaterializeInput): Page[] {
             ).toLocaleString()}`,
           })),
         },
+        {
+          kind: "cta",
+          heading: "Ready to discuss what you need?",
+          components: [{ kind: "button", label: primaryCta, link_label: primaryCta, link_url: primaryTarget }],
+        },
       ],
     });
 
@@ -492,9 +522,19 @@ export function planSiteContent(input: MaterializeInput): Page[] {
     seo_title: clean(`About ${input.businessName}`),
     sections: [
       {
-        kind: "intro",
+        kind: "hero",
         heading: `About ${input.businessName}`,
+        subheading: clean(copy.about) ?? clean(copy.intro),
+        components: [
+          { kind: "button", label: primaryCta, link_label: primaryCta, link_url: primaryTarget },
+          ...(backgroundAsset ? [imageComponent(backgroundAsset, "hero_image")] : []),
+        ],
+      },
+      {
+        kind: "intro",
+        heading: "Our approach",
         body: clean(copy.about) ?? clean(copy.intro),
+        components: ctaAsset ? [imageComponent(ctaAsset)] : [],
       },
       ...(place
         ? [
@@ -505,6 +545,18 @@ export function planSiteContent(input: MaterializeInput): Page[] {
             },
           ]
         : []),
+      ...(copy.benefits.length
+        ? [{
+            kind: "benefits",
+            heading: "What matters in the work",
+            components: copy.benefits.map((benefit) => ({ kind: "feature", label: benefit })),
+          }]
+        : []),
+      {
+        kind: "cta",
+        heading: `Talk with ${input.businessName}`,
+        components: [{ kind: "button", label: primaryCta, link_label: primaryCta, link_url: primaryTarget }],
+      },
     ],
   });
 
@@ -515,7 +567,18 @@ export function planSiteContent(input: MaterializeInput): Page[] {
       kind: "book",
       seo_title: clean(`Book ${input.businessName}`),
       sections: [
+        {
+          kind: "hero",
+          heading: `Book with ${input.businessName}`,
+          subheading: "Choose an available service and request a suitable time.",
+          components: backgroundAsset ? [imageComponent(backgroundAsset, "hero_image")] : [],
+        },
         { kind: "booking", heading: "Book a time", subheading: "Pick a slot that suits you." },
+        {
+          kind: "cta",
+          heading: "Need help before booking?",
+          components: [{ kind: "button", label: "Contact us", link_label: "Contact us", link_url: "/contact" }],
+        },
       ],
     });
 
@@ -552,10 +615,22 @@ export function planSiteContent(input: MaterializeInput): Page[] {
     seo_title: clean(`Contact ${input.businessName}`),
     sections: [
       {
+        kind: "hero",
+        heading: `Contact ${input.businessName}`,
+        subheading: place ? `Speak with the team serving ${place}.` : "Speak with the team directly.",
+        components: ctaAsset ? [imageComponent(ctaAsset, "hero_image")] : [],
+      },
+      {
         kind: "contact",
         heading: "Contact us",
         subheading: input.phone || input.email ? null : "Send a message and we'll reply.",
       },
+      ...(place
+        ? [{ kind: "area", heading: "Service area", body: clean(copy.areaCopy) ?? `${input.businessName} serves ${place}.` }]
+        : []),
+      ...(input.hasQuoteForm
+        ? [{ kind: "quote", heading: "Request a price", subheading: "Share what you need and the team can respond." }]
+        : []),
     ],
   });
 
