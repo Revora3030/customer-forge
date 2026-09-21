@@ -329,6 +329,60 @@ async function runJob(
     (p["description"] as string) ?? null,
     serviceRows.map((service) => service.name).join(" "),
   );
+
+  const buildFacts = {
+    businessName: copyFacts.businessName,
+    industry: copyFacts.industry,
+    services: copyFacts.services.map((service) => service.name),
+    description: copyFacts.description,
+    city: copyFacts.city,
+    region: copyFacts.state,
+    serviceArea: copyFacts.serviceArea,
+    phone: copyFacts.phone,
+    email: copyFacts.email,
+    yearsInBusiness: copyFacts.yearsInBusiness,
+    testimonialCount: testimonials.length,
+    hasPrices: copyFacts.services.some(
+      (service) => service.price != null || service.starting_price != null,
+    ),
+    goals: copyFacts.goals,
+    hasHours: copyFacts.hasHours,
+  };
+
+  // The premium thinking tiers may only *improve wording that already describes
+  // supplied facts*. Every field they return passes the fact gate first, and the
+  // deterministic copy survives untouched when the paid lane is off, out of
+  // budget, unavailable or refused.
+  const { refineFirstBuildWithCollective } = await import(
+    "@/lib/builder/collective-first-build.server"
+  );
+  const refined = await refineFirstBuildWithCollective({
+    organizationId: orgId,
+    facts: buildFacts,
+    brief,
+    copy,
+    creative,
+  });
+  if (refined.changed) {
+    copy = refined.copy;
+    copyModel = refined.passes
+      .filter((pass) => pass.used && pass.model)
+      .map((pass) => pass.model)
+      .join("+") || copyModel;
+  }
+  await db.from("ai_generations").insert({
+    organization_id: orgId,
+    job_id: job.id,
+    kind: "collective_first_build",
+    model: copyModel,
+    instruction: null,
+    result: {
+      changed: refined.changed,
+      totalCostMicrocents: refined.totalCostMicrocents,
+      passes: refined.passes,
+    } as unknown as never,
+    created_by: job.created_by,
+  } as never);
   const synthesis = synthesizeNativeFirstBuild({
     facts: {
       businessName: copyFacts.businessName,
