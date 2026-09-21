@@ -728,16 +728,24 @@ async function imageCall(
     throw new RevoraAiError(413, "That image is too large for Revora AI.", {
       category: "too_large",
     });
-  const outcome = await run(caller, "image", async ({ adapter, config, model, signal }) => {
-    const result = await adapter.image({
-      apiKey: config.apiKey,
-      model,
-      prompt,
-      source,
-      signal,
-    });
-    return { value: result };
-  });
+  const outcome = await run(
+    caller,
+    "image",
+    async ({ adapter, config, model, signal }) => {
+      const result = await adapter.image({
+        apiKey: config.apiKey,
+        model,
+        prompt,
+        source,
+        signal,
+      });
+      return { value: result };
+    },
+    // Changing an existing picture needs an image-to-image / inpainting model.
+    // A text-to-image model would ignore the source and hand back an unrelated
+    // picture, so it is kept out of the chain entirely.
+    source ? { capable: imageEditCapableModel } : undefined,
+  );
   return {
     base64: outcome.value.base64,
     mimeType: outcome.value.mimeType,
