@@ -329,8 +329,11 @@
 @media (min-width: 1024px) {
   .rv-family-creative-expressive .rv-section:nth-child(even) section > div { transform: translateX(clamp(0rem, 1vw, 1.5rem)); }
 }
-/* Decorative offsets and artwork must never create a sideways scrollbar. */
+/* Decorative offsets, artwork and 3D tilts must never create sideways
+   scrolling: the tilted box itself is wider than the screen, so the page body
+   clips it. */
 .rv-site .rv-section, .rv-site .fx-sec { overflow-x: clip; }
+.rv-site main, .rv-site > div { overflow-x: clip; }
 
 /* Comfortable touch targets in the site header on phones. */
 @media (max-width: 767px) {
