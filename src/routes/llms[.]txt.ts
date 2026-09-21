@@ -17,7 +17,7 @@ function body() {
   lines.push("");
   lines.push("## Offer");
   lines.push(
-    `- ${GROWTH_SYSTEM.name}: ${usdExact(GROWTH_SYSTEM.setupPrice)} one-time setup, first month free, then ${usdExact(GROWTH_SYSTEM.monthlyPrice)}/month. Cancel anytime. ${GROWTH_SYSTEM.fullAccessTrialDays} days of full access free at signup.`,
+    `- ${GROWTH_SYSTEM.name}: ${usdExact(GROWTH_SYSTEM.setupPrice)} one-time setup, first month free, then ${usdExact(GROWTH_SYSTEM.monthlyPrice)}/month. Cancel anytime. ${GROWTH_SYSTEM.fullAccessWindow} of full access free at signup.`,
   );
   lines.push(`- Contact: ${BUSINESS.email} · ${BUSINESS.phoneDisplay} · ${BUSINESS.hours.display}`);
   lines.push("");

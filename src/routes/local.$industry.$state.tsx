@@ -226,7 +226,7 @@ function LocalIndustryStatePage() {
               Ready to stop losing {state.name} jobs to whoever answers first?
             </h2>
             <p className="mx-auto mt-2 max-w-xl text-[14px] text-muted-foreground">
-              Get 3 days of full access, then {usdExact(GROWTH_SYSTEM.setupPrice)} to launch and
+              Get 1 day of full access, then {usdExact(GROWTH_SYSTEM.setupPrice)} to launch and
               your first month of the {usdExact(GROWTH_SYSTEM.monthlyPrice)}/month platform fee
               free.
             </p>

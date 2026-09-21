@@ -39,7 +39,7 @@ function TermsPage() {
     {
       heading: "Free access trial",
       body: [
-        `New accounts receive ${GROWTH_SYSTEM.fullAccessTrialDays} days of full platform access at no cost and with no card required. The trial begins when your workspace is created and ends automatically. When it ends, continued access requires the ${usd(GROWTH_SYSTEM.setupPrice)} setup payment.`,
+        `New accounts receive ${GROWTH_SYSTEM.fullAccessWindow} of full platform access at no cost and with no card required. The trial begins when your workspace is created and ends automatically. When it ends, continued access requires the ${usd(GROWTH_SYSTEM.setupPrice)} setup payment.`,
       ],
     },
     {

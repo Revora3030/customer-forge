@@ -60,7 +60,7 @@ describe("Revora Stripe catalog", () => {
     expect(GROWTH_SYSTEM.setupPrice).toBe(750);
     expect(GROWTH_SYSTEM.monthlyPrice).toBe(100);
     expect(GROWTH_SYSTEM.trialDays).toBe(30);
-    expect(GROWTH_SYSTEM.fullAccessTrialDays).toBe(3);
+    expect(GROWTH_SYSTEM.fullAccessTrialDays).toBe(1);
   });
 
   it("accepts the correctly configured catalog", () => {

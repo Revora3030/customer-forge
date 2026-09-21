@@ -29,7 +29,7 @@ The privileged function:
 - accepts only the server-supplied user id;
 - never accepts a caller-selected organization id or role;
 - always creates the owner membership for that same user;
-- clamps the trial to the server-side maximum of 3 days;
+- clamps the trial to the server-side maximum of 1 day;
 - validates name, industry and profile shape;
 - serializes retries for the same user;
 - remains inaccessible to anon/authenticated database roles.

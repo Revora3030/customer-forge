@@ -317,7 +317,7 @@ function GetStarted() {
         <p className="mt-2 text-[12.5px] text-muted-foreground">
           Just exploring? You get{" "}
           <span className="gold-hl">
-            {GROWTH_SYSTEM.fullAccessTrialDays} days of free full access
+            {GROWTH_SYSTEM.fullAccessWindow} of free full access
           </span>{" "}
           first — your answers below are saved as you type, so you can leave and come back anytime.
         </p>
@@ -501,12 +501,12 @@ function GetStarted() {
               <div className="mt-4 rounded-md border border-primary/40 bg-primary/5 p-4">
                 <p className="text-[13px] font-semibold">
                   <span className="gold-text">Not paying yet?</span> Start your{" "}
-                  {GROWTH_SYSTEM.fullAccessTrialDays} days of free full access
+                  {GROWTH_SYSTEM.fullAccessWindow} of free full access
                 </p>
                 <p className="mt-1 text-[13px] text-muted-foreground">
                   Your business info is saved and your workspace opens instantly — website builder,
                   leads, quotes, bookings, automations and analytics, all unlocked for{" "}
-                  {GROWTH_SYSTEM.fullAccessTrialDays} days. No card required.
+                  {GROWTH_SYSTEM.fullAccessWindow}. No card required.
                 </p>
                 <Button
                   variant="signal"
@@ -519,8 +519,8 @@ function GetStarted() {
                   {startingTrial
                     ? "Opening your workspace…"
                     : signedIn
-                      ? `Start ${GROWTH_SYSTEM.fullAccessTrialDays} days free — no card`
-                      : `Create account — ${GROWTH_SYSTEM.fullAccessTrialDays} days free`}
+                      ? `Start ${GROWTH_SYSTEM.fullAccessWindow} free — no card`
+                      : `Create account — ${GROWTH_SYSTEM.fullAccessWindow} free`}
                 </Button>
               </div>
             </section>
@@ -612,12 +612,12 @@ function GetStarted() {
                       <div className="mt-4 rounded-md border border-primary/40 bg-primary/5 p-4">
                         <p className="text-[13px] font-semibold">
                           <span className="gold-text">Not paying yet?</span> Start your{" "}
-                          {GROWTH_SYSTEM.fullAccessTrialDays} days of free full access
+                          {GROWTH_SYSTEM.fullAccessWindow} of free full access
                         </p>
                         <p className="mt-1 text-[13px] text-muted-foreground">
                           Your business info is saved and your workspace opens instantly — website
                           builder, leads, quotes, bookings, automations and analytics, all unlocked
-                          for {GROWTH_SYSTEM.fullAccessTrialDays} days. No card required.
+                          for {GROWTH_SYSTEM.fullAccessWindow}. No card required.
                         </p>
                         <Button
                           variant="signal"
@@ -630,8 +630,8 @@ function GetStarted() {
                           {startingTrial
                             ? "Opening your workspace…"
                             : signedIn
-                              ? `Start ${GROWTH_SYSTEM.fullAccessTrialDays} days free — no card`
-                              : `Create account — ${GROWTH_SYSTEM.fullAccessTrialDays} days free`}
+                              ? `Start ${GROWTH_SYSTEM.fullAccessWindow} free — no card`
+                              : `Create account — ${GROWTH_SYSTEM.fullAccessWindow} free`}
                         </Button>
                       </div>
                     </>

@@ -361,7 +361,7 @@ export const getPlatformFunnel = createServerFn({ method: "GET" })
       },
       {
         key: "trials",
-        label: `${GROWTH_SYSTEM.fullAccessTrialDays}-day trials started`,
+        label: `${GROWTH_SYSTEM.fullAccessWindow} trials started`,
         count: trialsStarted,
         rate: pct(trialsStarted, accounts),
         rateLabel: "of accounts",

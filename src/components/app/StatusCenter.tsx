@@ -84,7 +84,7 @@ export function StatusCenter({ organizationId }: { organizationId: string | unde
       hint: paid
         ? "Setup paid — production features are available."
         : countdown && !countdown.expired
-          ? `Time left in your ${GROWTH_SYSTEM.fullAccessTrialDays}-day full-system access.`
+          ? `Time left in your ${GROWTH_SYSTEM.fullAccessWindow} full-system access.`
           : "Your work is saved. Pay the setup fee to launch it.",
       to: "/app/billing",
     };

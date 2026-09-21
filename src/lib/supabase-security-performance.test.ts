@@ -20,7 +20,10 @@ describe("workspace provisioning security boundary", () => {
 
   it("binds provisioning to the server-verified auth user and clamps the trial", () => {
     expect(source).toContain("_user_id: context.userId");
-    expect(migration).toContain("GREATEST(1, LEAST(3, COALESCE(_trial_days, 3)))");
+    const oneDay = read(
+      "../../supabase/migrations/20260921182345_755f1fb9-8e6b-42b1-b8b9-fd858076de2c.sql",
+    );
+    expect(oneDay).toContain("GREATEST(1, LEAST(1, COALESCE(_trial_days, 1)))");
     expect(migration).toContain("_user_id");
   });
 

@@ -116,7 +116,7 @@ export const CRM_SOLUTIONS: readonly CrmSolution[] = [
       },
       {
         q: "Can I try it before paying monthly?",
-        a: `You get ${GROWTH_SYSTEM.fullAccessTrialDays} days of full access to the whole system when you start, and your first month of the ${MONTHLY}/month fee is free, so the first monthly charge lands 30 days in.`,
+        a: `You get ${GROWTH_SYSTEM.fullAccessWindow} of full access to the whole system when you start, and your first month of the ${MONTHLY}/month fee is free, so the first monthly charge lands 30 days in.`,
       },
       {
         q: "Do I own the website and the customer data?",
@@ -560,7 +560,7 @@ export const CRM_SOLUTIONS: readonly CrmSolution[] = [
       },
       {
         q: "How long until it is live?",
-        a: `Onboarding builds your site from your real services, service area and pricing rather than starting with a blank page, and you get ${GROWTH_SYSTEM.fullAccessTrialDays} days of full access to the whole system while it is set up.`,
+        a: `Onboarding builds your site from your real services, service area and pricing rather than starting with a blank page, and you get ${GROWTH_SYSTEM.fullAccessWindow} of full access to the whole system while it is set up.`,
       },
       {
         q: "Do I own the website and the customer data?",

@@ -88,7 +88,7 @@ export function ValueStack() {
         </div>
         <p className="mt-5 flex items-start gap-2 text-[12.5px] leading-relaxed text-muted-foreground">
           <ShieldCheck className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden="true" />
-          Try the entire system free for {GROWTH_SYSTEM.fullAccessTrialDays} days before you pay
+          Try the entire system free for {GROWTH_SYSTEM.fullAccessWindow} before you pay
           anything. Cancel the monthly at any time — your site, content and customer list stay
           yours.
         </p>

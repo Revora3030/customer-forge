@@ -239,7 +239,7 @@ export function localPageContent(
       },
       {
         q: "How long until it is live?",
-        a: `You get 3 days of full access before paying anything, and the build starts as soon as you complete onboarding — you answer questions about your services, service area and pricing, and the system generates your site from your real business information.`,
+        a: `You get 1 day of full access before paying anything, and the build starts as soon as you complete onboarding — you answer questions about your services, service area and pricing, and the system generates your site from your real business information.`,
       },
       {
         q: "Can I use my own domain?",
