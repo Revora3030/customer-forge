@@ -764,6 +764,30 @@ export function BuilderCanvas({
                 >
                   <Trash2 className="size-3.5" aria-hidden />
                 </Button>
+                {hasPending(
+                  staged,
+                  selectedComponent ? "component" : "section",
+                  (selectedComponent ?? selectedSection).id,
+                ) ? (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    aria-label="Undo the unsaved changes to this selection"
+                    title="Undo unsaved changes here"
+                    onClick={() => {
+                      setStaged((current) =>
+                        discardEdit(
+                          current,
+                          selectedComponent ? "component" : "section",
+                          (selectedComponent ?? selectedSection).id,
+                        ),
+                      );
+                      setEditNonce((value) => value + 1);
+                    }}
+                  >
+                    Revert
+                  </Button>
+                ) : null}
                 {undoable ? (
                   <Button
                     size="sm"
@@ -1097,6 +1121,7 @@ export function BuilderCanvas({
               </div>
               <Field label="Button / link text">
                 <Input
+                  key={`ll-${selectedComponent.id}-${editNonce}`}
                   defaultValue={selectedComponent.link_label ?? ""}
                   disabled={!canManage}
                   onBlur={(event) =>
@@ -1110,6 +1135,7 @@ export function BuilderCanvas({
                 hint="A page like /contact, a full https link, tel: or mailto:"
               >
                 <Input
+                  key={`lu-${selectedComponent.id}-${editNonce}`}
                   defaultValue={selectedComponent.link_url ?? ""}
                   disabled={!canManage}
                   onBlur={(event) =>
