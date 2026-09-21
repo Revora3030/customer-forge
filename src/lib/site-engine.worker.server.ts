@@ -540,6 +540,7 @@ async function runJob(
     result: synthesis as unknown as never,
     created_by: job.created_by,
   } as never);
+  let generatedAssets: import("@/lib/builder/first-build-images.types").FirstBuildImageAsset[] = [];
   try {
   const starterImages = await generateFirstBuildImages(db, {
     organizationId: orgId,
@@ -554,15 +555,7 @@ async function runJob(
     ]),
     creative,
   });
-  await db.from("ai_generations").insert({
-    organization_id: orgId,
-    job_id: job.id,
-    kind: "first_build_images",
-    model: starterImages.evidence.models.join("+") || starterImages.evidence.provider || "revora-artwork",
-    instruction: null,
-    result: starterImages.evidence as unknown as never,
-    created_by: job.created_by,
-  } as never);
+  generatedAssets = starterImages.assets;
   const built = await materializeSiteContent(db, orgId, {
     businessName: org.data.name ?? "",
     copy,
@@ -584,6 +577,19 @@ async function runJob(
     generatedAssets: starterImages.assets,
     replaceExisting: freshReplace,
   });
+  const attachedEvidence = {
+    ...starterImages.evidence,
+    attached: built.skipped ? 0 : starterImages.assets.length,
+  };
+  await db.from("ai_generations").insert({
+    organization_id: orgId,
+    job_id: job.id,
+    kind: "first_build_images",
+    model: starterImages.evidence.models.join("+") || starterImages.evidence.provider || "revora-artwork",
+    instruction: null,
+    result: attachedEvidence as unknown as never,
+    created_by: job.created_by,
+  } as never);
 
   // A brand chosen by the owner wins. Only replace the untouched generated
   // defaults during a first build, so onboarding produces a distinctive site
@@ -754,6 +760,10 @@ async function runJob(
     link: "/app/website",
   } as never);
   } catch (error) {
+    if (generatedAssets.length) {
+      const { cleanupFirstBuildImages } = await import("@/lib/builder/first-build-images.server");
+      await cleanupFirstBuildImages(db, generatedAssets).catch(() => undefined);
+    }
     const message = error instanceof Error ? error.message : "Generation failed.";
     if (freshReplace && pendingBuild?.backupId) {
       const rollback = await rollbackFreshBuild(db, {

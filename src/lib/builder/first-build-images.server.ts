@@ -324,3 +324,11 @@ export async function generateFirstBuildImages(
 export function firstBuildImageEvidenceJson(evidence: FirstBuildImageEvidence): Json {
   return evidence as unknown as Json;
 }
+
+/** Removes only assets created by this generation attempt. Owner media is never touched. */
+export async function cleanupFirstBuildImages(db: Db, assets: FirstBuildImageAsset[]): Promise<void> {
+  const paths = [...new Set(assets.map((asset) => asset.path).filter(Boolean))];
+  const ids = [...new Set(assets.map((asset) => asset.mediaId).filter((id): id is string => Boolean(id)))];
+  if (paths.length) await db.storage.from(MEDIA_BUCKET).remove(paths);
+  if (ids.length) await db.from("media").delete().in("id", ids);
+}
