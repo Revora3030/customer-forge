@@ -197,15 +197,24 @@ describe("free-only enforcement", () => {
     expect(isFreeEligibleModel("google", "gemini-2.5-flash")).toBe(true);
   });
 
-  it("free-only mode is the default, so a paid provider can never be reached", async () => {
+  it("a paid provider stays unreachable unless builder-external AI is explicitly allowed", async () => {
     process.env["GOOGLE_AI_API_KEY"] = "paid-key";
     process.env["ZERO_AI_COST_MODE"] = "false";
+    process.env["BUILDER_EXTERNAL_AI_ALLOWED"] = "false";
     const { freeAiOnly } = await free();
     expect(freeAiOnly()).toBe(true);
     vi.resetModules();
     const { paidAiAllowedForBuilder } = await import("@/lib/ai/availability");
-    // Builder-external AI is off by default too, so paid stays unreachable.
     expect(paidAiAllowedForBuilder()).toBe(false);
+  });
+
+  it("allows the paid lane only when both switches are explicitly on", async () => {
+    process.env["GOOGLE_AI_API_KEY"] = "paid-key";
+    process.env["ZERO_AI_COST_MODE"] = "false";
+    process.env["BUILDER_EXTERNAL_AI_ALLOWED"] = "true";
+    vi.resetModules();
+    const { paidAiAllowedForBuilder } = await import("@/lib/ai/availability");
+    expect(paidAiAllowedForBuilder()).toBe(true);
   });
 });
 
