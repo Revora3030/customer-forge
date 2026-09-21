@@ -29,6 +29,16 @@ afterEach(() => {
 });
 
 describe("luna configuration", () => {
+  it("requires explicit operator opt-in even when a key exists", () => {
+    process.env["OPENAI_API_KEY"] = "configured";
+    process.env["ZERO_AI_COST_MODE"] = "false";
+    process.env["BUILDER_EXTERNAL_AI_ALLOWED"] = "true";
+    delete process.env["LUNA_ENABLED"];
+    expect(lunaEnabled()).toBe(false);
+    process.env["LUNA_ENABLED"] = "true";
+    expect(lunaEnabled()).toBe(true);
+  });
+
   it("defaults to the GPT-5.6 Luna orchestrator model", () => {
     delete process.env["LUNA_MODEL"];
     expect(lunaModel()).toBe(DEFAULT_LUNA_MODEL);
@@ -51,10 +61,18 @@ describe("luna configuration", () => {
     expect(lunaEnabled()).toBe(false);
   });
 
-  it("is on with a key and no explicit opt-out", () => {
+  it("stays off with a key until an operator explicitly opts in", () => {
     process.env["OPENAI_API_KEY"] = "sk-test";
     delete process.env["LUNA_ENABLED"];
-    expect(lunaEnabled()).toBe(true);
+    expect(lunaEnabled()).toBe(false);
+  });
+
+  it("stays off in native-only mode despite every diagnostic credential", () => {
+    process.env["OPENAI_API_KEY"] = "sk-test";
+    process.env["LUNA_ENABLED"] = "true";
+    process.env["BUILDER_EXTERNAL_AI_ALLOWED"] = "true";
+    delete process.env["ZERO_AI_COST_MODE"];
+    expect(lunaEnabled()).toBe(false);
   });
 });
 

@@ -133,35 +133,19 @@ type SupabaseLike = {
 
 /* --------------------------------- planning -------------------------------- */
 
-/** Words that mean "change how the pages are put together", not just the paint. */
-const COMPOSITION_WORDS = [
-  "layout",
-  "structure",
-  "sections",
-  "blocks",
-  "order",
-  "rearrange",
-  "reorder",
-  "redesign",
-  "design",
-  "look",
-  "style",
-  "rebuild",
-  "compose",
-  "restructure",
-  "homepage",
-  "home page",
-];
-
-function wantsComposition(instruction: string): boolean {
-  const text = instruction.toLowerCase();
-  return COMPOSITION_WORDS.some((word) => text.includes(word));
-}
-
 /** The owner's brand choices, read off the request before anything is composed. */
+type BrandPreference = {
+  tone: "light" | "dark" | "any" | null;
+  primaryColor: string | null;
+  secondaryColor: string | null;
+  accentColor: string | null;
+  font: string | null;
+  directionId: string | null;
+};
+
 function readBrand(
   input: unknown,
-): import("@/lib/builder/ai-composition.server").BrandPreference | null {
+): BrandPreference | null {
   if (!input || typeof input !== "object") return null;
   const record = input as Record<string, unknown>;
   const hex = (value: unknown) =>
@@ -221,7 +205,7 @@ type PlanInput = {
   instruction: string;
   history: AgentTurn[];
   attachments: AgentAttachment[];
-  brand?: import("@/lib/builder/ai-composition.server").BrandPreference | null;
+  brand?: BrandPreference | null;
 };
 
 
@@ -235,10 +219,7 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
     const runId = crypto.randomUUID();
     noteStage(orgId, runId, "reading your business");
 
-    const { planChanges } = await import("@/lib/site-agent.server");
-    const { orchestrate } = await import("@/lib/agent/orchestrator.server");
-    const { getWorkspaceContext, workspaceSummary } =
-      await import("@/lib/agent/workspace-context.server");
+    const { getWorkspaceContext } = await import("@/lib/agent/workspace-context.server");
 
     // The workspace picture is assembled once and reused for a short window, so
     // a follow-up message does not re-read the whole website to say the same
@@ -421,54 +402,10 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
       if (saved.error) console.warn("design memory not saved", saved.error.message);
     }
 
-    // PAID MASTER ORCHESTRATOR (Luna). Luna never writes the website and is
-    // never a worker: it reads the request plus the workspace's own facts and
-    // returns a short coordination brief (what the owner is really asking for,
-    // which specialists matter, what design intent must hold). The free model
-    // workforce and the deterministic engine still do all the work. This starts
-    // now and is awaited only after the native plan exists, so it cannot slow a
-    // build down, and every failure path leaves the build untouched.
-    const lunaOrchestration = (async (): Promise<string | null> => {
-      try {
-        const { callLuna } = await import("@/lib/ai/luna.server");
-        const result = await callLuna({
-          purpose: "intent",
-          organizationId: orgId,
-          maxOutputTokens: 500,
-          system: [
-            "You coordinate a website builder. You never write the website yourself.",
-            "Reply with at most 6 short bullet lines of coordination guidance:",
-            "what the owner is really asking for, which pages/sections it touches,",
-            "and the design intent to hold. Never invent facts, prices, reviews,",
-            "awards or results. Never rewrite wording the owner quoted exactly.",
-          ].join(" "),
-          user: [
-            brief ? `Standing instructions: ${brief}` : "",
-            `Business: ${agentContext.business?.name ?? "unnamed"} (${
-              agentContext.business?.industry ?? "unknown industry"
-            })`,
-            `Pages: ${agentContext.pages.map((page) => page.title).join(", ")}`,
-            `Request: ${instruction}`,
-          ]
-            .filter(Boolean)
-            .join("\n"),
-        });
-        if (!result.ok) return null;
-        return `Coordination brief from the master planner (guidance only, never a fact source):\n${result.text}`;
-      } catch {
-        // A coordination brief is an optional enhancement, never a dependency.
-        return null;
-      }
-    })();
-
-
-
-    // FREE-FIRST: Revora's own deterministic builder answers first. It uses the
-    // trade playbooks, the section library, the design system and the
-    // workspace's own facts — no AI provider, no credits, no per-request cost.
-    // A language model is only consulted when the request needs judgement the
-    // rules cannot supply, and if no provider is available the deterministic
-    // plan is still returned, so the builder is never unusable.
+    // NATIVE-ONLY CUSTOMER PATH: customer build and edit requests never call
+    // Luna or an outside model, even when provider credentials are configured.
+    // Revora composes changes from the live site, saved design identity, industry
+    // rules, factual business data and the owner's literal instructions.
     const { buildAutonomousPlan } = await import("@/lib/builder/autonomous-brain");
     // Uploads no longer sideline Revora's own builder: the structural work is
     // planned natively, and an outside model is only consulted when the upload's
@@ -503,204 +440,65 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
       } as Record<string, unknown>;
     };
 
-    // The orchestrator's brief is collected only after Revora's own engine has
-    // already planned, so a paid coordination call never delays the customer.
-    // If it is off, capped, unreachable or slow, `lunaBrief` is simply absent
-    // and everything downstream behaves exactly as before.
-    const lunaBrief = await lunaOrchestration;
-    if (lunaBrief) {
-      data.history = [{ role: "user" as const, content: lunaBrief }, ...data.history];
-    }
-
-
-
-    const runAgent = async () => {
-      noteStage(orgId, runId, "planning the change");
-      const result = await orchestrate({
-        context: agentContext,
-        workspaceSummary: workspaceSummary(agentContext),
-        instruction,
-        history: data.history,
-        attachments: data.attachments,
-        plan: planChanges,
-        caller: { organizationId: orgId, userId },
-      });
-      requirements = result.requirements;
-      trace = result.trace;
-      return result.raw;
-    };
-    const queued = (reason: string, retryable: boolean) => ({
-      reply: retryable
-        ? "Revora's writer is busy right now. Your request is saved — press Retry and it will pick up exactly where it left off."
-        : "Revora's writer is paused for this workspace at the moment, so nothing was changed. Your request is saved and can be retried once it's available again.",
-      summary: "",
-      steps: [] as AgentStep[],
-      questions: [] as string[],
-      notes: [reason],
-      requirements: [] as { label: string; covered: boolean }[],
-      trace: [reason],
-      unavailable: { reason, retryable, instruction } as {
-        reason: string;
-        retryable: boolean;
-        instruction: string;
-      } | null,
-      composition:
-        null as import("@/lib/builder/composition-preview").CompositionPreview | null,
-    });
-
-    // Revora's native engine is the primary brain: whenever it produced real,
-    // validated website work it is used as-is. Only a request with nothing
-    // recognisable in it — or an upload that has to be read — is escalated.
-    // ZERO-COST MODE is Revora's default architecture, enforced on the server:
-    // while it is on, no external model is contacted for a customer request —
-    // not for attachments, not on an error, not on a retry. The native engine
-    // answers, and a request it cannot place comes back as a plain question
-    // rather than anything about providers, keys or credits.
-    // FREE-AI-FIRST: the builder may use a provider whose configured usage is
-    // actually free (Cloudflare Workers AI, OpenRouter free models, the Gemini
-    // free tier). Paid provider accounts stay unreachable unless an operator
-    // explicitly opted out of both zero-cost and free-only mode, so customer
-    // website building never needs a paid plan. With no free provider reachable,
-    // the native engine answers exactly as before.
-    const { builderAiAvailable } = await import("@/lib/ai/availability");
-    const zeroCost = !builderAiAvailable();
-
-    // DESIGN UNIQUENESS: for a whole-site redesign, a free provider composes the
-    // section mix, page order and visual direction for THIS business before the
-    // deterministic plan is applied on top. Structure only — it writes no copy
-    // and states no fact — and any failure leaves the deterministic plan alone.
-    let composed: Awaited<
-      ReturnType<typeof import("@/lib/builder/ai-composition.server").proposeSiteComposition>
-    > = null;
-    // The agency sits on every substantial request now, not only a whole-site
-    // redesign: any request that is not a tiny literal edit gets the full free
-    // pool composing structure and look-and-feel. A one-word or one-colour fix
-    // stays deterministic and instant, and the owner's saved brand still wins
-    // unless they actually asked for a new look (see brand-lock).
-    const { ensembleModeFor } = await import("@/lib/ai/ensemble.server");
-    const composeWanted =
-      deterministic.intent.wholeSite ||
-      wantsComposition(instruction) ||
-      ensembleModeFor(instruction) !== "minimal";
-    if (composeWanted && !zeroCost) {
-      const { proposeSiteComposition } = await import("@/lib/builder/ai-composition.server");
-      composed = await proposeSiteComposition(agentContext, {
-        instruction,
-        organizationId: orgId,
-        userId,
-        brand: data.brand ?? null,
-      });
-    }
-
-
-    if (deterministic.actions.length && !deterministic.requiresExternalReasoning) {
-      // Handled entirely by Revora's own rules unless a composition was proposed.
+    noteStage(orgId, runId, "planning the change");
+    if (deterministic.actions.length) {
       raw = deterministicRaw()!;
-      if (composed) {
-        raw['actions'] = [
-          ...composed.actions,
-          ...deterministic.actions,
-        ] as unknown;
+      trace = [
+        ...deterministic.trace,
+        "Built with Revora's own engine — no outside AI involved.",
+      ];
+    } else {
+      // A vague request is resolved against the live site. If Revora still cannot
+      // place it safely, it asks for one concrete detail instead of exporting
+      // customer data or guessing.
+      const { resolveVagueIntent } = await import("@/lib/builder/intent-resolution");
+      const resolved = resolveVagueIntent(agentContext);
+      const retry = resolved
+        ? buildAutonomousPlan(agentContext, resolved.instruction, {
+            history: data.history
+              .filter((turn) => turn.role === "user")
+              .map((turn) => turn.content)
+              .slice(-6),
+            attachments: data.attachments.map((attachment) => ({
+              kind: attachment.kind,
+              name: attachment.name,
+            })),
+          })
+        : null;
+
+      if (resolved && retry?.actions.length) {
+        requirements = [...new Set(retry.intent.verbs)].map((verb) => ({
+          label: verb,
+          covered: true,
+        }));
         trace = [
-          ...trace,
-          `Layout composed for this business: ${composed.because}`,
-          ...composed.notes,
-        ];
-      }
-    
-    } else if (zeroCost) {
-      if (deterministic.actions.length) {
-        raw = deterministicRaw()!;
-        trace = [
-          ...deterministic.trace,
+          ...retry.trace,
+          `You weren't specific, so Revora chose this: ${resolved.because}.`,
           "Built with Revora's own engine — no outside AI involved.",
         ];
+        raw = {
+          reply: `I wasn't sure which part you meant, so I went with the biggest win — ${resolved.because}. Here's the plan.`,
+          summary: retry.summary,
+          actions: retry.actions as unknown,
+          questions: retry.questions,
+          notes: retry.notes,
+        } as Record<string, unknown>;
       } else {
-        // The request was too vague to place directly. Rather than answering
-        // with a question, Revora reads the real site map and does the single
-        // most valuable thing it can see, and says plainly why it chose it.
-        const { resolveVagueIntent } = await import("@/lib/builder/intent-resolution");
-        const resolved = resolveVagueIntent(agentContext);
-        const retry = resolved
-          ? buildAutonomousPlan(agentContext, resolved.instruction, {
-              history: data.history
-                .filter((turn) => turn.role === "user")
-                .map((turn) => turn.content)
-                .slice(-6),
-              attachments: data.attachments.map((attachment) => ({
-                kind: attachment.kind,
-                name: attachment.name,
-              })),
-            })
-          : null;
-
-        if (resolved && retry?.actions.length) {
-          requirements = [...new Set(retry.intent.verbs)].map((verb) => ({
-            label: verb,
-            covered: true,
-          }));
-          trace = [
-            ...retry.trace,
-            `You weren't specific, so Revora chose this: ${resolved.because}.`,
-            "Built with Revora's own engine — no outside AI involved.",
-          ];
-          raw = {
-            reply: `I wasn't sure which part you meant, so I went with the biggest win — ${resolved.because}. Here's the plan.`,
-            summary: retry.summary,
-            actions: retry.actions as unknown,
-            questions: retry.questions,
-            notes: retry.notes,
-          } as Record<string, unknown>;
-        } else {
-          return {
-            reply:
-              "I want to get this right rather than guess. Tell me which part of your website you'd like changed — for example the top of the home page, your services, your prices, or how it looks — and I'll do it.",
-            summary: "",
-            steps: [] as AgentStep[],
-            questions: deterministic.questions.length
-              ? deterministic.questions
-              : ["Which part of your website should I change?"],
-            notes: deterministic.notes,
-            requirements: [] as { label: string; covered: boolean }[],
-            trace: [...deterministic.trace, "Nothing changed — waiting on one detail."],
-            unavailable: null,
-            composition:
-              null as import("@/lib/builder/composition-preview").CompositionPreview | null,
-          };
-        }
-      }
-    } else {
-      let attempt = 0;
-      for (;;) {
-        attempt += 1;
-        try {
-          raw = await runAgent();
-          break;
-        } catch (error) {
-          const status = (error as { status?: number } | null)?.status;
-          if ((status === 429 || status === 503) && attempt < 3) {
-            await new Promise((resolve) => setTimeout(resolve, attempt * 1500));
-            continue;
-          }
-          const transient = status === 429 || status === 503 || status === 500 || status === 502;
-          if (transient && status !== 429 && status !== 503 && attempt < 2) continue;
-          // Optional help was unavailable. Revora still builds: the
-          // deterministic plan is used whenever it produced real work, and only
-          // a request with nothing to act on comes back as retryable.
-          const fallback = deterministic?.actions.length ? deterministicRaw() : null;
-          if (fallback) {
-            raw = fallback;
-            trace = [
-              ...deterministic!.trace,
-              "Built this with Revora's own builder — no outside AI was needed.",
-            ];
-            break;
-          }
-          if (transient) return queued("The AI writer could not be reached", true);
-          if (status === 402 || status === 403)
-            return queued("The AI writer is paused for this workspace", false);
-          throw error;
-        }
+        return {
+          reply:
+            "I want to get this right rather than guess. Tell me which part of your website you'd like changed — for example the top of the home page, your services, your prices, or how it looks — and I'll do it.",
+          summary: "",
+          steps: [] as AgentStep[],
+          questions: deterministic.questions.length
+            ? deterministic.questions
+            : ["Which part of your website should I change?"],
+          notes: deterministic.notes,
+          requirements: [] as { label: string; covered: boolean }[],
+          trace: [...deterministic.trace, "Nothing changed — waiting on one detail."],
+          unavailable: null,
+          composition:
+            null as import("@/lib/builder/composition-preview").CompositionPreview | null,
+        };
       }
     }
 
@@ -753,11 +551,8 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
       // What the agent actually did to get here, stage by stage.
       trace: trace.slice(0, 8),
       unavailable: null as { reason: string; retryable: boolean; instruction: string } | null,
-      // The look and page blocks the AI chose, with its reasoning, so the owner
-      // can preview, approve or adjust before anything is applied.
-      composition: (composed
-        ? composed.preview
-        : null) as import("@/lib/builder/composition-preview").CompositionPreview | null,
+      // Customer edits are composed by Revora's native engine.
+      composition: null as import("@/lib/builder/composition-preview").CompositionPreview | null,
     };
 
 
