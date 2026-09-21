@@ -24,6 +24,7 @@ import { readSeo } from "@/lib/site-seo";
 import { readCopy } from "@/lib/site-engine";
 import { canonicalSiteUrl } from "@/lib/revora-address";
 import { fingerprintClassNames } from "@/lib/builder/design-fingerprint";
+import { SiteFooter } from "@/components/site/SiteFooter";
 
 export const Route = createFileRoute("/s/$slug/$page")({
   loader: async ({ params }) => {
@@ -195,23 +196,7 @@ export function SitePageView({
           ))}
         </main>
 
-        <footer className="rv-site-footer border-t border-border">
-          <div className="mx-auto grid max-w-6xl gap-8 px-4 py-12 sm:grid-cols-[1.2fr_1fr]">
-            <div>
-              <p className="font-display text-[20px] font-semibold">{org.name}</p>
-              {profile?.tagline ? <p className="mt-2 max-w-md text-[13px] text-muted-foreground">{profile.tagline}</p> : null}
-            </div>
-            <div className="flex flex-wrap content-start gap-x-5 gap-y-3 text-[13px] text-muted-foreground sm:justify-end">
-              <SitePageLink slug={org.slug}>Home</SitePageLink>
-              {site.nav.filter((item) => item.slug !== "home" && item.kind !== "thanks").slice(0, 6).map((item) => (
-                <SitePageLink key={item.slug} slug={org.slug} page={item.slug}>{item.title}</SitePageLink>
-              ))}
-            </div>
-          </div>
-          <div className="border-t border-border px-4 py-4 text-center text-[12px] text-muted-foreground">
-            © {new Date().getFullYear()} {org.name}{facts.city ? ` · ${facts.city}` : ""}
-          </div>
-        </footer>
+        <SiteFooter site={site} />
 
         <StickyCallBar site={site} label={ctaLabel} />
         <SiteVitals slug={org.slug} preview={preview} />

@@ -23,6 +23,7 @@ import { siteFontHref, siteFontStyle, siteThemeStyle } from "@/lib/site-theme";
 import { readComposition } from "@/lib/visual-composition";
 import { readBackdrop } from "@/lib/site-effects";
 import { fingerprintClassNames } from "@/lib/builder/design-fingerprint";
+import { SiteFooter } from "@/components/site/SiteFooter";
 
 export const Route = createFileRoute("/s/$slug")({
   loader: async ({ params }) => {
@@ -578,34 +579,7 @@ function TemplateSiteView({
           </div>
         </section>
 
-        <footer className="mx-auto max-w-6xl px-4 py-10">
-          <div className="flex flex-wrap items-center justify-between gap-3 text-[13px] text-muted-foreground">
-            <p>
-              © {new Date().getFullYear()} {org.name}
-              {facts.city ? ` · ${facts.city}` : ""}
-            </p>
-            <div className="flex gap-4">
-              {social?.google_business ? (
-                <a
-                  href={safeLinkUrl(social.google_business) ?? "#"}
-                  className="hover:text-foreground"
-                >
-                  Google
-                </a>
-              ) : null}
-              {social?.facebook ? (
-                <a href={safeLinkUrl(social.facebook) ?? "#"} className="hover:text-foreground">
-                  Facebook
-                </a>
-              ) : null}
-              {social?.instagram ? (
-                <a href={safeLinkUrl(social.instagram) ?? "#"} className="hover:text-foreground">
-                  Instagram
-                </a>
-              ) : null}
-            </div>
-          </div>
-        </footer>
+        <SiteFooter site={site} />
 
         <StickyCallBar site={site} label={ctaLabel} />
         <SiteVitals slug={org.slug} preview={preview} />
