@@ -695,6 +695,48 @@ export type Database = {
           },
         ]
       }
+      builder_progress: {
+        Row: {
+          created_at: string
+          detail: string | null
+          id: string
+          organization_id: string
+          run_id: string
+          stage: string
+        }
+        Insert: {
+          created_at?: string
+          detail?: string | null
+          id?: string
+          organization_id: string
+          run_id: string
+          stage: string
+        }
+        Update: {
+          created_at?: string
+          detail?: string | null
+          id?: string
+          organization_id?: string
+          run_id?: string
+          stage?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "builder_progress_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "builder_progress_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "public_organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       business_profiles: {
         Row: {
           accent_color: string | null

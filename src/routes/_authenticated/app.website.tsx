@@ -55,6 +55,8 @@ import { ClientOnboardingFlow } from "@/components/app/ClientOnboardingFlow";
 
 import { LaunchChecks } from "@/components/app/LaunchChecks";
 import { VisualCheckPanel } from "@/components/app/VisualCheckPanel";
+import { VisionReviewPanel } from "@/components/app/VisionReviewPanel";
+import { SiteUpgradePanel } from "@/components/app/SiteUpgradePanel";
 import { PortalAccess } from "@/components/app/PortalAccess";
 import { PreviewLinks, PreviewSiteButton } from "@/components/app/PreviewLinks";
 import { VersionDiff } from "@/components/app/VersionDiff";
@@ -604,6 +606,7 @@ function WebsitePage() {
                       })
                     }
                   />
+                  <SiteUpgradePanel organizationId={orgId} canManage={manage} />
                   <ConversionOptimizer organizationId={orgId} />
                 </>
               ),
@@ -759,6 +762,12 @@ function WebsitePage() {
               node: (
                 <>
                   <VisualCheckPanel
+                    organizationId={orgId}
+                    slug={org?.slug}
+                    publishState={publishState}
+                    canManage={manage}
+                  />
+                  <VisionReviewPanel
                     organizationId={orgId}
                     slug={org?.slug}
                     publishState={publishState}
