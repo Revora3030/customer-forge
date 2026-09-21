@@ -153,12 +153,23 @@ async function saveRestorePoint(
 
 /* ------------------------------------------------------------- motion pack */
 
+/**
+ * Everything needed to put a whole-site change back exactly as it was. Handed
+ * to the owner's browser so a change can be tried and reversed in one click,
+ * without touching the version history.
+ */
+export type SiteUpgradeUndo = {
+  effects: { sectionId: string; effect: string }[];
+  fingerprint: Record<string, string> | null;
+};
+
 export type MotionPackResult = {
   ok: boolean;
   intensity: MotionIntensity;
   changed: number;
   summary: string;
   restorePointId: string | null;
+  undo: SiteUpgradeUndo | null;
 };
 
 export const applyMotionPack = createServerFn({ method: "POST" })
@@ -206,6 +217,7 @@ export const applyMotionPack = createServerFn({ method: "POST" })
         changed: 0,
         summary: motionSummary(assignments, plan),
         restorePointId: null,
+        undo: null,
       };
     }
 
@@ -248,6 +260,13 @@ export const applyMotionPack = createServerFn({ method: "POST" })
       changed: assignments.length,
       summary: motionSummary(assignments, plan),
       restorePointId,
+      undo: {
+        effects: assignments.map((entry) => ({ sectionId: entry.sectionId, effect: entry.from })),
+        fingerprint:
+          data.intensity && data.intensity !== fingerprint.motionLevel
+            ? { motionLevel: fingerprint.motionLevel }
+            : null,
+      },
     };
   });
 
@@ -359,6 +378,7 @@ export type RedesignResult = {
   motionChanged: number;
   summary: string;
   restorePointId: string | null;
+  undo: SiteUpgradeUndo | null;
 };
 
 export const applySiteWideRedesign = createServerFn({ method: "POST" })
@@ -386,6 +406,7 @@ export const applySiteWideRedesign = createServerFn({ method: "POST" })
         summary:
           "Revora couldn't tell which look you meant. Try a word like premium, calm, bold, modern, warm, editorial, playful or technical.",
         restorePointId: null,
+        undo: null,
       };
     }
 
@@ -420,6 +441,7 @@ export const applySiteWideRedesign = createServerFn({ method: "POST" })
         motionChanged: 0,
         summary: redesignSummary(request.direction, changes, blocked),
         restorePointId: null,
+        undo: null,
       };
     }
 
@@ -463,6 +485,10 @@ export const applySiteWideRedesign = createServerFn({ method: "POST" })
       motionChanged: assignments.length,
       summary: redesignSummary(request.direction, changes, blocked),
       restorePointId,
+      undo: {
+        effects: assignments.map((entry) => ({ sectionId: entry.sectionId, effect: entry.from })),
+        fingerprint: Object.fromEntries(changes.map((change) => [change.field, change.from])),
+      },
     };
   });
 
@@ -768,5 +794,91 @@ export const applyVisionRepairs = createServerFn({ method: "POST" })
         applied.length === 0
           ? "Nothing could be repaired automatically."
           : `${applied.length} repair${applied.length === 1 ? "" : "s"} applied. You can undo this from the version history.`,
+    };
+  });
+
+/* ------------------------------------------------------------------- undo */
+
+/**
+ * Puts a whole-site change back exactly as it was. This is how an owner tries
+ * a look safely: apply it, look at the site, and reverse it in one click if it
+ * isn't right. Only the fields Revora itself changed are touched.
+ */
+export const undoSiteUpgrade = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { organizationId: string; undo: SiteUpgradeUndo }) => {
+    if (!input?.organizationId) throw new Error("organizationId is required");
+    const effects = Array.isArray(input.undo?.effects) ? input.undo.effects.slice(0, 400) : [];
+    const fingerprint =
+      input.undo?.fingerprint && typeof input.undo.fingerprint === "object"
+        ? Object.fromEntries(
+            Object.entries(input.undo.fingerprint)
+              .filter(([key, value]) => typeof key === "string" && typeof value === "string")
+              .slice(0, 20),
+          )
+        : null;
+    return { organizationId: input.organizationId, undo: { effects, fingerprint } };
+  })
+  .handler(async ({ data, context }): Promise<{ ok: boolean; reverted: number; summary: string }> => {
+    const supabase = context.supabase as unknown as SupabaseLike;
+    await requireManager(supabase, data.organizationId, context.userId);
+
+    const { isSectionEffectId } = await import("@/lib/site-effects");
+    let reverted = 0;
+    for (const entry of data.undo.effects) {
+      if (!entry || typeof entry.sectionId !== "string" || !isSectionEffectId(entry.effect)) continue;
+      const { data: row } = await supabase
+        .from("website_sections")
+        .select("settings")
+        .eq("id", entry.sectionId)
+        .eq("organization_id", data.organizationId)
+        .maybeSingle();
+      if (!row) continue;
+      const { error } = await supabase
+        .from("website_sections")
+        .update({
+          settings: writeSectionEffect((row as { settings?: unknown }).settings ?? null, entry.effect) as never,
+        })
+        .eq("id", entry.sectionId)
+        .eq("organization_id", data.organizationId);
+      if (!error) reverted += 1;
+    }
+
+    if (data.undo.fingerprint && Object.keys(data.undo.fingerprint).length > 0) {
+      const { createDesignFingerprint, readDesignFingerprint, writeDesignFingerprint } = await import(
+        "@/lib/builder/design-fingerprint"
+      );
+      const { data: settings } = await supabase
+        .from("website_settings")
+        .select("generation")
+        .eq("organization_id", data.organizationId)
+        .maybeSingle();
+      const generation = (settings as { generation?: unknown } | null)?.generation ?? null;
+      const current =
+        readDesignFingerprint(generation) ??
+        createDesignFingerprint({ businessName: null, industry: null, city: null });
+      const next = { ...current } as unknown as Record<string, unknown>;
+      for (const [field, value] of Object.entries(data.undo.fingerprint)) {
+        if (field in (current as unknown as Record<string, unknown>)) next[field] = value;
+      }
+      await supabase
+        .from("website_settings")
+        .upsert(
+          {
+            organization_id: data.organizationId,
+            generation: writeDesignFingerprint(generation, next as never),
+          } as never,
+          { onConflict: "organization_id" },
+        );
+      reverted += Object.keys(data.undo.fingerprint).length;
+    }
+
+    return {
+      ok: true,
+      reverted,
+      summary:
+        reverted === 0
+          ? "There was nothing left to put back."
+          : "Put back exactly as it was before that change.",
     };
   });
