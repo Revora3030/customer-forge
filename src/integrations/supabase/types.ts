@@ -1558,6 +1558,51 @@ export type Database = {
         }
         Relationships: []
       }
+      luna_tenant_budget_state: {
+        Row: {
+          calls: number
+          cap_microcents: number
+          month: string
+          organization_id: string | null
+          scope_id: string
+          spent_microcents: number
+          updated_at: string
+        }
+        Insert: {
+          calls?: number
+          cap_microcents?: number
+          month: string
+          organization_id?: string | null
+          scope_id: string
+          spent_microcents?: number
+          updated_at?: string
+        }
+        Update: {
+          calls?: number
+          cap_microcents?: number
+          month?: string
+          organization_id?: string | null
+          scope_id?: string
+          spent_microcents?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "luna_tenant_budget_state_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "luna_tenant_budget_state_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "public_organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       luna_usage_events: {
         Row: {
           cached_input_tokens: number
@@ -4149,8 +4194,32 @@ export type Database = {
           spent_microcents: number
         }[]
       }
+      luna_budget_reserve_tenant: {
+        Args: {
+          _estimate_microcents: number
+          _global_cap_microcents: number
+          _organization_id: string
+          _tenant_cap_microcents: number
+        }
+        Returns: {
+          allowed: boolean
+          calls: number
+          cap_microcents: number
+          spent_microcents: number
+          tenant_cap_microcents: number
+          tenant_spent_microcents: number
+        }[]
+      }
       luna_budget_settle: {
         Args: { _actual_microcents: number; _estimate_microcents: number }
+        Returns: undefined
+      }
+      luna_budget_settle_tenant: {
+        Args: {
+          _actual_microcents: number
+          _estimate_microcents: number
+          _organization_id: string
+        }
         Returns: undefined
       }
       org_team_members: {
