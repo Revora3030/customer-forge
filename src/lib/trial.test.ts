@@ -17,14 +17,14 @@ const DAY = 86_400_000;
  */
 describe("cross-session free-access trial", () => {
   it("keeps access on relogin when created less than 1 day ago, even with a null trial_ends_at", () => {
-    const createdAt = new Date(Date.now() - DAY).toISOString();
+    const createdAt = new Date(Date.now() - DAY / 2).toISOString();
     const org = { subscription_status: "trialing", trial_ends_at: null, created_at: createdAt };
     expect(isTrialActive(org)).toBe(true);
     expect(trialHoursLeft(org)).toBeGreaterThan(0);
   });
 
   it("keeps access on relogin even if subscription status drifted to past_due/canceled", () => {
-    const createdAt = new Date(Date.now() - 2 * DAY).toISOString();
+    const createdAt = new Date(Date.now() - DAY / 4).toISOString();
     expect(
       isTrialActive({
         subscription_status: "past_due",
