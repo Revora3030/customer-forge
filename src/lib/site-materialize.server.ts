@@ -13,7 +13,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { safeLinkUrl } from "@/lib/website-content";
 import type { DesignDirection } from "@/lib/design-directions";
 import { writeSectionEffect } from "@/lib/site-effects";
-import { writeSectionVisual } from "@/lib/site-style";
+import { writeComponentVisual, writeSectionVisual } from "@/lib/site-style";
 import { compositionForKind, variantForKind } from "@/lib/builder/elite-site-output";
 import {
   sectionDesignFromFingerprint,
@@ -25,6 +25,7 @@ import {
   type ArchetypeSection,
   type SiteArchetype,
 } from "@/lib/site-archetypes";
+import type { FirstBuildImageAsset } from "@/lib/builder/first-build-images.server";
 
 type Db = SupabaseClient;
 
@@ -73,6 +74,8 @@ export type MaterializeInput = {
   fingerprint?: DesignFingerprint | null;
   /** Full industry strategy used to order the home narrative. */
   industryPlaybook?: IndustryPlaybook | null;
+  /** Safe generated starter pictures saved in tenant media for this first build. */
+  generatedAssets?: FirstBuildImageAsset[];
 };
 
 type Component = {
@@ -81,6 +84,8 @@ type Component = {
   body?: string | null;
   link_label?: string | null;
   link_url?: string | null;
+  media_url?: string | null;
+  settings?: Record<string, unknown> | null;
 };
 
 type Section = {
@@ -98,6 +103,9 @@ type Page = {
   kind: string;
   seo_title?: string | null;
   seo_description?: string | null;
+  og_title?: string | null;
+  og_description?: string | null;
+  og_image_url?: string | null;
   sections: Section[];
 };
 
@@ -105,6 +113,51 @@ const clean = (value: string | null | undefined) => {
   const text = (value ?? "").trim();
   return text.length ? text : null;
 };
+
+const GENERATED_IMAGE_CREDIT = "AI-generated starter image";
+
+function mediaSettings(asset: FirstBuildImageAsset): Record<string, unknown> {
+  return writeComponentVisual(
+    {},
+    {
+      alt: asset.altText,
+      object_fit: "cover",
+      object_position: "center",
+      overlay: asset.slot === "hero" || asset.slot === "cta" ? "gradient" : "none",
+      radius: asset.slot === "hero" ? "large" : "medium",
+      shadow: asset.slot === "hero" ? "strong" : "soft",
+      aspect_ratio: asset.aspectRatio,
+      source: "generated",
+      credit: GENERATED_IMAGE_CREDIT,
+      license: "Revora starter image",
+    },
+  );
+}
+
+function firstAsset(input: MaterializeInput, slot: FirstBuildImageAsset["slot"]) {
+  return (input.generatedAssets ?? []).find((asset) => asset.slot === slot) ?? null;
+}
+
+function serviceAsset(
+  input: MaterializeInput,
+  serviceName: string,
+  index: number,
+): FirstBuildImageAsset | null {
+  const serviceAssets = (input.generatedAssets ?? []).filter((asset) => asset.slot === "service");
+  const exact = serviceAssets.find((asset) =>
+    asset.label.toLowerCase().includes(serviceName.toLowerCase()),
+  );
+  return exact ?? serviceAssets[index] ?? null;
+}
+
+function imageComponent(asset: FirstBuildImageAsset, kind = "image"): Component {
+  return {
+    kind,
+    label: asset.label,
+    media_url: asset.path,
+    settings: mediaSettings(asset),
+  };
+}
 
 /**
  * Keeps an archetype section only when the business actually supplied the facts
@@ -168,17 +221,31 @@ export function planSiteContent(input: MaterializeInput): Page[] {
   const primaryTarget = input.hasQuoteForm ? "/#quote" : input.hasBooking ? "/book" : "/contact";
   const primaryCta = clean(copy.primaryCta) ?? "Get in touch";
   const secondaryCta = clean(copy.secondaryCta) ?? "See services";
+  const heroAsset = firstAsset(input, "hero");
+  const ctaAsset = firstAsset(input, "cta");
+  const ogAsset = firstAsset(input, "social") ?? heroAsset;
 
   const serviceCards: Component[] = (
     services.length
-      ? services.map((service) => ({
+      ? services.map((service, index) => ({
           name: service.name,
           body:
             clean(copy.serviceCards.find((card) => card.name === service.name)?.copy) ??
             clean(service.description),
+          asset: serviceAsset(input, service.name, index),
         }))
-      : copy.serviceCards.map((card) => ({ name: card.name, body: clean(card.copy) }))
-  ).map((card) => ({ kind: "card", label: card.name, body: card.body ?? null }));
+      : copy.serviceCards.map((card, index) => ({
+          name: card.name,
+          body: clean(card.copy),
+          asset: serviceAsset(input, card.name, index),
+        }))
+  ).map((card) => ({
+    kind: "card",
+    label: card.name,
+    body: card.body ?? null,
+    media_url: card.asset?.path ?? null,
+    settings: card.asset ? mediaSettings(card.asset) : null,
+  }));
 
   const trustItems: Component[] = [
     input.yearsInBusiness
@@ -194,6 +261,9 @@ export function planSiteContent(input: MaterializeInput): Page[] {
     kind: "home",
     seo_title: clean(copy.metaTitle),
     seo_description: clean(copy.metaDescription),
+    og_title: clean(copy.ogTitle),
+    og_description: clean(copy.ogDescription),
+    og_image_url: ogAsset?.path ?? null,
     sections: [
       {
         kind: "hero",
@@ -202,6 +272,7 @@ export function planSiteContent(input: MaterializeInput): Page[] {
         components: [
           { kind: "button", label: primaryCta, link_label: primaryCta, link_url: primaryTarget },
           { kind: "button", label: secondaryCta, link_label: secondaryCta, link_url: "/services" },
+          ...(heroAsset ? [imageComponent(heroAsset, "hero_image")] : []),
         ],
       },
       ...(trustItems.length ? [{ kind: "trust_bar", components: trustItems }] : []),
@@ -258,6 +329,7 @@ export function planSiteContent(input: MaterializeInput): Page[] {
         body: clean(copy.areaCopy),
         components: [
           { kind: "button", label: primaryCta, link_label: primaryCta, link_url: primaryTarget },
+          ...(ctaAsset ? [imageComponent(ctaAsset, "image")] : []),
         ],
       },
       { kind: "sticky_cta" },
@@ -302,6 +374,7 @@ export function planSiteContent(input: MaterializeInput): Page[] {
       kind: "services",
       seo_title: clean(`Services — ${input.businessName}`),
       seo_description: clean(copy.metaDescription),
+        og_image_url: ogAsset?.path ?? null,
       sections: [
         {
           kind: "services",
@@ -495,6 +568,9 @@ export async function materializeSiteContent(
         noindex: false,
         seo_title: page.seo_title ?? null,
         seo_description: page.seo_description ?? null,
+        og_title: page.og_title ?? null,
+        og_description: page.og_description ?? null,
+        og_image_url: page.og_image_url ?? null,
       } as never)
       .select("id")
       .single();
@@ -527,8 +603,10 @@ export async function materializeSiteContent(
         kind: component.kind,
         label: component.label ?? null,
         body: component.body ?? null,
+        media_url: component.media_url ?? null,
         link_label: component.link_label ?? null,
         link_url: safeLinkUrl(component.link_url ?? null),
+        settings: component.settings ?? null,
         sort_order: index,
         is_visible: true,
       }));

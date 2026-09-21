@@ -68,12 +68,12 @@ const DEFAULT_MODELS: Record<PaidProviderName, Record<ModelRole, string>> = {
     transcription: "gemini-2.5-flash",
   },
   openai: {
-    primary: "gpt-4.1",
-    design: "gpt-4.1",
-    fast: "gpt-4.1-mini",
-    vision: "gpt-4.1",
-    coding: "gpt-4.1",
-    image: "gpt-image-1",
+    primary: "gpt-5.6-terra",
+    design: "gpt-5.6-sol",
+    fast: "gpt-5.4-mini",
+    vision: "gpt-5.6-terra",
+    coding: "gpt-5.6-sol",
+    image: "gpt-image-2",
     transcription: "whisper-1",
   },
 };
@@ -244,6 +244,10 @@ const PRICE_PER_MTOK: Record<string, { input: number; output: number }> = {
   "gpt-4.1": { input: 2, output: 8 },
   "gpt-4.1-mini": { input: 0.4, output: 1.6 },
   "gpt-image-1": { input: 5, output: 40 },
+  "gpt-5.4-mini": { input: 0.4, output: 1.6 },
+  "gpt-5.6-terra": { input: 0.5, output: 4 },
+  "gpt-5.6-sol": { input: 1.25, output: 10 },
+  "gpt-image-2": { input: 5, output: 40 },
   "whisper-1": { input: 0, output: 0 },
 };
 
