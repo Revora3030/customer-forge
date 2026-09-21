@@ -229,9 +229,9 @@ describe("materializeSiteContent generated-image attachment path", () => {
       ...input,
       photoCount: 0,
       generatedAssets: [
-        generatedAsset({ slot: "gallery", label: "Gallery", path: "org-1/gallery.png", placement: ["gallery"] }),
-        generatedAsset({ slot: "team", label: "Team", path: "org-1/team.png", placement: ["team"] }),
+        generatedAsset({ slot: "about", label: "Team", path: "org-1/team.png", placement: ["team"] }),
         generatedAsset({ slot: "proof", label: "Proof", path: "org-1/proof.png", placement: ["proof"] }),
+        generatedAsset({ slot: "background", label: "Gallery", path: "org-1/gallery.png", placement: ["gallery"] }),
       ],
     });
     const media = pages.flatMap((page) =>

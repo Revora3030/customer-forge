@@ -125,7 +125,7 @@ describe("first-build image lane", () => {
       creative([
         shot({ slot: "hero", label: "Hero" }),
         shot({ slot: "service", label: "Interior" }),
-        shot({ slot: "gallery", label: "Gallery proof", placement: ["gallery"] }),
+        shot({ slot: "proof", label: "Gallery proof", placement: ["gallery"] }),
         shot({ slot: "cta", label: "Team result", purpose: "team result proof", placement: ["cta"] }),
         shot({ slot: "hero", label: "Hero" }),
       ]),

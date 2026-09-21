@@ -48,7 +48,10 @@ beforeEach(() => {
 afterEach(() => {
   for (const key of KEYS) {
     if (saved[key] === undefined) delete process.env[key];
-    else process.env[key] = saved[key]!;
+    else {
+      const value = saved[key];
+      if (value !== undefined) process.env[key] = value;
+    }
   }
 });
 
