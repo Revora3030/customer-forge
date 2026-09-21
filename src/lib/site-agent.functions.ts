@@ -991,6 +991,36 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
     const undoSteps: UndoStep[] = [];
     let fatal: unknown = null;
 
+    // SPEED: the pre-write state of everything this batch touches is read once,
+    // here, instead of once per step. The writes themselves stay strictly in
+    // order — that ordering is what makes a failed batch reversible — but a large
+    // build no longer pays a database round trip just to look at a row it is
+    // about to change.
+    const undoSnapshot = await loadUndoSnapshot(
+      supabase as unknown as JournalClient,
+      orgId,
+      actions as AgentAction[],
+    );
+
+    // Steps that change part of a JSON column (a section's look, a custom block,
+    // a backdrop) need the column's current value. It comes from the snapshot,
+    // and every write records its new value here so a second step touching the
+    // same row in the same batch still builds on the first one.
+    const overlay = new Map<string, Record<string, unknown>>();
+    const rowKey = (table: string, id: string | null) => `${table}:${id ?? "org"}`;
+    const readColumn = (table: string, id: string | null, column: string): unknown => {
+      const patched = overlay.get(rowKey(table, id));
+      if (patched && column in patched) return patched[column] ?? null;
+      const row = id
+        ? undoSnapshot.rows.get(table)?.get(id)
+        : (undoSnapshot.orgRows.get(table) ?? null);
+      return row ? (row[column] ?? null) : null;
+    };
+    const noteColumn = (table: string, id: string | null, column: string, value: unknown) => {
+      const key = rowKey(table, id);
+      overlay.set(key, { ...(overlay.get(key) ?? {}), [column]: value });
+    };
+
     const run = async (label: string, work: () => PromiseLike<unknown>) => {
       if (fatal) return;
       try {
