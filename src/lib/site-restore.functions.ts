@@ -116,7 +116,7 @@ export async function applyWebsiteRestore(
     await supabase.from("audit_logs").insert({
       organization_id: orgId,
       action: "SITE_STATE_RESTORE_FAILED",
-      entity_type: "website",
+      entity: "website",
       entity_id: orgId,
       metadata: { reason: error.message.slice(0, 300) } as never,
     });
@@ -134,7 +134,7 @@ export async function applyWebsiteRestore(
   await supabase.from("audit_logs").insert({
     organization_id: orgId,
     action: exact ? "SITE_STATE_RESTORED" : "SITE_STATE_RESTORE_PARTIAL",
-    entity_type: "website",
+    entity: "website",
     entity_id: orgId,
     metadata: { ...countSnapshot(snapshot), exact } as never,
   });
