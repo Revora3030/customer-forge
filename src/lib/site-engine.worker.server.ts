@@ -249,8 +249,8 @@ async function runJob(
   await step("structure");
 
   const copyFactsForWrite = { ...copyFacts, ctaLabel: plan.primaryCtaLabel };
-  const copy = fallbackCopy(copyFactsForWrite, brief);
-  const copyModel = "revora-native";
+  let copy = fallbackCopy(copyFactsForWrite, brief);
+  let copyModel = "revora-native";
   await step("copy");
 
   await db.from("ai_generations").insert({
