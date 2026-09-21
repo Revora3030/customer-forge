@@ -2397,6 +2397,22 @@ a[href*="lovable.app"][target="_blank"][class*="fixed"],
   color: var(--foreground);
 }
 
+[data-rv-page-opening="editorial"] main > .rv-section:first-child .rv-hero-copy h1 {
+  max-width: 12ch;
+  font-size: clamp(2.7rem, 7vw, 6.4rem);
+  line-height: 0.94;
+  letter-spacing: -0.05em;
+}
+
+.rv-header-overlay-to-solid {
+  background: color-mix(in srgb, var(--background) 78%, transparent);
+  box-shadow: 0 12px 40px -32px rgb(0 0 0 / 0.7);
+}
+
+.rv-site-footer {
+  background: color-mix(in srgb, var(--card) 45%, var(--background));
+}
+
 .rv-variant-cards-floating .panel {
   box-shadow: 0 30px 60px -40px color-mix(in srgb, var(--foreground) 50%, transparent);
   transition:

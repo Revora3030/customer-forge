@@ -25,6 +25,7 @@ import { readCopy } from "@/lib/site-engine";
 import { canonicalSiteUrl } from "@/lib/revora-address";
 import { fingerprintClassNames } from "@/lib/builder/design-fingerprint";
 import { SiteFooter } from "@/components/site/SiteFooter";
+import { pageJourneyFor, readSiteCampaign } from "@/lib/builder/site-campaign";
 
 export const Route = createFileRoute("/s/$slug/$page")({
   loader: async ({ params }) => {
@@ -123,6 +124,8 @@ export function SitePageView({
   // Validated business details — an unusable phone number never becomes a link.
   const facts = businessFacts(profile as Record<string, unknown> | null, org.name);
   const fingerprint = siteDesignFingerprint(site);
+  const campaign = readSiteCampaign(settings?.generation ?? null);
+  const journey = pageJourneyFor(campaign, page.slug);
 
   useEffect(() => {
     if (preview) return;
@@ -142,6 +145,8 @@ export function SitePageView({
       className={`min-h-screen bg-background ${fingerprintClassNames(fingerprint)}`}
       data-rv-family={fingerprint.family}
       data-rv-hero={fingerprint.heroComposition}
+      data-rv-page-purpose={journey?.purpose}
+      data-rv-page-opening={journey?.opening}
       style={{
         ...siteThemeStyle({
           primaryColor: profile?.primary_color ?? null,
@@ -156,7 +161,7 @@ export function SitePageView({
         composition={readComposition(site.settings?.generation ?? null)}
       />
       <div className="relative z-[1]">
-        <header className="rv-site-header sticky top-0 z-40 border-b border-border bg-background/85 backdrop-blur">
+        <header className={`rv-site-header rv-header-${campaign?.header ?? "solid"} sticky top-0 z-40 border-b border-border bg-background/85 backdrop-blur`}>
           <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3.5">
             <SitePageLink slug={org.slug} className="min-w-0 max-w-40 sm:max-w-none">
               <p className="break-words font-display text-[16px] leading-tight font-semibold">{org.name}</p>

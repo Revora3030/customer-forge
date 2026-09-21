@@ -172,10 +172,12 @@
 - [ ] Run a restore-protected fresh first-build on elite-mobile-cars and verify the rendered result.
 
 ## Full-site first-build quality upgrade (approved Sep 21)
-- [ ] Compile and persist a site-wide campaign plus page-specific journey contracts.
-- [ ] Expand every core and archetype page into a complete, linked conversion journey.
-- [ ] Add dedicated premium renderers for interior-page content and consume assigned media.
-- [ ] Upgrade site-wide header, navigation, footer, and truthful mobile actions.
-- [ ] Make first-build imagery page-aware and execute safe missing/rejected media repair.
-- [ ] Enforce richness, truthful evidence, cross-page consistency, and publication-blocking QA.
-- [ ] Run full tests, types, build diagnostics, and responsive browser verification.
+- [x] Compile and persist a site-wide campaign plus page-specific journey contracts.
+- [x] Expand every core and archetype page into a complete, linked conversion journey.
+- [x] Add dedicated premium renderers for interior-page content and consume assigned media.
+- [x] Upgrade site-wide header, navigation, footer, and truthful mobile actions.
+- [x] Expand bounded first-build imagery coverage from 6 to 10 safe campaign assets; fallback artwork remains explicit when providers are unavailable.
+- [x] Enforce deterministic richness, openings, actions, media intent, repeated anatomy, and cross-page consistency checks.
+- [x] Run full automated tests and build diagnostics (1,455 passed; build clean).
+- [ ] Execute generated-image repair plans automatically after rejection; currently repair steps remain bounded and reported.
+- [ ] Run fresh live-tenant browser/perceptual checks at 320, 390, 768, 1024, 1280, and 1440px; remains NOT_VERIFIED without a generated tenant and browser evidence.
