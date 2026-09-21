@@ -1,9 +1,9 @@
 {
-  "status": "FAILED",
+  "status": "PASSED",
   "baseUrl": "http://localhost:8080",
   "browser": "chromium",
-  "mutationsAllowed": false,
-  "buildAllowed": false,
+  "mutationsAllowed": true,
+  "buildAllowed": true,
   "mobileWidths": [
     320,
     375,
@@ -14,10 +14,10 @@
     1280,
     1440
   ],
-  "passed": 3,
-  "failed": 7,
-  "notTested": 15,
-  "durationMs": 11820,
+  "passed": 21,
+  "failed": 0,
+  "notTested": 4,
+  "durationMs": 79004,
   "steps": [
     {
       "id": "01_app_loads",
@@ -26,7 +26,7 @@
       "httpStatus": 200,
       "heading": "Your business books jobs while you're on the job, and while you sleep.",
       "screenshot": "browser-qa-artifacts/journey-home.png",
-      "durationMs": 6127,
+      "durationMs": 5236,
       "url": "http://localhost:8080/",
       "viewport": "1440x1800",
       "consoleErrors": [],
@@ -37,7 +37,7 @@
       "title": "No global error screen",
       "status": "PASS",
       "note": "No global error screen and no page errors.",
-      "durationMs": 22,
+      "durationMs": 23,
       "url": "http://localhost:8080/",
       "viewport": "1440x1800",
       "consoleErrors": [],
@@ -46,10 +46,11 @@
     {
       "id": "03_auth_session",
       "title": "Signed-out gate holds and a session signs in",
-      "status": "NOT_TESTED",
-      "reason": "No Supabase test session available. Provide JOURNEY_SESSION_FILE or run `lovable auth-session --json --self` first.",
-      "durationMs": 4105,
-      "url": "http://localhost:8080/auth",
+      "status": "PASS",
+      "note": "Signed out /app redirected to http://localhost:8080/auth; restored session reached the workspace.",
+      "screenshot": "browser-qa-artifacts/journey-dashboard.png",
+      "durationMs": 7731,
+      "url": "http://localhost:8080/app",
       "viewport": "1440x1800",
       "consoleErrors": [],
       "failedRequests": []
@@ -57,11 +58,10 @@
     {
       "id": "04_fixture_workspace",
       "title": "A deterministic workspace is entered",
-      "status": "FAIL",
-      "error": "Locator.inner_text: Target page, context or browser has been closed",
-      "retried": false,
-      "durationMs": 19,
-      "url": "http://localhost:8080/auth",
+      "status": "PASS",
+      "workspace": "Enejeh",
+      "durationMs": 7,
+      "url": "http://localhost:8080/app",
       "viewport": "1440x1800",
       "consoleErrors": [],
       "failedRequests": []
@@ -69,11 +69,11 @@
     {
       "id": "05_builder_opens",
       "title": "The builder opens",
-      "status": "FAIL",
-      "error": "Page.goto: Target page, context or browser has been closed",
-      "retried": false,
-      "durationMs": 14,
-      "url": "http://localhost:8080/auth",
+      "status": "PASS",
+      "note": "Builder opened. Project status chip: LIVE",
+      "screenshot": "browser-qa-artifacts/journey-builder.png",
+      "durationMs": 6088,
+      "url": "http://localhost:8080/app/website",
       "viewport": "1440x1800",
       "consoleErrors": [],
       "failedRequests": []
@@ -84,7 +84,7 @@
       "status": "PASS",
       "note": "Builder loaded with no console errors and no failed requests.",
       "durationMs": 0,
-      "url": "http://localhost:8080/auth",
+      "url": "http://localhost:8080/app/website",
       "viewport": "1440x1800",
       "consoleErrors": [],
       "failedRequests": []
@@ -92,10 +92,11 @@
     {
       "id": "07_build_request",
       "title": "A deterministic build request is submitted",
-      "status": "NOT_TESTED",
-      "reason": "Set JOURNEY_ALLOW_BUILD=1 to submit a real build request. It writes website content to the fixture workspace, so it is off by default.",
-      "durationMs": 0,
-      "url": "http://localhost:8080/auth",
+      "status": "PASS",
+      "note": "Deterministic build request submitted.",
+      "screenshot": "browser-qa-artifacts/journey-build-request.png",
+      "durationMs": 1217,
+      "url": "http://localhost:8080/app/website",
       "viewport": "1440x1800",
       "consoleErrors": [],
       "failedRequests": []
@@ -103,11 +104,10 @@
     {
       "id": "08_build_stages",
       "title": "Build progresses through the user-facing stages",
-      "status": "FAIL",
-      "error": "Page.inner_text: Target page, context or browser has been closed",
-      "retried": false,
-      "durationMs": 18,
-      "url": "http://localhost:8080/auth",
+      "status": "NOT_TESTED",
+      "reason": "No build is in progress or recorded in this workspace, so the user-facing stages (Understanding -> Ready) could not be observed. Run with JOURNEY_ALLOW_BUILD=1.",
+      "durationMs": 4,
+      "url": "http://localhost:8080/app/website",
       "viewport": "1440x1800",
       "consoleErrors": [],
       "failedRequests": []
@@ -115,11 +115,19 @@
     {
       "id": "09_preview_renders",
       "title": "The generated site renders",
-      "status": "FAIL",
-      "error": "Locator.wait_for: Target page, context or browser has been closed",
-      "retried": false,
-      "durationMs": 45,
-      "url": "http://localhost:8080/auth",
+      "status": "PASS",
+      "previewPath": "/s/eilte",
+      "contentChars": 2257,
+      "internalPages": [
+        "/s/eilte/services",
+        "/s/eilte/all",
+        "/s/eilte/ejejej",
+        "/s/eilte/dueh",
+        "/s/eilte/pricing",
+        "/s/eilte/book"
+      ],
+      "durationMs": 2337,
+      "url": "http://localhost:8080/app/website",
       "viewport": "1440x1800",
       "consoleErrors": [],
       "failedRequests": []
@@ -127,11 +135,11 @@
     {
       "id": "10_page_navigation",
       "title": "Navigation between generated pages works",
-      "status": "FAIL",
-      "error": "Locator.count: Target page, context or browser has been closed",
-      "retried": false,
-      "durationMs": 9,
-      "url": "http://localhost:8080/auth",
+      "status": "PASS",
+      "from": "/s/eilte",
+      "to": "/s/eilte/services",
+      "durationMs": 3795,
+      "url": "http://localhost:8080/app/website",
       "viewport": "1440x1800",
       "consoleErrors": [],
       "failedRequests": []
@@ -139,10 +147,35 @@
     {
       "id": "11_mobile_widths",
       "title": "Mobile layout at 320/375/390/414px",
-      "status": "NOT_TESTED",
-      "reason": "No published preview path was resolved, so layouts cannot be measured.",
-      "durationMs": 0,
-      "url": "http://localhost:8080/auth",
+      "status": "PASS",
+      "measurements": [
+        {
+          "width": 320,
+          "httpStatus": 200,
+          "horizontalOverflowPx": 0,
+          "screenshot": "browser-qa-artifacts/journey-site-320.png"
+        },
+        {
+          "width": 375,
+          "httpStatus": 200,
+          "horizontalOverflowPx": 0,
+          "screenshot": "browser-qa-artifacts/journey-site-375.png"
+        },
+        {
+          "width": 390,
+          "httpStatus": 200,
+          "horizontalOverflowPx": 0,
+          "screenshot": "browser-qa-artifacts/journey-site-390.png"
+        },
+        {
+          "width": 414,
+          "httpStatus": 200,
+          "horizontalOverflowPx": 0,
+          "screenshot": "browser-qa-artifacts/journey-site-414.png"
+        }
+      ],
+      "durationMs": 15246,
+      "url": "http://localhost:8080/app/website",
       "viewport": "1440x1800",
       "consoleErrors": [],
       "failedRequests": []
@@ -150,10 +183,23 @@
     {
       "id": "12_desktop_widths",
       "title": "Desktop layout at 1280/1440px",
-      "status": "NOT_TESTED",
-      "reason": "No published preview path was resolved, so layouts cannot be measured.",
-      "durationMs": 0,
-      "url": "http://localhost:8080/auth",
+      "status": "PASS",
+      "measurements": [
+        {
+          "width": 1280,
+          "httpStatus": 200,
+          "horizontalOverflowPx": 0,
+          "screenshot": "browser-qa-artifacts/journey-site-1280.png"
+        },
+        {
+          "width": 1440,
+          "httpStatus": 200,
+          "horizontalOverflowPx": 0,
+          "screenshot": "browser-qa-artifacts/journey-site-1440.png"
+        }
+      ],
+      "durationMs": 6733,
+      "url": "http://localhost:8080/app/website",
       "viewport": "1440x1800",
       "consoleErrors": [],
       "failedRequests": []
@@ -161,10 +207,18 @@
     {
       "id": "13_no_overflow",
       "title": "No horizontal overflow at any width",
-      "status": "NOT_TESTED",
-      "reason": "No widths were measured, so overflow cannot be reported.",
+      "status": "PASS",
+      "widths": [
+        320,
+        375,
+        390,
+        414,
+        1280,
+        1440
+      ],
+      "maxOverflowPx": 0,
       "durationMs": 0,
-      "url": "http://localhost:8080/auth",
+      "url": "http://localhost:8080/app/website",
       "viewport": "1440x1800",
       "consoleErrors": [],
       "failedRequests": []
@@ -172,10 +226,13 @@
     {
       "id": "14_actionable",
       "title": "Important buttons and links are actionable",
-      "status": "NOT_TESTED",
-      "reason": "No preview path resolved.",
-      "durationMs": 0,
-      "url": "http://localhost:8080/auth",
+      "status": "PASS",
+      "links": 33,
+      "deadLinks": 0,
+      "buttons": 2,
+      "disabledButtons": 0,
+      "durationMs": 4610,
+      "url": "http://localhost:8080/app/website",
       "viewport": "1440x1800",
       "consoleErrors": [],
       "failedRequests": []
@@ -183,10 +240,13 @@
     {
       "id": "15_real_content",
       "title": "The page carries real content",
-      "status": "NOT_TESTED",
-      "reason": "No preview path resolved.",
-      "durationMs": 0,
-      "url": "http://localhost:8080/auth",
+      "status": "PASS",
+      "heading": "Premium Auto Detailing in Raleigh",
+      "sections": 13,
+      "headings": 12,
+      "chars": 2272,
+      "durationMs": 2501,
+      "url": "http://localhost:8080/app/website",
       "viewport": "1440x1800",
       "consoleErrors": [],
       "failedRequests": []
@@ -194,10 +254,13 @@
     {
       "id": "16_builder_edit",
       "title": "One deterministic builder edit is applied",
-      "status": "NOT_TESTED",
-      "reason": "Set JOURNEY_ALLOW_MUTATE=1 to run the edit, persistence and rollback steps. They write to the fixture workspace, so they are off by default.",
-      "durationMs": 0,
-      "url": "http://localhost:8080/auth",
+      "status": "PASS",
+      "note": "Staged one heading edit and applied it.",
+      "from": "Premium Auto Detailing in Raleigh",
+      "to": "Smoke check 1790012769",
+      "screenshot": "browser-qa-artifacts/journey-edit-applied.png",
+      "durationMs": 5048,
+      "url": "http://localhost:8080/app/website",
       "viewport": "1440x1800",
       "consoleErrors": [],
       "failedRequests": []
@@ -205,10 +268,11 @@
     {
       "id": "17_edit_visible",
       "title": "The edit appears in the rendered preview",
-      "status": "NOT_TESTED",
-      "reason": "No edit was made, so the rendered result cannot be checked.",
-      "durationMs": 0,
-      "url": "http://localhost:8080/auth",
+      "status": "PASS",
+      "note": "The applied edit renders on the generated page.",
+      "text": "Smoke check 1790012769",
+      "durationMs": 2045,
+      "url": "http://localhost:8080/app/website",
       "viewport": "1440x1800",
       "consoleErrors": [],
       "failedRequests": []
@@ -216,10 +280,11 @@
     {
       "id": "18_edit_persists",
       "title": "The edit survives a refresh",
-      "status": "NOT_TESTED",
-      "reason": "No edit was made, so persistence cannot be checked.",
-      "durationMs": 0,
-      "url": "http://localhost:8080/auth",
+      "status": "PASS",
+      "note": "The edit survived a full page refresh.",
+      "screenshot": "browser-qa-artifacts/journey-edit-persisted.png",
+      "durationMs": 6180,
+      "url": "http://localhost:8080/app/website",
       "viewport": "1440x1800",
       "consoleErrors": [],
       "failedRequests": []
@@ -227,10 +292,11 @@
     {
       "id": "19_rollback",
       "title": "Undo / rollback is available and used",
-      "status": "NOT_TESTED",
-      "reason": "No edit was made, so rollback cannot be exercised.",
-      "durationMs": 0,
-      "url": "http://localhost:8080/auth",
+      "status": "PASS",
+      "method": "restore-original-heading",
+      "restoring": "Premium Auto Detailing in Raleigh",
+      "durationMs": 2051,
+      "url": "http://localhost:8080/app/website",
       "viewport": "1440x1800",
       "consoleErrors": [],
       "failedRequests": []
@@ -238,10 +304,11 @@
     {
       "id": "20_rollback_restores",
       "title": "Rollback restores the previous state",
-      "status": "NOT_TESTED",
-      "reason": "No edit was made, so there is nothing to restore.",
-      "durationMs": 0,
-      "url": "http://localhost:8080/auth",
+      "status": "PASS",
+      "note": "Rollback restored the previous state.",
+      "restored": "Premium Auto Detailing in Raleigh",
+      "durationMs": 3842,
+      "url": "http://localhost:8080/app/website",
       "viewport": "1440x1800",
       "consoleErrors": [],
       "failedRequests": []
@@ -249,11 +316,13 @@
     {
       "id": "21_publish_gated",
       "title": "Publishing stays gated and nothing is published",
-      "status": "FAIL",
-      "error": "Locator.count: Target page, context or browser has been closed",
-      "retried": false,
-      "durationMs": 9,
-      "url": "http://localhost:8080/auth",
+      "status": "PASS",
+      "note": "Publish control present and never pressed; no publish request was issued.",
+      "statusLabelBefore": "LIVE",
+      "publishDisabled": false,
+      "statusLabel": "LIVE",
+      "durationMs": 26,
+      "url": "http://localhost:8080/app/website",
       "viewport": "1440x1800",
       "consoleErrors": [],
       "failedRequests": []
@@ -261,11 +330,11 @@
     {
       "id": "22_dashboard_return",
       "title": "The app returns to the dashboard cleanly",
-      "status": "FAIL",
-      "error": "Locator.click: Target page, context or browser has been closed",
-      "retried": false,
-      "durationMs": 11,
-      "url": "http://localhost:8080/auth",
+      "status": "PASS",
+      "note": "Returned to the dashboard cleanly.",
+      "screenshot": "browser-qa-artifacts/journey-dashboard-return.png",
+      "durationMs": 2991,
+      "url": "http://localhost:8080/app",
       "viewport": "1440x1800",
       "consoleErrors": [],
       "failedRequests": []
