@@ -7,12 +7,18 @@ export const BUILDER_VIEWPORTS = [
 
 export type BuilderViewportKey = (typeof BUILDER_VIEWPORTS)[number]["key"];
 
+/**
+ * The address the builder preview loads. It points at the owner's private draft
+ * rather than the public site, because the public address only serves a site
+ * after it has been published — before that it would show "business not found",
+ * and it would never show unpublished edits.
+ */
 export function previewPath(slug: string, pageSlug: string): string {
   const safeSite = encodeURIComponent(slug.trim());
   const safePage = pageSlug.trim();
   return safePage === "home" || safePage === "" 
-    ? `/s/${safeSite}`
-    : `/s/${safeSite}/${encodeURIComponent(safePage)}`;
+    ? `/draft/${safeSite}`
+    : `/draft/${safeSite}/${encodeURIComponent(safePage)}`;
 }
 
 export function previewZoom(value: number): number {

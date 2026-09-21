@@ -83,6 +83,7 @@ import { Route as AuthenticatedAppServicesRouteImport } from './routes/_authenti
 import { Route as AuthenticatedAppSettingsRouteImport } from './routes/_authenticated/app.settings'
 import { Route as AuthenticatedAppWebsiteRouteImport } from './routes/_authenticated/app.website'
 import { Route as AuthenticatedAppWelcomeRouteImport } from './routes/_authenticated/app.welcome'
+import { Route as AuthenticatedDraftSlugRouteImport } from './routes/_authenticated/draft.$slug'
 import { Route as AuthenticatedMyIndexRouteImport } from './routes/_authenticated/my.index'
 import { Route as AuthenticatedMyActivityRouteImport } from './routes/_authenticated/my.activity'
 import { Route as AuthenticatedMySiteRouteImport } from './routes/_authenticated/my.site'
@@ -91,6 +92,7 @@ import { Route as LocalIndustryIndexRouteImport } from './routes/local.$industry
 import { Route as LocalIndustryStateRouteImport } from './routes/local.$industry.$state'
 import { Route as SSlugPageRouteImport } from './routes/s.$slug.$page'
 import { Route as AuthenticatedAdminClientsOrgIdRouteImport } from './routes/_authenticated/admin.clients.$orgId'
+import { Route as AuthenticatedDraftSlugPageRouteImport } from './routes/_authenticated/draft.$slug.$page'
 import { Route as ApiPublicJobsBackupRouteImport } from './routes/api/public/jobs/backup'
 import { Route as ApiPublicJobsLifecycleEmailRouteImport } from './routes/api/public/jobs/lifecycle-email'
 import { Route as ApiPublicJobsSiteEngineRouteImport } from './routes/api/public/jobs/site-engine'
@@ -483,6 +485,11 @@ const AuthenticatedAppWelcomeRoute = AuthenticatedAppWelcomeRouteImport.update({
   path: '/welcome',
   getParentRoute: () => AuthenticatedAppRoute,
 } as any)
+const AuthenticatedDraftSlugRoute = AuthenticatedDraftSlugRouteImport.update({
+  id: '/draft/$slug',
+  path: '/draft/$slug',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedMyIndexRoute = AuthenticatedMyIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -523,6 +530,12 @@ const AuthenticatedAdminClientsOrgIdRoute =
     id: '/$orgId',
     path: '/$orgId',
     getParentRoute: () => AuthenticatedAdminClientsRoute,
+  } as any)
+const AuthenticatedDraftSlugPageRoute =
+  AuthenticatedDraftSlugPageRouteImport.update({
+    id: '/$page',
+    path: '/$page',
+    getParentRoute: () => AuthenticatedDraftSlugRoute,
   } as any)
 const ApiPublicJobsBackupRoute = ApiPublicJobsBackupRouteImport.update({
   id: '/api/public/jobs/backup',
@@ -635,6 +648,7 @@ export interface FileRoutesByFullPath {
   '/app/settings': typeof AuthenticatedAppSettingsRoute
   '/app/website': typeof AuthenticatedAppWebsiteRoute
   '/app/welcome': typeof AuthenticatedAppWelcomeRoute
+  '/draft/$slug': typeof AuthenticatedDraftSlugRouteWithChildren
   '/my/activity': typeof AuthenticatedMyActivityRoute
   '/my/site': typeof AuthenticatedMySiteRoute
   '/my/start': typeof AuthenticatedMyStartRoute
@@ -645,6 +659,7 @@ export interface FileRoutesByFullPath {
   '/my/': typeof AuthenticatedMyIndexRoute
   '/local/$industry/': typeof LocalIndustryIndexRoute
   '/admin/clients/$orgId': typeof AuthenticatedAdminClientsOrgIdRoute
+  '/draft/$slug/$page': typeof AuthenticatedDraftSlugPageRoute
   '/api/public/jobs/backup': typeof ApiPublicJobsBackupRoute
   '/api/public/jobs/lifecycle-email': typeof ApiPublicJobsLifecycleEmailRoute
   '/api/public/jobs/site-engine': typeof ApiPublicJobsSiteEngineRoute
@@ -720,6 +735,7 @@ export interface FileRoutesByTo {
   '/app/settings': typeof AuthenticatedAppSettingsRoute
   '/app/website': typeof AuthenticatedAppWebsiteRoute
   '/app/welcome': typeof AuthenticatedAppWelcomeRoute
+  '/draft/$slug': typeof AuthenticatedDraftSlugRouteWithChildren
   '/my/activity': typeof AuthenticatedMyActivityRoute
   '/my/site': typeof AuthenticatedMySiteRoute
   '/my/start': typeof AuthenticatedMyStartRoute
@@ -730,6 +746,7 @@ export interface FileRoutesByTo {
   '/my': typeof AuthenticatedMyIndexRoute
   '/local/$industry': typeof LocalIndustryIndexRoute
   '/admin/clients/$orgId': typeof AuthenticatedAdminClientsOrgIdRoute
+  '/draft/$slug/$page': typeof AuthenticatedDraftSlugPageRoute
   '/api/public/jobs/backup': typeof ApiPublicJobsBackupRoute
   '/api/public/jobs/lifecycle-email': typeof ApiPublicJobsLifecycleEmailRoute
   '/api/public/jobs/site-engine': typeof ApiPublicJobsSiteEngineRoute
@@ -812,6 +829,7 @@ export interface FileRoutesById {
   '/_authenticated/app/settings': typeof AuthenticatedAppSettingsRoute
   '/_authenticated/app/website': typeof AuthenticatedAppWebsiteRoute
   '/_authenticated/app/welcome': typeof AuthenticatedAppWelcomeRoute
+  '/_authenticated/draft/$slug': typeof AuthenticatedDraftSlugRouteWithChildren
   '/_authenticated/my/activity': typeof AuthenticatedMyActivityRoute
   '/_authenticated/my/site': typeof AuthenticatedMySiteRoute
   '/_authenticated/my/start': typeof AuthenticatedMyStartRoute
@@ -822,6 +840,7 @@ export interface FileRoutesById {
   '/_authenticated/my/': typeof AuthenticatedMyIndexRoute
   '/local/$industry/': typeof LocalIndustryIndexRoute
   '/_authenticated/admin/clients/$orgId': typeof AuthenticatedAdminClientsOrgIdRoute
+  '/_authenticated/draft/$slug/$page': typeof AuthenticatedDraftSlugPageRoute
   '/api/public/jobs/backup': typeof ApiPublicJobsBackupRoute
   '/api/public/jobs/lifecycle-email': typeof ApiPublicJobsLifecycleEmailRoute
   '/api/public/jobs/site-engine': typeof ApiPublicJobsSiteEngineRoute
@@ -904,6 +923,7 @@ export interface FileRouteTypes {
     | '/app/settings'
     | '/app/website'
     | '/app/welcome'
+    | '/draft/$slug'
     | '/my/activity'
     | '/my/site'
     | '/my/start'
@@ -914,6 +934,7 @@ export interface FileRouteTypes {
     | '/my/'
     | '/local/$industry/'
     | '/admin/clients/$orgId'
+    | '/draft/$slug/$page'
     | '/api/public/jobs/backup'
     | '/api/public/jobs/lifecycle-email'
     | '/api/public/jobs/site-engine'
@@ -989,6 +1010,7 @@ export interface FileRouteTypes {
     | '/app/settings'
     | '/app/website'
     | '/app/welcome'
+    | '/draft/$slug'
     | '/my/activity'
     | '/my/site'
     | '/my/start'
@@ -999,6 +1021,7 @@ export interface FileRouteTypes {
     | '/my'
     | '/local/$industry'
     | '/admin/clients/$orgId'
+    | '/draft/$slug/$page'
     | '/api/public/jobs/backup'
     | '/api/public/jobs/lifecycle-email'
     | '/api/public/jobs/site-engine'
@@ -1080,6 +1103,7 @@ export interface FileRouteTypes {
     | '/_authenticated/app/settings'
     | '/_authenticated/app/website'
     | '/_authenticated/app/welcome'
+    | '/_authenticated/draft/$slug'
     | '/_authenticated/my/activity'
     | '/_authenticated/my/site'
     | '/_authenticated/my/start'
@@ -1090,6 +1114,7 @@ export interface FileRouteTypes {
     | '/_authenticated/my/'
     | '/local/$industry/'
     | '/_authenticated/admin/clients/$orgId'
+    | '/_authenticated/draft/$slug/$page'
     | '/api/public/jobs/backup'
     | '/api/public/jobs/lifecycle-email'
     | '/api/public/jobs/site-engine'
@@ -1668,6 +1693,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppWelcomeRouteImport
       parentRoute: typeof AuthenticatedAppRoute
     }
+    '/_authenticated/draft/$slug': {
+      id: '/_authenticated/draft/$slug'
+      path: '/draft/$slug'
+      fullPath: '/draft/$slug'
+      preLoaderRoute: typeof AuthenticatedDraftSlugRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/my/': {
       id: '/_authenticated/my/'
       path: '/'
@@ -1723,6 +1755,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/admin/clients/$orgId'
       preLoaderRoute: typeof AuthenticatedAdminClientsOrgIdRouteImport
       parentRoute: typeof AuthenticatedAdminClientsRoute
+    }
+    '/_authenticated/draft/$slug/$page': {
+      id: '/_authenticated/draft/$slug/$page'
+      path: '/$page'
+      fullPath: '/draft/$slug/$page'
+      preLoaderRoute: typeof AuthenticatedDraftSlugPageRouteImport
+      parentRoute: typeof AuthenticatedDraftSlugRoute
     }
     '/api/public/jobs/backup': {
       id: '/api/public/jobs/backup'
@@ -1884,11 +1923,26 @@ const AuthenticatedMyRouteWithChildren = AuthenticatedMyRoute._addFileChildren(
   AuthenticatedMyRouteChildren,
 )
 
+interface AuthenticatedDraftSlugRouteChildren {
+  AuthenticatedDraftSlugPageRoute: typeof AuthenticatedDraftSlugPageRoute
+}
+
+const AuthenticatedDraftSlugRouteChildren: AuthenticatedDraftSlugRouteChildren =
+  {
+    AuthenticatedDraftSlugPageRoute: AuthenticatedDraftSlugPageRoute,
+  }
+
+const AuthenticatedDraftSlugRouteWithChildren =
+  AuthenticatedDraftSlugRoute._addFileChildren(
+    AuthenticatedDraftSlugRouteChildren,
+  )
+
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedAdminRoute: typeof AuthenticatedAdminRouteWithChildren
   AuthenticatedAppRoute: typeof AuthenticatedAppRouteWithChildren
   AuthenticatedMyRoute: typeof AuthenticatedMyRouteWithChildren
   AuthenticatedOnboardingRoute: typeof AuthenticatedOnboardingRoute
+  AuthenticatedDraftSlugRoute: typeof AuthenticatedDraftSlugRouteWithChildren
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
@@ -1896,6 +1950,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAppRoute: AuthenticatedAppRouteWithChildren,
   AuthenticatedMyRoute: AuthenticatedMyRouteWithChildren,
   AuthenticatedOnboardingRoute: AuthenticatedOnboardingRoute,
+  AuthenticatedDraftSlugRoute: AuthenticatedDraftSlugRouteWithChildren,
 }
 
 const AuthenticatedRouteRouteWithChildren =

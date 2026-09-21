@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
+import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { createClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 // Type-only import: erased at build time, so nothing server-only ships to the client.
@@ -56,6 +57,41 @@ export const getPublicSite = createServerFn({ method: "GET" })
   });
 
 export type PublicSite = Awaited<ReturnType<typeof loadSite>>;
+
+/**
+ * The owner's own draft, read inside the builder. The public address only
+ * serves a published site, so the builder preview reads this instead: the
+ * signed-in member sees their unpublished work — hidden pages and sections
+ * included — for a business they actually belong to, and for no one else.
+ */
+export const getOwnerDraftSite = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { slug: string; pageSlug?: string }) => {
+    const slug = String(input?.slug ?? "")
+      .trim()
+      .slice(0, 80);
+    if (!/^[a-z0-9-]+$/.test(slug)) throw new Error("Invalid business address");
+    const raw = String(input?.pageSlug ?? "")
+      .trim()
+      .slice(0, 80);
+    if (raw && !/^[a-z0-9-]+$/.test(raw)) throw new Error("Invalid page address");
+    return raw ? { slug, pageSlug: raw } : { slug };
+  })
+  .handler(async ({ data, context }) => {
+    // Membership is decided by the caller's own client, so row-level security
+    // answers this: a business they do not belong to simply is not there.
+    const { data: org } = await context.supabase
+      .from("organizations")
+      .select("id")
+      .eq("slug", data.slug)
+      .maybeSingle();
+    if (!org?.id) return null;
+    const { loadSite } = await import("@/lib/public-site.server");
+    return loadSite(data.slug, {
+      allowUnpublished: true,
+      ...(data.pageSlug ? { pageSlug: data.pageSlug } : {}),
+    });
+  });
 
 /**
  * Draft preview behind a shareable, time-limited token. Returns a reason when
