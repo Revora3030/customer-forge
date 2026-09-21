@@ -42,14 +42,14 @@ Finish the remaining builder-quality work so first builds create richer, more co
 7. **Run full verification**
    - Run focused unit tests for image generation/materialization/rendering.
    - Run the repository’s full test suite, typecheck, lint, production build, security audit, readiness audits, and durable browser journey smoke.
-   - Use browser screenshots at 320, 768, and 1280px for the generated-site path when an authenticated test session and safe fixture are available.
+   - Use Playwright screenshots at 320, 768, and 1280px for the generated-site path when an authenticated test session and safe fixture are available.
    - Report any unavailable external proof as blocked/not tested, not as passed.
 
 ## Safety boundaries
-- Preserve authentication, tenant isolation, billing, publishing, rollback, analytics, and existing customer websites.
+- Preserve authentication, tenant isolation, billing, Stripe, publishing, rollback, analytics, and existing customer websites.
 - Do not add or expose secrets, and do not create browser-visible secret variables.
 - Do not weaken security scans, database policies, or publish gates to make tests pass.
-- Do not invent reviews, awards, prices, phone numbers, credentials, or integration status.
+- Do not invent reviews, awards, prices, results, phone numbers, credentials, or integration status.
 
 ## Definition of done
 - First-build sites can receive safe generated starter images when no owner photos exist.
