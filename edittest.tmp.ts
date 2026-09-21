@@ -1,4 +1,4 @@
-const acct = process.env["CLOUDFLARE_ACCOUNT_ID"]!; const key = process.env["CLOUDFLARE_API_TOKEN"] ?? process.env["CLOUDFLARE_AI_TOKEN"]!;
+const acct = process.env["CLOUDFLARE_ACCOUNT_ID"]!; const key = process.env["CLOUDFLARE_AI_API_TOKEN"] ?? process.env["CLOUDFLARE_API_TOKEN"]!;
 import { FULL_COVERAGE_MASK_PNG_BASE64 } from "@/lib/ai/providers/cloudflare-image";
 const src = new Uint8Array(await (await fetch("https://picsum.photos/seed/revora/768/768.jpg")).arrayBuffer());
 console.log("src bytes", src.length, src[0], src[1]);
