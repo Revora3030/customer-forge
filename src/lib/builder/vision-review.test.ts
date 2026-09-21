@@ -23,7 +23,7 @@ describe("vision review", () => {
     });
     expect(review.findings.length).toBe(2);
     expect(review.verdict).toBe("poor");
-    expect(review.score).toBe(74 - 0 ? 100 - 22 - 4 : 0);
+    expect(review.score).toBe(74);
   });
 
   it("throws away problems outside the vocabulary", () => {
