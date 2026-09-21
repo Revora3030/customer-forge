@@ -19,10 +19,18 @@ export type LunaEvent = {
   createdAt: string;
 };
 
+export type LunaTierStatus = {
+  tier: "sol" | "terra" | "luna";
+  model: string;
+  defaultModel: string;
+  enabled: boolean;
+};
+
 export type LunaStatus = {
   enabled: boolean;
   keyPresent: boolean;
   model: string;
+  tiers: LunaTierStatus[];
   capUsd: number;
   spentUsd: number;
   remainingUsd: number;
@@ -41,8 +49,13 @@ export const getLunaStatus = createServerFn({ method: "GET" })
       String(context.userId),
     );
 
-    const { lunaEnabled, lunaModel, lunaMonthlyCapMicrocents, MICROCENTS_PER_DOLLAR } =
-      await import("@/lib/ai/luna.server");
+    const {
+      lunaEnabled,
+      lunaModel,
+      lunaMonthlyCapMicrocents,
+      MICROCENTS_PER_DOLLAR,
+      collectiveStatus,
+    } = await import("@/lib/ai/luna.server");
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
     const month = new Date().toISOString().slice(0, 7);
@@ -72,6 +85,7 @@ export const getLunaStatus = createServerFn({ method: "GET" })
       enabled: lunaEnabled(),
       keyPresent: Boolean(process.env["OPENAI_API_KEY"]),
       model: lunaModel(),
+      tiers: collectiveStatus(),
       capUsd: usd(capMicrocents),
       spentUsd: usd(spent),
       remainingUsd: usd(Math.max(capMicrocents - spent, 0)),

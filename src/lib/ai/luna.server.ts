@@ -17,6 +17,15 @@
  * never returned to a caller.
  */
 
+import {
+  COLLECTIVE_TIERS,
+  DEFAULT_COLLECTIVE_MODELS,
+  selectTier,
+  type CollectivePurpose,
+  type CollectiveTier,
+  type TaskComplexity,
+} from "@/lib/ai/collective";
+
 /** Microcents: one hundred-millionth of a dollar. $20 => 2_000_000_000. */
 export const MICROCENTS_PER_DOLLAR = 100_000_000;
 export const DEFAULT_MONTHLY_CAP_MICROCENTS = 20 * MICROCENTS_PER_DOLLAR;
@@ -30,6 +39,31 @@ export type LunaPurpose =
   | "design_direction"
   | "visual_review"
   | "repair_review";
+
+/**
+ * The three paid tiers. `luna` keeps its original behaviour exactly; `sol` and
+ * `terra` are the master and senior-specialist lanes, reached through the same
+ * credential gate, the same durable monthly cap and the same usage ledger.
+ */
+export const DEFAULT_TIER_MODELS: Record<CollectiveTier, string> = {
+  ...DEFAULT_COLLECTIVE_MODELS,
+  luna: DEFAULT_LUNA_MODEL,
+};
+
+const TIER_MODEL_ENV: Record<CollectiveTier, string> = {
+  sol: "SOL_MODEL",
+  terra: "TERRA_MODEL",
+  luna: "LUNA_MODEL",
+};
+
+const TIER_PRICE_DEFAULTS: Record<
+  CollectiveTier,
+  { input: number; cachedInput: number; output: number }
+> = {
+  sol: { input: 1.25, cachedInput: 0.125, output: 10 },
+  terra: { input: 0.5, cachedInput: 0.05, output: 4 },
+  luna: { input: 0.5, cachedInput: 0.05, output: 4 },
+};
 
 export type LunaSkipReason =
   | "no_key"
@@ -76,6 +110,24 @@ export function lunaModel(): string {
   return env("LUNA_MODEL") ?? DEFAULT_LUNA_MODEL;
 }
 
+/** The model serving one tier. Env override, else the tier default. */
+export function tierModel(tier: CollectiveTier): string {
+  return env(TIER_MODEL_ENV[tier]) ?? DEFAULT_TIER_MODELS[tier];
+}
+
+/**
+ * Which tiers may be used right now. The whole collective shares one opt-in:
+ * if the paid lane is off, no tier is available and nothing is ever selected.
+ * A tier can additionally be switched off on its own (`SOL_ENABLED=false`).
+ */
+export function availableTiers(): CollectiveTier[] {
+  if (!lunaEnabled()) return [];
+  return COLLECTIVE_TIERS.filter((tier) => {
+    const raw = (env(`${tier.toUpperCase()}_ENABLED`) ?? "").toLowerCase();
+    return !(raw === "false" || raw === "0" || raw === "off" || raw === "no");
+  });
+}
+
 export function lunaMonthlyCapMicrocents(): number {
   const dollars = dollarsEnv("LUNA_MONTHLY_CAP_USD", 20);
   return Math.round(dollars * MICROCENTS_PER_DOLLAR);
@@ -93,10 +145,17 @@ export function lunaTenantMonthlyCapMicrocents(): number {
 
 /** Per-million-token prices in dollars; conservative and env-tunable. */
 export function lunaPrices() {
+  return tierPrices("luna");
+}
+
+/** Per-tier prices. Deliberately over-estimated so the cap binds early. */
+export function tierPrices(tier: CollectiveTier) {
+  const prefix = tier.toUpperCase();
+  const fallback = TIER_PRICE_DEFAULTS[tier];
   return {
-    input: dollarsEnv("LUNA_PRICE_INPUT_PER_MTOK", 0.5),
-    cachedInput: dollarsEnv("LUNA_PRICE_CACHED_INPUT_PER_MTOK", 0.05),
-    output: dollarsEnv("LUNA_PRICE_OUTPUT_PER_MTOK", 4),
+    input: dollarsEnv(`${prefix}_PRICE_INPUT_PER_MTOK`, fallback.input),
+    cachedInput: dollarsEnv(`${prefix}_PRICE_CACHED_INPUT_PER_MTOK`, fallback.cachedInput),
+    output: dollarsEnv(`${prefix}_PRICE_OUTPUT_PER_MTOK`, fallback.output),
   };
 }
 
@@ -107,8 +166,8 @@ export type TokenUsage = {
 };
 
 /** Cost of a known token usage, in microcents. Never negative. */
-export function costMicrocents(usage: TokenUsage): number {
-  const price = lunaPrices();
+export function costMicrocents(usage: TokenUsage, tier: CollectiveTier = "luna"): number {
+  const price = tierPrices(tier);
   const fresh = Math.max(usage.inputTokens - usage.cachedInputTokens, 0);
   const dollars =
     (fresh / 1_000_000) * price.input +
@@ -122,12 +181,19 @@ export function costMicrocents(usage: TokenUsage): number {
  * and the output allowance is deliberately generous so the cap is enforced
  * before spend rather than after it.
  */
-export function estimateMicrocents(promptChars: number, maxOutputTokens: number): number {
-  return costMicrocents({
-    inputTokens: Math.ceil(Math.max(promptChars, 0) / 4),
-    cachedInputTokens: 0,
-    outputTokens: Math.max(maxOutputTokens, 0),
-  });
+export function estimateMicrocents(
+  promptChars: number,
+  maxOutputTokens: number,
+  tier: CollectiveTier = "luna",
+): number {
+  return costMicrocents(
+    {
+      inputTokens: Math.ceil(Math.max(promptChars, 0) / 4),
+      cachedInputTokens: 0,
+      outputTokens: Math.max(maxOutputTokens, 0),
+    },
+    tier,
+  );
 }
 
 export function formatUsd(microcents: number): string {
@@ -204,7 +270,8 @@ async function settleBudget(organizationId: string | null, estimate: number, act
 
 async function recordUsage(row: {
   organizationId: string | null;
-  purpose: LunaPurpose;
+  purpose: LunaPurpose | CollectivePurpose;
+  model?: string;
   usage: TokenUsage;
   cost: number;
   outcome: "succeeded" | "failed" | "skipped";
@@ -214,7 +281,7 @@ async function recordUsage(row: {
   if (!client) return;
   await client.from("luna_usage_events").insert({
     organization_id: row.organizationId,
-    model: lunaModel(),
+    model: row.model ?? lunaModel(),
     purpose: row.purpose,
     input_tokens: row.usage.inputTokens,
     cached_input_tokens: row.usage.cachedInputTokens,
@@ -230,28 +297,34 @@ function skip(reason: LunaSkipReason, detail: string | null = null): LunaResult 
 }
 
 export type LunaRequest = {
-  purpose: LunaPurpose;
+  purpose: LunaPurpose | CollectivePurpose;
   /** Compact, role-shaped instruction. Keep site context stable for caching. */
   system: string;
   user: string;
   organizationId?: string | null;
   maxOutputTokens?: number;
   signal?: AbortSignal;
+  /** Which paid tier serves this call. Defaults to the economical lane. */
+  tier?: CollectiveTier;
 };
 
 /**
- * Calls Luna. Never throws: every failure path returns `{ ok: false, reason }`
- * so the caller falls through to the deterministic engine and the free pool.
+ * Calls the paid lane. Never throws: every failure path returns
+ * `{ ok: false, reason }` so the caller falls through to the deterministic
+ * engine and the free pool.
  */
 export async function callLuna(request: LunaRequest): Promise<LunaResult> {
   if (!lunaEnabled()) return skip(env("OPENAI_API_KEY") ? "disabled" : "no_key");
   const key = env("OPENAI_API_KEY");
   if (!key) return skip("no_key");
 
-  const model = lunaModel();
+  const tier: CollectiveTier = request.tier ?? "luna";
+  if (!availableTiers().includes(tier)) return skip("disabled", `${tier} tier is switched off`);
+
+  const model = tierModel(tier);
   const maxOutputTokens = Math.max(request.maxOutputTokens ?? 900, 64);
   const promptChars = request.system.length + request.user.length;
-  const estimate = estimateMicrocents(promptChars, maxOutputTokens);
+  const estimate = estimateMicrocents(promptChars, maxOutputTokens, tier);
   const organizationId = request.organizationId ?? null;
 
   const reservation = await reserveBudget(estimate, organizationId);
@@ -260,6 +333,7 @@ export async function callLuna(request: LunaRequest): Promise<LunaResult> {
     await recordUsage({
       organizationId,
       purpose: request.purpose,
+      model,
       usage: { inputTokens: 0, cachedInputTokens: 0, outputTokens: 0 },
       cost: 0,
       outcome: "skipped",
@@ -302,6 +376,7 @@ export async function callLuna(request: LunaRequest): Promise<LunaResult> {
     await recordUsage({
       organizationId,
       purpose: request.purpose,
+      model,
       usage: { inputTokens: 0, cachedInputTokens: 0, outputTokens: 0 },
       cost: 0,
       outcome: "failed",
@@ -322,6 +397,7 @@ export async function callLuna(request: LunaRequest): Promise<LunaResult> {
     await recordUsage({
       organizationId,
       purpose: request.purpose,
+      model,
       usage: { inputTokens: 0, cachedInputTokens: 0, outputTokens: 0 },
       cost: 0,
       outcome: "failed",
@@ -339,7 +415,7 @@ export async function callLuna(request: LunaRequest): Promise<LunaResult> {
   }
 
   const usage = readUsage(payload);
-  const actual = costMicrocents(usage);
+  const actual = costMicrocents(usage, tier);
   await settleBudget(organizationId, estimate, actual);
 
   const text = readText(payload);
@@ -347,6 +423,7 @@ export async function callLuna(request: LunaRequest): Promise<LunaResult> {
     await recordUsage({
       organizationId,
       purpose: request.purpose,
+      model,
       usage,
       cost: actual,
       outcome: "failed",
@@ -384,4 +461,100 @@ export function readText(payload: unknown): string | null {
   if (typeof content !== "string") return null;
   const trimmed = content.trim();
   return trimmed.length ? trimmed : null;
+}
+
+/* ------------------------------ the collective ----------------------------- */
+
+export type CollectiveOutcome =
+  | {
+      ok: true;
+      tier: CollectiveTier;
+      wanted: CollectiveTier;
+      downgraded: boolean;
+      text: string;
+      model: string;
+      costMicrocents: number;
+    }
+  | {
+      ok: false;
+      tier: CollectiveTier | null;
+      wanted: CollectiveTier;
+      reason: LunaSkipReason | "no_tier_available";
+      detail: string | null;
+    };
+
+/**
+ * The single entry point for paid thinking.
+ *
+ * It classifies the task, picks the strongest *available* tier, and calls it
+ * through the same credential gate, monthly cap and usage ledger as before.
+ * It never throws and never blocks: with the paid lane off — which is the
+ * default — it returns `no_tier_available` immediately and the caller keeps
+ * running on the free fabric and the deterministic engine.
+ */
+export async function callCollective(request: {
+  purpose: CollectivePurpose;
+  system: string;
+  user: string;
+  complexity?: TaskComplexity;
+  organizationId?: string | null;
+  maxOutputTokens?: number;
+  signal?: AbortSignal;
+}): Promise<CollectiveOutcome> {
+  const selection = selectTier({
+    purpose: request.purpose,
+    ...(request.complexity ? { complexity: request.complexity } : {}),
+    available: availableTiers(),
+  });
+  if (selection.tier === null) {
+    return {
+      ok: false,
+      tier: null,
+      wanted: selection.wanted,
+      reason: "no_tier_available",
+      detail: lunaEnabled() ? "every tier is switched off" : "paid AI is not enabled",
+    };
+  }
+
+  const result = await callLuna({
+    purpose: request.purpose,
+    system: request.system,
+    user: request.user,
+    tier: selection.tier,
+    ...(request.organizationId === undefined ? {} : { organizationId: request.organizationId }),
+    ...(request.maxOutputTokens === undefined
+      ? {}
+      : { maxOutputTokens: request.maxOutputTokens }),
+    ...(request.signal ? { signal: request.signal } : {}),
+  });
+
+  if (!result.ok) {
+    return {
+      ok: false,
+      tier: selection.tier,
+      wanted: selection.wanted,
+      reason: result.reason,
+      detail: result.detail,
+    };
+  }
+  return {
+    ok: true,
+    tier: selection.tier,
+    wanted: selection.wanted,
+    downgraded: selection.downgraded,
+    text: result.text,
+    model: result.model,
+    costMicrocents: result.costMicrocents,
+  };
+}
+
+/** Admin-facing truth about each tier: model, on/off, nothing secret. */
+export function collectiveStatus() {
+  const enabled = availableTiers();
+  return COLLECTIVE_TIERS.map((tier) => ({
+    tier,
+    model: tierModel(tier),
+    defaultModel: DEFAULT_COLLECTIVE_MODELS[tier],
+    enabled: enabled.includes(tier),
+  }));
 }
