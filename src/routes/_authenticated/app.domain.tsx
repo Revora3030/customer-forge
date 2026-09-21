@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { CatchBoundary, createFileRoute } from "@tanstack/react-router";
 import { RefreshCw } from "lucide-react";
-import { ErrorNote, LoadingRows, Panel } from "@/components/app/Bits";
+import { ErrorNote, LoadingRows, PageHead, Panel } from "@/components/app/Bits";
 import { Button } from "@/components/ui/button";
 import { DomainCenter } from "@/components/app/DomainCenter";
 import { DomainOperations } from "@/components/app/DomainOperations";
