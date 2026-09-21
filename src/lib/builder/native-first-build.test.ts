@@ -82,12 +82,17 @@ describe("native first-build synthesis", () => {
     expect(result.provenance["phone"]).toBe("UNKNOWN");
   });
 
-  it("preserves the requested language as a lock", () => {
+  it("does not falsely claim a non-English language was verified", () => {
     const result = synthesizeNativeFirstBuild({
       facts: { ...facts, services: facts.services.map((service) => service.name) },
       language: "Español",
       ...fixture(),
     });
-    expect(result.language).toEqual({ requested: "Español", preserved: true });
+    expect(result.language.requested).toBe("Español");
+    expect(result.language.preservation).toBe("NOT_VERIFIED");
+    expect(result.reviewers.some((reviewer) => reviewer.name === "security")).toBe(true);
+    expect(result.selection).toBe("deterministic-native-contract");
+    expect(result.disagreements).toEqual([]);
+    expect(result.timingMs).toBeGreaterThanOrEqual(0);
   });
 });

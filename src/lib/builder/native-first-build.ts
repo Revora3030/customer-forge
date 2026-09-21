@@ -14,16 +14,19 @@ import type { WebsitePlan } from "@/lib/website-plan";
 export type EvidenceState = "SUPPLIED" | "DERIVED" | "UNKNOWN";
 
 export type NativeReviewFinding = {
-  reviewer: "facts" | "content" | "conversion" | "seo" | "accessibility" | "visual";
+  reviewer: "facts" | "content" | "conversion" | "seo" | "accessibility" | "visual" | "security";
   severity: "blocker" | "advice";
   code: string;
   detail: string;
 };
 
 export type NativeFirstBuildSynthesis = {
-  version: 1;
+  version: 2;
   engine: "revora-native";
-  language: { requested: string; preserved: true };
+  language: { requested: string; preservation: "VERIFIED" | "NOT_VERIFIED"; reason: string };
+  timingMs: number;
+  disagreements: string[];
+  selection: "deterministic-native-contract";
   stages: string[];
   pageStrategy: { slug: string; job: string; conversionAction: string; searchIntent: string }[];
   provenance: Record<string, EvidenceState>;
@@ -81,6 +84,7 @@ function pageJob(slug: string, brief: SiteBrief) {
 export function synthesizeNativeFirstBuild(
   input: NativeFirstBuildInput,
 ): NativeFirstBuildSynthesis {
+  const startedAt = performance.now();
   const findings: NativeReviewFinding[] = [];
   const copyLines = allCopy(input.copy);
   for (const line of copyLines) {
@@ -104,6 +108,8 @@ export function synthesizeNativeFirstBuild(
     findings.push({ reviewer: "conversion", severity: "blocker", code: "missing-contact-page", detail: "The sitemap needs a contact destination." });
   if (!input.creative.fingerprint.heroComposition || !input.creative.fingerprint.pageShell)
     findings.push({ reviewer: "visual", severity: "blocker", code: "incomplete-fingerprint", detail: "The composition system is incomplete." });
+  if (input.plan.pages.some((page) => !/^[a-z0-9-]+$/i.test(page.key)))
+    findings.push({ reviewer: "security", severity: "blocker", code: "unsafe-page-path", detail: "The sitemap contains an unsafe page path." });
 
   const reviewerNames: NativeReviewFinding["reviewer"][] = [
     "facts",
@@ -112,6 +118,7 @@ export function synthesizeNativeFirstBuild(
     "seo",
     "accessibility",
     "visual",
+    "security",
   ];
   const provenance: Record<string, EvidenceState> = {
     businessName: has(input.facts.businessName) ? "SUPPLIED" : "UNKNOWN",
@@ -128,11 +135,22 @@ export function synthesizeNativeFirstBuild(
   const lockedText = [input.facts.businessName, input.facts.description, ...(input.facts.services ?? [])]
     .filter((value): value is string => has(value))
     .map((value) => value.trim());
+  const requestedLanguage = input.language?.trim() || "English";
+  const languageIsEnglish = /^english$/i.test(requestedLanguage);
 
   return {
-    version: 1,
+    version: 2,
     engine: "revora-native",
-    language: { requested: input.language?.trim() || "English", preserved: true },
+    language: {
+      requested: requestedLanguage,
+      preservation: languageIsEnglish ? "VERIFIED" : "NOT_VERIFIED",
+      reason: languageIsEnglish
+        ? "The native deterministic copy contract is English."
+        : "The native deterministic engine does not verify translation quality; owner review is required.",
+    },
+    timingMs: Math.max(0, performance.now() - startedAt),
+    disagreements: [],
+    selection: "deterministic-native-contract",
     stages: [
       "intake",
       "industry_intelligence",
