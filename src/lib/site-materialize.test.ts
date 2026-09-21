@@ -114,6 +114,19 @@ describe("planSiteContent", () => {
     expect(kinds.at(-1)).toBe("sticky_cta");
     expect(kinds.indexOf("services")).toBeLessThan(kinds.indexOf("faq"));
   });
+
+  it("creates an image-led, conversion-ready landing page for each supplied service", () => {
+    const pages = planSiteContent(input);
+    const servicePages = pages.filter((page) => page.slug.startsWith("services/"));
+    expect(servicePages).toHaveLength(input.services.length);
+    expect(servicePages[0]?.sections.map((section) => section.kind)).toEqual(
+      expect.arrayContaining(["hero", "service_detail", "cta"]),
+    );
+    const serviceLinks = pages[0]?.sections
+      .find((section) => section.kind === "services")
+      ?.components?.map((component) => component.link_url);
+    expect(serviceLinks).toContain(`/services/${input.services[0]!.name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`);
+  });
 });
 
 describe("planSiteContent with a website archetype", () => {
