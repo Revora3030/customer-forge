@@ -121,27 +121,7 @@ export type BuildReport = {
   bookableServices: number;
   seoConfigured: boolean;
   crmConnected: boolean;
-  crmStatus?: "connected_internal" | "not_connected" | "not_tested";
-  crmMessage?: string | null;
   analyticsConfigured: boolean;
-  imagery?: {
-    status?: string;
-    generatedStatus?: string;
-    generated?: number;
-    attached?: number;
-    provider?: string | null;
-    models?: string[];
-    message?: string | null;
-  } | null;
-  firstPreviewGate?: {
-    content?: string;
-    browser?: string;
-    visual?: string;
-    mobile?: string;
-    performance?: string;
-    ready?: boolean;
-    reason?: string | null;
-  } | null;
   briefSource: string;
   copyModel: string;
   /** Lead-capture and booking QA results from the build run. */
@@ -166,49 +146,10 @@ export function readReport(value: unknown): BuildReport | null {
     bookableServices: num("bookableServices"),
     seoConfigured: raw["seoConfigured"] === true,
     crmConnected: raw["crmConnected"] === true,
-    crmStatus:
-      raw["crmStatus"] === "connected_internal" ||
-      raw["crmStatus"] === "not_connected" ||
-      raw["crmStatus"] === "not_tested"
-        ? raw["crmStatus"]
-        : raw["crmConnected"] === true
-          ? "connected_internal"
-          : "not_connected",
-    crmMessage: text(raw["crmMessage"], "", 240) || null,
     analyticsConfigured: raw["analyticsConfigured"] === true,
-    imagery:
-      raw["imagery"] && typeof raw["imagery"] === "object" && !Array.isArray(raw["imagery"])
-        ? {
-            status: text((raw["imagery"] as Record<string, unknown>)["status"], "", 60),
-            generatedStatus: text((raw["imagery"] as Record<string, unknown>)["generatedStatus"], "", 60),
-            generated: numFrom(raw["imagery"], "generated"),
-            attached: numFrom(raw["imagery"], "attached"),
-            provider: text((raw["imagery"] as Record<string, unknown>)["provider"], "", 80) || null,
-            models: strings((raw["imagery"] as Record<string, unknown>)["models"], 8, 100),
-            message: text((raw["imagery"] as Record<string, unknown>)["message"], "", 240) || null,
-          }
-        : null,
-    firstPreviewGate:
-      raw["firstPreviewGate"] && typeof raw["firstPreviewGate"] === "object" && !Array.isArray(raw["firstPreviewGate"])
-        ? {
-            content: text((raw["firstPreviewGate"] as Record<string, unknown>)["content"], "", 40),
-            browser: text((raw["firstPreviewGate"] as Record<string, unknown>)["browser"], "", 40),
-            visual: text((raw["firstPreviewGate"] as Record<string, unknown>)["visual"], "", 40),
-            mobile: text((raw["firstPreviewGate"] as Record<string, unknown>)["mobile"], "", 40),
-            performance: text((raw["firstPreviewGate"] as Record<string, unknown>)["performance"], "", 40),
-            ready: (raw["firstPreviewGate"] as Record<string, unknown>)["ready"] === true,
-            reason: text((raw["firstPreviewGate"] as Record<string, unknown>)["reason"], "", 240) || null,
-          }
-        : null,
     briefSource: text(raw["briefSource"], "rules", 60),
     copyModel: text(raw["copyModel"], "", 60),
     checks: Array.isArray(raw["checks"]) ? (raw["checks"] as CaptureCheck[]).slice(0, 20) : [],
     attention: strings(raw["attention"], 8, 200),
   };
-}
-
-function numFrom(value: unknown, key: string): number {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return 0;
-  const raw = (value as Record<string, unknown>)[key];
-  return typeof raw === "number" && Number.isFinite(raw) ? raw : 0;
 }

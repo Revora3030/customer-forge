@@ -38,8 +38,7 @@ export type LunaPurpose =
   | "plan_review"
   | "design_direction"
   | "visual_review"
-  | "repair_review"
-  | "image_generation";
+  | "repair_review";
 
 /**
  * The three paid tiers. `luna` keeps its original behaviour exactly; `sol` and
@@ -259,7 +258,7 @@ export async function reserveBudget(
 }
 
 /** Replaces the reservation with the real cost once usage is known. */
-export async function settleBudget(organizationId: string | null, estimate: number, actual: number) {
+async function settleBudget(organizationId: string | null, estimate: number, actual: number) {
   const client = await admin();
   if (!client) return;
   await client.rpc("luna_budget_settle_tenant", {
@@ -269,7 +268,7 @@ export async function settleBudget(organizationId: string | null, estimate: numb
   });
 }
 
-export async function recordUsage(row: {
+async function recordUsage(row: {
   organizationId: string | null;
   purpose: LunaPurpose | CollectivePurpose;
   model?: string;

@@ -120,23 +120,6 @@ export function BuildReportPanel({ report }: { report: BuildReport | null }) {
       value: report.crmConnected ? "Connected" : "Not connected",
       ok: report.crmConnected,
     },
-    ...(report.imagery
-      ? [
-          {
-            label: "Starter images",
-            value:
-              (report.imagery.generated ?? 0) > 0
-                ? `${report.imagery.attached ?? 0}/${report.imagery.generated ?? 0} live`
-                : report.imagery.generatedStatus === "owner_photos"
-                  ? "Owner photos"
-                  : "Artwork fallback",
-            ok:
-              report.imagery.generatedStatus === "owner_photos" ||
-              ((report.imagery.generated ?? 0) > 0 &&
-                (report.imagery.attached ?? 0) >= (report.imagery.generated ?? 0)),
-          },
-        ]
-      : []),
     {
       label: "Visitor tracking",
       value: report.analyticsConfigured ? "Connected" : "Not connected",
@@ -162,14 +145,6 @@ export function BuildReportPanel({ report }: { report: BuildReport | null }) {
           </div>
         ))}
       </dl>
-
-      {report.crmMessage || report.imagery?.message || report.firstPreviewGate?.reason ? (
-        <div className="mt-4 grid gap-2 text-[12px] text-muted-foreground">
-          {report.crmMessage ? <p>{report.crmMessage}</p> : null}
-          {report.imagery?.message ? <p>{report.imagery.message}</p> : null}
-          {report.firstPreviewGate?.reason ? <p>{report.firstPreviewGate.reason}</p> : null}
-        </div>
-      ) : null}
 
       {report.checks.length ? (
         <div className="mt-5">

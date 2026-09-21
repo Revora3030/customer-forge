@@ -12,8 +12,7 @@
 - [x] Isolate AI-provider cooldowns per tenant and persist explicit first-preview evidence states instead of claiming unmeasured quality.
 - [x] Harden all customer-supplied website/domain requests against private, metadata, loopback, redirect, and DNS-rebinding targets.
 - [x] Verify the signed-in builder workspace, full tests, types, production build, billing/link security, and current commit.
-- [x] Durable browser journey now runs with authenticated session, real build request, preview render, navigation, 320/375/390/414 and 1280/1440 visual checks, edit persistence, rollback, publish gate and dashboard return.
-- [ ] Live build-stage animation evidence — blocked: the fixture workspace finished too quickly / had no active build record to observe Understanding → Ready during the browser run.
+- [ ] Fresh-customer generation and visual QA at 320/375/390/414/768/1024/1280/1440+ — blocked: no locally renderable customer preview; hosted preview requires the platform login.
 - [ ] Remove the remaining nested dependency advisory — blocked: the scanner attributes it to the framework although the production lock resolves js-yaml 4.3.2.
 
 - [x] New sites automatically receive an industry-specific look (palette, fonts, backdrop, section variants, effects) at first build.

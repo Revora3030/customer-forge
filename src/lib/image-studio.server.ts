@@ -16,7 +16,6 @@
 
 import { RevoraAiError } from "@/lib/ai/errors";
 import { editImage, generateImage } from "@/lib/ai/router.server";
-import { decodeBase64Bytes, encodeBase64Bytes } from "@/lib/base64";
 import {
   imageGenerationCapability,
   type ImageCapability,
@@ -121,11 +120,10 @@ function unavailable(capability: ImageCapability): GeneratedImage {
 export async function generateImageBase64(
   prompt: string,
   caller?: { organizationId?: string | null; userId?: string | null },
-  options?: { source?: { dataUrl: string; mimeType: string }; paidFallback?: boolean },
+  options?: { source?: { dataUrl: string; mimeType: string } },
 ): Promise<GeneratedImage> {
   const capability = await imageGenerationCapability();
-  const allowPaidFallback = options?.paidFallback === true;
-  if (!capability.available && !allowPaidFallback) return unavailable(capability);
+  if (!capability.available) return unavailable(capability);
 
   const edit = Boolean(options?.source);
   // Proof, not assumption: an edit is only attempted once a real sample change
@@ -164,12 +162,7 @@ export async function generateImageBase64(
     };
     const result = options?.source
       ? await editImage(request, prompt, options.source)
-      : capability.available
-        ? await generateImage(request, prompt)
-        : await (async () => {
-            const { generatePaidImageFallback } = await import("@/lib/ai/router.server");
-            return generatePaidImageFallback(request, prompt);
-          })();
+      : await generateImage(request, prompt);
 
     const check = validateGeneratedImage({ base64: result.base64, mimeType: result.mimeType });
     if (!check.ok)
@@ -228,10 +221,17 @@ export async function generateImageBase64(
 
 /** Decodes a base64 image into bytes for storage upload. */
 export function decodeBase64(base64: string): Uint8Array {
-  return decodeBase64Bytes(base64);
+  const binary = atob(base64.replace(/\s+/g, ""));
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+  return bytes;
 }
 
 /** Encodes raw picture bytes back into base64 for a provider edit request. */
 export function encodeBase64(bytes: Uint8Array): string {
-  return encodeBase64Bytes(bytes);
+  let binary = "";
+  const chunk = 0x8000;
+  for (let index = 0; index < bytes.length; index += chunk)
+    binary += String.fromCharCode(...bytes.subarray(index, index + chunk));
+  return btoa(binary);
 }

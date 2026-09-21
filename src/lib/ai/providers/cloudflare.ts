@@ -17,7 +17,6 @@ import { imageEditCapableModel } from "@/lib/ai/free";
 import { buildCloudflareImageBody } from "@/lib/ai/providers/cloudflare-image";
 import { createOpenAiCompatibleAdapter } from "@/lib/ai/providers/openai-compatible";
 import { providerHttpError } from "@/lib/ai/providers/shared";
-import { encodeBase64Bytes } from "@/lib/base64";
 import type { ProviderAdapter } from "@/lib/ai/types";
 
 function accountId() {
@@ -34,7 +33,11 @@ const chatAdapter = createOpenAiCompatibleAdapter({
 });
 
 function bytesToBase64(bytes: Uint8Array) {
-  return encodeBase64Bytes(bytes);
+  let binary = "";
+  const chunk = 0x8000;
+  for (let index = 0; index < bytes.length; index += chunk)
+    binary += String.fromCharCode(...bytes.subarray(index, index + chunk));
+  return btoa(binary);
 }
 
 export const cloudflareAdapter: ProviderAdapter = {

@@ -39,10 +39,8 @@ export type PreflightGroupKey =
   | "quotes"
   | "booking"
   | "seo"
-  | "imagery"
   | "accessibility"
   | "responsive"
-  | "visualqa"
   | "performance"
   | "security"
   | "domain"
@@ -74,21 +72,6 @@ export type PreflightInput = {
   /** `null` when Revora hasn't been able to read the questions yet — never guessed. */
   quoteQuestionCount: number | null;
   mediaCount: number;
-  firstBuildImagery?: {
-    generatedStatus?: string | null;
-    generated?: number | null;
-    attached?: number | null;
-    message?: string | null;
-  } | null;
-  visualQa?: {
-    content?: string | null;
-    browser?: string | null;
-    visual?: string | null;
-    mobile?: string | null;
-    performance?: string | null;
-    ready?: boolean | null;
-    reason?: string | null;
-  } | null;
   analyticsConfigured: boolean;
   notifiesOwner: boolean;
   followUpAutomations: number;
@@ -111,10 +94,8 @@ const GROUP_META: Record<PreflightGroupKey, { label: string; purpose: string }> 
   quotes: { label: "Quotes", purpose: "Visitors can get a price without waiting." },
   booking: { label: "Booking", purpose: "Visitors can book a real time slot." },
   seo: { label: "Search", purpose: "Google can read, title and index your pages." },
-  imagery: { label: "Images", purpose: "Visuals are real, safe and actually reach the site." },
   accessibility: { label: "Accessibility", purpose: "Everyone can read and use the site." },
   responsive: { label: "Mobile", purpose: "The site works on small phones through large screens." },
-  visualqa: { label: "Visual QA", purpose: "Fresh browser evidence proves the site is ready to publish." },
   performance: { label: "Speed", purpose: "Pages load fast on a phone connection." },
   security: { label: "Safety", purpose: "No unsafe links or scripts can reach a visitor." },
   domain: { label: "Address", purpose: "Your site answers on a real, secure web address." },
@@ -266,11 +247,6 @@ export function preflight(input: PreflightInput): PreflightResult {
   const longText = input.pages.flatMap((p) =>
     p.sections.filter((s) => (s.body ?? "").length > 1400),
   );
-  const imageEvidence = input.firstBuildImagery ?? null;
-  const generated = Math.max(Number(imageEvidence?.generated ?? 0), 0);
-  const attached = Math.max(Number(imageEvidence?.attached ?? 0), 0);
-  const generatedStatus = String(imageEvidence?.generatedStatus ?? "");
-  const visualQa = input.visualQa ?? null;
 
   const groups: PreflightGroup[] = [];
   const add = (key: PreflightGroupKey, checks: PreflightCheck[]) => {
@@ -525,39 +501,6 @@ export function preflight(input: PreflightInput): PreflightResult {
     ),
   ]);
 
-  add("imagery", [
-    !imageEvidence
-      ? {
-          key: "first-build-images",
-          label: "Starter images",
-          status: "skip",
-          severity: "warning",
-          detail: "Checked after the first build image lane runs.",
-        }
-      : generatedStatus === "owner_photos"
-        ? pass("first-build-images", "Starter images", "Owner photos were already available, so generated starter pictures were not used.", "warning")
-        : generated > 0 && attached >= generated
-          ? pass("first-build-images", "Starter images", `${attached} generated starter image${attached === 1 ? "" : "s"} reached the visitor-facing draft.`, "warning")
-          : generated > 0
-            ? fail(
-                "first-build-images",
-                "Starter images",
-                `${generated} generated starter image${generated === 1 ? " was" : "s were"} saved, but only ${attached} reached the visitor-facing draft.`,
-                "Re-run the build checks so Revora can attach the saved pictures before publishing.",
-                "blocker",
-                "/app/website",
-                true,
-              )
-            : fail(
-                "first-build-images",
-                "Starter images",
-                imageEvidence.message || "No generated starter pictures were available, so abstract artwork is in use.",
-                "Add your own photos, connect a verified free picture provider, or explicitly enable the paid picture fallback.",
-                "warning",
-                "/app/website",
-              ),
-  ]);
-
   add("accessibility", [
     decide(
       imagesWithoutAlt.length === 0,
@@ -605,27 +548,6 @@ export function preflight(input: PreflightInput): PreflightResult {
       "warning",
       "/app/settings",
     ),
-  ]);
-
-  add("visualqa", [
-    !visualQa
-      ? {
-          key: "browser-visual-qa",
-          label: "Fresh browser pass",
-          status: "skip",
-          severity: "warning",
-          detail: "No browser visual evidence has been recorded for this draft yet.",
-        }
-      : visualQa.ready === true
-        ? pass("browser-visual-qa", "Fresh browser pass", "Fresh browser, mobile and visual checks passed.")
-        : fail(
-            "browser-visual-qa",
-            "Fresh browser pass",
-            visualQa.reason || "Browser, mobile, visual or speed checks have not been verified for this draft.",
-            "Run the Checks tab visual pass and repair any issues before publishing.",
-            "blocker",
-            "/app/website",
-          ),
   ]);
 
   add("performance", [
