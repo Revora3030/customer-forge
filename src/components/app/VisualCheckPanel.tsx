@@ -96,6 +96,7 @@ export function VisualCheckPanel({
         toast.error("The visual check found problems that must be fixed before launch.");
       }
       void queryClient.invalidateQueries({ queryKey: ["production-readiness"] });
+      void queryClient.invalidateQueries({ queryKey: ["launch-review"] });
       void queryClient.invalidateQueries({ queryKey: ["production-status"] });
       void queryClient.invalidateQueries({ queryKey: ["build_readiness"] });
       return true;
