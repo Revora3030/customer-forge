@@ -147,8 +147,8 @@
   (QA repair, page duplicate). New src/lib/link-safety.test.ts.
 
 ## Release gate (Sep 21)
-- [ ] Fix repository-security.test.ts tracked-env detection (exact git index, no pathspec matching)
-- [ ] Audit security boundary tests for similar false positives
-- [ ] Full verification: typecheck, lint, vitest, build, audits, browser journey
-- [ ] Release verification report artifact
-- [ ] Report GitHub sync drift status (forward-only, no force push)
+- [x] Fix repository-security.test.ts tracked-env detection (exact git index, no pathspec matching)
+- [x] Audit security boundary tests for similar false positives
+- [x] Full verification: typecheck, lint, vitest, build, audits, browser journey
+- [x] Release verification report artifact
+- [x] Report GitHub sync drift status (forward-only, no force push)
