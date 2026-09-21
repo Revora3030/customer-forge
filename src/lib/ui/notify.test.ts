@@ -6,7 +6,9 @@ import { describe, expect, it, vi } from "vitest";
  * directly.
  */
 
-const calls: Array<{ kind: string; message: string; opts?: Record<string, unknown> }> = [];
+type Recorded = { kind: string; message: string; opts?: Record<string, unknown> | undefined };
+
+const calls: Recorded[] = [];
 
 vi.mock("sonner", () => {
   const record =
@@ -15,13 +17,14 @@ vi.mock("sonner", () => {
       calls.push({ kind, message, opts });
       return `${kind}-id`;
     };
-  const base = record("default") as ReturnType<typeof record> & Record<string, unknown>;
-  base.success = record("success");
-  base.error = record("error");
-  base.warning = record("warning");
-  base.info = record("info");
-  base.loading = record("loading");
-  base.dismiss = (id?: string) => calls.push({ kind: "dismiss", message: String(id ?? "") });
+  const base = Object.assign(record("default"), {
+    success: record("success"),
+    error: record("error"),
+    warning: record("warning"),
+    info: record("info"),
+    loading: record("loading"),
+    dismiss: (id?: string) => calls.push({ kind: "dismiss", message: String(id ?? "") }),
+  });
   return { toast: base };
 });
 
