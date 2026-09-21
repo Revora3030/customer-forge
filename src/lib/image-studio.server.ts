@@ -20,6 +20,7 @@ import {
   imageGenerationCapability,
   type ImageCapability,
   type ImageCapabilityReason,
+  verifyImageEditing,
 } from "@/lib/media/image-capability.server";
 
 export type GeneratedImage =
@@ -125,12 +126,15 @@ export async function generateImageBase64(
   if (!capability.available) return unavailable(capability);
 
   const edit = Boolean(options?.source);
-  if (edit && !capability.editSupported)
+  // Proof, not assumption: an edit is only attempted once a real sample change
+  // has succeeded recently on the free service.
+  const canEdit = edit ? capability.editSupported && (await verifyImageEditing()) : false;
+  if (edit && !canEdit)
     return {
       ok: false,
       blocked: true,
       message:
-        "The connected free picture service can make new pictures but cannot change an existing one, so nothing was altered.",
+        "The free picture service can make new pictures, but changing an existing picture isn't working right now, so nothing was altered.",
       code: "IMAGE_GENERATION_UNAVAILABLE",
       reason: "no_free_model",
     };
@@ -221,4 +225,13 @@ export function decodeBase64(base64: string): Uint8Array {
   const bytes = new Uint8Array(binary.length);
   for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
   return bytes;
+}
+
+/** Encodes raw picture bytes back into base64 for a provider edit request. */
+export function encodeBase64(bytes: Uint8Array): string {
+  let binary = "";
+  const chunk = 0x8000;
+  for (let index = 0; index < bytes.length; index += chunk)
+    binary += String.fromCharCode(...bytes.subarray(index, index + chunk));
+  return btoa(binary);
 }

@@ -5,7 +5,11 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Panel, Pill, SectionHeading } from "@/components/app/Bits";
 import { cn } from "@/lib/utils";
-import { generateStudioImage, studioImageStatus } from "@/lib/image-studio.functions";
+import {
+  editStudioImage,
+  generateStudioImage,
+  studioImageStatus,
+} from "@/lib/image-studio.functions";
 import {
   CANDIDATE_STYLES,
   REFINEMENTS,
@@ -78,6 +82,8 @@ export function ImageStudio({
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
   const [candidates, setCandidates] = useState<Candidate[]>([]);
+  const [changeFor, setChangeFor] = useState<string | null>(null);
+  const [changeNote, setChangeNote] = useState("");
   const [aspectRatio, setAspectRatio] = useState<string>("16:9");
 
   /**
@@ -221,6 +227,48 @@ export function ImageStudio({
     toast.success("Starter photos added to your library.");
   };
 
+  /**
+   * Changes a picture the owner already has. The original stays in the library —
+   * the changed version is saved alongside it, so nothing is lost and "try
+   * again" is always safe.
+   */
+  const runChange = async (sourcePath: string) => {
+    if (!organizationId || changeNote.trim().length < 3) return;
+    setBusy(true);
+    try {
+      const result = await editStudioImage({
+        data: {
+          organizationId,
+          sourcePath,
+          change: changeNote.trim(),
+          altText: shot ? altTextFor(shot, businessName) : "",
+          category: shot?.slot === "hero" ? "hero" : "work",
+          label: `${shot?.slot ?? "image"}-changed`,
+        },
+      });
+      if (result.ok && result.path) {
+        setCandidates((current) => [
+          {
+            id: `changed-${Date.now()}`,
+            styleLabel: "Changed",
+            preview: result.preview ?? result.path!,
+            path: result.path!,
+          },
+          ...current,
+        ]);
+        setChangeFor(null);
+        setChangeNote("");
+        toast.success("Changed picture saved next to the original.");
+        void queryClient.invalidateQueries({ queryKey: ["media", organizationId] });
+      } else {
+        toast.error(result.message ?? "Couldn't change that picture.");
+      }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Couldn't change that picture.");
+    }
+    setBusy(false);
+  };
+
   return (
     <Panel className="p-5">
       <SectionHeading eyebrow="AI Image Studio" title="Create the photography your website needs" />
@@ -274,9 +322,11 @@ export function ImageStudio({
                 {status.data.remainingToday} free pictures left today
               </span>
             ) : null}
-            {status.data.available && !status.data.editSupported ? (
+            {status.data.available ? (
               <span className="text-[12px] text-muted-foreground">
-                New pictures only — changing an existing picture isn&apos;t available
+                {status.data.editSupported
+                  ? "New pictures and changes to existing pictures"
+                  : "New pictures only — changing an existing picture isn't available"}
               </span>
             ) : null}
           </div>
@@ -439,24 +489,85 @@ export function ImageStudio({
                 loading="lazy"
                 className="aspect-video w-full object-cover"
               />
-              <div className="flex items-center justify-between gap-2 p-2.5">
+              <div className="flex flex-wrap items-center justify-between gap-2 p-2.5">
                 <Pill>{candidate.styleLabel}</Pill>
-                {onSetHero && shot?.slot === "hero" ? (
+                <div className="flex flex-wrap items-center gap-2">
+                  {onSetHero && shot?.slot === "hero" ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        onSetHero(candidate.path);
+                        toast.success("Set as your hero image.");
+                      }}
+                    >
+                      Use as hero
+                    </Button>
+                  ) : (
+                    <span className="text-[12px] text-muted-foreground">Saved to your photos</span>
+                  )}
                   <Button
                     type="button"
                     size="sm"
-                    variant="outline"
-                    onClick={() => {
-                      onSetHero(candidate.path);
-                      toast.success("Set as your hero image.");
-                    }}
+                    variant="ghost"
+                    disabled={!canManage || busy}
+                    onClick={() => void generate(1)}
                   >
-                    Use as hero
+                    Try again
                   </Button>
-                ) : (
-                  <span className="text-[12px] text-muted-foreground">Saved to your photos</span>
-                )}
+                  {status.data?.editSupported ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      disabled={!canManage || busy}
+                      onClick={() =>
+                        setChangeFor((current) =>
+                          current === candidate.path ? null : candidate.path,
+                        )
+                      }
+                    >
+                      Change this picture
+                    </Button>
+                  ) : null}
+                </div>
               </div>
+              {changeFor === candidate.path ? (
+                <div className="border-t border-border p-2.5">
+                  <label className="block">
+                    <span className="text-[12px] uppercase tracking-wide text-muted-foreground">
+                      What should change?
+                    </span>
+                    <input
+                      value={changeNote}
+                      onChange={(event) => setChangeNote(event.target.value.slice(0, 200))}
+                      placeholder="e.g. same photo, at dusk with the lights on"
+                      className="mt-1.5 w-full rounded-md border border-border bg-background px-3 py-2 text-[13px] outline-none focus:border-primary"
+                    />
+                  </label>
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="mt-2"
+                    disabled={busy || changeNote.trim().length < 3}
+                    onClick={() => void runChange(candidate.path)}
+                  >
+                    {busy ? (
+                      <>
+                        <Loader2 className="size-4 animate-spin" aria-hidden="true" /> Changing…
+                      </>
+                    ) : (
+                      <>
+                        <Wand2 className="size-4" aria-hidden="true" /> Change it
+                      </>
+                    )}
+                  </Button>
+                  <p className="mt-1.5 text-[12px] text-muted-foreground">
+                    The original stays in your photos — the changed version is saved next to it.
+                  </p>
+                </div>
+              ) : null}
             </li>
           ))}
         </ul>

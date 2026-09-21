@@ -8,7 +8,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { MEDIA_BUCKET, buildObjectPath } from "@/lib/media";
-import { decodeBase64, generateImageBase64 } from "@/lib/image-studio.server";
+import { decodeBase64, encodeBase64, generateImageBase64 } from "@/lib/image-studio.server";
 
 export type StudioImageResult = {
   ok: boolean;
@@ -240,13 +240,18 @@ export const studioImageStatus = createServerFn({ method: "POST" })
         providers: [],
       };
 
-    const { imageGenerationCapability } = await import("@/lib/media/image-capability.server");
+    const { imageGenerationCapability, verifyImageEditing } = await import(
+      "@/lib/media/image-capability.server"
+    );
     const capability = await imageGenerationCapability();
+    // Picture changing is only reported as available once a real sample change
+    // has actually succeeded — a model name is never treated as proof.
+    const editSupported = capability.editSupported ? await verifyImageEditing() : false;
     return {
       available: capability.available,
       reason: capability.reason,
       message: capability.message,
-      editSupported: capability.editSupported,
+      editSupported,
       remainingToday: capability.providers.length
         ? capability.providers.reduce((total, entry) => total + entry.remainingToday, 0)
         : null,
@@ -256,5 +261,125 @@ export const studioImageStatus = createServerFn({ method: "POST" })
         remainingToday: entry.remainingToday,
         dailyCap: entry.dailyCap,
       })),
+    };
+  });
+
+/* ---------------------------- changing a picture ---------------------------- */
+
+/**
+ * Changes an existing picture in the workspace's own library.
+ *
+ * The original is never overwritten: the changed picture is stored as a NEW
+ * library item, so "replace" and "try again" are always reversible and the
+ * owner's chosen picture survives until they pick the new one themselves.
+ *
+ * Only works while a genuinely free edit-capable model is available — otherwise
+ * the honest `IMAGE_GENERATION_UNAVAILABLE` from the capability check is
+ * returned and nothing is stored.
+ */
+export const editStudioImage = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: unknown) => {
+    const input = (data ?? {}) as Record<string, unknown>;
+    const organizationId = String(input["organizationId"] ?? "");
+    if (!/^[0-9a-f-]{36}$/i.test(organizationId)) throw new Error("Invalid workspace");
+    const sourcePath = String(input["sourcePath"] ?? "").trim();
+    // A tenant may only edit an object inside its own media folder.
+    if (!sourcePath.startsWith(`${organizationId}/`) || sourcePath.includes(".."))
+      throw new Error("That picture doesn't belong to this website");
+    const change = String(input["change"] ?? "")
+      .trim()
+      .slice(0, 400);
+    if (change.length < 3) throw new Error("Describe the change you want");
+    return {
+      organizationId,
+      sourcePath,
+      change,
+      altText: String(input["altText"] ?? "")
+        .trim()
+        .slice(0, 200),
+      category: String(input["category"] ?? "other").slice(0, 40),
+      label: String(input["label"] ?? "revora-image-changed").slice(0, 60),
+    };
+  })
+  .handler(async ({ data, context }): Promise<StudioImageResult> => {
+    const supabase = context.supabase;
+    const denied = await assertCanManage(supabase as never, data.organizationId, context.userId);
+    if (denied) return { ok: false, message: denied, code: "FORBIDDEN" };
+
+    const { data: file, error: downloadError } = await supabase.storage
+      .from(MEDIA_BUCKET)
+      .download(data.sourcePath);
+    if (downloadError || !file)
+      return {
+        ok: false,
+        message: "Revora couldn't open that picture, so nothing was changed.",
+        code: "IMAGE_GENERATION_FAILED",
+      };
+
+    const sourceBytes = new Uint8Array(await file.arrayBuffer());
+    const sourceMime = file.type && file.type.startsWith("image/") ? file.type : "image/png";
+
+    const image = await generateImageBase64(
+      data.change,
+      {
+        organizationId: data.organizationId,
+        userId: context.userId ? String(context.userId) : null,
+      },
+      { source: { dataUrl: encodeBase64(sourceBytes), mimeType: sourceMime } },
+    );
+    if (!image.ok)
+      return {
+        ok: false,
+        blocked: image.blocked,
+        message: image.message,
+        code: image.code,
+        reason: image.reason,
+      };
+
+    const bytes = decodeBase64(image.base64);
+    const extension = MIME_EXTENSION[image.mimeType.split(";")[0] ?? ""] ?? "png";
+    const path = buildObjectPath(
+      data.organizationId,
+      `${data.label || "revora-image-changed"}.${extension}`,
+    );
+
+    const { error: uploadError } = await supabase.storage
+      .from(MEDIA_BUCKET)
+      .upload(path, bytes, { contentType: image.mimeType, upsert: false });
+    if (uploadError)
+      return { ok: false, message: uploadError.message, code: "IMAGE_GENERATION_FAILED" };
+
+    const { data: row, error: rowError } = await supabase
+      .from("media")
+      .insert({
+        organization_id: data.organizationId,
+        url: path,
+        category: data.category,
+        file_name: `${data.label || "revora-image-changed"}.${extension}`,
+        size_bytes: bytes.byteLength,
+        alt_text: data.altText || null,
+      } as never)
+      .select("id")
+      .maybeSingle();
+    if (rowError) {
+      await supabase.storage.from(MEDIA_BUCKET).remove([path]);
+      return { ok: false, message: rowError.message, code: "IMAGE_GENERATION_FAILED" };
+    }
+
+    const { data: signed } = await supabase.storage
+      .from(MEDIA_BUCKET)
+      .createSignedUrl(path, 60 * 60);
+
+    return {
+      ok: true,
+      code: "READY",
+      path,
+      preview: signed?.signedUrl ?? path,
+      source: "generated",
+      provider: image.provider,
+      model: image.model,
+      cached: false,
+      ...(row?.id ? { mediaId: String(row.id) } : {}),
     };
   });

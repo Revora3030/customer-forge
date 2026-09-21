@@ -48,6 +48,7 @@ import {
   freeProviderChain,
   freeProviderCredentials,
   freeProviderReadiness,
+  imageEditCapableModel,
   isFreeEligibleModel,
   noteFreeUse,
   type FreeProviderName,
@@ -207,6 +208,12 @@ export function freeModelPoolDepth(): number {
  */
 export async function freeModelPool(
   role: ModelRole,
+  /**
+   * Optional extra gate on top of free-eligibility, for a request that needs a
+   * specific capability (editing an existing picture needs an image-to-image or
+   * inpainting model, so a text-to-image model must never be dispatched).
+   */
+  capable?: (model: string) => boolean,
 ): Promise<{ provider: FreeProviderName; credentials: { apiKey: string; accountId?: string }; models: string[] }[]> {
   if (!freeAiEnabled()) return [];
   const depth = freeModelPoolDepth();
@@ -227,6 +234,7 @@ export async function freeModelPool(
     const consider = (model: string) => {
       // Belt and braces: never dispatch a model that isn't free-eligible.
       if (models.length >= depth) return;
+      if (capable && !capable(model)) return;
       if (!models.includes(model) && isFreeEligibleModel(entry.name, model)) models.push(model);
     };
     try {
@@ -245,7 +253,10 @@ export async function freeModelPool(
   return pools;
 }
 
-async function buildChain(role: ModelRole): Promise<Candidate[]> {
+async function buildChain(
+  role: ModelRole,
+  capable?: (model: string) => boolean,
+): Promise<Candidate[]> {
   // First choice per provider (breadth), then each provider's remaining free
   // models (depth). Breadth first means a provider outage costs one attempt,
   // while depth means a single retired or rate-limited model is covered by
@@ -253,7 +264,7 @@ async function buildChain(role: ModelRole): Promise<Candidate[]> {
   const first: Candidate[] = [];
   const deeper: Candidate[] = [];
 
-  for (const pool of await freeModelPool(role))
+  for (const pool of await freeModelPool(role, capable))
     pool.models.forEach((model, index) => {
       const candidate = freeCandidate(pool.provider, pool.credentials.apiKey, model, role);
       if (index === 0) first.push(candidate);
@@ -264,8 +275,11 @@ async function buildChain(role: ModelRole): Promise<Candidate[]> {
 
   // Paid providers stay unreachable unless BOTH guards are explicitly off.
   if (!freeAiOnly() && !zeroAiCostMode())
-    for (const config of providerChain())
-      candidates.push({ config, model: config.models[role], free: null });
+    for (const config of providerChain()) {
+      const model = config.models[role];
+      if (capable && !capable(model)) continue;
+      candidates.push({ config, model, free: null });
+    }
 
   const ordered = [
     ...candidates.filter((entry) => providerHealthy(entry.config.name)),
@@ -380,6 +394,7 @@ async function run<T>(
     model: string;
     signal: AbortSignal;
   }) => Promise<{ value: T; inputTokens?: number | null; outputTokens?: number | null }>,
+  options?: { capable?: (model: string) => boolean },
 ): Promise<{
   value: T;
   provider: ProviderName;
@@ -396,7 +411,7 @@ async function run<T>(
   // this chain when an operator has explicitly opted out of free-only and
   // zero-cost mode. An empty chain is not a crash: the caller falls back to
   // Revora's deterministic engine and the owner gets a precise explanation.
-  const chain = await buildChain(role);
+  const chain = await buildChain(role, options?.capable);
   if (chain.length === 0) throw freeAiUnavailable("no free provider configured or in budget");
 
   const verdict = await checkAiLimits(caller);
@@ -714,16 +729,24 @@ async function imageCall(
     throw new RevoraAiError(413, "That image is too large for Revora AI.", {
       category: "too_large",
     });
-  const outcome = await run(caller, "image", async ({ adapter, config, model, signal }) => {
-    const result = await adapter.image({
-      apiKey: config.apiKey,
-      model,
-      prompt,
-      source,
-      signal,
-    });
-    return { value: result };
-  });
+  const outcome = await run(
+    caller,
+    "image",
+    async ({ adapter, config, model, signal }) => {
+      const result = await adapter.image({
+        apiKey: config.apiKey,
+        model,
+        prompt,
+        source,
+        signal,
+      });
+      return { value: result };
+    },
+    // Changing an existing picture needs an image-to-image / inpainting model.
+    // A text-to-image model would ignore the source and hand back an unrelated
+    // picture, so it is kept out of the chain entirely.
+    source ? { capable: imageEditCapableModel } : undefined,
+  );
   return {
     base64: outcome.value.base64,
     mimeType: outcome.value.mimeType,
