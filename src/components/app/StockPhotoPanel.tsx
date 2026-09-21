@@ -65,7 +65,7 @@ export function StockPhotoPanel({
     <Panel>
       <SectionHeading
         title="Free photo library"
-        hint="Openly licensed photographs you are allowed to use on a business website. The credit line is saved with each picture."
+        description="Openly licensed photographs you are allowed to use on a business website. The credit line is saved with each picture."
       />
 
       <div className="flex flex-wrap gap-2">

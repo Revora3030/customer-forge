@@ -44,7 +44,7 @@ export function TemplateGalleryPanel({
     <Panel>
       <SectionHeading
         title="Start from a layout"
-        hint="Layouts for different kinds of business. They set the pages and the order of the home page — all the words still come from your own details."
+        description="Layouts for different kinds of business. They set the pages and the order of the home page — all the words still come from your own details."
       />
 
       <div className="flex flex-wrap gap-2">
