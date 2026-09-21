@@ -17,6 +17,7 @@ import type { FirstBuildImageAsset } from "@/lib/builder/first-build-images.type
 export const ATTACHABLE_SLOTS = new Set(["hero", "service", "background", "cta", "social"]);
 
 const UNSAFE_PLACEMENT = /gallery|proof|testimonial|review|award|team|result|before|after/i;
+const GENERIC_ALT = /^(?:professional (?:work|service|workspace|image)|website image|featured image|service image)(?:\s+(?:by|for)\s+.+)?$/i;
 
 export type ImageQaFinding = {
   slot: string;
@@ -38,6 +39,7 @@ function altTextProblem(asset: FirstBuildImageAsset): string | null {
   if (alt.length < 8) return "the picture had no usable description for screen readers";
   if (/^image|^photo$|^picture$/i.test(alt) && alt.length < 20)
     return "the picture description was too generic to be useful";
+  if (GENERIC_ALT.test(alt)) return "the picture description was too generic to identify its subject";
   return null;
 }
 

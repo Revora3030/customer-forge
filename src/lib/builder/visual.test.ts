@@ -84,6 +84,16 @@ describe("rendered visual quality", () => {
     expect(keys).toContain("no_visible_cta");
   });
 
+  it("blocks stretched images and poor layout stability", () => {
+    const findings = gradeViewport({
+      ...clean(390),
+      distortedImages: ["img.hero"],
+      performance: { ...clean(390).performance!, cls: 0.31 },
+    });
+    expect(findings.some((finding) => finding.key === "distorted_image" && finding.severity === "p0")).toBe(true);
+    expect(findings.some((finding) => finding.key === "layout_shift" && finding.severity === "p0")).toBe(true);
+  });
+
   it("treats small taps and tiny text as advice, not a blocker", () => {
     const findings = gradeViewport({
       ...clean(375),

@@ -320,7 +320,7 @@ export function gradeViewport(
   ) {
     add(
       "distorted_image",
-      "advice",
+      "p0",
       `An image appears stretched or distorted: ${image}.`,
       "Preserve the image aspect ratio or intentionally use object-fit cover/contain.",
     );
@@ -649,14 +649,21 @@ export function gradeViewport(
 
     if (
       performance.cls !== null &&
-      performance.cls > 0.1
+      performance.cls > 0.25
     ) {
       add(
         "layout_shift",
-        "advice",
+        "p0",
         `The page has measurable layout movement with CLS ${performance.cls.toFixed(
           2,
         )}.`,
+        "Reserve space for images, fonts and dynamic content before they render.",
+      );
+    } else if (performance.cls !== null && performance.cls > 0.1) {
+      add(
+        "layout_shift",
+        "advice",
+        `The page has measurable layout movement with CLS ${performance.cls.toFixed(2)}.`,
         "Reserve space for images, fonts and dynamic content before they render.",
       );
     }

@@ -45,6 +45,12 @@ describe("starter picture quality gate", () => {
     expect(result.rejected[0]?.reason).toMatch(/description/i);
   });
 
+  it("rejects polished-sounding alt text that still does not identify a subject", () => {
+    const result = gradeFirstBuildImages([asset({ altText: "Professional workspace for Acme" })]);
+    expect(result.accepted).toHaveLength(0);
+    expect(result.rejected[0]?.reason).toMatch(/generic/i);
+  });
+
   it("rejects pictures with no stored file or missing provenance", () => {
     const result = gradeFirstBuildImages([
       asset({ path: "" }),
