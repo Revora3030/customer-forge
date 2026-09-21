@@ -1576,6 +1576,22 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
 
     noteApplyStage(orgId, applyRunId, "finishing up");
 
+    // LONG-SESSION MEMORY: record what was asked for and what measurably
+    // happened, so the next session starts with the working history rather than
+    // a blank page. Only the owner's own words and Revora's own measured labels
+    // are stored, and a failure here can never affect the build.
+    try {
+      const { rememberExchange } = await import("@/lib/builder/session-memory.server");
+      await rememberExchange(supabase as never, orgId, userId, {
+        instruction: data.label,
+        summary: applied.slice(0, 3).join("; "),
+        applied,
+        failed,
+      });
+    } catch (error) {
+      console.warn("[site-agent] memory not recorded", error);
+    }
+
     return {
       applied: applied.length,
       failed: failed.length,
