@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
   AI_GENERATED_MARKETING_VISUAL,
-  BUSINESS_PROVIDED_EVIDENCE,
   PROHIBITED_EVIDENCE,
   briefDivergence,
   compileCreativeBrief,
@@ -80,10 +79,10 @@ describe("creative brief", () => {
     }
   });
 
-  it("tags owner-supplied material separately from generated marketing visuals", () => {
+  it("never mislabels generated briefs as owner-supplied evidence", () => {
     const owner = briefFor("Supreme Detailing", "auto detailing", true);
     for (const spec of owner.imageInventory) {
-      expect(spec.evidenceTag).toBe(BUSINESS_PROVIDED_EVIDENCE);
+      expect(spec.evidenceTag).toBe(AI_GENERATED_MARKETING_VISUAL);
     }
   });
 

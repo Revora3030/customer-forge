@@ -103,13 +103,14 @@ export function firstBuildImageShots(
   occupiedSlots: ReadonlySet<PlannedShot["slot"]> = new Set(),
 ): PlannedShot[] {
   const unique = new Set<string>();
+  const singularSlots = new Set<PlannedShot["slot"]>(["hero", "background", "cta", "social"]);
   const shots: PlannedShot[] = [];
   for (const shot of creative.imagery.shots) {
     if (!safeSlot(shot)) continue;
     // An existing owner picture is presumed to cover the hero first. It should
     // not suppress safe supporting marketing pictures for the rest of the site.
     if (occupiedSlots.has(shot.slot)) continue;
-    const key = `${shot.slot}:${shot.label.toLowerCase()}`;
+    const key = singularSlots.has(shot.slot) ? shot.slot : `${shot.slot}:${shot.label.toLowerCase()}`;
     if (unique.has(key)) continue;
     unique.add(key);
     shots.push(shot);

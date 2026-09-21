@@ -41,4 +41,26 @@ describe("first-build image coverage", () => {
     expect(shots.some((shot) => shot.slot === "hero")).toBe(true);
     expect(shots.filter((shot) => shot.slot === "service")).toHaveLength(2);
   });
+
+  it("keeps one singular hero slot while preserving multiple service slots", () => {
+    const duplicated = {
+      ...creative,
+      imagery: {
+        ...creative.imagery,
+        shots: [
+          ...creative.imagery.shots,
+          {
+            slot: "hero" as const,
+            label: "Second hero",
+            purpose: "Duplicate hero candidate",
+            aspect: "16:9" as const,
+            placement: ["hero"],
+          },
+        ],
+      },
+    };
+    const shots = firstBuildImageShots(duplicated, 0);
+    expect(shots.filter((shot) => shot.slot === "hero")).toHaveLength(1);
+    expect(shots.filter((shot) => shot.slot === "service")).toHaveLength(2);
+  });
 });

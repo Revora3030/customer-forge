@@ -384,18 +384,6 @@ export function planShots(input: {
     },
   );
 
-  if (input.mediaCount === 0) {
-    shots.unshift({
-      slot: "hero",
-      label: "Starter set",
-      purpose:
-        "You have no photos yet — start here so no section falls back to a plain colour panel.",
-      aspect: "16:9",
-      placement: ["hero"],
-      subjectHint: input.direction.subjects[0],
-    });
-  }
-
   return shots.slice(0, 12);
 }
 

@@ -254,6 +254,9 @@ async function runJob(
   await step("business");
 
   const p = (profile.data ?? {}) as Record<string, unknown>;
+  const realMediaCount = (media.data ?? []).filter((item) =>
+    ["hero", "work", "gallery"].includes(String(item.category ?? "").toLowerCase()),
+  ).length + ((p["hero_image_url"] as string) ? 1 : 0);
   const serviceRows = (services.data ?? []) as {
     name: string;
     description?: string | null;
@@ -336,7 +339,7 @@ async function runJob(
     email: (p["email"] as string) ?? null,
     goals: goals as never,
     services: serviceRows,
-    photoCount: (media.data ?? []).length + ((p["hero_image_url"] as string) ? 1 : 0),
+    photoCount: realMediaCount,
     testimonialCount: testimonials.length,
     hasCredentials: Boolean(p["certifications"] || p["awards"] || p["years_in_business"]),
     hasHours: Boolean(p["hours"] && Object.keys(p["hours"] as object).length),
@@ -421,7 +424,7 @@ async function runJob(
     services: serviceRows,
     goals,
     conversionGoal: org.data.conversion_goal ?? null,
-    photoCount: (media.data ?? []).length + ((p["hero_image_url"] as string) ? 1 : 0),
+    photoCount: realMediaCount,
     hasHeroImage: Boolean(p["hero_image_url"]),
     testimonialCount: testimonials.length,
     bookableServices: (bookable.data ?? []).length,
@@ -543,7 +546,7 @@ async function runJob(
     userId: job.created_by,
     businessName: org.data.name ?? "",
     city: (p["city"] as string) ?? null,
-    photoCount: (media.data ?? []).length + ((p["hero_image_url"] as string) ? 1 : 0),
+    photoCount: realMediaCount,
     // Only a deliberately assigned hero fills that role. A generic upload or
     // one work photo no longer blocks the complete supporting image campaign.
     occupiedSlots: new Set([
@@ -570,7 +573,7 @@ async function runJob(
     phone: (p["phone"] as string) ?? null,
     email: (p["email"] as string) ?? null,
     yearsInBusiness: (p["years_in_business"] as number) ?? null,
-    photoCount: (media.data ?? []).length,
+    photoCount: realMediaCount,
     hasQuoteForm: (forms.data ?? []).length > 0,
     hasBooking: (bookable.data ?? []).length > 0,
     direction,
@@ -611,7 +614,7 @@ async function runJob(
     services: serviceRows.length,
 
     faqs: copy.faqs.length,
-    photos: (media.data ?? []).length + ((p["hero_image_url"] as string) ? 1 : 0),
+    photos: realMediaCount,
     leadForms: (forms.data ?? []).length,
     bookableServices: (bookable.data ?? []).length,
     seoConfigured: Boolean(copy.metaTitle && copy.metaDescription),
