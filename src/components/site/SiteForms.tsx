@@ -313,6 +313,15 @@ export function BookingForm({ site }: { site: Site }) {
   const [done, setDone] = useState(false);
   const [serviceId, setServiceId] = useState(bookable[0]?.id ?? "");
   const doneRef = useStepScroll<HTMLDivElement>(done);
+  // "Today" is the visitor's own date, so it is only known in the browser.
+  // Reading it during the server render made the first paint disagree with the
+  // browser whenever the two were on different calendar days.
+  const [today, setToday] = useState("");
+  useEffect(() => {
+    const local = new Date();
+    local.setMinutes(local.getMinutes() - local.getTimezoneOffset());
+    setToday(local.toISOString().slice(0, 10));
+  }, []);
 
   if (done) {
     return (
@@ -333,15 +342,6 @@ export function BookingForm({ site }: { site: Site }) {
   }
 
   const service = bookable.find((s) => s.id === serviceId);
-  // "Today" is the visitor's own date, so it is only known in the browser.
-  // Reading it during the server render made the first paint disagree with the
-  // browser whenever the two were on different calendar days.
-  const [today, setToday] = useState("");
-  useEffect(() => {
-    const local = new Date();
-    local.setMinutes(local.getMinutes() - local.getTimezoneOffset());
-    setToday(local.toISOString().slice(0, 10));
-  }, []);
 
   return (
     <form

@@ -5,21 +5,20 @@ td,th{border:1px solid #ddd;padding:6px;vertical-align:top;text-align:left}th{ba
 </head><body>
 <h1>Customer Forge browser journey</h1>
 <p><strong>Status:</strong> FAILED &middot; base URL http://localhost:8080 &middot;
-18 passed, 2 failed, 5 not tested &middot;
-51355 ms</p>
+15 passed, 1 failed, 9 not tested &middot;
+109787 ms</p>
 <table><thead><tr><th>Step</th><th>What it proves</th><th>Status</th><th>Duration</th><th>Evidence</th></tr></thead>
-<tbody><tr><td>01_app_loads</td><td>The application loads</td><td style="color:#0a7;font-weight:600">PASS</td><td>2695 ms</td><td><pre style="white-space:pre-wrap;margin:0;font-size:12px">{
+<tbody><tr><td>01_app_loads</td><td>The application loads</td><td style="color:#0a7;font-weight:600">PASS</td><td>3955 ms</td><td><pre style="white-space:pre-wrap;margin:0;font-size:12px">{
  &quot;httpStatus&quot;: 200,
  &quot;heading&quot;: &quot;Your business books jobs while you&#x27;re on the job, and while you sleep.&quot;,
  &quot;screenshot&quot;: &quot;browser-qa-artifacts/journey-home.png&quot;,
  &quot;url&quot;: &quot;http://localhost:8080/&quot;,
- &quot;viewport&quot;: &quot;1440x1800&quot;,
- &quot;consoleErrors&quot;: [
-  &quot;A tree hydrated but some attributes of the server rendered HTML didn&#x27;t match the client properties. This won&#x27;t be patched up. This can happen if a SSR-ed Client Component used:\n\n- A server/client branch `if (typeof window !== &#x27;undefined&#x27;)`.\n- Variable input such as `Date.now()` or `Math.random()` which changes each time it&#x27;s called.\n- Date formatting in a user&#x27;s locale which doesn&#x27;t match the server.\n- External changing data without sending a snapshot of it along with the HTML.\n- Invalid HTML tag nesting.\n\nIt can also happen if the client has a browser extension installed which messes with the HTML before React loaded.\n\n%s%s https://react.dev/link/hydration-mismatch \n\n  ...\n    &lt;MatchInnerImpl matchId=\&quot;//\&quot;&gt;\n      &lt;Lazy&gt;\n        &lt;HomeRoute&gt;\n          &lt;Landing data-tsd-source=\&quot;/src/route...\&quot;&gt;\n            &lt;div className=\&quot;min-h-screen\&quot; data-tsd-source=\&quot;/src/route...\&quot;&gt;\n              &lt;VisualComposition&gt;\n              &lt;SiteHeader&gt;\n              &lt;main data-tsd-source=\&quot;/src/route...\&quot;&gt;\n                &lt;section&gt;\n                &lt;section&gt;\n                &lt;section&gt;\n                &lt;section&gt;\n                &lt;section&gt;\n                &lt;section&gt;\n                &lt;section&gt;\n                &lt;section&gt;\n                &lt;section&gt;\n                &lt;section&gt;\n                &lt;section id=\&quot;roi\&quot; className=\&quot;border-b b...</pre></td></tr><tr><td>02_no_error_screen</td><td>No global error screen</td><td style="color:#0a7;font-weight:600">PASS</td><td>11 ms</td><td><pre style="white-space:pre-wrap;margin:0;font-size:12px">{
+ &quot;viewport&quot;: &quot;1440x1800&quot;
+}</pre></td></tr><tr><td>02_no_error_screen</td><td>No global error screen</td><td style="color:#0a7;font-weight:600">PASS</td><td>14 ms</td><td><pre style="white-space:pre-wrap;margin:0;font-size:12px">{
  &quot;note&quot;: &quot;No global error screen and no page errors.&quot;,
  &quot;url&quot;: &quot;http://localhost:8080/&quot;,
  &quot;viewport&quot;: &quot;1440x1800&quot;
-}</pre></td></tr><tr><td>03_auth_session</td><td>Signed-out gate holds and a session signs in</td><td style="color:#0a7;font-weight:600">PASS</td><td>5692 ms</td><td><pre style="white-space:pre-wrap;margin:0;font-size:12px">{
+}</pre></td></tr><tr><td>03_auth_session</td><td>Signed-out gate holds and a session signs in</td><td style="color:#0a7;font-weight:600">PASS</td><td>5737 ms</td><td><pre style="white-space:pre-wrap;margin:0;font-size:12px">{
  &quot;note&quot;: &quot;Signed out /app redirected to http://localhost:8080/auth; restored session reached the workspace.&quot;,
  &quot;screenshot&quot;: &quot;browser-qa-artifacts/journey-dashboard.png&quot;,
  &quot;url&quot;: &quot;http://localhost:8080/app&quot;,
@@ -28,7 +27,7 @@ td,th{border:1px solid #ddd;padding:6px;vertical-align:top;text-align:left}th{ba
  &quot;workspace&quot;: &quot;Enejeh&quot;,
  &quot;url&quot;: &quot;http://localhost:8080/app&quot;,
  &quot;viewport&quot;: &quot;1440x1800&quot;
-}</pre></td></tr><tr><td>05_builder_opens</td><td>The builder opens</td><td style="color:#0a7;font-weight:600">PASS</td><td>2618 ms</td><td><pre style="white-space:pre-wrap;margin:0;font-size:12px">{
+}</pre></td></tr><tr><td>05_builder_opens</td><td>The builder opens</td><td style="color:#0a7;font-weight:600">PASS</td><td>3258 ms</td><td><pre style="white-space:pre-wrap;margin:0;font-size:12px">{
  &quot;note&quot;: &quot;Builder opened. Project status chip: LIVE&quot;,
  &quot;screenshot&quot;: &quot;browser-qa-artifacts/journey-builder.png&quot;,
  &quot;url&quot;: &quot;http://localhost:8080/app/website&quot;,
@@ -41,11 +40,11 @@ td,th{border:1px solid #ddd;padding:6px;vertical-align:top;text-align:left}th{ba
  &quot;reason&quot;: &quot;Set JOURNEY_ALLOW_BUILD=1 to submit a real build request. It writes website content to the fixture workspace, so it is off by default.&quot;,
  &quot;url&quot;: &quot;http://localhost:8080/app/website&quot;,
  &quot;viewport&quot;: &quot;1440x1800&quot;
-}</pre></td></tr><tr><td>08_build_stages</td><td>Build progresses through the user-facing stages</td><td style="color:#a70;font-weight:600">NOT_TESTED</td><td>4 ms</td><td><pre style="white-space:pre-wrap;margin:0;font-size:12px">{
+}</pre></td></tr><tr><td>08_build_stages</td><td>Build progresses through the user-facing stages</td><td style="color:#a70;font-weight:600">NOT_TESTED</td><td>14 ms</td><td><pre style="white-space:pre-wrap;margin:0;font-size:12px">{
  &quot;reason&quot;: &quot;No build is in progress or recorded in this workspace, so the user-facing stages (Understanding -&gt; Ready) could not be observed. Run with JOURNEY_ALLOW_BUILD=1.&quot;,
  &quot;url&quot;: &quot;http://localhost:8080/app/website&quot;,
  &quot;viewport&quot;: &quot;1440x1800&quot;
-}</pre></td></tr><tr><td>09_preview_renders</td><td>The generated site renders</td><td style="color:#0a7;font-weight:600">PASS</td><td>1849 ms</td><td><pre style="white-space:pre-wrap;margin:0;font-size:12px">{
+}</pre></td></tr><tr><td>09_preview_renders</td><td>The generated site renders</td><td style="color:#0a7;font-weight:600">PASS</td><td>2124 ms</td><td><pre style="white-space:pre-wrap;margin:0;font-size:12px">{
  &quot;previewPath&quot;: &quot;/s/eilte&quot;,
  &quot;contentChars&quot;: 2257,
  &quot;internalPages&quot;: [
@@ -58,71 +57,113 @@ td,th{border:1px solid #ddd;padding:6px;vertical-align:top;text-align:left}th{ba
  ],
  &quot;url&quot;: &quot;http://localhost:8080/app/website&quot;,
  &quot;viewport&quot;: &quot;1440x1800&quot;
-}</pre></td></tr><tr><td>10_page_navigation</td><td>Navigation between generated pages works</td><td style="color:#0a7;font-weight:600">PASS</td><td>2700 ms</td><td><pre style="white-space:pre-wrap;margin:0;font-size:12px">{
+}</pre></td></tr><tr><td>10_page_navigation</td><td>Navigation between generated pages works</td><td style="color:#0a7;font-weight:600">PASS</td><td>3471 ms</td><td><pre style="white-space:pre-wrap;margin:0;font-size:12px">{
  &quot;from&quot;: &quot;/s/eilte&quot;,
  &quot;to&quot;: &quot;/s/eilte/services&quot;,
  &quot;url&quot;: &quot;http://localhost:8080/app/website&quot;,
  &quot;viewport&quot;: &quot;1440x1800&quot;
-}</pre></td></tr><tr><td>11_mobile_widths</td><td>Mobile layout at 320/375/390/414px</td><td style="color:#d33;font-weight:600">FAIL</td><td>5649 ms</td><td><pre style="white-space:pre-wrap;margin:0;font-size:12px">{
- &quot;error&quot;: &quot;320px reported {&#x27;consoleErrors&#x27;: [&#x27;A tree hydrated but some attributes of the server rendered HTML didn\\&#x27;t match the client properties. This won\\&#x27;t be patched up. This can happen if a SSR-ed Client Component used:\\n\\n- A server/client branch `if (typeof window !== \\&#x27;undefined\\&#x27;)`.\\n- Variable input such as `Date.now()` or `Math.random()` which changes each time it\\&#x27;s called.\\n- Date formatting in a user\\&#x27;s locale which doesn\\&#x27;t match the server.\\n- External changing data without sending a snapshot of it along with the HTML.\\n- Invalid HTML tag nesting.\\n\\nIt can also happen if the client has a browser extension installed which messes with the HTML before React loaded.\\n\\n%s%s https://react.dev/link/hydration-mismatch \\n\\n  ...\\n    &lt;SitePageView site={{...}} preview={false} data-tsd-source=\&quot;/src/route...\&quot;&gt;\\n      &lt;div className=\&quot;min-h-scre...\&quot; data-rv-family=\&quot;dark-focused\&quot; data-rv-hero=\&quot;quiet-minimal\&quot; style={{...}} ...&gt;\\n        &lt;SiteBackdrop&gt;\\n        &lt;div className=\&quot;relative z...\&quot; data-tsd-source=\&quot;/src/route...\&quot;&gt;\\n          &lt;header&gt;\\n          &lt;ResponsiveStyles&gt;\\n          &lt;main data-tsd-source=\&quot;/src/route...\&quot;&gt;\\n            &lt;SiteSection&gt;\\n            &lt;SiteSection&gt;\\n            &lt;SiteSection&gt;\\n            &lt;SiteSection&gt;\\n            &lt;SiteSection&gt;\\n            &lt;SiteSection&gt;\\n            &lt;SiteSection&gt;\\n            &lt;SiteSection&gt;\\n            &lt;SiteSection&gt;\\n            &lt;SiteSection site={{...}} section={{id:\&quot;44aef5...\&quot;, ...}} data-tsd-source=\&quot;/src/route...\&quot;&gt;\\n              &lt;div className=\&quot;fx-sec fx-...\&quot; data-t</pre></td></tr><tr><td>12_desktop_widths</td><td>Desktop layout at 1280/1440px</td><td style="color:#d33;font-weight:600">FAIL</td><td>4634 ms</td><td><pre style="white-space:pre-wrap;margin:0;font-size:12px">{
- &quot;error&quot;: &quot;1280px reported {&#x27;consoleErrors&#x27;: [&#x27;A tree hydrated but some attributes of the server rendered HTML didn\\&#x27;t match the client properties. This won\\&#x27;t be patched up. This can happen if a SSR-ed Client Component used:\\n\\n- A server/client branch `if (typeof window !== \\&#x27;undefined\\&#x27;)`.\\n- Variable input such as `Date.now()` or `Math.random()` which changes each time it\\&#x27;s called.\\n- Date formatting in a user\\&#x27;s locale which doesn\\&#x27;t match the server.\\n- External changing data without sending a snapshot of it along with the HTML.\\n- Invalid HTML tag nesting.\\n\\nIt can also happen if the client has a browser extension installed which messes with the HTML before React loaded.\\n\\n%s%s https://react.dev/link/hydration-mismatch \\n\\n  ...\\n    &lt;SitePageView site={{...}} preview={false} data-tsd-source=\&quot;/src/route...\&quot;&gt;\\n      &lt;div className=\&quot;min-h-scre...\&quot; data-rv-family=\&quot;dark-focused\&quot; data-rv-hero=\&quot;quiet-minimal\&quot; style={{...}} ...&gt;\\n        &lt;SiteBackdrop&gt;\\n        &lt;div className=\&quot;relative z...\&quot; data-tsd-source=\&quot;/src/route...\&quot;&gt;\\n          &lt;header&gt;\\n          &lt;ResponsiveStyles&gt;\\n          &lt;main data-tsd-source=\&quot;/src/route...\&quot;&gt;\\n            &lt;SiteSection&gt;\\n            &lt;SiteSection&gt;\\n            &lt;SiteSection&gt;\\n            &lt;SiteSection&gt;\\n            &lt;SiteSection&gt;\\n            &lt;SiteSection&gt;\\n            &lt;SiteSection&gt;\\n            &lt;SiteSection&gt;\\n            &lt;SiteSection&gt;\\n            &lt;SiteSection site={{...}} section={{id:\&quot;44aef5...\&quot;, ...}} data-tsd-source=\&quot;/src/route...\&quot;&gt;\\n              &lt;div className=\&quot;fx-sec fx-...\&quot; data-</pre></td></tr><tr><td>13_no_overflow</td><td>No horizontal overflow at any width</td><td style="color:#0a7;font-weight:600">PASS</td><td>0 ms</td><td><pre style="white-space:pre-wrap;margin:0;font-size:12px">{
+}</pre></td></tr><tr><td>11_mobile_widths</td><td>Mobile layout at 320/375/390/414px</td><td style="color:#0a7;font-weight:600">PASS</td><td>13492 ms</td><td><pre style="white-space:pre-wrap;margin:0;font-size:12px">{
+ &quot;measurements&quot;: [
+  {
+   &quot;width&quot;: 320,
+   &quot;httpStatus&quot;: 200,
+   &quot;horizontalOverflowPx&quot;: 0,
+   &quot;screenshot&quot;: &quot;browser-qa-artifacts/journey-site-320.png&quot;
+  },
+  {
+   &quot;width&quot;: 375,
+   &quot;httpStatus&quot;: 200,
+   &quot;horizontalOverflowPx&quot;: 0,
+   &quot;screenshot&quot;: &quot;browser-qa-artifacts/journey-site-375.png&quot;
+  },
+  {
+   &quot;width&quot;: 390,
+   &quot;httpStatus&quot;: 200,
+   &quot;horizontalOverflowPx&quot;: 0,
+   &quot;screenshot&quot;: &quot;browser-qa-artifacts/journey-site-390.png&quot;
+  },
+  {
+   &quot;width&quot;: 414,
+   &quot;httpStatus&quot;: 200,
+   &quot;horizontalOverflowPx&quot;: 0,
+   &quot;screenshot&quot;: &quot;browser-qa-artifacts/journey-site-414.png&quot;
+  }
+ ],
+ &quot;url&quot;: &quot;http://localhost:8080/app/website&quot;,
+ &quot;viewport&quot;: &quot;1440x1800&quot;
+}</pre></td></tr><tr><td>12_desktop_widths</td><td>Desktop layout at 1280/1440px</td><td style="color:#0a7;font-weight:600">PASS</td><td>6840 ms</td><td><pre style="white-space:pre-wrap;margin:0;font-size:12px">{
+ &quot;measurements&quot;: [
+  {
+   &quot;width&quot;: 1280,
+   &quot;httpStatus&quot;: 200,
+   &quot;horizontalOverflowPx&quot;: 0,
+   &quot;screenshot&quot;: &quot;browser-qa-artifacts/journey-site-1280.png&quot;
+  },
+  {
+   &quot;width&quot;: 1440,
+   &quot;httpStatus&quot;: 200,
+   &quot;horizontalOverflowPx&quot;: 0,
+   &quot;screenshot&quot;: &quot;browser-qa-artifacts/journey-site-1440.png&quot;
+  }
+ ],
+ &quot;url&quot;: &quot;http://localhost:8080/app/website&quot;,
+ &quot;viewport&quot;: &quot;1440x1800&quot;
+}</pre></td></tr><tr><td>13_no_overflow</td><td>No horizontal overflow at any width</td><td style="color:#0a7;font-weight:600">PASS</td><td>0 ms</td><td><pre style="white-space:pre-wrap;margin:0;font-size:12px">{
  &quot;widths&quot;: [
   320,
-  1280
+  375,
+  390,
+  414,
+  1280,
+  1440
  ],
  &quot;maxOverflowPx&quot;: 0,
  &quot;url&quot;: &quot;http://localhost:8080/app/website&quot;,
  &quot;viewport&quot;: &quot;1440x1800&quot;
-}</pre></td></tr><tr><td>14_actionable</td><td>Important buttons and links are actionable</td><td style="color:#0a7;font-weight:600">PASS</td><td>4442 ms</td><td><pre style="white-space:pre-wrap;margin:0;font-size:12px">{
+}</pre></td></tr><tr><td>14_actionable</td><td>Important buttons and links are actionable</td><td style="color:#0a7;font-weight:600">PASS</td><td>4608 ms</td><td><pre style="white-space:pre-wrap;margin:0;font-size:12px">{
  &quot;links&quot;: 33,
  &quot;deadLinks&quot;: 0,
  &quot;buttons&quot;: 2,
  &quot;disabledButtons&quot;: 0,
  &quot;url&quot;: &quot;http://localhost:8080/app/website&quot;,
  &quot;viewport&quot;: &quot;1440x1800&quot;
-}</pre></td></tr><tr><td>15_real_content</td><td>The page carries real content</td><td style="color:#0a7;font-weight:600">PASS</td><td>1573 ms</td><td><pre style="white-space:pre-wrap;margin:0;font-size:12px">{
+}</pre></td></tr><tr><td>15_real_content</td><td>The page carries real content</td><td style="color:#0a7;font-weight:600">PASS</td><td>1801 ms</td><td><pre style="white-space:pre-wrap;margin:0;font-size:12px">{
  &quot;heading&quot;: &quot;Premium Auto Detailing in Raleigh&quot;,
  &quot;sections&quot;: 13,
  &quot;headings&quot;: 12,
  &quot;chars&quot;: 2257,
  &quot;url&quot;: &quot;http://localhost:8080/app/website&quot;,
  &quot;viewport&quot;: &quot;1440x1800&quot;
-}</pre></td></tr><tr><td>16_builder_edit</td><td>One deterministic builder edit is applied</td><td style="color:#0a7;font-weight:600">PASS</td><td>2837 ms</td><td><pre style="white-space:pre-wrap;margin:0;font-size:12px">{
- &quot;note&quot;: &quot;Staged one heading edit and applied it.&quot;,
- &quot;from&quot;: &quot;Premium Auto Detailing in Raleigh&quot;,
- &quot;to&quot;: &quot;Smoke check 1789971739&quot;,
- &quot;screenshot&quot;: &quot;browser-qa-artifacts/journey-edit-applied.png&quot;,
+}</pre></td></tr><tr><td>16_builder_edit</td><td>One deterministic builder edit is applied</td><td style="color:#d33;font-weight:600">FAIL</td><td>60392 ms</td><td><pre style="white-space:pre-wrap;margin:0;font-size:12px">{
+ &quot;error&quot;: &quot;Locator.click: Timeout 30000ms exceeded.\nCall log:\n  - waiting for get_by_role(\&quot;tab\&quot;, name=\&quot;Visual Edit\&quot;)\n&quot;,
+ &quot;retried&quot;: true,
+ &quot;screenshot&quot;: &quot;browser-qa-artifacts/journey-fail-16_builder_edit.png&quot;,
  &quot;url&quot;: &quot;http://localhost:8080/app/website&quot;,
  &quot;viewport&quot;: &quot;1440x1800&quot;
-}</pre></td></tr><tr><td>17_edit_visible</td><td>The edit appears in the rendered preview</td><td style="color:#0a7;font-weight:600">PASS</td><td>1553 ms</td><td><pre style="white-space:pre-wrap;margin:0;font-size:12px">{
- &quot;note&quot;: &quot;The applied edit renders on the generated page.&quot;,
- &quot;text&quot;: &quot;Smoke check 1789971739&quot;,
+}</pre></td></tr><tr><td>17_edit_visible</td><td>The edit appears in the rendered preview</td><td style="color:#a70;font-weight:600">NOT_TESTED</td><td>0 ms</td><td><pre style="white-space:pre-wrap;margin:0;font-size:12px">{
+ &quot;reason&quot;: &quot;No edit was made, so the rendered result cannot be checked.&quot;,
  &quot;url&quot;: &quot;http://localhost:8080/app/website&quot;,
  &quot;viewport&quot;: &quot;1440x1800&quot;
-}</pre></td></tr><tr><td>18_edit_persists</td><td>The edit survives a refresh</td><td style="color:#0a7;font-weight:600">PASS</td><td>4942 ms</td><td><pre style="white-space:pre-wrap;margin:0;font-size:12px">{
- &quot;note&quot;: &quot;The edit survived a full page refresh.&quot;,
- &quot;screenshot&quot;: &quot;browser-qa-artifacts/journey-edit-persisted.png&quot;,
- &quot;url&quot;: &quot;http://localhost:8080/app/website&quot;,
- &quot;viewport&quot;: &quot;1440x1800&quot;,
- &quot;consoleErrors&quot;: [
-  &quot;A tree hydrated but some attributes of the server rendered HTML didn&#x27;t match the client properties. This won&#x27;t be patched up. This can happen if a SSR-ed Client Component used:\n\n- A server/client branch `if (typeof window !== &#x27;undefined&#x27;)`.\n- Variable input such as `Date.now()` or `Math.random()` which changes each time it&#x27;s called.\n- Date formatting in a user&#x27;s locale which doesn&#x27;t match the server.\n- External changing data without sending a snapshot of it along with the HTML.\n- Invalid HTML tag nesting.\n\nIt can also happen if the client has a browser extension installed which messes with the HTML before React loaded.\n\n%s%s https://react.dev/link/hydration-mismatch \n\n  ...\n    &lt;SitePageView site={{...}} preview={false} data-tsd-source=\&quot;/src/route...\&quot;&gt;\n      &lt;div className=\&quot;min-h-scre...\&quot; data-rv-family=\&quot;dark-focused\&quot; data-rv-hero=\&quot;quiet-minimal\&quot; style={{...}} ...&gt;\n        &lt;SiteBackdrop&gt;\n        &lt;div className=\&quot;relative z...\&quot; data-tsd-source=\&quot;/src/route...\&quot;&gt;\n          &lt;header&gt;\n          &lt;ResponsiveStyles&gt;\n          &lt;main data-tsd-source=\&quot;/src/route...\&quot;&gt;\n            &lt;SiteSection&gt;\n            &lt;SiteSection&gt;\n            &lt;SiteSection&gt;\n            &lt;SiteSection&gt;\n            &lt;SiteSection&gt;\n            &lt;SiteSection&gt;\n            &lt;SiteSection&gt;\n            &lt;SiteSection&gt;\n            &lt;SiteSection&gt;\n            &lt;SiteSection site={{...}} se</pre></td></tr><tr><td>19_rollback</td><td>Undo / rollback is available and used</td><td style="color:#0a7;font-weight:600">PASS</td><td>2924 ms</td><td><pre style="white-space:pre-wrap;margin:0;font-size:12px">{
- &quot;method&quot;: &quot;restore-original-heading&quot;,
- &quot;restoring&quot;: &quot;Premium Auto Detailing in Raleigh&quot;,
+}</pre></td></tr><tr><td>18_edit_persists</td><td>The edit survives a refresh</td><td style="color:#a70;font-weight:600">NOT_TESTED</td><td>0 ms</td><td><pre style="white-space:pre-wrap;margin:0;font-size:12px">{
+ &quot;reason&quot;: &quot;No edit was made, so persistence cannot be checked.&quot;,
  &quot;url&quot;: &quot;http://localhost:8080/app/website&quot;,
  &quot;viewport&quot;: &quot;1440x1800&quot;
-}</pre></td></tr><tr><td>20_rollback_restores</td><td>Rollback restores the previous state</td><td style="color:#0a7;font-weight:600">PASS</td><td>3764 ms</td><td><pre style="white-space:pre-wrap;margin:0;font-size:12px">{
- &quot;note&quot;: &quot;Rollback restored the previous state.&quot;,
- &quot;restored&quot;: &quot;Premium Auto Detailing in Raleigh&quot;,
+}</pre></td></tr><tr><td>19_rollback</td><td>Undo / rollback is available and used</td><td style="color:#a70;font-weight:600">NOT_TESTED</td><td>0 ms</td><td><pre style="white-space:pre-wrap;margin:0;font-size:12px">{
+ &quot;reason&quot;: &quot;No edit was made, so rollback cannot be exercised.&quot;,
  &quot;url&quot;: &quot;http://localhost:8080/app/website&quot;,
  &quot;viewport&quot;: &quot;1440x1800&quot;
-}</pre></td></tr><tr><td>21_publish_gated</td><td>Publishing stays gated and nothing is published</td><td style="color:#0a7;font-weight:600">PASS</td><td>38 ms</td><td><pre style="white-space:pre-wrap;margin:0;font-size:12px">{
+}</pre></td></tr><tr><td>20_rollback_restores</td><td>Rollback restores the previous state</td><td style="color:#a70;font-weight:600">NOT_TESTED</td><td>0 ms</td><td><pre style="white-space:pre-wrap;margin:0;font-size:12px">{
+ &quot;reason&quot;: &quot;No edit was made, so there is nothing to restore.&quot;,
+ &quot;url&quot;: &quot;http://localhost:8080/app/website&quot;,
+ &quot;viewport&quot;: &quot;1440x1800&quot;
+}</pre></td></tr><tr><td>21_publish_gated</td><td>Publishing stays gated and nothing is published</td><td style="color:#0a7;font-weight:600">PASS</td><td>24 ms</td><td><pre style="white-space:pre-wrap;margin:0;font-size:12px">{
  &quot;note&quot;: &quot;Publish control present and never pressed; no publish request was issued.&quot;,
  &quot;statusLabelBefore&quot;: &quot;LIVE&quot;,
  &quot;publishDisabled&quot;: false,
  &quot;statusLabel&quot;: &quot;LIVE&quot;,
  &quot;url&quot;: &quot;http://localhost:8080/app/website&quot;,
  &quot;viewport&quot;: &quot;1440x1800&quot;
-}</pre></td></tr><tr><td>22_dashboard_return</td><td>The app returns to the dashboard cleanly</td><td style="color:#0a7;font-weight:600">PASS</td><td>2543 ms</td><td><pre style="white-space:pre-wrap;margin:0;font-size:12px">{
+}</pre></td></tr><tr><td>22_dashboard_return</td><td>The app returns to the dashboard cleanly</td><td style="color:#0a7;font-weight:600">PASS</td><td>2955 ms</td><td><pre style="white-space:pre-wrap;margin:0;font-size:12px">{
  &quot;note&quot;: &quot;Returned to the dashboard cleanly.&quot;,
  &quot;screenshot&quot;: &quot;browser-qa-artifacts/journey-dashboard-return.png&quot;,
  &quot;url&quot;: &quot;http://localhost:8080/app&quot;,

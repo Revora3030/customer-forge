@@ -24,7 +24,7 @@ import { BuilderWizard } from "@/components/app/BuilderWizard";
 import { BuilderShell } from "@/components/app/BuilderShell";
 import { Disclosure, OverlayPanel } from "@/components/app/BuilderTools";
 import { BuilderHistoryProvider } from "@/lib/builder-history.hooks";
-import { GroupTabs } from "@/components/app/BuilderGroups";
+import { GroupTabs, orderGroups } from "@/components/app/BuilderGroups";
 import { BuilderAssistant } from "@/components/app/BuilderAssistant";
 import { BuilderNeeds, type BuilderNeed } from "@/components/app/BuilderNeeds";
 import { builderNeedKeys, type BuilderNeedKey } from "@/lib/builder-needs";
@@ -441,9 +441,9 @@ function WebsitePage() {
 
   const workspaceModes = [
     { key: "build" as const, label: "Build", icon: Sparkles },
-    { key: "chat" as const, label: "Chat", icon: MessageCircle },
-    { key: "edit" as const, label: "Edit", icon: MousePointer2 },
-    { key: "visual" as const, label: "Visual Edit", icon: Paintbrush },
+    { key: "chat" as const, label: "Ask Revora", icon: MessageCircle },
+    { key: "edit" as const, label: "Edit words", icon: MousePointer2 },
+    { key: "visual" as const, label: "Edit design", icon: Paintbrush },
   ];
 
   /** The whole workspace: the real preview first, with complexity revealed only when requested. */
@@ -545,11 +545,11 @@ function WebsitePage() {
       )}
 
       <div className="flex flex-wrap items-center gap-3">
-        <Button size="sm" variant="ghost" onClick={() => setAdvanced("pages")}>
-          Advanced settings
+        <Button size="sm" variant="outline" onClick={() => setAdvanced("look")}>
+          All settings
         </Button>
         <span className="text-[11.5px] text-muted-foreground">
-          Pages, look, photos, enquiries, launch checks and reports.
+          Look, words, photos, enquiries, pages, checks and going live.
         </span>
       </div>
     </div>
@@ -619,32 +619,15 @@ function WebsitePage() {
       {/* ------------------------ One advanced door ------------------------ */}
       <OverlayPanel
         open={advanced !== null}
-        title="Advanced settings"
-        description="Every detailed control, in one place. Nothing here is required."
+        title="All settings"
+        description="Grouped in the order you work in. Nothing here is required to publish."
         onClose={() => setAdvanced(null)}
       >
         <GroupTabs
           key={advanced ?? "pages"}
-          label="Advanced groups"
+          label="Settings groups"
           initialKey={advanced ?? "pages"}
-          groups={[
-            {
-              key: "pages",
-              label: "Pages",
-              node: (
-                <>
-                  <SiteEnginePanel organizationId={orgId} canManage={manage} hasCopy={!!copy} />
-                  <TemplateGalleryPanel
-                    canManage={manage}
-                    industry={(profile?.["industry"] as string) ?? null}
-                    description={(profile?.["description"] as string) ?? null}
-                    businessName={org?.name ?? null}
-                  />
-                  <WebsiteStructure organizationId={orgId} canManage={manage} />
-                </>
-              ),
-
-            },
+          groups={orderGroups([
             {
               key: "look",
               label: "Look",
@@ -683,7 +666,6 @@ function WebsitePage() {
                     }
                   />
                   <SiteUpgradePanel organizationId={orgId} canManage={manage} />
-                  <ConversionOptimizer organizationId={orgId} />
                 </>
               ),
             },
@@ -719,11 +701,32 @@ function WebsitePage() {
             {
               key: "enquiries",
               label: "Enquiries",
-              node: <LeadEngine organizationId={orgId} canManage={manage} />,
+              node: (
+                <>
+                  <LeadEngine organizationId={orgId} canManage={manage} />
+                  <ConversionOptimizer organizationId={orgId} />
+                </>
+              ),
+            },
+            {
+              key: "pages",
+              label: "Pages",
+              node: (
+                <>
+                  <SiteEnginePanel organizationId={orgId} canManage={manage} hasCopy={!!copy} />
+                  <TemplateGalleryPanel
+                    canManage={manage}
+                    industry={(profile?.["industry"] as string) ?? null}
+                    description={(profile?.["description"] as string) ?? null}
+                    businessName={org?.name ?? null}
+                  />
+                  <WebsiteStructure organizationId={orgId} canManage={manage} />
+                </>
+              ),
             },
             {
               key: "launch",
-              label: "Launch",
+              label: "Go live",
               node: (
                 <>
                   {launchReview ? (
@@ -818,7 +821,7 @@ function WebsitePage() {
             },
             {
               key: "assistant",
-              label: "Assistant extras",
+              label: "Words",
               node: (
                 <>
                   <SiteChatbot
@@ -874,7 +877,7 @@ function WebsitePage() {
             },
             {
               key: "reports",
-              label: "Reports",
+              label: "Checks",
               node: (
                 <>
                   <VisualCheckPanel
@@ -954,7 +957,7 @@ function WebsitePage() {
                 </>
               ),
             },
-          ]}
+          ], ["look", "assistant", "photos", "enquiries", "pages", "reports", "launch"])}
         />
       </OverlayPanel>
 

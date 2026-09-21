@@ -110,7 +110,7 @@ class Recorder:
         text = message.text
         if any(noise in text for noise in IGNORED_CONSOLE):
             return
-        self.console.append(text[:2000])
+        self.console.append(text[:8000])
 
     def _on_request_failed(self, request: Any) -> None:
         failure = str(request.failure or "")
@@ -184,7 +184,7 @@ class Journey:
     async def shot(self, name: str) -> str:
         assert self.page
         path = ARTIFACTS / f"journey-{name}.png"
-        await self.page.screenshot(path=str(path))
+        await self.page.screenshot(path=str(path), caret="initial")
         return str(path)
 
     # ------------------------------------------------------------ step runner
@@ -211,7 +211,7 @@ class Journey:
                 record.update(
                     {
                         "status": "FAIL",
-                        "error": message[:3000],
+                        "error": message[:9000],
                         "retried": attempts > 1,
                     }
                 )
@@ -411,7 +411,7 @@ class Journey:
                 "() => Math.max(0, document.documentElement.scrollWidth - window.innerWidth)"
             )
             shot = ARTIFACTS / f"journey-site-{width}.png"
-            await page.screenshot(path=str(shot))
+            await page.screenshot(path=str(shot), caret="initial")
             self.state["overflow"][width] = overflow
             problems = recorder.drain()
             if overflow > 1:
