@@ -170,3 +170,12 @@
 - [ ] Add screenshot-reference design fingerprint extraction with anti-cloning safeguards.
 - [ ] Run a complete scratch-site build through the new pipeline and 320-1440 visual QA.
 - [ ] Run a restore-protected fresh first-build on elite-mobile-cars and verify the rendered result.
+
+## Full-site first-build quality upgrade (approved Sep 21)
+- [ ] Compile and persist a site-wide campaign plus page-specific journey contracts.
+- [ ] Expand every core and archetype page into a complete, linked conversion journey.
+- [ ] Add dedicated premium renderers for interior-page content and consume assigned media.
+- [ ] Upgrade site-wide header, navigation, footer, and truthful mobile actions.
+- [ ] Make first-build imagery page-aware and execute safe missing/rejected media repair.
+- [ ] Enforce richness, truthful evidence, cross-page consistency, and publication-blocking QA.
+- [ ] Run full tests, types, build diagnostics, and responsive browser verification.
