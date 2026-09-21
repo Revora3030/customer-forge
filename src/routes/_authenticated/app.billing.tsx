@@ -1,14 +1,7 @@
 import { useEffect, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { CreditCard, ExternalLink, Receipt, Wallet } from "lucide-react";
-import {
-  EmptyState,
-  LoadingRows,
-  MetricCard,
-  Panel,
-  Pill,
-  SectionHeading,
-} from "@/components/app/Bits";
+import { EmptyState, LoadingRows, MetricCard, PageHead, Panel, Pill, SectionHeading } from "@/components/app/Bits";
 import { Button } from "@/components/ui/button";
 import { StripeServiceCheckout } from "@/components/app/StripeServiceCheckout";
 import { PaymentTestModeBanner } from "@/components/app/PaymentTestModeBanner";
@@ -129,11 +122,7 @@ function BillingPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <p className="eyebrow">Billing &amp; payments</p>
-          <h1 className="mt-1 font-display text-[24px] font-semibold">Your plan and payments</h1>
-        </div>
+      <PageHead eyebrow="Billing &amp; payments" title="Your plan and payments" purpose="See what you pay, when it's due, and the cards you have saved.">
         <div className="flex flex-wrap items-center gap-2">
           <Pill tone={subscription?.status === "active" ? "signal" : "neutral"}>
             {subscription ? subscription.status.replace("_", " ") : "No subscription"}
@@ -146,7 +135,7 @@ function BillingPage() {
               : `Card payments ${billing?.environment === "sandbox" ? "test" : "live"}`}
           </Pill>
         </div>
-      </div>
+      </PageHead>
 
       <PaymentTestModeBanner />
 

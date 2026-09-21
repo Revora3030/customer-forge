@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
-import { LoadingRows, MetricCard, Panel, SectionHeading } from "@/components/app/Bits";
+import { LoadingRows, MetricCard, PageHead, Panel, SectionHeading } from "@/components/app/Bits";
 import { useAnalytics, useAppointments, useLeads } from "@/lib/queries";
 import { useWorkspace } from "@/lib/use-tenant";
 import { DATE_RANGES, sourceLabel } from "@/lib/domain";
@@ -102,11 +102,7 @@ function AnalyticsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <p className="eyebrow">Results</p>
-          <h1 className="mt-1 font-display text-[24px] font-semibold">Analytics</h1>
-        </div>
+      <PageHead eyebrow="Results" title="Analytics" purpose="How many people visit your site, and what they do there.">
         <div className="flex gap-1.5">
           {DATE_RANGES.map((range) => (
             <button
@@ -124,7 +120,7 @@ function AnalyticsPage() {
             </button>
           ))}
         </div>
-      </div>
+      </PageHead>
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
         <MetricCard

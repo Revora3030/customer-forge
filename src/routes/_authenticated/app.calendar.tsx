@@ -1,14 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
-import {
-  EmptyState,
-  LoadingRows,
-  MetricCard,
-  Panel,
-  Pill,
-  SectionHeading,
-} from "@/components/app/Bits";
+import { EmptyState, LoadingRows, MetricCard, PageHead, Panel, Pill, SectionHeading } from "@/components/app/Bits";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -105,11 +98,7 @@ function CalendarPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <p className="eyebrow">Bookings</p>
-          <h1 className="mt-1 font-display text-[24px] font-semibold">Calendar</h1>
-        </div>
+      <PageHead eyebrow="Bookings" title="Calendar" purpose="Every appointment your site takes, in one place.">
         <div className="flex items-center gap-2">
           <Button
             variant="outline"
@@ -225,7 +214,7 @@ function CalendarPage() {
             </DialogContent>
           </Dialog>
         </div>
-      </div>
+      </PageHead>
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <MetricCard label="Jobs this week" value={String(thisWeek.length)} tone="signal" />

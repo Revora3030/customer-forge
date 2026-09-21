@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "@/lib/ui/notify";
-import { LoadingRows, Panel, Pill, SectionHeading } from "@/components/app/Bits";
+import { LoadingRows, PageHead, Panel, Pill, SectionHeading } from "@/components/app/Bits";
 import { IntegrationCenter } from "@/components/app/IntegrationCenter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -49,10 +49,7 @@ function SettingsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <p className="eyebrow">Account</p>
-        <h1 className="mt-1 font-display text-[24px] font-semibold">Settings</h1>
-      </div>
+      <PageHead eyebrow="Account" title="Settings" purpose="Your login, your business details and the people on your team." />
 
       <IntegrationCenter organizationId={orgId} />
 

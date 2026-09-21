@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
-import { EmptyState, LoadingRows, Panel, Pill, SectionHeading } from "@/components/app/Bits";
+import { EmptyState, LoadingRows, PageHead, Panel, Pill, SectionHeading } from "@/components/app/Bits";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -71,15 +71,11 @@ function ServicesPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <p className="eyebrow">Offer</p>
-          <h1 className="mt-1 font-display text-[24px] font-semibold">Services & Quotes</h1>
-        </div>
+      <PageHead eyebrow="Offer" title="Services & Quotes" purpose="What you sell, your prices, and the estimates people ask for.">
         <Button variant="signal" onClick={() => setEditing({ ...blank })}>
           <Plus className="size-4" /> Add service
         </Button>
-      </div>
+      </PageHead>
 
       {(services ?? []).length === 0 ? (
         <EmptyState

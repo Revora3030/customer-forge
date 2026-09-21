@@ -10,7 +10,7 @@ import {
   StickyNote,
   UserCheck,
 } from "lucide-react";
-import { EmptyState, LoadingRows, Panel, Pill, SectionHeading } from "@/components/app/Bits";
+import { EmptyState, LoadingRows, PageHead, Panel, Pill, SectionHeading } from "@/components/app/Bits";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -111,11 +111,7 @@ function LeadsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <p className="eyebrow">Pipeline</p>
-          <h1 className="mt-1 font-display text-[24px] font-semibold">Leads</h1>
-        </div>
+      <PageHead eyebrow="Pipeline" title="Leads" purpose="Everyone who enquired, and where each one stands.">
         <Dialog open={addOpen} onOpenChange={setAddOpen}>
           <DialogTrigger asChild>
             <Button variant="signal">
@@ -184,7 +180,7 @@ function LeadsPage() {
             </form>
           </DialogContent>
         </Dialog>
-      </div>
+      </PageHead>
 
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative min-w-52 flex-1">
