@@ -27,6 +27,7 @@ import {
   aiLimits,
   builderExternalAiAllowed,
   providerChain,
+  providerConfig,
   type ModelRole,
   type ProviderConfig,
   type ProviderName,
@@ -851,6 +852,51 @@ export async function streamResponse(
     model: outcome.model,
     requestId: outcome.requestId,
   };
+}
+
+/* ------------------------- pinned paid picture call ------------------------- */
+
+/**
+ * ONE picture from the paid OpenAI image model, pinned by name.
+ *
+ * This lives in the router for the same reason every other call does: the
+ * request guard, the timeout, the concurrency limit and the telemetry are the
+ * router's, and no module outside it may reach a provider adapter. Spending
+ * permission and the durable monthly cap are enforced by the caller before this
+ * runs; this function never decides whether paid AI is allowed.
+ */
+export async function callPinnedPaidImage(
+  caller: AiCaller,
+  prompt: string,
+  model: string,
+): Promise<{ base64: string; mimeType: string; provider: ProviderName; model: string }> {
+  const limits = aiLimits();
+  if (prompt.length > limits.maxRequestChars)
+    throw new RevoraAiError(413, "That image brief is too long for Revora AI.", {
+      category: "too_large",
+    });
+  const config = providerConfig("openai");
+  if (!config?.apiKey) throw freeAiUnavailable("openai has no credentials configured");
+
+  const concurrencyKey = caller.organizationId ?? caller.userId ?? "platform";
+  if (!acquire(concurrencyKey, limits.maxConcurrentPerWorkspace))
+    throw new RevoraAiError(429, "Revora AI is already working on this workspace's requests.", {
+      category: "rate_limited",
+    });
+  try {
+    // No timer abort: an aborted picture request is still billed but produces
+    // nothing, so a slow answer is preferred to a wasted charge.
+    const result = await ADAPTERS["openai"].image({
+      apiKey: config.apiKey,
+      model,
+      prompt,
+      source: null,
+      signal: new AbortController().signal,
+    });
+    return { base64: result.base64, mimeType: result.mimeType, provider: "openai", model };
+  } finally {
+    release(concurrencyKey);
+  }
 }
 
 /* ---------------------- pinned free-model calls (ensemble) ------------------ */

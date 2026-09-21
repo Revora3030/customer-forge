@@ -95,6 +95,7 @@ import {
   MissingFactsPanel,
 } from "@/components/app/BriefReview";
 import { readBrief, readReport } from "@/lib/site-brief";
+import { StarterImages } from "@/components/app/StarterImages";
 import {
   EDITABLE_COPY_FIELDS,
   growthRecommendations,
@@ -744,6 +745,14 @@ function WebsitePage() {
               label: "Images",
               node: (
                 <>
+                  <StarterImages
+                    organizationId={orgId}
+                    canManage={manage}
+                    report={buildReport?.images ?? null}
+                    businessName={org?.name ?? null}
+                    industry={(profile?.["industry"] as string) ?? null}
+                    city={(profile?.["city"] as string) ?? null}
+                  />
                   <ImageStudio
                     organizationId={orgId}
                     canManage={manage}

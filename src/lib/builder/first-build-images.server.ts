@@ -14,6 +14,13 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Json } from "@/integrations/supabase/types";
 import { generateImageBase64, decodeBase64 } from "@/lib/image-studio.server";
+import { generatePaidImageBase64, paidImageStatus } from "@/lib/ai/paid-image.server";
+import { gradeFirstBuildImages } from "@/lib/builder/first-build-image-qa";
+import type {
+  FirstBuildImageAsset,
+  FirstBuildImageEvidence,
+  FirstBuildImageSource,
+} from "@/lib/builder/first-build-images.types";
 import { MEDIA_BUCKET, buildObjectPath } from "@/lib/media";
 import type { FirstBuildCreativeDirection } from "@/lib/builder/first-build-creative";
 import {
@@ -40,29 +47,10 @@ const SAFE_STARTER_SLOTS = new Set<PlannedShot["slot"]>([
   "social",
 ]);
 
-export type FirstBuildImageAsset = {
-  slot: PlannedShot["slot"];
-  label: string;
-  altText: string;
-  path: string;
-  mediaId: string | null;
-  provider: string;
-  model: string;
-  prompt: string;
-  placement: string[];
-  aspectRatio: PlannedShot["aspect"];
-};
-
-export type FirstBuildImageEvidence = {
-  status: "generated" | "owner_photos" | "fallback_artwork" | "failed";
-  requested: number;
-  generated: number;
-  attached: number;
-  skipped: { slot: string; label: string; reason: string }[];
-  provider: string | null;
-  models: string[];
-  message: string;
-};
+export type {
+  FirstBuildImageAsset,
+  FirstBuildImageEvidence,
+} from "@/lib/builder/first-build-images.types";
 
 export type FirstBuildImageResult = {
   assets: FirstBuildImageAsset[];
@@ -152,6 +140,14 @@ export async function generateFirstBuildImages(
   const models = new Set<string>();
   let provider: string | null = null;
   let firstBlockedMessage: string | null = null;
+  let source: FirstBuildImageSource = "none";
+  let paidCostMicrocents = 0;
+  const paid = paidImageStatus();
+  // Free first, always. The paid backup is only ever reached when the free
+  // service is genuinely unavailable AND the operator switched it on, and every
+  // paid picture is charged against the same durable monthly cap.
+  let freeBlocked = false;
+
 
   for (const [index, shot] of shots.entries()) {
     const style = CANDIDATE_STYLES[index % CANDIDATE_STYLES.length] ?? CANDIDATE_STYLES[0];
@@ -168,17 +164,53 @@ export async function generateFirstBuildImages(
         "Starter website image only. Do not depict a real employee, actual customer, award, review, brand logo, licence plate, address, or before-and-after result.",
     });
 
-    const image = await generateImageBase64(brief.prompt, {
-      organizationId: input.organizationId,
-      userId: input.userId,
-    });
-    if (!image.ok) {
-      firstBlockedMessage = firstBlockedMessage ?? image.message;
-      skipped.push({ slot: shot.slot, label: shot.label, reason: image.message });
-      if (image.blocked) break;
+    type Made = { base64: string; mimeType: string; provider: string; model: string };
+    let made: Made | null = null;
+
+    if (!freeBlocked) {
+      const free = await generateImageBase64(brief.prompt, {
+        organizationId: input.organizationId,
+        userId: input.userId,
+      });
+      if (free.ok) {
+        made = free;
+        source = source === "paid" ? source : "free";
+      } else {
+        firstBlockedMessage = firstBlockedMessage ?? free.message;
+        if (free.blocked) freeBlocked = true;
+        else skipped.push({ slot: shot.slot, label: shot.label, reason: free.message });
+      }
+    }
+
+    if (!made && paid.allowed) {
+      const backup = await generatePaidImageBase64(brief.prompt, {
+        organizationId: input.organizationId,
+        userId: input.userId,
+      });
+      if (backup.ok) {
+        made = backup;
+        paidCostMicrocents += backup.costMicrocents;
+        source = "paid";
+      } else {
+        firstBlockedMessage = firstBlockedMessage ?? backup.message;
+        skipped.push({ slot: shot.slot, label: shot.label, reason: backup.message });
+        if (backup.reason === "budget_exhausted" || backup.reason === "disabled") break;
+      }
+    }
+
+    if (!made) {
+      if (freeBlocked && !paid.allowed) {
+        skipped.push({
+          slot: shot.slot,
+          label: shot.label,
+          reason: firstBlockedMessage ?? paid.message,
+        });
+        break;
+      }
       continue;
     }
 
+    const image = made;
     const mime = image.mimeType.split(";")[0]?.trim().toLowerCase() ?? "image/png";
     const extension = MIME_EXTENSION[mime] ?? "png";
     const bytes = decodeBase64(image.base64);
@@ -231,20 +263,36 @@ export async function generateFirstBuildImages(
     });
   }
 
-  const status = assets.length ? "generated" : skipped.length ? "fallback_artwork" : "failed";
+  // Quality gate: a picture that is unsafe for its slot, undescribed, unstored or
+  // duplicated never reaches the website. That slot keeps Revora's own artwork.
+  const graded = gradeFirstBuildImages(assets);
+  const kept = graded.accepted;
+  const status = kept.length ? "generated" : skipped.length || graded.rejected.length ? "fallback_artwork" : "failed";
+  const laneLabel = source === "paid" ? "paid backup picture service" : "free picture service";
+
   return {
-    assets,
+    assets: kept,
     evidence: {
       status,
       requested: shots.length,
-      generated: assets.length,
+      generated: kept.length,
       attached: 0,
       skipped,
+      rejected: graded.rejected,
       provider,
       models: [...models],
-      message: assets.length
-        ? `Generated ${assets.length} starter website image(s) from the free picture service.`
-        : (firstBlockedMessage ?? "Starter picture generation did not complete, so Revora used abstract artwork."),
+      source: kept.length ? source : "none",
+      paidNote: paid.message,
+      paidCostMicrocents,
+      message: kept.length
+        ? `Made ${kept.length} starter website picture(s) with the ${laneLabel}.${
+            graded.rejected.length
+              ? ` ${graded.rejected.length} more were rejected by the picture check and those spots kept Revora's own artwork.`
+              : ""
+          }`
+        : (firstBlockedMessage ??
+          graded.rejected[0]?.reason ??
+          "Starter picture making did not complete, so Revora used its own artwork."),
     },
   };
 }

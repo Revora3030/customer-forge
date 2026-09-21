@@ -281,6 +281,7 @@ async function runJob(
     { synthesizeNativeFirstBuild },
     { playbookFor },
     { generateFirstBuildImages },
+    { imageRepairPlan },
   ] =
     await Promise.all([
       import("@/lib/site-materialize.server"),
@@ -290,6 +291,7 @@ async function runJob(
       import("@/lib/builder/native-first-build"),
       import("@/lib/builder/industry"),
       import("@/lib/builder/first-build-images.server"),
+      import("@/lib/builder/first-build-image-qa"),
     ]);
   // Decide what kind of website this business needs (restaurant, clinic, shop,
   // studio, venue …) so the structure fits the industry, not one template.
@@ -480,13 +482,23 @@ async function runJob(
     leadForms: (forms.data ?? []).length,
     bookableServices: (bookable.data ?? []).length,
     seoConfigured: Boolean(copy.metaTitle && copy.metaDescription),
-    crmConnected: true,
+    // Truthful: leads only reach the built-in customer record when at least one
+    // capture route exists on the site. Never reported as connected otherwise.
+    crmConnected: (forms.data ?? []).length > 0 || (bookable.data ?? []).length > 0,
     analyticsConfigured: true,
     imagery: {
       status: creative.imagery.status,
       generatedStatus: starterImages.evidence.status,
       generated: starterImages.evidence.generated,
       attached: !built.skipped ? starterImages.assets.length : 0,
+      source: starterImages.evidence.source ?? "none",
+      rejected: starterImages.evidence.rejected ?? [],
+      paidNote: starterImages.evidence.paidNote ?? null,
+      paidCostMicrocents: starterImages.evidence.paidCostMicrocents ?? 0,
+      repairPlan: imageRepairPlan({
+        rejected: starterImages.evidence.rejected ?? [],
+        skipped: starterImages.evidence.skipped ?? [],
+      }),
       provider: starterImages.evidence.provider,
       models: starterImages.evidence.models,
       message: starterImages.evidence.message,
@@ -502,6 +514,12 @@ async function runJob(
       content: qa.blockers.length === 0 ? "PASS" : "FAIL",
       browser: "NOT_VERIFIED",
       visual: "NOT_VERIFIED",
+      images:
+        starterImages.evidence.status === "owner_photos"
+          ? "OWNER_PHOTOS"
+          : starterImages.assets.length > 0
+            ? "STARTER_PICTURES"
+            : "OWN_ARTWORK",
       mobile: "NOT_VERIFIED",
       performance: "NOT_VERIFIED",
       ready: false,
@@ -518,6 +536,14 @@ async function runJob(
         ? []
         : ["Turn on the quote calculator or make a service bookable so visitors can enquire."]),
       ...((media.data ?? []).length >= 5 ? [] : ["Add at least five photos of your own work."]),
+      // Picture problems feed the same attention list the repair loop reads, so a
+      // blocked or rejected starter picture is fixed rather than quietly ignored.
+      ...(starterImages.evidence.status === "owner_photos" || starterImages.assets.length > 0
+        ? []
+        : [`Pictures: ${starterImages.evidence.message}`]),
+      ...(starterImages.evidence.rejected ?? []).map(
+        (item) => `Picture check: the ${item.label} picture was not used because ${item.reason}.`,
+      ),
       ...brief.missingFacts,
     ].slice(0, 8),
   };

@@ -116,8 +116,8 @@ export function BuildReportPanel({ report }: { report: BuildReport | null }) {
       ok: report.seoConfigured,
     },
     {
-      label: "Leads go to your CRM",
-      value: report.crmConnected ? "Connected" : "Not connected",
+      label: "Enquiries reach your customer list",
+      value: report.crmConnected ? "Built-in lead inbox" : "No enquiry route yet",
       ok: report.crmConnected,
     },
     {
