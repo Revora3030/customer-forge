@@ -418,15 +418,6 @@ async function runJob(
     photoCount: (media.data ?? []).length + ((p["hero_image_url"] as string) ? 1 : 0),
     creative,
   });
-  await db.from("ai_generations").insert({
-    organization_id: orgId,
-    job_id: job.id,
-    kind: "first_build_images",
-    model: starterImages.evidence.models.join("+") || starterImages.evidence.provider || "revora-artwork",
-    instruction: null,
-    result: starterImages.evidence as unknown as never,
-    created_by: job.created_by,
-  } as never);
   const built = await materializeSiteContent(db, orgId, {
     businessName: org.data.name ?? "",
     copy,

@@ -17,6 +17,12 @@ export function bytesFromDataUrl(dataUrl: string) {
   return decodeBase64Bytes(base64FromDataUrl(dataUrl));
 }
 
+export function arrayBufferFromBytes(bytes: Uint8Array): ArrayBuffer {
+  const copy = new Uint8Array(bytes.byteLength);
+  copy.set(bytes);
+  return copy.buffer;
+}
+
 /** Approximate byte size of a base64 payload, without decoding it. */
 export function base64ByteLength(dataUrl: string) {
   const base64 = base64FromDataUrl(dataUrl).replace(/=+$/, "");

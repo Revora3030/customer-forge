@@ -232,6 +232,7 @@ export async function generateFirstBuildImages(
   }
 
   const status = assets.length ? "generated" : skipped.length ? "fallback_artwork" : "failed";
+  const providerLabel = provider === "openai" ? "the explicitly enabled paid picture fallback" : "the free picture service";
   return {
     assets,
     evidence: {
@@ -243,7 +244,7 @@ export async function generateFirstBuildImages(
       provider,
       models: [...models],
       message: assets.length
-        ? `Generated ${assets.length} starter website image(s) from the free picture service.`
+        ? `Generated ${assets.length} starter website image(s) from ${providerLabel}.`
         : (firstBlockedMessage ?? "Starter picture generation did not complete, so Revora used abstract artwork."),
     },
   };
