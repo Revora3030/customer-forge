@@ -211,7 +211,7 @@ describe("materializeSiteContent generated-image attachment path", () => {
       ...input,
       generatedAssets: assets,
     });
-    const componentMedia = db.inserts.website_components
+    const componentMedia = (db.inserts["website_components"] ?? [])
       .map((row) => (row as { media_url?: string | null }).media_url)
       .filter(Boolean);
     expect(componentMedia).toEqual(
