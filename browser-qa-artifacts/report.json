@@ -1,15 +1,128 @@
 {
+  "status": "PASSED",
   "baseUrl": "http://127.0.0.1:8080",
   "routes": [
-    "/"
+    "/",
+    "/auth",
+    "/pricing"
   ],
-  "failed": 1,
-  "report": [
+  "performed": 8,
+  "failed": 0,
+  "notVerified": [],
+  "checks": [
     {
       "route": "/",
       "url": "http://127.0.0.1:8080/",
-      "passed": false,
-      "error": "Error: playwright-cli open http://127.0.0.1:8080/ failed"
+      "viewport": "desktop",
+      "status": 200,
+      "title": "Revora \u2014 AI Growth Software That Books Local Jobs 24/7",
+      "heading": "Your business books jobs while you're on the job, and while you sleep.",
+      "horizontalOverflowPx": 0,
+      "refreshStatus": 200,
+      "screenshot": "browser-qa-artifacts/home-desktop.png",
+      "consoleErrors": [],
+      "failedRequests": [],
+      "passed": true
+    },
+    {
+      "route": "/",
+      "url": "http://127.0.0.1:8080/",
+      "viewport": "mobile",
+      "status": 200,
+      "title": "Revora \u2014 AI Growth Software That Books Local Jobs 24/7",
+      "heading": "Your business books jobs while you're on the job, and while you sleep.",
+      "horizontalOverflowPx": 0,
+      "refreshStatus": 200,
+      "screenshot": "browser-qa-artifacts/home-mobile.png",
+      "consoleErrors": [],
+      "failedRequests": [],
+      "passed": true
+    },
+    {
+      "route": "/auth",
+      "url": "http://127.0.0.1:8080/auth",
+      "viewport": "desktop",
+      "status": 200,
+      "title": "Sign in \u2014 Revora",
+      "heading": "",
+      "horizontalOverflowPx": 0,
+      "refreshStatus": 200,
+      "screenshot": "browser-qa-artifacts/auth-desktop.png",
+      "consoleErrors": [],
+      "failedRequests": [],
+      "passed": true
+    },
+    {
+      "route": "/auth",
+      "url": "http://127.0.0.1:8080/auth",
+      "viewport": "mobile",
+      "status": 200,
+      "title": "Sign in \u2014 Revora",
+      "heading": "",
+      "horizontalOverflowPx": 0,
+      "refreshStatus": 200,
+      "screenshot": "browser-qa-artifacts/auth-mobile.png",
+      "consoleErrors": [],
+      "failedRequests": [],
+      "passed": true
+    },
+    {
+      "route": "/pricing",
+      "url": "http://127.0.0.1:8080/pricing",
+      "viewport": "desktop",
+      "status": 200,
+      "title": "Pricing \u2014 Revora Growth System | $750 setup + $100/mo",
+      "heading": "Launch Your Revora Growth System",
+      "horizontalOverflowPx": 0,
+      "refreshStatus": 200,
+      "screenshot": "browser-qa-artifacts/pricing-desktop.png",
+      "consoleErrors": [],
+      "failedRequests": [],
+      "passed": true
+    },
+    {
+      "route": "/pricing",
+      "url": "http://127.0.0.1:8080/pricing",
+      "viewport": "mobile",
+      "status": 200,
+      "title": "Pricing \u2014 Revora Growth System | $750 setup + $100/mo",
+      "heading": "Launch Your Revora Growth System",
+      "horizontalOverflowPx": 0,
+      "refreshStatus": 200,
+      "screenshot": "browser-qa-artifacts/pricing-mobile.png",
+      "consoleErrors": [],
+      "failedRequests": [],
+      "passed": true
+    },
+    {
+      "route": "/s/elite-mobile-detailing",
+      "url": "http://127.0.0.1:8080/s/elite-mobile-detailing",
+      "viewport": "desktop",
+      "status": 200,
+      "title": "Elite Mobile Detailing \u2014 Auto Detailing in Austin, Round Roc",
+      "heading": "Austin, Round Rock, Cedar Park, Pflugerville and Georgetown's go-to team for auto detailing",
+      "horizontalOverflowPx": 0,
+      "refreshStatus": 200,
+      "screenshot": "browser-qa-artifacts/s-elite-mobile-detailing-desktop.png",
+      "consoleErrors": [],
+      "failedRequests": [],
+      "passed": true,
+      "kind": "published_site"
+    },
+    {
+      "route": "/s/elite-mobile-detailing",
+      "url": "http://127.0.0.1:8080/s/elite-mobile-detailing",
+      "viewport": "mobile",
+      "status": 200,
+      "title": "Elite Mobile Detailing \u2014 Auto Detailing in Austin, Round Roc",
+      "heading": "Austin, Round Rock, Cedar Park, Pflugerville and Georgetown's go-to team for auto detailing",
+      "horizontalOverflowPx": 0,
+      "refreshStatus": 200,
+      "screenshot": "browser-qa-artifacts/s-elite-mobile-detailing-mobile.png",
+      "consoleErrors": [],
+      "failedRequests": [],
+      "passed": true,
+      "kind": "published_site"
     }
   ]
 }

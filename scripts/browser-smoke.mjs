@@ -1,85 +1,83 @@
-import { execFileSync } from "node:child_process";
-import { mkdirSync, writeFileSync } from "node:fs";
+/**
+ * BROWSER SMOKE RUNNER
+ * ====================
+ *
+ * Reproducible entry point for browser evidence. It no longer depends on the
+ * `playwright-cli` helper binary, which is not present in every environment.
+ *
+ * Runner selection, in order:
+ *   1. Node Playwright (`playwright` package) via scripts/browser-smoke.node.mjs
+ *   2. Python Playwright via scripts/browser-smoke.py
+ *
+ * When no runner is installed, the run is recorded as NOT_VERIFIED with the
+ * reason — never as a pass. `--require-browser` turns that into a hard failure
+ * for pipelines that must have browser evidence.
+ *
+ * CI-friendly: reads no secrets, needs no production credentials. A published
+ * site is only checked when REVORA_SMOKE_PUBLISHED_PATH names a fixture path.
+ */
 
-const baseUrl = process.env.BROWSER_QA_BASE_URL || "http://127.0.0.1:8080";
-const routes = (process.env.BROWSER_QA_ROUTES || "/")
-  .split(",")
-  .map((x) => x.trim())
-  .filter(Boolean)
-  .slice(0, 12);
+import { spawnSync } from "node:child_process";
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 
-mkdirSync("browser-qa-artifacts", { recursive: true });
+const requireBrowser = process.argv.includes("--require-browser");
+const artifacts = "browser-qa-artifacts";
+mkdirSync(artifacts, { recursive: true });
 
-function run(args) {
-  try {
-    return execFileSync("playwright-cli", args, {
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "pipe"],
-      timeout: 60000,
-    });
-  } catch (error) {
-    const stderr =
-      error && typeof error === "object" && "stderr" in error
-        ? String(error.stderr || "")
-        : "";
-    const stdout =
-      error && typeof error === "object" && "stdout" in error
-        ? String(error.stdout || "")
-        : "";
-    const detail = [stderr.trim(), stdout.trim()].filter(Boolean).join("\n");
-    const code = error && typeof error === "object" && "status" in error ? String(error.status ?? "") : "";
-    const signal = error && typeof error === "object" && "signal" in error ? String(error.signal ?? "") : "";
-    throw new Error(
-      `playwright-cli ${args.join(" ")} failed${code ? ` (exit ${code})` : ""}${signal ? ` (signal ${signal})` : ""}${detail ? `:\n${detail}` : ""}`,
-    );  }
+function writeReport(report) {
+  writeFileSync(`${artifacts}/report.json`, JSON.stringify(report, null, 2));
+  console.log(JSON.stringify(report, null, 2));
 }
 
-const report = [];
-
-for (const route of routes) {
-  const url = new URL(route, baseUrl).toString();
-  const name = route.replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "") || "home";
-
-  try {
-    const opened = run(["open", url]);
-    const snapshot = run(["--raw", "snapshot", "--depth=6"]);
-
-    // Viewport screenshots are intentionally used instead of full-page capture.
-    // Full-page capture can hang on unbounded/infinite-scroll generated pages and
-    // should never make the release gate flaky.
-    run(["resize", "1440", "1000"]);
-    run(["screenshot", "--hires", "--filename=browser-qa-artifacts/" + name + "-desktop.png"]);
-
-    run(["resize", "390", "844"]);
-    run(["screenshot", "--hires", "--filename=browser-qa-artifacts/" + name + "-mobile.png"]);
-
-    // Restore a desktop viewport for subsequent routes.
-    run(["resize", "1440", "1000"]);
-
-    report.push({
-      route,
-      url,
-      passed: true,
-      snapshot: snapshot.slice(0, 12000),
-      opened: opened.slice(0, 2000),
-      screenshots: ["desktop", "mobile"],
-    });
-
-    run(["close"]);
-  } catch (error) {
-    report.push({ route, url, passed: false, error: String(error) });
-    try {
-      run(["close"]);
-    } catch {
-      // Best-effort session cleanup; the original failure remains authoritative.
-    }
-  }
+function hasNodePlaywright() {
+  const probe = spawnSync(process.execPath, ["-e", "import('playwright').then(()=>0)"], {
+    stdio: "ignore",
+  });
+  return probe.status === 0;
 }
 
-const failed = report.filter((x) => !x.passed);
-writeFileSync(
-  "browser-qa-artifacts/report.json",
-  JSON.stringify({ baseUrl, routes, failed: failed.length, report }, null, 2),
-);
+function hasPythonPlaywright() {
+  const probe = spawnSync("python3", ["-c", "import playwright"], { stdio: "ignore" });
+  return probe.status === 0;
+}
 
-if (failed.length) process.exit(1);
+const nodeDriver = "scripts/browser-smoke.node.mjs";
+
+let command = null;
+let args = [];
+let runner = null;
+
+if (hasNodePlaywright() && existsSync(nodeDriver)) {
+  command = process.execPath;
+  args = [nodeDriver];
+  runner = "node-playwright";
+} else if (hasPythonPlaywright() && existsSync("scripts/browser-smoke.py")) {
+  command = "python3";
+  args = ["scripts/browser-smoke.py"];
+  runner = "python-playwright";
+}
+
+if (!command) {
+  writeReport({
+    status: "NOT_VERIFIED",
+    runner: null,
+    reason:
+      "No Playwright runner is installed. Install the `playwright` npm package or Python playwright to produce browser evidence.",
+    performed: 0,
+    failed: 0,
+  });
+  process.exit(requireBrowser ? 1 : 0);
+}
+
+const run = spawnSync(command, args, { stdio: "inherit", env: { ...process.env } });
+if (run.error) {
+  writeReport({
+    status: "NOT_VERIFIED",
+    runner,
+    reason: `The ${runner} driver could not start: ${run.error.message}`,
+    performed: 0,
+    failed: 0,
+  });
+  process.exit(requireBrowser ? 1 : 0);
+}
+process.exit(run.status ?? 1);

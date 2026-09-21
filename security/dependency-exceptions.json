@@ -1,0 +1,15 @@
+{
+  "$comment": [
+    "Documented security exceptions for advisories that CANNOT be resolved inside this",
+    "repository (framework-transitive, upstream-only fixes).",
+    "",
+    "Rules:",
+    "- An entry here NEVER means 'fixed'. It means 'accepted with compensating controls',",
+    "  and the security gate reports it separately from resolved findings.",
+    "- Every entry must carry: advisory, package, path, installedVersion, fixedIn,",
+    "  reachability, exploitability, compensatingControls, upstreamConstraint, owner,",
+    "  reviewBy (ISO date). Missing fields fail the gate.",
+    "- Delete an entry the moment the advisory is resolved in the lockfile."
+  ],
+  "exceptions": []
+}
