@@ -344,6 +344,29 @@ function LunaPanel() {
             </Pill>
             <span className="text-[13px] text-muted-foreground">{data.model}</span>
           </div>
+          <div className="mb-3 grid gap-2 sm:grid-cols-3">
+            {(data.tiers ?? []).map((tier) => (
+              <div
+                key={tier.tier}
+                className="rounded-xl border border-border/60 bg-card/40 p-3 text-[13px]"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-medium capitalize">{tier.tier}</span>
+                  <Pill tone={tier.enabled ? "signal" : "attention"}>
+                    {tier.enabled ? "Available" : "Off"}
+                  </Pill>
+                </div>
+                <p className="mt-1 text-muted-foreground">{tier.model}</p>
+                <p className="mt-1 text-[12px] text-muted-foreground">
+                  {tier.tier === "sol"
+                    ? "Hardest thinking: strategy, layout, reviews"
+                    : tier.tier === "terra"
+                      ? "Second opinions, page and search planning"
+                      : "Small, repetitive work"}
+                </p>
+              </div>
+            ))}
+          </div>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <MetricCard label="Monthly cap" value={money(data.capUsd)} hint={data.month} />
             <MetricCard label="Used" value={money(data.spentUsd)} hint="This calendar month" />
