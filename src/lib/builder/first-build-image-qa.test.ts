@@ -59,6 +59,17 @@ describe("starter picture quality gate", () => {
     expect(result.accepted).toHaveLength(1);
     expect(result.rejected).toHaveLength(2);
   });
+
+  it("allows multiple service pictures but only one singular hero role", () => {
+    const result = gradeFirstBuildImages([
+      asset({ slot: "service", label: "Interior", path: "org/interior.png" }),
+      asset({ slot: "service", label: "Exterior", path: "org/exterior.png" }),
+      asset({ slot: "hero", label: "Hero one", path: "org/hero-one.png" }),
+      asset({ slot: "hero", label: "Hero two", path: "org/hero-two.png" }),
+    ]);
+    expect(result.accepted.filter((item) => item.slot === "service")).toHaveLength(2);
+    expect(result.accepted.filter((item) => item.slot === "hero")).toHaveLength(1);
+  });
 });
 
 describe("picture repair plan", () => {

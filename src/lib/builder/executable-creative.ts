@@ -92,3 +92,33 @@ export function readExecutableCreativeSection(settings: unknown): ExecutableCrea
   ) return null;
   return value as unknown as ExecutableCreativeSection;
 }
+
+/**
+ * Backwards-compatible renderer contract for sites created before executable
+ * creative settings were persisted. Existing settings always win. Image-backed
+ * dark/luxury heroes receive the cinematic treatment instead of remaining in
+ * the old split-template anatomy until the owner runs a destructive rebuild.
+ */
+export function resolveExecutableCreativeSection(input: {
+  kind: string;
+  settings: unknown;
+  fingerprint: DesignFingerprint;
+  hasMedia: boolean;
+}): ExecutableCreativeSection {
+  const stored = readExecutableCreativeSection(input.settings);
+  if (stored) return stored;
+  const inferred = compileExecutableCreativeSection(input.kind, input.fingerprint, null);
+  if (
+    input.kind === "hero" &&
+    input.hasMedia &&
+    /cinematic|dark-focused|luxury-editorial|elegant-classic/.test(input.fingerprint.family)
+  ) {
+    return {
+      ...inferred,
+      composition: "full-bleed-overlay",
+      headingTreatment: /luxury|elegant/.test(input.fingerprint.family) ? "editorial" : "statement",
+      mediaRole: "background",
+    };
+  }
+  return inferred;
+}
