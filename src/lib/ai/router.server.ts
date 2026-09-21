@@ -896,7 +896,7 @@ export async function callPinnedPaidImage(
       apiKey: config.apiKey,
       model,
       prompt,
-      source: null,
+      source,
       signal: new AbortController().signal,
     });
     return { base64: result.base64, mimeType: result.mimeType, provider: "openai", model };
