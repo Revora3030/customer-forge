@@ -80,3 +80,17 @@ export function EmptyHint({
     </section>
   );
 }
+
+/**
+ * Presents groups in a deliberate order — the order an owner works in
+ * (look, words, photos, enquiries, pages, checks, go live) — instead of the
+ * order the code happens to declare them in. Anything not named keeps its
+ * original position at the end, so a new group is never silently hidden.
+ */
+export function orderGroups(groups: BuilderGroup[], order: string[]): BuilderGroup[] {
+  const rank = (key: string) => {
+    const index = order.indexOf(key);
+    return index === -1 ? order.length : index;
+  };
+  return [...groups].sort((a, b) => rank(a.key) - rank(b.key));
+}

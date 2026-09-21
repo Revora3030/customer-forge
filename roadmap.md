@@ -145,3 +145,10 @@
 - Link addresses: now enforced in the database itself
   (website_components_link_url_safe_scheme) plus the two remaining code paths
   (QA repair, page duplicate). New src/lib/link-safety.test.ts.
+
+## Release gate (Sep 21)
+- [x] Fix repository-security.test.ts tracked-env detection (exact git index, no pathspec matching)
+- [x] Audit security boundary tests for similar false positives
+- [x] Full verification: typecheck, lint, vitest, build, audits, browser journey
+- [x] Release verification report artifact
+- [x] Report GitHub sync drift status (forward-only, no force push)
