@@ -1,5 +1,14 @@
 # Builder 10/10 upgrade
 
+## Hall of Fame first-build architecture rebuild
+- [x] Compile industry strategy, buyer objections, conversion architecture, design fingerprint, visual direction, and honest asset requirements before page materialization.
+- [x] Materialize and publicly render fingerprint-driven page shells, section compositions, imagery treatments, motion, and mobile behavior.
+- [x] Isolate AI-provider cooldowns per tenant and persist explicit first-preview evidence states instead of claiming unmeasured quality.
+- [x] Harden all customer-supplied website/domain requests against private, metadata, loopback, redirect, and DNS-rebinding targets.
+- [x] Verify the signed-in builder workspace, full tests, types, production build, billing/link security, and current commit.
+- [ ] Fresh-customer generation and visual QA at 320/375/390/414/768/1024/1280/1440+ — blocked: no locally renderable customer preview; hosted preview requires the platform login.
+- [ ] Remove the remaining nested dependency advisory — blocked: the scanner attributes it to the framework although the production lock resolves js-yaml 4.3.2.
+
 - [x] New sites automatically receive an industry-specific look (palette, fonts, backdrop, section variants, effects) at first build.
 - [x] Every saved visual choice now renders visibly on the public site (widths, card styles, image treatments, section variants, mobile fallbacks).
 - [x] Builder shows the live step timeline, before/after per change, a "Updating your preview…" state, and warns honestly on partial application.
