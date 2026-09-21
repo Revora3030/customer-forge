@@ -45,10 +45,6 @@ export function BuilderPreview({
   const source = page ? previewPath(slug, page.slug) : previewPath(slug, "home");
 
   useEffect(() => {
-    if (refreshing) setRefreshKey((value) => value + 1);
-  }, [refreshing]);
-
-  useEffect(() => {
     if (!fullscreen || typeof document === "undefined") return;
     document.body.style.overflow = "hidden";
     return () => {
@@ -149,7 +145,7 @@ export function BuilderPreview({
           style={{ width: viewportWidth * zoom, height: 760 * zoom }}
         >
           <iframe
-            key={`${source}-${refreshKey}`}
+            key={`${source}-${refreshKey}-${refreshing ? "updating" : "ready"}`}
             title={`${page?.title ?? "Website"} preview`}
             src={source}
             className="origin-top-left border-0 bg-background"
