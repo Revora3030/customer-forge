@@ -36,6 +36,7 @@ function countList(value: unknown): number {
 /** Folds the stored per-page rows into one honest site-level measurement. */
 function foldMeasurement(
   rows: Array<{ measured_at: string; measurements: unknown }>,
+  copy: { title: string; description: string },
 ): LaunchReviewMeasurement | null {
   if (rows.length === 0) return null;
 
@@ -57,7 +58,6 @@ function foldMeasurement(
   let lcp: number | null = null;
   let cls: number | null = null;
   let inp: number | null = null;
-  let seen = false;
 
   for (const row of rows) {
     const list = Array.isArray(row.measurements) ? row.measurements : [];
@@ -83,7 +83,6 @@ function foldMeasurement(
 
       const perf = (m["performance"] ?? null) as Record<string, unknown> | null;
       if (perf) {
-        seen = true;
         scriptBytes = Math.max(scriptBytes, Number(perf["scriptBytes"]) || 0);
         cssBytes = Math.max(cssBytes, Number(perf["cssBytes"]) || 0);
         imageBytes = Math.max(imageBytes, Number(perf["imageBytes"]) || 0);
@@ -104,11 +103,15 @@ function foldMeasurement(
     measuredAt: rows[0]?.measured_at ?? new Date().toISOString(),
     widths: [...widths].sort((a, b) => a - b),
     seo: {
-      title: "",
-      description: "",
+      // The browser measures structure; the wording comes from the saved copy
+      // that the page actually renders.
+      title: copy.title,
+      description: copy.description,
       h1Count,
       imageAltCoverage: altTotal === 0 ? 1 : Math.max(0, 1 - imagesMissingAlt / altTotal),
       internalLinks,
+      // Code-verified: every published customer homepage renders LocalBusiness
+      // JSON-LD (src/routes/s.$slug.tsx).
       structuredData: true,
     },
     performance: {
@@ -125,7 +128,7 @@ function foldMeasurement(
     headingOrderProblems,
     lowContrastCount,
     unlabeledControlCount,
-    zoomBlocked: seen ? zoomBlocked : zoomBlocked,
+    zoomBlocked,
   };
 }
 
@@ -216,11 +219,9 @@ export const getLaunchReview = createServerFn({ method: "POST" })
       customDomainConnected: !!settings.data?.custom_domain && settings.data?.domain_verified === true,
       measurement: foldMeasurement(
         (visual.data ?? []) as Array<{ measured_at: string; measurements: unknown }>,
+        { title: text(seo.headline), description: text(seo.meta_description) },
       ),
     };
 
-    const review = reviewLaunchQuality(facts);
-    // The stored measurement carries no page title/description, so the search
-    // contract reads the saved copy instead of pretending it measured them.
-    return review;
+    return reviewLaunchQuality(facts);
   });
