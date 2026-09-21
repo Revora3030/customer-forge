@@ -3,8 +3,8 @@ import { BUILDER_VIEWPORTS, previewPath, previewZoom } from "./builder-preview";
 
 describe("builder preview", () => {
   it("links home and internal pages through the public customer preview", () => {
-    expect(previewPath("acme-co", "home")).toBe("/s/acme-co");
-    expect(previewPath("acme co", "Our Work")).toBe("/s/acme%20co/Our%20Work");
+    expect(previewPath("acme-co", "home")).toBe("/draft/acme-co");
+    expect(previewPath("acme co", "Our Work")).toBe("/draft/acme%20co/Our%20Work");
   });
 
   it("keeps zoom inside a stable, accessible preview range", () => {
