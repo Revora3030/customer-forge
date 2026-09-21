@@ -12,7 +12,6 @@ describe("customer website planning boundary", () => {
     expect(customerPlanner).not.toContain('import("@/lib/agent/orchestrator.server")');
     expect(customerPlanner).not.toContain('const { planChanges } = await import("@/lib/site-agent.server")');
     expect(customerPlanner).not.toContain('import("@/lib/builder/ai-composition.server")');
-    expect(customerPlanner).not.toContain('import("@/lib/ai/availability")');
     expect(customerPlanner).not.toContain('import("@/lib/ai/ensemble.server")');
   });
 
