@@ -263,7 +263,7 @@ async function buildChain(
   const first: Candidate[] = [];
   const deeper: Candidate[] = [];
 
-  for (const pool of await freeModelPool(role))
+  for (const pool of await freeModelPool(role, capable))
     pool.models.forEach((model, index) => {
       const candidate = freeCandidate(pool.provider, pool.credentials.apiKey, model, role);
       if (index === 0) first.push(candidate);
@@ -274,8 +274,11 @@ async function buildChain(
 
   // Paid providers stay unreachable unless BOTH guards are explicitly off.
   if (!freeAiOnly() && !zeroAiCostMode())
-    for (const config of providerChain())
-      candidates.push({ config, model: config.models[role], free: null });
+    for (const config of providerChain()) {
+      const model = config.models[role];
+      if (capable && !capable(model)) continue;
+      candidates.push({ config, model, free: null });
+    }
 
   const ordered = [
     ...candidates.filter((entry) => providerHealthy(entry.config.name)),
