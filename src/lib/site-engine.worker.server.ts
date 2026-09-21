@@ -543,6 +543,16 @@ async function runJob(
     businessName: org.data.name ?? "",
     city: (p["city"] as string) ?? null,
     photoCount: (media.data ?? []).length + ((p["hero_image_url"] as string) ? 1 : 0),
+    occupiedSlots: new Set([
+      ...((p["hero_image_url"] as string) ? (["hero"] as const) : []),
+      ...(media.data ?? []).flatMap((item) =>
+        item.category === "hero"
+          ? (["hero"] as const)
+          : item.category === "work"
+            ? (["service"] as const)
+            : [],
+      ),
+    ]),
     creative,
   });
   await db.from("ai_generations").insert({

@@ -29,4 +29,10 @@ describe("first-build image coverage", () => {
     expect(shots.some((shot) => shot.slot === "hero")).toBe(false);
     expect(shots.some((shot) => shot.slot === "service" || shot.slot === "cta")).toBe(true);
   });
+
+  it("uses occupied roles rather than treating every upload as hero coverage", () => {
+    const shots = firstBuildImageShots(creative, 1, new Set(["service"]));
+    expect(shots.some((shot) => shot.slot === "hero")).toBe(true);
+    expect(shots.some((shot) => shot.slot === "service")).toBe(false);
+  });
 });
