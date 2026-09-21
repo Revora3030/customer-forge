@@ -90,25 +90,37 @@ const ADAPTERS: Record<ProviderName, ProviderAdapter> = {
 
 const BREAKER_FAILURES = 3;
 const BREAKER_COOLDOWN_MS = 60_000;
-const breaker = new Map<ProviderName, { failures: number; openUntil: number }>();
+type BreakerState = { failures: number; openUntil: number };
+type BreakerScope = {
+  caller: Pick<AiCaller, "organizationId" | "userId" | "task">;
+  provider: ProviderName;
+  model: string;
+};
+const breaker = new Map<string, BreakerState>();
 
-function providerHealthy(provider: ProviderName) {
-  const state = breaker.get(provider);
+export function breakerScopeKey(scope: BreakerScope) {
+  const tenant = scope.caller.organizationId ?? scope.caller.userId ?? "platform";
+  return [tenant, scope.caller.task, scope.provider, scope.model].join("\u001f");
+}
+
+function providerHealthy(scope: BreakerScope) {
+  const state = breaker.get(breakerScopeKey(scope));
   return !state || Date.now() >= state.openUntil;
 }
 
-function noteFailure(provider: ProviderName) {
-  const state = breaker.get(provider) ?? { failures: 0, openUntil: 0 };
+function noteFailure(scope: BreakerScope) {
+  const key = breakerScopeKey(scope);
+  const state = breaker.get(key) ?? { failures: 0, openUntil: 0 };
   state.failures += 1;
   if (state.failures >= BREAKER_FAILURES) {
     state.openUntil = Date.now() + BREAKER_COOLDOWN_MS;
     state.failures = 0;
   }
-  breaker.set(provider, state);
+  breaker.set(key, state);
 }
 
-function noteSuccess(provider: ProviderName) {
-  breaker.delete(provider);
+function noteSuccess(scope: BreakerScope) {
+  breaker.delete(breakerScopeKey(scope));
 }
 
 /* --------------------------- last-request visibility ----------------------- */
@@ -145,12 +157,19 @@ export function resetAiRuntimeStatus() {
 export function providerHealth() {
   return Object.keys(ADAPTERS).map((name) => {
     const provider = name as ProviderName;
-    const state = breaker.get(provider);
+    const states = [...breaker.entries()]
+      .filter(([key]) => key.split("\u001f")[2] === provider)
+      .map(([, state]) => state);
+    const cooldownUntil = states.reduce(
+      (latest, state) => Math.max(latest, state.openUntil > Date.now() ? state.openUntil : 0),
+      0,
+    );
     return {
       provider,
-      healthy: providerHealthy(provider),
-      failures: state?.failures ?? 0,
-      cooldownUntil: state && state.openUntil > Date.now() ? state.openUntil : null,
+      healthy: cooldownUntil === 0,
+      failures: states.reduce((total, state) => total + state.failures, 0),
+      cooldownUntil: cooldownUntil || null,
+      isolatedScopes: states.length,
     };
   });
 }
@@ -255,6 +274,7 @@ export async function freeModelPool(
 }
 
 async function buildChain(
+  caller: AiCaller,
   role: ModelRole,
   capable?: (model: string) => boolean,
 ): Promise<Candidate[]> {
@@ -290,8 +310,12 @@ async function buildChain(
     }
 
   const ordered = [
-    ...candidates.filter((entry) => providerHealthy(entry.config.name)),
-    ...candidates.filter((entry) => !providerHealthy(entry.config.name)),
+    ...candidates.filter((entry) =>
+      providerHealthy({ caller, provider: entry.config.name, model: entry.model }),
+    ),
+    ...candidates.filter(
+      (entry) => !providerHealthy({ caller, provider: entry.config.name, model: entry.model }),
+    ),
   ];
   // The POOL is unlimited; one single request's FAILOVER depth is not, so a
   // simple call can never turn into a 60-model latency wall. The ensemble
@@ -316,13 +340,19 @@ export function freeAiStatus() {
     /** The most recent model call: who served it and how it ended. */
     last: lastAiOutcome(),
     providers: freeProviderReadiness().map((entry) => {
-      const state = breaker.get(entry.name as ProviderName);
-      const cooling = state && state.openUntil > Date.now();
+      const states = [...breaker.entries()]
+        .filter(([key]) => key.split("\u001f")[2] === entry.name)
+        .map(([, state]) => state);
+      const cooldownUntil = states.reduce(
+        (latest, state) => Math.max(latest, state.openUntil > Date.now() ? state.openUntil : 0),
+        0,
+      );
       return {
         ...entry,
-        healthy: !cooling,
-        openFailures: state?.failures ?? 0,
-        cooldownUntil: cooling ? state.openUntil : null,
+        healthy: cooldownUntil === 0,
+        openFailures: states.reduce((total, state) => total + state.failures, 0),
+        cooldownUntil: cooldownUntil || null,
+        isolatedScopes: states.length,
         remainingToday: freeBudgetRemaining(entry.name),
       };
     }),
@@ -420,7 +450,7 @@ async function run<T>(
   // this chain when an operator has explicitly opted out of free-only and
   // zero-cost mode. An empty chain is not a crash: the caller falls back to
   // Revora's deterministic engine and the owner gets a precise explanation.
-  const chain = await buildChain(role, options?.capable);
+  const chain = await buildChain(caller, role, options?.capable);
   if (chain.length === 0) throw freeAiUnavailable("no free provider configured or in budget");
 
   const verdict = await checkAiLimits(caller);
@@ -441,6 +471,7 @@ async function run<T>(
       const config = candidate.config;
       const adapter = ADAPTERS[config.name];
       const model = candidate.model;
+      const breakerScope = { caller, provider: config.name, model };
       const fallbackUsed = index > 0;
 
       for (let attempt = 1; attempt <= limits.maxAttemptsPerProvider; attempt += 1) {
@@ -453,7 +484,7 @@ async function run<T>(
             void noteDurableFreeUse(candidate.free, freeBudgetCap(candidate.free));
           }
           const result = await execute({ adapter, config, model, signal: controller.signal });
-          noteSuccess(config.name);
+          noteSuccess(breakerScope);
           if (candidate.free)
             void noteDurableProviderResult({
               provider: candidate.free,
@@ -506,7 +537,7 @@ async function run<T>(
                   })
                 : providerUnavailable(config.name, (rawError as Error)?.message?.slice(0, 120));
           lastError = error;
-          noteFailure(config.name);
+          if (error.retryable) noteFailure(breakerScope);
           if (candidate.free)
             void noteDurableProviderResult({
               provider: candidate.free,
@@ -872,7 +903,12 @@ export async function callPinnedFreeModel(
       category: "rate_limited",
       provider: call.provider,
     });
-  if (!providerHealthy(call.provider as ProviderName))
+  const breakerScope = {
+    caller,
+    provider: call.provider as ProviderName,
+    model: call.model,
+  };
+  if (!providerHealthy(breakerScope))
     throw providerUnavailable(call.provider, "cooling down after repeated failures");
   // SHARED STATE: many workers spend one free allowance, so the cross-worker
   // counters get a say too. They may only ever add caution, never remove it,
@@ -897,6 +933,13 @@ export async function callPinnedFreeModel(
   const timer = setTimeout(() => controller.abort(), timeout);
   const started = Date.now();
   const requestId = caller.requestId ?? newRequestId();
+  const concurrencyKey = caller.organizationId ?? caller.userId ?? "platform";
+  if (!acquire(concurrencyKey, limits.maxConcurrentPerWorkspace)) {
+    clearTimeout(timer);
+    throw new RevoraAiError(429, "Revora AI is already working on this workspace's requests.", {
+      category: "rate_limited",
+    });
+  }
   try {
     noteFreeUse(call.provider);
     void noteDurableFreeUse(call.provider, cap);
@@ -912,7 +955,7 @@ export async function callPinnedFreeModel(
       ...(call.temperature === undefined ? {} : { temperature: call.temperature }),
       signal: controller.signal,
     });
-    noteSuccess(call.provider as ProviderName);
+    noteSuccess(breakerScope);
     const latencyMs = Date.now() - started;
     void noteDurableProviderResult({ provider: call.provider, ok: true, latencyMs });
     void recordAiEvent({
@@ -942,7 +985,6 @@ export async function callPinnedFreeModel(
       outputTokens: result.usage.outputTokens,
     };
   } catch (rawError) {
-    noteFailure(call.provider as ProviderName);
     const error =
       rawError instanceof RevoraAiError
         ? rawError
@@ -952,6 +994,7 @@ export async function callPinnedFreeModel(
               provider: call.provider,
             })
           : providerUnavailable(call.provider, (rawError as Error)?.message?.slice(0, 120));
+    if (error.retryable) noteFailure(breakerScope);
     void noteDurableProviderResult({
       provider: call.provider,
       ok: false,
@@ -976,6 +1019,7 @@ export async function callPinnedFreeModel(
     throw error;
   } finally {
     clearTimeout(timer);
+    release(concurrencyKey);
   }
 }
 
