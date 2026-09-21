@@ -446,6 +446,23 @@ async function runJob(
     industryPlaybook,
     generatedAssets: starterImages.assets,
   });
+  const imageEvidence = {
+    ...starterImages.evidence,
+    attached: built.generatedImageAttachments,
+    message:
+      starterImages.evidence.generated > 0
+        ? `Generated ${starterImages.evidence.generated} starter website image(s); ${built.generatedImageAttachments} reached the visitor-facing draft.`
+        : starterImages.evidence.message,
+  };
+  await db.from("ai_generations").insert({
+    organization_id: orgId,
+    job_id: job.id,
+    kind: "first_build_images",
+    model: imageEvidence.models.join("+") || imageEvidence.provider || "revora-artwork",
+    instruction: null,
+    result: imageEvidence as unknown as never,
+    created_by: job.created_by,
+  } as never);
 
   // A brand chosen by the owner wins. Only replace the untouched generated
   // defaults during a first build, so onboarding produces a distinctive site
@@ -469,6 +486,8 @@ async function runJob(
     if (themeError) throw new Error(themeError.message);
   }
 
+  const leadCapture = (forms.data ?? []).length > 0 || (bookable.data ?? []).length > 0;
+  const crmConnected = leadCapture;
   const report = {
     builtAt: new Date().toISOString(),
     pages: built.skipped ? plan.pages.length : built.pages,
@@ -480,16 +499,20 @@ async function runJob(
     leadForms: (forms.data ?? []).length,
     bookableServices: (bookable.data ?? []).length,
     seoConfigured: Boolean(copy.metaTitle && copy.metaDescription),
-    crmConnected: true,
+    crmConnected,
+    crmStatus: crmConnected ? "connected_internal" : "not_connected",
+    crmMessage: crmConnected
+      ? "New enquiries save to the built-in Customer Forge CRM through active capture paths."
+      : "No lead capture path is active yet, so CRM delivery was not verified.",
     analyticsConfigured: true,
     imagery: {
       status: creative.imagery.status,
-      generatedStatus: starterImages.evidence.status,
-      generated: starterImages.evidence.generated,
-      attached: !built.skipped ? starterImages.assets.length : 0,
-      provider: starterImages.evidence.provider,
-      models: starterImages.evidence.models,
-      message: starterImages.evidence.message,
+      generatedStatus: imageEvidence.status,
+      generated: imageEvidence.generated,
+      attached: imageEvidence.attached,
+      provider: imageEvidence.provider,
+      models: imageEvidence.models,
+      message: imageEvidence.message,
       readiness: creative.imagery.assetPlan.readiness,
       missingRequired: creative.imagery.assetPlan.missingRequired.map((slot) => ({
         id: slot.id,
@@ -570,7 +593,6 @@ async function runJob(
     } as never)
     .eq("id", job.id);
 
-  const leadCapture = (forms.data ?? []).length > 0 || (bookable.data ?? []).length > 0;
   await db.from("notifications").insert({
     organization_id: orgId,
     title: "Your website draft is ready to review",

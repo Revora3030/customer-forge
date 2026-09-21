@@ -544,16 +544,18 @@ export async function materializeSiteContent(
   db: Db,
   orgId: string,
   input: MaterializeInput,
-): Promise<{ pages: number; sections: number; components: number; skipped: boolean }> {
+): Promise<{ pages: number; sections: number; components: number; skipped: boolean; generatedImageAttachments: number }> {
   const { count } = await db
     .from("website_pages")
     .select("id", { count: "exact", head: true })
     .eq("organization_id", orgId);
-  if ((count ?? 0) > 0) return { pages: 0, sections: 0, components: 0, skipped: true };
+  if ((count ?? 0) > 0) return { pages: 0, sections: 0, components: 0, skipped: true, generatedImageAttachments: 0 };
 
   const tree = planSiteContent(input);
   let sections = 0;
   let components = 0;
+  let generatedImageAttachments = 0;
+  const generatedPaths = new Set((input.generatedAssets ?? []).map((asset) => asset.path));
 
   for (const [pageIndex, page] of tree.entries()) {
     const { data: pageRow, error: pageError } = await db
@@ -610,6 +612,9 @@ export async function materializeSiteContent(
         sort_order: index,
         is_visible: true,
       }));
+      generatedImageAttachments += rows.filter(
+        (row) => typeof row.media_url === "string" && generatedPaths.has(row.media_url),
+      ).length;
       if (rows.length) {
         const { error } = await db.from("website_components").insert(rows as never);
         if (error) throw new Error(error.message);
@@ -618,5 +623,5 @@ export async function materializeSiteContent(
     }
   }
 
-  return { pages: tree.length, sections, components, skipped: false };
+  return { pages: tree.length, sections, components, skipped: false, generatedImageAttachments };
 }

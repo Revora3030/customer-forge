@@ -306,6 +306,8 @@ function WebsitePage() {
     quoteFormCount: facts.data?.quoteFormCount ?? 0,
     quoteQuestionCount: preflightFacts.data?.quoteQuestionCount ?? null,
     mediaCount: facts.data?.mediaCount ?? 0,
+    firstBuildImagery: buildReport?.imagery ?? null,
+    visualQa: buildReport?.firstPreviewGate ?? null,
     analyticsConfigured: (facts.data?.signals?.visitors ?? 0) > 0,
     notifiesOwner: preflightFacts.data?.notifiesOwner ?? false,
     followUpAutomations: preflightFacts.data?.followUpAutomations ?? 0,

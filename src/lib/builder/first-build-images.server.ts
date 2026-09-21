@@ -171,7 +171,7 @@ export async function generateFirstBuildImages(
     const image = await generateImageBase64(brief.prompt, {
       organizationId: input.organizationId,
       userId: input.userId,
-    });
+    }, { paidFallback: true });
     if (!image.ok) {
       firstBlockedMessage = firstBlockedMessage ?? image.message;
       skipped.push({ slot: shot.slot, label: shot.label, reason: image.message });
@@ -215,7 +215,7 @@ export async function generateFirstBuildImages(
       continue;
     }
 
-    provider = image.provider;
+    provider = provider ?? image.provider;
     models.add(image.model);
     assets.push({
       slot: shot.slot,
