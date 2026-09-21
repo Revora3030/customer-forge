@@ -168,7 +168,7 @@ function LocationPage() {
                 })
               }
             >
-              <Link to="/get-started">Start free for {GROWTH_SYSTEM.fullAccessTrialDays} days</Link>
+              <Link to="/get-started">Start free for {GROWTH_SYSTEM.fullAccessWindow}</Link>
             </Button>
             <Button asChild variant="outline" size="lg">
               <Link to="/growth-assessment">Get a free growth assessment</Link>

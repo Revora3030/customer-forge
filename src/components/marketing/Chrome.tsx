@@ -139,7 +139,7 @@ export function SiteHeader() {
                 <Button asChild variant="signal">
                   <Link to="/auth" search={SIGN_UP_SEARCH} onClick={() => setOpen(false)}>
                     <Sparkles className="size-3.5" aria-hidden="true" />
-                    {`Start free — ${GROWTH_SYSTEM.fullAccessTrialDays} days full access`}
+                    {`Start free — ${GROWTH_SYSTEM.fullAccessWindow} full access`}
                   </Link>
                 </Button>
                 <Button asChild variant="outline">

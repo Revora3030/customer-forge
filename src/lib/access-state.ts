@@ -90,7 +90,7 @@ export function resolveAccess(org: AccessOrgFields | null | undefined): AccessDe
     return {
       state: "TRIAL",
       allowed: true,
-      label: `${GROWTH_SYSTEM.fullAccessTrialDays}-day full access`,
+      label: `${GROWTH_SYSTEM.fullAccessWindow} full access`,
       reason: `Full builder access is open — build, generate, edit, audit, fix, preview and save everything. ${BUILDER_INCLUDED_DETAIL}`,
       builderUsage: "included",
       trialEndsAt,

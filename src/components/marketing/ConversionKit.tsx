@@ -62,7 +62,7 @@ function StickyCtaBar() {
         <div className="min-w-0 flex-1">
           <p className="text-[12.5px] leading-snug">
             <span className="gold-hl">
-              {GROWTH_SYSTEM.fullAccessTrialDays} days free — full access
+              {GROWTH_SYSTEM.fullAccessWindow} free — full access
             </span>
             <span className="text-muted-foreground"> · no card to start</span>
           </p>
@@ -146,7 +146,7 @@ function ExitIntentOffer() {
         <p className="eyebrow">Before you go</p>
         <h2 className="mt-2 font-display text-[20px] leading-tight font-semibold">
           See your own site, leads and bookings{" "}
-          <span className="gold-text">free for {GROWTH_SYSTEM.fullAccessTrialDays} days</span>
+          <span className="gold-text">free for {GROWTH_SYSTEM.fullAccessWindow}</span>
         </h2>
         <p className="mt-3 text-[13px] leading-relaxed text-muted-foreground">
           Create your account and Revora builds your workspace in about a minute — website builder,
@@ -157,7 +157,7 @@ function ExitIntentOffer() {
           <Button asChild variant="signal" className="h-auto py-3 leading-snug whitespace-normal">
             <Link to={FREE_ACCESS_TO} search={FREE_ACCESS_SEARCH} onClick={() => setOpen(false)}>
               <Sparkles className="size-4" aria-hidden="true" />
-              START {GROWTH_SYSTEM.fullAccessTrialDays} FREE DAYS
+              START {GROWTH_SYSTEM.fullAccessWindowUpper} FREE
               <ArrowRight className="size-4" aria-hidden="true" />
             </Link>
           </Button>

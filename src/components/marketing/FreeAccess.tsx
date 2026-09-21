@@ -10,7 +10,7 @@ import { trackConversion } from "@/lib/conversion";
 /** The single destination for "try it free": create an account, then continue to setup. */
 export const FREE_ACCESS_TO = "/auth" as const;
 export const FREE_ACCESS_SEARCH = { mode: "signup", redirect: "/get-started" } as const;
-export const FREE_ACCESS_LABEL = `TRY ${GROWTH_SYSTEM.fullAccessTrialDays} DAYS FREE — FULL ACCESS`;
+export const FREE_ACCESS_LABEL = `TRY ${GROWTH_SYSTEM.fullAccessWindowUpper} FREE — FULL ACCESS`;
 
 /** Primary "try the free access" button. Used in the hero, pricing and closing CTA. */
 export function FreeAccessButton({
@@ -63,7 +63,7 @@ export function FreeAccessBanner({ className = "" }: { className?: string }) {
       <div className="min-w-0">
         <p className="text-[13px] leading-snug">
           <span className="gold-hl">
-            Full system access. Zero risk. {GROWTH_SYSTEM.fullAccessTrialDays} days.
+            Full system access. Zero risk. {GROWTH_SYSTEM.fullAccessWindow}.
           </span>{" "}
           If it doesn't pay for itself, walk away — no card, no charge, no hard feelings.
         </p>
@@ -90,7 +90,7 @@ const FREE_STEPS = [
   },
   {
     title: "Explore every feature free",
-    body: `Full access for ${GROWTH_SYSTEM.fullAccessTrialDays} days — website builder, leads, quotes, bookings, automations and analytics.`,
+    body: `Full access for ${GROWTH_SYSTEM.fullAccessWindow} — website builder, leads, quotes, bookings, automations and analytics.`,
   },
   {
     title: "Launch when you're ready",
@@ -109,7 +109,7 @@ export function FreeAccessSection() {
         </Pill>
         <h2 className="mt-4 font-display text-[clamp(1.4rem,3vw,2rem)] leading-tight font-semibold">
           Try Revora free for{" "}
-          <span className="gold-text">{GROWTH_SYSTEM.fullAccessTrialDays} days</span> — full access,
+          <span className="gold-text">{GROWTH_SYSTEM.fullAccessWindow}</span> — full access,
           nothing locked.
         </h2>
         <p className="mt-3 max-w-2xl text-[14px] leading-relaxed text-muted-foreground">

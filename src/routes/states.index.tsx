@@ -85,7 +85,7 @@ function StatesIndex() {
           </p>
           <div className="mt-7 flex flex-wrap gap-3">
             <Button asChild variant="signal" size="lg">
-              <Link to="/get-started">Start free for {GROWTH_SYSTEM.fullAccessTrialDays} days</Link>
+              <Link to="/get-started">Start free for {GROWTH_SYSTEM.fullAccessWindow}</Link>
             </Button>
             <Button asChild variant="outline" size="lg">
               <Link to="/pricing">See pricing</Link>

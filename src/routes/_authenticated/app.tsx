@@ -500,7 +500,7 @@ function AppShell() {
                 Activate your Revora Growth System
               </h1>
               <p className="mt-3 text-[14px] text-muted-foreground">
-                Your {GROWTH_SYSTEM.fullAccessTrialDays}-day free full-access trial has ended. Your
+                Your {GROWTH_SYSTEM.fullAccessWindow} free full-access trial has ended. Your
                 website, leads, bookings, and settings are saved — nothing is lost. Pay the{" "}
                 {usd(GROWTH_SYSTEM.setupPrice)} one-time setup to restore full access; your first
                 month of the {usd(GROWTH_SYSTEM.monthlyPrice)}/month platform fee is free, then it

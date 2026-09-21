@@ -227,13 +227,13 @@ function AuthPage() {
       <main className="flex flex-1 items-center justify-center px-4 py-12">
         <div className="w-full max-w-sm">
           {isSignup ? (
-            <Pill tone="signal">{`${GROWTH_SYSTEM.fullAccessTrialDays} DAYS FREE — FULL ACCESS`}</Pill>
+            <Pill tone="signal">{`${GROWTH_SYSTEM.fullAccessWindowUpper} FREE — FULL ACCESS`}</Pill>
           ) : null}
           <h1 className="mt-3 font-display text-[24px] leading-tight font-semibold">
             {isSignup ? (
               <>
                 Start your{" "}
-                <span className="gold-text">{GROWTH_SYSTEM.fullAccessTrialDays} free days</span>
+                <span className="gold-text">{GROWTH_SYSTEM.fullAccessWindow} free</span>
               </>
             ) : (
               "Welcome back"
@@ -244,7 +244,7 @@ function AuthPage() {
               <>
                 Create your account to unlock{" "}
                 <span className="gold-hl">
-                  every feature free for {GROWTH_SYSTEM.fullAccessTrialDays} days
+                  every feature free for {GROWTH_SYSTEM.fullAccessWindow}
                 </span>
                 . No card needed to explore.
               </>
@@ -261,7 +261,7 @@ function AuthPage() {
               {[
                 "Create your account",
                 "Answer a few questions about your business",
-                `Explore the full system free for ${GROWTH_SYSTEM.fullAccessTrialDays} days`,
+                `Explore the full system free for ${GROWTH_SYSTEM.fullAccessWindow}`,
                 `Launch when ready — ${usd(GROWTH_SYSTEM.setupPrice)} setup, first month free`,
               ].map((step, index) => (
                 <li key={step} className="flex items-start gap-2.5">

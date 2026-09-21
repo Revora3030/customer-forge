@@ -73,7 +73,7 @@ export function AuthActions({
           <UserPlus className="size-4" aria-hidden="true" />
           {compact
             ? "Sign up"
-            : `Sign up free — ${GROWTH_SYSTEM.fullAccessTrialDays} days full access`}
+            : `Sign up free — ${GROWTH_SYSTEM.fullAccessWindow} full access`}
         </Link>
       </Button>
       <Button asChild variant={compact ? "ghost" : "outline"} size={size}>

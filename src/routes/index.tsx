@@ -266,7 +266,7 @@ function PrimaryCta({ className = "" }: { className?: string }) {
 function PriceLine({ className = "" }: { className?: string }) {
   return (
     <p className={`text-[12.5px] text-muted-foreground ${className}`}>
-      <span className="gold-hl">{GROWTH_SYSTEM.fullAccessTrialDays} days free full access</span> ·{" "}
+      <span className="gold-hl">{GROWTH_SYSTEM.fullAccessWindow} free full access</span> ·{" "}
       <span className="font-medium text-foreground">
         {usd(GROWTH_SYSTEM.setupPrice)} one-time setup
       </span>{" "}
@@ -512,7 +512,7 @@ function Landing() {
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <h3 className="font-display text-[18px] font-semibold">{GROWTH_SYSTEM.name}</h3>
                   <Pill tone="signal">
-                    {GROWTH_SYSTEM.fullAccessTrialDays} days free full access
+                    {GROWTH_SYSTEM.fullAccessWindow} free full access
                   </Pill>
                 </div>
                 <div className="mt-6 flex flex-wrap items-end gap-x-8 gap-y-5">
@@ -685,7 +685,7 @@ function Landing() {
               <p className="text-[12.5px] text-muted-foreground">
                 Not ready to pay yet?{" "}
                 <span className="gold-hl">
-                  Start with {GROWTH_SYSTEM.fullAccessTrialDays} free days of full access
+                  Start with {GROWTH_SYSTEM.fullAccessWindow} free of full access
                 </span>{" "}
                 and decide after you've used it.
               </p>
