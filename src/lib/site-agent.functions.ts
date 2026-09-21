@@ -499,6 +499,7 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
 
 
     const runAgent = async () => {
+      noteStage(orgId, runId, "planning the change");
       const result = await orchestrate({
         context: agentContext,
         workspaceSummary: workspaceSummary(agentContext),
@@ -1507,6 +1508,7 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
     // this stage is reported, never fatal: it must not undo a good apply.
     let qa: QaLoopResult | null = null;
     if (data.verify !== false) {
+      noteApplyStage(orgId, applyRunId, "checking the result");
       try {
         const { runQaRepairLoop } = await import("@/lib/builder/qa-loop.server");
         qa = await runQaRepairLoop(supabase as unknown as never, orgId, data.label);
