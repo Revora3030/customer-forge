@@ -1,0 +1,15 @@
+{
+  "baseUrl": "http://127.0.0.1:8080",
+  "routes": [
+    "/"
+  ],
+  "failed": 1,
+  "report": [
+    {
+      "route": "/",
+      "url": "http://127.0.0.1:8080/",
+      "passed": false,
+      "error": "Error: playwright-cli open http://127.0.0.1:8080/ failed"
+    }
+  ]
+}

@@ -2,7 +2,7 @@
  * LAYER 2 in the builder: the "Run visual check" control.
  *
  * The website is loaded in a hidden frame on the owner's own browser, resized
- * through eleven phone and desktop widths, and measured for real — sideways
+ * through eight required phone and desktop widths, and measured for real — sideways
  * scrolling, broken pictures, cut-off text, buttons a thumb can't hit. The raw
  * measurements go to the server, which grades them itself and stores the
  * verdict the launch gate reads.
