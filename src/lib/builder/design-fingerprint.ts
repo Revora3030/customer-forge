@@ -552,7 +552,7 @@ export function sectionDesignFromFingerprint(
                   : kind === "hero" ? fingerprint.heroComposition
                     : fingerprint.sectionRhythm;
   return {
-    variant: rendererVariant(kind, source),
+    variant: `${rendererVariant(kind, source)}--${safeToken(source)}`,
     layout,
     cardStyle,
     imageTreatment,
