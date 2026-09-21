@@ -383,22 +383,10 @@ async function runJob(
     } as unknown as never,
     created_by: job.created_by,
   } as never);
+  // The same adversarial gate runs AFTER any model wording, so a refined page
+  // can never reach the site with an unsupported claim.
   const synthesis = synthesizeNativeFirstBuild({
-    facts: {
-      businessName: copyFacts.businessName,
-      industry: copyFacts.industry,
-      services: copyFacts.services.map((service) => service.name),
-      description: copyFacts.description,
-      city: copyFacts.city,
-      region: copyFacts.state,
-      serviceArea: copyFacts.serviceArea,
-      phone: copyFacts.phone,
-      email: copyFacts.email,
-      yearsInBusiness: copyFacts.yearsInBusiness,
-      hasPrices: copyFacts.services.some((service) => service.price != null || service.starting_price != null),
-      goals: copyFacts.goals,
-      hasHours: copyFacts.hasHours,
-    },
+    facts: buildFacts,
     language: typeof p["language"] === "string" ? (p["language"] as string) : "English",
     brief,
     plan,
