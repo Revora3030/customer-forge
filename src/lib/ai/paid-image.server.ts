@@ -344,7 +344,11 @@ export async function generatePaidImage(
         outcome: "failed",
         reason: "invalid_image",
       });
-      return { ok: false, reason: "invalid_image", message: check.message };
+      return {
+        ok: false,
+        reason: "invalid_image",
+        message: `Revora didn't keep that picture because ${check.problem}. Nothing was saved.`,
+      };
     }
     await settleBudget(caller.organizationId, estimate, estimate);
     await recordUsage({
