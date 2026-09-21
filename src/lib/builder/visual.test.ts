@@ -55,8 +55,7 @@ const clean = (width: number): ViewportMeasurement => ({
 describe("rendered visual quality", () => {
   it("checks every phone and desktop width", () => {
     expect(VIEWPORTS).toContain(320);
-    expect(VIEWPORTS).toContain(430);
-    expect(VIEWPORTS).toContain(1920);
+    expect(VIEWPORTS).toEqual([320, 375, 390, 414, 768, 1024, 1280, 1440]);
   });
 
   it("passes a page that fits its screen", () => {

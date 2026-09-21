@@ -8,8 +8,8 @@
  * and layout settings, visibility toggles and AI-applied changes alike — the
  * builder does not need a separate history model per feature.
  *
- * The stack is session-scoped: it is a safety net for the current editing
- * session, while Version History remains the durable restore mechanism.
+ * The stack is browser-persisted per workspace: it survives a reload while
+ * Version History remains the durable, cross-device restore mechanism.
  */
 
 export type HistoryTable = "website_pages" | "website_sections" | "website_components";
@@ -36,6 +36,40 @@ export const emptyHistory: HistoryState = { past: [], future: [] };
 
 /** Keeps the session stack bounded so a long editing session cannot grow forever. */
 export const HISTORY_LIMIT = 50;
+
+export function isHistoryState(value: unknown): value is HistoryState {
+  if (!value || typeof value !== "object") return false;
+  const candidate = value as Partial<HistoryState>;
+  if (!Array.isArray(candidate.past) || !Array.isArray(candidate.future)) return false;
+  return [...candidate.past, ...candidate.future].every(
+    (item) =>
+      item &&
+      typeof item === "object" &&
+      typeof (item as HistoryEntry).id === "string" &&
+      typeof (item as HistoryEntry).label === "string" &&
+      typeof (item as HistoryEntry).at === "number" &&
+      ["website_pages", "website_sections", "website_components"].includes(
+        (item as HistoryEntry).table,
+      ) &&
+      typeof (item as HistoryEntry).rowId === "string" &&
+      Boolean((item as HistoryEntry).before && typeof (item as HistoryEntry).before === "object") &&
+      Boolean((item as HistoryEntry).after && typeof (item as HistoryEntry).after === "object"),
+  );
+}
+
+export function parseHistoryState(raw: string | null): HistoryState {
+  if (!raw) return emptyHistory;
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (!isHistoryState(parsed)) return emptyHistory;
+    return {
+      past: parsed.past.slice(-HISTORY_LIMIT),
+      future: parsed.future.slice(0, HISTORY_LIMIT),
+    };
+  } catch {
+    return emptyHistory;
+  }
+}
 
 /**
  * Builds the inverse of a patch from the row as it exists right now.

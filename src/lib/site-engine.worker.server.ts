@@ -437,7 +437,9 @@ async function runJob(
       mobile: "NOT_VERIFIED",
       performance: "NOT_VERIFIED",
       ready: false,
-      reason: "Browser, visual, mobile and performance evidence must be recorded after rendering.",
+      evidenceSource: "website_visual_reports",
+      reason:
+        "Draft materialization finished. Readiness remains false until fresh owner-browser measurements are server-graded for every visible page.",
     },
     briefSource: brief.source,
     copyModel,

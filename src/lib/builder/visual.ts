@@ -23,16 +23,13 @@
 
 export const VIEWPORTS = [
   320,
-  360,
   375,
   390,
   414,
-  430,
   768,
   1024,
   1280,
   1440,
-  1920,
 ] as const;
 
 export type AccessibilityMeasurement = {

@@ -18,6 +18,7 @@ import {
   type HistoryState,
   type HistoryTable,
   inversePatch,
+  parseHistoryState,
   record as pushEntry,
   redo as redoState,
   undo as undoState,
@@ -79,13 +80,32 @@ export function BuilderHistoryProvider({
   const [isApplying, setIsApplying] = useState(false);
   const queryClient = useQueryClient();
   const orgRef = useRef(organizationId);
+  const hydratedOrgRef = useRef<string | undefined>(undefined);
   orgRef.current = organizationId;
 
   // A different workspace means a different site: never let one project's
   // history apply writes to another.
   useEffect(() => {
-    setState(emptyHistory);
+    if (!organizationId) {
+      hydratedOrgRef.current = undefined;
+      setState(emptyHistory);
+      return;
+    }
+    const key = `revora:builder-history:${organizationId}`;
+    setState(parseHistoryState(window.localStorage.getItem(key)));
+    hydratedOrgRef.current = organizationId;
   }, [organizationId]);
+
+  useEffect(() => {
+    if (!organizationId || hydratedOrgRef.current !== organizationId) return;
+    const key = `revora:builder-history:${organizationId}`;
+    try {
+      window.localStorage.setItem(key, JSON.stringify(state));
+    } catch {
+      // Storage may be unavailable in a private browser. Editing still works;
+      // only reload persistence is unavailable for that browser session.
+    }
+  }, [organizationId, state]);
 
   const capture = useCallback<BuilderHistory["capture"]>(({ table, rowId, row, patch }) => {
     const pair = inversePatch(row, patch);
@@ -120,6 +140,11 @@ export function BuilderHistoryProvider({
           .eq("organization_id", orgId);
         if (error) throw error;
         await queryClient.invalidateQueries({ queryKey: ["website_content", orgId] });
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: ["production-readiness", orgId] }),
+          queryClient.invalidateQueries({ queryKey: ["production-status", orgId] }),
+          queryClient.invalidateQueries({ queryKey: ["build_readiness", orgId] }),
+        ]);
         toast.success(description);
         return true;
       } catch (error) {
@@ -158,7 +183,11 @@ export function BuilderHistoryProvider({
     );
   }, [apply, state]);
 
-  const clear = useCallback(() => setState(emptyHistory), []);
+  const clear = useCallback(() => {
+    const orgId = orgRef.current;
+    if (orgId) window.localStorage.removeItem(`revora:builder-history:${orgId}`);
+    setState(emptyHistory);
+  }, []);
 
   // Cmd/Ctrl+Z and Cmd/Ctrl+Shift+Z (or Ctrl+Y). Typing inside an input keeps
   // the browser's own text undo, which is what a writer expects.
