@@ -258,7 +258,7 @@ function TemplateSiteView({
           }}
         />
 
-        <header className="sticky top-0 z-40 border-b border-border bg-background/85 backdrop-blur">
+        <header className="rv-site-header sticky top-0 z-40 border-b border-border bg-background/85 backdrop-blur">
           <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3.5">
             <div className="min-w-0">
               <p className="truncate font-display text-[16px] font-semibold">{org.name}</p>

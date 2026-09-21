@@ -21,7 +21,25 @@ ROOT = Path(__file__).resolve().parent.parent
 SOURCE = (ROOT / "src/lib/builder/visual.ts").read_text()
 
 WIDTHS = [int(n) for n in re.search(r"VIEWPORTS = \[([^\]]+)\]", SOURCE).group(1).split(",") if n.strip().isdigit()]
-SNIPPET = SOURCE.split("export const MEASURE_SCRIPT = `", 1)[1].rsplit("`;", 1)[0]
+
+
+def snippet(name):
+    """Reads one exported browser snippet exactly as the app ships it.
+
+    Each snippet ends at its OWN closing backtick, so the reader must stop at
+    the first one. Reading to the last closing backtick silently glued several
+    snippets together and every measurement failed in the browser.
+    """
+    head = f"export const {name} = `"
+    if head not in SOURCE:
+        raise SystemExit(f"{name} is missing from src/lib/builder/visual.ts")
+    body = SOURCE.split(head, 1)[1].split("`;", 1)[0]
+    return body
+
+
+MEASURE = snippet("MEASURE_SCRIPT")
+OBSERVE = snippet("OBSERVE_SCRIPT")
+SCROLL = snippet("SCROLL_SCRIPT") if "export const SCROLL_SCRIPT = `" in SOURCE else None
 
 
 async def main(urls):
@@ -35,8 +53,18 @@ async def main(urls):
                 page = await context.new_page()
                 try:
                     await page.goto(url, wait_until="domcontentloaded", timeout=30000)
-                    await page.wait_for_timeout(400)
-                    page_results.append(await page.evaluate(SNIPPET))
+                    # Same order the app uses: watch layout shift, load lazy
+                    # pictures, then measure.
+                    try:
+                        await page.evaluate(OBSERVE)
+                        if SCROLL:
+                            await page.evaluate(SCROLL)
+                    except Exception as error:  # noqa: BLE001 - reported, never hidden
+                        print(f"instrumentation skipped on {url}: {error}", file=sys.stderr)
+                    await page.wait_for_timeout(600)
+                    measured = await page.evaluate(MEASURE)
+                    measured["width"] = width
+                    page_results.append(measured)
                 except Exception as error:  # noqa: BLE001 - reported, never hidden
                     print(f"could not load {url} at {width}px: {error}", file=sys.stderr)
                 finally:
