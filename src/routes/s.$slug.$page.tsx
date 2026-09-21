@@ -180,7 +180,7 @@ export function SitePageView({
                 </Button>
               ) : null}
               <Button asChild variant="signal" size="sm">
-                <a href={site.quote ? "#quote" : "#book"}>{ctaLabel}</a>
+                <SitePageLink slug={org.slug} page={site.quote ? "#quote" : site.nav.some((item) => item.slug === "book") ? "book" : "contact"}>{ctaLabel}</SitePageLink>
               </Button>
             </div>
           </div>

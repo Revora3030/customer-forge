@@ -928,7 +928,7 @@ function SiteSectionBody({ site, section }: { site: Site; section: Section }) {
 export function StickyCallBar({ site, label }: { site: Site; label: string }) {
   const phoneHref = phoneLink(site.profile?.phone);
   const phone = phoneDisplay(site.profile?.phone);
-  const target = site.quote ? "#quote" : "#book";
+  const target = site.quote ? "#quote" : site.nav.some((item) => item.slug === "book") ? "book" : "contact";
   return (
     <div
       className="sticky bottom-0 z-40 border-t border-border bg-background/95 px-4 py-3 backdrop-blur md:hidden"
@@ -943,7 +943,7 @@ export function StickyCallBar({ site, label }: { site: Site; label: string }) {
           </Button>
         ) : null}
         <Button asChild variant="signal" className="min-h-11 flex-1">
-          <a href={target}>{label}</a>
+          <SitePageLink slug={site.org.slug} page={target}>{label}</SitePageLink>
         </Button>
       </div>
     </div>

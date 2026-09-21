@@ -16,7 +16,7 @@ export type BrowserQaCheckKind =
   | "form"
   | "mobile"
   | "seo"
-  | "accessibility";
+  | "accessibility"
   | "richness"
   | "consistency";
 
