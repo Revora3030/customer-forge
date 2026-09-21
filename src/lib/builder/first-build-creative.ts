@@ -14,6 +14,7 @@ import {
 } from "@/lib/builder/design-fingerprint";
 import { pickVisualDirection, planShots, type PlannedShot } from "@/lib/visual-direction";
 import { assetPlanFor, type AssetPlan } from "@/lib/builder/asset-intelligence";
+import { compileCreativeBrief, type CreativeBrief } from "@/lib/builder/creative-brief";
 
 export type FirstBuildCreativeInput = {
   organizationId: string;
