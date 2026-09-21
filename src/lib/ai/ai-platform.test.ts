@@ -81,6 +81,7 @@ describe("provider configuration", () => {
     // zero-cost mode explicitly. Zero-cost mode itself is proven in
     // `zero-cost.test.ts`, which asserts providers stay blocked by default.
     process.env["ZERO_AI_COST_MODE"] = "false";
+    process.env["BUILDER_EXTERNAL_AI_ALLOWED"] = "true";
     delete process.env["GOOGLE_AI_API_KEY"];
     delete process.env["OPENAI_API_KEY"];
     delete process.env["AI_DEFAULT_PROVIDER"];

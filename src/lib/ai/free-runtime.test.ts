@@ -19,6 +19,7 @@ const ENV_KEYS = [
   "FREE_AI_ENABLED",
   "FREE_AI_ONLY",
   "FREE_AI_PROVIDER_ORDER",
+  "BUILDER_EXTERNAL_AI_ALLOWED",
   "FREE_AI_CLOUDFLARE_DAILY_CAP",
   "FREE_AI_OPENROUTER_DAILY_CAP",
   "CLOUDFLARE_AI_API_TOKEN",
@@ -38,6 +39,8 @@ const saved: Record<string, string | undefined> = {};
 
 /** Two free providers configured, cloudflare first, no paid keys at all. */
 function configureTwoFreeProviders() {
+  process.env["ZERO_AI_COST_MODE"] = "false";
+  process.env["BUILDER_EXTERNAL_AI_ALLOWED"] = "true";
   process.env["CLOUDFLARE_AI_API_TOKEN"] = "cf-token";
   process.env["CLOUDFLARE_ACCOUNT_ID"] = "cf-account";
   process.env["OPENROUTER_API_KEY"] = "or-key";
