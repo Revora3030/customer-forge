@@ -487,6 +487,7 @@ export function planSiteContent(input: MaterializeInput): Page[] {
       title: "Pricing",
       kind: "pricing",
       seo_title: clean(`Pricing — ${input.businessName}`),
+      seo_description: clean(copy.metaDescription),
       sections: [
         {
           kind: "hero",
@@ -522,6 +523,7 @@ export function planSiteContent(input: MaterializeInput): Page[] {
     title: "About",
     kind: "about",
     seo_title: clean(`About ${input.businessName}`),
+    seo_description: clean(copy.metaDescription),
     sections: [
       {
         kind: "hero",
@@ -568,6 +570,7 @@ export function planSiteContent(input: MaterializeInput): Page[] {
       title: "Book",
       kind: "book",
       seo_title: clean(`Book ${input.businessName}`),
+      seo_description: clean(copy.metaDescription),
       sections: [
         {
           kind: "hero",
@@ -597,16 +600,35 @@ export function planSiteContent(input: MaterializeInput): Page[] {
       kind: page.kind,
       seo_title: clean(`${title} — ${input.businessName}`),
       seo_description: clean(copy.metaDescription),
-      sections: sections.map((section) =>
-        section.kind === "cta"
+      sections: [
+        ...(!sections.some((section) => section.kind === "hero")
+          ? [{
+              kind: "hero",
+              heading: title,
+              subheading: place ? `${input.businessName} in ${place}.` : clean(copy.intro),
+              components: [
+                { kind: "button", label: primaryCta, link_label: primaryCta, link_url: primaryTarget },
+                ...(backgroundAsset ? [imageComponent(backgroundAsset, "hero_image")] : []),
+              ],
+            }]
+          : []),
+        ...sections.map((section) =>
+          section.kind === "cta"
           ? {
               ...section,
               components: [
                 { kind: "button", label: primaryCta, link_label: primaryCta, link_url: primaryTarget },
               ],
             }
-          : section,
-      ),
+          : section),
+        ...(!sections.some((section) => section.kind === "cta")
+          ? [{
+              kind: "cta",
+              heading: `Talk with ${input.businessName} about ${title.toLowerCase()}`,
+              components: [{ kind: "button", label: primaryCta, link_label: primaryCta, link_url: primaryTarget }],
+            }]
+          : []),
+      ],
     });
   }
 
@@ -615,6 +637,7 @@ export function planSiteContent(input: MaterializeInput): Page[] {
     title: "Contact",
     kind: "contact",
     seo_title: clean(`Contact ${input.businessName}`),
+    seo_description: clean(copy.metaDescription),
     sections: [
       {
         kind: "hero",
