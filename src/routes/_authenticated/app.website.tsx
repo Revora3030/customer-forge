@@ -17,6 +17,9 @@ import { trackConversion } from "@/lib/conversion";
 import { WebsiteReview } from "@/components/app/WebsiteReview";
 import { InteractionHealth } from "@/components/app/InteractionHealth";
 import { MemoryPanel } from "@/components/app/MemoryPanel";
+import { StockPhotoPanel } from "@/components/app/StockPhotoPanel";
+import { TemplateGalleryPanel } from "@/components/app/TemplateGalleryPanel";
+
 import { BuilderWizard } from "@/components/app/BuilderWizard";
 import { BuilderShell } from "@/components/app/BuilderShell";
 import { Disclosure, OverlayPanel } from "@/components/app/BuilderTools";
