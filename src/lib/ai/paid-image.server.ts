@@ -92,8 +92,9 @@ export function paidImageTierModel(tier: ImageTier): string {
 
 /** Conservative per-picture price for a tier, deliberately over-estimated. */
 export function paidImagePriceMicrocents(tier: ImageTier = "sunburst"): number {
-  const raw = Number(env(IMAGE_TIER_PRICE_ENV[tier]) ?? env("PAID_IMAGE_PRICE_USD") ?? "");
-  const dollars = Number.isFinite(raw) && raw >= 0 ? raw : DEFAULT_IMAGE_TIER_PRICE_USD[tier];
+  const override = env(IMAGE_TIER_PRICE_ENV[tier]) ?? env("PAID_IMAGE_PRICE_USD");
+  const raw = override === null ? Number.NaN : Number(override);
+  const dollars = Number.isFinite(raw) && raw > 0 ? raw : DEFAULT_IMAGE_TIER_PRICE_USD[tier];
   return Math.round(dollars * MICROCENTS_PER_DOLLAR);
 }
 
