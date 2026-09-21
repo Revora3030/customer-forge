@@ -1,8 +1,6 @@
-import { editImage } from "@/lib/ai/router.server";
-const src = await (await fetch("https://picsum.photos/seed/revora/768/768.jpg")).arrayBuffer();
-const b = new Uint8Array(src);
-let bin=""; for (let i=0;i<b.length;i+=0x8000) bin+=String.fromCharCode(...b.subarray(i,i+0x8000));
-try {
-  const r = await editImage({ task: "image.edit", organizationId: null, userId: null }, "same photo at dusk with warm lights", { dataUrl: btoa(bin), mimeType: "image/jpeg" });
-  console.log("OK", r.provider, r.model, r.mimeType, r.base64.length);
-} catch (e) { console.log("ERR", (e as any).category, (e as any).message); }
+import { freeModelPool } from "@/lib/ai/router.server";
+import { imageEditCapableModel } from "@/lib/ai/free";
+const all = await freeModelPool("image");
+console.log("image pool:", JSON.stringify(all.map(p=>({p:p.provider,m:p.models}))));
+const cap = await freeModelPool("image", imageEditCapableModel);
+console.log("edit pool:", JSON.stringify(cap.map(p=>({p:p.provider,m:p.models}))));
