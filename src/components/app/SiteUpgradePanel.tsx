@@ -8,7 +8,7 @@
  */
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { ArrowRightLeft, Loader2, Sparkles, Waves } from "lucide-react";
+import { ArrowRightLeft, Loader2, Sparkles, Undo2, Waves } from "lucide-react";
 import { toast } from "sonner";
 import { Panel, Pill, SectionHeading } from "@/components/app/Bits";
 import { Button } from "@/components/ui/button";
@@ -17,12 +17,14 @@ import {
   applyMotionPack,
   applySiteWideRedesign,
   applyStoryPass,
+  undoSiteUpgrade,
   type RedesignResult,
+  type SiteUpgradeUndo,
   type StoryPassResult,
 } from "@/lib/site-upgrade.functions";
 import { friendlyError } from "@/lib/user-error";
 
-type Busy = null | "motion" | "story" | "story-write" | "redesign";
+type Busy = null | "motion" | "story" | "story-write" | "redesign" | "undo";
 
 const MOTION_CHOICES: { id: "none" | "subtle" | "expressive"; label: string; hint: string }[] = [
   { id: "none", label: "Still", hint: "Nothing moves — the calmest and fastest." },
@@ -43,6 +45,7 @@ export function SiteUpgradePanel({
   const [story, setStory] = useState<StoryPassResult | null>(null);
   const [redesign, setRedesign] = useState<RedesignResult | null>(null);
   const [wish, setWish] = useState("");
+  const [undo, setUndo] = useState<{ label: string; undo: SiteUpgradeUndo } | null>(null);
 
   const refresh = () => {
     void queryClient.invalidateQueries({ queryKey: ["website_content", organizationId] });
@@ -56,6 +59,7 @@ export function SiteUpgradePanel({
     try {
       const result = await applyMotionPack({ data: { organizationId, intensity } });
       setMotionNote(result.summary);
+      setUndo(result.undo ? { label: "movement change", undo: result.undo } : null);
       refresh();
       toast.success(result.changed > 0 ? result.summary : "Movement already matched that setting.");
     } catch (error) {
@@ -92,6 +96,7 @@ export function SiteUpgradePanel({
     try {
       const result = await applySiteWideRedesign({ data: { organizationId, instruction: wish } });
       setRedesign(result);
+      setUndo(result.undo ? { label: "redesign", undo: result.undo } : null);
       if (result.understood) refresh();
       if (!result.understood) toast.error(result.summary);
       else toast.success(result.summary);
@@ -102,8 +107,34 @@ export function SiteUpgradePanel({
     }
   };
 
+  const putItBack = async () => {
+    if (!organizationId || !undo || busy) return;
+    setBusy("undo");
+    try {
+      const outcome = await undoSiteUpgrade({ data: { organizationId, undo: undo.undo } });
+      setUndo(null);
+      refresh();
+      toast.success(outcome.summary);
+    } catch (error) {
+      toast.error(friendlyError(error, "That change couldn't be put back."));
+    } finally {
+      setBusy(null);
+    }
+  };
+
   return (
     <div className="space-y-4">
+      {undo && canManage ? (
+        <Panel className="flex flex-wrap items-center justify-between gap-3 p-4">
+          <p className="text-[13px] text-muted-foreground">
+            Not sure about the {undo.label}? Look at your site, then keep it or put it straight back.
+          </p>
+          <Button size="sm" variant="outline" disabled={busy !== null} onClick={() => void putItBack()}>
+            {busy === "undo" ? <Loader2 className="size-4 animate-spin" /> : <Undo2 className="size-4" />}
+            Put it back
+          </Button>
+        </Panel>
+      ) : null}
       <Panel className="p-5">
         <SectionHeading eyebrow="Movement" title="How your site moves" />
         <p className="mt-2 max-w-xl text-[13px] text-muted-foreground">
