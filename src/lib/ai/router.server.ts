@@ -48,6 +48,7 @@ import {
   freeProviderChain,
   freeProviderCredentials,
   freeProviderReadiness,
+  imageEditCapableModel,
   isFreeEligibleModel,
   noteFreeUse,
   type FreeProviderName,
