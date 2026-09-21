@@ -764,6 +764,12 @@ function WebsitePage() {
                     publishState={publishState}
                     canManage={manage}
                   />
+                  <VisionReviewPanel
+                    organizationId={orgId}
+                    slug={org?.slug}
+                    publishState={publishState}
+                    canManage={manage}
+                  />
                   <InteractionHealth pages={pages ?? []} onFix={() => setAdvanced(null)} />
                   <RevoraScorePanel
                     score={siteScore.score}
