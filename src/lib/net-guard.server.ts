@@ -92,6 +92,26 @@ export function assertFetchableHostname(host: string): void {
   if (!isFetchableHostname(host)) throw new Error("That address can't be checked.");
 }
 
+type DnsJson = { Answer?: { type: number; data: string }[] };
+
+/** Resolve through a fixed public DNS endpoint when a caller has no resolver. */
+async function resolvePublicAddresses(hostname: string): Promise<string[]> {
+  const query = async (type: "A" | "AAAA") => {
+    const response = await fetch(
+      `https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(hostname)}&type=${type}`,
+      { headers: { accept: "application/dns-json" }, redirect: "error" },
+    );
+    if (!response.ok) return [];
+    const body = (await response.json()) as DnsJson;
+    const expectedType = type === "A" ? 1 : 28;
+    return (body.Answer ?? [])
+      .filter((answer) => answer.type === expectedType)
+      .map((answer) => answer.data.trim());
+  };
+  const [ipv4, ipv6] = await Promise.all([query("A"), query("AAAA")]);
+  return [...ipv4, ...ipv6];
+}
+
 /**
  * The ONLY way server code should fetch a user-supplied address.
  *
@@ -121,10 +141,10 @@ export async function guardedFetch(
   if (parsed.port && parsed.port !== "80" && parsed.port !== "443")
     throw new Error("That address can't be checked.");
   assertFetchableHostname(parsed.hostname);
-  if (resolve) {
-    const addresses = await resolve(parsed.hostname).catch(() => [] as string[]);
-    if (!areAddressesPublic(addresses)) throw new Error("Not a public address");
-  }
+  const addresses = await (resolve ?? resolvePublicAddresses)(parsed.hostname).catch(
+    () => [] as string[],
+  );
+  if (!areAddressesPublic(addresses)) throw new Error("Not a public address");
   // redirect stays last: a caller can never opt back into automatic following,
   // which would let a public host bounce the probe to an internal address.
   return fetch(parsed.toString(), { ...init, redirect: "manual" });

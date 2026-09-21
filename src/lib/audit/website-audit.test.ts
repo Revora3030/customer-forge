@@ -10,6 +10,9 @@ describe("website audit URL validation", () => {
     expect(() => validatePublicWebsiteUrl("http://localhost:3000")).toThrow();
     expect(() => validatePublicWebsiteUrl("http://192.168.1.10")).toThrow();
     expect(() => validatePublicWebsiteUrl("http://127.0.0.1")).toThrow();
+    expect(() => validatePublicWebsiteUrl("http://169.254.169.254/latest/meta-data")).toThrow();
+    expect(() => validatePublicWebsiteUrl("http://[::1]")).toThrow();
+    expect(() => validatePublicWebsiteUrl("http://metadata.google.internal")).toThrow();
   });
 
   it("rejects credentials in URLs", () => {
