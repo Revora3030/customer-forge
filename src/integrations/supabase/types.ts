@@ -3250,6 +3250,51 @@ export type Database = {
           },
         ]
       }
+      website_memory: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          kind: string
+          organization_id: string
+          pinned: boolean
+          text: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          kind: string
+          organization_id: string
+          pinned?: boolean
+          text: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          kind?: string
+          organization_id?: string
+          pinned?: boolean
+          text?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "website_memory_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "website_memory_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "public_organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       website_pages: {
         Row: {
           created_at: string

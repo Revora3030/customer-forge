@@ -373,6 +373,16 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
     );
     const brief = designMemoryBrief(priorMemory);
     if (brief) data.history = [{ role: "user" as const, content: brief }, ...data.history];
+
+    // LONG-SESSION MEMORY: the durable journal for this website — standing
+    // rules, earlier requests, what was already done and what did not work — is
+    // recalled before anything is planned, so the builder does not start from
+    // scratch in a new session or repeat work it already finished. Guidance
+    // only: the live website is still read and remains the source of truth, and
+    // a recall failure simply means no brief.
+    const { recallBrief } = await import("@/lib/builder/session-memory.server");
+    const recall = await recallBrief(supabase as never, orgId);
+    if (recall) data.history = [{ role: "user" as const, content: recall }, ...data.history];
     const nextMemory = mergeDesignMemory(priorMemory, data.instruction);
 
     // DESIGN IDENTITY. Worked out once from what the business actually is, then
@@ -1565,6 +1575,22 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
     }
 
     noteApplyStage(orgId, applyRunId, "finishing up");
+
+    // LONG-SESSION MEMORY: record what was asked for and what measurably
+    // happened, so the next session starts with the working history rather than
+    // a blank page. Only the owner's own words and Revora's own measured labels
+    // are stored, and a failure here can never affect the build.
+    try {
+      const { rememberExchange } = await import("@/lib/builder/session-memory.server");
+      await rememberExchange(supabase as never, orgId, userId, {
+        instruction: data.label,
+        summary: applied.slice(0, 3).join("; "),
+        applied,
+        failed,
+      });
+    } catch (error) {
+      console.warn("[site-agent] memory not recorded", error);
+    }
 
     return {
       applied: applied.length,

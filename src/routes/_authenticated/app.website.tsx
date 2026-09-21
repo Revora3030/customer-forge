@@ -16,6 +16,7 @@ import { trackConversion } from "@/lib/conversion";
 
 import { WebsiteReview } from "@/components/app/WebsiteReview";
 import { InteractionHealth } from "@/components/app/InteractionHealth";
+import { MemoryPanel } from "@/components/app/MemoryPanel";
 import { BuilderWizard } from "@/components/app/BuilderWizard";
 import { BuilderShell } from "@/components/app/BuilderShell";
 import { Disclosure, OverlayPanel } from "@/components/app/BuilderTools";
@@ -774,6 +775,7 @@ function WebsitePage() {
                     canManage={manage}
                   />
                   <InteractionHealth pages={pages ?? []} onFix={() => setAdvanced(null)} />
+                  <MemoryPanel organizationId={orgId ?? null} canManage={manage} />
                   <RevoraScorePanel
                     score={siteScore.score}
                     factors={siteScore.factors}
