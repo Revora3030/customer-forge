@@ -602,7 +602,7 @@ export const reviewPageScreenshot = createServerFn({ method: "POST" })
     // The review is stored alongside the browser's own visual checks so the
     // owner keeps a history. Measurements stay empty here — this row is a
     // model's opinion of a screenshot, never a measurement.
-    const { data: saved } = await supabase
+    const { data: saved, error: saveError } = await supabase
       .from("website_visual_reports")
       .insert({
         organization_id: data.organizationId,
