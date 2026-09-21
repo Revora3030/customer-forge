@@ -26,19 +26,18 @@ BEGIN
 END;
 $$;
 
--- Server provisioning entry point: clamp the trial to the 1-day maximum.
-CREATE OR REPLACE FUNCTION public.provision_workspace_server(
+create or replace function public.provision_workspace_server(
   _user_id uuid,
   _name text,
-  _industry text DEFAULT NULL,
-  _profile jsonb DEFAULT '{}'::jsonb,
-  _trial_days integer DEFAULT 1
+  _industry text default null,
+  _profile jsonb default '{}'::jsonb,
+  _trial_days integer default 1
 )
-RETURNS uuid
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path TO 'public', 'extensions'
-AS $function$
+returns uuid
+language plpgsql
+security definer
+set search_path to 'public', 'extensions'
+as $function$
 declare
   v_user uuid := _user_id;
   v_org uuid;
@@ -87,26 +86,46 @@ begin
     insert into public.memberships (organization_id, user_id, role)
     values (v_org, v_user, 'owner')
     on conflict do nothing;
+
+    insert into public.business_profiles (organization_id, email, phone, city, state, website, description)
+    values (
+      v_org,
+      nullif(btrim(coalesce(_profile->>'email','')), ''),
+      nullif(btrim(coalesce(_profile->>'phone','')), ''),
+      nullif(btrim(coalesce(_profile->>'city','')), ''),
+      nullif(btrim(coalesce(_profile->>'state','')), ''),
+      nullif(btrim(coalesce(_profile->>'website','')), ''),
+      nullif(btrim(coalesce(_profile->>'description','')), '')
+    )
+    on conflict (organization_id) do nothing;
+
+    insert into public.platform_trials (organization_id, kind, started_by, started_at, trial_ends_at)
+    values (v_org, 'free_access', v_user, now(), v_ends)
+    on conflict (organization_id, kind) do nothing;
+  else
+    insert into public.memberships (organization_id, user_id, role)
+    values (v_org, v_user, 'owner')
+    on conflict do nothing;
+
+    insert into public.business_profiles (organization_id)
+    values (v_org)
+    on conflict (organization_id) do nothing;
+
+    insert into public.platform_trials (organization_id, kind, started_by, started_at, trial_ends_at)
+    select v_org, 'free_access', v_user, o.created_at, o.trial_ends_at
+    from public.organizations o
+    where o.id = v_org and o.trial_ends_at is not null
+    on conflict (organization_id, kind) do nothing;
   end if;
-
-  insert into public.business_profiles (organization_id, profile)
-  values (v_org, coalesce(_profile, '{}'::jsonb))
-  on conflict (organization_id) do update
-    set profile = coalesce(excluded.profile, public.business_profiles.profile),
-        updated_at = now();
-
-  insert into public.platform_trials (organization_id, started_at, trial_ends_at)
-  select v_org, now(), coalesce(o.trial_ends_at, now() + interval '1 day')
-  from public.organizations o
-  where o.id = v_org
-  on conflict (organization_id) do nothing;
 
   return v_org;
 end;
 $function$;
 
-REVOKE ALL ON FUNCTION public.provision_workspace_server(uuid, text, text, jsonb, integer) FROM PUBLIC, anon, authenticated;
-GRANT EXECUTE ON FUNCTION public.provision_workspace_server(uuid, text, text, jsonb, integer) TO service_role;
+revoke all on function public.provision_workspace_server(uuid, text, text, jsonb, integer) from public;
+revoke all on function public.provision_workspace_server(uuid, text, text, jsonb, integer) from anon;
+revoke all on function public.provision_workspace_server(uuid, text, text, jsonb, integer) from authenticated;
+grant execute on function public.provision_workspace_server(uuid, text, text, jsonb, integer) to service_role;
 
 -- Published offer row mirrors the 1-day full-access window.
 UPDATE public.offer_config SET full_access_days = 1 WHERE full_access_days <> 1;
