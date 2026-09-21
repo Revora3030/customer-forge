@@ -4,174 +4,106 @@
 td,th{border:1px solid #ddd;padding:6px;vertical-align:top;text-align:left}th{background:#f5f5f5}</style>
 </head><body>
 <h1>Customer Forge browser journey</h1>
-<p><strong>Status:</strong> PASSED &middot; base URL http://localhost:8080 &middot;
-20 passed, 0 failed, 5 not tested &middot;
-67775 ms</p>
+<p><strong>Status:</strong> FAILED &middot; base URL http://localhost:8080 &middot;
+3 passed, 7 failed, 15 not tested &middot;
+11820 ms</p>
 <table><thead><tr><th>Step</th><th>What it proves</th><th>Status</th><th>Duration</th><th>Evidence</th></tr></thead>
-<tbody><tr><td>01_app_loads</td><td>The application loads</td><td style="color:#0a7;font-weight:600">PASS</td><td>3790 ms</td><td><pre style="white-space:pre-wrap;margin:0;font-size:12px">{
+<tbody><tr><td>01_app_loads</td><td>The application loads</td><td style="color:#0a7;font-weight:600">PASS</td><td>6127 ms</td><td><pre style="white-space:pre-wrap;margin:0;font-size:12px">{
  &quot;httpStatus&quot;: 200,
  &quot;heading&quot;: &quot;Your business books jobs while you&#x27;re on the job, and while you sleep.&quot;,
  &quot;screenshot&quot;: &quot;browser-qa-artifacts/journey-home.png&quot;,
  &quot;url&quot;: &quot;http://localhost:8080/&quot;,
  &quot;viewport&quot;: &quot;1440x1800&quot;
-}</pre></td></tr><tr><td>02_no_error_screen</td><td>No global error screen</td><td style="color:#0a7;font-weight:600">PASS</td><td>13 ms</td><td><pre style="white-space:pre-wrap;margin:0;font-size:12px">{
+}</pre></td></tr><tr><td>02_no_error_screen</td><td>No global error screen</td><td style="color:#0a7;font-weight:600">PASS</td><td>22 ms</td><td><pre style="white-space:pre-wrap;margin:0;font-size:12px">{
  &quot;note&quot;: &quot;No global error screen and no page errors.&quot;,
  &quot;url&quot;: &quot;http://localhost:8080/&quot;,
  &quot;viewport&quot;: &quot;1440x1800&quot;
-}</pre></td></tr><tr><td>03_auth_session</td><td>Signed-out gate holds and a session signs in</td><td style="color:#0a7;font-weight:600">PASS</td><td>5233 ms</td><td><pre style="white-space:pre-wrap;margin:0;font-size:12px">{
- &quot;note&quot;: &quot;Signed out /app redirected to http://localhost:8080/auth; restored session reached the workspace.&quot;,
- &quot;screenshot&quot;: &quot;browser-qa-artifacts/journey-dashboard.png&quot;,
- &quot;url&quot;: &quot;http://localhost:8080/app&quot;,
+}</pre></td></tr><tr><td>03_auth_session</td><td>Signed-out gate holds and a session signs in</td><td style="color:#a70;font-weight:600">NOT_TESTED</td><td>4105 ms</td><td><pre style="white-space:pre-wrap;margin:0;font-size:12px">{
+ &quot;reason&quot;: &quot;No Supabase test session available. Provide JOURNEY_SESSION_FILE or run `lovable auth-session --json --self` first.&quot;,
+ &quot;url&quot;: &quot;http://localhost:8080/auth&quot;,
  &quot;viewport&quot;: &quot;1440x1800&quot;
-}</pre></td></tr><tr><td>04_fixture_workspace</td><td>A deterministic workspace is entered</td><td style="color:#0a7;font-weight:600">PASS</td><td>5 ms</td><td><pre style="white-space:pre-wrap;margin:0;font-size:12px">{
- &quot;workspace&quot;: &quot;Enejeh&quot;,
- &quot;url&quot;: &quot;http://localhost:8080/app&quot;,
+}</pre></td></tr><tr><td>04_fixture_workspace</td><td>A deterministic workspace is entered</td><td style="color:#d33;font-weight:600">FAIL</td><td>19 ms</td><td><pre style="white-space:pre-wrap;margin:0;font-size:12px">{
+ &quot;error&quot;: &quot;Locator.inner_text: Target page, context or browser has been closed&quot;,
+ &quot;retried&quot;: false,
+ &quot;url&quot;: &quot;http://localhost:8080/auth&quot;,
  &quot;viewport&quot;: &quot;1440x1800&quot;
-}</pre></td></tr><tr><td>05_builder_opens</td><td>The builder opens</td><td style="color:#0a7;font-weight:600">PASS</td><td>3110 ms</td><td><pre style="white-space:pre-wrap;margin:0;font-size:12px">{
- &quot;note&quot;: &quot;Builder opened. Project status chip: LIVE&quot;,
- &quot;screenshot&quot;: &quot;browser-qa-artifacts/journey-builder.png&quot;,
- &quot;url&quot;: &quot;http://localhost:8080/app/website&quot;,
+}</pre></td></tr><tr><td>05_builder_opens</td><td>The builder opens</td><td style="color:#d33;font-weight:600">FAIL</td><td>14 ms</td><td><pre style="white-space:pre-wrap;margin:0;font-size:12px">{
+ &quot;error&quot;: &quot;Page.goto: Target page, context or browser has been closed&quot;,
+ &quot;retried&quot;: false,
+ &quot;url&quot;: &quot;http://localhost:8080/auth&quot;,
  &quot;viewport&quot;: &quot;1440x1800&quot;
 }</pre></td></tr><tr><td>06_builder_console_clean</td><td>The builder loads without console errors</td><td style="color:#0a7;font-weight:600">PASS</td><td>0 ms</td><td><pre style="white-space:pre-wrap;margin:0;font-size:12px">{
  &quot;note&quot;: &quot;Builder loaded with no console errors and no failed requests.&quot;,
- &quot;url&quot;: &quot;http://localhost:8080/app/website&quot;,
+ &quot;url&quot;: &quot;http://localhost:8080/auth&quot;,
  &quot;viewport&quot;: &quot;1440x1800&quot;
 }</pre></td></tr><tr><td>07_build_request</td><td>A deterministic build request is submitted</td><td style="color:#a70;font-weight:600">NOT_TESTED</td><td>0 ms</td><td><pre style="white-space:pre-wrap;margin:0;font-size:12px">{
  &quot;reason&quot;: &quot;Set JOURNEY_ALLOW_BUILD=1 to submit a real build request. It writes website content to the fixture workspace, so it is off by default.&quot;,
- &quot;url&quot;: &quot;http://localhost:8080/app/website&quot;,
+ &quot;url&quot;: &quot;http://localhost:8080/auth&quot;,
  &quot;viewport&quot;: &quot;1440x1800&quot;
-}</pre></td></tr><tr><td>08_build_stages</td><td>Build progresses through the user-facing stages</td><td style="color:#a70;font-weight:600">NOT_TESTED</td><td>4 ms</td><td><pre style="white-space:pre-wrap;margin:0;font-size:12px">{
- &quot;reason&quot;: &quot;No build is in progress or recorded in this workspace, so the user-facing stages (Understanding -&gt; Ready) could not be observed. Run with JOURNEY_ALLOW_BUILD=1.&quot;,
- &quot;url&quot;: &quot;http://localhost:8080/app/website&quot;,
+}</pre></td></tr><tr><td>08_build_stages</td><td>Build progresses through the user-facing stages</td><td style="color:#d33;font-weight:600">FAIL</td><td>18 ms</td><td><pre style="white-space:pre-wrap;margin:0;font-size:12px">{
+ &quot;error&quot;: &quot;Page.inner_text: Target page, context or browser has been closed&quot;,
+ &quot;retried&quot;: false,
+ &quot;url&quot;: &quot;http://localhost:8080/auth&quot;,
  &quot;viewport&quot;: &quot;1440x1800&quot;
-}</pre></td></tr><tr><td>09_preview_renders</td><td>The generated site renders</td><td style="color:#0a7;font-weight:600">PASS</td><td>1659 ms</td><td><pre style="white-space:pre-wrap;margin:0;font-size:12px">{
- &quot;previewPath&quot;: &quot;/s/eilte&quot;,
- &quot;contentChars&quot;: 2257,
- &quot;internalPages&quot;: [
-  &quot;/s/eilte/services&quot;,
-  &quot;/s/eilte/all&quot;,
-  &quot;/s/eilte/ejejej&quot;,
-  &quot;/s/eilte/dueh&quot;,
-  &quot;/s/eilte/pricing&quot;,
-  &quot;/s/eilte/book&quot;
- ],
- &quot;url&quot;: &quot;http://localhost:8080/app/website&quot;,
+}</pre></td></tr><tr><td>09_preview_renders</td><td>The generated site renders</td><td style="color:#d33;font-weight:600">FAIL</td><td>45 ms</td><td><pre style="white-space:pre-wrap;margin:0;font-size:12px">{
+ &quot;error&quot;: &quot;Locator.wait_for: Target page, context or browser has been closed&quot;,
+ &quot;retried&quot;: false,
+ &quot;url&quot;: &quot;http://localhost:8080/auth&quot;,
  &quot;viewport&quot;: &quot;1440x1800&quot;
-}</pre></td></tr><tr><td>10_page_navigation</td><td>Navigation between generated pages works</td><td style="color:#0a7;font-weight:600">PASS</td><td>3477 ms</td><td><pre style="white-space:pre-wrap;margin:0;font-size:12px">{
- &quot;from&quot;: &quot;/s/eilte&quot;,
- &quot;to&quot;: &quot;/s/eilte/services&quot;,
- &quot;url&quot;: &quot;http://localhost:8080/app/website&quot;,
+}</pre></td></tr><tr><td>10_page_navigation</td><td>Navigation between generated pages works</td><td style="color:#d33;font-weight:600">FAIL</td><td>9 ms</td><td><pre style="white-space:pre-wrap;margin:0;font-size:12px">{
+ &quot;error&quot;: &quot;Locator.count: Target page, context or browser has been closed&quot;,
+ &quot;retried&quot;: false,
+ &quot;url&quot;: &quot;http://localhost:8080/auth&quot;,
  &quot;viewport&quot;: &quot;1440x1800&quot;
-}</pre></td></tr><tr><td>11_mobile_widths</td><td>Mobile layout at 320/375/390/414px</td><td style="color:#0a7;font-weight:600">PASS</td><td>12933 ms</td><td><pre style="white-space:pre-wrap;margin:0;font-size:12px">{
- &quot;measurements&quot;: [
-  {
-   &quot;width&quot;: 320,
-   &quot;httpStatus&quot;: 200,
-   &quot;horizontalOverflowPx&quot;: 0,
-   &quot;screenshot&quot;: &quot;browser-qa-artifacts/journey-site-320.png&quot;
-  },
-  {
-   &quot;width&quot;: 375,
-   &quot;httpStatus&quot;: 200,
-   &quot;horizontalOverflowPx&quot;: 0,
-   &quot;screenshot&quot;: &quot;browser-qa-artifacts/journey-site-375.png&quot;
-  },
-  {
-   &quot;width&quot;: 390,
-   &quot;httpStatus&quot;: 200,
-   &quot;horizontalOverflowPx&quot;: 0,
-   &quot;screenshot&quot;: &quot;browser-qa-artifacts/journey-site-390.png&quot;
-  },
-  {
-   &quot;width&quot;: 414,
-   &quot;httpStatus&quot;: 200,
-   &quot;horizontalOverflowPx&quot;: 0,
-   &quot;screenshot&quot;: &quot;browser-qa-artifacts/journey-site-414.png&quot;
-  }
- ],
- &quot;url&quot;: &quot;http://localhost:8080/app/website&quot;,
+}</pre></td></tr><tr><td>11_mobile_widths</td><td>Mobile layout at 320/375/390/414px</td><td style="color:#a70;font-weight:600">NOT_TESTED</td><td>0 ms</td><td><pre style="white-space:pre-wrap;margin:0;font-size:12px">{
+ &quot;reason&quot;: &quot;No published preview path was resolved, so layouts cannot be measured.&quot;,
+ &quot;url&quot;: &quot;http://localhost:8080/auth&quot;,
  &quot;viewport&quot;: &quot;1440x1800&quot;
-}</pre></td></tr><tr><td>12_desktop_widths</td><td>Desktop layout at 1280/1440px</td><td style="color:#0a7;font-weight:600">PASS</td><td>11948 ms</td><td><pre style="white-space:pre-wrap;margin:0;font-size:12px">{
- &quot;measurements&quot;: [
-  {
-   &quot;width&quot;: 1280,
-   &quot;httpStatus&quot;: 200,
-   &quot;horizontalOverflowPx&quot;: 0,
-   &quot;screenshot&quot;: &quot;browser-qa-artifacts/journey-site-1280.png&quot;
-  },
-  {
-   &quot;width&quot;: 1440,
-   &quot;httpStatus&quot;: 200,
-   &quot;horizontalOverflowPx&quot;: 0,
-   &quot;screenshot&quot;: &quot;browser-qa-artifacts/journey-site-1440.png&quot;
-  }
- ],
- &quot;url&quot;: &quot;http://localhost:8080/app/website&quot;,
+}</pre></td></tr><tr><td>12_desktop_widths</td><td>Desktop layout at 1280/1440px</td><td style="color:#a70;font-weight:600">NOT_TESTED</td><td>0 ms</td><td><pre style="white-space:pre-wrap;margin:0;font-size:12px">{
+ &quot;reason&quot;: &quot;No published preview path was resolved, so layouts cannot be measured.&quot;,
+ &quot;url&quot;: &quot;http://localhost:8080/auth&quot;,
  &quot;viewport&quot;: &quot;1440x1800&quot;
-}</pre></td></tr><tr><td>13_no_overflow</td><td>No horizontal overflow at any width</td><td style="color:#0a7;font-weight:600">PASS</td><td>0 ms</td><td><pre style="white-space:pre-wrap;margin:0;font-size:12px">{
- &quot;widths&quot;: [
-  320,
-  375,
-  390,
-  414,
-  1280,
-  1440
- ],
- &quot;maxOverflowPx&quot;: 0,
- &quot;url&quot;: &quot;http://localhost:8080/app/website&quot;,
+}</pre></td></tr><tr><td>13_no_overflow</td><td>No horizontal overflow at any width</td><td style="color:#a70;font-weight:600">NOT_TESTED</td><td>0 ms</td><td><pre style="white-space:pre-wrap;margin:0;font-size:12px">{
+ &quot;reason&quot;: &quot;No widths were measured, so overflow cannot be reported.&quot;,
+ &quot;url&quot;: &quot;http://localhost:8080/auth&quot;,
  &quot;viewport&quot;: &quot;1440x1800&quot;
-}</pre></td></tr><tr><td>14_actionable</td><td>Important buttons and links are actionable</td><td style="color:#0a7;font-weight:600">PASS</td><td>5181 ms</td><td><pre style="white-space:pre-wrap;margin:0;font-size:12px">{
- &quot;links&quot;: 33,
- &quot;deadLinks&quot;: 0,
- &quot;buttons&quot;: 2,
- &quot;disabledButtons&quot;: 0,
- &quot;url&quot;: &quot;http://localhost:8080/app/website&quot;,
+}</pre></td></tr><tr><td>14_actionable</td><td>Important buttons and links are actionable</td><td style="color:#a70;font-weight:600">NOT_TESTED</td><td>0 ms</td><td><pre style="white-space:pre-wrap;margin:0;font-size:12px">{
+ &quot;reason&quot;: &quot;No preview path resolved.&quot;,
+ &quot;url&quot;: &quot;http://localhost:8080/auth&quot;,
  &quot;viewport&quot;: &quot;1440x1800&quot;
-}</pre></td></tr><tr><td>15_real_content</td><td>The page carries real content</td><td style="color:#0a7;font-weight:600">PASS</td><td>1691 ms</td><td><pre style="white-space:pre-wrap;margin:0;font-size:12px">{
- &quot;heading&quot;: &quot;Premium Auto Detailing in Raleigh&quot;,
- &quot;sections&quot;: 13,
- &quot;headings&quot;: 12,
- &quot;chars&quot;: 2257,
- &quot;url&quot;: &quot;http://localhost:8080/app/website&quot;,
+}</pre></td></tr><tr><td>15_real_content</td><td>The page carries real content</td><td style="color:#a70;font-weight:600">NOT_TESTED</td><td>0 ms</td><td><pre style="white-space:pre-wrap;margin:0;font-size:12px">{
+ &quot;reason&quot;: &quot;No preview path resolved.&quot;,
+ &quot;url&quot;: &quot;http://localhost:8080/auth&quot;,
  &quot;viewport&quot;: &quot;1440x1800&quot;
-}</pre></td></tr><tr><td>16_builder_edit</td><td>One deterministic builder edit is applied</td><td style="color:#0a7;font-weight:600">PASS</td><td>3499 ms</td><td><pre style="white-space:pre-wrap;margin:0;font-size:12px">{
- &quot;note&quot;: &quot;Staged one heading edit and applied it.&quot;,
- &quot;from&quot;: &quot;Premium Auto Detailing in Raleigh&quot;,
- &quot;to&quot;: &quot;Smoke check 1789972913&quot;,
- &quot;screenshot&quot;: &quot;browser-qa-artifacts/journey-edit-applied.png&quot;,
- &quot;url&quot;: &quot;http://localhost:8080/app/website&quot;,
+}</pre></td></tr><tr><td>16_builder_edit</td><td>One deterministic builder edit is applied</td><td style="color:#a70;font-weight:600">NOT_TESTED</td><td>0 ms</td><td><pre style="white-space:pre-wrap;margin:0;font-size:12px">{
+ &quot;reason&quot;: &quot;Set JOURNEY_ALLOW_MUTATE=1 to run the edit, persistence and rollback steps. They write to the fixture workspace, so they are off by default.&quot;,
+ &quot;url&quot;: &quot;http://localhost:8080/auth&quot;,
  &quot;viewport&quot;: &quot;1440x1800&quot;
-}</pre></td></tr><tr><td>17_edit_visible</td><td>The edit appears in the rendered preview</td><td style="color:#0a7;font-weight:600">PASS</td><td>1538 ms</td><td><pre style="white-space:pre-wrap;margin:0;font-size:12px">{
- &quot;note&quot;: &quot;The applied edit renders on the generated page.&quot;,
- &quot;text&quot;: &quot;Smoke check 1789972913&quot;,
- &quot;url&quot;: &quot;http://localhost:8080/app/website&quot;,
+}</pre></td></tr><tr><td>17_edit_visible</td><td>The edit appears in the rendered preview</td><td style="color:#a70;font-weight:600">NOT_TESTED</td><td>0 ms</td><td><pre style="white-space:pre-wrap;margin:0;font-size:12px">{
+ &quot;reason&quot;: &quot;No edit was made, so the rendered result cannot be checked.&quot;,
+ &quot;url&quot;: &quot;http://localhost:8080/auth&quot;,
  &quot;viewport&quot;: &quot;1440x1800&quot;
-}</pre></td></tr><tr><td>18_edit_persists</td><td>The edit survives a refresh</td><td style="color:#0a7;font-weight:600">PASS</td><td>4757 ms</td><td><pre style="white-space:pre-wrap;margin:0;font-size:12px">{
- &quot;note&quot;: &quot;The edit survived a full page refresh.&quot;,
- &quot;screenshot&quot;: &quot;browser-qa-artifacts/journey-edit-persisted.png&quot;,
- &quot;url&quot;: &quot;http://localhost:8080/app/website&quot;,
+}</pre></td></tr><tr><td>18_edit_persists</td><td>The edit survives a refresh</td><td style="color:#a70;font-weight:600">NOT_TESTED</td><td>0 ms</td><td><pre style="white-space:pre-wrap;margin:0;font-size:12px">{
+ &quot;reason&quot;: &quot;No edit was made, so persistence cannot be checked.&quot;,
+ &quot;url&quot;: &quot;http://localhost:8080/auth&quot;,
  &quot;viewport&quot;: &quot;1440x1800&quot;
-}</pre></td></tr><tr><td>19_rollback</td><td>Undo / rollback is available and used</td><td style="color:#0a7;font-weight:600">PASS</td><td>2695 ms</td><td><pre style="white-space:pre-wrap;margin:0;font-size:12px">{
- &quot;method&quot;: &quot;restore-original-heading&quot;,
- &quot;restoring&quot;: &quot;Premium Auto Detailing in Raleigh&quot;,
- &quot;url&quot;: &quot;http://localhost:8080/app/website&quot;,
+}</pre></td></tr><tr><td>19_rollback</td><td>Undo / rollback is available and used</td><td style="color:#a70;font-weight:600">NOT_TESTED</td><td>0 ms</td><td><pre style="white-space:pre-wrap;margin:0;font-size:12px">{
+ &quot;reason&quot;: &quot;No edit was made, so rollback cannot be exercised.&quot;,
+ &quot;url&quot;: &quot;http://localhost:8080/auth&quot;,
  &quot;viewport&quot;: &quot;1440x1800&quot;
-}</pre></td></tr><tr><td>20_rollback_restores</td><td>Rollback restores the previous state</td><td style="color:#0a7;font-weight:600">PASS</td><td>3377 ms</td><td><pre style="white-space:pre-wrap;margin:0;font-size:12px">{
- &quot;note&quot;: &quot;Rollback restored the previous state.&quot;,
- &quot;restored&quot;: &quot;Premium Auto Detailing in Raleigh&quot;,
- &quot;url&quot;: &quot;http://localhost:8080/app/website&quot;,
+}</pre></td></tr><tr><td>20_rollback_restores</td><td>Rollback restores the previous state</td><td style="color:#a70;font-weight:600">NOT_TESTED</td><td>0 ms</td><td><pre style="white-space:pre-wrap;margin:0;font-size:12px">{
+ &quot;reason&quot;: &quot;No edit was made, so there is nothing to restore.&quot;,
+ &quot;url&quot;: &quot;http://localhost:8080/auth&quot;,
  &quot;viewport&quot;: &quot;1440x1800&quot;
-}</pre></td></tr><tr><td>21_publish_gated</td><td>Publishing stays gated and nothing is published</td><td style="color:#0a7;font-weight:600">PASS</td><td>18 ms</td><td><pre style="white-space:pre-wrap;margin:0;font-size:12px">{
- &quot;note&quot;: &quot;Publish control present and never pressed; no publish request was issued.&quot;,
- &quot;statusLabelBefore&quot;: &quot;LIVE&quot;,
- &quot;publishDisabled&quot;: false,
- &quot;statusLabel&quot;: &quot;LIVE&quot;,
- &quot;url&quot;: &quot;http://localhost:8080/app/website&quot;,
+}</pre></td></tr><tr><td>21_publish_gated</td><td>Publishing stays gated and nothing is published</td><td style="color:#d33;font-weight:600">FAIL</td><td>9 ms</td><td><pre style="white-space:pre-wrap;margin:0;font-size:12px">{
+ &quot;error&quot;: &quot;Locator.count: Target page, context or browser has been closed&quot;,
+ &quot;retried&quot;: false,
+ &quot;url&quot;: &quot;http://localhost:8080/auth&quot;,
  &quot;viewport&quot;: &quot;1440x1800&quot;
-}</pre></td></tr><tr><td>22_dashboard_return</td><td>The app returns to the dashboard cleanly</td><td style="color:#0a7;font-weight:600">PASS</td><td>2109 ms</td><td><pre style="white-space:pre-wrap;margin:0;font-size:12px">{
- &quot;note&quot;: &quot;Returned to the dashboard cleanly.&quot;,
- &quot;screenshot&quot;: &quot;browser-qa-artifacts/journey-dashboard-return.png&quot;,
- &quot;url&quot;: &quot;http://localhost:8080/app&quot;,
+}</pre></td></tr><tr><td>22_dashboard_return</td><td>The app returns to the dashboard cleanly</td><td style="color:#d33;font-weight:600">FAIL</td><td>11 ms</td><td><pre style="white-space:pre-wrap;margin:0;font-size:12px">{
+ &quot;error&quot;: &quot;Locator.click: Target page, context or browser has been closed&quot;,
+ &quot;retried&quot;: false,
+ &quot;url&quot;: &quot;http://localhost:8080/auth&quot;,
  &quot;viewport&quot;: &quot;1440x1800&quot;
 }</pre></td></tr><tr><td>ext_stripe</td><td>Live Stripe checkout and webhooks</td><td style="color:#a70;font-weight:600">NOT_TESTED</td><td>0 ms</td><td><pre style="white-space:pre-wrap;margin:0;font-size:12px">{
  &quot;reason&quot;: &quot;External payment credentials are not part of this CI-safe suite. Covered by `bun run test:integrations` when STRIPE_SANDBOX_API_KEY is configured.&quot;
