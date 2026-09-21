@@ -132,7 +132,7 @@ async function saveRestorePoint(
   let version = Number((latest as { version?: number } | null)?.version ?? 0);
   for (let attempt = 0; attempt < 5; attempt += 1) {
     version += 1;
-    const { data: saved } = await supabase
+    const { data: saved, error: saveError } = await supabase
       .from("website_versions")
       .insert({
         organization_id: organizationId,
@@ -505,6 +505,7 @@ export type VisionReviewResult = {
   repairs?: { action: string; reason: string }[];
   unfixable?: { kind: string; detail: string }[];
   reportId?: string;
+  storeWarning?: string;
 };
 
 const MAX_SCREENSHOT_BYTES = 4_000_000;
@@ -601,7 +602,7 @@ export const reviewPageScreenshot = createServerFn({ method: "POST" })
     // The review is stored alongside the browser's own visual checks so the
     // owner keeps a history. Measurements stay empty here — this row is a
     // model's opinion of a screenshot, never a measurement.
-    const { data: saved } = await supabase
+    const { data: saved, error: saveError } = await supabase
       .from("website_visual_reports")
       .insert({
         organization_id: data.organizationId,
@@ -624,6 +625,7 @@ export const reviewPageScreenshot = createServerFn({ method: "POST" })
     return {
       ok: true,
       code: "REVIEWED",
+      ...(saveError ? { storeWarning: "The review is shown here but could not be saved to your history." } : {}),
       review,
       summary: visionSummary(review),
       provider,

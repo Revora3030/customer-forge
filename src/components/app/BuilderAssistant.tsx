@@ -30,6 +30,7 @@ import { Button } from "@/components/ui/button";
 import { BrandChoices } from "@/components/app/BrandChoices";
 import { CompositionPreviewCard } from "@/components/app/CompositionPreviewCard";
 import { attachmentNotice } from "@/lib/builder/capabilities";
+import { useBuildProgress } from "@/lib/builder/progress.hooks";
 import { BUILDER_PRIMARY_ACTIONS, BUILDER_QUICK_ACTIONS } from "@/lib/builder-modes";
 import { QUEUE_LABELS, timelineFor, type QueueTask } from "@/lib/builder-queue";
 import { onAssistantPrompt } from "@/lib/assistant-bridge";
@@ -89,7 +90,7 @@ export function BuilderAssistant({
               </Message>
               <Message from="assistant">
                 <MessageContent className="w-full">
-                  <TaskBody task={task} requests={requests} />
+                  <TaskBody task={task} requests={requests} organizationId={organizationId} />
                 </MessageContent>
               </Message>
             </div>
@@ -179,13 +180,29 @@ export function BuilderAssistant({
 }
 
 /** One request's honest state: what Revora will do, did, or couldn't do. */
-function TaskBody({ task, requests }: { task: QueueTask; requests: BuilderRequests }) {
+function TaskBody({
+  task,
+  requests,
+  organizationId,
+}: {
+  task: QueueTask;
+  requests: BuilderRequests;
+  organizationId: string | null | undefined;
+}) {
   const working = task.state === "planning" || task.state === "building";
   const timeline = timelineFor(task);
+  // The steps the server has genuinely recorded for this build, shown live.
+  const { latest } = useBuildProgress(organizationId, working);
   return (
     <div className="space-y-2">
       {working ? (
-        <Shimmer>{task.state === "planning" ? "Working out the change…" : "Applying…"}</Shimmer>
+        <Shimmer>
+          {latest
+            ? `${latest.stage}…`
+            : task.state === "planning"
+              ? "Working out the change…"
+              : "Applying…"}
+        </Shimmer>
       ) : (
         <p className="text-[11px] tracking-wide text-muted-foreground uppercase">
           {QUEUE_LABELS[task.state]}

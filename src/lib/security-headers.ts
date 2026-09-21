@@ -29,7 +29,11 @@ export const CONTENT_SECURITY_POLICY = [
   "base-uri 'self'",
   "object-src 'none'",
   "form-action 'self'",
-  "frame-ancestors 'none'",
+  // Only Revora's own pages may frame Revora pages. This still blocks every
+  // other origin (the clickjacking protection that matters), while letting the
+  // builder open a customer page in a same-origin frame to photograph what
+  // actually rendered for the visual review.
+  "frame-ancestors 'self'",
   "script-src 'self' 'unsafe-inline' https://js.stripe.com https://www.googletagmanager.com",
   "script-src-attr 'none'",
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",

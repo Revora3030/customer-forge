@@ -394,7 +394,7 @@ async function run<T>(
     model: string;
     signal: AbortSignal;
   }) => Promise<{ value: T; inputTokens?: number | null; outputTokens?: number | null }>,
-  options?: { capable?: (model: string) => boolean },
+  options?: { capable?: (model: string) => boolean; nextProviderOnInvalidRequest?: boolean },
 ): Promise<{
   value: T;
   provider: ProviderName;
@@ -532,8 +532,12 @@ async function run<T>(
             toolCalls: 0,
           });
 
-          // A bad request or a rejected key is the same on every attempt and on
-          // every provider key of the same kind: stop instead of burning calls.
+          // A bad request or a rejected key is normally the same on every attempt
+          // and every provider key of the same kind: stop instead of burning
+          // calls. The exception is a request carrying an attachment: providers
+          // differ in what they accept, so one refusing a picture says nothing
+          // about the next free provider. Move on instead of giving up.
+          if (error.category === "invalid_request" && options?.nextProviderOnInvalidRequest) break;
           if (error.category === "invalid_request" || error.category === "too_large") throw error;
           if (!error.retryable) break;
           if (attempt < limits.maxAttemptsPerProvider) {
@@ -554,6 +558,15 @@ async function run<T>(
   } finally {
     release(concurrencyKey);
   }
+}
+
+/** True when any message carries a picture, video or recording. */
+function carriesAttachment(messages: AiRequest["messages"]): boolean {
+  return messages.some(
+    (message) =>
+      Array.isArray(message.content) &&
+      message.content.some((part) => part.type !== "text"),
+  );
 }
 
 /* ------------------------------ public surface ----------------------------- */
@@ -584,6 +597,7 @@ export async function generateText(caller: AiCaller, request: AiRequest): Promis
         outputTokens: result.usage.outputTokens,
       };
     },
+    { nextProviderOnInvalidRequest: carriesAttachment(request.messages) },
   );
   return {
     text: outcome.value,
@@ -628,6 +642,7 @@ export async function generateStructuredOutput(
         outputTokens: result.usage.outputTokens,
       };
     },
+    { nextProviderOnInvalidRequest: carriesAttachment(request.messages) },
   );
   return {
     text: outcome.value.text,
