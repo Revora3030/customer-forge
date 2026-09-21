@@ -4,6 +4,7 @@ import {
   fingerprintBrief,
   fingerprintVocabularySize,
   readDesignFingerprint,
+  rendererVariant,
   rejectStyle,
   writeDesignFingerprint,
   BACKGROUND_SYSTEMS,
@@ -156,5 +157,24 @@ describe("design vocabulary breadth", () => {
 
   it("states in the brief that the identity is never a source of facts", () => {
     expect(fingerprintBrief(createDesignFingerprint(base))).toMatch(/never a source of business facts/i);
+  });
+
+  it("maps every creative pool into a renderer-supported visual treatment", () => {
+    const pools = [
+      ["hero", HERO_COMPOSITIONS],
+      ["services", CARD_SYSTEMS],
+      ["reviews", PROOF_LAYOUTS],
+      ["pricing", PRICING_LAYOUTS],
+      ["faq", FAQ_LAYOUTS],
+      ["gallery", GALLERY_LAYOUTS],
+      ["process", TIMELINE_LAYOUTS],
+      ["quote", FORM_LAYOUTS],
+      ["cta", CTA_SYSTEMS],
+      ["content", SECTION_COMPOSITIONS],
+    ] as const;
+    const supported = /^(hero-(split|layered|editorial|focus)|cards-(floating|editorial|clean|elevated)|proof-(feature|editorial|grid|cards)|gallery-(mosaic|cinematic|editorial|grid)|faq-(compact|editorial|spacious|clean)|form-(glass|editorial|premium|clean)|cta-(fullbleed|spotlight|panel|minimal)|section-(editorial|airy|soft|balanced))$/;
+    for (const [kind, pool] of pools) {
+      for (const choice of pool) expect(rendererVariant(kind, choice)).toMatch(supported);
+    }
   });
 });

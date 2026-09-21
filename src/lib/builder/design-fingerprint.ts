@@ -412,6 +412,61 @@ export function fingerprintBrief(fingerprint: DesignFingerprint): string {
 
 const safeToken = (value: string) => value.toLowerCase().replace(/[^a-z0-9-]/g, "").slice(0, 40);
 
+/**
+ * Maps the large creative vocabulary onto the finite treatments implemented by
+ * the public renderer. The source choice is still retained in the fingerprint;
+ * this is only its visual rendering contract.
+ */
+export function rendererVariant(kind: string, source: string): string {
+  const token = safeToken(source);
+  if (kind === "hero") {
+    if (/layer|overlap|collage|floating|inset|card/.test(token)) return "hero-layered";
+    if (/editorial|magazine|columns|portrait|frame/.test(token)) return "hero-editorial";
+    if (/spotlight|poster|statement|type-first|quiet|centered/.test(token)) return "hero-focus";
+    return "hero-split";
+  }
+  if (kind === "services") {
+    if (/elevated|shadow|hover-lift|floating|gradient/.test(token)) return "cards-floating";
+    if (/editorial|media-side|wide-feature|rule|columns/.test(token)) return "cards-editorial";
+    if (/sharp|minimal|flat|compact|rows/.test(token)) return "cards-clean";
+    return "cards-elevated";
+  }
+  if (kind === "reviews") {
+    if (/single|spotlight|banner|metric/.test(token)) return "proof-feature";
+    if (/editorial|pullquote|rows|list/.test(token)) return "proof-editorial";
+    if (/grid|columns|wall|grouped/.test(token)) return "proof-grid";
+    return "proof-cards";
+  }
+  if (kind === "gallery") {
+    if (/mosaic|quilt|staggered|offset/.test(token)) return "gallery-mosaic";
+    if (/full-bleed|filmstrip|feature|rail/.test(token)) return "gallery-cinematic";
+    if (/captioned|framed|duotone|category/.test(token)) return "gallery-editorial";
+    return "gallery-grid";
+  }
+  if (kind === "faq") {
+    if (/compact|accordion|rows/.test(token)) return "faq-compact";
+    if (/grid|grouped|boxed|tabbed|sidebar/.test(token)) return "faq-editorial";
+    if (/wide|open|spacious/.test(token)) return "faq-spacious";
+    return "faq-clean";
+  }
+  if (kind === "quote" || kind === "booking" || kind === "contact") {
+    if (/glass|boxed|card|contrast/.test(token)) return "form-glass";
+    if (/split|sidebar|map|editorial/.test(token)) return "form-editorial";
+    if (/stepped|wizard|calendar|premium/.test(token)) return "form-premium";
+    return "form-clean";
+  }
+  if (kind === "cta" || kind === "offer") {
+    if (/full-bleed|band|footer-merge/.test(token)) return "cta-fullbleed";
+    if (/spotlight|stat|testimonial|urgency/.test(token)) return "cta-spotlight";
+    if (/card|panel|boxed|frame/.test(token)) return "cta-panel";
+    return "cta-minimal";
+  }
+  if (/editorial|split|sidebar|columns|zigzag/.test(token)) return "section-editorial";
+  if (/wide|band|masonry|carousel|metric/.test(token)) return "section-airy";
+  if (/inset|bordered|card|tab/.test(token)) return "section-soft";
+  return "section-balanced";
+}
+
 /** Finite public-renderer classes for the site-wide identity. */
 export function fingerprintClassNames(fingerprint: DesignFingerprint): string {
   return [
@@ -497,7 +552,7 @@ export function sectionDesignFromFingerprint(
                   : kind === "hero" ? fingerprint.heroComposition
                     : fingerprint.sectionRhythm;
   return {
-    variant: `${kind}-${safeToken(source)}`,
+    variant: rendererVariant(kind, source),
     layout,
     cardStyle,
     imageTreatment,

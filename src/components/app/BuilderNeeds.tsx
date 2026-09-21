@@ -23,16 +23,19 @@ export type BuilderNeed = {
 export function BuilderNeeds({ needs }: { needs: BuilderNeed[] }) {
   if (needs.length === 0) return null;
   return (
-    <div className="space-y-3">
+    <div className="grid auto-cols-[minmax(240px,82vw)] grid-flow-col gap-3 overflow-x-auto pb-1 md:auto-cols-auto md:grid-flow-row md:grid-cols-2 xl:grid-cols-3">
       {needs.map((need) => (
         <section
           key={need.key}
-          className={cn("panel p-4", need.blocking && "border-accent/40 bg-accent/5")}
+          className={cn(
+            "panel flex min-h-[138px] flex-col p-4",
+            need.blocking && "border-accent/40 bg-accent/5",
+          )}
         >
           <p className="text-[13px] font-medium">{need.title}</p>
           <p className="mt-0.5 text-[12px] text-muted-foreground">{need.body}</p>
           <Button
-            className="mt-3"
+            className="mt-auto self-start pt-3"
             size="sm"
             variant={need.blocking ? "signal" : "outline"}
             onClick={need.onAction}
