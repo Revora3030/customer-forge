@@ -59,7 +59,7 @@ export function LiveSyncPanel({
           Check my live site
         </Button>
         {result ? (
-          <Pill tone={result.allLive ? "good" : "warn"}>
+          <Pill tone={result.allLive ? "signal" : "attention"}>
             {result.allLive ? "All changes live" : `${result.missing} not showing`}
           </Pill>
         ) : null}
