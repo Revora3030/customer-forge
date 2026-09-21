@@ -2,6 +2,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { NewClientInput } from "@/lib/admin-types";
 import { seedQuoteCalculator } from "@/lib/quote-seed";
+import { newTrialEndsAt } from "@/lib/trial";
 import { areAddressesPublic, guardedFetch, isFetchableHostname } from "@/lib/net-guard.server";
 import { isRevoraOwnHost, isTrafficDomainHost } from "@/lib/revora-address";
 

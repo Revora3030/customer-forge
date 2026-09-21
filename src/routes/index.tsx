@@ -685,7 +685,7 @@ function Landing() {
               <p className="text-[12.5px] text-muted-foreground">
                 Not ready to pay yet?{" "}
                 <span className="gold-hl">
-                  Start with {GROWTH_SYSTEM.fullAccessWindow} free of full access
+                  Start with {GROWTH_SYSTEM.fullAccessWindow} of free full access
                 </span>{" "}
                 and decide after you've used it.
               </p>
