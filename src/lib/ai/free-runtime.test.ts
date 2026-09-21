@@ -172,6 +172,28 @@ describe("automatic failover between free providers", () => {
     );
   }, 30_000);
 
+  it("honors request-scoped freeOnly even when paid fallback is otherwise enabled", async () => {
+    configureTwoFreeProviders();
+    process.env["FREE_AI_ONLY"] = "false";
+    process.env["ZERO_AI_COST_MODE"] = "false";
+    process.env["AI_DEFAULT_PROVIDER"] = "openai";
+    process.env["GOOGLE_AI_API_KEY"] = "paid-google";
+    process.env["OPENAI_API_KEY"] = "paid-openai";
+    const { calls } = stubFetch(() => new Response("nope", { status: 500 }));
+    const { generateStructuredOutput } = await router();
+    await expect(
+      generateStructuredOutput(caller, {
+        role: "vision",
+        json: true,
+        freeOnly: true,
+        messages: [{ role: "user", content: "read this screenshot" }],
+      }),
+    ).rejects.toMatchObject({ name: "RevoraAiError" });
+    expect(calls.some((url) => url.includes("googleapis") || url.includes("api.openai.com"))).toBe(
+      false,
+    );
+  }, 30_000);
+
   it("explains itself without blocking when no free provider is configured", async () => {
     const { generateText } = await router();
     await expect(

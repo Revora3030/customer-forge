@@ -187,7 +187,30 @@ function WebsitePage() {
   const copy = readCopy(generation?.["copy"]);
   const brief = readBrief(generation?.["brief"]);
   const buildReport = readReport(generation?.["report"]);
-  const manage = canManage(ws?.workspace?.role ?? "viewer");
+  const screenshotReference =
+    generation?.["screenshotReference"] && typeof generation["screenshotReference"] === "object"
+      ? (generation["screenshotReference"] as {
+          applied?: boolean;
+          source?: string | null;
+          model?: string | null;
+          fingerprint?: {
+            family?: string;
+            heroComposition?: string;
+            colorSystem?: string;
+            typeSystem?: string;
+            density?: string;
+          } | null;
+          warnings?: string[];
+        })
+      : null;
+  const screenshotReferenceObservations =
+    generation?.["screenshotReferenceObservations"] &&
+    typeof generation["screenshotReferenceObservations"] === "object"
+      ? (generation["screenshotReferenceObservations"] as Partial<Record<string, string[]>>)
+      : null;
+  const role = ws?.workspace?.role ?? "viewer";
+  const manage = canManage(role);
+  const canFreshRebuild = role === "owner" || role === "admin";
   const [jump, setJump] = useState<{ step: WizardStepKey; anchor?: string; nonce: number } | null>(
     null,
   );
@@ -792,7 +815,12 @@ function WebsitePage() {
               label: "Build",
               node: (
                 <>
-                  <SiteEnginePanel organizationId={orgId} canManage={manage} hasCopy={!!copy} />
+                  <SiteEnginePanel
+                    organizationId={orgId}
+                    canManage={manage}
+                    canFreshRebuild={canFreshRebuild}
+                    hasCopy={!!copy}
+                  />
                   <Disclosure label="Build a full website for me" hint="Describe it, Revora writes it">
                     <RevoraGenius
                       organizationId={orgId}
@@ -1092,6 +1120,8 @@ function WebsitePage() {
           servicesCount={servicesCount}
           pricedCount={pricedCount}
           canManage={manage}
+          screenshotReference={screenshotReference}
+          screenshotReferenceObservations={screenshotReferenceObservations}
           jumpTo={jump}
           structureSlot={pointer(
             "Pages & content",

@@ -21,6 +21,96 @@ const RATE_LIMIT_TRIP = 3;
 
 type Db = SupabaseClient;
 
+type PendingBuild = {
+  mode: "fresh_replace";
+  backupId: string;
+  requestedBy: string | null;
+  requestedAt: string | null;
+};
+
+class FreshRebuildRollbackError extends Error {
+  constructor(
+    message: string,
+    public readonly backupId: string,
+  ) {
+    super(message);
+    this.name = "FreshRebuildRollbackError";
+  }
+}
+
+function isUuid(value: unknown): value is string {
+  return typeof value === "string" && /^[0-9a-f-]{36}$/i.test(value);
+}
+
+function readPendingBuild(value: unknown, job: { created_by: string | null }): PendingBuild | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const raw = value as Record<string, unknown>;
+  if (raw["mode"] !== "fresh_replace") return null;
+  if (!isUuid(raw["backupId"])) return null;
+  const requestedBy = typeof raw["requestedBy"] === "string" ? raw["requestedBy"] : null;
+  if (job.created_by && requestedBy && requestedBy !== job.created_by) return null;
+  return {
+    mode: "fresh_replace",
+    backupId: raw["backupId"],
+    requestedBy,
+    requestedAt: typeof raw["requestedAt"] === "string" ? raw["requestedAt"] : null,
+  };
+}
+
+function withoutPendingBuild(generation: Record<string, unknown>): Record<string, unknown> {
+  const next = { ...generation };
+  delete next["pendingBuild"];
+  return next;
+}
+
+async function clearPendingBuild(db: Db, orgId: string) {
+  const { data } = await db
+    .from("website_settings")
+    .select("generation")
+    .eq("organization_id", orgId)
+    .maybeSingle();
+  const generation = (data?.generation ?? {}) as Record<string, unknown>;
+  if (!("pendingBuild" in generation)) return;
+  await db
+    .from("website_settings")
+    .upsert({ organization_id: orgId, generation: withoutPendingBuild(generation) } as never, {
+      onConflict: "organization_id",
+    });
+}
+
+async function rollbackFreshBuild(
+  db: Db,
+  input: { orgId: string; backupId: string; userId: string | null; message: string },
+): Promise<{ restored: boolean; restoreError: string | null }> {
+  const { restoreBackup } = await import("@/lib/backup.server");
+  let restore: unknown = null;
+  let restoreError: string | null = null;
+  try {
+    restore = await restoreBackup(db, input.backupId, {
+      ...(input.userId ? { userId: input.userId } : {}),
+    });
+  } catch (error) {
+    restoreError = error instanceof Error ? error.message : "Rollback failed.";
+  }
+  await db.from("ai_generations").insert({
+    organization_id: input.orgId,
+    kind: "fresh_rebuild_rollback",
+    model: "revora-backup",
+    instruction: null,
+    result: {
+      backupId: input.backupId,
+      restored: restoreError === null,
+      restore,
+      error: input.message,
+      restoreError,
+      at: new Date().toISOString(),
+    } as unknown as never,
+    created_by: input.userId,
+  } as never);
+  await clearPendingBuild(db, input.orgId);
+  return { restored: restoreError === null, restoreError };
+}
+
 export type QueueState = {
   paused: boolean;
   pause_reason: string | null;
@@ -213,6 +303,12 @@ async function runJob(
     .eq("organization_id", orgId)
     .maybeSingle();
   const priorGeneration = (priorSettings.data?.generation ?? {}) as Record<string, unknown>;
+  const pendingBuild = readPendingBuild(priorGeneration["pendingBuild"], job);
+  if ("pendingBuild" in priorGeneration && !pendingBuild) {
+    await clearPendingBuild(db, orgId);
+    throw new Error("Fresh rebuild metadata was invalid or did not match this build, so nothing was replaced.");
+  }
+  const freshReplace = pendingBuild?.mode === "fresh_replace";
   const approvedBrief = readBrief(priorGeneration["brief"]);
 
   const brief = approvedBrief?.approved ? approvedBrief : fallbackBrief(copyFacts);
@@ -282,6 +378,7 @@ async function runJob(
     { playbookFor },
     { generateFirstBuildImages },
     { imageRepairPlan },
+    { applyScreenshotReferenceToCreative },
   ] =
     await Promise.all([
       import("@/lib/site-materialize.server"),
@@ -292,6 +389,7 @@ async function runJob(
       import("@/lib/builder/industry"),
       import("@/lib/builder/first-build-images.server"),
       import("@/lib/builder/first-build-image-qa"),
+      import("@/lib/builder/screenshot-reference"),
     ]);
   // Decide what kind of website this business needs (restaurant, clinic, shop,
   // studio, venue …) so the structure fits the industry, not one template.
@@ -309,7 +407,7 @@ async function runJob(
     currentFont: (p["font_preference"] as string) ?? null,
     count: 1,
   })[0] ?? null;
-  const creative = compileFirstBuildCreativeDirection({
+  let creative = compileFirstBuildCreativeDirection({
     organizationId: orgId,
     businessName: org.data.name ?? "",
     industry: org.data.industry ?? null,
@@ -328,6 +426,28 @@ async function runJob(
     bookableServices: (bookable.data ?? []).length,
     hasHours: Boolean(p["hours"] && Object.keys(p["hours"] as object).length),
   });
+  const storedReferenceObservations = priorGeneration["screenshotReferenceObservations"];
+  let screenshotReference: unknown = priorGeneration["screenshotReference"] ?? null;
+  if (storedReferenceObservations) {
+    const applied = applyScreenshotReferenceToCreative({
+      creative,
+      observations: storedReferenceObservations,
+      businessName: org.data.name ?? null,
+      blockedNames: [org.data.name ?? ""],
+    });
+    creative = applied.creative;
+    screenshotReference = applied.reference;
+    await db.from("ai_generations").insert({
+      organization_id: orgId,
+      job_id: job.id,
+      kind: "screenshot_reference_applied",
+      model: "revora-native",
+      instruction: null,
+      result: applied.reference as unknown as never,
+      created_by: job.created_by,
+    } as never);
+  }
+
   const industryPlaybook = playbookFor(
     org.data.industry ?? null,
     (p["description"] as string) ?? null,
@@ -367,6 +487,7 @@ async function runJob(
     copy,
     creative,
   });
+  if (refined.creativeChanged) creative = refined.creative;
   if (refined.changed) {
     copy = refined.copy;
     copyModel = refined.passes
@@ -382,6 +503,9 @@ async function runJob(
     instruction: null,
     result: {
       changed: refined.changed,
+      creativeChanged: refined.creativeChanged,
+      copyChanged: refined.copyChanged,
+      fingerprintId: refined.creative.fingerprint.id,
       totalCostMicrocents: refined.totalCostMicrocents,
       passes: refined.passes,
     } as unknown as never,
@@ -412,6 +536,7 @@ async function runJob(
     result: synthesis as unknown as never,
     created_by: job.created_by,
   } as never);
+  try {
   const starterImages = await generateFirstBuildImages(db, {
     organizationId: orgId,
     userId: job.created_by,
@@ -447,6 +572,7 @@ async function runJob(
     fingerprint: creative.fingerprint,
     industryPlaybook,
     generatedAssets: starterImages.assets,
+    replaceExisting: freshReplace,
   });
 
   // A brand chosen by the owner wins. Only replace the untouched generated
@@ -555,12 +681,23 @@ async function runJob(
       organization_id: orgId,
       template: plan.template,
       generation: {
+        ...withoutPendingBuild(priorGeneration),
         ...plan,
         copy,
         brief,
-        report,
+        report: {
+          ...report,
+          buildMode: freshReplace ? "fresh_replace" : "safe",
+          backupId: pendingBuild?.backupId ?? null,
+          screenshotReferenceApplied:
+            !!screenshotReference &&
+            typeof screenshotReference === "object" &&
+            (screenshotReference as { applied?: unknown }).applied === true,
+        },
         firstBuildCreative: creative,
         nativeSynthesis: synthesis,
+        screenshotReference,
+        screenshotReferenceObservations: storedReferenceObservations ?? null,
         designFingerprint: { ...creative.fingerprint, updatedAt: new Date().toISOString() },
         ...(!built.skipped && direction ? { effects: { backdrop: direction.backdrop } } : {}),
       } as unknown as Record<string, unknown>,
@@ -599,13 +736,31 @@ async function runJob(
   const leadCapture = (forms.data ?? []).length > 0 || (bookable.data ?? []).length > 0;
   await db.from("notifications").insert({
     organization_id: orgId,
-    title: "Your website draft is ready to review",
+    title: freshReplace ? "Your fresh website rebuild is ready" : "Your website draft is ready to review",
     body: leadCapture
         ? "Revora built your site from your information and connected lead capture."
         : "Revora built your site. Turn on the quote calculator or online booking to capture leads.",
     kind: "website",
     link: "/app/website",
   } as never);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Generation failed.";
+    if (freshReplace && pendingBuild?.backupId) {
+      const rollback = await rollbackFreshBuild(db, {
+        orgId,
+        backupId: pendingBuild.backupId,
+        userId: job.created_by,
+        message,
+      });
+      throw new FreshRebuildRollbackError(
+        rollback.restored
+          ? `${message} The previous website was restored from backup ${pendingBuild.backupId}.`
+          : `${message} Rollback also failed: ${rollback.restoreError ?? "unknown error"}.`,
+        pendingBuild.backupId,
+      );
+    }
+    throw error;
+  }
 }
 
 export type DrainResult = {
@@ -667,6 +822,21 @@ export async function drainSiteEngineQueue(
       const isGateway = error instanceof RevoraAiError;
       const status = isGateway ? (error as InstanceType<typeof RevoraAiError>).status : 0;
       const message = error instanceof Error ? error.message : "Generation failed.";
+
+      if (error instanceof FreshRebuildRollbackError) {
+        failed += 1;
+        await db
+          .from("generation_jobs")
+          .update({
+            status: "failed",
+            error_message: message,
+            completed_at: new Date().toISOString(),
+            lease_expires_at: null,
+          } as never)
+          .eq("id", job.id);
+        await writeQueueState(db, { last_error: message });
+        continue;
+      }
 
       // Credit/policy denials must never stop the builder. Every generation
       // stage has a deterministic Revora fallback, so a denial is retried

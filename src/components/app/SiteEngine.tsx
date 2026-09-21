@@ -35,15 +35,18 @@ import { focusAndScrollToId } from "@/lib/use-step-scroll";
 export function SiteEnginePanel({
   organizationId,
   canManage,
+  canFreshRebuild = false,
   hasCopy,
 }: {
   organizationId: string | undefined;
   canManage: boolean;
+  canFreshRebuild?: boolean;
   hasCopy: boolean;
 }) {
   const { data: job } = useLatestGenerationJob(organizationId);
   const { data: readiness } = useBuildReadiness(organizationId);
   const run = useRunSiteEngine(organizationId);
+  const [freshConfirm, setFreshConfirm] = useState("");
 
   const status = run.isPending ? "processing" : ((job?.status as string | undefined) ?? "none");
   const doneSteps = Array.isArray(job?.steps) ? (job?.steps as string[]) : [];
@@ -93,7 +96,7 @@ export function SiteEnginePanel({
           <Button
             variant={hasCopy ? "outline" : "signal"}
             disabled={running || blocked}
-            onClick={() => run.mutate()}
+            onClick={() => run.mutate({ mode: "safe" })}
             title={blockedReason ?? undefined}
           >
             {running ? (
@@ -139,6 +142,44 @@ export function SiteEnginePanel({
             {requiredGaps.length ? "Take me to these questions" : "Take me to the next step"}
             <ArrowDown className="size-4" />
           </Button>
+        </div>
+      ) : null}
+
+      {canManage && hasCopy ? (
+        <div className="mt-4 rounded-lg border border-destructive/30 bg-destructive/5 p-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="text-[13px] font-semibold">Fresh rebuild from scratch</p>
+              <p className="mt-1 max-w-2xl text-[12px] text-muted-foreground">
+                This replaces the current draft pages with a new creative build from your saved facts,
+                screenshot reference and approved brief. Revora creates a backup first and restores it
+                automatically if replacement fails. Published/live state is preserved.
+              </p>
+            </div>
+            <Pill tone={canFreshRebuild ? "attention" : "neutral"}>Owner/admin only</Pill>
+          </div>
+          <div className="mt-3 flex flex-wrap items-end gap-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="fresh-rebuild-confirm">Type FRESH REBUILD to replace this draft</Label>
+              <Input
+                id="fresh-rebuild-confirm"
+                value={freshConfirm}
+                disabled={!canFreshRebuild || running}
+                onChange={(event) => setFreshConfirm(event.target.value)}
+                placeholder="FRESH REBUILD"
+                className="w-56"
+              />
+            </div>
+            <Button
+              variant="destructive"
+              disabled={!canFreshRebuild || running || blocked || freshConfirm !== "FRESH REBUILD"}
+              onClick={() => run.mutate({ mode: "fresh_replace", confirmation: freshConfirm })}
+              title={!canFreshRebuild ? "Only workspace owners and admins can replace a draft." : (blockedReason ?? undefined)}
+            >
+              {running ? <Loader2 className="size-4 animate-spin" /> : <RotateCcw className="size-4" />}
+              Start fresh rebuild
+            </Button>
+          </div>
         </div>
       ) : null}
 

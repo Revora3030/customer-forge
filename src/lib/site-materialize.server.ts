@@ -76,6 +76,8 @@ export type MaterializeInput = {
   industryPlaybook?: IndustryPlaybook | null;
   /** Safe generated starter pictures saved in tenant media for this first build. */
   generatedAssets?: FirstBuildImageAsset[];
+  /** Explicit, guarded replacement mode. Default rebuilds remain non-destructive. */
+  replaceExisting?: boolean;
 };
 
 type Component = {
@@ -538,7 +540,8 @@ export function materializedSectionDesign(
 
 /**
  * Writes the tree for an organisation. Returns counts, and `skipped: true` when
- * the workspace already has pages (the owner's site is never replaced).
+ * the workspace already has pages unless an owner/admin explicitly requested a
+ * fresh rebuild and the caller already captured a restorable backup.
  */
 export async function materializeSiteContent(
   db: Db,
@@ -549,7 +552,18 @@ export async function materializeSiteContent(
     .from("website_pages")
     .select("id", { count: "exact", head: true })
     .eq("organization_id", orgId);
-  if ((count ?? 0) > 0) return { pages: 0, sections: 0, components: 0, skipped: true };
+  if ((count ?? 0) > 0) {
+    if (!input.replaceExisting) return { pages: 0, sections: 0, components: 0, skipped: true };
+    const { error: componentDeleteError } = await db.from("website_components").delete().eq("organization_id", orgId);
+    if (componentDeleteError)
+      throw new Error(`Couldn't clear old components before rebuilding: ${componentDeleteError.message}`);
+    const { error: sectionDeleteError } = await db.from("website_sections").delete().eq("organization_id", orgId);
+    if (sectionDeleteError)
+      throw new Error(`Couldn't clear old sections before rebuilding: ${sectionDeleteError.message}`);
+    const { error: pageDeleteError } = await db.from("website_pages").delete().eq("organization_id", orgId);
+    if (pageDeleteError)
+      throw new Error(`Couldn't clear old pages before rebuilding: ${pageDeleteError.message}`);
+  }
 
   const tree = planSiteContent(input);
   let sections = 0;

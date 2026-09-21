@@ -29,6 +29,8 @@ export type AiRequest = {
   messages: AiMessage[];
   /** Which model class the task needs; the router resolves the model name. */
   role?: ModelRole;
+  /** Keep this call on verified free models only, even when paid AI is enabled. */
+  freeOnly?: boolean;
   /** Force JSON output. */
   json?: boolean;
   maxOutputTokens?: number;

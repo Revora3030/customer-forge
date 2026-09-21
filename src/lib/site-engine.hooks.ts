@@ -8,8 +8,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { fetchAllRows } from "@/lib/paginate";
 import {
   aiEditSiteCopy,
+  extractScreenshotReference,
   pumpSiteEngineQueue,
   runSiteGeneration,
+  saveScreenshotReference,
 } from "@/lib/site-engine.functions";
 
 /** Latest build job for the workspace; polls while a build is running. */
@@ -63,13 +65,16 @@ export function useRunSiteEngine(organizationId: string | undefined) {
   const queryClient = useQueryClient();
   const run = useServerFn(runSiteGeneration);
   return useMutation({
-    mutationFn: async () => run({ data: { organizationId: organizationId! } }),
+    mutationFn: async (vars?: { mode?: "safe" | "fresh_replace"; confirmation?: string }) =>
+      run({ data: { organizationId: organizationId!, ...vars } }),
     onMutate: () => {
       void queryClient.invalidateQueries({ queryKey: ["generation_job", organizationId] });
     },
-    onSuccess: () => {
-      toast.message("Build queued", {
-        description: "Revora is building your website — progress updates below.",
+    onSuccess: (result) => {
+      toast.message(result.mode === "fresh_replace" ? "Fresh rebuild queued" : "Build queued", {
+        description: result.backupId
+          ? `Revora made backup ${result.backupId} before replacing the draft.`
+          : "Revora is building your website — progress updates below.",
       });
       void queryClient.invalidateQueries({ queryKey: ["generation_job", organizationId] });
       void queryClient.invalidateQueries({ queryKey: ["website_settings"] });
@@ -364,6 +369,38 @@ export function useSaveMissingFacts(organizationId: string | undefined) {
       void queryClient.invalidateQueries({ queryKey: ["build_readiness", organizationId] });
     },
     onError: (error: Error) => toast.error(friendlyError(error, "Couldn't save your answers.")),
+  });
+}
+
+export function useSaveScreenshotReference(organizationId: string | undefined) {
+  const queryClient = useQueryClient();
+  const save = useServerFn(saveScreenshotReference);
+  return useMutation({
+    mutationFn: async (observations: Record<string, string[]>) =>
+      save({ data: { organizationId: organizationId!, observations } }),
+    onSuccess: () => {
+      toast.success("Reference saved — the next build will use its design patterns without copying it.");
+      void queryClient.invalidateQueries({ queryKey: ["website_settings"] });
+    },
+    onError: (error: Error) => toast.error(friendlyError(error, "Couldn't save that reference.")),
+  });
+}
+
+export function useExtractScreenshotReference(organizationId: string | undefined) {
+  const queryClient = useQueryClient();
+  const extract = useServerFn(extractScreenshotReference);
+  return useMutation({
+    mutationFn: async (vars: { screenshotDataUrl: string; notes?: string }) =>
+      extract({ data: { organizationId: organizationId!, ...vars } }),
+    onSuccess: (result) => {
+      if (result.ok) {
+        toast.success("Reference analysed with a free vision model.");
+        void queryClient.invalidateQueries({ queryKey: ["website_settings"] });
+      } else {
+        toast.message("Reference not changed", { description: result.reason });
+      }
+    },
+    onError: (error: Error) => toast.error(friendlyError(error, "Couldn't analyse that reference.")),
   });
 }
 
