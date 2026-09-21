@@ -25,6 +25,7 @@
 
 import {
   aiLimits,
+  builderExternalAiAllowed,
   providerChain,
   type ModelRole,
   type ProviderConfig,
@@ -257,6 +258,13 @@ async function buildChain(
   role: ModelRole,
   capable?: (model: string) => boolean,
 ): Promise<Candidate[]> {
+  // Native-only is the production default. This guard sits before free-model
+  // discovery as well as paid providers, so no customer content or attachment
+  // can leave Revora merely because a provider happens to have a free tier.
+  // External calls are reserved for explicit operator diagnostics and require
+  // both switches to be deliberately opened on the server.
+  if (zeroAiCostMode() || !builderExternalAiAllowed()) return [];
+
   // First choice per provider (breadth), then each provider's remaining free
   // models (depth). Breadth first means a provider outage costs one attempt,
   // while depth means a single retired or rate-limited model is covered by
@@ -274,7 +282,7 @@ async function buildChain(
   const candidates = [...first, ...deeper];
 
   // Paid providers stay unreachable unless BOTH guards are explicitly off.
-  if (!freeAiOnly() && !zeroAiCostMode())
+  if (!freeAiOnly())
     for (const config of providerChain()) {
       const model = config.models[role];
       if (capable && !capable(model)) continue;
@@ -303,7 +311,8 @@ export function freeAiStatus() {
   return {
     freeAiEnabled: freeAiEnabled(),
     freeOnly: freeAiOnly(),
-    paidFallbackReachable: !freeAiOnly() && !zeroAiCostMode(),
+    paidFallbackReachable:
+      builderExternalAiAllowed() && !freeAiOnly() && !zeroAiCostMode(),
     /** The most recent model call: who served it and how it ended. */
     last: lastAiOutcome(),
     providers: freeProviderReadiness().map((entry) => {

@@ -31,6 +31,8 @@ afterEach(() => {
 describe("luna configuration", () => {
   it("requires explicit operator opt-in even when a key exists", () => {
     process.env["OPENAI_API_KEY"] = "configured";
+    process.env["ZERO_AI_COST_MODE"] = "false";
+    process.env["BUILDER_EXTERNAL_AI_ALLOWED"] = "true";
     delete process.env["LUNA_ENABLED"];
     expect(lunaEnabled()).toBe(false);
     process.env["LUNA_ENABLED"] = "true";
@@ -62,6 +64,14 @@ describe("luna configuration", () => {
   it("stays off with a key until an operator explicitly opts in", () => {
     process.env["OPENAI_API_KEY"] = "sk-test";
     delete process.env["LUNA_ENABLED"];
+    expect(lunaEnabled()).toBe(false);
+  });
+
+  it("stays off in native-only mode despite every diagnostic credential", () => {
+    process.env["OPENAI_API_KEY"] = "sk-test";
+    process.env["LUNA_ENABLED"] = "true";
+    process.env["BUILDER_EXTERNAL_AI_ALLOWED"] = "true";
+    delete process.env["ZERO_AI_COST_MODE"];
     expect(lunaEnabled()).toBe(false);
   });
 });

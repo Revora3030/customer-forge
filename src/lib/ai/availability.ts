@@ -19,7 +19,11 @@ import { freeProviderChain } from "@/lib/ai/free";
 
 /** Free AI for one role: configured credentials plus a free-eligible model. */
 export function freeAiAvailable(role: ModelRole = "primary") {
-  return freeProviderChain(role).length > 0;
+  return (
+    !zeroAiCostMode() &&
+    builderExternalAiAllowed() &&
+    freeProviderChain(role).length > 0
+  );
 }
 
 /**
