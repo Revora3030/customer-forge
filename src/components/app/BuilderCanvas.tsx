@@ -1064,10 +1064,7 @@ export function BuilderCanvas({
                   disabled={!canManage}
                   onBlur={(event) =>
                     event.target.value !== (selectedComponent.link_label ?? "") &&
-                    saveComponent.mutate({
-                      id: selectedComponent.id,
-                      patch: { link_label: event.target.value.trim() || null },
-                    })
+                    stageComponent(selectedComponent.id, { link_label: event.target.value.trim() || null })
                   }
                 />
               </Field>
@@ -1080,10 +1077,7 @@ export function BuilderCanvas({
                   disabled={!canManage}
                   onBlur={(event) =>
                     event.target.value !== (selectedComponent.link_url ?? "") &&
-                    saveComponent.mutate({
-                      id: selectedComponent.id,
-                      patch: { link_url: safeLinkUrl(event.target.value) },
-                    })
+                    stageComponent(selectedComponent.id, { link_url: safeLinkUrl(event.target.value) })
                   }
                 />
               </Field>
@@ -1094,10 +1088,7 @@ export function BuilderCanvas({
                   disabled={!canManage}
                   onBlur={(event) =>
                     event.target.value !== (selectedComponent.media_url ?? "") &&
-                    saveComponent.mutate({
-                      id: selectedComponent.id,
-                      patch: { media_url: event.target.value.trim() || null },
-                    })
+                    stageComponent(selectedComponent.id, { media_url: event.target.value.trim() || null })
                   }
                 />
               </Field>
@@ -1107,15 +1098,12 @@ export function BuilderCanvas({
                   defaultValue={readAlt(selectedComponent.settings)}
                   disabled={!canManage}
                   onBlur={(event) =>
-                    saveComponent.mutate({
-                      id: selectedComponent.id,
-                      patch: {
+                    stageComponent(selectedComponent.id, {
                         settings: {
                           ...(selectedComponent.settings ?? {}),
                           alt: event.target.value.trim().slice(0, 160),
                         },
-                      },
-                    })
+                      })
                   }
                 />
               </Field>
@@ -1125,18 +1113,12 @@ export function BuilderCanvas({
                 settings={selectedComponent.settings}
                 disabled={!canManage}
                 onChange={(patch) =>
-                  saveComponent.mutate({
-                    id: selectedComponent.id,
-                    patch: {
+                  stageComponent(selectedComponent.id, {
                       settings: writeBlockStyle(selectedComponent.settings, patch, device),
-                    },
-                  })
+                    })
                 }
                 onResetDevice={() =>
-                  saveComponent.mutate({
-                    id: selectedComponent.id,
-                    patch: { settings: clearDeviceLayer(selectedComponent.settings, device) },
-                  })
+                  stageComponent(selectedComponent.id, { settings: clearDeviceLayer(selectedComponent.settings, device) })
                 }
               /> : null}
               <div className="flex flex-wrap gap-2">
@@ -1145,10 +1127,7 @@ export function BuilderCanvas({
                   variant="outline"
                   disabled={!canManage}
                   onClick={() =>
-                    saveComponent.mutate({
-                      id: selectedComponent.id,
-                      patch: { is_visible: !selectedComponent.is_visible },
-                    })
+                    stageComponent(selectedComponent.id, { is_visible: !selectedComponent.is_visible })
                   }
                 >
                   {selectedComponent.is_visible ? (
@@ -1239,10 +1218,7 @@ export function BuilderCanvas({
                   disabled={!canManage}
                   onBlur={(event) =>
                     event.target.value !== (selectedSection.heading ?? "") &&
-                    saveSection.mutate({
-                      id: selectedSection.id,
-                      patch: { heading: event.target.value.trim() || null },
-                    })
+                    stageSection(selectedSection.id, { heading: event.target.value.trim() || null })
                   }
                 />
               </Field>
@@ -1254,10 +1230,7 @@ export function BuilderCanvas({
                   disabled={!canManage}
                   onBlur={(event) =>
                     event.target.value !== (selectedSection.body ?? "") &&
-                    saveSection.mutate({
-                      id: selectedSection.id,
-                      patch: { body: event.target.value.trim() || null },
-                    })
+                    stageSection(selectedSection.id, { body: event.target.value.trim() || null })
                   }
                 />
               </Field>
@@ -1267,16 +1240,10 @@ export function BuilderCanvas({
                 settings={selectedSection.settings}
                 disabled={!canManage}
                 onChange={(patch) =>
-                  saveSection.mutate({
-                    id: selectedSection.id,
-                    patch: { settings: writeBlockStyle(selectedSection.settings, patch, device) },
-                  })
+                  stageSection(selectedSection.id, { settings: writeBlockStyle(selectedSection.settings, patch, device) })
                 }
                 onResetDevice={() =>
-                  saveSection.mutate({
-                    id: selectedSection.id,
-                    patch: { settings: clearDeviceLayer(selectedSection.settings, device) },
-                  })
+                  stageSection(selectedSection.id, { settings: clearDeviceLayer(selectedSection.settings, device) })
                 }
               /> : null}
               <div className="flex flex-wrap gap-2">
@@ -1285,10 +1252,7 @@ export function BuilderCanvas({
                   variant="outline"
                   disabled={!canManage}
                   onClick={() =>
-                    saveSection.mutate({
-                      id: selectedSection.id,
-                      patch: { is_visible: !selectedSection.is_visible },
-                    })
+                    stageSection(selectedSection.id, { is_visible: !selectedSection.is_visible })
                   }
                 >
                   {selectedSection.is_visible ? (
