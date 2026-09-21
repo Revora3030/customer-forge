@@ -278,6 +278,7 @@ async function buildChain(
   caller: AiCaller,
   role: ModelRole,
   capable?: (model: string) => boolean,
+  forceFreeOnly = false,
 ): Promise<Candidate[]> {
   // Native-only is the production default. This guard sits before free-model
   // discovery as well as paid providers, so no customer content or attachment
@@ -303,7 +304,7 @@ async function buildChain(
   const candidates = [...first, ...deeper];
 
   // Paid providers stay unreachable unless BOTH guards are explicitly off.
-  if (!freeAiOnly())
+  if (!forceFreeOnly && !freeAiOnly())
     for (const config of providerChain()) {
       const model = config.models[role];
       if (capable && !capable(model)) continue;
@@ -434,7 +435,7 @@ async function run<T>(
     model: string;
     signal: AbortSignal;
   }) => Promise<{ value: T; inputTokens?: number | null; outputTokens?: number | null }>,
-  options?: { capable?: (model: string) => boolean; nextProviderOnInvalidRequest?: boolean },
+  options?: { capable?: (model: string) => boolean; nextProviderOnInvalidRequest?: boolean; freeOnly?: boolean },
 ): Promise<{
   value: T;
   provider: ProviderName;
@@ -451,7 +452,7 @@ async function run<T>(
   // this chain when an operator has explicitly opted out of free-only and
   // zero-cost mode. An empty chain is not a crash: the caller falls back to
   // Revora's deterministic engine and the owner gets a precise explanation.
-  const chain = await buildChain(caller, role, options?.capable);
+  const chain = await buildChain(caller, role, options?.capable, options?.freeOnly === true);
   if (chain.length === 0) throw freeAiUnavailable("no free provider configured or in budget");
 
   const verdict = await checkAiLimits(caller);
@@ -638,7 +639,7 @@ export async function generateText(caller: AiCaller, request: AiRequest): Promis
         outputTokens: result.usage.outputTokens,
       };
     },
-    { nextProviderOnInvalidRequest: carriesAttachment(request.messages) },
+    { nextProviderOnInvalidRequest: carriesAttachment(request.messages), freeOnly: request.freeOnly === true },
   );
   return {
     text: outcome.value,
@@ -683,7 +684,7 @@ export async function generateStructuredOutput(
         outputTokens: result.usage.outputTokens,
       };
     },
-    { nextProviderOnInvalidRequest: carriesAttachment(request.messages) },
+    { nextProviderOnInvalidRequest: carriesAttachment(request.messages), freeOnly: request.freeOnly === true },
   );
   return {
     text: outcome.value.text,

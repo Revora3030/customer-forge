@@ -1,6 +1,8 @@
 import { createServerFn } from "@tanstack/react-start";
 import { getRequest } from "@tanstack/react-start/server";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Database } from "@/integrations/supabase/types";
 
 /**
  * Revora Site Engine server functions.
@@ -10,14 +12,24 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
  * or edit their own website.
  */
 
-export type RunResult = { jobId: string; status: string; progress: number; queued: boolean };
+export type RunMode = "safe" | "fresh_replace";
+export type RunResult = {
+  jobId: string;
+  status: string;
+  progress: number;
+  queued: boolean;
+  mode: RunMode;
+  backupId?: string;
+};
 
 export const runSiteGeneration = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { organizationId: string }) => {
+  .inputValidator((input: { organizationId: string; mode?: RunMode; confirmation?: string }) => {
     const organizationId = String(input?.organizationId ?? "");
     if (!/^[0-9a-f-]{36}$/i.test(organizationId)) throw new Error("Invalid workspace");
-    return { organizationId };
+    const mode: RunMode = input?.mode === "fresh_replace" ? "fresh_replace" : "safe";
+    const confirmation = String(input?.confirmation ?? "").trim();
+    return { organizationId, mode, confirmation };
   })
   .handler(async ({ data, context }): Promise<RunResult> => {
     const { supabase, userId } = context;
@@ -62,13 +74,79 @@ export const runSiteGeneration = createServerFn({ method: "POST" })
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
+    if (existing && data.mode === "fresh_replace")
+      throw new Error("A build is already running. Wait for it to finish before starting a fresh rebuild.");
     if (existing)
       return {
         jobId: existing.id,
         status: existing.status,
         progress: existing.progress,
         queued: true,
+        mode: "safe",
       };
+
+    let backupId: string | undefined;
+    if (data.mode === "fresh_replace") {
+      if (data.confirmation !== "FRESH REBUILD")
+        throw new Error("Type FRESH REBUILD to replace the current draft.");
+      const { requireOrgRole } = await import("@/lib/org-authz.server");
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      const { createBackup } = await import("@/lib/backup.server");
+      await requireOrgRole(supabase, orgId, userId, "admin");
+      const backup = await createBackup(supabaseAdmin as never, orgId, {
+        kind: "pre_restore",
+        label: `Before fresh AI rebuild ${new Date().toISOString()}`,
+        userId,
+      });
+      backupId = backup.id;
+    }
+
+    const cleanupFreshQueue = async () => {
+      if (!backupId) return;
+      const { data: settings } = await supabase
+        .from("website_settings")
+        .select("generation")
+        .eq("organization_id", orgId)
+        .maybeSingle();
+      const generation = (settings?.generation ?? {}) as Record<string, unknown>;
+      if ("pendingBuild" in generation) {
+        const next = { ...generation };
+        delete next["pendingBuild"];
+        await supabase
+          .from("website_settings")
+          .upsert({ organization_id: orgId, generation: next } as never, { onConflict: "organization_id" });
+      }
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      await supabaseAdmin.from("data_backups").delete().eq("id", backupId).eq("organization_id", orgId);
+    };
+
+    if (data.mode === "fresh_replace") {
+      const { data: settings } = await supabase
+        .from("website_settings")
+        .select("generation")
+        .eq("organization_id", orgId)
+        .maybeSingle();
+      const generation = (settings?.generation ?? {}) as Record<string, unknown>;
+      const { error: pendingError } = await supabase.from("website_settings").upsert(
+        {
+          organization_id: orgId,
+          generation: {
+            ...generation,
+            pendingBuild: {
+              mode: "fresh_replace",
+              backupId,
+              requestedBy: userId,
+              requestedAt: new Date().toISOString(),
+            },
+          },
+        } as never,
+        { onConflict: "organization_id" },
+      );
+      if (pendingError) {
+        await cleanupFreshQueue();
+        throw new Error(pendingError.message);
+      }
+    }
 
     const { data: job, error } = await supabase
       .from("generation_jobs")
@@ -82,13 +160,23 @@ export const runSiteGeneration = createServerFn({ method: "POST" })
       })
       .select("id")
       .single();
-    if (error || !job) throw new Error(error?.message ?? "Couldn't queue the build.");
+    if (error || !job) {
+      await cleanupFreshQueue();
+      throw new Error(error?.message ?? "Couldn't queue the build.");
+    }
 
     // Non-blocking kick so the worker usually starts immediately; the scheduled
     // run and the client's pump call are the fallbacks.
     void kickWorker(new URL(getRequest().url).origin);
 
-    return { jobId: job.id, status: "queued", progress: 0, queued: true };
+    return {
+      jobId: job.id,
+      status: "queued",
+      progress: 0,
+      queued: true,
+      mode: data.mode,
+      ...(backupId ? { backupId } : {}),
+    };
   });
 
 async function kickWorker(origin: string) {
@@ -318,6 +406,124 @@ const orgIdOf = (input: { organizationId?: unknown }) => {
   return organizationId;
 };
 
+const MAX_REFERENCE_SCREENSHOT_BYTES = 4_000_000;
+
+const referenceDataUrlOf = (value: unknown) => {
+  const dataUrl = String(value ?? "");
+  const match = dataUrl.match(/^data:image\/(png|jpeg|webp);base64,([A-Za-z0-9+/=]+)$/);
+  if (!match) {
+    throw new Error("A PNG, JPEG or WEBP screenshot is required.");
+  }
+  const payload = match[2] ?? "";
+  const padding = payload.endsWith("==") ? 2 : payload.endsWith("=") ? 1 : 0;
+  const bytes = Math.floor((payload.length * 3) / 4) - padding;
+  if (bytes > MAX_REFERENCE_SCREENSHOT_BYTES) {
+    throw new Error("That screenshot is too large to read.");
+  }
+  return dataUrl;
+};
+
+const boundedList = (value: unknown, max = 8) => {
+  const list = typeof value === "string" ? [value] : Array.isArray(value) ? value : [];
+  return list
+    .filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+    .map((item) => item.trim().slice(0, 140))
+    .slice(0, max);
+};
+
+function observationInputOf(input: Record<string, unknown>) {
+  const raw = (input["observations"] ?? {}) as Record<string, unknown>;
+  return {
+    layout: boundedList(raw["layout"]),
+    hierarchy: boundedList(raw["hierarchy"]),
+    typography: boundedList(raw["typography"]),
+    spacing: boundedList(raw["spacing"]),
+    color: boundedList(raw["color"]),
+    interactions: boundedList(raw["interactions"]),
+    components: boundedList(raw["components"]),
+  };
+}
+
+async function referenceBaseFingerprint(
+  supabase: SupabaseClient<Database>,
+  organizationId: string,
+) {
+  const [{ data: settings }, { data: org }, { data: profile }] = await Promise.all([
+    supabase.from("website_settings").select("generation").eq("organization_id", organizationId).maybeSingle(),
+    supabase.from("organizations").select("name, industry").eq("id", organizationId).maybeSingle(),
+    supabase.from("business_profiles").select("city, service_area").eq("organization_id", organizationId).maybeSingle(),
+  ]);
+  const generation = (settings?.generation ?? {}) as Record<string, unknown>;
+  const { readDesignFingerprint, createDesignFingerprint } = await import("@/lib/builder/design-fingerprint");
+  const stored = readDesignFingerprint(generation);
+  if (stored) return { generation, fingerprint: stored, businessName: org?.name ?? null };
+  return {
+    generation,
+    fingerprint: createDesignFingerprint({
+      businessName: org?.name ?? null,
+      industry: org?.industry ?? null,
+      city: (profile?.city as string | null | undefined) ?? (profile?.service_area as string | null | undefined) ?? null,
+      photoCount: 0,
+    }),
+    businessName: org?.name ?? null,
+  };
+}
+
+async function persistScreenshotReference(
+  supabase: SupabaseClient<Database>,
+  input: {
+    organizationId: string;
+    userId: string;
+    observations: unknown;
+    source: "manual" | "free_vision";
+    provider?: string;
+    model?: string;
+  },
+) {
+  const { normalizeScreenshotReferenceObservations, deriveScreenshotReferenceFingerprint } = await import(
+    "@/lib/builder/screenshot-reference"
+  );
+  const base = await referenceBaseFingerprint(supabase, input.organizationId);
+  const observations = normalizeScreenshotReferenceObservations(input.observations, {
+    businessName: base.businessName,
+    blockedNames: [base.businessName ?? ""],
+    maxPerField: 8,
+  });
+  const hasAny = Object.values(observations).some((list) => list.length > 0);
+  if (!hasAny) throw new Error("No reusable design patterns were found. Add layout, spacing, type or colour notes.");
+  const reference = deriveScreenshotReferenceFingerprint({
+    observations,
+    base: base.fingerprint,
+    businessName: base.businessName,
+    blockedNames: [base.businessName ?? ""],
+  });
+  const generation = {
+    ...base.generation,
+    screenshotReferenceObservations: observations,
+    screenshotReference: {
+      ...reference,
+      source: input.source,
+      provider: input.provider ?? null,
+      model: input.model ?? null,
+      updatedAt: new Date().toISOString(),
+    },
+  };
+  const { error } = await supabase.from("website_settings").upsert(
+    { organization_id: input.organizationId, generation } as never,
+    { onConflict: "organization_id" },
+  );
+  if (error) throw new Error(error.message);
+  await supabase.from("ai_generations").insert({
+    organization_id: input.organizationId,
+    kind: input.source === "free_vision" ? "screenshot_reference_extraction" : "screenshot_reference_saved",
+    model: input.model ?? (input.source === "manual" ? "owner-supplied" : "free-vision"),
+    instruction: null,
+    result: { observations, reference, provider: input.provider ?? null } as unknown as never,
+    created_by: input.userId,
+  } as never);
+  return { observations, reference, source: input.source, provider: input.provider ?? null, model: input.model ?? null };
+}
+
 /**
  * Runs only the analysis pass and stores the result as an unapproved brief, so
  * the owner can read and edit Revora's understanding before any copy, design or
@@ -499,6 +705,98 @@ export const saveMissingFacts = createServerFn({ method: "POST" })
 
     const after = await gatherBriefFacts(supabase, orgId, brief?.missingFacts ?? []);
     return { gaps: factGaps(after.factInput) };
+  });
+
+/** Saves bounded, anti-cloning design observations from an inspiration screenshot. */
+export const saveScreenshotReference = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { organizationId: string; observations: unknown }) => ({
+    organizationId: orgIdOf(input),
+    observations: observationInputOf((input ?? {}) as Record<string, unknown>),
+  }))
+  .handler(async ({ data, context }) => {
+    const { requireOrgRole } = await import("@/lib/org-authz.server");
+    await requireOrgRole(context.supabase, data.organizationId, context.userId, "manager");
+    return persistScreenshotReference(context.supabase, {
+      organizationId: data.organizationId,
+      userId: context.userId,
+      observations: data.observations,
+      source: "manual",
+    });
+  });
+
+/** Extracts design observations from a screenshot using only free vision models. */
+export const extractScreenshotReference = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { organizationId: string; screenshotDataUrl: string; notes?: string }) => ({
+    organizationId: orgIdOf(input),
+    screenshotDataUrl: referenceDataUrlOf(input?.screenshotDataUrl),
+    notes: String(input?.notes ?? "").trim().slice(0, 600),
+  }))
+  .handler(async ({ data, context }) => {
+    const { requireOrgRole } = await import("@/lib/org-authz.server");
+    await requireOrgRole(context.supabase, data.organizationId, context.userId, "manager");
+
+    const { freeAiAvailable } = await import("@/lib/ai/availability");
+    if (!freeAiAvailable("vision")) {
+      return {
+        ok: false,
+        code: "FREE_VISION_UNAVAILABLE",
+        reason:
+          "No free picture-reading model is available right now. Nothing was changed and no paid model was used.",
+      } as const;
+    }
+
+    const mimeType = data.screenshotDataUrl.slice(5, data.screenshotDataUrl.indexOf(";"));
+    const { generateStructuredOutput } = await import("@/lib/ai/router.server");
+    try {
+      const outcome = await generateStructuredOutput(
+        { organizationId: data.organizationId, userId: context.userId, task: "site.screenshot_reference" },
+        {
+          role: "vision",
+          json: true,
+          freeOnly: true,
+          maxOutputTokens: 900,
+          temperature: 0.1,
+          messages: [
+            {
+              role: "user",
+              content: [
+                {
+                  type: "text",
+                  text: [
+                    "Extract a website design fingerprint from this screenshot for inspiration only.",
+                    "Do NOT copy logos, brand names, exact wording, exact colours, URLs, people, claims, coordinates or proprietary assets.",
+                    "Return JSON only with arrays named layout, hierarchy, typography, spacing, color, interactions, components.",
+                    "Each array should contain short reusable patterns, not facts from the screenshot.",
+                    data.notes ? `Owner notes: ${data.notes}` : "",
+                  ].filter(Boolean).join("\n"),
+                },
+                { type: "image", dataUrl: data.screenshotDataUrl, mimeType },
+              ],
+            },
+          ],
+        },
+      );
+      const saved = await persistScreenshotReference(context.supabase, {
+        organizationId: data.organizationId,
+        userId: context.userId,
+        observations: outcome.data,
+        source: "free_vision",
+        provider: outcome.provider,
+        model: outcome.model,
+      });
+      return { ok: true, ...saved, provider: outcome.provider, model: outcome.model } as const;
+    } catch (error) {
+      return {
+        ok: false,
+        code: "REFERENCE_EXTRACTION_FAILED",
+        reason:
+          error instanceof Error
+            ? `The free vision model could not extract a usable design brief: ${error.message}`
+            : "The free vision model could not extract a usable design brief.",
+      } as const;
+    }
   });
 
 /** The blanks and QA state for the builder UI, computed from real rows. */

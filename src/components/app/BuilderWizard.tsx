@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Check, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, ImageUp, Loader2 } from "lucide-react";
 import { Panel, Pill, SectionHeading } from "@/components/app/Bits";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,12 +8,32 @@ import { Textarea } from "@/components/ui/textarea";
 import { MediaLibrary } from "@/components/app/MediaLibrary";
 
 import { useAutosaveOrganization, useAutosaveProfile } from "@/lib/website-content.hooks";
+import { useExtractScreenshotReference, useSaveScreenshotReference } from "@/lib/site-engine.hooks";
 import { WIZARD_STEPS, type WizardStepKey } from "@/lib/website-content";
 import { WEBSITE_GOALS, type GoalKey } from "@/lib/website-plan";
 import { cn } from "@/lib/utils";
 import { focusAndScrollToId, useStepScroll } from "@/lib/use-step-scroll";
 
 type ProfileRow = Record<string, unknown> | null | undefined;
+
+type ScreenshotReferenceSummary = {
+  applied?: boolean;
+  source?: string | null;
+  model?: string | null;
+  fingerprint?: {
+    family?: string;
+    heroComposition?: string;
+    colorSystem?: string;
+    typeSystem?: string;
+    density?: string;
+  } | null;
+  warnings?: string[];
+} | null;
+
+type ScreenshotObservations = Partial<Record<
+  "layout" | "hierarchy" | "typography" | "spacing" | "color" | "interactions" | "components",
+  string[]
+>>;
 
 type Props = {
   organizationId: string | undefined;
@@ -24,6 +44,8 @@ type Props = {
   canManage: boolean;
   structureSlot: ReactNode;
   launchSlot: ReactNode;
+  screenshotReference?: ScreenshotReferenceSummary;
+  screenshotReferenceObservations?: ScreenshotObservations | null;
   /** Set by the page to send the owner straight to a step (and an anchor inside it). */
   jumpTo?: { step: WizardStepKey; anchor?: string; nonce: number } | null;
 };
@@ -46,14 +68,20 @@ export function BuilderWizard({
   canManage,
   structureSlot,
   launchSlot,
+  screenshotReference = null,
+  screenshotReferenceObservations = null,
   jumpTo = null,
 }: Props) {
   const [step, setStep] = useState<WizardStepKey>("business");
   const stepRef = useStepScroll<HTMLElement>(step);
   const saveProfile = useAutosaveProfile(organizationId);
   const saveOrg = useAutosaveOrganization(organizationId);
+  const saveReference = useSaveScreenshotReference(organizationId);
+  const extractReference = useExtractScreenshotReference(organizationId);
   const [savedAt, setSavedAt] = useState<number | null>(null);
-  const busy = saveProfile.isPending || saveOrg.isPending;
+  const [referenceNotes, setReferenceNotes] = useState("");
+  const [referenceFileName, setReferenceFileName] = useState<string | null>(null);
+  const busy = saveProfile.isPending || saveOrg.isPending || saveReference.isPending || extractReference.isPending;
 
   useEffect(() => {
     if (!busy && (saveProfile.isSuccess || saveOrg.isSuccess)) setSavedAt(Date.now());
@@ -249,6 +277,31 @@ export function BuilderWizard({
                 heroUrl={text(profile, "hero_image_url") || null}
                 onSetHero={(value) => saveProfile.mutate({ hero_image_url: value })}
               />
+              <DesignReferenceBox
+                canManage={canManage}
+                notes={referenceNotes}
+                fileName={referenceFileName}
+                reference={screenshotReference}
+                observations={screenshotReferenceObservations}
+                isSaving={saveReference.isPending}
+                isExtracting={extractReference.isPending}
+                onNotesChange={setReferenceNotes}
+                onSaveNotes={() => {
+                  const observations = observationsFromNotes(referenceNotes);
+                  if (Object.values(observations).some((items) => items.length))
+                    saveReference.mutate(observations);
+                }}
+                onFile={(file) => {
+                  if (!file) return;
+                  setReferenceFileName(file.name);
+                  const reader = new FileReader();
+                  reader.onload = () => {
+                    if (typeof reader.result === "string")
+                      extractReference.mutate({ screenshotDataUrl: reader.result, notes: referenceNotes });
+                  };
+                  reader.readAsDataURL(file);
+                }}
+              />
             </>
           ) : null}
 
@@ -386,6 +439,146 @@ export function BuilderWizard({
           )}
         </div>
       </Panel>
+    </div>
+  );
+}
+
+const REFERENCE_KEYS = [
+  "layout",
+  "hierarchy",
+  "typography",
+  "spacing",
+  "color",
+  "interactions",
+  "components",
+] as const;
+
+function observationsFromNotes(notes: string): Record<(typeof REFERENCE_KEYS)[number], string[]> {
+  const out = Object.fromEntries(REFERENCE_KEYS.map((key) => [key, [] as string[]])) as Record<
+    (typeof REFERENCE_KEYS)[number],
+    string[]
+  >;
+  const lines = notes
+    .split(/\n+/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .slice(0, 24);
+  for (const line of lines) {
+    const match = line.match(/^(layout|hierarchy|typography|spacing|color|interactions|components)\s*:\s*(.+)$/i);
+    const key = (match?.[1]?.toLowerCase() as (typeof REFERENCE_KEYS)[number] | undefined) ?? "layout";
+    const value = (match?.[2] ?? line).trim();
+    if (value && out[key].length < 8) out[key].push(value.slice(0, 140));
+  }
+  return out;
+}
+
+function DesignReferenceBox({
+  canManage,
+  notes,
+  fileName,
+  reference,
+  observations,
+  isSaving,
+  isExtracting,
+  onNotesChange,
+  onSaveNotes,
+  onFile,
+}: {
+  canManage: boolean;
+  notes: string;
+  fileName: string | null;
+  reference: ScreenshotReferenceSummary;
+  observations: ScreenshotObservations | null;
+  isSaving: boolean;
+  isExtracting: boolean;
+  onNotesChange: (value: string) => void;
+  onSaveNotes: () => void;
+  onFile: (file: File | null) => void;
+}) {
+  const fingerprint = reference?.fingerprint ?? null;
+  const applied = reference?.applied === true;
+  const savedSignals = observations
+    ? Object.entries(observations).flatMap(([key, values]) =>
+        (values ?? []).slice(0, 2).map((value) => `${key}: ${value}`),
+      )
+    : [];
+  return (
+    <div className="rounded-xl border border-primary/25 bg-primary/5 p-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-[13px] font-semibold text-foreground">Screenshot design reference</p>
+          <p className="mt-1 max-w-2xl text-[12px] text-muted-foreground">
+            Upload an inspiration screenshot or describe reusable patterns. Revora extracts layout,
+            hierarchy, typography, spacing, colour and interaction ideas only — it will not copy logos,
+            exact wording, claims, brand assets or colours.
+          </p>
+        </div>
+        <Pill tone={applied ? "signal" : savedSignals.length ? "attention" : "neutral"}>
+          {applied ? "Will shape next build" : savedSignals.length ? "Saved" : "Optional"}
+        </Pill>
+      </div>
+      {fingerprint ? (
+        <div className="mt-3 grid gap-2 text-[12px] sm:grid-cols-2 lg:grid-cols-5">
+          {[
+            ["Family", fingerprint.family],
+            ["Hero", fingerprint.heroComposition],
+            ["Colour", fingerprint.colorSystem],
+            ["Type", fingerprint.typeSystem],
+            ["Density", fingerprint.density],
+          ].map(([label, value]) => (
+            <div key={label} className="rounded-md border border-border bg-background/60 p-2">
+              <span className="block text-[10px] uppercase tracking-wide text-muted-foreground">{label}</span>
+              <span className="font-medium">{value ?? "default"}</span>
+            </div>
+          ))}
+        </div>
+      ) : null}
+      {savedSignals.length ? (
+        <ul className="mt-3 grid gap-1.5 sm:grid-cols-2">
+          {savedSignals.slice(0, 6).map((signal) => (
+            <li key={signal} className="text-[12px] text-muted-foreground">
+              <span className="text-primary">•</span> {signal}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      <Textarea
+        className="mt-3"
+        rows={4}
+        value={notes}
+        disabled={!canManage}
+        onChange={(event) => onNotesChange(event.target.value)}
+        placeholder="Example: layout: split hero with bento proof cards&#10;typography: large headline, modern sans&#10;spacing: airy sections&#10;color: dark canvas with warm gold accents"
+      />
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={!canManage || isSaving || !notes.trim()}
+          onClick={onSaveNotes}
+        >
+          {isSaving ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />}
+          Save pattern notes
+        </Button>
+        <Label className="inline-flex min-h-10 cursor-pointer items-center gap-2 rounded-md border border-border bg-card px-3 py-1.5 text-xs font-medium hover:bg-elevated">
+          {isExtracting ? <Loader2 className="size-4 animate-spin" /> : <ImageUp className="size-4" />}
+          {fileName ? `Reading ${fileName}` : "Upload screenshot"}
+          <input
+            type="file"
+            accept="image/png,image/jpeg,image/webp"
+            className="sr-only"
+            disabled={!canManage || isExtracting}
+            onChange={(event) => onFile(event.currentTarget.files?.[0] ?? null)}
+          />
+        </Label>
+        <span className="text-[11px] text-muted-foreground">Free vision only; no paid fallback.</span>
+      </div>
+      {reference?.warnings?.length ? (
+        <p className="mt-2 text-[11px] text-muted-foreground">
+          Ignored unsafe reference details: {reference.warnings.slice(0, 2).join(" ")}
+        </p>
+      ) : null}
     </div>
   );
 }

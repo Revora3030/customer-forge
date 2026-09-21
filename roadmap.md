@@ -152,3 +152,9 @@
 - [x] Full verification: typecheck, lint, vitest, build, audits, browser journey
 - [x] Release verification report artifact
 - [x] Report GitHub sync drift status (forward-only, no force push)
+
+## Current direct build request
+- [ ] Wire Sol/Terra creative reasoning into first-build direction before materialization.
+- [ ] Add screenshot-reference design fingerprint extraction with anti-cloning safeguards.
+- [ ] Run a complete scratch-site build through the new pipeline and 320-1440 visual QA.
+- [ ] Run a restore-protected fresh first-build on elite-mobile-cars and verify the rendered result.
