@@ -58,6 +58,7 @@
         "embla-carousel-react": "^8.6.0",
         "input-otp": "^1.4.2",
         "lucide-react": "^0.575.0",
+        "modern-screenshot": "^4.7.0",
         "motion": "^13.4.0",
         "nanoid": "^6.0.1",
         "qrcode": "^1.5.4",
@@ -1317,6 +1318,8 @@
     "micromark-util-types": ["micromark-util-types@2.0.2", "https://europe-west4-npm.pkg.dev/lovable-core-prod/sandbox-npm-cache/micromark-util-types/-/micromark-util-types-2.0.2.tgz", {}, "sha512-Yw0ECSpJoViF1qTU4DC6NwtC4aWGt1EkzaQB8KPPyCRR8z9TWeV0HbEFGTO+ZY1wB22zmxnJqhPyTpOVCpeHTA=="],
 
     "minimatch": ["minimatch@3.1.5", "", { "dependencies": { "brace-expansion": "^1.1.7" } }, "sha512-VgjWUsnnT6n+NUk6eZq77zeFdpW2LWDzP6zFGrCbHXiYNul5Dzqk2HHQ5uFH2DNW5Xbp8+jVzaeNt94ssEEl4w=="],
+
+    "modern-screenshot": ["modern-screenshot@4.7.0", "https://europe-west4-npm.pkg.dev/lovable-core-prod/sandbox-npm-cache/modern-screenshot/-/modern-screenshot-4.7.0.tgz", {}, "sha512-9YxN+ddPSMMlhylOv25VHzXrl9u67QRxoh7+SEewGtgUw7t6hHTrjptSDJUSne9oG4Xk/h2cwG15nIt4Hc9ujg=="],
 
     "motion": ["motion@13.4.0", "https://europe-west4-npm.pkg.dev/lovable-core-prod/sandbox-npm-cache/motion/-/motion-13.4.0.tgz", { "dependencies": { "framer-motion": "^13.4.0", "tslib": "^2.4.0" }, "peerDependencies": { "react": "^18.0.0 || ^19.0.0", "react-dom": "^18.0.0 || ^19.0.0" }, "optionalPeers": ["react", "react-dom"] }, "sha512-aiNSA29N+vgV5p5cJSB5cFzx8KTuuxB99z8zGtxsaqlwKtBK6sq8YgPRpkVQLkbJMOcLDU0q/ShdT95qpBy/0g=="],
 
