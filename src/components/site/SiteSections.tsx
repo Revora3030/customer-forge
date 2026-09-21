@@ -279,7 +279,7 @@ export function SiteSection({ site, section }: { site: Site; section: Section })
 
   const decorated = (
     <div className={visualClass} data-rv-variant={variant}>
-      {section.kind !== "hero" ? <SectionMedia site={site} section={section} /> : null}
+      {section.kind !== "hero" && section.kind !== "service_detail" ? <SectionMedia site={site} section={section} /> : null}
       {inner}
     </div>
   );
@@ -473,22 +473,29 @@ function SiteSectionBody({ site, section }: { site: Site; section: Section }) {
 
     case "service_detail":
       return (
-        <Shell>
-          <Heading section={section} />
-          <ul className="mt-6 space-y-2">
-            {components
-              .filter((c) => c.kind === "price_row" && c.label)
-              .map((row) => (
-                <li
-                  key={row.id}
-                  className="flex items-baseline justify-between gap-4 border-b border-border py-2"
-                >
-                  <span className="text-[14px]">{row.label}</span>
-                  <span className="tnum text-[14px] font-semibold text-primary">{row.body}</span>
-                </li>
-              ))}
-          </ul>
-          <SectionButtons site={site} components={components} />
+        <Shell wide>
+          <div className="rv-service-detail-grid">
+            <div className="rv-service-detail-copy">
+              <span className="rv-service-detail-kicker">Service overview</span>
+              <Heading section={section} />
+            </div>
+            <div className="rv-service-detail-action panel">
+              <ul className="space-y-2">
+                {components
+                  .filter((c) => c.kind === "price_row" && c.label)
+                  .map((row) => (
+                    <li
+                      key={row.id}
+                      className="flex items-baseline justify-between gap-4 border-b border-border py-3"
+                    >
+                      <span className="text-[14px]">{row.label}</span>
+                      <span className="tnum text-[16px] font-semibold text-primary">{row.body}</span>
+                    </li>
+                  ))}
+              </ul>
+              <SectionButtons site={site} components={components} />
+            </div>
+          </div>
         </Shell>
       );
 

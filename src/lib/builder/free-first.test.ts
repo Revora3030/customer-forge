@@ -260,6 +260,13 @@ describe("industry intelligence", () => {
     );
     expect(slugs.size).toBeGreaterThanOrEqual(18);
   });
+
+  it("uses dedicated strategies for underserved high-volume local services", () => {
+    expect(playbookFor("mobile pet grooming").slug).toBe("pet_care");
+    expect(playbookFor("24 hour locksmith").slug).toBe("locksmith");
+    expect(playbookFor("solar panel installer").slug).toBe("solar");
+    expect(playbookFor("junk removal and hauling").slug).toBe("moving_removal");
+  });
 });
 
 describe("interpreter", () => {

@@ -18,6 +18,8 @@ export type BrowserQaCheckKind =
   | "seo"
   | "accessibility";
 
+const TEMPLATE_FILLER = /\b(?:lorem ipsum|your business name|your company name|business name here|service name here|insert (?:text|copy|headline)|coming soon)\b|\[(?:business|company|service|city|state|headline|description)(?: name)?\]/i;
+
 export type BrowserQaFinding = {
   kind: BrowserQaCheckKind;
   pageId: string;
@@ -66,6 +68,27 @@ function runPageChecks(context: AgentContext, findings: BrowserQaFinding[]): voi
     }
     if (!page.seo_description?.trim()) {
       findings.push({ kind: "seo", pageId: page.id, message: "Visible page has no SEO description.", severity: "warning" });
+    }
+    const pageCopy = [page.title, page.seo_title, page.seo_description].filter(Boolean).join(" ");
+    if (TEMPLATE_FILLER.test(pageCopy)) {
+      findings.push({ kind: "page", pageId: page.id, message: "Visible page contains unfinished template or placeholder wording.", severity: "warning" });
+    }
+    for (const section of page.sections.filter((item) => item.is_visible)) {
+      const copy = [
+        section.heading,
+        section.subheading,
+        section.body,
+        ...section.components.flatMap((component) => [component.label, component.body, component.link_label]),
+      ].filter(Boolean).join(" ");
+      if (TEMPLATE_FILLER.test(copy)) {
+        findings.push({
+          kind: "page",
+          pageId: page.id,
+          sectionId: section.id,
+          message: "Visible section contains unfinished template or placeholder wording.",
+          severity: "warning",
+        });
+      }
     }
   }
 }
