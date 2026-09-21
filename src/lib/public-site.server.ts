@@ -71,6 +71,7 @@ export type SiteComponent = {
   url: string | null;
   link_url: string | null;
   link_label: string | null;
+  settings: Record<string, unknown> | null;
   sort_order: number;
 };
 
@@ -243,24 +244,6 @@ export async function loadSite(
   const { MEDIA_BUCKET, SIGNED_URL_TTL_SECONDS, isStoragePath } = await import("@/lib/media");
   const gallery = galleryRows.data ?? [];
   const profileRow = profile.data;
-  const toSign = [
-    ...gallery.map((g) => g.url),
-    profileRow?.logo_url ?? null,
-    profileRow?.hero_image_url ?? null,
-  ].filter((value): value is string => typeof value === "string" && isStoragePath(value));
-
-  const signed = new Map<string, string>();
-  if (toSign.length) {
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data: urls } = await supabaseAdmin.storage
-      .from(MEDIA_BUCKET)
-      .createSignedUrls([...new Set(toSign)], SIGNED_URL_TTL_SECONDS);
-    for (const entry of urls ?? []) {
-      if (entry.path && entry.signedUrl) signed.set(entry.path, entry.signedUrl);
-    }
-  }
-  const resolve = (value: string | null): string | null =>
-    value ? (signed.get(value) ?? value) : value;
 
   // Structured content: the builder's page/section tree. Loads the requested
   // page when one is asked for, otherwise the home page, plus the navigation
@@ -307,11 +290,11 @@ export async function loadSite(
     sections = (rows ?? []) as SiteSection[];
   }
 
-  let components: SiteComponent[] = [];
+  let componentRows: (Omit<SiteComponent, "url"> & { url?: string | null })[] = [];
   if (sections.length) {
     const componentQuery = supabase
       .from("website_components")
-      .select("id, section_id, kind, label, body, media_url, link_url, link_label, sort_order")
+      .select("id, section_id, kind, label, body, media_url, link_url, link_label, settings, sort_order")
       .eq("organization_id", orgId)
       .in(
         "section_id",
@@ -320,8 +303,34 @@ export async function loadSite(
     const { data: rows } = await (allowUnpublished
       ? componentQuery.order("sort_order")
       : componentQuery.eq("is_visible", true).order("sort_order"));
+    componentRows = (rows ?? []) as typeof componentRows;
+  }
+
+  const toSign = [
+    ...gallery.map((g) => g.url),
+    profileRow?.logo_url ?? null,
+    profileRow?.hero_image_url ?? null,
+    currentPage?.og_image_url ?? null,
+    ...componentRows.map((row) => row.media_url),
+  ].filter((value): value is string => typeof value === "string" && isStoragePath(value));
+
+  const signed = new Map<string, string>();
+  if (toSign.length) {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: urls } = await supabaseAdmin.storage
+      .from(MEDIA_BUCKET)
+      .createSignedUrls([...new Set(toSign)], SIGNED_URL_TTL_SECONDS);
+    for (const entry of urls ?? []) {
+      if (entry.path && entry.signedUrl) signed.set(entry.path, entry.signedUrl);
+    }
+  }
+  const resolve = (value: string | null): string | null =>
+    value ? (signed.get(value) ?? value) : value;
+
+  let components: SiteComponent[] = [];
+  if (componentRows.length) {
     // Links are scheme-allowlisted here so no consumer can render a javascript:/data: href.
-    components = (rows ?? []).map((row) => ({
+    components = componentRows.map((row) => ({
       ...row,
       link_url: safeLinkUrl(row.link_url),
       url: resolve(row.media_url),
@@ -354,7 +363,9 @@ export async function loadSite(
     })),
     gallery: gallery.map((g) => ({ ...g, url: resolve(g.url) ?? g.url })),
     quote: quoteForm.data ? { form: quoteForm.data, questions, addons } : null,
-    content: currentPage ? { page: currentPage, sections: sectionsWithComponents } : null,
+    content: currentPage
+      ? { page: { ...currentPage, og_image_url: resolve(currentPage.og_image_url) }, sections: sectionsWithComponents }
+      : null,
     nav: (navRows ?? [])
       .filter((row) => !row.noindex || row.kind !== "thanks")
       .filter((row) => populatedPages.has(row.id as string) || row.kind === "home"),

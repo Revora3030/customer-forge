@@ -51,6 +51,10 @@ function isReasoningModel(model: string) {
   return /^(gpt-5|o\d)/i.test(model);
 }
 
+function isGpt56Model(model: string) {
+  return /^gpt-5\.6-/i.test(model);
+}
+
 export const openAiAdapter: ProviderAdapter = {
   name: "openai",
 
@@ -63,7 +67,10 @@ export const openAiAdapter: ProviderAdapter = {
       })),
       ...(json ? { response_format: { type: "json_object" } } : {}),
       ...(isReasoningModel(model)
-        ? { max_completion_tokens: maxOutputTokens }
+        ? {
+            max_completion_tokens: maxOutputTokens,
+            ...(isGpt56Model(model) ? { reasoning_effort: "none" } : {}),
+          }
         : {
             max_tokens: maxOutputTokens,
             ...(typeof temperature === "number" ? { temperature } : {}),
@@ -94,7 +101,10 @@ export const openAiAdapter: ProviderAdapter = {
           content: partsOf(message.content),
         })),
         ...(isReasoningModel(model)
-          ? { max_completion_tokens: maxOutputTokens }
+          ? {
+              max_completion_tokens: maxOutputTokens,
+              ...(isGpt56Model(model) ? { reasoning_effort: "none" } : {}),
+            }
           : { max_tokens: maxOutputTokens }),
       }),
       signal,

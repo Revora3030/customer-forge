@@ -280,6 +280,7 @@ async function runJob(
     { compileFirstBuildCreativeDirection },
     { synthesizeNativeFirstBuild },
     { playbookFor },
+    { generateFirstBuildImages },
   ] =
     await Promise.all([
       import("@/lib/site-materialize.server"),
@@ -288,6 +289,7 @@ async function runJob(
       import("@/lib/builder/first-build-creative"),
       import("@/lib/builder/native-first-build"),
       import("@/lib/builder/industry"),
+      import("@/lib/builder/first-build-images.server"),
     ]);
   // Decide what kind of website this business needs (restaurant, clinic, shop,
   // studio, venue …) so the structure fits the industry, not one template.
@@ -408,6 +410,23 @@ async function runJob(
     result: synthesis as unknown as never,
     created_by: job.created_by,
   } as never);
+  const starterImages = await generateFirstBuildImages(db, {
+    organizationId: orgId,
+    userId: job.created_by,
+    businessName: org.data.name ?? "",
+    city: (p["city"] as string) ?? null,
+    photoCount: (media.data ?? []).length + ((p["hero_image_url"] as string) ? 1 : 0),
+    creative,
+  });
+  await db.from("ai_generations").insert({
+    organization_id: orgId,
+    job_id: job.id,
+    kind: "first_build_images",
+    model: starterImages.evidence.models.join("+") || starterImages.evidence.provider || "revora-artwork",
+    instruction: null,
+    result: starterImages.evidence as unknown as never,
+    created_by: job.created_by,
+  } as never);
   const built = await materializeSiteContent(db, orgId, {
     businessName: org.data.name ?? "",
     copy,
@@ -425,6 +444,7 @@ async function runJob(
     archetype,
     fingerprint: creative.fingerprint,
     industryPlaybook,
+    generatedAssets: starterImages.assets,
   });
 
   // A brand chosen by the owner wins. Only replace the untouched generated
@@ -464,6 +484,12 @@ async function runJob(
     analyticsConfigured: true,
     imagery: {
       status: creative.imagery.status,
+      generatedStatus: starterImages.evidence.status,
+      generated: starterImages.evidence.generated,
+      attached: !built.skipped ? starterImages.assets.length : 0,
+      provider: starterImages.evidence.provider,
+      models: starterImages.evidence.models,
+      message: starterImages.evidence.message,
       readiness: creative.imagery.assetPlan.readiness,
       missingRequired: creative.imagery.assetPlan.missingRequired.map((slot) => ({
         id: slot.id,

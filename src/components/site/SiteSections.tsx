@@ -171,16 +171,20 @@ function visualImageClass(visual: ReturnType<typeof readComponentVisual>): strin
   return `h-full w-full ${radius} ${shadow} object-${visual.object_fit ?? "cover"}`;
 }
 
+function componentImageUrl(component: Component): string | null {
+  return safeLinkUrl(component.url) ?? safeLinkUrl(component.media_url);
+}
+
 function SectionMedia({ site, section }: { site: Site; section: Section }) {
   const items = section.components.filter(
-    (component) => IMAGE_COMPONENT_KINDS.has(component.kind) && safeLinkUrl(component.media_url),
+    (component) => IMAGE_COMPONENT_KINDS.has(component.kind) && componentImageUrl(component),
   );
   if (!items.length) return null;
   return (
     <div className="rv-generated-media mx-auto grid max-w-6xl gap-4 px-4 pb-10 md:grid-cols-2">
       {items.slice(0, 4).map((component) => {
         const visual = readComponentVisual((component as Component & { settings?: unknown }).settings);
-        const src = safeLinkUrl(component.media_url);
+        const src = componentImageUrl(component);
         if (!src) return null;
         const overlayClass = visual.overlay ? "rv-overlay-" + visual.overlay : "";
         return (
@@ -277,6 +281,11 @@ function SiteSectionBody({ site, section }: { site: Site; section: Section }) {
     ? reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length
     : null;
   const heroArtwork = siteArtwork(site);
+  const heroImage = components.find((component) => component.kind === "hero_image" && componentImageUrl(component));
+  const heroImageVisual = heroImage
+    ? readComponentVisual((heroImage as Component & { settings?: unknown }).settings)
+    : null;
+  const heroImageSrc = heroImage ? componentImageUrl(heroImage) : null;
 
 
   switch (section.kind) {
@@ -306,21 +315,27 @@ function SiteSectionBody({ site, section }: { site: Site; section: Section }) {
                 ) : null}
                 <SectionButtons site={site} components={components} />
               </div>
-              {profile?.hero_image_url ? (
+              {profile?.hero_image_url || heroImageSrc ? (
                 // The frame keeps a steady, wide shape at every screen size, so a
                 // square or tall photo is cropped to the centre instead of
                 // stretching the top of the page out of proportion.
-                <div className="rv-hero-media aspect-[4/3] !min-h-0 w-full overflow-hidden rounded-2xl sm:aspect-[3/2] lg:aspect-[16/10]">
+                <figure className="rv-hero-media aspect-[4/3] !min-h-0 w-full overflow-hidden rounded-2xl sm:aspect-[3/2] lg:aspect-[16/10]">
                   <img
-                    src={profile?.hero_image_url ?? ""}
-                    alt={org.name + " featured work"}
+                    src={profile?.hero_image_url ?? heroImageSrc ?? ""}
+                    alt={heroImageVisual?.alt || org.name + " featured work"}
                     width={1200}
                     height={800}
                     fetchPriority="high"
                     decoding="async"
                     className="h-full w-full object-cover object-center"
+                    style={{
+                      objectPosition: safeObjectPosition(
+                        heroImageVisual?.focal_point ?? heroImageVisual?.object_position,
+                      ),
+                    }}
                   />
-                </div>
+                  {heroImageVisual ? <MediaCredit visual={heroImageVisual} /> : null}
+                </figure>
               ) : (
                 // No photo supplied: show artwork generated from this site's own
                 // design identity rather than an empty frame. It is abstract and
@@ -362,6 +377,8 @@ function SiteSectionBody({ site, section }: { site: Site; section: Section }) {
             name: card.label!,
             body: card.body,
             href: safeLinkUrl(card.link_url),
+            imageSrc: componentImageUrl(card),
+            visual: readComponentVisual((card as Component & { settings?: unknown }).settings),
             price: services.find((s) => s.name === card.label)?.price ?? null,
             startingPrice: services.find((s) => s.name === card.label)?.starting_price ?? null,
           }))
@@ -370,6 +387,8 @@ function SiteSectionBody({ site, section }: { site: Site; section: Section }) {
             name: service.name,
             body: service.description,
             href: null as string | null,
+            imageSrc: null as string | null,
+            visual: null as ReturnType<typeof readComponentVisual> | null,
             price: service.price,
             startingPrice: service.starting_price,
           }));
@@ -380,6 +399,23 @@ function SiteSectionBody({ site, section }: { site: Site; section: Section }) {
           <ul className="mt-8 grid gap-3 md:grid-cols-2 lg:grid-cols-3">
             {list.map((item) => (
               <li key={item.id} className="panel flex flex-col p-4">
+                {item.imageSrc ? (
+                  <figure className="mb-4 overflow-hidden rounded-xl border border-border/70">
+                    <img
+                      src={item.imageSrc}
+                      alt={item.visual?.alt || `${item.name} image`}
+                      loading="lazy"
+                      decoding="async"
+                      className="aspect-[4/3] w-full object-cover"
+                      style={{
+                        objectPosition: safeObjectPosition(
+                          item.visual?.focal_point ?? item.visual?.object_position,
+                        ),
+                      }}
+                    />
+                    {item.visual ? <MediaCredit visual={item.visual} /> : null}
+                  </figure>
+                ) : null}
                 <h3 className="font-display text-[15px] font-semibold">{item.name}</h3>
                 {item.body ? (
                   <p className="mt-2 flex-1 text-[13px] leading-relaxed text-muted-foreground">
