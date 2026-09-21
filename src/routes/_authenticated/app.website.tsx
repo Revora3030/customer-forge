@@ -767,17 +767,6 @@ function WebsitePage() {
                     healSummary={selfHeal.data?.summary ?? null}
                     regressions={regressions}
                   />
-
-                    result={preflightResult}
-                    isChecking={preflightFacts.isLoading}
-                    canPublish={manage && production?.unlocked !== false}
-                    isPublishing={launchFlow.isLaunching}
-                    onPublish={() => launchFlow.launch()}
-                    {...(manage ? { onSelfHeal: () => selfHeal.mutate() } : {})}
-                    isHealing={selfHeal.isPending}
-                    healSummary={selfHeal.data?.summary ?? null}
-                    regressions={regressions}
-                  />
                   <ProductionReadinessPanel
                     readiness={productionReadiness}
                     status={production}
