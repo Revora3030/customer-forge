@@ -206,6 +206,35 @@ function SectionMedia({ site, section }: { site: Site; section: Section }) {
   );
 }
 
+function SectionFeatureMedia({ site, section, className = "" }: { site: Site; section: Section; className?: string }) {
+  const component = section.components.find(
+    (item) => IMAGE_COMPONENT_KINDS.has(item.kind) && componentImageUrl(item),
+  );
+  if (!component) {
+    return (
+      <div className={`rv-feature-art overflow-hidden border border-border bg-card/40 ${className}`} aria-hidden="true">
+        <DecorativeArt spec={siteArtwork(site)} className="h-full min-h-72 w-full" />
+      </div>
+    );
+  }
+  const visual = readComponentVisual((component as Component & { settings?: unknown }).settings);
+  const src = componentImageUrl(component);
+  if (!src) return null;
+  return (
+    <figure className={`rv-feature-media overflow-hidden ${className}`}>
+      <img
+        src={src}
+        alt={visual.alt || component.label || `${site.org.name} supporting image`}
+        loading="lazy"
+        decoding="async"
+        className={visualImageClass(visual)}
+        style={{ objectPosition: safeObjectPosition(visual.focal_point ?? visual.object_position) }}
+      />
+      <MediaCredit visual={visual} />
+    </figure>
+  );
+}
+
 function SectionButtons({ site, components }: { site: Site; components: Component[] }) {
   const buttons = components.filter((c) => c.kind === "button" && c.label);
   if (!buttons.length) return null;
@@ -279,7 +308,9 @@ export function SiteSection({ site, section }: { site: Site; section: Section })
 
   const decorated = (
     <div className={visualClass} data-rv-variant={variant}>
-      {section.kind !== "hero" && section.kind !== "service_detail" ? <SectionMedia site={site} section={section} /> : null}
+      {!(["hero", "service_detail", "cta", "intro", "offer", "guarantee", "area", "policy", "lead_magnet"] as string[]).includes(section.kind)
+        ? <SectionMedia site={site} section={section} />
+        : null}
       {inner}
     </div>
   );
@@ -478,6 +509,7 @@ function SiteSectionBody({ site, section }: { site: Site; section: Section }) {
             <div className="rv-service-detail-copy">
               <span className="rv-service-detail-kicker">Service overview</span>
               <Heading section={section} />
+              <SectionFeatureMedia site={site} section={section} className="mt-8 aspect-[4/3]" />
             </div>
             <div className="rv-service-detail-action panel">
               <ul className="space-y-2">
@@ -778,6 +810,78 @@ function SiteSectionBody({ site, section }: { site: Site; section: Section }) {
     case "sticky_cta":
       return null; // rendered once, fixed to the viewport
 
+    case "cta":
+      return (
+        <section className="rv-cta-band scroll-mt-20 border-b border-border">
+          <SectionFeatureMedia site={site} section={section} className="rv-cta-band-media" />
+          <div className="rv-cta-band-scrim" aria-hidden="true" />
+          <div className="rv-cta-band-content mx-auto max-w-6xl px-4 py-20">
+            <p className="eyebrow">Next step</p>
+            <Heading section={section} />
+            <SectionButtons site={site} components={components} />
+          </div>
+        </section>
+      );
+
+    case "intro":
+      return (
+        <Shell wide>
+          <div className="rv-editorial-feature">
+            <div className="rv-editorial-feature-copy">
+              <p className="eyebrow">The story</p>
+              <Heading section={section} />
+              <SectionButtons site={site} components={components} />
+            </div>
+            <SectionFeatureMedia site={site} section={section} className="aspect-[4/3]" />
+          </div>
+        </Shell>
+      );
+
+    case "offer":
+    case "lead_magnet":
+      return (
+        <Shell wide>
+          <div className="rv-offer-feature panel">
+            <div>
+              <p className="eyebrow">Available now</p>
+              <Heading section={section} />
+              <SectionButtons site={site} components={components} />
+            </div>
+            <SectionFeatureMedia site={site} section={section} className="aspect-[3/2]" />
+          </div>
+        </Shell>
+      );
+
+    case "guarantee":
+      return (
+        <Shell wide>
+          <div className="rv-assurance-panel">
+            <span className="rv-assurance-mark" aria-hidden="true">01</span>
+            <div><p className="eyebrow">Our commitment</p><Heading section={section} /></div>
+          </div>
+        </Shell>
+      );
+
+    case "area":
+      return (
+        <Shell wide>
+          <div className="rv-area-feature">
+            <div><p className="eyebrow">Where we work</p><Heading section={section} /><SectionButtons site={site} components={components} /></div>
+            <SectionFeatureMedia site={site} section={section} className="aspect-[16/10]" />
+          </div>
+        </Shell>
+      );
+
+    case "policy":
+      return (
+        <Shell>
+          <article className="rv-policy-copy">
+            <p className="eyebrow">Important information</p>
+            <Heading section={section} />
+          </article>
+        </Shell>
+      );
+
     // A custom interactive block the builder created for this business.
     // Data-only spec, rendered by trusted components; an invalid spec renders
     // nothing rather than a broken section.
@@ -805,12 +909,6 @@ function SiteSectionBody({ site, section }: { site: Site; section: Section }) {
       );
     }
 
-    case "offer":
-    case "guarantee":
-    case "intro":
-    case "area":
-    case "policy":
-    case "lead_magnet":
     default:
       if (!safeText(section.heading) && !safeParagraph(section.body)) return null;
       return (
