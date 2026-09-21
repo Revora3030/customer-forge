@@ -20,6 +20,7 @@ import {
   imageGenerationCapability,
   type ImageCapability,
   type ImageCapabilityReason,
+  verifyImageEditing,
 } from "@/lib/media/image-capability.server";
 
 export type GeneratedImage =
@@ -125,7 +126,10 @@ export async function generateImageBase64(
   if (!capability.available) return unavailable(capability);
 
   const edit = Boolean(options?.source);
-  if (edit && !capability.editSupported)
+  // Proof, not assumption: an edit is only attempted once a real sample change
+  // has succeeded recently on the free service.
+  const canEdit = edit ? capability.editSupported && (await verifyImageEditing()) : false;
+  if (edit && !canEdit)
     return {
       ok: false,
       blocked: true,

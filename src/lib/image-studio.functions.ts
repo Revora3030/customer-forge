@@ -240,13 +240,18 @@ export const studioImageStatus = createServerFn({ method: "POST" })
         providers: [],
       };
 
-    const { imageGenerationCapability } = await import("@/lib/media/image-capability.server");
+    const { imageGenerationCapability, verifyImageEditing } = await import(
+      "@/lib/media/image-capability.server"
+    );
     const capability = await imageGenerationCapability();
+    // Picture changing is only reported as available once a real sample change
+    // has actually succeeded — a model name is never treated as proof.
+    const editSupported = capability.editSupported ? await verifyImageEditing() : false;
     return {
       available: capability.available,
       reason: capability.reason,
       message: capability.message,
-      editSupported: capability.editSupported,
+      editSupported,
       remainingToday: capability.providers.length
         ? capability.providers.reduce((total, entry) => total + entry.remainingToday, 0)
         : null,
