@@ -49,7 +49,11 @@ function SettingsPage() {
 
   return (
     <div className="space-y-6">
-      <PageHead eyebrow="Account" title="Settings" purpose="Your login, your business details and the people on your team." />
+      <PageHead
+        eyebrow="Account"
+        title="Settings"
+        purpose="Your login, your business details and the people on your team."
+      />
 
       <IntegrationCenter organizationId={orgId} />
 

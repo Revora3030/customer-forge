@@ -1,7 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
-import { EmptyState, LoadingRows, PageHead, Panel, Pill, SectionHeading } from "@/components/app/Bits";
+import {
+  EmptyState,
+  LoadingRows,
+  PageHead,
+  Panel,
+  Pill,
+  SectionHeading,
+} from "@/components/app/Bits";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -71,7 +78,11 @@ function ServicesPage() {
 
   return (
     <div className="space-y-6">
-      <PageHead eyebrow="Offer" title="Services & Quotes" purpose="What you sell, your prices, and the estimates people ask for.">
+      <PageHead
+        eyebrow="Offer"
+        title="Services & Quotes"
+        purpose="What you sell, your prices, and the estimates people ask for."
+      >
         <Button variant="signal" onClick={() => setEditing({ ...blank })}>
           <Plus className="size-4" /> Add service
         </Button>

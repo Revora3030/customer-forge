@@ -10,7 +10,14 @@ import {
   StickyNote,
   UserCheck,
 } from "lucide-react";
-import { EmptyState, LoadingRows, PageHead, Panel, Pill, SectionHeading } from "@/components/app/Bits";
+import {
+  EmptyState,
+  LoadingRows,
+  PageHead,
+  Panel,
+  Pill,
+  SectionHeading,
+} from "@/components/app/Bits";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -111,7 +118,11 @@ function LeadsPage() {
 
   return (
     <div className="space-y-6">
-      <PageHead eyebrow="Pipeline" title="Leads" purpose="Everyone who enquired, and where each one stands.">
+      <PageHead
+        eyebrow="Pipeline"
+        title="Leads"
+        purpose="Everyone who enquired, and where each one stands."
+      >
         <Dialog open={addOpen} onOpenChange={setAddOpen}>
           <DialogTrigger asChild>
             <Button variant="signal">

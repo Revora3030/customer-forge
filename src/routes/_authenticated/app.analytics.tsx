@@ -102,7 +102,11 @@ function AnalyticsPage() {
 
   return (
     <div className="space-y-6">
-      <PageHead eyebrow="Results" title="Analytics" purpose="How many people visit your site, and what they do there.">
+      <PageHead
+        eyebrow="Results"
+        title="Analytics"
+        purpose="How many people visit your site, and what they do there."
+      >
         <div className="flex gap-1.5">
           {DATE_RANGES.map((range) => (
             <button

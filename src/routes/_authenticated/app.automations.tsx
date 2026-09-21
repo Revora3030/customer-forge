@@ -1,7 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { Plus, Trash2, Zap } from "lucide-react";
-import { LoadingRows, MetricCard, PageHead, Panel, Pill, SectionHeading } from "@/components/app/Bits";
+import {
+  LoadingRows,
+  MetricCard,
+  PageHead,
+  Panel,
+  Pill,
+  SectionHeading,
+} from "@/components/app/Bits";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -91,7 +98,11 @@ function AutomationsPage() {
 
   return (
     <div className="space-y-6">
-      <PageHead eyebrow="Follow-up engine" title="Automations" purpose="Messages that go out on their own after someone enquires.">
+      <PageHead
+        eyebrow="Follow-up engine"
+        title="Automations"
+        purpose="Messages that go out on their own after someone enquires."
+      >
         <Button variant="signal" onClick={() => setNewOpen(true)}>
           <Plus className="size-4" /> New automation
         </Button>

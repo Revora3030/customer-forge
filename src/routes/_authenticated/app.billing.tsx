@@ -1,7 +1,15 @@
 import { useEffect, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { CreditCard, ExternalLink, Receipt, Wallet } from "lucide-react";
-import { EmptyState, LoadingRows, MetricCard, PageHead, Panel, Pill, SectionHeading } from "@/components/app/Bits";
+import {
+  EmptyState,
+  LoadingRows,
+  MetricCard,
+  PageHead,
+  Panel,
+  Pill,
+  SectionHeading,
+} from "@/components/app/Bits";
 import { Button } from "@/components/ui/button";
 import { StripeServiceCheckout } from "@/components/app/StripeServiceCheckout";
 import { PaymentTestModeBanner } from "@/components/app/PaymentTestModeBanner";
@@ -122,7 +130,11 @@ function BillingPage() {
 
   return (
     <div className="space-y-6">
-      <PageHead eyebrow="Billing &amp; payments" title="Your plan and payments" purpose="See what you pay, when it's due, and the cards you have saved.">
+      <PageHead
+        eyebrow="Billing &amp; payments"
+        title="Your plan and payments"
+        purpose="See what you pay, when it's due, and the cards you have saved."
+      >
         <div className="flex flex-wrap items-center gap-2">
           <Pill tone={subscription?.status === "active" ? "signal" : "neutral"}>
             {subscription ? subscription.status.replace("_", " ") : "No subscription"}

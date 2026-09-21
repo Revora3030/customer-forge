@@ -107,7 +107,11 @@ function QuotesPage() {
 
   return (
     <div className="space-y-6">
-      <PageHead eyebrow="Instant estimates" title="Quote calculator" purpose="Set your prices so visitors get an estimate straight away.">
+      <PageHead
+        eyebrow="Instant estimates"
+        title="Quote calculator"
+        purpose="Set your prices so visitors get an estimate straight away."
+      >
         {slug ? (
           <Button asChild variant="outline">
             <Link to="/s/$slug" params={{ slug }} target="_blank">
