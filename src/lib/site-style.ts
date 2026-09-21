@@ -460,7 +460,25 @@ export type PersistedComponentVisual = {
   shadow?: "none" | "soft" | "medium" | "strong";
   aspect_ratio?: "1:1" | "4:3" | "3:2" | "16:9" | "21:9";
   focal_point?: string;
+  /** Where the picture came from, so credits and licences stay honest. */
+  source?: "customer" | "stock" | "generated" | "unknown";
+  credit?: string;
+  license?: string;
+  source_url?: string;
 };
+
+/** The nine focal points an owner can choose, as CSS object-position values. */
+export const FOCAL_POINTS = [
+  { label: "Top left", value: "20% 20%" },
+  { label: "Top", value: "50% 15%" },
+  { label: "Top right", value: "80% 20%" },
+  { label: "Left", value: "15% 50%" },
+  { label: "Centre", value: "50% 50%" },
+  { label: "Right", value: "85% 50%" },
+  { label: "Bottom left", value: "20% 80%" },
+  { label: "Bottom", value: "50% 85%" },
+  { label: "Bottom right", value: "80% 80%" },
+] as const;
 
 export function readComponentVisual(settings: unknown): PersistedComponentVisual {
   if (!settings || typeof settings !== "object" || Array.isArray(settings)) return {};
@@ -488,6 +506,13 @@ export function readComponentVisual(settings: unknown): PersistedComponentVisual
     out.aspect_ratio = aspectRatio;
   }
   if (typeof value["focal_point"] === "string") out.focal_point = value["focal_point"];
+  const source = value["source"];
+  if (source === "customer" || source === "stock" || source === "generated" || source === "unknown") {
+    out.source = source;
+  }
+  if (typeof value["credit"] === "string") out.credit = value["credit"].slice(0, 120);
+  if (typeof value["license"] === "string") out.license = value["license"].slice(0, 80);
+  if (typeof value["source_url"] === "string") out.source_url = value["source_url"].slice(0, 500);
   return out;
 }
 
