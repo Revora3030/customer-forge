@@ -31,6 +31,7 @@ import {
   compileExecutableCreativeSection,
   writeExecutableCreativeSection,
 } from "@/lib/builder/executable-creative";
+import { slugify } from "@/lib/format";
 
 type Db = SupabaseClient;
 
@@ -252,6 +253,7 @@ export function planSiteContent(input: MaterializeInput): Page[] {
     kind: "card",
     label: card.name,
     body: card.body ?? null,
+    link_url: `/services/${slugify(card.name)}`,
     media_url: card.asset?.path ?? null,
     settings: card.asset ? mediaSettings(card.asset) : null,
   }));
@@ -401,6 +403,62 @@ export function planSiteContent(input: MaterializeInput): Page[] {
         },
       ],
     });
+
+  // Every supplied service receives a real, image-led landing page. Copy stays
+  // strictly source-derived: no invented inclusions, outcomes or guarantees.
+  for (const [index, service] of services.slice(0, 12).entries()) {
+    const asset = serviceAsset(input, service.name, index);
+    const description =
+      clean(copy.serviceCards.find((card) => card.name === service.name)?.copy) ??
+      clean(service.description);
+    const price = service.starting_price ?? service.price;
+    pages.push({
+      slug: `services/${slugify(service.name)}`,
+      title: service.name,
+      kind: "service",
+      seo_title: clean(`${service.name} — ${input.businessName}`),
+      seo_description: clean(description ?? copy.metaDescription),
+      og_image_url: asset?.path ?? ogAsset?.path ?? null,
+      sections: [
+        {
+          kind: "hero",
+          heading: service.name,
+          subheading: description,
+          components: [
+            { kind: "button", label: primaryCta, link_label: primaryCta, link_url: primaryTarget },
+            ...(asset ? [imageComponent(asset, "hero_image")] : []),
+          ],
+        },
+        {
+          kind: "service_detail",
+          heading: `About ${service.name}`,
+          body: description,
+          components: [
+            ...(price !== null && price !== undefined
+              ? [{
+                  kind: "price_row",
+                  label: service.name,
+                  body: `${service.starting_price ? "From " : ""}$${Number(price).toLocaleString()}`,
+                }]
+              : []),
+            { kind: "button", label: primaryCta, link_label: primaryCta, link_url: primaryTarget },
+          ],
+        },
+        ...(copy.faqs.length
+          ? [{
+              kind: "faq",
+              heading: `${service.name} questions`,
+              components: copy.faqs.slice(0, 4).map((faq) => ({ kind: "faq", label: faq.question, body: faq.answer })),
+            }]
+          : []),
+        {
+          kind: "cta",
+          heading: `Ask about ${service.name}`,
+          components: [{ kind: "button", label: primaryCta, link_label: primaryCta, link_url: primaryTarget }],
+        },
+      ],
+    });
+  }
 
   const priced = services.filter(
     (service) => service.price !== null || service.starting_price !== null,
