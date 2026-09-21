@@ -205,6 +205,8 @@ function WebsitePage() {
   // One server-verified launch path for every publish button on this page.
   const { data: production } = useProductionStatus(orgId);
   const { data: productionReadiness } = useProductionReadiness(orgId);
+  const { data: launchReview } = useLaunchReview(orgId);
+
   const launchFlow = useLaunchFlow(orgId);
 
   const servicesCount = facts.data?.servicesCount ?? (services ?? []).length;
