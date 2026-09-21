@@ -775,7 +775,7 @@ function WebsitePage() {
                     canManage={manage}
                   />
                   <InteractionHealth pages={pages ?? []} onFix={() => setAdvanced(null)} />
-                  <MemoryPanel organizationId={orgId} canManage={manage} />
+                  <MemoryPanel organizationId={orgId ?? null} canManage={manage} />
                   <RevoraScorePanel
                     score={siteScore.score}
                     factors={siteScore.factors}
