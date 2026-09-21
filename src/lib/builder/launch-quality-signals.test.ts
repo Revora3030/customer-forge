@@ -10,9 +10,9 @@ const completeSnapshot: SiteReadinessSnapshot = {
 };
 
 describe('launchQualityInputFromSnapshot', () => {
-  it('scores a complete site at 100 across every launch dimension', () => {
+  it('does not turn configured assets into a subjective visual score', () => {
     expect(launchQualityInputFromSnapshot(completeSnapshot)).toEqual({
-      conversion: 100, messaging: 100, content: 100, visual_design: 100, mobile: 100, accessibility: 100, seo: 100, trust: 100, performance: 100, publishing: 100,
+      conversion: 100, messaging: 100, content: 100, visual_design: 0, mobile: 100, accessibility: 100, seo: 100, trust: 100, performance: 100, publishing: 100,
     });
   });
 

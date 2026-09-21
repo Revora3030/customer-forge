@@ -53,14 +53,30 @@ export function compileUltimateSiteQuality(context: AgentContext, instruction: s
 
   const media = sections.flatMap((s) => s.components).filter((c) => ["image","gallery","media","photo","hero_image"].includes(c.kind)).length;
   const ctaPages = pages.filter((p) => p.sections.some((s) => s.kind === "cta" || s.components.some((c) => c.kind === "button"))).length;
+  const coverage = (value: number, total: number) => total ? clamp((value / total) * 100) : 0;
+  const designed = sections.filter((section) => section.variant && section.variant !== "default").length;
+  const populated = sections.filter((section) => section.heading || section.subheading || section.body).length;
   const scores: Record<UltimateQualityDomain, number> = {
-    brand: 98, composition: 97, imagery: media ? 97 : 88, motion: 94,
-    conversion: ctaPages === pages.length ? 98 : 91, responsive: 98, accessibility: 96, seo: pages.length ? 96 : 80,
-    performance: 95, content: sections.length ? 95 : 82, navigation: pages.length > 1 ? 96 : 88,
-    consistency: 98, mobile: 98, trust: 94,
-    proof: sections.some((s) => ["reviews","gallery"].includes(s.kind)) ? 96 : 86,
-    forms: sections.some((s) => ["contact","booking","quote"].includes(s.kind)) ? 96 : 88,
-    cta: ctaPages ? 98 : 82, visualHierarchy: 98, designSystem: 99, rendererExecution: 99,
+    brand: context.business.name ? 70 : 0,
+    composition: coverage(designed, sections.length),
+    imagery: coverage(media, Math.max(3, pages.length)),
+    motion: 0,
+    conversion: coverage(ctaPages, pages.length),
+    responsive: 0,
+    accessibility: 0,
+    seo: coverage(pages.filter((page) => page.seo_title && page.seo_description).length, pages.length),
+    performance: 0,
+    content: coverage(populated, sections.length),
+    navigation: pages.length > 1 ? 70 : pages.length ? 40 : 0,
+    consistency: designed ? 70 : 0,
+    mobile: 0,
+    trust: context.business.publishedReviewCount || context.business.photoCount ? 70 : 30,
+    proof: sections.some((section) => ["reviews", "gallery"].includes(section.kind)) ? 70 : 0,
+    forms: sections.some((section) => ["contact", "booking", "quote"].includes(section.kind)) ? 70 : 0,
+    cta: ctaPages ? coverage(ctaPages, pages.length) : 0,
+    visualHierarchy: 0,
+    designSystem: designed ? 70 : 0,
+    rendererExecution: 0,
   };
   const score = clamp(Object.values(scores).reduce((a, b) => a + b, 0) / Object.values(scores).length);
   return {
@@ -72,7 +88,7 @@ export function compileUltimateSiteQuality(context: AgentContext, instruction: s
       "Ultimate visual direction: " + direction.name + ".",
       "Compiled " + actions.length + " bounded output actions.",
       "Evaluated " + pages.length + " visible pages and " + sections.length + " visible sections.",
-      "Every emitted change uses the existing AgentAction execution boundary.",
+      "Unmeasured browser and perceptual domains remain at zero until rendered evidence exists.",
       "Requested instruction: " + instruction.slice(0, 180),
     ],
   };

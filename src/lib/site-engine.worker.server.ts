@@ -244,7 +244,7 @@ async function runJob(
       .eq("organization_id", orgId)
       .eq("is_active", true)
       .order("sort_order"),
-    db.from("media").select("id").eq("organization_id", orgId),
+    db.from("media").select("id, category").eq("organization_id", orgId),
     db.from("social_profiles").select("*").eq("organization_id", orgId).maybeSingle(),
     db.from("quote_forms").select("id").eq("organization_id", orgId).eq("is_active", true),
     db.from("services").select("id").eq("organization_id", orgId).eq("bookable", true),
@@ -543,6 +543,16 @@ async function runJob(
     businessName: org.data.name ?? "",
     city: (p["city"] as string) ?? null,
     photoCount: (media.data ?? []).length + ((p["hero_image_url"] as string) ? 1 : 0),
+    occupiedSlots: new Set([
+      ...((p["hero_image_url"] as string) ? (["hero"] as const) : []),
+      ...(media.data ?? []).flatMap((item) =>
+        item.category === "hero"
+          ? (["hero"] as const)
+          : item.category === "work"
+            ? (["service"] as const)
+            : [],
+      ),
+    ]),
     creative,
   });
   await db.from("ai_generations").insert({
@@ -570,6 +580,7 @@ async function runJob(
     direction,
     archetype,
     fingerprint: creative.fingerprint,
+    creativeBrief: creative.brief,
     industryPlaybook,
     generatedAssets: starterImages.assets,
     replaceExisting: freshReplace,

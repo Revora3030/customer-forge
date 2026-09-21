@@ -26,6 +26,12 @@ export type DesignQualityScore = {
 
 const clamp = (value: number) => Math.max(0, Math.min(100, Math.round(value)));
 
+const GENERIC_COPY = /^(welcome|grow|services|our services|what we do|learn more|get started|common questions|why choose us)$/i;
+const meaningful = (value: string | null | undefined) => {
+  const clean = (value ?? "").trim();
+  return clean.length >= 12 && !GENERIC_COPY.test(clean);
+};
+
 export function scoreDesignQuality(context: AgentContext): DesignQualityScore {
   const pages = context.pages.filter((page) => page.is_visible && !page.noindex);
   const sections = pages.flatMap((page) => page.sections);
@@ -38,14 +44,14 @@ export function scoreDesignQuality(context: AgentContext): DesignQualityScore {
   );
 
   const titled = pages.filter((page) => Boolean(page.title?.trim())).length;
-  const headed = sections.filter((section) => Boolean(section.heading?.trim())).length;
+  const headed = sections.filter((section) => meaningful(section.heading)).length;
   const hierarchy = clamp(
     (pages.length ? (titled / pages.length) * 50 : 0) +
       (sections.length ? (headed / sections.length) * 50 : 0),
   );
 
   const populated = sections.filter(
-    (section) => Boolean(section.heading?.trim() || section.subheading?.trim() || section.body?.trim()),
+    (section) => meaningful(section.heading) || meaningful(section.subheading) || meaningful(section.body),
   ).length;
   const content = clamp(sections.length ? (populated / sections.length) * 100 : 0);
 

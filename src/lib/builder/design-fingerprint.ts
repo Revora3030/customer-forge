@@ -449,6 +449,24 @@ export function rendererVariant(kind: string, source: string): string {
     if (/wide|open|spacious/.test(token)) return "faq-spacious";
     return "faq-clean";
   }
+  if (kind === "pricing") {
+    if (/matrix|compare|table/.test(token)) return "pricing-matrix";
+    if (/tier|package|bundle|columns/.test(token)) return "pricing-cards";
+    if (/highlight|callout|offer/.test(token)) return "pricing-feature";
+    return "pricing-rows";
+  }
+  if (kind === "stats") {
+    if (/big-number|large|counter|contrast/.test(token)) return "stats-statement";
+    if (/band|strip|row|columns/.test(token)) return "stats-band";
+    if (/proof|split|sidebar/.test(token)) return "stats-editorial";
+    return "stats-grid";
+  }
+  if (kind === "process") {
+    if (/horizontal|rail|arrow|progress/.test(token)) return "process-rail";
+    if (/vertical|story|zigzag|annotated/.test(token)) return "process-story";
+    if (/phase|tab|before-during/.test(token)) return "process-phases";
+    return "process-steps";
+  }
   if (kind === "quote" || kind === "booking" || kind === "contact") {
     if (/glass|boxed|card|contrast/.test(token)) return "form-glass";
     if (/split|sidebar|map|editorial/.test(token)) return "form-editorial";

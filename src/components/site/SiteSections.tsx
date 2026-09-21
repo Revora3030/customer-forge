@@ -34,6 +34,7 @@ import {
   readDesignFingerprint,
   type DesignFingerprint,
 } from "@/lib/builder/design-fingerprint";
+import { readExecutableCreativeSection } from "@/lib/builder/executable-creative";
 
 type Site = NonNullable<PublicSite>;
 type Section = NonNullable<Site["content"]>["sections"][number];
@@ -240,6 +241,7 @@ export function SiteSection({ site, section }: { site: Site; section: Section })
   const visual = readSectionVisual(section.settings);
   const variant = /^[a-z0-9-]{1,40}$/i.test(section.variant ?? "") ? section.variant : "default";
   const rendererVariant = variant.split("--", 1)[0] ?? variant;
+  const creative = readExecutableCreativeSection(section.settings);
   let inner = <SiteSectionBody site={site} section={section} />;
 
   const css = blockCss(style);
@@ -261,6 +263,10 @@ export function SiteSection({ site, section }: { site: Site; section: Section })
     visual.max_width ? `rv-width-${visual.max_width}` : "",
     visual.card_style ? `rv-cards-${visual.card_style}` : "",
     visual.image_treatment ? `rv-image-${visual.image_treatment}` : "",
+    creative ? `rv-creative-${creative.headingTreatment}` : "",
+    creative ? `rv-rhythm-${creative.rhythm}` : "",
+    creative ? `rv-media-role-${creative.mediaRole}` : "",
+    creative ? `rv-mobile-${creative.mobileOrder}` : "",
   ].filter(Boolean).join(" ");
 
   const decorated = (
@@ -291,7 +297,7 @@ function SiteSectionBody({ site, section }: { site: Site; section: Section }) {
   switch (section.kind) {
     case "hero":
       return (
-        <section className="border-b border-border">
+        <section className="rv-hero border-b border-border">
           <div className="mx-auto max-w-6xl px-4 py-14 lg:py-20">
             {rating ? (
               <Pill tone="attention">
@@ -299,7 +305,7 @@ function SiteSectionBody({ site, section }: { site: Site; section: Section }) {
               </Pill>
             ) : null}
             <div className="rv-hero-grid mt-6">
-              <div>
+              <div className="rv-hero-copy">
                 <h1 className="max-w-3xl font-display text-[34px] leading-[1.06] font-semibold tracking-tight lg:text-[46px]">
                   {section.heading ?? org.name}
                 </h1>
@@ -471,11 +477,11 @@ function SiteSectionBody({ site, section }: { site: Site; section: Section }) {
         <Shell>
           <Heading section={section} />
           {rows.length ? (
-            <ul className="mt-7 space-y-2">
+            <ul className="rv-pricing-list mt-7 space-y-2">
               {rows.map((row) => (
                 <li
                   key={row.id}
-                  className="flex items-baseline justify-between gap-4 border-b border-border py-2.5"
+                  className="rv-pricing-item flex items-baseline justify-between gap-4 border-b border-border py-2.5"
                 >
                   <span className="text-[14px]">{row.label}</span>
                   <span className="tnum text-[14px] font-semibold text-primary">{row.body}</span>
@@ -494,9 +500,10 @@ function SiteSectionBody({ site, section }: { site: Site; section: Section }) {
       return (
         <Shell wide>
           <Heading section={section} />
-          <ol className="mt-8 grid gap-3 md:grid-cols-3">
-            {steps.map((step) => (
+          <ol className="rv-process-list mt-8 grid gap-3 md:grid-cols-3">
+            {steps.map((step, index) => (
               <li key={step.id} className="panel p-4">
+                <span className="rv-step-number" aria-hidden="true">{String(index + 1).padStart(2, "0")}</span>
                 <p className="font-display text-[14px] font-semibold">{step.label}</p>
                 {step.body ? (
                   <p className="mt-2 text-[13px] leading-relaxed text-muted-foreground">
@@ -540,7 +547,7 @@ function SiteSectionBody({ site, section }: { site: Site; section: Section }) {
       return (
         <Shell wide>
           <Heading section={section} />
-          <dl className="mt-7 grid gap-4 sm:grid-cols-3">
+          <dl className="rv-stats-list mt-7 grid gap-4 sm:grid-cols-3">
             {items.map((item) => (
               <div key={item.id} className="panel p-4">
                 <dt className="eyebrow">{item.label}</dt>
@@ -606,16 +613,18 @@ function SiteSectionBody({ site, section }: { site: Site; section: Section }) {
       return (
         <Shell id="faq">
           <Heading section={section} />
-          <dl className="mt-8 space-y-5">
+          <div className="rv-faq-list mt-8 space-y-2">
             {items.map((item) => (
-              <div key={item.id}>
-                <dt className="text-[14px] font-medium">{item.label}</dt>
-                <dd className="mt-1.5 text-[13px] leading-relaxed text-muted-foreground">
+              <details key={item.id} className="group border-b border-border py-3">
+                <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-4 text-[14px] font-medium">
+                  {item.label}<span aria-hidden="true" className="text-primary transition-transform group-open:rotate-45">+</span>
+                </summary>
+                <p className="pb-2 pr-8 text-[13px] leading-relaxed text-muted-foreground">
                   {item.body}
-                </dd>
-              </div>
+                </p>
+              </details>
             ))}
-          </dl>
+          </div>
         </Shell>
       );
     }

@@ -40,7 +40,9 @@ export function launchQualityInputFromSnapshot(snapshot: SiteReadinessSnapshot):
     conversion: average(yes(snapshot.hasPrimaryCta), yes(snapshot.ctaRepeatedAtDecisionPoints)),
     messaging: average(yes(snapshot.heroIncludesAudience), yes(snapshot.heroIncludesOutcome), yes(snapshot.hasDifferentiator)),
     content: average(countScore(snapshot.serviceCount, 3), countScore(snapshot.faqCount, 4), yes(snapshot.hasProcess)),
-    visual_design: average(yes(snapshot.visualDirectionSet), countScore(snapshot.imageCount, 3)),
+    // A selected direction and an image count prove configuration, not visual
+    // quality. Keep this unmeasured until screenshot/perceptual evidence exists.
+    visual_design: 0,
     mobile: average(yes(snapshot.mobileReviewed), yes(snapshot.tapTargetsChecked)),
     accessibility: average(yes(snapshot.headingOrderValid), yes(snapshot.contrastChecked), yes(snapshot.descriptiveControls), yes(snapshot.reducedMotionSafe)),
     seo: average(yes(snapshot.seoTitle), yes(snapshot.seoDescription), yes(snapshot.hasSingleH1), yes(snapshot.locationIntent)),

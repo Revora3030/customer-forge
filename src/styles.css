@@ -2015,6 +2015,97 @@ a[href*="lovable.app"][target="_blank"][class*="fixed"],
 .rv-variant-hero-focus .rv-hero-grid {
   align-items: end;
 }
+.rv-creative-editorial h1,
+.rv-creative-editorial h2 {
+  font-weight: 500;
+  max-width: 18ch;
+}
+.rv-creative-statement h1,
+.rv-creative-statement h2 {
+  max-width: 14ch;
+  text-transform: uppercase;
+}
+.rv-rhythm-dramatic > section > div {
+  padding-block: clamp(4.5rem, 9vw, 8rem);
+}
+.rv-variant-hero-focus .rv-hero-copy,
+.rv-variant-hero-editorial .rv-hero-copy {
+  align-self: end;
+}
+.rv-variant-hero-focus h1,
+.rv-variant-hero-editorial h1 {
+  font-size: clamp(2.65rem, 7vw, 6.5rem);
+  line-height: 0.94;
+}
+.rv-variant-hero-layered .rv-hero-grid {
+  position: relative;
+}
+.rv-variant-hero-layered .rv-hero-copy {
+  position: relative;
+  z-index: 2;
+  padding-block: clamp(2rem, 6vw, 5rem);
+}
+.rv-variant-pricing-cards .rv-pricing-list,
+.rv-variant-pricing-matrix .rv-pricing-list {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+}
+.rv-variant-pricing-cards .rv-pricing-item,
+.rv-variant-pricing-feature .rv-pricing-item {
+  display: grid;
+  min-height: 9rem;
+  align-content: space-between;
+  border: 1px solid var(--border);
+  padding: 1.25rem;
+  background: color-mix(in srgb, var(--card) 72%, transparent);
+}
+.rv-variant-pricing-feature .rv-pricing-item:first-child {
+  border-color: var(--primary);
+  box-shadow: 0 24px 70px -40px color-mix(in srgb, var(--primary) 65%, transparent);
+}
+.rv-variant-stats-statement .rv-stats-list dd {
+  font-size: clamp(2.5rem, 7vw, 6rem);
+  line-height: 0.9;
+}
+.rv-variant-stats-band > section {
+  background: var(--foreground);
+  color: var(--background);
+}
+.rv-variant-process-rail .rv-process-list {
+  position: relative;
+}
+.rv-variant-process-rail .rv-process-list::before {
+  content: "";
+  position: absolute;
+  top: 1.3rem;
+  left: 2rem;
+  right: 2rem;
+  height: 1px;
+  background: var(--primary);
+}
+.rv-step-number {
+  position: relative;
+  z-index: 1;
+  display: inline-grid;
+  min-width: 2.5rem;
+  min-height: 2.5rem;
+  place-items: center;
+  margin-bottom: 1.5rem;
+  border: 1px solid var(--primary);
+  background: var(--background);
+  color: var(--primary);
+  font-variant-numeric: tabular-nums;
+}
+.rv-faq-list details[open] {
+  border-color: var(--primary);
+}
+.rv-site-footer a {
+  transition: color 180ms ease;
+}
+.rv-site-footer a:hover {
+  color: var(--foreground);
+}
 
 .rv-variant-cards-floating .panel {
   box-shadow: 0 30px 60px -40px color-mix(in srgb, var(--foreground) 50%, transparent);
@@ -2065,13 +2156,13 @@ a[href*="lovable.app"][target="_blank"][class*="fixed"],
   padding-inline-start: clamp(1rem, 3vw, 2rem);
 }
 
-.rv-variant-faq-clean dl > div {
+.rv-variant-faq-clean .rv-faq-list details {
   border-bottom: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
 }
-.rv-variant-faq-editorial dl {
+.rv-variant-faq-editorial .rv-faq-list {
   gap: 1.5rem;
 }
-.rv-variant-faq-editorial dl > div {
+.rv-variant-faq-editorial .rv-faq-list details {
   padding: 1rem 1.25rem;
   border-radius: 1rem;
   background: color-mix(in srgb, var(--card) 55%, transparent);
@@ -2148,6 +2239,20 @@ a[href*="lovable.app"][target="_blank"][class*="fixed"],
   }
   .rv-cards-pill .panel {
     border-radius: 1rem;
+  }
+  .rv-mobile-media-first .rv-hero-copy {
+    order: 2;
+  }
+  .rv-mobile-media-first .rv-hero-media {
+    order: 1;
+  }
+  .rv-variant-process-rail .rv-process-list::before {
+    top: 2rem;
+    bottom: 2rem;
+    left: 1.25rem;
+    right: auto;
+    width: 1px;
+    height: auto;
   }
 }
 

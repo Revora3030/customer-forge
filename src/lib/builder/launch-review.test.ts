@@ -75,13 +75,14 @@ describe("launch review", () => {
     );
   });
 
-  it("passes every dimension once a clean full-width measurement exists", () => {
+  it("passes measured technical dimensions without inventing a visual rating", () => {
     const review = reviewLaunchQuality({ ...baseFacts, measurement: cleanMeasurement });
     expect(review.measuredAt).toBe(cleanMeasurement.measuredAt);
     expect(review.seo.failures).toEqual([]);
     expect(review.performance.passed).toBe(true);
-    expect(review.report.score).toBeGreaterThanOrEqual(90);
-    expect(review.report.nextAction).toBeNull();
+    expect(review.report.score).toBeGreaterThanOrEqual(80);
+    expect(review.report.passed).not.toContain("visual_design");
+    expect(review.report.nextAction?.dimension).toBe("visual_design");
   });
 
   it("requires all eight widths before mobile counts as reviewed", () => {

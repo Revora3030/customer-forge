@@ -26,6 +26,11 @@ import {
   type SiteArchetype,
 } from "@/lib/site-archetypes";
 import type { FirstBuildImageAsset } from "@/lib/builder/first-build-images.server";
+import type { CreativeBrief } from "@/lib/builder/creative-brief";
+import {
+  compileExecutableCreativeSection,
+  writeExecutableCreativeSection,
+} from "@/lib/builder/executable-creative";
 
 type Db = SupabaseClient;
 
@@ -72,6 +77,8 @@ export type MaterializeInput = {
   archetype?: SiteArchetype | null;
   /** Complete composition identity resolved before first materialization. */
   fingerprint?: DesignFingerprint | null;
+  /** Approved Sol/Terra presentation brief, compiled into a finite renderer contract. */
+  creativeBrief?: CreativeBrief | null;
   /** Full industry strategy used to order the home narrative. */
   industryPlaybook?: IndustryPlaybook | null;
   /** Safe generated starter pictures saved in tenant media for this first build. */
@@ -507,6 +514,7 @@ export function materializedSectionDesign(
   direction: DesignDirection | null | undefined,
   fingerprint?: DesignFingerprint | null,
   index = 0,
+  creativeBrief?: CreativeBrief | null,
 ): { variant: string; settings: Record<string, unknown> } {
   if (!direction) return { variant: "default", settings: {} };
   const dark = direction.secondary !== "#ffffff" && !/^#f/i.test(direction.secondary);
@@ -532,9 +540,15 @@ export function materializedSectionDesign(
         }
       : compositionForKind(kind, dark),
   );
+  const settings = writeSectionEffect(visual, effect);
   return {
     variant: identity?.variant ?? variantForKind(kind, direction.id),
-    settings: writeSectionEffect(visual, effect),
+    settings: fingerprint
+      ? writeExecutableCreativeSection(
+          settings,
+          compileExecutableCreativeSection(kind, fingerprint, creativeBrief),
+        )
+      : settings,
   };
 }
 
@@ -591,7 +605,13 @@ export async function materializeSiteContent(
     if (pageError) throw new Error(pageError.message);
 
     for (const [sectionIndex, section] of page.sections.entries()) {
-      const design = materializedSectionDesign(section.kind, input.direction, input.fingerprint, sectionIndex);
+      const design = materializedSectionDesign(
+        section.kind,
+        input.direction,
+        input.fingerprint,
+        sectionIndex,
+        input.creativeBrief,
+      );
       const { data: sectionRow, error: sectionError } = await db
         .from("website_sections")
         .insert({

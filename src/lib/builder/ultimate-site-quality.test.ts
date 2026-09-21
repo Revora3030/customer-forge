@@ -15,8 +15,9 @@ describe("ultimate site quality", () => {
     const result = compileUltimateSiteQuality(context, "build a premium website", 40);
     expect(result.actions.length).toBeGreaterThan(10);
     expect(result.directionId).toBeTruthy();
-    expect(result.domains.designSystem).toBe(99);
-    expect(result.score).toBeGreaterThan(90);
+    expect(result.domains.rendererExecution).toBe(0);
+    expect(result.domains.responsive).toBe(0);
+    expect(result.score).toBeLessThan(70);
   });
   it("respects the action budget", () => {
     expect(compileUltimateSiteQuality(context, "make it excellent", 5).actions.length).toBeLessThanOrEqual(5);
