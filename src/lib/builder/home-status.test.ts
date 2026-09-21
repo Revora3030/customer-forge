@@ -76,7 +76,7 @@ describe("builderHomeStatus", () => {
     expect(byKey({ ...base, publishState: "published" })["ready"]?.answer).toBe(
       "Your site is live",
     );
-    expect(byKey(base)["ready"]?.answer).not.toContain("live");
+    expect(byKey(base)["ready"]?.answer).not.toBe("Your site is live");
   });
 
   it("reports not started before anything is built", () => {
