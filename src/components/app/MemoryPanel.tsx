@@ -62,7 +62,7 @@ export function MemoryPanel({
   const entries = (memory.data ?? []) as MemoryEntry[];
 
   return (
-    <section className="space-y-3">
+    <section className="panel space-y-3 p-5">
       <div>
         <h3 className="text-sm font-semibold">What Revora remembers</h3>
         <p className="text-muted-foreground text-xs">
