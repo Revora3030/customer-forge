@@ -869,6 +869,12 @@ export async function callPinnedPaidImage(
   caller: AiCaller,
   prompt: string,
   model: string,
+  /**
+   * Supplying a source picture makes this a precision EDIT rather than a fresh
+   * frame. It still goes through the same guard, concurrency limit and adapter,
+   * so no caller can reach a provider directly.
+   */
+  source: { dataUrl: string; mimeType: string } | null = null,
 ): Promise<{ base64: string; mimeType: string; provider: ProviderName; model: string }> {
   const limits = aiLimits();
   if (prompt.length > limits.maxRequestChars)
