@@ -59,10 +59,10 @@ describe("luna configuration", () => {
     expect(lunaEnabled()).toBe(false);
   });
 
-  it("is on with a key and no explicit opt-out", () => {
+  it("stays off with a key until an operator explicitly opts in", () => {
     process.env["OPENAI_API_KEY"] = "sk-test";
     delete process.env["LUNA_ENABLED"];
-    expect(lunaEnabled()).toBe(true);
+    expect(lunaEnabled()).toBe(false);
   });
 });
 

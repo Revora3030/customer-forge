@@ -134,9 +134,18 @@ type SupabaseLike = {
 /* --------------------------------- planning -------------------------------- */
 
 /** The owner's brand choices, read off the request before anything is composed. */
+type BrandPreference = {
+  tone: "light" | "dark" | "any" | null;
+  primaryColor: string | null;
+  secondaryColor: string | null;
+  accentColor: string | null;
+  font: string | null;
+  directionId: string | null;
+};
+
 function readBrand(
   input: unknown,
-): import("@/lib/builder/ai-composition.server").BrandPreference | null {
+): BrandPreference | null {
   if (!input || typeof input !== "object") return null;
   const record = input as Record<string, unknown>;
   const hex = (value: unknown) =>
@@ -196,7 +205,7 @@ type PlanInput = {
   instruction: string;
   history: AgentTurn[];
   attachments: AgentAttachment[];
-  brand?: import("@/lib/builder/ai-composition.server").BrandPreference | null;
+  brand?: BrandPreference | null;
 };
 
 
