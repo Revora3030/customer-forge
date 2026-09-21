@@ -108,7 +108,7 @@ export function VisualCheckPanel({
       setRunning(false);
       setProgress(null);
     }
-  }, [canManage, content, createLink, links, organizationId, publishState, queryClient, running, slug]);
+  }, [content, createLink, links, organizationId, publishState, queryClient, running, slug]);
 
   useEffect(() => {
     const job = latestJob as { id?: string; status?: string } | null | undefined;
