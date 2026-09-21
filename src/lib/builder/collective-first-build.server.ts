@@ -160,7 +160,7 @@ export async function refineFirstBuildWithCollective(input: {
   } else {
     solProposal = parseRefinement(solCall.text);
     passes.push(
-      record("sol", "content_strategy", {
+      record(solCall.tier, "content_strategy", {
         model: solCall.model,
         used: solProposal !== null,
         costMicrocents: solCall.costMicrocents,
@@ -174,7 +174,7 @@ export async function refineFirstBuildWithCollective(input: {
   let approvedFields: string[] | null = null;
   if (solProposal) {
     const terraCall = await callCollective({
-      purpose: "adversarial_review",
+      purpose: "specialist_review",
       complexity: "medium",
       organizationId: input.organizationId,
       maxOutputTokens: 900,
@@ -195,7 +195,7 @@ export async function refineFirstBuildWithCollective(input: {
     });
     if (!terraCall.ok) {
       passes.push(
-        record("terra", "adversarial_review", {
+        record("terra", "specialist_review", {
           skipped: terraCall.detail ?? terraCall.reason,
         }),
       );
@@ -203,7 +203,7 @@ export async function refineFirstBuildWithCollective(input: {
       const parsed = parseReview(terraCall.text);
       approvedFields = parsed ? parsed.approvedFields : null;
       passes.push(
-        record("terra", "adversarial_review", {
+        record(terraCall.tier, "specialist_review", {
           model: terraCall.model,
           used: parsed !== null,
           costMicrocents: terraCall.costMicrocents,
@@ -227,7 +227,7 @@ export async function refineFirstBuildWithCollective(input: {
       copy = mergeRefinement(copy, gated.accepted);
       changed = true;
     }
-    const solPass = passes.find((pass) => pass.tier === "sol");
+    const solPass = passes.find((pass) => pass.purpose === "content_strategy");
     if (solPass) {
       solPass.acceptedFields = acceptedKeys;
       solPass.rejected = gated.rejected;
@@ -285,7 +285,7 @@ export async function refineFirstBuildWithCollective(input: {
       changed = true;
     }
     passes.push(
-      record("luna", "metadata", {
+      record(lunaCall.tier, "metadata", {
         model: lunaCall.model,
         used: acceptedKeys.length > 0,
         costMicrocents: lunaCall.costMicrocents,
