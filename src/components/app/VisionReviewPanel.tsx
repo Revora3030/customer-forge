@@ -15,7 +15,7 @@
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Camera, Loader2, Wrench } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/lib/ui/notify";
 import { Panel, Pill, SectionHeading } from "@/components/app/Bits";
 import { Button } from "@/components/ui/button";
 import {

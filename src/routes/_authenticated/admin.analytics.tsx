@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useState } from "react";
 import { ExternalLink } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/lib/ui/notify";
 
 import {
   EmptyState,

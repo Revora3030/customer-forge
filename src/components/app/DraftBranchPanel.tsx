@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { toast } from "sonner";
+import { toast } from "@/lib/ui/notify";
 import { Check, GitBranch, Trash2 } from "lucide-react";
 import { Panel, SectionHeading } from "@/components/app/Bits";
 import { Button } from "@/components/ui/button";

@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { toast } from "sonner";
+import { toast } from "@/lib/ui/notify";
 import { friendlyError } from "@/lib/user-error";
 import { CheckCircle2, Circle, ExternalLink, RefreshCw } from "lucide-react";
 import { LoadingRows, MetricCard, Panel, Pill, SectionHeading } from "@/components/app/Bits";

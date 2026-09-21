@@ -14,7 +14,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { toast } from "sonner";
+import { toast } from "@/lib/ui/notify";
 import { useWorkspace } from "@/lib/use-tenant";
 import { useWebsiteSettings } from "@/lib/queries";
 import {

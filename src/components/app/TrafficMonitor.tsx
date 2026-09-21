@@ -7,7 +7,7 @@ import { useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { toast } from "sonner";
+import { toast } from "@/lib/ui/notify";
 import { friendlyError } from "@/lib/user-error";
 import { ArrowRight, BellRing, Loader2, RefreshCw, TrendingDown, TrendingUp } from "lucide-react";
 import { Panel, Pill, SectionHeading } from "@/components/app/Bits";

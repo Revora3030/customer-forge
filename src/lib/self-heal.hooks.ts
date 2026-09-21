@@ -5,7 +5,7 @@
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { toast } from "sonner";
+import { toast } from "@/lib/ui/notify";
 import { runSelfHeal, type SelfHealResult } from "@/lib/self-heal.functions";
 import { friendlyError } from "@/lib/user-error";
 

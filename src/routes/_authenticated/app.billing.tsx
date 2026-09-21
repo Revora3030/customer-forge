@@ -22,7 +22,7 @@ import { useWorkspace } from "@/lib/use-tenant";
 import { canManage } from "@/lib/use-tenant";
 import { REVORA } from "@/lib/brand";
 import { useQueryClient } from "@tanstack/react-query";
-import { toast } from "sonner";
+import { toast } from "@/lib/ui/notify";
 
 export const Route = createFileRoute("/_authenticated/app/billing")({
   head: () => ({

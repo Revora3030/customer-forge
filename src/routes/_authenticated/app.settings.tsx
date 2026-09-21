@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
-import { toast } from "sonner";
+import { toast } from "@/lib/ui/notify";
 import { LoadingRows, Panel, Pill, SectionHeading } from "@/components/app/Bits";
 import { IntegrationCenter } from "@/components/app/IntegrationCenter";
 import { Button } from "@/components/ui/button";

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { onAssistantPrompt } from "@/lib/assistant-bridge";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { toast } from "sonner";
+import { toast } from "@/lib/ui/notify";
 import { friendlyError } from "@/lib/user-error";
 import {
   AlertTriangle,

@@ -4,7 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { submitContactRequest } from "@/lib/contact.functions";
 
 import { useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/lib/ui/notify";
 import { Mail, Phone } from "lucide-react";
 import { SiteFooter, SiteHeader } from "@/components/marketing/Chrome";
 import { RevoraMobileBar, SupportCard } from "@/components/marketing/SalesCTA";

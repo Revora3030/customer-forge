@@ -9,7 +9,7 @@
 import { useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { MapPin, Search } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/lib/ui/notify";
 import { EmptyState, Panel, Pill } from "@/components/app/Bits";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
