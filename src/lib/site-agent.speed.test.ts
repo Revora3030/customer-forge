@@ -95,7 +95,7 @@ function largeBuild() {
         field: "heading",
         value: `Heading ${index}`,
       });
-      actions.push({ type: "set_section_visual", sectionId, patch: { tone: "calm" } });
+      actions.push({ type: "set_section_visual", sectionId, patch: { density: "airy" } });
       for (let slot = 0; slot < 2; slot += 1) {
         const componentId = `cmp-${page}-${index}-${slot}`;
         components.push({ id: componentId, organization_id: ORG, section_id: sectionId });
@@ -143,7 +143,7 @@ describe("large build speed: undo capture round trips", () => {
       { type: "delete_section", sectionId: "sec-1" },
       { type: "reorder_sections", pageId: "page-1", sectionIds: ["sec-1"] },
       { type: "set_component", componentId: "cmp-1", patch: { label: "New" } },
-      { type: "set_theme", patch: { brand_tone: "bold" } },
+      { type: "set_theme", patch: { primary_color: "#112233" } },
       { type: "add_section", pageId: "page-1", kind: "features" },
     ];
     const fresh = fakeClient(tables);
