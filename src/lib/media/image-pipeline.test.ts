@@ -89,7 +89,7 @@ describe("Cloudflare Workers AI picture request", () => {
     ).rejects.toThrow(/no picture/i);
   });
 
-  it("refuses to edit a picture with a model that cannot edit", async () => {
+  it("refuses to edit a picture with a text-to-image model", async () => {
     await expect(
       cloudflareAdapter.image({
         apiKey: "cf-token",
@@ -98,7 +98,33 @@ describe("Cloudflare Workers AI picture request", () => {
         source: { dataUrl: "data:image/png;base64,AAAA", mimeType: "image/png" },
         signal: new AbortController().signal,
       }),
-    ).rejects.toThrow(/cannot edit/i);
+    ).rejects.toThrow(/cannot change a picture/i);
+  });
+
+  it("sends the source picture and a mask to an edit-capable model", async () => {
+    let body: Record<string, unknown> | null = null;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_url: unknown, init?: { body?: string }) => {
+        body = JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown>;
+        return new Response(new Uint8Array([1, 2, 3, 4]), {
+          headers: { "content-type": "image/png" },
+        });
+      }),
+    );
+    const result = await cloudflareAdapter.image({
+      apiKey: "cf-token",
+      model: "@cf/runwayml/stable-diffusion-v1-5-inpainting",
+      prompt: "same photo at dusk",
+      source: { dataUrl: "data:image/png;base64,AAAA", mimeType: "image/png" },
+      signal: new AbortController().signal,
+    });
+    expect(result.mimeType).toBe("image/png");
+    const sent = body as unknown as { image?: number[]; mask?: number[]; strength?: number };
+    expect(Array.isArray(sent.image)).toBe(true);
+    expect(Array.isArray(sent.mask)).toBe(true);
+    expect(sent.strength).toBeGreaterThan(0);
+    expect(sent.strength).toBeLessThan(1);
   });
 
   it("fails clearly when the account id is not configured", async () => {
