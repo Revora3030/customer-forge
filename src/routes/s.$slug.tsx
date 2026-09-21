@@ -194,6 +194,7 @@ function TemplateSiteView({
     seo.primary_cta_label ||
     (hasQuote ? "Get my instant quote" : "Book an appointment");
   const secondaryCta = copy?.secondaryCta || "Book an appointment";
+  const fallbackHeroImage = profile?.hero_image_url || gallery[0]?.url || null;
 
   const jsonLd = {
     "@context": "https://schema.org",
@@ -289,9 +290,20 @@ function TemplateSiteView({
           <SiteNav site={site} />
         </header>
 
-        <section className="border-b border-border">
-          <div className="mx-auto grid max-w-6xl gap-10 px-4 py-14 lg:grid-cols-[1.1fr_1fr] lg:py-20">
-            <div>
+        <section className={`rv-template-hero border-b border-border ${fallbackHeroImage ? "rv-template-hero-image" : ""}`}>
+          {fallbackHeroImage ? (
+            <img
+              src={fallbackHeroImage}
+              alt={profile?.hero_image_url ? `${org.name} featured work` : gallery[0]?.alt_text ?? `${org.name} work sample`}
+              width={1600}
+              height={1000}
+              fetchPriority="high"
+              decoding="async"
+              className="rv-template-hero-media"
+            />
+          ) : null}
+          <div className="rv-template-hero-inner mx-auto grid max-w-6xl gap-10 px-4 py-14 lg:grid-cols-[1.1fr_1fr] lg:py-20">
+            <div className="rv-template-hero-copy">
               <div className="flex flex-wrap items-center gap-2">
                 {rating ? (
                   <Pill tone="attention">

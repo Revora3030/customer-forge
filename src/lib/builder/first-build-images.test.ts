@@ -24,7 +24,7 @@ const creative = compileFirstBuildCreativeDirection({
 
 describe("first-build image coverage", () => {
   it("fills safe supporting slots when one owner photo already exists", () => {
-    const shots = firstBuildImageShots(creative, 1);
+    const shots = firstBuildImageShots(creative, 1, new Set(["hero"]));
     expect(shots.length).toBeGreaterThan(0);
     expect(shots.some((shot) => shot.slot === "hero")).toBe(false);
     expect(shots.some((shot) => shot.slot === "service" || shot.slot === "cta")).toBe(true);
@@ -34,5 +34,11 @@ describe("first-build image coverage", () => {
     const shots = firstBuildImageShots(creative, 1, new Set(["service"]));
     expect(shots.some((shot) => shot.slot === "hero")).toBe(true);
     expect(shots.some((shot) => shot.slot === "service")).toBe(false);
+  });
+
+  it("does not let one general upload suppress the hero or every service picture", () => {
+    const shots = firstBuildImageShots(creative, 1);
+    expect(shots.some((shot) => shot.slot === "hero")).toBe(true);
+    expect(shots.filter((shot) => shot.slot === "service")).toHaveLength(2);
   });
 });

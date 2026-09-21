@@ -298,9 +298,10 @@ export function createDesignFingerprint(
   const decorativePool = photos >= 4
     ? DECORATIVE_SYSTEMS
     : DECORATIVE_SYSTEMS.filter((system) => system !== "none");
-  const heroPool = photos > 0
-    ? HERO_COMPOSITIONS
-    : HERO_COMPOSITIONS.filter((composition) => !composition.includes("media") && !composition.includes("full-bleed"));
+  // First builds can receive safe generated marketing imagery after this
+  // fingerprint is compiled. Do not permanently remove cinematic/media-led
+  // compositions merely because the owner has not uploaded a photo yet.
+  const heroPool = HERO_COMPOSITIONS;
 
   const motionRoll = (seed >>> 5) % 10;
   const motionLevel: DesignFingerprint["motionLevel"] =

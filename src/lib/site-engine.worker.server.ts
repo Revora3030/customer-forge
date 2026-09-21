@@ -422,6 +422,7 @@ async function runJob(
     goals,
     conversionGoal: org.data.conversion_goal ?? null,
     photoCount: (media.data ?? []).length + ((p["hero_image_url"] as string) ? 1 : 0),
+    hasHeroImage: Boolean(p["hero_image_url"]),
     testimonialCount: testimonials.length,
     bookableServices: (bookable.data ?? []).length,
     hasHours: Boolean(p["hours"] && Object.keys(p["hours"] as object).length),
@@ -543,15 +544,10 @@ async function runJob(
     businessName: org.data.name ?? "",
     city: (p["city"] as string) ?? null,
     photoCount: (media.data ?? []).length + ((p["hero_image_url"] as string) ? 1 : 0),
+    // Only a deliberately assigned hero fills that role. A generic upload or
+    // one work photo no longer blocks the complete supporting image campaign.
     occupiedSlots: new Set([
       ...((p["hero_image_url"] as string) ? (["hero"] as const) : []),
-      ...(media.data ?? []).flatMap((item) =>
-        item.category === "hero"
-          ? (["hero"] as const)
-          : item.category === "work"
-            ? (["service"] as const)
-            : [],
-      ),
     ]),
     creative,
   });

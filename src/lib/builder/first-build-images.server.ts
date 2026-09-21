@@ -99,8 +99,8 @@ function fileStem(shot: PlannedShot, index: number) {
 
 export function firstBuildImageShots(
   creative: FirstBuildCreativeDirection,
-  photoCount: number,
-  occupiedSlots: ReadonlySet<PlannedShot["slot"]> = new Set(photoCount > 0 ? ["hero"] : []),
+  _photoCount: number,
+  occupiedSlots: ReadonlySet<PlannedShot["slot"]> = new Set(),
 ): PlannedShot[] {
   const unique = new Set<string>();
   const shots: PlannedShot[] = [];
@@ -114,8 +114,7 @@ export function firstBuildImageShots(
     unique.add(key);
     shots.push(shot);
   }
-  const openSlots = Math.max(0, maxStarterImages() - occupiedSlots.size);
-  return shots.slice(0, openSlots);
+  return shots.slice(0, maxStarterImages());
 }
 
 export async function generateFirstBuildImages(
@@ -134,7 +133,7 @@ export async function generateFirstBuildImages(
     VISUAL_DIRECTIONS.find((item) => item.id === input.creative.imagery.directionId) ?? null;
   const shots = firstBuildImageShots(input.creative, input.photoCount, input.occupiedSlots);
   if (!direction || shots.length === 0) {
-    const ownerCovered = input.photoCount > 0 && shots.length === 0;
+    const ownerCovered = input.occupiedSlots?.size && shots.length === 0;
     return {
       assets: [],
       evidence: {

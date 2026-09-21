@@ -44,6 +44,17 @@ describe("the design library", () => {
     });
     expect(one[0]!.id).not.toBe(two[0]!.id);
   });
+
+  it("prioritizes premium dark art direction for automotive detailing", () => {
+    const [direction] = recommendDirections({
+      businessName: "Northline Auto Studio",
+      industry: "Automotive detailing",
+      services: [{ name: "Ceramic coating" }, { name: "Interior detail" }],
+      city: "New York",
+      count: 1,
+    });
+    expect(direction?.id).toBe("luxury-gold");
+  });
 });
 
 describe("heading fonts on a published site", () => {

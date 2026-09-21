@@ -292,6 +292,8 @@ function SiteSectionBody({ site, section }: { site: Site; section: Section }) {
     ? readComponentVisual((heroImage as Component & { settings?: unknown }).settings)
     : null;
   const heroImageSrc = heroImage ? componentImageUrl(heroImage) : null;
+  const heroCreative = readExecutableCreativeSection(section.settings);
+  const backgroundHero = heroCreative?.mediaRole === "background";
 
 
   switch (section.kind) {
@@ -325,7 +327,13 @@ function SiteSectionBody({ site, section }: { site: Site; section: Section }) {
                 // The frame keeps a steady, wide shape at every screen size, so a
                 // square or tall photo is cropped to the centre instead of
                 // stretching the top of the page out of proportion.
-                <figure className="rv-hero-media aspect-[4/3] !min-h-0 w-full overflow-hidden rounded-2xl sm:aspect-[3/2] lg:aspect-[16/10]">
+                <figure
+                  className={`rv-hero-media w-full overflow-hidden ${
+                    backgroundHero
+                      ? "rv-hero-media-background"
+                      : "aspect-[4/3] !min-h-0 rounded-2xl sm:aspect-[3/2] lg:aspect-[16/10]"
+                  }`}
+                >
                   <img
                     src={profile?.hero_image_url ?? heroImageSrc ?? ""}
                     alt={heroImageVisual?.alt || org.name + " featured work"}
