@@ -1,4 +1,4 @@
-import { useId, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { friendlyError } from "@/lib/user-error";
@@ -333,7 +333,15 @@ export function BookingForm({ site }: { site: Site }) {
   }
 
   const service = bookable.find((s) => s.id === serviceId);
-  const today = new Date().toISOString().slice(0, 10);
+  // "Today" is the visitor's own date, so it is only known in the browser.
+  // Reading it during the server render made the first paint disagree with the
+  // browser whenever the two were on different calendar days.
+  const [today, setToday] = useState("");
+  useEffect(() => {
+    const local = new Date();
+    local.setMinutes(local.getMinutes() - local.getTimezoneOffset());
+    setToday(local.toISOString().slice(0, 10));
+  }, []);
 
   return (
     <form
@@ -424,7 +432,7 @@ export function BookingForm({ site }: { site: Site }) {
           <>
             <div className="space-y-1.5">
               <Label htmlFor={fid("date")}>Preferred date</Label>
-              <Input id={fid("date")} name="date" type="date" min={today} required />
+              <Input id={fid("date")} name="date" type="date" min={today || undefined} required />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor={fid("time")}>Preferred time (your local time)</Label>

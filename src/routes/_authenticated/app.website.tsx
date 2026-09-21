@@ -459,6 +459,7 @@ function WebsitePage() {
               size="sm"
               variant={workspaceMode === mode.key ? "secondary" : "ghost"}
               role="tab"
+              data-testid={`builder-mode-${mode.key}`}
               aria-selected={workspaceMode === mode.key}
               onClick={() => setWorkspaceMode(mode.key)}
               className="shrink-0"
@@ -591,6 +592,7 @@ function WebsitePage() {
                 <Button
                   size="sm"
                   variant="signal"
+                  data-testid="builder-publish"
                   disabled={launchFlow.isLaunching || firstRun}
                   onClick={launchFlow.launch}
                 >

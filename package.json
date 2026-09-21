@@ -25,7 +25,10 @@
     "production:readiness:max": "node scripts/production-readiness-max-audit.mjs",
     "production:readiness:max:test": "node scripts/production-readiness-max-audit.contract.mjs",
     "repo:visual-output": "node scripts/whole-repo-visual-output-audit.mjs",
-    "builder:ultimate-audit": "node scripts/builder-ultimate-audit.mjs"
+    "builder:ultimate-audit": "node scripts/builder-ultimate-audit.mjs",
+    "browser:journey": "node scripts/browser-journey.mjs",
+    "browser:journey:ci": "node scripts/browser-journey.mjs --require-browser",
+    "browser:journey:test": "node scripts/browser-journey.contract.mjs"
   },
   "overrides": {
     "rolldown": "1.2.1",

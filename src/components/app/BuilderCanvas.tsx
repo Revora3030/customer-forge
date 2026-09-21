@@ -968,11 +968,17 @@ export function BuilderCanvas({
                   Only you can see these until you apply them.
                 </span>
                 <div className="ml-auto flex gap-2">
-                  <Button size="sm" variant="ghost" onClick={cancelStaged}>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    data-testid="canvas-cancel"
+                    onClick={cancelStaged}
+                  >
                     Cancel
                   </Button>
                   <Button
                     size="sm"
+                    data-testid="canvas-apply"
                     disabled={!canManage || saveSection.isPending || saveComponent.isPending}
                     onClick={applyStaged}
                   >
@@ -990,6 +996,8 @@ export function BuilderCanvas({
                 <div
                   key={`${section.id}-${editNonce}`}
                   role="button"
+                  data-testid="canvas-section"
+                  data-section-id={section.id}
                   tabIndex={0}
                   draggable={canManage}
                   onDragStart={(event) => {
@@ -1436,6 +1444,7 @@ export function BuilderCanvas({
               <Field label="Headline">
                 <Input
                   key={`h-${selectedSection.id}-${selectedSection.heading ?? ""}`}
+                  data-testid="canvas-heading-input"
                   defaultValue={selectedSection.heading ?? ""}
                   disabled={!canManage}
                   onBlur={(event) =>

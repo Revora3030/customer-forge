@@ -133,6 +133,7 @@ export function BuilderShell({
             <p className="truncate text-[13px] font-medium">{projectName}</p>
             <div className="mt-0.5 flex items-center gap-1.5">
               <span
+                data-testid="builder-status"
                 className={cn(
                   "rounded-full border px-1.5 py-px text-[10px] tracking-wide uppercase",
                   toneClass[statusTone],
