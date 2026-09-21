@@ -382,12 +382,14 @@ export function deriveScreenshotReferenceFingerprint(input: {
   };
 }
 
-export function applyScreenshotReferenceToCreative(input: {
-  creative: { fingerprint: DesignFingerprint; brief: CreativeBrief };
+export function applyScreenshotReferenceToCreative<
+  T extends { fingerprint: DesignFingerprint; brief: CreativeBrief },
+>(input: {
+  creative: T;
   observations: unknown;
   businessName?: string | null;
   blockedNames?: string[];
-}): { creative: typeof input.creative; reference: ScreenshotReferenceBrief } {
+}): { creative: T; reference: ScreenshotReferenceBrief } {
   const reference = deriveScreenshotReferenceFingerprint({
     observations: input.observations,
     base: input.creative.fingerprint,
@@ -400,7 +402,7 @@ export function applyScreenshotReferenceToCreative(input: {
       ...input.creative,
       fingerprint: reference.fingerprint,
       brief: alignCreativeBriefToFingerprint(input.creative.brief, reference.fingerprint),
-    },
+    } as T,
     reference,
   };
 }

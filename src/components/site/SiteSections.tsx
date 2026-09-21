@@ -127,7 +127,7 @@ function MediaCredit({ visual }: { visual: PersistedComponentVisual }) {
   const text = [credit, license].filter(Boolean).join(" · ");
   const href = safeLinkUrl(visual.source_url ?? null);
   return (
-    <figcaption className="mt-1.5 text-[12px] text-muted-foreground">
+    <figcaption className="mt-1.5 text-[13px] text-muted-foreground">
       {href ? (
         <a href={href} rel="nofollow noopener noreferrer" target="_blank" className="underline">
           {text}
@@ -591,7 +591,7 @@ function SiteSectionBody({ site, section }: { site: Site; section: Section }) {
                 {review.comment ? (
                   <p className="mt-3 text-[13px] leading-relaxed">{review.comment}</p>
                 ) : null}
-                <p className="mt-3 text-[12px] text-muted-foreground">
+                <p className="mt-3 text-[13px] text-muted-foreground">
                   {review.author_name} · {dateShort(review.created_at)}
                 </p>
               </li>

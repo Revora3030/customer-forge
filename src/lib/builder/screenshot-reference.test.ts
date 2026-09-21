@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createDesignFingerprint } from "@/lib/builder/design-fingerprint";
+import type { FirstBuildCreativeDirection } from "@/lib/builder/first-build-creative";
 import {
   applyScreenshotReferenceToCreative,
   deriveScreenshotReferenceFingerprint,
@@ -133,7 +134,7 @@ describe("screenshot reference fingerprint", () => {
       industry: { objections: [], avoid: [] },
       audience: "local buyers",
       unknowns: [],
-    } as never;
+    } as unknown as FirstBuildCreativeDirection;
 
     const result = applyScreenshotReferenceToCreative({
       creative,

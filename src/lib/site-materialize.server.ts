@@ -620,7 +620,7 @@ export async function materializeSiteContent(
         media_url: component.media_url ?? null,
         link_label: component.link_label ?? null,
         link_url: safeLinkUrl(component.link_url ?? null),
-        settings: component.settings ?? null,
+        settings: component.settings ?? {},
         sort_order: index,
         is_visible: true,
       }));

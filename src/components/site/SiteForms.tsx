@@ -442,7 +442,7 @@ export function BookingForm({ site }: { site: Site }) {
         ) : null}
       </div>
       {bookable.length ? (
-        <p className="text-[12px] text-muted-foreground">
+        <p className="text-[13px] text-muted-foreground">
           {/* Real limitation, not just copy: nothing in this codebase stores the
               business's own timezone, so a time typed here is captured in the
               visitor's own device timezone. If a customer books while set to a
@@ -465,7 +465,7 @@ export function BookingForm({ site }: { site: Site }) {
       <Button type="submit" variant="signal" disabled={pending}>
         {pending ? <Loader2 className="size-4 animate-spin" /> : null} Request appointment
       </Button>
-      <p className="text-[12px] text-muted-foreground">
+      <p className="text-[13px] text-muted-foreground">
         No payment now — you'll get a confirmation before anything is charged.
       </p>
     </form>

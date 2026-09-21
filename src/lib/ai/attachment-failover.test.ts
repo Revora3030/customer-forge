@@ -30,9 +30,8 @@ describe("attachment failover", () => {
 
   it("only sets the flag from the request's own attachment parts", () => {
     expect(source).toContain("function carriesAttachment(");
-    expect(source).toContain(
-      "{ nextProviderOnInvalidRequest: carriesAttachment(request.messages) },",
-    );
+    expect(source).toContain("nextProviderOnInvalidRequest: carriesAttachment(request.messages)");
+    expect(source).toContain("freeOnly: request.freeOnly === true");
     // The flag is never hardcoded on: a text-only call keeps the strict rule.
     expect(source).not.toContain("nextProviderOnInvalidRequest: true");
   });

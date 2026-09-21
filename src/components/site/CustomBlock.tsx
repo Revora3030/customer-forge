@@ -371,7 +371,7 @@ function FilterList({ spec }: { spec: Extract<CustomBlockSpec, { type: "filter" 
             {item.body ? (
               <p className="mt-1 text-[14px] leading-relaxed text-muted-foreground">{item.body}</p>
             ) : null}
-            <p className="mt-2 text-[12px] text-muted-foreground">{item.tags.join(" · ")}</p>
+            <p className="mt-2 text-[13px] text-muted-foreground">{item.tags.join(" · ")}</p>
           </li>
         ))}
       </ul>

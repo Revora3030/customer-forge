@@ -61,6 +61,14 @@ async def main(urls):
                             await page.evaluate(SCROLL)
                     except Exception as error:  # noqa: BLE001 - reported, never hidden
                         print(f"instrumentation skipped on {url}: {error}", file=sys.stderr)
+                    # Lazy pictures are intentionally requested by the scroll pass.
+                    # Wait for those real requests to settle before deciding that an
+                    # image is broken; a fixed delay alone races signed storage URLs.
+                    for _ in range(30):
+                        if await page.evaluate("[...document.images].every((img) => img.complete)"):
+                            break
+                        await page.wait_for_timeout(500)
+                    await page.evaluate("window.scrollTo(0, 0)")
                     await page.wait_for_timeout(600)
                     measured = await page.evaluate(MEASURE)
                     measured["width"] = width
