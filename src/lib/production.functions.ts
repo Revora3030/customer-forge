@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
+import { publishBlockReason } from "@/lib/builder/draft-branch";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { GROWTH_SYSTEM, usd } from "@/lib/offer";
 
@@ -301,6 +302,24 @@ export const activateProduction = createServerFn({ method: "POST" })
         metadata: metadata as never,
       });
     };
+
+    const { data: openDraft } = await supabase
+      .from("website_branches")
+      .select("label")
+      .eq("organization_id", orgId)
+      .eq("status", "open")
+      .maybeSingle();
+    const draftBlock = publishBlockReason(openDraft as { label: string } | null);
+    if (draftBlock) {
+      await audit("PUBLISH_BLOCKED", { reason: "draft_open", role });
+      return {
+        activated: false,
+        reason: draftBlock,
+        version: null,
+        publishState: "draft",
+        readiness,
+      };
+    }
 
     if (!readiness.unlocked) {
       await audit("PUBLISH_BLOCKED", { reason: "setup_payment_required", role });

@@ -3170,6 +3170,60 @@ export type Database = {
         }
         Relationships: []
       }
+      website_branches: {
+        Row: {
+          base_snapshot: Json | null
+          closed_at: string | null
+          closed_by: string | null
+          created_at: string
+          created_by: string | null
+          id: string
+          label: string
+          organization_id: string
+          status: string
+          summary: Json
+        }
+        Insert: {
+          base_snapshot?: Json | null
+          closed_at?: string | null
+          closed_by?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          label: string
+          organization_id: string
+          status?: string
+          summary?: Json
+        }
+        Update: {
+          base_snapshot?: Json | null
+          closed_at?: string | null
+          closed_by?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          label?: string
+          organization_id?: string
+          status?: string
+          summary?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "website_branches_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "website_branches_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "public_organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       website_components: {
         Row: {
           body: string | null
