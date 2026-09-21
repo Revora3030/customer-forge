@@ -24,7 +24,7 @@
  */
 
 import { providerConfig } from "@/lib/ai/config";
-import { callPinnedPaidImage } from "@/lib/ai/router.server";
+import { callPinnedPaidImage, paidImageModelReachable } from "@/lib/ai/router.server";
 import {
   DEFAULT_IMAGE_TIER_MODELS,
   DEFAULT_IMAGE_TIER_PRICE_USD,
@@ -144,29 +144,14 @@ export function resetPaidImageCapability() {
  * picture (so it costs nothing). A model that exists in our routing table but is
  * not enabled on the project is reported as unavailable — never silently swapped.
  */
-async function probeTier(tier: ImageTier, apiKey: string): Promise<TierProbe> {
+async function probeTier(tier: ImageTier, _apiKey: string): Promise<TierProbe> {
   const model = paidImageTierModel(tier);
   const cached = probes.get(model);
   const now = Date.now();
   if (cached && now - cached.at < PROBE_TTL_MS) return cached;
-  let probe: TierProbe;
-  try {
-    const response = await fetch(`https://api.openai.com/v1/models/${encodeURIComponent(model)}`, {
-      headers: { authorization: `Bearer ${apiKey}` },
-    });
-    probe = response.ok
-      ? { available: true, detail: "available on this account", at: now }
-      : {
-          available: false,
-          detail:
-            response.status === 403 || response.status === 404
-              ? "this account does not have access to the model yet"
-              : `the picture service answered ${response.status}`,
-          at: now,
-        };
-  } catch {
-    probe = { available: false, detail: "the picture service could not be reached", at: now };
-  }
+  // The check itself goes through the router, like every other provider call.
+  const result = await paidImageModelReachable(model);
+  const probe: TierProbe = { available: result.available, detail: result.detail, at: now };
   probes.set(model, probe);
   return probe;
 }

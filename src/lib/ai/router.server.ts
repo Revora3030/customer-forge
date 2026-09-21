@@ -62,7 +62,7 @@ import { groqAdapter } from "@/lib/ai/providers/groq";
 import { llm7Adapter } from "@/lib/ai/providers/llm7";
 import { nvidiaAdapter } from "@/lib/ai/providers/nvidia";
 import { openRouterAdapter } from "@/lib/ai/providers/openrouter";
-import { openAiAdapter } from "@/lib/ai/providers/openai";
+import { openAiAdapter, openaiModelReachable } from "@/lib/ai/providers/openai";
 import { base64ByteLength } from "@/lib/ai/providers/shared";
 import { checkAiLimits, recordAiEvent } from "@/lib/ai/telemetry.server";
 import type {
@@ -903,6 +903,29 @@ export async function callPinnedPaidImage(
   } finally {
     release(concurrencyKey);
   }
+}
+
+/**
+ * Proves whether a pinned paid picture model is actually reachable on Revora's
+ * account, without generating anything. Returns a precise, secret-free reason so
+ * a caller can report a genuine blocker instead of pretending a picture was made.
+ */
+export async function paidImageModelReachable(
+  model: string,
+): Promise<{ available: boolean; detail: string }> {
+  const config = providerConfig("openai");
+  if (!config?.apiKey) return { available: false, detail: "no credential configured" };
+  const probe = await openaiModelReachable(config.apiKey, model);
+  if (probe.available) return { available: true, detail: "available on this account" };
+  if (probe.status === 403 || probe.status === 404)
+    return { available: false, detail: "this account does not have access to the model yet" };
+  return {
+    available: false,
+    detail:
+      probe.status === null
+        ? "the picture service could not be reached"
+        : `the picture service answered ${probe.status}`,
+  };
 }
 
 /* ---------------------- pinned free-model calls (ensemble) ------------------ */
