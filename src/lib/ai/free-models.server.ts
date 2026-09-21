@@ -200,9 +200,11 @@ async function llm7FreeModels(credentials: FreeProviderCredentials) {
 
 /**
  * Cloudflare image models Revora may run: the text-to-image catalogue, minus
- * anything priced above zero, minus partner models with unverified pricing, and
- * minus the inpainting model (it needs a mask Revora does not supply). Every id
- * still passes `isFreeEligibleModel`, so a billed model can never enter a chain.
+ * anything priced above zero and minus partner models with unverified pricing.
+ * Image-to-image / inpainting ids are kept in the pool — they are the only free
+ * models that can change an existing picture, and the Cloudflare adapter now
+ * supplies the full-coverage mask they require. Every id still passes
+ * `isFreeEligibleModel`, so a billed model can never enter a chain.
  */
 async function cloudflareFreeImageModels(credentials: FreeProviderCredentials) {
   if (!credentials.accountId) return [];
