@@ -1276,14 +1276,12 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
           break;
         }
         case "set_component_visual":
-          await run(action.type, async () => {
-            const { data: current } = await supabase
-              .from("website_components")
-              .select("settings,media_url")
-              .eq("id", action.componentId)
-              .eq("organization_id", orgId)
-              .maybeSingle();
-            const settings = writeComponentVisual(current?.["settings"] ?? null, action.patch);
+          await run(action.type, () => {
+            const settings = writeComponentVisual(
+              readColumn("website_components", action.componentId, "settings"),
+              action.patch,
+            );
+            noteColumn("website_components", action.componentId, "settings", settings);
             const mediaUrl = action.patch["media_url"];
             const patch: Record<string, unknown> = { settings };
             if (mediaUrl !== undefined) patch["media_url"] = safeLinkUrl(mediaUrl);
@@ -1400,13 +1398,12 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
           );
           break;
         case "set_backdrop":
-          await run(action.type, async () => {
-            const { data: current } = await supabase
-              .from("website_settings")
-              .select("generation")
-              .eq("organization_id", orgId)
-              .maybeSingle();
-            const generation = writeBackdrop(current?.["generation"] ?? null, action.backdrop);
+          await run(action.type, () => {
+            const generation = writeBackdrop(
+              readColumn("website_settings", null, "generation"),
+              action.backdrop,
+            );
+            noteColumn("website_settings", null, "generation", generation);
             return supabase
               .from("website_settings")
               .upsert({ organization_id: orgId, generation } as never, {
@@ -1415,14 +1412,12 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
           });
           break;
         case "set_section_effect":
-          await run(action.type, async () => {
-            const { data: current } = await supabase
-              .from("website_sections")
-              .select("settings")
-              .eq("id", action.sectionId)
-              .eq("organization_id", orgId)
-              .maybeSingle();
-            const settings = writeSectionEffect(current?.["settings"] ?? null, action.effect);
+          await run(action.type, () => {
+            const settings = writeSectionEffect(
+              readColumn("website_sections", action.sectionId, "settings"),
+              action.effect,
+            );
+            noteColumn("website_sections", action.sectionId, "settings", settings);
             return supabase
               .from("website_sections")
               .update({ settings } as never)
