@@ -55,10 +55,16 @@ async def check_route(browser, route: str, label: str, width: int, height: int) 
         else None,
     )
     page.on("pageerror", lambda err: console_errors.append(str(err)[:300]))
-    page.on(
-        "requestfailed",
-        lambda req: failed_requests.append(f"{req.method} {req.url[:200]}"),
-    )
+    def on_request_failed(req) -> None:
+        # A navigation cancels in-flight requests; an aborted request is not an
+        # application fault, so only real transport/server failures are recorded.
+        reason = (req.failure or "") if hasattr(req, "failure") else ""
+        if "ERR_ABORTED" in str(reason):
+            return
+        failed_requests.append(f"{req.method} {req.url[:200]} ({reason})")
+
+    page.on("requestfailed", on_request_failed)
+
 
     result: dict = {"route": route, "url": url, "viewport": label}
     try:
