@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { planSiteContent, type MaterializeInput } from "@/lib/site-materialize.server";
+import { materializeSiteContent, planSiteContent, type MaterializeInput } from "@/lib/site-materialize.server";
 import { materializedSectionDesign } from "@/lib/site-materialize.server";
 import { DESIGN_DIRECTIONS } from "@/lib/design-directions";
 import { classifyArchetype } from "@/lib/site-archetypes";
 import { createDesignFingerprint } from "@/lib/builder/design-fingerprint";
 import { playbookFor } from "@/lib/builder/industry";
+import type { FirstBuildImageAsset } from "@/lib/builder/first-build-images.server";
 
 const input: MaterializeInput = {
   businessName: "Journey Detailing",
@@ -151,5 +152,93 @@ describe("planSiteContent with a website archetype", () => {
     const kinds = pages.flatMap((page) => page.sections.map((s) => s.kind));
     expect(kinds).not.toContain("gallery");
     expect(kinds).not.toContain("reviews");
+  });
+});
+
+function generatedAsset(overrides: Partial<FirstBuildImageAsset>): FirstBuildImageAsset {
+  return {
+    slot: "hero",
+    label: "Generated hero",
+    altText: "Generated starter image for Journey Detailing",
+    path: "org-1/generated-hero.png",
+    mediaId: "media-1",
+    provider: "cloudflare",
+    model: "@cf/black-forest-labs/flux-1-schnell",
+    prompt: "premium website photography",
+    placement: ["hero"],
+    aspectRatio: "16:9",
+    ...overrides,
+  };
+}
+
+function materializeDb(existingPages = 0) {
+  let id = 0;
+  const inserts: Record<string, unknown[]> = {
+    website_pages: [],
+    website_sections: [],
+    website_components: [],
+  };
+  const nextId = (table: string) => `${table}-${++id}`;
+  return {
+    inserts,
+    from: (table: string) => ({
+      select: () => ({
+        eq: async () => ({ count: existingPages }),
+      }),
+      insert: (row: unknown) => {
+        inserts[table] = inserts[table] ?? [];
+        if (Array.isArray(row)) inserts[table].push(...row);
+        else inserts[table].push(row);
+        return {
+          error: null,
+          select: () => ({ single: async () => ({ data: { id: nextId(table) }, error: null }) }),
+        };
+      },
+    }),
+  };
+}
+
+describe("materializeSiteContent generated-image attachment path", () => {
+  it("counts only generated images that actually reach inserted components", async () => {
+    const assets = [
+      generatedAsset({ slot: "hero", label: "Hero", path: "org-1/hero.png" }),
+      generatedAsset({ slot: "service", label: "Full detail", path: "org-1/service.png" }),
+      generatedAsset({ slot: "cta", label: "CTA", path: "org-1/cta.png" }),
+      generatedAsset({ slot: "social", label: "Share", path: "org-1/social.png" }),
+    ];
+    const db = materializeDb();
+    const result = await materializeSiteContent(db as never, "org-1", {
+      ...input,
+      generatedAssets: assets,
+    });
+    const componentMedia = db.inserts.website_components
+      .map((row) => (row as { media_url?: string | null }).media_url)
+      .filter(Boolean);
+    expect(componentMedia).toEqual(
+      expect.arrayContaining(["org-1/hero.png", "org-1/service.png", "org-1/cta.png"]),
+    );
+    expect(componentMedia).not.toContain("org-1/social.png");
+    expect(result.generatedImageAttachments).toBe(
+      componentMedia.filter((value) => assets.some((asset) => asset.path === value)).length,
+    );
+    expect(result.generatedImageAttachments).toBeGreaterThanOrEqual(3);
+  });
+
+  it("does not attach generated proof/gallery/team/result images even if a bad caller passes them in", () => {
+    const pages = planSiteContent({
+      ...input,
+      photoCount: 0,
+      generatedAssets: [
+        generatedAsset({ slot: "gallery", label: "Gallery", path: "org-1/gallery.png", placement: ["gallery"] }),
+        generatedAsset({ slot: "team", label: "Team", path: "org-1/team.png", placement: ["team"] }),
+        generatedAsset({ slot: "proof", label: "Proof", path: "org-1/proof.png", placement: ["proof"] }),
+      ],
+    });
+    const media = pages.flatMap((page) =>
+      page.sections.flatMap((section) => section.components?.map((component) => component.media_url) ?? []),
+    );
+    expect(media).not.toContain("org-1/gallery.png");
+    expect(media).not.toContain("org-1/team.png");
+    expect(media).not.toContain("org-1/proof.png");
   });
 });

@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { FirstBuildCreativeDirection } from "@/lib/builder/first-build-creative";
+import { createDesignFingerprint } from "@/lib/builder/design-fingerprint";
 import type { PlannedShot } from "@/lib/visual-direction";
 
 const generatedPng = "A".repeat(1500);
@@ -44,27 +45,19 @@ function creative(shots: PlannedShot[]): FirstBuildCreativeDirection {
       placements: ["hero"],
       stickyMobile: true,
     },
-    fingerprint: {
-      id: "premium-automotive",
-      seed: "seed",
-      palette: "graphite-gold",
-      colorSystem: "graphite and gold",
-      typography: "display",
-      density: "balanced",
-      rhythm: "editorial",
-      heroComposition: "cinematic",
-      sectionPattern: "bento",
-      cardShape: "sharp",
-      motion: "subtle",
-      atmosphere: "premium",
-    },
+    fingerprint: createDesignFingerprint({
+      businessName: "Elite Detailing",
+      industry: "automotive",
+      city: "Raleigh",
+      photoCount: 0,
+    }),
     imagery: {
       directionId: "automotive",
       language: "premium vehicle photography",
       treatment: "deep reflections",
       status: "artwork_only",
       shots,
-      assetPlan: { readiness: "missing_required", missingRequired: [], missingRecommended: [] },
+      assetPlan: { slots: [], readiness: 100, missingRequired: [], rationale: [] },
     },
     unknowns: [],
   };
