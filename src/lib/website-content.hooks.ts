@@ -22,6 +22,7 @@ function useInvalidateContent(organizationId: string | undefined) {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: [KEY, organizationId] }),
       queryClient.invalidateQueries({ queryKey: ["production-readiness", organizationId] }),
+      queryClient.invalidateQueries({ queryKey: ["launch-review", organizationId] }),
       queryClient.invalidateQueries({ queryKey: ["production-status", organizationId] }),
       queryClient.invalidateQueries({ queryKey: ["build_readiness", organizationId] }),
     ]);

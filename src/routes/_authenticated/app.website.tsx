@@ -41,7 +41,11 @@ import {
   ProductionReadinessPanel,
 } from "@/components/app/ProductionLaunch";
 import { useLaunchFlow, useProductionReadiness, useProductionStatus } from "@/lib/production.hooks";
+import { LaunchQualityCard } from "@/components/app/LaunchQualityCard";
+import { useLaunchReview } from "@/lib/launch-review.hooks";
+import { planQualityImprovements } from "@/lib/builder/quality-improvement-plan";
 import { PublishRetryBar } from "@/components/app/PublishRetryBar";
+
 
 import { EffectStudio } from "@/components/app/EffectStudio";
 import { ImageStudio } from "@/components/app/ImageStudio";
@@ -201,6 +205,8 @@ function WebsitePage() {
   // One server-verified launch path for every publish button on this page.
   const { data: production } = useProductionStatus(orgId);
   const { data: productionReadiness } = useProductionReadiness(orgId);
+  const { data: launchReview } = useLaunchReview(orgId);
+
   const launchFlow = useLaunchFlow(orgId);
 
   const servicesCount = facts.data?.servicesCount ?? (services ?? []).length;
@@ -718,6 +724,38 @@ function WebsitePage() {
               label: "Launch",
               node: (
                 <>
+                  {launchReview ? (
+                    <div className="space-y-2">
+                      <LaunchQualityCard
+                        report={launchReview.report}
+                        {...(manage
+                          ? {
+                              onImprove: (dimension) => {
+                                const plan = planQualityImprovements(launchReview.report, 5).find(
+                                  (item) => item.id === `quality-${dimension}`,
+                                );
+                                if (plan) askAssistant(plan.instruction);
+                              },
+                            }
+                          : {})}
+                      />
+                      <ul className="panel space-y-1.5 p-3">
+                        {launchReview.evidence.map((item) => (
+                          <li key={item.key} className="flex gap-2 text-[12px]">
+                            <span
+                              aria-hidden
+                              className={
+                                item.state === "measured" ? "text-primary" : "text-muted-foreground"
+                              }
+                            >
+                              {item.state === "measured" ? "✓" : "–"}
+                            </span>
+                            <span className="text-muted-foreground">{item.detail}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : null}
                   <PreFlightPanel
                     result={preflightResult}
                     isChecking={preflightFacts.isLoading}

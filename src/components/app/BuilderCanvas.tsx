@@ -97,6 +97,9 @@ import {
   itemsCss,
   readBlockStyle,
   writeBlockStyle,
+  FOCAL_POINTS,
+  readComponentVisual,
+  writeComponentVisual,
   type BlockStyle,
   type Device,
   type StyleKey,
@@ -284,6 +287,162 @@ function ItemCard({
   );
 }
 
+import {
+  discardEdit,
+  hasPending,
+  stageEdit,
+  stagedCount,
+  stagedEdits,
+  stagedFieldSummary,
+  withPending,
+  type StagedState,
+} from "@/lib/builder/staged-edit";
+
+/**
+ * Picture framing and provenance. Cropping here is non-destructive: the frame
+ * shape and the focal point decide what is shown, so the original file is never
+ * altered and any choice can be undone.
+ */
+function PictureControls({
+  settings,
+  disabled,
+  onChange,
+}: {
+  settings: unknown;
+  disabled: boolean;
+  onChange: (patch: {
+    aspect_ratio?: "1:1" | "4:3" | "3:2" | "16:9" | "21:9";
+    object_fit?: "cover" | "contain";
+    focal_point?: string;
+    source?: "customer" | "stock" | "generated" | "unknown";
+    credit?: string;
+    license?: string;
+    source_url?: string;
+  }) => void;
+}) {
+  const visual = readComponentVisual(settings);
+  const focal = visual.focal_point ?? "50% 50%";
+  const ratios = ["1:1", "4:3", "3:2", "16:9", "21:9"] as const;
+  const sources = [
+    { value: "customer", label: "Our own photo" },
+    { value: "stock", label: "Stock photo" },
+    { value: "generated", label: "Made by Revora" },
+    { value: "unknown", label: "Not sure yet" },
+  ] as const;
+  return (
+    <div className="space-y-3 rounded-xl border border-border p-3">
+      <p className="text-[12px] font-medium">Picture framing</p>
+      <Field label="Frame shape" hint="Crops what shows without changing the file">
+        <div className="flex flex-wrap gap-1.5">
+          {ratios.map((ratio) => (
+            <button
+              key={ratio}
+              type="button"
+              disabled={disabled}
+              onClick={() => onChange({ aspect_ratio: ratio })}
+              aria-pressed={visual.aspect_ratio === ratio}
+              className={cn(
+                "min-h-8 rounded-full border px-2.5 text-[11px]",
+                visual.aspect_ratio === ratio
+                  ? "border-primary text-foreground"
+                  : "border-border text-muted-foreground hover:text-foreground",
+              )}
+            >
+              {ratio}
+            </button>
+          ))}
+        </div>
+      </Field>
+      <Field label="Fill the frame">
+        <div className="flex gap-1.5">
+          {(["cover", "contain"] as const).map((fit) => (
+            <button
+              key={fit}
+              type="button"
+              disabled={disabled}
+              onClick={() => onChange({ object_fit: fit })}
+              aria-pressed={(visual.object_fit ?? "cover") === fit}
+              className={cn(
+                "min-h-8 rounded-full border px-2.5 text-[11px]",
+                (visual.object_fit ?? "cover") === fit
+                  ? "border-primary text-foreground"
+                  : "border-border text-muted-foreground hover:text-foreground",
+              )}
+            >
+              {fit === "cover" ? "Fill the frame" : "Show all of it"}
+            </button>
+          ))}
+        </div>
+      </Field>
+      <Field label="Keep this part in view" hint="Choose the part of the photo that matters most">
+        <div className="grid w-fit grid-cols-3 gap-1">
+          {FOCAL_POINTS.map((point) => (
+            <button
+              key={point.value}
+              type="button"
+              disabled={disabled}
+              aria-label={point.label}
+              aria-pressed={focal === point.value}
+              onClick={() => onChange({ focal_point: point.value })}
+              className={cn(
+                "size-8 rounded-md border",
+                focal === point.value
+                  ? "border-primary bg-primary/15"
+                  : "border-border hover:bg-elevated",
+              )}
+            >
+              <span className="sr-only">{point.label}</span>
+            </button>
+          ))}
+        </div>
+      </Field>
+      <Field label="Where this picture came from">
+        <div className="flex flex-wrap gap-1.5">
+          {sources.map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              disabled={disabled}
+              aria-pressed={(visual.source ?? "unknown") === option.value}
+              onClick={() => onChange({ source: option.value })}
+              className={cn(
+                "min-h-8 rounded-full border px-2.5 text-[11px]",
+                (visual.source ?? "unknown") === option.value
+                  ? "border-primary text-foreground"
+                  : "border-border text-muted-foreground hover:text-foreground",
+              )}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+      </Field>
+      <Field label="Credit" hint="Shown under the picture when the source asks for it">
+        <Input
+          defaultValue={visual.credit ?? ""}
+          disabled={disabled}
+          onBlur={(event) => onChange({ credit: event.target.value.trim().slice(0, 120) })}
+        />
+      </Field>
+      <Field label="Licence">
+        <Input
+          defaultValue={visual.license ?? ""}
+          disabled={disabled}
+          onBlur={(event) => onChange({ license: event.target.value.trim().slice(0, 80) })}
+        />
+      </Field>
+      <Field label="Source link">
+        <Input
+          defaultValue={visual.source_url ?? ""}
+          disabled={disabled}
+          onBlur={(event) => onChange({ source_url: event.target.value.trim().slice(0, 500) })}
+        />
+      </Field>
+    </div>
+  );
+}
+
+
 export function BuilderCanvas({
   organizationId,
   pages,
@@ -317,6 +476,10 @@ export function BuilderCanvas({
   const [undoable, setUndoable] = React.useState<
     { kind: "section"; row: ContentSection } | { kind: "component"; row: ContentComponent } | null
   >(null);
+  /** Field edits wait here until the owner presses Apply. */
+  const [staged, setStaged] = React.useState<StagedState>({});
+  /** Bumped on cancel so in-place fields re-read the saved text. */
+  const [editNonce, setEditNonce] = React.useState(0);
 
   React.useEffect(() => {
     setShowLayers(editingMode === "visual");
@@ -340,7 +503,49 @@ export function BuilderCanvas({
     [pages],
   );
   const page = ordered.find((p) => p.id === pageId) ?? ordered[0] ?? null;
-  const sections = React.useMemo(() => (page ? orderedSections(page) : []), [page]);
+  const savedSections = React.useMemo(() => (page ? orderedSections(page) : []), [page]);
+  /** What the owner sees: saved content with their pending edits laid over it. */
+  const sections = React.useMemo(
+    () =>
+      savedSections.map((section) => ({
+        ...withPending(staged, "section", section),
+        components: section.components.map((item) => withPending(staged, "component", item)),
+      })),
+    [savedSections, staged],
+  );
+
+  const stageSection = (id: string, patch: Record<string, unknown>) => {
+    const savedRow = savedSections.find((s) => s.id === id);
+    if (!savedRow) return;
+    setStaged((current) =>
+      stageEdit(current, "section", id, patch, savedRow as unknown as Record<string, unknown>),
+    );
+  };
+
+  const stageComponent = (id: string, patch: Record<string, unknown>) => {
+    const savedRow = savedSections
+      .flatMap((section) => section.components)
+      .find((item) => item.id === id);
+    if (!savedRow) return;
+    setStaged((current) =>
+      stageEdit(current, "component", id, patch, savedRow as unknown as Record<string, unknown>),
+    );
+  };
+
+  /** Writes every pending edit, then empties the buffer. */
+  const applyStaged = () => {
+    for (const edit of stagedEdits(staged)) {
+      if (edit.kind === "section") saveSection.mutate({ id: edit.id, patch: edit.patch });
+      else saveComponent.mutate({ id: edit.id, patch: edit.patch });
+    }
+    setStaged({});
+  };
+
+  /** Throws pending edits away and puts the saved wording back on screen. */
+  const cancelStaged = () => {
+    setStaged({});
+    setEditNonce((value) => value + 1);
+  };
 
   const selectedSectionId =
     selection && selection.type !== "page" ? selection.sectionId : (null as string | null);
@@ -670,13 +875,11 @@ export function BuilderCanvas({
                   }
                   onClick={() =>
                     selectedComponent
-                      ? saveComponent.mutate({
-                          id: selectedComponent.id,
-                          patch: { is_visible: !selectedComponent.is_visible },
+                      ? stageComponent(selectedComponent.id, {
+                          is_visible: !selectedComponent.is_visible,
                         })
-                      : saveSection.mutate({
-                          id: selectedSection.id,
-                          patch: { is_visible: !selectedSection.is_visible },
+                      : stageSection(selectedSection.id, {
+                          is_visible: !selectedSection.is_visible,
                         })
                   }
                 >
@@ -709,6 +912,30 @@ export function BuilderCanvas({
                 >
                   <Trash2 className="size-3.5" aria-hidden />
                 </Button>
+                {hasPending(
+                  staged,
+                  selectedComponent ? "component" : "section",
+                  (selectedComponent ?? selectedSection).id,
+                ) ? (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    aria-label="Undo the unsaved changes to this selection"
+                    title="Undo unsaved changes here"
+                    onClick={() => {
+                      setStaged((current) =>
+                        discardEdit(
+                          current,
+                          selectedComponent ? "component" : "section",
+                          (selectedComponent ?? selectedSection).id,
+                        ),
+                      );
+                      setEditNonce((value) => value + 1);
+                    }}
+                  >
+                    Revert
+                  </Button>
+                ) : null}
                 {undoable ? (
                   <Button
                     size="sm"
@@ -726,13 +953,42 @@ export function BuilderCanvas({
               </div>
             ) : null}
 
+            {stagedCount(staged) > 0 ? (
+              <div
+                className="sticky top-0 z-20 flex flex-wrap items-center gap-2 rounded-xl border border-primary/50 bg-card/95 px-3 py-2 backdrop-blur"
+                role="status"
+              >
+                <span className="text-[12px] font-medium">
+                  {stagedCount(staged) === 1
+                    ? "1 unsaved change"
+                    : `${stagedCount(staged)} unsaved changes`}
+                  {stagedFieldSummary(staged) ? ` — ${stagedFieldSummary(staged)}` : ""}
+                </span>
+                <span className="text-[11px] text-muted-foreground">
+                  Only you can see these until you apply them.
+                </span>
+                <div className="ml-auto flex gap-2">
+                  <Button size="sm" variant="ghost" onClick={cancelStaged}>
+                    Cancel
+                  </Button>
+                  <Button
+                    size="sm"
+                    disabled={!canManage || saveSection.isPending || saveComponent.isPending}
+                    onClick={applyStaged}
+                  >
+                    Apply changes
+                  </Button>
+                </div>
+              </div>
+            ) : null}
+
             {sections.map((section, index) => {
               const isSelected = selectedSectionId === section.id;
               const sectionHint = hint?.id === section.id ? hint.position : null;
               const sectionStyle = readBlockStyle(section.settings, device);
               return (
                 <div
-                  key={section.id}
+                  key={`${section.id}-${editNonce}`}
                   role="button"
                   tabIndex={0}
                   draggable={canManage}
@@ -790,25 +1046,21 @@ export function BuilderCanvas({
                     placeholder="Add a headline"
                     editable={canManage}
                     className="mt-2 font-display text-[18px] leading-snug font-semibold"
-                    onCommit={(heading) =>
-                      saveSection.mutate({ id: section.id, patch: { heading } })
-                    }
+                    onCommit={(heading) => stageSection(section.id, { heading })}
                   />
                   <InlineText
                     value={section.subheading ?? ""}
                     placeholder="Add a supporting line"
                     editable={canManage}
                     className="mt-1.5 text-[13px] text-muted-foreground"
-                    onCommit={(subheading) =>
-                      saveSection.mutate({ id: section.id, patch: { subheading } })
-                    }
+                    onCommit={(subheading) => stageSection(section.id, { subheading })}
                   />
                   <InlineText
                     value={section.body ?? ""}
                     placeholder="Add body text"
                     editable={canManage}
                     className="mt-2 text-[13px] leading-relaxed"
-                    onCommit={(body) => saveSection.mutate({ id: section.id, patch: { body } })}
+                    onCommit={(body) => stageSection(section.id, { body })}
                   />
 
                   {section.components.length ? (
@@ -822,7 +1074,7 @@ export function BuilderCanvas({
                     >
                       {orderedComponents(section).map((item) => (
                         <ItemCard
-                          key={item.id}
+                          key={`${item.id}-${editNonce}`}
                           item={item}
                           device={device}
                           editable={canManage}
@@ -839,7 +1091,7 @@ export function BuilderCanvas({
                               componentId: item.id,
                             })
                           }
-                          onCommit={(patch) => saveComponent.mutate({ id: item.id, patch })}
+                          onCommit={(patch) => stageComponent(item.id, patch)}
                           onDragStart={() => setDragId(item.id)}
                           onDragOver={(position) => setHint({ id: item.id, position })}
                           onDrop={() => commitDrag(item.id, hint?.position ?? "after")}
@@ -864,10 +1116,7 @@ export function BuilderCanvas({
                                   title={item.is_visible ? "Hide element" : "Show element"}
                                   onClick={(event) => {
                                     event.stopPropagation();
-                                    saveComponent.mutate({
-                                      id: item.id,
-                                      patch: { is_visible: !item.is_visible },
-                                    });
+                                    stageComponent(item.id, { is_visible: !item.is_visible });
                                   }}
                                 >
                                   {item.is_visible ? (
@@ -1020,14 +1269,12 @@ export function BuilderCanvas({
               </div>
               <Field label="Button / link text">
                 <Input
+                  key={`ll-${selectedComponent.id}-${editNonce}`}
                   defaultValue={selectedComponent.link_label ?? ""}
                   disabled={!canManage}
                   onBlur={(event) =>
                     event.target.value !== (selectedComponent.link_label ?? "") &&
-                    saveComponent.mutate({
-                      id: selectedComponent.id,
-                      patch: { link_label: event.target.value.trim() || null },
-                    })
+                    stageComponent(selectedComponent.id, { link_label: event.target.value.trim() || null })
                   }
                 />
               </Field>
@@ -1036,67 +1283,64 @@ export function BuilderCanvas({
                 hint="A page like /contact, a full https link, tel: or mailto:"
               >
                 <Input
+                  key={`lu-${selectedComponent.id}-${editNonce}`}
                   defaultValue={selectedComponent.link_url ?? ""}
                   disabled={!canManage}
                   onBlur={(event) =>
                     event.target.value !== (selectedComponent.link_url ?? "") &&
-                    saveComponent.mutate({
-                      id: selectedComponent.id,
-                      patch: { link_url: safeLinkUrl(event.target.value) },
-                    })
+                    stageComponent(selectedComponent.id, { link_url: safeLinkUrl(event.target.value) })
                   }
                 />
               </Field>
               <Field label="Image URL" hint="An https image link, or leave empty for no image">
                 <Input
-                  key={`m-${selectedComponent.id}`}
+                  key={`m-${selectedComponent.id}-${editNonce}`}
                   defaultValue={selectedComponent.media_url ?? ""}
                   disabled={!canManage}
                   onBlur={(event) =>
                     event.target.value !== (selectedComponent.media_url ?? "") &&
-                    saveComponent.mutate({
-                      id: selectedComponent.id,
-                      patch: { media_url: event.target.value.trim() || null },
-                    })
+                    stageComponent(selectedComponent.id, { media_url: event.target.value.trim() || null })
                   }
                 />
               </Field>
               <Field label="Image description (alt text)">
                 <Input
-                  key={`alt-${selectedComponent.id}`}
+                  key={`alt-${selectedComponent.id}-${editNonce}`}
                   defaultValue={readAlt(selectedComponent.settings)}
                   disabled={!canManage}
                   onBlur={(event) =>
-                    saveComponent.mutate({
-                      id: selectedComponent.id,
-                      patch: {
+                    stageComponent(selectedComponent.id, {
                         settings: {
                           ...(selectedComponent.settings ?? {}),
                           alt: event.target.value.trim().slice(0, 160),
                         },
-                      },
-                    })
+                      })
                   }
                 />
               </Field>
+              {selectedComponent.media_url ? (
+                <PictureControls
+                  settings={selectedComponent.settings}
+                  disabled={!canManage}
+                  onChange={(patch) =>
+                    stageComponent(selectedComponent.id, {
+                      settings: writeComponentVisual(selectedComponent.settings, patch),
+                    })
+                  }
+                />
+              ) : null}
               {editingMode === "visual" ? <StyleControls
                 scope="component"
                 device={device}
                 settings={selectedComponent.settings}
                 disabled={!canManage}
                 onChange={(patch) =>
-                  saveComponent.mutate({
-                    id: selectedComponent.id,
-                    patch: {
+                  stageComponent(selectedComponent.id, {
                       settings: writeBlockStyle(selectedComponent.settings, patch, device),
-                    },
-                  })
+                    })
                 }
                 onResetDevice={() =>
-                  saveComponent.mutate({
-                    id: selectedComponent.id,
-                    patch: { settings: clearDeviceLayer(selectedComponent.settings, device) },
-                  })
+                  stageComponent(selectedComponent.id, { settings: clearDeviceLayer(selectedComponent.settings, device) })
                 }
               /> : null}
               <div className="flex flex-wrap gap-2">
@@ -1105,10 +1349,7 @@ export function BuilderCanvas({
                   variant="outline"
                   disabled={!canManage}
                   onClick={() =>
-                    saveComponent.mutate({
-                      id: selectedComponent.id,
-                      patch: { is_visible: !selectedComponent.is_visible },
-                    })
+                    stageComponent(selectedComponent.id, { is_visible: !selectedComponent.is_visible })
                   }
                 >
                   {selectedComponent.is_visible ? (
@@ -1199,10 +1440,7 @@ export function BuilderCanvas({
                   disabled={!canManage}
                   onBlur={(event) =>
                     event.target.value !== (selectedSection.heading ?? "") &&
-                    saveSection.mutate({
-                      id: selectedSection.id,
-                      patch: { heading: event.target.value.trim() || null },
-                    })
+                    stageSection(selectedSection.id, { heading: event.target.value.trim() || null })
                   }
                 />
               </Field>
@@ -1214,10 +1452,7 @@ export function BuilderCanvas({
                   disabled={!canManage}
                   onBlur={(event) =>
                     event.target.value !== (selectedSection.body ?? "") &&
-                    saveSection.mutate({
-                      id: selectedSection.id,
-                      patch: { body: event.target.value.trim() || null },
-                    })
+                    stageSection(selectedSection.id, { body: event.target.value.trim() || null })
                   }
                 />
               </Field>
@@ -1227,16 +1462,10 @@ export function BuilderCanvas({
                 settings={selectedSection.settings}
                 disabled={!canManage}
                 onChange={(patch) =>
-                  saveSection.mutate({
-                    id: selectedSection.id,
-                    patch: { settings: writeBlockStyle(selectedSection.settings, patch, device) },
-                  })
+                  stageSection(selectedSection.id, { settings: writeBlockStyle(selectedSection.settings, patch, device) })
                 }
                 onResetDevice={() =>
-                  saveSection.mutate({
-                    id: selectedSection.id,
-                    patch: { settings: clearDeviceLayer(selectedSection.settings, device) },
-                  })
+                  stageSection(selectedSection.id, { settings: clearDeviceLayer(selectedSection.settings, device) })
                 }
               /> : null}
               <div className="flex flex-wrap gap-2">
@@ -1245,10 +1474,7 @@ export function BuilderCanvas({
                   variant="outline"
                   disabled={!canManage}
                   onClick={() =>
-                    saveSection.mutate({
-                      id: selectedSection.id,
-                      patch: { is_visible: !selectedSection.is_visible },
-                    })
+                    stageSection(selectedSection.id, { is_visible: !selectedSection.is_visible })
                   }
                 >
                   {selectedSection.is_visible ? (

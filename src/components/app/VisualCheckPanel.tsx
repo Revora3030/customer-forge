@@ -23,6 +23,7 @@ import {
 } from "@/lib/website-content.hooks";
 import { friendlyError } from "@/lib/user-error";
 import { useLatestGenerationJob } from "@/lib/site-engine.hooks";
+import { useSelfHeal } from "@/lib/self-heal.hooks";
 
 export function VisualCheckPanel({
   organizationId,
@@ -45,14 +46,17 @@ export function VisualCheckPanel({
     null,
   );
   const [result, setResult] = useState<VisualReport | null>(null);
+  const [repair, setRepair] = useState<string | null>(null);
   const autoRunRef = useRef<string | null>(null);
+  const repairedRef = useRef<string | null>(null);
+  const selfHeal = useSelfHeal(organizationId);
 
-  const run = useCallback(async (automatic = false): Promise<boolean> => {
-    if (!organizationId || !slug || running) return false;
+  const run = useCallback(async (automatic = false): Promise<VisualReport | null> => {
+    if (!organizationId || !slug || running) return null;
     const visible = (content ?? []).filter((page) => page.is_visible);
     if (!visible.length) {
       toast.error("Add a page first — there is nothing to check yet.");
-      return false;
+      return null;
     }
     setRunning(true);
     setResult(null);
@@ -96,14 +100,15 @@ export function VisualCheckPanel({
         toast.error("The visual check found problems that must be fixed before launch.");
       }
       void queryClient.invalidateQueries({ queryKey: ["production-readiness"] });
+      void queryClient.invalidateQueries({ queryKey: ["launch-review"] });
       void queryClient.invalidateQueries({ queryKey: ["production-status"] });
       void queryClient.invalidateQueries({ queryKey: ["build_readiness"] });
-      return true;
+      return saved.report;
     } catch (error) {
       if (!automatic) {
         toast.error(friendlyError(error, "The visual check couldn't run. Please try again."));
       }
-      return false;
+      return null;
     } finally {
       setRunning(false);
       setProgress(null);
@@ -124,11 +129,38 @@ export function VisualCheckPanel({
     const key = `revora:visual-check:${organizationId}:${job.id}`;
     if (autoRunRef.current === key || window.localStorage.getItem(key)) return;
     autoRunRef.current = key;
-    void run(true).then((completed) => {
-      if (completed) window.localStorage.setItem(key, new Date().toISOString());
-      else autoRunRef.current = null;
-    });
-  }, [canManage, latestJob, organizationId, run, running, slug]);
+    void (async () => {
+      const first = await run(true);
+      if (!first) {
+        autoRunRef.current = null;
+        return;
+      }
+      window.localStorage.setItem(key, new Date().toISOString());
+      // Repair → re-render → re-check, once per build, only for problems the
+      // deterministic repair pass is allowed to touch. A failed repair rolls
+      // itself back and the honest failing verdict stands.
+      if (first.passed || repairedRef.current === key || selfHeal.isPending) return;
+      repairedRef.current = key;
+      setRepair("Fixing what it found, then measuring again…");
+      try {
+        const healed = await selfHeal.mutateAsync();
+        if (healed.rolledBack || healed.fixed.length === 0) {
+          setRepair(healed.summary);
+          return;
+        }
+        const second = await run(true);
+        setRepair(
+          second
+            ? second.passed
+              ? `${healed.summary} The re-check now passes at ${second.score}/100.`
+              : `${healed.summary} The re-check still finds problems, so nothing is being called ready.`
+            : `${healed.summary} The re-check could not be completed, so nothing is being called ready.`,
+        );
+      } catch {
+        setRepair("The automatic fix couldn't run, so the failing result stands.");
+      }
+    })();
+  }, [canManage, latestJob, organizationId, run, running, selfHeal, slug]);
 
   return (
     <Panel className="p-5">
@@ -158,6 +190,11 @@ export function VisualCheckPanel({
               Not measured in this browser yet. Revora runs this check while the builder is open.
             </p>
           )}
+          {repair ? (
+            <p className="mt-2 text-[12px] text-muted-foreground" role="status">
+              {repair}
+            </p>
+          ) : null}
           {progress ? (
             <p className="mt-2 text-[12px] text-muted-foreground" role="status">
               Measuring {progress.label} — step {progress.done} of {progress.total}…
@@ -165,7 +202,11 @@ export function VisualCheckPanel({
           ) : null}
         </div>
         {canManage ? (
-          <Button variant="outline" onClick={() => void run(false)} disabled={running || !slug}>
+          <Button
+            variant="outline"
+            onClick={() => void run(false)}
+            disabled={running || selfHeal.isPending || !slug}
+          >
             {running ? (
               <Loader2 className="size-4 animate-spin" />
             ) : (

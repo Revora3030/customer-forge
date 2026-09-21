@@ -14,6 +14,9 @@ const TONE_VAR: Record<ArtLayer["tone"], string> = {
   secondary: "var(--secondary)",
 };
 
+/** Fixed precision keeps server and browser markup byte-identical. */
+const round = (value: number): number => Math.round(value * 1000) / 1000;
+
 function clamp(value: number, min: number, max: number) {
   return Number.isFinite(value) ? Math.min(max, Math.max(min, value)) : min;
 }
@@ -75,8 +78,8 @@ function Layer({ layer, index }: { layer: ArtLayer; index: number }) {
               key={ray}
               x1={x}
               y1={y}
-              x2={x + Math.cos((ray / 12) * Math.PI * 2) * (size / 2)}
-              y2={y + Math.sin((ray / 12) * Math.PI * 2) * (size / 2)}
+              x2={round(x + Math.cos((ray / 12) * Math.PI * 2) * (size / 2))}
+              y2={round(y + Math.sin((ray / 12) * Math.PI * 2) * (size / 2))}
               stroke={color}
               strokeWidth={stroke / 2}
             />
