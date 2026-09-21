@@ -128,7 +128,39 @@ export type BuildReport = {
   checks: CaptureCheck[];
   /** Plain-language items the owner still needs to handle. */
   attention: string[];
+  /** Honest starter-picture status for this build. */
+  images?: StarterImageReport;
 };
+
+/** What happened to the website's starter pictures, stated plainly. */
+export type StarterImageReport = {
+  status: string;
+  requested: number;
+  generated: number;
+  attached: number;
+  source: string;
+  message: string;
+  paidNote: string | null;
+  rejected: { slot: string; label: string; reason: string }[];
+};
+
+function readImages(value: unknown): StarterImageReport | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  const raw = value as Record<string, unknown>;
+  const num = (key: string) => (typeof raw[key] === "number" ? (raw[key] as number) : 0);
+  return {
+    status: text(raw["generatedStatus"] ?? raw["status"], "unknown", 40),
+    requested: num("requested"),
+    generated: num("generated"),
+    attached: num("attached"),
+    source: text(raw["source"], "none", 20),
+    message: text(raw["message"], "", 300),
+    paidNote: typeof raw["paidNote"] === "string" ? (raw["paidNote"] as string).slice(0, 300) : null,
+    rejected: Array.isArray(raw["rejected"])
+      ? (raw["rejected"] as { slot: string; label: string; reason: string }[]).slice(0, 8)
+      : [],
+  };
+}
 
 export function readReport(value: unknown): BuildReport | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
@@ -150,6 +182,7 @@ export function readReport(value: unknown): BuildReport | null {
     briefSource: text(raw["briefSource"], "rules", 60),
     copyModel: text(raw["copyModel"], "", 60),
     checks: Array.isArray(raw["checks"]) ? (raw["checks"] as CaptureCheck[]).slice(0, 20) : [],
-    attention: strings(raw["attention"], 8, 200),
+    attention: strings(raw["attention"], 12, 200),
+    ...(readImages(raw["images"]) ? { images: readImages(raw["images"])! } : {}),
   };
 }

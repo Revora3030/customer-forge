@@ -219,12 +219,30 @@ export async function generateImageBase64(
   }
 }
 
-/** Decodes a base64 image into bytes for storage upload. */
+/**
+ * Decodes a base64 image into bytes for storage upload.
+ *
+ * Works in every runtime this code reaches: the Worker/browser `atob` when it is
+ * present, and Node's `Buffer` when it is not (unit tests, scripts, server
+ * builds without the web globals).
+ */
 export function decodeBase64(base64: string): Uint8Array {
-  const binary = atob(base64.replace(/\s+/g, ""));
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
-  return bytes;
+  const clean = base64.replace(/\s+/g, "");
+  const globalAtob = (globalThis as { atob?: (value: string) => string }).atob;
+  if (typeof globalAtob === "function") {
+    const binary = globalAtob(clean);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+    return bytes;
+  }
+  const nodeBuffer = (
+    globalThis as { Buffer?: { from: (value: string, encoding: string) => Uint8Array } }
+  ).Buffer;
+  if (nodeBuffer) {
+    const buffer = nodeBuffer.from(clean, "base64");
+    return new Uint8Array(buffer);
+  }
+  throw new Error("No base64 decoder is available in this runtime.");
 }
 
 /** Encodes raw picture bytes back into base64 for a provider edit request. */
