@@ -516,7 +516,7 @@ class Journey:
 
     async def _select_first_section(self) -> None:
         assert self.page
-        await self.page.get_by_role("tab", name="Visual Edit").click()
+        await self.page.locator("[data-testid=builder-mode-visual]").click()
         section = self.page.locator("[data-testid=canvas-section]").first
         await section.wait_for(timeout=45000)
         await section.click()
