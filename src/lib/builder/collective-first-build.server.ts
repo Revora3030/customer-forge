@@ -17,6 +17,7 @@
  */
 import { callCollective } from "@/lib/ai/luna.server";
 import type { DnaFacts } from "@/lib/business-dna";
+import { formatLocality } from "@/lib/locality";
 import type { SiteCopy } from "@/lib/site-engine";
 import type { SiteBrief } from "@/lib/site-brief";
 import type { FirstBuildCreativeDirection } from "@/lib/builder/first-build-creative";
@@ -66,7 +67,7 @@ function factSheet(facts: DnaFacts, brief: SiteBrief, creative: FirstBuildCreati
       business: facts.businessName ?? null,
       industry: facts.industry ?? null,
       description: facts.description ?? null,
-      location: [facts.city, facts.region].filter(Boolean).join(", ") || null,
+      location: formatLocality(facts.city, facts.region) || null,
       serviceArea: facts.serviceArea ?? null,
       services: facts.services ?? [],
       hasPublishedPrices: Boolean(facts.hasPrices),

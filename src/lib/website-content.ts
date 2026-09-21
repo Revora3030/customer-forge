@@ -7,6 +7,7 @@
  * blocks with no data are simply left out.
  */
 
+import { localityLabel } from "./locality";
 import { siteVariation } from "./site-variation";
 
 export type PageKind =
@@ -369,7 +370,7 @@ export type BlueprintPage = {
 };
 
 const place = (input: BlueprintInput) =>
-  input.serviceArea || [input.city, input.state].filter(Boolean).join(", ") || null;
+  localityLabel({ serviceArea: input.serviceArea, city: input.city, state: input.state });
 
 export const slugify = (value: string) =>
   value
