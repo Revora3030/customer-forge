@@ -134,7 +134,7 @@ describe("screenshot reference fingerprint", () => {
       industry: { objections: [], avoid: [] },
       audience: "local buyers",
       unknowns: [],
-    } as FirstBuildCreativeDirection;
+    } as unknown as FirstBuildCreativeDirection;
 
     const result = applyScreenshotReferenceToCreative({
       creative,
