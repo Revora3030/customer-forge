@@ -130,6 +130,21 @@ export function compileFirstBuildCreativeDirection(
     },
   );
 
+  const brief = compileCreativeBrief({
+    fingerprint,
+    direction: visual,
+    shots,
+    industryLabel: playbook.label,
+    industrySignals: [input.industry, playbook.slug, input.description, serviceNames.join(" ")]
+      .filter(Boolean)
+      .join(" "),
+    primaryCta: dna.primaryCta,
+    secondaryCta: dna.secondaryCta,
+    conversionPlacements: [...playbook.conversion.placement],
+    stickyMobile: playbook.conversion.stickyMobile,
+    hasOwnerPhotos: input.photoCount > 0,
+  });
+
   return {
     version: 1,
     industry: {
