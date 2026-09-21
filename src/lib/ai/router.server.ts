@@ -393,6 +393,7 @@ async function run<T>(
     model: string;
     signal: AbortSignal;
   }) => Promise<{ value: T; inputTokens?: number | null; outputTokens?: number | null }>,
+  options?: { capable?: (model: string) => boolean },
 ): Promise<{
   value: T;
   provider: ProviderName;
