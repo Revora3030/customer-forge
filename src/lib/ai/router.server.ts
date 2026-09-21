@@ -252,7 +252,10 @@ export async function freeModelPool(
   return pools;
 }
 
-async function buildChain(role: ModelRole): Promise<Candidate[]> {
+async function buildChain(
+  role: ModelRole,
+  capable?: (model: string) => boolean,
+): Promise<Candidate[]> {
   // First choice per provider (breadth), then each provider's remaining free
   // models (depth). Breadth first means a provider outage costs one attempt,
   // while depth means a single retired or rate-limited model is covered by
