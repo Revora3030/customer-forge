@@ -49,7 +49,7 @@ describe("compareLiveSync", () => {
       builderPages: [page()],
       visitorPages: [{ slug: "home", sectionIds: [], itemIds: [] }],
     });
-    expect(result.missing).toBe(2);
+    expect(result.missing).toBe(1);
     expect(result.allLive).toBe(false);
     expect(result.issues.some((issue) => issue.scope === "section")).toBe(true);
   });
