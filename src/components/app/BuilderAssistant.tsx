@@ -45,6 +45,7 @@ export function BuilderAssistant({
   onOpenExtras,
   emptyTitle,
   emptyHint,
+  compact = false,
 }: {
   organizationId: string | null;
   requests: BuilderRequests;
@@ -52,6 +53,7 @@ export function BuilderAssistant({
   onOpenExtras: () => void;
   emptyTitle: string;
   emptyHint: string;
+  compact?: boolean;
 }) {
   const [value, setValue] = useState("");
   const [moreOpen, setMoreOpen] = useState(false);
@@ -76,7 +78,10 @@ export function BuilderAssistant({
   return (
     <section
       id="website-assistant"
-      className="panel flex min-h-[420px] flex-col p-0 lg:h-[calc(100vh-11rem)]"
+      className={cn(
+        "panel flex flex-col p-0",
+        compact ? "min-h-[340px] lg:h-[calc(100vh-11rem)]" : "min-h-[520px] lg:h-[calc(100vh-10rem)]",
+      )}
     >
       <Conversation className="min-h-0 flex-1">
         <ConversationContent className="gap-5 p-4">

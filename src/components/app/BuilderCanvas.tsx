@@ -290,6 +290,7 @@ export function BuilderCanvas({
   canManage,
   refreshing = false,
   onRewriteSection,
+  editingMode = "visual",
 }: {
   organizationId: string | undefined;
   pages: ContentPage[];
@@ -304,17 +305,22 @@ export function BuilderCanvas({
     sectionKind: string;
     sectionLabel: string;
   }) => void;
+  editingMode?: "content" | "visual";
 }) {
   const [pageId, setPageId] = React.useState<string | null>(null);
   const [device, setDevice] = React.useState<Device>("desktop");
   const [selection, setSelection] = React.useState<Selection>(null);
-  const [showLayers, setShowLayers] = React.useState(true);
+  const [showLayers, setShowLayers] = React.useState(editingMode === "visual");
   const [addKind, setAddKind] = React.useState(COMPONENT_LIBRARY[0]!.kind);
   const [dragId, setDragId] = React.useState<string | null>(null);
   const [hint, setHint] = React.useState<DropHint>(null);
   const [undoable, setUndoable] = React.useState<
     { kind: "section"; row: ContentSection } | { kind: "component"; row: ContentComponent } | null
   >(null);
+
+  React.useEffect(() => {
+    setShowLayers(editingMode === "visual");
+  }, [editingMode]);
 
   const saveSection = useSaveSection(organizationId);
   const saveComponent = useSaveComponent(organizationId);
@@ -449,14 +455,16 @@ export function BuilderCanvas({
           ))}
         </select>
 
-        <Button
-          size="sm"
-          variant={showLayers ? "secondary" : "outline"}
-          onClick={() => setShowLayers((open) => !open)}
-          aria-pressed={showLayers}
-        >
-          <Layers className="mr-1.5 size-3.5" aria-hidden /> Layers
-        </Button>
+        {editingMode === "visual" ? (
+          <Button
+            size="sm"
+            variant={showLayers ? "secondary" : "outline"}
+            onClick={() => setShowLayers((open) => !open)}
+            aria-pressed={showLayers}
+          >
+            <Layers className="mr-1.5 size-3.5" aria-hidden /> Layers
+          </Button>
+        ) : null}
 
         {undoable ? (
           <Button size="sm" variant="outline" onClick={undo}>
@@ -1071,7 +1079,7 @@ export function BuilderCanvas({
                   }
                 />
               </Field>
-              <StyleControls
+              {editingMode === "visual" ? <StyleControls
                 scope="component"
                 device={device}
                 settings={selectedComponent.settings}
@@ -1090,7 +1098,7 @@ export function BuilderCanvas({
                     patch: { settings: clearDeviceLayer(selectedComponent.settings, device) },
                   })
                 }
-              />
+              /> : null}
               <div className="flex flex-wrap gap-2">
                 <Button
                   size="sm"
@@ -1213,7 +1221,7 @@ export function BuilderCanvas({
                   }
                 />
               </Field>
-              <StyleControls
+              {editingMode === "visual" ? <StyleControls
                 scope="section"
                 device={device}
                 settings={selectedSection.settings}
@@ -1230,7 +1238,7 @@ export function BuilderCanvas({
                     patch: { settings: clearDeviceLayer(selectedSection.settings, device) },
                   })
                 }
-              />
+              /> : null}
               <div className="flex flex-wrap gap-2">
                 <Button
                   size="sm"

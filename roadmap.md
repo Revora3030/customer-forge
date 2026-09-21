@@ -1,5 +1,11 @@
 # Builder 10/10 upgrade
 
+## Hall-of-Fame master workspace upgrade
+- [ ] Make the real customer preview the primary builder surface with Build / Chat / Edit / Visual Edit modes.
+- [ ] Add uncluttered page, viewport, zoom, refresh and fullscreen preview controls.
+- [ ] Keep detailed editing, history, launch checks and provider evidence progressively disclosed.
+- [ ] Verify the new workspace across desktop and required mobile widths without weakening existing safety paths.
+
 ## Hall of Fame first-build architecture rebuild
 - [x] Compile industry strategy, buyer objections, conversion architecture, design fingerprint, visual direction, and honest asset requirements before page materialization.
 - [x] Materialize and publicly render fingerprint-driven page shells, section compositions, imagery treatments, motion, and mobile behavior.
