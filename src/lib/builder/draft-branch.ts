@@ -67,7 +67,9 @@ export function canStartBranch(openBranch: DraftBranch | null | undefined): {
 }
 
 /** Publishing while a draft is open would put experimental work live. */
-export function publishBlockReason(openBranch: DraftBranch | null | undefined): string | null {
+export function publishBlockReason(
+  openBranch: { label: string } | null | undefined,
+): string | null {
   if (!openBranch) return null;
   return `Your draft “${openBranch.label}” is still open. Keep it or throw it away, then publish.`;
 }
