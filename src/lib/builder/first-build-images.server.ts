@@ -132,17 +132,20 @@ export async function generateFirstBuildImages(
     VISUAL_DIRECTIONS.find((item) => item.id === input.creative.imagery.directionId) ?? null;
   const shots = firstBuildImageShots(input.creative, input.photoCount);
   if (!direction || shots.length === 0) {
+    const ownerCovered = input.photoCount > 0 && shots.length === 0;
     return {
       assets: [],
       evidence: {
-        status: "fallback_artwork",
+        status: ownerCovered ? "owner_photos" : "fallback_artwork",
         requested: shots.length,
         generated: 0,
         attached: 0,
         skipped: shots.map((shot) => ({ slot: shot.slot, label: shot.label, reason: "no safe generated slot" })),
         provider: null,
         models: [],
-        message: "No safe first-build picture slots were available, so Revora used abstract artwork.",
+        message: ownerCovered
+          ? "Owner-supplied photos cover the available picture roles."
+          : "No safe first-build picture slots were available, so Revora used abstract artwork.",
       },
     };
   }

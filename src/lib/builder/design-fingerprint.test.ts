@@ -172,7 +172,7 @@ describe("design vocabulary breadth", () => {
       ["cta", CTA_SYSTEMS],
       ["content", SECTION_COMPOSITIONS],
     ] as const;
-    const supported = /^(hero-(split|layered|editorial|focus)|cards-(floating|editorial|clean|elevated)|proof-(feature|editorial|grid|cards)|gallery-(mosaic|cinematic|editorial|grid)|faq-(compact|editorial|spacious|clean)|form-(glass|editorial|premium|clean)|cta-(fullbleed|spotlight|panel|minimal)|section-(editorial|airy|soft|balanced))$/;
+    const supported = /^(hero-(split|layered|editorial|focus)|cards-(floating|editorial|clean|elevated)|proof-(feature|editorial|grid|cards)|gallery-(mosaic|cinematic|editorial|grid)|pricing-(matrix|cards|feature|rows)|stats-(statement|band|editorial|grid)|process-(rail|story|phases|steps)|faq-(compact|editorial|spacious|clean)|form-(glass|editorial|premium|clean)|cta-(fullbleed|spotlight|panel|minimal)|section-(editorial|airy|soft|balanced))$/;
     for (const [kind, pool] of pools) {
       for (const choice of pool) expect(rendererVariant(kind, choice)).toMatch(supported);
     }
