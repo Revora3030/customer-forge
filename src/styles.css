@@ -283,6 +283,36 @@
   border-radius: var(--radius-md);
 }
 
+/* One overlay vocabulary ----------------------------------------------------
+   Every dialog, drawer, sheet, menu, popover and toast shares this scrim,
+   surface and motion so the product speaks with a single voice. */
+@utility overlay-scrim {
+  background-color: oklch(0 0 0 / 74%);
+  backdrop-filter: blur(3px);
+}
+
+@utility overlay-surface {
+  background-color: var(--color-card);
+  border: 1px solid var(--color-border);
+  box-shadow:
+    0 24px 64px -28px oklch(0 0 0 / 80%),
+    0 0 0 1px color-mix(in oklab, var(--color-primary) 9%, transparent) inset;
+  color: var(--color-foreground);
+}
+
+/* Shared surface motion: quick in, quicker out. Reduced motion is removed by
+   the global prefers-reduced-motion rule above. */
+@utility overlay-motion {
+  --tw-enter-duration: 160ms;
+  --tw-exit-duration: 120ms;
+  animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Room for the phone home bar under bottom-anchored surfaces. */
+@utility overlay-safe {
+  padding-bottom: max(1.5rem, env(safe-area-inset-bottom));
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
