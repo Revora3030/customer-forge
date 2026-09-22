@@ -317,8 +317,8 @@ export async function authorCreativeSiteContract(input: {
       contract: null,
       reviewed: false,
       skipped: terra.detail ?? terra.reason ?? "Terra review unavailable",
-      models: [...modelList(), terra.model].filter(Boolean) as string[],
-      costMicrocents: solCostMicrocents + terra.costMicrocents,
+      models: modelList().filter(Boolean),
+      costMicrocents: solCostMicrocents,
     };
   if (!terra.text)
     return {
