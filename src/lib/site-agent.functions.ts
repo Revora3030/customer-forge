@@ -759,11 +759,16 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
     // Read the batch exactly as planned, then check it against the site as it is
     // right now. A step whose target was deleted or renamed after planning is
     // reported with a reason rather than being dropped in silence.
-    const planned = readActions(data.actions, {
-      pageIds: ANY_ID,
-      sectionIds: ANY_ID,
-      componentIds: ANY_ID,
-    });
+    const applyDropped: string[] = [];
+    const planned = readActions(
+      data.actions,
+      {
+        pageIds: ANY_ID,
+        sectionIds: ANY_ID,
+        componentIds: ANY_ID,
+      },
+      applyDropped,
+    );
     const preflight = preflightActions(planned, {
       pageIds: new Set(site.pages.map((page) => page.id)),
       sectionIds: new Set(site.sections.map((section) => section.id)),
