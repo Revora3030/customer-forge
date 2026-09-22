@@ -13,7 +13,7 @@
  */
 
 import { RevoraAiError } from "@/lib/ai/errors";
-import { imageEditCapableModel } from "@/lib/ai/free";
+import { imageCreationCapableModel, imageEditCapableModel } from "@/lib/ai/free";
 import { buildCloudflareImageBody } from "@/lib/ai/providers/cloudflare-image";
 import { createOpenAiCompatibleAdapter } from "@/lib/ai/providers/openai-compatible";
 import { providerHttpError } from "@/lib/ai/providers/shared";
@@ -57,6 +57,11 @@ export const cloudflareAdapter: ProviderAdapter = {
     if (source && !imageEditCapableModel(model))
       throw new RevoraAiError(403, "That Cloudflare picture model cannot change a picture.", {
         category: "policy",
+        provider: "cloudflare",
+      });
+    if (!source && !imageCreationCapableModel(model))
+      throw new RevoraAiError(400, "That Cloudflare picture model requires a source picture.", {
+        category: "invalid_request",
         provider: "cloudflare",
       });
 
