@@ -88,7 +88,9 @@ export function siteThemeStyle(input: {
     "--secondary": step(light ? 5 : 8),
     "--secondary-foreground": ink,
     "--muted": step(light ? 5 : 8),
-    "--muted-foreground": mix(ink, background, 62),
+    // Supporting copy is softened, then re-measured: "muted" must never mean
+    // "unreadable" on a pale or mid-tone brand surface.
+    "--muted-foreground": mutedOn(ink, background),
     "--border": step(light ? 12 : 14),
     "--input": step(light ? 12 : 14),
     "--sidebar": step(light ? 2 : 3),
