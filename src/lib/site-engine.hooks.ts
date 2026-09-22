@@ -87,6 +87,40 @@ export function useRunSiteEngine(organizationId: string | undefined) {
   });
 }
 
+/**
+ * One-click first-build path for the business-description field. The owner's
+ * click is the approval to use that text: Revora refreshes the factual brief,
+ * queues the existing full build, then the worker gives Sol and Terra ownership
+ * of page architecture before it materializes copy and generated imagery.
+ */
+export function useGenerateSectionsFromText(organizationId: string | undefined) {
+  const queryClient = useQueryClient();
+  const analyze = useServerFn(analyzeSiteBrief);
+  const save = useServerFn(saveSiteBrief);
+  const run = useServerFn(runSiteGeneration);
+
+  return useMutation({
+    mutationFn: async () => {
+      if (!organizationId) throw new Error("Choose a workspace before generating your website.");
+      const analysis = await analyze({ data: { organizationId } });
+      await save({
+        data: { organizationId, brief: analysis.brief, approved: true },
+      });
+      return run({ data: { organizationId, mode: "safe" } });
+    },
+    onSuccess: () => {
+      toast.success("Sol is planning your pages", {
+        description: "Terra reviews the plan before Revora creates the images and copy.",
+      });
+      void queryClient.invalidateQueries({ queryKey: ["generation_job", organizationId] });
+      void queryClient.invalidateQueries({ queryKey: ["website_settings"] });
+      void queryClient.invalidateQueries({ queryKey: ["build_readiness", organizationId] });
+    },
+    onError: (error: Error) =>
+      toast.error(friendlyError(error, "Revora couldn't start from that description. Your text is saved.")),
+  });
+}
+
 export function useAiCopyEdit(organizationId: string | undefined) {
   const edit = useServerFn(aiEditSiteCopy);
   return useMutation({
