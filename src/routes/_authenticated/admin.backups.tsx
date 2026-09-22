@@ -194,7 +194,7 @@ function AdminBackups() {
   const activeId = selected ?? orgs[0]?.id ?? null;
 
   return (
-    <div className="space-y-4">
+    <div className="product-page">
       <SectionHeading
         title="Backups & restore"
         description="Daily automated snapshots per client, with a confirmed point-in-time restore that always saves the current state first."
