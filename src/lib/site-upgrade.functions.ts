@@ -74,7 +74,7 @@ export type MotionPackResult = {
 
 export const applyMotionPack = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { organizationId: string; intensity?: MotionIntensity }) => {
+  .inputValidator((input: { organizationId: string; intensity?: MotionIntensity; operationKey?: string }) => {
     if (!input?.organizationId) throw new Error("organizationId is required");
     if (input.intensity && !["none", "subtle", "expressive"].includes(input.intensity)) {
       throw new Error("Unknown movement level.");
@@ -85,11 +85,13 @@ export const applyMotionPack = createServerFn({ method: "POST" })
     const supabase = context.supabase as unknown as SupabaseLike;
     await requireManager(supabase, data.organizationId, context.userId);
     const intensity = data.intensity ?? "subtle";
+    const operationKey = data.operationKey ?? crypto.randomUUID();
     const run = await runAiWebsiteUpgrade({
       supabase,
       organizationId: data.organizationId,
       userId: context.userId,
       label: "AI motion update",
+      operationKey,
       instruction: "Update movement and animation across the website to the owner's requested intensity: " + intensity + ". " +
         "This is a motion-only change: do not rewrite copy, change business facts, add/remove pages or sections, or impose a template. " +
         "Use the site's existing creative direction as context. Choose the exact motion, duration, easing, transform and responsive behavior yourself. " +
@@ -118,13 +120,14 @@ export type StoryPassResult = {
 
 export const applyStoryPass = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { organizationId: string; write?: boolean }) => {
+  .inputValidator((input: { organizationId: string; write?: boolean; operationKey?: string }) => {
     if (!input?.organizationId) throw new Error("organizationId is required");
     return input;
   })
   .handler(async ({ data, context }): Promise<StoryPassResult> => {
     const supabase = context.supabase as unknown as SupabaseLike;
     await requireManager(supabase, data.organizationId, context.userId);
+    const operationKey = data.operationKey ?? crypto.randomUUID();
     if (data.write === false) {
       return { ok: true, order: [], linksWritten: 0, findings: [], summary: "AI story review is available through the website assistant.", restorePointId: null };
     }
@@ -133,6 +136,7 @@ export const applyStoryPass = createServerFn({ method: "POST" })
       organizationId: data.organizationId,
       userId: context.userId,
       label: "AI story links",
+      operationKey,
       instruction: "Improve cross-page navigation and narrative flow across the whole website. Do not force a home/CTA/page-order template. The page architecture is the AI's creative decision for this business. Only change or add the links and buttons needed for that journey; preserve verified business facts and existing copy unless a link label must change.",
     });
     const appliedActions = ((run.applied as { appliedActions?: unknown[] }).appliedActions ?? []) as Array<Record<string, unknown>>;
@@ -178,21 +182,23 @@ export type RedesignResult = {
 
 export const applySiteWideRedesign = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { organizationId: string; instruction: string }) => {
+  .inputValidator((input: { organizationId: string; instruction: string; operationKey?: string }) => {
     if (!input?.organizationId) throw new Error("organizationId is required");
     if (typeof input.instruction !== "string" || input.instruction.trim().length === 0) {
       throw new Error("Tell Revora how the site should feel.");
     }
-    return { organizationId: input.organizationId, instruction: input.instruction.slice(0, 1200) };
+    return { organizationId: input.organizationId, instruction: input.instruction.slice(0, 1200), operationKey: input.operationKey?.slice(0, 80) };
   })
   .handler(async ({ data, context }): Promise<RedesignResult> => {
     const supabase = context.supabase as unknown as SupabaseLike;
     await requireManager(supabase, data.organizationId, context.userId);
+    const operationKey = data.operationKey ?? crypto.randomUUID();
     const run = await runAiWebsiteUpgrade({
       supabase,
       organizationId: data.organizationId,
       userId: context.userId,
       label: "AI site-wide redesign",
+      operationKey,
       instruction: [
         "Redesign the website's visual language based on the owner's request below.",
         "You are the sole creative author. Invent the appropriate visual system, layout, typography, colour, responsive behavior, imagery treatment and motion for this business.",
