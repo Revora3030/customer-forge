@@ -1,5 +1,4 @@
 import { Button } from "@/components/ui/button";
-import { siteVariation } from "@/lib/site-variation";
 
 type Props = {
   organizationId?: string | null | undefined;
@@ -43,12 +42,6 @@ const when = (value?: string | null) => {
  */
 export function WebsiteProject(props: Props) {
   const status = STATUS[props.publishState ?? "draft"] ?? STATUS["draft"]!;
-  const variation = siteVariation({
-    organizationId: props.organizationId ?? null,
-    businessName: props.businessName ?? null,
-    industry: props.industry ?? null,
-    city: props.city ?? null,
-  });
   // A client website is served from the domain the client owns. The platform
   // share path is the address that always works until then.
   const address =
@@ -58,7 +51,6 @@ export function WebsiteProject(props: Props) {
     { label: "Pages", value: String(props.pagesCount) },
     { label: "Live sections", value: String(props.visibleSections) },
     { label: "Revora score", value: `${props.score}/100` },
-    { label: "Layout", value: variation.id },
   ];
 
   return (
