@@ -1594,9 +1594,15 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
         ...failed.map((label) => `skipped ${label}`),
         ...preflight.stale.map((entry) => `stale ${entry.type} (${entry.reason})`),
         ...settled.unchangedLabels,
+        ...applyDropped.map((reason) => `left out — ${reason}`),
+        ...(preflight.duplicates
+          ? [`left out — ${preflight.duplicates} step(s) repeated the same change twice.`]
+          : []),
         ...(qa?.repaired ?? []).map((entry) => `repaired ${entry}`),
         ...(qa?.failed ?? []).map((entry) => `repair skipped ${entry}`),
       ],
+      /** Steps that were not carried out, each with its reason. */
+      dropped: applyDropped,
       snapshotLabel,
       snapshotVersion,
       operationId,
