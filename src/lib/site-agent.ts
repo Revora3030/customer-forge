@@ -11,6 +11,7 @@ import { describeCustomBlock, parseCustomBlock, type CustomBlockSpec } from "@/l
 import {
   DEVICES,
   STYLE_KEYS,
+  normalizeStyleInput,
   writeBlockStyle,
   type BlockStyle,
   type Device,
