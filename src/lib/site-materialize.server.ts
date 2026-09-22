@@ -189,7 +189,7 @@ function serviceAsset(
   const exact = serviceAssets.find((asset) =>
     asset.label.toLowerCase().includes(serviceName.toLowerCase()),
   );
-  return exact ?? serviceAssets[index] ?? null;
+  return exact ?? (serviceAssets.length ? serviceAssets[index % serviceAssets.length] ?? null : null);
 }
 
 function imageComponent(asset: FirstBuildImageAsset, kind = "image"): Component {
@@ -264,6 +264,7 @@ export function planSiteContent(input: MaterializeInput): Page[] {
   const primaryCta = clean(copy.primaryCta) ?? "Get in touch";
   const secondaryCta = clean(copy.secondaryCta) ?? "See services";
   const heroAsset = firstAsset(input, "hero");
+  const aboutAsset = firstAsset(input, "about");
   const ctaAsset = firstAsset(input, "cta");
   const backgroundAsset = firstAsset(input, "background");
   const ogAsset = firstAsset(input, "social") ?? heroAsset;
@@ -431,7 +432,9 @@ export function planSiteContent(input: MaterializeInput): Page[] {
           subheading: place ? `Explore services available across ${place}.` : clean(copy.intro),
           components: [
             { kind: "button", label: primaryCta, link_label: primaryCta, link_url: primaryTarget },
-            ...(heroAsset ? [imageComponent(heroAsset, "hero_image")] : []),
+            ...((serviceAsset(input, services[0]?.name ?? copy.serviceCards[0]?.name ?? "", 0) ?? heroAsset)
+              ? [imageComponent((serviceAsset(input, services[0]?.name ?? copy.serviceCards[0]?.name ?? "", 0) ?? heroAsset)!, "hero_image")]
+              : []),
           ],
         },
         {
@@ -526,7 +529,7 @@ export function planSiteContent(input: MaterializeInput): Page[] {
           subheading: "Review the prices supplied for available services.",
           components: [
             { kind: "button", label: primaryCta, link_label: primaryCta, link_url: primaryTarget },
-            ...(backgroundAsset ? [imageComponent(backgroundAsset, "hero_image")] : []),
+            ...((backgroundAsset ?? ctaAsset ?? heroAsset) ? [imageComponent((backgroundAsset ?? ctaAsset ?? heroAsset)!, "hero_image")] : []),
           ],
         },
         {
@@ -562,14 +565,14 @@ export function planSiteContent(input: MaterializeInput): Page[] {
         subheading: clean(copy.about) ?? clean(copy.intro),
         components: [
           { kind: "button", label: primaryCta, link_label: primaryCta, link_url: primaryTarget },
-          ...(backgroundAsset ? [imageComponent(backgroundAsset, "hero_image")] : []),
+          ...((aboutAsset ?? backgroundAsset ?? heroAsset) ? [imageComponent((aboutAsset ?? backgroundAsset ?? heroAsset)!, "hero_image")] : []),
         ],
       },
       {
         kind: "intro",
         heading: "Our approach",
         body: clean(copy.about) ?? clean(copy.intro),
-        components: ctaAsset ? [imageComponent(ctaAsset)] : [],
+        components: (aboutAsset ?? ctaAsset) ? [imageComponent((aboutAsset ?? ctaAsset)!)] : [],
       },
       ...(place
         ? [
@@ -607,7 +610,7 @@ export function planSiteContent(input: MaterializeInput): Page[] {
           kind: "hero",
           heading: `Book with ${input.businessName}`,
           subheading: "Choose an available service and request a suitable time.",
-          components: backgroundAsset ? [imageComponent(backgroundAsset, "hero_image")] : [],
+          components: (ctaAsset ?? backgroundAsset ?? heroAsset) ? [imageComponent((ctaAsset ?? backgroundAsset ?? heroAsset)!, "hero_image")] : [],
         },
         { kind: "booking", heading: "Book a time", subheading: "Pick a slot that suits you." },
         {
@@ -639,7 +642,7 @@ export function planSiteContent(input: MaterializeInput): Page[] {
               subheading: place ? `${input.businessName} in ${place}.` : clean(copy.intro),
               components: [
                 { kind: "button", label: primaryCta, link_label: primaryCta, link_url: primaryTarget },
-                ...(backgroundAsset ? [imageComponent(backgroundAsset, "hero_image")] : []),
+                ...((backgroundAsset ?? heroAsset) ? [imageComponent((backgroundAsset ?? heroAsset)!, "hero_image")] : []),
               ],
             }]
           : []),
@@ -674,7 +677,7 @@ export function planSiteContent(input: MaterializeInput): Page[] {
         kind: "hero",
         heading: `Contact ${input.businessName}`,
         subheading: place ? `Speak with the team serving ${place}.` : "Speak with the team directly.",
-        components: ctaAsset ? [imageComponent(ctaAsset, "hero_image")] : [],
+        components: (ctaAsset ?? heroAsset) ? [imageComponent((ctaAsset ?? heroAsset)!, "hero_image")] : [],
       },
       {
         kind: "contact",

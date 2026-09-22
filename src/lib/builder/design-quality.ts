@@ -35,11 +35,13 @@ const meaningful = (value: string | null | undefined) => {
 export function scoreDesignQuality(context: AgentContext): DesignQualityScore {
   const pages = context.pages.filter((page) => page.is_visible && !page.noindex);
   const sections = pages.flatMap((page) => page.sections);
-  const home = pages.find((page) => page.kind === "home") ?? pages[0];
+  const pagesWithoutOpening = pages.filter(
+    (page) => !page.sections.some((section) => section.kind === "hero" || section.kind === "intro"),
+  );
 
   const structure = clamp(
     pages.length
-      ? 45 + Math.min(35, sections.length * 5) + (home?.sections.some((s) => s.kind === "hero") ? 20 : 0)
+      ? 45 + Math.min(35, sections.length * 5) + 20 * ((pages.length - pagesWithoutOpening.length) / pages.length)
       : 0,
   );
 
@@ -91,13 +93,13 @@ export function scoreDesignQuality(context: AgentContext): DesignQualityScore {
   );
 
   const strengths: string[] = [];
-  const gaps: string[] = [];
+  const gaps: string[] = pagesWithoutOpening.map((page) => `page:${page.slug}:opening`);
   for (const [name, value] of Object.entries(dimensions) as [DesignQualityDimension, number][]) {
     if (value >= 80) strengths.push(name);
     else if (value < 60) gaps.push(name);
   }
 
-  return { score, dimensions, strengths: strengths.slice(0, 6), gaps: gaps.slice(0, 6) };
+  return { score, dimensions, strengths: strengths.slice(0, 6), gaps: gaps.slice(0, 12) };
 }
 
 export function designQualitySummary(result: DesignQualityScore): string {

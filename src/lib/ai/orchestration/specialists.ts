@@ -45,7 +45,7 @@ export const SPECIALIST_SIX: Specialist[] = [
     model: "gpt-5.6-sol",
     provider: "openai",
     charter:
-      "Master reasoning: creative direction, information and conversion architecture, content strategy, visual and website reasoning, quality review, synthesis, hard requests.",
+      "Master reasoning and site-wide creative authority: unique identity, editorial hierarchy, page-specific composition, information and conversion architecture, visual reasoning, quality review and final synthesis.",
     domains: [
       "creative_direction",
       "information_architecture",
@@ -77,7 +77,7 @@ export const SPECIALIST_SIX: Specialist[] = [
     model: "gpt-5.6-terra",
     provider: "openai",
     charter:
-      "Senior verification: adversarial review, second opinions, specialist and plan review, repair planning, SEO analysis, design alternatives, independent verification.",
+      "Senior adversarial verification: rejects generic repetition, weak hierarchy, incomplete pages, missing visuals and conversion gaps; owns independent review and repair planning.",
     domains: [
       "adversarial_review",
       "second_opinion",
@@ -106,7 +106,7 @@ export const SPECIALIST_SIX: Specialist[] = [
     model: "gpt-5.6-luna",
     provider: "openai",
     charter:
-      "Utility reasoning: metadata, routine transformation, extraction, classification, intent, lightweight synthesis support.",
+      "Post-creative utility: metadata, structured details, routine transformation, extraction and classification after the design passes review.",
     domains: ["metadata", "rewrite", "small_edit", "extraction", "classification", "intent"],
     capabilities: [
       "text_generation",
@@ -123,7 +123,7 @@ export const SPECIALIST_SIX: Specialist[] = [
     id: "sunburst",
     model: "gpt-image-2.5-sunburst",
     provider: "openai",
-    charter: "Hero, editorial and precision image generation and editing.",
+    charter: "Cinematic hero, editorial feature and precision image generation/editing with deliberate focal points, negative space and responsive crops.",
     domains: ["image_hero", "image_edit"],
     capabilities: ["image_generation", "image_editing", "image_input"],
     quality: 95,
@@ -133,7 +133,7 @@ export const SPECIALIST_SIX: Specialist[] = [
     id: "flare",
     model: "gpt-image-2.5-flare",
     provider: "openai",
-    charter: "Supporting photography, variations and visual expansion.",
+    charter: "Service-specific supporting photography, detail frames, page-level visual expansion, variations and coherent campaign support.",
     domains: ["image_support"],
     capabilities: ["image_generation", "image_input"],
     quality: 86,

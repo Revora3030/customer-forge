@@ -379,7 +379,9 @@ export function planShots(input: {
     });
   }
 
-  for (const name of input.serviceNames.slice(0, 4)) {
+  // Preserve enough distinct service frames to give secondary pages their own
+  // subject rather than repeating one homepage image across the entire site.
+  for (const name of input.serviceNames.slice(0, 8)) {
     shots.push({
       slot: "service",
       label: `${name} image`,
@@ -393,11 +395,11 @@ export function planShots(input: {
   shots.push(
     {
       slot: "about",
-      label: "About / team image",
-      purpose: "Puts a human behind the business — the single biggest trust lift on a local site.",
+      label: "About story image",
+      purpose: "Shows the craft, environment or tools behind the business without impersonating its real team.",
       aspect: "3:2",
       placement: ["about"],
-      subjectHint: input.direction.subjects[2],
+      subjectHint: `${input.direction.environment}; craft detail or unoccupied workspace, no identifiable person`,
     },
     {
       slot: "proof",

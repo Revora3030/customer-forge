@@ -18,7 +18,7 @@ export type FirstBuildImageAsset = {
   aspectRatio: "16:9" | "1:1" | "21:9" | "3:2" | "4:3";
 };
 
-export type FirstBuildImageSource = "free" | "paid" | "none";
+export type FirstBuildImageSource = "standard" | "premium" | "none";
 
 export type FirstBuildImageEvidence = {
   status: "generated" | "owner_photos" | "blocked" | "failed";
@@ -31,7 +31,7 @@ export type FirstBuildImageEvidence = {
   rejected?: { slot: string; label: string; reason: string }[];
   provider: string | null;
   models: string[];
-  /** Which lane produced the pictures. `paid` is only ever a backup. */
+  /** Quality lane that produced the accepted pictures. */
   source?: FirstBuildImageSource;
   /** Plain-language note about paid picture availability and the spending cap. */
   paidNote?: string;

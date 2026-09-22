@@ -206,6 +206,7 @@ export function compileAiDesignContract(input: {
       reducedMotionSafe: true,
     },
     conversion: { goal: input.conversionGoal, steps: input.brief.conversionStrategy },
+    qualityMatrix: input.brief.qualityMatrix,
     pages,
   };
 }
@@ -236,7 +237,12 @@ function sectionLayoutFor(role: string, fingerprint: DesignFingerprint): string 
 }
 
 function mediaNeedFor(role: string): SectionDesign["media"] {
-  if (role === "hero" || role === "gallery" || role === "feature_media") return "required";
+  if (
+    role === "hero" ||
+    role === "gallery" ||
+    role === "feature_media"
+  )
+    return "required";
   if (role === "services" || role === "cta" || role === "intro") return "optional";
   return "none";
 }

@@ -20,6 +20,7 @@ import {
   type ArchitectureRejection,
 } from "@/lib/builder/ai-page-architecture";
 import { parseReview } from "@/lib/builder/collective-copy";
+import { creativeQualityPrompt } from "@/lib/builder/creative-quality-matrix";
 
 export type PageArchitectureOutcome = {
   architecture: PageArchitecture[] | null;
@@ -57,7 +58,7 @@ export async function proposePageArchitecture(input: {
     organizationId: input.organizationId,
     maxOutputTokens: 1600,
     ...(input.signal ? { signal: input.signal } : {}),
-    system: `${RULES} You are the information architect. Decide the page set, the sections on each page and their order so the site converts for this specific business. Different businesses should not end up with the same structure.`,
+    system: `${RULES} You are Sol, the lead information and conversion architect. Decide the page set, the sections on each page and their order so the whole site converts for this specific business. Every retained page needs a deliberate hero opening, a useful body and a decisive closing action. Different pages must feel related but composed for their own job. ${creativeQualityPrompt()}`,
     user: [
       `BUSINESS: ${input.businessName}`,
       `INDUSTRY: ${input.industry ?? "not supplied"}`,
@@ -106,7 +107,7 @@ export async function proposePageArchitecture(input: {
     organizationId: input.organizationId,
     maxOutputTokens: 700,
     ...(input.signal ? { signal: input.signal } : {}),
-    system: `${RULES} You are an adversarial reviewer of website structure. Approve the plan only if the page set and section order serve this business better than a generic structure, and nothing essential to the conversion goal was dropped.`,
+    system: `${RULES} You are Terra, the adversarial reviewer of website structure. Approve only when every retained page has a deliberate opening, useful body, required visual opportunity and decisive conversion close; the pages must share one identity without repeating one generic anatomy. ${creativeQualityPrompt()}`,
     user: [
       `BUSINESS: ${input.businessName}`,
       `CONVERSION GOAL: ${input.conversionGoal}`,

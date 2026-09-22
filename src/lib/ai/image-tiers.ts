@@ -1,8 +1,7 @@
 /**
  * PREMIUM PICTURE TIERS — who makes which picture.
  *
- * Two premium picture models sit above the free picture fabric and Revora's own
- * deterministic artwork:
+ * Two specialist picture models lead quality-first image routing:
  *
  *  - `sunburst` (GPT-Image-2.5-Sunburst) highest-quality generation AND precision
  *              editing: the hero picture, editorial feature shots, and any change
@@ -13,8 +12,8 @@
  * This module is deliberately pure and environment-free so the routing rules are
  * unit-testable on their own. Credentials, capability probing, budget reservation,
  * spend accounting and the actual HTTP call all live in `paid-image.server.ts` and
- * the router; no tier can be reached without passing those gates, and free
- * picture making always runs first.
+ * the router; no tier can be reached without passing those gates. Standard
+ * providers are capability-aware failover when the specialist tier is unavailable.
  */
 
 export type ImageTier = "sunburst" | "flare";

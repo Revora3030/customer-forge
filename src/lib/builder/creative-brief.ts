@@ -22,6 +22,10 @@
 
 import type { DesignFingerprint } from "@/lib/builder/design-fingerprint";
 import type { PlannedShot, VisualDirection } from "@/lib/visual-direction";
+import {
+  SITE_WIDE_CREATIVE_QUALITY_MATRIX,
+  type CreativeQualityMatrix,
+} from "@/lib/builder/creative-quality-matrix";
 
 export const AI_GENERATED_MARKETING_VISUAL = "AI_GENERATED_MARKETING_VISUAL" as const;
 export const BUSINESS_PROVIDED_EVIDENCE = "BUSINESS_PROVIDED_EVIDENCE" as const;
@@ -194,6 +198,8 @@ export type CreativeBrief = {
   conversionStrategy: string[];
   industryConventions: string[];
   imageInventory: ImageBriefSpec[];
+  /** Shared acceptance bar applied across every page, not only the home page. */
+  qualityMatrix: CreativeQualityMatrix;
   /** Everything the brief refuses to invent. */
   prohibitedEvidence: string[];
 };
@@ -333,6 +339,7 @@ export function compileCreativeBrief(input: {
     ],
     industryConventions: CONVENTIONS[archetype],
     imageInventory: [],
+    qualityMatrix: SITE_WIDE_CREATIVE_QUALITY_MATRIX,
     prohibitedEvidence: [...PROHIBITED_EVIDENCE],
   };
 

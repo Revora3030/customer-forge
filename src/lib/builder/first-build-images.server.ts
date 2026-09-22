@@ -9,7 +9,7 @@
  *
  * Generated starter images are never treated as proof of the business's real
  * work, team, awards or results. They are saved with provenance and attached to
- * renderable hero/service/CTA slots only.
+ * renderable hero/service/about/CTA slots only.
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -43,6 +43,7 @@ const MIME_EXTENSION: Record<string, string> = {
 const SAFE_STARTER_SLOTS = new Set<PlannedShot["slot"]>([
   "hero",
   "service",
+  "about",
   "background",
   "cta",
   "social",
@@ -68,7 +69,7 @@ function maxStarterImages() {
 function safeSlot(shot: PlannedShot) {
   if (!SAFE_STARTER_SLOTS.has(shot.slot)) return false;
   if (shot.placement.some((place) => /gallery|proof|testimonial|team/i.test(place))) return false;
-  return !/team|result|completed work|proof/i.test(`${shot.label} ${shot.purpose}`);
+  return !/result|completed work|proof/i.test(`${shot.label} ${shot.purpose}`);
 }
 
 /**
@@ -106,7 +107,7 @@ export function firstBuildImageShots(
   occupiedSlots: ReadonlySet<PlannedShot["slot"]> = new Set(),
 ): PlannedShot[] {
   const unique = new Set<string>();
-  const singularSlots = new Set<PlannedShot["slot"]>(["hero", "background", "cta", "social"]);
+  const singularSlots = new Set<PlannedShot["slot"]>(["hero", "about", "background", "cta", "social"]);
   const shots: PlannedShot[] = [];
   for (const shot of creative.imagery.shots) {
     if (!safeSlot(shot)) continue;
@@ -163,10 +164,10 @@ export async function generateFirstBuildImages(
   let source: FirstBuildImageSource = "none";
   let paidCostMicrocents = 0;
   const paid = paidImageStatus();
-  // Free first, always. The paid backup is only ever reached when the free
-  // service is genuinely unavailable AND the operator switched it on, and every
-  // paid picture is charged against the same durable monthly cap.
-  let freeBlocked = false;
+  // Quality first. Sunburst owns hero/editorial frames and Flare owns supporting
+  // imagery when enabled and inside the durable budget gate. The standard lane
+  // is capability-aware failover, not the default merely because it is free.
+  let standardBlocked = false;
 
 
   for (const [index, shot] of shots.entries()) {
@@ -191,42 +192,44 @@ export async function generateFirstBuildImages(
     type Made = { base64: string; mimeType: string; provider: string; model: string };
     let made: Made | null = null;
 
-    if (!freeBlocked) {
-      const free = await generateImageBase64(brief.prompt, {
-        organizationId: input.organizationId,
-        userId: input.userId,
-      });
-      if (free.ok) {
-        made = free;
-        source = source === "paid" ? source : "free";
+    if (paid.allowed) {
+      const specialist = await generatePaidImageBase64(
+        brief.prompt,
+        { organizationId: input.organizationId, userId: input.userId },
+        shot.slot === "hero"
+          ? "hero_master"
+          : shot.slot === "about"
+            ? "editorial_feature"
+            : shot.slot === "service"
+              ? "service_photo"
+              : "starter_photo",
+      );
+      if (specialist.ok) {
+        made = specialist;
+        paidCostMicrocents += specialist.costMicrocents;
+        source = "premium";
       } else {
-        firstBlockedMessage = firstBlockedMessage ?? free.message;
-        if (free.blocked) freeBlocked = true;
-        else skipped.push({ slot: shot.slot, label: shot.label, reason: free.message });
+        firstBlockedMessage = firstBlockedMessage ?? specialist.message;
       }
     }
 
-    if (!made && paid.allowed) {
-      // Job-aware routing: the hero frame the page is composed around goes to the
-      // premium picture tier, supporting photography to the fast tier.
-      const backup = await generatePaidImageBase64(
-        brief.prompt,
-        { organizationId: input.organizationId, userId: input.userId },
-        shot.slot === "hero" ? "hero_master" : shot.slot === "service" ? "service_photo" : "starter_photo",
-      );
-      if (backup.ok) {
-        made = backup;
-        paidCostMicrocents += backup.costMicrocents;
-        source = "paid";
+    if (!made && !standardBlocked) {
+      const standard = await generateImageBase64(brief.prompt, {
+        organizationId: input.organizationId,
+        userId: input.userId,
+      });
+      if (standard.ok) {
+        made = standard;
+        source = source === "premium" ? source : "standard";
       } else {
-        firstBlockedMessage = firstBlockedMessage ?? backup.message;
-        skipped.push({ slot: shot.slot, label: shot.label, reason: backup.message });
-        if (backup.reason === "budget_exhausted" || backup.reason === "disabled") break;
+        firstBlockedMessage = firstBlockedMessage ?? standard.message;
+        if (standard.blocked) standardBlocked = true;
+        else skipped.push({ slot: shot.slot, label: shot.label, reason: standard.message });
       }
     }
 
     if (!made) {
-      if (freeBlocked && !paid.allowed) {
+      if (standardBlocked) {
         skipped.push({
           slot: shot.slot,
           label: shot.label,
@@ -295,7 +298,7 @@ export async function generateFirstBuildImages(
   const graded = gradeFirstBuildImages(assets);
   const kept = graded.accepted;
   const status = kept.length ? "generated" : skipped.length || graded.rejected.length ? "blocked" : "failed";
-  const laneLabel = source === "paid" ? "paid backup picture service" : "free picture service";
+  const laneLabel = source === "premium" ? "specialist picture team" : "standard capability-matched picture service";
 
   return {
     assets: kept,
