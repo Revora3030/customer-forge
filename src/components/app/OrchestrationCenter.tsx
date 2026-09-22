@@ -204,6 +204,57 @@ export function OrchestrationCenter() {
             </div>
           )}
 
+
+          <div className="mt-6">
+            <SectionHeading
+              title="Free stand-in squads"
+              description="When the paid lead models are out of budget or unavailable, the job is handed to these free models in this order. Every member has passed a real capability check for that job."
+            />
+            <div className="mt-2 space-y-2">
+              {data.hallOfFame.squads.map((squad) => (
+                <div
+                  key={squad.purpose}
+                  className="rounded-lg border border-border bg-card/40 p-3 text-[13px]"
+                >
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Pill tone={squad.members.some((m) => m.ready) ? "signal" : "attention"}>
+                      {squad.members.filter((m) => m.ready).length} ready
+                    </Pill>
+                    <span className="font-medium">{squad.purpose.replace(/_/g, " ")}</span>
+                    <span className="text-muted-foreground">{squad.capability}</span>
+                  </div>
+                  <p className="mt-1 text-[12px] text-muted-foreground">
+                    {squad.members.length
+                      ? squad.members
+                          .map((m) => `${m.model}${m.ready ? "" : " (resting)"}`)
+                          .join(" → ")
+                      : "No free model has proven this job yet."}
+                  </p>
+                </div>
+              ))}
+            </div>
+            {data.hallOfFame.runs.length ? (
+              <div className="mt-3 space-y-1">
+                {data.hallOfFame.runs.map((run, index) => (
+                  <p
+                    key={`${run.at}-${index}`}
+                    className="text-[12px] text-muted-foreground"
+                  >
+                    {run.purpose.replace(/_/g, " ")} —{" "}
+                    {run.answeredBy
+                      ? `carried by ${run.answeredBy}`
+                      : "no free model could carry it"}
+                    {run.paidReason ? ` (paid lane: ${run.paidReason})` : ""}
+                  </p>
+                ))}
+              </div>
+            ) : (
+              <p className="mt-3 text-[12px] text-muted-foreground">
+                The paid lead models have handled everything so far — no hand-over yet.
+              </p>
+            )}
+          </div>
+
           <p className="mt-3 text-[12px] text-muted-foreground">
             A model outside the six is only ever brought in when a real check proves it can do
             something for the exact job that the six cannot.
