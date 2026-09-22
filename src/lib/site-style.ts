@@ -313,6 +313,22 @@ export function normalizeStyleInput(raw: unknown): Record<string, unknown> {
       next = named[next.trim().toLowerCase().replace(/[\s_-]+/g, "")] ?? next;
     }
     if (key === "textTransform" && typeof next === "boolean") next = next ? "uppercase" : "none";
+    // `fontStyle: "italic"` and `italic: "yes"` both mean the same thing.
+    if (key === "italic" && typeof next === "string") {
+      const word = next.trim().toLowerCase();
+      if (["italic", "oblique", "true", "yes", "on"].includes(word)) next = true;
+      else if (["normal", "none", "false", "no", "off", "upright"].includes(word)) next = false;
+    }
+    // `gradientDirection: "to bottom"` → the angle that produces it.
+    if (key === "bgGradientAngle" && typeof next === "string") {
+      const named: Record<string, number> = {
+        up: 0, top: 0, totop: 0, right: 90, toright: 90, down: 180, bottom: 180,
+        tobottom: 180, left: 270, toleft: 270, diagonal: 135, tobottomright: 135,
+        tobottomleft: 225, totopright: 45, totopleft: 315,
+      };
+      const word = next.trim().toLowerCase().replace(/[\s_-]+/g, "");
+      if (word in named) next = named[word];
+    }
     if (key === "hidden" && (compact === "visible" || compact === "display")) {
       next = typeof value === "boolean" ? !value : value === "none";
     }
