@@ -13,10 +13,11 @@ import {
 } from "@/lib/site-style";
 
 describe("safeColor", () => {
-  it("accepts hex colours only", () => {
+  it("accepts hex and safe named colours", () => {
     expect(safeColor("#FFD700")).toBe("#ffd700");
     expect(safeColor("#fff")).toBe("#fff");
-    expect(safeColor("red")).toBeNull();
+    expect(safeColor("red")).toBe("#dc2626");
+    expect(safeColor("Navy")).toBe("#172554");
     expect(safeColor("expression(alert(1))")).toBeNull();
     expect(safeColor("#fff; background:url(javascript:alert(1))")).toBeNull();
   });
@@ -45,6 +46,31 @@ describe("readBlockStyle / writeBlockStyle", () => {
     const read = readBlockStyle(next);
     expect(read.align).toBe("center");
     expect(read.textColor).toBe("#112233");
+  });
+
+  it("accepts precise values inside safe visual ranges", () => {
+    const style = readBlockStyle(writeBlockStyle({}, {
+      size: 37,
+      lineHeight: 1.22,
+      gap: 27,
+      padTop: 73,
+      marginTop: -12,
+      maxWidth: 1180,
+      radius: 18,
+      borderWidth: 3,
+      opacity: 94,
+    }));
+    expect(style).toMatchObject({
+      size: 37,
+      lineHeight: 1.22,
+      gap: 27,
+      padTop: 73,
+      marginTop: -12,
+      maxWidth: 1180,
+      radius: 18,
+      borderWidth: 3,
+      opacity: 94,
+    });
   });
 
   it("drops unsafe values on write", () => {

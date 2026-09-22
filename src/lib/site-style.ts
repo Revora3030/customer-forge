@@ -41,17 +41,17 @@ export const DEVICE_META: Record<
 /* ------------------------------ allowed values ----------------------------- */
 
 export const FONT_FAMILIES = ["display", "body", "serif", "mono"] as const;
-export const FONT_WEIGHTS = [300, 400, 500, 600, 700, 800] as const;
+export const FONT_WEIGHTS = [100, 200, 300, 400, 500, 600, 700, 800, 900] as const;
 export const ALIGNMENTS = ["left", "center", "right"] as const;
 export const TEXT_TRANSFORMS = ["none", "uppercase", "capitalize"] as const;
-export const TEXT_SIZES = [12, 14, 16, 18, 20, 24, 28, 32, 40, 48, 56, 64, 72] as const;
+export const TEXT_SIZES = [10, 12, 14, 16, 18, 20, 24, 28, 32, 40, 48, 56, 64, 72, 80, 96, 120, 144, 160] as const;
 export const LINE_HEIGHTS = [1, 1.15, 1.3, 1.5, 1.7, 2] as const;
 export const LETTER_SPACINGS = [-0.03, -0.01, 0, 0.02, 0.06, 0.12] as const;
-export const SPACES = [0, 4, 8, 12, 16, 24, 32, 48, 64, 80, 96, 120] as const;
-export const COLUMNS = [1, 2, 3, 4] as const;
-export const MAX_WIDTHS = [640, 768, 1024, 1280, 1536] as const;
-export const RADII = [0, 4, 8, 12, 16, 24, 999] as const;
-export const BORDER_WIDTHS = [0, 1, 2, 4] as const;
+export const SPACES = [0, 4, 8, 12, 16, 24, 32, 48, 64, 80, 96, 120, 144, 160, 192, 240] as const;
+export const COLUMNS = [1, 2, 3, 4, 5, 6] as const;
+export const MAX_WIDTHS = [320, 480, 640, 768, 960, 1024, 1152, 1280, 1440, 1536, 1920] as const;
+export const RADII = [0, 2, 4, 6, 8, 12, 16, 20, 24, 32, 40, 48, 999] as const;
+export const BORDER_WIDTHS = [0, 1, 2, 3, 4, 6, 8, 12] as const;
 export const SHADOWS = ["none", "subtle", "medium", "strong"] as const;
 export const OPACITIES = [100, 90, 80, 70, 60, 50, 40, 30] as const;
 export const OVERLAYS = [0, 10, 20, 30, 40, 50, 60, 70, 80] as const;
@@ -161,12 +161,25 @@ export const DEFAULT_BLOCK_STYLE: BlockStyle = Object.freeze(
 /* -------------------------------- validation -------------------------------- */
 
 const HEX = /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i;
+const NAMED_COLORS: Record<string, string> = {
+  black: "#000000", white: "#ffffff", red: "#dc2626", blue: "#2563eb",
+  green: "#15803d", yellow: "#eab308", orange: "#ea580c", purple: "#9333ea",
+  pink: "#db2777", gray: "#6b7280", grey: "#6b7280", slate: "#475569",
+  navy: "#172554", teal: "#0f766e", cyan: "#0891b2", gold: "#d4af37",
+  cream: "#fff7e6", beige: "#f5f5dc", brown: "#78350f", transparent: "#00000000",
+};
 
-/** Only strict 3/6-digit hex colours become CSS — nothing else is trusted. */
+/** Strict hex or a small human-friendly colour vocabulary; never arbitrary CSS. */
 export function safeColor(value: unknown): string | null {
   if (typeof value !== "string") return null;
-  const trimmed = value.trim();
-  return HEX.test(trimmed) ? trimmed.toLowerCase() : null;
+  const trimmed = value.trim().toLowerCase();
+  return HEX.test(trimmed) ? trimmed : (NAMED_COLORS[trimmed] ?? null);
+}
+
+function boundedNumber(value: unknown, min: number, max: number, integer = false): number | null {
+  const parsed = typeof value === "number" ? value : typeof value === "string" && value.trim() ? Number(value) : NaN;
+  if (!Number.isFinite(parsed) || parsed < min || parsed > max) return null;
+  return integer ? Math.round(parsed) : Math.round(parsed * 100) / 100;
 }
 
 /** Background images must be safe http(s) URLs (or an internal path). */
@@ -231,51 +244,47 @@ function readLayer(raw: unknown): Partial<BlockStyle> {
     typeof value === "string" && value in map ? (map[value] as T) : null;
 
   set("font", inList(FONT_FAMILIES, s["font"]) ?? legacy(LEGACY_FONT, s["font"]));
-  set(
-    "size",
-    inList(TEXT_SIZES, s["size"]) ??
-      inList(TEXT_SIZES, legacy(LEGACY_SIZE, s["size"]) ?? undefined),
-  );
+  set("size", boundedNumber(s["size"], 10, 160) ?? boundedNumber(legacy(LEGACY_SIZE, s["size"]), 10, 160));
   set(
     "weight",
-    inList(FONT_WEIGHTS, s["weight"]) ??
-      inList(FONT_WEIGHTS, legacy(LEGACY_WEIGHT, s["weight"]) ?? undefined),
+    boundedNumber(s["weight"], 100, 900, true) ??
+      boundedNumber(legacy(LEGACY_WEIGHT, s["weight"]), 100, 900, true),
   );
   set("align", inList(ALIGNMENTS, s["align"]));
   set(
     "lineHeight",
-    inList(LINE_HEIGHTS, s["lineHeight"]) ??
-      inList(LINE_HEIGHTS, legacy(LEGACY_LEADING, s["lineHeight"]) ?? undefined),
+    boundedNumber(s["lineHeight"], 0.75, 3) ??
+      boundedNumber(legacy(LEGACY_LEADING, s["lineHeight"]), 0.75, 3),
   );
-  set("letterSpacing", inList(LETTER_SPACINGS, s["letterSpacing"]));
+  set("letterSpacing", boundedNumber(s["letterSpacing"], -0.1, 0.3));
   set("textTransform", inList(TEXT_TRANSFORMS, s["textTransform"]));
   set("textColor", safeColor(s["textColor"]));
 
   set(
     "columns",
-    inList(COLUMNS, s["columns"]) ??
-      inList(COLUMNS, legacy(LEGACY_COLUMNS, s["layout"]) ?? undefined),
+    boundedNumber(s["columns"], 1, 6, true) ??
+      boundedNumber(legacy(LEGACY_COLUMNS, s["layout"]), 1, 6, true),
   );
-  set("gap", inList(SPACES, s["gap"]));
-  set("maxWidth", inList(MAX_WIDTHS, s["maxWidth"]));
+  set("gap", boundedNumber(s["gap"], 0, 240));
+  set("maxWidth", boundedNumber(s["maxWidth"], 240, 1920));
   set("contentAlign", inList(ALIGNMENTS, s["contentAlign"]));
 
   // Legacy `padding` was one value for all four sides.
-  const legacyPad = inList(SPACES, legacy(LEGACY_SPACE, s["padding"]) ?? undefined);
+  const legacyPad = boundedNumber(legacy(LEGACY_SPACE, s["padding"]), 0, 240);
   for (const side of ["padTop", "padRight", "padBottom", "padLeft"] as const) {
-    set(side, inList(SPACES, s[side]) ?? legacyPad);
+    set(side, boundedNumber(s[side], 0, 240) ?? legacyPad);
   }
-  set("marginTop", inList(SPACES, s["marginTop"]));
-  set("marginBottom", inList(SPACES, s["marginBottom"]));
+  set("marginTop", boundedNumber(s["marginTop"], -240, 240));
+  set("marginBottom", boundedNumber(s["marginBottom"], -240, 240));
 
   set("bgColor", safeColor(s["bgColor"]));
   set("bgImage", safeImageUrl(s["bgImage"]));
-  set("overlay", inList(OVERLAYS, s["overlay"]));
-  set("radius", inList(RADII, s["radius"]));
-  set("borderWidth", inList(BORDER_WIDTHS, s["borderWidth"]));
+  set("overlay", boundedNumber(s["overlay"], 0, 100));
+  set("radius", boundedNumber(s["radius"], 0, 999));
+  set("borderWidth", boundedNumber(s["borderWidth"], 0, 12));
   set("borderColor", safeColor(s["borderColor"]));
   set("shadow", inList(SHADOWS, s["shadow"]));
-  set("opacity", inList(OPACITIES, s["opacity"]));
+  set("opacity", boundedNumber(s["opacity"], 0, 100));
 
   set("objectFit", inList(OBJECT_FITS, s["objectFit"]));
   set("buttonStyle", inList(BUTTON_STYLES, s["buttonStyle"]));

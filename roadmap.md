@@ -15,3 +15,6 @@
 - [x] Verify representative desktop and mobile routes, metadata, and automated quality checks.
 - [x] Simplify the website builder into one continuous chat, one preview, and one tools menu.
 - [x] Keep the prompt focused and visible while preserving approvals, rollback, manual editing, history, and publishing.
+- [x] Let AI use precise safe typography, spacing, sizing, backgrounds, borders, and responsive values instead of narrow preset steps.
+- [x] Make section-level AI text colors and fonts override nested renderer defaults consistently.
+- [ ] Make production version snapshots preserve the complete styled page tree and verify restore compatibility.

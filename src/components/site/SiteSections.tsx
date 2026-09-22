@@ -269,6 +269,8 @@ export function SiteSection({ site, section }: { site: Site; section: Section })
 
   const css = blockCss(style);
   const customBackground = Boolean(style.bgColor || style.bgImage);
+  const customText = Boolean(style.textColor);
+  const customFont = Boolean(style.font);
   const customSpacing = [style.padTop, style.padRight, style.padBottom, style.padLeft].some((value) => value !== null);
   if (Object.keys(css).length) {
     inner = (
@@ -295,7 +297,14 @@ export function SiteSection({ site, section }: { site: Site; section: Section })
   ].filter(Boolean).join(" ");
 
   const decorated = (
-    <div className={visualClass} data-rv-variant={variant} data-rv-custom-bg={customBackground || undefined} data-rv-custom-spacing={customSpacing || undefined}>
+    <div
+      className={visualClass}
+      data-rv-variant={variant}
+      data-rv-custom-bg={customBackground || undefined}
+      data-rv-custom-text={customText || undefined}
+      data-rv-custom-font={customFont || undefined}
+      data-rv-custom-spacing={customSpacing || undefined}
+    >
       {!(["hero", "service_detail", "cta", "intro", "offer", "guarantee", "area", "policy", "lead_magnet"] as string[]).includes(section.kind)
         ? <SectionMedia site={site} section={section} />
         : null}
