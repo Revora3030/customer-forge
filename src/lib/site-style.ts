@@ -627,6 +627,106 @@ const VISUAL_KEYS = [
   "image_ratio",
 ] as const;
 
+const AI_CSS_KEYS = [
+  "background",
+  "backgroundColor",
+  "backgroundImage",
+  "color",
+  "border",
+  "borderColor",
+  "borderRadius",
+  "boxShadow",
+  "transform",
+  "filter",
+  "clipPath",
+  "mixBlendMode",
+  "gridTemplateColumns",
+  "gridTemplateAreas",
+  "gap",
+  "rowGap",
+  "columnGap",
+  "padding",
+  "paddingTop",
+  "paddingRight",
+  "paddingBottom",
+  "paddingLeft",
+  "margin",
+  "marginTop",
+  "marginRight",
+  "marginBottom",
+  "marginLeft",
+  "maxWidth",
+  "minHeight",
+  "aspectRatio",
+  "objectFit",
+  "objectPosition",
+  "opacity",
+  "display",
+  "alignItems",
+  "justifyContent",
+  "textAlign",
+  "fontFamily",
+  "fontSize",
+  "lineHeight",
+  "letterSpacing",
+  "position",
+  "top",
+  "right",
+  "bottom",
+  "left",
+  "zIndex",
+  "containerType",
+  "containerName",
+] as const;
+
+function safeAiCssValue(value: unknown): string | number | null {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  if (!trimmed || trimmed.length > 500) return null;
+  if (/[<>;{}]|javascript:|expression\\s*\\(|url\\s*\\(\\s*data:/i.test(trimmed)) return null;
+  return trimmed;
+}
+
+/** Reads open-ended AI visual capabilities without converting them into a preset vocabulary. */
+export function aiAuthoredCss(settings: unknown): React.CSSProperties {
+  if (!settings || typeof settings !== "object" || Array.isArray(settings)) return {};
+  const raw = (settings as Record<string, unknown>)["ai_visual"];
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+  const out: Record<string, string | number> = {};
+  for (const key of AI_CSS_KEYS) {
+    const value = safeAiCssValue((raw as Record<string, unknown>)[key]);
+    if (value !== null) out[key] = value;
+  }
+  return out as React.CSSProperties;
+}
+
+/**
+ * Converts AI-authored responsive capability data into safe media-query CSS.
+ * Unknown properties are ignored rather than replaced with a canned layout.
+ */
+export function aiAuthoredResponsiveCss(settings: unknown, selector: string): string {
+  if (!settings || typeof settings !== "object" || Array.isArray(settings)) return "";
+  const raw = (settings as Record<string, unknown>)["ai_responsive"];
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return "";
+  const rules: string[] = [];
+  for (const [width, state] of Object.entries(raw as Record<string, unknown>)) {
+    if (!/^\\d{3,4}$/.test(width) || !state || typeof state !== "object" || Array.isArray(state)) continue;
+    const visual = (state as Record<string, unknown>)["visual"];
+    if (!visual || typeof visual !== "object" || Array.isArray(visual)) continue;
+    const declarations: string[] = [];
+    for (const key of AI_CSS_KEYS) {
+      const value = safeAiCssValue((visual as Record<string, unknown>)[key]);
+      if (value === null) continue;
+      const cssKey = key.replace(/[A-Z]/g, (letter) => "-" + letter.toLowerCase());
+      declarations.push(`${cssKey}:${String(value)}`);
+    }
+    if (declarations.length)
+      rules.push(`@media (max-width:${width}px){${selector}{${declarations.join(";")}}`);
+  }
+  return rules.join("");
+}
+
 export function readSectionVisual(settings: unknown): PersistedSectionVisual {
   if (!settings || typeof settings !== "object" || Array.isArray(settings)) return {};
   const raw = (settings as Record<string, unknown>)["visual"];
