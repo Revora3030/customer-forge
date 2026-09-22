@@ -118,31 +118,30 @@ function modelsFor(provider: PaidProviderName): Record<ModelRole, string> {
 }
 
 /**
- * ZERO-COST MODE — the default architecture, not a UI switch.
+ * ZERO-COST MODE — an administrative cost-safety switch, off by default.
  *
- * Core website building runs on Revora's own native engine, so no external
- * model is called for a customer's request and no customer ever needs AI
- * credits or an API key. External providers stay installed as an optional
- * enhancement and are only reachable when an operator deliberately sets
- * `ZERO_AI_COST_MODE=false` on the server.
+ * Quality comes first: every connected model may answer a call, and spend stays
+ * bounded by the monthly cap rather than by blocking the whole paid lane. An
+ * operator can still force the native-only lane by setting
+ * `ZERO_AI_COST_MODE=true` on the server.
  *
  * This is read from the server environment on every call, so it cannot be
  * flipped from the browser.
  */
 export function zeroAiCostMode(): boolean {
   const raw = (env("ZERO_AI_COST_MODE") ?? "").trim().toLowerCase();
-  // Default ON: anything other than an explicit opt-out keeps external AI off.
-  return raw !== "false" && raw !== "0" && raw !== "off" && raw !== "no";
+  // Default OFF: only an explicit opt-in shuts external AI off.
+  return raw === "true" || raw === "1" || raw === "on" || raw === "yes";
 }
 
 /**
- * The website builder's own guard. Building customer websites must cost Revora
- * nothing in outside inference, so external AI is off for the builder unless an
- * operator explicitly sets `BUILDER_EXTERNAL_AI_ALLOWED=true` on the server.
+ * The website builder's lane. Building the best possible website comes first,
+ * so every connected model is reachable by default. An operator can shut the
+ * builder's external lane with `BUILDER_EXTERNAL_AI_ALLOWED=false`.
  */
 export function builderExternalAiAllowed(): boolean {
   const raw = (env("BUILDER_EXTERNAL_AI_ALLOWED") ?? "").trim().toLowerCase();
-  return raw === "true" || raw === "1" || raw === "on" || raw === "yes";
+  return !(raw === "false" || raw === "0" || raw === "off" || raw === "no");
 }
 
 /** A provider is available only when Revora's own key for it is present. */
