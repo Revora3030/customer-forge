@@ -808,7 +808,9 @@ export async function materializeSiteContent(
           body: section.body ?? null,
           is_visible: true,
           sort_order: sectionIndex,
-          settings: design.settings,
+          // Preserve the canonical AI contract's visual/responsive/interaction data.
+          // Legacy design synthesis is used only by the compatibility path.
+          settings: section.settings ?? design.settings,
         } as never)
         .select("id")
         .single();
