@@ -25,6 +25,8 @@ export type PageKind =
   | "contact"
   | "thanks"
   | "privacy"
+  | "blog"
+  | "post"
   | "custom";
 
 export type SectionKind =
