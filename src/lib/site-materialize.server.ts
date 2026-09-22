@@ -760,16 +760,36 @@ export async function materializeSiteContent(
   }
 
   // The renderer produces safe building blocks; the AI design decides the site.
-  // When a contract is supplied it OVERRIDES the renderer's ordering and page
-  // set, and any visual container the design requires must resolve to a real
-  // picture — otherwise the build fails rather than publishing a blank box.
+  // The contract OVERRIDES the renderer's page set and section order, and any
+  // visual container the design requires must resolve to a real picture —
+  // otherwise the build fails rather than publishing a blank box.
   let tree = planSiteContent(input);
-  if (input.designContract) {
-    const applied = applyDesignContract(
-      tree as unknown as MaterialPage[],
-      input.designContract,
-    );
-    assertMediaIntegrity(applied.pages, input.designContract);
+  let designContract: AiDesignContract | null = input.designContract ?? null;
+  if (!designContract && input.fingerprint && input.creativeBrief)
+    designContract = requireAiDesignContract({
+      attempt: compileAiDesignContract({
+        businessName: input.businessName,
+        fingerprint: input.fingerprint,
+        brief: input.creativeBrief,
+        directedBy: input.directedBy ?? "gpt-5.6-sol",
+        reviewedBy: input.reviewedBy ?? null,
+        conversionGoal: input.conversionGoal ?? "enquiries",
+        navigationItems: tree.map((page) => page.title),
+        primaryAction: clean(input.copy.primaryCta) ?? "Get in touch",
+        secondaryAction: clean(input.copy.secondaryCta),
+        architecture: tree.map((page) => ({
+          slug: page.slug,
+          title: page.title,
+          purpose: page.kind,
+          primaryAction: clean(input.copy.primaryCta) ?? "Get in touch",
+          sections: page.sections.map((section) => ({ role: section.kind })),
+        })),
+      }),
+      attempts: 1,
+    });
+  if (designContract) {
+    const applied = applyDesignContract(tree as unknown as MaterialPage[], designContract);
+    assertMediaIntegrity(applied.pages, designContract);
     tree = applied.pages as unknown as typeof tree;
   }
   const campaign = input.fingerprint && input.creativeBrief
