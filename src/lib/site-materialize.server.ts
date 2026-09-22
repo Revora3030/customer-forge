@@ -170,13 +170,19 @@ export function materializeCreativeSiteContract(
         body: component.body ?? null,
         link_label: component.linkLabel ?? null,
         link_url: safeLinkUrl(component.linkUrl ?? null),
-        media_url: component.mediaUrl ?? assetByPath.get(component.mediaUrl ?? "")?.path ?? null,
+        media_url: component.mediaUrl
+          ? (assetByPath.get(component.mediaUrl)?.path ?? component.mediaUrl)
+          : null,
         settings: { ...(component.settings ?? {}), ai_authored: true },
       }));
       if (section.media?.assetId && !components.some((component) => component.media_url === section.media?.assetId)) {
         const asset =
           assetByPath.get(section.media.assetId) ??
-          assets.find((candidate) => candidate.label === section.media?.assetId);
+          assets.find(
+            (candidate) =>
+              candidate.label === section.media?.assetId ||
+              candidate.mediaId === section.media?.assetId,
+          );
         if (asset) {
           components.push(
             imageComponent(
