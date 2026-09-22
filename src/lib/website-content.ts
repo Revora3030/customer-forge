@@ -265,6 +265,16 @@ export const SECTION_LIBRARY: { kind: SectionKind; label: string; help: string }
   },
   { kind: "contact", label: "Contact & hours", help: "Phone, email and opening hours." },
   { kind: "policy", label: "Policy text", help: "Plain policy wording, like a privacy notice." },
+  {
+    kind: "post_list",
+    label: "Article list",
+    help: "Links to every article or project page you've published.",
+  },
+  {
+    kind: "embed",
+    label: "Embedded tool",
+    help: "A map, booking widget or video from a service you already use.",
+  },
   { kind: "custom", label: "Your own section", help: "A heading and text you write yourself." },
 ];
 
