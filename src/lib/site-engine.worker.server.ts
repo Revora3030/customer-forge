@@ -477,11 +477,6 @@ async function runJob(
     } as never);
   }
 
-  const industryPlaybook = playbookFor(
-    org.data.industry ?? null,
-    (p["description"] as string) ?? null,
-    serviceRows.map((service) => service.name).join(" "),
-  );
 
   const buildFacts = {
     businessName: copyFacts.businessName,
@@ -602,7 +597,6 @@ async function runJob(
     archetype,
     fingerprint: creative.fingerprint,
     creativeBrief: creative.brief,
-    industryPlaybook,
     generatedAssets: starterImages.assets,
     directedBy:
       refined.passes.find((pass) => pass.used && pass.model)?.model ?? "revora-collective",
@@ -645,6 +639,20 @@ async function runJob(
       : { authored: false, skipped: "the page plan was not requested for this build" }) as unknown as never,
     created_by: job.created_by,
   } as never);
+  // The AI page plan is the only source of pages and sections. There is no
+  // rule-based layout to fall back on, so an unavailable or rejected plan stops
+  // the build with an honest message instead of a generic website.
+  if (!built.skipped) {
+    const outcome = architectureRef.current;
+    if (!outcome || !outcome.architecture) {
+      const detail = outcome?.rejected.length
+        ? outcome.rejected.map((rejection) => JSON.stringify(rejection)).join("; ")
+        : outcome?.skipped ?? "the design team was unavailable";
+      throw new Error(
+        `The design team could not author a page plan for this website, so nothing was created (${detail}). Please try again in a moment.`,
+      );
+    }
+  }
   const attachedEvidence = {
     ...starterImages.evidence,
     attached: built.skipped ? 0 : starterImages.assets.length,
