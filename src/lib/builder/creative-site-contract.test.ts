@@ -60,6 +60,11 @@ describe("CreativeSiteContract", () => {
     expect(validateCreativeSiteContract(contract).valid).toBe(false);
   });
 
+  it("rejects malformed runtime shapes without throwing", () => {
+    expect(() => validateCreativeSiteContract({ pages: [{ id: "page-home", slug: "home" }] })).not.toThrow();
+    expect(validateCreativeSiteContract({ pages: [{ id: "page-home", slug: "home" }] }).valid).toBe(false);
+  });
+
   it("rejects executable markup while preserving creative freedom", () => {
     const contract = base();
     (contract.pages[0]!.sections[0]!.visual as Record<string, unknown>)["css"] =
