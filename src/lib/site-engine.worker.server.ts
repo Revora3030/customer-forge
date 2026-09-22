@@ -262,7 +262,7 @@ async function runCanonicalFirstBuild(input: {
       buildAbort.abort("Generation lease renewal failed.");
       console.warn("[site-engine] lease renewal failed", error);
     });
-  }, Math.max(30_000, Math.floor((LEASE_SECONDS * 1000) / 3));
+  }, Math.max(30_000, Math.floor((LEASE_SECONDS * 1000) / 3)));
 
   try {
     const { authorCreativeSiteContract } = await import("@/lib/builder/creative-site-contract.server");
