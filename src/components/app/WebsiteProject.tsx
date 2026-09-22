@@ -98,9 +98,8 @@ export function WebsiteProject(props: Props) {
       </div>
 
       <p className="mt-2.5 text-[11.5px] text-muted-foreground">
-        Your website is built on its own layout ({variation.id}) — section order, hero style and
-        wording are generated for your business, so it never looks like another Revora client's
-        site.
+        Every part of your website — section order, hero style, colours and wording — is designed by
+        Revora's AI team for your business, so it never looks like another Revora client's site.
       </p>
     </section>
   );
