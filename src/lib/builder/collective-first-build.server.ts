@@ -493,6 +493,7 @@ async function refineCreativeWithCollective(input: {
   );
 
   const solCall = await callBestThinker({
+    json: true,
     purpose: "creative_direction",
     complexity: "high",
     organizationId: input.organizationId,
@@ -533,6 +534,7 @@ async function refineCreativeWithCollective(input: {
 
   let approvedFields: string[] | null = null;
   const terraCall = await callBestThinker({
+    json: true,
     purpose: "specialist_review",
     complexity: "medium",
     organizationId: input.organizationId,
@@ -625,6 +627,7 @@ export async function refineFirstBuildWithCollective(input: {
 
   /* -------------------------------- 1. Sol -------------------------------- */
   const solCall = await callBestThinker({
+    json: true,
     purpose: "content_strategy",
     complexity: "high",
     organizationId: input.organizationId,
@@ -686,6 +689,7 @@ export async function refineFirstBuildWithCollective(input: {
   let approvedFields: string[] | null = null;
   if (solProposal) {
     const terraCall = await callBestThinker({
+    json: true,
       purpose: "specialist_review",
       complexity: "medium",
       organizationId: input.organizationId,
@@ -754,6 +758,7 @@ export async function refineFirstBuildWithCollective(input: {
 
   /* -------------------------------- 3. Luna ------------------------------- */
   const lunaCall = await callBestThinker({
+    json: true,
     purpose: "metadata",
     complexity: "low",
     organizationId: input.organizationId,

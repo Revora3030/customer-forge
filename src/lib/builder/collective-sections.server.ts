@@ -174,6 +174,7 @@ export async function refineSectionWordingWithCollective(input: {
   const sheet = sectionSheet(input.sections);
 
   const solCall = await callBestThinker({
+    json: true,
     purpose: "content_strategy",
     complexity: "high",
     organizationId: input.organizationId,
@@ -219,6 +220,7 @@ export async function refineSectionWordingWithCollective(input: {
     };
 
   const terraCall = await callBestThinker({
+    json: true,
     purpose: "specialist_review",
     complexity: "medium",
     organizationId: input.organizationId,

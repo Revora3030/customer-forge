@@ -53,6 +53,7 @@ export async function proposePageArchitecture(input: {
   }));
 
   const sol = await callBestThinker({
+    json: true,
     purpose: "information_architecture",
     complexity: "high",
     organizationId: input.organizationId,
@@ -102,6 +103,7 @@ export async function proposePageArchitecture(input: {
     };
 
   const terra = await callBestThinker({
+    json: true,
     purpose: "plan_review",
     complexity: "medium",
     organizationId: input.organizationId,

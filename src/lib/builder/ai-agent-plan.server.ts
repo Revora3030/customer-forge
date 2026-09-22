@@ -237,6 +237,7 @@ export async function planWebsiteChangesWithAi(input: {
     .join("\n");
 
   const direction = await callBestThinker({
+    json: true,
     purpose: "creative_direction",
     complexity: "high",
     system,
@@ -265,6 +266,7 @@ export async function planWebsiteChangesWithAi(input: {
   let notes = textList(proposal["notes"], 6);
 
   const review = await callBestThinker({
+    json: true,
     purpose: "adversarial_review",
     complexity: "high",
     system: [
