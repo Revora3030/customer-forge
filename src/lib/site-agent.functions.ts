@@ -662,8 +662,7 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 const ANY_ID = { has: () => true } as unknown as Set<string>;
 
 export async function applyWebsiteActions(supabase: SupabaseLike, userId: string, data: ApplyInput) {
-  {
-    const orgId = data.organizationId;
+  const orgId = data.organizationId;
     const { noteStage: noteApplyStage } = await import("@/lib/builder/progress.server");
     const applyRunId = crypto.randomUUID();
     noteApplyStage(orgId, applyRunId, "checking the plan is safe");
