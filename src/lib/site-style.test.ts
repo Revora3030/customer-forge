@@ -1,6 +1,7 @@
 /**
- * Builder styling must be expressive but never injectable: colours, URLs and
- * every option are validated against closed lists before becoming CSS.
+ * Builder styling must be expressive but never injectable: legacy semantic styles
+ * stay validated, while AI-authored CSS uses an open property surface behind
+ * strict property/value sanitisation.
  */
 import { describe, expect, it } from "vitest";
 import {
@@ -111,6 +112,17 @@ describe("blockCss", () => {
 
 
 describe("AI-authored visual capabilities", () => {
+  it("accepts a custom CSS property when its name and value are safe", () => {
+    const css = aiAuthoredCss({
+      ai_visual: {
+        "--rv-orbit-angle": "18deg",
+        maskImage: "linear-gradient(#000,#000)",
+      },
+    });
+    expect(css["--rv-orbit-angle"]).toBe("18deg");
+    expect(css.maskImage).toBe("linear-gradient(#000,#000)");
+  });
+
   it("preserves advanced safe visual values without a preset vocabulary", () => {
     const css = aiAuthoredCss({
       ai_visual: {
