@@ -344,6 +344,16 @@ function TaskBody({
       ) : null}
       {task.notice ? <p className="text-[12.5px]">{task.notice}</p> : null}
 
+      {task.requirements?.length ? (
+        <ul className="space-y-0.5 text-[11.5px] text-muted-foreground" aria-label="Requested result coverage">
+          {task.requirements.map((requirement) => (
+            <li key={requirement.label}>
+              {requirement.covered ? "✓" : "Not covered:"} {requirement.label}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+
       {task.details?.length ? (
         <details>
           <summary className="cursor-pointer text-[12px] text-muted-foreground">Details</summary>
