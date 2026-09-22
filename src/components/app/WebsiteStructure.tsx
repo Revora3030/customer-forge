@@ -6,9 +6,7 @@ import {
   EyeOff,
   GripVertical,
   Layers,
-  Loader2,
   Plus,
-  RefreshCw,
   Search,
   Sparkle,
   Target,
@@ -23,7 +21,6 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
   useAddSection,
-  useBuildWebsiteStructure,
   useDeleteSection,
   useMoveSection,
   useReorderComponents,
