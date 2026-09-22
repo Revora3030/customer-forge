@@ -230,7 +230,8 @@ export function SiteNav({ site, current }: { site: NonNullable<PublicSite>; curr
   const [open, setOpen] = useState(false);
   const seen = new Set<string>();
   const pages = (site.nav ?? [])
-    .filter((p) => p.kind !== "thanks" && p.slug !== "home")
+    // Articles are browsed from the articles hub, not the top menu.
+    .filter((p) => p.kind !== "thanks" && p.kind !== "post" && p.slug !== "home")
     .map((p) => ({ slug: p.slug, title: safeText(p.title) }))
     .filter((p): p is { slug: string; title: string } => {
       if (!p.title || !p.slug || seen.has(p.slug)) return false;
