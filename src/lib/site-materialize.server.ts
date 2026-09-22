@@ -41,7 +41,9 @@ import {
 import {
   compileAiDesignContract,
   requireAiDesignContract,
+  type PageArchitecture,
 } from "@/lib/builder/creative-authority";
+import { deriveCandidateArchitecture } from "@/lib/builder/ai-page-architecture";
 import { assertMediaIntegrity } from "@/lib/builder/media-integrity";
 
 type Db = SupabaseClient;
@@ -110,6 +112,12 @@ export type MaterializeInput = {
    * container fails the build instead of shipping a blank box.
    */
   designContract?: AiDesignContract | null;
+  /**
+   * Lets the AI author the page architecture. It receives the architecture the
+   * renderer can fill and returns its own page set, section selection and
+   * order. Returning null keeps the renderer's candidate — nothing is invented.
+   */
+  architect?: (candidate: PageArchitecture[]) => Promise<PageArchitecture[] | null>;
 };
 
 type Component = {
@@ -775,7 +783,13 @@ export async function materializeSiteContent(
   // otherwise the build fails rather than publishing a blank box.
   let tree = planSiteContent(input);
   let designContract: AiDesignContract | null = input.designContract ?? null;
-  if (!designContract && input.fingerprint && input.creativeBrief)
+  if (!designContract && input.fingerprint && input.creativeBrief) {
+    const primaryAction = clean(input.copy.primaryCta) ?? "Get in touch";
+    // The AI authors the page set, the section selection and the order. The
+    // renderer's own layout is only the inventory of fillable material.
+    const candidate = deriveCandidateArchitecture(tree, primaryAction);
+    const authored = input.architect ? await input.architect(candidate) : null;
+    const architecture = authored && authored.length > 0 ? authored : candidate;
     designContract = requireAiDesignContract({
       attempt: compileAiDesignContract({
         businessName: input.businessName,
@@ -784,19 +798,14 @@ export async function materializeSiteContent(
         directedBy: input.directedBy ?? "gpt-5.6-sol",
         reviewedBy: input.reviewedBy ?? null,
         conversionGoal: input.conversionGoal ?? "enquiries",
-        navigationItems: tree.map((page) => page.title),
-        primaryAction: clean(input.copy.primaryCta) ?? "Get in touch",
+        navigationItems: architecture.map((page) => page.title),
+        primaryAction,
         secondaryAction: clean(input.copy.secondaryCta),
-        architecture: tree.map((page) => ({
-          slug: page.slug,
-          title: page.title,
-          purpose: page.kind,
-          primaryAction: clean(input.copy.primaryCta) ?? "Get in touch",
-          sections: page.sections.map((section) => ({ role: section.kind })),
-        })),
+        architecture,
       }),
       attempts: 1,
     });
+  }
   if (designContract) {
     const applied = applyDesignContract(tree as unknown as MaterialPage[], designContract);
     assertMediaIntegrity(applied.pages, designContract);

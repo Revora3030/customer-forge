@@ -10,6 +10,7 @@
  *  - customer builds use Revora's native engine and never dispatch content to
  *    an outside model
  */
+import type { PageArchitectureOutcome } from "@/lib/builder/ai-page-architecture.server";
 import { nextPublishState } from "@/lib/publish-state";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -580,6 +581,10 @@ async function runJob(
     creative,
   });
   generatedAssets = starterImages.assets;
+  const architectBusinessName = org.data.name ?? "";
+  const architectIndustry = org.data.industry ?? null;
+  const architectGoal = org.data.conversion_goal ?? "enquiries";
+  const architectureRef: { current: PageArchitectureOutcome | null } = { current: null };
   const built = await materializeSiteContent(db, orgId, {
     businessName: org.data.name ?? "",
     copy,
@@ -605,7 +610,41 @@ async function runJob(
       refined.passes.filter((pass) => pass.used && pass.model)[1]?.model ?? null,
     conversionGoal: org.data.conversion_goal ?? "enquiries",
     replaceExisting: freshReplace,
+    architect: async (candidate) => {
+      const { proposePageArchitecture } = await import(
+        "@/lib/builder/ai-page-architecture.server"
+      );
+      const outcome = await proposePageArchitecture({
+        organizationId: orgId,
+        businessName: architectBusinessName,
+        industry: architectIndustry,
+        conversionGoal: architectGoal,
+        candidate,
+      });
+      architectureRef.current = outcome;
+      return outcome.architecture;
+    },
   });
+  await db.from("ai_generations").insert({
+    organization_id: orgId,
+    job_id: job.id,
+    kind: "ai_page_architecture",
+    model: architectureRef.current?.models.join("+") || "revora-native",
+    instruction: null,
+    result: (architectureRef.current
+      ? {
+          authored: architectureRef.current.architecture !== null,
+          skipped: architectureRef.current.skipped,
+          rejected: architectureRef.current.rejected,
+          pages: architectureRef.current.architecture?.map((page) => ({
+            slug: page.slug,
+            sections: page.sections.map((section) => section.role),
+          })) ?? null,
+          costMicrocents: architectureRef.current.costMicrocents,
+        }
+      : { authored: false, skipped: "the page plan was not requested for this build" }) as unknown as never,
+    created_by: job.created_by,
+  } as never);
   const attachedEvidence = {
     ...starterImages.evidence,
     attached: built.skipped ? 0 : starterImages.assets.length,
