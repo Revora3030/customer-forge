@@ -108,7 +108,7 @@ function requestsPictureWork(instruction: string): boolean {
  * come from the authenticated image pipeline. It also creates missing media
  * components, so an image-free first build can be repaired without a template.
  */
-function pictureActionsFor(context: import("@/lib/site-agent.server").AgentContext, instruction: string): AgentAction[] {
+export function pictureActionsFor(context: import("@/lib/site-agent.server").AgentContext, instruction: string): AgentAction[] {
   const all = /\b(all|every|whole|entire)\b/i.test(instruction);
   const wantsHero = /\b(hero|top|banner)\b/i.test(instruction);
   const wantsHome = /\b(home|homepage|front page)\b/i.test(instruction) || wantsHero;
