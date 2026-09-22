@@ -764,11 +764,26 @@ export function itemsCss(style: BlockStyle): React.CSSProperties {
   return css;
 }
 
-export function buttonCss(style: BlockStyle): React.CSSProperties {
+/**
+ * Button appearance. A button label is the most costly thing on a page to get
+ * wrong, so its colour is paired against the fill it sits on (solid buttons) or
+ * the surface behind it (outline, ghost and link buttons). A solid button with a
+ * chosen fill but no chosen label colour gets a readable label derived from the
+ * fill instead of inheriting a token that may clash.
+ */
+export function buttonCss(style: BlockStyle, surface?: string | null): React.CSSProperties {
   const css: React.CSSProperties = {};
-  if (style.buttonTextColor) css.color = style.buttonTextColor;
-  if (style.buttonBgColor && (style.buttonStyle ?? "solid") === "solid")
-    css.backgroundColor = style.buttonBgColor;
+  const solid = (style.buttonStyle ?? "solid") === "solid";
+  const behind = solid ? (style.buttonBgColor ?? style.bgColor ?? surface) : (style.bgColor ?? surface);
+
+  if (style.buttonTextColor) {
+    css.color = behind
+      ? readableOn(style.buttonTextColor, behind, { large: true })
+      : style.buttonTextColor;
+  } else if (solid && style.buttonBgColor) {
+    css.color = readableOn("#ffffff", style.buttonBgColor, { large: true });
+  }
+  if (style.buttonBgColor && solid) css.backgroundColor = style.buttonBgColor;
   if (style.buttonBgColor && style.buttonStyle === "outline") css.borderColor = style.buttonBgColor;
   return css;
 }
