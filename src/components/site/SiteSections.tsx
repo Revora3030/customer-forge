@@ -40,6 +40,17 @@ type Site = NonNullable<PublicSite>;
 type Section = NonNullable<Site["content"]>["sections"][number];
 type Component = NonNullable<Section["components"]>[number];
 
+/**
+ * The colour a block sits on when it sets no background of its own — the
+ * client's chosen surface colour. Passed to the style layer so AI text colours
+ * are measured against the page they actually land on.
+ */
+export function siteSurface(site: Site): string | null {
+  const profile = (site.profile ?? null) as { secondary_color?: string | null } | null;
+  const surface = profile?.secondary_color;
+  return typeof surface === "string" && surface.trim() ? surface.trim() : null;
+}
+
 export function siteDesignFingerprint(site: Site): DesignFingerprint {
   const settings = (site as { settings?: { generation?: unknown } | null }).settings ?? null;
   const profile = (site.profile ?? null) as { industry?: string | null; city?: string | null } | null;
