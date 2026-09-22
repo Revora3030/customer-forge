@@ -101,6 +101,19 @@ describe("building a page and filling it in one plan", () => {
     expect(actions).toEqual([]);
   });
 
+  it("keeps only exact supported site fonts", () => {
+    const valid = readActions([
+      { type: "set_theme", patch: { heading_font: "Lora", body_font: "Manrope" } },
+    ], known);
+    expect(valid).toEqual([
+      expect.objectContaining({ type: "set_theme", patch: { font_preference: "Lora|Manrope" } }),
+    ]);
+    const unsupported = readActions([
+      { type: "set_theme", patch: { font_preference: "Bodoni editorial headings with Manrope body" } },
+    ], known);
+    expect(unsupported).toEqual([]);
+  });
+
   it("accepts the natural style names and units the models actually write", () => {
     const actions = readActions([
       {

@@ -7,6 +7,7 @@
  */
 import {
   blockCss,
+  itemsCss,
   buttonClasses,
   buttonCss,
   readBlockStyle,
@@ -172,12 +173,17 @@ function componentImageUrl(component: Component): string | null {
 }
 
 function SectionMedia({ site, section }: { site: Site; section: Section }) {
+  const sectionStyle = readBlockStyle(section.settings);
+  const sectionVisual = readSectionVisual(section.settings);
   const items = section.components.filter(
     (component) => IMAGE_COMPONENT_KINDS.has(component.kind) && componentImageUrl(component),
   );
   if (!items.length) return null;
   return (
-    <div className="rv-generated-media mx-auto grid max-w-6xl gap-4 px-4 pb-10 md:grid-cols-2">
+    <div
+      className={`rv-generated-media rv-media-position-${sectionVisual.image_position ?? "center"} rv-media-ratio-${sectionVisual.image_ratio?.replace(":", "-") ?? "auto"} mx-auto grid max-w-6xl gap-4 px-4 pb-10 ${sectionStyle.columns === null ? "md:grid-cols-2" : ""}`}
+      style={itemsCss(sectionStyle)}
+    >
       {items.slice(0, 4).map((component) => {
         const visual = readComponentVisual((component as Component & { settings?: unknown }).settings);
         const style = readBlockStyle((component as Component & { settings?: unknown }).settings);
@@ -322,6 +328,8 @@ export function SiteSection({ site, section }: { site: Site; section: Section })
       data-rv-custom-text={customText || undefined}
       data-rv-custom-font={customFont || undefined}
       data-rv-custom-spacing={customSpacing || undefined}
+      data-rv-columns={style.columns ?? undefined}
+      data-rv-gap={style.gap ?? undefined}
     >
       {!(["hero", "service_detail", "cta", "intro", "offer", "guarantee", "area", "policy", "lead_magnet"] as string[]).includes(section.kind)
         ? <SectionMedia site={site} section={section} />
