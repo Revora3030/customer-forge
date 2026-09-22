@@ -634,6 +634,8 @@ const UNSAFE_AI_CSS_PROPERTIES = new Set([
   "behavior",
   "-moz-binding",
   "binding",
+  "animation",
+  "transition",
 ]);
 
 function safeAiCssProperty(rawKey: string): string | null {
