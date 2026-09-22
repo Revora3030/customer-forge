@@ -173,7 +173,7 @@ export async function authorCreativeSiteContract(input: {
       };
     }
 
-    const mergedContract =
+    const mergedContract: CreativeSiteContract =
       contract === null ? chunk : mergeCreativeSiteContracts(contract, chunk);
     contract = mergedContract;
     continuation = {
