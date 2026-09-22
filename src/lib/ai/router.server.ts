@@ -56,7 +56,7 @@ import {
   type FreeProviderName,
 } from "@/lib/ai/free";
 import { pickDiscoveredModels, refreshFreeModels } from "@/lib/ai/free-models.server";
-import { qualityFirstOrder } from "@/lib/ai/orchestration/order";
+import { preserveGroupOrder, qualityFirstOrder } from "@/lib/ai/orchestration/order";
 import { cloudflareAdapter } from "@/lib/ai/providers/cloudflare";
 import { googleAdapter } from "@/lib/ai/providers/google";
 import { groqAdapter } from "@/lib/ai/providers/groq";
