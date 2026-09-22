@@ -420,6 +420,19 @@ export type AiOrchestration = {
   >;
   outcomes: import("@/lib/ai/orchestration/telemetry").CallOutcome[];
   probe: { version: number; capabilities: string[] };
+  /**
+   * The free stand-in squads that keep building when the paid lanes are spent,
+   * plus the most recent hand-overs. Nothing here is a capability claim: a
+   * member is only listed because a real capability check passed.
+   */
+  hallOfFame: {
+    squads: {
+      purpose: string;
+      capability: string;
+      members: { provider: string; model: string; ready: boolean }[];
+    }[];
+    runs: import("@/lib/ai/hall-of-fame.server").HallOfFameRun[];
+  };
 };
 
 /**
@@ -488,6 +501,29 @@ export const getAiOrchestration = createServerFn({ method: "GET" })
     });
     const models = (snapshot?.models ?? []).map(shape);
 
+    const { hallOfFameSquad, recentHallOfFameRuns } = await import("@/lib/ai/hall-of-fame.server");
+    const squadPurposes = [
+      "creative_direction",
+      "content_strategy",
+      "adversarial_review",
+      "page_planning",
+      "metadata",
+    ] as const;
+    const squads = await Promise.all(
+      squadPurposes.map(async (purpose) => {
+        const built = await hallOfFameSquad(purpose);
+        return {
+          purpose,
+          capability: built.capability,
+          members: built.squad.map((member) => ({
+            provider: member.provider,
+            model: member.model,
+            ready: member.healthy && (member.remainingToday ?? 1) > 0,
+          })),
+        };
+      }),
+    );
+
     return {
       at: snapshot?.at ?? null,
       totals: {
@@ -505,5 +541,6 @@ export const getAiOrchestration = createServerFn({ method: "GET" })
       participation,
       outcomes: recentCallOutcomes(25),
       probe: { version: PROBE_VERSION, capabilities: probeableCapabilities() },
+      hallOfFame: { squads, runs: recentHallOfFameRuns(15) },
     };
   });

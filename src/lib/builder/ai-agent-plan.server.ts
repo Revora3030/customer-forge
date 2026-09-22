@@ -12,7 +12,7 @@
  * ships a stock layout or filler wording.
  */
 
-import { callCollective } from "@/lib/ai/luna.server";
+import { callBestThinker } from "@/lib/ai/hall-of-fame.server";
 import type { AgentContext } from "@/lib/site-agent.server";
 import { MAX_ACTIONS } from "@/lib/site-agent";
 import { SITE_HEADING_FONTS } from "@/lib/site-theme";
@@ -236,7 +236,8 @@ export async function planWebsiteChangesWithAi(input: {
     .filter(Boolean)
     .join("\n");
 
-  const direction = await callCollective({
+  const direction = await callBestThinker({
+    json: true,
     purpose: "creative_direction",
     complexity: "high",
     system,
@@ -264,7 +265,8 @@ export async function planWebsiteChangesWithAi(input: {
   let reviewModel: string | null = null;
   let notes = textList(proposal["notes"], 6);
 
-  const review = await callCollective({
+  const review = await callBestThinker({
+    json: true,
     purpose: "adversarial_review",
     complexity: "high",
     system: [

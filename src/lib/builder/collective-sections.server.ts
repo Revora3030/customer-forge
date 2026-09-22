@@ -11,7 +11,7 @@
  * When the paid lane is off, out of budget, unavailable, refused, or answers in
  * the wrong shape, the deterministic wording survives untouched.
  */
-import { callCollective } from "@/lib/ai/luna.server";
+import { callBestThinker } from "@/lib/ai/hall-of-fame.server";
 import type { DnaFacts } from "@/lib/business-dna";
 import { parseRefinement, parseReview, screenText } from "@/lib/builder/collective-copy";
 import type { CollectivePassRecord } from "@/lib/builder/collective-first-build.server";
@@ -173,7 +173,8 @@ export async function refineSectionWordingWithCollective(input: {
   const facts = JSON.stringify(input.facts, null, 2);
   const sheet = sectionSheet(input.sections);
 
-  const solCall = await callCollective({
+  const solCall = await callBestThinker({
+    json: true,
     purpose: "content_strategy",
     complexity: "high",
     organizationId: input.organizationId,
@@ -204,7 +205,7 @@ export async function refineSectionWordingWithCollective(input: {
   }
   proposal = parseRefinement(solCall.text);
   passes.push(
-    record(solCall.tier, "content_strategy", {
+    record(solCall.tier ?? "hall_of_fame", "content_strategy", {
       model: solCall.model,
       used: proposal !== null,
       costMicrocents: solCall.costMicrocents,
@@ -218,7 +219,8 @@ export async function refineSectionWordingWithCollective(input: {
       totalCostMicrocents: passes.reduce((sum, pass) => sum + pass.costMicrocents, 0),
     };
 
-  const terraCall = await callCollective({
+  const terraCall = await callBestThinker({
+    json: true,
     purpose: "specialist_review",
     complexity: "medium",
     organizationId: input.organizationId,
@@ -250,7 +252,7 @@ export async function refineSectionWordingWithCollective(input: {
     const parsed = parseReview(terraCall.text);
     approvedIds = parsed ? parsed.approvedFields : [];
     passes.push(
-      record(terraCall.tier, "specialist_review", {
+      record(terraCall.tier ?? "hall_of_fame", "specialist_review", {
         model: terraCall.model,
         used: parsed !== null,
         costMicrocents: terraCall.costMicrocents,

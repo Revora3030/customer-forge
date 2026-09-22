@@ -12,7 +12,7 @@
  * architecture the renderer offered — no page is invented and nothing breaks.
  */
 
-import { callCollective } from "@/lib/ai/luna.server";
+import { callBestThinker } from "@/lib/ai/hall-of-fame.server";
 import type { PageArchitecture } from "@/lib/builder/creative-authority";
 import {
   normalizePageArchitecture,
@@ -52,7 +52,8 @@ export async function proposePageArchitecture(input: {
     availableSections: page.sections.map((section) => section.role),
   }));
 
-  const sol = await callCollective({
+  const sol = await callBestThinker({
+    json: true,
     purpose: "information_architecture",
     complexity: "high",
     organizationId: input.organizationId,
@@ -101,7 +102,8 @@ export async function proposePageArchitecture(input: {
       costMicrocents: sol.costMicrocents,
     };
 
-  const terra = await callCollective({
+  const terra = await callBestThinker({
+    json: true,
     purpose: "plan_review",
     complexity: "medium",
     organizationId: input.organizationId,
