@@ -826,7 +826,7 @@ function declarations(css: React.CSSProperties): string {
  * visibility. Every value came from the validated model above, and the
  * selector is a checked id, so nothing here can carry injected CSS.
  */
-export function blockRules(id: string, settings: unknown): string {
+export function blockRules(id: string, settings: unknown, surface?: string | null): string {
   if (!ID.test(id)) return "";
   const rules: string[] = [];
   const root = rootLayer(settings);
@@ -843,7 +843,13 @@ export function blockRules(id: string, settings: unknown): string {
         only.overlay = merged.overlay;
       }
     }
-    const body = [declarations(blockCss(only)), declarations(itemsCss(only))]
+    // Readability pairing needs the background this device layer ends up with,
+    // not just the one it sets itself, so a mobile-only text colour is still
+    // measured against the desktop background it inherits.
+    const body = [
+      declarations(blockCss({ ...only, bgColor: only.bgColor ?? merged.bgColor }, surface)),
+      declarations(itemsCss(only)),
+    ]
       .filter(Boolean)
       .join(";");
     const parts: string[] = [];
@@ -857,9 +863,12 @@ export function blockRules(id: string, settings: unknown): string {
 }
 
 /** One stylesheet for every styled block on a published page. */
-export function styleSheet(blocks: { id: string; settings: unknown }[]): string {
+export function styleSheet(
+  blocks: { id: string; settings: unknown }[],
+  surface?: string | null,
+): string {
   return blocks
-    .map((block) => blockRules(block.id, block.settings))
+    .map((block) => blockRules(block.id, block.settings, surface))
     .filter(Boolean)
     .join("\n");
 }
