@@ -34,6 +34,7 @@ import { useBuildProgress } from "@/lib/builder/progress.hooks";
 import { BUILDER_PRIMARY_ACTIONS, BUILDER_QUICK_ACTIONS } from "@/lib/builder-modes";
 import { QUEUE_LABELS, timelineFor, type QueueTask } from "@/lib/builder-queue";
 import { onAssistantPrompt } from "@/lib/assistant-bridge";
+import { selectionPrefix } from "@/lib/builder/preview-bridge";
 import { INSTRUCTION_LIMIT, type BuilderRequests } from "@/lib/builder-requests.hooks";
 import { cn } from "@/lib/utils";
 
@@ -143,7 +144,13 @@ export function BuilderAssistant({
               </Message>
               <Message from="assistant">
                 <MessageContent className="w-full">
-                  <TaskBody task={task} requests={requests} organizationId={organizationId} />
+                  <TaskBody
+                    task={task}
+                    requests={requests}
+                    organizationId={organizationId}
+                    onAnswer={setAnswering}
+                    {...(onOpenHistory ? { onOpenHistory } : {})}
+                  />
                 </MessageContent>
               </Message>
             </div>
@@ -178,6 +185,29 @@ export function BuilderAssistant({
             {moreOpen ? "Fewer ideas" : "More ideas"}
           </button>
         </div>
+
+        {selection || answering ? (
+          <div className="mb-2 flex flex-wrap gap-1.5">
+            {selection ? (
+              <button
+                type="button"
+                onClick={() => onClearSelection?.()}
+                className="cursor-pointer rounded-full border border-primary/50 bg-primary/10 px-3 py-1 text-[12px] text-foreground"
+              >
+                Editing: {selection.label ?? selection.kind ?? "the block you picked"} ✕
+              </button>
+            ) : null}
+            {answering ? (
+              <button
+                type="button"
+                onClick={() => setAnswering(null)}
+                className="cursor-pointer rounded-full border border-border px-3 py-1 text-[12px] text-muted-foreground"
+              >
+                Answering: {answering} ✕
+              </button>
+            ) : null}
+          </div>
+        ) : null}
 
         <PromptInput
           onSubmit={(_message, event) => {
@@ -238,10 +268,15 @@ function TaskBody({
   task,
   requests,
   organizationId,
+  onAnswer,
+  onOpenHistory,
 }: {
   task: QueueTask;
   requests: BuilderRequests;
   organizationId: string | null | undefined;
+  /** Picks one of Revora's questions to answer with the next message. */
+  onAnswer: (question: string) => void;
+  onOpenHistory?: () => void;
 }) {
   const working = task.state === "queued" || task.state === "planning" || task.state === "building";
   const timeline = timelineFor(task);
@@ -317,7 +352,15 @@ function TaskBody({
       {task.questions.length ? (
         <ul className="space-y-1 text-[12px]">
           {task.questions.map((question) => (
-            <li key={question}>{question}</li>
+            <li key={question}>
+              <button
+                type="button"
+                onClick={() => onAnswer(question)}
+                className="cursor-pointer text-left underline decoration-dotted underline-offset-2 hover:text-primary"
+              >
+                {question}
+              </button>
+            </li>
           ))}
         </ul>
       ) : null}
@@ -409,6 +452,11 @@ function TaskBody({
             onClick={() => requests.apply(task)}
           >
             Approve &amp; apply
+          </Button>
+        ) : null}
+        {task.state === "complete" && (task.applied ?? 0) > 0 && onOpenHistory ? (
+          <Button size="sm" variant="outline" onClick={onOpenHistory}>
+            See what changed
           </Button>
         ) : null}
         {task.state === "failed" || task.retryable ? (
