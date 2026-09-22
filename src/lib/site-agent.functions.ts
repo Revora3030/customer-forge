@@ -191,7 +191,6 @@ export async function loadAgentContext(
   supabase: SupabaseLike,
   organizationId: string,
 ): Promise<AgentContext> {
-  const { SECTION_LIBRARY, PAGE_LIBRARY } = await import("@/lib/website-content");
   const [site, org, profile, services, reviews, media] = await Promise.all([
     loadSite(supabase, organizationId),
     supabase.from("organizations").select("name, industry").eq("id", organizationId).maybeSingle(),
@@ -267,9 +266,10 @@ export async function loadAgentContext(
           })),
         })),
     })),
-    sectionKinds: SECTION_LIBRARY.map((s) => s.kind),
-    pageKinds: PAGE_LIBRARY.map((p2) => p2.kind),
-    componentKinds: ["feature", "faq", "step", "stat", "card", "link", "button", "quote", "list_item", "image"],
+    // The canonical AI planner does not receive a closed creative vocabulary.
+    sectionKinds: [],
+    pageKinds: [],
+    componentKinds: [],
   };
 }
 
