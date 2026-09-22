@@ -2417,6 +2417,30 @@ export function describeActions(
             action,
           };
 
+        case "set_ai_visual":
+          return {
+            key,
+            title: "Author an AI-defined visual treatment",
+            where: locate(index, { sectionId: action.sectionId }),
+            after: Object.entries(action.patch)
+              .map(([name, value]) => `${name}: ${String(value)}`)
+              .join(" · "),
+            destructive: false,
+            action,
+          };
+
+        case "set_ai_responsive":
+          return {
+            key,
+            title: `Author AI-defined responsive styling at ${action.width}px`,
+            where: locate(index, { sectionId: action.sectionId }),
+            after: Object.entries(action.patch)
+              .map(([name, value]) => `${name}: ${String(value)}`)
+              .join(" · "),
+            destructive: false,
+            action,
+          };
+
         case "set_section_visual":
           return {
             key,
