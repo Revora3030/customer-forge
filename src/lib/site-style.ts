@@ -730,6 +730,22 @@ export function blockCss(style: BlockStyle, surface?: string | null): React.CSSP
   return css;
 }
 
+/**
+ * The AI's text colour, kept exactly as chosen when it is readable on the
+ * surface behind it, and nudged along the same hue when it is not.
+ *
+ * Text sitting on a background image is left alone: the scrim system handles
+ * legibility there, and a photo has no single measurable colour.
+ */
+function readableTextColor(style: BlockStyle, surface?: string | null): string {
+  const text = style.textColor ?? "";
+  if (!text || style.bgImage) return text;
+  const background = style.bgColor ?? surface;
+  if (!background) return text;
+  const large = (style.size ?? 16) >= 24 || (style.weight ?? 400) >= 700;
+  return readableOn(text, background, { large });
+}
+
 /** The URL is validated first, then encoded so quotes cannot break out. */
 function backgroundImageCss(style: BlockStyle): string {
   const url = `url("${encodeURI(style.bgImage ?? "").replace(/["\\]/g, "")}")`;
