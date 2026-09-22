@@ -157,7 +157,7 @@ export const applyStoryPass = createServerFn({ method: "POST" })
       linksWritten,
       findings: [],
       summary: run.plan.summary,
-      restorePointId: String((run.applied as { snapshotId?: string | null }).snapshotId ?? ""),
+      restorePointId: String((run.applied as { snapshotId?: string | null }).snapshotId ?? "") || null,
     };
   });
 
