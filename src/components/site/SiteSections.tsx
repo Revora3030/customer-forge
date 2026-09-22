@@ -189,7 +189,7 @@ function SectionMedia({ site, section }: { site: Site; section: Section }) {
         if (!src) return null;
         const overlayClass = visual.overlay ? "rv-overlay-" + visual.overlay : "";
         return (
-          <figure key={component.id} data-rvb={component.id} style={blockCss(style, siteSurface(site))} className={`rv-media-frame ${ratioClass(visual.aspect_ratio)} ${overlayClass} overflow-hidden`}>
+          <figure key={component.id} data-rvb={component.id} data-rv-ai-component-id={component.id.replace(/[^a-zA-Z0-9_-]/g, "-")} style={{ ...blockCss(style, siteSurface(site)), ...aiAuthoredCss((component as Component & { settings?: unknown }).settings) }} className={`rv-media-frame ${ratioClass(visual.aspect_ratio)} ${overlayClass} overflow-hidden`}>
             <img
               src={src}
               alt={visual.alt || component.label || `${site.org.name} work sample`}
@@ -219,7 +219,7 @@ function SectionFeatureMedia({ site, section, className = "" }: { site: Site; se
   const src = componentImageUrl(component);
   if (!src) return null;
   return (
-    <figure data-rvb={component.id} style={blockCss(style, siteSurface(site))} className={`rv-feature-media overflow-hidden ${className}`}>
+    <figure data-rvb={component.id} data-rv-ai-component-id={component.id.replace(/[^a-zA-Z0-9_-]/g, "-")} style={blockCss(style, siteSurface(site))} className={`rv-feature-media overflow-hidden ${className}`}>
       <img
         src={src}
         alt={visual.alt || component.label || `${site.org.name} supporting image`}
@@ -249,11 +249,11 @@ function SectionButtons({ site, components }: { site: Site; components: Componen
         return (
           <Button key={button.id} asChild variant={hasOverride ? "ghost" : index === 0 ? "signal" : "outline"} size={hasOverride ? "sm" : "lg"}>
             {internal ? (
-              <SitePageLink slug={site.org.slug} page={href.slice(1)} className={directClass} style={directStyle} blockId={button.id}>
+              <SitePageLink slug={site.org.slug} page={href.slice(1)} className={directClass} style={directStyle} blockId={button.id} data-rv-ai-component-id={button.id.replace(/[^a-zA-Z0-9_-]/g, "-")}>
                 {button.label}
               </SitePageLink>
             ) : (
-              <a href={href} className={directClass} style={directStyle} data-rvb={button.id}>{button.label}</a>
+              <a href={href} className={directClass} style={directStyle} data-rvb={button.id} data-rv-ai-component-id={button.id.replace(/[^a-zA-Z0-9_-]/g, "-")}>{button.label}</a>
             )}
           </Button>
         );
@@ -297,6 +297,17 @@ export function SiteSection({ site, section }: { site: Site; section: Section })
   const aiId = section.id.replace(/[^a-zA-Z0-9_-]/g, "-");
   const aiSelector = `[data-rv-ai-id="${aiId}"]`;
   const aiResponsiveCss = aiAuthoredResponsiveCss(section.settings, aiSelector);
+  const aiComponentResponsiveCss = section.components
+    .map((component) => {
+      const componentId = component.id.replace(/[^a-zA-Z0-9_-]/g, "-");
+      return aiAuthoredResponsiveCss(
+        (component as Component & { settings?: unknown }).settings,
+        `[data-rv-ai-component-id="${componentId}"]`,
+      );
+    })
+    .filter(Boolean)
+    .join("");
+
   const customBackground = Boolean(style.bgColor || style.bgImage);
   const customText = Boolean(style.textColor);
   const customFont = Boolean(style.font);
@@ -343,7 +354,7 @@ export function SiteSection({ site, section }: { site: Site; section: Section })
       data-rv-gap={style.gap ?? undefined}
       data-rv-ai-id={aiId}
     >
-      {aiResponsiveCss ? <style>{aiResponsiveCss}</style> : null}
+      {aiResponsiveCss || aiComponentResponsiveCss ? <style>{aiResponsiveCss}{aiComponentResponsiveCss}</style> : null}
       {!(["hero", "service_detail", "cta", "intro", "offer", "guarantee", "area", "policy", "lead_magnet"] as string[]).includes(section.kind)
         ? <SectionMedia site={site} section={section} />
         : null}
@@ -1038,7 +1049,8 @@ function SiteSectionBody({ site, section }: { site: Site; section: Section }) {
                     key={component.id}
                     data-rvb={component.id}
                     className="rounded-2xl border border-border/70 bg-card p-5"
-                    style={blockCss(style, siteSurface(site))}
+                    style={{ ...blockCss(style, siteSurface(site)), ...aiAuthoredCss((component as Component & { settings?: unknown }).settings) }}
+                    data-rv-ai-component-id={component.id.replace(/[^a-zA-Z0-9_-]/g, "-")}
                   >
                     {src ? (
                       <img
