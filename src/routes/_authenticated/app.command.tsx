@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
-import { LoadingRows } from "@/components/app/Bits";
+import { LoadingRows, PageHead } from "@/components/app/Bits";
 import { GrowthCommandCenter } from "@/components/app/GrowthCommandCenter";
 import { SiteAuditor } from "@/components/app/SiteAuditor";
 import { IntakeHub } from "@/components/app/IntakeHub";
@@ -309,15 +309,12 @@ function CommandCenterPage() {
   };
 
   return (
-    <div className="space-y-6">
-      <div>
-        <p className="eyebrow">Revora AI</p>
-        <h1 className="mt-1 font-display text-[24px] font-semibold">Growth Command Center</h1>
-        <p className="mt-1 max-w-2xl text-[13px] text-muted-foreground">
-          One place to inspect, improve, connect and repair your entire website and business system.
-          Every finding below is based on what is actually saved in your workspace.
-        </p>
-      </div>
+    <div className="product-page">
+      <PageHead
+        eyebrow="Revora AI"
+        title="What should we improve?"
+        purpose="Choose an outcome. Revora checks what is saved, recommends the next move, and keeps every change reversible."
+      />
 
       <GrowthCommandCenter
         input={input}
