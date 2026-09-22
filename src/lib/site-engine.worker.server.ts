@@ -13,6 +13,7 @@
 import { nextPublishState } from "@/lib/publish-state";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { FirstBuildImageAsset } from "@/lib/builder/first-build-images.types";
 
 const QUEUE_ID = "site_engine";
 const LEASE_SECONDS = 180;
@@ -222,6 +223,44 @@ async function runCanonicalFirstBuild(input: {
     const { authorCreativeSiteContract } = await import("@/lib/builder/creative-site-contract.server");
     const { materializeSiteContent } = await import("@/lib/site-materialize.server");
 
+    // Resolve tenant-owned media before Sol authors the contract. The model only
+    // receives verified IDs/paths, so required media references can be materialized
+    // deterministically without inventing assets.
+    const { data: ownerMediaRows } = await db
+      .from("media")
+      .select("id, url, alt_text, file_name, category")
+      .eq("organization_id", job.organization_id)
+      .order("created_at", { ascending: false })
+      .limit(100);
+    const ownerMedia: FirstBuildImageAsset[] = (ownerMediaRows ?? []).map((row) => ({
+      slot: typeof row.category === "string" ? row.category : "image",
+      label: typeof row.file_name === "string" && row.file_name.trim() ? row.file_name : "Owner image",
+      altText: typeof row.alt_text === "string" ? row.alt_text : "Owner-provided image",
+      path: String(row.url),
+      mediaId: String(row.id),
+      provider: "owner",
+      model: "owner-media",
+      prompt: "",
+      placement: [],
+      aspectRatio: "16:9",
+    }));
+
+    const heroUrl = typeof profile["hero_image_url"] === "string" ? profile["hero_image_url"].trim() : "";
+    if (heroUrl && !ownerMedia.some((asset) => asset.path === heroUrl || asset.mediaId === heroUrl)) {
+      ownerMedia.push({
+        slot: "hero",
+        label: "Owner hero image",
+        altText: "Owner-provided hero image",
+        path: heroUrl,
+        mediaId: heroUrl,
+        provider: "owner",
+        model: "owner-profile-media",
+        prompt: "",
+        placement: ["hero"],
+        aspectRatio: "16:9",
+      });
+    }
+
     const outcome = await authorCreativeSiteContract({
       organizationId: job.organization_id,
       businessName: business.name,
@@ -240,7 +279,8 @@ async function runCanonicalFirstBuild(input: {
       hasQuoteForm: formsCount > 0,
       hasBooking: bookingCount > 0,
       language: input.language,
-      hasOwnerMedia: Boolean(profile["hero_image_url"]),
+      hasOwnerMedia: ownerMedia.length > 0,
+      ownerMedia: ownerMedia.map((asset) => ({ id: asset.mediaId ?? asset.path, path: asset.path, label: asset.label })),
     });
 
     await db.from("ai_generations").insert({
@@ -301,6 +341,7 @@ async function runCanonicalFirstBuild(input: {
       hasQuoteForm: formsCount > 0,
       hasBooking: bookingCount > 0,
       replaceExisting: freshReplace,
+      generatedAssets: ownerMedia,
       creativeSiteContract: outcome.contract,
     });
     materialized = !built.skipped;
