@@ -251,8 +251,8 @@ export function normalizeStyleInput(raw: unknown): Record<string, unknown> {
     if (!key && (compact === "padding" || compact === "pad")) {
       const amount =
         typeof value === "string"
-          ? Number(value.trim().replace(/(px|pt|%)$/i, "")) *
-            (/rem|em/i.test(value) ? 16 : 1)
+          ? Number(value.trim().replace(/(px|pt|rem|em|%)$/i, "")) *
+            (/\d\s*(rem|em)$/i.test(value.trim()) ? 16 : 1)
           : value;
       out["padding"] = value;
       for (const side of ["padTop", "padRight", "padBottom", "padLeft"]) {
