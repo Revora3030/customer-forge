@@ -19,7 +19,6 @@ import {
   sectionDesignFromFingerprint,
   type DesignFingerprint,
 } from "@/lib/builder/design-fingerprint";
-import type { IndustryPlaybook } from "@/lib/builder/industry";
 import {
   resolveArchetypeText,
   type ArchetypeSection,
@@ -93,8 +92,6 @@ export type MaterializeInput = {
   fingerprint?: DesignFingerprint | null;
   /** Approved Sol/Terra presentation brief, compiled into a finite renderer contract. */
   creativeBrief?: CreativeBrief | null;
-  /** Full industry strategy used to order the home narrative. */
-  industryPlaybook?: IndustryPlaybook | null;
   /** Safe generated starter pictures saved in tenant media for this first build. */
   generatedAssets?: FirstBuildImageAsset[];
   /** Explicit, guarded replacement mode. Default rebuilds remain non-destructive. */
@@ -395,25 +392,6 @@ export function planSiteContent(input: MaterializeInput): Page[] {
     home.sections.splice(closing >= 0 ? closing : home.sections.length, 0, ...extra);
   }
 
-  // The industry playbook controls the narrative order. Unsupported or
-  // fact-dependent blocks remain absent; this only reorders real content.
-  if (input.industryPlaybook) {
-    const aliases: Record<string, string> = { area: "areas", case_studies: "gallery" };
-    const preferred = input.industryPlaybook.homeSections.map((kind) => aliases[kind] ?? kind);
-    const rank = (kind: string) => {
-      if (kind === "hero") return -100;
-      if (kind === "sticky_cta") return 10_000;
-      const found = preferred.indexOf(kind);
-      if (found >= 0) return found;
-      if (kind === "cta") return preferred.length + 20;
-      if (kind === "contact") return preferred.length + 30;
-      return preferred.length + 10;
-    };
-    home.sections = home.sections
-      .map((section, index) => ({ section, index }))
-      .sort((a, b) => rank(a.section.kind) - rank(b.section.kind) || a.index - b.index)
-      .map(({ section }) => section);
-  }
 
   const pages: Page[] = [home];
 

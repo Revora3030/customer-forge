@@ -267,10 +267,10 @@ export async function callJson(
 }
 
 /**
- * Runs one planning turn. Native Revora planning is attempted first whenever
- * the deterministic/autonomous brain can safely satisfy the request. This
- * keeps the normal builder path free-first and makes this server planner obey
- * the same safety boundary instead of jumping straight to an external model.
+ * Runs one planning turn. Every creative decision is authored by the model
+ * team: there is no rule-based planner, template or preset layout to fall back
+ * on. When the models cannot answer, the caller surfaces an honest failure and
+ * the site is left untouched.
  */
 export async function planChanges(
   context: AgentContext,
@@ -279,34 +279,6 @@ export async function planChanges(
   attachments: AgentAttachment[] = [],
   caller?: Partial<AiCaller>,
 ): Promise<Record<string, unknown>> {
-  const { buildAutonomousPlan } = await import("@/lib/builder/autonomous-brain");
-  const native = buildAutonomousPlan(context, instruction, {
-    history: history
-      .filter((turn) => turn.role === "user")
-      .map((turn) => turn.content)
-      .slice(-6),
-    attachments: attachments.map((attachment) => ({
-      kind: attachment.kind,
-      name: attachment.name,
-    })),
-  });
-
-  // Picture creation/editing requires semantic art direction and the dedicated
-  // image action. Never let a text-only deterministic plan swallow this intent.
-  const requestsPictureWork = /\b(images?|photos?|pictures?|photographs?|hero shots?)\b/i.test(instruction) &&
-    /\b(add|change|replace|regenerate|generate|create|make|edit|swap|new)\b/i.test(instruction);
-
-  if (native.actions.length > 0 && !native.requiresExternalReasoning && !requestsPictureWork) {
-    return {
-      reply: native.reply,
-      summary: native.summary,
-      actions: native.actions,
-      questions: native.questions,
-      notes: native.notes,
-      trace: native.trace,
-    };
-  }
-
   const intent = translateIntent(instruction);
   const parts: ContentPart[] = [
     {
