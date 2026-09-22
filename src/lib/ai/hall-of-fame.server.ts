@@ -231,7 +231,7 @@ export type ThinkerOutcome =
       ok: true;
       lane: "paid" | "free";
       tier: CollectiveTier | null;
-      wanted: CollectiveTier | null;
+      wanted: CollectiveTier;
       downgraded: boolean;
       text: string;
       model: string;
@@ -245,7 +245,7 @@ export type ThinkerOutcome =
       ok: false;
       lane: "free";
       tier: CollectiveTier | null;
-      wanted: CollectiveTier | null;
+      wanted: CollectiveTier;
       reason: LunaSkipReason | "no_tier_available" | "no_free_model" | "squad_exhausted";
       detail: string | null;
       attempts: HallOfFameAttempt[];
