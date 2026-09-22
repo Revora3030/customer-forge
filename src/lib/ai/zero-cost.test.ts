@@ -35,8 +35,14 @@ async function config() {
 }
 
 describe("ZERO_AI_COST_MODE", () => {
-  it("is the default when the variable is not set at all", async () => {
+  it("is off unless an operator explicitly opts in", async () => {
     delete process.env["ZERO_AI_COST_MODE"];
+    const { zeroAiCostMode } = await config();
+    expect(zeroAiCostMode()).toBe(false);
+  });
+
+  it("is on when an operator sets it explicitly", async () => {
+    process.env["ZERO_AI_COST_MODE"] = "true";
     const { zeroAiCostMode } = await config();
     expect(zeroAiCostMode()).toBe(true);
   });

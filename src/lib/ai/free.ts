@@ -184,12 +184,13 @@ export function freeAiEnabled() {
 }
 
 /**
- * Free-only is on by default and is what stops a paid model becoming a silent
- * fallback. An operator has to opt out explicitly on the server to let paid
- * provider accounts be reached at all.
+ * Quality-first: every connected model, paid or free, may answer a call. Free
+ * models are never preferred for their price — they are chosen only when they
+ * fit the task. An operator can still force the free-only lane explicitly with
+ * `FREE_AI_ONLY=true` as a cost-safety switch.
  */
 export function freeAiOnly() {
-  return flag("FREE_AI_ONLY", true);
+  return flag("FREE_AI_ONLY", false);
 }
 
 /* -------------------------- free-eligibility rules -------------------------- */

@@ -158,8 +158,9 @@ describe("automatic failover between free providers", () => {
     expect(calls.some((url) => url.includes("cloudflare"))).toBe(false);
   });
 
-  it("never reaches a paid provider when every free provider fails", async () => {
+  it("never reaches a paid provider when an operator forces the free-only lane", async () => {
     configureTwoFreeProviders();
+    process.env["FREE_AI_ONLY"] = "true";
     process.env["GOOGLE_AI_API_KEY"] = "paid-google";
     process.env["OPENAI_API_KEY"] = "paid-openai";
     const { calls } = stubFetch(() => new Response("nope", { status: 500 }));

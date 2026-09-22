@@ -346,7 +346,7 @@ async function buildChain(
   // simple call can never turn into a 60-model latency wall. The ensemble
   // orchestrator uses the full pool in parallel instead.
   const failoverLimit = Number(process.env["AI_MAX_FAILOVER_CANDIDATES"] ?? "");
-  const cap = Number.isFinite(failoverLimit) && failoverLimit > 0 ? Math.floor(failoverLimit) : 8;
+  const cap = Number.isFinite(failoverLimit) && failoverLimit > 0 ? Math.floor(failoverLimit) : 24;
   return ordered.slice(0, cap);
 }
 

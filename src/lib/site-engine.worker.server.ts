@@ -659,6 +659,70 @@ async function runJob(
     created_by: job.created_by,
   } as never);
 
+  // Section-by-section wording authority. The renderer's fillable text is only
+  // a floor: Sol rewrites each section in place, Terra approves it individually
+  // and the same fact gate blocks anything invented. Deterministic wording
+  // survives untouched whenever the tiers are unavailable or refuse.
+  if (!built.skipped) {
+    const { refineSectionWordingWithCollective } = await import(
+      "@/lib/builder/collective-sections.server"
+    );
+    const pageRows = await db
+      .from("website_pages")
+      .select("id, slug")
+      .eq("organization_id", orgId);
+    const slugById = new Map((pageRows.data ?? []).map((page) => [page.id, page.slug]));
+    const sectionRows = await db
+      .from("website_sections")
+      .select("id, page_id, kind, heading, subheading, body")
+      .eq("organization_id", orgId)
+      .order("sort_order", { ascending: true });
+    const wording = (sectionRows.data ?? []).map((section) => ({
+      id: section.id,
+      page: slugById.get(section.page_id) ?? "",
+      kind: section.kind,
+      heading: section.heading,
+      subheading: section.subheading,
+      body: section.body,
+    }));
+    const outcome = await refineSectionWordingWithCollective({
+      organizationId: orgId,
+      facts: buildFacts,
+      sections: wording,
+      directionSummary: `${creative.fingerprint.family} · ${creative.brief.personality}`,
+    });
+    for (const patch of outcome.patches) {
+      const update: Record<string, string> = {};
+      if (patch.heading !== undefined) update["heading"] = patch.heading;
+      if (patch.subheading !== undefined) update["subheading"] = patch.subheading;
+      if (patch.body !== undefined) update["body"] = patch.body;
+      if (!Object.keys(update).length) continue;
+      await db
+        .from("website_sections")
+        .update(update as never)
+        .eq("id", patch.id)
+        .eq("organization_id", orgId);
+    }
+    await db.from("ai_generations").insert({
+      organization_id: orgId,
+      job_id: job.id,
+      kind: "collective_section_wording",
+      model:
+        outcome.passes
+          .filter((pass) => pass.used && pass.model)
+          .map((pass) => pass.model)
+          .join("+") || "revora-deterministic",
+      instruction: null,
+      result: {
+        sections: wording.length,
+        rewritten: outcome.patches.length,
+        totalCostMicrocents: outcome.totalCostMicrocents,
+        passes: outcome.passes,
+      } as unknown as never,
+      created_by: job.created_by,
+    } as never);
+  }
+
   // A brand chosen by the owner wins. Only replace the untouched generated
   // defaults during a first build, so onboarding produces a distinctive site
   // without overwriting deliberate colours on an existing workspace.

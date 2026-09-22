@@ -201,6 +201,7 @@ describe("free-only enforcement", () => {
     process.env["GOOGLE_AI_API_KEY"] = "paid-key";
     process.env["ZERO_AI_COST_MODE"] = "false";
     process.env["BUILDER_EXTERNAL_AI_ALLOWED"] = "false";
+    process.env["FREE_AI_ONLY"] = "true";
     const { freeAiOnly } = await free();
     expect(freeAiOnly()).toBe(true);
     vi.resetModules();

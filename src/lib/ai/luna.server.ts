@@ -91,20 +91,24 @@ function dollarsEnv(name: string, fallback: number): number {
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
 }
 
-/** Luna is off unless an operator explicitly enables diagnostics. */
+/**
+ * The premium tiers are available whenever the key is present and no operator
+ * switch turns them off. Spend stays bounded by the monthly cap, not by keeping
+ * the tiers dark.
+ */
 export function lunaEnabled(): boolean {
-  const raw = (env("LUNA_ENABLED") ?? "").toLowerCase();
-  const optedIn = raw === "true" || raw === "1" || raw === "on" || raw === "yes";
-  const nativeOnly = (env("ZERO_AI_COST_MODE") ?? "").toLowerCase();
-  const externalAllowed = (env("BUILDER_EXTERNAL_AI_ALLOWED") ?? "").toLowerCase();
-  const nativeOnlyOff =
-    nativeOnly === "false" || nativeOnly === "0" || nativeOnly === "off" || nativeOnly === "no";
-  const diagnosticOptIn =
-    externalAllowed === "true" ||
-    externalAllowed === "1" ||
-    externalAllowed === "on" ||
-    externalAllowed === "yes";
-  return optedIn && nativeOnlyOff && diagnosticOptIn && Boolean(env("OPENAI_API_KEY"));
+  const off = (name: string) => {
+    const raw = (env(name) ?? "").toLowerCase();
+    return raw === "false" || raw === "0" || raw === "off" || raw === "no";
+  };
+  const on = (name: string) => {
+    const raw = (env(name) ?? "").toLowerCase();
+    return raw === "true" || raw === "1" || raw === "on" || raw === "yes";
+  };
+  if (off("LUNA_ENABLED")) return false;
+  if (on("ZERO_AI_COST_MODE")) return false;
+  if (off("BUILDER_EXTERNAL_AI_ALLOWED")) return false;
+  return Boolean(env("OPENAI_API_KEY"));
 }
 
 export function lunaModel(): string {
