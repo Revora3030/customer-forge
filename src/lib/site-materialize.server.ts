@@ -154,6 +154,7 @@ export function materializeCreativeSiteContract(
   assets: FirstBuildImageAsset[] = [],
 ): Page[] {
   const assetByPath = new Map(assets.map((asset) => [asset.path, asset]));
+  const assetByMediaId = new Map(assets.filter((asset) => asset.mediaId).map((asset) => [asset.mediaId as string, asset]));
   return contract.pages.map((page) => ({
     slug: page.slug,
     title: page.title,
@@ -171,7 +172,9 @@ export function materializeCreativeSiteContract(
         link_label: component.linkLabel ?? null,
         link_url: safeLinkUrl(component.linkUrl ?? null),
         media_url: component.mediaUrl
-          ? (assetByPath.get(component.mediaUrl)?.path ?? component.mediaUrl)
+          ? (assetByPath.get(component.mediaUrl)?.path ??
+            assetByMediaId.get(component.mediaUrl)?.path ??
+            component.mediaUrl)
           : null,
         settings: { ...(component.settings ?? {}), ai_authored: true },
       }));
