@@ -88,7 +88,7 @@ function MonthlyReport() {
   const windowLeads = monthRows.reduce((sum, m) => sum + m.leads, 0);
 
   return (
-    <div className="space-y-6">
+    <div className="product-page">
       <SectionHeading
         eyebrow="Business"
         title="Monthly report — every workspace, real numbers"

@@ -97,7 +97,7 @@ function AutomationsPage() {
   if (isLoading) return <LoadingRows rows={5} />;
 
   return (
-    <div className="space-y-6">
+    <div className="product-page">
       <PageHead
         eyebrow="Follow-up engine"
         title="Automations"

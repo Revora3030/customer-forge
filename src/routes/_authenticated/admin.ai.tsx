@@ -52,7 +52,7 @@ function AdminAi() {
       : 0;
 
   return (
-    <div className="space-y-4">
+    <div className="product-page">
       <SectionHeading
         title="Revora AI"
         description="Revora runs on its own AI provider accounts. Everything below is measured from the last 7 days of real calls — no prompts or generated content are ever stored."

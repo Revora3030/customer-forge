@@ -37,7 +37,7 @@ function AdminDomains() {
   const rows = (clients.data ?? []).filter((client) => client.custom_domain);
 
   return (
-    <div className="space-y-5">
+    <div className="product-page">
       <SectionHeading eyebrow="Domains" title="Custom domain connections" />
       <p className="max-w-2xl text-[13px] text-muted-foreground">
         Each domain is bound to exactly one client workspace. A domain is only reported as connected

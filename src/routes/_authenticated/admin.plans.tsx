@@ -26,7 +26,7 @@ function AdminPlans() {
   const mrr = paid.length * GROWTH_SYSTEM.monthlyPrice;
 
   return (
-    <div className="space-y-5">
+    <div className="product-page">
       <SectionHeading eyebrow="Offer" title="Revora Growth System" />
 
       {clients.isLoading ? (

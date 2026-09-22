@@ -75,7 +75,7 @@ function AdminWebsites() {
   });
 
   return (
-    <div className="space-y-6">
+    <div className="product-page">
       <div>
         <p className="eyebrow">Quality control</p>
         <h1 className="mt-1 font-display text-[24px] font-semibold">Website queue</h1>

@@ -129,7 +129,7 @@ function BillingPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="product-page">
       <PageHead
         eyebrow="Billing &amp; payments"
         title="Your plan and payments"

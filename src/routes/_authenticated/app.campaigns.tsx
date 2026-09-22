@@ -158,7 +158,7 @@ function CampaignsPage() {
   };
 
   return (
-    <div className="space-y-5">
+    <div className="product-page">
       <PageHead
         eyebrow="Attribution"
         title="Campaigns & QR codes"

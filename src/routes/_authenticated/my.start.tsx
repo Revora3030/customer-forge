@@ -106,7 +106,7 @@ function MyStart() {
   const doneCount = steps.filter((step) => step.done).length;
 
   return (
-    <div className="space-y-4">
+    <div className="product-page">
       <Panel>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <SectionHeading

@@ -70,7 +70,7 @@ function AdminOutreach() {
   }
 
   return (
-    <div className="space-y-8">
+    <div className="product-page">
       <SectionHeading
         title="Outreach console"
         description="Every free channel, with tracked links and honest rules. Paid ads, bulk SMS and broadcast placement are bought outside Revora — the assets are ready here."

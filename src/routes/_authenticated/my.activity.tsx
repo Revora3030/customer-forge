@@ -38,7 +38,7 @@ function MyActivity() {
   const bookings = appointments ?? [];
 
   return (
-    <div className="space-y-4">
+    <div className="product-page">
       <div className="flex gap-2">
         <Button
           variant={tab === "leads" ? "default" : "outline"}

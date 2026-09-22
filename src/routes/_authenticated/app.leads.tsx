@@ -117,7 +117,7 @@ function LeadsPage() {
   if (isLoading) return <LoadingRows rows={6} />;
 
   return (
-    <div className="space-y-6">
+    <div className="product-page">
       <PageHead
         eyebrow="Pipeline"
         title="Leads"

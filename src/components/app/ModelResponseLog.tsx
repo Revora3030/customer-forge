@@ -34,23 +34,24 @@ function when(at: string) {
 
 function Row({ entry }: { entry: ModelLogEntry }) {
   return (
-    <li className="flex flex-wrap items-center gap-2 border-b border-border/60 py-2.5 last:border-b-0">
-      <span className="min-w-0 flex-1 text-[13px]">
-        <span className="block truncate font-medium">{entry.label}</span>
-        <span className="mt-0.5 block text-[11.5px] text-muted-foreground">
-          {when(entry.at)}
-          {entry.latencyMs != null ? ` · ${(entry.latencyMs / 1000).toFixed(1)}s` : ""}
-          {entry.note ? ` · ${entry.note}` : ""}
-        </span>
-      </span>
-      <span className="tnum shrink-0 font-mono text-[11px] text-muted-foreground">
+    <li className="border-b border-border/60 py-2.5 last:border-b-0">
+      <div className="flex items-start gap-2">
+        <span className="min-w-0 flex-1 text-[13px] font-medium">{entry.label}</span>
+        <Pill tone={entry.ok ? "signal" : "danger"} dot>
+          {entry.ok ? "Done" : "Didn't work"}
+        </Pill>
+      </div>
+      <div className="mt-1 text-[11.5px] text-muted-foreground">
+        {when(entry.at)}
+        {entry.latencyMs != null ? ` · ${(entry.latencyMs / 1000).toFixed(1)}s` : ""}
+        {entry.note ? ` · ${entry.note}` : ""}
+      </div>
+      <div className="tnum mt-0.5 truncate font-mono text-[11px] text-muted-foreground">
         {entry.provider ? `${entry.provider} · ` : ""}
         {entry.model}
-      </span>
-      <Pill tone={entry.ok ? "signal" : "danger"} dot>
-        {entry.ok ? "Done" : "Didn't work"}
-      </Pill>
+      </div>
     </li>
+
   );
 }
 

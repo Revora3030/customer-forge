@@ -48,7 +48,7 @@ function SettingsPage() {
   if (isLoading) return <LoadingRows rows={4} />;
 
   return (
-    <div className="space-y-6">
+    <div className="product-page">
       <PageHead
         eyebrow="Account"
         title="Settings"
