@@ -476,46 +476,19 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
       if (saved.error) console.warn("design memory not saved", saved.error.message);
     }
 
-    // NATIVE-ONLY CUSTOMER PATH: customer build and edit requests never call
-    // Luna or an outside model, even when provider credentials are configured.
-    // Revora composes changes from the live site, saved design identity, industry
-    // rules, factual business data and the owner's literal instructions.
-    const { buildAutonomousPlan } = await import("@/lib/builder/autonomous-brain");
-    // Uploads no longer sideline Revora's own builder: the structural work is
-    // planned natively, and an outside model is only consulted when the upload's
-    // contents genuinely have to be read before anything can change.
+    // AI-AUTHORED CUSTOMER PATH. Every creative decision — layout, section
+    // choice, wording, colour, typography, imagery and conversion structure —
+    // is authored by the model team and reviewed adversarially. There is no
+    // template or preset design to fall back on: when the models cannot answer,
+    // the owner is told plainly and nothing is changed.
+    const { planWebsiteChangesWithAi } = await import("@/lib/builder/ai-agent-plan.server");
     const pictureActions = requestsPictureWork(instruction)
       ? pictureActionsFor(agentContext, instruction)
       : [];
-    const deterministic = buildAutonomousPlan(agentContext, instruction, {
-      history: data.history
-        .filter((turn) => turn.role === "user")
-        .map((turn) => turn.content)
-        .slice(-6),
-      attachments: data.attachments.map((attachment) => ({
-        kind: attachment.kind,
-        name: attachment.name,
-      })),
-    });
 
     let raw: Record<string, unknown>;
     let requirements: { label: string; covered: boolean }[] = [];
     let trace: string[] = [];
-    const deterministicRaw = () => {
-      if (!deterministic) return null;
-      requirements = [...new Set(deterministic.intent.verbs)].map((verb) => ({
-        label: verb,
-        covered: true,
-      }));
-      trace = deterministic.trace;
-      return {
-        reply: deterministic.reply,
-        summary: deterministic.summary,
-        actions: deterministic.actions as unknown,
-        questions: deterministic.questions,
-        notes: deterministic.notes,
-      } as Record<string, unknown>;
-    };
 
     noteStage(orgId, runId, "planning the change");
     if (pictureActions.length) {
@@ -532,66 +505,55 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
         questions: [],
         notes: [],
       };
-    } else if (deterministic.actions.length) {
-      raw = deterministicRaw()!;
-      trace = [
-        ...deterministic.trace,
-        "Built with Revora's own engine — no outside AI involved.",
-      ];
     } else {
-      // A vague request is resolved against the live site. If Revora still cannot
-      // place it safely, it asks for one concrete detail instead of exporting
-      // customer data or guessing.
-      const { resolveVagueIntent } = await import("@/lib/builder/intent-resolution");
-      const resolved = resolveVagueIntent(agentContext);
-      const retry = resolved
-        ? buildAutonomousPlan(agentContext, resolved.instruction, {
-            history: data.history
-              .filter((turn) => turn.role === "user")
-              .map((turn) => turn.content)
-              .slice(-6),
-            attachments: data.attachments.map((attachment) => ({
-              kind: attachment.kind,
-              name: attachment.name,
-            })),
-          })
-        : null;
+      const authored = await planWebsiteChangesWithAi({
+        organizationId: orgId,
+        instruction,
+        history: data.history
+          .filter((turn) => turn.role === "user")
+          .map((turn) => turn.content)
+          .slice(-6),
+        context: agentContext,
+        attachments: data.attachments.map((attachment) => ({
+          kind: attachment.kind,
+          name: attachment.name,
+        })),
+      });
 
-      if (resolved && retry?.actions.length) {
-        requirements = [...new Set(retry.intent.verbs)].map((verb) => ({
-          label: verb,
-          covered: true,
-        }));
-        trace = [
-          ...retry.trace,
-          `You weren't specific, so Revora chose this: ${resolved.because}.`,
-          "Built with Revora's own engine — no outside AI involved.",
-        ];
-        raw = {
-          reply: `I wasn't sure which part you meant, so I went with the biggest win — ${resolved.because}. Here's the plan.`,
-          summary: retry.summary,
-          actions: retry.actions as unknown,
-          questions: retry.questions,
-          notes: retry.notes,
-        } as Record<string, unknown>;
-      } else {
+      if (!authored.ok) {
         return {
           reply:
-            "I want to get this right rather than guess. Tell me which part of your website you'd like changed — for example the top of the home page, your services, your prices, or how it looks — and I'll do it.",
+            "I couldn't design this change right now, so I've left your website exactly as it is. Please try again in a moment — I'd rather wait than drop a stock layout onto your site.",
           summary: "",
           steps: [] as AgentStep[],
-          questions: deterministic.questions.length
-            ? deterministic.questions
-            : ["Which part of your website should I change?"],
-          notes: deterministic.notes,
+          questions: [] as string[],
+          notes: [] as string[],
           requirements: [] as { label: string; covered: boolean }[],
-          trace: [...deterministic.trace, "Nothing changed — waiting on one detail."],
-          unavailable: null,
+          trace: [
+            "Nothing changed.",
+            `The design team was unavailable (${authored.reason}${authored.detail ? `: ${authored.detail}` : ""}).`,
+          ],
+          unavailable: {
+            reason: authored.reason,
+            retryable: true,
+            instruction,
+          } as { reason: string; retryable: boolean; instruction: string } | null,
           composition:
             null as import("@/lib/builder/composition-preview").CompositionPreview | null,
         };
       }
+
+      requirements = authored.requirements;
+      trace = authored.trace;
+      raw = {
+        reply: authored.reply,
+        summary: authored.summary,
+        actions: authored.actions,
+        questions: authored.questions,
+        notes: authored.notes,
+      };
     }
+
 
     const allSections = agentContext.pages.flatMap((page) =>
       page.sections.map((section) => ({ ...section, pageId: page.id })),
