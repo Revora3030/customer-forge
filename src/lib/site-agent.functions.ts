@@ -606,6 +606,57 @@ type ApplyInput = {
   operationKey?: string | undefined;
 };
 
+const OPERATION_CLAIM_LEASE_MS = 5 * 60 * 1000;
+
+type StoredApplyResult = {
+  applied: number;
+  failed: number;
+  stale: number;
+  unchanged: number;
+  staleNotice: string;
+  duplicates: number;
+  details: string[];
+  dropped: string[];
+  snapshotLabel: string;
+  snapshotVersion: number;
+  snapshotId: string | null;
+  operationId: string;
+  alreadyApplied: boolean;
+  verification: VerificationReport | null;
+  qa: QaLoopResult | null;
+  appliedActions: AgentAction[];
+};
+
+function readStoredApplyResult(value: unknown): StoredApplyResult {
+  const raw = value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+  const list = (key: string) =>
+    Array.isArray(raw[key]) ? (raw[key] as unknown[]).map((item) => String(item)) : [];
+  return {
+    applied: Number(raw["applied"] ?? 0) || 0,
+    failed: Number(raw["failed"] ?? 0) || 0,
+    stale: Number(raw["stale"] ?? 0) || 0,
+    unchanged: Number(raw["unchanged"] ?? 0) || 0,
+    staleNotice: String(raw["staleNotice"] ?? ""),
+    duplicates: Number(raw["duplicates"] ?? 0) || 0,
+    details: list("details"),
+    dropped: list("dropped"),
+    snapshotLabel: String(raw["snapshotLabel"] ?? ""),
+    snapshotVersion: Number(raw["snapshotVersion"] ?? 0) || 0,
+    snapshotId: String(raw["snapshotId"] ?? "") || null,
+    operationId: String(raw["operationId"] ?? ""),
+    alreadyApplied: true,
+    verification: (raw["verification"] as VerificationReport | null) ?? null,
+    qa: (raw["qa"] as QaLoopResult | null) ?? null,
+    appliedActions: Array.isArray(raw["appliedActions"])
+      ? (raw["appliedActions"] as AgentAction[])
+      : [],
+  };
+}
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
 /** Accepts any id, so a batch can be read exactly as it was planned. */
 const ANY_ID = { has: () => true } as unknown as Set<string>;
 
@@ -626,48 +677,147 @@ export async function applyWebsiteActions(supabase: SupabaseLike, userId: string
     const { invalidateWorkspaceContext } = await import("@/lib/agent/workspace-context.server");
     invalidateWorkspaceContext(orgId);
 
-    // Idempotency: the same request key applied moments ago is answered with the
-    // result of that run instead of writing everything a second time. This is
-    // what stops a double press, an impatient retry or a reconnect from
-    // duplicating sections.
+    let operationClaimId: string | null = null;
+    let operationClaimHeartbeat: ReturnType<typeof setInterval> | null = null;
+
     if (data.operationKey) {
-      const { data: recent } = await supabase
-        .from("ai_generations")
-        .select("result, created_at")
-        .eq("organization_id", orgId)
-        .eq("kind", "agent_apply")
-        .order("created_at", { ascending: false })
-        .limit(20);
-      const cutoff = Date.now() - 15 * 60 * 1000;
-      const previous = (recent ?? []).find((row) => {
-        const result = row?.["result"] as { operationKey?: unknown } | null;
-        const at = Date.parse(String(row?.["created_at"] ?? ""));
-        return result?.operationKey === data.operationKey && Number.isFinite(at) && at >= cutoff;
-      });
-      if (previous) {
-        const result = previous["result"] as Record<string, unknown>;
-        const labels = (key: string) =>
-          Array.isArray(result[key]) ? (result[key] as unknown[]).map((item) => String(item)) : [];
-        return {
-          applied: Number(result["applied"] ?? 0) || 0,
-          failed: Number(result["failed"] ?? 0) || 0,
-          stale: Number(result["stale"] ?? 0) || 0,
-          staleNotice: String(result["staleNotice"] ?? ""),
-          duplicates: Number(result["duplicates"] ?? 0) || 0,
-          details: [
-            ...labels("appliedLabels").map((label) => `applied ${label}`),
-            ...labels("skippedLabels").map((label) => `skipped ${label}`),
-          ],
-          snapshotLabel: String(result["snapshotLabel"] ?? ""),
-          snapshotVersion: Number(result["snapshotVersion"] ?? 0) || 0,
-          snapshotId: String(result["snapshotId"] ?? "") || null,
-          operationId: String(result["operationId"] ?? ""),
-          alreadyApplied: true,
-          verification: null as VerificationReport | null,
-        };
+      const leaseUntil = () => new Date(Date.now() + OPERATION_CLAIM_LEASE_MS).toISOString();
+      const claim = await supabase
+        .from("ai_operation_claims")
+        .insert({
+          organization_id: orgId,
+          operation_key: data.operationKey,
+          status: "pending",
+          result: {},
+          created_by: userId,
+          lease_expires_at: leaseUntil(),
+        } as never)
+        .select("id")
+        .maybeSingle();
+
+      if (claim.data?.id) {
+        operationClaimId = String(claim.data.id);
+      } else if (claim.error?.code === "23505") {
+        const { data: existing } = await supabase
+          .from("ai_operation_claims")
+          .select("id, status, result, lease_expires_at")
+          .eq("organization_id", orgId)
+          .eq("operation_key", data.operationKey)
+          .maybeSingle();
+
+        if (existing?.status === "completed") return readStoredApplyResult(existing.result);
+
+        if (existing?.status === "failed") {
+          const { data: reclaimed } = await supabase
+            .from("ai_operation_claims")
+            .update({
+              status: "pending",
+              result: {},
+              lease_expires_at: leaseUntil(),
+              completed_at: null,
+              updated_at: new Date().toISOString(),
+            } as never)
+            .eq("id", existing.id)
+            .eq("status", "failed")
+            .select("id")
+            .maybeSingle();
+          if (reclaimed?.id) operationClaimId = String(reclaimed.id);
+        } else if (
+          existing?.status === "pending" &&
+          existing.lease_expires_at &&
+          new Date(existing.lease_expires_at).getTime() <= Date.now()
+        ) {
+          const { data: reclaimed } = await supabase
+            .from("ai_operation_claims")
+            .update({
+              lease_expires_at: leaseUntil(),
+              updated_at: new Date().toISOString(),
+            } as never)
+            .eq("id", existing.id)
+            .eq("status", "pending")
+            .lte("lease_expires_at", new Date().toISOString())
+            .select("id")
+            .maybeSingle();
+          if (reclaimed?.id) operationClaimId = String(reclaimed.id);
+        }
+
+        if (!operationClaimId) {
+          for (let attempt = 0; attempt < 30; attempt += 1) {
+            await sleep(500);
+            const { data: current } = await supabase
+              .from("ai_operation_claims")
+              .select("status, result, lease_expires_at")
+              .eq("organization_id", orgId)
+              .eq("operation_key", data.operationKey)
+              .maybeSingle();
+            if (current?.status === "completed") return readStoredApplyResult(current.result);
+            if (current?.status === "failed") {
+              const { data: reclaimed } = await supabase
+                .from("ai_operation_claims")
+                .update({
+                  status: "pending",
+                  result: {},
+                  lease_expires_at: leaseUntil(),
+                  completed_at: null,
+                  updated_at: new Date().toISOString(),
+                } as never)
+                .eq("organization_id", orgId)
+                .eq("operation_key", data.operationKey)
+                .eq("status", "failed")
+                .select("id")
+                .maybeSingle();
+              if (reclaimed?.id) {
+                operationClaimId = String(reclaimed.id);
+                break;
+              }
+            }
+            if (
+              current?.status === "pending" &&
+              current.lease_expires_at &&
+              new Date(current.lease_expires_at).getTime() <= Date.now()
+            ) {
+              const { data: reclaimed } = await supabase
+                .from("ai_operation_claims")
+                .update({
+                  lease_expires_at: leaseUntil(),
+                  updated_at: new Date().toISOString(),
+                } as never)
+                .eq("organization_id", orgId)
+                .eq("operation_key", data.operationKey)
+                .eq("status", "pending")
+                .lte("lease_expires_at", new Date().toISOString())
+                .select("id")
+                .maybeSingle();
+              if (reclaimed?.id) {
+                operationClaimId = String(reclaimed.id);
+                break;
+              }
+            }
+          }
+        }
+
+        if (!operationClaimId) {
+          throw new Error("Another Revora change with this request is still running. Please wait a moment and retry; nothing was duplicated.");
+        }
+      } else if (claim.error) {
+        throw new Error("Revora could not reserve this change safely: " + claim.error.message);
+      }
+
+      if (operationClaimId) {
+        operationClaimHeartbeat = setInterval(() => {
+          void supabase
+            .from("ai_operation_claims")
+            .update({
+              lease_expires_at: leaseUntil(),
+              updated_at: new Date().toISOString(),
+            } as never)
+            .eq("id", operationClaimId)
+            .eq("status", "pending");
+        }, 30_000);
       }
     }
 
+    try {
     const site = await loadSite(supabase as unknown as SupabaseLike, orgId);
     // Read the batch exactly as planned, then check it against the site as it is
     // right now. A step whose target was deleted or renamed after planning is
@@ -1550,7 +1700,7 @@ export async function applyWebsiteActions(supabase: SupabaseLike, userId: string
       console.warn("[site-agent] memory not recorded", error);
     }
 
-    return {
+    const finalResult: StoredApplyResult = {
       applied: applied.length,
       failed: failed.length,
       /** Steps that could not run because their target no longer exists. */
@@ -1584,6 +1734,38 @@ export async function applyWebsiteActions(supabase: SupabaseLike, userId: string
       qa,
       appliedActions,
     };
+
+    if (operationClaimId) {
+      await supabase
+        .from("ai_operation_claims")
+        .update({
+          status: "completed",
+          result: finalResult as unknown as never,
+          lease_expires_at: null,
+          completed_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        } as never)
+        .eq("id", operationClaimId)
+        .eq("status", "pending");
+    }
+    return finalResult;
+  } catch (error) {
+    if (operationClaimId) {
+      await supabase
+        .from("ai_operation_claims")
+        .update({
+          status: "failed",
+          result: { error: String(error instanceof Error ? error.message : error) },
+          lease_expires_at: null,
+          completed_at: null,
+          updated_at: new Date().toISOString(),
+        } as never)
+        .eq("id", operationClaimId)
+        .eq("status", "pending");
+    }
+    throw error;
+  } finally {
+    if (operationClaimHeartbeat) clearInterval(operationClaimHeartbeat);
   }
 }
 
