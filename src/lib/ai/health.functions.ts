@@ -420,6 +420,19 @@ export type AiOrchestration = {
   >;
   outcomes: import("@/lib/ai/orchestration/telemetry").CallOutcome[];
   probe: { version: number; capabilities: string[] };
+  /**
+   * The free stand-in squads that keep building when the paid lanes are spent,
+   * plus the most recent hand-overs. Nothing here is a capability claim: a
+   * member is only listed because a real capability check passed.
+   */
+  hallOfFame: {
+    squads: {
+      purpose: string;
+      capability: string;
+      members: { provider: string; model: string; ready: boolean }[];
+    }[];
+    runs: import("@/lib/ai/hall-of-fame.server").HallOfFameRun[];
+  };
 };
 
 /**
