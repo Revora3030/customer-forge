@@ -890,6 +890,13 @@ export function blockRules(id: string, settings: unknown, surface?: string | nul
         only.bgImage = merged.bgImage;
         only.overlay = merged.overlay;
       }
+      // A gradient needs both stops and its angle, or the device layer would
+      // emit half a gradient and paint nothing.
+      if (key === "bgColor" || key === "bgGradient" || key === "bgGradientAngle") {
+        only.bgColor = merged.bgColor;
+        only.bgGradient = merged.bgGradient;
+        only.bgGradientAngle = merged.bgGradientAngle;
+      }
     }
     // Readability pairing needs the background this device layer ends up with,
     // not just the one it sets itself, so a mobile-only text colour is still
