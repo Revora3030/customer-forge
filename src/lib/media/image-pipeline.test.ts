@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cloudflareAdapter } from "@/lib/ai/providers/cloudflare";
 import { RevoraAiError } from "@/lib/ai/errors";
 import { validateGeneratedImage } from "@/lib/image-studio.server";
+import { imageCreationCapableModel } from "@/lib/ai/free";
 
 const ACCOUNT = "CLOUDFLARE_ACCOUNT_ID";
 let savedAccount: string | undefined;
@@ -22,6 +23,12 @@ afterEach(() => {
 });
 
 describe("Cloudflare Workers AI picture request", () => {
+  it("keeps the live-verified generators eligible while excluding editing-only models", () => {
+    expect(imageCreationCapableModel("@cf/bytedance/stable-diffusion-xl-lightning")).toBe(true);
+    expect(imageCreationCapableModel("@cf/black-forest-labs/flux-1-schnell")).toBe(true);
+    expect(imageCreationCapableModel("@cf/runwayml/stable-diffusion-v1-5-inpainting")).toBe(false);
+  });
+
   it("posts the brief to the account's own model endpoint with a bearer token", async () => {
     const fetchMock = vi.fn(async (url: unknown, init: unknown) => {
       expect(String(url)).toBe(
