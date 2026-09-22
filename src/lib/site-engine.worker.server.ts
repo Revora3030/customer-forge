@@ -241,6 +241,7 @@ async function runCanonicalFirstBuild(input: {
       hasQuoteForm: formsCount > 0,
       hasBooking: bookingCount > 0,
       language: input.language,
+      hasOwnerMedia: Boolean(profile["hero_image_url"]),
     });
 
     await db.from("ai_generations").insert({
