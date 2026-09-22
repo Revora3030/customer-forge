@@ -90,6 +90,11 @@ export type MaterializeInput = {
   generatedAssets?: FirstBuildImageAsset[];
   /** Explicit, guarded replacement mode. Default rebuilds remain non-destructive. */
   replaceExisting?: boolean;
+  /**
+   * Legacy rendering is opt-in only. New builds must supply the canonical
+   * Sol/Terra CreativeSiteContract instead of silently falling back to rules.
+   */
+  legacyCompatibility?: boolean;
   /** Model that directed the design, recorded on the contract for observability. */
   directedBy?: string | null;
   /** Model that independently reviewed the design, when one did. */
@@ -247,7 +252,7 @@ function imageComponent(asset: FirstBuildImageAsset, kind = "image"): Component 
 
 
 
-/** Builds the page tree. Pure — easy to reason about and to test. */
+/** Legacy compatibility adapter. New builds never call this path. */
 export function planSiteContent(input: MaterializeInput): Page[] {
   const { copy, services } = input;
   const place =
@@ -711,10 +716,18 @@ export async function materializeSiteContent(
   if (input.creativeSiteContract) {
     tree = materializeCreativeSiteContract(input.creativeSiteContract, input.generatedAssets ?? []);
     assertCreativeSiteMediaIntegrity(tree, input.creativeSiteContract);
-  } else {
+  } else if (input.legacyCompatibility === true) {
+    // Explicit migration/compatibility adapter for already-created legacy data.
     tree = planSiteContent(input);
+  } else {
+    throw new Error(
+      "The canonical AI website contract was missing. Revora stopped before creating any pages instead of using a deterministic fallback.",
+    );
   }
-  if (!designContract && input.fingerprint && input.creativeBrief) {
+  if (input.legacyCompatibility !== true && !input.creativeSiteContract) {
+    throw new Error("A fresh website requires a complete Sol/Terra creative contract.");
+  }
+  if (!designContract && input.fingerprint && input.creativeBrief && input.legacyCompatibility === true) {
     const primaryAction = clean(input.copy.primaryCta) ?? "Get in touch";
     // The AI authors the page set, the section selection and the order. The
     // renderer's own layout is only the inventory of fillable material.
