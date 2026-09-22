@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   freeImageBudgetAllows,
   freeImageBudgetRemaining,
+  imageCreationCapableModel,
   imageEditCapableModel,
   isFreeEligibleModel,
   noteFreeUse,
@@ -56,6 +57,12 @@ describe("free image eligibility gate", () => {
     expect(imageEditCapableModel("@cf/black-forest-labs/flux-1-schnell")).toBe(false);
     expect(imageEditCapableModel("@cf/runwayml/stable-diffusion-v1-5-img2img")).toBe(true);
     expect(imageEditCapableModel("@cf/runwayml/stable-diffusion-v1-5-inpainting")).toBe(true);
+  });
+
+  it("never routes a fresh picture request to an editing-only model", () => {
+    expect(imageCreationCapableModel("@cf/black-forest-labs/flux-1-schnell")).toBe(true);
+    expect(imageCreationCapableModel("@cf/runwayml/stable-diffusion-v1-5-inpainting")).toBe(false);
+    expect(imageCreationCapableModel("@cf/runwayml/stable-diffusion-v1-5-img2img")).toBe(false);
   });
 });
 

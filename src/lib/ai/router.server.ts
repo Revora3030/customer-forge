@@ -50,6 +50,7 @@ import {
   freeProviderChain,
   freeProviderCredentials,
   freeProviderReadiness,
+  imageCreationCapableModel,
   imageEditCapableModel,
   isFreeEligibleModel,
   noteFreeUse,
@@ -815,7 +816,13 @@ async function imageCall(
     // Changing an existing picture needs an image-to-image / inpainting model.
     // A text-to-image model would ignore the source and hand back an unrelated
     // picture, so it is kept out of the chain entirely.
-    source ? { capable: imageEditCapableModel } : undefined,
+    {
+      capable: source ? imageEditCapableModel : imageCreationCapableModel,
+      // Provider catalogues group several incompatible image schemas under one
+      // role. A model rejecting the request shape must hand off to the next
+      // capability-matched model instead of aborting the whole picture request.
+      nextProviderOnInvalidRequest: true,
+    },
   );
   return {
     base64: outcome.value.base64,
