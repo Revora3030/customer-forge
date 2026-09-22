@@ -77,6 +77,8 @@ import { PreviewLinks, PreviewSiteButton } from "@/components/app/PreviewLinks";
 import { VersionDiff } from "@/components/app/VersionDiff";
 import { DraftBranchPanel } from "@/components/app/DraftBranchPanel";
 import { RestorePointPanel } from "@/components/app/RestorePointPanel";
+import { ModelResponseLog } from "@/components/app/ModelResponseLog";
+
 import { PlatformEngine } from "@/components/app/PlatformEngine";
 import { DesignIdentity } from "@/components/app/DesignIdentity";
 import { recordHealth, snapshotFromPreflight } from "@/lib/site-health";
