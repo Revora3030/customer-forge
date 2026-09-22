@@ -464,8 +464,6 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
     // DESIGN IDENTITY. Worked out once from what the business actually is, then
     // reused on every later request so unrelated edits cannot quietly redesign
     // the site. Design choices only — never a business fact and never copy.
-    const { createDesignFingerprint, fingerprintBrief, readDesignFingerprint, writeDesignFingerprint } =
-      await import("@/lib/builder/design-fingerprint");
     const storedGeneration = ((settingsRow.data as { generation?: unknown } | null)?.generation ??
       {}) as Record<string, unknown>;
     noteStage(orgId, runId, "recalling your design identity");
