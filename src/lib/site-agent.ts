@@ -8,6 +8,14 @@ import {
 } from "@/lib/site-effects";
 import { safeLinkUrl } from "@/lib/website-content";
 import { describeCustomBlock, parseCustomBlock, type CustomBlockSpec } from "@/lib/builder/custom-block";
+import {
+  DEVICES,
+  STYLE_KEYS,
+  writeBlockStyle,
+  type BlockStyle,
+  type Device,
+  type StyleKey,
+} from "@/lib/site-style";
 
 /**
  * REVORA SITE AGENT — MASTER ACTION CONTRACT
@@ -299,6 +307,9 @@ export type ThemePatch = {
   font_preference?: string;
 };
 
+/** Safe block styling shared by the AI planner, visual editor and renderer. */
+export type BlockStylePatch = Partial<Record<StyleKey, BlockStyle[StyleKey] | null>>;
+
 export const BUSINESS_FACT_FIELDS = [
   "tagline",
   "description",
@@ -343,6 +354,14 @@ export type AgentAction =
       type: "set_section_visual";
       sectionId: string;
       patch: SectionVisualPatch;
+    }
+
+  | {
+      type: "set_block_style";
+      target: "section" | "component";
+      targetId: string;
+      device: Device;
+      patch: BlockStylePatch;
     }
 
   /**
@@ -990,6 +1009,20 @@ const readSectionVisualPatch = (
   return patch as SectionVisualPatch;
 };
 
+const readBlockStylePatch = (value: unknown): BlockStylePatch => {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  const raw = value as Partial<Record<StyleKey, unknown>>;
+  const cleaned = writeBlockStyle({}, raw).style;
+  if (!cleaned || typeof cleaned !== "object" || Array.isArray(cleaned)) return {};
+  const out: BlockStylePatch = {};
+  for (const key of STYLE_KEYS) {
+    if (!(key in raw)) continue;
+    if (raw[key] === null || raw[key] === "") out[key] = null;
+    else if (key in cleaned) out[key] = (cleaned as BlockStylePatch)[key] as never;
+  }
+  return out;
+};
+
 /* -------------------------------------------------------------------------- */
 /* ACTION READER                                                              */
 /* -------------------------------------------------------------------------- */
@@ -1213,6 +1246,17 @@ export function readActions(
           patch,
         });
 
+        break;
+      }
+
+      case "set_block_style": {
+        const target = row["target"] === "component" ? "component" : row["target"] === "section" ? "section" : null;
+        const targetId = text(row["targetId"], 80);
+        const device = DEVICES.includes(row["device"] as Device) ? (row["device"] as Device) : "desktop";
+        const patch = readBlockStylePatch(row["patch"]);
+        const knownTarget = target === "section" ? knownSection(targetId) : target === "component" ? knownComponent(targetId) : false;
+        if (!target || !knownTarget || Object.keys(patch).length === 0) break;
+        out.push({ type, target, targetId, device, patch });
         break;
       }
 
@@ -2312,6 +2356,16 @@ export function describeActions(
             destructive:
               false,
 
+            action,
+          };
+
+        case "set_block_style":
+          return {
+            key,
+            title: `Style this ${action.target} for ${action.device}`,
+            where: locate(index, action.target === "section" ? { sectionId: action.targetId } : { componentId: action.targetId }),
+            after: Object.entries(action.patch).map(([name, value]) => `${name}: ${String(value)}`).join(" · "),
+            destructive: false,
             action,
           };
 

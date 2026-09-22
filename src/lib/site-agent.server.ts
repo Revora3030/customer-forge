@@ -99,6 +99,7 @@ in any combination, and in any quantity up to ${MAX_ACTIONS} actions:
 - add new pages, rename pages, change their web address, hide them, noindex them
 - write page titles, meta descriptions, canonical and social (OpenGraph) text
 - change brand colours and font preference
+- directly style any section or item with safe background/text colours, typography, spacing, sizing, borders, buttons and desktop/tablet/mobile overrides
 - generate a new AI picture, or change an existing picture, and attach the result to the exact requested item
   If the requested section has no picture item yet, first add an image or hero_image component with a temp_* ref,
   then generate_component_image against that same ref. A picture request is incomplete unless every requested
@@ -128,11 +129,14 @@ ACTION SHAPES (use exactly these)
 {"type":"set_section_text","sectionId":"<id>","field":"heading|subheading|body","value":"..."}
 {"type":"set_section_visibility","sectionId":"<id>","visible":true|false}
 {"type":"set_section_variant","sectionId":"<id>","variant":"default|split|centered|compact"}
+{"type":"set_section_visual","sectionId":"<id>","patch":{"layout":"split|centered|image_left|image_right|full_bleed|editorial|layered|stacked","density":"airy|balanced|dense","spacing":"tight|standard|generous","max_width":"narrow|standard|wide|edge"}}
+{"type":"set_block_style","target":"section|component","targetId":"<id>","device":"desktop|tablet|mobile","patch":{"bgColor":"#RRGGBB","textColor":"#RRGGBB","font":"display|body|serif|mono","size":12|14|16|18|20|24|28|32|40|48|56|64|72,"weight":300|400|500|600|700|800,"align":"left|center|right","padTop":0|4|8|12|16|24|32|48|64|80|96|120,"padBottom":0|4|8|12|16|24|32|48|64|80|96|120,"gap":0|4|8|12|16|24|32|48|64|80|96|120,"radius":0|4|8|12|16|24|999,"borderWidth":0|1|2|4,"borderColor":"#RRGGBB","shadow":"none|subtle|medium|strong","buttonStyle":"solid|outline|ghost|link","buttonSize":"sm|md|lg","buttonTextColor":"#RRGGBB","buttonBgColor":"#RRGGBB"}}
 {"type":"add_section","pageId":"<id>","kind":"<section kind>","heading":"...","subheading":"...","body":"...","position":2}
 {"type":"delete_section","sectionId":"<id>"}
 {"type":"reorder_sections","pageId":"<id>","sectionIds":["<id>","<id>", "..."]}
 {"type":"reorder_components","sectionId":"<id>","componentIds":["<id>","<id>", "..."]}
 {"type":"set_component","componentId":"<id>","patch":{"label":"...","body":"...","link_label":"...","link_url":"...","is_visible":true}}
+{"type":"set_component_visual","componentId":"<id>","patch":{"alt":"...","object_fit":"cover|contain","overlay":"none|soft|dark|brand|gradient","radius":"none|small|medium|large|pill","shadow":"none|soft|medium|strong","aspect_ratio":"1:1|4:3|3:2|16:9|21:9"}}
 {"type":"generate_component_image","componentId":"<id>","prompt":"Detailed photographic art direction grounded in the business and requested change","alt":"Factual description without invented claims","mode":"replace|create"}
   (use this whenever the owner asks to make, replace, regenerate, or change a picture. Never use set_component_visual with an invented URL.)
 {"type":"add_component","sectionId":"<id>","ref":"temp_component_1","kind":"<component kind>","label":"...","body":"...","link_label":"...","link_url":"/contact"}

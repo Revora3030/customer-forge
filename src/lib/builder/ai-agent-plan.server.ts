@@ -50,6 +50,8 @@ const DESIGN_RULES = [
   "Design for this exact business in its exact trade and town. A layout that could belong to any other business is a failure.",
   "Aim for the standard of a top-tier bespoke agency site: strong hierarchy, generous spacing, confident editorial typography, full-bleed photography where it earns its place, restrained accent colour, and one obvious next step per screen.",
   "Work at mobile and desktop: never propose something that only reads well on a wide screen.",
+  "For a direct style request, change only the requested property and target. Use set_block_style for literal backgrounds, text colours, typography, spacing, sizing, borders, buttons and responsive overrides.",
+  "A vague request such as 'change the background color' must produce a clearly perceptible change from the current colour while preserving readable contrast. Never replace a colour with a near-identical shade.",
 ].join(" ");
 
 /** Compact JSON contract. Anything outside it is dropped by the validator. */
@@ -62,10 +64,13 @@ function actionContract(context: AgentContext): string {
     '{"type":"set_section_text","sectionId":id,"field":"heading"|"subheading"|"body","value":string}',
     '{"type":"set_section_visibility","sectionId":id,"visible":boolean}',
     '{"type":"set_section_variant","sectionId":id,"variant":string}',
+    '{"type":"set_section_visual","sectionId":id,"patch":{"layout":"split|centered|image_left|image_right|full_bleed|editorial|layered|stacked","density":"airy|balanced|dense","image_position":"left|right|center|background","image_treatment":"natural|rounded|soft_shadow|glass_frame|duotone|gradient_overlay|cinematic|cutout|full_bleed","spacing":"tight|standard|generous","max_width":"narrow|standard|wide|edge","card_style":"soft|sharp|pill|glass|editorial|floating","image_ratio":"1:1|4:3|3:2|16:9|21:9"}}',
+    '{"type":"set_block_style","target":"section|component","targetId":id,"device":"desktop|tablet|mobile","patch":{"font":"display|body|serif|mono","size":12|14|16|18|20|24|28|32|40|48|56|64|72,"weight":300|400|500|600|700|800,"align":"left|center|right","lineHeight":1|1.15|1.3|1.5|1.7|2,"letterSpacing":-0.03|-0.01|0|0.02|0.06|0.12,"textTransform":"none|uppercase|capitalize","textColor":"#RRGGBB","columns":1|2|3|4,"gap":0|4|8|12|16|24|32|48|64|80|96|120,"maxWidth":640|768|1024|1280|1536,"contentAlign":"left|center|right","padTop":0|4|8|12|16|24|32|48|64|80|96|120,"padRight":0|4|8|12|16|24|32|48|64|80|96|120,"padBottom":0|4|8|12|16|24|32|48|64|80|96|120,"padLeft":0|4|8|12|16|24|32|48|64|80|96|120,"marginTop":0|4|8|12|16|24|32|48|64|80|96|120,"marginBottom":0|4|8|12|16|24|32|48|64|80|96|120,"bgColor":"#RRGGBB","overlay":0|10|20|30|40|50|60|70|80,"radius":0|4|8|12|16|24|999,"borderWidth":0|1|2|4,"borderColor":"#RRGGBB","shadow":"none|subtle|medium|strong","opacity":100|90|80|70|60|50|40|30,"objectFit":"cover|contain|fill","buttonStyle":"solid|outline|ghost|link","buttonSize":"sm|md|lg","buttonTextColor":"#RRGGBB","buttonBgColor":"#RRGGBB","hidden":boolean}}',
     '{"type":"add_section","pageId":id,"ref":"temp_section_1","kind":kind,"heading":string,"subheading":string,"body":string,"position":number}',
     '{"type":"delete_section","sectionId":id}',
     '{"type":"reorder_sections","pageId":id,"sectionIds":[id,...]}',
     '{"type":"set_component","componentId":id,"patch":{"label":string,"body":string,"link_label":string,"link_url":string}}',
+    '{"type":"set_component_visual","componentId":id,"patch":{"alt":string,"object_fit":"cover|contain","object_position":string,"overlay":"none|soft|dark|brand|gradient","radius":"none|small|medium|large|pill","shadow":"none|soft|medium|strong","aspect_ratio":"1:1|4:3|3:2|16:9|21:9","focal_point":string}}',
     '{"type":"add_component","sectionId":id,"ref":"temp_component_1","kind":kind,"label":string,"body":string,"link_label":string,"link_url":string}',
     '{"type":"delete_component","componentId":id}',
     '{"type":"generate_component_image","componentId":id,"prompt":string,"alt":string,"mode":"replace"|"create"}',
@@ -124,7 +129,7 @@ function siteBlock(context: AgentContext): string {
               (component) =>
                 `      component ${component.id} ${component.kind}${
                   component.label ? ` "${component.label.slice(0, 60)}"` : ""
-                }${component.media_url ? " [has picture]" : ""}`,
+                }${component.media_url ? " [has picture]" : ""}${component.settings ? ` settings=${JSON.stringify(component.settings).slice(0, 500)}` : ""}`,
             )
             .join("\n");
           return [
@@ -132,6 +137,7 @@ function siteBlock(context: AgentContext): string {
             section.heading ? `      heading: ${section.heading.slice(0, 120)}` : null,
             section.subheading ? `      subheading: ${section.subheading.slice(0, 160)}` : null,
             section.body ? `      body: ${section.body.slice(0, 240)}` : null,
+            section.settings ? `      current settings: ${JSON.stringify(section.settings).slice(0, 900)}` : null,
             components || null,
           ]
             .filter(Boolean)

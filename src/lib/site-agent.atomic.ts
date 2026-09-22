@@ -68,6 +68,12 @@ export function targetOf(action: AgentAction): Target | null {
     case "set_custom_block":
     case "set_section_effect":
       return { kind: "update", table: "website_sections", id: action.sectionId };
+    case "set_block_style":
+      return {
+        kind: "update",
+        table: action.target === "section" ? "website_sections" : "website_components",
+        id: action.targetId,
+      };
     case "reorder_sections":
       return { kind: "updateMany", table: "website_sections", ids: [...action.sectionIds] };
     case "delete_section":

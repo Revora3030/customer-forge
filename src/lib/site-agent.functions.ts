@@ -10,7 +10,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
  */
 
 import { writeBackdrop, writeSectionEffect } from "@/lib/site-effects";
-import { writeComponentVisual, writeSectionVisual } from "@/lib/site-style";
+import { writeBlockStyle, writeComponentVisual, writeSectionVisual } from "@/lib/site-style";
 import { writeCustomBlock } from "@/lib/builder/custom-block";
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
@@ -66,6 +66,7 @@ type LoadedSite = {
     kind: string;
     sort_order: number;
     is_visible: boolean;
+    settings: unknown;
     noindex: boolean;
     seo_title: string | null;
     seo_description: string | null;
@@ -92,6 +93,7 @@ type LoadedSite = {
     sort_order: number;
     is_visible: boolean;
     media_url: string | null;
+    settings: unknown;
   }[];
 };
 
@@ -178,12 +180,12 @@ async function loadSite(supabase: SupabaseLike, orgId: string): Promise<LoadedSi
       .order("sort_order"),
     supabase
       .from("website_sections")
-      .select("id, page_id, kind, variant, heading, subheading, body, sort_order, is_visible")
+      .select("id, page_id, kind, variant, heading, subheading, body, settings, sort_order, is_visible")
       .eq("organization_id", orgId)
       .order("sort_order"),
     supabase
       .from("website_components")
-      .select("id, section_id, kind, label, body, link_label, link_url, media_url, sort_order, is_visible")
+      .select("id, section_id, kind, label, body, link_label, link_url, media_url, settings, sort_order, is_visible")
       .eq("organization_id", orgId)
       .order("sort_order"),
   ]);
@@ -379,6 +381,7 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
               subheading: section.subheading,
               body: section.body,
               sort_order: section.sort_order,
+              settings: section.settings,
               components: (componentsBySection.get(section.id) ?? []).map((component) => ({
                 id: component.id,
                 kind: component.kind,
@@ -387,6 +390,7 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
                 link_label: component.link_label,
                 link_url: component.link_url,
                 media_url: component.media_url,
+                settings: component.settings,
                 sort_order: component.sort_order,
               })),
             })),
@@ -751,10 +755,10 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
     // A step whose result is already true of the site is not a change. Dropping
     // those here is what keeps the reported numbers honest: the owner is told how
     // many things actually changed, not how many rows were written over.
-    const settled = dropUnchangedActions(
-      preflight.ok,
-      new Map(site.sections.map((section) => [section.id, section])),
-    );
+    const settled = dropUnchangedActions(preflight.ok, {
+      sections: new Map(site.sections.map((section) => [section.id, section])),
+      components: new Map(site.components.map((component) => [component.id, component])),
+    });
     const actions = settled.actions;
     const staleNotice = stalePlanMessage(preflight.stale, planned.length);
     if (actions.length > MAX_ACTIONS) {
@@ -811,10 +815,10 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
             .filter((section) => section.page_id === page.id)
             .map((section) => ({
               ...section,
-              settings: {},
+              settings: section.settings,
               components: site.components
                 .filter((component) => component.section_id === section.id)
-                .map((component) => ({ ...component, media_url: null, settings: {} })),
+                .map((component) => ({ ...component, settings: component.settings })),
             })),
         })),
       ),
@@ -1055,6 +1059,23 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
               .eq("organization_id", orgId);
           });
           break;
+        case "set_block_style": {
+          const table = action.target === "section" ? "website_sections" : "website_components";
+          await run(action.type, () => {
+            const settings = writeBlockStyle(
+              readColumn(table, action.targetId, "settings"),
+              action.patch,
+              action.device,
+            );
+            noteColumn(table, action.targetId, "settings", settings);
+            return supabase
+              .from(table)
+              .update({ settings } as never)
+              .eq("id", action.targetId)
+              .eq("organization_id", orgId);
+          });
+          break;
+        }
         case "set_custom_block":
           await run(action.type, () => {
             const settings = writeCustomBlock(
