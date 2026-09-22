@@ -416,6 +416,12 @@ export type ModelRecord = {
   healthy: boolean;
   /** Set when the provider/model is blocked right now (breaker, quota, policy). */
   blockedReason: string | null;
+  /**
+   * False when the provider is not cleared for tenant-sensitive content (for
+   * example a catalogue that trains on traffic). Undefined means no constraint
+   * is known, which is treated as safe-by-default for non-sensitive work only.
+   */
+  sensitiveSafe?: boolean;
 };
 
 export function supports(record: ModelRecord, capability: Capability): boolean {
