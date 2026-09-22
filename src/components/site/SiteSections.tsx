@@ -55,7 +55,6 @@ export function siteSurface(site: Site): string | null {
 
 export function siteDesignFingerprint(site: Site): DesignFingerprint {
   const settings = (site as { settings?: { generation?: unknown } | null }).settings ?? null;
-  const profile = (site.profile ?? null) as { industry?: string | null; city?: string | null } | null;
   // No fixed table ever decides how a live site looks. If the design team has
   // not authored a look yet, the page renders plainly rather than borrowing one.
   return readDesignFingerprint(settings?.generation) ?? neutralDesignFingerprint();
