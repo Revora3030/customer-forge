@@ -41,7 +41,9 @@ import {
 import {
   compileAiDesignContract,
   requireAiDesignContract,
+  type PageArchitecture,
 } from "@/lib/builder/creative-authority";
+import { deriveCandidateArchitecture } from "@/lib/builder/ai-page-architecture";
 import { assertMediaIntegrity } from "@/lib/builder/media-integrity";
 
 type Db = SupabaseClient;
