@@ -469,31 +469,13 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
     const storedGeneration = ((settingsRow.data as { generation?: unknown } | null)?.generation ??
       {}) as Record<string, unknown>;
     noteStage(orgId, runId, "recalling your design identity");
-    const priorFingerprint = readDesignFingerprint(storedGeneration);
-    const fingerprint =
-      priorFingerprint ??
-      createDesignFingerprint({
-        businessName: agentContext.business.name || null,
-        industry: agentContext.business.industry ?? null,
-        city: agentContext.business.city ?? null,
-        audience: agentContext.business.serviceArea ?? null,
-        goal: null,
-        photoCount: agentContext.business.photoCount ?? 0,
-        contentDensity: "balanced",
-      });
-    data.history = [{ role: "user" as const, content: fingerprintBrief(fingerprint) }, ...data.history];
-
     const memoryChanged = nextMemory !== priorMemory;
-    const fingerprintNew = !priorFingerprint;
-    if ((memoryChanged || fingerprintNew) && settingsRow.data) {
-      let generation: Record<string, unknown> = { ...storedGeneration };
-      if (memoryChanged) generation["designMemory"] = nextMemory;
-      if (fingerprintNew) generation = writeDesignFingerprint(generation, fingerprint);
+    if (memoryChanged && settingsRow.data) {
+      const generation: Record<string, unknown> = { ...storedGeneration, designMemory: nextMemory };
       const saved = await supabase
         .from("website_settings")
         .update({ generation: generation as never })
         .eq("organization_id", orgId);
-      // A memory write must never block the build; it is only ever a preference.
       if (saved.error) console.warn("design memory not saved", saved.error.message);
     }
 
