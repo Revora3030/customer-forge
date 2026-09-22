@@ -53,6 +53,8 @@ export type SectionKind =
   | "sticky_cta"
   | "contact"
   | "policy"
+  | "post_list"
+  | "embed"
   | "custom";
 
 export type ContentComponent = {
