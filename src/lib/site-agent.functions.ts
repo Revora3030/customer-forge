@@ -157,6 +157,7 @@ export async function runAiWebsiteUpgrade(input: {
   userId: string;
   instruction: string;
   label: string;
+  operationKey?: string | undefined;
 }) {
   const context = await loadAgentContext(input.supabase, input.organizationId);
   const plan = await planWebsiteChangesWithAi({
@@ -179,7 +180,7 @@ export async function runAiWebsiteUpgrade(input: {
     actions: plan.actions,
     label: input.label,
     verify: true,
-    operationKey: crypto.randomUUID(),
+    operationKey: input.operationKey ?? crypto.randomUUID(),
   });
   return { plan, applied };
 }
