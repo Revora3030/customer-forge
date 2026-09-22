@@ -677,7 +677,7 @@ function AutoField({
             variant="signal"
             size="sm"
             disabled={disabled || actionPending || draft.trim().length < 20}
-            onClick={() => void onAction(draft.trim())}
+            onClick={() => void Promise.resolve(onAction(draft.trim())).catch(() => undefined)}
           >
             {actionPending ? (
               <Loader2 className="size-4 animate-spin" />
