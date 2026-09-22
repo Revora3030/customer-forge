@@ -32,6 +32,6 @@ describe("customer website planning is AI-authored", () => {
   it("keeps the truthfulness and design guardrails in the AI planner", () => {
     expect(aiPlanner).toContain("Never invent a business fact");
     expect(aiPlanner).toContain("stock layout or filler wording");
-    expect(aiPlanner).toContain("review the plan adversarially");
+    expect(aiPlanner).toContain("reviews the plan adversarially");
   });
 });
