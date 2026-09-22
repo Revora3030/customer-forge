@@ -639,7 +639,7 @@ const UNSAFE_AI_CSS_PROPERTIES = new Set([
 function safeAiCssProperty(rawKey: string): string | null {
   const key = rawKey.trim();
   if (!key || key.length > 80 || UNSAFE_AI_CSS_PROPERTIES.has(key.toLowerCase())) return null;
-  if (!/^--?[a-zA-Z][a-zA-Z0-9_-]*$/.test(key) && !/^--[a-zA-Z0-9_-]+$/.test(key)) return null;
+  if (!/^[a-zA-Z][a-zA-Z0-9_-]*$/.test(key) && !/^--[a-zA-Z0-9_-]+$/.test(key)) return null;
   return key;
 }
 
