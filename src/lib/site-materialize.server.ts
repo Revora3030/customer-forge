@@ -732,7 +732,15 @@ export async function materializeSiteContent(
   db: Db,
   orgId: string,
   input: MaterializeInput,
-): Promise<{ pages: number; sections: number; components: number; skipped: boolean; campaign: SiteCampaign | null }> {
+): Promise<{
+  pages: number;
+  sections: number;
+  components: number;
+  skipped: boolean;
+  campaign: SiteCampaign | null;
+  /** The AI design this site was built from, when one governed the build. */
+  designContract: AiDesignContract | null;
+}> {
   const { count } = await db
     .from("website_pages")
     .select("id", { count: "exact", head: true })
