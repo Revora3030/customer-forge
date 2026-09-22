@@ -249,7 +249,15 @@ export function normalizeStyleInput(raw: unknown): Record<string, unknown> {
 
     // `padding: 48` / `padding: "48px"` sets all four sides.
     if (!key && (compact === "padding" || compact === "pad")) {
+      const amount =
+        typeof value === "string"
+          ? Number(value.trim().replace(/(px|pt|%)$/i, "")) *
+            (/rem|em/i.test(value) ? 16 : 1)
+          : value;
       out["padding"] = value;
+      for (const side of ["padTop", "padRight", "padBottom", "padLeft"]) {
+        if (!(side in source)) out[side] = amount;
+      }
       continue;
     }
     if (!key && (compact === "margin")) {
