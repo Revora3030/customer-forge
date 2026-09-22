@@ -61,8 +61,9 @@ function actionContract(context: AgentContext): string {
   const fonts = Object.keys(SITE_HEADING_FONTS).join("|");
   return [
     "Reply with ONE JSON object and nothing else:",
-    '{"reply":string,"summary":string,"requirements":string[],"questions":string[],"notes":string[],"actions":Action[],"hasMore":boolean,"cursor":string|null}; set hasMore=true only when another chunk is needed; cursor is an opaque continuation token.' ,
+    '{"reply":string,"summary":string,"requirements":string[],"questions":string[],"notes":string[],"actions":Action[],"hasMore":boolean,"cursor":string|null}',
     "",
+    "Set hasMore=true only when another chunk is genuinely needed. cursor is an opaque continuation token for the next chunk.",
     "Action is one of:",
     '{"type":"set_section_text","sectionId":id,"field":"heading"|"subheading"|"body","value":string}',
     '{"type":"set_section_visibility","sectionId":id,"visible":boolean}',
