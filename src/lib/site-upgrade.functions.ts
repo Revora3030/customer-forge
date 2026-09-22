@@ -32,6 +32,7 @@ import { writeSectionEffect } from "@/lib/site-effects";
 
 type SupabaseLike = {
   from: import("@supabase/supabase-js").SupabaseClient["from"];
+  storage: import("@supabase/supabase-js").SupabaseClient["storage"];
 };
 
 const MANAGERS = ["owner", "admin", "manager"];
