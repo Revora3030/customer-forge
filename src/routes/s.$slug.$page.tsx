@@ -11,6 +11,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { Menu, Phone, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SiteSection, StickyCallBar, siteDesignFingerprint } from "@/components/site/SiteSections";
+import { PreviewSelectBridge } from "@/components/site/PreviewSelectBridge";
 import { businessFacts } from "@/lib/builder/facts";
 import { safeText } from "@/lib/builder/presentation";
 import { SiteBackdrop } from "@/components/site/SiteBackdrop";
