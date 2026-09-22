@@ -73,6 +73,36 @@ describe("building a page and filling it in one plan", () => {
     expect(actions).toEqual([expect.objectContaining({ type: "generate_component_image", mode: "replace" })]);
   });
 
+  it("accepts AI-authored section and component visual actions", () => {
+    const dropped: string[] = [];
+    const actions = readActions(
+      [
+        { type: "set_ai_visual", sectionId: "section-1", patch: { transform: "scale(1.02)", background: "linear-gradient(#111,#333)" } },
+        { type: "set_ai_responsive", sectionId: "section-1", width: 390, patch: { gridTemplateColumns: "1fr" } },
+        { type: "set_ai_component_visual", componentId: "component-1", patch: { borderRadius: "28px", boxShadow: "0 20px 60px rgba(0,0,0,.2)" } },
+        { type: "set_ai_component_responsive", componentId: "component-1", width: 390, patch: { transform: "none" } },
+      ],
+      { pageIds: new Set(), sectionIds: new Set(["section-1"]), componentIds: new Set(["component-1"]) },
+      dropped,
+    );
+    expect(actions).toHaveLength(4);
+    expect(dropped).toHaveLength(0);
+  });
+
+  it("reports unknown or malformed actions instead of silently dropping them", () => {
+    const dropped: string[] = [];
+    const actions = readActions(
+      [
+        { type: "not-a-real-action" },
+        { type: "set_ai_responsive", sectionId: "missing", width: 390, patch: { transform: "none" } },
+      ],
+      { pageIds: new Set(), sectionIds: new Set(), componentIds: new Set() },
+      dropped,
+    );
+    expect(actions).toHaveLength(0);
+    expect(dropped.length).toBeGreaterThanOrEqual(2);
+  });
+
   it("accepts safe section and responsive component style actions", () => {
     const actions = readActions([
       { type: "set_block_style", target: "section", targetId: "section-1", device: "desktop", patch: { bgColor: "#112233", padTop: 64 } },
