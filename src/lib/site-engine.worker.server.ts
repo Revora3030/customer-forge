@@ -195,14 +195,14 @@ async function claimJob(db: Db, organizationId?: string) {
       .select("id, organization_id, created_by")
       .maybeSingle();
     if (claimed)
-      return claimed as { id: string; organization_id: string; created_by: string | null };
+      return claimed as { id: string; organization_id: string; attempts: number; created_by: string | null };
   }
   return null;
 }
 
 async function runCanonicalFirstBuild(input: {
   db: Db;
-  job: { id: string; organization_id: string; created_by: string | null };
+  job: { id: string; organization_id: string; attempts: number; created_by: string | null };
   business: {
     name: string;
     industry: string | null;
@@ -219,6 +219,19 @@ async function runCanonicalFirstBuild(input: {
 }): Promise<void> {
   const { db, job, business, profile, services, formsCount, bookingCount, goals, freshReplace, pendingBuild } = input;
   let materialized = false;
+  const renewLease = async () => {
+    const expires = new Date(Date.now() + LEASE_SECONDS * 1000).toISOString();
+    await db
+      .from("generation_jobs")
+      .update({ lease_expires_at: expires, updated_at: new Date().toISOString() } as never)
+      .eq("id", job.id)
+      .eq("status", "processing")
+      .eq("attempts", job.attempts);
+  };
+  const leaseHeartbeat = setInterval(() => {
+    void renewLease().catch((error) => console.warn("[site-engine] lease renewal failed", error));
+  }, Math.max(30_000, Math.floor((LEASE_SECONDS * 1000) / 3)));
+
   try {
     const { authorCreativeSiteContract } = await import("@/lib/builder/creative-site-contract.server");
     const { materializeSiteContent } = await import("@/lib/site-materialize.server");
@@ -442,6 +455,8 @@ async function runCanonicalFirstBuild(input: {
       );
     }
     throw error;
+  } finally {
+    clearInterval(leaseHeartbeat);
   }
 }
 
@@ -455,7 +470,7 @@ async function runCanonicalFirstBuild(input: {
  */
 async function runJob(
   db: Db,
-  job: { id: string; organization_id: string; created_by: string | null },
+  job: { id: string; organization_id: string; attempts: number; created_by: string | null },
 ) {
   const orgId = job.organization_id;
   const { data: settings } = await db
