@@ -245,11 +245,11 @@ function SectionButtons({ site, components }: { site: Site; components: Componen
         const hasOverride = Boolean(style.buttonStyle || style.buttonSize || style.buttonTextColor || style.buttonBgColor);
         const directClass = hasOverride ? buttonClasses(style) : undefined;
         const surface = siteSurface(site);
-        const directStyle = { ...blockCss(style, surface), ...buttonCss(style, surface) };
+        const directStyle = { ...blockCss(style, surface), ...aiAuthoredCss((button as Component & { settings?: unknown }).settings), ...buttonCss(style, surface) };
         return (
           <Button key={button.id} asChild variant={hasOverride ? "ghost" : index === 0 ? "signal" : "outline"} size={hasOverride ? "sm" : "lg"}>
             {internal ? (
-              <SitePageLink slug={site.org.slug} page={href.slice(1)} className={directClass} style={directStyle} blockId={button.id} data-rv-ai-component-id={button.id.replace(/[^a-zA-Z0-9_-]/g, "-")}>
+              <SitePageLink slug={site.org.slug} page={href.slice(1)} className={directClass} style={directStyle} blockId={button.id} dataRvAiComponentId={button.id.replace(/[^a-zA-Z0-9_-]/g, "-")}>
                 {button.label}
               </SitePageLink>
             ) : (
