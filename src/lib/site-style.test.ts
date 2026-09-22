@@ -140,6 +140,12 @@ describe("AI-authored visual capabilities", () => {
     });
   });
 
+  it("rejects CSS animation and transition overrides", () => {
+    const css = aiAuthoredCss({ ai_visual: { animation: "spin 1s infinite", transition: "all 1s ease" } });
+    expect(css.animation).toBeUndefined();
+    expect(css.transition).toBeUndefined();
+  });
+
   it("rejects executable CSS payloads instead of replacing them with a default", () => {
     const css = aiAuthoredCss({
       ai_visual: {
