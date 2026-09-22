@@ -33,6 +33,12 @@ import {
 } from "@/lib/builder/executable-creative";
 import { slugify } from "@/lib/format";
 import { compileSiteCampaign, type SiteCampaign } from "@/lib/builder/site-campaign";
+import {
+  applyDesignContract,
+  type AiDesignContract,
+  type MaterialPage,
+} from "@/lib/builder/ai-design-contract";
+import { assertMediaIntegrity } from "@/lib/builder/media-integrity";
 
 type Db = SupabaseClient;
 
@@ -87,6 +93,13 @@ export type MaterializeInput = {
   generatedAssets?: FirstBuildImageAsset[];
   /** Explicit, guarded replacement mode. Default rebuilds remain non-destructive. */
   replaceExisting?: boolean;
+  /**
+   * The AI's canonical design. When supplied it is the creative authority: it
+   * decides which pages exist, which sections appear and in what order, and the
+   * renderer only supplies safe building blocks. An empty required visual
+   * container fails the build instead of shipping a blank box.
+   */
+  designContract?: AiDesignContract | null;
 };
 
 type Component = {
