@@ -273,7 +273,6 @@ export function SiteSection({ site, section }: { site: Site; section: Section })
   const visual = readSectionVisual(section.settings);
   const variant = /^[a-z0-9-]{1,40}$/i.test(section.variant ?? "") ? section.variant : "default";
   const rendererVariant = variant.split("--", 1)[0] ?? variant;
-  const fingerprint = siteDesignFingerprint(site);
   const hasMedia = section.components.some((component) => Boolean(componentImageUrl(component))) ||
     (section.kind === "hero" && Boolean(site.profile?.hero_image_url));
   const aiAuthoredSection = Boolean(
@@ -287,7 +286,7 @@ export function SiteSection({ site, section }: { site: Site; section: Section })
     : resolveExecutableCreativeSection({
         kind: section.kind,
         settings: section.settings,
-        fingerprint,
+        fingerprint: siteDesignFingerprint(site),
         hasMedia,
       });
   const inner = <SiteSectionBody site={site} section={section} />;
