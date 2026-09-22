@@ -2002,6 +2002,14 @@ a[href*="lovable.app"][target="_blank"][class*="fixed"],
   box-shadow: 0 34px 90px -45px rgb(0 0 0 / 0.65);
 }
 
+.rv-hero-grid-text-only {
+  grid-template-columns: minmax(0, 1fr) !important;
+}
+
+.rv-hero-grid-text-only > :first-child {
+  max-width: 68rem;
+}
+
 .rv-generated-media {
   position: relative;
   z-index: 2;

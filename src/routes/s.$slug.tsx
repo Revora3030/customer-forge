@@ -125,8 +125,8 @@ function PublicSiteRoute() {
  * The home address serves whatever the owner actually built. When the builder
  * has a home page with visible sections, that exact page is rendered — the same
  * renderer the other pages and the draft preview use — so the live site can
- * never differ from the editor. Only tenants with no built home page fall back
- * to the generated template layout.
+ * never differ from the editor. A missing AI-authored page fails clearly; it
+ * never falls back to the retired deterministic template renderer.
  */
 export function PublicSiteView({
   site,
@@ -138,7 +138,16 @@ export function PublicSiteView({
   if (site.content && site.content.sections.length > 0) {
     return <SitePageView site={site} preview={preview} />;
   }
-  return <TemplateSiteView site={site} preview={preview} />;
+  return (
+    <main className="flex min-h-screen items-center justify-center bg-background px-6 text-center">
+      <div className="max-w-md">
+        <h1 className="font-display text-2xl font-semibold">This website is still being built</h1>
+        <p className="mt-3 text-sm text-muted-foreground">
+          No AI-authored home page is ready yet. Nothing was replaced with a template.
+        </p>
+      </div>
+    </main>
+  );
 }
 
 /**

@@ -76,6 +76,7 @@ export function targetOf(action: AgentAction): Target | null {
       return { kind: "insert", table: "website_sections" };
     case "set_component":
     case "set_component_visual":
+    case "generate_component_image":
       return { kind: "update", table: "website_components", id: action.componentId };
     case "reorder_components":
       return { kind: "updateMany", table: "website_components", ids: [...action.componentIds] };

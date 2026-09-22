@@ -99,6 +99,7 @@ in any combination, and in any quantity up to ${MAX_ACTIONS} actions:
 - add new pages, rename pages, change their web address, hide them, noindex them
 - write page titles, meta descriptions, canonical and social (OpenGraph) text
 - change brand colours and font preference
+- generate a new AI picture, or change an existing picture, and attach the result to the exact requested item
 - correct business details (tagline, description, phone, email, city, service area, review link)
 
 HARD RULES
@@ -129,6 +130,8 @@ ACTION SHAPES (use exactly these)
 {"type":"reorder_sections","pageId":"<id>","sectionIds":["<id>","<id>", "..."]}
 {"type":"reorder_components","sectionId":"<id>","componentIds":["<id>","<id>", "..."]}
 {"type":"set_component","componentId":"<id>","patch":{"label":"...","body":"...","link_label":"...","link_url":"...","is_visible":true}}
+{"type":"generate_component_image","componentId":"<id>","prompt":"Detailed photographic art direction grounded in the business and requested change","alt":"Factual description without invented claims","mode":"replace|create"}
+  (use this whenever the owner asks to make, replace, regenerate, or change a picture. Never use set_component_visual with an invented URL.)
 {"type":"add_component","sectionId":"<id>","ref":"temp_component_1","kind":"<component kind>","label":"...","body":"...","link_label":"...","link_url":"/contact"}
   (give a new component a "ref" when later actions in the SAME plan need to edit, style or remove it)
 {"type":"delete_component","componentId":"<id>"}

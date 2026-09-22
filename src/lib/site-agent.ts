@@ -404,6 +404,15 @@ export type AgentAction =
     }
 
   | {
+      /** Generate/edit a real AI image and attach it to this exact component. */
+      type: "generate_component_image";
+      componentId: string;
+      prompt: string;
+      alt: string;
+      mode: "replace" | "create";
+    }
+
+  | {
       type: "add_component";
       sectionId: string;
       /**
@@ -1551,6 +1560,16 @@ export function readActions(
         break;
       }
 
+      case "generate_component_image": {
+        if (!knownComponent(componentId)) break;
+        const prompt = text(row["prompt"], 1200);
+        const alt = text(row["alt"], 200);
+        const mode = row["mode"] === "create" ? "create" : "replace";
+        if (prompt.length < 20 || alt.length < 3) break;
+        out.push({ type, componentId, prompt, alt, mode });
+        break;
+      }
+
       /* ------------------------------------------------------------------ */
       /* ADD COMPONENT                                                      */
       /* ------------------------------------------------------------------ */
@@ -2465,6 +2484,16 @@ export function describeActions(
             destructive:
               false,
 
+            action,
+          };
+
+        case "generate_component_image":
+          return {
+            key,
+            title: action.mode === "replace" ? "Generate and replace this picture" : "Generate and attach a picture",
+            where: locate(index, { componentId: action.componentId }),
+            after: action.prompt,
+            destructive: false,
             action,
           };
 
