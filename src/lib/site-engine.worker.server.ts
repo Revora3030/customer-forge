@@ -519,14 +519,14 @@ async function runJob(
     .select("id", { count: "exact", head: true })
     .eq("organization_id", orgId);
   const firstBuild = freshReplace || (existingPages.count ?? 0) === 0;
-  if (firstBuild && !refined.passes.some((pass) => pass.used)) {
+  if (firstBuild && (!refined.passes.some((pass) => pass.used) || !refined.changed)) {
     const why = refined.passes
       .map((pass) => pass.skipped)
       .filter(Boolean)
       .slice(0, 3)
       .join("; ");
     throw new Error(
-      `The design team could not author this website's wording and look, so nothing was published (${why || "no model was reachable"}). Please try again in a moment.`,
+      `The design team could not author this website's wording and look, so nothing was published (${why || (refined.passes.some((pass) => pass.used) ? "no model returned usable wording" : "no model was reachable")}). Please try again in a moment.`,
     );
   }
 
