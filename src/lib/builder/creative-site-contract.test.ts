@@ -56,13 +56,13 @@ describe("CreativeSiteContract", () => {
 
   it("rejects deterministic template authority", () => {
     const contract = base();
-    (contract.pages[0]!.sections[0]!.visual as Record<string, unknown>).templateId = "legacy";
+    (contract.pages[0]!.sections[0]!.visual as Record<string, unknown>)["templateId"] = "legacy";
     expect(validateCreativeSiteContract(contract).valid).toBe(false);
   });
 
   it("rejects executable markup while preserving creative freedom", () => {
     const contract = base();
-    (contract.pages[0]!.sections[0]!.visual as Record<string, unknown>).css =
+    (contract.pages[0]!.sections[0]!.visual as Record<string, unknown>)["css"] =
       "<script>alert(1)</script>";
     expect(validateCreativeSiteContract(contract).valid).toBe(false);
   });
