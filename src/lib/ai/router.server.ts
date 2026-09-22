@@ -259,6 +259,11 @@ export async function freeModelPool(
       if (capable && !capable(model)) return;
       if (!models.includes(model) && isFreeEligibleModel(entry.name, model)) models.push(model);
     };
+    const configuredModel = entry.model;
+    // The configured default is the model proven against this account. Put it
+    // before name-matched catalogue discoveries: metadata can identify a model
+    // as image-capable without proving its exact request schema is compatible.
+    consider(configuredModel);
     try {
       // Image models come from a different catalogue endpoint, so the role is
       // passed through and the right pool is refreshed.
@@ -269,7 +274,6 @@ export async function freeModelPool(
     } catch {
       // Discovery is advisory only; the configured free model still runs.
     }
-    consider(entry.model);
     if (models.length) pools.push({ provider: entry.name, credentials: entry.credentials, models });
   }
   return pools;
