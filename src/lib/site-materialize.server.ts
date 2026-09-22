@@ -129,6 +129,7 @@ type Section = {
   subheading?: string | null;
   body?: string | null;
   components?: Component[];
+  settings?: Record<string, unknown> | null;
 };
 
 type Page = {
