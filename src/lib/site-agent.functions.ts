@@ -151,7 +151,7 @@ export type SupabaseLike = {
   storage: SupabaseClient["storage"];
 };
 
-async function runAiWebsiteUpgrade(input: {
+export async function runAiWebsiteUpgrade(input: {
   supabase: SupabaseLike;
   organizationId: string;
   userId: string;
@@ -775,6 +775,7 @@ export async function applyWebsiteActions(supabase: SupabaseLike, userId: string
     noteApplyStage(orgId, applyRunId, "writing the pages");
     const sortOf = new Map(site.sections.map((section) => [section.id, section.sort_order]));
     const applied: string[] = [];
+    const appliedActions: AgentAction[] = [];
     const failed: string[] = [];
 
     // Every write records how to reverse itself first. The first failure stops
@@ -782,6 +783,7 @@ export async function applyWebsiteActions(supabase: SupabaseLike, userId: string
     // either fully in place or the site is exactly as it was.
     const undoSteps: UndoStep[] = [];
     let fatal: unknown = null;
+    let currentAction: AgentAction | null = null;
 
     // SPEED: the pre-write state of everything this batch touches is read once,
     // here, instead of once per step. The writes themselves stay strictly in
@@ -819,6 +821,7 @@ export async function applyWebsiteActions(supabase: SupabaseLike, userId: string
         const result = (await work()) as { error?: unknown } | null;
         if (result && result.error) throw result.error;
         applied.push(label);
+        if (currentAction) appliedActions.push(currentAction);
       } catch (error) {
         console.error("[site-agent] action failed", label, error);
         failed.push(label);
@@ -892,6 +895,7 @@ export async function applyWebsiteActions(supabase: SupabaseLike, userId: string
           componentId: newComponents.get(resolved.componentId)!,
         } as AgentAction;
       const action = resolved;
+      currentAction = action;
 
       if (action.type === "reorder_sections") {
         const wrongPage = action.sectionIds.find((id) => sectionPage.get(id) !== action.pageId);
@@ -1578,6 +1582,7 @@ export async function applyWebsiteActions(supabase: SupabaseLike, userId: string
       verification,
       /** Checked → repaired → checked again, measured on the saved rows. */
       qa,
+      appliedActions,
     };
   }
 }
