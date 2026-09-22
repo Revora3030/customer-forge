@@ -89,7 +89,7 @@ export async function authorCreativeSiteContract(input: {
   };
 
   let solModel: string | null = null;
-  const modelList = () => (solModel ? modelList() : []);
+  const modelList = () => (solModel ? [solModel] : []);
   let solCostMicrocents = 0;
   let contract: CreativeSiteContract | null = null;
   let continuation = { chunkIndex: 0, totalChunks: undefined as number | undefined, cursor: null as string | null, hasMore: false };
@@ -286,7 +286,7 @@ export async function authorCreativeSiteContract(input: {
       costMicrocents: solCostMicrocents + terra.costMicrocents,
     };
 
-  contract = normalize(repaired, solModel);
+  contract = normalize(repaired, solModel ?? "gpt-5.6-sol");
   contract.reviewedBy = terra.model ?? "gpt-5.6-terra";
   const terraValidation = validateCreativeSiteContract(contract);
   if (!terraValidation.valid)
@@ -302,7 +302,7 @@ export async function authorCreativeSiteContract(input: {
     contract,
     reviewed: true,
     skipped: null,
-    models: [solModel, terra.model].filter(Boolean) as string[],
+    models: [...modelList(), terra.model].filter(Boolean) as string[],
     costMicrocents: solCostMicrocents + terra.costMicrocents,
   };
 }
