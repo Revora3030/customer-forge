@@ -67,6 +67,7 @@ export async function authorCreativeSiteContract(input: {
   hasQuoteForm: boolean;
   hasBooking: boolean;
   language: string;
+  hasOwnerMedia: boolean;
   signal?: AbortSignal;
 }): Promise<CreativeSiteContractOutcome> {
   const facts = {
@@ -83,6 +84,7 @@ export async function authorCreativeSiteContract(input: {
     hasQuoteForm: input.hasQuoteForm,
     hasBooking: input.hasBooking,
     language: input.language,
+    hasOwnerMedia: input.hasOwnerMedia,
   };
 
   const sol = await callBestThinker({
@@ -100,6 +102,9 @@ export async function authorCreativeSiteContract(input: {
       "Create the complete site contract now.",
       "The site may have any valid number of pages and sections needed by the business.",
       "Do not include claims not present in the facts.",
+      input.hasOwnerMedia
+        ? "Owner media exists; you may assign it where useful, but do not invent asset ids."
+        : "No owner media is available; do not mark any section media as required unless the contract can materialize a real asset.",
       "Use stable ids such as page-home and section-home-intro-01, but invent the actual architecture.",
     ].join("\n"),
   });
