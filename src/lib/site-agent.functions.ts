@@ -1215,6 +1215,35 @@ export async function applyWebsiteActions(supabase: SupabaseLike, userId: string
           );
           break;
         }
+        case "set_ai_component_visual":
+          await run(action.type, () => {
+            const settings = writeAiAuthoredVisual(
+              readColumn("website_components", action.componentId, "settings"),
+              action.patch,
+            );
+            noteColumn("website_components", action.componentId, "settings", settings);
+            return supabase
+              .from("website_components")
+              .update({ settings } as never)
+              .eq("id", action.componentId)
+              .eq("organization_id", orgId);
+          });
+          break;
+        case "set_ai_component_responsive":
+          await run(action.type, () => {
+            const settings = writeAiResponsiveVisual(
+              readColumn("website_components", action.componentId, "settings"),
+              action.width,
+              action.patch,
+            );
+            noteColumn("website_components", action.componentId, "settings", settings);
+            return supabase
+              .from("website_components")
+              .update({ settings } as never)
+              .eq("id", action.componentId)
+              .eq("organization_id", orgId);
+          });
+          break;
         case "set_component_visual":
           await run(action.type, () => {
             const settings = writeComponentVisual(
