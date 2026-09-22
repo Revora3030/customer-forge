@@ -212,6 +212,9 @@ export function SitePageView({
 
         <StickyCallBar site={site} label={ctaLabel} />
         <SiteVitals slug={org.slug} preview={preview} />
+        {/* Lets the builder's preview frame pick a block by clicking it. Inert
+            for every ordinary visitor and for any frame from another origin. */}
+        <PreviewSelectBridge />
         {preview ? <BuilderReturnBar /> : null}
       </div>
     </div>
