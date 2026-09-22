@@ -144,6 +144,7 @@ export function guardBuilderPlan(
   };
   let duplicates = 0;
   let unsafe = 0;
+  const output: AgentAction[] = [];
 
   for (const action of actions) {
     if (output.length >= Math.min(cap, MAX_ACTIONS)) break;
