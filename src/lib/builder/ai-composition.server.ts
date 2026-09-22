@@ -394,31 +394,9 @@ export async function proposeSiteComposition(
       brandLockNote(lockMode),
     ];
 
-    // Two businesses in the same trade must not end up with the same hex
-    // values, so the chosen palette is nudged by a small, stable, per-business
-    // amount before anything else looks at it.
-    const { varyIndustryVisual } = await import("@/lib/color-variation");
-    const personalisedSource = chosen ?? proposal.direction;
-    const varied = varyIndustryVisual(
-      {
-        primary: personalisedSource.primary,
-        secondary: personalisedSource.secondary,
-        accent: personalisedSource.accent,
-        font: personalisedSource.font,
-        backdrop: personalisedSource.backdrop,
-      },
-      {
-        organizationId: options.organizationId ?? null,
-        businessName: context.business.name ?? "",
-        industry: context.business.industry ?? "",
-        city: context.business.city ?? "",
-      },
-    );
-    const personalised: DesignDirection = {
-      ...personalisedSource,
-      primary: varied.primary,
-      accent: varied.accent,
-    };
+    // The colours the design team chose are used exactly as chosen. Nothing
+    // shifts them afterwards, so what the models decide is what the site shows.
+    const personalised: DesignDirection = chosen ?? proposal.direction;
 
     // The owner's own choices are final for ordinary edits; a request that asks
     // for a new look installs the chosen palette instead.

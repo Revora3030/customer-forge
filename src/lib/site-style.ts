@@ -189,9 +189,14 @@ const NAMED_COLORS: Record<string, string> = {
   onyx: "#0a0a0a", platinum: "#e5e7eb", rose: "#e11d48", tan: "#d2b48c",
 };
 
+/** Modern colour spaces the design team can reach for, values kept plain. */
+const MODERN_COLOR_FN =
+  /^(?:oklch|oklab|lab|lch|hwb|color)\(\s*[0-9a-z%.\-+/ ]{1,80}\)$/i;
+
 /**
- * A colour the renderer can emit safely: hex (3/4/6/8 digit), an `rgb()`/`hsl()`
- * function, or a human colour name. No `url()`, no expressions, no arbitrary CSS.
+ * A colour the renderer can emit safely: hex (3/4/6/8 digit), an
+ * `rgb()`/`hsl()`/`oklch()`/`lab()`/`lch()`/`hwb()`/`color()` function, or a human
+ * colour name. No `url()`, no variables, no expressions, no arbitrary CSS.
  */
 export function safeColor(value: unknown): string | null {
   if (typeof value !== "string") return null;
@@ -199,6 +204,7 @@ export function safeColor(value: unknown): string | null {
   if (!trimmed || /[;{}<>\\]|url\(|var\(|expression|@import/i.test(trimmed)) return null;
   if (HEX.test(trimmed)) return trimmed;
   if (RGB_FN.test(trimmed) || HSL_FN.test(trimmed)) return trimmed;
+  if (MODERN_COLOR_FN.test(trimmed)) return trimmed;
   const named = NAMED_COLORS[trimmed] ?? NAMED_COLORS[trimmed.replace(/[\s_]+/g, "")];
   return named ?? null;
 }
@@ -404,7 +410,9 @@ function readLayer(raw: unknown): Partial<BlockStyle> {
     typeof value === "string" && value in map ? (map[value] as T) : null;
 
   set("font", inList(FONT_FAMILIES, s["font"]) ?? legacy(LEGACY_FONT, s["font"]));
-  set("size", boundedNumber(s["size"], 10, 160) ?? boundedNumber(legacy(LEGACY_SIZE, s["size"]), 10, 160));
+  // Ranges below are safety limits only — any value inside them is accepted
+  // exactly as the design team wrote it, never rounded to a preset step.
+  set("size", boundedNumber(s["size"], 6, 400) ?? boundedNumber(legacy(LEGACY_SIZE, s["size"]), 6, 400));
   set(
     "weight",
     boundedNumber(s["weight"], 100, 900, true) ??
@@ -413,39 +421,39 @@ function readLayer(raw: unknown): Partial<BlockStyle> {
   set("align", inList(ALIGNMENTS, s["align"]));
   set(
     "lineHeight",
-    boundedNumber(s["lineHeight"], 0.75, 3) ??
-      boundedNumber(legacy(LEGACY_LEADING, s["lineHeight"]), 0.75, 3),
+    boundedNumber(s["lineHeight"], 0.5, 4) ??
+      boundedNumber(legacy(LEGACY_LEADING, s["lineHeight"]), 0.5, 4),
   );
-  set("letterSpacing", boundedNumber(s["letterSpacing"], -0.1, 0.3));
+  set("letterSpacing", boundedNumber(s["letterSpacing"], -0.5, 1));
   set("textTransform", inList(TEXT_TRANSFORMS, s["textTransform"]));
   if (typeof s["italic"] === "boolean") set("italic", s["italic"]);
   set("textColor", safeColor(s["textColor"]));
 
   set(
     "columns",
-    boundedNumber(s["columns"], 1, 6, true) ??
-      boundedNumber(legacy(LEGACY_COLUMNS, s["layout"]), 1, 6, true),
+    boundedNumber(s["columns"], 1, 12, true) ??
+      boundedNumber(legacy(LEGACY_COLUMNS, s["layout"]), 1, 12, true),
   );
-  set("gap", boundedNumber(s["gap"], 0, 240));
-  set("maxWidth", boundedNumber(s["maxWidth"], 240, 1920));
+  set("gap", boundedNumber(s["gap"], 0, 480));
+  set("maxWidth", boundedNumber(s["maxWidth"], 120, 2400));
   set("contentAlign", inList(ALIGNMENTS, s["contentAlign"]));
 
   // Legacy `padding` was one value for all four sides.
   const legacyPad =
-    boundedNumber(legacy(LEGACY_SPACE, s["padding"]), 0, 240) ?? boundedNumber(s["padding"], 0, 240);
+    boundedNumber(legacy(LEGACY_SPACE, s["padding"]), 0, 480) ?? boundedNumber(s["padding"], 0, 480);
   for (const side of ["padTop", "padRight", "padBottom", "padLeft"] as const) {
-    set(side, boundedNumber(s[side], 0, 240) ?? legacyPad);
+    set(side, boundedNumber(s[side], 0, 480) ?? legacyPad);
   }
-  set("marginTop", boundedNumber(s["marginTop"], -240, 240));
-  set("marginBottom", boundedNumber(s["marginBottom"], -240, 240));
+  set("marginTop", boundedNumber(s["marginTop"], -480, 480));
+  set("marginBottom", boundedNumber(s["marginBottom"], -480, 480));
 
   set("bgColor", safeColor(s["bgColor"]));
   set("bgGradient", safeColor(s["bgGradient"]));
   set("bgGradientAngle", boundedNumber(s["bgGradientAngle"], 0, 360));
   set("bgImage", safeImageUrl(s["bgImage"]));
   set("overlay", boundedNumber(s["overlay"], 0, 100));
-  set("radius", boundedNumber(s["radius"], 0, 999));
-  set("borderWidth", boundedNumber(s["borderWidth"], 0, 12));
+  set("radius", boundedNumber(s["radius"], 0, 9999));
+  set("borderWidth", boundedNumber(s["borderWidth"], 0, 48));
   set("borderColor", safeColor(s["borderColor"]));
   set("shadow", inList(SHADOWS, s["shadow"]));
   set("opacity", boundedNumber(s["opacity"], 0, 100));

@@ -1,5 +1,4 @@
 import { Button } from "@/components/ui/button";
-import { siteVariation } from "@/lib/site-variation";
 
 type Props = {
   organizationId?: string | null | undefined;
@@ -43,12 +42,6 @@ const when = (value?: string | null) => {
  */
 export function WebsiteProject(props: Props) {
   const status = STATUS[props.publishState ?? "draft"] ?? STATUS["draft"]!;
-  const variation = siteVariation({
-    organizationId: props.organizationId ?? null,
-    businessName: props.businessName ?? null,
-    industry: props.industry ?? null,
-    city: props.city ?? null,
-  });
   // A client website is served from the domain the client owns. The platform
   // share path is the address that always works until then.
   const address =
@@ -58,7 +51,6 @@ export function WebsiteProject(props: Props) {
     { label: "Pages", value: String(props.pagesCount) },
     { label: "Live sections", value: String(props.visibleSections) },
     { label: "Revora score", value: `${props.score}/100` },
-    { label: "Layout", value: variation.id },
   ];
 
   return (
@@ -106,9 +98,8 @@ export function WebsiteProject(props: Props) {
       </div>
 
       <p className="mt-2.5 text-[11.5px] text-muted-foreground">
-        Your website is built on its own layout ({variation.id}) — section order, hero style and
-        wording are generated for your business, so it never looks like another Revora client's
-        site.
+        Every part of your website — section order, hero style, colours and wording — is designed by
+        Revora's AI team for your business, so it never looks like another Revora client's site.
       </p>
     </section>
   );

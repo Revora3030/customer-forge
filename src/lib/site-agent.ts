@@ -1050,10 +1050,25 @@ export function readActions(
     sectionIds: Set<string>;
     componentIds: Set<string>;
   },
+  /**
+   * Optional collector. Every step this reader refuses records the reason here,
+   * so the owner is told what was left out instead of it vanishing in silence.
+   */
+  dropped?: string[],
 ): AgentAction[] {
+  const note = (reason: string) => {
+    if (dropped && dropped.length < 40) dropped.push(reason);
+  };
+
   if (!Array.isArray(value)) {
+    note("The change list couldn't be read, so nothing was taken from it.");
     return [];
   }
+
+  if (value.length > MAX_ACTIONS * 2)
+    note(
+      `The design team proposed ${value.length} steps; only the first ${MAX_ACTIONS * 2} were read and at most ${MAX_ACTIONS} can be installed in one go. Ask again to continue with the rest.`,
+    );
 
   const out: AgentAction[] = [];
 
@@ -1099,6 +1114,7 @@ export function readActions(
       !raw ||
       typeof raw !== "object"
     ) {
+      note("One step arrived in a form Revora couldn't read, so it was left out.");
       continue;
     }
 
@@ -2121,8 +2137,12 @@ export function readActions(
 
       default:
         /**
-         * Unknown actions are deliberately ignored.
+         * A step Revora has no safe way to carry out. It is not performed, and
+         * the reason is reported rather than swallowed.
          */
+        note(
+          `"${type || "unnamed step"}" isn't something Revora can do to a website yet, so it was left out.`,
+        );
         break;
     }
 
@@ -2130,6 +2150,9 @@ export function readActions(
       out.length >=
       MAX_ACTIONS
     ) {
+      note(
+        `Revora installs up to ${MAX_ACTIONS} changes at once. Anything after that wasn't included — ask again to carry on.`,
+      );
       break;
     }
   }

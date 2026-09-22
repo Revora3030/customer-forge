@@ -3,14 +3,12 @@ import { toast } from "@/lib/ui/notify";
 import { friendlyError } from "@/lib/user-error";
 import { supabase } from "@/integrations/supabase/client";
 import {
-  buildContentBlueprint,
   type ContentComponent,
   type ContentPage,
   type ContentSection,
   type SectionKind,
 } from "@/lib/website-content";
 import { safeLinkUrl, slugify } from "@/lib/website-content";
-import { readCopy } from "@/lib/site-engine";
 import { useBuilderHistory } from "@/lib/builder-history.hooks";
 import { duplicateComponentPayload, duplicateSectionPayload } from "@/lib/builder-tree";
 
@@ -80,135 +78,6 @@ export function useWebsiteContent(organizationId: string | undefined) {
   });
 }
 
-/**
- * Rebuilds the structure from the information the client already entered, so
- * nothing has to be typed twice. Existing rows are replaced in one pass.
- */
-export function useBuildWebsiteStructure(organizationId: string | undefined) {
-  const invalidate = useInvalidateContent(organizationId);
-  return useMutation({
-    mutationFn: async () => {
-      const orgId = organizationId!;
-      const [org, profile, services, media, reviews, settings] = await Promise.all([
-        supabase
-          .from("organizations")
-          .select("name, industry, conversion_goal")
-          .eq("id", orgId)
-          .maybeSingle(),
-        supabase.from("business_profiles").select("*").eq("organization_id", orgId).maybeSingle(),
-        supabase
-          .from("services")
-          .select("name, description, price, starting_price")
-          .eq("organization_id", orgId)
-          .eq("is_active", true)
-          .order("sort_order"),
-        supabase.from("media").select("id").eq("organization_id", orgId),
-        supabase.from("reviews").select("id").eq("organization_id", orgId).eq("is_published", true),
-        supabase
-          .from("website_settings")
-          .select("generation, seo")
-          .eq("organization_id", orgId)
-          .maybeSingle(),
-      ]);
-      const p = (profile.data ?? {}) as Record<string, unknown>;
-      const generation = (settings.data?.generation ?? null) as Record<string, unknown> | null;
-      const copy = readCopy(generation?.["copy"]);
-      const seo = (settings.data?.seo ?? {}) as Record<string, unknown>;
-
-      const blueprint = buildContentBlueprint({
-        organizationId: orgId,
-        businessName: org.data?.name ?? "",
-        industry: org.data?.industry ?? null,
-        city: (p["city"] as string) ?? null,
-        state: (p["state"] as string) ?? null,
-        serviceArea: (p["service_area"] as string) ?? null,
-        description: copy?.about || ((p["description"] as string) ?? null),
-        phone: (p["phone"] as string) ?? null,
-        email: (p["email"] as string) ?? null,
-        hasHours: Boolean(p["hours"] && Object.keys(p["hours"] as object).length),
-        photoCount: (media.data ?? []).length + ((p["hero_image_url"] as string) ? 1 : 0),
-        reviewCount: (reviews.data ?? []).length,
-        ctaLabel: copy?.primaryCta || (seo["primary_cta_label"] as string) || "Get my price",
-        services: services.data ?? [],
-        benefits: copy?.benefits ?? [],
-        faqs: copy?.faqs ?? [],
-      });
-
-      // Replace the previous structure; cascades clear old sections/components.
-      const { error: clearError } = await supabase
-        .from("website_pages")
-        .delete()
-        .eq("organization_id", orgId);
-      if (clearError) throw clearError;
-
-      for (const [pageIndex, page] of blueprint.entries()) {
-        const { data: pageRow, error: pageError } = await supabase
-          .from("website_pages")
-          .insert({
-            organization_id: orgId,
-            slug: page.slug,
-            title: page.title,
-            kind: page.kind,
-            sort_order: pageIndex,
-            seo_title: page.seo_title ?? null,
-            seo_description: page.seo_description ?? null,
-            noindex: page.noindex ?? false,
-          })
-          .select("id")
-          .single();
-        if (pageError || !pageRow) throw pageError ?? new Error("Couldn't create the page.");
-
-        for (const [sectionIndex, section] of page.sections.entries()) {
-          const { data: sectionRow, error: sectionError } = await supabase
-            .from("website_sections")
-            .insert({
-              organization_id: orgId,
-              page_id: pageRow.id,
-              kind: section.kind,
-              variant: section.variant ?? "default",
-              heading: section.heading ?? null,
-              subheading: section.subheading ?? null,
-              body: section.body ?? null,
-              is_visible: section.is_visible ?? true,
-              settings: section.needs_input ? { needs_input: true } : {},
-              sort_order: sectionIndex,
-            })
-
-            .select("id")
-            .single();
-          if (sectionError || !sectionRow)
-            throw sectionError ?? new Error("Couldn't create a section.");
-
-          const components = section.components ?? [];
-          if (components.length) {
-            const { error: componentError } = await supabase.from("website_components").insert(
-              components.map((component, index) => ({
-                organization_id: orgId,
-                section_id: sectionRow.id,
-                kind: component.kind,
-                label: component.label ?? null,
-                body: component.body ?? null,
-                link_url: safeLinkUrl(component.link_url),
-                link_label: component.link_label ?? null,
-                sort_order: index,
-              })),
-            );
-            if (componentError) throw componentError;
-          }
-        }
-      }
-      return blueprint.length;
-    },
-    onSuccess: (count) => {
-      toast.success(
-        `${count} page${count === 1 ? "" : "s"} laid out from your business information.`,
-      );
-      void invalidate();
-    },
-    onError: (error: Error) =>
-      toast.error(friendlyError(error, "Couldn't build your website structure.")),
-  });
-}
 
 /**
  * Finds a row in the cached content tree so an edit's inverse can be recorded

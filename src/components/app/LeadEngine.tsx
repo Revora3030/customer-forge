@@ -3,11 +3,10 @@
  * actually generate enquiries, and lays out every page a local business needs
  * in one action.
  */
-import { Check, Loader2, X } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Check, X } from "lucide-react";
 import { Pill } from "@/components/app/Bits";
-import { useBuildWebsiteStructure, useWebsiteContent } from "@/lib/website-content.hooks";
-import { leadEngineAudit, PAGE_LIBRARY } from "@/lib/website-content";
+import { useWebsiteContent } from "@/lib/website-content.hooks";
+import { leadEngineAudit } from "@/lib/website-content";
 
 export function LeadEngine({
   organizationId,
@@ -17,7 +16,6 @@ export function LeadEngine({
   canManage: boolean;
 }) {
   const { data: pages = [], isLoading } = useWebsiteContent(organizationId);
-  const build = useBuildWebsiteStructure(organizationId);
   const audit = leadEngineAudit(pages);
 
   const tone = audit.score >= 85 ? "signal" : audit.score >= 60 ? "attention" : "danger";
@@ -43,17 +41,9 @@ export function LeadEngine({
 
       {canManage ? (
         <div className="mt-5 flex flex-wrap items-center gap-2.5">
-          <Button
-            variant="signal"
-            disabled={build.isPending || !organizationId}
-            onClick={() => build.mutate()}
-          >
-            {build.isPending ? <Loader2 className="size-4 animate-spin" /> : null}
-            Lay out every page my business needs
-          </Button>
           <p className="text-[12px] text-muted-foreground">
-            Builds {PAGE_LIBRARY.length - 1} page types from what you've entered — service pages,
-            area pages, pricing, booking, proof, FAQ, contact, thank-you and privacy.
+            Ask for any of these in the builder chat — service pages, area pages, pricing, booking,
+            proof, FAQ, contact, thank-you and privacy. Revora's design team writes each one.
           </p>
         </div>
       ) : null}

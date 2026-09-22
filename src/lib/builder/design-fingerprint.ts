@@ -353,6 +353,54 @@ export function createDesignFingerprint(
   };
 }
 
+/**
+ * The look used when a website has no design recorded yet: deliberately plain.
+ *
+ * Nothing here expresses an opinion about fonts, palettes or hero style, so a
+ * fixed table can never decide how a customer's site looks. The real design is
+ * always the one the AI design team authored and saved.
+ */
+export function neutralDesignFingerprint(): DesignFingerprint {
+  return {
+    id: "fp_neutral",
+    seed: 0,
+    family: "neutral",
+    heroComposition: "centered-stack",
+    backgroundSystem: "flat",
+    sectionRhythm: "stacked",
+    navSystem: "simple-left",
+    ctaSystem: "inline-pair",
+    cardSystem: "flat-tinted",
+    proofLayout: "stacked",
+    pricingLayout: "stacked",
+    faqLayout: "stacked",
+    galleryLayout: "grid",
+    statsLayout: "row",
+    timelineLayout: "stacked",
+    formLayout: "stacked",
+    footerSystem: "simple",
+    decorativeSystem: "none",
+    typeSystem: "neutral",
+    colorSystem: "neutral",
+    sectionTransition: "none",
+    pageShell: "full-width",
+    imageTreatment: "plain",
+    motionPattern: "none",
+    motionLevel: "none",
+    density: "balanced",
+    artDirection: {
+      style: "plain",
+      subject: "abstract generated artwork (depicts nothing about the business)",
+      crop: "centered",
+      focalPoint: "center",
+      aspectRatio: "16:9",
+      overlay: "none",
+    },
+    rejected: [],
+  };
+}
+
+
 /** How many distinct design combinations the pools can express. */
 export function fingerprintVocabularySize(): number {
   return (

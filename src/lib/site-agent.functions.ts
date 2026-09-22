@@ -579,13 +579,20 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
     const allSections = agentContext.pages.flatMap((page) =>
       page.sections.map((section) => ({ ...section, pageId: page.id })),
     );
-    const parsedActions = readActions(raw["actions"], {
-      pageIds: new Set(agentContext.pages.map((page) => page.id)),
-      sectionIds: new Set(allSections.map((section) => section.id)),
-      componentIds: new Set(
-        allSections.flatMap((section) => section.components.map((component) => component.id)),
-      ),
-    });
+    // Every step Revora refuses to carry out records its reason here, and the
+    // reasons are shown with the plan instead of disappearing.
+    const droppedReasons: string[] = [];
+    const parsedActions = readActions(
+      raw["actions"],
+      {
+        pageIds: new Set(agentContext.pages.map((page) => page.id)),
+        sectionIds: new Set(allSections.map((section) => section.id)),
+        componentIds: new Set(
+          allSections.flatMap((section) => section.components.map((component) => component.id)),
+        ),
+      },
+      droppedReasons,
+    );
     const actions = ensureRequestedCoverage(instruction, parsedActions, agentContext);
     const measuredRequirements = coveredRequestDimensions(instruction, actions);
     if (measuredRequirements.length) requirements = measuredRequirements;
@@ -622,7 +629,9 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
       summary: str(raw["summary"], 300),
       steps,
       questions: list(raw["questions"]).slice(0, 3),
-      notes: list(raw["notes"]),
+      notes: [...list(raw["notes"]), ...droppedReasons.slice(0, 8)],
+      /** Steps that were not included, each with the reason why. */
+      dropped: droppedReasons.slice(0, 20),
       // What the agent understood it had to satisfy, and whether it did.
       requirements: requirements.slice(0, 8),
       // What the agent actually did to get here, stage by stage.
@@ -750,11 +759,16 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
     // Read the batch exactly as planned, then check it against the site as it is
     // right now. A step whose target was deleted or renamed after planning is
     // reported with a reason rather than being dropped in silence.
-    const planned = readActions(data.actions, {
-      pageIds: ANY_ID,
-      sectionIds: ANY_ID,
-      componentIds: ANY_ID,
-    });
+    const applyDropped: string[] = [];
+    const planned = readActions(
+      data.actions,
+      {
+        pageIds: ANY_ID,
+        sectionIds: ANY_ID,
+        componentIds: ANY_ID,
+      },
+      applyDropped,
+    );
     const preflight = preflightActions(planned, {
       pageIds: new Set(site.pages.map((page) => page.id)),
       sectionIds: new Set(site.sections.map((section) => section.id)),
@@ -1580,9 +1594,15 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
         ...failed.map((label) => `skipped ${label}`),
         ...preflight.stale.map((entry) => `stale ${entry.type} (${entry.reason})`),
         ...settled.unchangedLabels,
+        ...applyDropped.map((reason) => `left out — ${reason}`),
+        ...(preflight.duplicates
+          ? [`left out — ${preflight.duplicates} step(s) repeated the same change twice.`]
+          : []),
         ...(qa?.repaired ?? []).map((entry) => `repaired ${entry}`),
         ...(qa?.failed ?? []).map((entry) => `repair skipped ${entry}`),
       ],
+      /** Steps that were not carried out, each with its reason. */
+      dropped: applyDropped,
       snapshotLabel,
       snapshotVersion,
       operationId,
