@@ -746,7 +746,8 @@ export async function materializeSiteContent(
     .select("id", { count: "exact", head: true })
     .eq("organization_id", orgId);
   if ((count ?? 0) > 0) {
-    if (!input.replaceExisting) return { pages: 0, sections: 0, components: 0, skipped: true, campaign: null };
+    if (!input.replaceExisting)
+      return { pages: 0, sections: 0, components: 0, skipped: true, campaign: null, designContract: null };
     const { error: componentDeleteError } = await db.from("website_components").delete().eq("organization_id", orgId);
     if (componentDeleteError)
       throw new Error(`Couldn't clear old components before rebuilding: ${componentDeleteError.message}`);
@@ -858,5 +859,5 @@ export async function materializeSiteContent(
     }
   }
 
-  return { pages: tree.length, sections, components, skipped: false, campaign };
+  return { pages: tree.length, sections, components, skipped: false, campaign, designContract };
 }
