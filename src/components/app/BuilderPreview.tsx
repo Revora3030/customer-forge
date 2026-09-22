@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ExternalLink,
   Maximize2,
   Minimize2,
   Monitor,
+  MousePointerClick,
   RefreshCw,
   Smartphone,
   Tablet,
@@ -15,6 +16,11 @@ import {
   previewZoom,
   type BuilderViewportKey,
 } from "@/lib/builder-preview";
+import {
+  PREVIEW_BRIDGE_SOURCE,
+  readPreviewMessage,
+  type PreviewToBuilderMessage,
+} from "@/lib/builder/preview-bridge";
 import type { ContentPage } from "@/lib/website-content";
 import { cn } from "@/lib/utils";
 
@@ -25,14 +31,23 @@ const VIEWPORT_ICONS = {
   wide: Monitor,
 } satisfies Record<BuilderViewportKey, typeof Monitor>;
 
+/** A block the owner clicked in the preview, handed to the assistant. */
+export type PreviewSelection = Extract<PreviewToBuilderMessage, { type: "select" }>;
+
 export function BuilderPreview({
   slug,
   pages,
   refreshing = false,
+  onSelect,
+  selectedId = null,
 }: {
   slug: string;
   pages: ContentPage[];
   refreshing?: boolean;
+  /** Called when the owner clicks a block while select mode is on. */
+  onSelect?: (selection: PreviewSelection) => void;
+  /** The block currently being discussed, outlined inside the preview. */
+  selectedId?: string | null;
 }) {
   const ordered = useMemo(() => [...pages].sort((a, b) => a.sort_order - b.sort_order), [pages]);
   const [pageId, setPageId] = useState<string | null>(null);
@@ -40,6 +55,8 @@ export function BuilderPreview({
   const [zoom, setZoom] = useState(0.75);
   const [refreshKey, setRefreshKey] = useState(0);
   const [fullscreen, setFullscreen] = useState(false);
+  const [selectMode, setSelectMode] = useState(false);
+  const frameRef = useRef<HTMLIFrameElement>(null);
   const page = ordered.find((item) => item.id === pageId) ?? ordered[0];
   const viewportWidth = BUILDER_VIEWPORTS.find((item) => item.key === viewport)?.width ?? 1280;
   const source = page ? previewPath(slug, page.slug) : previewPath(slug, "home");
@@ -51,6 +68,43 @@ export function BuilderPreview({
       document.body.style.overflow = "";
     };
   }, [fullscreen]);
+
+  /** Tells the preview whether clicking should pick a block, and which is picked. */
+  const syncSelectMode = useCallback(
+    (on: boolean) => {
+      const frame = frameRef.current?.contentWindow;
+      if (!frame || typeof window === "undefined") return;
+      frame.postMessage(
+        { source: PREVIEW_BRIDGE_SOURCE, type: "select-mode", on, selectedId },
+        window.location.origin,
+      );
+    },
+    [selectedId],
+  );
+
+  useEffect(() => {
+    syncSelectMode(selectMode);
+  }, [selectMode, syncSelectMode]);
+
+  // Clicks inside the preview arrive as messages. Only this app's own frame,
+  // on this origin, is ever listened to.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const onMessage = (event: MessageEvent) => {
+      if (event.origin !== window.location.origin) return;
+      if (event.source !== frameRef.current?.contentWindow) return;
+      const message = readPreviewMessage(event.data);
+      if (!message) return;
+      if (message.type === "ready") {
+        syncSelectMode(selectMode);
+        return;
+      }
+      onSelect?.(message);
+    };
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, [onSelect, selectMode, syncSelectMode]);
+
 
   return (
     <section
@@ -82,6 +136,20 @@ export function BuilderPreview({
         </div>
 
         <div className="flex shrink-0 items-center gap-1">
+          {onSelect ? (
+            <Button
+              type="button"
+              size="icon-sm"
+              variant={selectMode ? "secondary" : "ghost"}
+              aria-pressed={selectMode}
+              data-testid="builder-preview-select"
+              aria-label={selectMode ? "Stop picking a part of the page" : "Pick a part of the page"}
+              title={selectMode ? "Stop picking" : "Click a part of the page to change it"}
+              onClick={() => setSelectMode((value) => !value)}
+            >
+              <MousePointerClick className="size-4" aria-hidden />
+            </Button>
+          ) : null}
           {BUILDER_VIEWPORTS.map((option) => {
             const Icon = VIEWPORT_ICONS[option.key];
             return (
@@ -148,6 +216,7 @@ export function BuilderPreview({
           style={{ width: viewportWidth * zoom, height: 760 * zoom }}
         >
           <iframe
+            ref={frameRef}
             key={`${source}-${refreshKey}-${refreshing ? "updating" : "ready"}`}
             data-testid="builder-preview-frame"
             data-preview-src={source}

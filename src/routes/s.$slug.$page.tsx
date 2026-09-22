@@ -11,6 +11,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { Menu, Phone, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SiteSection, StickyCallBar, siteDesignFingerprint } from "@/components/site/SiteSections";
+import { PreviewSelectBridge } from "@/components/site/PreviewSelectBridge";
 import { businessFacts } from "@/lib/builder/facts";
 import { safeText } from "@/lib/builder/presentation";
 import { SiteBackdrop } from "@/components/site/SiteBackdrop";
@@ -212,6 +213,9 @@ export function SitePageView({
 
         <StickyCallBar site={site} label={ctaLabel} />
         <SiteVitals slug={org.slug} preview={preview} />
+        {/* Lets the builder's preview frame pick a block by clicking it. Inert
+            for every ordinary visitor and for any frame from another origin. */}
+        <PreviewSelectBridge />
         {preview ? <BuilderReturnBar /> : null}
       </div>
     </div>
@@ -230,7 +234,8 @@ export function SiteNav({ site, current }: { site: NonNullable<PublicSite>; curr
   const [open, setOpen] = useState(false);
   const seen = new Set<string>();
   const pages = (site.nav ?? [])
-    .filter((p) => p.kind !== "thanks" && p.slug !== "home")
+    // Articles are browsed from the articles hub, not the top menu.
+    .filter((p) => p.kind !== "thanks" && p.kind !== "post" && p.slug !== "home")
     .map((p) => ({ slug: p.slug, title: safeText(p.title) }))
     .filter((p): p is { slug: string; title: string } => {
       if (!p.title || !p.slug || seen.has(p.slug)) return false;

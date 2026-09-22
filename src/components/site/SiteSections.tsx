@@ -25,7 +25,8 @@ import type { PublicSite } from "@/lib/public-site.functions";
 import { readCustomBlock } from "@/lib/builder/custom-block";
 import { CustomBlock } from "@/components/site/CustomBlock";
 import { currency, dateShort } from "@/lib/format";
-import { safeLinkUrl } from "@/lib/website-content";
+import { safeLinkUrl, sectionLabel } from "@/lib/website-content";
+import { readEmbed } from "@/lib/site-embed";
 import { readSectionEffect, sectionEffectClass } from "@/lib/site-effects";
 import { businessFacts, factsAddressLine } from "@/lib/builder/facts";
 import { phoneDisplay, phoneLink, safeParagraph, safeText } from "@/lib/builder/presentation";
@@ -286,7 +287,16 @@ export function SiteSection({ site, section }: { site: Site; section: Section })
   const customSpacing = [style.padTop, style.padRight, style.padBottom, style.padLeft].some((value) => value !== null);
   // This host is always present: tablet/mobile-only rules target it even when
   // the desktop layer intentionally has no override.
-  const styledInner = <div data-rvb={section.id} style={css}>{inner}</div>;
+  const styledInner = (
+    <div
+      data-rvb={section.id}
+      data-rvb-kind={section.kind}
+      data-rvb-label={sectionLabel(section.kind)}
+      style={css}
+    >
+      {inner}
+    </div>
+  );
 
   const visualClass = [
     "rv-section",
@@ -878,6 +888,82 @@ function SiteSectionBody({ site, section }: { site: Site; section: Section }) {
           </article>
         </Shell>
       );
+
+    // Every article page this site has, newest layout order first. Pages with no
+    // readable name are skipped, so a half-written article never shows up.
+    case "post_list": {
+      const posts = (site.nav ?? [])
+        .filter((item) => item.kind === "post")
+        .map((item) => ({ slug: item.slug, title: safeText(item.title) }))
+        .filter((item): item is { slug: string; title: string } => !!item.title && !!item.slug);
+      const manual = components.filter((item) => safeText(item.label));
+      if (!posts.length && !manual.length) return null;
+      return (
+        <Shell wide>
+          <Heading section={section} />
+          <ul className="rv-post-list mt-8 grid gap-3 sm:grid-cols-2">
+            {posts.map((post) => (
+              <li key={post.slug}>
+                <SitePageLink
+                  slug={org.slug}
+                  page={post.slug}
+                  className="block min-h-11 rounded-lg border border-border p-4 text-[14px] font-medium hover:border-primary"
+                >
+                  {post.title}
+                </SitePageLink>
+              </li>
+            ))}
+            {posts.length
+              ? null
+              : manual.map((item) => (
+                  <li key={item.id}>
+                    {safeLinkUrl(item.link_url)?.startsWith("/") ? (
+                      <SitePageLink
+                        slug={org.slug}
+                        page={safeLinkUrl(item.link_url)!.slice(1)}
+                        className="block min-h-11 rounded-lg border border-border p-4 text-[14px] font-medium hover:border-primary"
+                      >
+                        {safeText(item.label)}
+                      </SitePageLink>
+                    ) : (
+                      <span className="block rounded-lg border border-border p-4 text-[14px] font-medium">
+                        {safeText(item.label)}
+                      </span>
+                    )}
+                  </li>
+                ))}
+          </ul>
+        </Shell>
+      );
+    }
+
+    // A tool the business already uses — map, booking widget, video. Only an
+    // allowlisted https URL is ever framed, and it runs sandboxed.
+    case "embed": {
+      const embed = readEmbed({ settings: section.settings, body: section.body });
+      if (!embed) return null;
+      return (
+        <Shell wide>
+          {safeText(section.heading) || safeText(section.subheading) ? (
+            <Heading section={section} />
+          ) : null}
+          <div
+            className="rv-embed-frame mt-6 overflow-hidden rounded-lg border border-border bg-background"
+            style={{ height: embed.height }}
+          >
+            <iframe
+              src={embed.url}
+              title={embed.title}
+              loading="lazy"
+              referrerPolicy="strict-origin-when-cross-origin"
+              sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox"
+              allow="fullscreen; clipboard-write; payment"
+              className="size-full border-0"
+            />
+          </div>
+        </Shell>
+      );
+    }
 
     // A custom interactive block the builder created for this business.
     // Data-only spec, rendered by trusted components; an invalid spec renders

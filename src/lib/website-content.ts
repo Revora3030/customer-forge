@@ -25,6 +25,8 @@ export type PageKind =
   | "contact"
   | "thanks"
   | "privacy"
+  | "blog"
+  | "post"
   | "custom";
 
 export type SectionKind =
@@ -51,6 +53,8 @@ export type SectionKind =
   | "sticky_cta"
   | "contact"
   | "policy"
+  | "post_list"
+  | "embed"
   | "custom";
 
 export type ContentComponent = {
@@ -261,6 +265,16 @@ export const SECTION_LIBRARY: { kind: SectionKind; label: string; help: string }
   },
   { kind: "contact", label: "Contact & hours", help: "Phone, email and opening hours." },
   { kind: "policy", label: "Policy text", help: "Plain policy wording, like a privacy notice." },
+  {
+    kind: "post_list",
+    label: "Article list",
+    help: "Links to every article or project page you've published.",
+  },
+  {
+    kind: "embed",
+    label: "Embedded tool",
+    help: "A map, booking widget or video from a service you already use.",
+  },
   { kind: "custom", label: "Your own section", help: "A heading and text you write yourself." },
 ];
 
@@ -300,6 +314,16 @@ export const PAGE_LIBRARY: { kind: PageKind; label: string; help: string }[] = [
     help: "Shown after a form is sent — used for ad tracking.",
   },
   { kind: "privacy", label: "Privacy notice", help: "Required by Google Ads and Meta Ads." },
+  {
+    kind: "blog",
+    label: "Articles hub",
+    help: "Lists every article you write — the page visitors and Google browse.",
+  },
+  {
+    kind: "post",
+    label: "Single article",
+    help: "One article or project write-up. Kept out of the top menu.",
+  },
   { kind: "custom", label: "Your own page", help: "Anything else you need." },
 ];
 
