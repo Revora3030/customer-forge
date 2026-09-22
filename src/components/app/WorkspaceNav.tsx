@@ -16,7 +16,7 @@ function NavLink({ item, onNavigate }: { item: WorkspaceNavItem; onNavigate?: ()
   return (
     <Link
       to={item.to}
-      activeOptions={{ exact: item.exact }}
+      activeOptions={item.exact === undefined ? undefined : { exact: item.exact }}
       onClick={onNavigate}
       title={item.hint}
       className="flex min-h-10 items-center gap-3 rounded-md px-3 text-[13px] font-medium text-muted-foreground transition-colors hover:bg-elevated hover:text-foreground"
@@ -44,7 +44,7 @@ export function WorkspaceNav({
   return (
     <nav aria-label="Workspace" className={cn("space-y-1 p-2", className)}>
       {primary.map((item) => (
-        <NavLink key={item.to} item={item} onNavigate={onNavigate} />
+        <NavLink key={item.to} item={item} {...(onNavigate ? { onNavigate } : {})} />
       ))}
       {secondary?.length ? (
         <details className="group pt-1">
@@ -54,7 +54,7 @@ export function WorkspaceNav({
           </summary>
           <div className="mt-1 space-y-1 border-l border-border pl-2">
             {secondary.map((item) => (
-              <NavLink key={item.to} item={item} onNavigate={onNavigate} />
+              <NavLink key={item.to} item={item} {...(onNavigate ? { onNavigate } : {})} />
             ))}
           </div>
         </details>
