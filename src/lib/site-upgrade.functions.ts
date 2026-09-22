@@ -50,6 +50,39 @@ async function requireManager(supabase: SupabaseLike, organizationId: string, us
   return role;
 }
 
+async function runAiWebsiteUpgrade(input: {
+  supabase: SupabaseLike;
+  organizationId: string;
+  userId: string;
+  instruction: string;
+  label: string;
+}) {
+  const context = await loadAgentContext(input.supabase as import("@/lib/site-agent.functions").SupabaseLike, input.organizationId);
+  const plan = await planWebsiteChangesWithAi({
+    organizationId: input.organizationId,
+    instruction: input.instruction,
+    history: [],
+    context,
+    attachments: [],
+  });
+  if (!plan.ok) {
+    throw new Error(
+      "The AI design team could not complete this website change (" +
+        plan.reason +
+        (plan.detail ? ": " + plan.detail : "") +
+        "). Nothing was changed.",
+    );
+  }
+  const applied = await applyWebsiteActions(input.supabase as import("@/lib/site-agent.functions").SupabaseLike, input.userId, {
+    organizationId: input.organizationId,
+    actions: plan.actions,
+    label: input.label,
+    verify: true,
+    operationKey: crypto.randomUUID(),
+  });
+  return { plan, applied };
+}
+
 /* ------------------------------------------------------------- motion pack */
 
 /**
