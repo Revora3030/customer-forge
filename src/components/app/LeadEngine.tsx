@@ -3,11 +3,10 @@
  * actually generate enquiries, and lays out every page a local business needs
  * in one action.
  */
-import { Check, Loader2, X } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Check, X } from "lucide-react";
 import { Pill } from "@/components/app/Bits";
 import { useWebsiteContent } from "@/lib/website-content.hooks";
-import { leadEngineAudit, PAGE_LIBRARY } from "@/lib/website-content";
+import { leadEngineAudit } from "@/lib/website-content";
 
 export function LeadEngine({
   organizationId,
