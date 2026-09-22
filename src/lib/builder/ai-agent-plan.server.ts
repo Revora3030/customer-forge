@@ -62,7 +62,7 @@ function actionContract(context: AgentContext): string {
   const fonts = Object.keys(SITE_HEADING_FONTS).join("|");
   return [
     "Reply with ONE JSON object and nothing else:",
-    '{"reply":string,"summary":string,"requirements":string[],"questions":string[],"notes":string[],"actions":Action[]}',
+    '{"reply":string,"summary":string,"requirements":string[],"questions":string[],"notes":string[],"actions":Action[],"hasMore":boolean,"cursor":string|null}',
     "",
     "Action is one of:",
     '{"type":"set_section_text","sectionId":id,"field":"heading"|"subheading"|"body","value":string}',
