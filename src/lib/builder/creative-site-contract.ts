@@ -114,7 +114,7 @@ const forbiddenKeys = new Set([
   "default_layout",
 ]);
 
-const unsafeMarkup = /<\\/?(?:script|iframe|object|embed|style)\\b|javascript:|data:text\\/html/i;
+const unsafeMarkup = /<\/?(?:script|iframe|object|embed|style)\b|javascript:|data:text\/html/i;
 
 function scan(value: unknown, path: string, violations: string[]) {
   if (typeof value === "string") {
