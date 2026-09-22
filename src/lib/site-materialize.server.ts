@@ -178,15 +178,13 @@ export function materializeCreativeSiteContract(
           : null,
         settings: { ...(component.settings ?? {}), ai_authored: true },
       }));
-      if (section.media?.assetId && !components.some((component) => component.media_url === section.media?.assetId)) {
+      if (section.media?.assetId) {
         const asset =
           assetByPath.get(section.media.assetId) ??
-          assets.find(
-            (candidate) =>
-              candidate.label === section.media?.assetId ||
-              candidate.mediaId === section.media?.assetId,
-          );
-        if (asset) {
+          assetByMediaId.get(section.media.assetId) ??
+          assets.find((candidate) => candidate.label === section.media?.assetId);
+        const resolvedMediaPath = asset?.path ?? section.media.assetId;
+        if (asset && !components.some((component) => component.media_url === resolvedMediaPath)) {
           components.push(
             imageComponent(
               asset,
@@ -853,7 +851,7 @@ export async function materializeSiteContent(
           sort_order: sectionIndex,
           // Preserve the canonical AI contract's visual/responsive/interaction data.
           // Legacy design synthesis is used only by the compatibility path.
-          settings: section.settings ?? design.settings,
+          settings: { ...design.settings, ...(section.settings ?? {}) },
         } as never)
         .select("id")
         .single();
