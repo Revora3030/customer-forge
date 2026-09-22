@@ -54,7 +54,6 @@ const PRIMARY_NAV = [
         label: "Dashboard",
         icon: LayoutDashboard,
         exact: true,
-        key: false,
         hint: "Today's leads, bookings and revenue at a glance",
       },
       {
