@@ -2109,6 +2109,23 @@ a[href*="lovable.app"][target="_blank"][class*="fixed"],
   max-width: 100%;
 }
 
+.rv-media-ratio-1-1 .rv-media-frame { aspect-ratio: 1 / 1; }
+.rv-media-ratio-4-3 .rv-media-frame { aspect-ratio: 4 / 3; }
+.rv-media-ratio-3-2 .rv-media-frame { aspect-ratio: 3 / 2; }
+.rv-media-ratio-16-9 .rv-media-frame { aspect-ratio: 16 / 9; }
+.rv-media-ratio-21-9 .rv-media-frame { aspect-ratio: 21 / 9; }
+.rv-generated-media[class*="rv-media-ratio-"] .rv-media-frame img { height: 100%; width: 100%; object-fit: cover; }
+.rv-media-position-left { margin-left: 0; margin-right: auto; }
+.rv-media-position-right { margin-left: auto; margin-right: 0; }
+.rv-media-position-background { max-width: none; padding-inline: 0; }
+
+@media (min-width: 640px) {
+  .rv-section[data-rv-columns] [data-rvb] :is(ul.grid, ol.grid, .rv-generated-media) {
+    grid-template-columns: repeat(var(--rv-items-columns), minmax(0, 1fr));
+    gap: var(--rv-items-gap, 1rem);
+  }
+}
+
 .rv-service-detail-grid {
   display: grid;
   grid-template-columns: minmax(0, 1.35fr) minmax(17rem, 0.65fr);

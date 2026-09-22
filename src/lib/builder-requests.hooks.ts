@@ -62,6 +62,7 @@ export function useBuilderRequests({
   >([]);
   const [brand, setBrand] = useState<BrandPreference | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [refreshRevision, setRefreshRevision] = useState(0);
   const queryClient = useQueryClient();
 
   // Honest report of what this device can do. Building never depends on it.
@@ -97,6 +98,7 @@ export function useBuilderRequests({
         queryClient.invalidateQueries({ queryKey: ["build_readiness", organizationId] }),
       ]);
     } finally {
+      setRefreshRevision((value) => value + 1);
       setRefreshing(false);
     }
   };
@@ -233,6 +235,8 @@ export function useBuilderRequests({
       for (const step of steps) actionsRef.current.set(step.key, step);
       const plannedSteps = toPlanSteps(steps);
       const questions = result.questions ?? [];
+      const requirements = result.requirements ?? [];
+      const uncovered = requirements.filter((requirement) => !requirement.covered);
       const planned: QueueTask = {
         ...task,
         state: "waiting_for_approval",
@@ -240,9 +244,15 @@ export function useBuilderRequests({
         reply: result.reply,
         summary: result.summary,
         questions,
+        requirements,
         retryable: Boolean(result.unavailable?.retryable),
         composition: result.composition ?? null,
       };
+      if (uncovered.length) {
+        planned.state = "failed";
+        planned.error = `Revora couldn't safely cover ${uncovered.map((item) => item.label).join(" and ")}. Nothing was applied.`;
+        planned.retryable = true;
+      }
       // A request that ended in nothing actionable must never sit in a silent
       // hold with no working button.
       if (plannedSteps.length === 0 && questions.length === 0) {
@@ -306,6 +316,8 @@ export function useBuilderRequests({
     tasks,
     busy,
     refreshing,
+    refreshRevision,
+    refresh,
     ready,
     summary,
     capabilities,

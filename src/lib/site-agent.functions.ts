@@ -28,6 +28,11 @@ import {
 } from "@/lib/site-agent";
 import type { VerificationReport } from "@/lib/agent/verify";
 import type { QaLoopResult } from "@/lib/builder/qa-loop.server";
+import {
+  coveredRequestDimensions,
+  ensureRequestedCoverage,
+  normalizeBuilderInstruction,
+} from "@/lib/builder/request-coverage";
 
 import { safeLinkUrl } from "@/lib/website-content";
 import { MEDIA_BUCKET, buildObjectPath, isStoragePath } from "@/lib/media";
@@ -520,7 +525,7 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
     } else {
       const authored = await planWebsiteChangesWithAi({
         organizationId: orgId,
-        instruction,
+        instruction: normalizeBuilderInstruction(instruction),
         history: data.history
           .filter((turn) => turn.role === "user")
           .map((turn) => turn.content)
@@ -574,13 +579,16 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
     const allSections = agentContext.pages.flatMap((page) =>
       page.sections.map((section) => ({ ...section, pageId: page.id })),
     );
-    const actions = readActions(raw["actions"], {
+    const parsedActions = readActions(raw["actions"], {
       pageIds: new Set(agentContext.pages.map((page) => page.id)),
       sectionIds: new Set(allSections.map((section) => section.id)),
       componentIds: new Set(
         allSections.flatMap((section) => section.components.map((component) => component.id)),
       ),
     });
+    const actions = ensureRequestedCoverage(instruction, parsedActions, agentContext);
+    const measuredRequirements = coveredRequestDimensions(instruction, actions);
+    if (measuredRequirements.length) requirements = measuredRequirements;
     const index: SiteIndex = { pages: new Map(), sections: new Map(), components: new Map() };
     const currentText = new Map<string, string>();
     for (const page of agentContext.pages)

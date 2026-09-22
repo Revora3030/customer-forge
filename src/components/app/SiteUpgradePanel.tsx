@@ -35,9 +35,11 @@ const MOTION_CHOICES: { id: "none" | "subtle" | "expressive"; label: string; hin
 export function SiteUpgradePanel({
   organizationId,
   canManage,
+  onRefresh,
 }: {
   organizationId: string | undefined;
   canManage: boolean;
+  onRefresh?: () => Promise<void> | void;
 }) {
   const queryClient = useQueryClient();
   const [busy, setBusy] = useState<Busy>(null);
@@ -51,6 +53,7 @@ export function SiteUpgradePanel({
     void queryClient.invalidateQueries({ queryKey: ["website_content", organizationId] });
     void queryClient.invalidateQueries({ queryKey: ["website_settings", organizationId] });
     void queryClient.invalidateQueries({ queryKey: ["website_versions", organizationId] });
+    void onRefresh?.();
   };
 
   const runMotion = async (intensity: "none" | "subtle" | "expressive") => {

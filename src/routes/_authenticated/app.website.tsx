@@ -464,6 +464,7 @@ function WebsitePage() {
             selection={selected}
             onClearSelection={() => setSelected(null)}
             onOpenHistory={() => setHistoryOpen(true)}
+            publishState={publishState}
             organizationId={orgId ?? null}
             requests={requests}
             onOpenExtras={() => setAdvanced("assistant")}
@@ -477,6 +478,7 @@ function WebsitePage() {
               slug={org.slug}
               pages={pages ?? []}
               refreshing={requests.refreshing}
+              refreshRevision={requests.refreshRevision}
               selectedId={selected?.id ?? null}
               onSelect={(pick) => {
                 setSelected(pick);
@@ -636,7 +638,7 @@ function WebsitePage() {
                       })
                     }
                   />
-                  <SiteUpgradePanel organizationId={orgId} canManage={manage} />
+                  <SiteUpgradePanel organizationId={orgId} canManage={manage} onRefresh={requests.refresh} />
                 </>
               ),
             },
@@ -704,6 +706,7 @@ function WebsitePage() {
                       canManage={manage}
                       pages={pages ?? []}
                       facts={geniusFacts}
+                      onRefresh={requests.refresh}
                     />
                   </Disclosure>
                   <TemplateGalleryPanel
@@ -879,6 +882,7 @@ function WebsitePage() {
                         ...geniusFacts,
                         primaryColor: (profile?.["primary_color"] as string) ?? null,
                       }}
+                      onRefresh={requests.refresh}
                     />
                   </Disclosure>
                   <Disclosure label="Wording" hint="Edit the words Revora wrote">

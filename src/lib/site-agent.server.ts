@@ -16,6 +16,7 @@ import { generateStructuredOutput, transcribeAudio } from "@/lib/ai/router.serve
 import type { AiCaller, AiMessage, AiPart } from "@/lib/ai/types";
 import type { ModelRole } from "@/lib/ai/config";
 import { translateIntent } from "@/lib/intent-translator";
+import { SITE_HEADING_FONTS } from "@/lib/site-theme";
 import {
   MAX_ACTIONS,
   readChapters,
@@ -86,6 +87,8 @@ export type AgentContext = {
   componentKinds: string[];
 };
 
+const SUPPORTED_SITE_FONTS = Object.keys(SITE_HEADING_FONTS).join("|");
+
 const SYSTEM = `You are Revora's website agent. You edit a local business's live website
 on the owner's behalf. You are competent, calm and specific — like a senior web
 producer who reads a brief and returns a precise change list.
@@ -122,6 +125,11 @@ HARD RULES
   than a couple of section effects per page, so the site stays fast and readable.
 - Big requests are welcome: break them into as many small actions as needed and do the
   whole job. Do not stop after one edit when the brief asks for more.
+- In a styling request, owners commonly type "front" or "fronts" when they mean "font"
+  or "fonts". Treat that wording as typography, not foreground colour, unless they
+  explicitly say foreground or text colour.
+- A whole-site or all-pages colour request must update explicit section and component
+  colours that would otherwise conceal the new global theme.
 - If part of the request is impossible with the actions available, do it partially and
   say what you skipped in "notes". Never pretend something was done.
 
@@ -147,7 +155,7 @@ ACTION SHAPES (use exactly these)
    that ref as their "pageId", so you can create a page and fill it with sections in one go)
 {"type":"set_page","pageId":"<id>","patch":{"title":"...","slug":"...","is_visible":true,"noindex":false,"seo_title":"...","seo_description":"...","og_title":"...","og_description":"..."}}
 {"type":"delete_page","pageId":"<id>"}
-{"type":"set_theme","patch":{"primary_color":"#RRGGBB","secondary_color":"#RRGGBB","accent_color":"#RRGGBB","font_preference":"..."}}
+{"type":"set_theme","patch":{"primary_color":"#RRGGBB","secondary_color":"#RRGGBB","accent_color":"#RRGGBB","heading_font":"${SUPPORTED_SITE_FONTS}","body_font":"${SUPPORTED_SITE_FONTS}"}}
 {"type":"set_backdrop","backdrop":"none|stars|aurora|nebula|grid|spotlight|gradient_mesh"}
 {"type":"set_section_effect","sectionId":"<id>","effect":"none|float_3d|tilt_3d|glass|gold_glow|rise|parallax_slow|shine"}
 {"type":"set_custom_block","sectionId":"<id>","spec":{ ...custom block spec... }}

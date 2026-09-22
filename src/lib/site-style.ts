@@ -741,6 +741,11 @@ export function blockCss(style: BlockStyle, surface?: string | null): React.CSSP
       : "normal";
   }
   if (style.textColor) css.color = readableTextColor(style, surface);
+  if (style.objectFit) css.objectFit = style.objectFit;
+  if (style.columns !== null)
+    (css as Record<string, string | number>)["--rv-items-columns"] = style.columns;
+  if (style.gap !== null)
+    (css as Record<string, string | number>)["--rv-items-gap"] = `${style.gap}px`;
 
   if (style.padTop !== null) css.paddingTop = `${style.padTop}px`;
   if (style.padRight !== null) css.paddingRight = `${style.padRight}px`;

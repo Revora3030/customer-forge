@@ -36,6 +36,8 @@ export type QueueTask = {
   reply?: string;
   summary?: string;
   questions: string[];
+  /** Requested outcomes independently matched to concrete, renderable actions. */
+  requirements?: { label: string; covered: boolean }[];
   /** Real result of the build, never assumed. */
   applied?: number;
   failedCount?: number;
@@ -118,7 +120,12 @@ export function approvedSteps(task: QueueTask): PlanStep[] {
  */
 export function canAutoApply(task: QueueTask): boolean {
   const steps = approvedSteps(task);
-  return steps.length > 0 && task.questions.length === 0 && !steps.some((s) => s.destructive);
+  return (
+    steps.length > 0 &&
+    task.questions.length === 0 &&
+    !task.requirements?.some((requirement) => !requirement.covered) &&
+    !steps.some((s) => s.destructive)
+  );
 }
 
 export function toggleStep(task: QueueTask, key: string): QueueTask {

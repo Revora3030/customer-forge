@@ -40,11 +40,13 @@ export function UpgradeStudio({
   canManage,
   pages,
   facts,
+  onRefresh,
 }: {
   organizationId: string | undefined;
   canManage: boolean;
   pages: ContentPage[];
   facts: StudioFacts;
+  onRefresh?: () => Promise<void> | void;
 }) {
   const queryClient = useQueryClient();
   const applyFn = useServerFn(applyWebsiteChanges);
@@ -101,6 +103,7 @@ export function UpgradeStudio({
       void queryClient.invalidateQueries({ queryKey: ["website-versions", organizationId] });
       void queryClient.invalidateQueries({ queryKey: ["score_facts", organizationId] });
       void queryClient.invalidateQueries({ queryKey: ["website_settings"] });
+      void onRefresh?.();
     },
     onError: (error: Error) =>
       toast.error(friendlyError(error, "Couldn't install those upgrades.")),

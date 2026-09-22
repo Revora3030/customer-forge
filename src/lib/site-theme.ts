@@ -216,7 +216,18 @@ export function siteFontHasItalic(value: string | null | undefined): boolean {
 /** The allowlisted font name for a stored preference, or null. */
 export function siteHeadingFont(value: string | null | undefined): string | null {
   if (typeof value !== "string") return null;
-  const trimmed = value.trim();
+  const trimmed = value.split("|")[0]?.trim() ?? "";
+  if (!trimmed) return null;
+  const match = Object.keys(SITE_HEADING_FONTS).find(
+    (name) => name.toLowerCase() === trimmed.toLowerCase(),
+  );
+  return match ?? null;
+}
+
+/** Optional body family stored beside the heading family as `Heading|Body`. */
+export function siteBodyFont(value: string | null | undefined): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.split("|")[1]?.trim() ?? "";
   if (!trimmed) return null;
   const match = Object.keys(SITE_HEADING_FONTS).find(
     (name) => name.toLowerCase() === trimmed.toLowerCase(),
@@ -233,8 +244,11 @@ export function siteFontHref(value: string | null | undefined): string | null {
   if (!font) return null;
   // Request the italic face too when the family has one, so an AI-chosen
   // italic headline renders as a designed italic rather than a faked slant.
-  const family = SITE_ITALIC_FONTS[font] ?? SITE_HEADING_FONTS[font];
-  return `https://fonts.googleapis.com/css2?family=${family}&display=swap`;
+  const families = [font, siteBodyFont(value)]
+    .filter((name): name is string => Boolean(name))
+    .filter((name, index, all) => all.indexOf(name) === index)
+    .map((name) => SITE_ITALIC_FONTS[name] ?? SITE_HEADING_FONTS[name]);
+  return `https://fonts.googleapis.com/css2?${families.map((family) => `family=${family}`).join("&")}&display=swap`;
 }
 
 /**
@@ -245,5 +259,10 @@ export function siteFontStyle(value: string | null | undefined): CSSProperties |
   const font = siteHeadingFont(value);
   if (!font) return undefined;
   const fallback = SERIF_FONTS.has(font) ? "Georgia, serif" : "system-ui, sans-serif";
-  return { "--font-heading": `"${font}", ${fallback}` } as CSSProperties;
+  const body = siteBodyFont(value);
+  const bodyFallback = body && SERIF_FONTS.has(body) ? "Georgia, serif" : "system-ui, sans-serif";
+  return {
+    "--font-heading": `"${font}", ${fallback}`,
+    ...(body ? { "--font-body": `"${body}", ${bodyFallback}` } : {}),
+  } as CSSProperties;
 }
