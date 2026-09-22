@@ -202,6 +202,7 @@ export function BuilderPreview({
           style={{ width: viewportWidth * zoom, height: 760 * zoom }}
         >
           <iframe
+            ref={frameRef}
             key={`${source}-${refreshKey}-${refreshing ? "updating" : "ready"}`}
             data-testid="builder-preview-frame"
             data-preview-src={source}
