@@ -352,8 +352,7 @@ const LEGACY_FONT: Record<string, (typeof FONT_FAMILIES)[number]> = {
  * one so websites styled before this upgrade keep rendering identically.
  */
 function readLayer(raw: unknown): Partial<BlockStyle> {
-  const s =
-    raw && typeof raw === "object" && !Array.isArray(raw) ? (raw as Record<string, unknown>) : {};
+  const s = normalizeStyleInput(raw);
   const out: Partial<BlockStyle> = {};
   const set = <K extends StyleKey>(key: K, value: BlockStyle[K] | null) => {
     if (value !== null && value !== undefined) out[key] = value;
@@ -389,7 +388,8 @@ function readLayer(raw: unknown): Partial<BlockStyle> {
   set("contentAlign", inList(ALIGNMENTS, s["contentAlign"]));
 
   // Legacy `padding` was one value for all four sides.
-  const legacyPad = boundedNumber(legacy(LEGACY_SPACE, s["padding"]), 0, 240);
+  const legacyPad =
+    boundedNumber(legacy(LEGACY_SPACE, s["padding"]), 0, 240) ?? boundedNumber(s["padding"], 0, 240);
   for (const side of ["padTop", "padRight", "padBottom", "padLeft"] as const) {
     set(side, boundedNumber(s[side], 0, 240) ?? legacyPad);
   }
