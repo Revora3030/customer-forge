@@ -219,7 +219,7 @@ function SectionFeatureMedia({ site, section, className = "" }: { site: Site; se
   const src = componentImageUrl(component);
   if (!src) return null;
   return (
-    <figure data-rvb={component.id} data-rv-ai-component-id={component.id.replace(/[^a-zA-Z0-9_-]/g, "-")} style={blockCss(style, siteSurface(site))} className={`rv-feature-media overflow-hidden ${className}`}>
+    <figure data-rvb={component.id} data-rv-ai-component-id={component.id.replace(/[^a-zA-Z0-9_-]/g, "-")} style={{ ...blockCss(style, siteSurface(site)), ...aiAuthoredCss((component as Component & { settings?: unknown }).settings) }} className={`rv-feature-media overflow-hidden ${className}`}>
       <img
         src={src}
         alt={visual.alt || component.label || `${site.org.name} supporting image`}
@@ -369,7 +369,11 @@ export function SiteSection({ site, section }: { site: Site; section: Section })
 function AiAuthoredSectionBody({ site, section }: { site: Site; section: Section }) {
   const components = section.components ?? [];
   const visibleComponents = components;
-  const nonButtonComponents = visibleComponents.filter((component) => component.kind !== "button");
+  const nonButtonComponents = visibleComponents.filter(
+    (component) =>
+      component.kind !== "button" &&
+      Boolean(component.label || component.body || componentImageUrl(component)),
+  );
   const buttons = visibleComponents.filter((component) => component.kind === "button" && component.label);
   const aiSectionCss = aiAuthoredCss(section.settings);
   const sectionInnerId = `ai-section-inner-${section.id.replace(/[^a-zA-Z0-9_-]/g, "-")}`;
@@ -423,7 +427,6 @@ function AiAuthoredSectionBody({ site, section }: { site: Site; section: Section
                   <a
                     href={href}
                     className="mt-4 inline-flex underline underline-offset-4"
-                    style={aiAuthoredCss((component as Component & { settings?: unknown }).settings)}
                   >
                     {component.link_label || component.label || "Learn more"}
                   </a>
