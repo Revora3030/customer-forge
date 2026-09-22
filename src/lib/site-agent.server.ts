@@ -276,7 +276,12 @@ export async function planChanges(
     })),
   });
 
-  if (native.actions.length > 0 && !native.requiresExternalReasoning) {
+  // Picture creation/editing requires semantic art direction and the dedicated
+  // image action. Never let a text-only deterministic plan swallow this intent.
+  const requestsPictureWork = /\b(image|photo|picture|photograph|hero shot)\b/i.test(instruction) &&
+    /\b(change|replace|regenerate|generate|create|make|edit|swap|new)\b/i.test(instruction);
+
+  if (native.actions.length > 0 && !native.requiresExternalReasoning && !requestsPictureWork) {
     return {
       reply: native.reply,
       summary: native.summary,
