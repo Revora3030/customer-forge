@@ -823,6 +823,7 @@ export async function applyWebsiteActions(supabase: SupabaseLike, userId: string
           ],
           snapshotLabel: String(result["snapshotLabel"] ?? ""),
           snapshotVersion: Number(result["snapshotVersion"] ?? 0) || 0,
+          snapshotId: String(result["snapshotId"] ?? "") || null,
           operationId: String(result["operationId"] ?? ""),
           alreadyApplied: true,
           verification: null as VerificationReport | null,
@@ -1575,6 +1576,7 @@ export async function applyWebsiteActions(supabase: SupabaseLike, userId: string
         skippedLabels: failed,
         snapshotLabel,
         snapshotVersion,
+        snapshotId,
         mutations: undoSteps.length,
       } as unknown as never,
 
@@ -1704,6 +1706,7 @@ export async function applyWebsiteActions(supabase: SupabaseLike, userId: string
       dropped: applyDropped,
       snapshotLabel,
       snapshotVersion,
+      snapshotId,
       operationId,
       alreadyApplied: false,
       verification,
