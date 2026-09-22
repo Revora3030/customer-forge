@@ -88,7 +88,8 @@ export async function authorCreativeSiteContract(input: {
     hasOwnerMedia: input.hasOwnerMedia,
   };
 
-  let solModel = "gpt-5.6-sol";
+  let solModel: string | null = null;
+  const modelList = () => (solModel ? modelList() : []);
   let solCostMicrocents = 0;
   let contract: CreativeSiteContract | null = null;
   let continuation = { chunkIndex: 0, totalChunks: undefined as number | undefined, cursor: null as string | null, hasMore: false };
@@ -134,7 +135,7 @@ export async function authorCreativeSiteContract(input: {
         contract: null,
         reviewed: false,
         skipped: sol.detail ?? sol.reason,
-        models: [solModel].filter(Boolean),
+        models: modelList().filter(Boolean),
         costMicrocents: solCostMicrocents,
       };
     }
@@ -143,7 +144,7 @@ export async function authorCreativeSiteContract(input: {
         contract: null,
         reviewed: false,
         skipped: "Sol returned no contract content in chunk " + (chunkIndex + 1),
-        models: [solModel],
+        models: modelList(),
         costMicrocents: solCostMicrocents,
       };
     }
@@ -156,25 +157,33 @@ export async function authorCreativeSiteContract(input: {
         contract: null,
         reviewed: false,
         skipped: "Sol returned invalid JSON in chunk " + (chunkIndex + 1),
-        models: [solModel],
+        models: modelList(),
         costMicrocents: solCostMicrocents,
       };
     }
 
-    const chunk = normalize(parsedChunk, solModel);
-    const chunkValidation = validateCreativeSiteContract(chunk);
-    if (!chunkValidation.valid) {
+    const chunk = normalize(parsedChunk, solModel ?? "gpt-5.6-sol");
+    const mergedContract: CreativeSiteContract =
+      contract === null ? chunk : mergeCreativeSiteContracts(contract, chunk);
+
+    // Continuation chunks may legitimately omit whole-site invariants such as
+    // identity or completeness. Validate the accumulated shape, but only enforce
+    // whole-site completeness when this is the final chunk.
+    const chunkValidation = validateCreativeSiteContract({
+      ...mergedContract,
+      complete: true,
+    });
+    const chunkHasMore = chunk.continuation?.hasMore === true;
+    if (!chunkValidation.valid && !chunkHasMore) {
       return {
         contract: null,
         reviewed: false,
         skipped: chunkValidation.violations.slice(0, 8).join("; "),
-        models: [solModel],
+        models: modelList(),
         costMicrocents: solCostMicrocents,
       };
     }
 
-    const mergedContract: CreativeSiteContract =
-      contract === null ? chunk : mergeCreativeSiteContracts(contract, chunk);
     contract = mergedContract;
     continuation = {
       chunkIndex,
@@ -188,7 +197,7 @@ export async function authorCreativeSiteContract(input: {
         contract: null,
         reviewed: false,
         skipped: "Sol required more than the supported continuation window",
-        models: [solModel],
+        models: modelList(),
         costMicrocents: solCostMicrocents,
       };
     }
@@ -199,7 +208,7 @@ export async function authorCreativeSiteContract(input: {
       contract: null,
       reviewed: false,
       skipped: "Sol did not produce a complete site contract",
-      models: [solModel],
+      models: modelList(),
       costMicrocents: solCostMicrocents,
     };
   }
@@ -222,7 +231,7 @@ export async function authorCreativeSiteContract(input: {
       contract: null,
       reviewed: false,
       skipped: finalValidation.violations.slice(0, 8).join("; "),
-      models: [solModel],
+      models: modelList(),
       costMicrocents: solCostMicrocents,
     };
   }
@@ -255,7 +264,7 @@ export async function authorCreativeSiteContract(input: {
       contract: null,
       reviewed: false,
       skipped: terra.detail ?? terra.reason ?? "Terra review unavailable",
-      models: [solModel].filter(Boolean) as string[],
+      models: modelList().filter(Boolean) as string[],
       costMicrocents: solCostMicrocents,
     };
   if (!terra.text)
@@ -263,7 +272,7 @@ export async function authorCreativeSiteContract(input: {
       contract: null,
       reviewed: false,
       skipped: "Terra returned no review content",
-      models: [solModel],
+      models: modelList(),
       costMicrocents: solCostMicrocents,
     };
 
@@ -273,7 +282,7 @@ export async function authorCreativeSiteContract(input: {
       contract: null,
       reviewed: false,
       skipped: "Terra returned invalid JSON",
-      models: [solModel, terra.model].filter(Boolean) as string[],
+      models: [...modelList(), terra.model].filter(Boolean) as string[],
       costMicrocents: solCostMicrocents + terra.costMicrocents,
     };
 
@@ -285,7 +294,7 @@ export async function authorCreativeSiteContract(input: {
       contract: null,
       reviewed: true,
       skipped: terraValidation.violations.slice(0, 8).join("; "),
-      models: [solModel, terra.model].filter(Boolean) as string[],
+      models: [...modelList(), terra.model].filter(Boolean) as string[],
       costMicrocents: solCostMicrocents + terra.costMicrocents,
     };
 
