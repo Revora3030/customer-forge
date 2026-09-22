@@ -314,6 +314,16 @@ export const PAGE_LIBRARY: { kind: PageKind; label: string; help: string }[] = [
     help: "Shown after a form is sent — used for ad tracking.",
   },
   { kind: "privacy", label: "Privacy notice", help: "Required by Google Ads and Meta Ads." },
+  {
+    kind: "blog",
+    label: "Articles hub",
+    help: "Lists every article you write — the page visitors and Google browse.",
+  },
+  {
+    kind: "post",
+    label: "Single article",
+    help: "One article or project write-up. Kept out of the top menu.",
+  },
   { kind: "custom", label: "Your own page", help: "Anything else you need." },
 ];
 
