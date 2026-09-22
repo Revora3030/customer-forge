@@ -437,7 +437,6 @@ function Onboarding() {
           template: "ai-authored",
           publish_state: "preview",
           generation: {
-            builderState: "queued",
             source: "canonical-ai",
             businessName: draft.businessName,
           },
@@ -455,10 +454,30 @@ function Onboarding() {
       try {
         await queueBuild({ data: { organizationId: org.id, mode: "safe" } });
         queued = true;
+        await supabase
+          .from("website_settings")
+          .update({
+            generation: {
+              source: "canonical-ai",
+              businessName: draft.businessName,
+              builderState: "queued",
+            },
+          } as never)
+          .eq("organization_id", org.id);
       } catch (buildError) {
-        // Never trap the owner in onboarding: their answers are saved, and the
-        // builder's own Build button lets them start the build with one click.
+        // Never leave a phantom queued state behind when no generation job exists.
+        // The workspace remains retryable through the normal Build action.
         console.error("[onboarding] build queue failed", supabaseErrorMessage(buildError));
+        await supabase
+          .from("website_settings")
+          .update({
+            generation: {
+              source: "canonical-ai",
+              businessName: draft.businessName,
+              builderState: "ready",
+            },
+          } as never)
+          .eq("organization_id", org.id);
       }
 
       await queryClient.invalidateQueries();
