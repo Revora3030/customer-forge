@@ -355,7 +355,7 @@ function ClientDetail() {
             <RefreshCw className="mr-1 size-3.5" /> Re-check DNS
           </Button>
         </div>
-        <div className="rounded-md border border-border bg-elevated/40 p-3 text-[12px]">
+        <div className="product-tile">
           <p className="eyebrow">DNS record</p>
           <p className="mt-1.5">
             CNAME <span className="text-muted-foreground">@ or www</span> →{" "}

@@ -82,7 +82,7 @@ function AdminMonitoring() {
           {(data?.groups ?? []).map((group) => (
             <div
               key={group.fingerprint}
-              className="rounded-lg border border-border bg-card/40 p-3 text-[13px]"
+              className="product-tile"
             >
               <div className="flex flex-wrap items-center gap-2">
                 <Pill tone={tone(group.level)}>{group.level}</Pill>
@@ -106,7 +106,7 @@ function AdminMonitoring() {
           {(data?.recent ?? []).map((row) => (
             <div
               key={row.id}
-              className="flex flex-wrap items-center gap-2 rounded-md border border-border/70 bg-card/30 px-3 py-2 text-[12.5px]"
+              className="flex flex-wrap items-center gap-2 product-tile"
             >
               <Pill tone={tone(row.level)}>{row.level}</Pill>
               <span className="text-muted-foreground">{when(row.createdAt)}</span>

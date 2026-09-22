@@ -104,7 +104,7 @@ function AdminAi() {
           {(data?.free.providers ?? []).map((provider) => (
             <div
               key={provider.name}
-              className="rounded-lg border border-border bg-card/40 p-3 text-[13px]"
+              className="product-tile"
             >
               <div className="flex flex-wrap items-center gap-2">
                 <Pill
@@ -179,7 +179,7 @@ function AdminAi() {
           {(data?.providers ?? []).map((provider) => (
             <div
               key={provider.name}
-              className="rounded-lg border border-border bg-card/40 p-3 text-[13px]"
+              className="product-tile"
             >
               <div className="flex flex-wrap items-center gap-2">
                 <Pill tone={provider.configured ? "signal" : "attention"}>
@@ -213,7 +213,7 @@ function AdminAi() {
           {(data?.byTask ?? []).map((task) => (
             <div
               key={task.task}
-              className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-card/40 p-3 text-[13px]"
+              className="flex flex-wrap items-center justify-between gap-2 product-tile"
             >
               <span className="font-medium">{task.task}</span>
               <span className="text-muted-foreground">
@@ -243,7 +243,7 @@ function AdminAi() {
             {(data?.byModel ?? []).map((model) => (
               <div
                 key={`${model.provider}:${model.model}`}
-                className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-card/40 p-3 text-[13px]"
+                className="flex flex-wrap items-center justify-between gap-2 product-tile"
               >
                 <span>
                   <span className="font-medium capitalize">{model.provider}</span>{" "}
@@ -272,7 +272,7 @@ function AdminAi() {
             {(data?.errorsByCategory ?? []).map((entry) => (
               <div
                 key={entry.category}
-                className="flex items-center justify-between gap-2 rounded-lg border border-border bg-card/40 p-3 text-[13px]"
+                className="flex items-center justify-between gap-2 product-tile"
               >
                 <span className="font-medium">{entry.category.replace(/_/g, " ")}</span>
                 <span className="text-muted-foreground">{count(entry.count)}</span>
@@ -281,7 +281,7 @@ function AdminAi() {
             {(data?.refusedToolCalls ?? []).map((entry) => (
               <div
                 key={`${entry.tool}:${entry.reason}`}
-                className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-card/40 p-3 text-[13px]"
+                className="flex flex-wrap items-center justify-between gap-2 product-tile"
               >
                 <span className="font-medium">{entry.tool}</span>
                 <span className="text-muted-foreground">
@@ -351,7 +351,7 @@ function LunaPanel() {
             {(data.tiers ?? []).map((tier) => (
               <div
                 key={tier.tier}
-                className="rounded-xl border border-border/60 bg-card/40 p-3 text-[13px]"
+                className="product-tile"
               >
                 <div className="flex items-center justify-between gap-2">
                   <span className="font-medium capitalize">{tier.tier}</span>
@@ -387,7 +387,7 @@ function LunaPanel() {
               data.events.map((event) => (
                 <div
                   key={event.id}
-                  className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-card/40 p-3 text-[13px]"
+                  className="flex flex-wrap items-center gap-2 product-tile"
                 >
                   <Pill tone={event.outcome === "succeeded" ? "signal" : "attention"}>
                     {event.outcome}

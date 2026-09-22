@@ -116,7 +116,7 @@ function BackupHistory({ organizationId }: { organizationId: string }) {
         {rows.map((row) => (
           <div
             key={row.id}
-            className="rounded-lg border border-border bg-card/40 p-3 text-[13px] sm:flex sm:items-center sm:justify-between sm:gap-3"
+            className="product-tile sm:flex sm:items-center sm:justify-between sm:gap-3"
           >
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
