@@ -59,7 +59,8 @@ import {
  * This keeps visual intent from being hidden inside arbitrary JSON.
  */
 
-export const PLAN_INSTRUCTION_LIMIT = 24_000;
+/** Compatibility ceiling only; provider/context continuation handles larger instructions. */
+export const PLAN_INSTRUCTION_LIMIT = 100_000;
 
 /**
  * One-tap starting points for the most common edits. Used for the quick voice
