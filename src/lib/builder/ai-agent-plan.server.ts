@@ -213,6 +213,7 @@ export async function planWebsiteChangesWithAi(input: {
   history: string[];
   context: AgentContext;
   attachments: { kind: string; name: string }[];
+  signal?: AbortSignal;
 }): Promise<AiPlanOutcome> {
   const { context } = input;
   const system = [
@@ -232,6 +233,7 @@ export async function planWebsiteChangesWithAi(input: {
   const trace: string[] = [];
   const actions: unknown[] = [];
   const createdRefs = new Set<string>();
+  const plannerSignal = input.signal ?? AbortSignal.timeout(120_000);
   let cursor: string | null = null;
   let completed = false;
 
@@ -276,6 +278,7 @@ export async function planWebsiteChangesWithAi(input: {
       user: contextBlock + (continuation ? "\n\n" + continuation : ""),
       organizationId: input.organizationId,
       maxOutputTokens: 12000,
+      signal: plannerSignal,
     });
 
     if (!direction.ok) {
