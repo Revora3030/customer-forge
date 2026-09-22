@@ -38,6 +38,10 @@ import {
   type AiDesignContract,
   type MaterialPage,
 } from "@/lib/builder/ai-design-contract";
+import {
+  compileAiDesignContract,
+  requireAiDesignContract,
+} from "@/lib/builder/creative-authority";
 import { assertMediaIntegrity } from "@/lib/builder/media-integrity";
 
 type Db = SupabaseClient;
@@ -93,6 +97,12 @@ export type MaterializeInput = {
   generatedAssets?: FirstBuildImageAsset[];
   /** Explicit, guarded replacement mode. Default rebuilds remain non-destructive. */
   replaceExisting?: boolean;
+  /** Model that directed the design, recorded on the contract for observability. */
+  directedBy?: string | null;
+  /** Model that independently reviewed the design, when one did. */
+  reviewedBy?: string | null;
+  /** The conversion goal the design is built around. */
+  conversionGoal?: string | null;
   /**
    * The AI's canonical design. When supplied it is the creative authority: it
    * decides which pages exist, which sections appear and in what order, and the
