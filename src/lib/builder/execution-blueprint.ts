@@ -57,6 +57,8 @@ export function buildExecutionBlueprint(actions: AgentAction[]): ExecutionBluepr
       case "set_section_visual":
       case "set_ai_visual":
       case "set_ai_responsive":
+      case "set_ai_component_visual":
+      case "set_ai_component_responsive":
       case "set_component_visual":
       case "set_backdrop":
       case "set_section_effect":
