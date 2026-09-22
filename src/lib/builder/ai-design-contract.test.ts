@@ -109,8 +109,8 @@ describe("AI design contract is the only creative authority", () => {
     const applied = applyDesignContract(material(), contract());
     expect(applied.pages.map((page) => page.slug)).toEqual(["home"]);
     expect(applied.pages[0]!.sections.map((section) => section.kind)).toEqual(["hero", "services"]);
-    expect(applied.dropped.some((entry) => entry.includes("legacy_preset_band"))).toBe(true);
-    expect(applied.dropped.some((entry) => entry.includes("old-template-page"))).toBe(true);
+    expect(applied.droppedSections.some((entry) => entry.kind === "legacy_preset_band")).toBe(true);
+    expect(applied.droppedPages).toContain("old-template-page");
   });
 
   it("supports genuinely different site structures", () => {
