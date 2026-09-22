@@ -209,7 +209,7 @@ export const applySiteWideRedesign = createServerFn({ method: "POST" })
       blocked: [],
       motionChanged: run.applied.applied,
       summary: run.plan.summary,
-      restorePointId: String((run.applied as { snapshotId?: string | null }).snapshotId ?? ""),
+      restorePointId: String((run.applied as { snapshotId?: string | null }).snapshotId ?? "") || null,
       undo: null,
     };
   });
