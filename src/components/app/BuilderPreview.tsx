@@ -136,6 +136,20 @@ export function BuilderPreview({
         </div>
 
         <div className="flex shrink-0 items-center gap-1">
+          {onSelect ? (
+            <Button
+              type="button"
+              size="icon-sm"
+              variant={selectMode ? "secondary" : "ghost"}
+              aria-pressed={selectMode}
+              data-testid="builder-preview-select"
+              aria-label={selectMode ? "Stop picking a part of the page" : "Pick a part of the page"}
+              title={selectMode ? "Stop picking" : "Click a part of the page to change it"}
+              onClick={() => setSelectMode((value) => !value)}
+            >
+              <MousePointerClick className="size-4" aria-hidden />
+            </Button>
+          ) : null}
           {BUILDER_VIEWPORTS.map((option) => {
             const Icon = VIEWPORT_ICONS[option.key];
             return (
