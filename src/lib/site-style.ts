@@ -754,6 +754,12 @@ export function blockCss(style: BlockStyle, surface?: string | null): React.CSSP
     css.backgroundImage = backgroundImageCss(style);
     css.backgroundSize = "cover";
     css.backgroundPosition = "center";
+  } else if (style.bgGradient) {
+    // Both stops are validated colours and the angle is a bounded number, so
+    // the gradient can carry no arbitrary CSS.
+    const from = style.bgColor ?? "transparent";
+    const angle = style.bgGradientAngle ?? 180;
+    css.backgroundImage = `linear-gradient(${angle}deg,${from},${style.bgGradient})`;
   }
   if (style.radius !== null)
     css.borderRadius = style.radius >= 999 ? "9999px" : `${style.radius}px`;
