@@ -85,11 +85,46 @@ describe("building a page and filling it in one plan", () => {
     ]);
   });
 
-  it("rejects unsafe and unsupported style values instead of creating an empty action", () => {
+  it("drops unsafe style values while still applying the safe ones", () => {
     const actions = readActions([
       { type: "set_block_style", target: "section", targetId: "section-1", patch: { bgColor: "javascript:alert(1)", padTop: 20 } },
     ], { pageIds: new Set(), sectionIds: new Set(["section-1"]), componentIds: new Set() });
+    expect(actions).toEqual([
+      expect.objectContaining({ type: "set_block_style", patch: { padTop: 20 } }),
+    ]);
+  });
+
+  it("drops a style action whose every value is unsafe", () => {
+    const actions = readActions([
+      { type: "set_block_style", target: "section", targetId: "section-1", patch: { bgColor: "url(evil)" } },
+    ], { pageIds: new Set(), sectionIds: new Set(["section-1"]), componentIds: new Set() });
     expect(actions).toEqual([]);
+  });
+
+  it("accepts the natural style names and units the models actually write", () => {
+    const actions = readActions([
+      {
+        type: "set_block_style",
+        target: "section",
+        targetId: "section-1",
+        patch: { backgroundColor: "black", color: "gold", fontSize: "44px", fontWeight: "bold", padding: "56px" },
+      },
+    ], { pageIds: new Set(), sectionIds: new Set(["section-1"]), componentIds: new Set() });
+    expect(actions).toEqual([
+      expect.objectContaining({
+        type: "set_block_style",
+        patch: {
+          bgColor: "#000000",
+          textColor: "#d4af37",
+          size: 44,
+          weight: 700,
+          padTop: 56,
+          padRight: 56,
+          padBottom: 56,
+          padLeft: 56,
+        },
+      }),
+    ]);
   });
 
   it("lets one plan create a missing image block and generate into it", () => {
