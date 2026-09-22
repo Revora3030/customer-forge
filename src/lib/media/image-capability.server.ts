@@ -128,7 +128,7 @@ export async function imageGenerationCapability(): Promise<ImageCapability> {
   if (chain.length === 0)
     return unavailable(
       "no_provider_configured",
-      "No free picture service is connected yet, so Revora used its own artwork instead of generating a photo.",
+      "No free picture service is connected yet, so no picture was generated.",
     );
 
   const providers: ImageProviderCapability[] = [];

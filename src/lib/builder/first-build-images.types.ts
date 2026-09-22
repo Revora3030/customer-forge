@@ -21,7 +21,7 @@ export type FirstBuildImageAsset = {
 export type FirstBuildImageSource = "free" | "paid" | "none";
 
 export type FirstBuildImageEvidence = {
-  status: "generated" | "owner_photos" | "fallback_artwork" | "failed";
+  status: "generated" | "owner_photos" | "blocked" | "failed";
   requested: number;
   generated: number;
   /** Pictures actually attached to the site, filled in after materialization. */
