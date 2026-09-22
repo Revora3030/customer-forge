@@ -178,6 +178,11 @@ export function validateCreativeSiteContract(contract: unknown): {
     if (!slug || slugs.has(slug)) violations.push(`duplicate or missing page slug: ${slug || "(missing)"}`);
     slugs.add(slug);
 
+    const title = typeof page["title"] === "string" ? page["title"] : "";
+    const purpose = typeof page["purpose"] === "string" ? page["purpose"] : "";
+    if (!title.trim()) violations.push(`page ${slug || "(unknown)"} has no title`);
+    if (!purpose.trim()) violations.push(`page ${slug || "(unknown)"} has no purpose`);
+
     const sections = page["sections"];
     if (!Array.isArray(sections)) {
       violations.push(`page ${slug || "(unknown)"} sections must be an array`);
