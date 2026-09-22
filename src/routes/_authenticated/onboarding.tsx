@@ -19,11 +19,10 @@ import { useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 import { useStepScroll } from "@/lib/use-step-scroll";
 import { useServerFn } from "@tanstack/react-start";
-import { analyzeSiteBrief, runSiteGeneration, saveSiteBrief } from "@/lib/site-engine.functions";
+import { runSiteGeneration } from "@/lib/site-engine.functions";
 
 import {
   WEBSITE_GOALS,
-  generateWebsitePlan,
   revoraShareAddress,
   safeSlug,
   type GoalKey,
@@ -433,45 +432,19 @@ function Onboarding() {
         console.error("[onboarding] quote calculator seed failed", supabaseErrorMessage(seedError));
       }
 
-      const plan = generateWebsitePlan({
-        businessName: draft.businessName,
-        industry: draft.industry,
-        description: draft.about,
-        city: draft.city,
-        state: draft.state,
-        serviceArea: draft.serviceArea || draft.city,
-        phone: draft.phone,
-        email: draft.email,
-        goals,
-        services: services.map((s) => ({
-          name: s.name,
-          description: s.description,
-          price: s.price ? Number(s.price) : null,
-        })),
-        photoCount: draft.heroImageUrl ? 1 : 0,
-        testimonialCount: testimonials.length,
-        hasCredentials: Boolean(draft.certifications || draft.awards || draft.yearsInBusiness),
-        hasHours: Boolean(draft.hours),
-        socialLinks: [socialRow.instagram, socialRow.facebook, socialRow.google_business].filter(
-          Boolean,
-        ).length,
-      });
-
+      // Never write a deterministic website plan during onboarding. Save only
+      // factual workspace state and let the canonical Sol → Terra build own every
+      // page, section, copy, visual and responsive decision.
       const { error: settingsError } = await supabase.from("website_settings").upsert(
         {
           organization_id: org.id,
-          template: plan.template,
+          template: "ai-authored",
           publish_state: "preview",
-          review_state: "ready_for_review",
-          generation: plan as never,
-          generated_at: plan.generatedAt,
-          seo: {
-            headline: plan.headline,
-            subheadline: plan.subheadline,
-            meta_description: plan.metaDescription,
-            primary_cta_label: plan.primaryCtaLabel,
-            title: plan.seoTitle,
-          } as never,
+          generation: {
+            builderState: "queued",
+            source: "canonical-ai",
+            businessName: draft.businessName,
+          },
         } as never,
         { onConflict: "organization_id" },
       );
@@ -485,12 +458,8 @@ function Onboarding() {
       // queued. The builder polls the job and shows live progress.
       let queued = false;
       try {
-        const analysis = await analyzeBrief({ data: { organizationId: org.id } });
-        await approveBrief({
-          data: { organizationId: org.id, brief: analysis.brief, approved: true },
-        });
-        await queueBuild({ data: { organizationId: org.id } });
-        queued = true;
+        await queueBuild({ data: { organizationId: org.id, mode: "safe" } });
+
       } catch (buildError) {
         // Never trap the owner in onboarding: their answers are saved, and the
         // builder's own Build button lets them start the build with one click.
