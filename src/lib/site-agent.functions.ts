@@ -33,6 +33,7 @@ import {
   type SiteIndex,
 } from "@/lib/site-agent";
 import type { VerificationReport } from "@/lib/agent/verify";
+import type { AgentContext } from "@/lib/site-agent.server";
 import type { QaLoopResult } from "@/lib/builder/qa-loop.server";
 import {
   coveredRequestDimensions,
@@ -222,6 +223,39 @@ export type SupabaseLike = {
   from: SupabaseClient["from"];
   storage: SupabaseClient["storage"];
 };
+
+async function runAiWebsiteUpgrade(input: {
+  supabase: SupabaseLike;
+  organizationId: string;
+  userId: string;
+  instruction: string;
+  label: string;
+}) {
+  const context = await loadAgentContext(input.supabase, input.organizationId);
+  const plan = await planWebsiteChangesWithAi({
+    organizationId: input.organizationId,
+    instruction: input.instruction,
+    history: [],
+    context,
+    attachments: [],
+  });
+  if (!plan.ok) {
+    throw new Error(
+      "The AI design team could not complete this website change (" +
+        plan.reason +
+        (plan.detail ? ": " + plan.detail : "") +
+        "). Nothing was changed.",
+    );
+  }
+  const applied = await applyWebsiteActions(input.supabase, input.userId, {
+    organizationId: input.organizationId,
+    actions: plan.actions,
+    label: input.label,
+    verify: true,
+    operationKey: crypto.randomUUID(),
+  });
+  return { plan, applied };
+}
 
 /* --------------------------------- planning -------------------------------- */
 
@@ -1869,7 +1903,7 @@ export const runWebsiteTask = createServerFn({ method: "POST" })
           needsApproval,
           applied: null as null | Awaited<ReturnType<typeof applyImpl>>,
         };
-      const applied = await applyImpl(supabase, userId, {
+      const applied = await applyWebsiteActions(supabase, userId, {
         organizationId: data.organizationId,
         actions: safe.map((step: AgentStep) => step.action),
         label,
