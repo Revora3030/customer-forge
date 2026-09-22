@@ -28,6 +28,46 @@ const SYSTEM = [
   "Return one complete JSON object matching the CreativeSiteContract shape.",
 ].join(" ");
 
+function validateContinuationChunkShape(raw: Record<string, unknown>): string[] {
+  const violations: string[] = [];
+  const pages = raw["pages"];
+  if (!Array.isArray(pages)) {
+    violations.push("continuation pages must be an array");
+    return violations;
+  }
+  for (const rawPage of pages) {
+    if (!rawPage || typeof rawPage !== "object" || Array.isArray(rawPage)) {
+      violations.push("continuation page must be an object");
+      continue;
+    }
+    const page = rawPage as Record<string, unknown>;
+    const slug = typeof page["slug"] === "string" ? page["slug"] : "(unknown)";
+    if (typeof page["id"] !== "string" || !page["id"].trim())
+      violations.push(`continuation page ${slug} is missing an id`);
+    if (typeof page["slug"] !== "string" || !page["slug"].trim())
+      violations.push("continuation page is missing a slug");
+    if (!Array.isArray(page["sections"])) {
+      violations.push(`continuation page ${slug} sections must be an array`);
+      continue;
+    }
+    for (const rawSection of page["sections"]) {
+      if (!rawSection || typeof rawSection !== "object" || Array.isArray(rawSection)) {
+        violations.push(`continuation page ${slug} section must be an object`);
+        continue;
+      }
+      const section = rawSection as Record<string, unknown>;
+      const sectionId = typeof section["id"] === "string" ? section["id"] : "(missing)";
+      if (typeof section["id"] !== "string" || !section["id"].trim())
+        violations.push(`continuation section ${sectionId} is missing an id`);
+      if (typeof section["role"] !== "string" || !section["role"].trim())
+        violations.push(`continuation section ${sectionId} has no role`);
+      if (typeof section["intent"] !== "string" || !section["intent"].trim())
+        violations.push(`continuation section ${sectionId} has no intent`);
+    }
+  }
+  return violations;
+}
+
 function parseJson(text: string): Record<string, unknown> | null {
   const start = text.indexOf("{");
   const end = text.lastIndexOf("}");
@@ -164,6 +204,17 @@ export async function authorCreativeSiteContract(input: {
       };
     }
 
+    const fragmentViolations = validateContinuationChunkShape(parsedChunk);
+    if (fragmentViolations.length) {
+      return {
+        contract: null,
+        reviewed: false,
+        skipped: fragmentViolations.slice(0, 8).join("; "),
+        models: modelList(),
+        costMicrocents: solCostMicrocents,
+      };
+    }
+
     const chunk = normalize(parsedChunk, solModel ?? "gpt-5.6-sol");
     const mergedContract: CreativeSiteContract =
       contract === null ? chunk : mergeCreativeSiteContracts(contract, chunk);
@@ -266,16 +317,16 @@ export async function authorCreativeSiteContract(input: {
       contract: null,
       reviewed: false,
       skipped: terra.detail ?? terra.reason ?? "Terra review unavailable",
-      models: modelList().filter(Boolean) as string[],
-      costMicrocents: solCostMicrocents,
+      models: [...modelList(), terra.model].filter(Boolean) as string[],
+      costMicrocents: solCostMicrocents + terra.costMicrocents,
     };
   if (!terra.text)
     return {
       contract: null,
       reviewed: false,
       skipped: "Terra returned no review content",
-      models: modelList(),
-      costMicrocents: solCostMicrocents,
+      models: [...modelList(), terra.model].filter(Boolean) as string[],
+      costMicrocents: solCostMicrocents + terra.costMicrocents,
     };
 
   const repaired = parseJson(terra.text);
