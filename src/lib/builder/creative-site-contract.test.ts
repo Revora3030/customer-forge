@@ -70,7 +70,7 @@ describe("CreativeSiteContract", () => {
   it("merges continuation chunks by stable IDs without deleting staged sections", () => {
     const chunk = base();
     chunk.revision = 2;
-    chunk.pages[0].sections.push({
+    chunk.pages[0]!.sections.push({
       id: "section-home-02",
       role: "interactive-proof",
       intent: "explain the process",
