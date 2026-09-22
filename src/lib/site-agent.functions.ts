@@ -1802,7 +1802,7 @@ export const runWebsiteTask = createServerFn({ method: "POST" })
         return {
           plan,
           needsApproval,
-          applied: null as null | Awaited<ReturnType<typeof applyImpl>>,
+          applied: null as null | Awaited<ReturnType<typeof applyWebsiteActions>>,
         };
       const applied = await applyWebsiteActions(supabase, userId, {
         organizationId: data.organizationId,
