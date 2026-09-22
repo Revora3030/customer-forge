@@ -147,7 +147,7 @@ export const MULTIMODAL_TEMPLATES: {
  * reversible in one atomic rollback. No design work is truncated in practice.
  */
 /** Legacy compatibility symbol. New plans are processed in full; batching/continuation is handled by the executor. */
-export const MAX_ACTIONS = Number.POSITIVE_INFINITY;
+export const MAX_ACTIONS = 100_000;
 
 
 export type AgentField = "heading" | "subheading" | "body";
