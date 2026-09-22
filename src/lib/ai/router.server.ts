@@ -452,10 +452,11 @@ async function run<T>(
   const limits = aiLimits();
   const requestId = caller.requestId ?? newRequestId();
 
-  // FREE-FIRST GATE. Free providers are tried first; paid providers are only in
-  // this chain when an operator has explicitly opted out of free-only and
-  // zero-cost mode. An empty chain is not a crash: the caller falls back to
-  // Revora's deterministic engine and the owner gets a precise explanation.
+  // REACHABILITY GATE, then QUALITY-FIRST ORDER. Paid providers only enter this
+  // chain when an operator has explicitly opted out of free-only and zero-cost
+  // mode; whatever is reachable is then ranked on capability and quality, with
+  // cost last. An empty chain is not a crash: the caller falls back to Revora's
+  // deterministic engine and the owner gets a precise explanation.
   const chain = await buildChain(caller, role, options?.capable, options?.freeOnly === true);
   if (chain.length === 0) throw freeAiUnavailable("no free provider configured or in budget");
 
