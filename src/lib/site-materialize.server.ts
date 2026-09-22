@@ -157,6 +157,8 @@ export function materializeCreativeSiteContract(
     og_image_url: page.seo?.imageUrl ?? null,
     sections: page.sections.map((section) => {
       const components: Component[] = (section.content?.components ?? []).map((component) => ({
+        ...component,
+
         kind: component.kind,
         label: component.label ?? null,
         body: component.body ?? null,
