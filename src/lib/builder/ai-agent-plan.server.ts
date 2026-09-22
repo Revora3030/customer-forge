@@ -71,8 +71,6 @@ function actionContract(context: AgentContext): string {
     '{"type":"set_section_visual","sectionId":id,"patch":{"layout":"legacy compatibility only; prefer set_ai_visual for new creative work"}}',
     '{"type":"set_ai_visual","sectionId":id,"patch":{"anySafeVisualProperty":"safe primitive visual/layout value"}}',
     '{"type":"set_ai_responsive","sectionId":id,"width":390,"patch":{"anySafeResponsiveProperty":"safe primitive responsive value"}}',
-    '{"type":"set_ai_component_visual","componentId":id,"patch":{"anySafeVisualProperty":"safe primitive visual value"}}',
-    '{"type":"set_ai_component_responsive","componentId":id,"width":390,"patch":{"anySafeResponsiveProperty":"safe primitive responsive value"}}',
     '{"type":"set_block_style","target":"section|component","targetId":id,"device":"desktop|tablet|mobile","patch":{"font":"display|body|serif|mono","size":"10..160","weight":"100..900","align":"left|center|right","lineHeight":"0.75..3","letterSpacing":"-0.1..0.3","textTransform":"none|uppercase|capitalize","italic":boolean,"textColor":"#RRGGBB or common named colour","columns":"1..6","gap":"0..240","maxWidth":"240..1920","contentAlign":"left|center|right","padTop":"0..240","padRight":"0..240","padBottom":"0..240","padLeft":"0..240","marginTop":"-240..240","marginBottom":"-240..240","bgColor":"#RRGGBB or common named colour","bgGradient":"#RRGGBB or common named colour (second gradient stop)","bgGradientAngle":"0..360","bgImage":"safe https URL or internal path","overlay":"0..100","radius":"0..999","borderWidth":"0..12","borderColor":"#RRGGBB or common named colour","shadow":"none|subtle|medium|strong","opacity":"0..100","objectFit":"cover|contain|fill","buttonStyle":"solid|outline|ghost|link","buttonSize":"sm|md|lg","buttonTextColor":"#RRGGBB or common named colour","buttonBgColor":"#RRGGBB or common named colour","hidden":boolean}}',
     '{"type":"add_section","pageId":id,"ref":"temp_section_1","kind":kind,"heading":string,"subheading":string,"body":string,"position":number}',
     '{"type":"delete_section","sectionId":id}',
@@ -92,7 +90,7 @@ function actionContract(context: AgentContext): string {
     `Allowed page kinds: ${context.pageKinds.join(", ")}.`,
     `Allowed component kinds: ${context.componentKinds.join(", ")}, image, hero_image.`,
     "When a section should show photography, add the image component AND a generate_component_image action for it. Image prompts describe a real, specific scene for this business: no text, logos, watermarks, awards, reviews or identifiable customers in the picture.",
-    "Prefer set_ai_visual/set_ai_responsive/set_ai_component_visual/set_ai_component_responsive for new creative styling. These values are accepted only after server-side safety filtering; never place HTML, JavaScript or unsafe URLs in them.",
+    "Prefer set_ai_visual/set_ai_responsive for new section creative styling. These values are accepted only after server-side safety filtering; never place HTML, JavaScript or unsafe URLs in them.",
 
   ].join("\n");
 }
