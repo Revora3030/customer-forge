@@ -801,6 +801,12 @@ export function blockCss(style: BlockStyle, surface?: string | null): React.CSSP
     css.backgroundImage = backgroundImageCss(style);
     css.backgroundSize = "cover";
     css.backgroundPosition = "center";
+    // Accessibility guardrail only: a photo has no single measurable colour, so
+    // text over one without a darkening layer gets a soft shadow so it stays
+    // readable. The chosen text colour itself is never altered.
+    if (style.textColor && !style.overlay) {
+      css.textShadow = "0 1px 2px rgba(0,0,0,.55), 0 2px 12px rgba(0,0,0,.35)";
+    }
   } else if (style.bgGradient) {
     // Both stops are validated colours and the angle is a bounded number, so
     // the gradient can carry no arbitrary CSS.
