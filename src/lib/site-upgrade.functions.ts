@@ -476,9 +476,9 @@ export type VisionRepairResult = {
 };
 
 /**
- * Applies only the repairs Revora can genuinely carry out, and names the ones
- * it skipped. A repair that would change wording, prices or any business fact
- * is never applied here.
+ * Visual QA repairs are AI-authored now. The vision model identifies the
+ * concrete problem; Sol chooses the exact safe fix and Terra reviews it. No
+ * fingerprint or canned visual treatment is used as a hidden repair authority.
  */
 export const applyVisionRepairs = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -498,138 +498,52 @@ export const applyVisionRepairs = createServerFn({ method: "POST" })
     const review = parseVisionReview({ issues: data.findings });
     const { repairs, unfixable } = visionRepairs(review);
     const skipped = unfixable.map((finding) => finding.kind);
-
     if (repairs.length === 0) {
       return {
         ok: true,
         applied: [],
         skipped,
         restorePointId: null,
-        summary:
-          skipped.length > 0
-            ? "None of these need a change Revora can make safely — they need your eye."
-            : "There was nothing to repair.",
+        summary: skipped.length ? "The reviewer found issues that need a different kind of change." : "There was nothing to repair.",
       };
     }
 
-    const { pages, sections } = await loadPagesAndSections(supabase, data.organizationId);
-    const page = data.pageSlug ? pages.find((entry) => entry.slug === data.pageSlug) : null;
-    const scope = page ? sections.filter((section) => section.page_id === page.id) : sections;
+    const scope = data.pageSlug ? "on page /" + data.pageSlug : "across the website";
+    const instruction = [
+      "Repair only the visual QA findings below " + scope + ".",
+      "These are post-render issues found by the vision reviewer. Do not redesign unrelated areas and do not rewrite business facts or verified copy.",
+      "Choose the smallest appropriate safe fix yourself. Prefer AI-authored visual/responsive values rather than legacy section variants, design fingerprints, theme presets or canned motion packs.",
+      "Preserve reduced-motion, touch-target, contrast and content integrity requirements.",
+      "FINDINGS:",
+      repairs.map((repair) => "- " + repair.kind + ": " + repair.reason).join("\n"),
+    ].join("\n");
 
-    const restorePointId = await saveRestorePoint(
-      supabase,
-      data.organizationId,
-      context.userId,
-      "Before the page review repairs",
-      pages,
-      sections,
-    );
-
-    const { createDesignFingerprint, readDesignFingerprint, writeDesignFingerprint } = await import(
-      "@/lib/builder/design-fingerprint"
-    );
-    const { data: settings } = await supabase
-      .from("website_settings")
-      .select("generation")
-      .eq("organization_id", data.organizationId)
-      .maybeSingle();
-    const generation = (settings as { generation?: unknown } | null)?.generation ?? null;
-    let fingerprint =
-      readDesignFingerprint(generation) ??
-      createDesignFingerprint({ businessName: null, industry: null, city: null });
-    let fingerprintChanged = false;
-
-    const applied: string[] = [];
-
-    for (const repair of repairs) {
-      switch (repair.action) {
-        case "set_section_effect": {
-          for (const section of scope) {
-            await supabase
-              .from("website_sections")
-              .update({ settings: writeSectionEffect(section.settings ?? null, repair.effect) as never })
-              .eq("id", section.id)
-              .eq("organization_id", data.organizationId);
-          }
-          applied.push("Movement switched off on this page");
-          break;
-        }
-        case "set_density": {
-          fingerprint = { ...fingerprint, density: repair.density };
-          fingerprintChanged = true;
-          applied.push(repair.density === "airy" ? "More space between blocks" : "Spacing tightened a little");
-          break;
-        }
-        case "set_image_overlay": {
-          fingerprint = {
-            ...fingerprint,
-            artDirection: { ...fingerprint.artDirection, overlay: repair.overlay },
-          };
-          fingerprintChanged = true;
-          applied.push("Darker shading behind text sitting on photos");
-          break;
-        }
-        case "set_image_fit": {
-          for (const section of scope) {
-            const current = { ...((section.settings ?? {}) as Record<string, unknown>) };
-            if (current["imageFit"] === repair.fit) continue;
-            current["imageFit"] = repair.fit;
-            await supabase
-              .from("website_sections")
-              .update({ settings: current as never })
-              .eq("id", section.id)
-              .eq("organization_id", data.organizationId);
-          }
-          applied.push("Photos cropped to fit rather than stretched");
-          break;
-        }
-        case "raise_contrast": {
-          fingerprint = { ...fingerprint, colorSystem: "high-contrast" };
-          fingerprintChanged = true;
-          applied.push("Stronger contrast between text and background");
-          break;
-        }
-        case "emphasise_cta": {
-          for (const section of scope.filter((entry) => ["cta", "sticky_cta", "offer"].includes(entry.kind))) {
-            await supabase
-              .from("website_sections")
-              .update({ settings: writeSectionEffect(section.settings ?? null, "gold_glow") as never })
-              .eq("id", section.id)
-              .eq("organization_id", data.organizationId);
-          }
-          applied.push("The main action made more prominent");
-          break;
-        }
-        default: {
-          // A shortening repair would change the owner's own words, so Revora
-          // reports it instead of rewriting it.
-          skipped.push(repair.kind);
-          break;
-        }
-      }
+    try {
+      const run = await runAiWebsiteUpgrade({
+        supabase,
+        organizationId: data.organizationId,
+        userId: context.userId,
+        label: "AI visual QA repair",
+        instruction,
+      });
+      const applied = ((run.applied.details ?? []) as string[]).filter((item) => /^applied /i.test(item) || /^repaired /i.test(item));
+      return {
+        ok: true,
+        applied,
+        skipped,
+        restorePointId: String((run.applied as { snapshotId?: string | null }).snapshotId ?? "") || null,
+        summary: run.plan.summary,
+      };
+    } catch (error) {
+      return {
+        ok: false,
+        applied: [],
+        skipped: [...skipped, "ai_repair_failed"],
+        restorePointId: null,
+        summary: error instanceof Error ? error.message : "The AI reviewer could not repair this page. Nothing was changed.",
+      };
     }
-
-    if (fingerprintChanged) {
-      await supabase
-        .from("website_settings")
-        .upsert(
-          { organization_id: data.organizationId, generation: writeDesignFingerprint(generation, fingerprint) } as never,
-          { onConflict: "organization_id" },
-        );
-    }
-
-    return {
-      ok: true,
-      applied,
-      skipped,
-      restorePointId,
-      summary:
-        applied.length === 0
-          ? "Nothing could be repaired automatically."
-          : `${applied.length} repair${applied.length === 1 ? "" : "s"} applied. You can undo this from the version history.`,
-    };
   });
-
 /* ------------------------------------------------------------------- undo */
 
 /**
@@ -677,34 +591,8 @@ export const undoSiteUpgrade = createServerFn({ method: "POST" })
       if (!error) reverted += 1;
     }
 
-    if (data.undo.fingerprint && Object.keys(data.undo.fingerprint).length > 0) {
-      const { createDesignFingerprint, readDesignFingerprint, writeDesignFingerprint } = await import(
-        "@/lib/builder/design-fingerprint"
-      );
-      const { data: settings } = await supabase
-        .from("website_settings")
-        .select("generation")
-        .eq("organization_id", data.organizationId)
-        .maybeSingle();
-      const generation = (settings as { generation?: unknown } | null)?.generation ?? null;
-      const current =
-        readDesignFingerprint(generation) ??
-        createDesignFingerprint({ businessName: null, industry: null, city: null });
-      const next = { ...current } as unknown as Record<string, unknown>;
-      for (const [field, value] of Object.entries(data.undo.fingerprint)) {
-        if (field in (current as unknown as Record<string, unknown>)) next[field] = value;
-      }
-      await supabase
-        .from("website_settings")
-        .upsert(
-          {
-            organization_id: data.organizationId,
-            generation: writeDesignFingerprint(generation, next as never),
-          } as never,
-          { onConflict: "organization_id" },
-        );
-      reverted += Object.keys(data.undo.fingerprint).length;
-    }
+    // Creative identity rollback is handled by the version snapshot created by
+    // the AI action executor. Fingerprint synthesis is intentionally not used.
 
     return {
       ok: true,
