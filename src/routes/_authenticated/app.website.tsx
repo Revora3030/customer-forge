@@ -700,14 +700,16 @@ function WebsitePage() {
         <OverlayPanel
           open={historyOpen}
           title="History"
-          description="Every change Revora and your team made — restore any earlier version."
+          description="Every change Revora and your team made — and which model made it. Restore any earlier version."
           onClose={() => setHistoryOpen(false)}
         >
+          <ModelResponseLog organizationId={orgId ?? undefined} />
           <DraftBranchPanel organizationId={orgId ?? null} canManage={manage} />
           <RestorePointPanel organizationId={orgId} canManage={manage} />
           <VersionHistory organizationId={orgId} canManage={manage} />
           <VersionDiff organizationId={orgId} />
         </OverlayPanel>
+
       </BuilderHistoryProvider>
 
       {/* ------------------------ One advanced door ------------------------ */}
