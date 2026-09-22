@@ -3,7 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 const root = process.cwd();
-const skip = new Set([".git","node_modules","dist",".output",".tanstack",".nitro",".wrangler"]);
+const skip = new Set([".git", "node_modules", "dist", ".output", ".tanstack", ".nitro", ".wrangler"]);
 
 function walk(dir) {
   const out = [];
@@ -18,28 +18,34 @@ function walk(dir) {
 
 const files = walk(root);
 const read = (file) => fs.readFileSync(path.join(root, file), "utf8");
+const hasFile = (file) => fs.existsSync(path.join(root, file));
+const hasToken = (file, token) => hasFile(file) && read(file).includes(token);
+
+/*
+ * This audit must validate the contracts that actually exist in the current
+ * builder architecture. The previous version asserted a set of removed
+ * "ultimate" modules (master-engine, ultimate-site-quality, etc.), which made
+ * CI fail even though those modules are not part of the repository.
+ *
+ * This is intentionally a structural contract audit, not a claim that the
+ * creative-authority migration is complete. The migration itself has its own
+ * architecture tests and acceptance checks.
+ */
 const required = [
-  ["master-engine", "src/lib/builder/master-engine.ts", "compileUltimateSiteQuality"],
-  ["quality", "src/lib/builder/ultimate-site-quality.ts", "ULTIMATE_QUALITY_DOMAINS"],
-  ["design", "src/lib/builder/site-design-system.ts", "compileDesignSystemActions"],
-  ["images", "src/lib/builder/site-image-intelligence.ts", "compileImageQualityActions"],
-  ["conversion", "src/lib/builder/site-conversion-architecture.ts", "compileConversionArchitecture"],
-  ["responsive", "src/lib/builder/site-responsive-autopilot.ts", "compileResponsiveAutopilot"],
-  ["accessibility", "src/lib/builder/site-accessibility-autopilot.ts", "compileAccessibilityAutopilot"],
-  ["seo", "src/lib/builder/site-seo-autopilot.ts", "compileSeoAutopilot"],
-  ["renderer", "src/components/site/SiteSections.tsx", "readSectionVisual"],
-  ["media-overlay", "src/styles.css", "rv-overlay-gradient"],
-  ["catalog", "src/lib/builder/remaining-upgrades-catalog.ts", "REMAINING_SITE_UPGRADES"],
-  ["dependency-plan", "src/lib/builder/plan-quality.ts", "isAllowedReference"],
-  ["component-temp-ref", "src/lib/site-agent.ts", "componentRefs"],
-  ["reorder-action", "src/lib/site-agent.ts", "reorder_components"],
+  ["creative-authority", "src/lib/builder/creative-authority.ts", "requireAiDesignContract"],
+  ["ai-design-contract", "src/lib/builder/ai-design-contract.ts", "validateAiDesignContract"],
+  ["materializer", "src/lib/site-materialize.server.ts", "materializedSectionDesign"],
+  ["site-agent", "src/lib/site-agent.ts", "set_component_visual"],
+  ["site-agent-reorder", "src/lib/site-agent.ts", "reorder_components"],
   ["atomic-visual-journal", "src/lib/site-agent.atomic.ts", "set_component_visual"],
+  ["media-integrity", "src/lib/builder/media-integrity.ts", "assertMediaIntegrity"],
+  ["builder-ai-design", "src/lib/builder/ai-design-contract.ts", "AiDesignContract"],
 ];
 
 const failures = [];
 for (const [name, file, token] of required) {
-  if (!fs.existsSync(path.join(root, file))) failures.push(name + ": missing file");
-  else if (!read(file).includes(token)) failures.push(name + ": missing contract " + token);
+  if (!hasFile(file)) failures.push(name + ": missing file");
+  else if (!hasToken(file, token)) failures.push(name + ": missing contract " + token);
 }
 
 const result = {
