@@ -44,12 +44,12 @@ function normalize(raw: Record<string, unknown>, model: string): CreativeSiteCon
   return {
     ...(raw as unknown as CreativeSiteContract),
     version: CREATIVE_SITE_CONTRACT_VERSION,
-    revision: Number(raw.revision) > 0 ? Number(raw.revision) : 1,
+    revision: Number(raw["revision"]) > 0 ? Number(raw["revision"]) : 1,
     authority: CREATIVE_SITE_AUTHORITY,
-    directedBy: typeof raw.directedBy === "string" ? raw.directedBy : model,
-    reviewedBy: typeof raw.reviewedBy === "string" ? raw.reviewedBy : null,
-    complete: raw.complete !== false,
-    pages: Array.isArray(raw.pages) ? (raw.pages as CreativeSiteContract["pages"]) : [],
+    directedBy: typeof raw["directedBy"] === "string" ? raw["directedBy"] : model,
+    reviewedBy: typeof raw["reviewedBy"] === "string" ? raw["reviewedBy"] : null,
+    complete: raw["complete"] !== false,
+    pages: Array.isArray(raw["pages"]) ? (raw["pages"] as CreativeSiteContract["pages"]) : [],
   };
 }
 
@@ -129,12 +129,21 @@ export async function authorCreativeSiteContract(input: {
       ].filter(Boolean).join("\n"),
     });
 
-    if (!sol.ok || !sol.text) {
+    if (!sol.ok) {
       return {
         contract: null,
         reviewed: false,
         skipped: sol.detail ?? sol.reason,
         models: [solModel].filter(Boolean),
+        costMicrocents: solCostMicrocents,
+      };
+    }
+    if (!sol.text) {
+      return {
+        contract: null,
+        reviewed: false,
+        skipped: "Sol returned no contract content in chunk " + (chunkIndex + 1),
+        models: [solModel],
         costMicrocents: solCostMicrocents,
       };
     }
@@ -164,7 +173,9 @@ export async function authorCreativeSiteContract(input: {
       };
     }
 
-    contract = contract ? mergeCreativeSiteContracts(contract, chunk) : chunk;
+    const mergedContract =
+      contract === null ? chunk : mergeCreativeSiteContracts(contract, chunk);
+    contract = mergedContract;
     continuation = {
       chunkIndex,
       totalChunks: chunk.continuation?.totalChunks,
@@ -197,8 +208,10 @@ export async function authorCreativeSiteContract(input: {
     ...contract,
     continuation: {
       chunkIndex: continuation.chunkIndex,
-      totalChunks: continuation.totalChunks,
-      cursor: continuation.cursor,
+      ...(continuation.totalChunks !== undefined
+        ? { totalChunks: continuation.totalChunks }
+        : {}),
+      ...(continuation.cursor !== null ? { cursor: continuation.cursor } : { cursor: null }),
       hasMore: false,
     },
     complete: true,
@@ -237,12 +250,20 @@ export async function authorCreativeSiteContract(input: {
     ].join("\n"),
   });
 
-  if (!terra.ok || !terra.text)
+  if (!terra.ok)
     return {
       contract: null,
       reviewed: false,
       skipped: terra.detail ?? terra.reason ?? "Terra review unavailable",
       models: [solModel].filter(Boolean) as string[],
+      costMicrocents: solCostMicrocents,
+    };
+  if (!terra.text)
+    return {
+      contract: null,
+      reviewed: false,
+      skipped: "Terra returned no review content",
+      models: [solModel],
       costMicrocents: solCostMicrocents,
     };
 
