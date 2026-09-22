@@ -160,20 +160,147 @@ export const DEFAULT_BLOCK_STYLE: BlockStyle = Object.freeze(
 
 /* -------------------------------- validation -------------------------------- */
 
-const HEX = /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i;
+const HEX = /^#(?:[0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/i;
+const RGB_FN = /^rgba?\(\s*\d{1,3}\s*[, ]\s*\d{1,3}\s*[, ]\s*\d{1,3}\s*(?:[,/]\s*(?:0?\.\d+|[01]|\d{1,3}%)\s*)?\)$/i;
+const HSL_FN = /^hsla?\(\s*-?\d{1,3}(?:deg)?\s*[, ]\s*\d{1,3}%\s*[, ]\s*\d{1,3}%\s*(?:[,/]\s*(?:0?\.\d+|[01]|\d{1,3}%)\s*)?\)$/i;
 const NAMED_COLORS: Record<string, string> = {
   black: "#000000", white: "#ffffff", red: "#dc2626", blue: "#2563eb",
   green: "#15803d", yellow: "#eab308", orange: "#ea580c", purple: "#9333ea",
   pink: "#db2777", gray: "#6b7280", grey: "#6b7280", slate: "#475569",
   navy: "#172554", teal: "#0f766e", cyan: "#0891b2", gold: "#d4af37",
   cream: "#fff7e6", beige: "#f5f5dc", brown: "#78350f", transparent: "#00000000",
+  charcoal: "#1f2937", ivory: "#fffff0", offwhite: "#f8fafc", "off-white": "#f8fafc",
+  silver: "#cbd5e1", bronze: "#a16207", copper: "#b45309", champagne: "#f7e7ce",
+  emerald: "#047857", forest: "#14532d", olive: "#4d7c0f", lime: "#65a30d",
+  mint: "#6ee7b7", sky: "#0ea5e9", indigo: "#4338ca", violet: "#7c3aed",
+  magenta: "#c026d3", crimson: "#b91c1c", maroon: "#7f1d1d", burgundy: "#881337",
+  coral: "#fb7185", peach: "#fdba74", amber: "#f59e0b", sand: "#e7d8c1",
+  taupe: "#8c7b6b", stone: "#78716c", graphite: "#111827", midnight: "#0b1120",
+  onyx: "#0a0a0a", platinum: "#e5e7eb", rose: "#e11d48", tan: "#d2b48c",
 };
 
-/** Strict hex or a small human-friendly colour vocabulary; never arbitrary CSS. */
+/**
+ * A colour the renderer can emit safely: hex (3/4/6/8 digit), an `rgb()`/`hsl()`
+ * function, or a human colour name. No `url()`, no expressions, no arbitrary CSS.
+ */
 export function safeColor(value: unknown): string | null {
   if (typeof value !== "string") return null;
   const trimmed = value.trim().toLowerCase();
-  return HEX.test(trimmed) ? trimmed : (NAMED_COLORS[trimmed] ?? null);
+  if (!trimmed || /[;{}<>\\]|url\(|var\(|expression|@import/i.test(trimmed)) return null;
+  if (HEX.test(trimmed)) return trimmed;
+  if (RGB_FN.test(trimmed) || HSL_FN.test(trimmed)) return trimmed;
+  const named = NAMED_COLORS[trimmed] ?? NAMED_COLORS[trimmed.replace(/[\s_]+/g, "")];
+  return named ?? null;
+}
+
+/**
+ * Natural property names the AI models actually write, mapped onto Revora's
+ * style model. Previously an action using `backgroundColor` or `fontSize` was
+ * thrown away wholesale, so a perfectly valid design request appeared to do
+ * nothing. Aliases remove that blocker without widening what CSS can be output.
+ */
+export const STYLE_ALIASES: Record<string, StyleKey> = {
+  background: "bgColor", backgroundcolor: "bgColor", bg: "bgColor",
+  backgroundcolour: "bgColor", bgcolour: "bgColor", sectionbackground: "bgColor",
+  backgroundimage: "bgImage", bgimage: "bgImage", image: "bgImage",
+  color: "textColor", textcolour: "textColor", fontcolor: "textColor",
+  fontcolour: "textColor", foreground: "textColor", headingcolor: "textColor",
+  fontfamily: "font", typeface: "font", fontsize: "size", textsize: "size",
+  fontweight: "weight", bold: "weight", textalign: "align",
+  lineheight: "lineHeight", leading: "lineHeight",
+  letterspacing: "letterSpacing", tracking: "letterSpacing",
+  texttransform: "textTransform", uppercase: "textTransform",
+  borderradius: "radius", cornerradius: "radius", rounded: "radius",
+  borderwidth: "borderWidth", bordercolor: "borderColor", bordercolour: "borderColor",
+  boxshadow: "shadow", elevation: "shadow",
+  paddingtop: "padTop", paddingright: "padRight", paddingbottom: "padBottom",
+  paddingleft: "padLeft", margintop: "marginTop", marginbottom: "marginBottom",
+  width: "maxWidth", maxwidth: "maxWidth", contentwidth: "maxWidth",
+  gridgap: "gap", spacing: "gap", columncount: "columns", cols: "columns",
+  objectfit: "objectFit", buttoncolor: "buttonBgColor", buttonbackground: "buttonBgColor",
+  buttonbgcolor: "buttonBgColor", buttontextcolor: "buttonTextColor",
+  buttonstyle: "buttonStyle", buttonsize: "buttonSize",
+  visible: "hidden", display: "hidden",
+};
+
+const FONT_NAME_ALIASES: Record<string, (typeof FONT_FAMILIES)[number]> = {
+  heading: "display", headline: "display", title: "display",
+  sansserif: "body", "sans-serif": "body", sans: "body", inter: "body",
+  helvetica: "body", arial: "body", grotesk: "body",
+  georgia: "serif", times: "serif", timesnewroman: "serif", garamond: "serif",
+  playfair: "serif", didot: "serif", editorial: "serif", elegant: "serif",
+  monospace: "mono", courier: "mono", code: "mono",
+};
+
+/**
+ * Rewrites an incoming style object so alias names, `padding` shorthands and
+ * spelled-out font names land on real style keys. Unknown keys are returned
+ * untouched so callers can still report them.
+ */
+export function normalizeStyleInput(raw: unknown): Record<string, unknown> {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+  const source = raw as Record<string, unknown>;
+  const out: Record<string, unknown> = {};
+  const known = new Set<string>(STYLE_KEYS as readonly string[]);
+
+  for (const [rawKey, value] of Object.entries(source)) {
+    const compact = rawKey.trim().toLowerCase().replace(/[\s_-]+/g, "");
+    const key = known.has(rawKey) ? rawKey : (STYLE_ALIASES[compact] ?? null);
+
+    // `padding: 48` / `padding: "48px"` sets all four sides.
+    if (!key && (compact === "padding" || compact === "pad")) {
+      const amount =
+        typeof value === "string"
+          ? Number(value.trim().replace(/(px|pt|rem|em|%)$/i, "")) *
+            (/\d\s*(rem|em)$/i.test(value.trim()) ? 16 : 1)
+          : value;
+      out["padding"] = value;
+      for (const side of ["padTop", "padRight", "padBottom", "padLeft"]) {
+        if (!(side in source)) out[side] = amount;
+      }
+      continue;
+    }
+    if (!key && (compact === "margin")) {
+      out["marginTop"] = value;
+      out["marginBottom"] = value;
+      continue;
+    }
+    if (!key) {
+      out[rawKey] = value;
+      continue;
+    }
+
+    let next: unknown = value;
+    // "48px", "1.5rem", "60%" → the number the model meant.
+    if (typeof next === "string") {
+      const unit = next.trim().match(/^(-?\d*\.?\d+)\s*(px|pt|rem|em|%)?$/i);
+      if (unit && key !== "textColor" && key !== "bgColor" && key !== "borderColor") {
+        const amount = Number(unit[1]);
+        const scale = /rem|em/i.test(unit[2] ?? "") ? 16 : 1;
+        next = amount * scale;
+      }
+    }
+    if (key === "font" && typeof next === "string") {
+      const fontKey = next.trim().toLowerCase().replace(/[\s_-]+/g, "");
+      next = (FONT_FAMILIES as readonly string[]).includes(fontKey)
+        ? fontKey
+        : (FONT_NAME_ALIASES[fontKey] ?? next);
+    }
+    if (key === "weight" && typeof next === "boolean") next = next ? 700 : 400;
+    if (key === "weight" && typeof next === "string") {
+      const named: Record<string, number> = {
+        thin: 100, light: 300, regular: 400, normal: 400, book: 400, medium: 500,
+        semibold: 600, demibold: 600, bold: 700, extrabold: 800, black: 900,
+      };
+      next = named[next.trim().toLowerCase().replace(/[\s_-]+/g, "")] ?? next;
+    }
+    if (key === "textTransform" && typeof next === "boolean") next = next ? "uppercase" : "none";
+    if (key === "hidden" && (compact === "visible" || compact === "display")) {
+      next = typeof value === "boolean" ? !value : value === "none";
+    }
+    out[key] = next;
+  }
+  return out;
 }
 
 function boundedNumber(value: unknown, min: number, max: number, integer = false): number | null {
@@ -233,8 +360,7 @@ const LEGACY_FONT: Record<string, (typeof FONT_FAMILIES)[number]> = {
  * one so websites styled before this upgrade keep rendering identically.
  */
 function readLayer(raw: unknown): Partial<BlockStyle> {
-  const s =
-    raw && typeof raw === "object" && !Array.isArray(raw) ? (raw as Record<string, unknown>) : {};
+  const s = normalizeStyleInput(raw);
   const out: Partial<BlockStyle> = {};
   const set = <K extends StyleKey>(key: K, value: BlockStyle[K] | null) => {
     if (value !== null && value !== undefined) out[key] = value;
@@ -270,7 +396,8 @@ function readLayer(raw: unknown): Partial<BlockStyle> {
   set("contentAlign", inList(ALIGNMENTS, s["contentAlign"]));
 
   // Legacy `padding` was one value for all four sides.
-  const legacyPad = boundedNumber(legacy(LEGACY_SPACE, s["padding"]), 0, 240);
+  const legacyPad =
+    boundedNumber(legacy(LEGACY_SPACE, s["padding"]), 0, 240) ?? boundedNumber(s["padding"], 0, 240);
   for (const side of ["padTop", "padRight", "padBottom", "padLeft"] as const) {
     set(side, boundedNumber(s[side], 0, 240) ?? legacyPad);
   }

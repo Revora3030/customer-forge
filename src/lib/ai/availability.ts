@@ -50,8 +50,8 @@ export function builderAiAvailable(role: ModelRole = "primary") {
  */
 export function builderMediaAvailability() {
   const vision = builderAiAvailable("vision");
-  const voice = freeAiAvailable("transcription") || paidAiAllowedForBuilder();
-  const images = freeAiAvailable("image") || paidAiAllowedForBuilder();
+  const voice = builderAiAvailable("transcription");
+  const images = builderAiAvailable("image");
   return {
     vision,
     voice,
