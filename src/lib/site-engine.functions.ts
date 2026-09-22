@@ -40,29 +40,19 @@ export const runSiteGeneration = createServerFn({ method: "POST" })
       await assertOrgEntitled(supabase, orgId);
     }
 
-    // Generation is gated on real readiness: the blanks Revora asked about must
-    // be filled, and the owner must have approved the brief the build reads from.
+    // Generation is gated on real factual readiness only. The canonical builder
+    // reads the saved workspace facts directly and does not consume a deterministic
+    // brief as a source of page, copy, or layout authority.
     {
-      const { readBrief } = await import("@/lib/site-brief");
       const { requiredFactGaps } = await import("@/lib/launch-qa");
       const { gatherBriefFacts } = await import("@/lib/site-brief.server");
 
-      const settings = await supabase
-        .from("website_settings")
-        .select("generation")
-        .eq("organization_id", orgId)
-        .maybeSingle();
-      const brief = readBrief(
-        (settings.data?.generation as Record<string, unknown> | null)?.["brief"],
-      );
-      const facts = await gatherBriefFacts(supabase, orgId, brief?.missingFacts ?? []);
+      const facts = await gatherBriefFacts(supabase, orgId, []);
       const missing = requiredFactGaps(facts.factInput);
       if (missing.length)
         throw new Error(
           `Revora still needs: ${missing.map((g) => g.label.toLowerCase()).join(", ")}.`,
         );
-      if (!brief) throw new Error("Review Revora's understanding of your business first.");
-      if (!brief.approved) throw new Error("Approve the brief and Revora will build from it.");
     }
 
     // RLS enforces that the caller belongs to this workspace.
