@@ -1,10 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 import { nextPublishState } from "@/lib/publish-state";
 import { toast } from "@/lib/ui/notify";
 import { friendlyError } from "@/lib/user-error";
 import { supabase } from "@/integrations/supabase/client";
 import type { AppointmentStatus, LeadStatus } from "@/lib/domain";
-import { generateWebsitePlan, type GoalKey } from "@/lib/website-plan";
+import type { GoalKey } from "@/lib/website-plan";
+import { runSiteGeneration } from "@/lib/site-engine.functions";
 import { AUTOMATION_RECIPES, enqueueAutomations } from "@/lib/automation-engine";
 import { runDueAutomations } from "@/lib/automations.functions";
 
@@ -1205,82 +1207,22 @@ export function useUpdateWebsiteRequest() {
   });
 }
 
-/** Regenerates the website plan from the client's real, stored information. */
+/** Starts a canonical AI website build/rebuild from the client's saved facts. */
 export function useGenerateWebsite(organizationId: string | undefined) {
   const queryClient = useQueryClient();
+  const run = useServerFn(runSiteGeneration);
   return useMutation({
     mutationFn: async () => {
-      const orgId = organizationId!;
-      const [org, profile, services, media, socials, forms] = await Promise.all([
-        supabase
-          .from("organizations")
-          .select("name, industry, conversion_goal")
-          .eq("id", orgId)
-          .maybeSingle(),
-        supabase.from("business_profiles").select("*").eq("organization_id", orgId).maybeSingle(),
-        supabase.from("services").select("name, description, price").eq("organization_id", orgId),
-        supabase.from("media").select("id").eq("organization_id", orgId),
-        supabase.from("social_profiles").select("id").eq("organization_id", orgId),
-        supabase.from("quote_forms").select("id").eq("organization_id", orgId),
-      ]);
-      const p = (profile.data ?? {}) as Record<string, unknown>;
-      const testimonials = Array.isArray(p["testimonials"]) ? (p["testimonials"] as unknown[]) : [];
-      const goalsRaw = (p["website_goals"] as string[] | undefined) ?? [];
-      const goals = (
-        goalsRaw.length ? goalsRaw : [(org.data?.conversion_goal as string | null) ?? "quote"]
-      ) as GoalKey[];
-      const plan = generateWebsitePlan({
-        businessName: (org.data?.name as string) ?? "",
-        industry: (org.data?.industry as string) ?? "",
-        description: (p["description"] as string) ?? null,
-        city: (p["city"] as string) ?? null,
-        state: (p["state"] as string) ?? null,
-        serviceArea: (p["service_area"] as string) ?? null,
-        phone: (p["phone"] as string) ?? null,
-        email: (p["email"] as string) ?? null,
-        goals: goals.length ? goals : ["quote"],
-        services: (services.data ?? []) as {
-          name: string;
-          description?: string | null;
-          price?: number | null;
-        }[],
-        photoCount: (media.data ?? []).length + ((p["hero_image_url"] as string) ? 1 : 0),
-        testimonialCount: testimonials.length,
-        hasCredentials: Boolean(p["certifications"] || p["awards"] || p["years_in_business"]),
-        hasHours: Boolean(p["hours"]),
-        socialLinks: (socials.data ?? []).length,
-      });
-
-      const keepState = await nextPublishState(supabase, orgId);
-      const { error } = await supabase.from("website_settings").upsert(
-        {
-          organization_id: orgId,
-          template: plan.template,
-          generation: plan as unknown as Record<string, unknown>,
-          generated_at: plan.generatedAt,
-          review_state: "ready_for_review",
-          seo: {
-            headline: plan.headline,
-            subheadline: plan.subheadline,
-            meta_description: plan.metaDescription,
-            primary_cta_label: plan.primaryCtaLabel,
-            title: plan.seoTitle,
-          },
-          publish_state: keepState,
-        } as never,
-        { onConflict: "organization_id" },
-      );
-      if (error) throw error;
-      if (!(forms.data ?? []).length && goals.includes("quote")) {
-        // no quote form yet — surfaced to the client as a setup item, not auto-faked
-      }
-      return plan;
+      if (!organizationId) throw new Error("Choose a workspace before generating your website.");
+      return run({ data: { organizationId, mode: "safe" } });
     },
     onSuccess: () => {
-      toast.success("Website generated. Review it before launch.");
+      toast.success("Sol is building your website. Review it before launch.");
       void queryClient.invalidateQueries({ queryKey: ["website_settings"] });
+      void queryClient.invalidateQueries({ queryKey: ["generation_job", organizationId] });
+      void queryClient.invalidateQueries({ queryKey: ["notifications"] });
     },
-    onError: (error: Error) => toast.error(friendlyError(error, "Couldn't generate the website.")),
+    onError: (error: Error) => toast.error(friendlyError(error, "Couldn't start the website build.")),
   });
 }
 
