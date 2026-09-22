@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Check, ChevronLeft, ChevronRight, ImageUp, Loader2 } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, ImageUp, Loader2, Sparkles } from "lucide-react";
 import { Panel, Pill, SectionHeading } from "@/components/app/Bits";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,7 +8,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { MediaLibrary } from "@/components/app/MediaLibrary";
 
 import { useAutosaveOrganization, useAutosaveProfile } from "@/lib/website-content.hooks";
-import { useExtractScreenshotReference, useSaveScreenshotReference } from "@/lib/site-engine.hooks";
+import {
+  useExtractScreenshotReference,
+  useGenerateSectionsFromText,
+  useSaveScreenshotReference,
+} from "@/lib/site-engine.hooks";
 import { WIZARD_STEPS, type WizardStepKey } from "@/lib/website-content";
 import { WEBSITE_GOALS, type GoalKey } from "@/lib/website-plan";
 import { cn } from "@/lib/utils";
@@ -78,6 +82,7 @@ export function BuilderWizard({
   const saveOrg = useAutosaveOrganization(organizationId);
   const saveReference = useSaveScreenshotReference(organizationId);
   const extractReference = useExtractScreenshotReference(organizationId);
+  const generateFromText = useGenerateSectionsFromText(organizationId);
   const [savedAt, setSavedAt] = useState<number | null>(null);
   const [referenceNotes, setReferenceNotes] = useState("");
   const [referenceFileName, setReferenceFileName] = useState<string | null>(null);
@@ -230,6 +235,12 @@ export function BuilderWizard({
                 value={text(profile, "description")}
                 disabled={!canManage}
                 onCommit={(value) => field("description", value)}
+                actionLabel="Generate sections from my text"
+                actionPending={generateFromText.isPending}
+                onAction={async (value) => {
+                  await saveProfile.mutateAsync({ description: value.trim() });
+                  await generateFromText.mutateAsync();
+                }}
               />
             </>
           ) : null}
@@ -592,6 +603,9 @@ function AutoField({
   multiline,
   disabled,
   onCommit,
+  actionLabel,
+  actionPending = false,
+  onAction,
 }: {
   label: string;
   help?: string;
@@ -600,6 +614,9 @@ function AutoField({
   multiline?: boolean;
   disabled?: boolean;
   onCommit: (value: string) => void;
+  actionLabel?: string;
+  actionPending?: boolean;
+  onAction?: (value: string) => Promise<void> | void;
 }) {
   const [draft, setDraft] = useState(value);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -653,6 +670,31 @@ function AutoField({
         />
       )}
       {help ? <p className="text-[12px] text-muted-foreground">{help}</p> : null}
+      {actionLabel && onAction ? (
+        <div className="flex flex-wrap items-center gap-2 pt-1">
+          <Button
+            type="button"
+            variant="signal"
+            size="sm"
+            disabled={disabled || actionPending || draft.trim().length < 20}
+            onClick={() => void Promise.resolve(onAction(draft.trim())).catch(() => undefined)}
+          >
+            {actionPending ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <Sparkles className="size-4" />
+            )}
+            {actionPending ? "Preparing your website…" : actionLabel}
+          </Button>
+          <span className="text-[11px] text-muted-foreground" aria-live="polite">
+            {actionPending
+              ? "Sol plans · Terra reviews · images and copy follow"
+              : draft.trim().length < 20
+                ? "Add a little more detail to begin."
+                : "Uses this saved description across your full website."}
+          </span>
+        </div>
+      ) : null}
     </div>
   );
 }
