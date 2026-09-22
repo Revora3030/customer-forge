@@ -214,7 +214,7 @@ function archetypeSectionSupported(kind: string, input: MaterializeInput): boole
   );
   switch (kind) {
     case "gallery":
-      return input.photoCount > 0;
+      return input.photoCount > 0 || (input.generatedAssets ?? []).length > 0;
     case "pricing":
       return priced;
     case "reviews":

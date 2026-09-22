@@ -178,4 +178,25 @@ describe("planSiteContent with a website archetype", () => {
     expect(kinds).not.toContain("gallery");
     expect(kinds).not.toContain("reviews");
   });
+
+  it("keeps image-led archetype sections when starter AI pictures were generated", () => {
+    const pages = planSiteContent({
+      ...input,
+      photoCount: 0,
+      archetype: classifyArchetype({ industry: "Restaurant" }),
+      generatedAssets: [{
+        slot: "service",
+        label: "Dining room",
+        altText: "Restaurant dining room",
+        path: "org/generated-dining-room.webp",
+        mediaId: "media-1",
+        provider: "test",
+        model: "test-image",
+        prompt: "Editorial restaurant interior",
+        placement: ["gallery"],
+        aspectRatio: "3:2",
+      }],
+    });
+    expect(pages[0]?.sections.map((section) => section.kind)).toContain("gallery");
+  });
 });
