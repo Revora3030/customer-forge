@@ -454,16 +454,6 @@ function Onboarding() {
       try {
         await queueBuild({ data: { organizationId: org.id, mode: "safe" } });
         queued = true;
-        await supabase
-          .from("website_settings")
-          .update({
-            generation: {
-              source: "canonical-ai",
-              businessName: draft.businessName,
-              builderState: "queued",
-            },
-          } as never)
-          .eq("organization_id", org.id);
       } catch (buildError) {
         // Never leave a phantom queued state behind when no generation job exists.
         // The workspace remains retryable through the normal Build action.
