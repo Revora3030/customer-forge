@@ -112,6 +112,11 @@ export function pictureActionsFor(context: import("@/lib/site-agent.server").Age
   const all = /\b(all|every|whole|entire)\b/i.test(instruction);
   const wantsHero = /\b(hero|top|banner)\b/i.test(instruction);
   const wantsHome = /\b(home|homepage|front page)\b/i.test(instruction) || wantsHero;
+  // "Add pictures" means fill missing visual slots. It must not turn the first
+  // existing image into an edit request: editing needs a different model and a
+  // source download, so doing that silently could abort an otherwise valid
+  // site-wide generation run before its first new picture was made.
+  const wantsReplacement = /\b(change|replace|regenerate|edit|swap|refresh)\b/i.test(instruction);
   const home = context.pages.find((page) => page.slug === "home" || page.kind === "home");
   const pages = all ? context.pages.filter((page) => page.is_visible) : home ? [home] : context.pages.slice(0, 1);
   const candidates = pages.flatMap((page) =>
@@ -132,6 +137,7 @@ export function pictureActionsFor(context: import("@/lib/site-agent.server").Age
     const existing = target.section.components.find((component) =>
       RENDERED_IMAGE_KINDS.has(component.kind),
     );
+    if (existing && !wantsReplacement) continue;
     const ref = `temp_picture_${index + 1}`;
     const componentId = existing?.id ?? ref;
     if (!existing) {
