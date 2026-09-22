@@ -32,7 +32,7 @@ import { readSectionEffect, sectionEffectClass } from "@/lib/site-effects";
 import { businessFacts, factsAddressLine } from "@/lib/builder/facts";
 import { phoneDisplay, phoneLink, safeParagraph, safeText } from "@/lib/builder/presentation";
 import {
-  createDesignFingerprint,
+  neutralDesignFingerprint,
   readDesignFingerprint,
   type DesignFingerprint,
 } from "@/lib/builder/design-fingerprint";
@@ -56,12 +56,9 @@ export function siteSurface(site: Site): string | null {
 export function siteDesignFingerprint(site: Site): DesignFingerprint {
   const settings = (site as { settings?: { generation?: unknown } | null }).settings ?? null;
   const profile = (site.profile ?? null) as { industry?: string | null; city?: string | null } | null;
-  return readDesignFingerprint(settings?.generation) ?? createDesignFingerprint({
-    businessName: site.org?.name ?? null,
-    industry: profile?.industry ?? null,
-    city: profile?.city ?? null,
-    photoCount: site.gallery?.length ?? 0,
-  });
+  // No fixed table ever decides how a live site looks. If the design team has
+  // not authored a look yet, the page renders plainly rather than borrowing one.
+  return readDesignFingerprint(settings?.generation) ?? neutralDesignFingerprint();
 }
 
 
