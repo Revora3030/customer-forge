@@ -72,7 +72,7 @@ function DomainPage() {
   const loading = workspaceQuery.isLoading || (!!orgId && settingsQuery.isLoading);
 
   return (
-    <div className="space-y-6">
+    <div className="product-page">
       <PageHead
         eyebrow="Domain"
         title="Your domain"

@@ -133,7 +133,7 @@ function Launch() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="product-page">
       <PageHead
         eyebrow="Launch"
         title="Website readiness"

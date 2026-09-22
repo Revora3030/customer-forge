@@ -84,7 +84,7 @@ function ReviewsPage() {
   );
 
   return (
-    <div className="space-y-5">
+    <div className="product-page">
       <PageHead
         eyebrow="Reputation"
         title="Reviews"

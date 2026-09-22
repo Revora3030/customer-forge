@@ -106,7 +106,7 @@ function QuotesPage() {
   if (isLoading) return <LoadingRows rows={5} />;
 
   return (
-    <div className="space-y-6">
+    <div className="product-page">
       <PageHead
         eyebrow="Instant estimates"
         title="Quote calculator"

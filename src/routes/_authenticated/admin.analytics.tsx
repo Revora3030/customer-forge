@@ -95,7 +95,7 @@ function AdminAnalytics() {
   const report = traffic.data;
 
   return (
-    <div className="space-y-5">
+    <div className="product-page">
       <SectionHeading
         eyebrow="Funnel"
         title="Unique visitors → unique sessions → accounts → trials → paid customers"

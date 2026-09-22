@@ -69,7 +69,7 @@ function PortalHome() {
   const newLeads = (leads ?? []).filter((l) => l.status === "new").length;
 
   return (
-    <div className="space-y-5">
+    <div className="product-page">
       <section className="panel p-4 sm:p-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">

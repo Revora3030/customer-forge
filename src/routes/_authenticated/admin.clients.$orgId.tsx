@@ -153,7 +153,7 @@ function ClientDetail() {
   const openSession = data.supportSessions.find((s) => !s.ended_at);
 
   return (
-    <div className="space-y-6">
+    <div className="product-page">
       <div>
         <Link
           to="/admin/clients"

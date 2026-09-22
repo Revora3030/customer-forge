@@ -42,7 +42,7 @@ function AdminSeo() {
   const opportunities = useMemo(() => seoOpportunities(rows, 30), [rows]);
 
   return (
-    <div className="space-y-6">
+    <div className="product-page">
       <SectionHeading eyebrow="Search" title="What to work on next to win more search traffic" />
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">

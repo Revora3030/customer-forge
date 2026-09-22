@@ -61,7 +61,7 @@ function AdminClients() {
   }, [clients.data, search, filter]);
 
   return (
-    <div className="space-y-5">
+    <div className="product-page">
       <SectionHeading
         eyebrow="Clients"
         title="Client businesses"
