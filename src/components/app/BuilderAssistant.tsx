@@ -46,6 +46,9 @@ export function BuilderAssistant({
   emptyTitle,
   emptyHint,
   compact = false,
+  selection = null,
+  onClearSelection,
+  onOpenHistory,
 }: {
   organizationId: string | null;
   requests: BuilderRequests;
@@ -54,9 +57,16 @@ export function BuilderAssistant({
   emptyTitle: string;
   emptyHint: string;
   compact?: boolean;
+  /** The block the owner clicked in the preview, if any. */
+  selection?: { id: string; label: string | null; kind: string | null; text: string | null } | null;
+  onClearSelection?: () => void;
+  /** Opens History, where the before-and-after comparison lives. */
+  onOpenHistory?: () => void;
 }) {
   const [value, setValue] = useState("");
   const [moreOpen, setMoreOpen] = useState(false);
+  /** A question Revora asked, which the next message answers. */
+  const [answering, setAnswering] = useState<string | null>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const queueRef = useRef(requests.queue);
   queueRef.current = requests.queue;
@@ -74,16 +84,35 @@ export function BuilderAssistant({
     [],
   );
 
+  /**
+   * Adds the context the owner has already given by pointing or by being asked
+   * a question, so they don't have to describe it again in words.
+   */
+  const scoped = (text: string) => {
+    const parts: string[] = [];
+    if (selection) parts.push(selectionPrefix(selection));
+    if (answering) parts.push(`Answering your question "${answering}":`);
+    return parts.length ? `${parts.join(" ")} ${text}` : text;
+  };
+
   const send = (text: string) => {
     if (!text.trim()) return;
-    requests.queue(text);
+    requests.queue(scoped(text));
     setValue("");
+    setAnswering(null);
+    onClearSelection?.();
     window.requestAnimationFrame(() => inputRef.current?.focus());
   };
 
   useEffect(() => {
     inputRef.current?.focus();
   }, [activityKey]);
+
+  // Pointing at a block moves the cursor straight into the message box.
+  useEffect(() => {
+    if (selection) inputRef.current?.focus();
+  }, [selection]);
+
 
   return (
     <section
