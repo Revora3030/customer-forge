@@ -93,4 +93,16 @@ describe("blockCss", () => {
     const css = blockCss(readBlockStyle({ style: { bgImage: 'https://x.test/a b".jpg' } }));
     expect(String(css.backgroundImage ?? "")).not.toContain('".jpg"');
   });
+
+  it("emits inherited typography variables for nested rendered copy", () => {
+    const css = blockCss(readBlockStyle({ style: { size: 37, weight: 650, lineHeight: 1.22 } }));
+    expect(css).toMatchObject({
+      fontSize: "37px",
+      fontWeight: 650,
+      lineHeight: "1.22",
+      "--rv-block-font-size": "37px",
+      "--rv-block-font-weight": 650,
+      "--rv-block-line-height": "1.22",
+    });
+  });
 });

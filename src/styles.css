@@ -566,6 +566,13 @@
 .rv-site .rv-section[data-rv-custom-font="true"] > [data-rvb] :where(h1, h2, h3, h4, h5, h6, p, li, dt, dd, label, button, input, select, textarea) {
   font-family: inherit;
 }
+.rv-site .rv-section > [data-rvb] :where(h1, h2, h3, h4, h5, h6, p, li, dt, dd, label, figcaption) {
+  font-size: var(--rv-block-font-size);
+  font-weight: var(--rv-block-font-weight);
+  line-height: var(--rv-block-line-height);
+  letter-spacing: var(--rv-block-letter-spacing);
+  text-transform: var(--rv-block-text-transform);
+}
 .rv-site .rv-media-role-background .rv-hero > div {
   max-width: none;
   padding: 0;

@@ -543,12 +543,27 @@ export function writeComponentVisual(
 export function blockCss(style: BlockStyle): React.CSSProperties {
   const css: React.CSSProperties = {};
   if (style.font) css.fontFamily = FONT_CSS[style.font];
-  if (style.size !== null) css.fontSize = `${style.size}px`;
-  if (style.weight !== null) css.fontWeight = style.weight;
+  if (style.size !== null) {
+    css.fontSize = `${style.size}px`;
+    (css as Record<string, string | number>)["--rv-block-font-size"] = `${style.size}px`;
+  }
+  if (style.weight !== null) {
+    css.fontWeight = style.weight;
+    (css as Record<string, string | number>)["--rv-block-font-weight"] = style.weight;
+  }
   if (style.align) css.textAlign = style.align;
-  if (style.lineHeight !== null) css.lineHeight = String(style.lineHeight);
-  if (style.letterSpacing !== null) css.letterSpacing = `${style.letterSpacing}em`;
-  if (style.textTransform) css.textTransform = style.textTransform;
+  if (style.lineHeight !== null) {
+    css.lineHeight = String(style.lineHeight);
+    (css as Record<string, string | number>)["--rv-block-line-height"] = String(style.lineHeight);
+  }
+  if (style.letterSpacing !== null) {
+    css.letterSpacing = `${style.letterSpacing}em`;
+    (css as Record<string, string | number>)["--rv-block-letter-spacing"] = `${style.letterSpacing}em`;
+  }
+  if (style.textTransform) {
+    css.textTransform = style.textTransform;
+    (css as Record<string, string | number>)["--rv-block-text-transform"] = style.textTransform;
+  }
   if (style.textColor) css.color = style.textColor;
 
   if (style.padTop !== null) css.paddingTop = `${style.padTop}px`;

@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { publishBlockReason } from "@/lib/builder/draft-branch";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { GROWTH_SYSTEM, usd } from "@/lib/offer";
+import { readWebsiteState } from "@/lib/site-restore.functions";
 
 /**
  * Revora production activation.
@@ -347,7 +348,7 @@ export const activateProduction = createServerFn({ method: "POST" })
 
     // Snapshot: the live site is a permanent production version, so later edits
     // happen in draft and previous production versions are never destroyed.
-    const [{ data: settings }, { data: latest }] = await Promise.all([
+    const [{ data: settings }, { data: latest }, contentSnapshot] = await Promise.all([
       supabase
         .from("website_settings")
         .select("template, generation, seo, pages")
@@ -360,6 +361,7 @@ export const activateProduction = createServerFn({ method: "POST" })
         .order("version", { ascending: false })
         .limit(1)
         .maybeSingle(),
+      readWebsiteState(context.supabase as never, orgId),
     ]);
     const nextVersion = Number(latest?.version ?? 0) + 1;
     const publishedAt = new Date().toISOString();
@@ -371,7 +373,10 @@ export const activateProduction = createServerFn({ method: "POST" })
       template: settings?.template ?? null,
       generation: settings?.generation ?? {},
       seo: settings?.seo ?? {},
-      pages: settings?.pages ?? {},
+      pages: {
+        ...contentSnapshot,
+        settings_pages: settings?.pages ?? null,
+      } as never,
       published_at: publishedAt,
       created_by: userId,
     });

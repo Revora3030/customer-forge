@@ -265,20 +265,16 @@ export function SiteSection({ site, section }: { site: Site; section: Section })
     fingerprint,
     hasMedia,
   });
-  let inner = <SiteSectionBody site={site} section={section} />;
+  const inner = <SiteSectionBody site={site} section={section} />;
 
   const css = blockCss(style);
   const customBackground = Boolean(style.bgColor || style.bgImage);
   const customText = Boolean(style.textColor);
   const customFont = Boolean(style.font);
   const customSpacing = [style.padTop, style.padRight, style.padBottom, style.padLeft].some((value) => value !== null);
-  if (Object.keys(css).length) {
-    inner = (
-      <div data-rvb={section.id} style={css}>
-        {inner}
-      </div>
-    );
-  }
+  // This host is always present: tablet/mobile-only rules target it even when
+  // the desktop layer intentionally has no override.
+  const styledInner = <div data-rvb={section.id} style={css}>{inner}</div>;
 
   const visualClass = [
     "rv-section",
@@ -308,7 +304,7 @@ export function SiteSection({ site, section }: { site: Site; section: Section })
       {!(["hero", "service_detail", "cta", "intro", "offer", "guarantee", "area", "policy", "lead_magnet"] as string[]).includes(section.kind)
         ? <SectionMedia site={site} section={section} />
         : null}
-      {inner}
+      {styledInner}
     </div>
   );
 

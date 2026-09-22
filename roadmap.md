@@ -17,4 +17,4 @@
 - [x] Keep the prompt focused and visible while preserving approvals, rollback, manual editing, history, and publishing.
 - [x] Let AI use precise safe typography, spacing, sizing, backgrounds, borders, and responsive values instead of narrow preset steps.
 - [x] Make section-level AI text colors and fonts override nested renderer defaults consistently.
-- [ ] Make production version snapshots preserve the complete styled page tree and verify restore compatibility.
+- [x] Make AI restore points and production version snapshots preserve the complete styled page tree, media, and responsive settings.

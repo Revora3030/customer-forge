@@ -795,7 +795,7 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
     noteApplyStage(orgId, applyRunId, "saving a restore point");
     // Snapshot first, so an unwanted change can always be rolled back.
     const snapshotLabel = data.label || "Before assistant changes";
-    const { snapshotContent } = await import("@/lib/website-content");
+    const { buildFullSnapshot } = await import("@/lib/site-restore");
     const [{ data: latest }, contentTree] = await Promise.all([
       supabase
         .from("website_versions")
@@ -804,31 +804,18 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
         .order("version", { ascending: false })
         .limit(1)
         .maybeSingle(),
-      Promise.resolve(
-        site.pages.map((page) => ({
-          ...page,
-          seo_canonical: null,
-          og_title: null,
-          og_description: null,
-          og_image_url: null,
-          sections: site.sections
-            .filter((section) => section.page_id === page.id)
-            .map((section) => ({
-              ...section,
-              settings: section.settings,
-              components: site.components
-                .filter((component) => component.section_id === section.id)
-                .map((component) => ({ ...component, settings: component.settings })),
-            })),
-        })),
-      ),
+      Promise.resolve(buildFullSnapshot(
+        site.pages as unknown as Record<string, unknown>[],
+        site.sections as unknown as Record<string, unknown>[],
+        site.components as unknown as Record<string, unknown>[],
+      )),
     ]);
     // The restore point must exist BEFORE anything is written, and it must be
     // verified — a failed snapshot insert used to be ignored, which meant a
     // change could be applied with nothing to go back to. Two members applying
     // at the same moment can collide on the version number, so the insert is
     // retried on the next free version.
-    const snapshotPages = snapshotContent(contentTree as never) as unknown as never;
+    const snapshotPages = contentTree as unknown as never;
     let snapshotVersion = Number(latest?.version ?? 0);
     let snapshotId: string | null = null;
     let snapshotError: unknown = null;
