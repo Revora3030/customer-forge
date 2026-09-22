@@ -19,7 +19,6 @@ import {
   sectionDesignFromFingerprint,
   type DesignFingerprint,
 } from "@/lib/builder/design-fingerprint";
-import type { IndustryPlaybook } from "@/lib/builder/industry";
 import {
   resolveArchetypeText,
   type ArchetypeSection,
