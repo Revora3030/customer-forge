@@ -276,12 +276,20 @@ export function SiteSection({ site, section }: { site: Site; section: Section })
   const fingerprint = siteDesignFingerprint(site);
   const hasMedia = section.components.some((component) => Boolean(componentImageUrl(component))) ||
     (section.kind === "hero" && Boolean(site.profile?.hero_image_url));
-  const creative = resolveExecutableCreativeSection({
-    kind: section.kind,
-    settings: section.settings,
-    fingerprint,
-    hasMedia,
-  });
+  const aiAuthoredSection = Boolean(
+    (section.settings as { ai_authored?: unknown } | null | undefined)?.ai_authored,
+  );
+  // Canonical Sol-authored sections render exactly the contract they received.
+  // The executable-creative/fingerprint inference remains a compatibility
+  // adapter for legacy published sites only.
+  const creative = aiAuthoredSection
+    ? null
+    : resolveExecutableCreativeSection({
+        kind: section.kind,
+        settings: section.settings,
+        fingerprint,
+        hasMedia,
+      });
   const inner = <SiteSectionBody site={site} section={section} />;
 
   const css = blockCss(style, siteSurface(site));
@@ -358,12 +366,17 @@ function SiteSectionBody({ site, section }: { site: Site; section: Section }) {
     ? readComponentVisual((heroImage as Component & { settings?: unknown }).settings)
     : null;
   const heroImageSrc = heroImage ? componentImageUrl(heroImage) : null;
-  const heroCreative = resolveExecutableCreativeSection({
-    kind: section.kind,
-    settings: section.settings,
-    fingerprint: siteDesignFingerprint(site),
-    hasMedia: Boolean(profile?.hero_image_url || heroImageSrc),
-  });
+  const aiAuthoredSection = Boolean(
+    (section.settings as { ai_authored?: unknown } | null | undefined)?.ai_authored,
+  );
+  const heroCreative = aiAuthoredSection
+    ? null
+    : resolveExecutableCreativeSection({
+        kind: section.kind,
+        settings: section.settings,
+        fingerprint: siteDesignFingerprint(site),
+        hasMedia: Boolean(profile?.hero_image_url || heroImageSrc),
+      });
   const backgroundHero = heroCreative?.mediaRole === "background";
 
 
@@ -1005,14 +1018,53 @@ function SiteSectionBody({ site, section }: { site: Site; section: Section }) {
       );
     }
 
-    default:
-      if (!safeText(section.heading) && !safeParagraph(section.body)) return null;
+    default: {
+      // AI can invent section roles. Unknown roles therefore render through this
+      // neutral data-driven surface instead of collapsing into a named template.
+      const nonButtons = components.filter(
+        (component) => component.kind !== "button" && component.label,
+      );
       return (
-        <Shell>
-          <Heading section={section} />
+        <Shell wide>
+          {section.heading || section.subheading || section.body ? <Heading section={section} /> : null}
+          {nonButtons.length ? (
+            <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {nonButtons.map((component) => {
+                const visual = readComponentVisual((component as Component & { settings?: unknown }).settings);
+                const style = readBlockStyle((component as Component & { settings?: unknown }).settings);
+                const src = componentImageUrl(component);
+                return (
+                  <article
+                    key={component.id}
+                    data-rvb={component.id}
+                    className="rounded-2xl border border-border/70 bg-card p-5"
+                    style={blockCss(style, siteSurface(site))}
+                  >
+                    {src ? (
+                      <img
+                        src={src}
+                        alt={visual.alt || component.label || "Website image"}
+                        loading="lazy"
+                        decoding="async"
+                        className={visualImageClass(visual)}
+                        style={{ objectPosition: safeObjectPosition(visual.focal_point ?? visual.object_position) }}
+                      />
+                    ) : null}
+                    {component.label ? <h3 className="font-display text-base font-semibold">{component.label}</h3> : null}
+                    {component.body ? (
+                      <p className="mt-2 whitespace-pre-line text-sm leading-relaxed text-muted-foreground">
+                        {component.body}
+                      </p>
+                    ) : null}
+                  </article>
+                );
+              })}
+            </div>
+          ) : null}
           <SectionButtons site={site} components={components} />
         </Shell>
       );
+    }
   }
 }
 
