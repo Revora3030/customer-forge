@@ -3,14 +3,12 @@ import { toast } from "@/lib/ui/notify";
 import { friendlyError } from "@/lib/user-error";
 import { supabase } from "@/integrations/supabase/client";
 import {
-  buildContentBlueprint,
   type ContentComponent,
   type ContentPage,
   type ContentSection,
   type SectionKind,
 } from "@/lib/website-content";
 import { safeLinkUrl, slugify } from "@/lib/website-content";
-import { readCopy } from "@/lib/site-engine";
 import { useBuilderHistory } from "@/lib/builder-history.hooks";
 import { duplicateComponentPayload, duplicateSectionPayload } from "@/lib/builder-tree";
 
