@@ -10,7 +10,13 @@ import type { SupabaseClient } from "@supabase/supabase-js";
  */
 
 import { writeBackdrop, writeSectionEffect } from "@/lib/site-effects";
-import { writeBlockStyle, writeComponentVisual, writeSectionVisual } from "@/lib/site-style";
+import {
+  writeAiAuthoredVisual,
+  writeAiResponsiveVisual,
+  writeBlockStyle,
+  writeComponentVisual,
+  writeSectionVisual,
+} from "@/lib/site-style";
 import { writeCustomBlock } from "@/lib/builder/custom-block";
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
@@ -1053,6 +1059,35 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
           await run(action.type, () => {
             const settings = writeSectionVisual(
               readColumn("website_sections", action.sectionId, "settings"),
+              action.patch,
+            );
+            noteColumn("website_sections", action.sectionId, "settings", settings);
+            return supabase
+              .from("website_sections")
+              .update({ settings } as never)
+              .eq("id", action.sectionId)
+              .eq("organization_id", orgId);
+          });
+          break;
+        case "set_ai_visual":
+          await run(action.type, () => {
+            const settings = writeAiAuthoredVisual(
+              readColumn("website_sections", action.sectionId, "settings"),
+              action.patch,
+            );
+            noteColumn("website_sections", action.sectionId, "settings", settings);
+            return supabase
+              .from("website_sections")
+              .update({ settings } as never)
+              .eq("id", action.sectionId)
+              .eq("organization_id", orgId);
+          });
+          break;
+        case "set_ai_responsive":
+          await run(action.type, () => {
+            const settings = writeAiResponsiveVisual(
+              readColumn("website_sections", action.sectionId, "settings"),
+              action.width,
               action.patch,
             );
             noteColumn("website_sections", action.sectionId, "settings", settings);
