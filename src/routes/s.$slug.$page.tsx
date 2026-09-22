@@ -287,9 +287,12 @@ export function SiteNav({ site, current }: { site: NonNullable<PublicSite>; curr
  * declaration comes from the validated style model and every selector is a
  * checked block id, so nothing a client typed can inject CSS here.
  */
-function ResponsiveStyles({ sections }: { sections: { id: string; settings: unknown }[] }) {
+function ResponsiveStyles({ sections }: { sections: { id: string; settings: unknown; components?: { id: string; settings: unknown }[] }[] }) {
   const css = styleSheet(
-    sections.map((section) => ({ id: section.id, settings: section.settings })),
+    sections.flatMap((section) => [
+      { id: section.id, settings: section.settings },
+      ...(section.components ?? []).map((component) => ({ id: component.id, settings: component.settings })),
+    ]),
   );
   if (!css) return null;
   return <style>{css}</style>;

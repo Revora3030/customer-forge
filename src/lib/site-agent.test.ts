@@ -74,6 +74,24 @@ describe("building a page and filling it in one plan", () => {
     expect(actions).toEqual([expect.objectContaining({ type: "generate_component_image", mode: "replace" })]);
   });
 
+  it("accepts safe section and responsive component style actions", () => {
+    const actions = readActions([
+      { type: "set_block_style", target: "section", targetId: "section-1", device: "desktop", patch: { bgColor: "#112233", padTop: 64 } },
+      { type: "set_block_style", target: "component", targetId: "component-1", device: "mobile", patch: { size: 24, buttonStyle: "outline" } },
+    ], { pageIds: new Set(), sectionIds: new Set(["section-1"]), componentIds: new Set(["component-1"]) });
+    expect(actions).toEqual([
+      expect.objectContaining({ type: "set_block_style", target: "section", device: "desktop", patch: { bgColor: "#112233", padTop: 64 } }),
+      expect.objectContaining({ type: "set_block_style", target: "component", device: "mobile", patch: { size: 24, buttonStyle: "outline" } }),
+    ]);
+  });
+
+  it("rejects unsafe and unsupported style values instead of creating an empty action", () => {
+    const actions = readActions([
+      { type: "set_block_style", target: "section", targetId: "section-1", patch: { bgColor: "javascript:alert(1)", padTop: 20 } },
+    ], { pageIds: new Set(), sectionIds: new Set(["section-1"]), componentIds: new Set() });
+    expect(actions).toEqual([]);
+  });
+
   it("lets one plan create a missing image block and generate into it", () => {
     const actions = readActions(
       [
