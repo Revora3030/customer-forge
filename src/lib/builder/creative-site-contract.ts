@@ -133,40 +133,83 @@ function scan(value: unknown, path: string, violations: string[]) {
   }
 }
 
-export function validateCreativeSiteContract(contract: CreativeSiteContract): {
+export function validateCreativeSiteContract(contract: unknown): {
   valid: boolean;
   violations: string[];
 } {
   const violations: string[] = [];
-  if (contract.version !== CREATIVE_SITE_CONTRACT_VERSION) violations.push("unsupported contract version");
-  if (contract.authority !== CREATIVE_SITE_AUTHORITY) violations.push("authority must be Sol");
-  if (!contract.complete) violations.push("contract is incomplete");
-  if (!Number.isInteger(contract.revision) || contract.revision < 1) violations.push("revision must be a positive integer");
-  if (!contract.identity?.concept?.trim()) violations.push("identity.concept is required");
-  if (!contract.pages.length) violations.push("at least one page is required");
+  if (!contract || typeof contract !== "object" || Array.isArray(contract)) {
+    return { valid: false, violations: ["contract must be an object"] };
+  }
+
+  const candidate = contract as Partial<CreativeSiteContract> & Record<string, unknown>;
+  if (candidate.version !== CREATIVE_SITE_CONTRACT_VERSION) violations.push("unsupported contract version");
+  if (candidate.authority !== CREATIVE_SITE_AUTHORITY) violations.push("authority must be Sol");
+  if (candidate.complete !== true) violations.push("contract is incomplete");
+  if (!Number.isInteger(candidate.revision) || candidate.revision < 1) violations.push("revision must be a positive integer");
+  if (!candidate.identity || typeof candidate.identity !== "object" || Array.isArray(candidate.identity)) {
+    violations.push("identity is required");
+  } else if (typeof (candidate.identity as Record<string, unknown>).concept !== "string" || !(candidate.identity as Record<string, unknown>).concept.trim()) {
+    violations.push("identity.concept is required");
+  }
+
+  const pages = candidate.pages;
+  if (!Array.isArray(pages)) {
+    violations.push("pages must be an array");
+  } else if (!pages.length) {
+    violations.push("at least one page is required");
+  }
+
   const pageIds = new Set<string>();
   const slugs = new Set<string>();
 
-  for (const page of contract.pages) {
-    if (!page.id || pageIds.has(page.id)) violations.push(`duplicate page id: ${page.id}`);
-    pageIds.add(page.id);
-    if (!page.slug || slugs.has(page.slug)) violations.push(`duplicate page slug: ${page.slug}`);
-    slugs.add(page.slug);
-    if (!page.sections.length) violations.push(`page ${page.slug} has no sections`);
+  for (const rawPage of Array.isArray(pages) ? pages : []) {
+    if (!rawPage || typeof rawPage !== "object" || Array.isArray(rawPage)) {
+      violations.push("page must be an object");
+      continue;
+    }
+    const page = rawPage as Record<string, unknown>;
+    const pageId = typeof page.id === "string" ? page.id : "";
+    const slug = typeof page.slug === "string" ? page.slug : "";
+    if (!pageId || pageIds.has(pageId)) violations.push(`duplicate or missing page id: ${pageId || "(missing)"}`);
+    pageIds.add(pageId);
+    if (!slug || slugs.has(slug)) violations.push(`duplicate or missing page slug: ${slug || "(missing)"}`);
+    slugs.add(slug);
+
+    const sections = page.sections;
+    if (!Array.isArray(sections)) {
+      violations.push(`page ${slug || "(unknown)"} sections must be an array`);
+      continue;
+    }
+    if (!sections.length) violations.push(`page ${slug || "(unknown)"} has no sections`);
     const sectionIds = new Set<string>();
-    for (const section of page.sections) {
-      if (!section.id || sectionIds.has(section.id))
-        violations.push(`duplicate section id on ${page.slug}: ${section.id}`);
-      sectionIds.add(section.id);
-      if (!section.role.trim()) violations.push(`section ${section.id} has no role`);
-      if (!section.intent.trim()) violations.push(`section ${section.id} has no intent`);
-      for (const width of Object.keys(section.responsive ?? {})) {
-        if (!/^\d{3,4}$/.test(width)) violations.push(`invalid responsive width ${width}`);
+
+    for (const rawSection of sections) {
+      if (!rawSection || typeof rawSection !== "object" || Array.isArray(rawSection)) {
+        violations.push(`page ${slug || "(unknown)"} section must be an object`);
+        continue;
+      }
+      const section = rawSection as Record<string, unknown>;
+      const sectionId = typeof section.id === "string" ? section.id : "";
+      const role = typeof section.role === "string" ? section.role : "";
+      const intent = typeof section.intent === "string" ? section.intent : "";
+      if (!sectionId || sectionIds.has(sectionId))
+        violations.push(`duplicate or missing section id on ${slug || "(unknown)"}: ${sectionId || "(missing)"}`);
+      sectionIds.add(sectionId);
+      if (!role.trim()) violations.push(`section ${sectionId || "(missing)"} has no role`);
+      if (!intent.trim()) violations.push(`section ${sectionId || "(missing)"} has no intent`);
+      const responsive = section.responsive;
+      if (responsive !== undefined && (responsive === null || typeof responsive !== "object" || Array.isArray(responsive))) {
+        violations.push(`section ${sectionId || "(missing)"} responsive must be an object`);
+      } else {
+        for (const width of Object.keys((responsive ?? {}) as Record<string, unknown>)) {
+          if (!/^\d{3,4}$/.test(width)) violations.push(`invalid responsive width ${width}`);
+        }
       }
     }
   }
 
-  scan(contract, "contract", violations);
+  scan(candidate, "contract", violations);
   return { valid: violations.length === 0, violations };
 }
 
