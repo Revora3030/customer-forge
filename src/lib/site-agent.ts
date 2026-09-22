@@ -375,6 +375,19 @@ export type AgentAction =
     }
 
   | {
+      type: "set_ai_component_visual";
+      componentId: string;
+      patch: AiVisualPatch;
+    }
+
+  | {
+      type: "set_ai_component_responsive";
+      componentId: string;
+      width: number;
+      patch: AiVisualPatch;
+    }
+
+  | {
       type: "set_section_visual";
       sectionId: string;
       patch: SectionVisualPatch;
@@ -1540,6 +1553,39 @@ export function readActions(
       /* SET COMPONENT                                                      */
       /* ------------------------------------------------------------------ */
 
+      case "set_ai_component_visual":
+      case "set_ai_component_responsive": {
+        if (!knownComponent(componentId)) {
+          note("A visual step targeted a component that no longer exists, so it was left out.");
+          break;
+        }
+        const patchRaw = row["patch"];
+        if (!patchRaw || typeof patchRaw !== "object" || Array.isArray(patchRaw)) {
+          note("A component visual step had no readable visual patch, so it was left out.");
+          break;
+        }
+        const patch: Record<string, string | number> = {};
+        for (const [key, value] of Object.entries(patchRaw as Record<string, unknown>)) {
+          if ((typeof value === "string" && value.length <= 500) || (typeof value === "number" && Number.isFinite(value))) {
+            patch[key] = value;
+          } else {
+            note("A component visual property was unsafe or invalid and was removed from that step.");
+          }
+        }
+        if (!Object.keys(patch).length) break;
+        if (type === "set_ai_component_responsive") {
+          const width = Number(row["width"]);
+          if (!Number.isInteger(width) || width < 320 || width > 4096) {
+            note("A component responsive step used an invalid viewport width, so it was left out.");
+            break;
+          }
+          out.push({ type, componentId, width, patch });
+        } else {
+          out.push({ type, componentId, patch });
+        }
+        break;
+      }
+
       case "set_component": {
         const patchRaw =
           (row["patch"] ??
@@ -2620,6 +2666,26 @@ export function describeActions(
                 .is_visible ===
               false,
 
+            action,
+          };
+
+        case "set_ai_component_visual":
+          return {
+            key,
+            title: "Author an AI-defined component visual treatment",
+            where: locate(index, { componentId: action.componentId }),
+            after: Object.entries(action.patch).map(([name, value]) => name + ": " + String(value)).join(" · "),
+            destructive: false,
+            action,
+          };
+
+        case "set_ai_component_responsive":
+          return {
+            key,
+            title: "Author AI-defined component responsive styling at " + action.width + "px",
+            where: locate(index, { componentId: action.componentId }),
+            after: Object.entries(action.patch).map(([name, value]) => name + ": " + String(value)).join(" · "),
+            destructive: false,
             action,
           };
 
