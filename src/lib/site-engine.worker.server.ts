@@ -615,9 +615,9 @@ async function runJob(
       );
       const outcome = await proposePageArchitecture({
         organizationId: orgId,
-        businessName: org.data.name ?? "",
-        industry: org.data.industry ?? null,
-        conversionGoal: org.data.conversion_goal ?? "enquiries",
+        businessName: architectBusinessName,
+        industry: architectIndustry,
+        conversionGoal: architectGoal,
         candidate,
       });
       architectureOutcome = outcome;
