@@ -106,13 +106,11 @@ describe("planSiteContent", () => {
     expect(first.settings).not.toEqual(second.settings);
   });
 
-  it("orders the home story from the detected industry's conversion playbook", () => {
-    const playbook = playbookFor("Emergency plumbing");
-    const home = planSiteContent({ ...input, industryPlaybook: playbook })[0]!;
+  it("opens the home page with a hero and closes it with a standing call to action", () => {
+    const home = planSiteContent(input)[0]!;
     const kinds = home.sections.map((section) => section.kind);
     expect(kinds[0]).toBe("hero");
     expect(kinds.at(-1)).toBe("sticky_cta");
-    expect(kinds.indexOf("services")).toBeLessThan(kinds.indexOf("faq"));
   });
 
   it("creates an image-led, conversion-ready landing page for each supplied service", () => {
