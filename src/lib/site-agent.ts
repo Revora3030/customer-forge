@@ -1262,6 +1262,9 @@ export function readActions(
           Object.keys(patch)
             .length === 0
         ) {
+          note(
+            "A styling step carried no readable settings, so it was left out. Nothing else in the plan was affected.",
+          );
           break;
         }
 
@@ -1280,7 +1283,16 @@ export function readActions(
         const device = DEVICES.includes(row["device"] as Device) ? (row["device"] as Device) : "desktop";
         const patch = readBlockStylePatch(row["patch"]);
         const knownTarget = target === "section" ? knownSection(targetId) : target === "component" ? knownComponent(targetId) : false;
-        if (!target || !knownTarget || Object.keys(patch).length === 0) break;
+        if (!target || !knownTarget || Object.keys(patch).length === 0) {
+          note(
+            !target
+              ? "A styling step didn't say whether it applied to a block or a section, so it was left out."
+              : !knownTarget
+                ? "A styling step pointed at a block that isn't on this website, so it was left out."
+                : "A styling step carried no readable settings, so it was left out.",
+          );
+          break;
+        }
         out.push({ type, target, targetId, device, patch });
         break;
       }
@@ -1630,23 +1642,29 @@ export function readActions(
       }
 
       case "generate_component_image": {
-        if (!knownComponent(componentId)) break;
+        if (!knownComponent(componentId)) {
+          note("A picture step pointed at a block that isn't on this website, so it was left out.");
+          break;
+        }
         const prompt = text(row["prompt"], 1200);
         const alt = text(row["alt"], 200);
         const mode = row["mode"] === "create" ? "create" : "replace";
-        if (prompt.length < 20) {
+        if (prompt.length < 8) {
           note(
-            "A picture step arrived without enough description to draw from, so it was left out. Ask again and the design team will describe the picture fully.",
+            "A picture step arrived with no description to draw from, so it was left out. Ask again and the design team will describe the picture.",
           );
           break;
         }
-        if (alt.length < 3) {
-          note(
-            "A picture step arrived without a description for screen readers, so it was left out. Ask again and the design team will include one.",
-          );
-          break;
-        }
-        out.push({ type, componentId, prompt, alt, mode });
+        // A missing screen-reader description is not a reason to throw away a
+        // picture the design team asked for: the picture's own description is
+        // what it depicts, so it doubles as the alt text.
+        out.push({
+          type,
+          componentId,
+          prompt,
+          alt: alt.length >= 3 ? alt : prompt.slice(0, 160),
+          mode,
+        });
         break;
       }
 
