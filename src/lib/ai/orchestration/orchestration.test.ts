@@ -98,7 +98,7 @@ describe("specialist six", () => {
 
   it("reports the owner as blocked instead of silently downgrading", () => {
     const blocked = specialists.map((entry) =>
-      entry.id === "whisper" ? { ...entry, blockedReason: "no credentials" } : entry,
+      entry.id === "whisper-1" ? { ...entry, blockedReason: "no credentials" } : entry,
     );
     const coverage = specialistCoverage({ contract: contractFor("transcription"), records: blocked });
     expect(coverage.owner).toBeNull();

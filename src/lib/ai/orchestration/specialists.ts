@@ -235,8 +235,9 @@ export function specialistCoverage(input: {
   ).map((entry) => entry.id);
 
   const covered: Capability[] = [];
-  for (const capability of input.contract.required)
-    if (usable.some((record) => supports(record, capability))) covered.push(capability);
+  for (const capability of [...input.contract.required, ...input.contract.preferred])
+    if (!covered.includes(capability) && usable.some((record) => supports(record, capability)))
+      covered.push(capability);
   const gaps = input.contract.required.filter((capability) => !covered.includes(capability));
 
   const owner = domainOwner(input.contract.task);

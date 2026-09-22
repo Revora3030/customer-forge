@@ -64,8 +64,9 @@ export function candidateScore(candidate: RuntimeCandidate): number {
   const capability = candidate.capable === false ? 0 : 1;
   const quality = candidateQuality(candidate.model) / 100;
   const reliability = candidate.healthy ? 0.9 : 0.18;
-  // Cheaper is very slightly better, and nothing more than that.
-  const cost = candidate.paid ? 0.4 : 0.6;
+  // Cheaper is very slightly better, and nothing more than that: one whole
+  // point in the smallest band, which cannot outbid any higher criterion.
+  const cost = candidate.paid ? 0 : 1;
   return Math.round(
     BAND.capability * capability +
       BAND.quality * quality +
@@ -87,4 +88,24 @@ export function qualityFirstOrder<T>(
     .map((entry, index) => ({ entry, index, score: candidateScore(describe(entry)) }))
     .sort((a, b) => b.score - a.score || a.index - b.index)
     .map((row) => row.entry);
+}
+
+/**
+ * Keeps an operator-configured group in its configured relative order while
+ * leaving quality-first placement untouched.
+ *
+ * Quality decides WHERE the paid provider chain sits relative to the free pool;
+ * the operator still decides WHICH paid provider is tried first. The ranked list
+ * keeps its slots, and the group's members are refilled into those slots in the
+ * order the operator configured them.
+ */
+export function preserveGroupOrder<T>(
+  ordered: T[],
+  original: T[],
+  inGroup: (entry: T) => boolean,
+): T[] {
+  const groupOrder = original.filter(inGroup);
+  if (groupOrder.length < 2) return ordered;
+  let cursor = 0;
+  return ordered.map((entry) => (inGroup(entry) ? (groupOrder[cursor++] ?? entry) : entry));
 }

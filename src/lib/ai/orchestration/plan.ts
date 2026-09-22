@@ -164,7 +164,12 @@ export function buildOrchestrationPlan(input: {
   if (QA_TASKS.has(contract.task)) stages.push("visual_qa", "auto_repair");
   stages.push("final_acceptance");
 
-  const degraded = gaps.unmet.length > 0 || lead === null;
+  // Only a REQUIRED capability nothing can provide degrades the plan. An unmet
+  // preferred capability is a missed optimisation, not a broken contract.
+  const unmetRequired = gaps.unmet.filter((capability) =>
+    contract.required.includes(capability),
+  );
+  const degraded = unmetRequired.length > 0 || lead === null;
   const decision: RoutingDecision = {
     requestId: input.requestId,
     correlationId: input.correlationId ?? null,
