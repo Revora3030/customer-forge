@@ -9,21 +9,16 @@ export function normalizeBuilderInstruction(instruction: string): string {
   return `${instruction}\n\nINTERPRETATION NOTE: In this styling request, “front/fronts” means “font/fonts”, not foreground colour.`;
 }
 
-const wholeSite = (instruction: string) =>
-  /\b(?:whole|entire)\s+(?:website|site)\b|\bsite[ -]?wide\b|\ball pages\b|\bevery (?:public )?page\b/i.test(
-    instruction,
-  );
-
 /**
- * A global theme sits underneath section overrides. For an explicit whole-site
- * colour request, update those overrides too so the saved result is visible.
+ * A global theme sits underneath section overrides. Whenever the planner uses
+ * set_theme for a colour request, update those overrides too so the saved
+ * result is visible. Scoped requests use set_block_style and never enter here.
  */
 export function ensureRequestedCoverage(
   instruction: string,
   actions: AgentAction[],
   context: AgentContext,
 ): AgentAction[] {
-  if (!wholeSite(instruction)) return actions;
   if (!/\b(?:background|colou?r|palette|theme)\b/i.test(instruction)) return actions;
   const theme = actions.find((action) => action.type === "set_theme");
   if (!theme || theme.type !== "set_theme") return actions;
