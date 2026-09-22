@@ -141,10 +141,12 @@ export const MULTIMODAL_TEMPLATES: {
 ];
 
 /**
- * The executor currently supports a bounded action plan.
- * Keep this synchronized with the executor.
+ * Safety ceiling on one installation pass — not a creative limit. It exists so a
+ * single batch stays reversible in one atomic rollback, and is set far above any
+ * real full-site redesign so the AI's plan is never truncated in practice.
  */
-export const MAX_ACTIONS = 60;
+export const MAX_ACTIONS = 400;
+
 
 export type AgentField = "heading" | "subheading" | "body";
 
@@ -1632,10 +1634,22 @@ export function readActions(
         const prompt = text(row["prompt"], 1200);
         const alt = text(row["alt"], 200);
         const mode = row["mode"] === "create" ? "create" : "replace";
-        if (prompt.length < 20 || alt.length < 3) break;
+        if (prompt.length < 20) {
+          note(
+            "A picture step arrived without enough description to draw from, so it was left out. Ask again and the design team will describe the picture fully.",
+          );
+          break;
+        }
+        if (alt.length < 3) {
+          note(
+            "A picture step arrived without a description for screen readers, so it was left out. Ask again and the design team will include one.",
+          );
+          break;
+        }
         out.push({ type, componentId, prompt, alt, mode });
         break;
       }
+
 
       /* ------------------------------------------------------------------ */
       /* ADD COMPONENT                                                      */

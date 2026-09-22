@@ -495,10 +495,9 @@ async function runJob(
     hasHours: copyFacts.hasHours,
   };
 
-  // The premium thinking tiers may only *improve wording that already describes
-  // supplied facts*. Every field they return passes the fact gate first, and the
-  // deterministic copy survives untouched when the paid lane is off, out of
-  // budget, unavailable or refused.
+  // The design team owns the creative direction and the wording. The facts
+  // assembled above are only the material it works from: they carry no design
+  // authority, and a build never ships wording no model authored or reviewed.
   const { refineFirstBuildWithCollective } = await import(
     "@/lib/builder/collective-first-build.server"
   );
@@ -517,6 +516,26 @@ async function runJob(
       .map((pass) => pass.model)
       .join("+") || copyModel;
   }
+  // No stale-template fallback: when not one model — paid lead or free stand-in —
+  // could author or review this build, the build stops and says so instead of
+  // quietly shipping the fact scaffold as if it were a designed website.
+  const existingPages = await db
+    .from("website_pages")
+    .select("id", { count: "exact", head: true })
+    .eq("organization_id", orgId);
+  const firstBuild = freshReplace || (existingPages.count ?? 0) === 0;
+  if (firstBuild && !refined.passes.some((pass) => pass.used)) {
+    const why = refined.passes
+      .map((pass) => pass.skipped)
+      .filter(Boolean)
+      .slice(0, 3)
+      .join("; ");
+    throw new Error(
+      `The design team could not author this website's wording and look, so nothing was published (${why || "no model was reachable"}). Please try again in a moment.`,
+    );
+  }
+
+
   await db.from("ai_generations").insert({
     organization_id: orgId,
     job_id: job.id,
