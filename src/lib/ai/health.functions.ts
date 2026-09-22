@@ -518,7 +518,7 @@ export const getAiOrchestration = createServerFn({ method: "GET" })
           members: built.squad.map((member) => ({
             provider: member.provider,
             model: member.model,
-            ready: member.healthy && member.remainingToday > 0,
+            ready: member.healthy && (member.remainingToday ?? 1) > 0,
           })),
         };
       }),
