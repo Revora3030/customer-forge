@@ -1011,18 +1011,12 @@ const readSectionVisualPatch = (
 
 const readBlockStylePatch = (value: unknown): BlockStylePatch => {
   if (!value || typeof value !== "object" || Array.isArray(value)) return {};
-  const raw = value as Partial<Record<StyleKey, unknown>>;
+  // Natural property names ("backgroundColor", "fontSize", "padding: 48px")
+  // are mapped onto Revora's style model first, so a valid design request is
+  // never discarded just because the model named the property its own way.
+  const raw = normalizeStyleInput(value) as Partial<Record<StyleKey, unknown>>;
   const cleaned = writeBlockStyle({}, raw)["style"];
   if (!cleaned || typeof cleaned !== "object" || Array.isArray(cleaned)) return {};
-  // A direct visual request is atomic. If even one supplied property is
-  // unknown or unsafe, reject the action instead of silently applying a
-  // different-looking subset and telling the owner it succeeded.
-  for (const rawKey of Object.keys(raw)) {
-    if (!(STYLE_KEYS as readonly string[]).includes(rawKey)) return {};
-    const key = rawKey as StyleKey;
-    const rawValue = raw[key];
-    if (rawValue !== null && rawValue !== "" && !(key in cleaned)) return {};
-  }
   const out: BlockStylePatch = {};
   for (const key of STYLE_KEYS) {
     if (!(key in raw)) continue;
