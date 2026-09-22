@@ -213,16 +213,6 @@ export async function authorCreativeSiteContract(input: {
       costMicrocents: solCostMicrocents,
     };
   }
-  if (!sol.ok || !sol.text)
-    return {
-      contract: null,
-      reviewed: false,
-      skipped: sol.detail ?? sol.reason,
-      models: [],
-      costMicrocents: 0,
-    };
-
-
   const terra = await callBestThinker({
     purpose: "quality_review",
     complexity: "high",
@@ -266,16 +256,16 @@ export async function authorCreativeSiteContract(input: {
       costMicrocents: solCostMicrocents + terra.costMicrocents,
     };
 
-  contract = normalize(repaired, sol.model ?? "gpt-5.6-sol");
+  contract = normalize(repaired, solModel);
   contract.reviewedBy = terra.model ?? "gpt-5.6-terra";
-  validation = validateCreativeSiteContract(contract);
-  if (!validation.valid)
+  const terraValidation = validateCreativeSiteContract(contract);
+  if (!terraValidation.valid)
     return {
       contract: null,
       reviewed: true,
-      skipped: validation.violations.slice(0, 8).join("; "),
-      models: [sol.model, terra.model].filter(Boolean) as string[],
-      costMicrocents: sol.costMicrocents + terra.costMicrocents,
+      skipped: terraValidation.violations.slice(0, 8).join("; "),
+      models: [solModel, terra.model].filter(Boolean) as string[],
+      costMicrocents: solCostMicrocents + terra.costMicrocents,
     };
 
   return {
