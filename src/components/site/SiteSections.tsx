@@ -335,7 +335,7 @@ export function SiteSection({ site, section }: { site: Site; section: Section })
       data-rv-gap={style.gap ?? undefined}
       data-rv-ai-id={aiId}
     >
-      {aiResponsiveCss ? <style dangerouslySetInnerHTML={{ __html: aiResponsiveCss }} /> : null}
+      {aiResponsiveCss ? <style>{aiResponsiveCss}</style> : null}
       {!(["hero", "service_detail", "cta", "intro", "offer", "guarantee", "area", "policy", "lead_magnet"] as string[]).includes(section.kind)
         ? <SectionMedia site={site} section={section} />
         : null}
