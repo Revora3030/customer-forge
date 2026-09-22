@@ -28,10 +28,6 @@ import { Disclosure, OverlayPanel } from "@/components/app/BuilderTools";
 import { BuilderHistoryProvider } from "@/lib/builder-history.hooks";
 import { GroupTabs, orderGroups } from "@/components/app/BuilderGroups";
 import { BuilderAssistant } from "@/components/app/BuilderAssistant";
-import { BuilderNeeds, type BuilderNeed } from "@/components/app/BuilderNeeds";
-import { BuilderStatus } from "@/components/app/BuilderStatus";
-import { builderHomeStatus } from "@/lib/builder/home-status";
-import { builderNeedKeys, type BuilderNeedKey } from "@/lib/builder-needs";
 import { useBuilderRequests } from "@/lib/builder-requests.hooks";
 import { ConversionOptimizer } from "@/components/app/ConversionOptimizer";
 import { normalizeBuilderMode } from "@/lib/builder-modes";
@@ -60,7 +56,7 @@ import { RevoraGenius } from "@/components/app/RevoraGenius";
 import { BuilderAudit } from "@/components/app/BuilderAudit";
 import { BuilderCanvas } from "@/components/app/BuilderCanvas";
 import { BuilderPreview } from "@/components/app/BuilderPreview";
-import { MessageCircle, MousePointer2, Paintbrush, Sparkles } from "lucide-react";
+import { Eye, History, Menu, MousePointer2, Paintbrush, Settings2 } from "lucide-react";
 import { PreFlightPanel } from "@/components/app/PreFlight";
 import { preflight } from "@/lib/preflight";
 import { usePreflightFacts } from "@/lib/preflight.hooks";
@@ -219,7 +215,9 @@ function WebsitePage() {
   const [setupOpen, setSetupOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [advanced, setAdvanced] = useState<string | null>(null);
-  const [workspaceMode, setWorkspaceMode] = useState<"build" | "chat" | "edit" | "visual">("build");
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [editorMode, setEditorMode] = useState<"content" | "visual" | null>(null);
 
   /** One request engine for the whole workspace. */
   const requests = useBuilderRequests({ organizationId: orgId ?? null, canManage: manage });
@@ -404,51 +402,7 @@ function WebsitePage() {
   const mediaCount = facts.data?.mediaCount ?? 0;
   const brandSet = Boolean(profile?.["primary_color"]) && Boolean(profile?.["logo_url"]);
   const failingChecks = preflightResult.checks.filter((check) => check.status === "fail");
-  const needKeys = builderNeedKeys({
-    canManage: manage,
-    requiredAnswers: requiredCount,
-    pagesCount: (pages ?? []).length,
-    mediaCount,
-    brandSet,
-    publishState,
-    domainVerified,
-    captureCount,
-    failingChecks: failingChecks.length,
-  });
-  /**
- * The builder home, answered as four plain questions. Every value comes from
- * the checks this page already ran — nothing is assumed.
- */
-  const qualityCheck = (productionReadiness?.checks ?? []).find((check) => check.key === "quality");
-  const activeTask = requests.tasks.find(
-    (task) => task.state !== "complete" && task.state !== "failed",
-  );
-  const homeAnswers = builderHomeStatus({
-    businessName: org?.name ?? null,
-    industry: (org?.industry as string | undefined) ?? null,
-    pagesCount: (pages ?? []).length,
-    visibleSectionsCount: visibleSections,
-    publishState,
-    working: requests.busy,
-    currentRequest: activeTask?.instruction ?? null,
-    queuedCount: requests.tasks.filter((task) => task.state === "queued").length,
-    blockingCount: failingChecks.length,
-    topBlocking: failingChecks[0]?.label ?? null,
-    improvementCount: preflightResult.checks.filter((check) => check.status === "warn").length,
-    score: preflightResult.score,
-    measured: qualityCheck?.ok === true,
-  });
-
-  /** The four cards hand their next move back to the panels this page owns. */
-  const goHome = (target: string) => {
-    if (target === "chat") {
-      setWorkspaceMode("chat");
-      return;
-    }
-    goTo(target);
-  };
-
-  const needCopy: Record<BuilderNeedKey, BuilderNeed> = {
+  const needCopy = {
     answers: {
       key: "answers",
       title: `${requiredCount} thing${requiredCount === 1 ? "" : "s"} needed before you go live`,
@@ -499,7 +453,6 @@ function WebsitePage() {
       onAction: () => setAdvanced("launch"),
     },
   };
-  const needs: BuilderNeed[] = needKeys.map((key) => needCopy[key]);
 
   if (profileQuery.isLoading || settingsQuery.isLoading) return <LoadingRows rows={5} />;
 
@@ -534,119 +487,35 @@ function WebsitePage() {
   /** Nothing built yet: one conversation and nothing else. */
   const firstRun = (pages ?? []).length === 0;
 
-  const workspaceModes = [
-    { key: "build" as const, label: "Build", icon: Sparkles },
-    { key: "chat" as const, label: "Ask Revora", icon: MessageCircle },
-    { key: "edit" as const, label: "Edit words", icon: MousePointer2 },
-    { key: "visual" as const, label: "Edit design", icon: Paintbrush },
-  ];
-
-  /** The whole workspace: the real preview first, with complexity revealed only when requested. */
+  /** Chat is the workspace. Preview stays beside it on desktop and one tap away on mobile. */
   const workspace = (
-    <div className="space-y-3">
-      <div className="flex items-center gap-1 overflow-x-auto rounded-md border border-border bg-card/70 p-1" role="tablist" aria-label="Builder mode">
-        {workspaceModes.map((mode) => {
-          const Icon = mode.icon;
-          return (
-            <Button
-              key={mode.key}
-              type="button"
-              size="sm"
-              variant={workspaceMode === mode.key ? "secondary" : "ghost"}
-              role="tab"
-              data-testid={`builder-mode-${mode.key}`}
-              aria-selected={workspaceMode === mode.key}
-              onClick={() => setWorkspaceMode(mode.key)}
-              className="shrink-0"
-            >
-              <Icon className="size-4" aria-hidden />
-              {mode.label}
-            </Button>
-          );
-        })}
-      </div>
-
-      <EnvironmentBanner status={production} />
-      <BuilderStatus answers={homeAnswers} onGo={goHome} />
-      <BuilderNeeds needs={needs} />
-
-      {firstRun ? (
-        <div className="mx-auto max-w-3xl">
-          <BuilderAssistant
-            organizationId={orgId ?? null}
-            requests={requests}
-            onOpenExtras={() => setAdvanced("assistant")}
-            emptyTitle="Describe your business"
-            emptyHint="Revora builds the pages, writes the words and sets up your enquiry form. You publish when it looks right."
-          />
-          <section className="panel p-5 text-center">
-            <p className="text-[14px] font-medium">Your website will appear here</p>
-            <p className="mt-1 text-[12.5px] text-muted-foreground">
-              Describe your business on the left and Revora builds your first pages. You can also
-              add pages yourself.
-            </p>
-            <Button
-              className="mt-3"
-              size="sm"
-              variant="outline"
-              onClick={() => setAdvanced("pages")}
-            >
-              Add a page myself
-            </Button>
-          </section>
-        </div>
-      ) : workspaceMode === "build" ? (
-        <div className="grid min-w-0 gap-3 xl:grid-cols-[minmax(0,1fr)_360px]">
-          {org?.slug ? (
-            <BuilderPreview slug={org.slug} pages={pages ?? []} refreshing={requests.refreshing} />
-          ) : null}
-          <div className="min-w-0 xl:sticky xl:top-24 xl:self-start">
-            <BuilderAssistant
-              compact
-              organizationId={orgId ?? null}
-              requests={requests}
-              onOpenExtras={() => setAdvanced("assistant")}
-              emptyTitle="Tell Revora what to change"
-              emptyHint="Ask for anything — a new page, better wording, a fresh look, more enquiries."
-            />
-          </div>
-        </div>
-      ) : workspaceMode === "chat" ? (
-        <div className="mx-auto max-w-3xl">
-          <BuilderAssistant
-            organizationId={orgId ?? null}
-            requests={requests}
-            onOpenExtras={() => setAdvanced("assistant")}
-            emptyTitle="Tell Revora what to change"
-            emptyHint="Ask for anything — a new page, better wording, a fresh look, more enquiries."
-          />
-        </div>
-      ) : (
-        <div className="min-w-0">
-          <BuilderCanvas
-            organizationId={orgId}
-            pages={pages ?? []}
-            canManage={manage}
-            refreshing={requests.refreshing}
-            editingMode={workspaceMode === "visual" ? "visual" : "content"}
-            onRewriteSection={(target) =>
-              // One press turns the selected block into a normal request, so the
-              // owner never has to describe the rest of the website again.
-              requests.queue(
-                `Improve the ${target.sectionLabel.toLowerCase()} section on the ${target.pageTitle} page. Keep every fact, name, price and phone number exactly as it is, and keep it consistent with the rest of the website's look.`,
-              )
-            }
-          />
-        </div>
-      )}
-
-      <div className="flex flex-wrap items-center gap-3">
-        <Button size="sm" variant="outline" onClick={() => setAdvanced("build")}>
-          All settings
+    <div className="min-w-0">
+      <div className="mb-2 flex items-center justify-center gap-1 lg:hidden" role="tablist" aria-label="Builder view">
+        <Button size="sm" variant={!previewOpen ? "secondary" : "ghost"} role="tab" aria-selected={!previewOpen} onClick={() => setPreviewOpen(false)}>
+          Chat
         </Button>
-        <span className="text-[11.5px] text-muted-foreground">
-          Build, design, content, images, search, pages, checks and publishing — in that order.
-        </span>
+        {!firstRun ? (
+          <Button size="sm" variant={previewOpen ? "secondary" : "ghost"} role="tab" aria-selected={previewOpen} onClick={() => setPreviewOpen(true)}>
+            <Eye className="size-4" aria-hidden /> Preview
+          </Button>
+        ) : null}
+      </div>
+      <div className="grid min-w-0 gap-3 lg:grid-cols-[minmax(340px,430px)_minmax(0,1fr)]">
+        <div className={previewOpen ? "hidden lg:block" : "min-w-0 lg:sticky lg:top-20 lg:self-start"}>
+          <BuilderAssistant
+            compact
+            organizationId={orgId ?? null}
+            requests={requests}
+            onOpenExtras={() => setAdvanced("assistant")}
+            emptyTitle={firstRun ? "Describe your business" : "What would you like to change?"}
+            emptyHint={firstRun ? "Tell me what you do and who you serve. I’ll build the complete website with you." : "Keep talking to me naturally. I remember this conversation and update the same website as we go."}
+          />
+        </div>
+        {!firstRun && org?.slug ? (
+          <div className={!previewOpen ? "hidden min-w-0 lg:block" : "min-w-0"}>
+            <BuilderPreview slug={org.slug} pages={pages ?? []} refreshing={requests.refreshing} />
+          </div>
+        ) : null}
       </div>
     </div>
   );
@@ -674,14 +543,15 @@ function WebsitePage() {
           sections={[{ key: "workspace", label: "Website", node: workspace }]}
           actions={
             <>
-              <Button size="sm" variant="outline" onClick={() => setHistoryOpen(true)}>
-                History
+              <Button size="icon-sm" variant="ghost" onClick={() => setMenuOpen(true)} aria-label="Open builder menu" title="Builder menu">
+                <Menu className="size-4" aria-hidden />
               </Button>
               {org ? (
                 <PreviewSiteButton
                   organizationId={orgId}
                   slug={org.slug}
                   publishState={publishState}
+                  compact
                 />
               ) : null}
               {manage ? (
@@ -713,6 +583,40 @@ function WebsitePage() {
         </OverlayPanel>
 
       </BuilderHistoryProvider>
+
+      <OverlayPanel open={menuOpen} title="Website tools" onClose={() => setMenuOpen(false)}>
+        <div className="grid gap-2">
+          <Button variant="outline" className="justify-start" onClick={() => { setMenuOpen(false); setSetupOpen(true); }}>
+            <Settings2 className="size-4" /> Business details
+          </Button>
+          <Button variant="outline" className="justify-start" onClick={() => { setMenuOpen(false); setEditorMode("content"); }}>
+            <MousePointer2 className="size-4" /> Edit words manually
+          </Button>
+          <Button variant="outline" className="justify-start" onClick={() => { setMenuOpen(false); setEditorMode("visual"); }}>
+            <Paintbrush className="size-4" /> Edit design manually
+          </Button>
+          <Button variant="outline" className="justify-start" onClick={() => { setMenuOpen(false); setHistoryOpen(true); }}>
+            <History className="size-4" /> History and restore
+          </Button>
+          <Button variant="outline" className="justify-start" onClick={() => { setMenuOpen(false); setAdvanced("build"); }}>
+            <Settings2 className="size-4" /> All settings
+          </Button>
+        </div>
+      </OverlayPanel>
+
+      <OverlayPanel open={editorMode !== null} title={editorMode === "visual" ? "Edit design" : "Edit words"} description="Select any part of your website to adjust it directly." onClose={() => setEditorMode(null)}>
+        <BuilderCanvas
+          organizationId={orgId}
+          pages={pages ?? []}
+          canManage={manage}
+          refreshing={requests.refreshing}
+          editingMode={editorMode === "visual" ? "visual" : "content"}
+          onRewriteSection={(target) => {
+            setEditorMode(null);
+            requests.queue(`Improve the ${target.sectionLabel.toLowerCase()} section on the ${target.pageTitle} page. Keep every fact, name, price and phone number exactly as it is, and keep it consistent with the rest of the website's look.`);
+          }}
+        />
+      </OverlayPanel>
 
       {/* ------------------------ One advanced door ------------------------ */}
       <OverlayPanel

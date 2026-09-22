@@ -29,10 +29,12 @@ export function PreviewSiteButton({
   organizationId,
   slug,
   publishState,
+  compact = false,
 }: {
   organizationId: string | undefined;
   slug: string;
   publishState: string | null | undefined;
+  compact?: boolean;
 }) {
   const { data: links } = usePreviewLinks(organizationId);
   const create = useCreatePreviewLink(organizationId);
@@ -40,9 +42,9 @@ export function PreviewSiteButton({
 
   if (publishState === "published") {
     return (
-      <Button asChild variant="outline">
-        <Link to="/s/$slug" params={{ slug }} target="_blank">
-          Preview site <ExternalLink className="size-4" />
+      <Button asChild variant="outline" size={compact ? "icon-sm" : "default"}>
+        <Link to="/s/$slug" params={{ slug }} target="_blank" aria-label="Preview site" title="Preview site">
+          {!compact ? "Preview site" : null} <ExternalLink className="size-4" />
         </Link>
       </Button>
     );
@@ -59,9 +61,9 @@ export function PreviewSiteButton({
   // error page instead of their website.
   if (token) {
     return (
-      <Button asChild variant="outline">
-        <a href={`/p/${token}`} target="_blank" rel="noopener noreferrer">
-          Preview site (draft) <ExternalLink className="size-4" />
+      <Button asChild variant="outline" size={compact ? "icon-sm" : "default"}>
+        <a href={`/p/${token}`} target="_blank" rel="noopener noreferrer" aria-label="Preview draft" title="Preview draft">
+          {!compact ? "Preview site (draft)" : null} <ExternalLink className="size-4" />
         </a>
       </Button>
     );
@@ -70,7 +72,10 @@ export function PreviewSiteButton({
   return (
     <Button
       variant="outline"
+      size={compact ? "icon-sm" : "default"}
       disabled={create.isPending}
+      aria-label="Prepare preview"
+      title="Prepare preview"
       onClick={() => {
         create
           .mutateAsync({ label: "Builder preview", hours: 168 })
@@ -86,7 +91,7 @@ export function PreviewSiteButton({
       ) : (
         <ExternalLink className="size-4" />
       )}
-      {create.isPending ? "Preparing preview" : "Get preview link"}
+      {!compact ? (create.isPending ? "Preparing preview" : "Get preview link") : null}
     </Button>
   );
 }
