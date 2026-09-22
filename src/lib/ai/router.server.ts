@@ -261,6 +261,16 @@ export async function freeModelPool(
       if (!models.includes(model) && isFreeEligibleModel(entry.name, model)) models.push(model);
     };
     const configuredModel = entry.model;
+    // Keep a known-good creation route in every Cloudflare image pool. An
+    // operator override or a stale discovery cache may point the configured
+    // image model at an inpainting-only endpoint; capability filtering then
+    // correctly removes it, but must not leave a customer request with no
+    // usable generator. These two endpoints have both been live-verified with
+    // the plain `{ prompt }` request shape used by the adapter.
+    if (role === "image" && entry.name === "cloudflare") {
+      consider("@cf/bytedance/stable-diffusion-xl-lightning");
+      consider("@cf/black-forest-labs/flux-1-schnell");
+    }
     // The configured default is the model proven against this account. Put it
     // before name-matched catalogue discoveries: metadata can identify a model
     // as image-capable without proving its exact request schema is compatible.
