@@ -147,7 +147,7 @@ export function guardBuilderPlan(
   const output: AgentAction[] = [];
 
   for (const action of actions) {
-    if (output.length >= Math.min(cap, MAX_ACTIONS)) break;
+    if (output.length >= cap) break;
 
     if (action.type === "add_page" && action.ref && refs.pages.has(action.ref)) {
       duplicates += 1;
