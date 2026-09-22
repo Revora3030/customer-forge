@@ -664,7 +664,8 @@ export async function drainSiteEngineQueue(
         await db
           .from("generation_jobs")
           .update({ status: "queued", error_message: message, lease_expires_at: null } as never)
-          .eq("id", job.id);
+          .eq("id", job.id)
+          .eq("attempts", job.attempts);
         return {
           processed,
           failed,
@@ -676,12 +677,7 @@ export async function drainSiteEngineQueue(
 
       // Ordinary failure: retry until MAX_ATTEMPTS, then mark it failed for good.
       failed += 1;
-      const { data: current } = await db
-        .from("generation_jobs")
-        .select("attempts")
-        .eq("id", job.id)
-        .maybeSingle();
-      const attempts = (current?.attempts as number | undefined) ?? MAX_ATTEMPTS;
+      const attempts = job.attempts;
       await db
         .from("generation_jobs")
         .update(
@@ -694,7 +690,8 @@ export async function drainSiteEngineQueue(
               }
             : { status: "queued", error_message: message, lease_expires_at: null },
         )
-        .eq("id", job.id);
+        .eq("id", job.id)
+        .eq("attempts", job.attempts);
       await writeQueueState(db, { last_error: message });
     }
   }
