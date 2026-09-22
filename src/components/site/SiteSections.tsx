@@ -13,6 +13,8 @@ import {
   readBlockStyle,
   readSectionVisual,
   readComponentVisual,
+  aiAuthoredCss,
+  aiAuthoredResponsiveCss,
   type PersistedComponentVisual,
 } from "@/lib/site-style";
 import { Link } from "@tanstack/react-router";
@@ -283,6 +285,10 @@ export function SiteSection({ site, section }: { site: Site; section: Section })
   const inner = <SiteSectionBody site={site} section={section} />;
 
   const css = blockCss(style, siteSurface(site));
+  const aiCss = aiAuthoredCss(section.settings);
+  const aiId = section.id.replace(/[^a-zA-Z0-9_-]/g, "-");
+  const aiSelector = `[data-rv-ai-id="${aiId}"]`;
+  const aiResponsiveCss = aiAuthoredResponsiveCss(section.settings, aiSelector);
   const customBackground = Boolean(style.bgColor || style.bgImage);
   const customText = Boolean(style.textColor);
   const customFont = Boolean(style.font);
@@ -294,7 +300,8 @@ export function SiteSection({ site, section }: { site: Site; section: Section })
       data-rvb={section.id}
       data-rvb-kind={section.kind}
       data-rvb-label={sectionLabel(section.kind)}
-      style={css}
+      data-rv-ai-id={aiId}
+      style={{ ...css, ...aiCss }}
     >
       {inner}
     </div>
@@ -326,7 +333,9 @@ export function SiteSection({ site, section }: { site: Site; section: Section })
       data-rv-custom-spacing={customSpacing || undefined}
       data-rv-columns={style.columns ?? undefined}
       data-rv-gap={style.gap ?? undefined}
+      data-rv-ai-id={aiId}
     >
+      {aiResponsiveCss ? <style dangerouslySetInnerHTML={{ __html: aiResponsiveCss }} /> : null}
       {!(["hero", "service_detail", "cta", "intro", "offer", "guarantee", "area", "policy", "lead_magnet"] as string[]).includes(section.kind)
         ? <SectionMedia site={site} section={section} />
         : null}
