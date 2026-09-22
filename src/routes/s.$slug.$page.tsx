@@ -205,6 +205,7 @@ export function SitePageView({
 
         <StickyCallBar site={site} label={ctaLabel} />
         <SiteVitals slug={org.slug} preview={preview} />
+        {preview ? <BuilderReturnBar /> : null}
       </div>
     </div>
   );
