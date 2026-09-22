@@ -145,7 +145,8 @@ export const MULTIMODAL_TEMPLATES: {
  * read and installed in full; the installer batches them so each batch stays
  * reversible in one atomic rollback. No design work is truncated in practice.
  */
-export const MAX_ACTIONS = 5000;
+/** Legacy compatibility symbol. New plans are processed in full; batching/continuation is handled by the executor. */
+export const MAX_ACTIONS = Number.POSITIVE_INFINITY;
 
 
 export type AgentField = "heading" | "subheading" | "body";
@@ -1067,10 +1068,7 @@ export function readActions(
     return [];
   }
 
-  if (value.length > MAX_ACTIONS)
-    note(
-      `The design team proposed ${value.length} steps, which is past the ${MAX_ACTIONS}-step safety ceiling; the first ${MAX_ACTIONS} were read. Ask again to continue with the rest.`,
-    );
+  // No arbitrary creative truncation. The executor applies reversible batches.
 
   const out: AgentAction[] = [];
 
