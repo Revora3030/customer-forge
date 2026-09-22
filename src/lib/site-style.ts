@@ -85,6 +85,8 @@ export type BlockStyle = {
   lineHeight: number | null;
   letterSpacing: number | null;
   textTransform: (typeof TEXT_TRANSFORMS)[number] | null;
+  /** Italic emphasis — the editorial accent premium sites lean on. */
+  italic: boolean | null;
   textColor: string | null;
   /* layout */
   columns: number | null;
@@ -100,6 +102,10 @@ export type BlockStyle = {
   marginBottom: number | null;
   /* appearance */
   bgColor: string | null;
+  /** Second colour of a background gradient, blended from `bgColor`. */
+  bgGradient: string | null;
+  /** Gradient direction in degrees (0 = upward, 180 = downward). */
+  bgGradientAngle: number | null;
   bgImage: string | null;
   overlay: number | null;
   radius: number | null;
@@ -125,6 +131,7 @@ export const STYLE_KEYS = [
   "lineHeight",
   "letterSpacing",
   "textTransform",
+  "italic",
   "textColor",
   "columns",
   "gap",
@@ -137,6 +144,8 @@ export const STYLE_KEYS = [
   "marginTop",
   "marginBottom",
   "bgColor",
+  "bgGradient",
+  "bgGradientAngle",
   "bgImage",
   "overlay",
   "radius",
@@ -211,6 +220,12 @@ export const STYLE_ALIASES: Record<string, StyleKey> = {
   lineheight: "lineHeight", leading: "lineHeight",
   letterspacing: "letterSpacing", tracking: "letterSpacing",
   texttransform: "textTransform", uppercase: "textTransform",
+  fontstyle: "italic", oblique: "italic", emphasis: "italic",
+  gradient: "bgGradient", backgroundgradient: "bgGradient",
+  gradientto: "bgGradient", gradientcolor: "bgGradient",
+  gradientcolour: "bgGradient", bggradient: "bgGradient",
+  gradientangle: "bgGradientAngle", gradientdirection: "bgGradientAngle",
+  bggradientangle: "bgGradientAngle",
   borderradius: "radius", cornerradius: "radius", rounded: "radius",
   borderwidth: "borderWidth", bordercolor: "borderColor", bordercolour: "borderColor",
   boxshadow: "shadow", elevation: "shadow",
@@ -275,7 +290,9 @@ export function normalizeStyleInput(raw: unknown): Record<string, unknown> {
     // "48px", "1.5rem", "60%" → the number the model meant.
     if (typeof next === "string") {
       const unit = next.trim().match(/^(-?\d*\.?\d+)\s*(px|pt|rem|em|%)?$/i);
-      if (unit && key !== "textColor" && key !== "bgColor" && key !== "borderColor") {
+      const colourKey =
+        key === "textColor" || key === "bgColor" || key === "borderColor" || key === "bgGradient";
+      if (unit && !colourKey) {
         const amount = Number(unit[1]);
         const scale = /rem|em/i.test(unit[2] ?? "") ? 16 : 1;
         next = amount * scale;
@@ -296,6 +313,22 @@ export function normalizeStyleInput(raw: unknown): Record<string, unknown> {
       next = named[next.trim().toLowerCase().replace(/[\s_-]+/g, "")] ?? next;
     }
     if (key === "textTransform" && typeof next === "boolean") next = next ? "uppercase" : "none";
+    // `fontStyle: "italic"` and `italic: "yes"` both mean the same thing.
+    if (key === "italic" && typeof next === "string") {
+      const word = next.trim().toLowerCase();
+      if (["italic", "oblique", "true", "yes", "on"].includes(word)) next = true;
+      else if (["normal", "none", "false", "no", "off", "upright"].includes(word)) next = false;
+    }
+    // `gradientDirection: "to bottom"` → the angle that produces it.
+    if (key === "bgGradientAngle" && typeof next === "string") {
+      const named: Record<string, number> = {
+        up: 0, top: 0, totop: 0, right: 90, toright: 90, down: 180, bottom: 180,
+        tobottom: 180, left: 270, toleft: 270, diagonal: 135, tobottomright: 135,
+        tobottomleft: 225, totopright: 45, totopleft: 315,
+      };
+      const word = next.trim().toLowerCase().replace(/[\s_-]+/g, "");
+      if (word in named) next = named[word];
+    }
     if (key === "hidden" && (compact === "visible" || compact === "display")) {
       next = typeof value === "boolean" ? !value : value === "none";
     }
@@ -385,6 +418,7 @@ function readLayer(raw: unknown): Partial<BlockStyle> {
   );
   set("letterSpacing", boundedNumber(s["letterSpacing"], -0.1, 0.3));
   set("textTransform", inList(TEXT_TRANSFORMS, s["textTransform"]));
+  if (typeof s["italic"] === "boolean") set("italic", s["italic"]);
   set("textColor", safeColor(s["textColor"]));
 
   set(
@@ -406,6 +440,8 @@ function readLayer(raw: unknown): Partial<BlockStyle> {
   set("marginBottom", boundedNumber(s["marginBottom"], -240, 240));
 
   set("bgColor", safeColor(s["bgColor"]));
+  set("bgGradient", safeColor(s["bgGradient"]));
+  set("bgGradientAngle", boundedNumber(s["bgGradientAngle"], 0, 360));
   set("bgImage", safeImageUrl(s["bgImage"]));
   set("overlay", boundedNumber(s["overlay"], 0, 100));
   set("radius", boundedNumber(s["radius"], 0, 999));
@@ -698,6 +734,12 @@ export function blockCss(style: BlockStyle, surface?: string | null): React.CSSP
     css.textTransform = style.textTransform;
     (css as Record<string, string | number>)["--rv-block-text-transform"] = style.textTransform;
   }
+  if (style.italic !== null) {
+    css.fontStyle = style.italic ? "italic" : "normal";
+    (css as Record<string, string | number>)["--rv-block-font-style"] = style.italic
+      ? "italic"
+      : "normal";
+  }
   if (style.textColor) css.color = readableTextColor(style, surface);
 
   if (style.padTop !== null) css.paddingTop = `${style.padTop}px`;
@@ -712,6 +754,12 @@ export function blockCss(style: BlockStyle, surface?: string | null): React.CSSP
     css.backgroundImage = backgroundImageCss(style);
     css.backgroundSize = "cover";
     css.backgroundPosition = "center";
+  } else if (style.bgGradient) {
+    // Both stops are validated colours and the angle is a bounded number, so
+    // the gradient can carry no arbitrary CSS.
+    const from = style.bgColor ?? "transparent";
+    const angle = style.bgGradientAngle ?? 180;
+    css.backgroundImage = `linear-gradient(${angle}deg,${from},${style.bgGradient})`;
   }
   if (style.radius !== null)
     css.borderRadius = style.radius >= 999 ? "9999px" : `${style.radius}px`;
@@ -841,6 +889,13 @@ export function blockRules(id: string, settings: unknown, surface?: string | nul
       if (key === "bgImage" || key === "overlay") {
         only.bgImage = merged.bgImage;
         only.overlay = merged.overlay;
+      }
+      // A gradient needs both stops and its angle, or the device layer would
+      // emit half a gradient and paint nothing.
+      if (key === "bgColor" || key === "bgGradient" || key === "bgGradientAngle") {
+        only.bgColor = merged.bgColor;
+        only.bgGradient = merged.bgGradient;
+        only.bgGradientAngle = merged.bgGradientAngle;
       }
     }
     // Readability pairing needs the background this device layer ends up with,
