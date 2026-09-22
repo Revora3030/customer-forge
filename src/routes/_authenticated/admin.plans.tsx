@@ -96,13 +96,13 @@ function PricingControls() {
       </p>
 
       <div className="grid gap-3 sm:grid-cols-2">
-        <div className="rounded-md border border-border bg-elevated p-3">
+        <div className="product-tile">
           <p className="font-display text-[22px] font-semibold">
             {currency(GROWTH_SYSTEM.setupPrice)}
           </p>
           <p className="text-[12px] text-muted-foreground">One-time setup, charged today</p>
         </div>
-        <div className="rounded-md border border-border bg-elevated p-3">
+        <div className="product-tile">
           <p className="font-display text-[22px] font-semibold">
             {currency(GROWTH_SYSTEM.monthlyPrice)}
             <span className="text-[12px] font-normal text-muted-foreground">/month</span>

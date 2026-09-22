@@ -311,6 +311,17 @@
   border-top: 1px solid var(--color-border);
   padding-top: 1rem;
 }
+/* One inner card for every list row inside a panel, so the admin, the client
+   portal and the builder share the same radius, surface and spacing. */
+.product-tile {
+  border: 1px solid color-mix(in oklab, var(--color-border) 82%, transparent);
+  border-radius: var(--radius-lg);
+  background: color-mix(in oklab, var(--color-card) 55%, transparent);
+  padding: 0.75rem;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
 
 /* One overlay vocabulary ----------------------------------------------------
    Every dialog, drawer, sheet, menu, popover and toast shares this scrim,

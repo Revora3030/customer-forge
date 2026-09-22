@@ -185,15 +185,18 @@ export function inspectContentIntegrity(fields: IntegrityField[]): IntegrityViol
     }
   }
 
-  // The same filler string pasted across several visible fields.
+  // The same filler string pasted across several visible fields. Two places is
+  // already wrong for sentence-length copy (a heading repeated as its own
+  // subheading reads as filler), so that case is caught too.
   for (const [value, fields_] of seen)
-    if (fields_.length >= 3)
+    if (fields_.length >= 3 || (fields_.length >= 2 && value.length >= 12))
       violations.push({
         field: fields_.join(", "),
         value,
         kind: "duplicated_filler",
         detail: `the same text is repeated in ${fields_.length} places, which reads as filler`,
       });
+
 
   return violations;
 }

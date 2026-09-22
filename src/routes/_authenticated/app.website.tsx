@@ -77,6 +77,8 @@ import { PreviewLinks, PreviewSiteButton } from "@/components/app/PreviewLinks";
 import { VersionDiff } from "@/components/app/VersionDiff";
 import { DraftBranchPanel } from "@/components/app/DraftBranchPanel";
 import { RestorePointPanel } from "@/components/app/RestorePointPanel";
+import { ModelResponseLog } from "@/components/app/ModelResponseLog";
+
 import { PlatformEngine } from "@/components/app/PlatformEngine";
 import { DesignIdentity } from "@/components/app/DesignIdentity";
 import { recordHealth, snapshotFromPreflight } from "@/lib/site-health";
@@ -700,14 +702,16 @@ function WebsitePage() {
         <OverlayPanel
           open={historyOpen}
           title="History"
-          description="Every change Revora and your team made — restore any earlier version."
+          description="Every change Revora and your team made — and which model made it. Restore any earlier version."
           onClose={() => setHistoryOpen(false)}
         >
+          <ModelResponseLog organizationId={orgId ?? undefined} />
           <DraftBranchPanel organizationId={orgId ?? null} canManage={manage} />
           <RestorePointPanel organizationId={orgId} canManage={manage} />
           <VersionHistory organizationId={orgId} canManage={manage} />
           <VersionDiff organizationId={orgId} />
         </OverlayPanel>
+
       </BuilderHistoryProvider>
 
       {/* ------------------------ One advanced door ------------------------ */}

@@ -32,7 +32,14 @@ describe("attachment failover", () => {
     expect(source).toContain("function carriesAttachment(");
     expect(source).toContain("nextProviderOnInvalidRequest: carriesAttachment(request.messages)");
     expect(source).toContain("freeOnly: request.freeOnly === true");
-    // The flag is never hardcoded on: a text-only call keeps the strict rule.
-    expect(source).not.toContain("nextProviderOnInvalidRequest: true");
+    // Text chat never hardcodes the flag: a text-only call keeps the strict rule.
+    // Picture calls are the one deliberate exception (a model that cannot make a
+    // new picture must not block the generator behind it), so the only literal
+    // `true` in this file belongs to the image lane.
+    const hardcoded = source.match(/nextProviderOnInvalidRequest: true/g) ?? [];
+    expect(hardcoded.length).toBe(1);
+    const imageLane = source.slice(source.indexOf("export async function generateImage"));
+    expect(imageLane).toContain("nextProviderOnInvalidRequest: true");
   });
 });
+

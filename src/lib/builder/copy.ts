@@ -147,14 +147,18 @@ function truncate(
     return text;
   }
 
+  const slice = text.slice(0, max - 1);
+  // Cut on a word boundary first, then on punctuation inside a long unbroken
+  // token (URLs, hyphenated compounds), so wording never ends mid-word.
+  const atWord = slice.replace(/\s+\S*$/, "").trim();
   const shortened =
-    text
-      .slice(0, max - 1)
-      .replace(/\s+\S*$/, "")
-      .trim();
+    atWord.length >= Math.ceil(max * 0.5)
+      ? atWord
+      : (slice.replace(/[^\s]*?[-–—/,;:]?[^\s\-–—/,;:]*$/, "").trim() || slice.trim());
 
   return `${shortened}…`;
 }
+
 
 function unique(
   values: string[],

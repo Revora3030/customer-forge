@@ -150,7 +150,7 @@ function AdminWebsites() {
               const meta = requestStatusMeta(String(r.status));
               const id = String(r.id);
               return (
-                <li key={id} className="rounded-md border border-border p-4">
+                <li key={id} className="product-tile">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
                       <p className="text-[13px] font-medium">{String(r.title)}</p>

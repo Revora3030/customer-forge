@@ -77,7 +77,7 @@ function MySite() {
             addresses.map((address) => (
               <li
                 key={address.url}
-                className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border bg-card/50 px-3 py-2"
+                className="flex flex-wrap items-center justify-between gap-2 product-tile"
               >
                 <div className="min-w-0">
                   <p className="truncate text-[13px] font-medium">
@@ -122,7 +122,7 @@ function MySite() {
             (pages ?? []).map((page) => {
               const visible = page.sections.filter((section) => section.is_visible);
               return (
-                <div key={page.id} className="rounded-md border border-border bg-card/50 p-3">
+                <div key={page.id} className="product-tile">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <p className="text-[13px] font-medium">
                       {page.title}

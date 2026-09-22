@@ -61,10 +61,12 @@ export type FirstBuildImageResult = {
 
 function maxStarterImages() {
   const raw = Number(process.env["FIRST_BUILD_IMAGE_MAX"] ?? "");
-  // Enough coverage for the hero, several service pages and campaign support,
-  // while keeping generation finite and respecting the configured cost lane.
-  return Number.isFinite(raw) && raw > 0 ? Math.min(Math.floor(raw), 12) : 10;
+  // Every page that needs a picture must get one on the first build: the hero,
+  // each service page, the about page, campaign support and closing sections.
+  // The ceiling only keeps generation finite; it is not a quality budget.
+  return Number.isFinite(raw) && raw > 0 ? Math.min(Math.floor(raw), 28) : 24;
 }
+
 
 function safeSlot(shot: PlannedShot) {
   if (!SAFE_STARTER_SLOTS.has(shot.slot)) return false;
