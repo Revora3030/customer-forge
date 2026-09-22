@@ -1,20 +1,20 @@
-# Active work
-- [x] Make direct AI style requests produce visible, scoped changes instead of near-identical no-ops.
-- [x] Expose the complete safe visual-style contract to planning, persistence, preview, undo, and verification.
-- [x] Preserve section/component settings and media in restore points.
-- [x] Add regression tests for section backgrounds, typography, spacing, responsive styles, rollback, rendering, and no-op detection.
-- [x] Fix new-picture routing so editing-only models cannot block website image generation.
-- [x] Add “Generate sections from my text” beside the business-description input.
-- [x] Route it through Sol planning, Terra approval, copy, and image generation.
-- [x] Show clear progress, success, and actionable failure states.
-- [x] Add regression coverage and verify the preview build; authenticated browser interaction remains unavailable without a test session.
+# Roadmap — close the ten builder gaps vs Lovable
 
-- [x] Simplify every product surface into one focused, Lovable-style workspace.
-- [x] Unify customer, command-center, portal, and admin navigation and page hierarchy.
-- [x] Reduce visual density without removing workflows, security boundaries, or production controls.
-- [x] Verify representative desktop and mobile routes, metadata, and automated quality checks.
-- [x] Simplify the website builder into one continuous chat, one preview, and one tools menu.
-- [x] Keep the prompt focused and visible while preserving approvals, rollback, manual editing, history, and publishing.
-- [x] Let AI use precise safe typography, spacing, sizing, backgrounds, borders, and responsive values instead of narrow preset steps.
-- [x] Make section-level AI text colors and fonts override nested renderer defaults consistently.
-- [x] Make AI restore points and production version snapshots preserve the complete styled page tree, media, and responsive settings.
+Ordered by user-felt impact. Each item: extend existing code, never duplicate.
+
+- [ ] 1. Streaming chat replies (live token-by-token assistant reply + step activity)
+- [ ] 2. Click-to-edit on the preview (select a section, talk about it)
+- [ ] 3. Plan shown for approval before large changes
+- [ ] 4. Browsable version timeline with preview + jump-to-version
+- [ ] 5. AI asks a clarifying question instead of guessing
+- [ ] 6. Reference screenshot as a design brief (drop image -> styling)
+- [ ] 7. Blog / repeating collections on generated sites
+- [ ] 8. Custom embed block (booking widget, map, third-party)
+- [ ] 9. Preview device switching (phone / tablet / desktop)
+- [ ] 10. Before/after comparison after a change lands
+
+## Constraints
+- Typed sanitized style/content tokens only; no arbitrary CSS/JS.
+- Truthful content gates stay. RLS/tenant isolation, Stripe, publishing untouched.
+- No deterministic template authority; AI keeps creative control.
+- Verify each batch: tsgo --noEmit, vitest, lint, build log.
