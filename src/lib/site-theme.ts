@@ -173,6 +173,46 @@ const SERIF_FONTS = new Set([
   "Spectral",
 ]);
 
+/**
+ * Families that ship a real italic face, with the exact axis request that
+ * returns it. Every entry here was checked against Google Fonts: asking for an
+ * italic a family does not have returns an upright face and the browser fakes
+ * the slant, which looks cheap on a headline — so families without a genuine
+ * italic (Oswald, Marcellus, Syne, Sora, Manrope, Outfit, Space Grotesk,
+ * Bricolage Grotesque, and the single-weight display faces) are left out.
+ */
+const SITE_ITALIC_FONTS: Record<string, string> = {
+  Chivo: "Chivo:ital,wght@0,500;0,600;0,700;1,500;1,600;1,700",
+  "Cormorant Garamond": "Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500;1,600;1,700",
+  "DM Serif Display": "DM+Serif+Display:ital@0;1",
+  Epilogue: "Epilogue:ital,wght@0,500;0,600;0,700;1,500;1,600;1,700",
+  Figtree: "Figtree:ital,wght@0,500;0,600;0,700;1,500;1,600;1,700",
+  Fraunces: "Fraunces:ital,wght@0,500;0,600;0,700;1,500;1,600;1,700",
+  Geist: "Geist:ital,wght@0,500;0,600;0,700;1,500;1,600;1,700",
+  "IBM Plex Sans": "IBM+Plex+Sans:ital,wght@0,500;0,600;0,700;1,500;1,600;1,700",
+  "Instrument Serif": "Instrument+Serif:ital@0;1",
+  Inter: "Inter:ital,wght@0,500;0,600;0,700;1,500;1,600;1,700",
+  Jost: "Jost:ital,wght@0,500;0,600;0,700;1,500;1,600;1,700",
+  Karla: "Karla:ital,wght@0,500;0,600;0,700;1,500;1,600;1,700",
+  "Libre Baskerville": "Libre+Baskerville:ital,wght@0,400;0,700;1,400",
+  Lora: "Lora:ital,wght@0,500;0,600;0,700;1,500;1,600;1,700",
+  Merriweather: "Merriweather:ital,wght@0,400;0,700;1,400;1,700",
+  "Playfair Display": "Playfair+Display:ital,wght@0,500;0,600;0,700;1,500;1,600;1,700",
+  "Plus Jakarta Sans": "Plus+Jakarta+Sans:ital,wght@0,500;0,600;0,700;1,500;1,600;1,700",
+  "Public Sans": "Public+Sans:ital,wght@0,500;0,600;0,700;1,500;1,600;1,700",
+  Rubik: "Rubik:ital,wght@0,500;0,600;0,700;1,500;1,600;1,700",
+  "Schibsted Grotesk": "Schibsted+Grotesk:ital,wght@0,500;0,600;0,700;1,500;1,600;1,700",
+  Spectral: "Spectral:ital,wght@0,500;0,600;0,700;1,500;1,600;1,700",
+  Urbanist: "Urbanist:ital,wght@0,500;0,600;0,700;1,500;1,600;1,700",
+  "Work Sans": "Work+Sans:ital,wght@0,500;0,600;0,700;1,500;1,600;1,700",
+};
+
+/** True when the site's heading font can render a genuine italic. */
+export function siteFontHasItalic(value: string | null | undefined): boolean {
+  const font = siteHeadingFont(value);
+  return font !== null && font in SITE_ITALIC_FONTS;
+}
+
 /** The allowlisted font name for a stored preference, or null. */
 export function siteHeadingFont(value: string | null | undefined): string | null {
   if (typeof value !== "string") return null;
