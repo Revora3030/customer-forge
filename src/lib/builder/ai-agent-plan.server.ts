@@ -243,7 +243,7 @@ export async function planWebsiteChangesWithAi(input: {
     system,
     user,
     organizationId: input.organizationId,
-    maxOutputTokens: 6000,
+    maxOutputTokens: 12000,
   });
   if (!direction.ok) {
     return { ok: false, reason: direction.reason, detail: direction.detail };
