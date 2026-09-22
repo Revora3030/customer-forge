@@ -16,7 +16,7 @@
  * refuses, or answers in the wrong shape, this returns the deterministic build
  * completely unchanged and says so — the build never depends on paid AI.
  */
-import { callCollective } from "@/lib/ai/luna.server";
+import { callBestThinker } from "@/lib/ai/hall-of-fame.server";
 import { screenClaims, type DnaFacts } from "@/lib/business-dna";
 import { formatLocality } from "@/lib/locality";
 import type { SiteCopy } from "@/lib/site-engine";
@@ -58,7 +58,7 @@ import {
 import { creativeQualityPrompt } from "@/lib/builder/creative-quality-matrix";
 
 export type CollectivePassRecord = {
-  tier: "sol" | "terra" | "luna";
+  tier: "sol" | "terra" | "luna" | "hall_of_fame";
   purpose: string;
   model: string | null;
   used: boolean;
@@ -492,7 +492,7 @@ async function refineCreativeWithCollective(input: {
     2,
   );
 
-  const solCall = await callCollective({
+  const solCall = await callBestThinker({
     purpose: "creative_direction",
     complexity: "high",
     organizationId: input.organizationId,
@@ -521,7 +521,7 @@ async function refineCreativeWithCollective(input: {
 
   proposal = parseCreativeProposal(solCall.text);
   passes.push(
-    record(solCall.tier, "creative_direction", {
+    record(solCall.tier ?? "hall_of_fame", "creative_direction", {
       model: solCall.model,
       used: proposal !== null,
       costMicrocents: solCall.costMicrocents,
@@ -532,7 +532,7 @@ async function refineCreativeWithCollective(input: {
   if (!proposal) return { creative: input.creative, changed: false, passes };
 
   let approvedFields: string[] | null = null;
-  const terraCall = await callCollective({
+  const terraCall = await callBestThinker({
     purpose: "specialist_review",
     complexity: "medium",
     organizationId: input.organizationId,
@@ -559,7 +559,7 @@ async function refineCreativeWithCollective(input: {
     const parsed = parseReview(terraCall.text);
     approvedFields = parsed ? parsed.approvedFields : [];
     passes.push(
-      record(terraCall.tier, "creative_review", {
+      record(terraCall.tier ?? "hall_of_fame", "creative_review", {
         model: terraCall.model,
         used: parsed !== null,
         costMicrocents: terraCall.costMicrocents,
@@ -624,7 +624,7 @@ export async function refineFirstBuildWithCollective(input: {
   const sheet = factSheet(input.facts, input.brief, creative);
 
   /* -------------------------------- 1. Sol -------------------------------- */
-  const solCall = await callCollective({
+  const solCall = await callBestThinker({
     purpose: "content_strategy",
     complexity: "high",
     organizationId: input.organizationId,
@@ -672,7 +672,7 @@ export async function refineFirstBuildWithCollective(input: {
   } else {
     solProposal = parseRefinement(solCall.text);
     passes.push(
-      record(solCall.tier, "content_strategy", {
+      record(solCall.tier ?? "hall_of_fame", "content_strategy", {
         model: solCall.model,
         used: solProposal !== null,
         costMicrocents: solCall.costMicrocents,
@@ -685,7 +685,7 @@ export async function refineFirstBuildWithCollective(input: {
   /* ------------------------------- 2. Terra ------------------------------- */
   let approvedFields: string[] | null = null;
   if (solProposal) {
-    const terraCall = await callCollective({
+    const terraCall = await callBestThinker({
       purpose: "specialist_review",
       complexity: "medium",
       organizationId: input.organizationId,
@@ -718,7 +718,7 @@ export async function refineFirstBuildWithCollective(input: {
       const parsed = parseReview(terraCall.text);
       approvedFields = parsed ? parsed.approvedFields : null;
       passes.push(
-        record(terraCall.tier, "specialist_review", {
+        record(terraCall.tier ?? "hall_of_fame", "specialist_review", {
           model: terraCall.model,
           used: parsed !== null,
           costMicrocents: terraCall.costMicrocents,
@@ -753,7 +753,7 @@ export async function refineFirstBuildWithCollective(input: {
   }
 
   /* -------------------------------- 3. Luna ------------------------------- */
-  const lunaCall = await callCollective({
+  const lunaCall = await callBestThinker({
     purpose: "metadata",
     complexity: "low",
     organizationId: input.organizationId,
@@ -803,7 +803,7 @@ export async function refineFirstBuildWithCollective(input: {
       copyChanged = true;
     }
     passes.push(
-      record(lunaCall.tier, "metadata", {
+      record(lunaCall.tier ?? "hall_of_fame", "metadata", {
         model: lunaCall.model,
         used: acceptedKeys.length > 0,
         costMicrocents: lunaCall.costMicrocents,
