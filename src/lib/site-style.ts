@@ -189,9 +189,14 @@ const NAMED_COLORS: Record<string, string> = {
   onyx: "#0a0a0a", platinum: "#e5e7eb", rose: "#e11d48", tan: "#d2b48c",
 };
 
+/** Modern colour spaces the design team can reach for, values kept plain. */
+const MODERN_COLOR_FN =
+  /^(?:oklch|oklab|lab|lch|hwb|color)\(\s*[0-9a-z%.\-+/ ]{1,80}\)$/i;
+
 /**
- * A colour the renderer can emit safely: hex (3/4/6/8 digit), an `rgb()`/`hsl()`
- * function, or a human colour name. No `url()`, no expressions, no arbitrary CSS.
+ * A colour the renderer can emit safely: hex (3/4/6/8 digit), an
+ * `rgb()`/`hsl()`/`oklch()`/`lab()`/`lch()`/`hwb()`/`color()` function, or a human
+ * colour name. No `url()`, no variables, no expressions, no arbitrary CSS.
  */
 export function safeColor(value: unknown): string | null {
   if (typeof value !== "string") return null;
@@ -199,6 +204,7 @@ export function safeColor(value: unknown): string | null {
   if (!trimmed || /[;{}<>\\]|url\(|var\(|expression|@import/i.test(trimmed)) return null;
   if (HEX.test(trimmed)) return trimmed;
   if (RGB_FN.test(trimmed) || HSL_FN.test(trimmed)) return trimmed;
+  if (MODERN_COLOR_FN.test(trimmed)) return trimmed;
   const named = NAMED_COLORS[trimmed] ?? NAMED_COLORS[trimmed.replace(/[\s_]+/g, "")];
   return named ?? null;
 }
