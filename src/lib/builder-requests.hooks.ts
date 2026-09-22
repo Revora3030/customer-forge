@@ -62,6 +62,7 @@ export function useBuilderRequests({
   >([]);
   const [brand, setBrand] = useState<BrandPreference | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [refreshRevision, setRefreshRevision] = useState(0);
   const queryClient = useQueryClient();
 
   // Honest report of what this device can do. Building never depends on it.
@@ -97,6 +98,7 @@ export function useBuilderRequests({
         queryClient.invalidateQueries({ queryKey: ["build_readiness", organizationId] }),
       ]);
     } finally {
+      setRefreshRevision((value) => value + 1);
       setRefreshing(false);
     }
   };
@@ -306,6 +308,7 @@ export function useBuilderRequests({
     tasks,
     busy,
     refreshing,
+    refreshRevision,
     ready,
     summary,
     capabilities,

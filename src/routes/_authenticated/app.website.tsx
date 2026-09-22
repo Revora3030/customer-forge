@@ -464,6 +464,7 @@ function WebsitePage() {
             selection={selected}
             onClearSelection={() => setSelected(null)}
             onOpenHistory={() => setHistoryOpen(true)}
+            publishState={publishState}
             organizationId={orgId ?? null}
             requests={requests}
             onOpenExtras={() => setAdvanced("assistant")}
@@ -477,6 +478,7 @@ function WebsitePage() {
               slug={org.slug}
               pages={pages ?? []}
               refreshing={requests.refreshing}
+              refreshRevision={requests.refreshRevision}
               selectedId={selected?.id ?? null}
               onSelect={(pick) => {
                 setSelected(pick);

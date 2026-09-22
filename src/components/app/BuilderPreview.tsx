@@ -38,12 +38,15 @@ export function BuilderPreview({
   slug,
   pages,
   refreshing = false,
+  refreshRevision = 0,
   onSelect,
   selectedId = null,
 }: {
   slug: string;
   pages: ContentPage[];
   refreshing?: boolean;
+  /** Increments only after saved website data has been invalidated and reloaded. */
+  refreshRevision?: number;
   /** Called when the owner clicks a block while select mode is on. */
   onSelect?: (selection: PreviewSelection) => void;
   /** The block currently being discussed, outlined inside the preview. */
@@ -217,7 +220,7 @@ export function BuilderPreview({
         >
           <iframe
             ref={frameRef}
-            key={`${source}-${refreshKey}-${refreshing ? "updating" : "ready"}`}
+            key={`${source}-${refreshKey}-${refreshRevision}`}
             data-testid="builder-preview-frame"
             data-preview-src={source}
             title={`${page?.title ?? "Website"} preview`}

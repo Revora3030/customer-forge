@@ -50,6 +50,7 @@ export function BuilderAssistant({
   selection = null,
   onClearSelection,
   onOpenHistory,
+  publishState = "draft",
 }: {
   organizationId: string | null;
   requests: BuilderRequests;
@@ -63,6 +64,7 @@ export function BuilderAssistant({
   onClearSelection?: () => void;
   /** Opens History, where the before-and-after comparison lives. */
   onOpenHistory?: () => void;
+  publishState?: string;
 }) {
   const [value, setValue] = useState("");
   const [moreOpen, setMoreOpen] = useState(false);
@@ -150,6 +152,7 @@ export function BuilderAssistant({
                     organizationId={organizationId}
                     onAnswer={setAnswering}
                     {...(onOpenHistory ? { onOpenHistory } : {})}
+                    publishState={publishState}
                   />
                 </MessageContent>
               </Message>
@@ -270,6 +273,7 @@ function TaskBody({
   organizationId,
   onAnswer,
   onOpenHistory,
+  publishState,
 }: {
   task: QueueTask;
   requests: BuilderRequests;
@@ -277,6 +281,7 @@ function TaskBody({
   /** Picks one of Revora's questions to answer with the next message. */
   onAnswer: (question: string) => void;
   onOpenHistory?: () => void;
+  publishState: string;
 }) {
   const working = task.state === "queued" || task.state === "planning" || task.state === "building";
   const timeline = timelineFor(task);
@@ -328,11 +333,14 @@ function TaskBody({
       ) : null}
 
       {task.state === "complete" ? (
-        <p className="text-[12px] text-muted-foreground">
+        <div className="space-y-1 text-[12px] text-muted-foreground">
+          <p>
           {task.applied ?? 0} change{(task.applied ?? 0) === 1 ? "" : "s"} applied
           {task.failedCount ? `, ${task.failedCount} couldn't be applied` : ""}
           {task.staleCount ? `, ${task.staleCount} skipped` : ""}.
-        </p>
+          </p>
+          {publishState !== "published" ? <p>Draft updated — publish to make this public.</p> : null}
+        </div>
       ) : null}
       {task.notice ? <p className="text-[12.5px]">{task.notice}</p> : null}
 
