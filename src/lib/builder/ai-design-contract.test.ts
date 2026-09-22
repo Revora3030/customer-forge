@@ -20,7 +20,7 @@ function contract(overrides: Partial<AiDesignContract> = {}): AiDesignContract {
     REQUIRED_RESPONSIVE_WIDTHS.map((width) => [
       width,
       {
-        order: ["home-hero-0", "home-services-1"],
+        order: ["home-hero-0", "home-services-1", "home-cta-2"],
         typeScale: 1,
         cta: "inline",
         columns: width < 500 ? 1 : 3,
