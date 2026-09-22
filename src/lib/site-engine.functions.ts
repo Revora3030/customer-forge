@@ -444,31 +444,6 @@ function observationInputOf(input: Record<string, unknown>) {
   };
 }
 
-async function referenceBaseFingerprint(
-  supabase: SupabaseClient<Database>,
-  organizationId: string,
-) {
-  const [{ data: settings }, { data: org }, { data: profile }] = await Promise.all([
-    supabase.from("website_settings").select("generation").eq("organization_id", organizationId).maybeSingle(),
-    supabase.from("organizations").select("name, industry").eq("id", organizationId).maybeSingle(),
-    supabase.from("business_profiles").select("city, service_area").eq("organization_id", organizationId).maybeSingle(),
-  ]);
-  const generation = (settings?.generation ?? {}) as Record<string, unknown>;
-  const { readDesignFingerprint, createDesignFingerprint } = await import("@/lib/builder/design-fingerprint");
-  const stored = readDesignFingerprint(generation);
-  if (stored) return { generation, fingerprint: stored, businessName: org?.name ?? null };
-  return {
-    generation,
-    fingerprint: createDesignFingerprint({
-      businessName: org?.name ?? null,
-      industry: org?.industry ?? null,
-      city: (profile?.city as string | null | undefined) ?? (profile?.service_area as string | null | undefined) ?? null,
-      photoCount: 0,
-    }),
-    businessName: org?.name ?? null,
-  };
-}
-
 async function persistScreenshotReference(
   supabase: SupabaseClient<Database>,
   input: {
@@ -480,25 +455,34 @@ async function persistScreenshotReference(
     model?: string;
   },
 ) {
-  const { normalizeScreenshotReferenceObservations, deriveScreenshotReferenceFingerprint } = await import(
+  const { data: org } = await supabase
+    .from("organizations")
+    .select("name")
+    .eq("id", input.organizationId)
+    .maybeSingle();
+  const { normalizeScreenshotReferenceObservations, deriveScreenshotReferenceSignals } = await import(
     "@/lib/builder/screenshot-reference"
   );
-  const base = await referenceBaseFingerprint(supabase, input.organizationId);
+  const businessName = org?.name ?? null;
   const observations = normalizeScreenshotReferenceObservations(input.observations, {
-    businessName: base.businessName,
-    blockedNames: [base.businessName ?? ""],
+    businessName,
+    blockedNames: [businessName ?? ""],
     maxPerField: 8,
   });
   const hasAny = Object.values(observations).some((list) => list.length > 0);
   if (!hasAny) throw new Error("No reusable design patterns were found. Add layout, spacing, type or colour notes.");
-  const reference = deriveScreenshotReferenceFingerprint({
+  const reference = deriveScreenshotReferenceSignals({
     observations,
-    base: base.fingerprint,
-    businessName: base.businessName,
-    blockedNames: [base.businessName ?? ""],
+    businessName,
+    blockedNames: [businessName ?? ""],
   });
+  const { data: settings } = await supabase
+    .from("website_settings")
+    .select("generation")
+    .eq("organization_id", input.organizationId)
+    .maybeSingle();
   const generation = {
-    ...base.generation,
+    ...((settings?.generation ?? {}) as Record<string, unknown>),
     screenshotReferenceObservations: observations,
     screenshotReference: {
       ...reference,
