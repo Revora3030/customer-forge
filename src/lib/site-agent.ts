@@ -318,6 +318,9 @@ export type ThemePatch = {
 /** Safe block styling shared by the AI planner, visual editor and renderer. */
 export type BlockStylePatch = Partial<Record<StyleKey, BlockStyle[StyleKey] | null>>;
 
+export type AiVisualPatch = Record<string, string | number>;
+
+
 export const BUSINESS_FACT_FIELDS = [
   "tagline",
   "description",
@@ -356,6 +359,19 @@ export type AgentAction =
       type: "set_section_variant";
       sectionId: string;
       variant: string;
+    }
+
+  | {
+      type: "set_ai_visual";
+      sectionId: string;
+      patch: AiVisualPatch;
+    }
+
+  | {
+      type: "set_ai_responsive";
+      sectionId: string;
+      width: number;
+      patch: AiVisualPatch;
     }
 
   | {
@@ -1213,6 +1229,31 @@ export function readActions(
       /* ------------------------------------------------------------------ */
       /* SECTION VARIANT                                                    */
       /* ------------------------------------------------------------------ */
+
+      case "set_ai_visual":
+      case "set_ai_responsive": {
+        if (!knownSection(sectionId)) break;
+        const patchRaw = row["patch"];
+        if (!patchRaw || typeof patchRaw !== "object" || Array.isArray(patchRaw)) break;
+        const patch: Record<string, string | number> = {};
+        for (const [key, value] of Object.entries(patchRaw as Record<string, unknown>)) {
+          if (
+            (typeof value === "string" && value.length <= 500) ||
+            (typeof value === "number" && Number.isFinite(value))
+          ) {
+            patch[key] = value;
+          }
+        }
+        if (!Object.keys(patch).length) break;
+        if (type === "set_ai_responsive") {
+          const width = Number(row["width"]);
+          if (!Number.isInteger(width) || width < 320 || width > 4096) break;
+          out.push({ type, sectionId, width, patch });
+        } else {
+          out.push({ type, sectionId, patch });
+        }
+        break;
+      }
 
       case "set_section_variant": {
         const variant =
