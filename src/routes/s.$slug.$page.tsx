@@ -19,6 +19,7 @@ import { readComposition } from "@/lib/visual-composition";
 import { readBackdrop } from "@/lib/site-effects";
 import { getPublicSite, trackPublicEvent, type PublicSite } from "@/lib/public-site.functions";
 import { SiteVitals } from "@/components/site/SiteVitals";
+import { BuilderReturnBar } from "@/components/site/BuilderReturnBar";
 import { styleSheet } from "@/lib/site-style";
 import { readSeo } from "@/lib/site-seo";
 import { readCopy } from "@/lib/site-engine";
@@ -205,6 +206,7 @@ export function SitePageView({
 
         <StickyCallBar site={site} label={ctaLabel} />
         <SiteVitals slug={org.slug} preview={preview} />
+        {preview ? <BuilderReturnBar /> : null}
       </div>
     </div>
   );

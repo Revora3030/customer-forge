@@ -5,7 +5,9 @@
  * there. This route shows the work in progress instead, to signed-in members
  * of that business only.
  */
-import { createFileRoute, Outlet, useChildMatches } from "@tanstack/react-router";
+import { createFileRoute, Link, Outlet, useChildMatches } from "@tanstack/react-router";
+import { ArrowLeft } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { getOwnerDraftSite } from "@/lib/public-site.functions";
 import { PublicSiteView } from "@/routes/s.$slug";
 
@@ -40,6 +42,11 @@ export function DraftMessage({ title, body }: { title: string; body: string }) {
       <div>
         <h1 className="font-display text-[20px] font-semibold">{title}</h1>
         <p className="mt-2 text-[13px] text-muted-foreground">{body}</p>
+        <Button asChild variant="outline" size="sm" className="mt-5">
+          <Link to="/app/website">
+            <ArrowLeft className="size-4" /> Back to builder
+          </Link>
+        </Button>
       </div>
     </div>
   );
