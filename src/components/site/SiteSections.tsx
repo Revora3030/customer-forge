@@ -184,7 +184,7 @@ function SectionMedia({ site, section }: { site: Site; section: Section }) {
         if (!src) return null;
         const overlayClass = visual.overlay ? "rv-overlay-" + visual.overlay : "";
         return (
-          <figure key={component.id} data-rvb={component.id} style={blockCss(style)} className={`rv-media-frame ${ratioClass(visual.aspect_ratio)} ${overlayClass} overflow-hidden`}>
+          <figure key={component.id} data-rvb={component.id} style={blockCss(style, siteSurface(site))} className={`rv-media-frame ${ratioClass(visual.aspect_ratio)} ${overlayClass} overflow-hidden`}>
             <img
               src={src}
               alt={visual.alt || component.label || `${site.org.name} work sample`}
@@ -214,7 +214,7 @@ function SectionFeatureMedia({ site, section, className = "" }: { site: Site; se
   const src = componentImageUrl(component);
   if (!src) return null;
   return (
-    <figure data-rvb={component.id} style={blockCss(style)} className={`rv-feature-media overflow-hidden ${className}`}>
+    <figure data-rvb={component.id} style={blockCss(style, siteSurface(site))} className={`rv-feature-media overflow-hidden ${className}`}>
       <img
         src={src}
         alt={visual.alt || component.label || `${site.org.name} supporting image`}
@@ -239,7 +239,8 @@ function SectionButtons({ site, components }: { site: Site; components: Componen
         const style = readBlockStyle((button as Component & { settings?: unknown }).settings);
         const hasOverride = Boolean(style.buttonStyle || style.buttonSize || style.buttonTextColor || style.buttonBgColor);
         const directClass = hasOverride ? buttonClasses(style) : undefined;
-        const directStyle = { ...blockCss(style), ...buttonCss(style) };
+        const surface = siteSurface(site);
+        const directStyle = { ...blockCss(style, surface), ...buttonCss(style, surface) };
         return (
           <Button key={button.id} asChild variant={hasOverride ? "ghost" : index === 0 ? "signal" : "outline"} size={hasOverride ? "sm" : "lg"}>
             {internal ? (
@@ -278,7 +279,7 @@ export function SiteSection({ site, section }: { site: Site; section: Section })
   });
   const inner = <SiteSectionBody site={site} section={section} />;
 
-  const css = blockCss(style);
+  const css = blockCss(style, siteSurface(site));
   const customBackground = Boolean(style.bgColor || style.bgImage);
   const customText = Boolean(style.textColor);
   const customFont = Boolean(style.font);
