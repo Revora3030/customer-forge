@@ -536,6 +536,7 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
     let raw: Record<string, unknown>;
     let requirements: { label: string; covered: boolean }[] = [];
     let trace: string[] = [];
+    let planModel = "revora-ai";
 
     noteStage(orgId, runId, "planning the change");
     const authored = await planWebsiteChangesWithAi({
@@ -577,6 +578,9 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
 
     requirements = authored.requirements;
     trace = authored.trace;
+    planModel = authored.reviewModel
+      ? authored.model + "+" + authored.reviewModel
+      : authored.model;
     raw = {
       reply: authored.reply,
       summary: authored.summary,
