@@ -2010,6 +2010,18 @@ a[href*="lovable.app"][target="_blank"][class*="fixed"],
   padding-inline: 1.5rem;
 }
 
+/* A picture can never collapse into a sliver: whatever aspect ratio or device
+   override is applied, the frame keeps a real height so the image reads as a
+   photograph rather than a thin band. */
+.rv-site .rv-media-frame,
+.rv-site .rv-feature-media {
+  min-height: 12rem;
+}
+.rv-site .rv-media-frame > img,
+.rv-site .rv-feature-media > img {
+  min-height: 12rem;
+}
+
 .rv-image-cinematic .rv-media-frame,
 .rv-image-full_bleed .rv-media-frame {
   box-shadow: 0 28px 80px -40px rgb(0 0 0 / 0.65);
