@@ -688,6 +688,38 @@ function safeAiCssValue(value: unknown): string | number | null {
   return trimmed;
 }
 
+export function writeAiAuthoredVisual(
+  settings: unknown,
+  visual: Record<string, unknown>,
+): Record<string, unknown> {
+  const base =
+    settings && typeof settings === "object" && !Array.isArray(settings)
+      ? { ...(settings as Record<string, unknown>) }
+      : {};
+  const safe = aiAuthoredCss({ ai_visual: visual }) as Record<string, unknown>;
+  base["ai_visual"] = safe;
+  return base;
+}
+
+export function writeAiResponsiveVisual(
+  settings: unknown,
+  width: number,
+  visual: Record<string, unknown>,
+): Record<string, unknown> {
+  const base =
+    settings && typeof settings === "object" && !Array.isArray(settings)
+      ? { ...(settings as Record<string, unknown>) }
+      : {};
+  const existing =
+    base["ai_responsive"] && typeof base["ai_responsive"] === "object" && !Array.isArray(base["ai_responsive"])
+      ? { ...(base["ai_responsive"] as Record<string, unknown>) }
+      : {};
+  const safe = aiAuthoredCss({ ai_visual: visual }) as Record<string, unknown>;
+  existing[String(width)] = { visual: safe };
+  base["ai_responsive"] = existing;
+  return base;
+}
+
 /** Reads open-ended AI visual capabilities without converting them into a preset vocabulary. */
 export function aiAuthoredCss(settings: unknown): React.CSSProperties {
   if (!settings || typeof settings !== "object" || Array.isArray(settings)) return {};
