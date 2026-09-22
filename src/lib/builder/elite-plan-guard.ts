@@ -132,8 +132,7 @@ export function guardBuilderPlan(
   cap = MAX_ACTIONS,
 ): GuardResult {
   const known = ids(context);
-  const seen = new Map<string, number>();
-  const output: AgentAction[] = [];
+  const seenExact = new Set<string>();
   const refs = {
     pages: new Set<string>(),
     sections: new Set<string>(),
@@ -141,7 +140,6 @@ export function guardBuilderPlan(
   };
   let duplicates = 0;
   let unsafe = 0;
-  let replaced = 0;
 
   for (const action of actions) {
     if (output.length >= Math.min(cap, MAX_ACTIONS)) break;
@@ -164,19 +162,14 @@ export function guardBuilderPlan(
       continue;
     }
 
-    // Two steps touching the same thing are a correction, not noise: the later
-    // one is what the design team settled on, so it REPLACES the earlier one in
-    // place instead of being discarded. Order is preserved.
-    const signature = key(action);
-    const priorIndex = seen.get(signature);
-    if (priorIndex !== undefined) {
+    // Sequential edits to the same target are intentional staged changes.
+    // Only an exact duplicate is collapsed; later edits are preserved in order.
+    const exact = JSON.stringify(action);
+    if (seenExact.has(exact)) {
       duplicates += 1;
-      replaced += 1;
-      output[priorIndex] = action;
       continue;
     }
-
-    seen.set(signature, output.length);
+    seenExact.add(exact);
     output.push(action);
 
     if (action.type === "add_page" && action.ref) {
@@ -195,7 +188,7 @@ export function guardBuilderPlan(
 
   return {
     actions: output,
-    dropped: actions.length - output.length - replaced,
+    dropped: actions.length - output.length,
     duplicates,
     unsafe,
   };
