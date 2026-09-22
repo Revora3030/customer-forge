@@ -234,18 +234,35 @@ async function runCanonicalFirstBuild(input: {
 }): Promise<void> {
   const { db, job, business, profile, services, formsCount, bookingCount, goals, freshReplace, pendingBuild } = input;
   let materialized = false;
+  let leaseLost = false;
+  const buildAbort = new AbortController();
   const renewLease = async () => {
     const expires = new Date(Date.now() + LEASE_SECONDS * 1000).toISOString();
-    await db
+    const { data } = await db
       .from("generation_jobs")
       .update({ lease_expires_at: expires, updated_at: new Date().toISOString() } as never)
       .eq("id", job.id)
       .eq("status", "processing")
-      .eq("attempts", job.attempts);
+      .eq("attempts", job.attempts)
+      .select("id")
+      .maybeSingle();
+    if (!data?.id) {
+      leaseLost = true;
+      buildAbort.abort("Generation lease was lost to a newer attempt.");
+    }
+  };
+  const assertLease = () => {
+    if (leaseLost || buildAbort.signal.aborted) {
+      throw new Error("This generation attempt lost its lease to a newer worker, so its result was discarded.");
+    }
   };
   const leaseHeartbeat = setInterval(() => {
-    void renewLease().catch((error) => console.warn("[site-engine] lease renewal failed", error));
-  }, Math.max(30_000, Math.floor((LEASE_SECONDS * 1000) / 3)));
+    void renewLease().catch((error) => {
+      leaseLost = true;
+      buildAbort.abort("Generation lease renewal failed.");
+      console.warn("[site-engine] lease renewal failed", error);
+    });
+  }, Math.max(30_000, Math.floor((LEASE_SECONDS * 1000) / 3));
 
   try {
     const { authorCreativeSiteContract } = await import("@/lib/builder/creative-site-contract.server");
@@ -290,6 +307,7 @@ async function runCanonicalFirstBuild(input: {
     }
 
     const outcome = await authorCreativeSiteContract({
+      signal: buildAbort.signal,
       organizationId: job.organization_id,
       businessName: business.name,
       industry: business.industry,
@@ -338,6 +356,8 @@ async function runCanonicalFirstBuild(input: {
       );
     }
 
+    assertLease();
+
     const emptyCopy = {
       heroHeadline: "",
       heroSubheadline: "",
@@ -355,6 +375,7 @@ async function runCanonicalFirstBuild(input: {
       ogDescription: "",
     };
 
+    assertLease();
     const built = await materializeSiteContent(db, job.organization_id, {
       businessName: business.name,
       copy: emptyCopy,
@@ -395,6 +416,7 @@ async function runCanonicalFirstBuild(input: {
       reason: "AI-authored draft requires browser/visual verification before publish.",
     };
 
+    assertLease();
     const prior = await db
       .from("website_settings")
       .select("generation")
