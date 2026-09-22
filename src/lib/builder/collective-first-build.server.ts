@@ -55,6 +55,7 @@ import {
   reviewRefinement,
   type RefinementRejection,
 } from "@/lib/builder/collective-copy";
+import { creativeQualityPrompt } from "@/lib/builder/creative-quality-matrix";
 
 export type CollectivePassRecord = {
   tier: "sol" | "terra" | "luna";
@@ -239,6 +240,7 @@ function creativeSheet(creative: FirstBuildCreativeDirection) {
           mobileCrop: item.mobileCrop,
           evidenceTag: item.evidenceTag,
         })),
+        qualityMatrix: creative.brief.qualityMatrix,
       },
       imageStatus: creative.imagery.status,
       plannedShots: creative.imagery.shots.map((shot) => ({
@@ -496,7 +498,7 @@ async function refineCreativeWithCollective(input: {
     organizationId: input.organizationId,
     maxOutputTokens: 1800,
     ...(input.signal ? { signal: input.signal } : {}),
-    system: `${CREATIVE_RULES} You are Sol, the master creative director. Improve the design strategy so it can materially shape layout, imagery and section composition.`,
+    system: `${CREATIVE_RULES} You are Sol, the master creative director. Improve the design strategy so it can materially shape layout, imagery and section composition across every page. ${creativeQualityPrompt(input.creative.brief.qualityMatrix)}`,
     user: [
       "FACTS (truth source, not copy to invent from):",
       facts,

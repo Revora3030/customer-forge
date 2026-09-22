@@ -139,6 +139,7 @@ export type AiDesignContract = {
   motion: { pattern: string; intensity: "none" | "subtle" | "expressive" };
   accessibility: { minContrast: number; minTouchTargetPx: number; reducedMotionSafe: boolean };
   conversion: { goal: string; steps: string[] };
+  qualityMatrix: import("@/lib/builder/creative-quality-matrix").CreativeQualityMatrix;
   /** Each page composes itself. Different structures are expected, not a bug. */
   pages: PageDesign[];
 };
@@ -202,6 +203,32 @@ export function validateAiDesignContract(contract: AiDesignContract): {
         detail: "the AI designed a page with no sections",
         severity: "blocker",
       });
+    const roles = page.sections.map((section) => section.role);
+    if (contract.qualityMatrix.composition.deliberateOpeningRequired && roles[0] !== "hero")
+      violations.push({
+        path: `pages.${page.slug}.sections`,
+        detail: "every page needs a deliberate opening section",
+        severity: "blocker",
+      });
+    const closingRoles = new Set(["cta", "quote", "booking", "contact", "sticky_cta"]);
+    if (
+      contract.qualityMatrix.composition.closingActionRequired &&
+      !roles.some((role) => closingRoles.has(role))
+    )
+      violations.push({
+        path: `pages.${page.slug}.sections`,
+        detail: "every page needs a decisive conversion close",
+        severity: "blocker",
+      });
+    if (
+      contract.qualityMatrix.imagery.importantPageVisualRequired &&
+      !page.sections.some((section) => section.media === "required")
+    )
+      violations.push({
+        path: `pages.${page.slug}.sections`,
+        detail: "every important page needs at least one required visual",
+        severity: "blocker",
+      });
     const ids = new Set<string>();
     for (const section of page.sections) {
       if (ids.has(section.id))
@@ -243,6 +270,21 @@ export function validateAiDesignContract(contract: AiDesignContract): {
     violations.push({
       path: "accessibility.minTouchTargetPx",
       detail: "interactive targets must be at least 44px",
+      severity: "blocker",
+    });
+  if (
+    Object.keys(contract.color.extras).length >
+    contract.qualityMatrix.identity.restrainedAccentRoles
+  )
+    violations.push({
+      path: "color.extras",
+      detail: "the accent system is too broad to remain visually disciplined",
+      severity: "blocker",
+    });
+  if (contract.typography.measureCh < 42 || contract.typography.measureCh > 76)
+    violations.push({
+      path: "typography.measureCh",
+      detail: "body text measure is outside the readable editorial range",
       severity: "blocker",
     });
 
