@@ -102,6 +102,10 @@ export type BlockStyle = {
   marginBottom: number | null;
   /* appearance */
   bgColor: string | null;
+  /** Second colour of a background gradient, blended from `bgColor`. */
+  bgGradient: string | null;
+  /** Gradient direction in degrees (0 = upward, 180 = downward). */
+  bgGradientAngle: number | null;
   bgImage: string | null;
   overlay: number | null;
   radius: number | null;
