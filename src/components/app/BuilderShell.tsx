@@ -22,7 +22,7 @@ function UndoRedo() {
   const base =
     "grid size-8 place-items-center rounded-md border border-border text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground disabled:opacity-40 disabled:hover:border-border disabled:hover:text-muted-foreground";
   return (
-    <div className="flex items-center gap-1">
+    <div className="hidden items-center gap-1 sm:flex">
       <button
         type="button"
         onClick={history.undo}
@@ -116,8 +116,8 @@ export function BuilderShell({
   return (
     <div className="-mt-1">
       {/* ---------------------------- Top bar ---------------------------- */}
-      <div className="sticky top-0 z-30 -mx-4 mb-4 border-b border-border bg-background/95 px-4 py-2.5 backdrop-blur">
-        <div className="flex flex-wrap items-center gap-2">
+       <div className="sticky top-0 z-30 -mx-4 mb-3 border-b border-border bg-background/95 px-4 py-2.5 backdrop-blur">
+         <div className="flex items-center gap-2">
           {sections.length > 1 ? (
           <button
             type="button"
@@ -129,8 +129,8 @@ export function BuilderShell({
           </button>
           ) : null}
 
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-[13px] font-medium">{projectName}</p>
+           <div className="min-w-0 flex-1 text-center sm:text-left">
+             <p className="truncate text-[14px] font-medium">{projectName}</p>
             <div className="mt-0.5 flex items-center gap-1.5">
               <span
                 data-testid="builder-status"
@@ -142,14 +142,14 @@ export function BuilderShell({
                 {statusLabel}
               </span>
               {saveLabel ? (
-                <span className="truncate text-[11px] text-muted-foreground">{saveLabel}</span>
+                 <span className="hidden truncate text-[11px] text-muted-foreground sm:inline">{saveLabel}</span>
               ) : null}
             </div>
           </div>
 
           {/* On a phone the actions form an even two-column block instead of
               wrapping into a ragged line with one stranded button. */}
-          <div className="grid w-full min-w-0 grid-cols-2 items-center gap-2 sm:flex sm:w-auto sm:flex-nowrap sm:justify-end [&>a]:w-full [&>a]:justify-center [&>a]:whitespace-nowrap [&>button]:w-full [&>button]:justify-center [&>button]:whitespace-nowrap sm:[&>a]:w-auto sm:[&>button]:w-auto">
+           <div className="flex min-w-0 shrink-0 items-center justify-end gap-1.5 [&>a]:whitespace-nowrap [&>button]:whitespace-nowrap">
             <UndoRedo />
             {actions}
           </div>

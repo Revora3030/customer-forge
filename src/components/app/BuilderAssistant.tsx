@@ -8,7 +8,7 @@
  * (`useBuilderRequests`), which still saves a version first and still waits for
  * an explicit press before anything is removed.
  */
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowDown, ArrowUp, Image as ImageIcon, Mic, Trash2 } from "lucide-react";
 import {
   Conversation,
@@ -57,8 +57,13 @@ export function BuilderAssistant({
 }) {
   const [value, setValue] = useState("");
   const [moreOpen, setMoreOpen] = useState(false);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const queueRef = useRef(requests.queue);
   queueRef.current = requests.queue;
+  const activityKey = useMemo(
+    () => requests.tasks.map((task) => `${task.id}:${task.state}`).join("|"),
+    [requests.tasks],
+  );
 
   // Any panel elsewhere in the builder can hand its request to this box.
   useEffect(
@@ -73,25 +78,39 @@ export function BuilderAssistant({
     if (!text.trim()) return;
     requests.queue(text);
     setValue("");
+    window.requestAnimationFrame(() => inputRef.current?.focus());
   };
+
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, [activityKey]);
 
   return (
     <section
       id="website-assistant"
       className={cn(
-        "panel flex flex-col p-0",
-        compact ? "min-h-[340px] lg:h-[calc(100vh-11rem)]" : "min-h-[520px] lg:h-[calc(100vh-10rem)]",
+        "flex flex-col overflow-hidden rounded-xl border border-border bg-card/45 p-0 shadow-panel",
+        compact ? "min-h-[520px] h-[calc(100dvh-11.5rem)] lg:h-[calc(100vh-8rem)]" : "min-h-[560px] h-[calc(100dvh-10rem)]",
       )}
     >
       <Conversation className="min-h-0 flex-1">
-        <ConversationContent className="gap-5 p-4">
+        <ConversationContent className="gap-7 px-4 py-6 sm:px-6">
           {requests.tasks.length === 0 ? (
-            <ConversationEmptyState title={emptyTitle} description={emptyHint} />
+            <ConversationEmptyState className="items-start justify-end text-left" title={emptyTitle} description={emptyHint}>
+              <div className="max-w-md space-y-2">
+                <div className="flex items-center gap-2">
+                  <img src="/revora-mark-144.png" alt="" className="size-7 rounded-md" />
+                  <p className="text-[13px] font-semibold">Revora</p>
+                </div>
+                <h2 className="text-lg font-semibold">{emptyTitle}</h2>
+                <p className="text-[13px] leading-relaxed text-muted-foreground">{emptyHint}</p>
+              </div>
+            </ConversationEmptyState>
           ) : null}
           {requests.tasks.map((task) => (
             <div key={task.id} className="space-y-3">
               <Message from="user">
-                <MessageContent>{task.instruction}</MessageContent>
+                <MessageContent className="bg-primary text-primary-foreground">{task.instruction}</MessageContent>
               </Message>
               <Message from="assistant">
                 <MessageContent className="w-full">
@@ -104,9 +123,9 @@ export function BuilderAssistant({
         <ConversationScrollButton />
       </Conversation>
 
-      <div className="border-t border-border p-3">
+      <div className="border-t border-border bg-background/85 p-3 backdrop-blur">
         {/* Everything the old separate AI panels offered, as one tap each. */}
-        <div className="mb-2 flex flex-wrap gap-1.5">
+        <div className="mb-2 flex gap-1.5 overflow-x-auto pb-0.5">
           {(moreOpen ? SUGGESTIONS : SUGGESTIONS.slice(0, 3)).map((action) => (
             <button
               key={action.label}
@@ -114,7 +133,7 @@ export function BuilderAssistant({
               disabled={!requests.ready}
               onClick={() => requests.queue(action.instruction)}
               className={cn(
-                "min-h-8 cursor-pointer rounded-full border border-border px-3 py-1 text-[12px] text-muted-foreground transition-colors",
+                "min-h-8 shrink-0 cursor-pointer rounded-full border border-border px-3 py-1 text-[12px] text-muted-foreground transition-colors",
                 "hover:bg-elevated hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none disabled:opacity-50",
               )}
             >
@@ -125,7 +144,7 @@ export function BuilderAssistant({
             type="button"
             aria-expanded={moreOpen}
             onClick={() => setMoreOpen((open) => !open)}
-            className="min-h-8 cursor-pointer rounded-full px-2.5 py-1 text-[12px] font-medium text-primary transition-colors hover:bg-primary/10 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+            className="min-h-8 shrink-0 cursor-pointer rounded-full px-2.5 py-1 text-[12px] font-medium text-primary transition-colors hover:bg-primary/10 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
           >
             {moreOpen ? "Fewer ideas" : "More ideas"}
           </button>
@@ -138,10 +157,11 @@ export function BuilderAssistant({
           }}
         >
           <PromptInputTextarea
+            ref={inputRef}
             value={value}
             maxLength={INSTRUCTION_LIMIT}
             disabled={!requests.ready}
-            placeholder="Tell Revora what to change…"
+            placeholder="Ask Revora…"
             aria-label="Tell Revora what to change"
             onChange={(event) => setValue(event.target.value)}
           />
@@ -194,7 +214,7 @@ function TaskBody({
   requests: BuilderRequests;
   organizationId: string | null | undefined;
 }) {
-  const working = task.state === "planning" || task.state === "building";
+  const working = task.state === "queued" || task.state === "planning" || task.state === "building";
   const timeline = timelineFor(task);
   // The steps the server has genuinely recorded for this build, shown live.
   const { latest, steps } = useBuildProgress(organizationId, working);
@@ -221,6 +241,8 @@ function TaskBody({
           <Shimmer>
             {latest
               ? `${latest.stage}…`
+              : task.state === "queued"
+                ? "Got it — I’m starting now…"
               : task.state === "planning"
                 ? "Working out the change…"
                 : "Applying…"}
@@ -235,21 +257,9 @@ function TaskBody({
       {task.reply ? <p className="text-[13px] whitespace-pre-line">{task.reply}</p> : null}
       {task.error ? <p className="text-[12.5px]">{task.error}</p> : null}
 
-      {task.state === "planning" || task.state === "waiting_for_approval" || task.state === "building" || task.state === "complete" ? (
-        <p className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[11.5px] text-muted-foreground">
-          {timeline.stages.map((stage, index) => (
-            <span key={stage} className="flex items-center gap-1.5">
-              {index > 0 ? <span aria-hidden>·</span> : null}
-              <span
-                className={cn(
-                  index === timeline.current && "text-foreground font-medium",
-                  index > timeline.current && "opacity-50",
-                )}
-              >
-                {stage}
-              </span>
-            </span>
-          ))}
+      {working ? (
+        <p className="text-[11.5px] text-muted-foreground">
+          {timeline.stages[timeline.current]}
         </p>
       ) : null}
 

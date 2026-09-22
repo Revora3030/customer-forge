@@ -338,7 +338,7 @@ export async function planChanges(
   const messages: ChatMessage[] = [
     { role: "system", content: SYSTEM },
     { role: "user", content: `SITE MAP AND BUSINESS FACTS:\n${siteMap(context)}` },
-    ...history.slice(-8).map((turn) => ({ role: turn.role, content: turn.content })),
+    ...history.slice(-24).map((turn) => ({ role: turn.role, content: turn.content })),
     {
       role: "user",
       content: parts.length === 1 ? (parts[0] as { text: string }).text : parts,

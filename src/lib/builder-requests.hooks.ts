@@ -224,7 +224,7 @@ export function useBuilderRequests({
         data: {
           organizationId: organizationId!,
           instruction: task.instruction,
-          history: conversation.slice(-8),
+          history: conversation.slice(-24),
           attachments: [],
           ...(brand && hasBrandChoices(brand) ? { brand } : {}),
         },
@@ -264,7 +264,7 @@ export function useBuilderRequests({
         { role: "user" as const, content: task.instruction },
         ...(result.reply ? [{ role: "assistant" as const, content: result.reply }] : []),
       ] satisfies Array<{ role: "user" | "assistant"; content: string }>;
-      setConversation(nextConversation.slice(-8));
+      setConversation(nextConversation.slice(-24));
       // A composed look and page structure is always previewed first: the owner
       // approves or adjusts it before anything is written.
       if (!result.unavailable && !planned.composition && canAutoApply(planned))
