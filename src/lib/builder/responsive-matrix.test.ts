@@ -25,7 +25,7 @@ const site: MatrixSite = {
 describe("responsive device matrix", () => {
   it("covers every promised width from 320 to 1440", () => {
     expect(DEVICE_MATRIX.map((entry) => entry.width)).toEqual([
-      320, 375, 390, 414, 768, 1024, 1280, 1440,
+      320, 375, 390, 414, 430, 768, 1024, 1280, 1440,
     ]);
   });
 
@@ -88,7 +88,7 @@ describe("responsive device matrix", () => {
   it("flags a phone menu with too many links", () => {
     const checks = evaluateDeviceMatrix({ ...site, navItemCount: 11 });
     const nav = checks.filter((check) => check.check === "navigation fits a phone");
-    expect(nav).toHaveLength(4);
+    expect(nav).toHaveLength(5);
     expect(nav.every((check) => check.verdict === "FAIL")).toBe(true);
   });
 
@@ -105,7 +105,7 @@ describe("responsive device matrix", () => {
     const checks = evaluateDeviceMatrix(heavy).filter(
       (check) => check.check === "readable copy length per column",
     );
-    expect(checks.map((check) => check.width)).toEqual([320, 375, 390, 414]);
+    expect(checks.map((check) => check.width)).toEqual([320, 375, 390, 414, 430]);
   });
 
   it("flags crowded touch targets on phones", () => {
@@ -118,6 +118,6 @@ describe("responsive device matrix", () => {
     const checks = evaluateDeviceMatrix(crowded).filter(
       (check) => check.check === "touch targets are not crowded",
     );
-    expect(checks).toHaveLength(4);
+    expect(checks).toHaveLength(5);
   });
 });
