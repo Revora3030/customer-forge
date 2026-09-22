@@ -605,7 +605,41 @@ async function runJob(
       refined.passes.filter((pass) => pass.used && pass.model)[1]?.model ?? null,
     conversionGoal: org.data.conversion_goal ?? "enquiries",
     replaceExisting: freshReplace,
+    architect: async (candidate) => {
+      const { proposePageArchitecture } = await import(
+        "@/lib/builder/ai-page-architecture.server"
+      );
+      const outcome = await proposePageArchitecture({
+        organizationId: orgId,
+        businessName: org.data.name ?? "",
+        industry: org.data.industry ?? null,
+        conversionGoal: org.data.conversion_goal ?? "enquiries",
+        candidate,
+      });
+      architectureOutcome = outcome;
+      return outcome.architecture;
+    },
   });
+  await db.from("ai_generations").insert({
+    organization_id: orgId,
+    job_id: job.id,
+    kind: "ai_page_architecture",
+    model: architectureOutcome?.models.join("+") || "revora-native",
+    instruction: null,
+    result: (architectureOutcome
+      ? {
+          authored: architectureOutcome.architecture !== null,
+          skipped: architectureOutcome.skipped,
+          rejected: architectureOutcome.rejected,
+          pages: architectureOutcome.architecture?.map((page) => ({
+            slug: page.slug,
+            sections: page.sections.map((section) => section.role),
+          })) ?? null,
+          costMicrocents: architectureOutcome.costMicrocents,
+        }
+      : { authored: false, skipped: "the page plan was not requested for this build" }) as unknown as never,
+    created_by: job.created_by,
+  } as never);
   const attachedEvidence = {
     ...starterImages.evidence,
     attached: built.skipped ? 0 : starterImages.assets.length,
