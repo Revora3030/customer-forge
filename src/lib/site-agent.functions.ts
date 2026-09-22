@@ -34,6 +34,7 @@ import {
 } from "@/lib/site-agent";
 import type { VerificationReport } from "@/lib/agent/verify";
 import type { AgentContext } from "@/lib/site-agent.server";
+import { planWebsiteChangesWithAi } from "@/lib/builder/ai-agent-plan.server";
 import type { QaLoopResult } from "@/lib/builder/qa-loop.server";
 import {
   coveredRequestDimensions,
