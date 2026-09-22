@@ -666,8 +666,14 @@ export function writeComponentVisual(
 
 /* ---------------------------------- to CSS --------------------------------- */
 
-/** Typography, spacing and appearance for the block itself. */
-export function blockCss(style: BlockStyle): React.CSSProperties {
+/**
+ * Typography, spacing and appearance for the block itself.
+ *
+ * `surface` is the colour this block will actually sit on when the block sets
+ * no background of its own (the page or parent section colour). It is used only
+ * to keep the AI's chosen text colour readable — never to change the design.
+ */
+export function blockCss(style: BlockStyle, surface?: string | null): React.CSSProperties {
   const css: React.CSSProperties = {};
   if (style.font) css.fontFamily = FONT_CSS[style.font];
   if (style.size !== null) {
@@ -691,7 +697,7 @@ export function blockCss(style: BlockStyle): React.CSSProperties {
     css.textTransform = style.textTransform;
     (css as Record<string, string | number>)["--rv-block-text-transform"] = style.textTransform;
   }
-  if (style.textColor) css.color = style.textColor;
+  if (style.textColor) css.color = readableTextColor(style, surface);
 
   if (style.padTop !== null) css.paddingTop = `${style.padTop}px`;
   if (style.padRight !== null) css.paddingRight = `${style.padRight}px`;
