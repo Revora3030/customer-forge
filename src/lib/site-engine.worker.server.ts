@@ -429,7 +429,8 @@ async function runCanonicalFirstBuild(input: {
         lease_expires_at: null,
         updated_at: new Date().toISOString(),
       } as never)
-      .eq("id", job.id);
+      .eq("id", job.id)
+      .eq("attempts", job.attempts);
 
     await db.from("notifications").insert({
       organization_id: job.organization_id,
@@ -535,7 +536,8 @@ async function runJob(
       lease_expires_at: new Date(Date.now() + LEASE_SECONDS * 1000).toISOString(),
       updated_at: new Date().toISOString(),
     } as never)
-    .eq("id", job.id);
+    .eq("id", job.id)
+    .eq("attempts", job.attempts);
 
   await runCanonicalFirstBuild({
     db,
