@@ -8,7 +8,6 @@
  */
 
 import { localityLabel } from "./locality";
-import { siteVariation } from "./site-variation";
 
 export type PageKind =
   | "home"
