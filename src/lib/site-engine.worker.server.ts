@@ -403,7 +403,7 @@ async function runJob(
     { classifyArchetype },
     { compileFirstBuildCreativeDirection },
     { synthesizeNativeFirstBuild },
-    { playbookFor },
+    ,
     { generateFirstBuildImages },
     { imageRepairPlan },
     { applyScreenshotReferenceToCreative },

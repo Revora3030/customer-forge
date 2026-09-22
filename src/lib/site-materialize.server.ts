@@ -93,8 +93,6 @@ export type MaterializeInput = {
   fingerprint?: DesignFingerprint | null;
   /** Approved Sol/Terra presentation brief, compiled into a finite renderer contract. */
   creativeBrief?: CreativeBrief | null;
-  /** Full industry strategy used to order the home narrative. */
-  industryPlaybook?: IndustryPlaybook | null;
   /** Safe generated starter pictures saved in tenant media for this first build. */
   generatedAssets?: FirstBuildImageAsset[];
   /** Explicit, guarded replacement mode. Default rebuilds remain non-destructive. */
