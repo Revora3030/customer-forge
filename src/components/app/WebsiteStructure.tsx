@@ -58,7 +58,6 @@ export function WebsiteStructure({
   canManage: boolean;
 }) {
   const { data: pages, isLoading } = useWebsiteContent(organizationId);
-  const build = useBuildWebsiteStructure(organizationId);
   const [activeSlug, setActiveSlug] = useState<string | null>(null);
 
   const list = pages ?? [];
@@ -70,22 +69,10 @@ export function WebsiteStructure({
         <SectionHeading
           eyebrow="Structure"
           title="Your pages and sections"
-          action={
-            canManage ? (
-              <Button variant="outline" onClick={() => build.mutate()} disabled={build.isPending}>
-                {build.isPending ? (
-                  <Loader2 className="size-4 animate-spin" />
-                ) : (
-                  <RefreshCw className="size-4" />
-                )}
-                {list.length ? "Rebuild from my info" : "Build my pages"}
-              </Button>
-            ) : null
-          }
         />
         <p className="mt-2 max-w-2xl text-[13px] text-muted-foreground">
-          Revora turns the details you entered into real pages and sections. Rebuilding pulls in
-          your latest services, photos and written content — you never re-type anything.
+          Your pages and sections are written by Revora's design team in the builder chat. Ask there
+          for a new page, a different layout or fresh wording — this view shows what exists today.
         </p>
 
         {list.length ? (
@@ -118,14 +105,7 @@ export function WebsiteStructure({
         <EmptyState
           icon={<Layers className="size-5" />}
           title="No pages yet"
-          description="Build your pages and Revora will lay out a home, services, about and contact page from your business information."
-          action={
-            canManage ? (
-              <Button variant="signal" onClick={() => build.mutate()} disabled={build.isPending}>
-                Build my pages
-              </Button>
-            ) : null
-          }
+          description="Open the builder chat and describe your business. Revora's design team writes your pages, layout and wording from there."
         />
       ) : page ? (
         <PageSections page={page} organizationId={organizationId} canManage={canManage} />
