@@ -311,14 +311,17 @@ async function buildChain(
       candidates.push({ config, model, free: null });
     }
 
-  const ordered = [
-    ...candidates.filter((entry) =>
-      providerHealthy({ caller, provider: entry.config.name, model: entry.model }),
-    ),
-    ...candidates.filter(
-      (entry) => !providerHealthy({ caller, provider: entry.config.name, model: entry.model }),
-    ),
-  ];
+  // QUALITY-FIRST ORDER. Candidates are ranked by capability fit, then quality,
+  // then recent health — and cost LAST, so a free model is never tried ahead of
+  // a stronger compatible one merely because Revora does not pay for it. The
+  // free-only and zero-cost switches above still decide what is *reachable*;
+  // they no longer decide what is *best*.
+  const ordered = qualityFirstOrder(candidates, (entry) => ({
+    model: entry.model,
+    provider: entry.config.name,
+    healthy: providerHealthy({ caller, provider: entry.config.name, model: entry.model }),
+    paid: entry.free === null,
+  }));
   // The POOL is unlimited; one single request's FAILOVER depth is not, so a
   // simple call can never turn into a 60-model latency wall. The ensemble
   // orchestrator uses the full pool in parallel instead.
