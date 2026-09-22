@@ -418,6 +418,7 @@ function readLayer(raw: unknown): Partial<BlockStyle> {
   );
   set("letterSpacing", boundedNumber(s["letterSpacing"], -0.1, 0.3));
   set("textTransform", inList(TEXT_TRANSFORMS, s["textTransform"]));
+  if (typeof s["italic"] === "boolean") set("italic", s["italic"]);
   set("textColor", safeColor(s["textColor"]));
 
   set(
