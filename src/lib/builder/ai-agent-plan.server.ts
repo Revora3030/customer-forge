@@ -253,7 +253,7 @@ export async function planWebsiteChangesWithAi(input: {
 
   const proposal = parseJsonObject(direction.text);
   const proposedActions = Array.isArray(proposal?.["actions"])
-    ? (proposal["actions"] as unknown[]).slice(0, MAX_ACTIONS)
+    ? (proposal["actions"] as unknown[])
     : [];
   if (!proposal || !proposedActions.length) {
     return {
