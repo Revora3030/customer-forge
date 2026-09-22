@@ -26,6 +26,7 @@ import {
   freeImageBudgetCap,
   freeImageBudgetRemaining,
   freeProviderChain,
+  imageCreationCapableModel,
   imageEditCapableModel,
   isFreeEligibleModel,
   type FreeProviderName,
@@ -142,7 +143,12 @@ export async function imageGenerationCapability(): Promise<ImageCapability> {
     }
     const models: string[] = [];
     for (const model of [...discoveredFreeModels(entry.name, IMAGE_ROLE), entry.model])
-      if (!models.includes(model) && isFreeEligibleModel(entry.name, model)) models.push(model);
+      if (
+        !models.includes(model) &&
+        isFreeEligibleModel(entry.name, model) &&
+        imageCreationCapableModel(model)
+      )
+        models.push(model);
     if (models.length === 0) continue;
 
     const remainingToday = freeImageBudgetRemaining(entry.name);

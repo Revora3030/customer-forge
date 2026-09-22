@@ -1,4 +1,5 @@
 # Active work
+- [x] Fix new-picture routing so editing-only models cannot block website image generation.
 - [x] Add “Generate sections from my text” beside the business-description input.
 - [x] Route it through Sol planning, Terra approval, copy, and image generation.
 - [x] Show clear progress, success, and actionable failure states.

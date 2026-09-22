@@ -561,6 +561,15 @@ export function imageEditCapableModel(model: string) {
   return /img2img|image-to-image|inpaint/i.test(model);
 }
 
+/**
+ * Models dedicated to inpainting or image-to-image work require source pixels
+ * and cannot satisfy a fresh text-to-image request. Keep them out of new-image
+ * routing even when catalogue discovery broadly labels them as image models.
+ */
+export function imageCreationCapableModel(model: string) {
+  return !imageEditCapableModel(model);
+}
+
 /** Test and operations helper: clears the in-process budget counters. */
 export function resetFreeBudget() {
   budget.clear();
