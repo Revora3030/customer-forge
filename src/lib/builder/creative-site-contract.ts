@@ -142,15 +142,17 @@ export function validateCreativeSiteContract(contract: unknown): {
     return { valid: false, violations: ["contract must be an object"] };
   }
 
-  const candidate = contract as Partial<CreativeSiteContract> & Record<string, unknown>;
+  const candidate = contract as Record<string, unknown>;
   if (candidate.version !== CREATIVE_SITE_CONTRACT_VERSION) violations.push("unsupported contract version");
   if (candidate.authority !== CREATIVE_SITE_AUTHORITY) violations.push("authority must be Sol");
   if (candidate.complete !== true) violations.push("contract is incomplete");
-  if (!Number.isInteger(candidate.revision) || candidate.revision < 1) violations.push("revision must be a positive integer");
+  if (!Number.isInteger(candidate.revision) || Number(candidate.revision) < 1) violations.push("revision must be a positive integer");
   if (!candidate.identity || typeof candidate.identity !== "object" || Array.isArray(candidate.identity)) {
     violations.push("identity is required");
-  } else if (typeof (candidate.identity as Record<string, unknown>).concept !== "string" || !(candidate.identity as Record<string, unknown>).concept.trim()) {
-    violations.push("identity.concept is required");
+  } else {
+    const identity = candidate.identity as Record<string, unknown>;
+    const concept = identity["concept"];
+    if (typeof concept !== "string" || !concept.trim()) violations.push("identity.concept is required");
   }
 
   const pages = candidate.pages;
@@ -169,14 +171,14 @@ export function validateCreativeSiteContract(contract: unknown): {
       continue;
     }
     const page = rawPage as Record<string, unknown>;
-    const pageId = typeof page.id === "string" ? page.id : "";
-    const slug = typeof page.slug === "string" ? page.slug : "";
+    const pageId = typeof page["id"] === "string" ? page["id"] : "";
+    const slug = typeof page["slug"] === "string" ? page["slug"] : "";
     if (!pageId || pageIds.has(pageId)) violations.push(`duplicate or missing page id: ${pageId || "(missing)"}`);
     pageIds.add(pageId);
     if (!slug || slugs.has(slug)) violations.push(`duplicate or missing page slug: ${slug || "(missing)"}`);
     slugs.add(slug);
 
-    const sections = page.sections;
+    const sections = page["sections"];
     if (!Array.isArray(sections)) {
       violations.push(`page ${slug || "(unknown)"} sections must be an array`);
       continue;
@@ -190,15 +192,15 @@ export function validateCreativeSiteContract(contract: unknown): {
         continue;
       }
       const section = rawSection as Record<string, unknown>;
-      const sectionId = typeof section.id === "string" ? section.id : "";
-      const role = typeof section.role === "string" ? section.role : "";
-      const intent = typeof section.intent === "string" ? section.intent : "";
+      const sectionId = typeof section["id"] === "string" ? section["id"] : "";
+      const role = typeof section["role"] === "string" ? section["role"] : "";
+      const intent = typeof section["intent"] === "string" ? section["intent"] : "";
       if (!sectionId || sectionIds.has(sectionId))
         violations.push(`duplicate or missing section id on ${slug || "(unknown)"}: ${sectionId || "(missing)"}`);
       sectionIds.add(sectionId);
       if (!role.trim()) violations.push(`section ${sectionId || "(missing)"} has no role`);
       if (!intent.trim()) violations.push(`section ${sectionId || "(missing)"} has no intent`);
-      const responsive = section.responsive;
+      const responsive = section["responsive"];
       if (responsive !== undefined && (responsive === null || typeof responsive !== "object" || Array.isArray(responsive))) {
         violations.push(`section ${sectionId || "(missing)"} responsive must be an object`);
       } else {
