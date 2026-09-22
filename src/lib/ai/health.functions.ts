@@ -541,5 +541,6 @@ export const getAiOrchestration = createServerFn({ method: "GET" })
       participation,
       outcomes: recentCallOutcomes(25),
       probe: { version: PROBE_VERSION, capabilities: probeableCapabilities() },
+      hallOfFame: { squads, runs: recentHallOfFameRuns(15) },
     };
   });
