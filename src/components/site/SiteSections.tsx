@@ -7,6 +7,8 @@
  */
 import {
   blockCss,
+  buttonClasses,
+  buttonCss,
   readBlockStyle,
   readSectionVisual,
   readComponentVisual,
@@ -166,11 +168,12 @@ function SectionMedia({ site, section }: { site: Site; section: Section }) {
     <div className="rv-generated-media mx-auto grid max-w-6xl gap-4 px-4 pb-10 md:grid-cols-2">
       {items.slice(0, 4).map((component) => {
         const visual = readComponentVisual((component as Component & { settings?: unknown }).settings);
+        const style = readBlockStyle((component as Component & { settings?: unknown }).settings);
         const src = componentImageUrl(component);
         if (!src) return null;
         const overlayClass = visual.overlay ? "rv-overlay-" + visual.overlay : "";
         return (
-          <figure key={component.id} className={`rv-media-frame ${ratioClass(visual.aspect_ratio)} ${overlayClass} overflow-hidden`}>
+          <figure key={component.id} data-rvb={component.id} style={blockCss(style)} className={`rv-media-frame ${ratioClass(visual.aspect_ratio)} ${overlayClass} overflow-hidden`}>
             <img
               src={src}
               alt={visual.alt || component.label || `${site.org.name} work sample`}
@@ -196,10 +199,11 @@ function SectionFeatureMedia({ site, section, className = "" }: { site: Site; se
   // blocks the build before this page can be published.
   if (!component) return null;
   const visual = readComponentVisual((component as Component & { settings?: unknown }).settings);
+  const style = readBlockStyle((component as Component & { settings?: unknown }).settings);
   const src = componentImageUrl(component);
   if (!src) return null;
   return (
-    <figure className={`rv-feature-media overflow-hidden ${className}`}>
+    <figure data-rvb={component.id} style={blockCss(style)} className={`rv-feature-media overflow-hidden ${className}`}>
       <img
         src={src}
         alt={visual.alt || component.label || `${site.org.name} supporting image`}
@@ -221,14 +225,18 @@ function SectionButtons({ site, components }: { site: Site; components: Componen
       {buttons.map((button, index) => {
         const href = safeLinkUrl(button.link_url) ?? "#quote";
         const internal = href.startsWith("/");
+        const style = readBlockStyle((button as Component & { settings?: unknown }).settings);
+        const hasOverride = Boolean(style.buttonStyle || style.buttonSize || style.buttonTextColor || style.buttonBgColor);
+        const directClass = hasOverride ? buttonClasses(style) : undefined;
+        const directStyle = { ...blockCss(style), ...buttonCss(style) };
         return (
-          <Button key={button.id} asChild variant={index === 0 ? "signal" : "outline"} size="lg">
+          <Button key={button.id} asChild variant={hasOverride ? "ghost" : index === 0 ? "signal" : "outline"} size={hasOverride ? "sm" : "lg"}>
             {internal ? (
-              <SitePageLink slug={site.org.slug} page={href.slice(1)}>
+              <SitePageLink slug={site.org.slug} page={href.slice(1)} className={directClass} style={directStyle} blockId={button.id}>
                 {button.label}
               </SitePageLink>
             ) : (
-              <a href={href}>{button.label}</a>
+              <a href={href} className={directClass} style={directStyle} data-rvb={button.id}>{button.label}</a>
             )}
           </Button>
         );
@@ -260,6 +268,8 @@ export function SiteSection({ site, section }: { site: Site; section: Section })
   let inner = <SiteSectionBody site={site} section={section} />;
 
   const css = blockCss(style);
+  const customBackground = Boolean(style.bgColor || style.bgImage);
+  const customSpacing = [style.padTop, style.padRight, style.padBottom, style.padLeft].some((value) => value !== null);
   if (Object.keys(css).length) {
     inner = (
       <div data-rvb={section.id} style={css}>
@@ -285,7 +295,7 @@ export function SiteSection({ site, section }: { site: Site; section: Section })
   ].filter(Boolean).join(" ");
 
   const decorated = (
-    <div className={visualClass} data-rv-variant={variant}>
+    <div className={visualClass} data-rv-variant={variant} data-rv-custom-bg={customBackground || undefined} data-rv-custom-spacing={customSpacing || undefined}>
       {!(["hero", "service_detail", "cta", "intro", "offer", "guarantee", "area", "policy", "lead_magnet"] as string[]).includes(section.kind)
         ? <SectionMedia site={site} section={section} />
         : null}

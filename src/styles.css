@@ -552,7 +552,13 @@
 .rv-site .rv-media-role-background .rv-hero {
   min-height: min(82vh, 58rem);
   overflow: hidden;
-  background: var(--background);
+  background: transparent;
+}
+.rv-site .rv-section[data-rv-custom-bg="true"] > [data-rvb] > section {
+  background: transparent;
+}
+.rv-site .rv-section[data-rv-custom-spacing="true"] > [data-rvb] > section > div {
+  padding: 0;
 }
 .rv-site .rv-media-role-background .rv-hero > div {
   max-width: none;

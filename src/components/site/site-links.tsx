@@ -8,7 +8,7 @@
  * picks the right shape for the address being served.
  */
 import { Link } from "@tanstack/react-router";
-import { createContext, useContext, type ReactNode } from "react";
+import { createContext, useContext, type CSSProperties, type ReactNode } from "react";
 
 const OwnAddressContext = createContext(false);
 
@@ -32,37 +32,41 @@ export function SitePageLink({
   slug,
   page,
   className,
+  style,
+  blockId,
   children,
 }: {
   slug: string;
   page?: string | null;
-  className?: string;
+  className?: string | undefined;
+  style?: CSSProperties | undefined;
+  blockId?: string | undefined;
   children: ReactNode;
 }) {
   const ownAddress = useOwnAddress();
   if (page?.startsWith("#")) {
     return (
-      <a href={ownAddress ? `/${page}` : `/s/${encodeURIComponent(slug)}${page}`} className={className}>
+      <a href={ownAddress ? `/${page}` : `/s/${encodeURIComponent(slug)}${page}`} className={className} style={style} data-rvb={blockId}>
         {children}
       </a>
     );
   }
   if (ownAddress) {
     return (
-      <a href={page ? `/${page}` : "/"} className={className}>
+      <a href={page ? `/${page}` : "/"} className={className} style={style} data-rvb={blockId}>
         {children}
       </a>
     );
   }
   if (!page) {
     return (
-      <Link to="/s/$slug" params={{ slug }} className={className}>
+      <Link to="/s/$slug" params={{ slug }} className={className} style={style} data-rvb={blockId}>
         {children}
       </Link>
     );
   }
   return (
-    <Link to="/s/$slug/$page" params={{ slug, page }} className={className}>
+    <Link to="/s/$slug/$page" params={{ slug, page }} className={className} style={style} data-rvb={blockId}>
       {children}
     </Link>
   );

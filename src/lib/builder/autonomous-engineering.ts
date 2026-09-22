@@ -71,6 +71,8 @@ function actionSignature(action: AgentAction): string {
     case "set_section_effect":
     case "delete_section":
       return `${action.type}:${action.sectionId}`;
+    case "set_block_style":
+      return `${action.type}:${action.target}:${action.targetId}:${action.device}`;
     case "set_component":
     case "set_component_visual":
     case "generate_component_image":

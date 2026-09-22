@@ -3,6 +3,10 @@ import { targetOf } from "@/lib/site-agent.atomic";
 import type { AgentAction } from "@/lib/site-agent";
 
 describe("site-agent atomic journal coverage", () => {
+  it("journals direct styles against their exact section or component", () => {
+    expect(targetOf({ type: "set_block_style", target: "section", targetId: "s1", device: "desktop", patch: { bgColor: "#112233" } })).toEqual({ kind: "update", table: "website_sections", id: "s1" });
+    expect(targetOf({ type: "set_block_style", target: "component", targetId: "c1", device: "mobile", patch: { size: 24 } })).toEqual({ kind: "update", table: "website_components", id: "c1" });
+  });
   it("journals section visual edits so rollback can restore them", () => {
     const action: AgentAction = {
       type: "set_section_visual",

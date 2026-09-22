@@ -24,6 +24,7 @@
  */
 
 import type { AgentAction } from "@/lib/site-agent";
+import { readBlockStyle, readComponentVisual, readSectionVisual } from "@/lib/site-style";
 
 /** Ids that really exist in the database right now, per table. */
 export type KnownTargets = {
@@ -186,6 +187,13 @@ export type CurrentSectionState = {
   body?: string | null;
   variant?: string | null;
   is_visible?: boolean | null;
+  settings?: unknown;
+};
+
+export type CurrentComponentState = { settings?: unknown };
+export type CurrentSiteState = {
+  sections: Map<string, CurrentSectionState>;
+  components?: Map<string, CurrentComponentState>;
 };
 
 const sameText = (a: string | null | undefined, b: string) => (a ?? "").trim() === b.trim();
@@ -198,7 +206,7 @@ const sameText = (a: string | null | undefined, b: string) => (a ?? "").trim() =
  */
 export function dropUnchangedActions(
   actions: AgentAction[],
-  sections: Map<string, CurrentSectionState>,
+  state: CurrentSiteState,
 ): { actions: AgentAction[]; unchanged: number; unchangedLabels: string[] } {
   const out: AgentAction[] = [];
   const unchangedLabels: string[] = [];
@@ -207,14 +215,28 @@ export function dropUnchangedActions(
     let noop = false;
 
     if (action.type === "set_section_text") {
-      const current = sections.get(action.sectionId);
+      const current = state.sections.get(action.sectionId);
       if (current && sameText(current[action.field], action.value)) noop = true;
     } else if (action.type === "set_section_variant") {
-      const current = sections.get(action.sectionId);
+      const current = state.sections.get(action.sectionId);
       if (current && (current.variant ?? "") === action.variant) noop = true;
     } else if (action.type === "set_section_visibility") {
-      const current = sections.get(action.sectionId);
+      const current = state.sections.get(action.sectionId);
       if (current && current.is_visible === action.visible) noop = true;
+    } else if (action.type === "set_section_visual") {
+      const current = state.sections.get(action.sectionId);
+      const visual = readSectionVisual(current?.settings);
+      noop = Boolean(current) && Object.entries(action.patch).every(([key, value]) => visual[key as keyof typeof visual] === value);
+    } else if (action.type === "set_component_visual") {
+      const current = state.components?.get(action.componentId);
+      const visual = readComponentVisual(current?.settings);
+      noop = Boolean(current) && Object.entries(action.patch).every(([key, value]) => key === "media_url" ? false : visual[key as keyof typeof visual] === value);
+    } else if (action.type === "set_block_style") {
+      const current = action.target === "section"
+        ? state.sections.get(action.targetId)
+        : state.components?.get(action.targetId);
+      const style = readBlockStyle(current?.settings, action.device);
+      noop = Boolean(current) && Object.entries(action.patch).every(([key, value]) => style[key as keyof typeof style] === value);
     }
 
     if (noop) unchangedLabels.push(`${action.type} (already correct)`);
