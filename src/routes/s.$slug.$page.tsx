@@ -197,7 +197,10 @@ export function SitePageView({
         </header>
 
         {/* Tablet and phone overrides the client set in the visual builder. */}
-        <ResponsiveStyles sections={site.content!.sections} />
+        <ResponsiveStyles
+          sections={site.content!.sections}
+          surface={profile?.secondary_color ?? null}
+        />
 
         <main>
           {site.content!.sections.map((section) => (
