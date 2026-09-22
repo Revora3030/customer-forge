@@ -161,7 +161,7 @@ export function validateCreativeSiteContract(contract: CreativeSiteContract): {
       if (!section.role.trim()) violations.push(`section ${section.id} has no role`);
       if (!section.intent.trim()) violations.push(`section ${section.id} has no intent`);
       for (const width of Object.keys(section.responsive ?? {})) {
-        if (!/^\\d{3,4}$/.test(width)) violations.push(`invalid responsive width ${width}`);
+        if (!/^\d{3,4}$/.test(width)) violations.push(`invalid responsive width ${width}`);
       }
     }
   }
