@@ -40,21 +40,20 @@ export type AiPlanSuccess = {
 export type AiPlanOutcome = AiPlanSuccess | AiPlanFailure;
 
 const TRUTH_RULES = [
-  "Never invent a fact. Prices, years in business, review counts, awards, certifications, guarantees, phone numbers and addresses may only be used when supplied below.",
-  "Never write placeholder or filler text. No lorem ipsum, no repeated nonsense words, no 'Your headline here', no duplicated sentences.",
-  "Never leave a visual container empty: a section you add must have real headings, real copy and, where it shows imagery, an image request.",
+  "Never invent a business fact. Prices, years in business, review counts, awards, certifications, guarantees, phone numbers and addresses may only be used when supplied below.",
+  "Never emit executable markup, unsafe URLs, scripts, or values that could escape the website's safe rendering boundary.",
 ].join(" ");
 
 const DESIGN_RULES = [
   "You are the senior creative director, art director and conversion strategist for this website.",
-  "You own the visual direction: section choice, section order, headings, copy voice, colour, typography, hero composition, imagery, call-to-action placement and page structure.",
-  "Design for this exact business in its exact trade and town. A layout that could belong to any other business is a failure.",
-  "Aim for the standard of a top-tier bespoke agency site: strong hierarchy, generous spacing, confident editorial typography, full-bleed photography where it earns its place, restrained accent colour, and one obvious next step per screen.",
-  "Work at mobile and desktop: never propose something that only reads well on a wide screen.",
-  "For a direct style request, change only the requested property and target. Use set_block_style for literal backgrounds, text colours, typography, spacing, sizing, borders, buttons and responsive overrides. You may choose any value inside the documented safe numeric ranges rather than only common preset increments.",
-  "A vague request such as 'change the background color' must produce a clearly perceptible change from the current colour while preserving readable contrast. Never replace a colour with a near-identical shade.",
-  "In customer messages, 'front' or 'fronts' beside colour, background or style almost always means 'font' or 'fonts'. Treat it as typography, never silently reinterpret it as foreground colour. Only change foreground or text colour when those words are explicit.",
-  "If the owner asks for a whole-site or all-pages colour change, update every explicit section or component colour that would otherwise override the new theme.",
+  "You own the visual direction: section choice, section order, headings, copy voice, colour, typography, composition, imagery, interaction, responsive behavior and page structure.",
+  "Design for this exact business in its exact trade and town. Do not reuse a stock composition merely because it is familiar.",
+  "There is no required hero, section sequence, spacing rhythm, CTA position, colour palette, typography pairing, motion recipe or conversion pattern. Choose whatever the brief calls for.",
+  "Work at mobile and desktop: author responsive behavior explicitly when it matters instead of assuming a generic mobile transformation.",
+  "For a direct style request, change only the requested property and target unless the requested result genuinely requires coordinated supporting changes.",
+  "A vague request such as 'change the background color' must produce a clearly perceptible change from the current colour while preserving readable contrast.",
+  "In customer messages, 'front' or 'fronts' beside colour, background or style almost always means 'font' or 'fonts'. Treat that wording as typography unless foreground/text colour is explicit.",
+  "If the owner asks for a whole-site or all-pages colour change, update every explicit section or component colour that would otherwise conceal the requested theme.",
 ].join(" ");
 
 /** Compact JSON contract. Anything outside it is dropped by the validator. */
@@ -62,13 +61,18 @@ function actionContract(context: AgentContext): string {
   const fonts = Object.keys(SITE_HEADING_FONTS).join("|");
   return [
     "Reply with ONE JSON object and nothing else:",
-    '{"reply":string,"summary":string,"requirements":string[],"questions":string[],"notes":string[],"actions":Action[]}',
+    '{"reply":string,"summary":string,"requirements":string[],"questions":string[],"notes":string[],"actions":Action[],"hasMore":boolean,"cursor":string|null}',
     "",
+    "Set hasMore=true only when another chunk is genuinely needed. cursor is an opaque continuation token for the next chunk.",
     "Action is one of:",
     '{"type":"set_section_text","sectionId":id,"field":"heading"|"subheading"|"body","value":string}',
     '{"type":"set_section_visibility","sectionId":id,"visible":boolean}',
     '{"type":"set_section_variant","sectionId":id,"variant":string}',
-    '{"type":"set_section_visual","sectionId":id,"patch":{"layout":"split|centered|image_left|image_right|full_bleed|editorial|layered|stacked","density":"airy|balanced|dense","image_position":"left|right|center|background","image_treatment":"natural|rounded|soft_shadow|glass_frame|duotone|gradient_overlay|cinematic|cutout|full_bleed","spacing":"tight|standard|generous","max_width":"narrow|standard|wide|edge","card_style":"soft|sharp|pill|glass|editorial|floating","image_ratio":"1:1|4:3|3:2|16:9|21:9"}}',
+    '{"type":"set_section_visual","sectionId":id,"patch":{"layout":"legacy compatibility only; prefer set_ai_visual for new creative work"}}',
+    '{"type":"set_ai_visual","sectionId":id,"patch":{"anySafeVisualProperty":"safe primitive visual/layout value"}}',
+    '{"type":"set_ai_responsive","sectionId":id,"width":390,"patch":{"anySafeResponsiveProperty":"safe primitive responsive value"}}',
+    '{"type":"set_ai_component_visual","componentId":id,"patch":{"anySafeVisualProperty":"safe primitive visual value"}}',
+    '{"type":"set_ai_component_responsive","componentId":id,"width":390,"patch":{"anySafeResponsiveProperty":"safe primitive responsive value"}}',
     '{"type":"set_block_style","target":"section|component","targetId":id,"device":"desktop|tablet|mobile","patch":{"font":"display|body|serif|mono","size":"10..160","weight":"100..900","align":"left|center|right","lineHeight":"0.75..3","letterSpacing":"-0.1..0.3","textTransform":"none|uppercase|capitalize","italic":boolean,"textColor":"#RRGGBB or common named colour","columns":"1..6","gap":"0..240","maxWidth":"240..1920","contentAlign":"left|center|right","padTop":"0..240","padRight":"0..240","padBottom":"0..240","padLeft":"0..240","marginTop":"-240..240","marginBottom":"-240..240","bgColor":"#RRGGBB or common named colour","bgGradient":"#RRGGBB or common named colour (second gradient stop)","bgGradientAngle":"0..360","bgImage":"safe https URL or internal path","overlay":"0..100","radius":"0..999","borderWidth":"0..12","borderColor":"#RRGGBB or common named colour","shadow":"none|subtle|medium|strong","opacity":"0..100","objectFit":"cover|contain|fill","buttonStyle":"solid|outline|ghost|link","buttonSize":"sm|md|lg","buttonTextColor":"#RRGGBB or common named colour","buttonBgColor":"#RRGGBB or common named colour","hidden":boolean}}',
     '{"type":"add_section","pageId":id,"ref":"temp_section_1","kind":kind,"heading":string,"subheading":string,"body":string,"position":number}',
     '{"type":"delete_section","sectionId":id}',
@@ -83,11 +87,13 @@ function actionContract(context: AgentContext): string {
     `{"type":"set_theme","patch":{"primary_color":"#RRGGBB","secondary_color":"#RRGGBB","accent_color":"#RRGGBB","heading_font":"${fonts}","body_font":"${fonts}"}}`,
     '{"type":"set_business_fact","field":"tagline"|"description","value":string}',
     "",
-    `Use as many actions as the work genuinely needs — there is no target or budget. Every id must be copied exactly from the website below, or be a temp ref you created earlier in the same list.`,
-    `Allowed section kinds: ${context.sectionKinds.join(", ")}.`,
-    `Allowed page kinds: ${context.pageKinds.join(", ")}.`,
-    `Allowed component kinds: ${context.componentKinds.join(", ")}, image, hero_image.`,
+    "Use as many actions as the work genuinely needs — there is no target or budget. Copy existing IDs exactly. New pages, sections and components may use creative kinds invented for this business.",
+    "Page, section and component kinds are creative identifiers. For new content, invent the structure needed by this business rather than choosing from a preset library.",
+
+
     "When a section should show photography, add the image component AND a generate_component_image action for it. Image prompts describe a real, specific scene for this business: no text, logos, watermarks, awards, reviews or identifiable customers in the picture.",
+    "Prefer set_ai_visual/set_ai_responsive for new section creative styling. These values are accepted only after server-side safety filtering; never place HTML, JavaScript or unsafe URLs in them.",
+
   ].join("\n");
 }
 
@@ -207,6 +213,7 @@ export async function planWebsiteChangesWithAi(input: {
   history: string[];
   context: AgentContext;
   attachments: { kind: string; name: string }[];
+  signal?: AbortSignal;
 }): Promise<AiPlanOutcome> {
   const { context } = input;
   const system = [
@@ -215,123 +222,193 @@ export async function planWebsiteChangesWithAi(input: {
     "You work only through the action contract you are given. You never return prose outside the JSON object.",
   ].join("\n\n");
 
-  const user = [
-    "BUSINESS FACTS (the only facts you may state):",
-    businessBlock(context),
-    "",
-    "THE LIVE WEBSITE (copy ids exactly):",
-    siteBlock(context),
-    "",
-    input.history.length
-      ? `EARLIER INSTRUCTIONS AND STANDING RULES FROM THE OWNER:\n${input.history.join("\n")}\n`
-      : "",
-    input.attachments.length
-      ? `THE OWNER ATTACHED: ${input.attachments.map((a) => `${a.kind} ${a.name}`).join(", ")}\n`
-      : "",
-    "THE OWNER'S REQUEST:",
-    input.instruction,
-    "",
-    actionContract(context),
-  ]
-    .filter(Boolean)
-    .join("\n");
-
-  const direction = await callBestThinker({
-    json: true,
-    purpose: "creative_direction",
-    complexity: "high",
-    system,
-    user,
-    organizationId: input.organizationId,
-    maxOutputTokens: 6000,
-  });
-  if (!direction.ok) {
-    return { ok: false, reason: direction.reason, detail: direction.detail };
-  }
-
-  const proposal = parseJsonObject(direction.text);
-  const proposedActions = Array.isArray(proposal?.["actions"])
-    ? (proposal["actions"] as unknown[]).slice(0, MAX_ACTIONS)
-    : [];
-  if (!proposal || !proposedActions.length) {
-    return {
-      ok: false,
-      reason: "unusable_answer",
-      detail: "the design answer could not be read as a website change",
-    };
-  }
-
-  let costMicrocents = direction.costMicrocents;
+  let costMicrocents = 0;
+  let model = "unknown";
   let reviewModel: string | null = null;
-  let notes = textList(proposal["notes"], 6);
+  let reply = "Here's what I'll change.";
+  let summary = "Website update";
+  let questions: string[] = [];
+  let notes: string[] = [];
+  let requirements: { label: string; covered: boolean }[] = [];
+  const trace: string[] = [];
+  const actions: unknown[] = [];
+  const createdRefs = new Set<string>();
+  const plannerSignal = input.signal ?? AbortSignal.timeout(120_000);
+  let cursor: string | null = null;
+  let completed = false;
 
-  const review = await callBestThinker({
-    json: true,
-    purpose: "adversarial_review",
-    complexity: "high",
-    system: [
-      "You are the reviewer. You check a proposed website change against the owner's real facts and against premium design standards.",
-      TRUTH_RULES,
-      'Reply with ONE JSON object: {"reject":number[],"notes":string[]}. `reject` holds the zero-based indexes of actions that invent a fact, use filler or generic wording, leave a visual empty, or would make the site look like a stock template. Reject nothing else.',
-    ].join("\n\n"),
-    user: [
-      "BUSINESS FACTS:",
+    const contextBlock = [
+      "BUSINESS FACTS (the only facts you may state):",
       businessBlock(context),
       "",
+      "THE LIVE WEBSITE (copy ids exactly):",
+      siteBlock(context),
+      "",
+      input.history.length
+        ? "EARLIER INSTRUCTIONS AND STANDING RULES FROM THE OWNER:\n" + input.history.join("\n")
+        : "",
+      input.attachments.length
+        ? "THE OWNER ATTACHED: " + input.attachments.map((a) => a.kind + " " + a.name).join(", ")
+        : "",
       "THE OWNER'S REQUEST:",
       input.instruction,
       "",
-      "PROPOSED ACTIONS (index: action):",
-      proposedActions.map((action, index) => `${index}: ${JSON.stringify(action)}`).join("\n"),
-    ].join("\n"),
-    organizationId: input.organizationId,
-    maxOutputTokens: 1200,
-  });
+      actionContract(context),
+    ].filter(Boolean).join("\n");
 
-  let actions = proposedActions;
-  if (review.ok) {
+  for (let chunkIndex = 0; chunkIndex < 12; chunkIndex += 1) {
+    const continuation = chunkIndex === 0
+      ? ""
+      : [
+          "CONTINUATION OF THE SAME AI-AUTHORED PLAN.",
+          "Do not repeat or undo previously accepted actions.",
+          "Plan only the remaining work for the owner's request.",
+          "Previously accepted action count: " + actions.length,
+          "Existing temporary refs: " + [...createdRefs].slice(0, 500).join(", "),
+          "Continuation cursor: " + (cursor ?? "none"),
+          "Previous action tail:",
+          JSON.stringify(actions.slice(-40)),
+        ].join("\n");
+
+    const direction = await callBestThinker({
+      json: true,
+      purpose: "creative_direction",
+      complexity: "high",
+      system,
+      user: contextBlock + (continuation ? "\n\n" + continuation : ""),
+      organizationId: input.organizationId,
+      maxOutputTokens: 12000,
+      signal: plannerSignal,
+    });
+
+    if (!direction.ok) {
+      return { ok: false, reason: direction.reason, detail: direction.detail };
+    }
+    model = direction.model;
+    costMicrocents += direction.costMicrocents;
+
+    const proposal = parseJsonObject(direction.text);
+    if (!proposal) {
+      return {
+        ok: false,
+        reason: "unusable_answer",
+        detail: "the design answer could not be read as a website change in chunk " + (chunkIndex + 1),
+      };
+    }
+
+    const proposedActions = Array.isArray(proposal["actions"])
+      ? (proposal["actions"] as unknown[])
+      : [];
+    const hasMore = proposal["hasMore"] === true;
+    const proposalCursor = typeof proposal["cursor"] === "string"
+      ? proposal["cursor"].trim().slice(0, 120)
+      : null;
+
+    if (typeof proposal["reply"] === "string") reply = proposal["reply"].trim().slice(0, 1500) || reply;
+    if (typeof proposal["summary"] === "string") summary = proposal["summary"].trim().slice(0, 300) || summary;
+    questions = [...questions, ...textList(proposal["questions"], 3)].slice(0, 6);
+    notes = [...notes, ...textList(proposal["notes"], 6)].slice(0, 12);
+    requirements = [...requirements, ...textList(proposal["requirements"], 8, 120).map((label) => ({ label, covered: true }))].slice(0, 12);
+
+    if (!proposedActions.length) {
+      if (chunkIndex === 0 || hasMore) {
+        return {
+          ok: false,
+          reason: "unusable_answer",
+          detail: hasMore
+            ? "the AI requested another continuation chunk without providing additional actions"
+            : "the design answer contained no executable website actions",
+        };
+      }
+      completed = true;
+      break;
+    }
+
+    const review = await callBestThinker({
+      json: true,
+      purpose: "adversarial_review",
+      complexity: "high",
+      system: [
+        "You are Terra, the adversarial integrity reviewer for an AI-authored website change.",
+        TRUTH_RULES,
+        'Reply with ONE JSON object: {"reject":number[],"notes":string[]}. Reject only actions that invent unsupported business facts, contain unsafe/executable values, create broken references, violate required accessibility or reduced-motion protections, corrupt ownership/integrity, or otherwise cannot be safely executed. Do not reject an action because of taste, aesthetics, novelty, section choice, copy voice, layout preference, or because it differs from a familiar template.',
+      ].join("\n\n"),
+      user: [
+        "BUSINESS FACTS:",
+        businessBlock(context),
+        "",
+        "THE OWNER'S REQUEST:",
+        input.instruction,
+        "",
+        "PROPOSED ACTIONS (index: action):",
+        proposedActions.map((action, index) => index + ": " + JSON.stringify(action)).join("\n"),
+      ].join("\n"),
+      organizationId: input.organizationId,
+      maxOutputTokens: 1200,
+    });
+
+    if (!review.ok) {
+      return {
+        ok: false,
+        reason: review.reason,
+        detail: review.detail ?? "Terra review was unavailable; no unreviewed actions were accepted.",
+      };
+    }
+
     reviewModel = review.model;
     costMicrocents += review.costMicrocents;
-    const applied = applyReview(proposedActions, parseJsonObject(review.text));
-    actions = applied.actions;
-    notes = [...notes, ...applied.notes].slice(0, 8);
+    const appliedReview = applyReview(proposedActions, parseJsonObject(review.text));
+    const kept = appliedReview.actions;
+    actions.push(...kept);
+    for (const action of kept) {
+      if (!action || typeof action !== "object" || Array.isArray(action)) continue;
+      const ref = (action as Record<string, unknown>)["ref"];
+      if (typeof ref === "string" && ref.trim()) createdRefs.add(ref.trim().slice(0, 120));
+    }
+    notes = [...notes, ...appliedReview.notes].slice(0, 12);
+    trace.push("AI creative chunk " + (chunkIndex + 1) + " composed by " + direction.model + "; Terra reviewed it and removed " + (proposedActions.length - kept.length) + " unsafe/invalid action(s).");
+
+    if (actions.length > MAX_ACTIONS) {
+      return {
+        ok: false,
+        reason: "continuation_exhausted",
+        detail: "the AI plan exceeded the supported action budget; no partial plan was applied",
+      };
+    }
+
+    cursor = proposalCursor;
+    if (!hasMore) {
+      completed = true;
+      break;
+    }
   }
 
+  if (!completed) {
+    return {
+      ok: false,
+      reason: "continuation_exhausted",
+      detail: "the AI change exceeded the supported continuation window; no partial plan was applied",
+    };
+  }
   if (!actions.length) {
     return {
       ok: false,
       reason: "review_rejected",
-      detail: "the review removed every proposed change",
+      detail: "Terra removed every executable website action",
     };
   }
 
-  const requirements = textList(proposal["requirements"], 8, 120).map((label) => ({
-    label,
-    covered: true,
-  }));
-
-  const trace = [
-    `Creative direction, layout and wording composed by ${direction.model}.`,
-    review.ok
-      ? `Reviewed by ${review.model}: ${proposedActions.length - actions.length} change(s) removed.`
-      : "Review unavailable, so only changes that pass the fact and safety checks were kept.",
-    "No template or preset design was used.",
-  ];
-
+  trace.push("No deterministic creative scaffold, theme preset, or template was used.");
   return {
     ok: true,
-    reply:
-      (typeof proposal["reply"] === "string" ? proposal["reply"].trim().slice(0, 1500) : "") ||
-      "Here's what I'll change.",
-    summary:
-      (typeof proposal["summary"] === "string" ? proposal["summary"].trim().slice(0, 300) : "") ||
-      "Website update",
+    reply,
+    summary,
     actions,
-    questions: textList(proposal["questions"], 3),
+    questions,
     notes,
     trace,
     requirements,
-    model: direction.model,
+    model,
     reviewModel,
     costMicrocents,
   };

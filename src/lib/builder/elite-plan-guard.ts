@@ -29,6 +29,8 @@ function key(action: AgentAction): string {
     case "set_section_visibility":
     case "set_section_variant":
     case "set_section_visual":
+    case "set_ai_visual":
+    case "set_ai_responsive":
     case "set_custom_block":
     case "set_section_effect":
     case "delete_section":
@@ -37,6 +39,8 @@ function key(action: AgentAction): string {
       return `${action.type}:${action.target}:${action.targetId}:${action.device}`;
     case "set_component":
     case "set_component_visual":
+    case "set_ai_component_visual":
+    case "set_ai_component_responsive":
     case "generate_component_image":
     case "delete_component":
       return `${action.type}:${action.componentId}`;
@@ -72,6 +76,8 @@ function safeAction(
     case "set_section_visibility":
     case "set_section_variant":
     case "set_section_visual":
+    case "set_ai_visual":
+    case "set_ai_responsive":
     case "set_custom_block":
     case "delete_section":
     case "set_section_effect":
@@ -84,6 +90,8 @@ function safeAction(
 
     case "set_component":
     case "set_component_visual":
+    case "set_ai_component_visual":
+    case "set_ai_component_responsive":
     case "delete_component":
       return known.components.has(action.componentId) || refs.components.has(action.componentId);
 
@@ -132,8 +140,7 @@ export function guardBuilderPlan(
   cap = MAX_ACTIONS,
 ): GuardResult {
   const known = ids(context);
-  const seen = new Map<string, number>();
-  const output: AgentAction[] = [];
+  const seenExact = new Set<string>();
   const refs = {
     pages: new Set<string>(),
     sections: new Set<string>(),
@@ -141,10 +148,10 @@ export function guardBuilderPlan(
   };
   let duplicates = 0;
   let unsafe = 0;
-  let replaced = 0;
+  const output: AgentAction[] = [];
 
   for (const action of actions) {
-    if (output.length >= Math.min(cap, MAX_ACTIONS)) break;
+    if (output.length >= cap) break;
 
     if (action.type === "add_page" && action.ref && refs.pages.has(action.ref)) {
       duplicates += 1;
@@ -164,19 +171,14 @@ export function guardBuilderPlan(
       continue;
     }
 
-    // Two steps touching the same thing are a correction, not noise: the later
-    // one is what the design team settled on, so it REPLACES the earlier one in
-    // place instead of being discarded. Order is preserved.
-    const signature = key(action);
-    const priorIndex = seen.get(signature);
-    if (priorIndex !== undefined) {
+    // Sequential edits to the same target are intentional staged changes.
+    // Only an exact duplicate is collapsed; later edits are preserved in order.
+    const exact = JSON.stringify(action);
+    if (seenExact.has(exact)) {
       duplicates += 1;
-      replaced += 1;
-      output[priorIndex] = action;
       continue;
     }
-
-    seen.set(signature, output.length);
+    seenExact.add(exact);
     output.push(action);
 
     if (action.type === "add_page" && action.ref) {
@@ -195,7 +197,7 @@ export function guardBuilderPlan(
 
   return {
     actions: output,
-    dropped: actions.length - output.length - replaced,
+    dropped: actions.length - output.length,
     duplicates,
     unsafe,
   };

@@ -154,9 +154,8 @@ describe("AI design contract is the only creative authority", () => {
     const result = validateAiDesignContract(weak);
     expect(result.valid).toBe(false);
     const details = result.violations.map((item) => item.detail).join(" ");
-    expect(details).toMatch(/opening/i);
-    expect(details).toMatch(/conversion close/i);
     expect(details).toMatch(/required visual/i);
+    expect(details).not.toMatch(/opening|conversion close/i);
   });
 });
 

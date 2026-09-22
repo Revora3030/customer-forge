@@ -627,6 +627,120 @@ const VISUAL_KEYS = [
   "image_ratio",
 ] as const;
 
+const UNSAFE_AI_CSS_PROPERTIES = new Set([
+  "cssText",
+  "style",
+  "content",
+  "behavior",
+  "-moz-binding",
+  "binding",
+  "animation",
+  "transition",
+]);
+
+function safeAiCssProperty(rawKey: string): string | null {
+  const key = rawKey.trim();
+  if (!key || key.length > 80 || UNSAFE_AI_CSS_PROPERTIES.has(key.toLowerCase())) return null;
+  if (!/^[a-zA-Z][a-zA-Z0-9_-]*$/.test(key) && !/^--[a-zA-Z0-9_-]+$/.test(key)) return null;
+  return key;
+}
+
+function safeAiCssValue(value: unknown): string | number | null {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  if (!trimmed || trimmed.length > 500) return null;
+  if (/[<>;{}]|javascript:|expression\s*\(|url\s*\(\s*data:/i.test(trimmed)) return null;
+  return trimmed;
+}
+
+export function writeAiAuthoredVisual(
+  settings: unknown,
+  visual: Record<string, unknown>,
+): Record<string, unknown> {
+  const base =
+    settings && typeof settings === "object" && !Array.isArray(settings)
+      ? { ...(settings as Record<string, unknown>) }
+      : {};
+  const existing =
+    base["ai_visual"] && typeof base["ai_visual"] === "object" && !Array.isArray(base["ai_visual"])
+      ? { ...(base["ai_visual"] as Record<string, unknown>) }
+      : {};
+  const safe = aiAuthoredCss({ ai_visual: { ...existing, ...visual } }) as Record<string, unknown>;
+  base["ai_visual"] = safe;
+  return base;
+}
+
+export function writeAiResponsiveVisual(
+  settings: unknown,
+  width: number,
+  visual: Record<string, unknown>,
+): Record<string, unknown> {
+  const base =
+    settings && typeof settings === "object" && !Array.isArray(settings)
+      ? { ...(settings as Record<string, unknown>) }
+      : {};
+  const existing =
+    base["ai_responsive"] && typeof base["ai_responsive"] === "object" && !Array.isArray(base["ai_responsive"])
+      ? { ...(base["ai_responsive"] as Record<string, unknown>) }
+      : {};
+  const previous =
+    existing[String(width)] && typeof existing[String(width)] === "object" && !Array.isArray(existing[String(width)])
+      ? existing[String(width)] as Record<string, unknown>
+      : {};
+  const previousVisual =
+    previous["visual"] && typeof previous["visual"] === "object" && !Array.isArray(previous["visual"])
+      ? previous["visual"] as Record<string, unknown>
+      : {};
+  const safe = aiAuthoredCss({ ai_visual: { ...previousVisual, ...visual } }) as Record<string, unknown>;
+  existing[String(width)] = { ...previous, visual: safe };
+  base["ai_responsive"] = existing;
+  return base;
+}
+
+/** Reads open-ended AI visual capabilities without converting them into a preset vocabulary. */
+export function aiAuthoredCss(settings: unknown): React.CSSProperties {
+  if (!settings || typeof settings !== "object" || Array.isArray(settings)) return {};
+  const raw = (settings as Record<string, unknown>)["ai_visual"];
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+  const out: Record<string, string | number> = {};
+  for (const [rawKey, rawValue] of Object.entries(raw as Record<string, unknown>)) {
+    const key = safeAiCssProperty(rawKey);
+    if (!key) continue;
+    const value = safeAiCssValue(rawValue);
+    if (value !== null) out[key] = value;
+  }
+  return out as React.CSSProperties;
+}
+
+/**
+ * Converts AI-authored responsive capability data into safe media-query CSS.
+ * Unknown properties are ignored rather than replaced with a canned layout.
+ */
+export function aiAuthoredResponsiveCss(settings: unknown, selector: string): string {
+  if (!settings || typeof settings !== "object" || Array.isArray(settings)) return "";
+  const raw = (settings as Record<string, unknown>)["ai_responsive"];
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return "";
+  const rules: string[] = [];
+  for (const [width, state] of Object.entries(raw as Record<string, unknown>)) {
+    if (!/^\d{3,4}$/.test(width) || !state || typeof state !== "object" || Array.isArray(state)) continue;
+    const visual = (state as Record<string, unknown>)["visual"];
+    if (!visual || typeof visual !== "object" || Array.isArray(visual)) continue;
+    const declarations: string[] = [];
+    for (const [rawKey, rawValue] of Object.entries(visual as Record<string, unknown>)) {
+      const key = safeAiCssProperty(rawKey);
+      if (!key) continue;
+      const value = safeAiCssValue(rawValue);
+      if (value === null) continue;
+      const cssKey = key.replace(/[A-Z]/g, (letter) => "-" + letter.toLowerCase());
+      declarations.push(`${cssKey}:${String(value)}`);
+    }
+    if (declarations.length)
+      rules.push(`@media (max-width:${width}px){${selector}{${declarations.join(";")}}}`);
+  }
+  return rules.join("");
+}
+
 export function readSectionVisual(settings: unknown): PersistedSectionVisual {
   if (!settings || typeof settings !== "object" || Array.isArray(settings)) return {};
   const raw = (settings as Record<string, unknown>)["visual"];

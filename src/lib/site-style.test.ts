@@ -1,11 +1,14 @@
 /**
- * Builder styling must be expressive but never injectable: colours, URLs and
- * every option are validated against closed lists before becoming CSS.
+ * Builder styling must be expressive but never injectable: legacy semantic styles
+ * stay validated, while AI-authored CSS uses an open property surface behind
+ * strict property/value sanitisation.
  */
 import { describe, expect, it } from "vitest";
 import {
   DEFAULT_BLOCK_STYLE,
   blockCss,
+  aiAuthoredCss,
+  aiAuthoredResponsiveCss,
   readBlockStyle,
   safeColor,
   safeImageUrl,
@@ -104,5 +107,78 @@ describe("blockCss", () => {
       "--rv-block-font-weight": 650,
       "--rv-block-line-height": "1.22",
     });
+  });
+});
+
+
+describe("AI-authored visual capabilities", () => {
+  it("accepts a custom CSS property when its name and value are safe", () => {
+    const css = aiAuthoredCss({
+      ai_visual: {
+        "--rv-orbit-angle": "18deg",
+        maskImage: "linear-gradient(#000,#000)",
+      },
+    });
+    expect((css as Record<string, unknown>)["--rv-orbit-angle"]).toBe("18deg");
+    expect(css.maskImage).toBe("linear-gradient(#000,#000)");
+  });
+
+  it("preserves advanced safe visual values without a preset vocabulary", () => {
+    const css = aiAuthoredCss({
+      ai_visual: {
+        transform: "translate3d(12px,-4px,0) rotate(2deg)",
+        background: "linear-gradient(135deg,#111 0%,#733 55%,#f90 100%)",
+        clipPath: "polygon(0 0,100% 0,92% 100%,8% 100%)",
+        filter: "blur(0.2px) saturate(1.1)",
+        gridTemplateColumns: "minmax(0,1fr) minmax(180px,0.6fr)",
+      },
+    });
+    expect(css).toMatchObject({
+      transform: "translate3d(12px,-4px,0) rotate(2deg)",
+      background: "linear-gradient(135deg,#111 0%,#733 55%,#f90 100%)",
+      clipPath: "polygon(0 0,100% 0,92% 100%,8% 100%)",
+    });
+  });
+
+  it("rejects CSS animation and transition overrides", () => {
+    const css = aiAuthoredCss({ ai_visual: { animation: "spin 1s infinite", transition: "all 1s ease" } });
+    expect(css.animation).toBeUndefined();
+    expect(css.transition).toBeUndefined();
+  });
+
+  it("rejects executable CSS payloads instead of replacing them with a default", () => {
+    const css = aiAuthoredCss({
+      ai_visual: {
+        background: "url(javascript:alert(1))",
+        content: "<script>alert(1)</script>",
+      },
+    });
+    expect(css.background).toBeUndefined();
+  });
+
+  it("emits AI-authored responsive rules", () => {
+    const css = aiAuthoredResponsiveCss(
+      {
+        ai_responsive: {
+          "390": { visual: { gridTemplateColumns: "1fr", gap: "12px" } },
+        },
+      },
+      '[data-rv-ai-id="section-1"]',
+    );
+    expect(css).toContain("@media (max-width:390px)");
+    expect(css).toContain("grid-template-columns:1fr");
+  });
+
+  it("closes every responsive media rule", () => {
+    const css = aiAuthoredResponsiveCss(
+      {
+        ai_responsive: {
+          "390": { visual: { gap: "12px" } },
+          "768": { visual: { gap: "20px" } },
+        },
+      },
+      '[data-rv-ai-id="section-1"]',
+    );
+    expect((css.match(/\}/g) ?? []).length).toBe(4);
   });
 });

@@ -10,7 +10,13 @@ import type { SupabaseClient } from "@supabase/supabase-js";
  */
 
 import { writeBackdrop, writeSectionEffect } from "@/lib/site-effects";
-import { writeBlockStyle, writeComponentVisual, writeSectionVisual } from "@/lib/site-style";
+import {
+  writeAiAuthoredVisual,
+  writeAiResponsiveVisual,
+  writeBlockStyle,
+  writeComponentVisual,
+  writeSectionVisual,
+} from "@/lib/site-style";
 import { writeCustomBlock } from "@/lib/builder/custom-block";
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
@@ -27,6 +33,8 @@ import {
   type SiteIndex,
 } from "@/lib/site-agent";
 import type { VerificationReport } from "@/lib/agent/verify";
+import type { AgentContext } from "@/lib/site-agent.server";
+import { planWebsiteChangesWithAi } from "@/lib/builder/ai-agent-plan.server";
 import type { QaLoopResult } from "@/lib/builder/qa-loop.server";
 import {
   coveredRequestDimensions,
@@ -102,80 +110,6 @@ type LoadedSite = {
   }[];
 };
 
-const RENDERED_IMAGE_KINDS = new Set(["image", "gallery", "media", "photo", "hero_image"]);
-
-function requestsPictureWork(instruction: string): boolean {
-  return /\b(images?|photos?|pictures?|photographs?|hero shots?)\b/i.test(instruction) &&
-    /\b(add|change|replace|regenerate|generate|create|make|edit|swap|new)\b/i.test(instruction);
-}
-
-/**
- * Compiles a literal owner picture request into real generation actions. This
- * stays deterministic only in target selection; the pixels themselves always
- * come from the authenticated image pipeline. It also creates missing media
- * components, so an image-free first build can be repaired without a template.
- */
-export function pictureActionsFor(context: import("@/lib/site-agent.server").AgentContext, instruction: string): AgentAction[] {
-  const all = /\b(all|every|whole|entire)\b/i.test(instruction);
-  const wantsHero = /\b(hero|top|banner)\b/i.test(instruction);
-  const wantsHome = /\b(home|homepage|front page)\b/i.test(instruction) || wantsHero;
-  // "Add pictures" means fill missing visual slots. It must not turn the first
-  // existing image into an edit request: editing needs a different model and a
-  // source download, so doing that silently could abort an otherwise valid
-  // site-wide generation run before its first new picture was made.
-  const wantsReplacement = /\b(change|replace|regenerate|edit|swap|refresh)\b/i.test(instruction);
-  const home = context.pages.find((page) => page.slug === "home" || page.kind === "home");
-  const pages = all ? context.pages.filter((page) => page.is_visible) : home ? [home] : context.pages.slice(0, 1);
-  const candidates = pages.flatMap((page) =>
-    page.sections
-      .filter((section) => section.is_visible)
-      .filter((section) => {
-        if (wantsHero) return section.kind === "hero";
-        if (all) return ["hero", "services", "service_detail", "gallery", "intro", "cta"].includes(section.kind);
-        return ["hero", "services", "cta"].includes(section.kind);
-      })
-      .map((section) => ({ page, section })),
-  );
-  const targets = candidates.length ? candidates : context.pages.flatMap((page) =>
-    page.sections.filter((section) => section.is_visible).slice(0, 1).map((section) => ({ page, section })),
-  );
-  const actions: AgentAction[] = [];
-  for (const [index, target] of targets.entries()) {
-    const existing = target.section.components.find((component) =>
-      RENDERED_IMAGE_KINDS.has(component.kind),
-    );
-    if (existing && !wantsReplacement) continue;
-    const ref = `temp_picture_${index + 1}`;
-    const componentId = existing?.id ?? ref;
-    if (!existing) {
-      actions.push({
-        type: "add_component",
-        sectionId: target.section.id,
-        ref,
-        kind: target.section.kind === "hero" ? "hero_image" : "image",
-        label: target.section.heading ?? `${target.page.title} picture`,
-      });
-    }
-    const place = [context.business.city, context.business.state].filter(Boolean).join(", ");
-    const subject = target.section.heading ?? target.page.title;
-    actions.push({
-      type: "generate_component_image",
-      componentId,
-      prompt: [
-        `High-end editorial commercial photography for ${context.business.name}`,
-        context.business.industry ? `a ${context.business.industry} business` : "a professional service business",
-        place ? `serving ${place}` : null,
-        `created specifically for the ${subject} section on the ${target.page.title} page`,
-        "cinematic natural lighting, authentic environment, confident composition, refined color grade, realistic materials, sharp focal subject, generous negative space for website copy",
-        "no words, logos, watermarks, fake awards, fake reviews, addresses, licence plates, before-and-after claims, or identifiable real customers",
-      ].filter(Boolean).join(". "),
-      alt: `${context.business.name} ${subject} editorial photograph`,
-      mode: existing ? "replace" : "create",
-    });
-  }
-  return actions;
-}
-
 async function loadSite(supabase: SupabaseLike, orgId: string): Promise<LoadedSite> {
   const [pages, sections, components] = await Promise.all([
     supabase
@@ -212,12 +146,135 @@ async function loadSite(supabase: SupabaseLike, orgId: string): Promise<LoadedSi
 }
 
 /** Minimal shape we use from the request-scoped Supabase client. */
-type SupabaseLike = {
+export type SupabaseLike = {
   from: SupabaseClient["from"];
   storage: SupabaseClient["storage"];
 };
 
+export async function runAiWebsiteUpgrade(input: {
+  supabase: SupabaseLike;
+  organizationId: string;
+  userId: string;
+  instruction: string;
+  label: string;
+  operationKey?: string | undefined;
+}) {
+  const context = await loadAgentContext(input.supabase, input.organizationId);
+  const plan = await planWebsiteChangesWithAi({
+    organizationId: input.organizationId,
+    instruction: input.instruction,
+    history: [],
+    context,
+    attachments: [],
+  });
+  if (!plan.ok) {
+    throw new Error(
+      "The AI design team could not complete this website change (" +
+        plan.reason +
+        (plan.detail ? ": " + plan.detail : "") +
+        "). Nothing was changed.",
+    );
+  }
+  const applied = await applyWebsiteActions(input.supabase, input.userId, {
+    organizationId: input.organizationId,
+    actions: plan.actions,
+    label: input.label,
+    verify: true,
+    operationKey: input.operationKey ?? crypto.randomUUID(),
+  });
+  return { plan, applied };
+}
+
 /* --------------------------------- planning -------------------------------- */
+
+/** Build the planner's live workspace context for server-side AI tools. */
+export async function loadAgentContext(
+  supabase: SupabaseLike,
+  organizationId: string,
+): Promise<AgentContext> {
+  const [site, org, profile, services, reviews, media] = await Promise.all([
+    loadSite(supabase, organizationId),
+    supabase.from("organizations").select("name, industry").eq("id", organizationId).maybeSingle(),
+    supabase.from("business_profiles").select("*").eq("organization_id", organizationId).maybeSingle(),
+    supabase
+      .from("services")
+      .select("name, price, starting_price")
+      .eq("organization_id", organizationId)
+      .eq("is_active", true)
+      .order("sort_order"),
+    supabase.from("reviews").select("id", { count: "exact", head: true }).eq("organization_id", organizationId).eq("is_published", true),
+    supabase.from("media").select("id", { count: "exact", head: true }).eq("organization_id", organizationId),
+  ]);
+  if (!org.data) throw new Error("Workspace not found.");
+  const p = (profile.data ?? {}) as Record<string, unknown>;
+  const componentsBySection = new Map<string, LoadedSite["components"]>();
+  for (const component of site.components) {
+    const list = componentsBySection.get(component.section_id) ?? [];
+    list.push(component);
+    componentsBySection.set(component.section_id, list);
+  }
+  return {
+    business: {
+      name: org.data.name ?? "",
+      industry: org.data.industry ?? null,
+      tagline: (p["tagline"] as string) ?? null,
+      description: (p["description"] as string) ?? null,
+      city: (p["city"] as string) ?? null,
+      state: (p["state"] as string) ?? null,
+      serviceArea: (p["service_area"] as string) ?? null,
+      phone: (p["phone"] as string) ?? null,
+      email: (p["email"] as string) ?? null,
+      yearsInBusiness: (p["years_in_business"] as number) ?? null,
+      primaryColor: (p["primary_color"] as string) ?? null,
+      secondaryColor: (p["secondary_color"] as string) ?? null,
+      accentColor: (p["accent_color"] as string) ?? null,
+      fontPreference: (p["font_preference"] as string) ?? null,
+      services: (services.data ?? []).map((s) => ({ name: s.name, price: s.price ?? null, startingPrice: s.starting_price ?? null })),
+      publishedReviewCount: reviews.count ?? 0,
+      photoCount: media.count ?? 0,
+    },
+    pages: site.pages.map((page) => ({
+      id: page.id,
+      slug: page.slug,
+      title: page.title,
+      kind: page.kind,
+      is_visible: page.is_visible,
+      noindex: page.noindex,
+      seo_title: page.seo_title,
+      seo_description: page.seo_description,
+      sections: site.sections
+        .filter((section) => section.page_id === page.id)
+        .map((section) => ({
+          id: section.id,
+          kind: section.kind,
+          variant: section.variant,
+          is_visible: section.is_visible,
+          heading: section.heading,
+          subheading: section.subheading,
+          body: section.body,
+          sort_order: section.sort_order,
+          settings: section.settings,
+          components: (componentsBySection.get(section.id) ?? []).map((component) => ({
+            id: component.id,
+            kind: component.kind,
+            label: component.label,
+            body: component.body,
+            link_label: component.link_label,
+            link_url: component.link_url,
+            media_url: component.media_url,
+            settings: component.settings,
+            sort_order: component.sort_order,
+          })),
+        })),
+    })),
+    // The canonical AI planner does not receive a closed creative vocabulary.
+    sectionKinds: [],
+    pageKinds: [],
+    componentKinds: [],
+  };
+}
+
+
 
 /** The owner's brand choices, read off the request before anything is composed. */
 type BrandPreference = {
@@ -310,112 +367,10 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
     // The workspace picture is assembled once and reused for a short window, so
     // a follow-up message does not re-read the whole website to say the same
     // thing. Every write path clears it, so the agent never plans off stale data.
-    const { context: agentContext } = await getWorkspaceContext(orgId, async () => {
-      const { SECTION_LIBRARY, PAGE_LIBRARY } = await import("@/lib/website-content");
-      const [site, org, profile, services, reviews, media] = await Promise.all([
-        loadSite(supabase as unknown as SupabaseLike, orgId),
-        supabase.from("organizations").select("name, industry").eq("id", orgId).maybeSingle(),
-        supabase.from("business_profiles").select("*").eq("organization_id", orgId).maybeSingle(),
-        supabase
-          .from("services")
-          .select("name, price, starting_price")
-          .eq("organization_id", orgId)
-          .eq("is_active", true)
-          .order("sort_order"),
-        supabase
-          .from("reviews")
-          .select("id", { count: "exact", head: true })
-          .eq("organization_id", orgId)
-          .eq("is_published", true),
-        supabase
-          .from("media")
-          .select("id", { count: "exact", head: true })
-          .eq("organization_id", orgId),
-      ]);
-      if (!org.data) throw new Error("Workspace not found.");
-
-      const p = (profile.data ?? {}) as Record<string, unknown>;
-      const componentsBySection = new Map<string, LoadedSite["components"]>();
-      for (const component of site.components) {
-        const list = componentsBySection.get(component.section_id) ?? [];
-        list.push(component);
-        componentsBySection.set(component.section_id, list);
-      }
-
-      return {
-        business: {
-          name: org.data.name ?? "",
-          industry: org.data.industry ?? null,
-          tagline: (p["tagline"] as string) ?? null,
-          description: (p["description"] as string) ?? null,
-          city: (p["city"] as string) ?? null,
-          state: (p["state"] as string) ?? null,
-          serviceArea: (p["service_area"] as string) ?? null,
-          phone: (p["phone"] as string) ?? null,
-          email: (p["email"] as string) ?? null,
-          yearsInBusiness: (p["years_in_business"] as number) ?? null,
-          primaryColor: (p["primary_color"] as string) ?? null,
-          secondaryColor: (p["secondary_color"] as string) ?? null,
-          accentColor: (p["accent_color"] as string) ?? null,
-          fontPreference: (p["font_preference"] as string) ?? null,
-          services: (services.data ?? []).map((s) => ({
-            name: s.name,
-            price: s.price ?? null,
-            startingPrice: s.starting_price ?? null,
-          })),
-          publishedReviewCount: reviews.count ?? 0,
-          photoCount: media.count ?? 0,
-        },
-        pages: site.pages.map((page) => ({
-          id: page.id,
-          slug: page.slug,
-          title: page.title,
-          kind: page.kind,
-          is_visible: page.is_visible,
-          noindex: page.noindex,
-          seo_title: page.seo_title,
-          seo_description: page.seo_description,
-          sections: site.sections
-            .filter((section) => section.page_id === page.id)
-            .map((section) => ({
-              id: section.id,
-              kind: section.kind,
-              variant: section.variant,
-              is_visible: section.is_visible,
-              heading: section.heading,
-              subheading: section.subheading,
-              body: section.body,
-              sort_order: section.sort_order,
-              settings: section.settings,
-              components: (componentsBySection.get(section.id) ?? []).map((component) => ({
-                id: component.id,
-                kind: component.kind,
-                label: component.label,
-                body: component.body,
-                link_label: component.link_label,
-                link_url: component.link_url,
-                media_url: component.media_url,
-                settings: component.settings,
-                sort_order: component.sort_order,
-              })),
-            })),
-        })),
-        sectionKinds: SECTION_LIBRARY.map((s) => s.kind),
-        pageKinds: PAGE_LIBRARY.map((p2) => p2.kind),
-        componentKinds: [
-          "feature",
-          "faq",
-          "step",
-          "stat",
-          "card",
-          "link",
-          "button",
-          "quote",
-          "list_item",
-          "image",
-        ],
-      };
-    });
+    const { context: agentContext } = await getWorkspaceContext(
+      orgId,
+      () => loadAgentContext(supabase, orgId),
+    );
 
     if (!agentContext.pages.length)
       throw new Error(
@@ -458,122 +413,80 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
     // DESIGN IDENTITY. Worked out once from what the business actually is, then
     // reused on every later request so unrelated edits cannot quietly redesign
     // the site. Design choices only — never a business fact and never copy.
-    const { createDesignFingerprint, fingerprintBrief, readDesignFingerprint, writeDesignFingerprint } =
-      await import("@/lib/builder/design-fingerprint");
     const storedGeneration = ((settingsRow.data as { generation?: unknown } | null)?.generation ??
       {}) as Record<string, unknown>;
     noteStage(orgId, runId, "recalling your design identity");
-    const priorFingerprint = readDesignFingerprint(storedGeneration);
-    const fingerprint =
-      priorFingerprint ??
-      createDesignFingerprint({
-        businessName: agentContext.business.name || null,
-        industry: agentContext.business.industry ?? null,
-        city: agentContext.business.city ?? null,
-        audience: agentContext.business.serviceArea ?? null,
-        goal: null,
-        photoCount: agentContext.business.photoCount ?? 0,
-        contentDensity: "balanced",
-      });
-    data.history = [{ role: "user" as const, content: fingerprintBrief(fingerprint) }, ...data.history];
-
     const memoryChanged = nextMemory !== priorMemory;
-    const fingerprintNew = !priorFingerprint;
-    if ((memoryChanged || fingerprintNew) && settingsRow.data) {
-      let generation: Record<string, unknown> = { ...storedGeneration };
-      if (memoryChanged) generation["designMemory"] = nextMemory;
-      if (fingerprintNew) generation = writeDesignFingerprint(generation, fingerprint);
+    if (memoryChanged && settingsRow.data) {
+      const generation: Record<string, unknown> = { ...storedGeneration, designMemory: nextMemory };
       const saved = await supabase
         .from("website_settings")
         .update({ generation: generation as never })
         .eq("organization_id", orgId);
-      // A memory write must never block the build; it is only ever a preference.
       if (saved.error) console.warn("design memory not saved", saved.error.message);
     }
 
     // AI-AUTHORED CUSTOMER PATH. Every creative decision — layout, section
     // choice, wording, colour, typography, imagery and conversion structure —
-    // is authored by the model team and reviewed adversarially. There is no
-    // template or preset design to fall back on: when the models cannot answer,
-    // the owner is told plainly and nothing is changed.
+    // is authored by the model team and reviewed adversarially. Specialized
+    // request types do not bypass the same creative authority.
     const { planWebsiteChangesWithAi } = await import("@/lib/builder/ai-agent-plan.server");
-    const pictureActions = requestsPictureWork(instruction)
-      ? pictureActionsFor(agentContext, instruction)
-      : [];
 
-    let raw: Record<string, unknown>;
+    const raw: Record<string, unknown> = {};
     let requirements: { label: string; covered: boolean }[] = [];
     let trace: string[] = [];
-    let planModel = "revora-image-pipeline";
-
+    let planModel = "revora-ai";
 
     noteStage(orgId, runId, "planning the change");
-    if (pictureActions.length) {
-      requirements = [{ label: "generate and attach real AI pictures", covered: true }];
-      trace = [
-        `Targeted ${Math.floor(pictureActions.length / 2)} visible website area(s) for real picture generation.`,
-        "Missing picture blocks will be created before their generated images are attached.",
-        "No decorative template artwork or invented image URL is used.",
-      ];
-      raw = {
-        reply: "I mapped your request to real website picture generation and exact page placements.",
-        summary: "Generate and attach website pictures",
-        actions: pictureActions as unknown,
-        questions: [],
-        notes: [],
-      };
-    } else {
-      const authored = await planWebsiteChangesWithAi({
-        organizationId: orgId,
-        instruction: normalizeBuilderInstruction(instruction),
-        history: data.history
-          .filter((turn) => turn.role === "user")
-          .map((turn) => turn.content)
-          .slice(-6),
-        context: agentContext,
-        attachments: data.attachments.map((attachment) => ({
-          kind: attachment.kind,
-          name: attachment.name,
-        })),
-      });
+    const authored = await planWebsiteChangesWithAi({
+      organizationId: orgId,
+      instruction: normalizeBuilderInstruction(instruction),
+      history: data.history
+        .filter((turn) => turn.role === "user")
+        .map((turn) => turn.content)
+        .slice(-6),
+      context: agentContext,
+      attachments: data.attachments.map((attachment) => ({
+        kind: attachment.kind,
+        name: attachment.name,
+      })),
+    });
 
-      if (!authored.ok) {
-        return {
-          reply:
-            "I couldn't design this change right now, so I've left your website exactly as it is. Please try again in a moment — I'd rather wait than drop a stock layout onto your site.",
-          summary: "",
-          steps: [] as AgentStep[],
-          questions: [] as string[],
-          notes: [] as string[],
-          requirements: [] as { label: string; covered: boolean }[],
-          trace: [
-            "Nothing changed.",
-            `The design team was unavailable (${authored.reason}${authored.detail ? `: ${authored.detail}` : ""}).`,
-          ],
-          unavailable: {
-            reason: authored.reason,
-            retryable: true,
-            instruction,
-          } as { reason: string; retryable: boolean; instruction: string } | null,
-          composition:
-            null as import("@/lib/builder/composition-preview").CompositionPreview | null,
-        };
-      }
-
-      requirements = authored.requirements;
-      trace = authored.trace;
-      planModel = authored.reviewModel
-        ? `${authored.model}+${authored.reviewModel}`
-        : authored.model;
-      raw = {
-
-        reply: authored.reply,
-        summary: authored.summary,
-        actions: authored.actions,
-        questions: authored.questions,
-        notes: authored.notes,
+    if (!authored.ok) {
+      return {
+        reply:
+          "I couldn't design this change right now, so I've left your website exactly as it is. Please try again in a moment — I'd rather wait than drop a stock layout onto your site.",
+        summary: "",
+        steps: [] as AgentStep[],
+        questions: [] as string[],
+        notes: [] as string[],
+        requirements: [] as { label: string; covered: boolean }[],
+        trace: [
+          "Nothing changed.",
+          `The design team was unavailable (${authored.reason}${authored.detail ? `: ${authored.detail}` : ""}).`,
+        ],
+        unavailable: {
+          reason: authored.reason,
+          retryable: true,
+          instruction,
+        } as { reason: string; retryable: boolean; instruction: string } | null,
+        composition:
+          null as import("@/lib/builder/composition-preview").CompositionPreview | null,
       };
     }
+
+    requirements = authored.requirements;
+    trace = authored.trace;
+    planModel = authored.reviewModel
+      ? authored.model + "+" + authored.reviewModel
+      : authored.model;
+    Object.assign(raw, {
+      reply: authored.reply,
+      summary: authored.summary,
+      actions: authored.actions,
+      questions: authored.questions,
+      notes: authored.notes,
+    });
 
 
     const allSections = agentContext.pages.flatMap((page) =>
@@ -682,7 +595,7 @@ export const applyWebsiteChanges = createServerFn({ method: "POST" })
     }),
   )
   .handler(async ({ data, context }) =>
-    applyImpl(context.supabase as unknown as SupabaseLike, String(context.userId), data),
+    applyWebsiteActions(context.supabase as unknown as SupabaseLike, String(context.userId), data),
   );
 
 type ApplyInput = {
@@ -694,12 +607,62 @@ type ApplyInput = {
   operationKey?: string | undefined;
 };
 
+const OPERATION_CLAIM_LEASE_MS = 5 * 60 * 1000;
+
+type StoredApplyResult = {
+  applied: number;
+  failed: number;
+  stale: number;
+  unchanged: number;
+  staleNotice: string;
+  duplicates: number;
+  details: string[];
+  dropped: string[];
+  snapshotLabel: string;
+  snapshotVersion: number;
+  snapshotId: string | null;
+  operationId: string;
+  alreadyApplied: boolean;
+  verification: VerificationReport | null;
+  qa: QaLoopResult | null;
+  appliedActions: AgentAction[];
+};
+
+function readStoredApplyResult(value: unknown): StoredApplyResult {
+  const raw = value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+  const list = (key: string) =>
+    Array.isArray(raw[key]) ? (raw[key] as unknown[]).map((item) => String(item)) : [];
+  return {
+    applied: Number(raw["applied"] ?? 0) || 0,
+    failed: Number(raw["failed"] ?? 0) || 0,
+    stale: Number(raw["stale"] ?? 0) || 0,
+    unchanged: Number(raw["unchanged"] ?? 0) || 0,
+    staleNotice: String(raw["staleNotice"] ?? ""),
+    duplicates: Number(raw["duplicates"] ?? 0) || 0,
+    details: list("details"),
+    dropped: list("dropped"),
+    snapshotLabel: String(raw["snapshotLabel"] ?? ""),
+    snapshotVersion: Number(raw["snapshotVersion"] ?? 0) || 0,
+    snapshotId: String(raw["snapshotId"] ?? "") || null,
+    operationId: String(raw["operationId"] ?? ""),
+    alreadyApplied: true,
+    verification: (raw["verification"] as VerificationReport | null) ?? null,
+    qa: (raw["qa"] as QaLoopResult | null) ?? null,
+    appliedActions: Array.isArray(raw["appliedActions"])
+      ? (raw["appliedActions"] as AgentAction[])
+      : [],
+  };
+}
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
 /** Accepts any id, so a batch can be read exactly as it was planned. */
 const ANY_ID = { has: () => true } as unknown as Set<string>;
 
-async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInput) {
-  {
-    const orgId = data.organizationId;
+export async function applyWebsiteActions(supabase: SupabaseLike, userId: string, data: ApplyInput) {
+  const orgId = data.organizationId;
     const { noteStage: noteApplyStage } = await import("@/lib/builder/progress.server");
     const applyRunId = crypto.randomUUID();
     noteApplyStage(orgId, applyRunId, "checking the plan is safe");
@@ -714,47 +677,147 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
     const { invalidateWorkspaceContext } = await import("@/lib/agent/workspace-context.server");
     invalidateWorkspaceContext(orgId);
 
-    // Idempotency: the same request key applied moments ago is answered with the
-    // result of that run instead of writing everything a second time. This is
-    // what stops a double press, an impatient retry or a reconnect from
-    // duplicating sections.
+    let operationClaimId: string | null = null;
+    let operationClaimHeartbeat: ReturnType<typeof setInterval> | null = null;
+
     if (data.operationKey) {
-      const { data: recent } = await supabase
-        .from("ai_generations")
-        .select("result, created_at")
-        .eq("organization_id", orgId)
-        .eq("kind", "agent_apply")
-        .order("created_at", { ascending: false })
-        .limit(20);
-      const cutoff = Date.now() - 15 * 60 * 1000;
-      const previous = (recent ?? []).find((row) => {
-        const result = row?.["result"] as { operationKey?: unknown } | null;
-        const at = Date.parse(String(row?.["created_at"] ?? ""));
-        return result?.operationKey === data.operationKey && Number.isFinite(at) && at >= cutoff;
-      });
-      if (previous) {
-        const result = previous["result"] as Record<string, unknown>;
-        const labels = (key: string) =>
-          Array.isArray(result[key]) ? (result[key] as unknown[]).map((item) => String(item)) : [];
-        return {
-          applied: Number(result["applied"] ?? 0) || 0,
-          failed: Number(result["failed"] ?? 0) || 0,
-          stale: Number(result["stale"] ?? 0) || 0,
-          staleNotice: String(result["staleNotice"] ?? ""),
-          duplicates: Number(result["duplicates"] ?? 0) || 0,
-          details: [
-            ...labels("appliedLabels").map((label) => `applied ${label}`),
-            ...labels("skippedLabels").map((label) => `skipped ${label}`),
-          ],
-          snapshotLabel: String(result["snapshotLabel"] ?? ""),
-          snapshotVersion: Number(result["snapshotVersion"] ?? 0) || 0,
-          operationId: String(result["operationId"] ?? ""),
-          alreadyApplied: true,
-          verification: null as VerificationReport | null,
-        };
+      const leaseUntil = () => new Date(Date.now() + OPERATION_CLAIM_LEASE_MS).toISOString();
+      const claim = await supabase
+        .from("ai_operation_claims")
+        .insert({
+          organization_id: orgId,
+          operation_key: data.operationKey,
+          status: "pending",
+          result: {},
+          created_by: userId,
+          lease_expires_at: leaseUntil(),
+        } as never)
+        .select("id")
+        .maybeSingle();
+
+      if (claim.data?.id) {
+        operationClaimId = String(claim.data.id);
+      } else if (claim.error?.code === "23505") {
+        const { data: existing } = await supabase
+          .from("ai_operation_claims")
+          .select("id, status, result, lease_expires_at")
+          .eq("organization_id", orgId)
+          .eq("operation_key", data.operationKey)
+          .maybeSingle();
+
+        if (existing?.status === "completed") return readStoredApplyResult(existing.result);
+
+        if (existing?.status === "failed") {
+          const { data: reclaimed } = await supabase
+            .from("ai_operation_claims")
+            .update({
+              status: "pending",
+              result: {},
+              lease_expires_at: leaseUntil(),
+              completed_at: null,
+              updated_at: new Date().toISOString(),
+            } as never)
+            .eq("id", existing.id)
+            .eq("status", "failed")
+            .select("id")
+            .maybeSingle();
+          if (reclaimed?.id) operationClaimId = String(reclaimed.id);
+        } else if (
+          existing?.status === "pending" &&
+          existing.lease_expires_at &&
+          new Date(existing.lease_expires_at).getTime() <= Date.now()
+        ) {
+          const { data: reclaimed } = await supabase
+            .from("ai_operation_claims")
+            .update({
+              lease_expires_at: leaseUntil(),
+              updated_at: new Date().toISOString(),
+            } as never)
+            .eq("id", existing.id)
+            .eq("status", "pending")
+            .lte("lease_expires_at", new Date().toISOString())
+            .select("id")
+            .maybeSingle();
+          if (reclaimed?.id) operationClaimId = String(reclaimed.id);
+        }
+
+        if (!operationClaimId) {
+          for (let attempt = 0; attempt < 30; attempt += 1) {
+            await sleep(500);
+            const { data: current } = await supabase
+              .from("ai_operation_claims")
+              .select("status, result, lease_expires_at")
+              .eq("organization_id", orgId)
+              .eq("operation_key", data.operationKey)
+              .maybeSingle();
+            if (current?.status === "completed") return readStoredApplyResult(current.result);
+            if (current?.status === "failed") {
+              const { data: reclaimed } = await supabase
+                .from("ai_operation_claims")
+                .update({
+                  status: "pending",
+                  result: {},
+                  lease_expires_at: leaseUntil(),
+                  completed_at: null,
+                  updated_at: new Date().toISOString(),
+                } as never)
+                .eq("organization_id", orgId)
+                .eq("operation_key", data.operationKey)
+                .eq("status", "failed")
+                .select("id")
+                .maybeSingle();
+              if (reclaimed?.id) {
+                operationClaimId = String(reclaimed.id);
+                break;
+              }
+            }
+            if (
+              current?.status === "pending" &&
+              current.lease_expires_at &&
+              new Date(current.lease_expires_at).getTime() <= Date.now()
+            ) {
+              const { data: reclaimed } = await supabase
+                .from("ai_operation_claims")
+                .update({
+                  lease_expires_at: leaseUntil(),
+                  updated_at: new Date().toISOString(),
+                } as never)
+                .eq("organization_id", orgId)
+                .eq("operation_key", data.operationKey)
+                .eq("status", "pending")
+                .lte("lease_expires_at", new Date().toISOString())
+                .select("id")
+                .maybeSingle();
+              if (reclaimed?.id) {
+                operationClaimId = String(reclaimed.id);
+                break;
+              }
+            }
+          }
+        }
+
+        if (!operationClaimId) {
+          throw new Error("Another Revora change with this request is still running. Please wait a moment and retry; nothing was duplicated.");
+        }
+      } else if (claim.error) {
+        throw new Error("Revora could not reserve this change safely: " + claim.error.message);
+      }
+
+      if (operationClaimId) {
+        operationClaimHeartbeat = setInterval(() => {
+          void supabase
+            .from("ai_operation_claims")
+            .update({
+              lease_expires_at: leaseUntil(),
+              updated_at: new Date().toISOString(),
+            } as never)
+            .eq("id", operationClaimId)
+            .eq("status", "pending");
+        }, 30_000);
       }
     }
 
+    try {
     const site = await loadSite(supabase as unknown as SupabaseLike, orgId);
     // Read the batch exactly as planned, then check it against the site as it is
     // right now. A step whose target was deleted or renamed after planning is
@@ -862,6 +925,7 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
     noteApplyStage(orgId, applyRunId, "writing the pages");
     const sortOf = new Map(site.sections.map((section) => [section.id, section.sort_order]));
     const applied: string[] = [];
+    const appliedActions: AgentAction[] = [];
     const failed: string[] = [];
 
     // Every write records how to reverse itself first. The first failure stops
@@ -869,6 +933,7 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
     // either fully in place or the site is exactly as it was.
     const undoSteps: UndoStep[] = [];
     let fatal: unknown = null;
+    let currentAction: AgentAction | null = null;
 
     // SPEED: the pre-write state of everything this batch touches is read once,
     // here, instead of once per step. The writes themselves stay strictly in
@@ -906,6 +971,7 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
         const result = (await work()) as { error?: unknown } | null;
         if (result && result.error) throw result.error;
         applied.push(label);
+        if (currentAction) appliedActions.push(currentAction);
       } catch (error) {
         console.error("[site-agent] action failed", label, error);
         failed.push(label);
@@ -979,6 +1045,7 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
           componentId: newComponents.get(resolved.componentId)!,
         } as AgentAction;
       const action = resolved;
+      currentAction = action;
 
       if (action.type === "reorder_sections") {
         const wrongPage = action.sectionIds.find((id) => sectionPage.get(id) !== action.pageId);
@@ -1053,6 +1120,35 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
           await run(action.type, () => {
             const settings = writeSectionVisual(
               readColumn("website_sections", action.sectionId, "settings"),
+              action.patch,
+            );
+            noteColumn("website_sections", action.sectionId, "settings", settings);
+            return supabase
+              .from("website_sections")
+              .update({ settings } as never)
+              .eq("id", action.sectionId)
+              .eq("organization_id", orgId);
+          });
+          break;
+        case "set_ai_visual":
+          await run(action.type, () => {
+            const settings = writeAiAuthoredVisual(
+              readColumn("website_sections", action.sectionId, "settings"),
+              action.patch,
+            );
+            noteColumn("website_sections", action.sectionId, "settings", settings);
+            return supabase
+              .from("website_sections")
+              .update({ settings } as never)
+              .eq("id", action.sectionId)
+              .eq("organization_id", orgId);
+          });
+          break;
+        case "set_ai_responsive":
+          await run(action.type, () => {
+            const settings = writeAiResponsiveVisual(
+              readColumn("website_sections", action.sectionId, "settings"),
+              action.width,
               action.patch,
             );
             noteColumn("website_sections", action.sectionId, "settings", settings);
@@ -1171,6 +1267,35 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
           );
           break;
         }
+        case "set_ai_component_visual":
+          await run(action.type, () => {
+            const settings = writeAiAuthoredVisual(
+              readColumn("website_components", action.componentId, "settings"),
+              action.patch,
+            );
+            noteColumn("website_components", action.componentId, "settings", settings);
+            return supabase
+              .from("website_components")
+              .update({ settings } as never)
+              .eq("id", action.componentId)
+              .eq("organization_id", orgId);
+          });
+          break;
+        case "set_ai_component_responsive":
+          await run(action.type, () => {
+            const settings = writeAiResponsiveVisual(
+              readColumn("website_components", action.componentId, "settings"),
+              action.width,
+              action.patch,
+            );
+            noteColumn("website_components", action.componentId, "settings", settings);
+            return supabase
+              .from("website_components")
+              .update({ settings } as never)
+              .eq("id", action.componentId)
+              .eq("organization_id", orgId);
+          });
+          break;
         case "set_component_visual":
           await run(action.type, () => {
             const settings = writeComponentVisual(
@@ -1471,6 +1596,7 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
         skippedLabels: failed,
         snapshotLabel,
         snapshotVersion,
+        snapshotId,
         mutations: undoSteps.length,
       } as unknown as never,
 
@@ -1574,7 +1700,7 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
       console.warn("[site-agent] memory not recorded", error);
     }
 
-    return {
+    const finalResult: StoredApplyResult = {
       applied: applied.length,
       failed: failed.length,
       /** Steps that could not run because their target no longer exists. */
@@ -1600,12 +1726,46 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
       dropped: applyDropped,
       snapshotLabel,
       snapshotVersion,
+      snapshotId,
       operationId,
       alreadyApplied: false,
       verification,
       /** Checked → repaired → checked again, measured on the saved rows. */
       qa,
+      appliedActions,
     };
+
+    if (operationClaimId) {
+      await supabase
+        .from("ai_operation_claims")
+        .update({
+          status: "completed",
+          result: finalResult as unknown as never,
+          lease_expires_at: null,
+          completed_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        } as never)
+        .eq("id", operationClaimId)
+        .eq("status", "pending");
+    }
+    return finalResult;
+  } catch (error) {
+    if (operationClaimId) {
+      await supabase
+        .from("ai_operation_claims")
+        .update({
+          status: "failed",
+          result: { error: String(error instanceof Error ? error.message : error) },
+          lease_expires_at: null,
+          completed_at: null,
+          updated_at: new Date().toISOString(),
+        } as never)
+        .eq("id", operationClaimId)
+        .eq("status", "pending");
+    }
+    throw error;
+  } finally {
+    if (operationClaimHeartbeat) clearInterval(operationClaimHeartbeat);
   }
 }
 
@@ -1760,9 +1920,9 @@ export const runWebsiteTask = createServerFn({ method: "POST" })
         return {
           plan,
           needsApproval,
-          applied: null as null | Awaited<ReturnType<typeof applyImpl>>,
+          applied: null as null | Awaited<ReturnType<typeof applyWebsiteActions>>,
         };
-      const applied = await applyImpl(supabase, userId, {
+      const applied = await applyWebsiteActions(supabase, userId, {
         organizationId: data.organizationId,
         actions: safe.map((step: AgentStep) => step.action),
         label,

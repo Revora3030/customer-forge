@@ -34,6 +34,7 @@ export function SitePageLink({
   className,
   style,
   blockId,
+  dataRvAiComponentId,
   children,
 }: {
   slug: string;
@@ -41,32 +42,33 @@ export function SitePageLink({
   className?: string | undefined;
   style?: CSSProperties | undefined;
   blockId?: string | undefined;
+  dataRvAiComponentId?: string | undefined;
   children: ReactNode;
 }) {
   const ownAddress = useOwnAddress();
   if (page?.startsWith("#")) {
     return (
-      <a href={ownAddress ? `/${page}` : `/s/${encodeURIComponent(slug)}${page}`} className={className} style={style} data-rvb={blockId}>
+      <a href={ownAddress ? `/${page}` : `/s/${encodeURIComponent(slug)}${page}`} className={className} style={style} data-rvb={blockId} data-rv-ai-component-id={dataRvAiComponentId}>
         {children}
       </a>
     );
   }
   if (ownAddress) {
     return (
-      <a href={page ? `/${page}` : "/"} className={className} style={style} data-rvb={blockId}>
+      <a href={page ? `/${page}` : "/"} className={className} style={style} data-rvb={blockId} data-rv-ai-component-id={dataRvAiComponentId}>
         {children}
       </a>
     );
   }
   if (!page) {
     return (
-      <Link to="/s/$slug" params={{ slug }} className={className} style={style} data-rvb={blockId}>
+      <Link to="/s/$slug" params={{ slug }} className={className} style={style} data-rvb={blockId} data-rv-ai-component-id={dataRvAiComponentId}>
         {children}
       </Link>
     );
   }
   return (
-    <Link to="/s/$slug/$page" params={{ slug, page }} className={className} style={style} data-rvb={blockId}>
+    <Link to="/s/$slug/$page" params={{ slug, page }} className={className} style={style} data-rvb={blockId} data-rv-ai-component-id={dataRvAiComponentId}>
       {children}
     </Link>
   );

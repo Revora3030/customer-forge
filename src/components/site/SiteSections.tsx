@@ -13,6 +13,8 @@ import {
   readBlockStyle,
   readSectionVisual,
   readComponentVisual,
+  aiAuthoredCss,
+  aiAuthoredResponsiveCss,
   type PersistedComponentVisual,
 } from "@/lib/site-style";
 import { Link } from "@tanstack/react-router";
@@ -187,7 +189,7 @@ function SectionMedia({ site, section }: { site: Site; section: Section }) {
         if (!src) return null;
         const overlayClass = visual.overlay ? "rv-overlay-" + visual.overlay : "";
         return (
-          <figure key={component.id} data-rvb={component.id} style={blockCss(style, siteSurface(site))} className={`rv-media-frame ${ratioClass(visual.aspect_ratio)} ${overlayClass} overflow-hidden`}>
+          <figure key={component.id} data-rvb={component.id} data-rv-ai-component-id={component.id.replace(/[^a-zA-Z0-9_-]/g, "-")} style={{ ...blockCss(style, siteSurface(site)), ...aiAuthoredCss((component as Component & { settings?: unknown }).settings) }} className={`rv-media-frame ${ratioClass(visual.aspect_ratio)} ${overlayClass} overflow-hidden`}>
             <img
               src={src}
               alt={visual.alt || component.label || `${site.org.name} work sample`}
@@ -217,7 +219,7 @@ function SectionFeatureMedia({ site, section, className = "" }: { site: Site; se
   const src = componentImageUrl(component);
   if (!src) return null;
   return (
-    <figure data-rvb={component.id} style={blockCss(style, siteSurface(site))} className={`rv-feature-media overflow-hidden ${className}`}>
+    <figure data-rvb={component.id} data-rv-ai-component-id={component.id.replace(/[^a-zA-Z0-9_-]/g, "-")} style={{ ...blockCss(style, siteSurface(site)), ...aiAuthoredCss((component as Component & { settings?: unknown }).settings) }} className={`rv-feature-media overflow-hidden ${className}`}>
       <img
         src={src}
         alt={visual.alt || component.label || `${site.org.name} supporting image`}
@@ -243,15 +245,15 @@ function SectionButtons({ site, components }: { site: Site; components: Componen
         const hasOverride = Boolean(style.buttonStyle || style.buttonSize || style.buttonTextColor || style.buttonBgColor);
         const directClass = hasOverride ? buttonClasses(style) : undefined;
         const surface = siteSurface(site);
-        const directStyle = { ...blockCss(style, surface), ...buttonCss(style, surface) };
+        const directStyle = { ...blockCss(style, surface), ...aiAuthoredCss((button as Component & { settings?: unknown }).settings), ...buttonCss(style, surface) };
         return (
           <Button key={button.id} asChild variant={hasOverride ? "ghost" : index === 0 ? "signal" : "outline"} size={hasOverride ? "sm" : "lg"}>
             {internal ? (
-              <SitePageLink slug={site.org.slug} page={href.slice(1)} className={directClass} style={directStyle} blockId={button.id}>
+              <SitePageLink slug={site.org.slug} page={href.slice(1)} className={directClass} style={directStyle} blockId={button.id} dataRvAiComponentId={button.id.replace(/[^a-zA-Z0-9_-]/g, "-")}>
                 {button.label}
               </SitePageLink>
             ) : (
-              <a href={href} className={directClass} style={directStyle} data-rvb={button.id}>{button.label}</a>
+              <a href={href} className={directClass} style={directStyle} data-rvb={button.id} data-rv-ai-component-id={button.id.replace(/[^a-zA-Z0-9_-]/g, "-")}>{button.label}</a>
             )}
           </Button>
         );
@@ -271,18 +273,40 @@ export function SiteSection({ site, section }: { site: Site; section: Section })
   const visual = readSectionVisual(section.settings);
   const variant = /^[a-z0-9-]{1,40}$/i.test(section.variant ?? "") ? section.variant : "default";
   const rendererVariant = variant.split("--", 1)[0] ?? variant;
-  const fingerprint = siteDesignFingerprint(site);
   const hasMedia = section.components.some((component) => Boolean(componentImageUrl(component))) ||
     (section.kind === "hero" && Boolean(site.profile?.hero_image_url));
-  const creative = resolveExecutableCreativeSection({
-    kind: section.kind,
-    settings: section.settings,
-    fingerprint,
-    hasMedia,
-  });
+  const aiAuthoredSection = Boolean(
+    (section.settings as { ai_authored?: unknown } | null | undefined)?.ai_authored,
+  );
+  // Canonical Sol-authored sections render exactly the contract they received.
+  // The executable-creative/fingerprint inference remains a compatibility
+  // adapter for legacy published sites only.
+  const creative = aiAuthoredSection
+    ? null
+    : resolveExecutableCreativeSection({
+        kind: section.kind,
+        settings: section.settings,
+        fingerprint: siteDesignFingerprint(site),
+        hasMedia,
+      });
   const inner = <SiteSectionBody site={site} section={section} />;
 
   const css = blockCss(style, siteSurface(site));
+  const aiCss = aiAuthoredCss(section.settings);
+  const aiId = section.id.replace(/[^a-zA-Z0-9_-]/g, "-");
+  const aiSelector = `[data-rv-ai-id="${aiId}"]`;
+  const aiResponsiveCss = aiAuthoredResponsiveCss(section.settings, aiSelector);
+  const aiComponentResponsiveCss = section.components
+    .map((component) => {
+      const componentId = component.id.replace(/[^a-zA-Z0-9_-]/g, "-");
+      return aiAuthoredResponsiveCss(
+        (component as Component & { settings?: unknown }).settings,
+        `[data-rv-ai-component-id="${componentId}"]`,
+      );
+    })
+    .filter(Boolean)
+    .join("");
+
   const customBackground = Boolean(style.bgColor || style.bgImage);
   const customText = Boolean(style.textColor);
   const customFont = Boolean(style.font);
@@ -294,7 +318,8 @@ export function SiteSection({ site, section }: { site: Site; section: Section })
       data-rvb={section.id}
       data-rvb-kind={section.kind}
       data-rvb-label={sectionLabel(section.kind)}
-      style={css}
+      data-rv-ai-id={aiId}
+      style={{ ...css, ...aiCss }}
     >
       {inner}
     </div>
@@ -326,8 +351,11 @@ export function SiteSection({ site, section }: { site: Site; section: Section })
       data-rv-custom-spacing={customSpacing || undefined}
       data-rv-columns={style.columns ?? undefined}
       data-rv-gap={style.gap ?? undefined}
+      data-rv-ai-id={aiId}
     >
-      {!(["hero", "service_detail", "cta", "intro", "offer", "guarantee", "area", "policy", "lead_magnet"] as string[]).includes(section.kind)
+      {aiResponsiveCss || aiComponentResponsiveCss ? <style>{aiResponsiveCss}{aiComponentResponsiveCss}</style> : null}
+      {!aiAuthoredSection &&
+      !(["hero", "service_detail", "cta", "intro", "offer", "guarantee", "area", "policy", "lead_magnet"] as string[]).includes(section.kind)
         ? <SectionMedia site={site} section={section} />
         : null}
       {styledInner}
@@ -338,8 +366,123 @@ export function SiteSection({ site, section }: { site: Site; section: Section })
   return <div className={sectionEffectClass(effect)}>{decorated}</div>;
 }
 
+function AiAuthoredSectionBody({ site, section }: { site: Site; section: Section }) {
+  const components = section.components ?? [];
+  const visibleComponents = components;
+  const nonButtonComponents = visibleComponents.filter(
+    (component) =>
+      component.kind !== "button" &&
+      Boolean(component.label || component.body || componentImageUrl(component)),
+  );
+  const buttons = visibleComponents.filter((component) => component.kind === "button" && component.label);
+  const aiSectionCss = aiAuthoredCss(section.settings);
+  const sectionInnerId = `ai-section-inner-${section.id.replace(/[^a-zA-Z0-9_-]/g, "-")}`;
+
+  return (
+    <section data-rv-ai-section-body={section.id}>
+      {section.heading || section.subheading || section.body ? (
+        <header className="mb-8 max-w-3xl">
+          {section.heading ? <h2 className="font-display text-3xl font-semibold tracking-tight sm:text-4xl">{section.heading}</h2> : null}
+          {section.subheading ? <p className="mt-3 text-lg text-muted-foreground">{section.subheading}</p> : null}
+          {section.body ? <p className="mt-4 whitespace-pre-line text-base leading-7 text-muted-foreground">{section.body}</p> : null}
+        </header>
+      ) : null}
+
+      {nonButtonComponents.length ? (
+        <div
+          id={sectionInnerId}
+          className="grid gap-5 md:grid-cols-2"
+          style={aiSectionCss}
+        >
+          {nonButtonComponents.map((component) => {
+            const visual = readComponentVisual((component as Component & { settings?: unknown }).settings);
+            const style = readBlockStyle((component as Component & { settings?: unknown }).settings);
+            const aiCss = aiAuthoredCss((component as Component & { settings?: unknown }).settings);
+            const src = componentImageUrl(component);
+            const href = safeLinkUrl(component.link_url);
+            return (
+              <article
+                key={component.id}
+                data-rvb={component.id}
+                data-rv-ai-component-id={component.id.replace(/[^a-zA-Z0-9_-]/g, "-")}
+                className="min-w-0"
+                style={{ ...blockCss(style, siteSurface(site)), ...aiCss }}
+              >
+                {src ? (
+                  <figure className="overflow-hidden">
+                    <img
+                      src={src}
+                      alt={visual.alt || component.label || "Website image"}
+                      loading="lazy"
+                      decoding="async"
+                      className={visualImageClass(visual)}
+                      style={{ objectPosition: safeObjectPosition(visual.focal_point ?? visual.object_position) }}
+                    />
+                    <MediaCredit visual={visual} />
+                  </figure>
+                ) : null}
+                {component.label ? <h3 className="mt-4 font-display text-xl font-semibold">{component.label}</h3> : null}
+                {component.body ? <p className="mt-2 whitespace-pre-line text-sm leading-7 text-muted-foreground">{component.body}</p> : null}
+                {href ? (
+                  <a
+                    href={href}
+                    className="mt-4 inline-flex underline underline-offset-4"
+                  >
+                    {component.link_label || component.label || "Learn more"}
+                  </a>
+                ) : null}
+              </article>
+            );
+          })}
+        </div>
+      ) : null}
+
+      {buttons.length ? (
+        <div className="mt-8 flex flex-wrap gap-3">
+          {buttons.map((button) => {
+            const href = safeLinkUrl(button.link_url) ?? "#quote";
+            const internal = href.startsWith("/");
+            const style = readBlockStyle((button as Component & { settings?: unknown }).settings);
+            const aiCss = aiAuthoredCss((button as Component & { settings?: unknown }).settings);
+            const directStyle = { ...blockCss(style, siteSurface(site)), ...aiCss, ...buttonCss(style, siteSurface(site)) };
+            const className = "inline-flex min-h-11 items-center rounded-xl border px-5 py-3 text-sm font-semibold";
+            return internal ? (
+              <SitePageLink
+                key={button.id}
+                slug={site.org.slug}
+                page={href.slice(1)}
+                className={className}
+                style={directStyle}
+                blockId={button.id}
+                dataRvAiComponentId={button.id.replace(/[^a-zA-Z0-9_-]/g, "-")}
+              >
+                {button.label}
+              </SitePageLink>
+            ) : (
+              <a
+                key={button.id}
+                href={href}
+                className={className}
+                style={directStyle}
+                data-rvb={button.id}
+                data-rv-ai-component-id={button.id.replace(/[^a-zA-Z0-9_-]/g, "-")}
+              >
+                {button.label}
+              </a>
+            );
+          })}
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
 function SiteSectionBody({ site, section }: { site: Site; section: Section }) {
   const components = section.components ?? [];
+  const aiAuthoredSection = Boolean(
+    (section.settings as { ai_authored?: unknown } | null | undefined)?.ai_authored,
+  );
+  if (aiAuthoredSection) return <AiAuthoredSectionBody site={site} section={section} />;
   const { profile, services, reviews, gallery, org } = site;
   const rating = reviews.length
     ? reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length
@@ -349,12 +492,14 @@ function SiteSectionBody({ site, section }: { site: Site; section: Section }) {
     ? readComponentVisual((heroImage as Component & { settings?: unknown }).settings)
     : null;
   const heroImageSrc = heroImage ? componentImageUrl(heroImage) : null;
-  const heroCreative = resolveExecutableCreativeSection({
-    kind: section.kind,
-    settings: section.settings,
-    fingerprint: siteDesignFingerprint(site),
-    hasMedia: Boolean(profile?.hero_image_url || heroImageSrc),
-  });
+  const heroCreative = aiAuthoredSection
+    ? null
+    : resolveExecutableCreativeSection({
+        kind: section.kind,
+        settings: section.settings,
+        fingerprint: siteDesignFingerprint(site),
+        hasMedia: Boolean(profile?.hero_image_url || heroImageSrc),
+      });
   const backgroundHero = heroCreative?.mediaRole === "background";
 
 
@@ -996,14 +1141,54 @@ function SiteSectionBody({ site, section }: { site: Site; section: Section }) {
       );
     }
 
-    default:
-      if (!safeText(section.heading) && !safeParagraph(section.body)) return null;
+    default: {
+      // AI can invent section roles. Unknown roles therefore render through this
+      // neutral data-driven surface instead of collapsing into a named template.
+      const nonButtons = components.filter(
+        (component) => component.kind !== "button" && component.label,
+      );
       return (
-        <Shell>
-          <Heading section={section} />
+        <Shell wide>
+          {section.heading || section.subheading || section.body ? <Heading section={section} /> : null}
+          {nonButtons.length ? (
+            <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {nonButtons.map((component) => {
+                const visual = readComponentVisual((component as Component & { settings?: unknown }).settings);
+                const style = readBlockStyle((component as Component & { settings?: unknown }).settings);
+                const src = componentImageUrl(component);
+                return (
+                  <article
+                    key={component.id}
+                    data-rvb={component.id}
+                    className="rounded-2xl border border-border/70 bg-card p-5"
+                    style={{ ...blockCss(style, siteSurface(site)), ...aiAuthoredCss((component as Component & { settings?: unknown }).settings) }}
+                    data-rv-ai-component-id={component.id.replace(/[^a-zA-Z0-9_-]/g, "-")}
+                  >
+                    {src ? (
+                      <img
+                        src={src}
+                        alt={visual.alt || component.label || "Website image"}
+                        loading="lazy"
+                        decoding="async"
+                        className={visualImageClass(visual)}
+                        style={{ objectPosition: safeObjectPosition(visual.focal_point ?? visual.object_position) }}
+                      />
+                    ) : null}
+                    {component.label ? <h3 className="font-display text-base font-semibold">{component.label}</h3> : null}
+                    {component.body ? (
+                      <p className="mt-2 whitespace-pre-line text-sm leading-relaxed text-muted-foreground">
+                        {component.body}
+                      </p>
+                    ) : null}
+                  </article>
+                );
+              })}
+            </div>
+          ) : null}
           <SectionButtons site={site} components={components} />
         </Shell>
       );
+    }
   }
 }
 

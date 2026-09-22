@@ -18,12 +18,9 @@
 
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { buildMotionPlan, motionSummary, planMotionAssignments, type MotionIntensity } from "@/lib/builder/motion-pack";
-import { buildStoryPlan, pendingStoryLinks, type StoryPage } from "@/lib/builder/story-pass";
-import {
-  authoredRedesignSummary,
-  authorSiteWideRedesign,
-} from "@/lib/builder/ai-redesign-direction.server";
+import type { MotionIntensity } from "@/lib/builder/motion-pack";
+import { planWebsiteChangesWithAi } from "@/lib/builder/ai-agent-plan.server";
+import { runAiWebsiteUpgrade } from "@/lib/site-agent.functions";
 import {
   parseVisionReview,
   visionRepairs,
@@ -35,6 +32,7 @@ import { writeSectionEffect } from "@/lib/site-effects";
 
 type SupabaseLike = {
   from: import("@supabase/supabase-js").SupabaseClient["from"];
+  storage: import("@supabase/supabase-js").SupabaseClient["storage"];
 };
 
 const MANAGERS = ["owner", "admin", "manager"];
@@ -51,102 +49,6 @@ async function requireManager(supabase: SupabaseLike, organizationId: string, us
     throw new Error("Only an owner, admin or manager can change the website.");
   }
   return role;
-}
-
-type PageRow = {
-  id: string;
-  slug: string;
-  title: string | null;
-  kind: string | null;
-  is_visible: boolean | null;
-  sort_order: number | null;
-};
-
-type SectionRow = {
-  id: string;
-  page_id: string;
-  kind: string;
-  heading: string | null;
-  subheading: string | null;
-  body: string | null;
-  sort_order: number | null;
-  settings: unknown;
-};
-
-async function loadPagesAndSections(supabase: SupabaseLike, organizationId: string) {
-  const [pages, sections] = await Promise.all([
-    supabase
-      .from("website_pages")
-      .select("id, slug, title, kind, is_visible, sort_order")
-      .eq("organization_id", organizationId)
-      .order("sort_order"),
-    supabase
-      .from("website_sections")
-      .select("id, page_id, kind, heading, subheading, body, sort_order, settings")
-      .eq("organization_id", organizationId)
-      .order("sort_order"),
-  ]);
-  return {
-    pages: ((pages.data ?? []) as PageRow[]),
-    sections: ((sections.data ?? []) as SectionRow[]),
-  };
-}
-
-/**
- * Saves a restore point before any write. A failed snapshot stops the whole
- * operation — a change with nothing to go back to is never acceptable.
- */
-async function saveRestorePoint(
-  supabase: SupabaseLike,
-  organizationId: string,
-  userId: string,
-  label: string,
-  pages: PageRow[],
-  sections: SectionRow[],
-): Promise<string> {
-  const { snapshotContent } = await import("@/lib/website-content");
-  const tree = pages.map((page) => ({
-    ...page,
-    seo_title: null,
-    seo_description: null,
-    seo_canonical: null,
-    og_title: null,
-    og_description: null,
-    og_image_url: null,
-    sections: sections
-      .filter((section) => section.page_id === page.id)
-      .map((section) => ({ ...section, settings: {}, components: [] })),
-  }));
-  const snapshot = snapshotContent(tree as never) as unknown as never;
-
-  const { data: latest } = await supabase
-    .from("website_versions")
-    .select("version")
-    .eq("organization_id", organizationId)
-    .order("version", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  let version = Number((latest as { version?: number } | null)?.version ?? 0);
-  for (let attempt = 0; attempt < 5; attempt += 1) {
-    version += 1;
-    const { data: saved, error: saveError } = await supabase
-      .from("website_versions")
-      .insert({
-        organization_id: organizationId,
-        version,
-        label,
-        pages: snapshot,
-        created_by: userId,
-      })
-      .select("id")
-      .maybeSingle();
-    const id = (saved as { id?: string } | null)?.id;
-    if (id) return String(id);
-  }
-  throw new Error(
-    "Revora couldn't save a restore point for your website, so nothing was changed. Please try again in a moment.",
-  );
 }
 
 /* ------------------------------------------------------------- motion pack */
@@ -172,7 +74,7 @@ export type MotionPackResult = {
 
 export const applyMotionPack = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { organizationId: string; intensity?: MotionIntensity }) => {
+  .inputValidator((input: { organizationId: string; intensity?: MotionIntensity; operationKey?: string }) => {
     if (!input?.organizationId) throw new Error("organizationId is required");
     if (input.intensity && !["none", "subtle", "expressive"].includes(input.intensity)) {
       throw new Error("Unknown movement level.");
@@ -182,89 +84,26 @@ export const applyMotionPack = createServerFn({ method: "POST" })
   .handler(async ({ data, context }): Promise<MotionPackResult> => {
     const supabase = context.supabase as unknown as SupabaseLike;
     await requireManager(supabase, data.organizationId, context.userId);
-
-    const { createDesignFingerprint, readDesignFingerprint, writeDesignFingerprint } = await import(
-      "@/lib/builder/design-fingerprint"
-    );
-    const [{ data: settings }, { data: profile }] = await Promise.all([
-      supabase.from("website_settings").select("generation").eq("organization_id", data.organizationId).maybeSingle(),
-      supabase
-        .from("business_profiles")
-        .select("industry, city")
-        .eq("organization_id", data.organizationId)
-        .maybeSingle(),
-    ]);
-    const generation = (settings as { generation?: unknown } | null)?.generation ?? null;
-    const stored = readDesignFingerprint(generation);
-    const fingerprint =
-      stored ??
-      createDesignFingerprint({
-        businessName: null,
-        industry: (profile as { industry?: string | null } | null)?.industry ?? null,
-        city: (profile as { city?: string | null } | null)?.city ?? null,
-      });
-
-    const plan = buildMotionPlan(fingerprint, data.intensity);
-    const { pages, sections } = await loadPagesAndSections(supabase, data.organizationId);
-    const assignments = planMotionAssignments(sections, plan);
-
-    if (assignments.length === 0) {
-      return {
-        ok: true,
-        intensity: plan.intensity,
-        changed: 0,
-        summary: motionSummary(assignments, plan),
-        restorePointId: null,
-        undo: null,
-      };
-    }
-
-    const restorePointId = await saveRestorePoint(
+    const intensity = data.intensity ?? "subtle";
+    const operationKey = data.operationKey ?? crypto.randomUUID();
+    const run = await runAiWebsiteUpgrade({
       supabase,
-      data.organizationId,
-      context.userId,
-      "Before movement was updated",
-      pages,
-      sections,
-    );
-
-    for (const assignment of assignments) {
-      const section = sections.find((entry) => entry.id === assignment.sectionId);
-      const next = writeSectionEffect(section?.settings ?? null, assignment.to);
-      await supabase
-        .from("website_sections")
-        .update({ settings: next as never })
-        .eq("id", assignment.sectionId)
-        .eq("organization_id", data.organizationId);
-    }
-
-    // The chosen level is remembered on the site's identity so later builds
-    // keep the same character.
-    if (data.intensity && data.intensity !== fingerprint.motionLevel) {
-      const nextGeneration = writeDesignFingerprint(generation, {
-        ...fingerprint,
-        motionLevel: data.intensity,
-      });
-      await supabase
-        .from("website_settings")
-        .upsert({ organization_id: data.organizationId, generation: nextGeneration } as never, {
-          onConflict: "organization_id",
-        });
-    }
-
+      organizationId: data.organizationId,
+      userId: context.userId,
+      label: "AI motion update",
+      operationKey,
+      instruction: "Update movement and animation across the website to the owner's requested intensity: " + intensity + ". " +
+        "This is a motion-only change: do not rewrite copy, change business facts, add/remove pages or sections, or impose a template. " +
+        "Use the site's existing creative direction as context. Choose the exact motion, duration, easing, transform and responsive behavior yourself. " +
+        "Respect reduced-motion accessibility and keep interaction safe and performant.",
+    });
     return {
       ok: true,
-      intensity: plan.intensity,
-      changed: assignments.length,
-      summary: motionSummary(assignments, plan),
-      restorePointId,
-      undo: {
-        effects: assignments.map((entry) => ({ sectionId: entry.sectionId, effect: entry.from })),
-        fingerprint:
-          data.intensity && data.intensity !== fingerprint.motionLevel
-            ? { motionLevel: fingerprint.motionLevel }
-            : null,
-      },
+      intensity,
+      changed: run.applied.applied,
+      summary: run.plan.summary,
+      restorePointId: String((run.applied as { snapshotId?: string | null }).snapshotId ?? "") || null,
+      undo: null,
     };
   });
 
@@ -279,90 +118,52 @@ export type StoryPassResult = {
   restorePointId: string | null;
 };
 
-const STORY_SECTION_KIND = "cta";
-
 export const applyStoryPass = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { organizationId: string; write?: boolean }) => {
+  .inputValidator((input: { organizationId: string; write?: boolean; operationKey?: string }) => {
     if (!input?.organizationId) throw new Error("organizationId is required");
     return input;
   })
   .handler(async ({ data, context }): Promise<StoryPassResult> => {
     const supabase = context.supabase as unknown as SupabaseLike;
     await requireManager(supabase, data.organizationId, context.userId);
-
-    const { pages, sections } = await loadPagesAndSections(supabase, data.organizationId);
-    const storyPages: StoryPage[] = pages.map((page) => ({
-      id: page.id,
-      slug: page.slug,
-      title: page.title ?? page.slug,
-      kind: page.kind ?? "page",
-      isVisible: page.is_visible !== false,
-      sectionKinds: sections.filter((section) => section.page_id === page.id).map((section) => section.kind),
-    }));
-
-    const plan = buildStoryPlan(storyPages);
-    const base = {
-      ok: true,
-      order: plan.order.map((step) => ({ slug: step.slug, title: step.title, role: step.role })),
-      findings: plan.findings.map((finding) => ({ kind: finding.kind, slug: finding.slug, detail: finding.detail })),
-      summary: plan.summary,
-    };
-
-    if (!data.write) {
-      return { ...base, linksWritten: 0, restorePointId: null };
+    const operationKey = data.operationKey ?? crypto.randomUUID();
+    if (data.write === false) {
+      return { ok: true, order: [], linksWritten: 0, findings: [], summary: "AI story review is available through the website assistant.", restorePointId: null };
     }
-
-    // Which next-step links already exist, read from the stored buttons.
-    const existing: { pageSlug: string; href: string }[] = [];
-    const pageById = new Map(pages.map((page) => [page.id, page]));
-    for (const section of sections) {
-      const settings = (section.settings ?? {}) as Record<string, unknown>;
-      const buttons = Array.isArray(settings["buttons"]) ? (settings["buttons"] as unknown[]) : [];
-      const page = pageById.get(section.page_id);
-      if (!page) continue;
-      for (const button of buttons) {
-        const href = (button as { href?: unknown })?.href;
-        if (typeof href === "string") existing.push({ pageSlug: page.slug, href });
-      }
-    }
-
-    const pending = pendingStoryLinks(plan, existing);
-    if (pending.length === 0) {
-      return { ...base, linksWritten: 0, restorePointId: null };
-    }
-
-    const restorePointId = await saveRestorePoint(
+    const run = await runAiWebsiteUpgrade({
       supabase,
-      data.organizationId,
-      context.userId,
-      "Before page-to-page links were written",
-      pages,
-      sections,
-    );
-
-    let written = 0;
-    for (const link of pending) {
-      const page = pages.find((entry) => entry.slug === link.pageSlug);
-      if (!page) continue;
-      const pageSections = sections.filter((section) => section.page_id === page.id);
-      const target =
-        pageSections.find((section) => section.kind === STORY_SECTION_KIND) ??
-        pageSections[pageSections.length - 1];
-      if (!target) continue;
-      const settings = { ...((target.settings ?? {}) as Record<string, unknown>) };
-      const buttons = Array.isArray(settings["buttons"]) ? [...(settings["buttons"] as unknown[])] : [];
-      buttons.push({ label: link.label, href: link.href });
-      settings["buttons"] = buttons.slice(0, 4);
-      const { error } = await supabase
-        .from("website_sections")
-        .update({ settings: settings as never })
-        .eq("id", target.id)
-        .eq("organization_id", data.organizationId);
-      if (!error) written += 1;
-    }
-
-    return { ...base, linksWritten: written, restorePointId };
+      organizationId: data.organizationId,
+      userId: context.userId,
+      label: "AI story links",
+      operationKey,
+      instruction: "Improve cross-page navigation and narrative flow across the whole website. Do not force a home/CTA/page-order template. The page architecture is the AI's creative decision for this business. Only change or add the links and buttons needed for that journey; preserve verified business facts and existing copy unless a link label must change.",
+    });
+    const appliedActions = ((run.applied as { appliedActions?: unknown[] }).appliedActions ?? []) as Array<Record<string, unknown>>;
+    const linksWritten = appliedActions.filter((action) => {
+      if (action["type"] === "set_component") {
+        const patch = action["patch"];
+        return Boolean(
+          patch &&
+          typeof patch === "object" &&
+          ("link_url" in (patch as Record<string, unknown>) || "link_label" in (patch as Record<string, unknown>)),
+        );
+      }
+      if (action["type"] === "add_component") {
+        const kind = String(action["kind"] ?? "").toLowerCase();
+        return ["button", "nav", "navigation"].some((value) => kind.includes(value)) &&
+          Boolean(action["link_url"] || action["link_label"]);
+      }
+      return false;
+    }).length;
+    return {
+      ok: true,
+      order: [],
+      linksWritten,
+      findings: [],
+      summary: run.plan.summary,
+      restorePointId: String((run.applied as { snapshotId?: string | null }).snapshotId ?? "") || null,
+    };
   });
 
 /* --------------------------------------------------------- site-wide look */
@@ -370,7 +171,6 @@ export const applyStoryPass = createServerFn({ method: "POST" })
 export type RedesignResult = {
   ok: boolean;
   understood: boolean;
-  /** The design team's own name for the look it authored. */
   direction: string | null;
   changes: { field: string; from: string; to: string }[];
   blocked: string[];
@@ -382,109 +182,44 @@ export type RedesignResult = {
 
 export const applySiteWideRedesign = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { organizationId: string; instruction: string }) => {
+  .inputValidator((input: { organizationId: string; instruction: string; operationKey?: string }) => {
     if (!input?.organizationId) throw new Error("organizationId is required");
     if (typeof input.instruction !== "string" || input.instruction.trim().length === 0) {
       throw new Error("Tell Revora how the site should feel.");
     }
-    return { organizationId: input.organizationId, instruction: input.instruction.slice(0, 600) };
+    return { organizationId: input.organizationId, instruction: input.instruction.slice(0, 1200), operationKey: input.operationKey?.slice(0, 80) };
   })
   .handler(async ({ data, context }): Promise<RedesignResult> => {
     const supabase = context.supabase as unknown as SupabaseLike;
     await requireManager(supabase, data.organizationId, context.userId);
-
-    const { createDesignFingerprint, readDesignFingerprint, writeDesignFingerprint } = await import(
-      "@/lib/builder/design-fingerprint"
-    );
-    const [{ data: settings }, { data: profile }] = await Promise.all([
-      supabase.from("website_settings").select("generation").eq("organization_id", data.organizationId).maybeSingle(),
-      supabase
-        .from("business_profiles")
-        .select("industry, city")
-        .eq("organization_id", data.organizationId)
-        .maybeSingle(),
-    ]);
-    const generation = (settings as { generation?: unknown } | null)?.generation ?? null;
-    const industry = (profile as { industry?: string | null } | null)?.industry ?? null;
-    const fingerprint =
-      readDesignFingerprint(generation) ??
-      createDesignFingerprint({
-        businessName: null,
-        industry,
-        city: (profile as { city?: string | null } | null)?.city ?? null,
-      });
-
-    // The design team reads the owner's sentence and writes the new identity
-    // itself. Any wording works: nothing is matched against a keyword list and
-    // no look is chosen from a fixed set.
-    const authored = await authorSiteWideRedesign({
-      organizationId: data.organizationId,
-      instruction: data.instruction,
-      fingerprint,
-      industry,
-    });
-    const { next, changes, blocked } = authored;
-    if (changes.length === 0) {
-      return {
-        ok: true,
-        understood: true,
-        direction: authored.label,
-        changes: [],
-        blocked,
-        motionChanged: 0,
-        summary: authoredRedesignSummary(authored),
-        restorePointId: null,
-        undo: null,
-      };
-    }
-
-    const { pages, sections } = await loadPagesAndSections(supabase, data.organizationId);
-    const restorePointId = await saveRestorePoint(
+    const operationKey = data.operationKey ?? crypto.randomUUID();
+    const run = await runAiWebsiteUpgrade({
       supabase,
-      data.organizationId,
-      context.userId,
-      `Before the ${authored.label} redesign`,
-      pages,
-      sections,
-    );
-
-    const saved = await supabase
-      .from("website_settings")
-      .upsert(
-        { organization_id: data.organizationId, generation: writeDesignFingerprint(generation, next) } as never,
-        { onConflict: "organization_id" },
-      );
-    if (saved.error) throw new Error("Revora couldn't save the new look. Nothing was changed.");
-
-    // The redesign reaches every page through the motion pack too, so movement
-    // matches the new character instead of contradicting it.
-    const plan = buildMotionPlan(next);
-    const assignments = planMotionAssignments(sections, plan);
-    for (const assignment of assignments) {
-      const section = sections.find((entry) => entry.id === assignment.sectionId);
-      await supabase
-        .from("website_sections")
-        .update({ settings: writeSectionEffect(section?.settings ?? null, assignment.to) as never })
-        .eq("id", assignment.sectionId)
-        .eq("organization_id", data.organizationId);
-    }
-
+      organizationId: data.organizationId,
+      userId: context.userId,
+      label: "AI site-wide redesign",
+      operationKey,
+      instruction: [
+        "Redesign the website's visual language based on the owner's request below.",
+        "You are the sole creative author. Invent the appropriate visual system, layout, typography, colour, responsive behavior, imagery treatment and motion for this business.",
+        "Do not use deterministic fingerprints, preset/theme libraries, fixed section vocabularies, or required hero/CTA anatomy.",
+        "Preserve all verified business facts, prices, contact details and existing factual claims.",
+        "Use AI-authored visual/responsive actions where possible so the renderer does not infer a legacy design.",
+        "OWNER REQUEST: " + data.instruction,
+      ].join("\n"),
+    });
     return {
       ok: true,
       understood: true,
-      direction: authored.label,
-      changes,
-      blocked,
-      motionChanged: assignments.length,
-      summary: authoredRedesignSummary(authored),
-      restorePointId,
-      undo: {
-        effects: assignments.map((entry) => ({ sectionId: entry.sectionId, effect: entry.from })),
-        fingerprint: Object.fromEntries(changes.map((change) => [change.field, change.from])),
-      },
+      direction: data.instruction,
+      changes: [],
+      blocked: [],
+      motionChanged: run.applied.applied,
+      summary: run.plan.summary,
+      restorePointId: String((run.applied as { snapshotId?: string | null }).snapshotId ?? "") || null,
+      undo: null,
     };
   });
-
 /* ------------------------------------------------------------ page review */
 
 export type VisionReviewResult = {
@@ -638,160 +373,77 @@ export type VisionRepairResult = {
 };
 
 /**
- * Applies only the repairs Revora can genuinely carry out, and names the ones
- * it skipped. A repair that would change wording, prices or any business fact
- * is never applied here.
+ * Visual QA repairs are AI-authored now. The vision model identifies the
+ * concrete problem; Sol chooses the exact safe fix and Terra reviews it. No
+ * fingerprint or canned visual treatment is used as a hidden repair authority.
  */
 export const applyVisionRepairs = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { organizationId: string; pageSlug?: string | null; findings: unknown }) => {
+  .inputValidator((input: { organizationId: string; pageSlug?: string | null; findings: unknown; operationKey?: string }) => {
     if (!input?.organizationId) throw new Error("organizationId is required");
     if (!Array.isArray(input.findings)) throw new Error("Nothing to repair.");
     return {
       organizationId: input.organizationId,
       pageSlug: input.pageSlug ? String(input.pageSlug).slice(0, 120) : null,
       findings: input.findings.slice(0, 12),
+      operationKey: input.operationKey?.slice(0, 80),
     };
   })
   .handler(async ({ data, context }): Promise<VisionRepairResult> => {
     const supabase = context.supabase as unknown as SupabaseLike;
     await requireManager(supabase, data.organizationId, context.userId);
+    const operationKey = data.operationKey ?? crypto.randomUUID();
 
     const review = parseVisionReview({ issues: data.findings });
     const { repairs, unfixable } = visionRepairs(review);
     const skipped = unfixable.map((finding) => finding.kind);
-
     if (repairs.length === 0) {
       return {
         ok: true,
         applied: [],
         skipped,
         restorePointId: null,
-        summary:
-          skipped.length > 0
-            ? "None of these need a change Revora can make safely — they need your eye."
-            : "There was nothing to repair.",
+        summary: skipped.length ? "The reviewer found issues that need a different kind of change." : "There was nothing to repair.",
       };
     }
 
-    const { pages, sections } = await loadPagesAndSections(supabase, data.organizationId);
-    const page = data.pageSlug ? pages.find((entry) => entry.slug === data.pageSlug) : null;
-    const scope = page ? sections.filter((section) => section.page_id === page.id) : sections;
+    const scope = data.pageSlug ? "on page /" + data.pageSlug : "across the website";
+    const instruction = [
+      "Repair only the visual QA findings below " + scope + ".",
+      "These are post-render issues found by the vision reviewer. Do not redesign unrelated areas and do not rewrite business facts or verified copy.",
+      "Choose the smallest appropriate safe fix yourself. Prefer AI-authored visual/responsive values rather than legacy section variants, design fingerprints, theme presets or canned motion packs.",
+      "Preserve reduced-motion, touch-target, contrast and content integrity requirements.",
+      "FINDINGS:",
+      repairs.map((repair) => "- " + repair.kind + ": " + repair.reason).join("\n"),
+    ].join("\n");
 
-    const restorePointId = await saveRestorePoint(
-      supabase,
-      data.organizationId,
-      context.userId,
-      "Before the page review repairs",
-      pages,
-      sections,
-    );
-
-    const { createDesignFingerprint, readDesignFingerprint, writeDesignFingerprint } = await import(
-      "@/lib/builder/design-fingerprint"
-    );
-    const { data: settings } = await supabase
-      .from("website_settings")
-      .select("generation")
-      .eq("organization_id", data.organizationId)
-      .maybeSingle();
-    const generation = (settings as { generation?: unknown } | null)?.generation ?? null;
-    let fingerprint =
-      readDesignFingerprint(generation) ??
-      createDesignFingerprint({ businessName: null, industry: null, city: null });
-    let fingerprintChanged = false;
-
-    const applied: string[] = [];
-
-    for (const repair of repairs) {
-      switch (repair.action) {
-        case "set_section_effect": {
-          for (const section of scope) {
-            await supabase
-              .from("website_sections")
-              .update({ settings: writeSectionEffect(section.settings ?? null, repair.effect) as never })
-              .eq("id", section.id)
-              .eq("organization_id", data.organizationId);
-          }
-          applied.push("Movement switched off on this page");
-          break;
-        }
-        case "set_density": {
-          fingerprint = { ...fingerprint, density: repair.density };
-          fingerprintChanged = true;
-          applied.push(repair.density === "airy" ? "More space between blocks" : "Spacing tightened a little");
-          break;
-        }
-        case "set_image_overlay": {
-          fingerprint = {
-            ...fingerprint,
-            artDirection: { ...fingerprint.artDirection, overlay: repair.overlay },
-          };
-          fingerprintChanged = true;
-          applied.push("Darker shading behind text sitting on photos");
-          break;
-        }
-        case "set_image_fit": {
-          for (const section of scope) {
-            const current = { ...((section.settings ?? {}) as Record<string, unknown>) };
-            if (current["imageFit"] === repair.fit) continue;
-            current["imageFit"] = repair.fit;
-            await supabase
-              .from("website_sections")
-              .update({ settings: current as never })
-              .eq("id", section.id)
-              .eq("organization_id", data.organizationId);
-          }
-          applied.push("Photos cropped to fit rather than stretched");
-          break;
-        }
-        case "raise_contrast": {
-          fingerprint = { ...fingerprint, colorSystem: "high-contrast" };
-          fingerprintChanged = true;
-          applied.push("Stronger contrast between text and background");
-          break;
-        }
-        case "emphasise_cta": {
-          for (const section of scope.filter((entry) => ["cta", "sticky_cta", "offer"].includes(entry.kind))) {
-            await supabase
-              .from("website_sections")
-              .update({ settings: writeSectionEffect(section.settings ?? null, "gold_glow") as never })
-              .eq("id", section.id)
-              .eq("organization_id", data.organizationId);
-          }
-          applied.push("The main action made more prominent");
-          break;
-        }
-        default: {
-          // A shortening repair would change the owner's own words, so Revora
-          // reports it instead of rewriting it.
-          skipped.push(repair.kind);
-          break;
-        }
-      }
+    try {
+      const run = await runAiWebsiteUpgrade({
+        supabase,
+        organizationId: data.organizationId,
+        userId: context.userId,
+        label: "AI visual QA repair",
+        operationKey,
+        instruction,
+      });
+      const applied = ((run.applied.details ?? []) as string[]).filter((item) => /^applied /i.test(item) || /^repaired /i.test(item));
+      return {
+        ok: true,
+        applied,
+        skipped,
+        restorePointId: String((run.applied as { snapshotId?: string | null }).snapshotId ?? "") || null,
+        summary: run.plan.summary,
+      };
+    } catch (error) {
+      return {
+        ok: false,
+        applied: [],
+        skipped: [...skipped, "ai_repair_failed"],
+        restorePointId: null,
+        summary: error instanceof Error ? error.message : "The AI reviewer could not repair this page. Nothing was changed.",
+      };
     }
-
-    if (fingerprintChanged) {
-      await supabase
-        .from("website_settings")
-        .upsert(
-          { organization_id: data.organizationId, generation: writeDesignFingerprint(generation, fingerprint) } as never,
-          { onConflict: "organization_id" },
-        );
-    }
-
-    return {
-      ok: true,
-      applied,
-      skipped,
-      restorePointId,
-      summary:
-        applied.length === 0
-          ? "Nothing could be repaired automatically."
-          : `${applied.length} repair${applied.length === 1 ? "" : "s"} applied. You can undo this from the version history.`,
-    };
   });
-
 /* ------------------------------------------------------------------- undo */
 
 /**
@@ -839,34 +491,8 @@ export const undoSiteUpgrade = createServerFn({ method: "POST" })
       if (!error) reverted += 1;
     }
 
-    if (data.undo.fingerprint && Object.keys(data.undo.fingerprint).length > 0) {
-      const { createDesignFingerprint, readDesignFingerprint, writeDesignFingerprint } = await import(
-        "@/lib/builder/design-fingerprint"
-      );
-      const { data: settings } = await supabase
-        .from("website_settings")
-        .select("generation")
-        .eq("organization_id", data.organizationId)
-        .maybeSingle();
-      const generation = (settings as { generation?: unknown } | null)?.generation ?? null;
-      const current =
-        readDesignFingerprint(generation) ??
-        createDesignFingerprint({ businessName: null, industry: null, city: null });
-      const next = { ...current } as unknown as Record<string, unknown>;
-      for (const [field, value] of Object.entries(data.undo.fingerprint)) {
-        if (field in (current as unknown as Record<string, unknown>)) next[field] = value;
-      }
-      await supabase
-        .from("website_settings")
-        .upsert(
-          {
-            organization_id: data.organizationId,
-            generation: writeDesignFingerprint(generation, next as never),
-          } as never,
-          { onConflict: "organization_id" },
-        );
-      reverted += Object.keys(data.undo.fingerprint).length;
-    }
+    // Creative identity rollback is handled by the version snapshot created by
+    // the AI action executor. Fingerprint synthesis is intentionally not used.
 
     return {
       ok: true,

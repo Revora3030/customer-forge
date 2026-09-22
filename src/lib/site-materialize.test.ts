@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { planSiteContent, type MaterializeInput } from "@/lib/site-materialize.server";
+import {
+  materializeCreativeSiteContract,
+  planSiteContent,
+  type MaterializeInput,
+} from "@/lib/site-materialize.server";
+import type { CreativeSiteContract } from "@/lib/builder/creative-site-contract";
 import { materializedSectionDesign } from "@/lib/site-materialize.server";
 import { DESIGN_DIRECTIONS } from "@/lib/design-directions";
 import { classifyArchetype } from "@/lib/site-archetypes";
@@ -147,5 +152,61 @@ describe("industry blueprints have no authority over structure", () => {
     // The renderer supplies the same fillable inventory for every industry: the
     // page set, section choice and order come from the AI design plan instead.
     expect(new Set(shapes).size).toBe(1);
+  });
+});
+
+
+describe("canonical AI site materialization", () => {
+  it("materializes novel pages and section roles without the legacy inventory", () => {
+    const contract: CreativeSiteContract = {
+      version: 1,
+      revision: 1,
+      authority: "sol",
+      directedBy: "gpt-5.6-sol",
+      reviewedBy: "gpt-5.6-terra",
+      complete: true,
+      identity: { concept: "kinetic editorial" },
+      pages: [
+        {
+          id: "page-home",
+          slug: "home",
+          title: "The Home",
+          purpose: "orient",
+          sections: [
+            {
+              id: "home-hero",
+              role: "kinetic-introduction",
+              intent: "open with a custom composition",
+              content: { heading: "A custom opening" },
+              visual: { transform: "translate3d(0,0,0)" },
+            },
+          ],
+        },
+        {
+          id: "page-process",
+          slug: "process-lab",
+          title: "Process Lab",
+          purpose: "explain the method",
+          sections: [
+            {
+              id: "process-01",
+              role: "interactive-process-map",
+              intent: "explain the work in a bespoke sequence",
+              content: {
+                heading: "How the work moves",
+                components: [
+                  { id: "process-link", kind: "button", label: "Contact", linkUrl: "/contact" },
+                ],
+              },
+            },
+          ],
+        },
+      ],
+    };
+    const pages = materializeCreativeSiteContract(contract);
+    expect(pages.map((page) => page.slug)).toEqual(["home", "process-lab"]);
+    expect(pages[1]?.sections[0]?.kind).toBe("interactive-process-map");
+    expect(pages[1]?.sections[0]?.heading).toBe("How the work moves");
+    expect(pages[1]?.sections[0]?.settings).toMatchObject({ ai_authored: true });
   });
 });

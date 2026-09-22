@@ -40,29 +40,19 @@ export const runSiteGeneration = createServerFn({ method: "POST" })
       await assertOrgEntitled(supabase, orgId);
     }
 
-    // Generation is gated on real readiness: the blanks Revora asked about must
-    // be filled, and the owner must have approved the brief the build reads from.
+    // Generation is gated on real factual readiness only. The canonical builder
+    // reads the saved workspace facts directly and does not consume a deterministic
+    // brief as a source of page, copy, or layout authority.
     {
-      const { readBrief } = await import("@/lib/site-brief");
       const { requiredFactGaps } = await import("@/lib/launch-qa");
       const { gatherBriefFacts } = await import("@/lib/site-brief.server");
 
-      const settings = await supabase
-        .from("website_settings")
-        .select("generation")
-        .eq("organization_id", orgId)
-        .maybeSingle();
-      const brief = readBrief(
-        (settings.data?.generation as Record<string, unknown> | null)?.["brief"],
-      );
-      const facts = await gatherBriefFacts(supabase, orgId, brief?.missingFacts ?? []);
+      const facts = await gatherBriefFacts(supabase, orgId, []);
       const missing = requiredFactGaps(facts.factInput);
       if (missing.length)
         throw new Error(
           `Revora still needs: ${missing.map((g) => g.label.toLowerCase()).join(", ")}.`,
         );
-      if (!brief) throw new Error("Review Revora's understanding of your business first.");
-      if (!brief.approved) throw new Error("Approve the brief and Revora will build from it.");
     }
 
     // RLS enforces that the caller belongs to this workspace.
@@ -444,31 +434,6 @@ function observationInputOf(input: Record<string, unknown>) {
   };
 }
 
-async function referenceBaseFingerprint(
-  supabase: SupabaseClient<Database>,
-  organizationId: string,
-) {
-  const [{ data: settings }, { data: org }, { data: profile }] = await Promise.all([
-    supabase.from("website_settings").select("generation").eq("organization_id", organizationId).maybeSingle(),
-    supabase.from("organizations").select("name, industry").eq("id", organizationId).maybeSingle(),
-    supabase.from("business_profiles").select("city, service_area").eq("organization_id", organizationId).maybeSingle(),
-  ]);
-  const generation = (settings?.generation ?? {}) as Record<string, unknown>;
-  const { readDesignFingerprint, createDesignFingerprint } = await import("@/lib/builder/design-fingerprint");
-  const stored = readDesignFingerprint(generation);
-  if (stored) return { generation, fingerprint: stored, businessName: org?.name ?? null };
-  return {
-    generation,
-    fingerprint: createDesignFingerprint({
-      businessName: org?.name ?? null,
-      industry: org?.industry ?? null,
-      city: (profile?.city as string | null | undefined) ?? (profile?.service_area as string | null | undefined) ?? null,
-      photoCount: 0,
-    }),
-    businessName: org?.name ?? null,
-  };
-}
-
 async function persistScreenshotReference(
   supabase: SupabaseClient<Database>,
   input: {
@@ -480,25 +445,34 @@ async function persistScreenshotReference(
     model?: string;
   },
 ) {
-  const { normalizeScreenshotReferenceObservations, deriveScreenshotReferenceFingerprint } = await import(
+  const { data: org } = await supabase
+    .from("organizations")
+    .select("name")
+    .eq("id", input.organizationId)
+    .maybeSingle();
+  const { normalizeScreenshotReferenceObservations, deriveScreenshotReferenceSignals } = await import(
     "@/lib/builder/screenshot-reference"
   );
-  const base = await referenceBaseFingerprint(supabase, input.organizationId);
+  const businessName = org?.name ?? null;
   const observations = normalizeScreenshotReferenceObservations(input.observations, {
-    businessName: base.businessName,
-    blockedNames: [base.businessName ?? ""],
+    businessName,
+    blockedNames: [businessName ?? ""],
     maxPerField: 8,
   });
   const hasAny = Object.values(observations).some((list) => list.length > 0);
   if (!hasAny) throw new Error("No reusable design patterns were found. Add layout, spacing, type or colour notes.");
-  const reference = deriveScreenshotReferenceFingerprint({
+  const reference = deriveScreenshotReferenceSignals({
     observations,
-    base: base.fingerprint,
-    businessName: base.businessName,
-    blockedNames: [base.businessName ?? ""],
+    businessName,
+    blockedNames: [businessName ?? ""],
   });
+  const { data: settings } = await supabase
+    .from("website_settings")
+    .select("generation")
+    .eq("organization_id", input.organizationId)
+    .maybeSingle();
   const generation = {
-    ...base.generation,
+    ...((settings?.generation ?? {}) as Record<string, unknown>),
     screenshotReferenceObservations: observations,
     screenshotReference: {
       ...reference,
@@ -536,8 +510,7 @@ export const analyzeSiteBrief = createServerFn({ method: "POST" })
     const { supabase, userId } = context;
     const orgId = data.organizationId;
     const { gatherBriefFacts } = await import("@/lib/site-brief.server");
-    const { analyzeBusiness, fallbackBrief, RevoraAiError } =
-      await import("@/lib/site-engine.server");
+    const { analyzeBusiness } = await import("@/lib/site-engine.server");
     const { readBrief } = await import("@/lib/site-brief");
 
     const facts = await gatherBriefFacts(supabase, orgId);
@@ -549,15 +522,14 @@ export const analyzeSiteBrief = createServerFn({ method: "POST" })
     const generation = (settings.data?.generation ?? {}) as Record<string, unknown>;
     const previous = readBrief(generation["brief"]);
 
-    let brief = fallbackBrief(facts.copyFacts);
-    let aiError: string | null = null;
+    let brief;
     try {
       brief = await analyzeBusiness(facts.copyFacts);
     } catch (error) {
-      // Credit/policy denials never block analysis — the deterministic brief
-      // built from the owner's own answers is used instead.
-      if (error instanceof RevoraAiError && error.status === 429) throw error;
-      aiError = error instanceof Error ? error.message : "Analysis unavailable";
+      const message = error instanceof Error ? error.message : "Analysis unavailable";
+      throw new Error(
+        `Revora couldn't complete the AI business analysis, so the site was not built from a deterministic fallback. ${message}`,
+      );
     }
 
     // A new analysis always needs re-approval, but the owner's answers stay.
@@ -579,7 +551,7 @@ export const analyzeSiteBrief = createServerFn({ method: "POST" })
       created_by: userId,
     });
 
-    return { brief, aiError };
+    return { brief, aiError: null as string | null };
   });
 
 /** Saves the owner's edits to the brief, and their approval to build from it. */
@@ -882,7 +854,7 @@ export const runSiteEngineCheck = createServerFn({ method: "POST" })
           ok: brief.source !== "rules",
           detail:
             brief.source === "rules"
-              ? "AI analysis returned nothing usable; the deterministic brief would be used."
+              ? "AI analysis returned nothing usable; no deterministic brief is used."
               : `${brief.source} answered: “${brief.positioning.slice(0, 120)}”`,
         });
       } catch (error) {

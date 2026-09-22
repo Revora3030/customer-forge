@@ -10,10 +10,10 @@
  *  - customer builds use Revora's native engine and never dispatch content to
  *    an outside model
  */
-import type { PageArchitectureOutcome } from "@/lib/builder/ai-page-architecture.server";
 import { nextPublishState } from "@/lib/publish-state";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { FirstBuildImageAsset } from "@/lib/builder/first-build-images.types";
 
 const QUEUE_ID = "site_engine";
 const LEASE_SECONDS = 180;
@@ -81,8 +81,23 @@ async function clearPendingBuild(db: Db, orgId: string) {
 
 async function rollbackFreshBuild(
   db: Db,
-  input: { orgId: string; backupId: string; userId: string | null; message: string },
+  input: { orgId: string; backupId: string; userId: string | null; message: string; jobId: string; attempts: number },
 ): Promise<{ restored: boolean; restoreError: string | null }> {
+  const { data: currentJob } = await db
+    .from("generation_jobs")
+    .select("status, attempts")
+    .eq("id", input.jobId)
+    .maybeSingle();
+  if (
+    currentJob?.status !== "processing" ||
+    Number(currentJob.attempts) !== input.attempts
+  ) {
+    return {
+      restored: false,
+      restoreError: "Skipped stale-worker rollback because a newer generation attempt owns this job.",
+    };
+  }
+
   const { restoreBackup } = await import("@/lib/backup.server");
   let restore: unknown = null;
   let restoreError: string | null = null;
@@ -192,47 +207,325 @@ async function claimJob(db: Db, organizationId?: string) {
       } as never)
       .eq("id", job.id)
       .eq("attempts", job.attempts as number)
-      .select("id, organization_id, created_by")
+      .select("id, organization_id, attempts, created_by")
       .maybeSingle();
     if (claimed)
-      return claimed as { id: string; organization_id: string; created_by: string | null };
+      return claimed as { id: string; organization_id: string; attempts: number; created_by: string | null };
   }
   return null;
 }
 
-/** Runs the nine generation stages for one claimed job using the privileged client. */
-async function runJob(
-  db: Db,
-  job: { id: string; organization_id: string; created_by: string | null },
-) {
-  const orgId = job.organization_id;
-  const { GENERATION_STEPS } = await import("@/lib/site-engine");
-  const { generateWebsitePlan } = await import("@/lib/website-plan");
-  const { readBrief } = await import("@/lib/site-brief");
-  const { captureQa } = await import("@/lib/launch-qa");
-  const { gatherBriefFacts } = await import("@/lib/site-brief.server");
-  const {
-    fallbackBrief,
-    fallbackCopy,
-  } = await import("@/lib/site-engine.server");
+async function runCanonicalFirstBuild(input: {
+  db: Db;
+  job: { id: string; organization_id: string; attempts: number; created_by: string | null };
+  business: {
+    name: string;
+    industry: string | null;
+    conversion_goal: string | null;
+  };
+  profile: Record<string, unknown>;
+  services: Array<{ name: string; description?: string | null; price?: number | null; starting_price?: number | null }>;
+  formsCount: number;
+  bookingCount: number;
+  goals: string[];
+  freshReplace: boolean;
+  pendingBuild: PendingBuild | null;
+  language: string;
+}): Promise<void> {
+  const { db, job, business, profile, services, formsCount, bookingCount, goals, freshReplace, pendingBuild } = input;
+  let materialized = false;
+  let leaseLost = false;
+  const buildAbort = new AbortController();
+  const renewLease = async () => {
+    const expires = new Date(Date.now() + LEASE_SECONDS * 1000).toISOString();
+    const { data } = await db
+      .from("generation_jobs")
+      .update({ lease_expires_at: expires, updated_at: new Date().toISOString() } as never)
+      .eq("id", job.id)
+      .eq("status", "processing")
+      .eq("attempts", job.attempts)
+      .select("id")
+      .maybeSingle();
+    if (!data?.id) {
+      leaseLost = true;
+      buildAbort.abort("Generation lease was lost to a newer attempt.");
+    }
+  };
+  const assertLease = () => {
+    if (leaseLost || buildAbort.signal.aborted) {
+      throw new Error("This generation attempt lost its lease to a newer worker, so its result was discarded.");
+    }
+  };
+  const leaseHeartbeat = setInterval(() => {
+    void renewLease().catch((error) => {
+      leaseLost = true;
+      buildAbort.abort("Generation lease renewal failed.");
+      console.warn("[site-engine] lease renewal failed", error);
+    });
+  }, Math.max(30_000, Math.floor((LEASE_SECONDS * 1000) / 3)));
 
-  const done: string[] = [];
-  const step = async (key: string) => {
-    done.push(key);
-    const meta = GENERATION_STEPS.find((s) => s.key === key);
+  try {
+    const { authorCreativeSiteContract } = await import("@/lib/builder/creative-site-contract.server");
+    const { materializeSiteContent } = await import("@/lib/site-materialize.server");
+
+    // Resolve tenant-owned media before Sol authors the contract. The model only
+    // receives verified IDs/paths, so required media references can be materialized
+    // deterministically without inventing assets.
+    const { data: ownerMediaRows } = await db
+      .from("media")
+      .select("id, url, alt_text, file_name, category")
+      .eq("organization_id", job.organization_id)
+      .order("created_at", { ascending: false })
+      .limit(100);
+    const ownerMedia: FirstBuildImageAsset[] = (ownerMediaRows ?? []).map((row) => ({
+      slot: typeof row.category === "string" ? row.category : "image",
+      label: typeof row.file_name === "string" && row.file_name.trim() ? row.file_name : "Owner image",
+      altText: typeof row.alt_text === "string" ? row.alt_text : "Owner-provided image",
+      path: String(row.url),
+      mediaId: String(row.id),
+      provider: "owner",
+      model: "owner-media",
+      prompt: "",
+      placement: [],
+      aspectRatio: "16:9",
+    }));
+
+    const heroUrl = typeof profile["hero_image_url"] === "string" ? profile["hero_image_url"].trim() : "";
+    if (heroUrl && !ownerMedia.some((asset) => asset.path === heroUrl || asset.mediaId === heroUrl)) {
+      ownerMedia.push({
+        slot: "hero",
+        label: "Owner hero image",
+        altText: "Owner-provided hero image",
+        path: heroUrl,
+        mediaId: heroUrl,
+        provider: "owner",
+        model: "owner-profile-media",
+        prompt: "",
+        placement: ["hero"],
+        aspectRatio: "16:9",
+      });
+    }
+
+    const outcome = await authorCreativeSiteContract({
+      signal: buildAbort.signal,
+      organizationId: job.organization_id,
+      businessName: business.name,
+      industry: business.industry,
+      description: typeof profile["description"] === "string" ? profile["description"] : null,
+      services,
+      location:
+        [profile["city"], profile["state"]]
+          .filter((value): value is string => typeof value === "string" && value.trim().length > 0)
+          .join(", ") || null,
+      serviceArea: typeof profile["service_area"] === "string" ? profile["service_area"] : null,
+      phone: typeof profile["phone"] === "string" ? profile["phone"] : null,
+      email: typeof profile["email"] === "string" ? profile["email"] : null,
+      goals,
+      conversionGoal: business.conversion_goal ?? "enquiries",
+      hasQuoteForm: formsCount > 0,
+      hasBooking: bookingCount > 0,
+      language: input.language,
+      hasOwnerMedia: ownerMedia.length > 0,
+      ownerMedia: ownerMedia.map((asset) => ({ id: asset.mediaId ?? asset.path, path: asset.path, label: asset.label })),
+    });
+
+    await db.from("ai_generations").insert({
+      organization_id: job.organization_id,
+      job_id: job.id,
+      kind: "creative_site_contract",
+      model: outcome.models.join("+") || "revora-collective",
+      instruction: null,
+      result: {
+        version: outcome.contract?.version ?? 1,
+        complete: Boolean(outcome.contract),
+        reviewed: outcome.reviewed,
+        skipped: outcome.skipped,
+        pages: outcome.contract?.pages.map((page) => ({
+          id: page.id,
+          slug: page.slug,
+          sections: page.sections.map((section) => section.role),
+        })) ?? null,
+        costMicrocents: outcome.costMicrocents,
+      } as unknown as never,
+      created_by: job.created_by,
+    } as never);
+
+    if (!outcome.contract) {
+      throw new Error(
+        `The AI could not produce a complete website contract, so nothing was published (${outcome.skipped ?? "no valid contract"}).`,
+      );
+    }
+
+    assertLease();
+
+    const emptyCopy = {
+      heroHeadline: "",
+      heroSubheadline: "",
+      primaryCta: "",
+      secondaryCta: "",
+      intro: "",
+      about: "",
+      benefits: [],
+      serviceCards: [],
+      faqs: [],
+      areaCopy: "",
+      metaTitle: "",
+      metaDescription: "",
+      ogTitle: "",
+      ogDescription: "",
+    };
+
+    assertLease();
+    const built = await materializeSiteContent(db, job.organization_id, {
+      businessName: business.name,
+      copy: emptyCopy,
+      services,
+      city: typeof profile["city"] === "string" ? profile["city"] : null,
+      state: typeof profile["state"] === "string" ? profile["state"] : null,
+      serviceArea: typeof profile["service_area"] === "string" ? profile["service_area"] : null,
+      phone: typeof profile["phone"] === "string" ? profile["phone"] : null,
+      email: typeof profile["email"] === "string" ? profile["email"] : null,
+      yearsInBusiness: typeof profile["years_in_business"] === "number" ? profile["years_in_business"] : null,
+      photoCount: 0,
+      hasQuoteForm: formsCount > 0,
+      hasBooking: bookingCount > 0,
+      replaceExisting: freshReplace,
+      generatedAssets: ownerMedia,
+      creativeSiteContract: outcome.contract,
+    });
+    materialized = !built.skipped;
+
+    if (!built.skipped && built.pages === 0) throw new Error("The AI contract contained no materializable pages.");
+
+    const home = outcome.contract.pages.find((page) => page.slug === "home") ?? outcome.contract.pages[0];
+    const firstSection = home?.sections[0];
+    const report = {
+      builtAt: new Date().toISOString(),
+      buildMode: freshReplace ? "fresh_replace" : "safe",
+      pages: built.pages,
+      sections: built.sections,
+      components: built.components,
+      services: services.length,
+      leadForms: formsCount,
+      bookableServices: bookingCount,
+      contractVersion: outcome.contract.version,
+      contractRevision: outcome.contract.revision,
+      directedBy: outcome.contract.directedBy,
+      reviewedBy: outcome.contract.reviewedBy,
+      ready: false,
+      reason: "AI-authored draft requires browser/visual verification before publish.",
+    };
+
+    assertLease();
+    const prior = await db
+      .from("website_settings")
+      .select("generation")
+      .eq("organization_id", job.organization_id)
+      .maybeSingle();
+    const generation = (prior.data?.generation ?? {}) as Record<string, unknown>;
+    const keepState = await nextPublishState(db, job.organization_id);
+    const { error: saveError } = await db.from("website_settings").upsert(
+      {
+        organization_id: job.organization_id,
+        template: "ai-authored",
+        generation: {
+          ...withoutPendingBuild(generation),
+          creativeSiteContract: outcome.contract,
+          report,
+          canonicalBuilder: {
+            version: outcome.contract.version,
+            authority: outcome.contract.authority,
+            pages: outcome.contract.pages.length,
+          },
+        },
+        generated_at: new Date().toISOString(),
+        review_state: "ready_for_review",
+        publish_state: keepState,
+        seo: {
+          title: home?.seo?.title ?? business.name,
+          headline: firstSection?.content?.heading ?? business.name,
+          subheadline: firstSection?.content?.subheading ?? "",
+          meta_description: home?.seo?.description ?? "",
+          primary_cta_label: home?.primaryAction ?? "Get in touch",
+          og_title: home?.seo?.title ?? business.name,
+          og_description: home?.seo?.description ?? "",
+        },
+      } as never,
+      { onConflict: "organization_id" },
+    );
+    if (saveError) throw new Error(saveError.message);
+
     await db
       .from("generation_jobs")
       .update({
-        current_step: key,
-        progress: meta?.progress ?? 0,
-        steps: done,
-        lease_expires_at: new Date(Date.now() + LEASE_SECONDS * 1000).toISOString(),
+        status: "completed",
+        progress: 100,
+        current_step: "ready",
+        steps: ["business", "services", "analysis", "creative_contract", "materialize", "ready"],
+        completed_at: new Date().toISOString(),
+        lease_expires_at: null,
         updated_at: new Date().toISOString(),
       } as never)
-      .eq("id", job.id);
-  };
+      .eq("id", job.id)
+      .eq("attempts", job.attempts);
 
-  const [org, profile, services, media, socials, forms, bookable] = await Promise.all([
+    await db.from("notifications").insert({
+      organization_id: job.organization_id,
+      title: freshReplace ? "Your fresh AI website rebuild is ready" : "Your AI website draft is ready to review",
+      body: "Sol authored the site architecture and creative contract; Terra reviewed it. Publish remains gated until verification.",
+      kind: "website",
+      link: "/app/website",
+    } as never);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Canonical AI build failed.";
+    if (freshReplace && pendingBuild?.backupId) {
+      const rollback = await rollbackFreshBuild(db, {
+        orgId: job.organization_id,
+        backupId: pendingBuild.backupId,
+        userId: job.created_by,
+        message,
+        jobId: job.id,
+        attempts: job.attempts,
+      });
+      throw new FreshRebuildRollbackError(
+        rollback.restored
+          ? `${message} The previous website was restored from backup ${pendingBuild.backupId}.`
+          : `${message} Rollback also failed: ${rollback.restoreError ?? "unknown error"}.`,
+        pendingBuild.backupId,
+      );
+    }
+    throw error;
+  } finally {
+    clearInterval(leaseHeartbeat);
+  }
+}
+
+/**
+ * Processes one build job through the canonical AI-authored contract path.
+ *
+ * New/fresh builds never execute the legacy deterministic website planner. If an
+ * existing site is present without an explicit fresh-rebuild confirmation, this
+ * worker fails honestly and leaves the site untouched; existing sites are edited
+ * through the AI edit path instead of being regenerated by legacy rules.
+ */
+async function runJob(
+  db: Db,
+  job: { id: string; organization_id: string; attempts: number; created_by: string | null },
+) {
+  const orgId = job.organization_id;
+  const { data: settings } = await db
+    .from("website_settings")
+    .select("generation")
+    .eq("organization_id", orgId)
+    .maybeSingle();
+  const generation = (settings?.generation ?? {}) as Record<string, unknown>;
+  const pendingBuild = readPendingBuild(generation["pendingBuild"], job);
+  if ("pendingBuild" in generation && !pendingBuild) {
+    await clearPendingBuild(db, orgId);
+    throw new Error("Fresh rebuild metadata was invalid or did not match this build, so nothing was replaced.");
+  }
+
+  const [org, profile, services, forms, bookable, existingPages] = await Promise.all([
     db
       .from("organizations")
       .select("name, industry, conversion_goal")
@@ -245,694 +538,63 @@ async function runJob(
       .eq("organization_id", orgId)
       .eq("is_active", true)
       .order("sort_order"),
-    db.from("media").select("id, category").eq("organization_id", orgId),
-    db.from("social_profiles").select("*").eq("organization_id", orgId).maybeSingle(),
     db.from("quote_forms").select("id").eq("organization_id", orgId).eq("is_active", true),
     db.from("services").select("id").eq("organization_id", orgId).eq("bookable", true),
+    db
+      .from("website_pages")
+      .select("id", { count: "exact", head: true })
+      .eq("organization_id", orgId),
   ]);
 
   if (!org.data) throw new Error("Workspace not found.");
-  await step("business");
+
+  const freshReplace = pendingBuild?.mode === "fresh_replace";
+  const canonicalFirstBuild = freshReplace || (existingPages.count ?? 0) === 0;
+  if (!canonicalFirstBuild) {
+    throw new Error(
+      "This workspace already has a website. Existing sites are updated through Revora's AI editor; no legacy regeneration path is used.",
+    );
+  }
 
   const p = (profile.data ?? {}) as Record<string, unknown>;
-  const realMediaCount = (media.data ?? []).filter((item) =>
-    ["hero", "work", "gallery"].includes(String(item.category ?? "").toLowerCase()),
-  ).length + ((p["hero_image_url"] as string) ? 1 : 0);
-  const serviceRows = (services.data ?? []) as {
+  const serviceRows = (services.data ?? []) as Array<{
     name: string;
     description?: string | null;
     price?: number | null;
     starting_price?: number | null;
-  }[];
-  await step("services");
-
-  const social = (socials.data ?? {}) as Record<string, unknown>;
-  const socialLinks = [
-    "instagram",
-    "facebook",
-    "tiktok",
-    "youtube",
-    "google_business",
-    "linkedin",
-  ].filter((k) => typeof social[k] === "string" && String(social[k]).trim()).length;
-  await step("brand");
-
-  const testimonials = Array.isArray(p["testimonials"]) ? (p["testimonials"] as unknown[]) : [];
-  const goalsRaw = (p["website_goals"] as string[] | undefined) ?? [];
-  const goals = (goalsRaw.length ? goalsRaw : [org.data.conversion_goal ?? "quote"]) as string[];
-
-  const copyFacts = {
-    businessName: org.data.name ?? "",
-    industry: org.data.industry ?? "",
-    description: (p["description"] as string) ?? null,
-    city: (p["city"] as string) ?? null,
-    state: (p["state"] as string) ?? null,
-    serviceArea: (p["service_area"] as string) ?? null,
-    phone: (p["phone"] as string) ?? null,
-    email: (p["email"] as string) ?? null,
-    yearsInBusiness: (p["years_in_business"] as number) ?? null,
-    hasHours: Boolean(p["hours"] && Object.keys(p["hours"] as object).length),
-    style: (p["font_preference"] as string) ?? null,
-    goals,
-    ctaLabel: "Get in touch",
-    services: serviceRows,
-  };
-
-  // HARD GATE: placeholder, gibberish or fixture business details never reach a
-  // built site. Nothing is invented in their place — the build stops and asks
-  // for the real information.
-  {
-    const { assertContentIntegrity } = await import("@/lib/builder/content-integrity");
-    assertContentIntegrity([
-      { field: "business name", value: copyFacts.businessName, heading: true },
-      { field: "description", value: copyFacts.description },
-      { field: "city", value: copyFacts.city },
-      { field: "service area", value: copyFacts.serviceArea },
-      { field: "phone", value: copyFacts.phone },
-      { field: "email", value: copyFacts.email },
-      ...serviceRows.map((service, index) => ({
-        field: `service ${index + 1} name`,
-        value: service.name,
-        heading: true,
-      })),
-      ...serviceRows.map((service, index) => ({
-        field: `service ${index + 1} description`,
-        value: service.description ?? null,
-      })),
-    ]);
-  }
-
-  // Orchestrator pass: business intelligence, customer intent and conversion
-  // strategy. If the owner already reviewed and approved a brief, that exact
-  // brief is used — the build never silently replaces their edits.
-  const priorSettings = await db
-    .from("website_settings")
-    .select("generation")
-    .eq("organization_id", orgId)
-    .maybeSingle();
-  const priorGeneration = (priorSettings.data?.generation ?? {}) as Record<string, unknown>;
-  const pendingBuild = readPendingBuild(priorGeneration["pendingBuild"], job);
-  if ("pendingBuild" in priorGeneration && !pendingBuild) {
-    await clearPendingBuild(db, orgId);
-    throw new Error("Fresh rebuild metadata was invalid or did not match this build, so nothing was replaced.");
-  }
-  const freshReplace = pendingBuild?.mode === "fresh_replace";
-  const approvedBrief = readBrief(priorGeneration["brief"]);
-
-  const brief = approvedBrief?.approved ? approvedBrief : fallbackBrief(copyFacts);
-  if (!approvedBrief?.approved) {
-    await db.from("ai_generations").insert({
-      organization_id: orgId,
-      job_id: job.id,
-      kind: "business_brief",
-      model: "revora-native",
-      instruction: null,
-      result: brief as unknown as never,
-      created_by: job.created_by,
-    } as never);
-  }
-  await step("analysis");
-
-  const plan = generateWebsitePlan({
-    businessName: org.data.name ?? "",
-    industry: org.data.industry ?? "",
-    description: (p["description"] as string) ?? null,
-    city: (p["city"] as string) ?? null,
-    state: (p["state"] as string) ?? null,
-    serviceArea: (p["service_area"] as string) ?? null,
-    phone: (p["phone"] as string) ?? null,
-    email: (p["email"] as string) ?? null,
-    goals: goals as never,
-    services: serviceRows,
-    photoCount: realMediaCount,
-    testimonialCount: testimonials.length,
-    hasCredentials: Boolean(p["certifications"] || p["awards"] || p["years_in_business"]),
-    hasHours: Boolean(p["hours"] && Object.keys(p["hours"] as object).length),
-    socialLinks,
-  });
-  await step("structure");
-
-  const copyFactsForWrite = { ...copyFacts, ctaLabel: plan.primaryCtaLabel };
-  let copy = fallbackCopy(copyFactsForWrite, brief);
-  let copyModel = "revora-native";
-  await step("copy");
-
-  await db.from("ai_generations").insert({
-    organization_id: orgId,
-    job_id: job.id,
-    kind: "website_copy",
-    model: copyModel,
-    instruction: null,
-    result: copy as unknown as never,
-    created_by: job.created_by,
-  } as never);
-  await step("conversion");
-
-  const qaFacts = await gatherBriefFacts(db, orgId, brief.missingFacts);
-  const qa = captureQa({
-    ...qaFacts.qaInput,
-    primaryCtaLabel: copy.primaryCta || plan.primaryCtaLabel,
-    secondaryCtaLabel: copy.secondaryCta || qaFacts.qaInput.secondaryCtaLabel,
-  });
-
-  // Materialize the plan into real pages/sections/components so the owner has
-  // something to edit and publish. Skipped when the workspace already has pages.
-  const [
-    { materializeSiteContent },
-    { authorBrandIdentity },
-    { compileFirstBuildCreativeDirection },
-    { synthesizeNativeFirstBuild },
-    { generateFirstBuildImages },
-    { imageRepairPlan },
-    { applyScreenshotReferenceToCreative },
-  ] =
-    await Promise.all([
-      import("@/lib/site-materialize.server"),
-      import("@/lib/builder/ai-brand-identity.server"),
-      import("@/lib/builder/first-build-creative"),
-      import("@/lib/builder/native-first-build"),
-      import("@/lib/builder/first-build-images.server"),
-      import("@/lib/builder/first-build-image-qa"),
-      import("@/lib/builder/screenshot-reference"),
-    ]);
-  // The visual identity — palette, typefaces, surface treatments — is authored
-  // for this business by the design team. No preset direction, no industry
-  // template: if it cannot be authored, the build stops.
-  const identity = await authorBrandIdentity({
-    organizationId: orgId,
-    businessName: org.data.name ?? "",
-    industry: org.data.industry ?? null,
-    description: (p["description"] as string) ?? null,
-    city: (p["city"] as string) ?? null,
-    services: serviceRows.map((service) => ({ name: service.name })),
-    requestedFont: (p["font_preference"] as string) ?? null,
-  });
-  const direction = identity.direction;
-  let creative = compileFirstBuildCreativeDirection({
-    organizationId: orgId,
-    businessName: org.data.name ?? "",
-    industry: org.data.industry ?? null,
-    description: (p["description"] as string) ?? null,
-    city: (p["city"] as string) ?? null,
-    state: (p["state"] as string) ?? null,
-    serviceArea: (p["service_area"] as string) ?? null,
-    phone: (p["phone"] as string) ?? null,
-    email: (p["email"] as string) ?? null,
-    yearsInBusiness: (p["years_in_business"] as number) ?? null,
-    services: serviceRows,
-    goals,
-    conversionGoal: org.data.conversion_goal ?? null,
-    photoCount: realMediaCount,
-    hasHeroImage: Boolean(p["hero_image_url"]),
-    testimonialCount: testimonials.length,
-    bookableServices: (bookable.data ?? []).length,
-    hasHours: Boolean(p["hours"] && Object.keys(p["hours"] as object).length),
-  });
-  const storedReferenceObservations = priorGeneration["screenshotReferenceObservations"];
-  let screenshotReference: unknown = priorGeneration["screenshotReference"] ?? null;
-  if (storedReferenceObservations) {
-    const applied = applyScreenshotReferenceToCreative({
-      creative,
-      observations: storedReferenceObservations,
-      businessName: org.data.name ?? null,
-      blockedNames: [org.data.name ?? ""],
-    });
-    creative = applied.creative;
-    screenshotReference = applied.reference;
-    await db.from("ai_generations").insert({
-      organization_id: orgId,
-      job_id: job.id,
-      kind: "screenshot_reference_applied",
-      model: "revora-native",
-      instruction: null,
-      result: applied.reference as unknown as never,
-      created_by: job.created_by,
-    } as never);
-  }
-
-
-  const buildFacts = {
-    businessName: copyFacts.businessName,
-    industry: copyFacts.industry,
-    services: copyFacts.services.map((service) => service.name),
-    description: copyFacts.description,
-    city: copyFacts.city,
-    region: copyFacts.state,
-    serviceArea: copyFacts.serviceArea,
-    phone: copyFacts.phone,
-    email: copyFacts.email,
-    yearsInBusiness: copyFacts.yearsInBusiness,
-    testimonialCount: testimonials.length,
-    hasPrices: copyFacts.services.some(
-      (service) => service.price != null || service.starting_price != null,
-    ),
-    goals: copyFacts.goals,
-    hasHours: copyFacts.hasHours,
-  };
-
-  // The design team owns the creative direction and the wording. The facts
-  // assembled above are only the material it works from: they carry no design
-  // authority, and a build never ships wording no model authored or reviewed.
-  const { refineFirstBuildWithCollective } = await import(
-    "@/lib/builder/collective-first-build.server"
-  );
-  const refined = await refineFirstBuildWithCollective({
-    organizationId: orgId,
-    facts: buildFacts,
-    brief,
-    copy,
-    creative,
-  });
-  if (refined.creativeChanged) creative = refined.creative;
-  if (refined.changed) {
-    copy = refined.copy;
-    copyModel = refined.passes
-      .filter((pass) => pass.used && pass.model)
-      .map((pass) => pass.model)
-      .join("+") || copyModel;
-  }
-  // No stale-template fallback: when not one model — paid lead or free stand-in —
-  // could author or review this build, the build stops and says so instead of
-  // quietly shipping the fact scaffold as if it were a designed website.
-  const existingPages = await db
-    .from("website_pages")
-    .select("id", { count: "exact", head: true })
-    .eq("organization_id", orgId);
-  const firstBuild = freshReplace || (existingPages.count ?? 0) === 0;
-  if (firstBuild && (!refined.passes.some((pass) => pass.used) || !refined.changed)) {
-    const why = refined.passes
-      .map((pass) => pass.skipped)
-      .filter(Boolean)
-      .slice(0, 3)
-      .join("; ");
-    throw new Error(
-      `The design team could not author this website's wording and look, so nothing was published (${why || (refined.passes.some((pass) => pass.used) ? "no model returned usable wording" : "no model was reachable")}). Please try again in a moment.`,
-    );
-  }
-
-
-  await db.from("ai_generations").insert({
-    organization_id: orgId,
-    job_id: job.id,
-    kind: "collective_first_build",
-    model: copyModel,
-    instruction: null,
-    result: {
-      changed: refined.changed,
-      creativeChanged: refined.creativeChanged,
-      copyChanged: refined.copyChanged,
-      fingerprintId: refined.creative.fingerprint.id,
-      totalCostMicrocents: refined.totalCostMicrocents,
-      passes: refined.passes,
-    } as unknown as never,
-    created_by: job.created_by,
-  } as never);
-  // The same adversarial gate runs AFTER any model wording, so a refined page
-  // can never reach the site with an unsupported claim.
-  const synthesis = synthesizeNativeFirstBuild({
-    facts: buildFacts,
-    language: typeof p["language"] === "string" ? (p["language"] as string) : "English",
-    brief,
-    plan,
-    copy,
-    creative,
-  });
-  if (!synthesis.valid) {
-    throw new Error(
-      synthesis.findings.find((finding) => finding.severity === "blocker")?.detail ??
-        "The native quality review blocked unsafe website content.",
-    );
-  }
-  await db.from("ai_generations").insert({
-    organization_id: orgId,
-    job_id: job.id,
-    kind: "native_first_build_synthesis",
-    model: "revora-native",
-    instruction: null,
-    result: synthesis as unknown as never,
-    created_by: job.created_by,
-  } as never);
-  let generatedAssets: import("@/lib/builder/first-build-images.types").FirstBuildImageAsset[] = [];
-  try {
-  const starterImages = await generateFirstBuildImages(db, {
-    organizationId: orgId,
-    userId: job.created_by,
-    businessName: org.data.name ?? "",
-    city: (p["city"] as string) ?? null,
-    photoCount: realMediaCount,
-    // Only a deliberately assigned hero fills that role. A generic upload or
-    // one work photo no longer blocks the complete supporting image campaign.
-    occupiedSlots: new Set([
-      ...((p["hero_image_url"] as string) ? (["hero"] as const) : []),
-    ]),
-    creative,
-  });
-  generatedAssets = starterImages.assets;
-  const architectBusinessName = org.data.name ?? "";
-  const architectIndustry = org.data.industry ?? null;
-  const architectGoal = org.data.conversion_goal ?? "enquiries";
-  const architectureRef: { current: PageArchitectureOutcome | null } = { current: null };
-  const built = await materializeSiteContent(db, orgId, {
-    businessName: org.data.name ?? "",
-    copy,
-    services: serviceRows,
-    city: (p["city"] as string) ?? null,
-    state: (p["state"] as string) ?? null,
-    serviceArea: (p["service_area"] as string) ?? null,
-    phone: (p["phone"] as string) ?? null,
-    email: (p["email"] as string) ?? null,
-    yearsInBusiness: (p["years_in_business"] as number) ?? null,
-    photoCount: realMediaCount,
-    hasQuoteForm: (forms.data ?? []).length > 0,
-    hasBooking: (bookable.data ?? []).length > 0,
-    direction,
-    fingerprint: creative.fingerprint,
-    creativeBrief: creative.brief,
-    generatedAssets: starterImages.assets,
-    directedBy:
-      refined.passes.find((pass) => pass.used && pass.model)?.model ?? "revora-collective",
-    reviewedBy:
-      refined.passes.filter((pass) => pass.used && pass.model)[1]?.model ?? null,
-    conversionGoal: org.data.conversion_goal ?? "enquiries",
-    replaceExisting: freshReplace,
-    architect: async (candidate) => {
-      const { proposePageArchitecture } = await import(
-        "@/lib/builder/ai-page-architecture.server"
-      );
-      const outcome = await proposePageArchitecture({
-        organizationId: orgId,
-        businessName: architectBusinessName,
-        industry: architectIndustry,
-        conversionGoal: architectGoal,
-        candidate,
-      });
-      architectureRef.current = outcome;
-      return outcome.architecture;
-    },
-  });
-  await db.from("ai_generations").insert({
-    organization_id: orgId,
-    job_id: job.id,
-    kind: "ai_page_architecture",
-    model: architectureRef.current?.models.join("+") || "revora-native",
-    instruction: null,
-    result: (architectureRef.current
-      ? {
-          authored: architectureRef.current.architecture !== null,
-          skipped: architectureRef.current.skipped,
-          rejected: architectureRef.current.rejected,
-          pages: architectureRef.current.architecture?.map((page) => ({
-            slug: page.slug,
-            sections: page.sections.map((section) => section.role),
-          })) ?? null,
-          costMicrocents: architectureRef.current.costMicrocents,
-        }
-      : { authored: false, skipped: "the page plan was not requested for this build" }) as unknown as never,
-    created_by: job.created_by,
-  } as never);
-  // The AI page plan is the only source of pages and sections. There is no
-  // rule-based layout to fall back on, so an unavailable or rejected plan stops
-  // the build with an honest message instead of a generic website.
-  if (!built.skipped) {
-    const outcome = architectureRef.current;
-    if (!outcome || !outcome.architecture) {
-      const detail = outcome?.rejected.length
-        ? outcome.rejected.map((rejection) => JSON.stringify(rejection)).join("; ")
-        : outcome?.skipped ?? "the design team was unavailable";
-      throw new Error(
-        `The design team could not author a page plan for this website, so nothing was created (${detail}). Please try again in a moment.`,
-      );
-    }
-  }
-  const attachedEvidence = {
-    ...starterImages.evidence,
-    attached: built.skipped ? 0 : starterImages.assets.length,
-  };
-  await db.from("ai_generations").insert({
-    organization_id: orgId,
-    job_id: job.id,
-    kind: "first_build_images",
-    model: starterImages.evidence.models.join("+") || starterImages.evidence.provider || "revora-artwork",
-    instruction: null,
-    result: attachedEvidence as unknown as never,
-    created_by: job.created_by,
-  } as never);
-
-  // Section-by-section wording authority. The renderer's fillable text is only
-  // a floor: Sol rewrites each section in place, Terra approves it individually
-  // and the same fact gate blocks anything invented. Deterministic wording
-  // survives untouched whenever the tiers are unavailable or refuse.
-  if (!built.skipped) {
-    const { refineSectionWordingWithCollective } = await import(
-      "@/lib/builder/collective-sections.server"
-    );
-    const pageRows = await db
-      .from("website_pages")
-      .select("id, slug")
-      .eq("organization_id", orgId);
-    const slugById = new Map((pageRows.data ?? []).map((page) => [page.id, page.slug]));
-    const sectionRows = await db
-      .from("website_sections")
-      .select("id, page_id, kind, heading, subheading, body")
-      .eq("organization_id", orgId)
-      .order("sort_order", { ascending: true });
-    const wording = (sectionRows.data ?? []).map((section) => ({
-      id: section.id,
-      page: slugById.get(section.page_id) ?? "",
-      kind: section.kind,
-      heading: section.heading,
-      subheading: section.subheading,
-      body: section.body,
-    }));
-    const outcome = await refineSectionWordingWithCollective({
-      organizationId: orgId,
-      facts: buildFacts,
-      sections: wording,
-      directionSummary: `${creative.fingerprint.family} · ${creative.brief.personality}`,
-    });
-    for (const patch of outcome.patches) {
-      const update: Record<string, string> = {};
-      if (patch.heading !== undefined) update["heading"] = patch.heading;
-      if (patch.subheading !== undefined) update["subheading"] = patch.subheading;
-      if (patch.body !== undefined) update["body"] = patch.body;
-      if (!Object.keys(update).length) continue;
-      await db
-        .from("website_sections")
-        .update(update as never)
-        .eq("id", patch.id)
-        .eq("organization_id", orgId);
-    }
-    await db.from("ai_generations").insert({
-      organization_id: orgId,
-      job_id: job.id,
-      kind: "collective_section_wording",
-      model:
-        outcome.passes
-          .filter((pass) => pass.used && pass.model)
-          .map((pass) => pass.model)
-          .join("+") || "revora-deterministic",
-      instruction: null,
-      result: {
-        sections: wording.length,
-        rewritten: outcome.patches.length,
-        totalCostMicrocents: outcome.totalCostMicrocents,
-        passes: outcome.passes,
-      } as unknown as never,
-      created_by: job.created_by,
-    } as never);
-  }
-
-  // A brand chosen by the owner wins. Only replace the untouched generated
-  // defaults during a first build, so onboarding produces a distinctive site
-  // without overwriting deliberate colours on an existing workspace.
-  const hasOwnerBrand = Boolean(
-    (p["font_preference"] as string) ||
-      (p["secondary_color"] as string) ||
-      (p["accent_color"] as string) ||
-      ((p["primary_color"] as string) && (p["primary_color"] as string).toLowerCase() !== "#34d399"),
-  );
-  if (!built.skipped && direction && !hasOwnerBrand) {
-    const { error: themeError } = await db
-      .from("business_profiles")
-      .update({
-        primary_color: direction.primary,
-        secondary_color: direction.secondary,
-        accent_color: direction.accent,
-        font_preference: direction.font,
-      } as never)
-      .eq("organization_id", orgId);
-    if (themeError) throw new Error(themeError.message);
-  }
-
-  const report = {
-    builtAt: new Date().toISOString(),
-    pages: built.skipped ? plan.pages.length : built.pages,
-    sections: built.skipped ? plan.sections.length : built.sections,
-    services: serviceRows.length,
-
-    faqs: copy.faqs.length,
-    photos: realMediaCount,
-    leadForms: (forms.data ?? []).length,
-    bookableServices: (bookable.data ?? []).length,
-    seoConfigured: Boolean(copy.metaTitle && copy.metaDescription),
-    // Truthful: leads only reach the built-in customer record when at least one
-    // capture route exists on the site. Never reported as connected otherwise.
-    crmConnected: (forms.data ?? []).length > 0 || (bookable.data ?? []).length > 0,
-    analyticsConfigured: true,
-    imagery: {
-      status: creative.imagery.status,
-      generatedStatus: starterImages.evidence.status,
-      generated: starterImages.evidence.generated,
-      attached: !built.skipped ? starterImages.assets.length : 0,
-      source: starterImages.evidence.source ?? "none",
-      rejected: starterImages.evidence.rejected ?? [],
-      paidNote: starterImages.evidence.paidNote ?? null,
-      paidCostMicrocents: starterImages.evidence.paidCostMicrocents ?? 0,
-      repairPlan: imageRepairPlan({
-        rejected: starterImages.evidence.rejected ?? [],
-        skipped: starterImages.evidence.skipped ?? [],
-      }),
-      provider: starterImages.evidence.provider,
-      models: starterImages.evidence.models,
-      message: starterImages.evidence.message,
-      readiness: creative.imagery.assetPlan.readiness,
-      missingRequired: creative.imagery.assetPlan.missingRequired.map((slot) => ({
-        id: slot.id,
-        section: slot.section,
-        count: slot.count,
-        policy: slot.policy,
-      })),
-    },
-    firstPreviewGate: {
-      content: qa.blockers.length === 0 ? "PASS" : "FAIL",
-      browser: "NOT_VERIFIED",
-      visual: "NOT_VERIFIED",
-      images:
-        starterImages.evidence.status === "owner_photos"
-          ? "OWNER_PHOTOS"
-          : starterImages.assets.length > 0
-            ? "STARTER_PICTURES"
-            : "OWN_ARTWORK",
-      mobile: "NOT_VERIFIED",
-      performance: "NOT_VERIFIED",
-      ready: false,
-      evidenceSource: "website_visual_reports",
-      reason:
-        "Draft materialization finished. Readiness remains false until fresh owner-browser measurements are server-graded for every visible page.",
-    },
-    briefSource: brief.source,
-    copyModel,
-    checks: qa.checks,
-    attention: [
-      ...qa.blockers.map((c) => c.fix),
-      ...((forms.data ?? []).length || (bookable.data ?? []).length
-        ? []
-        : ["Turn on the quote calculator or make a service bookable so visitors can enquire."]),
-      ...((media.data ?? []).length >= 5 ? [] : ["Add at least five photos of your own work."]),
-      // Picture problems feed the same attention list the repair loop reads, so a
-      // blocked or rejected starter picture is fixed rather than quietly ignored.
-      ...(starterImages.evidence.status === "owner_photos" || starterImages.assets.length > 0
-        ? []
-        : [`Pictures: ${starterImages.evidence.message}`]),
-      ...(starterImages.evidence.rejected ?? []).map(
-        (item) => `Picture check: the ${item.label} picture was not used because ${item.reason}.`,
-      ),
-      ...brief.missingFacts,
-    ].slice(0, 8),
-  };
-
-  const keepState = await nextPublishState(db, orgId);
-
-  const { error: saveError } = await db.from("website_settings").upsert(
-    {
-      organization_id: orgId,
-      template: plan.template,
-      generation: {
-        ...withoutPendingBuild(priorGeneration),
-        ...plan,
-        copy,
-        brief,
-        report: {
-          ...report,
-          buildMode: freshReplace ? "fresh_replace" : "safe",
-          backupId: pendingBuild?.backupId ?? null,
-          screenshotReferenceApplied:
-            !!screenshotReference &&
-            typeof screenshotReference === "object" &&
-            (screenshotReference as { applied?: unknown }).applied === true,
-        },
-        firstBuildCreative: creative,
-        siteCampaign: built.campaign,
-        nativeSynthesis: synthesis,
-        screenshotReference,
-        screenshotReferenceObservations: storedReferenceObservations ?? null,
-        designFingerprint: { ...creative.fingerprint, updatedAt: new Date().toISOString() },
-        ...(!built.skipped && direction ? { effects: { backdrop: direction.backdrop } } : {}),
-      } as unknown as Record<string, unknown>,
-      generated_at: new Date().toISOString(),
-      review_state: "ready_for_review",
-      publish_state: keepState,
-      seo: {
-        title: copy.metaTitle || plan.seoTitle,
-        headline: copy.heroHeadline,
-        subheadline: copy.heroSubheadline,
-        meta_description: copy.metaDescription || plan.metaDescription,
-        primary_cta_label: copy.primaryCta || plan.primaryCtaLabel,
-        og_title: copy.ogTitle,
-        og_description: copy.ogDescription,
-      },
-    } as never,
-    { onConflict: "organization_id" },
-  );
-  if (saveError) throw new Error(saveError.message);
-  await step("leads");
-  await step("mobile");
+  }>;
+  const goals = Array.isArray(p["website_goals"]) && (p["website_goals"] as unknown[]).length
+    ? (p["website_goals"] as unknown[]).filter((value): value is string => typeof value === "string").slice(0, 8)
+    : [org.data.conversion_goal ?? "quote"];
 
   await db
     .from("generation_jobs")
     .update({
-      status: "completed",
-      progress: 100,
-      current_step: "ready",
-      steps: [...done, "ready"],
-      completed_at: new Date().toISOString(),
-      lease_expires_at: null,
+      current_step: "creative_contract",
+      progress: 60,
+      lease_expires_at: new Date(Date.now() + LEASE_SECONDS * 1000).toISOString(),
       updated_at: new Date().toISOString(),
     } as never)
-    .eq("id", job.id);
+    .eq("id", job.id)
+    .eq("attempts", job.attempts);
 
-  const leadCapture = (forms.data ?? []).length > 0 || (bookable.data ?? []).length > 0;
-  await db.from("notifications").insert({
-    organization_id: orgId,
-    title: freshReplace ? "Your fresh website rebuild is ready" : "Your website draft is ready to review",
-    body: leadCapture
-        ? "Revora built your site from your information and connected lead capture."
-        : "Revora built your site. Turn on the quote calculator or online booking to capture leads.",
-    kind: "website",
-    link: "/app/website",
-  } as never);
-  } catch (error) {
-    if (generatedAssets.length) {
-      const { cleanupFirstBuildImages } = await import("@/lib/builder/first-build-images.server");
-      await cleanupFirstBuildImages(db, generatedAssets).catch(() => undefined);
-    }
-    const message = error instanceof Error ? error.message : "Generation failed.";
-    if (freshReplace && pendingBuild?.backupId) {
-      const rollback = await rollbackFreshBuild(db, {
-        orgId,
-        backupId: pendingBuild.backupId,
-        userId: job.created_by,
-        message,
-      });
-      throw new FreshRebuildRollbackError(
-        rollback.restored
-          ? `${message} The previous website was restored from backup ${pendingBuild.backupId}.`
-          : `${message} Rollback also failed: ${rollback.restoreError ?? "unknown error"}.`,
-        pendingBuild.backupId,
-      );
-    }
-    throw error;
-  }
+  await runCanonicalFirstBuild({
+    db,
+    job,
+    business: {
+      name: org.data.name ?? "",
+      industry: org.data.industry ?? null,
+      conversion_goal: org.data.conversion_goal ?? null,
+    },
+    profile: p,
+    services: serviceRows,
+    formsCount: (forms.data ?? []).length,
+    bookingCount: (bookable.data ?? []).length,
+    goals,
+    freshReplace,
+    pendingBuild,
+    language: typeof p["language"] === "string" ? p["language"] : "English",
+  });
 }
 
 export type DrainResult = {
@@ -954,10 +616,9 @@ export async function drainSiteEngineQueue(
   const max = Math.min(Math.max(options.max ?? 2, 1), 5);
   const state = await readQueueState(db);
 
-  // Paused-state guard. Rate limits and credit/policy denials are both
-  // self-healing: every generation stage has a deterministic Revora fallback, so
-  // the builder keeps running at full speed with rules-only writing instead of
-  // parking the queue. Only an explicit hard block keeps the probe-only budget.
+  // Paused-state guard. Rate limits remain retryable, but AI availability or
+  // policy/entitlement failures are surfaced as honest generation failures rather
+  // than silently switching to deterministic website authoring.
   let budget = max;
   if (state.paused) {
     if (state.pause_kind === "rate_limit" || state.pause_kind === "credits") {
@@ -1005,19 +666,35 @@ export async function drainSiteEngineQueue(
             completed_at: new Date().toISOString(),
             lease_expires_at: null,
           } as never)
-          .eq("id", job.id);
+          .eq("id", job.id)
+          .eq("attempts", job.attempts);
         await writeQueueState(db, { last_error: message });
         continue;
       }
 
-      // Credit/policy denials must never stop the builder. Every generation
-      // stage has a deterministic Revora fallback, so a denial is retried
-      // immediately in rules-only mode instead of pausing the queue.
-      if (status === 402 || status === 403) {
+      // A model availability, entitlement, or policy denial must never cause
+      // a hidden rules-only build. Fail the job transparently and leave the site
+      // untouched; the caller can retry after the underlying issue is resolved.
+      if (status === 402 || status === 403 || (isGateway && ["not_configured", "free_unavailable", "unauthorized", "policy"].includes(error.category))) {
+        failed += 1;
         await db
           .from("generation_jobs")
-          .update({ status: "queued", error_message: null, lease_expires_at: null } as never)
-          .eq("id", job.id);
+          .update({
+            status: "failed",
+            error_message: message,
+            completed_at: new Date().toISOString(),
+            lease_expires_at: null,
+          } as never)
+          .eq("id", job.id)
+          .eq("attempts", job.attempts);
+        await db.from("notifications").insert({
+          organization_id: job.organization_id,
+          title: "AI website generation needs attention",
+          body: message,
+          kind: "website",
+          link: "/app/website",
+        } as never);
+        await writeQueueState(db, { last_error: message });
         continue;
       }
 
@@ -1030,7 +707,8 @@ export async function drainSiteEngineQueue(
         await db
           .from("generation_jobs")
           .update({ status: "queued", error_message: message, lease_expires_at: null } as never)
-          .eq("id", job.id);
+          .eq("id", job.id)
+          .eq("attempts", job.attempts);
         return {
           processed,
           failed,
@@ -1042,12 +720,7 @@ export async function drainSiteEngineQueue(
 
       // Ordinary failure: retry until MAX_ATTEMPTS, then mark it failed for good.
       failed += 1;
-      const { data: current } = await db
-        .from("generation_jobs")
-        .select("attempts")
-        .eq("id", job.id)
-        .maybeSingle();
-      const attempts = (current?.attempts as number | undefined) ?? MAX_ATTEMPTS;
+      const attempts = job.attempts;
       await db
         .from("generation_jobs")
         .update(
@@ -1060,7 +733,8 @@ export async function drainSiteEngineQueue(
               }
             : { status: "queued", error_message: message, lease_expires_at: null },
         )
-        .eq("id", job.id);
+        .eq("id", job.id)
+        .eq("attempts", job.attempts);
       await writeQueueState(db, { last_error: message });
     }
   }

@@ -213,6 +213,10 @@ type AdminClient = {
 };
 
 async function admin(): Promise<AdminClient | null> {
+  // Unit tests and local builder work may intentionally run without a
+  // service-role credential. Treat that as an unavailable spend ledger rather
+  // than allowing the lazy Supabase client getter to throw through orchestration.
+  if (!env("SUPABASE_SERVICE_ROLE_KEY")) return null;
   try {
     const mod = await import("@/integrations/supabase/client.server");
     return mod.supabaseAdmin as unknown as AdminClient;

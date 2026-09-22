@@ -37,7 +37,8 @@ import {
   type PageArchitecture,
 } from "@/lib/builder/creative-authority";
 import { deriveCandidateArchitecture } from "@/lib/builder/ai-page-architecture";
-import { assertMediaIntegrity } from "@/lib/builder/media-integrity";
+import type { CreativeSiteContract } from "@/lib/builder/creative-site-contract";
+import { assertCreativeSiteMediaIntegrity, assertMediaIntegrity } from "@/lib/builder/media-integrity";
 
 type Db = SupabaseClient;
 
@@ -89,6 +90,11 @@ export type MaterializeInput = {
   generatedAssets?: FirstBuildImageAsset[];
   /** Explicit, guarded replacement mode. Default rebuilds remain non-destructive. */
   replaceExisting?: boolean;
+  /**
+   * Legacy rendering is opt-in only. New builds must supply the canonical
+   * Sol/Terra CreativeSiteContract instead of silently falling back to rules.
+   */
+  legacyCompatibility?: boolean;
   /** Model that directed the design, recorded on the contract for observability. */
   directedBy?: string | null;
   /** Model that independently reviewed the design, when one did. */
@@ -102,6 +108,7 @@ export type MaterializeInput = {
    * container fails the build instead of shipping a blank box.
    */
   designContract?: AiDesignContract | null;
+  creativeSiteContract?: CreativeSiteContract | null;
   /**
    * Lets the AI author the page architecture. It receives the architecture the
    * renderer can fill and returns its own page set, section selection and
@@ -127,6 +134,7 @@ type Section = {
   subheading?: string | null;
   body?: string | null;
   components?: Component[];
+  settings?: Record<string, unknown> | null;
 };
 
 type Page = {
@@ -140,6 +148,72 @@ type Page = {
   og_image_url?: string | null;
   sections: Section[];
 };
+
+export function materializeCreativeSiteContract(
+  contract: CreativeSiteContract,
+  assets: FirstBuildImageAsset[] = [],
+): Page[] {
+  const assetByPath = new Map(assets.map((asset) => [asset.path, asset]));
+  const assetByMediaId = new Map(assets.filter((asset) => asset.mediaId).map((asset) => [asset.mediaId as string, asset]));
+  return contract.pages.map((page) => ({
+    slug: page.slug,
+    title: page.title,
+    kind: page.slug === "home" ? "home" : "ai-authored",
+    seo_title: page.seo?.title ?? null,
+    seo_description: page.seo?.description ?? null,
+    og_image_url: page.seo?.imageUrl ?? null,
+    sections: page.sections.map((section) => {
+      const components: Component[] = (section.content?.components ?? []).map((component) => ({
+        ...component,
+
+        kind: component.kind,
+        label: component.label ?? null,
+        body: component.body ?? null,
+        link_label: component.linkLabel ?? null,
+        link_url: safeLinkUrl(component.linkUrl ?? null),
+        media_url: component.mediaUrl
+          ? (assetByPath.get(component.mediaUrl)?.path ??
+            assetByMediaId.get(component.mediaUrl)?.path ??
+            component.mediaUrl)
+          : null,
+        settings: { ...(component.settings ?? {}), ai_authored: true },
+      }));
+      if (section.media?.assetId) {
+        const asset =
+          assetByPath.get(section.media.assetId) ??
+          assetByMediaId.get(section.media.assetId) ??
+          assets.find((candidate) => candidate.label === section.media?.assetId);
+        const resolvedMediaPath = asset?.path ?? section.media.assetId;
+        if (asset && !components.some((component) => component.media_url === resolvedMediaPath)) {
+          components.push(
+            imageComponent(
+              asset,
+              "ai_media",
+              section.media?.presentation,
+            ),
+          );
+        }
+      }
+      return {
+        kind: section.role,
+        variant: "ai-authored",
+        heading: section.content?.heading ?? null,
+        subheading: section.content?.subheading ?? null,
+        body: section.content?.body ?? null,
+        components,
+        settings: {
+          ai_authored: true,
+          ai_section_id: section.id,
+          ai_intent: section.intent,
+          ai_visual: section.visual ?? {},
+          ai_responsive: section.responsive ?? {},
+          ai_interactions: section.interactions ?? {},
+          ...(section.media?.presentation ? { ai_media: section.media.presentation } : {}),
+        },
+      } as Section;
+    }),
+  }));
+}
 
 const clean = (value: string | null | undefined) => {
   const text = (value ?? "").trim();
@@ -182,18 +256,30 @@ function serviceAsset(
   return exact ?? (serviceAssets.length ? serviceAssets[index % serviceAssets.length] ?? null : null);
 }
 
-function imageComponent(asset: FirstBuildImageAsset, kind = "image"): Component {
+function imageComponent(
+  asset: FirstBuildImageAsset,
+  kind = "image",
+  presentation?: Record<string, unknown>,
+): Component {
   return {
     kind,
     label: asset.label,
     media_url: asset.path,
-    settings: mediaSettings(asset),
+    settings: presentation
+      ? {
+          ...presentation,
+          source: "generated",
+          credit: GENERATED_IMAGE_CREDIT,
+          license: "Revora starter image",
+          ai_authored: true,
+        }
+      : mediaSettings(asset),
   };
 }
 
 
 
-/** Builds the page tree. Pure — easy to reason about and to test. */
+/** Legacy compatibility adapter. New builds never call this path. */
 export function planSiteContent(input: MaterializeInput): Page[] {
   const { copy, services } = input;
   const place =
@@ -652,9 +738,23 @@ export async function materializeSiteContent(
   // The contract OVERRIDES the renderer's page set and section order, and any
   // visual container the design requires must resolve to a real picture —
   // otherwise the build fails rather than publishing a blank box.
-  let tree = planSiteContent(input);
+  let tree: Page[];
   let designContract: AiDesignContract | null = input.designContract ?? null;
-  if (!designContract && input.fingerprint && input.creativeBrief) {
+  if (input.creativeSiteContract) {
+    tree = materializeCreativeSiteContract(input.creativeSiteContract, input.generatedAssets ?? []);
+    assertCreativeSiteMediaIntegrity(tree, input.creativeSiteContract);
+  } else if (input.legacyCompatibility === true) {
+    // Explicit migration/compatibility adapter for already-created legacy data.
+    tree = planSiteContent(input);
+  } else {
+    throw new Error(
+      "The canonical AI website contract was missing. Revora stopped before creating any pages instead of using a deterministic fallback.",
+    );
+  }
+  if (input.legacyCompatibility !== true && !input.creativeSiteContract) {
+    throw new Error("A fresh website requires a complete Sol/Terra creative contract.");
+  }
+  if (!designContract && input.fingerprint && input.creativeBrief && input.legacyCompatibility === true) {
     const primaryAction = clean(input.copy.primaryCta) ?? "Get in touch";
     // The AI authors the page set, the section selection and the order. The
     // renderer's own layout is only the inventory of fillable material.
@@ -749,7 +849,9 @@ export async function materializeSiteContent(
           body: section.body ?? null,
           is_visible: true,
           sort_order: sectionIndex,
-          settings: design.settings,
+          // Preserve the canonical AI contract's visual/responsive/interaction data.
+          // Legacy design synthesis is used only by the compatibility path.
+          settings: { ...design.settings, ...(section.settings ?? {}) },
         } as never)
         .select("id")
         .single();

@@ -345,6 +345,46 @@ export function alignCreativeBriefToFingerprint(
   };
 }
 
+
+/**
+ * Stores screenshot inspiration as neutral observations only. It deliberately
+ * does not synthesize a deterministic design fingerprint; the live AI builder
+ * can interpret these signals as context without surrendering creative authority.
+ */
+export function deriveScreenshotReferenceSignals(input: {
+  observations: unknown;
+  businessName?: string | null;
+  blockedNames?: string[];
+}): Omit<ScreenshotReferenceBrief, "fingerprint"> & { fingerprint?: null } {
+  const blocked = [input.businessName ?? "", ...(input.blockedNames ?? [])]
+    .map((value) => value.trim().toLowerCase())
+    .filter(Boolean);
+  const { signals, warnings } = boundedObservations(input.observations, blocked);
+  const applied = Object.values(signals).some((list) => list.length > 0);
+  return {
+    version: 1,
+    applied,
+    fingerprint: null,
+    signals,
+    antiCloning: {
+      copiedTextAllowed: false,
+      copiedAssetsAllowed: false,
+      copiedBrandAllowed: false,
+      excluded: [
+        "logos",
+        "brand names",
+        "exact copy",
+        "exact colours",
+        "exact coordinates",
+        "watermarks",
+        "recognisable proprietary assets",
+        "business claims from the reference",
+      ],
+    },
+    warnings: warnings.slice(0, 8),
+  };
+}
+
 export function deriveScreenshotReferenceFingerprint(input: {
   observations: unknown;
   base: DesignFingerprint;

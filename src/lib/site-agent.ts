@@ -59,7 +59,8 @@ import {
  * This keeps visual intent from being hidden inside arbitrary JSON.
  */
 
-export const PLAN_INSTRUCTION_LIMIT = 24_000;
+/** Compatibility ceiling only; provider/context continuation handles larger instructions. */
+export const PLAN_INSTRUCTION_LIMIT = 100_000;
 
 /**
  * One-tap starting points for the most common edits. Used for the quick voice
@@ -145,7 +146,8 @@ export const MULTIMODAL_TEMPLATES: {
  * read and installed in full; the installer batches them so each batch stays
  * reversible in one atomic rollback. No design work is truncated in practice.
  */
-export const MAX_ACTIONS = 5000;
+/** Legacy compatibility symbol. New plans are processed in full; batching/continuation is handled by the executor. */
+export const MAX_ACTIONS = 100_000;
 
 
 export type AgentField = "heading" | "subheading" | "body";
@@ -316,6 +318,9 @@ export type ThemePatch = {
 /** Safe block styling shared by the AI planner, visual editor and renderer. */
 export type BlockStylePatch = Partial<Record<StyleKey, BlockStyle[StyleKey] | null>>;
 
+export type AiVisualPatch = Record<string, string | number>;
+
+
 export const BUSINESS_FACT_FIELDS = [
   "tagline",
   "description",
@@ -354,6 +359,32 @@ export type AgentAction =
       type: "set_section_variant";
       sectionId: string;
       variant: string;
+    }
+
+  | {
+      type: "set_ai_visual";
+      sectionId: string;
+      patch: AiVisualPatch;
+    }
+
+  | {
+      type: "set_ai_responsive";
+      sectionId: string;
+      width: number;
+      patch: AiVisualPatch;
+    }
+
+  | {
+      type: "set_ai_component_visual";
+      componentId: string;
+      patch: AiVisualPatch;
+    }
+
+  | {
+      type: "set_ai_component_responsive";
+      componentId: string;
+      width: number;
+      patch: AiVisualPatch;
     }
 
   | {
@@ -1067,10 +1098,7 @@ export function readActions(
     return [];
   }
 
-  if (value.length > MAX_ACTIONS)
-    note(
-      `The design team proposed ${value.length} steps, which is past the ${MAX_ACTIONS}-step safety ceiling; the first ${MAX_ACTIONS} were read. Ask again to continue with the rest.`,
-    );
+  // No arbitrary creative truncation. The executor applies reversible batches.
 
   const out: AgentAction[] = [];
 
@@ -1122,6 +1150,8 @@ export function readActions(
 
     const row =
       raw as Record<string, unknown>;
+    const outBefore = out.length;
+    const droppedBefore = dropped?.length ?? 0;
 
     const type =
       text(
@@ -1214,6 +1244,31 @@ export function readActions(
       /* ------------------------------------------------------------------ */
       /* SECTION VARIANT                                                    */
       /* ------------------------------------------------------------------ */
+
+      case "set_ai_visual":
+      case "set_ai_responsive": {
+        if (!knownSection(sectionId)) break;
+        const patchRaw = row["patch"];
+        if (!patchRaw || typeof patchRaw !== "object" || Array.isArray(patchRaw)) break;
+        const patch: Record<string, string | number> = {};
+        for (const [key, value] of Object.entries(patchRaw as Record<string, unknown>)) {
+          if (
+            (typeof value === "string" && value.length <= 500) ||
+            (typeof value === "number" && Number.isFinite(value))
+          ) {
+            patch[key] = value;
+          }
+        }
+        if (!Object.keys(patch).length) break;
+        if (type === "set_ai_responsive") {
+          const width = Number(row["width"]);
+          if (!Number.isInteger(width) || width < 320 || width > 4096) break;
+          out.push({ type, sectionId, width, patch });
+        } else {
+          out.push({ type, sectionId, patch });
+        }
+        break;
+      }
 
       case "set_section_variant": {
         const variant =
@@ -1499,6 +1554,39 @@ export function readActions(
       /* ------------------------------------------------------------------ */
       /* SET COMPONENT                                                      */
       /* ------------------------------------------------------------------ */
+
+      case "set_ai_component_visual":
+      case "set_ai_component_responsive": {
+        if (!knownComponent(componentId)) {
+          note("A visual step targeted a component that no longer exists, so it was left out.");
+          break;
+        }
+        const patchRaw = row["patch"];
+        if (!patchRaw || typeof patchRaw !== "object" || Array.isArray(patchRaw)) {
+          note("A component visual step had no readable visual patch, so it was left out.");
+          break;
+        }
+        const patch: Record<string, string | number> = {};
+        for (const [key, value] of Object.entries(patchRaw as Record<string, unknown>)) {
+          if ((typeof value === "string" && value.length <= 500) || (typeof value === "number" && Number.isFinite(value))) {
+            patch[key] = value;
+          } else {
+            note("A component visual property was unsafe or invalid and was removed from that step.");
+          }
+        }
+        if (!Object.keys(patch).length) break;
+        if (type === "set_ai_component_responsive") {
+          const width = Number(row["width"]);
+          if (!Number.isInteger(width) || width < 320 || width > 4096) {
+            note("A component responsive step used an invalid viewport width, so it was left out.");
+            break;
+          }
+          out.push({ type, componentId, width, patch });
+        } else {
+          out.push({ type, componentId, patch });
+        }
+        break;
+      }
 
       case "set_component": {
         const patchRaw =
@@ -2178,6 +2266,12 @@ export function readActions(
         break;
     }
 
+    if (out.length === outBefore && (dropped?.length ?? 0) === droppedBefore) {
+      note(
+        `"${type || "unnamed step"}" could not be applied to this website, so it was left out.`,
+      );
+    }
+
   }
 
   return out;
@@ -2377,6 +2471,30 @@ export function describeActions(
             action,
           };
 
+        case "set_ai_visual":
+          return {
+            key,
+            title: "Author an AI-defined visual treatment",
+            where: locate(index, { sectionId: action.sectionId }),
+            after: Object.entries(action.patch)
+              .map(([name, value]) => `${name}: ${String(value)}`)
+              .join(" · "),
+            destructive: false,
+            action,
+          };
+
+        case "set_ai_responsive":
+          return {
+            key,
+            title: `Author AI-defined responsive styling at ${action.width}px`,
+            where: locate(index, { sectionId: action.sectionId }),
+            after: Object.entries(action.patch)
+              .map(([name, value]) => `${name}: ${String(value)}`)
+              .join(" · "),
+            destructive: false,
+            action,
+          };
+
         case "set_section_visual":
           return {
             key,
@@ -2556,6 +2674,26 @@ export function describeActions(
                 .is_visible ===
               false,
 
+            action,
+          };
+
+        case "set_ai_component_visual":
+          return {
+            key,
+            title: "Author an AI-defined component visual treatment",
+            where: locate(index, { componentId: action.componentId }),
+            after: Object.entries(action.patch).map(([name, value]) => name + ": " + String(value)).join(" · "),
+            destructive: false,
+            action,
+          };
+
+        case "set_ai_component_responsive":
+          return {
+            key,
+            title: "Author AI-defined component responsive styling at " + action.width + "px",
+            where: locate(index, { componentId: action.componentId }),
+            after: Object.entries(action.patch).map(([name, value]) => name + ": " + String(value)).join(" · "),
+            destructive: false,
             action,
           };
 

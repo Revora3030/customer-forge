@@ -53,13 +53,13 @@ export type ResponsiveBehaviour = {
   /** Type scale multiplier at this width, relative to the desktop scale. */
   typeScale: number;
   /** How the primary action behaves at this width. */
-  cta: "inline" | "stacked" | "sticky_bar" | "hidden";
+  cta: string;
   /** How multi-item groups lay out at this width. */
   columns: number;
   /** How imagery is cropped at this width. */
-  imageCrop: "square" | "portrait" | "landscape" | "wide" | "full_bleed";
+  imageCrop: string;
   /** Navigation behaviour at this width. */
-  nav: "full" | "condensed" | "drawer" | "bottom_bar";
+  nav: string;
 };
 
 export type SectionDesign = {
@@ -203,23 +203,9 @@ export function validateAiDesignContract(contract: AiDesignContract): {
         detail: "the AI designed a page with no sections",
         severity: "blocker",
       });
-    const roles = page.sections.map((section) => section.role);
-    if (contract.qualityMatrix.composition.deliberateOpeningRequired && roles[0] !== "hero")
-      violations.push({
-        path: `pages.${page.slug}.sections`,
-        detail: "every page needs a deliberate opening section",
-        severity: "blocker",
-      });
-    const closingRoles = new Set(["cta", "quote", "booking", "contact", "sticky_cta"]);
-    if (
-      contract.qualityMatrix.composition.closingActionRequired &&
-      !roles.some((role) => closingRoles.has(role))
-    )
-      violations.push({
-        path: `pages.${page.slug}.sections`,
-        detail: "every page needs a decisive conversion close",
-        severity: "blocker",
-      });
+    // Page openings, closings and section roles are creative decisions.
+    // Objective accessibility/integrity checks remain below; no aesthetic
+    // anatomy is imposed here.
     if (
       contract.qualityMatrix.imagery.importantPageVisualRequired &&
       !page.sections.some((section) => section.media === "required")
@@ -272,21 +258,8 @@ export function validateAiDesignContract(contract: AiDesignContract): {
       detail: "interactive targets must be at least 44px",
       severity: "blocker",
     });
-  if (
-    Object.keys(contract.color.extras).length >
-    contract.qualityMatrix.identity.restrainedAccentRoles
-  )
-    violations.push({
-      path: "color.extras",
-      detail: "the accent system is too broad to remain visually disciplined",
-      severity: "blocker",
-    });
-  if (contract.typography.measureCh < 42 || contract.typography.measureCh > 76)
-    violations.push({
-      path: "typography.measureCh",
-      detail: "body text measure is outside the readable editorial range",
-      severity: "blocker",
-    });
+  // Colour roles and editorial measure are creative choices. Accessibility
+  // is validated by the actual rendered contrast and touch-target checks.
 
   return { valid: violations.every((entry) => entry.severity !== "blocker"), violations };
 }

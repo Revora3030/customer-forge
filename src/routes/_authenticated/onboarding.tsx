@@ -19,11 +19,10 @@ import { useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 import { useStepScroll } from "@/lib/use-step-scroll";
 import { useServerFn } from "@tanstack/react-start";
-import { analyzeSiteBrief, runSiteGeneration, saveSiteBrief } from "@/lib/site-engine.functions";
+import { runSiteGeneration } from "@/lib/site-engine.functions";
 
 import {
   WEBSITE_GOALS,
-  generateWebsitePlan,
   revoraShareAddress,
   safeSlug,
   type GoalKey,
@@ -82,11 +81,7 @@ function Onboarding() {
   const navigate = useNavigate();
   const { data: ws } = useWorkspace();
   const queryClient = useQueryClient();
-  // The last onboarding step promises Revora assembles the website, so it must
-  // really run the build pipeline: analyse the business, approve that brief,
-  // then queue the generation job the builder then reports progress for.
-  const analyzeBrief = useServerFn(analyzeSiteBrief);
-  const approveBrief = useServerFn(saveSiteBrief);
+  // The final onboarding step queues the canonical Sol → Terra website build.
   const queueBuild = useServerFn(runSiteGeneration);
 
   const [step, setStep] = useState(0);
@@ -433,45 +428,18 @@ function Onboarding() {
         console.error("[onboarding] quote calculator seed failed", supabaseErrorMessage(seedError));
       }
 
-      const plan = generateWebsitePlan({
-        businessName: draft.businessName,
-        industry: draft.industry,
-        description: draft.about,
-        city: draft.city,
-        state: draft.state,
-        serviceArea: draft.serviceArea || draft.city,
-        phone: draft.phone,
-        email: draft.email,
-        goals,
-        services: services.map((s) => ({
-          name: s.name,
-          description: s.description,
-          price: s.price ? Number(s.price) : null,
-        })),
-        photoCount: draft.heroImageUrl ? 1 : 0,
-        testimonialCount: testimonials.length,
-        hasCredentials: Boolean(draft.certifications || draft.awards || draft.yearsInBusiness),
-        hasHours: Boolean(draft.hours),
-        socialLinks: [socialRow.instagram, socialRow.facebook, socialRow.google_business].filter(
-          Boolean,
-        ).length,
-      });
-
+      // Never write a deterministic website plan during onboarding. Save only
+      // factual workspace state and let the canonical Sol → Terra build own every
+      // page, section, copy, visual and responsive decision.
       const { error: settingsError } = await supabase.from("website_settings").upsert(
         {
           organization_id: org.id,
-          template: plan.template,
+          template: "ai-authored",
           publish_state: "preview",
-          review_state: "ready_for_review",
-          generation: plan as never,
-          generated_at: plan.generatedAt,
-          seo: {
-            headline: plan.headline,
-            subheadline: plan.subheadline,
-            meta_description: plan.metaDescription,
-            primary_cta_label: plan.primaryCtaLabel,
-            title: plan.seoTitle,
-          } as never,
+          generation: {
+            source: "canonical-ai",
+            businessName: draft.businessName,
+          },
         } as never,
         { onConflict: "organization_id" },
       );
@@ -479,22 +447,27 @@ function Onboarding() {
 
       await supabase.from("onboarding_drafts").delete().eq("user_id", user.id);
 
-      // Actually build the website the button promises. Each stage is real:
-      // the brief is analysed from the owner's own answers, approved on their
-      // behalf (they review and can rebuild in the builder), then the build is
-      // queued. The builder polls the job and shows live progress.
+      // Actually start the canonical AI build the button promises. The worker
+      // reads the saved workspace facts and requires a complete Sol → Terra
+      // contract before writing any site pages.
       let queued = false;
       try {
-        const analysis = await analyzeBrief({ data: { organizationId: org.id } });
-        await approveBrief({
-          data: { organizationId: org.id, brief: analysis.brief, approved: true },
-        });
-        await queueBuild({ data: { organizationId: org.id } });
+        await queueBuild({ data: { organizationId: org.id, mode: "safe" } });
         queued = true;
       } catch (buildError) {
-        // Never trap the owner in onboarding: their answers are saved, and the
-        // builder's own Build button lets them start the build with one click.
+        // Never leave a phantom queued state behind when no generation job exists.
+        // The workspace remains retryable through the normal Build action.
         console.error("[onboarding] build queue failed", supabaseErrorMessage(buildError));
+        await supabase
+          .from("website_settings")
+          .update({
+            generation: {
+              source: "canonical-ai",
+              businessName: draft.businessName,
+              builderState: "ready",
+            },
+          } as never)
+          .eq("organization_id", org.id);
       }
 
       await queryClient.invalidateQueries();
