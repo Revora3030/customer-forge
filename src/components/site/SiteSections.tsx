@@ -354,7 +354,8 @@ export function SiteSection({ site, section }: { site: Site; section: Section })
       data-rv-ai-id={aiId}
     >
       {aiResponsiveCss || aiComponentResponsiveCss ? <style>{aiResponsiveCss}{aiComponentResponsiveCss}</style> : null}
-      {!(["hero", "service_detail", "cta", "intro", "offer", "guarantee", "area", "policy", "lead_magnet"] as string[]).includes(section.kind)
+      {!aiAuthoredSection &&
+      !(["hero", "service_detail", "cta", "intro", "offer", "guarantee", "area", "policy", "lead_magnet"] as string[]).includes(section.kind)
         ? <SectionMedia site={site} section={section} />
         : null}
       {styledInner}
