@@ -202,8 +202,8 @@ function runReadabilityChecks(
       const text = style.textColor;
       const behind = style.bgColor ?? background;
       if (!text || !behind) continue;
-      const large = (style.textSize ?? 16) >= 24 || (style.fontWeight ?? 400) >= 700;
-      if (!isReadable(text, behind, { large })) {
+      const large = (style.size ?? 16) >= 24 || (style.weight ?? 400) >= 700;
+      if (!isReadable(text, behind, large)) {
         findings.push({
           kind: "readability",
           pageId,
