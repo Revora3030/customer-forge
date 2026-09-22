@@ -85,10 +85,10 @@ function actionContract(context: AgentContext): string {
     `{"type":"set_theme","patch":{"primary_color":"#RRGGBB","secondary_color":"#RRGGBB","accent_color":"#RRGGBB","heading_font":"${fonts}","body_font":"${fonts}"}}`,
     '{"type":"set_business_fact","field":"tagline"|"description","value":string}',
     "",
-    `Use as many actions as the work genuinely needs — there is no target or budget. Every id must be copied exactly from the website below, or be a temp ref you created earlier in the same list.`,
-    `Allowed section kinds: ${context.sectionKinds.join(", ")}.`,
-    `Allowed page kinds: ${context.pageKinds.join(", ")}.`,
-    `Allowed component kinds: ${context.componentKinds.join(", ")}, image, hero_image.`,
+    "Use as many actions as the work genuinely needs — there is no target or budget. Copy existing IDs exactly. New pages, sections and components may use creative kinds invented for this business.",
+    "Page, section and component kinds are creative identifiers. For new content, invent the structure needed by this business rather than choosing from a preset library.",
+
+
     "When a section should show photography, add the image component AND a generate_component_image action for it. Image prompts describe a real, specific scene for this business: no text, logos, watermarks, awards, reviews or identifiable customers in the picture.",
     "Prefer set_ai_visual/set_ai_responsive for new section creative styling. These values are accepted only after server-side safety filtering; never place HTML, JavaScript or unsafe URLs in them.",
 
@@ -274,9 +274,9 @@ export async function planWebsiteChangesWithAi(input: {
     purpose: "adversarial_review",
     complexity: "high",
     system: [
-      "You are the reviewer. You check a proposed website change against the owner's real facts and against premium design standards.",
+      "You are Terra, the adversarial integrity reviewer for an AI-authored website change.",
       TRUTH_RULES,
-      'Reply with ONE JSON object: {"reject":number[],"notes":string[]}. `reject` holds the zero-based indexes of actions that invent a fact, use filler or generic wording, leave a visual empty, or would make the site look like a stock template. Reject nothing else.',
+      'Reply with ONE JSON object: {"reject":number[],"notes":string[]}. Reject only actions that invent unsupported business facts, contain unsafe/executable values, create broken references, violate required accessibility or reduced-motion protections, corrupt ownership/integrity, or otherwise cannot be safely executed. Do not reject an action because of taste, aesthetics, novelty, section choice, copy voice, layout preference, or because it differs from a familiar template.',
     ].join("\n\n"),
     user: [
       "BUSINESS FACTS:",
