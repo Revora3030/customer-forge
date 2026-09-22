@@ -131,6 +131,7 @@ export const STYLE_KEYS = [
   "lineHeight",
   "letterSpacing",
   "textTransform",
+  "italic",
   "textColor",
   "columns",
   "gap",
