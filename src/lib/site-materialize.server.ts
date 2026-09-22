@@ -177,7 +177,15 @@ export function materializeCreativeSiteContract(
         const asset =
           assetByPath.get(section.media.assetId) ??
           assets.find((candidate) => candidate.label === section.media?.assetId);
-        if (asset) components.push(imageComponent(asset, "ai_media"));
+        if (asset) {
+          components.push(
+            imageComponent(
+              asset,
+              "ai_media",
+              section.media?.presentation,
+            ),
+          );
+        }
       }
       return {
         kind: section.role,
@@ -241,12 +249,24 @@ function serviceAsset(
   return exact ?? (serviceAssets.length ? serviceAssets[index % serviceAssets.length] ?? null : null);
 }
 
-function imageComponent(asset: FirstBuildImageAsset, kind = "image"): Component {
+function imageComponent(
+  asset: FirstBuildImageAsset,
+  kind = "image",
+  presentation?: Record<string, unknown>,
+): Component {
   return {
     kind,
     label: asset.label,
     media_url: asset.path,
-    settings: mediaSettings(asset),
+    settings: presentation
+      ? {
+          ...presentation,
+          source: "generated",
+          credit: GENERATED_IMAGE_CREDIT,
+          license: "Revora starter image",
+          ai_authored: true,
+        }
+      : mediaSettings(asset),
   };
 }
 
