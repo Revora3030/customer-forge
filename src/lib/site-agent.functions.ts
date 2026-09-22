@@ -218,12 +218,101 @@ async function loadSite(supabase: SupabaseLike, orgId: string): Promise<LoadedSi
 }
 
 /** Minimal shape we use from the request-scoped Supabase client. */
-type SupabaseLike = {
+export type SupabaseLike = {
   from: SupabaseClient["from"];
   storage: SupabaseClient["storage"];
 };
 
 /* --------------------------------- planning -------------------------------- */
+
+/** Build the planner's live workspace context for server-side AI tools. */
+export async function loadAgentContext(
+  supabase: SupabaseLike,
+  organizationId: string,
+): Promise<AgentContext> {
+  const { SECTION_LIBRARY, PAGE_LIBRARY } = await import("@/lib/website-content");
+  const [site, org, profile, services, reviews, media] = await Promise.all([
+    loadSite(supabase, organizationId),
+    supabase.from("organizations").select("name, industry").eq("id", organizationId).maybeSingle(),
+    supabase.from("business_profiles").select("*").eq("organization_id", organizationId).maybeSingle(),
+    supabase
+      .from("services")
+      .select("name, price, starting_price")
+      .eq("organization_id", organizationId)
+      .eq("is_active", true)
+      .order("sort_order"),
+    supabase.from("reviews").select("id", { count: "exact", head: true }).eq("organization_id", organizationId).eq("is_published", true),
+    supabase.from("media").select("id", { count: "exact", head: true }).eq("organization_id", organizationId),
+  ]);
+  if (!org.data) throw new Error("Workspace not found.");
+  const p = (profile.data ?? {}) as Record<string, unknown>;
+  const componentsBySection = new Map<string, LoadedSite["components"]>();
+  for (const component of site.components) {
+    const list = componentsBySection.get(component.section_id) ?? [];
+    list.push(component);
+    componentsBySection.set(component.section_id, list);
+  }
+  return {
+    business: {
+      name: org.data.name ?? "",
+      industry: org.data.industry ?? null,
+      tagline: (p["tagline"] as string) ?? null,
+      description: (p["description"] as string) ?? null,
+      city: (p["city"] as string) ?? null,
+      state: (p["state"] as string) ?? null,
+      serviceArea: (p["service_area"] as string) ?? null,
+      phone: (p["phone"] as string) ?? null,
+      email: (p["email"] as string) ?? null,
+      yearsInBusiness: (p["years_in_business"] as number) ?? null,
+      primaryColor: (p["primary_color"] as string) ?? null,
+      secondaryColor: (p["secondary_color"] as string) ?? null,
+      accentColor: (p["accent_color"] as string) ?? null,
+      fontPreference: (p["font_preference"] as string) ?? null,
+      services: (services.data ?? []).map((s) => ({ name: s.name, price: s.price ?? null, startingPrice: s.starting_price ?? null })),
+      publishedReviewCount: reviews.count ?? 0,
+      photoCount: media.count ?? 0,
+    },
+    pages: site.pages.map((page) => ({
+      id: page.id,
+      slug: page.slug,
+      title: page.title,
+      kind: page.kind,
+      is_visible: page.is_visible,
+      noindex: page.noindex,
+      seo_title: page.seo_title,
+      seo_description: page.seo_description,
+      sections: site.sections
+        .filter((section) => section.page_id === page.id)
+        .map((section) => ({
+          id: section.id,
+          kind: section.kind,
+          variant: section.variant,
+          is_visible: section.is_visible,
+          heading: section.heading,
+          subheading: section.subheading,
+          body: section.body,
+          sort_order: section.sort_order,
+          settings: section.settings,
+          components: (componentsBySection.get(section.id) ?? []).map((component) => ({
+            id: component.id,
+            kind: component.kind,
+            label: component.label,
+            body: component.body,
+            link_label: component.link_label,
+            link_url: component.link_url,
+            media_url: component.media_url,
+            settings: component.settings,
+            sort_order: component.sort_order,
+          })),
+        })),
+    })),
+    sectionKinds: SECTION_LIBRARY.map((s) => s.kind),
+    pageKinds: PAGE_LIBRARY.map((p2) => p2.kind),
+    componentKinds: ["feature", "faq", "step", "stat", "card", "link", "button", "quote", "list_item", "image"],
+  };
+}
+
+
 
 /** The owner's brand choices, read off the request before anything is composed. */
 type BrandPreference = {
@@ -668,7 +757,7 @@ export const applyWebsiteChanges = createServerFn({ method: "POST" })
     }),
   )
   .handler(async ({ data, context }) =>
-    applyImpl(context.supabase as unknown as SupabaseLike, String(context.userId), data),
+    applyWebsiteActions(context.supabase as unknown as SupabaseLike, String(context.userId), data),
   );
 
 type ApplyInput = {
@@ -683,7 +772,7 @@ type ApplyInput = {
 /** Accepts any id, so a batch can be read exactly as it was planned. */
 const ANY_ID = { has: () => true } as unknown as Set<string>;
 
-async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInput) {
+export async function applyWebsiteActions(supabase: SupabaseLike, userId: string, data: ApplyInput) {
   {
     const orgId = data.organizationId;
     const { noteStage: noteApplyStage } = await import("@/lib/builder/progress.server");
