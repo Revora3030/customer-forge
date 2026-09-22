@@ -73,6 +73,27 @@ describe("building a page and filling it in one plan", () => {
     expect(actions).toEqual([expect.objectContaining({ type: "generate_component_image", mode: "replace" })]);
   });
 
+  it("lets one plan create a missing image block and generate into it", () => {
+    const actions = readActions(
+      [
+        { type: "add_component", sectionId: "section-1", ref: "temp_picture_1", kind: "hero_image", label: "Hero picture" },
+        {
+          type: "generate_component_image",
+          componentId: "temp_picture_1",
+          prompt: "Cinematic editorial photograph created specifically for this business homepage hero",
+          alt: "Business homepage editorial photograph",
+          mode: "create",
+        },
+      ],
+      { ...known, sectionIds: new Set(["section-1"]) },
+    );
+    expect(actions).toHaveLength(2);
+    expect(actions[1]).toMatchObject({
+      type: "generate_component_image",
+      componentId: "temp_picture_1",
+    });
+  });
+
   it("drops references used before they are declared", () => {
     const actions = readActions(
       [

@@ -95,6 +95,74 @@ type LoadedSite = {
   }[];
 };
 
+const RENDERED_IMAGE_KINDS = new Set(["image", "gallery", "media", "photo", "hero_image"]);
+
+function requestsPictureWork(instruction: string): boolean {
+  return /\b(images?|photos?|pictures?|photographs?|hero shots?)\b/i.test(instruction) &&
+    /\b(add|change|replace|regenerate|generate|create|make|edit|swap|new)\b/i.test(instruction);
+}
+
+/**
+ * Compiles a literal owner picture request into real generation actions. This
+ * stays deterministic only in target selection; the pixels themselves always
+ * come from the authenticated image pipeline. It also creates missing media
+ * components, so an image-free first build can be repaired without a template.
+ */
+function pictureActionsFor(context: import("@/lib/site-agent.server").AgentContext, instruction: string): AgentAction[] {
+  const all = /\b(all|every|whole|entire)\b/i.test(instruction);
+  const wantsHero = /\b(hero|top|banner)\b/i.test(instruction);
+  const wantsHome = /\b(home|homepage|front page)\b/i.test(instruction) || wantsHero;
+  const home = context.pages.find((page) => page.slug === "home" || page.kind === "home");
+  const pages = all ? context.pages.filter((page) => page.is_visible) : home ? [home] : context.pages.slice(0, 1);
+  const candidates = pages.flatMap((page) =>
+    page.sections
+      .filter((section) => section.is_visible)
+      .filter((section) => {
+        if (wantsHero) return section.kind === "hero";
+        if (all) return ["hero", "services", "service_detail", "gallery", "intro", "cta"].includes(section.kind);
+        return ["hero", "services", "cta"].includes(section.kind);
+      })
+      .map((section) => ({ page, section })),
+  );
+  const targets = candidates.length ? candidates : context.pages.flatMap((page) =>
+    page.sections.filter((section) => section.is_visible).slice(0, 1).map((section) => ({ page, section })),
+  );
+  const actions: AgentAction[] = [];
+  for (const [index, target] of targets.entries()) {
+    const existing = target.section.components.find((component) =>
+      RENDERED_IMAGE_KINDS.has(component.kind),
+    );
+    const ref = `temp_picture_${index + 1}`;
+    const componentId = existing?.id ?? ref;
+    if (!existing) {
+      actions.push({
+        type: "add_component",
+        sectionId: target.section.id,
+        ref,
+        kind: target.section.kind === "hero" ? "hero_image" : "image",
+        label: target.section.heading ?? `${target.page.title} picture`,
+      });
+    }
+    const place = [context.business.city, context.business.state].filter(Boolean).join(", ");
+    const subject = target.section.heading ?? target.page.title;
+    actions.push({
+      type: "generate_component_image",
+      componentId,
+      prompt: [
+        `High-end editorial commercial photography for ${context.business.name}`,
+        context.business.industry ? `a ${context.business.industry} business` : "a professional service business",
+        place ? `serving ${place}` : null,
+        `created specifically for the ${subject} section on the ${target.page.title} page`,
+        "cinematic natural lighting, authentic environment, confident composition, refined color grade, realistic materials, sharp focal subject, generous negative space for website copy",
+        "no words, logos, watermarks, fake awards, fake reviews, addresses, licence plates, before-and-after claims, or identifiable real customers",
+      ].filter(Boolean).join(". "),
+      alt: `${context.business.name} ${subject} editorial photograph`,
+      mode: existing ? "replace" : "create",
+    });
+  }
+  return actions.slice(0, MAX_ACTIONS);
+}
+
 async function loadSite(supabase: SupabaseLike, orgId: string): Promise<LoadedSite> {
   const [pages, sections, components] = await Promise.all([
     supabase
@@ -416,6 +484,9 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
     // Uploads no longer sideline Revora's own builder: the structural work is
     // planned natively, and an outside model is only consulted when the upload's
     // contents genuinely have to be read before anything can change.
+    const pictureActions = requestsPictureWork(instruction)
+      ? pictureActionsFor(agentContext, instruction)
+      : [];
     const deterministic = buildAutonomousPlan(agentContext, instruction, {
       history: data.history
         .filter((turn) => turn.role === "user")
@@ -447,7 +518,21 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
     };
 
     noteStage(orgId, runId, "planning the change");
-    if (deterministic.actions.length) {
+    if (pictureActions.length) {
+      requirements = [{ label: "generate and attach real AI pictures", covered: true }];
+      trace = [
+        `Targeted ${Math.floor(pictureActions.length / 2)} visible website area(s) for real picture generation.`,
+        "Missing picture blocks will be created before their generated images are attached.",
+        "No decorative template artwork or invented image URL is used.",
+      ];
+      raw = {
+        reply: "I mapped your request to real website picture generation and exact page placements.",
+        summary: "Generate and attach website pictures",
+        actions: pictureActions as unknown,
+        questions: [],
+        notes: [],
+      };
+    } else if (deterministic.actions.length) {
       raw = deterministicRaw()!;
       trace = [
         ...deterministic.trace,
