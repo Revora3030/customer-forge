@@ -7,6 +7,7 @@ import {
   type SectionEffectId,
 } from "@/lib/site-effects";
 import { safeLinkUrl } from "@/lib/website-content";
+import { siteBodyFont, siteHeadingFont } from "@/lib/site-theme";
 import { describeCustomBlock, parseCustomBlock, type CustomBlockSpec } from "@/lib/builder/custom-block";
 import {
   DEVICES,
@@ -306,6 +307,8 @@ export type ThemePatch = {
   secondary_color?: string;
   accent_color?: string;
   font_preference?: string;
+  heading_font?: string;
+  body_font?: string;
 };
 
 /** Safe block styling shared by the AI planner, visual editor and renderer. */
@@ -2000,18 +2003,12 @@ export function readActions(
           }
         }
 
-        const font =
-          text(
-            patchRaw[
-              "font_preference"
-            ],
-            60,
-          );
-
-        if (font) {
-          patch.font_preference =
-            font;
-        }
+        const legacyFont = text(patchRaw["font_preference"], 80);
+        const headingInput = text(patchRaw["heading_font"], 40) || legacyFont;
+        const bodyInput = text(patchRaw["body_font"], 40);
+        const heading = siteHeadingFont(headingInput);
+        const body = siteBodyFont(`Heading|${bodyInput}`);
+        if (heading) patch.font_preference = body ? `${heading}|${body}` : heading;
 
         if (
           Object.keys(

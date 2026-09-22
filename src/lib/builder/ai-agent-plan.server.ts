@@ -15,6 +15,7 @@
 import { callCollective } from "@/lib/ai/luna.server";
 import type { AgentContext } from "@/lib/site-agent.server";
 import { MAX_ACTIONS } from "@/lib/site-agent";
+import { SITE_HEADING_FONTS } from "@/lib/site-theme";
 
 export type AiPlanFailure = {
   ok: false;
@@ -52,10 +53,13 @@ const DESIGN_RULES = [
   "Work at mobile and desktop: never propose something that only reads well on a wide screen.",
   "For a direct style request, change only the requested property and target. Use set_block_style for literal backgrounds, text colours, typography, spacing, sizing, borders, buttons and responsive overrides. You may choose any value inside the documented safe numeric ranges rather than only common preset increments.",
   "A vague request such as 'change the background color' must produce a clearly perceptible change from the current colour while preserving readable contrast. Never replace a colour with a near-identical shade.",
+  "In customer messages, 'front' or 'fronts' beside colour, background or style almost always means 'font' or 'fonts'. Treat it as typography, never silently reinterpret it as foreground colour. Only change foreground or text colour when those words are explicit.",
+  "If the owner asks for a whole-site or all-pages colour change, update every explicit section or component colour that would otherwise override the new theme.",
 ].join(" ");
 
 /** Compact JSON contract. Anything outside it is dropped by the validator. */
 function actionContract(context: AgentContext): string {
+  const fonts = Object.keys(SITE_HEADING_FONTS).join("|");
   return [
     "Reply with ONE JSON object and nothing else:",
     '{"reply":string,"summary":string,"requirements":string[],"questions":string[],"notes":string[],"actions":Action[]}',
@@ -76,7 +80,7 @@ function actionContract(context: AgentContext): string {
     '{"type":"generate_component_image","componentId":id,"prompt":string,"alt":string,"mode":"replace"|"create"}',
     '{"type":"add_page","ref":"temp_page_1","kind":kind,"title":string,"slug":string}',
     '{"type":"set_page","pageId":id,"patch":{"title":string,"seo_title":string,"seo_description":string}}',
-    '{"type":"set_theme","patch":{"primary_color":"#RRGGBB","secondary_color":"#RRGGBB","accent_color":"#RRGGBB","font_preference":string}}',
+    `{"type":"set_theme","patch":{"primary_color":"#RRGGBB","secondary_color":"#RRGGBB","accent_color":"#RRGGBB","heading_font":"${fonts}","body_font":"${fonts}"}}`,
     '{"type":"set_business_fact","field":"tagline"|"description","value":string}',
     "",
     `Use at most ${MAX_ACTIONS} actions. Every id must be copied exactly from the website below, or be a temp ref you created earlier in the same list.`,
