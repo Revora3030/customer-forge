@@ -16,9 +16,9 @@ function NavLink({ item, onNavigate }: { item: WorkspaceNavItem; onNavigate?: ()
   return (
     <Link
       to={item.to}
-      activeOptions={item.exact === undefined ? undefined : { exact: item.exact }}
-      onClick={onNavigate}
-      title={item.hint}
+      {...(item.exact === undefined ? {} : { activeOptions: { exact: item.exact } })}
+      {...(onNavigate ? { onClick: onNavigate } : {})}
+      {...(item.hint ? { title: item.hint } : {})}
       className="flex min-h-10 items-center gap-3 rounded-md px-3 text-[13px] font-medium text-muted-foreground transition-colors hover:bg-elevated hover:text-foreground"
       activeProps={{ className: "bg-elevated text-foreground", "aria-current": "page" }}
     >
