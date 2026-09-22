@@ -1,8 +1,8 @@
 # Active work
-- [ ] Make direct AI style requests produce visible, scoped changes instead of near-identical no-ops.
-- [ ] Expose the complete safe visual-style contract to planning, persistence, preview, undo, and verification.
-- [ ] Preserve section/component settings and media in restore points.
-- [ ] Add regression tests for global backgrounds, section styles, typography, spacing, preview refresh, and no-op detection.
+- [x] Make direct AI style requests produce visible, scoped changes instead of near-identical no-ops.
+- [x] Expose the complete safe visual-style contract to planning, persistence, preview, undo, and verification.
+- [x] Preserve section/component settings and media in restore points.
+- [x] Add regression tests for section backgrounds, typography, spacing, responsive styles, rollback, rendering, and no-op detection.
 - [x] Fix new-picture routing so editing-only models cannot block website image generation.
 - [x] Add “Generate sections from my text” beside the business-description input.
 - [x] Route it through Sol planning, Terra approval, copy, and image generation.
