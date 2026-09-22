@@ -15,6 +15,7 @@
  */
 
 import type { ModelRole } from "@/lib/ai/config";
+import { modelQualityWeight } from "@/lib/ai/orchestration/order";
 import {
   durableBudgetRemaining,
   durableProviderResting,
@@ -73,19 +74,11 @@ export type RegistryModel = {
   quota: { allowance: string; remainingToday: number | null };
 };
 
-/** Size class read off the model id, used as the capability weight. */
-function sizeWeight(model: string): number {
-  const billions = /(\d{2,4})\s*b\b/i.exec(model.replace(/[-_]/g, " "));
-  if (billions) {
-    const value = Number(billions[1]);
-    if (Number.isFinite(value)) return Math.min(100, 30 + value / 6);
-  }
-  if (/120b|235b|480b|405b/i.test(model)) return 95;
-  if (/70b|72b|large|nemotron|maverick/i.test(model)) return 80;
-  if (/32b|30b|27b/i.test(model)) return 66;
-  if (/flash|lite|mini|small|8b|4b|3b|nano|schnell/i.test(model)) return 40;
-  return 50;
-}
+/**
+ * Size class read off the model id, used as the capability weight. Shared with
+ * the quality-first router so one heuristic governs both.
+ */
+const sizeWeight = modelQualityWeight;
 
 /**
  * Capabilities inferred from the provider catalogue id and the role pool the id
