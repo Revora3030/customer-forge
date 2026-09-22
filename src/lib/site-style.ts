@@ -144,6 +144,8 @@ export const STYLE_KEYS = [
   "marginTop",
   "marginBottom",
   "bgColor",
+  "bgGradient",
+  "bgGradientAngle",
   "bgImage",
   "overlay",
   "radius",
