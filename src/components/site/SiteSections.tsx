@@ -366,8 +366,120 @@ export function SiteSection({ site, section }: { site: Site; section: Section })
   return <div className={sectionEffectClass(effect)}>{decorated}</div>;
 }
 
+function AiAuthoredSectionBody({ site, section }: { site: Site; section: Section }) {
+  const components = section.components ?? [];
+  const visibleComponents = components.filter((component) => component.is_visible !== false);
+  const nonButtonComponents = visibleComponents.filter((component) => component.kind !== "button");
+  const buttons = visibleComponents.filter((component) => component.kind === "button" && component.label);
+  const aiSectionCss = aiAuthoredCss(section.settings);
+  const sectionInnerId = `ai-section-inner-${section.id.replace(/[^a-zA-Z0-9_-]/g, "-")}`;
+
+  return (
+    <section data-rv-ai-section-body={section.id}>
+      {section.heading || section.subheading || section.body ? (
+        <header className="mb-8 max-w-3xl">
+          {section.heading ? <h2 className="font-display text-3xl font-semibold tracking-tight sm:text-4xl">{section.heading}</h2> : null}
+          {section.subheading ? <p className="mt-3 text-lg text-muted-foreground">{section.subheading}</p> : null}
+          {section.body ? <p className="mt-4 whitespace-pre-line text-base leading-7 text-muted-foreground">{section.body}</p> : null}
+        </header>
+      ) : null}
+
+      {nonButtonComponents.length ? (
+        <div
+          id={sectionInnerId}
+          className="grid gap-5 md:grid-cols-2"
+          style={aiSectionCss}
+        >
+          {nonButtonComponents.map((component) => {
+            const visual = readComponentVisual((component as Component & { settings?: unknown }).settings);
+            const style = readBlockStyle((component as Component & { settings?: unknown }).settings);
+            const aiCss = aiAuthoredCss((component as Component & { settings?: unknown }).settings);
+            const src = componentImageUrl(component);
+            const href = safeLinkUrl(component.link_url);
+            return (
+              <article
+                key={component.id}
+                data-rvb={component.id}
+                data-rv-ai-component-id={component.id.replace(/[^a-zA-Z0-9_-]/g, "-")}
+                className="min-w-0"
+                style={{ ...blockCss(style, siteSurface(site)), ...aiCss }}
+              >
+                {src ? (
+                  <figure className="overflow-hidden">
+                    <img
+                      src={src}
+                      alt={visual.alt || component.label || "Website image"}
+                      loading="lazy"
+                      decoding="async"
+                      className={visualImageClass(visual)}
+                      style={{ objectPosition: safeObjectPosition(visual.focal_point ?? visual.object_position) }}
+                    />
+                    <MediaCredit visual={visual} />
+                  </figure>
+                ) : null}
+                {component.label ? <h3 className="mt-4 font-display text-xl font-semibold">{component.label}</h3> : null}
+                {component.body ? <p className="mt-2 whitespace-pre-line text-sm leading-7 text-muted-foreground">{component.body}</p> : null}
+                {href ? (
+                  <a
+                    href={href}
+                    className="mt-4 inline-flex underline underline-offset-4"
+                    style={aiAuthoredCss((component as Component & { settings?: unknown }).settings)}
+                  >
+                    {component.link_label || component.label || "Learn more"}
+                  </a>
+                ) : null}
+              </article>
+            );
+          })}
+        </div>
+      ) : null}
+
+      {buttons.length ? (
+        <div className="mt-8 flex flex-wrap gap-3">
+          {buttons.map((button) => {
+            const href = safeLinkUrl(button.link_url) ?? "#quote";
+            const internal = href.startsWith("/");
+            const style = readBlockStyle((button as Component & { settings?: unknown }).settings);
+            const aiCss = aiAuthoredCss((button as Component & { settings?: unknown }).settings);
+            const directStyle = { ...blockCss(style, siteSurface(site)), ...aiCss, ...buttonCss(style, siteSurface(site)) };
+            const className = "inline-flex min-h-11 items-center rounded-xl border px-5 py-3 text-sm font-semibold";
+            return internal ? (
+              <SitePageLink
+                key={button.id}
+                slug={site.org.slug}
+                page={href.slice(1)}
+                className={className}
+                style={directStyle}
+                blockId={button.id}
+                dataRvAiComponentId={button.id.replace(/[^a-zA-Z0-9_-]/g, "-")}
+              >
+                {button.label}
+              </SitePageLink>
+            ) : (
+              <a
+                key={button.id}
+                href={href}
+                className={className}
+                style={directStyle}
+                data-rvb={button.id}
+                data-rv-ai-component-id={button.id.replace(/[^a-zA-Z0-9_-]/g, "-")}
+              >
+                {button.label}
+              </a>
+            );
+          })}
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
 function SiteSectionBody({ site, section }: { site: Site; section: Section }) {
   const components = section.components ?? [];
+  const aiAuthoredSection = Boolean(
+    (section.settings as { ai_authored?: unknown } | null | undefined)?.ai_authored,
+  );
+  if (aiAuthoredSection) return <AiAuthoredSectionBody site={site} section={section} />;
   const { profile, services, reviews, gallery, org } = site;
   const rating = reviews.length
     ? reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length
@@ -377,9 +489,6 @@ function SiteSectionBody({ site, section }: { site: Site; section: Section }) {
     ? readComponentVisual((heroImage as Component & { settings?: unknown }).settings)
     : null;
   const heroImageSrc = heroImage ? componentImageUrl(heroImage) : null;
-  const aiAuthoredSection = Boolean(
-    (section.settings as { ai_authored?: unknown } | null | undefined)?.ai_authored,
-  );
   const heroCreative = aiAuthoredSection
     ? null
     : resolveExecutableCreativeSection({
