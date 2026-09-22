@@ -129,6 +129,7 @@ describe("tier routing", () => {
 
 describe("credential and opt-in gating", () => {
   it("offers every tier by default when the key is present", () => {
+    enablePaidLane();
     delete process.env["LUNA_ENABLED"];
     expect(availableTiers()).toEqual(["sol", "terra", "luna"]);
   });
