@@ -39,6 +39,8 @@ function key(action: AgentAction): string {
       return `${action.type}:${action.target}:${action.targetId}:${action.device}`;
     case "set_component":
     case "set_component_visual":
+    case "set_ai_component_visual":
+    case "set_ai_component_responsive":
     case "generate_component_image":
     case "delete_component":
       return `${action.type}:${action.componentId}`;
@@ -88,6 +90,8 @@ function safeAction(
 
     case "set_component":
     case "set_component_visual":
+    case "set_ai_component_visual":
+    case "set_ai_component_responsive":
     case "delete_component":
       return known.components.has(action.componentId) || refs.components.has(action.componentId);
 
