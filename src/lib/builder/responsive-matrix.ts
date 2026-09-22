@@ -20,6 +20,7 @@ export const DEVICE_MATRIX = [
   { width: 375, label: "Phone", kind: "phone" as const },
   { width: 390, label: "Modern phone", kind: "phone" as const },
   { width: 414, label: "Large phone", kind: "phone" as const },
+  { width: 430, label: "Largest phone", kind: "phone" as const },
   { width: 768, label: "Tablet portrait", kind: "tablet" as const },
   { width: 1024, label: "Tablet landscape", kind: "tablet" as const },
   { width: 1280, label: "Laptop", kind: "desktop" as const },

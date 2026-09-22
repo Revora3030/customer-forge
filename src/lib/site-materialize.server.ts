@@ -33,6 +33,16 @@ import {
 } from "@/lib/builder/executable-creative";
 import { slugify } from "@/lib/format";
 import { compileSiteCampaign, type SiteCampaign } from "@/lib/builder/site-campaign";
+import {
+  applyDesignContract,
+  type AiDesignContract,
+  type MaterialPage,
+} from "@/lib/builder/ai-design-contract";
+import {
+  compileAiDesignContract,
+  requireAiDesignContract,
+} from "@/lib/builder/creative-authority";
+import { assertMediaIntegrity } from "@/lib/builder/media-integrity";
 
 type Db = SupabaseClient;
 
@@ -87,6 +97,19 @@ export type MaterializeInput = {
   generatedAssets?: FirstBuildImageAsset[];
   /** Explicit, guarded replacement mode. Default rebuilds remain non-destructive. */
   replaceExisting?: boolean;
+  /** Model that directed the design, recorded on the contract for observability. */
+  directedBy?: string | null;
+  /** Model that independently reviewed the design, when one did. */
+  reviewedBy?: string | null;
+  /** The conversion goal the design is built around. */
+  conversionGoal?: string | null;
+  /**
+   * The AI's canonical design. When supplied it is the creative authority: it
+   * decides which pages exist, which sections appear and in what order, and the
+   * renderer only supplies safe building blocks. An empty required visual
+   * container fails the build instead of shipping a blank box.
+   */
+  designContract?: AiDesignContract | null;
 };
 
 type Component = {
@@ -719,13 +742,22 @@ export async function materializeSiteContent(
   db: Db,
   orgId: string,
   input: MaterializeInput,
-): Promise<{ pages: number; sections: number; components: number; skipped: boolean; campaign: SiteCampaign | null }> {
+): Promise<{
+  pages: number;
+  sections: number;
+  components: number;
+  skipped: boolean;
+  campaign: SiteCampaign | null;
+  /** The AI design this site was built from, when one governed the build. */
+  designContract: AiDesignContract | null;
+}> {
   const { count } = await db
     .from("website_pages")
     .select("id", { count: "exact", head: true })
     .eq("organization_id", orgId);
   if ((count ?? 0) > 0) {
-    if (!input.replaceExisting) return { pages: 0, sections: 0, components: 0, skipped: true, campaign: null };
+    if (!input.replaceExisting)
+      return { pages: 0, sections: 0, components: 0, skipped: true, campaign: null, designContract: null };
     const { error: componentDeleteError } = await db.from("website_components").delete().eq("organization_id", orgId);
     if (componentDeleteError)
       throw new Error(`Couldn't clear old components before rebuilding: ${componentDeleteError.message}`);
@@ -737,7 +769,39 @@ export async function materializeSiteContent(
       throw new Error(`Couldn't clear old pages before rebuilding: ${pageDeleteError.message}`);
   }
 
-  const tree = planSiteContent(input);
+  // The renderer produces safe building blocks; the AI design decides the site.
+  // The contract OVERRIDES the renderer's page set and section order, and any
+  // visual container the design requires must resolve to a real picture —
+  // otherwise the build fails rather than publishing a blank box.
+  let tree = planSiteContent(input);
+  let designContract: AiDesignContract | null = input.designContract ?? null;
+  if (!designContract && input.fingerprint && input.creativeBrief)
+    designContract = requireAiDesignContract({
+      attempt: compileAiDesignContract({
+        businessName: input.businessName,
+        fingerprint: input.fingerprint,
+        brief: input.creativeBrief,
+        directedBy: input.directedBy ?? "gpt-5.6-sol",
+        reviewedBy: input.reviewedBy ?? null,
+        conversionGoal: input.conversionGoal ?? "enquiries",
+        navigationItems: tree.map((page) => page.title),
+        primaryAction: clean(input.copy.primaryCta) ?? "Get in touch",
+        secondaryAction: clean(input.copy.secondaryCta),
+        architecture: tree.map((page) => ({
+          slug: page.slug,
+          title: page.title,
+          purpose: page.kind,
+          primaryAction: clean(input.copy.primaryCta) ?? "Get in touch",
+          sections: page.sections.map((section) => ({ role: section.kind })),
+        })),
+      }),
+      attempts: 1,
+    });
+  if (designContract) {
+    const applied = applyDesignContract(tree as unknown as MaterialPage[], designContract);
+    assertMediaIntegrity(applied.pages, designContract);
+    tree = applied.pages as unknown as typeof tree;
+  }
   const campaign = input.fingerprint && input.creativeBrief
     ? compileSiteCampaign({
         fingerprint: input.fingerprint,
@@ -825,5 +889,5 @@ export async function materializeSiteContent(
     }
   }
 
-  return { pages: tree.length, sections, components, skipped: false, campaign };
+  return { pages: tree.length, sections, components, skipped: false, campaign, designContract };
 }

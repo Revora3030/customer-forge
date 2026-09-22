@@ -297,6 +297,30 @@ async function runJob(
     services: serviceRows,
   };
 
+  // HARD GATE: placeholder, gibberish or fixture business details never reach a
+  // built site. Nothing is invented in their place — the build stops and asks
+  // for the real information.
+  {
+    const { assertContentIntegrity } = await import("@/lib/builder/content-integrity");
+    assertContentIntegrity([
+      { field: "business name", value: copyFacts.businessName, heading: true },
+      { field: "description", value: copyFacts.description },
+      { field: "city", value: copyFacts.city },
+      { field: "service area", value: copyFacts.serviceArea },
+      { field: "phone", value: copyFacts.phone },
+      { field: "email", value: copyFacts.email },
+      ...serviceRows.map((service, index) => ({
+        field: `service ${index + 1} name`,
+        value: service.name,
+        heading: true,
+      })),
+      ...serviceRows.map((service, index) => ({
+        field: `service ${index + 1} description`,
+        value: service.description ?? null,
+      })),
+    ]);
+  }
+
   // Orchestrator pass: business intelligence, customer intent and conversion
   // strategy. If the owner already reviewed and approved a brief, that exact
   // brief is used — the build never silently replaces their edits.
@@ -575,6 +599,11 @@ async function runJob(
     creativeBrief: creative.brief,
     industryPlaybook,
     generatedAssets: starterImages.assets,
+    directedBy:
+      refined.passes.find((pass) => pass.used && pass.model)?.model ?? "revora-collective",
+    reviewedBy:
+      refined.passes.filter((pass) => pass.used && pass.model)[1]?.model ?? null,
+    conversionGoal: org.data.conversion_goal ?? "enquiries",
     replaceExisting: freshReplace,
   });
   const attachedEvidence = {
