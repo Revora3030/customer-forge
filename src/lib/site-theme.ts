@@ -13,6 +13,7 @@
  */
 
 import type { CSSProperties } from "react";
+import { mutedOn } from "@/lib/readable-color";
 
 const HEX = /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i;
 
