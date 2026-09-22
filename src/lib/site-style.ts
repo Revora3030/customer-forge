@@ -41,6 +41,11 @@ export const DEVICE_META: Record<
 
 /* ------------------------------ allowed values ----------------------------- */
 
+/**
+ * The four family slots the site's own theme defines. A design is NOT limited
+ * to these: any real family name is accepted too (see `safeFontFamily`), and
+ * these slots simply follow whatever typefaces the site's identity chose.
+ */
 export const FONT_FAMILIES = ["display", "body", "serif", "mono"] as const;
 export const FONT_WEIGHTS = [100, 200, 300, 400, 500, 600, 700, 800, 900] as const;
 export const ALIGNMENTS = ["left", "center", "right"] as const;
@@ -53,6 +58,10 @@ export const COLUMNS = [1, 2, 3, 4, 5, 6] as const;
 export const MAX_WIDTHS = [320, 480, 640, 768, 960, 1024, 1152, 1280, 1440, 1536, 1920] as const;
 export const RADII = [0, 2, 4, 6, 8, 12, 16, 20, 24, 32, 40, 48, 999] as const;
 export const BORDER_WIDTHS = [0, 1, 2, 3, 4, 6, 8, 12] as const;
+/**
+ * Named elevations kept for the editing UI and older sites. A design may also
+ * give `shadow` any depth from 0 to 200, which renders at that exact depth.
+ */
 export const SHADOWS = ["none", "subtle", "medium", "strong"] as const;
 export const OPACITIES = [100, 90, 80, 70, 60, 50, 40, 30] as const;
 export const OVERLAYS = [0, 10, 20, 30, 40, 50, 60, 70, 80] as const;
@@ -67,6 +76,20 @@ const SHADOW_CSS: Record<(typeof SHADOWS)[number], string> = {
   strong: "0 26px 60px -18px rgba(0,0,0,.6)",
 };
 
+/**
+ * A font family name is safe when it is plain letters, digits and single
+ * spaces — that is what keeps it out of CSS syntax. It is not a menu: any real
+ * typeface name passes.
+ */
+const SAFE_FAMILY = /^[A-Za-z][A-Za-z0-9]*(?: [A-Za-z0-9]+){0,4}$/;
+
+function safeFontFamily(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const name = value.trim().replace(/\s+/g, " ");
+  if (!name || name.length > 42) return null;
+  return SAFE_FAMILY.test(name) ? name : null;
+}
+
 const FONT_CSS: Record<(typeof FONT_FAMILIES)[number], string> = {
   display: "var(--font-heading)",
   body: "var(--font-body)",
@@ -78,7 +101,8 @@ const FONT_CSS: Record<(typeof FONT_FAMILIES)[number], string> = {
 
 export type BlockStyle = {
   /* typography */
-  font: (typeof FONT_FAMILIES)[number] | null;
+  /** A theme slot (display/body/serif/mono) or any real family name. */
+  font: string | null;
   size: number | null;
   weight: number | null;
   align: (typeof ALIGNMENTS)[number] | null;
@@ -111,7 +135,8 @@ export type BlockStyle = {
   radius: number | null;
   borderWidth: number | null;
   borderColor: string | null;
-  shadow: (typeof SHADOWS)[number] | null;
+  /** A named elevation, or an exact depth from 0 to 200. */
+  shadow: (typeof SHADOWS)[number] | number | null;
   opacity: number | null;
   /* media + buttons */
   objectFit: (typeof OBJECT_FITS)[number] | null;
@@ -409,7 +434,13 @@ function readLayer(raw: unknown): Partial<BlockStyle> {
   const legacy = <T>(map: Record<string, T>, value: unknown): T | null =>
     typeof value === "string" && value in map ? (map[value] as T) : null;
 
-  set("font", inList(FONT_FAMILIES, s["font"]) ?? legacy(LEGACY_FONT, s["font"]));
+  set(
+    "font",
+    inList(FONT_FAMILIES, s["font"]) ??
+      legacy(LEGACY_FONT, s["font"]) ??
+      // Not a theme slot: the design named an actual typeface, so use it.
+      safeFontFamily(s["font"]),
+  );
   // Ranges below are safety limits only — any value inside them is accepted
   // exactly as the design team wrote it, never rounded to a preset step.
   set("size", boundedNumber(s["size"], 6, 400) ?? boundedNumber(legacy(LEGACY_SIZE, s["size"]), 6, 400));
@@ -455,7 +486,7 @@ function readLayer(raw: unknown): Partial<BlockStyle> {
   set("radius", boundedNumber(s["radius"], 0, 9999));
   set("borderWidth", boundedNumber(s["borderWidth"], 0, 48));
   set("borderColor", safeColor(s["borderColor"]));
-  set("shadow", inList(SHADOWS, s["shadow"]));
+  set("shadow", inList(SHADOWS, s["shadow"]) ?? boundedNumber(s["shadow"], 0, 200));
   set("opacity", boundedNumber(s["opacity"], 0, 100));
 
   set("objectFit", inList(OBJECT_FITS, s["objectFit"]));
@@ -720,7 +751,10 @@ export function writeComponentVisual(
  */
 export function blockCss(style: BlockStyle, surface?: string | null): React.CSSProperties {
   const css: React.CSSProperties = {};
-  if (style.font) css.fontFamily = FONT_CSS[style.font];
+  if (style.font) {
+    const slot = FONT_CSS[style.font as (typeof FONT_FAMILIES)[number]];
+    css.fontFamily = slot ?? `"${style.font}", system-ui, sans-serif`;
+  }
   if (style.size !== null) {
     css.fontSize = `${style.size}px`;
     (css as Record<string, string | number>)["--rv-block-font-size"] = `${style.size}px`;
@@ -767,6 +801,12 @@ export function blockCss(style: BlockStyle, surface?: string | null): React.CSSP
     css.backgroundImage = backgroundImageCss(style);
     css.backgroundSize = "cover";
     css.backgroundPosition = "center";
+    // Accessibility guardrail only: a photo has no single measurable colour, so
+    // text over one without a darkening layer gets a soft shadow so it stays
+    // readable. The chosen text colour itself is never altered.
+    if (style.textColor && !style.overlay) {
+      css.textShadow = "0 1px 2px rgba(0,0,0,.55), 0 2px 12px rgba(0,0,0,.35)";
+    }
   } else if (style.bgGradient) {
     // Both stops are validated colours and the angle is a bounded number, so
     // the gradient can carry no arbitrary CSS.
@@ -782,7 +822,15 @@ export function blockCss(style: BlockStyle, surface?: string | null): React.CSSP
     if (!style.borderColor) css.borderColor = "currentColor";
   }
   if (style.borderColor) css.borderColor = style.borderColor;
-  if (style.shadow) css.boxShadow = SHADOW_CSS[style.shadow];
+  if (typeof style.shadow === "number") {
+    // An exact depth: one soft, believable shadow scaled to it.
+    css.boxShadow =
+      style.shadow <= 0
+        ? "none"
+        : `0 ${Math.round(style.shadow * 0.55)}px ${Math.round(style.shadow * 1.4)}px -${Math.round(style.shadow * 0.35)}px rgba(0,0,0,.45)`;
+  } else if (style.shadow) {
+    css.boxShadow = SHADOW_CSS[style.shadow];
+  }
   if (style.opacity !== null) css.opacity = style.opacity / 100;
   if (style.maxWidth !== null) {
     css.maxWidth = `${style.maxWidth}px`;

@@ -79,22 +79,19 @@ describe("planSiteContent", () => {
     expect(bare.map((page) => page.slug)).not.toContain("pricing");
   });
 
-  it("gives every first-build section a visible, industry-specific design contract", () => {
+  it("applies no house layout of its own when there is no authored identity", () => {
     const direction = DESIGN_DIRECTIONS.find((item) => item.id === "coastal-blue");
     expect(direction).toBeTruthy();
     const hero = materializedSectionDesign("hero", direction);
     const services = materializedSectionDesign("services", direction);
-    expect(hero.variant).toMatch(/^hero-/);
-    expect(hero.settings).toMatchObject({
-      effect: direction?.heroEffect,
-      visual: { layout: "layered", max_width: "wide", image_treatment: "rounded" },
-    });
-    expect(services.variant).toMatch(/^cards-/);
-    expect(services.settings).toMatchObject({
-      effect: direction?.bodyEffect,
-      visual: { layout: "editorial", card_style: "soft" },
-    });
+    expect(hero.variant).toBe("default");
+    expect(services.variant).toBe("default");
+    expect(hero.settings).toMatchObject({ effect: direction?.heroEffect });
+    expect(services.settings).toMatchObject({ effect: direction?.bodyEffect });
+    expect((hero.settings as { visual?: unknown }).visual).toBeUndefined();
+    expect((services.settings as { visual?: unknown }).visual).toBeUndefined();
   });
+
 
   it("turns the full fingerprint into materially different rendered contracts", () => {
     const direction = DESIGN_DIRECTIONS.find((item) => item.id === "coastal-blue");
@@ -140,61 +137,15 @@ describe("planSiteContent", () => {
   });
 });
 
-describe("planSiteContent with a website archetype", () => {
-  it("shapes the site for the kind of business it is", () => {
-    const restaurant = classifyArchetype({ industry: "Restaurant" });
-    const pages = planSiteContent({ ...input, photoCount: 6, archetype: restaurant });
-    expect(pages.map((page) => page.slug)).toEqual(expect.arrayContaining(["menu", "visit"]));
-    const home = pages[0]!;
-    expect(home.sections.map((s) => s.kind)).toContain("gallery");
-    // the closing CTA stays last (before the sticky bar)
-    const kinds = home.sections.map((s) => s.kind);
-    expect(kinds.indexOf("cta")).toBeGreaterThan(kinds.indexOf("gallery"));
-  });
-
-  it("gives different industries different structures", () => {
+describe("industry blueprints have no authority over structure", () => {
+  it("ignores the industry classification when shaping the site", () => {
     const shapes = ["Restaurant", "Dental", "Gym", "Hotel", "Law"].map((industry) =>
-      planSiteContent({
-        ...input,
-        photoCount: 4,
-        archetype: classifyArchetype({ industry }),
-      })
+      planSiteContent({ ...input, photoCount: 4, industry } as typeof input)
         .map((page) => page.slug)
         .join(","),
     );
-    expect(new Set(shapes).size).toBe(shapes.length);
-  });
-
-  it("leaves out archetype sections with no supplied facts", () => {
-    const pages = planSiteContent({
-      ...input,
-      photoCount: 0,
-      services: [],
-      archetype: classifyArchetype({ industry: "Restaurant" }),
-    });
-    const kinds = pages.flatMap((page) => page.sections.map((s) => s.kind));
-    expect(kinds).not.toContain("gallery");
-    expect(kinds).not.toContain("reviews");
-  });
-
-  it("keeps image-led archetype sections when starter AI pictures were generated", () => {
-    const pages = planSiteContent({
-      ...input,
-      photoCount: 0,
-      archetype: classifyArchetype({ industry: "Restaurant" }),
-      generatedAssets: [{
-        slot: "service",
-        label: "Dining room",
-        altText: "Restaurant dining room",
-        path: "org/generated-dining-room.webp",
-        mediaId: "media-1",
-        provider: "test",
-        model: "test-image",
-        prompt: "Editorial restaurant interior",
-        placement: ["gallery"],
-        aspectRatio: "3:2",
-      }],
-    });
-    expect(pages[0]?.sections.map((section) => section.kind)).toContain("gallery");
+    // The renderer supplies the same fillable inventory for every industry: the
+    // page set, section choice and order come from the AI design plan instead.
+    expect(new Set(shapes).size).toBe(1);
   });
 });

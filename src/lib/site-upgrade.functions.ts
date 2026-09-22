@@ -21,11 +21,9 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { buildMotionPlan, motionSummary, planMotionAssignments, type MotionIntensity } from "@/lib/builder/motion-pack";
 import { buildStoryPlan, pendingStoryLinks, type StoryPage } from "@/lib/builder/story-pass";
 import {
-  planRedesign,
-  readRedesignRequest,
-  redesignSummary,
-  type RedesignDirection,
-} from "@/lib/builder/sitewide-redesign";
+  authoredRedesignSummary,
+  authorSiteWideRedesign,
+} from "@/lib/builder/ai-redesign-direction.server";
 import {
   parseVisionReview,
   visionRepairs,
@@ -372,7 +370,8 @@ export const applyStoryPass = createServerFn({ method: "POST" })
 export type RedesignResult = {
   ok: boolean;
   understood: boolean;
-  direction: RedesignDirection | null;
+  /** The design team's own name for the look it authored. */
+  direction: string | null;
   changes: { field: string; from: string; to: string }[];
   blocked: string[];
   motionChanged: number;
@@ -394,22 +393,6 @@ export const applySiteWideRedesign = createServerFn({ method: "POST" })
     const supabase = context.supabase as unknown as SupabaseLike;
     await requireManager(supabase, data.organizationId, context.userId);
 
-    const request = readRedesignRequest(data.instruction);
-    if (!request) {
-      return {
-        ok: true,
-        understood: false,
-        direction: null,
-        changes: [],
-        blocked: [],
-        motionChanged: 0,
-        summary:
-          "Revora couldn't tell which look you meant. Try a word like premium, calm, bold, modern, warm, editorial, playful or technical.",
-        restorePointId: null,
-        undo: null,
-      };
-    }
-
     const { createDesignFingerprint, readDesignFingerprint, writeDesignFingerprint } = await import(
       "@/lib/builder/design-fingerprint"
     );
@@ -422,24 +405,34 @@ export const applySiteWideRedesign = createServerFn({ method: "POST" })
         .maybeSingle(),
     ]);
     const generation = (settings as { generation?: unknown } | null)?.generation ?? null;
+    const industry = (profile as { industry?: string | null } | null)?.industry ?? null;
     const fingerprint =
       readDesignFingerprint(generation) ??
       createDesignFingerprint({
         businessName: null,
-        industry: (profile as { industry?: string | null } | null)?.industry ?? null,
+        industry,
         city: (profile as { city?: string | null } | null)?.city ?? null,
       });
 
-    const { next, changes, blocked } = planRedesign(fingerprint, request.direction);
+    // The design team reads the owner's sentence and writes the new identity
+    // itself. Any wording works: nothing is matched against a keyword list and
+    // no look is chosen from a fixed set.
+    const authored = await authorSiteWideRedesign({
+      organizationId: data.organizationId,
+      instruction: data.instruction,
+      fingerprint,
+      industry,
+    });
+    const { next, changes, blocked } = authored;
     if (changes.length === 0) {
       return {
         ok: true,
         understood: true,
-        direction: request.direction,
+        direction: authored.label,
         changes: [],
         blocked,
         motionChanged: 0,
-        summary: redesignSummary(request.direction, changes, blocked),
+        summary: authoredRedesignSummary(authored),
         restorePointId: null,
         undo: null,
       };
@@ -450,7 +443,7 @@ export const applySiteWideRedesign = createServerFn({ method: "POST" })
       supabase,
       data.organizationId,
       context.userId,
-      `Before the ${request.direction} redesign`,
+      `Before the ${authored.label} redesign`,
       pages,
       sections,
     );
@@ -479,11 +472,11 @@ export const applySiteWideRedesign = createServerFn({ method: "POST" })
     return {
       ok: true,
       understood: true,
-      direction: request.direction,
+      direction: authored.label,
       changes,
       blocked,
       motionChanged: assignments.length,
-      summary: redesignSummary(request.direction, changes, blocked),
+      summary: authoredRedesignSummary(authored),
       restorePointId,
       undo: {
         effects: assignments.map((entry) => ({ sectionId: entry.sectionId, effect: entry.from })),

@@ -14,16 +14,10 @@ import { safeLinkUrl } from "@/lib/website-content";
 import type { DesignDirection } from "@/lib/design-directions";
 import { writeSectionEffect } from "@/lib/site-effects";
 import { writeComponentVisual, writeSectionVisual } from "@/lib/site-style";
-import { compositionForKind, variantForKind } from "@/lib/builder/elite-site-output";
 import {
   sectionDesignFromFingerprint,
   type DesignFingerprint,
 } from "@/lib/builder/design-fingerprint";
-import {
-  resolveArchetypeText,
-  type ArchetypeSection,
-  type SiteArchetype,
-} from "@/lib/site-archetypes";
 import type { FirstBuildImageAsset } from "@/lib/builder/first-build-images.server";
 import type { CreativeBrief } from "@/lib/builder/creative-brief";
 import {
@@ -87,7 +81,6 @@ export type MaterializeInput = {
   /** The industry-specific visual identity selected for this first build. */
   direction?: DesignDirection | null;
   /** The kind of website this business needs (restaurant, clinic, shop …). */
-  archetype?: SiteArchetype | null;
   /** Complete composition identity resolved before first materialization. */
   fingerprint?: DesignFingerprint | null;
   /** Approved Sol/Terra presentation brief, compiled into a finite renderer contract. */
@@ -198,59 +191,7 @@ function imageComponent(asset: FirstBuildImageAsset, kind = "image"): Component 
   };
 }
 
-/**
- * Keeps an archetype section only when the business actually supplied the facts
- * it would display. An empty gallery or price list is worse than no section.
- */
-function archetypeSectionSupported(kind: string, input: MaterializeInput): boolean {
-  const priced = input.services.some(
-    (service) => service.price !== null || service.starting_price !== null,
-  );
-  const place = Boolean(
-    clean([input.city, input.state].filter(Boolean).join(", ")) ?? clean(input.serviceArea),
-  );
-  switch (kind) {
-    case "gallery":
-      return input.photoCount > 0 || (input.generatedAssets ?? []).length > 0;
-    case "pricing":
-      return priced;
-    case "reviews":
-    case "offer":
-      return false; // no supplied testimonials or offers at first build
-    case "stats":
-      return input.yearsInBusiness !== null;
-    case "area":
-    case "areas":
-      return place;
-    case "quote":
-      return input.hasQuoteForm;
-    case "booking":
-      return input.hasBooking;
-    case "services":
-      return input.services.length > 0 || input.copy.serviceCards.length > 0;
-    case "benefits":
-      return input.copy.benefits.length > 0;
-    case "faq":
-      return input.copy.faqs.length > 0;
-    default:
-      return true;
-  }
-}
 
-function archetypeSections(
-  sections: ArchetypeSection[],
-  input: MaterializeInput,
-  place: string | null,
-): Section[] {
-  const context = { businessName: input.businessName, place };
-  return sections
-    .filter((section) => archetypeSectionSupported(section.kind, input))
-    .map((section) => ({
-      kind: section.kind,
-      heading: resolveArchetypeText(section.heading, context),
-      subheading: section.subheading ? resolveArchetypeText(section.subheading, context) : null,
-    }));
-}
 
 /** Builds the page tree. Pure — easy to reason about and to test. */
 export function planSiteContent(input: MaterializeInput): Page[] {
@@ -382,15 +323,6 @@ export function planSiteContent(input: MaterializeInput): Page[] {
       { kind: "sticky_cta" },
     ],
   };
-
-  // Shape the home page for the kind of business this is, before the closing CTA.
-  if (input.archetype) {
-    const extra = archetypeSections(input.archetype.homeSections, input, place).filter(
-      (section) => !home.sections.some((existing) => existing.kind === section.kind),
-    );
-    const closing = home.sections.findIndex((section) => section.kind === "cta");
-    home.sections.splice(closing >= 0 ? closing : home.sections.length, 0, ...extra);
-  }
 
 
   const pages: Page[] = [home];
@@ -599,50 +531,6 @@ export function planSiteContent(input: MaterializeInput): Page[] {
       ],
     });
 
-  // Pages that only this kind of business needs — a menu, rooms, listings,
-  // programmes, a timetable — instead of one universal service-site shape.
-  for (const page of input.archetype?.pages ?? []) {
-    if (pages.some((existing) => existing.slug === page.slug)) continue;
-    const sections = archetypeSections(page.sections, input, place);
-    if (!sections.length) continue;
-    const title = resolveArchetypeText(page.title, { businessName: input.businessName, place });
-    pages.push({
-      slug: page.slug,
-      title,
-      kind: page.kind,
-      seo_title: clean(`${title} — ${input.businessName}`),
-      seo_description: clean(copy.metaDescription),
-      sections: [
-        ...(!sections.some((section) => section.kind === "hero")
-          ? [{
-              kind: "hero",
-              heading: title,
-              subheading: place ? `${input.businessName} in ${place}.` : clean(copy.intro),
-              components: [
-                { kind: "button", label: primaryCta, link_label: primaryCta, link_url: primaryTarget },
-                ...((backgroundAsset ?? heroAsset) ? [imageComponent((backgroundAsset ?? heroAsset)!, "hero_image")] : []),
-              ],
-            }]
-          : []),
-        ...sections.map((section) =>
-          section.kind === "cta"
-          ? {
-              ...section,
-              components: [
-                { kind: "button", label: primaryCta, link_label: primaryCta, link_url: primaryTarget },
-              ],
-            }
-          : section),
-        ...(!sections.some((section) => section.kind === "cta")
-          ? [{
-              kind: "cta",
-              heading: `Talk with ${input.businessName} about ${title.toLowerCase()}`,
-              components: [{ kind: "button", label: primaryCta, link_label: primaryCta, link_url: primaryTarget }],
-            }]
-          : []),
-      ],
-    });
-  }
 
   pages.push({
     slug: "contact",
@@ -686,33 +574,35 @@ export function materializedSectionDesign(
   index = 0,
   creativeBrief?: CreativeBrief | null,
 ): { variant: string; settings: Record<string, unknown> } {
-  if (!direction) return { variant: "default", settings: {} };
-  const dark = direction.secondary !== "#ffffff" && !/^#f/i.test(direction.secondary);
-  const effect =
-    kind === "hero"
+  if (!direction && !fingerprint) return { variant: "default", settings: {} };
+  const effect = direction
+    ? kind === "hero"
       ? direction.heroEffect
       : kind === "cta" || kind === "offer" || kind === "sticky_cta"
         ? direction.ctaEffect
         : kind === "quote" || kind === "booking" || kind === "contact"
           ? direction.formEffect
-          : direction.bodyEffect;
+          : direction.bodyEffect
+    : null;
   const identity = fingerprint ? sectionDesignFromFingerprint(kind, fingerprint, index) : null;
-  const visual = writeSectionVisual(
-    {},
-    identity
-      ? {
-          ...compositionForKind(kind, dark),
+  // Composition comes from the site's authored identity. There is no per-kind
+  // house layout behind this: when there is no identity to read, the section is
+  // left unstyled for the design team to style directly.
+  const visual = identity
+    ? writeSectionVisual(
+        {},
+        {
           layout: identity.layout,
           card_style: identity.cardStyle,
           image_treatment: identity.imageTreatment,
           max_width: identity.maxWidth,
           density: fingerprint?.density === "compact" ? "dense" : fingerprint?.density ?? "balanced",
-        }
-      : compositionForKind(kind, dark),
-  );
-  const settings = writeSectionEffect(visual, effect);
+        },
+      )
+    : {};
+  const settings = effect ? writeSectionEffect(visual, effect) : visual;
   return {
-    variant: identity?.variant ?? variantForKind(kind, direction.id),
+    variant: identity?.variant ?? "default",
     settings: fingerprint
       ? writeExecutableCreativeSection(
           settings,
@@ -770,7 +660,15 @@ export async function materializeSiteContent(
     // renderer's own layout is only the inventory of fillable material.
     const candidate = deriveCandidateArchitecture(tree, primaryAction);
     const authored = input.architect ? await input.architect(candidate) : null;
-    const architecture = authored && authored.length > 0 ? authored : candidate;
+    // No template fallback: the page set, section selection and order come from
+    // the design team's own plan. When it could not author one, the build stops
+    // and says so rather than shipping the renderer's inventory as a design.
+    if (!authored || authored.length === 0) {
+      throw new Error(
+        "The design team could not author this website's page plan, so nothing was created. Please try again in a moment.",
+      );
+    }
+    const architecture = authored;
     designContract = requireAiDesignContract({
       attempt: compileAiDesignContract({
         businessName: input.businessName,

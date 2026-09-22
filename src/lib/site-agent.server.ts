@@ -95,7 +95,7 @@ producer who reads a brief and returns a precise change list.
 
 WHAT YOU CAN DO
 You return a JSON plan of actions. You can do all of the following, in one plan,
-in any combination, and in any quantity up to ${MAX_ACTIONS} actions:
+in any combination, and in any quantity the redesign genuinely needs:
 - rewrite any headline, sub-headline or body text
 - add, remove, hide, show, restyle and reorder sections
 - add, edit or remove items inside a section (features, FAQs, cards, buttons, links)

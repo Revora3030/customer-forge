@@ -214,8 +214,9 @@ export function SiteUpgradePanel({
       <Panel className="p-5">
         <SectionHeading eyebrow="Whole-site look" title="Change the feel in one sentence" />
         <p className="mt-2 max-w-xl text-[13px] text-muted-foreground">
-          Try “make it feel more premium”, “calmer”, “bolder”, “more modern”, “warmer”, “editorial”,
-          “playful” or “technical”. Your wording, prices and photos are never touched.
+          Describe it however you like — “quieter, like a Scandinavian furniture brand”, “bolder with
+          a big editorial headline”, “warmer and less corporate”. Your wording, prices and photos are
+          never touched.
         </p>
         <div className="mt-4 flex flex-wrap items-center gap-2">
           <Input
@@ -238,7 +239,7 @@ export function SiteUpgradePanel({
         {redesign ? (
           <div className="mt-4 space-y-2">
             <Pill tone={redesign.understood ? "signal" : "attention"}>
-              {redesign.understood ? `Look: ${redesign.direction}` : "Not understood"}
+              {redesign.understood ? `Look: ${redesign.direction}` : "Couldn't be applied"}
             </Pill>
             <p className="text-[13px]">{redesign.summary}</p>
             {redesign.motionChanged > 0 ? (

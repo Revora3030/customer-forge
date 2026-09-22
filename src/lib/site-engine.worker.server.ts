@@ -399,8 +399,7 @@ async function runJob(
   // something to edit and publish. Skipped when the workspace already has pages.
   const [
     { materializeSiteContent },
-    { recommendDirections },
-    { classifyArchetype },
+    { authorBrandIdentity },
     { compileFirstBuildCreativeDirection },
     { synthesizeNativeFirstBuild },
     { generateFirstBuildImages },
@@ -409,30 +408,26 @@ async function runJob(
   ] =
     await Promise.all([
       import("@/lib/site-materialize.server"),
-      import("@/lib/design-directions"),
-      import("@/lib/site-archetypes"),
+      import("@/lib/builder/ai-brand-identity.server"),
       import("@/lib/builder/first-build-creative"),
       import("@/lib/builder/native-first-build"),
       import("@/lib/builder/first-build-images.server"),
       import("@/lib/builder/first-build-image-qa"),
       import("@/lib/builder/screenshot-reference"),
     ]);
-  // Decide what kind of website this business needs (restaurant, clinic, shop,
-  // studio, venue …) so the structure fits the industry, not one template.
-  const archetype = classifyArchetype({
-    industry: org.data.industry ?? null,
-    businessName: org.data.name ?? null,
-    description: (p["description"] as string) ?? null,
-    services: serviceRows.map((service) => ({ name: service.name })),
-  });
-  const direction = recommendDirections({
+  // The visual identity — palette, typefaces, surface treatments — is authored
+  // for this business by the design team. No preset direction, no industry
+  // template: if it cannot be authored, the build stops.
+  const identity = await authorBrandIdentity({
+    organizationId: orgId,
     businessName: org.data.name ?? "",
     industry: org.data.industry ?? null,
-    services: serviceRows.map((service) => ({ name: service.name })),
+    description: (p["description"] as string) ?? null,
     city: (p["city"] as string) ?? null,
-    currentFont: (p["font_preference"] as string) ?? null,
-    count: 1,
-  })[0] ?? null;
+    services: serviceRows.map((service) => ({ name: service.name })),
+    requestedFont: (p["font_preference"] as string) ?? null,
+  });
+  const direction = identity.direction;
   let creative = compileFirstBuildCreativeDirection({
     organizationId: orgId,
     businessName: org.data.name ?? "",
@@ -524,14 +519,14 @@ async function runJob(
     .select("id", { count: "exact", head: true })
     .eq("organization_id", orgId);
   const firstBuild = freshReplace || (existingPages.count ?? 0) === 0;
-  if (firstBuild && !refined.passes.some((pass) => pass.used)) {
+  if (firstBuild && (!refined.passes.some((pass) => pass.used) || !refined.changed)) {
     const why = refined.passes
       .map((pass) => pass.skipped)
       .filter(Boolean)
       .slice(0, 3)
       .join("; ");
     throw new Error(
-      `The design team could not author this website's wording and look, so nothing was published (${why || "no model was reachable"}). Please try again in a moment.`,
+      `The design team could not author this website's wording and look, so nothing was published (${why || (refined.passes.some((pass) => pass.used) ? "no model returned usable wording" : "no model was reachable")}). Please try again in a moment.`,
     );
   }
 
@@ -611,7 +606,6 @@ async function runJob(
     hasQuoteForm: (forms.data ?? []).length > 0,
     hasBooking: (bookable.data ?? []).length > 0,
     direction,
-    archetype,
     fingerprint: creative.fingerprint,
     creativeBrief: creative.brief,
     generatedAssets: starterImages.assets,
