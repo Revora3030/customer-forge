@@ -143,11 +143,11 @@ export function validateCreativeSiteContract(contract: unknown): {
   }
 
   const candidate = contract as Record<string, unknown>;
-  if (candidate.version !== CREATIVE_SITE_CONTRACT_VERSION) violations.push("unsupported contract version");
-  if (candidate.authority !== CREATIVE_SITE_AUTHORITY) violations.push("authority must be Sol");
-  if (candidate.complete !== true) violations.push("contract is incomplete");
-  if (!Number.isInteger(candidate.revision) || Number(candidate.revision) < 1) violations.push("revision must be a positive integer");
-  if (!candidate.identity || typeof candidate.identity !== "object" || Array.isArray(candidate.identity)) {
+  if (candidate["version"] !== CREATIVE_SITE_CONTRACT_VERSION) violations.push("unsupported contract version");
+  if (candidate["authority"] !== CREATIVE_SITE_AUTHORITY) violations.push("authority must be Sol");
+  if (candidate["complete"] !== true) violations.push("contract is incomplete");
+  if (!Number.isInteger(candidate["revision"]) || Number(candidate.revision) < 1) violations.push("revision must be a positive integer");
+  if (!candidate["identity"] || typeof candidate.identity !== "object" || Array.isArray(candidate.identity)) {
     violations.push("identity is required");
   } else {
     const identity = candidate.identity as Record<string, unknown>;
@@ -155,7 +155,7 @@ export function validateCreativeSiteContract(contract: unknown): {
     if (typeof concept !== "string" || !concept.trim()) violations.push("identity.concept is required");
   }
 
-  const pages = candidate.pages;
+  const pages = candidate["pages"];
   if (!Array.isArray(pages)) {
     violations.push("pages must be an array");
   } else if (!pages.length) {
