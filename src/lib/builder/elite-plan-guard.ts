@@ -29,6 +29,8 @@ function key(action: AgentAction): string {
     case "set_section_visibility":
     case "set_section_variant":
     case "set_section_visual":
+    case "set_ai_visual":
+    case "set_ai_responsive":
     case "set_custom_block":
     case "set_section_effect":
     case "delete_section":
@@ -72,6 +74,8 @@ function safeAction(
     case "set_section_visibility":
     case "set_section_variant":
     case "set_section_visual":
+    case "set_ai_visual":
+    case "set_ai_responsive":
     case "set_custom_block":
     case "delete_section":
     case "set_section_effect":
