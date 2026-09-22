@@ -224,7 +224,7 @@
   h4,
   .font-display {
     font-family: var(--font-heading);
-    letter-spacing: -0.02em;
+    letter-spacing: 0;
   }
 
   :focus-visible {
@@ -271,22 +271,45 @@
 @utility eyebrow {
   font-size: 0.6875rem;
   line-height: 1.2;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--color-muted-foreground);
 }
 
 /* The panel: flat card, hairline border, no glass, no heavy shadow. */
 @utility panel {
-  background-color: var(--color-card);
+  background-color: color-mix(in oklab, var(--color-card) 62%, transparent);
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-md);
 }
 
 @utility panel-inset {
-  background-color: var(--color-background);
+  background-color: transparent;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
+}
+
+/* Product surfaces follow one calm workspace rhythm. Dense tools remain
+   available, but secondary detail no longer competes with the current task. */
+.product-workspace {
+  background: var(--color-background);
+}
+.product-canvas {
+  width: min(100%, 68rem);
+  margin-inline: auto;
+}
+.product-page {
+  display: grid;
+  gap: 1.25rem;
+}
+.product-page > .panel + .panel,
+.product-page > div + .panel,
+.product-page > .panel + div {
+  margin-top: 0;
+}
+.product-secondary {
+  border-top: 1px solid var(--color-border);
+  padding-top: 1rem;
 }
 
 /* One overlay vocabulary ----------------------------------------------------

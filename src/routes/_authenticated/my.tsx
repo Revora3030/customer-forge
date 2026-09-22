@@ -6,12 +6,13 @@
  * tooling around it. It reads the same workspace data the builder writes, so
  * what a client sees here always matches what is live.
  */
-import { createFileRoute, Link, Outlet, useRouterState } from "@tanstack/react-router";
-import { CalendarCheck, Globe, Home, LogOut, Rocket, Users } from "lucide-react";
+import { createFileRoute, Link, Outlet } from "@tanstack/react-router";
+import { useState } from "react";
+import { CalendarCheck, Globe, Home, LogOut, Menu, Rocket, Users, X } from "lucide-react";
 import { LogoMark } from "@/components/brand/Logo";
 import { Button } from "@/components/ui/button";
 import { useSignOut, useWorkspace } from "@/lib/use-tenant";
-import { cn } from "@/lib/utils";
+import { WorkspaceNav, type WorkspaceNavItem } from "@/components/app/WorkspaceNav";
 
 export const Route = createFileRoute("/_authenticated/my")({
   head: () => ({
@@ -33,76 +34,36 @@ const NAV = [
   { to: "/my/site", label: "My website", icon: Globe, exact: false },
   { to: "/my/activity", label: "Leads & bookings", icon: Users, exact: false },
   { to: "/my/start", label: "Setup steps", icon: Rocket, exact: false },
-] as const;
+] satisfies readonly WorkspaceNavItem[];
 
 function PortalApp() {
   const { data: ws } = useWorkspace();
   const org = ws?.workspace?.organization;
   const signOut = useSignOut();
-  const path = useRouterState({ select: (s) => s.location.pathname });
+  const [navOpen, setNavOpen] = useState(false);
 
   return (
-    <div className="flex min-h-screen flex-col bg-background">
-      <header className="sticky top-0 z-30 border-b border-border bg-background/95 backdrop-blur">
-        <div className="mx-auto flex h-14 w-full max-w-5xl items-center gap-3 px-4">
+    <div className="product-workspace min-h-screen lg:flex">
+      {navOpen ? <button type="button" aria-label="Close navigation" onClick={() => setNavOpen(false)} className="fixed inset-0 z-40 bg-background/80 backdrop-blur-sm lg:hidden" /> : null}
+      <aside className={`fixed inset-y-0 left-0 z-50 flex w-64 max-w-[86vw] flex-col border-r border-border bg-card transition-transform lg:sticky lg:top-0 lg:z-auto lg:h-screen lg:w-56 lg:translate-x-0 ${navOpen ? "translate-x-0" : "-translate-x-full"}`}>
+        <div className="flex h-14 items-center gap-3 border-b border-border px-4">
           <LogoMark className="h-7 w-7 shrink-0" />
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-[14px] font-semibold leading-tight">
-              {org?.name ?? "Your business"}
-            </p>
-            <p className="text-[11px] text-muted-foreground">Client portal</p>
-          </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => void signOut()}
-            aria-label="Sign out"
-            className="cursor-pointer"
-          >
-            <LogOut className="h-4 w-4" />
-            <span className="ml-1.5 hidden sm:inline">Sign out</span>
-          </Button>
+          <div className="min-w-0 flex-1"><p className="truncate text-[13px] font-medium">{org?.name ?? "Your business"}</p><p className="text-[11px] text-muted-foreground">Client portal</p></div>
+          <Button variant="ghost" size="icon-sm" onClick={() => setNavOpen(false)} className="lg:hidden" aria-label="Close navigation"><X className="size-4" /></Button>
         </div>
-      </header>
-
-      <nav className="border-b border-border bg-card/40">
-        <div className="mx-auto flex w-full max-w-5xl gap-1 overflow-x-auto px-2 py-2">
-          {NAV.map((item) => {
-            const active = item.exact
-              ? path === "/my" || path === "/my/"
-              : path.startsWith(item.to);
-            return (
-              <Link
-                key={item.to}
-                to={item.to}
-                className={cn(
-                  "flex shrink-0 items-center gap-2 rounded-md px-3 py-2 text-[13px] font-medium transition-colors",
-                  active
-                    ? "bg-primary/15 text-primary"
-                    : "text-muted-foreground hover:bg-elevated hover:text-foreground",
-                )}
-              >
-                <item.icon className="h-4 w-4" />
-                {item.label}
-              </Link>
-            );
-          })}
+        <WorkspaceNav primary={NAV} onNavigate={() => setNavOpen(false)} className="flex-1" />
+        <div className="border-t border-border p-2">
+          <Link to="/app" className="flex min-h-10 items-center gap-3 rounded-md px-3 text-[13px] text-muted-foreground hover:bg-elevated hover:text-foreground"><CalendarCheck className="size-4" /> Full workspace</Link>
+          <button type="button" onClick={() => void signOut()} className="flex min-h-10 w-full items-center gap-3 rounded-md px-3 text-[13px] text-muted-foreground hover:bg-elevated hover:text-foreground"><LogOut className="size-4" /> Sign out</button>
         </div>
-      </nav>
-
-      <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-5">
-        <Outlet />
-      </main>
-
-      <footer className="border-t border-border py-5">
-        <div className="mx-auto flex w-full max-w-5xl flex-wrap items-center justify-between gap-2 px-4 text-[12px] text-muted-foreground">
-          <span>Powered by Revora Growth Systems</span>
-          <Link to="/app" className="inline-flex items-center gap-1.5 hover:text-foreground">
-            <CalendarCheck className="h-3.5 w-3.5" />
-            Open the full builder
-          </Link>
-        </div>
-      </footer>
+      </aside>
+      <div className="min-w-0 flex-1">
+        <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-border bg-background/95 px-4 backdrop-blur lg:hidden">
+          <Button variant="ghost" size="icon-sm" onClick={() => setNavOpen(true)} aria-label="Open navigation"><Menu className="size-4" /></Button>
+          <p className="truncate text-[13px] font-medium">{org?.name ?? "Your business"}</p>
+        </header>
+        <main className="product-canvas min-h-[calc(100vh-3.5rem)] px-4 py-5 sm:px-6 sm:py-6"><Outlet /></main>
+      </div>
     </div>
   );
 }
