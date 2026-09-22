@@ -1150,6 +1150,8 @@ export function readActions(
 
     const row =
       raw as Record<string, unknown>;
+    const outBefore = out.length;
+    const droppedBefore = dropped?.length ?? 0;
 
     const type =
       text(
@@ -2262,6 +2264,12 @@ export function readActions(
           `"${type || "unnamed step"}" isn't something Revora can do to a website yet, so it was left out.`,
         );
         break;
+    }
+
+    if (out.length === outBefore && (dropped?.length ?? 0) === droppedBefore) {
+      note(
+        `"${type || "unnamed step"}" could not be applied to this website, so it was left out.`,
+      );
     }
 
   }
