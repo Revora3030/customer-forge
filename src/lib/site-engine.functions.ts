@@ -737,15 +737,18 @@ export const extractScreenshotReference = createServerFn({ method: "POST" })
     const { requireOrgRole } = await import("@/lib/org-authz.server");
     await requireOrgRole(context.supabase, data.organizationId, context.userId, "manager");
 
-    const { freeAiAvailable } = await import("@/lib/ai/availability");
-    if (!freeAiAvailable("vision")) {
+    // Quality first: any connected picture-reading model may answer this call.
+    const { builderAiAvailable } = await import("@/lib/ai/availability");
+    if (!builderAiAvailable("vision")) {
       return {
         ok: false,
-        code: "FREE_VISION_UNAVAILABLE",
+        code: "VISION_UNAVAILABLE",
         reason:
-          "No free picture-reading model is available right now. Nothing was changed and no paid model was used.",
+          "No picture-reading model is reachable right now. Nothing was changed.",
       } as const;
     }
+
+
 
     const mimeType = data.screenshotDataUrl.slice(5, data.screenshotDataUrl.indexOf(";"));
     const { generateStructuredOutput } = await import("@/lib/ai/router.server");
@@ -755,7 +758,6 @@ export const extractScreenshotReference = createServerFn({ method: "POST" })
         {
           role: "vision",
           json: true,
-          freeOnly: true,
           maxOutputTokens: 900,
           temperature: 0.1,
           messages: [
