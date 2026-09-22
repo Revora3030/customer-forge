@@ -81,11 +81,7 @@ function Onboarding() {
   const navigate = useNavigate();
   const { data: ws } = useWorkspace();
   const queryClient = useQueryClient();
-  // The last onboarding step promises Revora assembles the website, so it must
-  // really run the build pipeline: analyse the business, approve that brief,
-  // then queue the generation job the builder then reports progress for.
-  const analyzeBrief = useServerFn(analyzeSiteBrief);
-  const approveBrief = useServerFn(saveSiteBrief);
+  // The final onboarding step queues the canonical Sol → Terra website build.
   const queueBuild = useServerFn(runSiteGeneration);
 
   const [step, setStep] = useState(0);
@@ -452,14 +448,13 @@ function Onboarding() {
 
       await supabase.from("onboarding_drafts").delete().eq("user_id", user.id);
 
-      // Actually build the website the button promises. Each stage is real:
-      // the brief is analysed from the owner's own answers, approved on their
-      // behalf (they review and can rebuild in the builder), then the build is
-      // queued. The builder polls the job and shows live progress.
+      // Actually start the canonical AI build the button promises. The worker
+      // reads the saved workspace facts and requires a complete Sol → Terra
+      // contract before writing any site pages.
       let queued = false;
       try {
         await queueBuild({ data: { organizationId: org.id, mode: "safe" } });
-
+        queued = true;
       } catch (buildError) {
         // Never trap the owner in onboarding: their answers are saved, and the
         // builder's own Build button lets them start the build with one click.
