@@ -510,8 +510,7 @@ export const analyzeSiteBrief = createServerFn({ method: "POST" })
     const { supabase, userId } = context;
     const orgId = data.organizationId;
     const { gatherBriefFacts } = await import("@/lib/site-brief.server");
-    const { analyzeBusiness, fallbackBrief, RevoraAiError } =
-      await import("@/lib/site-engine.server");
+    const { analyzeBusiness } = await import("@/lib/site-engine.server");
     const { readBrief } = await import("@/lib/site-brief");
 
     const facts = await gatherBriefFacts(supabase, orgId);
@@ -523,15 +522,14 @@ export const analyzeSiteBrief = createServerFn({ method: "POST" })
     const generation = (settings.data?.generation ?? {}) as Record<string, unknown>;
     const previous = readBrief(generation["brief"]);
 
-    let brief = fallbackBrief(facts.copyFacts);
-    let aiError: string | null = null;
+    let brief;
     try {
       brief = await analyzeBusiness(facts.copyFacts);
     } catch (error) {
-      // Credit/policy denials never block analysis — the deterministic brief
-      // built from the owner's own answers is used instead.
-      if (error instanceof RevoraAiError && error.status === 429) throw error;
-      aiError = error instanceof Error ? error.message : "Analysis unavailable";
+      const message = error instanceof Error ? error.message : "Analysis unavailable";
+      throw new Error(
+        `Revora couldn't complete the AI business analysis, so the site was not built from a deterministic fallback. ${message}`,
+      );
     }
 
     // A new analysis always needs re-approval, but the owner's answers stay.
@@ -553,7 +551,7 @@ export const analyzeSiteBrief = createServerFn({ method: "POST" })
       created_by: userId,
     });
 
-    return { brief, aiError };
+    return { brief, aiError: null as string | null };
   });
 
 /** Saves the owner's edits to the brief, and their approval to build from it. */
@@ -856,7 +854,7 @@ export const runSiteEngineCheck = createServerFn({ method: "POST" })
           ok: brief.source !== "rules",
           detail:
             brief.source === "rules"
-              ? "AI analysis returned nothing usable; the deterministic brief would be used."
+              ? "AI analysis returned nothing usable; no deterministic brief is used."
               : `${brief.source} answered: “${brief.positioning.slice(0, 120)}”`,
         });
       } catch (error) {
