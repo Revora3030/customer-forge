@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { readActions } from "@/lib/site-agent";
+import { pictureActionsFor } from "@/lib/site-agent.functions";
 
 describe("building a page and filling it in one plan", () => {
   const known = {
@@ -71,6 +72,67 @@ describe("building a page and filling it in one plan", () => {
       { ...known, componentIds: new Set(["component-1"]) },
     );
     expect(actions).toEqual([expect.objectContaining({ type: "generate_component_image", mode: "replace" })]);
+  });
+
+  it("lets one plan create a missing image block and generate into it", () => {
+    const actions = readActions(
+      [
+        { type: "add_component", sectionId: "section-1", ref: "temp_picture_1", kind: "hero_image", label: "Hero picture" },
+        {
+          type: "generate_component_image",
+          componentId: "temp_picture_1",
+          prompt: "Cinematic editorial photograph created specifically for this business homepage hero",
+          alt: "Business homepage editorial photograph",
+          mode: "create",
+        },
+      ],
+      { ...known, sectionIds: new Set(["section-1"]) },
+    );
+    expect(actions).toHaveLength(2);
+    expect(actions[1]).toMatchObject({
+      type: "generate_component_image",
+      componentId: "temp_picture_1",
+    });
+  });
+
+  it("creates a real hero image block when an image-free site asks for a picture", () => {
+    const actions = pictureActionsFor(
+      {
+        business: {
+          name: "Supreme Detailing",
+          industry: "auto detailing",
+          city: "Raleigh",
+          state: "NC",
+        },
+        pages: [{
+          id: "page-home",
+          slug: "home",
+          title: "Home",
+          kind: "home",
+          is_visible: true,
+          sections: [{
+            id: "section-hero",
+            kind: "hero",
+            heading: "Auto Detailing in Raleigh",
+            is_visible: true,
+            components: [],
+          }],
+        }],
+      } as never,
+      "Add one high-quality AI picture to the Home hero",
+    );
+    expect(actions).toHaveLength(2);
+    expect(actions[0]).toMatchObject({
+      type: "add_component",
+      sectionId: "section-hero",
+      ref: "temp_picture_1",
+      kind: "hero_image",
+    });
+    expect(actions[1]).toMatchObject({
+      type: "generate_component_image",
+      componentId: "temp_picture_1",
+      mode: "create",
+    });
   });
 
   it("drops references used before they are declared", () => {

@@ -317,15 +317,29 @@ export async function loadSite(
   const signed = new Map<string, string>();
   if (toSign.length) {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data: urls } = await supabaseAdmin.storage
+    const uniquePaths = [...new Set(toSign)];
+    const { data: urls, error: signingError } = await supabaseAdmin.storage
       .from(MEDIA_BUCKET)
-      .createSignedUrls([...new Set(toSign)], SIGNED_URL_TTL_SECONDS);
+      .createSignedUrls(uniquePaths, SIGNED_URL_TTL_SECONDS);
+    if (signingError) {
+      console.error("[public-site] website pictures could not be signed", {
+        organizationId: orgId,
+        count: uniquePaths.length,
+        message: signingError.message,
+      });
+    }
     for (const entry of urls ?? []) {
       if (entry.path && entry.signedUrl) signed.set(entry.path, entry.signedUrl);
+      else if (entry.path)
+        console.error("[public-site] a website picture could not be resolved", {
+          organizationId: orgId,
+          path: entry.path,
+          message: entry.error ?? "No signed URL was returned.",
+        });
     }
   }
   const resolve = (value: string | null): string | null =>
-    value ? (signed.get(value) ?? value) : value;
+    value ? (isStoragePath(value) ? (signed.get(value) ?? null) : value) : value;
 
   let components: SiteComponent[] = [];
   if (componentRows.length) {

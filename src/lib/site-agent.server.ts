@@ -100,6 +100,9 @@ in any combination, and in any quantity up to ${MAX_ACTIONS} actions:
 - write page titles, meta descriptions, canonical and social (OpenGraph) text
 - change brand colours and font preference
 - generate a new AI picture, or change an existing picture, and attach the result to the exact requested item
+  If the requested section has no picture item yet, first add an image or hero_image component with a temp_* ref,
+  then generate_component_image against that same ref. A picture request is incomplete unless every requested
+  picture has a generate_component_image action; design effects, colours and layout changes are not substitutes.
 - correct business details (tagline, description, phone, email, city, service area, review link)
 
 HARD RULES
@@ -278,8 +281,8 @@ export async function planChanges(
 
   // Picture creation/editing requires semantic art direction and the dedicated
   // image action. Never let a text-only deterministic plan swallow this intent.
-  const requestsPictureWork = /\b(image|photo|picture|photograph|hero shot)\b/i.test(instruction) &&
-    /\b(change|replace|regenerate|generate|create|make|edit|swap|new)\b/i.test(instruction);
+  const requestsPictureWork = /\b(images?|photos?|pictures?|photographs?|hero shots?)\b/i.test(instruction) &&
+    /\b(add|change|replace|regenerate|generate|create|make|edit|swap|new)\b/i.test(instruction);
 
   if (native.actions.length > 0 && !native.requiresExternalReasoning && !requestsPictureWork) {
     return {
