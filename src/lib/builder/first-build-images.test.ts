@@ -42,6 +42,12 @@ describe("first-build image coverage", () => {
     expect(shots.filter((shot) => shot.slot === "service")).toHaveLength(2);
   });
 
+  it("keeps a truthful editorial about image in the site-wide campaign", () => {
+    const shots = firstBuildImageShots(creative, 0);
+    expect(shots.some((shot) => shot.slot === "about")).toBe(true);
+    expect(shots.find((shot) => shot.slot === "about")?.purpose).not.toMatch(/real team/i);
+  });
+
   it("keeps one singular hero slot while preserving multiple service slots", () => {
     const duplicated = {
       ...creative,

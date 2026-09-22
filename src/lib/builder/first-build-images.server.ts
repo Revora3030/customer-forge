@@ -9,7 +9,7 @@
  *
  * Generated starter images are never treated as proof of the business's real
  * work, team, awards or results. They are saved with provenance and attached to
- * renderable hero/service/CTA slots only.
+ * renderable hero/service/about/CTA slots only.
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js";

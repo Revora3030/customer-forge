@@ -108,17 +108,17 @@ export function paidImageStatus(): { allowed: boolean; message: string } {
   if (!optedIn("PAID_IMAGE_ENABLED"))
     return {
       allowed: false,
-      message: "Paid premium pictures are switched off, so only the free picture service is used.",
+      message: "The specialist picture team is switched off, so the standard capability-matched picture lane is used.",
     };
   if (!lunaEnabled())
     return {
       allowed: false,
       message:
-        "Paid picture making is not available in this workspace right now, so only the free picture service is used.",
+        "The specialist picture team is not available in this workspace, so the standard capability-matched lane is used.",
     };
   return {
     allowed: true,
-    message: `Premium pictures can be used as a backup, inside the monthly spending cap of ${formatUsd(
+    message: `The specialist picture team can lead generation inside the monthly spending cap of ${formatUsd(
       lunaMonthlyCapMicrocents(),
     )}.`,
   };
@@ -199,7 +199,7 @@ export async function paidImageCapability(): Promise<PaidImageCapability> {
   if (!apiKey)
     return {
       available: false,
-      message: "Premium picture making is not connected, so Revora uses the free service only.",
+      message: "Specialist picture making is not connected, so Revora uses the standard capability-matched lane.",
       tiers: listed(false, "no credential configured"),
     };
 
@@ -221,7 +221,7 @@ export async function paidImageCapability(): Promise<PaidImageCapability> {
     available,
     message: available
       ? `Premium pictures are available inside the monthly spending cap of ${formatUsd(lunaMonthlyCapMicrocents())}.`
-      : "The premium picture models are not enabled on the connected account yet, so Revora can only use the free service.",
+      : "The specialist picture models are not enabled on the connected account, so Revora uses the standard capability-matched lane.",
     tiers,
   };
 }
