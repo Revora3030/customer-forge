@@ -200,6 +200,210 @@ async function claimJob(db: Db, organizationId?: string) {
   return null;
 }
 
+async function runCanonicalFirstBuild(input: {
+  db: Db;
+  job: { id: string; organization_id: string; created_by: string | null };
+  business: {
+    name: string;
+    industry: string | null;
+    conversion_goal: string | null;
+  };
+  profile: Record<string, unknown>;
+  services: Array<{ name: string; description?: string | null; price?: number | null; starting_price?: number | null }>;
+  formsCount: number;
+  bookingCount: number;
+  goals: string[];
+  freshReplace: boolean;
+  pendingBuild: PendingBuild | null;
+  language: string;
+}): Promise<void> {
+  const { db, job, business, profile, services, formsCount, bookingCount, goals, freshReplace, pendingBuild } = input;
+  let materialized = false;
+  try {
+    const { authorCreativeSiteContract } = await import("@/lib/builder/creative-site-contract.server");
+    const { materializeSiteContent } = await import("@/lib/site-materialize.server");
+
+    const outcome = await authorCreativeSiteContract({
+      organizationId: job.organization_id,
+      businessName: business.name,
+      industry: business.industry,
+      description: typeof profile["description"] === "string" ? profile["description"] : null,
+      services,
+      location:
+        [profile["city"], profile["state"]]
+          .filter((value): value is string => typeof value === "string" && value.trim().length > 0)
+          .join(", ") || null,
+      serviceArea: typeof profile["service_area"] === "string" ? profile["service_area"] : null,
+      phone: typeof profile["phone"] === "string" ? profile["phone"] : null,
+      email: typeof profile["email"] === "string" ? profile["email"] : null,
+      goals,
+      conversionGoal: business.conversion_goal ?? "enquiries",
+      hasQuoteForm: formsCount > 0,
+      hasBooking: bookingCount > 0,
+      language: input.language,
+    });
+
+    await db.from("ai_generations").insert({
+      organization_id: job.organization_id,
+      job_id: job.id,
+      kind: "creative_site_contract",
+      model: outcome.models.join("+") || "revora-collective",
+      instruction: null,
+      result: {
+        version: outcome.contract?.version ?? 1,
+        complete: Boolean(outcome.contract),
+        reviewed: outcome.reviewed,
+        skipped: outcome.skipped,
+        pages: outcome.contract?.pages.map((page) => ({
+          id: page.id,
+          slug: page.slug,
+          sections: page.sections.map((section) => section.role),
+        })) ?? null,
+        costMicrocents: outcome.costMicrocents,
+      } as unknown as never,
+      created_by: job.created_by,
+    } as never);
+
+    if (!outcome.contract) {
+      throw new Error(
+        `The AI could not produce a complete website contract, so nothing was published (${outcome.skipped ?? "no valid contract"}).`,
+      );
+    }
+
+    const emptyCopy = {
+      heroHeadline: "",
+      heroSubheadline: "",
+      primaryCta: "",
+      secondaryCta: "",
+      intro: "",
+      about: "",
+      benefits: [],
+      serviceCards: [],
+      faqs: [],
+      areaCopy: "",
+      metaTitle: "",
+      metaDescription: "",
+      ogTitle: "",
+      ogDescription: "",
+    };
+
+    const built = await materializeSiteContent(db, job.organization_id, {
+      businessName: business.name,
+      copy: emptyCopy,
+      services,
+      city: typeof profile["city"] === "string" ? profile["city"] : null,
+      state: typeof profile["state"] === "string" ? profile["state"] : null,
+      serviceArea: typeof profile["service_area"] === "string" ? profile["service_area"] : null,
+      phone: typeof profile["phone"] === "string" ? profile["phone"] : null,
+      email: typeof profile["email"] === "string" ? profile["email"] : null,
+      yearsInBusiness: typeof profile["years_in_business"] === "number" ? profile["years_in_business"] : null,
+      photoCount: 0,
+      hasQuoteForm: formsCount > 0,
+      hasBooking: bookingCount > 0,
+      replaceExisting: freshReplace,
+      creativeSiteContract: outcome.contract,
+    });
+    materialized = !built.skipped;
+
+    if (!built.skipped && built.pages === 0) throw new Error("The AI contract contained no materializable pages.");
+
+    const home = outcome.contract.pages.find((page) => page.slug === "home") ?? outcome.contract.pages[0];
+    const firstSection = home?.sections[0];
+    const report = {
+      builtAt: new Date().toISOString(),
+      buildMode: freshReplace ? "fresh_replace" : "safe",
+      pages: built.pages,
+      sections: built.sections,
+      components: built.components,
+      services: services.length,
+      leadForms: formsCount,
+      bookableServices: bookingCount,
+      contractVersion: outcome.contract.version,
+      contractRevision: outcome.contract.revision,
+      directedBy: outcome.contract.directedBy,
+      reviewedBy: outcome.contract.reviewedBy,
+      ready: false,
+      reason: "AI-authored draft requires browser/visual verification before publish.",
+    };
+
+    const prior = await db
+      .from("website_settings")
+      .select("generation")
+      .eq("organization_id", job.organization_id)
+      .maybeSingle();
+    const generation = (prior.data?.generation ?? {}) as Record<string, unknown>;
+    const keepState = await nextPublishState(db, job.organization_id);
+    const { error: saveError } = await db.from("website_settings").upsert(
+      {
+        organization_id: job.organization_id,
+        template: "ai-authored",
+        generation: {
+          ...withoutPendingBuild(generation),
+          creativeSiteContract: outcome.contract,
+          report,
+          canonicalBuilder: {
+            version: outcome.contract.version,
+            authority: outcome.contract.authority,
+            pages: outcome.contract.pages.length,
+          },
+        },
+        generated_at: new Date().toISOString(),
+        review_state: "ready_for_review",
+        publish_state: keepState,
+        seo: {
+          title: home?.seo?.title ?? business.name,
+          headline: firstSection?.content?.heading ?? business.name,
+          subheadline: firstSection?.content?.subheading ?? "",
+          meta_description: home?.seo?.description ?? "",
+          primary_cta_label: home?.primaryAction ?? "Get in touch",
+          og_title: home?.seo?.title ?? business.name,
+          og_description: home?.seo?.description ?? "",
+        },
+      } as never,
+      { onConflict: "organization_id" },
+    );
+    if (saveError) throw new Error(saveError.message);
+
+    await db
+      .from("generation_jobs")
+      .update({
+        status: "completed",
+        progress: 100,
+        current_step: "ready",
+        steps: ["business", "services", "analysis", "creative_contract", "materialize", "ready"],
+        completed_at: new Date().toISOString(),
+        lease_expires_at: null,
+        updated_at: new Date().toISOString(),
+      } as never)
+      .eq("id", job.id);
+
+    await db.from("notifications").insert({
+      organization_id: job.organization_id,
+      title: freshReplace ? "Your fresh AI website rebuild is ready" : "Your AI website draft is ready to review",
+      body: "Sol authored the site architecture and creative contract; Terra reviewed it. Publish remains gated until verification.",
+      kind: "website",
+      link: "/app/website",
+    } as never);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Canonical AI build failed.";
+    if (freshReplace && pendingBuild?.backupId) {
+      const rollback = await rollbackFreshBuild(db, {
+        orgId: job.organization_id,
+        backupId: pendingBuild.backupId,
+        userId: job.created_by,
+        message,
+      });
+      throw new FreshRebuildRollbackError(
+        rollback.restored
+          ? `${message} The previous website was restored from backup ${pendingBuild.backupId}.`
+          : `${message} Rollback also failed: ${rollback.restoreError ?? "unknown error"}.`,
+        pendingBuild.backupId,
+      );
+    }
+    throw error;
+  }
+}
+
 /** Runs the nine generation stages for one claimed job using the privileged client. */
 async function runJob(
   db: Db,
@@ -337,6 +541,33 @@ async function runJob(
     throw new Error("Fresh rebuild metadata was invalid or did not match this build, so nothing was replaced.");
   }
   const freshReplace = pendingBuild?.mode === "fresh_replace";
+
+  const existingPagesForCanonical = await db
+    .from("website_pages")
+    .select("id", { count: "exact", head: true })
+    .eq("organization_id", orgId);
+  const canonicalFirstBuild = freshReplace || (existingPagesForCanonical.count ?? 0) === 0;
+  if (canonicalFirstBuild) {
+    await runCanonicalFirstBuild({
+      db,
+      job,
+      business: {
+        name: org.data.name ?? "",
+        industry: org.data.industry ?? null,
+        conversion_goal: org.data.conversion_goal ?? null,
+      },
+      profile: p,
+      services: serviceRows,
+      formsCount: (forms.data ?? []).length,
+      bookingCount: (bookable.data ?? []).length,
+      goals,
+      freshReplace,
+      pendingBuild,
+      language: typeof p["language"] === "string" ? p["language"] : "English",
+    });
+    return;
+  }
+
   const approvedBrief = readBrief(priorGeneration["brief"]);
 
   const brief = approvedBrief?.approved ? approvedBrief : fallbackBrief(copyFacts);
