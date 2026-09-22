@@ -69,6 +69,7 @@ export async function authorCreativeSiteContract(input: {
   hasBooking: boolean;
   language: string;
   hasOwnerMedia: boolean;
+  ownerMedia?: Array<{ id: string; path: string; label: string }>;
   signal?: AbortSignal;
 }): Promise<CreativeSiteContractOutcome> {
   const facts = {
@@ -86,6 +87,7 @@ export async function authorCreativeSiteContract(input: {
     hasBooking: input.hasBooking,
     language: input.language,
     hasOwnerMedia: input.hasOwnerMedia,
+    ownerMedia: input.ownerMedia ?? [],
   };
 
   let solModel: string | null = null;
@@ -123,7 +125,7 @@ export async function authorCreativeSiteContract(input: {
         "The site may have any valid number of pages and sections needed by the business.",
         "Do not include claims not present in the facts.",
         input.hasOwnerMedia
-          ? "Owner media exists; you may assign it where useful, but do not invent asset ids."
+          ? "Owner media exists. Only use these exact owner media ids/paths when assigning media: " + JSON.stringify(input.ownerMedia ?? [])
           : "No owner media is available; do not mark any section media as required unless the contract can materialize a real asset.",
         "Use stable ids such as page-home and section-home-intro-01, but invent the actual architecture.",
         contract ? "CURRENT MERGED CONTRACT:\n" + JSON.stringify(contract) : "",
