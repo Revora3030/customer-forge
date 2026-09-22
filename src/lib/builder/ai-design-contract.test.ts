@@ -13,6 +13,7 @@ import {
 } from "@/lib/builder/creative-authority";
 import { inspectMediaIntegrity } from "@/lib/builder/media-integrity";
 import { DEVICE_MATRIX } from "@/lib/builder/responsive-matrix";
+import { SITE_WIDE_CREATIVE_QUALITY_MATRIX } from "@/lib/builder/creative-quality-matrix";
 
 function contract(overrides: Partial<AiDesignContract> = {}): AiDesignContract {
   const responsive = Object.fromEntries(
@@ -47,6 +48,7 @@ function contract(overrides: Partial<AiDesignContract> = {}): AiDesignContract {
     motion: { pattern: "reveal", intensity: "subtle" },
     accessibility: { minContrast: 4.5, minTouchTargetPx: 44, reducedMotionSafe: true },
     conversion: { goal: "enquiries", steps: ["see work", "book"] },
+    qualityMatrix: SITE_WIDE_CREATIVE_QUALITY_MATRIX,
     pages: [
       {
         slug: "home",
@@ -120,16 +122,17 @@ describe("AI design contract is the only creative authority", () => {
           ...contract().pages[0]!,
           slug: "home",
           sections: [
-            { id: "home-gallery-0", role: "gallery", layout: "immersive", intent: "lead with work", media: "required", emphasis: 1 },
+            { id: "home-hero-0", role: "hero", layout: "immersive", intent: "lead with work", media: "required", emphasis: 1 },
+            { id: "home-cta-1", role: "cta", layout: "closing", intent: "invite action", media: "optional", emphasis: 2 },
           ],
           responsive: Object.fromEntries(
-            REQUIRED_RESPONSIVE_WIDTHS.map((w) => [w, { order: ["home-gallery-0"], typeScale: 1, cta: "inline", columns: 1, imageCrop: "wide", nav: w < 500 ? "drawer" : "full" }]),
+            REQUIRED_RESPONSIVE_WIDTHS.map((w) => [w, { order: ["home-hero-0", "home-cta-1"], typeScale: 1, cta: "inline", columns: 1, imageCrop: "wide", nav: w < 500 ? "drawer" : "full" }]),
           ) as AiDesignContract["pages"][number]["responsive"],
         },
       ],
     });
     expect(validateAiDesignContract(other).valid).toBe(true);
-    expect(other.pages[0]!.sections[0]!.role).toBe("gallery");
+    expect(other.pages[0]!.sections[0]!.layout).toBe("immersive");
   });
 
   it("specifies responsive behaviour at every required width, including 430", () => {

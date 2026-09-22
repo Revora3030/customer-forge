@@ -240,8 +240,7 @@ function mediaNeedFor(role: string): SectionDesign["media"] {
   if (
     role === "hero" ||
     role === "gallery" ||
-    role === "feature_media" ||
-    role === "service_detail"
+    role === "feature_media"
   )
     return "required";
   if (role === "services" || role === "cta" || role === "intro") return "optional";

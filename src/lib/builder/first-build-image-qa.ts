@@ -14,7 +14,7 @@
 import type { FirstBuildImageAsset } from "@/lib/builder/first-build-images.types";
 
 /** Slots a generated picture may occupy. Proof-style slots are excluded. */
-export const ATTACHABLE_SLOTS = new Set(["hero", "service", "background", "cta", "social"]);
+export const ATTACHABLE_SLOTS = new Set(["hero", "service", "about", "background", "cta", "social"]);
 
 const UNSAFE_PLACEMENT = /gallery|proof|testimonial|review|award|team|result|before|after/i;
 const GENERIC_ALT = /^(?:professional (?:work|service|workspace|image)|website image|featured image|service image)(?:\s+(?:by|for)\s+.+)?$/i;

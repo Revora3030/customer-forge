@@ -21,11 +21,15 @@ export function qualityProfile(input: {
   missingTrust: boolean;
   missingFaq: boolean;
   missingHomeHero: boolean;
+  pagesMissingOpening?: number;
+  totalPages?: number;
   emptySections?: number;
   pagesMissingSeo?: number;
   ctaCount?: number;
 }): BuilderQualityProfile {
-  const design = clamp(input.missingHomeHero ? 70 : 92);
+  const pageGapRatio = (input.pagesMissingOpening ?? (input.missingHomeHero ? 1 : 0)) /
+    Math.max(1, input.totalPages ?? 1);
+  const design = clamp(92 - pageGapRatio * 35);
   const conversion = clamp(input.conversionReadiness + (input.ctaCount && input.ctaCount > 0 ? 4 : -8));
   const content = clamp(input.contentReadiness - Math.min(15, (input.emptySections ?? 0) * 5));
   const mobile = clamp(input.missingMobileCta ? 74 : 94);
