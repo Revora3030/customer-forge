@@ -379,7 +379,9 @@ export function planShots(input: {
     });
   }
 
-  for (const name of input.serviceNames.slice(0, 4)) {
+  // Preserve enough distinct service frames to give secondary pages their own
+  // subject rather than repeating one homepage image across the entire site.
+  for (const name of input.serviceNames.slice(0, 8)) {
     shots.push({
       slot: "service",
       label: `${name} image`,
