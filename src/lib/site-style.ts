@@ -847,7 +847,7 @@ export function blockRules(id: string, settings: unknown, surface?: string | nul
     // not just the one it sets itself, so a mobile-only text colour is still
     // measured against the desktop background it inherits.
     const body = [
-      declarations(blockCss({ ...only, bgColor: only.bgColor ?? merged.bgColor }, surface)),
+      declarations(blockCss(only, merged.bgColor ?? surface)),
       declarations(itemsCss(only)),
     ]
       .filter(Boolean)
