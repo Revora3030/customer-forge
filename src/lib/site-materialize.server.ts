@@ -37,7 +37,8 @@ import {
   type PageArchitecture,
 } from "@/lib/builder/creative-authority";
 import { deriveCandidateArchitecture } from "@/lib/builder/ai-page-architecture";
-import { assertMediaIntegrity } from "@/lib/builder/media-integrity";
+import type { CreativeSiteContract } from "@/lib/builder/creative-site-contract";
+import { assertCreativeSiteMediaIntegrity, assertMediaIntegrity } from "@/lib/builder/media-integrity";
 
 type Db = SupabaseClient;
 
@@ -102,6 +103,7 @@ export type MaterializeInput = {
    * container fails the build instead of shipping a blank box.
    */
   designContract?: AiDesignContract | null;
+  creativeSiteContract?: CreativeSiteContract | null;
   /**
    * Lets the AI author the page architecture. It receives the architecture the
    * renderer can fill and returns its own page set, section selection and
@@ -140,6 +142,55 @@ type Page = {
   og_image_url?: string | null;
   sections: Section[];
 };
+
+export function materializeCreativeSiteContract(
+  contract: CreativeSiteContract,
+  assets: FirstBuildImageAsset[] = [],
+): Page[] {
+  const assetByPath = new Map(assets.map((asset) => [asset.path, asset]));
+  return contract.pages.map((page) => ({
+    slug: page.slug,
+    title: page.title,
+    kind: page.slug === "home" ? "home" : "ai-authored",
+    seo_title: page.seo?.title ?? null,
+    seo_description: page.seo?.description ?? null,
+    og_image_url: page.seo?.imageUrl ?? null,
+    sections: page.sections.map((section) => {
+      const components: Component[] = (section.content?.components ?? []).map((component) => ({
+        kind: component.kind,
+        label: component.label ?? null,
+        body: component.body ?? null,
+        link_label: component.linkLabel ?? null,
+        link_url: safeLinkUrl(component.linkUrl ?? null),
+        media_url: component.mediaUrl ?? assetByPath.get(component.mediaUrl ?? "")?.path ?? null,
+        settings: { ...(component.settings ?? {}), ai_authored: true },
+      }));
+      if (section.media?.assetId && !components.some((component) => component.media_url === section.media?.assetId)) {
+        const asset =
+          assetByPath.get(section.media.assetId) ??
+          assets.find((candidate) => candidate.label === section.media?.assetId);
+        if (asset) components.push(imageComponent(asset, "ai_media"));
+      }
+      return {
+        kind: section.role,
+        variant: "ai-authored",
+        heading: section.content?.heading ?? null,
+        subheading: section.content?.subheading ?? null,
+        body: section.content?.body ?? null,
+        components,
+        settings: {
+          ai_authored: true,
+          ai_section_id: section.id,
+          ai_intent: section.intent,
+          ai_visual: section.visual ?? {},
+          ai_responsive: section.responsive ?? {},
+          ai_interactions: section.interactions ?? {},
+          ...(section.media?.presentation ? { ai_media: section.media.presentation } : {}),
+        },
+      } as Section;
+    }),
+  }));
+}
 
 const clean = (value: string | null | undefined) => {
   const text = (value ?? "").trim();
@@ -652,8 +703,14 @@ export async function materializeSiteContent(
   // The contract OVERRIDES the renderer's page set and section order, and any
   // visual container the design requires must resolve to a real picture —
   // otherwise the build fails rather than publishing a blank box.
-  let tree = planSiteContent(input);
+  let tree: Page[];
   let designContract: AiDesignContract | null = input.designContract ?? null;
+  if (input.creativeSiteContract) {
+    tree = materializeCreativeSiteContract(input.creativeSiteContract, input.generatedAssets ?? []);
+    assertCreativeSiteMediaIntegrity(tree, input.creativeSiteContract);
+  } else {
+    tree = planSiteContent(input);
+  }
   if (!designContract && input.fingerprint && input.creativeBrief) {
     const primaryAction = clean(input.copy.primaryCta) ?? "Get in touch";
     // The AI authors the page set, the section selection and the order. The
