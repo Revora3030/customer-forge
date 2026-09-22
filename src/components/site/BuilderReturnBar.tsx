@@ -30,9 +30,11 @@ export function BuilderReturnBar() {
   if (!signedIn || framed) return null;
 
   return (
+    // Explicit foreground/background pairing: the control must stay visible on
+    // pale cream themes as well as dark ones, so it never inherits page ink.
     <a
       href="/app/website"
-      className="fixed bottom-4 left-4 z-[60] inline-flex items-center gap-2 rounded-full border border-border bg-background/95 px-4 py-2.5 font-display text-[13px] font-semibold shadow-lg backdrop-blur transition-colors hover:bg-accent"
+      className="fixed bottom-4 left-4 z-[60] inline-flex items-center gap-2 rounded-full border border-foreground/15 bg-foreground px-4 py-2.5 font-display text-[13px] font-semibold text-background shadow-lg transition-opacity hover:opacity-90"
     >
       <ArrowLeft className="size-4" aria-hidden="true" />
       Back to builder
