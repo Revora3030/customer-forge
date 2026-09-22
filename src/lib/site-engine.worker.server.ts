@@ -580,9 +580,10 @@ async function runJob(
     creative,
   });
   generatedAssets = starterImages.assets;
-  let architectureOutcome:
-    | import("@/lib/builder/ai-page-architecture.server").PageArchitectureOutcome
-    | null = null;
+  const architectBusinessName = org.data.name ?? "";
+  const architectIndustry = org.data.industry ?? null;
+  const architectGoal = org.data.conversion_goal ?? "enquiries";
+  let architectureOutcome: PageArchitectureOutcome | null = null;
   const built = await materializeSiteContent(db, orgId, {
     businessName: org.data.name ?? "",
     copy,
