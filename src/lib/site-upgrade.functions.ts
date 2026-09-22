@@ -379,18 +379,20 @@ export type VisionRepairResult = {
  */
 export const applyVisionRepairs = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { organizationId: string; pageSlug?: string | null; findings: unknown }) => {
+  .inputValidator((input: { organizationId: string; pageSlug?: string | null; findings: unknown; operationKey?: string }) => {
     if (!input?.organizationId) throw new Error("organizationId is required");
     if (!Array.isArray(input.findings)) throw new Error("Nothing to repair.");
     return {
       organizationId: input.organizationId,
       pageSlug: input.pageSlug ? String(input.pageSlug).slice(0, 120) : null,
       findings: input.findings.slice(0, 12),
+      operationKey: input.operationKey?.slice(0, 80),
     };
   })
   .handler(async ({ data, context }): Promise<VisionRepairResult> => {
     const supabase = context.supabase as unknown as SupabaseLike;
     await requireManager(supabase, data.organizationId, context.userId);
+    const operationKey = data.operationKey ?? crypto.randomUUID();
 
     const review = parseVisionReview({ issues: data.findings });
     const { repairs, unfixable } = visionRepairs(review);
@@ -421,6 +423,7 @@ export const applyVisionRepairs = createServerFn({ method: "POST" })
         organizationId: data.organizationId,
         userId: context.userId,
         label: "AI visual QA repair",
+        operationKey,
         instruction,
       });
       const applied = ((run.applied.details ?? []) as string[]).filter((item) => /^applied /i.test(item) || /^repaired /i.test(item));
