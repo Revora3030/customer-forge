@@ -684,7 +684,7 @@ function safeAiCssValue(value: unknown): string | number | null {
   if (typeof value !== "string") return null;
   const trimmed = value.trim();
   if (!trimmed || trimmed.length > 500) return null;
-  if (/[<>;{}]|javascript:|expression\\s*\\(|url\\s*\\(\\s*data:/i.test(trimmed)) return null;
+  if (/[<>;{}]|javascript:|expression\s*\(|url\s*\(\s*data:/i.test(trimmed)) return null;
   return trimmed;
 }
 
