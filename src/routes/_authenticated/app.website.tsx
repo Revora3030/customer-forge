@@ -155,6 +155,13 @@ export const Route = createFileRoute("/_authenticated/app/website")({
         name: "description",
         content: "Build, review and publish your business website step by step.",
       },
+      { property: "og:title", content: "Website builder — Revora" },
+      {
+        property: "og:description",
+        content: "Build, review and publish your business website with Revora.",
+      },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
       { name: "robots", content: "noindex" },
     ],
   }),
