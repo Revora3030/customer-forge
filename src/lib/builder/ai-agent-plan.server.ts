@@ -235,7 +235,6 @@ export async function planWebsiteChangesWithAi(input: {
   let cursor: string | null = null;
   let completed = false;
 
-  for (let chunkIndex = 0; chunkIndex < 12; chunkIndex += 1) {
     const contextBlock = [
       "BUSINESS FACTS (the only facts you may state):",
       businessBlock(context),
@@ -255,6 +254,7 @@ export async function planWebsiteChangesWithAi(input: {
       actionContract(context),
     ].filter(Boolean).join("\n");
 
+  for (let chunkIndex = 0; chunkIndex < 12; chunkIndex += 1) {
     const continuation = chunkIndex === 0
       ? ""
       : [
