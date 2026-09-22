@@ -189,7 +189,7 @@ function serviceAsset(
   const exact = serviceAssets.find((asset) =>
     asset.label.toLowerCase().includes(serviceName.toLowerCase()),
   );
-  return exact ?? serviceAssets[index] ?? null;
+  return exact ?? (serviceAssets.length ? serviceAssets[index % serviceAssets.length] ?? null : null);
 }
 
 function imageComponent(asset: FirstBuildImageAsset, kind = "image"): Component {
@@ -264,6 +264,7 @@ export function planSiteContent(input: MaterializeInput): Page[] {
   const primaryCta = clean(copy.primaryCta) ?? "Get in touch";
   const secondaryCta = clean(copy.secondaryCta) ?? "See services";
   const heroAsset = firstAsset(input, "hero");
+  const aboutAsset = firstAsset(input, "about");
   const ctaAsset = firstAsset(input, "cta");
   const backgroundAsset = firstAsset(input, "background");
   const ogAsset = firstAsset(input, "social") ?? heroAsset;
