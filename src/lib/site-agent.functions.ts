@@ -265,7 +265,7 @@ export const planWebsiteChanges = createServerFn({ method: "POST" })
         );
       const history: AgentTurn[] = Array.isArray(input?.history)
         ? input.history
-            .slice(-8)
+            .slice(-24)
             .map((turn) => ({
               role: turn?.role === "assistant" ? ("assistant" as const) : ("user" as const),
               content: str(turn?.content, 4000),
@@ -1722,7 +1722,7 @@ export const runWebsiteTask = createServerFn({ method: "POST" })
         throw new Error("Tell Revora what you'd like done — in your own words.");
       const history: AgentTurn[] = Array.isArray(input?.history)
         ? input.history
-            .slice(-8)
+            .slice(-24)
             .map((turn) => ({
               role: turn?.role === "assistant" ? ("assistant" as const) : ("user" as const),
               content: str(turn?.content, 4000),

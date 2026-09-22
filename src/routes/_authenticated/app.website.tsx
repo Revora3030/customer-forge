@@ -400,59 +400,7 @@ function WebsitePage() {
 
   /** Only what this website actually needs, in the owner's words. */
   const mediaCount = facts.data?.mediaCount ?? 0;
-  const brandSet = Boolean(profile?.["primary_color"]) && Boolean(profile?.["logo_url"]);
   const failingChecks = preflightResult.checks.filter((check) => check.status === "fail");
-  const needCopy = {
-    answers: {
-      key: "answers",
-      title: `${requiredCount} thing${requiredCount === 1 ? "" : "s"} needed before you go live`,
-      body: "Answer them once — Revora reuses them across your pages, buttons, forms and search settings.",
-      actionLabel: "Answer them",
-      onAction: openSetup,
-      blocking: true,
-    },
-    photos: {
-      key: "photos",
-      title: "Add your photos",
-      body: "Your own pictures of your work make the biggest difference to how your site feels.",
-      actionLabel: "Add photos",
-      onAction: () => setAdvanced("photos"),
-    },
-    look: {
-      key: "look",
-      title: "Choose your look",
-      body: "Set your logo and colour so every page matches your business.",
-      actionLabel: "Choose your look",
-      onAction: () => setAdvanced("look"),
-    },
-    domain: {
-      key: "domain",
-      title: "Connect your own web address",
-      body: "Your site is live on the Revora address. Connecting your own address looks more professional.",
-      actionLabel: "Connect it",
-      onAction: () => setAdvanced("launch"),
-    },
-    enquiries: {
-      key: "enquiries",
-      title: "Enquiries have nowhere to go",
-      body: "Add an enquiry form or a booking option so customers can actually reach you.",
-      actionLabel: "Set up enquiries",
-      onAction: () => setAdvanced("enquiries"),
-    },
-    broken: {
-      key: "broken",
-      title:
-        failingChecks.length === 1
-          ? "1 thing looks wrong"
-          : `${failingChecks.length} things look wrong`,
-      body: failingChecks
-        .slice(0, 2)
-        .map((check) => check.label)
-        .join(" · "),
-      actionLabel: "Let Revora fix it",
-      onAction: () => setAdvanced("launch"),
-    },
-  };
 
   if (profileQuery.isLoading || settingsQuery.isLoading) return <LoadingRows rows={5} />;
 
@@ -508,7 +456,7 @@ function WebsitePage() {
             requests={requests}
             onOpenExtras={() => setAdvanced("assistant")}
             emptyTitle={firstRun ? "Describe your business" : "What would you like to change?"}
-            emptyHint={firstRun ? "Tell me what you do and who you serve. I’ll build the complete website with you." : "Keep talking to me naturally. I remember this conversation and update the same website as we go."}
+            emptyHint={firstRun ? "Tell me what you do and who you serve. I’ll build the complete website with you." : "Keep talking to me naturally. I’ll keep the context as we work through this website together."}
           />
         </div>
         {!firstRun && org?.slug ? (

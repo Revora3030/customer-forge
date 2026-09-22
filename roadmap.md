@@ -12,4 +12,6 @@
 - [x] Simplify every product surface into one focused, Lovable-style workspace.
 - [x] Unify customer, command-center, portal, and admin navigation and page hierarchy.
 - [x] Reduce visual density without removing workflows, security boundaries, or production controls.
-- [ ] Verify representative desktop and mobile routes, metadata, and automated quality checks.
+- [x] Verify representative desktop and mobile routes, metadata, and automated quality checks.
+- [x] Simplify the website builder into one continuous chat, one preview, and one tools menu.
+- [x] Keep the prompt focused and visible while preserving approvals, rollback, manual editing, history, and publishing.
