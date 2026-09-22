@@ -162,4 +162,17 @@ describe("AI-authored visual capabilities", () => {
     expect(css).toContain("@media (max-width:390px)");
     expect(css).toContain("grid-template-columns:1fr");
   });
+
+  it("closes every responsive media rule", () => {
+    const css = aiAuthoredResponsiveCss(
+      {
+        ai_responsive: {
+          "390": { visual: { gap: "12px" } },
+          "768": { visual: { gap: "20px" } },
+        },
+      },
+      '[data-rv-ai-id="section-1"]',
+    );
+    expect((css.match(/\}/g) ?? []).length).toBe(4);
+  });
 });
