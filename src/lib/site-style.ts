@@ -290,7 +290,9 @@ export function normalizeStyleInput(raw: unknown): Record<string, unknown> {
     // "48px", "1.5rem", "60%" → the number the model meant.
     if (typeof next === "string") {
       const unit = next.trim().match(/^(-?\d*\.?\d+)\s*(px|pt|rem|em|%)?$/i);
-      if (unit && key !== "textColor" && key !== "bgColor" && key !== "borderColor") {
+      const colourKey =
+        key === "textColor" || key === "bgColor" || key === "borderColor" || key === "bgGradient";
+      if (unit && !colourKey) {
         const amount = Number(unit[1]);
         const scale = /rem|em/i.test(unit[2] ?? "") ? 16 : 1;
         next = amount * scale;
