@@ -520,10 +520,9 @@ export async function drainSiteEngineQueue(
   const max = Math.min(Math.max(options.max ?? 2, 1), 5);
   const state = await readQueueState(db);
 
-  // Paused-state guard. Rate limits and credit/policy denials are both
-  // self-healing: every generation stage has a deterministic Revora fallback, so
-  // the builder keeps running at full speed with rules-only writing instead of
-  // parking the queue. Only an explicit hard block keeps the probe-only budget.
+  // Paused-state guard. Rate limits remain retryable, but AI availability or
+  // policy/entitlement failures are surfaced as honest generation failures rather
+  // than silently switching to deterministic website authoring.
   let budget = max;
   if (state.paused) {
     if (state.pause_kind === "rate_limit" || state.pause_kind === "credits") {
@@ -576,14 +575,28 @@ export async function drainSiteEngineQueue(
         continue;
       }
 
-      // Credit/policy denials must never stop the builder. Every generation
-      // stage has a deterministic Revora fallback, so a denial is retried
-      // immediately in rules-only mode instead of pausing the queue.
-      if (status === 402 || status === 403) {
+      // A model availability, entitlement, or policy denial must never cause
+      // a hidden rules-only build. Fail the job transparently and leave the site
+      // untouched; the caller can retry after the underlying issue is resolved.
+      if (status === 402 || status === 403 || (isGateway && ["not_configured", "free_unavailable", "unauthorized", "policy"].includes(error.category))) {
+        failed += 1;
         await db
           .from("generation_jobs")
-          .update({ status: "queued", error_message: null, lease_expires_at: null } as never)
+          .update({
+            status: "failed",
+            error_message: message,
+            completed_at: new Date().toISOString(),
+            lease_expires_at: null,
+          } as never)
           .eq("id", job.id);
+        await db.from("notifications").insert({
+          organization_id: job.organization_id,
+          title: "AI website generation needs attention",
+          body: message,
+          kind: "website",
+          link: "/app/website",
+        } as never);
+        await writeQueueState(db, { last_error: message });
         continue;
       }
 
