@@ -367,7 +367,7 @@ export function SiteSection({ site, section }: { site: Site; section: Section })
 
 function AiAuthoredSectionBody({ site, section }: { site: Site; section: Section }) {
   const components = section.components ?? [];
-  const visibleComponents = components.filter((component) => component.is_visible !== false);
+  const visibleComponents = components;
   const nonButtonComponents = visibleComponents.filter((component) => component.kind !== "button");
   const buttons = visibleComponents.filter((component) => component.kind === "button" && component.label);
   const aiSectionCss = aiAuthoredCss(section.settings);
