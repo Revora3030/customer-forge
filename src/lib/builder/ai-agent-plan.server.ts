@@ -219,123 +219,191 @@ export async function planWebsiteChangesWithAi(input: {
     "You work only through the action contract you are given. You never return prose outside the JSON object.",
   ].join("\n\n");
 
-  const user = [
-    "BUSINESS FACTS (the only facts you may state):",
-    businessBlock(context),
-    "",
-    "THE LIVE WEBSITE (copy ids exactly):",
-    siteBlock(context),
-    "",
-    input.history.length
-      ? `EARLIER INSTRUCTIONS AND STANDING RULES FROM THE OWNER:\n${input.history.join("\n")}\n`
-      : "",
-    input.attachments.length
-      ? `THE OWNER ATTACHED: ${input.attachments.map((a) => `${a.kind} ${a.name}`).join(", ")}\n`
-      : "",
-    "THE OWNER'S REQUEST:",
-    input.instruction,
-    "",
-    actionContract(context),
-  ]
-    .filter(Boolean)
-    .join("\n");
-
-  const direction = await callBestThinker({
-    json: true,
-    purpose: "creative_direction",
-    complexity: "high",
-    system,
-    user,
-    organizationId: input.organizationId,
-    maxOutputTokens: 12000,
-  });
-  if (!direction.ok) {
-    return { ok: false, reason: direction.reason, detail: direction.detail };
-  }
-
-  const proposal = parseJsonObject(direction.text);
-  const proposedActions = Array.isArray(proposal?.["actions"])
-    ? (proposal["actions"] as unknown[])
-    : [];
-  if (!proposal || !proposedActions.length) {
-    return {
-      ok: false,
-      reason: "unusable_answer",
-      detail: "the design answer could not be read as a website change",
-    };
-  }
-
-  let costMicrocents = direction.costMicrocents;
+  let costMicrocents = 0;
+  let model = "unknown";
   let reviewModel: string | null = null;
-  let notes = textList(proposal["notes"], 6);
+  let reply = "Here's what I'll change.";
+  let summary = "Website update";
+  let questions: string[] = [];
+  let notes: string[] = [];
+  let requirements: { label: string; covered: boolean }[] = [];
+  const trace: string[] = [];
+  const actions: unknown[] = [];
+  const createdRefs = new Set<string>();
+  let cursor: string | null = null;
+  let completed = false;
 
-  const review = await callBestThinker({
-    json: true,
-    purpose: "adversarial_review",
-    complexity: "high",
-    system: [
-      "You are Terra, the adversarial integrity reviewer for an AI-authored website change.",
-      TRUTH_RULES,
-      'Reply with ONE JSON object: {"reject":number[],"notes":string[]}. Reject only actions that invent unsupported business facts, contain unsafe/executable values, create broken references, violate required accessibility or reduced-motion protections, corrupt ownership/integrity, or otherwise cannot be safely executed. Do not reject an action because of taste, aesthetics, novelty, section choice, copy voice, layout preference, or because it differs from a familiar template.',
-    ].join("\n\n"),
-    user: [
-      "BUSINESS FACTS:",
+  for (let chunkIndex = 0; chunkIndex < 12; chunkIndex += 1) {
+    const contextBlock = [
+      "BUSINESS FACTS (the only facts you may state):",
       businessBlock(context),
       "",
+      "THE LIVE WEBSITE (copy ids exactly):",
+      siteBlock(context),
+      "",
+      input.history.length
+        ? "EARLIER INSTRUCTIONS AND STANDING RULES FROM THE OWNER:\n" + input.history.join("\n")
+        : "",
+      input.attachments.length
+        ? "THE OWNER ATTACHED: " + input.attachments.map((a) => a.kind + " " + a.name).join(", ")
+        : "",
       "THE OWNER'S REQUEST:",
       input.instruction,
       "",
-      "PROPOSED ACTIONS (index: action):",
-      proposedActions.map((action, index) => `${index}: ${JSON.stringify(action)}`).join("\n"),
-    ].join("\n"),
-    organizationId: input.organizationId,
-    maxOutputTokens: 1200,
-  });
+      actionContract(context),
+    ].filter(Boolean).join("\n");
 
-  let actions = proposedActions;
-  if (review.ok) {
+    const continuation = chunkIndex === 0
+      ? ""
+      : [
+          "CONTINUATION OF THE SAME AI-AUTHORED PLAN.",
+          "Do not repeat or undo previously accepted actions.",
+          "Plan only the remaining work for the owner's request.",
+          "Previously accepted action count: " + actions.length,
+          "Existing temporary refs: " + [...createdRefs].slice(0, 500).join(", "),
+          "Continuation cursor: " + (cursor ?? "none"),
+          "Previous action tail:",
+          JSON.stringify(actions.slice(-40)),
+        ].join("\n");
+
+    const direction = await callBestThinker({
+      json: true,
+      purpose: "creative_direction",
+      complexity: "high",
+      system,
+      user: contextBlock + (continuation ? "\n\n" + continuation : ""),
+      organizationId: input.organizationId,
+      maxOutputTokens: 12000,
+    });
+
+    if (!direction.ok) {
+      return { ok: false, reason: direction.reason, detail: direction.detail };
+    }
+    model = direction.model;
+    costMicrocents += direction.costMicrocents;
+
+    const proposal = parseJsonObject(direction.text);
+    if (!proposal) {
+      return {
+        ok: false,
+        reason: "unusable_answer",
+        detail: "the design answer could not be read as a website change in chunk " + (chunkIndex + 1),
+      };
+    }
+
+    const proposedActions = Array.isArray(proposal["actions"])
+      ? (proposal["actions"] as unknown[])
+      : [];
+    const hasMore = proposal["hasMore"] === true;
+    const proposalCursor = typeof proposal["cursor"] === "string"
+      ? proposal["cursor"].trim().slice(0, 120)
+      : null;
+
+    if (typeof proposal["reply"] === "string") reply = proposal["reply"].trim().slice(0, 1500) || reply;
+    if (typeof proposal["summary"] === "string") summary = proposal["summary"].trim().slice(0, 300) || summary;
+    questions = [...questions, ...textList(proposal["questions"], 3)].slice(0, 6);
+    notes = [...notes, ...textList(proposal["notes"], 6)].slice(0, 12);
+    requirements = [...requirements, ...textList(proposal["requirements"], 8, 120).map((label) => ({ label, covered: true }))].slice(0, 12);
+
+    if (!proposedActions.length) {
+      if (chunkIndex === 0 || hasMore) {
+        return {
+          ok: false,
+          reason: "unusable_answer",
+          detail: hasMore
+            ? "the AI requested another continuation chunk without providing additional actions"
+            : "the design answer contained no executable website actions",
+        };
+      }
+      completed = true;
+      break;
+    }
+
+    const review = await callBestThinker({
+      json: true,
+      purpose: "adversarial_review",
+      complexity: "high",
+      system: [
+        "You are Terra, the adversarial integrity reviewer for an AI-authored website change.",
+        TRUTH_RULES,
+        'Reply with ONE JSON object: {"reject":number[],"notes":string[]}. Reject only actions that invent unsupported business facts, contain unsafe/executable values, create broken references, violate required accessibility or reduced-motion protections, corrupt ownership/integrity, or otherwise cannot be safely executed. Do not reject an action because of taste, aesthetics, novelty, section choice, copy voice, layout preference, or because it differs from a familiar template.',
+      ].join("\n\n"),
+      user: [
+        "BUSINESS FACTS:",
+        businessBlock(context),
+        "",
+        "THE OWNER'S REQUEST:",
+        input.instruction,
+        "",
+        "PROPOSED ACTIONS (index: action):",
+        proposedActions.map((action, index) => index + ": " + JSON.stringify(action)).join("\n"),
+      ].join("\n"),
+      organizationId: input.organizationId,
+      maxOutputTokens: 1200,
+    });
+
+    if (!review.ok) {
+      return {
+        ok: false,
+        reason: review.reason,
+        detail: review.detail ?? "Terra review was unavailable; no unreviewed actions were accepted.",
+      };
+    }
+
     reviewModel = review.model;
     costMicrocents += review.costMicrocents;
-    const applied = applyReview(proposedActions, parseJsonObject(review.text));
-    actions = applied.actions;
-    notes = [...notes, ...applied.notes].slice(0, 8);
+    const appliedReview = applyReview(proposedActions, parseJsonObject(review.text));
+    const kept = appliedReview.actions;
+    actions.push(...kept);
+    for (const action of kept) {
+      if (!action || typeof action !== "object" || Array.isArray(action)) continue;
+      const ref = (action as Record<string, unknown>)["ref"];
+      if (typeof ref === "string" && ref.trim()) createdRefs.add(ref.trim().slice(0, 120));
+    }
+    notes = [...notes, ...appliedReview.notes].slice(0, 12);
+    trace.push("AI creative chunk " + (chunkIndex + 1) + " composed by " + direction.model + "; Terra reviewed it and removed " + (proposedActions.length - kept.length) + " unsafe/invalid action(s).");
+
+    if (actions.length > MAX_ACTIONS) {
+      return {
+        ok: false,
+        reason: "continuation_exhausted",
+        detail: "the AI plan exceeded the supported action budget; no partial plan was applied",
+      };
+    }
+
+    cursor = proposalCursor;
+    if (!hasMore) {
+      completed = true;
+      break;
+    }
   }
 
+  if (!completed) {
+    return {
+      ok: false,
+      reason: "continuation_exhausted",
+      detail: "the AI change exceeded the supported continuation window; no partial plan was applied",
+    };
+  }
   if (!actions.length) {
     return {
       ok: false,
       reason: "review_rejected",
-      detail: "the review removed every proposed change",
+      detail: "Terra removed every executable website action",
     };
   }
 
-  const requirements = textList(proposal["requirements"], 8, 120).map((label) => ({
-    label,
-    covered: true,
-  }));
-
-  const trace = [
-    `Creative direction, layout and wording composed by ${direction.model}.`,
-    review.ok
-      ? `Reviewed by ${review.model}: ${proposedActions.length - actions.length} change(s) removed.`
-      : "Review unavailable, so only changes that pass the fact and safety checks were kept.",
-    "No template or preset design was used.",
-  ];
-
+  trace.push("No deterministic creative scaffold, theme preset, or template was used.");
   return {
     ok: true,
-    reply:
-      (typeof proposal["reply"] === "string" ? proposal["reply"].trim().slice(0, 1500) : "") ||
-      "Here's what I'll change.",
-    summary:
-      (typeof proposal["summary"] === "string" ? proposal["summary"].trim().slice(0, 300) : "") ||
-      "Website update",
+    reply,
+    summary,
     actions,
-    questions: textList(proposal["questions"], 3),
+    questions,
     notes,
     trace,
     requirements,
-    model: direction.model,
+    model,
     reviewModel,
     costMicrocents,
   };
