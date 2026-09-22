@@ -440,6 +440,8 @@ function readLayer(raw: unknown): Partial<BlockStyle> {
   set("marginBottom", boundedNumber(s["marginBottom"], -240, 240));
 
   set("bgColor", safeColor(s["bgColor"]));
+  set("bgGradient", safeColor(s["bgGradient"]));
+  set("bgGradientAngle", boundedNumber(s["bgGradientAngle"], 0, 360));
   set("bgImage", safeImageUrl(s["bgImage"]));
   set("overlay", boundedNumber(s["overlay"], 0, 100));
   set("radius", boundedNumber(s["radius"], 0, 999));
