@@ -147,10 +147,10 @@ export function validateCreativeSiteContract(contract: unknown): {
   if (candidate["authority"] !== CREATIVE_SITE_AUTHORITY) violations.push("authority must be Sol");
   if (candidate["complete"] !== true) violations.push("contract is incomplete");
   if (!Number.isInteger(candidate["revision"]) || Number(candidate["revision"]) < 1) violations.push("revision must be a positive integer");
-  if (!candidate["identity"] || typeof candidate["identity"] !== "object" || Array.isArray(candidate.identity)) {
+  if (!candidate["identity"] || typeof candidate["identity"] !== "object" || Array.isArray(candidate["identity"])) {
     violations.push("identity is required");
   } else {
-    const identity = candidate.identity as Record<string, unknown>;
+    const identity = candidate["identity"] as Record<string, unknown>;
     const concept = identity["concept"];
     if (typeof concept !== "string" || !concept.trim()) violations.push("identity.concept is required");
   }
