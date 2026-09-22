@@ -81,8 +81,23 @@ async function clearPendingBuild(db: Db, orgId: string) {
 
 async function rollbackFreshBuild(
   db: Db,
-  input: { orgId: string; backupId: string; userId: string | null; message: string },
+  input: { orgId: string; backupId: string; userId: string | null; message: string; jobId: string; attempts: number },
 ): Promise<{ restored: boolean; restoreError: string | null }> {
+  const { data: currentJob } = await db
+    .from("generation_jobs")
+    .select("status, attempts")
+    .eq("id", input.jobId)
+    .maybeSingle();
+  if (
+    currentJob?.status !== "processing" ||
+    Number(currentJob.attempts) !== input.attempts
+  ) {
+    return {
+      restored: false,
+      restoreError: "Skipped stale-worker rollback because a newer generation attempt owns this job.",
+    };
+  }
+
   const { restoreBackup } = await import("@/lib/backup.server");
   let restore: unknown = null;
   let restoreError: string | null = null;
@@ -447,6 +462,8 @@ async function runCanonicalFirstBuild(input: {
         backupId: pendingBuild.backupId,
         userId: job.created_by,
         message,
+        jobId: job.id,
+        attempts: job.attempts,
       });
       throw new FreshRebuildRollbackError(
         rollback.restored
