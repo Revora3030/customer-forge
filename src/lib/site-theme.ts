@@ -231,7 +231,10 @@ export function siteHeadingFont(value: string | null | undefined): string | null
 export function siteFontHref(value: string | null | undefined): string | null {
   const font = siteHeadingFont(value);
   if (!font) return null;
-  return `https://fonts.googleapis.com/css2?family=${SITE_HEADING_FONTS[font]}&display=swap`;
+  // Request the italic face too when the family has one, so an AI-chosen
+  // italic headline renders as a designed italic rather than a faked slant.
+  const family = SITE_ITALIC_FONTS[font] ?? SITE_HEADING_FONTS[font];
+  return `https://fonts.googleapis.com/css2?family=${family}&display=swap`;
 }
 
 /**
