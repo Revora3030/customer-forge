@@ -39,5 +39,11 @@ describe("builder quality profile", () => {
     expect(profile.content).toBeLessThan(85);
     expect(profile.seo).toBeLessThan(85);
   });
+  it("reduces design quality when a non-home page lacks a deliberate opening", () => {
+    const complete = qualityProfile({ completeness: 95, conversionReadiness: 95, contentReadiness: 95, missingMobileCta: false, missingTrust: false, missingFaq: false, missingHomeHero: false, pagesMissingOpening: 0, totalPages: 4 });
+    const incomplete = qualityProfile({ completeness: 95, conversionReadiness: 95, contentReadiness: 95, missingMobileCta: false, missingTrust: false, missingFaq: false, missingHomeHero: false, pagesMissingOpening: 1, totalPages: 4 });
+    expect(incomplete.design).toBeLessThan(complete.design);
+    expect(incomplete.priorities).toContain("design");
+  });
 
 });

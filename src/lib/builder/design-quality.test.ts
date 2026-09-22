@@ -37,4 +37,19 @@ describe("design quality scoring", () => {
     const result = scoreDesignQuality(context);
     expect(result.dimensions.content).toBeLessThan(100);
   });
+  it("penalizes and names a weak secondary page instead of judging home only", () => {
+    const weak = structuredClone(context) as AgentContext;
+    weak.pages.push({
+      id: "about",
+      kind: "about",
+      title: "About",
+      slug: "about",
+      is_visible: true,
+      noindex: false,
+      sections: [{ id: "copy", kind: "copy", sort_order: 0, heading: "A considered approach", subheading: null, body: "Useful business context", components: [] }],
+    } as never);
+    const result = scoreDesignQuality(weak);
+    expect(result.dimensions.structure).toBeLessThan(scoreDesignQuality(context).dimensions.structure);
+    expect(result.gaps).toContain("page:about:opening");
+  });
 });
