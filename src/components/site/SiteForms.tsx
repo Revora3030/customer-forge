@@ -200,9 +200,17 @@ export function QuoteCalculator({ site }: { site: Site }) {
           <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
             <div>
               <p className="eyebrow">Estimated range</p>
-              <p className="tnum mt-1 font-display text-[24px] font-semibold text-primary">
-                {complete ? `${currency(min)} – ${currency(max)}` : "—"}
-              </p>
+              {/* Before the visitor has chosen, an empty dash reads as broken.
+                  Say what is needed instead — never show an invented number. */}
+              {complete ? (
+                <p className="tnum mt-1 font-display text-[24px] font-semibold text-primary">
+                  {currency(min)} – {currency(max)}
+                </p>
+              ) : (
+                <p className="mt-1 text-[13px] text-muted-foreground">
+                  Choose your options to see your price
+                </p>
+              )}
             </div>
             <Button
               variant="signal"
