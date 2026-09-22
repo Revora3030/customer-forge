@@ -21,6 +21,7 @@
  * desktop.
  */
 import type * as React from "react";
+import { readableOn } from "@/lib/readable-color";
 import { safeLinkUrl } from "@/lib/website-content";
 
 /* ------------------------------- device tiers ------------------------------ */
@@ -666,8 +667,14 @@ export function writeComponentVisual(
 
 /* ---------------------------------- to CSS --------------------------------- */
 
-/** Typography, spacing and appearance for the block itself. */
-export function blockCss(style: BlockStyle): React.CSSProperties {
+/**
+ * Typography, spacing and appearance for the block itself.
+ *
+ * `surface` is the colour this block will actually sit on when the block sets
+ * no background of its own (the page or parent section colour). It is used only
+ * to keep the AI's chosen text colour readable — never to change the design.
+ */
+export function blockCss(style: BlockStyle, surface?: string | null): React.CSSProperties {
   const css: React.CSSProperties = {};
   if (style.font) css.fontFamily = FONT_CSS[style.font];
   if (style.size !== null) {
@@ -691,7 +698,7 @@ export function blockCss(style: BlockStyle): React.CSSProperties {
     css.textTransform = style.textTransform;
     (css as Record<string, string | number>)["--rv-block-text-transform"] = style.textTransform;
   }
-  if (style.textColor) css.color = style.textColor;
+  if (style.textColor) css.color = readableTextColor(style, surface);
 
   if (style.padTop !== null) css.paddingTop = `${style.padTop}px`;
   if (style.padRight !== null) css.paddingRight = `${style.padRight}px`;
@@ -724,6 +731,22 @@ export function blockCss(style: BlockStyle): React.CSSProperties {
   return css;
 }
 
+/**
+ * The AI's text colour, kept exactly as chosen when it is readable on the
+ * surface behind it, and nudged along the same hue when it is not.
+ *
+ * Text sitting on a background image is left alone: the scrim system handles
+ * legibility there, and a photo has no single measurable colour.
+ */
+function readableTextColor(style: BlockStyle, surface?: string | null): string {
+  const text = style.textColor ?? "";
+  if (!text || style.bgImage) return text;
+  const background = style.bgColor ?? surface;
+  if (!background) return text;
+  const large = (style.size ?? 16) >= 24 || (style.weight ?? 400) >= 700;
+  return readableOn(text, background, { large });
+}
+
 /** The URL is validated first, then encoded so quotes cannot break out. */
 function backgroundImageCss(style: BlockStyle): string {
   const url = `url("${encodeURI(style.bgImage ?? "").replace(/["\\]/g, "")}")`;
@@ -742,11 +765,26 @@ export function itemsCss(style: BlockStyle): React.CSSProperties {
   return css;
 }
 
-export function buttonCss(style: BlockStyle): React.CSSProperties {
+/**
+ * Button appearance. A button label is the most costly thing on a page to get
+ * wrong, so its colour is paired against the fill it sits on (solid buttons) or
+ * the surface behind it (outline, ghost and link buttons). A solid button with a
+ * chosen fill but no chosen label colour gets a readable label derived from the
+ * fill instead of inheriting a token that may clash.
+ */
+export function buttonCss(style: BlockStyle, surface?: string | null): React.CSSProperties {
   const css: React.CSSProperties = {};
-  if (style.buttonTextColor) css.color = style.buttonTextColor;
-  if (style.buttonBgColor && (style.buttonStyle ?? "solid") === "solid")
-    css.backgroundColor = style.buttonBgColor;
+  const solid = (style.buttonStyle ?? "solid") === "solid";
+  const behind = solid ? (style.buttonBgColor ?? style.bgColor ?? surface) : (style.bgColor ?? surface);
+
+  if (style.buttonTextColor) {
+    css.color = behind
+      ? readableOn(style.buttonTextColor, behind, { large: true })
+      : style.buttonTextColor;
+  } else if (solid && style.buttonBgColor) {
+    css.color = readableOn("#ffffff", style.buttonBgColor, { large: true });
+  }
+  if (style.buttonBgColor && solid) css.backgroundColor = style.buttonBgColor;
   if (style.buttonBgColor && style.buttonStyle === "outline") css.borderColor = style.buttonBgColor;
   return css;
 }
@@ -788,7 +826,7 @@ function declarations(css: React.CSSProperties): string {
  * visibility. Every value came from the validated model above, and the
  * selector is a checked id, so nothing here can carry injected CSS.
  */
-export function blockRules(id: string, settings: unknown): string {
+export function blockRules(id: string, settings: unknown, surface?: string | null): string {
   if (!ID.test(id)) return "";
   const rules: string[] = [];
   const root = rootLayer(settings);
@@ -805,7 +843,13 @@ export function blockRules(id: string, settings: unknown): string {
         only.overlay = merged.overlay;
       }
     }
-    const body = [declarations(blockCss(only)), declarations(itemsCss(only))]
+    // Readability pairing needs the background this device layer ends up with,
+    // not just the one it sets itself, so a mobile-only text colour is still
+    // measured against the desktop background it inherits.
+    const body = [
+      declarations(blockCss(only, merged.bgColor ?? surface)),
+      declarations(itemsCss(only)),
+    ]
       .filter(Boolean)
       .join(";");
     const parts: string[] = [];
@@ -819,9 +863,12 @@ export function blockRules(id: string, settings: unknown): string {
 }
 
 /** One stylesheet for every styled block on a published page. */
-export function styleSheet(blocks: { id: string; settings: unknown }[]): string {
+export function styleSheet(
+  blocks: { id: string; settings: unknown }[],
+  surface?: string | null,
+): string {
   return blocks
-    .map((block) => blockRules(block.id, block.settings))
+    .map((block) => blockRules(block.id, block.settings, surface))
     .filter(Boolean)
     .join("\n");
 }

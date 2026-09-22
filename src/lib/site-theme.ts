@@ -13,6 +13,7 @@
  */
 
 import type { CSSProperties } from "react";
+import { mutedOn } from "@/lib/readable-color";
 
 const HEX = /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i;
 
@@ -88,7 +89,9 @@ export function siteThemeStyle(input: {
     "--secondary": step(light ? 5 : 8),
     "--secondary-foreground": ink,
     "--muted": step(light ? 5 : 8),
-    "--muted-foreground": mix(ink, background, 62),
+    // Supporting copy is softened, then re-measured: "muted" must never mean
+    // "unreadable" on a pale or mid-tone brand surface.
+    "--muted-foreground": mutedOn(ink, background),
     "--border": step(light ? 12 : 14),
     "--input": step(light ? 12 : 14),
     "--sidebar": step(light ? 2 : 3),

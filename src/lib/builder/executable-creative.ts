@@ -106,7 +106,7 @@ export function resolveExecutableCreativeSection(input: {
   hasMedia: boolean;
 }): ExecutableCreativeSection {
   const stored = readExecutableCreativeSection(input.settings);
-  if (stored) return stored;
+  if (stored) return withMediaReality(stored, input.hasMedia);
   const inferred = compileExecutableCreativeSection(input.kind, input.fingerprint, null);
   if (
     input.kind === "hero" &&
@@ -120,5 +120,19 @@ export function resolveExecutableCreativeSection(input: {
       mediaRole: "background",
     };
   }
-  return inferred;
+  return withMediaReality(inferred, input.hasMedia);
+}
+
+/**
+ * A background media role paints light copy over a dark scrim, which only reads
+ * when a picture is actually behind it. Without media the same contract left
+ * near-white headings on a pale page — unreadable. The role is downgraded to a
+ * media-free composition so the section renders in the site's own colours.
+ */
+function withMediaReality(
+  contract: ExecutableCreativeSection,
+  hasMedia: boolean,
+): ExecutableCreativeSection {
+  if (hasMedia || contract.mediaRole !== "background") return contract;
+  return { ...contract, composition: "content-led", mediaRole: "none" };
 }

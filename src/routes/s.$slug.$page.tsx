@@ -162,7 +162,10 @@ export function SitePageView({
         composition={readComposition(site.settings?.generation ?? null)}
       />
       <div className="relative z-[1]">
-        <header className={`rv-site-header rv-header-${campaign?.header ?? "solid"} sticky top-0 z-40 border-b border-border bg-background/85 backdrop-blur`}>
+        {/* The bar is opaque and uses the site's own foreground colour, so the
+            business name stays readable on pale and dark themes alike rather
+            than inheriting whatever colour the section below it chose. */}
+        <header className={`rv-site-header rv-header-${campaign?.header ?? "solid"} sticky top-0 z-40 border-b border-border bg-background text-foreground`}>
           <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3.5">
             <SitePageLink slug={org.slug} className="min-w-0 max-w-40 sm:max-w-none">
               <p className="break-words font-display text-[16px] leading-tight font-semibold">{org.name}</p>
@@ -194,7 +197,10 @@ export function SitePageView({
         </header>
 
         {/* Tablet and phone overrides the client set in the visual builder. */}
-        <ResponsiveStyles sections={site.content!.sections} />
+        <ResponsiveStyles
+          sections={site.content!.sections}
+          surface={profile?.secondary_color ?? null}
+        />
 
         <main>
           {site.content!.sections.map((section) => (
@@ -287,12 +293,20 @@ export function SiteNav({ site, current }: { site: NonNullable<PublicSite>; curr
  * declaration comes from the validated style model and every selector is a
  * checked block id, so nothing a client typed can inject CSS here.
  */
-function ResponsiveStyles({ sections }: { sections: { id: string; settings: unknown; components?: { id: string; settings: unknown }[] }[] }) {
+function ResponsiveStyles({
+  sections,
+  surface = null,
+}: {
+  sections: { id: string; settings: unknown; components?: { id: string; settings: unknown }[] }[];
+  /** The page's surface colour, used to keep per-device text colours readable. */
+  surface?: string | null;
+}) {
   const css = styleSheet(
     sections.flatMap((section) => [
       { id: section.id, settings: section.settings },
       ...(section.components ?? []).map((component) => ({ id: component.id, settings: component.settings })),
     ]),
+    surface,
   );
   if (!css) return null;
   return <style>{css}</style>;
