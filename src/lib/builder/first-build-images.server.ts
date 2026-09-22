@@ -69,7 +69,7 @@ function maxStarterImages() {
 function safeSlot(shot: PlannedShot) {
   if (!SAFE_STARTER_SLOTS.has(shot.slot)) return false;
   if (shot.placement.some((place) => /gallery|proof|testimonial|team/i.test(place))) return false;
-  return !/real team|result|completed work|proof/i.test(`${shot.label} ${shot.purpose}`);
+  return !/result|completed work|proof/i.test(`${shot.label} ${shot.purpose}`);
 }
 
 /**

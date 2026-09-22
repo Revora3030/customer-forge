@@ -58,6 +58,7 @@ function contract(overrides: Partial<AiDesignContract> = {}): AiDesignContract {
         sections: [
           { id: "home-hero-0", role: "hero", layout: "full-bleed", intent: "open strong", media: "required", emphasis: 1 },
           { id: "home-services-1", role: "services", layout: "cards", intent: "show work", media: "optional", emphasis: 2 },
+          { id: "home-cta-2", role: "cta", layout: "closing", intent: "invite action", media: "optional", emphasis: 3 },
         ],
         responsive,
       },
@@ -152,7 +153,10 @@ describe("AI design contract is the only creative authority", () => {
     weak.pages[0]!.sections = [{ id: "home-copy-0", role: "copy", layout: "plain", intent: "filler", media: "none", emphasis: 1 }];
     const result = validateAiDesignContract(weak);
     expect(result.valid).toBe(false);
-    expect(result.violations.map((item) => item.detail).join(" ")).toMatch(/opening.*closing.*visual/i);
+    const details = result.violations.map((item) => item.detail).join(" ");
+    expect(details).toMatch(/opening/i);
+    expect(details).toMatch(/conversion close/i);
+    expect(details).toMatch(/required visual/i);
   });
 });
 
