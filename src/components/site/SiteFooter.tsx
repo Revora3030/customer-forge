@@ -45,7 +45,7 @@ export function SiteFooter({ site }: { site: Site }) {
           </div>
         ) : null}
       </div>
-      <div className="border-t border-border px-4 py-4 text-center text-[12px] text-muted-foreground">
+      <div className="border-t border-border px-4 py-4 text-center text-[13px] text-muted-foreground">
         © {new Date().getFullYear()} {site.org.name}{facts.city ? ` · ${facts.city}` : ""}
       </div>
     </footer>
