@@ -750,7 +750,19 @@ export async function materializeSiteContent(
       throw new Error(`Couldn't clear old pages before rebuilding: ${pageDeleteError.message}`);
   }
 
-  const tree = planSiteContent(input);
+  // The renderer produces safe building blocks; the AI design decides the site.
+  // When a contract is supplied it OVERRIDES the renderer's ordering and page
+  // set, and any visual container the design requires must resolve to a real
+  // picture — otherwise the build fails rather than publishing a blank box.
+  let tree = planSiteContent(input);
+  if (input.designContract) {
+    const applied = applyDesignContract(
+      tree as unknown as MaterialPage[],
+      input.designContract,
+    );
+    assertMediaIntegrity(applied.pages, input.designContract);
+    tree = applied.pages as unknown as typeof tree;
+  }
   const campaign = input.fingerprint && input.creativeBrief
     ? compileSiteCampaign({
         fingerprint: input.fingerprint,
