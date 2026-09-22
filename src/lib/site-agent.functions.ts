@@ -30,6 +30,9 @@ import type { VerificationReport } from "@/lib/agent/verify";
 import type { QaLoopResult } from "@/lib/builder/qa-loop.server";
 
 import { safeLinkUrl } from "@/lib/website-content";
+import { MEDIA_BUCKET, buildObjectPath, isStoragePath } from "@/lib/media";
+import { decodeBase64, encodeBase64, generateImageBase64 } from "@/lib/image-studio.server";
+import { editPaidImage, generatePaidImageBase64 } from "@/lib/ai/paid-image.server";
 import {
   dropUnchangedActions,
   preflightActions,
@@ -88,6 +91,7 @@ type LoadedSite = {
     link_url: string | null;
     sort_order: number;
     is_visible: boolean;
+    media_url: string | null;
   }[];
 };
 
@@ -105,7 +109,7 @@ async function loadSite(supabase: SupabaseLike, orgId: string): Promise<LoadedSi
       .order("sort_order"),
     supabase
       .from("website_components")
-      .select("id, section_id, kind, label, body, link_label, link_url, sort_order, is_visible")
+      .select("id, section_id, kind, label, body, link_label, link_url, media_url, sort_order, is_visible")
       .eq("organization_id", orgId)
       .order("sort_order"),
   ]);
@@ -129,6 +133,7 @@ async function loadSite(supabase: SupabaseLike, orgId: string): Promise<LoadedSi
 /** Minimal shape we use from the request-scoped Supabase client. */
 type SupabaseLike = {
   from: SupabaseClient["from"];
+  storage: SupabaseClient["storage"];
 };
 
 /* --------------------------------- planning -------------------------------- */
@@ -307,6 +312,7 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
                 body: component.body,
                 link_label: component.link_label,
                 link_url: component.link_url,
+                media_url: component.media_url,
                 sort_order: component.sort_order,
               })),
             })),
@@ -1097,6 +1103,102 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
               .eq("organization_id", orgId);
           });
           break;
+        case "generate_component_image": {
+          const current = site.components.find((component) => component.id === action.componentId);
+          let source: { dataUrl: string; mimeType: string } | undefined;
+          if (action.mode === "replace" && current?.media_url && isStoragePath(current.media_url)) {
+            const downloaded = await supabase.storage.from(MEDIA_BUCKET).download(current.media_url);
+            if (!downloaded.error && downloaded.data) {
+              const bytes = new Uint8Array(await downloaded.data.arrayBuffer());
+              source = {
+                dataUrl: encodeBase64(bytes),
+                mimeType: downloaded.data.type?.startsWith("image/") ? downloaded.data.type : "image/png",
+              };
+            }
+          }
+
+          const caller = { organizationId: orgId, userId };
+          const free = await generateImageBase64(
+            action.prompt,
+            caller,
+            source ? { source } : undefined,
+          );
+          const paid = !free.ok
+            ? source
+              ? await editPaidImage(action.prompt, source, caller)
+              : await generatePaidImageBase64(action.prompt, caller, "starter_photo")
+            : null;
+          const image = free.ok ? free : paid?.ok ? paid : null;
+          if (!image) {
+            fatal = new Error(
+              paid && !paid.ok
+                ? paid.message
+                : !free.ok
+                  ? free.message
+                  : "The picture could not be generated.",
+            );
+            failed.push("generate_component_image:generation_failed");
+            break;
+          }
+
+          const bytes = decodeBase64(image.base64);
+          const mime = image.mimeType.split(";")[0] || "image/png";
+          const extension = mime === "image/jpeg" ? "jpg" : mime === "image/webp" ? "webp" : "png";
+          const path = buildObjectPath(orgId, `ai-${action.componentId}.${extension}`);
+          const uploaded = await supabase.storage
+            .from(MEDIA_BUCKET)
+            .upload(path, bytes, { contentType: mime, upsert: false });
+          if (uploaded.error) {
+            fatal = uploaded.error;
+            failed.push("generate_component_image:upload_failed");
+            break;
+          }
+          undoSteps.push({
+            label: "generate_component_image:remove-file",
+            run: async () => {
+              await supabase.storage.from(MEDIA_BUCKET).remove([path]);
+            },
+          });
+
+          const media = await supabase
+            .from("media")
+            .insert({
+              organization_id: orgId,
+              url: path,
+              category: "other",
+              file_name: `ai-${action.componentId}.${extension}`,
+              size_bytes: bytes.byteLength,
+              alt_text: action.alt,
+            } as never)
+            .select("id")
+            .maybeSingle();
+          if (media.error) {
+            await supabase.storage.from(MEDIA_BUCKET).remove([path]);
+            fatal = media.error;
+            failed.push("generate_component_image:media_failed");
+            break;
+          }
+          const mediaId = media.data?.id ? String(media.data.id) : null;
+          if (mediaId)
+            undoSteps.push({
+              label: "generate_component_image:remove-media",
+              run: async () => {
+                await supabase.from("media").delete().eq("id", mediaId).eq("organization_id", orgId);
+              },
+            });
+
+          await run(action.type, () =>
+            supabase
+              .from("website_components")
+              .update({ media_url: path, settings: writeComponentVisual(
+                readColumn("website_components", action.componentId, "settings"),
+                { alt: action.alt, object_fit: "cover", source: "generated" },
+              ) } as never)
+              .eq("id", action.componentId)
+              .eq("organization_id", orgId),
+          );
+          break;
+        }
         case "add_component":
           await run(action.type, async () => {
             const sortOrder = nextComponentSort.get(action.sectionId) ?? 0;

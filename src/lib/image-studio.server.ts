@@ -114,8 +114,8 @@ function unavailable(capability: ImageCapability): GeneratedImage {
 
 /**
  * Generates (or edits) one picture. `blocked: true` means free picture making is
- * genuinely unavailable right now and the caller should show its deterministic
- * fallback artwork instead — never a claim that a picture was made.
+ * genuinely unavailable right now and the caller must preserve the existing
+ * image or block a required media slot — never claim a picture was made.
  */
 export async function generateImageBase64(
   prompt: string,

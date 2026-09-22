@@ -4,7 +4,8 @@
  * Generates starter website photography only after the normal creative brief has
  * chosen real image slots. Owner uploads always win. If the free picture service
  * is missing, blocked, over budget or returns a bad asset, this module returns a
- * precise evidence report and the site keeps its deterministic abstract artwork.
+ * precise evidence report. Required media is then blocked by the materializer;
+ * it is never replaced by deterministic abstract artwork.
  *
  * Generated starter images are never treated as proof of the business's real
  * work, team, awards or results. They are saved with provenance and attached to
@@ -140,7 +141,7 @@ export async function generateFirstBuildImages(
     return {
       assets: [],
       evidence: {
-        status: ownerCovered ? "owner_photos" : "fallback_artwork",
+        status: ownerCovered ? "owner_photos" : "blocked",
         requested: shots.length,
         generated: 0,
         attached: 0,
@@ -149,7 +150,7 @@ export async function generateFirstBuildImages(
         models: [],
         message: ownerCovered
           ? "Owner-supplied photos cover the available picture roles."
-          : "No safe first-build picture slots were available, so Revora used abstract artwork.",
+          : "No safe first-build picture slots were available. Required picture areas cannot be published until a real image is available.",
       },
     };
   }
@@ -290,10 +291,10 @@ export async function generateFirstBuildImages(
   }
 
   // Quality gate: a picture that is unsafe for its slot, undescribed, unstored or
-  // duplicated never reaches the website. That slot keeps Revora's own artwork.
+  // duplicated never reaches the website. Required slots fail materialization.
   const graded = gradeFirstBuildImages(assets);
   const kept = graded.accepted;
-  const status = kept.length ? "generated" : skipped.length || graded.rejected.length ? "fallback_artwork" : "failed";
+  const status = kept.length ? "generated" : skipped.length || graded.rejected.length ? "blocked" : "failed";
   const laneLabel = source === "paid" ? "paid backup picture service" : "free picture service";
 
   return {
@@ -313,12 +314,12 @@ export async function generateFirstBuildImages(
       message: kept.length
         ? `Made ${kept.length} starter website picture(s) with the ${laneLabel}.${
             graded.rejected.length
-              ? ` ${graded.rejected.length} more were rejected by the picture check and those spots kept Revora's own artwork.`
+              ? ` ${graded.rejected.length} more were rejected by the picture check and were not attached.`
               : ""
           }`
         : (firstBlockedMessage ??
           graded.rejected[0]?.reason ??
-          "Starter picture making did not complete, so Revora used its own artwork."),
+          "Starter picture making did not complete. Required picture areas were blocked instead of receiving placeholder artwork."),
     },
   };
 }

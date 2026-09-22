@@ -39,7 +39,7 @@ function statusLine(report: StarterImageReport | null) {
         report.source === "paid" ? " (made with the paid backup service)" : ""
       }.`,
     };
-  return { tone: "attention" as const, text: report.message || "Revora used its own artwork instead of pictures." };
+  return { tone: "attention" as const, text: report.message || "Required pictures were not produced, so no placeholder artwork was inserted." };
 }
 
 /**
@@ -48,7 +48,7 @@ function statusLine(report: StarterImageReport | null) {
  *
  * Shows the truth about the pictures Revora put on the website at build time —
  * whether they were made, blocked, rejected by the picture check, or replaced by
- * Revora's own artwork — and lets the owner make another one, swap in their own
+ * blocked — and lets the owner make another one, swap in their own
  * photo, or take it off entirely.
  *
  * Starter pictures are never presented as photos of real work, staff or results.
@@ -113,7 +113,7 @@ export function StarterImages({
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success("Starter picture removed. That spot now uses Revora's own artwork.");
+      toast.success("Starter picture removed. Picture-led areas now need another real image.");
       invalidate();
     },
     onError: (error: Error) => toast.error(friendlyError(error)),
@@ -211,7 +211,7 @@ export function StarterImages({
             ? "Your photos"
             : report && report.attached > 0
               ? "Starter pictures"
-              : "Revora artwork"}
+              : "Pictures blocked"}
         </Pill>
       </div>
 

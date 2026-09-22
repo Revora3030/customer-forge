@@ -27,8 +27,6 @@ import { safeLinkUrl } from "@/lib/website-content";
 import { readSectionEffect, sectionEffectClass } from "@/lib/site-effects";
 import { businessFacts, factsAddressLine } from "@/lib/builder/facts";
 import { phoneDisplay, phoneLink, safeParagraph, safeText } from "@/lib/builder/presentation";
-import { DecorativeArt } from "@/components/site/DecorativeArt";
-import { generateArtwork } from "@/lib/media/generative-art";
 import {
   createDesignFingerprint,
   readDesignFingerprint,
@@ -39,23 +37,6 @@ import { resolveExecutableCreativeSection } from "@/lib/builder/executable-creat
 type Site = NonNullable<PublicSite>;
 type Section = NonNullable<Site["content"]>["sections"][number];
 type Component = NonNullable<Section["components"]>[number];
-
-/**
- * Artwork for this website, taken from its stored design identity when one
- * exists and otherwise derived from the business itself. Deterministic, so the
- * same site always looks the same between visits and rebuilds.
- */
-function siteArtwork(site: Site) {
-  const settings = (site as { settings?: { generation?: unknown } | null }).settings ?? null;
-  const profile = (site.profile ?? null) as { industry?: string | null; city?: string | null } | null;
-  const stored = readDesignFingerprint(settings?.generation);
-  const fingerprint = stored ?? createDesignFingerprint({
-    businessName: site.org?.name ?? null,
-    industry: profile?.industry ?? null,
-    city: profile?.city ?? null,
-  });
-  return generateArtwork(fingerprint.decorativeSystem, fingerprint.seed);
-}
 
 export function siteDesignFingerprint(site: Site): DesignFingerprint {
   const settings = (site as { settings?: { generation?: unknown } | null }).settings ?? null;
@@ -210,13 +191,10 @@ function SectionFeatureMedia({ site, section, className = "" }: { site: Site; se
   const component = section.components.find(
     (item) => IMAGE_COMPONENT_KINDS.has(item.kind) && componentImageUrl(item),
   );
-  if (!component) {
-    return (
-      <div className={`rv-feature-art overflow-hidden border border-border bg-card/40 ${className}`} aria-hidden="true">
-        <DecorativeArt spec={siteArtwork(site)} className="h-full min-h-72 w-full" />
-      </div>
-    );
-  }
+  // A missing picture never becomes synthetic template artwork. The AI design
+  // contract either marks media optional (omit it cleanly) or the media gate
+  // blocks the build before this page can be published.
+  if (!component) return null;
   const visual = readComponentVisual((component as Component & { settings?: unknown }).settings);
   const src = componentImageUrl(component);
   if (!src) return null;
@@ -325,7 +303,6 @@ function SiteSectionBody({ site, section }: { site: Site; section: Section }) {
   const rating = reviews.length
     ? reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length
     : null;
-  const heroArtwork = siteArtwork(site);
   const heroImage = components.find((component) => component.kind === "hero_image" && componentImageUrl(component));
   const heroImageVisual = heroImage
     ? readComponentVisual((heroImage as Component & { settings?: unknown }).settings)
@@ -350,7 +327,7 @@ function SiteSectionBody({ site, section }: { site: Site; section: Section }) {
                 {rating.toFixed(1)} ★ · {reviews.length} reviews
               </Pill>
             ) : null}
-            <div className="rv-hero-grid mt-6">
+            <div className={`rv-hero-grid mt-6 ${profile?.hero_image_url || heroImageSrc ? "" : "rv-hero-grid-text-only"}`}>
               <div className="rv-hero-copy">
                 <h1 className="max-w-3xl font-display text-[34px] leading-[1.06] font-semibold tracking-tight lg:text-[46px]">
                   {section.heading ?? org.name}
@@ -394,14 +371,7 @@ function SiteSectionBody({ site, section }: { site: Site; section: Section }) {
                   />
                   {heroImageVisual ? <MediaCredit visual={heroImageVisual} /> : null}
                 </figure>
-              ) : (
-                // No photo supplied: show artwork generated from this site's own
-                // design identity rather than an empty frame. It is abstract and
-                // makes no claim about the business.
-                <div className="rv-hero-media overflow-hidden rounded-2xl border border-border bg-card/40">
-                  <DecorativeArt spec={heroArtwork} className="h-full min-h-64 w-full" />
-                </div>
-              )}
+              ) : null}
             </div>
           </div>
         </section>

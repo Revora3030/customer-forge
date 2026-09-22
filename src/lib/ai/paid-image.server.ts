@@ -16,7 +16,7 @@
  *     text lane (default $20/month, enforced in our own database), settled after
  *     the call and written to the usage ledger,
  *  5. no auto-top-up and no silent overage: once the cap binds, the answer is a
- *     precise blocked reason and the caller keeps its own artwork,
+ *     precise blocked reason and the caller keeps the existing picture,
  *  6. availability is PROVEN against the account, never assumed from a model name:
  *     a model the project cannot reach is reported as a blocker, not a fallback.
  *
@@ -221,7 +221,7 @@ export async function paidImageCapability(): Promise<PaidImageCapability> {
     available,
     message: available
       ? `Premium pictures are available inside the monthly spending cap of ${formatUsd(lunaMonthlyCapMicrocents())}.`
-      : "The premium picture models are not enabled on the connected account yet, so Revora uses the free service and its own artwork.",
+      : "The premium picture models are not enabled on the connected account yet, so Revora can only use the free service.",
     tiers,
   };
 }
@@ -251,7 +251,7 @@ export async function generatePaidImage(
     return {
       ok: false,
       reason: "no_key",
-      message: "Premium picture making is not connected, so Revora used its own artwork instead.",
+      message: "Premium picture making is not connected, so no premium picture was generated.",
     };
 
   const plan = planImageWork(job.purpose);
@@ -274,7 +274,7 @@ export async function generatePaidImage(
     return {
       ok: false,
       reason: "model_unavailable",
-      message: `The premium picture model is not available yet (${probe.detail}), so Revora used its own artwork instead. Nothing was charged.`,
+      message: `The premium picture model is not available yet (${probe.detail}), so no picture was generated. Nothing was charged.`,
     };
 
   const model = paidImageTierModel(plan.tier);
@@ -285,7 +285,7 @@ export async function generatePaidImage(
       ok: false,
       reason: "ledger_unavailable",
       message:
-        "Revora could not confirm the picture spending cap, so no paid picture was made and its own artwork was used.",
+        "Revora could not confirm the picture spending cap, so no paid picture was made.",
     };
   if (!reservation.allowed) {
     await recordUsage({
@@ -300,7 +300,7 @@ export async function generatePaidImage(
     return {
       ok: false,
       reason: "budget_exhausted",
-      message: `This month's ${formatUsd(reservation.cap)} picture and AI allowance is used up, so Revora used its own artwork instead. Nothing extra was charged.`,
+      message: `This month's ${formatUsd(reservation.cap)} picture and AI allowance is used up, so no picture was generated. Nothing extra was charged.`,
     };
   }
 
@@ -370,7 +370,7 @@ export async function generatePaidImage(
       ok: false,
       reason: "provider_error",
       message:
-        "The premium picture service did not return a picture, so Revora used its own artwork instead. Nothing was charged for it.",
+        "The premium picture service did not return a picture. Nothing was charged for it.",
     };
   }
 }

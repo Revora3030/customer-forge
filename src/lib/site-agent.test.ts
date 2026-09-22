@@ -59,6 +59,20 @@ describe("building a page and filling it in one plan", () => {
     expect(actions[5]).toMatchObject({ componentId: "temp_component" });
   });
 
+  it("accepts a real AI image request only for a known component", () => {
+    const actions = readActions(
+      [{
+        type: "generate_component_image",
+        componentId: "component-1",
+        prompt: "Cinematic close-up of a technician carefully detailing a premium vehicle interior",
+        alt: "Technician detailing a vehicle interior",
+        mode: "replace",
+      }],
+      { ...known, componentIds: new Set(["component-1"]) },
+    );
+    expect(actions).toEqual([expect.objectContaining({ type: "generate_component_image", mode: "replace" })]);
+  });
+
   it("drops references used before they are declared", () => {
     const actions = readActions(
       [

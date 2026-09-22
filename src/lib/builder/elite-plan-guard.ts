@@ -35,6 +35,7 @@ function key(action: AgentAction): string {
       return `${action.type}:${action.sectionId}`;
     case "set_component":
     case "set_component_visual":
+    case "generate_component_image":
     case "delete_component":
       return `${action.type}:${action.componentId}`;
     case "add_section":

@@ -29,6 +29,21 @@ describe("site-agent atomic journal coverage", () => {
     });
   });
 
+  it("journals generated image attachment so rollback restores the prior component", () => {
+    const action: AgentAction = {
+      type: "generate_component_image",
+      componentId: "component-1",
+      prompt: "Cinematic automotive detailing photograph with controlled studio lighting",
+      alt: "Detailer working on a vehicle",
+      mode: "replace",
+    };
+    expect(targetOf(action)).toEqual({
+      kind: "update",
+      table: "website_components",
+      id: "component-1",
+    });
+  });
+
   it("journals component reordering as a multi-row update", () => {
     const action: AgentAction = {
       type: "reorder_components",
