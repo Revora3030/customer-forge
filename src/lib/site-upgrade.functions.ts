@@ -20,7 +20,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { MotionIntensity } from "@/lib/builder/motion-pack";
 import { planWebsiteChangesWithAi } from "@/lib/builder/ai-agent-plan.server";
-import { applyWebsiteActions, loadAgentContext } from "@/lib/site-agent.functions";
+import { applyWebsiteActions, loadAgentContext, runAiWebsiteUpgrade } from "@/lib/site-agent.functions";
 import {
   parseVisionReview,
   visionRepairs,
@@ -48,39 +48,6 @@ async function requireManager(supabase: SupabaseLike, organizationId: string, us
     throw new Error("Only an owner, admin or manager can change the website.");
   }
   return role;
-}
-
-async function runAiWebsiteUpgrade(input: {
-  supabase: SupabaseLike;
-  organizationId: string;
-  userId: string;
-  instruction: string;
-  label: string;
-}) {
-  const context = await loadAgentContext(input.supabase as import("@/lib/site-agent.functions").SupabaseLike, input.organizationId);
-  const plan = await planWebsiteChangesWithAi({
-    organizationId: input.organizationId,
-    instruction: input.instruction,
-    history: [],
-    context,
-    attachments: [],
-  });
-  if (!plan.ok) {
-    throw new Error(
-      "The AI design team could not complete this website change (" +
-        plan.reason +
-        (plan.detail ? ": " + plan.detail : "") +
-        "). Nothing was changed.",
-    );
-  }
-  const applied = await applyWebsiteActions(input.supabase as import("@/lib/site-agent.functions").SupabaseLike, input.userId, {
-    organizationId: input.organizationId,
-    actions: plan.actions,
-    label: input.label,
-    verify: true,
-    operationKey: crypto.randomUUID(),
-  });
-  return { plan, applied };
 }
 
 /* ------------------------------------------------------------- motion pack */
@@ -132,7 +99,7 @@ export const applyMotionPack = createServerFn({ method: "POST" })
       intensity,
       changed: run.applied.applied,
       summary: run.plan.summary,
-      restorePointId: String((run.applied as { snapshotId?: string | null }).snapshotId ?? ""),
+      restorePointId: String((run.applied as { snapshotId?: string | null }).snapshotId ?? "") || null,
       undo: null,
     };
   });
@@ -167,8 +134,23 @@ export const applyStoryPass = createServerFn({ method: "POST" })
       label: "AI story links",
       instruction: "Improve cross-page navigation and narrative flow across the whole website. Do not force a home/CTA/page-order template. The page architecture is the AI's creative decision for this business. Only change or add the links and buttons needed for that journey; preserve verified business facts and existing copy unless a link label must change.",
     });
-    const details = (run.applied.details ?? []) as string[];
-    const linksWritten = details.filter((item) => /button|link|navigation/i.test(item)).length;
+    const appliedActions = ((run.applied as { appliedActions?: unknown[] }).appliedActions ?? []) as Array<Record<string, unknown>>;
+    const linksWritten = appliedActions.filter((action) => {
+      if (action["type"] === "set_component") {
+        const patch = action["patch"];
+        return Boolean(
+          patch &&
+          typeof patch === "object" &&
+          ("link_url" in (patch as Record<string, unknown>) || "link_label" in (patch as Record<string, unknown>)),
+        );
+      }
+      if (action["type"] === "add_component") {
+        const kind = String(action["kind"] ?? "").toLowerCase();
+        return ["button", "nav", "navigation"].some((value) => kind.includes(value)) &&
+          Boolean(action["link_url"] || action["link_label"]);
+      }
+      return false;
+    }).length;
     return {
       ok: true,
       order: [],
