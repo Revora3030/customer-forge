@@ -128,8 +128,13 @@ describe("tier routing", () => {
 });
 
 describe("credential and opt-in gating", () => {
-  it("offers no tier at all by default", () => {
+  it("offers every tier by default when the key is present", () => {
     delete process.env["LUNA_ENABLED"];
+    expect(availableTiers()).toEqual(["sol", "terra", "luna"]);
+  });
+
+  it("offers no tier when an operator switches the lane off", () => {
+    process.env["LUNA_ENABLED"] = "false";
     expect(availableTiers()).toEqual([]);
   });
 
@@ -157,7 +162,7 @@ describe("credential and opt-in gating", () => {
   });
 
   it("never calls a paid model when the paid lane is off", async () => {
-    delete process.env["LUNA_ENABLED"];
+    process.env["LUNA_ENABLED"] = "false";
     const result = await callCollective({
       purpose: "creative_direction",
       system: "s",
