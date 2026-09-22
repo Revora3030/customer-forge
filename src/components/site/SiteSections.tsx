@@ -487,7 +487,7 @@ function SiteSectionBody({ site, section }: { site: Site; section: Section }) {
                   <SitePageLink
                     slug={org.slug}
                     page={item.href.slice(1)}
-                    className="mt-3 text-[13px] text-primary underline"
+                    className="mt-3 inline-flex min-h-11 items-center text-[13px] text-primary underline"
                   >
                     See details
                   </SitePageLink>

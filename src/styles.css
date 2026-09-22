@@ -2022,6 +2022,25 @@ a[href*="lovable.app"][target="_blank"][class*="fixed"],
   min-height: 12rem;
 }
 
+/* Phone-sized touch targets on a customer website. Navigation, footer and
+   call-to-action links are what a visitor taps with a thumb, so they get a real
+   44px target instead of a 20px line of text. Inline links inside prose are
+   deliberately left alone: growing them would break the flow of a sentence. */
+@media (max-width: 480px) {
+  .rv-site nav a,
+  .rv-site-footer a,
+  .rv-site a[data-rv-tap="cta"],
+  .rv-site .rv-nav-link {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+  }
+  .rv-site a[data-slot="button"],
+  .rv-site button[data-slot="button"] {
+    min-height: 44px;
+  }
+}
+
 .rv-image-cinematic .rv-media-frame,
 .rv-image-full_bleed .rv-media-frame {
   box-shadow: 0 28px 80px -40px rgb(0 0 0 / 0.65);
