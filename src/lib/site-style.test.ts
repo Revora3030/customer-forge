@@ -119,7 +119,7 @@ describe("AI-authored visual capabilities", () => {
         maskImage: "linear-gradient(#000,#000)",
       },
     });
-    expect(css["--rv-orbit-angle"]).toBe("18deg");
+    expect((css as Record<string, unknown>)["--rv-orbit-angle"]).toBe("18deg");
     expect(css.maskImage).toBe("linear-gradient(#000,#000)");
   });
 
