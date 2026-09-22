@@ -79,22 +79,19 @@ describe("planSiteContent", () => {
     expect(bare.map((page) => page.slug)).not.toContain("pricing");
   });
 
-  it("gives every first-build section a visible, industry-specific design contract", () => {
+  it("applies no house layout of its own when there is no authored identity", () => {
     const direction = DESIGN_DIRECTIONS.find((item) => item.id === "coastal-blue");
     expect(direction).toBeTruthy();
     const hero = materializedSectionDesign("hero", direction);
     const services = materializedSectionDesign("services", direction);
-    expect(hero.variant).toMatch(/^hero-/);
-    expect(hero.settings).toMatchObject({
-      effect: direction?.heroEffect,
-      visual: { layout: "layered", max_width: "wide", image_treatment: "rounded" },
-    });
-    expect(services.variant).toMatch(/^cards-/);
-    expect(services.settings).toMatchObject({
-      effect: direction?.bodyEffect,
-      visual: { layout: "editorial", card_style: "soft" },
-    });
+    expect(hero.variant).toBe("default");
+    expect(services.variant).toBe("default");
+    expect(hero.settings).toMatchObject({ effect: direction?.heroEffect });
+    expect(services.settings).toMatchObject({ effect: direction?.bodyEffect });
+    expect((hero.settings as { visual?: unknown }).visual).toBeUndefined();
+    expect((services.settings as { visual?: unknown }).visual).toBeUndefined();
   });
+
 
   it("turns the full fingerprint into materially different rendered contracts", () => {
     const direction = DESIGN_DIRECTIONS.find((item) => item.id === "coastal-blue");
