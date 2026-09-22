@@ -431,7 +431,7 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
     // request types do not bypass the same creative authority.
     const { planWebsiteChangesWithAi } = await import("@/lib/builder/ai-agent-plan.server");
 
-    let raw: Record<string, unknown>;
+    const raw: Record<string, unknown> = {};
     let requirements: { label: string; covered: boolean }[] = [];
     let trace: string[] = [];
     let planModel = "revora-ai";
@@ -479,13 +479,13 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
     planModel = authored.reviewModel
       ? authored.model + "+" + authored.reviewModel
       : authored.model;
-    raw = {
+    Object.assign(raw, {
       reply: authored.reply,
       summary: authored.summary,
       actions: authored.actions,
       questions: authored.questions,
       notes: authored.notes,
-    };
+    });
 
 
     const allSections = agentContext.pages.flatMap((page) =>
