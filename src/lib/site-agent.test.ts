@@ -135,6 +135,80 @@ describe("building a page and filling it in one plan", () => {
     });
   });
 
+  it("fills missing picture slots across pages without replacing an existing picture", () => {
+    const actions = pictureActionsFor(
+      {
+        business: { name: "Supreme Detailing", industry: "auto detailing" },
+        pages: [{
+          id: "page-home",
+          slug: "home",
+          title: "Home",
+          kind: "home",
+          is_visible: true,
+          sections: [
+            {
+              id: "section-hero",
+              kind: "hero",
+              heading: "Mobile detailing",
+              is_visible: true,
+              components: [{ id: "existing-picture", kind: "hero_image" }],
+            },
+            {
+              id: "section-services",
+              kind: "services",
+              heading: "Detailing services",
+              is_visible: true,
+              components: [],
+            },
+          ],
+        }],
+      } as never,
+      "Add pictures to all pages",
+    );
+
+    expect(actions).toHaveLength(2);
+    expect(actions[0]).toMatchObject({
+      type: "add_component",
+      sectionId: "section-services",
+    });
+    expect(actions[1]).toMatchObject({
+      type: "generate_component_image",
+      mode: "create",
+    });
+    expect(actions).not.toContainEqual(expect.objectContaining({ componentId: "existing-picture" }));
+  });
+
+  it("replaces an existing picture only when the request explicitly asks for replacement", () => {
+    const actions = pictureActionsFor(
+      {
+        business: { name: "Supreme Detailing", industry: "auto detailing" },
+        pages: [{
+          id: "page-home",
+          slug: "home",
+          title: "Home",
+          kind: "home",
+          is_visible: true,
+          sections: [{
+            id: "section-hero",
+            kind: "hero",
+            heading: "Mobile detailing",
+            is_visible: true,
+            components: [{ id: "existing-picture", kind: "hero_image" }],
+          }],
+        }],
+      } as never,
+      "Replace the hero picture",
+    );
+
+    expect(actions).toEqual([
+      expect.objectContaining({
+        type: "generate_component_image",
+        componentId: "existing-picture",
+        mode: "replace",
+      }),
+    ]);
+  });
+
   it("drops references used before they are declared", () => {
     const actions = readActions(
       [
