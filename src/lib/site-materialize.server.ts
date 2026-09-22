@@ -110,6 +110,12 @@ export type MaterializeInput = {
    * container fails the build instead of shipping a blank box.
    */
   designContract?: AiDesignContract | null;
+  /**
+   * Lets the AI author the page architecture. It receives the architecture the
+   * renderer can fill and returns its own page set, section selection and
+   * order. Returning null keeps the renderer's candidate — nothing is invented.
+   */
+  architect?: (candidate: PageArchitecture[]) => Promise<PageArchitecture[] | null>;
 };
 
 type Component = {
