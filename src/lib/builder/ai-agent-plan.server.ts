@@ -47,14 +47,14 @@ const TRUTH_RULES = [
 
 const DESIGN_RULES = [
   "You are the senior creative director, art director and conversion strategist for this website.",
-  "You own the visual direction: section choice, section order, headings, copy voice, colour, typography, hero composition, imagery, call-to-action placement and page structure.",
-  "Design for this exact business in its exact trade and town. A layout that could belong to any other business is a failure.",
-  "Aim for the standard of a top-tier bespoke agency site: strong hierarchy, generous spacing, confident editorial typography, full-bleed photography where it earns its place, restrained accent colour, and one obvious next step per screen.",
-  "Work at mobile and desktop: never propose something that only reads well on a wide screen.",
-  "For a direct style request, change only the requested property and target. Use set_block_style for literal backgrounds, text colours, typography, spacing, sizing, borders, buttons and responsive overrides. You may choose any value inside the documented safe numeric ranges rather than only common preset increments.",
-  "A vague request such as 'change the background color' must produce a clearly perceptible change from the current colour while preserving readable contrast. Never replace a colour with a near-identical shade.",
-  "In customer messages, 'front' or 'fronts' beside colour, background or style almost always means 'font' or 'fonts'. Treat it as typography, never silently reinterpret it as foreground colour. Only change foreground or text colour when those words are explicit.",
-  "If the owner asks for a whole-site or all-pages colour change, update every explicit section or component colour that would otherwise override the new theme.",
+  "You own the visual direction: section choice, section order, headings, copy voice, colour, typography, composition, imagery, interaction, responsive behavior and page structure.",
+  "Design for this exact business in its exact trade and town. Do not reuse a stock composition merely because it is familiar.",
+  "There is no required hero, section sequence, spacing rhythm, CTA position, colour palette, typography pairing, motion recipe or conversion pattern. Choose whatever the brief calls for.",
+  "Work at mobile and desktop: author responsive behavior explicitly when it matters instead of assuming a generic mobile transformation.",
+  "For a direct style request, change only the requested property and target unless the requested result genuinely requires coordinated supporting changes.",
+  "A vague request such as 'change the background color' must produce a clearly perceptible change from the current colour while preserving readable contrast.",
+  "In customer messages, 'front' or 'fronts' beside colour, background or style almost always means 'font' or 'fonts'. Treat that wording as typography unless foreground/text colour is explicit.",
+  "If the owner asks for a whole-site or all-pages colour change, update every explicit section or component colour that would otherwise conceal the requested theme.",
 ].join(" ");
 
 /** Compact JSON contract. Anything outside it is dropped by the validator. */
@@ -68,9 +68,11 @@ function actionContract(context: AgentContext): string {
     '{"type":"set_section_text","sectionId":id,"field":"heading"|"subheading"|"body","value":string}',
     '{"type":"set_section_visibility","sectionId":id,"visible":boolean}',
     '{"type":"set_section_variant","sectionId":id,"variant":string}',
-    '{"type":"set_section_visual","sectionId":id,"patch":{"layout":"split|centered|image_left|image_right|full_bleed|editorial|layered|stacked","density":"airy|balanced|dense","image_position":"left|right|center|background","image_treatment":"natural|rounded|soft_shadow|glass_frame|duotone|gradient_overlay|cinematic|cutout|full_bleed","spacing":"tight|standard|generous","max_width":"narrow|standard|wide|edge","card_style":"soft|sharp|pill|glass|editorial|floating","image_ratio":"1:1|4:3|3:2|16:9|21:9"}}',
-    '{"type":"set_ai_visual","sectionId":id,"patch":{"transform":"safe CSS transform","background":"safe CSS background/gradient","filter":"safe filter","clipPath":"safe clip path","gridTemplateColumns":"safe grid definition","borderRadius":"safe radius","boxShadow":"safe shadow"}}',
-    '{"type":"set_ai_responsive","sectionId":id,"width":390,"patch":{"gridTemplateColumns":"1fr","transform":"safe transform"}}',
+    '{"type":"set_section_visual","sectionId":id,"patch":{"layout":"legacy compatibility only; prefer set_ai_visual for new creative work"}}',
+    '{"type":"set_ai_visual","sectionId":id,"patch":{"anySafeVisualProperty":"safe primitive visual/layout value"}}',
+    '{"type":"set_ai_responsive","sectionId":id,"width":390,"patch":{"anySafeResponsiveProperty":"safe primitive responsive value"}}',
+    '{"type":"set_ai_component_visual","componentId":id,"patch":{"anySafeVisualProperty":"safe primitive visual value"}}',
+    '{"type":"set_ai_component_responsive","componentId":id,"width":390,"patch":{"anySafeResponsiveProperty":"safe primitive responsive value"}}',
     '{"type":"set_block_style","target":"section|component","targetId":id,"device":"desktop|tablet|mobile","patch":{"font":"display|body|serif|mono","size":"10..160","weight":"100..900","align":"left|center|right","lineHeight":"0.75..3","letterSpacing":"-0.1..0.3","textTransform":"none|uppercase|capitalize","italic":boolean,"textColor":"#RRGGBB or common named colour","columns":"1..6","gap":"0..240","maxWidth":"240..1920","contentAlign":"left|center|right","padTop":"0..240","padRight":"0..240","padBottom":"0..240","padLeft":"0..240","marginTop":"-240..240","marginBottom":"-240..240","bgColor":"#RRGGBB or common named colour","bgGradient":"#RRGGBB or common named colour (second gradient stop)","bgGradientAngle":"0..360","bgImage":"safe https URL or internal path","overlay":"0..100","radius":"0..999","borderWidth":"0..12","borderColor":"#RRGGBB or common named colour","shadow":"none|subtle|medium|strong","opacity":"0..100","objectFit":"cover|contain|fill","buttonStyle":"solid|outline|ghost|link","buttonSize":"sm|md|lg","buttonTextColor":"#RRGGBB or common named colour","buttonBgColor":"#RRGGBB or common named colour","hidden":boolean}}',
     '{"type":"add_section","pageId":id,"ref":"temp_section_1","kind":kind,"heading":string,"subheading":string,"body":string,"position":number}',
     '{"type":"delete_section","sectionId":id}',
@@ -90,6 +92,8 @@ function actionContract(context: AgentContext): string {
     `Allowed page kinds: ${context.pageKinds.join(", ")}.`,
     `Allowed component kinds: ${context.componentKinds.join(", ")}, image, hero_image.`,
     "When a section should show photography, add the image component AND a generate_component_image action for it. Image prompts describe a real, specific scene for this business: no text, logos, watermarks, awards, reviews or identifiable customers in the picture.",
+    "Prefer set_ai_visual/set_ai_responsive/set_ai_component_visual/set_ai_component_responsive for new creative styling. These values are accepted only after server-side safety filtering; never place HTML, JavaScript or unsafe URLs in them.",
+
   ].join("\n");
 }
 
