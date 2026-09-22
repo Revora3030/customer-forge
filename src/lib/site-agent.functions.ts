@@ -133,6 +133,7 @@ async function loadSite(supabase: SupabaseLike, orgId: string): Promise<LoadedSi
 /** Minimal shape we use from the request-scoped Supabase client. */
 type SupabaseLike = {
   from: SupabaseClient["from"];
+  storage: SupabaseClient["storage"];
 };
 
 /* --------------------------------- planning -------------------------------- */
@@ -1177,11 +1178,12 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
             failed.push("generate_component_image:media_failed");
             break;
           }
-          if (media.data?.id)
+          const mediaId = media.data?.id ? String(media.data.id) : null;
+          if (mediaId)
             undoSteps.push({
               label: "generate_component_image:remove-media",
               run: async () => {
-                await supabase.from("media").delete().eq("id", media.data.id).eq("organization_id", orgId);
+                await supabase.from("media").delete().eq("id", mediaId).eq("organization_id", orgId);
               },
             });
 
@@ -1190,7 +1192,7 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
               .from("website_components")
               .update({ media_url: path, settings: writeComponentVisual(
                 readColumn("website_components", action.componentId, "settings"),
-                { media_url: path, alt: action.alt, object_fit: "cover" },
+                { alt: action.alt, object_fit: "cover", source: "generated" },
               ) } as never)
               .eq("id", action.componentId)
               .eq("organization_id", orgId),

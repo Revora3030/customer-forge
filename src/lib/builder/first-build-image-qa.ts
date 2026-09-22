@@ -100,13 +100,13 @@ export function gradeFirstBuildImages(assets: FirstBuildImageAsset[]): ImageQaOu
 
 export type ImageRepairStep =
   | { action: "retry_picture"; slot: string; label: string; reason: string }
-  | { action: "use_own_artwork"; slot: string; label: string; reason: string }
+  | { action: "block_required_media"; slot: string; label: string; reason: string }
   | { action: "ask_owner_photo"; slot: string; label: string; reason: string };
 
 /**
  * Turns picture problems into the same kind of repair steps the visual loop
- * already runs, so a blocked or rejected starter picture is retried, replaced by
- * Revora's own artwork, or handed back to the owner — never silently dropped.
+ * already runs, so a blocked or rejected starter picture is retried, blocks a
+ * required slot, or is handed back to the owner — never silently replaced.
  */
 export function imageRepairPlan(input: {
   rejected: ImageQaFinding[];
@@ -120,7 +120,7 @@ export function imageRepairPlan(input: {
     } else if (/own photos|own work/i.test(item.reason)) {
       steps.push({ action: "ask_owner_photo", slot: item.slot, label: item.label, reason: item.reason });
     } else {
-      steps.push({ action: "use_own_artwork", slot: item.slot, label: item.label, reason: item.reason });
+      steps.push({ action: "block_required_media", slot: item.slot, label: item.label, reason: item.reason });
     }
   }
 
