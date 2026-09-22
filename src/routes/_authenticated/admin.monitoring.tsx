@@ -44,7 +44,7 @@ function AdminMonitoring() {
   const data = feed.data;
 
   return (
-    <div className="space-y-4">
+    <div className="product-page">
       <SectionHeading
         title="Monitoring & alerts"
         description="Every server crash, failed API call, webhook error and background job failure recorded in the last 7 days."
