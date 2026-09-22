@@ -176,6 +176,56 @@ function runConversionChecks(context: AgentContext, findings: BrowserQaFinding[]
   return paths;
 }
 
+/**
+ * READABILITY. Every chosen text colour is measured against the colour it will
+ * actually sit on, at every device size. A washed-out heading on a pale surface
+ * is a defect the review loop must see, not a taste question.
+ */
+function runReadabilityChecks(
+  context: AgentContext,
+  surface: string | null,
+  findings: BrowserQaFinding[],
+): void {
+  const check = (
+    pageId: string,
+    sectionId: string,
+    settings: unknown,
+    label: string,
+    background: string | null,
+  ): string | null => {
+    let ownBackground = background;
+    for (const device of DEVICES) {
+      const style = readBlockStyle(settings, device);
+      if (style.bgColor) ownBackground = style.bgColor;
+      // Text over a photograph is handled by the darkening layer, not here.
+      if (style.bgImage) continue;
+      const text = style.textColor;
+      const behind = style.bgColor ?? background;
+      if (!text || !behind) continue;
+      const large = (style.textSize ?? 16) >= 24 || (style.fontWeight ?? 400) >= 700;
+      if (!isReadable(text, behind, { large })) {
+        findings.push({
+          kind: "readability",
+          pageId,
+          sectionId,
+          message: `${label} text colour is too faint to read on the colour behind it.`,
+          severity: "warning",
+        });
+        break;
+      }
+    }
+    return ownBackground;
+  };
+
+  for (const page of pages(context)) {
+    for (const section of page.sections.filter((item) => item.is_visible)) {
+      const sectionBackground = check(page.id, section.id, section.settings, "Section", surface);
+      for (const component of section.components)
+        check(page.id, section.id, component.settings, "Block", sectionBackground);
+    }
+  }
+}
+
 function runAccessibilityChecks(context: AgentContext, findings: BrowserQaFinding[]): void {
   for (const page of pages(context)) {
     for (const section of page.sections.filter((item) => item.is_visible)) {
