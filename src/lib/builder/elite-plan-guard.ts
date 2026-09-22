@@ -33,6 +33,8 @@ function key(action: AgentAction): string {
     case "set_section_effect":
     case "delete_section":
       return `${action.type}:${action.sectionId}`;
+    case "set_block_style":
+      return `${action.type}:${action.target}:${action.targetId}:${action.device}`;
     case "set_component":
     case "set_component_visual":
     case "generate_component_image":
@@ -74,6 +76,11 @@ function safeAction(
     case "delete_section":
     case "set_section_effect":
       return known.sections.has(action.sectionId) || refs.sections.has(action.sectionId);
+
+    case "set_block_style":
+      return action.target === "section"
+        ? known.sections.has(action.targetId) || refs.sections.has(action.targetId)
+        : known.components.has(action.targetId) || refs.components.has(action.targetId);
 
     case "set_component":
     case "set_component_visual":

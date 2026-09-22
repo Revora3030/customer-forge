@@ -1012,7 +1012,7 @@ const readSectionVisualPatch = (
 const readBlockStylePatch = (value: unknown): BlockStylePatch => {
   if (!value || typeof value !== "object" || Array.isArray(value)) return {};
   const raw = value as Partial<Record<StyleKey, unknown>>;
-  const cleaned = writeBlockStyle({}, raw).style;
+  const cleaned = writeBlockStyle({}, raw)["style"];
   if (!cleaned || typeof cleaned !== "object" || Array.isArray(cleaned)) return {};
   const out: BlockStylePatch = {};
   for (const key of STYLE_KEYS) {

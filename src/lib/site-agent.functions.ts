@@ -66,7 +66,6 @@ type LoadedSite = {
     kind: string;
     sort_order: number;
     is_visible: boolean;
-    settings: unknown;
     noindex: boolean;
     seo_title: string | null;
     seo_description: string | null;
@@ -81,6 +80,7 @@ type LoadedSite = {
     body: string | null;
     sort_order: number;
     is_visible: boolean;
+    settings: unknown;
   }[];
   components: {
     id: string;

@@ -38,9 +38,9 @@ export function SitePageLink({
 }: {
   slug: string;
   page?: string | null;
-  className?: string;
-  style?: CSSProperties;
-  blockId?: string;
+  className?: string | undefined;
+  style?: CSSProperties | undefined;
+  blockId?: string | undefined;
   children: ReactNode;
 }) {
   const ownAddress = useOwnAddress();
