@@ -44,7 +44,8 @@ export const INSTRUCTION_LIMIT = 1200;
  * How many changes are installed in one pass. Kept below the server's own safety
  * limit so a large plan is applied in ordered batches rather than refused.
  */
-const APPLY_BATCH_SIZE = 50;
+const APPLY_BATCH_SIZE = 200;
+
 
 export type BuilderRequests = ReturnType<typeof useBuilderRequests>;
 

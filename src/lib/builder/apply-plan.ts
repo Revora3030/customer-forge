@@ -226,18 +226,22 @@ export function dropUnchangedActions(
     } else if (action.type === "set_section_visual") {
       const current = state.sections.get(action.sectionId);
       const visual = readSectionVisual(current?.settings);
-      noop = Boolean(current) && Object.entries(action.patch).every(([key, value]) => visual[key as keyof typeof visual] === value);
+      const entries = Object.entries(action.patch);
+      noop = Boolean(current) && entries.length > 0 && entries.every(([key, value]) => visual[key as keyof typeof visual] === value);
     } else if (action.type === "set_component_visual") {
       const current = state.components?.get(action.componentId);
       const visual = readComponentVisual(current?.settings);
-      noop = Boolean(current) && Object.entries(action.patch).every(([key, value]) => key === "media_url" ? false : visual[key as keyof typeof visual] === value);
+      const entries = Object.entries(action.patch);
+      noop = Boolean(current) && entries.length > 0 && entries.every(([key, value]) => key === "media_url" ? false : visual[key as keyof typeof visual] === value);
     } else if (action.type === "set_block_style") {
       const current = action.target === "section"
         ? state.sections.get(action.targetId)
         : state.components?.get(action.targetId);
       const style = readBlockStyle(current?.settings, action.device);
-      noop = Boolean(current) && Object.entries(action.patch).every(([key, value]) => style[key as keyof typeof style] === value);
+      const entries = Object.entries(action.patch);
+      noop = Boolean(current) && entries.length > 0 && entries.every(([key, value]) => style[key as keyof typeof style] === value);
     }
+
 
     if (noop) unchangedLabels.push(`${action.type} (already correct)`);
     else out.push(action);
