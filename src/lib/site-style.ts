@@ -711,7 +711,7 @@ export function aiAuthoredResponsiveCss(settings: unknown, selector: string): st
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return "";
   const rules: string[] = [];
   for (const [width, state] of Object.entries(raw as Record<string, unknown>)) {
-    if (!/^\\d{3,4}$/.test(width) || !state || typeof state !== "object" || Array.isArray(state)) continue;
+    if (!/^\d{3,4}$/.test(width) || !state || typeof state !== "object" || Array.isArray(state)) continue;
     const visual = (state as Record<string, unknown>)["visual"];
     if (!visual || typeof visual !== "object" || Array.isArray(visual)) continue;
     const declarations: string[] = [];
