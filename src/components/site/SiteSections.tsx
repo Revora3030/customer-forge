@@ -287,7 +287,16 @@ export function SiteSection({ site, section }: { site: Site; section: Section })
   const customSpacing = [style.padTop, style.padRight, style.padBottom, style.padLeft].some((value) => value !== null);
   // This host is always present: tablet/mobile-only rules target it even when
   // the desktop layer intentionally has no override.
-  const styledInner = <div data-rvb={section.id} style={css}>{inner}</div>;
+  const styledInner = (
+    <div
+      data-rvb={section.id}
+      data-rvb-kind={section.kind}
+      data-rvb-label={sectionLabel(section.kind)}
+      style={css}
+    >
+      {inner}
+    </div>
+  );
 
   const visualClass = [
     "rv-section",
