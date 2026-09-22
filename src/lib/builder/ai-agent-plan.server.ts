@@ -40,9 +40,8 @@ export type AiPlanSuccess = {
 export type AiPlanOutcome = AiPlanSuccess | AiPlanFailure;
 
 const TRUTH_RULES = [
-  "Never invent a fact. Prices, years in business, review counts, awards, certifications, guarantees, phone numbers and addresses may only be used when supplied below.",
-  "Never write placeholder or filler text. No lorem ipsum, no repeated nonsense words, no 'Your headline here', no duplicated sentences.",
-  "Never leave a visual container empty: a section you add must have real headings, real copy and, where it shows imagery, an image request.",
+  "Never invent a business fact. Prices, years in business, review counts, awards, certifications, guarantees, phone numbers and addresses may only be used when supplied below.",
+  "Never emit executable markup, unsafe URLs, scripts, or values that could escape the website's safe rendering boundary.",
 ].join(" ");
 
 const DESIGN_RULES = [
@@ -62,7 +61,7 @@ function actionContract(context: AgentContext): string {
   const fonts = Object.keys(SITE_HEADING_FONTS).join("|");
   return [
     "Reply with ONE JSON object and nothing else:",
-    '{"reply":string,"summary":string,"requirements":string[],"questions":string[],"notes":string[],"actions":Action[],"hasMore":boolean,"cursor":string|null}',
+    '{"reply":string,"summary":string,"requirements":string[],"questions":string[],"notes":string[],"actions":Action[],"hasMore":boolean,"cursor":string|null}; set hasMore=true only when another chunk is needed; cursor is an opaque continuation token.' ,
     "",
     "Action is one of:",
     '{"type":"set_section_text","sectionId":id,"field":"heading"|"subheading"|"body","value":string}',
