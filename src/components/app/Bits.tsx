@@ -76,7 +76,7 @@ export function Panel({
   return (
     <As
       ref={ref as Ref<HTMLDivElement> & Ref<HTMLElement>}
-      className={cn("panel p-4", className)}
+      className={cn("panel p-4 sm:p-5", className)}
       {...rest}
     >
       {children}
@@ -100,18 +100,15 @@ export function SectionHeading({
   return (
     <div
       className={cn(
-        "scroll-reveal grid grid-cols-[minmax(0,1fr)_auto] items-end gap-3 sm:flex sm:justify-between",
+        "scroll-reveal grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 sm:flex sm:justify-between",
         className,
       )}
     >
       <div className="min-w-0">
         {eyebrow ? (
-          <p className="eyebrow flex items-center gap-2">
-            <span aria-hidden="true" className="h-3 w-0.5 rounded-full bg-primary" />
-            <span className="text-primary/90">{eyebrow}</span>
-          </p>
+          <p className="eyebrow">{eyebrow}</p>
         ) : null}
-        <h2 className="mt-1.5 font-display text-[17px] font-semibold text-balance">{title}</h2>
+        <h2 className="mt-1 font-display text-[17px] font-semibold text-balance">{title}</h2>
 
         {description ? (
           <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">{description}</p>
@@ -149,19 +146,16 @@ export function PageHead({
   const controls = action ?? children;
   return (
     <header
-      className={cn("flex flex-wrap items-end justify-between gap-3", className)}
+      className={cn("flex flex-wrap items-center justify-between gap-4", className)}
       data-testid="page-head"
     >
       <div className="min-w-0">
-        <p className="eyebrow flex items-center gap-2">
-          <span aria-hidden="true" className="h-3 w-0.5 rounded-full bg-primary" />
-          <span className="text-primary/90">{eyebrow}</span>
-        </p>
-        <h1 className="mt-1.5 font-display text-[24px] leading-tight font-semibold text-balance">
+        <p className="eyebrow">{eyebrow}</p>
+        <h1 className="mt-1 font-display text-[22px] leading-tight font-semibold text-balance sm:text-[24px]">
           {title}
         </h1>
         {purpose ? (
-          <p className="mt-1.5 max-w-prose text-[13px] leading-relaxed text-muted-foreground">
+          <p className="mt-1 max-w-prose text-[13px] leading-relaxed text-muted-foreground">
             {purpose}
           </p>
         ) : null}
@@ -208,7 +202,7 @@ export function MetricCard({
   return (
     <div
       className={cn(
-        "panel card-lift relative p-3.5 transition-colors",
+        "panel relative p-4 transition-colors",
         tone === "signal" ? "border-primary/25" : null,
         className,
       )}
