@@ -13,10 +13,11 @@ import {
 } from "@/lib/site-style";
 
 describe("safeColor", () => {
-  it("accepts hex colours only", () => {
+  it("accepts hex and safe named colours", () => {
     expect(safeColor("#FFD700")).toBe("#ffd700");
     expect(safeColor("#fff")).toBe("#fff");
-    expect(safeColor("red")).toBeNull();
+    expect(safeColor("red")).toBe("#dc2626");
+    expect(safeColor("Navy")).toBe("#172554");
     expect(safeColor("expression(alert(1))")).toBeNull();
     expect(safeColor("#fff; background:url(javascript:alert(1))")).toBeNull();
   });
@@ -47,6 +48,31 @@ describe("readBlockStyle / writeBlockStyle", () => {
     expect(read.textColor).toBe("#112233");
   });
 
+  it("accepts precise values inside safe visual ranges", () => {
+    const style = readBlockStyle(writeBlockStyle({}, {
+      size: 37,
+      lineHeight: 1.22,
+      gap: 27,
+      padTop: 73,
+      marginTop: -12,
+      maxWidth: 1180,
+      radius: 18,
+      borderWidth: 3,
+      opacity: 94,
+    }));
+    expect(style).toMatchObject({
+      size: 37,
+      lineHeight: 1.22,
+      gap: 27,
+      padTop: 73,
+      marginTop: -12,
+      maxWidth: 1180,
+      radius: 18,
+      borderWidth: 3,
+      opacity: 94,
+    });
+  });
+
   it("drops unsafe values on write", () => {
     const next = writeBlockStyle({}, {
       textColor: "url(javascript:alert(1))",
@@ -66,5 +92,17 @@ describe("blockCss", () => {
   it("encodes background image URLs so quotes cannot break out", () => {
     const css = blockCss(readBlockStyle({ style: { bgImage: 'https://x.test/a b".jpg' } }));
     expect(String(css.backgroundImage ?? "")).not.toContain('".jpg"');
+  });
+
+  it("emits inherited typography variables for nested rendered copy", () => {
+    const css = blockCss(readBlockStyle({ style: { size: 37, weight: 650, lineHeight: 1.22 } }));
+    expect(css).toMatchObject({
+      fontSize: "37px",
+      fontWeight: 650,
+      lineHeight: "1.22",
+      "--rv-block-font-size": "37px",
+      "--rv-block-font-weight": 650,
+      "--rv-block-line-height": "1.22",
+    });
   });
 });
