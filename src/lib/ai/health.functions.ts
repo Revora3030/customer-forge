@@ -501,6 +501,29 @@ export const getAiOrchestration = createServerFn({ method: "GET" })
     });
     const models = (snapshot?.models ?? []).map(shape);
 
+    const { hallOfFameSquad, recentHallOfFameRuns } = await import("@/lib/ai/hall-of-fame.server");
+    const squadPurposes = [
+      "creative_direction",
+      "content_strategy",
+      "adversarial_review",
+      "page_planning",
+      "metadata",
+    ] as const;
+    const squads = await Promise.all(
+      squadPurposes.map(async (purpose) => {
+        const built = await hallOfFameSquad(purpose);
+        return {
+          purpose,
+          capability: built.capability,
+          members: built.squad.map((member) => ({
+            provider: member.provider,
+            model: member.model,
+            ready: member.healthy && member.remainingToday > 0,
+          })),
+        };
+      }),
+    );
+
     return {
       at: snapshot?.at ?? null,
       totals: {
