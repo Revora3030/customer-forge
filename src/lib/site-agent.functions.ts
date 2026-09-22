@@ -489,6 +489,8 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
     let raw: Record<string, unknown>;
     let requirements: { label: string; covered: boolean }[] = [];
     let trace: string[] = [];
+    let planModel = "revora-image-pipeline";
+
 
     noteStage(orgId, runId, "planning the change");
     if (pictureActions.length) {
