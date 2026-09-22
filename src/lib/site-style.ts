@@ -660,7 +660,11 @@ export function writeAiAuthoredVisual(
     settings && typeof settings === "object" && !Array.isArray(settings)
       ? { ...(settings as Record<string, unknown>) }
       : {};
-  const safe = aiAuthoredCss({ ai_visual: visual }) as Record<string, unknown>;
+  const existing =
+    base["ai_visual"] && typeof base["ai_visual"] === "object" && !Array.isArray(base["ai_visual"])
+      ? { ...(base["ai_visual"] as Record<string, unknown>) }
+      : {};
+  const safe = aiAuthoredCss({ ai_visual: { ...existing, ...visual } }) as Record<string, unknown>;
   base["ai_visual"] = safe;
   return base;
 }
@@ -678,8 +682,16 @@ export function writeAiResponsiveVisual(
     base["ai_responsive"] && typeof base["ai_responsive"] === "object" && !Array.isArray(base["ai_responsive"])
       ? { ...(base["ai_responsive"] as Record<string, unknown>) }
       : {};
-  const safe = aiAuthoredCss({ ai_visual: visual }) as Record<string, unknown>;
-  existing[String(width)] = { visual: safe };
+  const previous =
+    existing[String(width)] && typeof existing[String(width)] === "object" && !Array.isArray(existing[String(width)])
+      ? existing[String(width)] as Record<string, unknown>
+      : {};
+  const previousVisual =
+    previous["visual"] && typeof previous["visual"] === "object" && !Array.isArray(previous["visual"])
+      ? previous["visual"] as Record<string, unknown>
+      : {};
+  const safe = aiAuthoredCss({ ai_visual: { ...previousVisual, ...visual } }) as Record<string, unknown>;
+  existing[String(width)] = { ...previous, visual: safe };
   base["ai_responsive"] = existing;
   return base;
 }
@@ -722,7 +734,7 @@ export function aiAuthoredResponsiveCss(settings: unknown, selector: string): st
       declarations.push(`${cssKey}:${String(value)}`);
     }
     if (declarations.length)
-      rules.push(`@media (max-width:${width}px){${selector}{${declarations.join(";")}}`);
+      rules.push(`@media (max-width:${width}px){${selector}{${declarations.join(";")}}}`);
   }
   return rules.join("");
 }
