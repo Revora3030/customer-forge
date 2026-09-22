@@ -10,6 +10,7 @@
  *  - customer builds use Revora's native engine and never dispatch content to
  *    an outside model
  */
+import type { PageArchitectureOutcome } from "@/lib/builder/ai-page-architecture.server";
 import { nextPublishState } from "@/lib/publish-state";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -583,7 +584,7 @@ async function runJob(
   const architectBusinessName = org.data.name ?? "";
   const architectIndustry = org.data.industry ?? null;
   const architectGoal = org.data.conversion_goal ?? "enquiries";
-  let architectureOutcome: PageArchitectureOutcome | null = null;
+  const architectureRef: { current: PageArchitectureOutcome | null } = { current: null };
   const built = await materializeSiteContent(db, orgId, {
     businessName: org.data.name ?? "",
     copy,
@@ -620,7 +621,7 @@ async function runJob(
         conversionGoal: architectGoal,
         candidate,
       });
-      architectureOutcome = outcome;
+      architectureRef.current = outcome;
       return outcome.architecture;
     },
   });
@@ -628,18 +629,18 @@ async function runJob(
     organization_id: orgId,
     job_id: job.id,
     kind: "ai_page_architecture",
-    model: architectureOutcome?.models.join("+") || "revora-native",
+    model: architectureRef.current?.models.join("+") || "revora-native",
     instruction: null,
-    result: (architectureOutcome
+    result: (architectureRef.current
       ? {
-          authored: architectureOutcome.architecture !== null,
-          skipped: architectureOutcome.skipped,
-          rejected: architectureOutcome.rejected,
-          pages: architectureOutcome.architecture?.map((page) => ({
+          authored: architectureRef.current.architecture !== null,
+          skipped: architectureRef.current.skipped,
+          rejected: architectureRef.current.rejected,
+          pages: architectureRef.current.architecture?.map((page) => ({
             slug: page.slug,
             sections: page.sections.map((section) => section.role),
           })) ?? null,
-          costMicrocents: architectureOutcome.costMicrocents,
+          costMicrocents: architectureRef.current.costMicrocents,
         }
       : { authored: false, skipped: "the page plan was not requested for this build" }) as unknown as never,
     created_by: job.created_by,
