@@ -2703,3 +2703,23 @@ a[href*="lovable.app"][target="_blank"][class*="fixed"],
     transition: none;
   }
 }
+
+/* ---------------------------------------------------------------------------
+   Click-to-edit in the builder preview.
+
+   Only active while the builder has select mode on (the preview frame adds the
+   class), so an ordinary visitor never sees an outline or a blocked link.
+--------------------------------------------------------------------------- */
+.rv-preview-select [data-rvb] {
+  cursor: pointer;
+}
+
+.rv-preview-select [data-rvb]:hover {
+  outline: 2px dashed color-mix(in srgb, var(--primary) 70%, transparent);
+  outline-offset: 2px;
+}
+
+.rv-preview-select [data-rvb][data-rvb-selected="true"] {
+  outline: 3px solid var(--primary);
+  outline-offset: 2px;
+}
