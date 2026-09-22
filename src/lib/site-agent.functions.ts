@@ -604,7 +604,7 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
       // What the agent actually did to get here, stage by stage.
       trace: trace.slice(0, 8),
       unavailable: null as { reason: string; retryable: boolean; instruction: string } | null,
-      // Customer edits are composed by Revora's native engine.
+      // Creative decisions are authored by the AI team, never a template.
       composition: null as import("@/lib/builder/composition-preview").CompositionPreview | null,
     };
 
@@ -612,7 +612,8 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
     await supabase.from("ai_generations").insert({
       organization_id: orgId,
       kind: "agent_plan",
-      model: "revora-ai",
+      model: planModel,
+
       instruction:
         data.instruction.slice(0, 4000) +
         (data.attachments.length
