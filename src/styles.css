@@ -2120,8 +2120,9 @@ a[href*="lovable.app"][target="_blank"][class*="fixed"],
 .rv-media-position-background { max-width: none; padding-inline: 0; }
 
 @media (min-width: 640px) {
-  .rv-section[data-rv-columns] :is(ul, ol, .rv-generated-media) {
-    grid-template-columns: repeat(attr(data-rv-columns type(<number>)), minmax(0, 1fr));
+  .rv-section[data-rv-columns] [data-rvb] :is(ul.grid, ol.grid, .rv-generated-media) {
+    grid-template-columns: repeat(var(--rv-items-columns), minmax(0, 1fr));
+    gap: var(--rv-items-gap, 1rem);
   }
 }
 
