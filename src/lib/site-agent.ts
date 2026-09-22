@@ -141,11 +141,11 @@ export const MULTIMODAL_TEMPLATES: {
 ];
 
 /**
- * Safety ceiling on one installation pass — not a creative limit. It exists so a
- * single batch stays reversible in one atomic rollback, and is set far above any
- * real full-site redesign so the AI's plan is never truncated in practice.
+ * Runaway-output ceiling only — never a creative limit. Complete valid plans are
+ * read and installed in full; the installer batches them so each batch stays
+ * reversible in one atomic rollback. No design work is truncated in practice.
  */
-export const MAX_ACTIONS = 400;
+export const MAX_ACTIONS = 5000;
 
 
 export type AgentField = "heading" | "subheading" | "body";
@@ -1067,9 +1067,9 @@ export function readActions(
     return [];
   }
 
-  if (value.length > MAX_ACTIONS * 2)
+  if (value.length > MAX_ACTIONS)
     note(
-      `The design team proposed ${value.length} steps; only the first ${MAX_ACTIONS * 2} were read and at most ${MAX_ACTIONS} can be installed in one go. Ask again to continue with the rest.`,
+      `The design team proposed ${value.length} steps, which is past the ${MAX_ACTIONS}-step safety ceiling; the first ${MAX_ACTIONS} were read. Ask again to continue with the rest.`,
     );
 
   const out: AgentAction[] = [];
@@ -1109,7 +1109,7 @@ export function readActions(
   for (
     const raw of value.slice(
       0,
-      MAX_ACTIONS * 2,
+      MAX_ACTIONS,
     )
   ) {
     if (
@@ -2160,15 +2160,6 @@ export function readActions(
         break;
     }
 
-    if (
-      out.length >=
-      MAX_ACTIONS
-    ) {
-      note(
-        `Revora installs up to ${MAX_ACTIONS} changes at once. Anything after that wasn't included — ask again to carry on.`,
-      );
-      break;
-    }
   }
 
   return out;

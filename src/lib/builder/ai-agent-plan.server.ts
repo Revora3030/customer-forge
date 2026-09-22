@@ -83,7 +83,7 @@ function actionContract(context: AgentContext): string {
     `{"type":"set_theme","patch":{"primary_color":"#RRGGBB","secondary_color":"#RRGGBB","accent_color":"#RRGGBB","heading_font":"${fonts}","body_font":"${fonts}"}}`,
     '{"type":"set_business_fact","field":"tagline"|"description","value":string}',
     "",
-    `Use at most ${MAX_ACTIONS} actions. Every id must be copied exactly from the website below, or be a temp ref you created earlier in the same list.`,
+    `Use as many actions as the work genuinely needs — there is no target or budget. Every id must be copied exactly from the website below, or be a temp ref you created earlier in the same list.`,
     `Allowed section kinds: ${context.sectionKinds.join(", ")}.`,
     `Allowed page kinds: ${context.pageKinds.join(", ")}.`,
     `Allowed component kinds: ${context.componentKinds.join(", ")}, image, hero_image.`,

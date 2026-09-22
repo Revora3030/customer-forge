@@ -173,7 +173,7 @@ export function pictureActionsFor(context: import("@/lib/site-agent.server").Age
       mode: existing ? "replace" : "create",
     });
   }
-  return actions.slice(0, MAX_ACTIONS);
+  return actions;
 }
 
 async function loadSite(supabase: SupabaseLike, orgId: string): Promise<LoadedSite> {
@@ -783,11 +783,6 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
     });
     const actions = settled.actions;
     const staleNotice = stalePlanMessage(preflight.stale, planned.length);
-    if (actions.length > MAX_ACTIONS) {
-      throw new Error(
-        `That batch contains ${actions.length} supported changes, but Revora can safely install up to ${MAX_ACTIONS} at once. Untick a few upgrades, install those first, then continue with the rest.`,
-      );
-    }
     if (!actions.length) {
       if (preflight.stale.length) throw new Error(staleNotice);
       if (settled.unchanged) {

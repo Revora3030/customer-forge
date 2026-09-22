@@ -118,10 +118,10 @@ export function siteThemeStyle(input: {
 /**
  * Heading fonts a client website may use.
  *
- * Every design direction picks from this list, and only these names are ever
- * turned into a stylesheet request — a stored value that isn't here is ignored
- * rather than injected into a URL. The value is the Google Fonts family spec
- * (family plus the weights the renderer actually uses).
+ * These entries carry a hand-tuned weight/axis request. They are NOT the limit
+ * of what a design may choose: any real family name that passes the safe-name
+ * check below is used as written, with a standard weight request. Safety comes
+ * from the character check, never from a fixed menu of looks.
  */
 export const SITE_HEADING_FONTS: Record<string, string> = {
   Anton: "Anton",
@@ -213,26 +213,34 @@ export function siteFontHasItalic(value: string | null | undefined): boolean {
   return font !== null && font in SITE_ITALIC_FONTS;
 }
 
-/** The allowlisted font name for a stored preference, or null. */
-export function siteHeadingFont(value: string | null | undefined): string | null {
-  if (typeof value !== "string") return null;
-  const trimmed = value.split("|")[0]?.trim() ?? "";
-  if (!trimmed) return null;
-  const match = Object.keys(SITE_HEADING_FONTS).find(
+/**
+ * A font family name is safe when it is plain letters, digits and single spaces.
+ * That is what keeps it out of CSS and URL syntax; it places no limit on which
+ * typeface a design may ask for.
+ */
+const SAFE_FONT_NAME = /^[A-Za-z][A-Za-z0-9]*(?: [A-Za-z0-9]+){0,4}$/;
+
+function readFontName(raw: string): string | null {
+  const trimmed = raw.trim().replace(/\s+/g, " ");
+  if (!trimmed || trimmed.length > 42) return null;
+  const known = Object.keys(SITE_HEADING_FONTS).find(
     (name) => name.toLowerCase() === trimmed.toLowerCase(),
   );
-  return match ?? null;
+  if (known) return known;
+  return SAFE_FONT_NAME.test(trimmed) ? trimmed : null;
+}
+
+/** The font family for a stored preference, or null when it is not a name. */
+export function siteHeadingFont(value: string | null | undefined): string | null {
+  if (typeof value !== "string") return null;
+  return readFontName(value.split("|")[0] ?? "");
 }
 
 /** Optional body family stored beside the heading family as `Heading|Body`. */
 export function siteBodyFont(value: string | null | undefined): string | null {
   if (typeof value !== "string") return null;
-  const trimmed = value.split("|")[1]?.trim() ?? "";
-  if (!trimmed) return null;
-  const match = Object.keys(SITE_HEADING_FONTS).find(
-    (name) => name.toLowerCase() === trimmed.toLowerCase(),
-  );
-  return match ?? null;
+  const part = value.split("|")[1];
+  return part === undefined ? null : readFontName(part);
 }
 
 /**
@@ -247,7 +255,14 @@ export function siteFontHref(value: string | null | undefined): string | null {
   const families = [font, siteBodyFont(value)]
     .filter((name): name is string => Boolean(name))
     .filter((name, index, all) => all.indexOf(name) === index)
-    .map((name) => SITE_ITALIC_FONTS[name] ?? SITE_HEADING_FONTS[name]);
+    .map(
+      (name) =>
+        SITE_ITALIC_FONTS[name] ??
+        SITE_HEADING_FONTS[name] ??
+        // A family chosen outside the tuned list: ask for the weights the
+        // renderer uses. Google Fonts serves the nearest available faces.
+        `${name.replace(/ /g, "+")}:wght@400;500;600;700`,
+    );
   return `https://fonts.googleapis.com/css2?${families.map((family) => `family=${family}`).join("&")}&display=swap`;
 }
 

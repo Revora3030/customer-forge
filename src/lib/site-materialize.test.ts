@@ -140,61 +140,15 @@ describe("planSiteContent", () => {
   });
 });
 
-describe("planSiteContent with a website archetype", () => {
-  it("shapes the site for the kind of business it is", () => {
-    const restaurant = classifyArchetype({ industry: "Restaurant" });
-    const pages = planSiteContent({ ...input, photoCount: 6, archetype: restaurant });
-    expect(pages.map((page) => page.slug)).toEqual(expect.arrayContaining(["menu", "visit"]));
-    const home = pages[0]!;
-    expect(home.sections.map((s) => s.kind)).toContain("gallery");
-    // the closing CTA stays last (before the sticky bar)
-    const kinds = home.sections.map((s) => s.kind);
-    expect(kinds.indexOf("cta")).toBeGreaterThan(kinds.indexOf("gallery"));
-  });
-
-  it("gives different industries different structures", () => {
+describe("industry blueprints have no authority over structure", () => {
+  it("ignores the industry classification when shaping the site", () => {
     const shapes = ["Restaurant", "Dental", "Gym", "Hotel", "Law"].map((industry) =>
-      planSiteContent({
-        ...input,
-        photoCount: 4,
-        archetype: classifyArchetype({ industry }),
-      })
+      planSiteContent({ ...input, photoCount: 4, industry } as typeof input)
         .map((page) => page.slug)
         .join(","),
     );
-    expect(new Set(shapes).size).toBe(shapes.length);
-  });
-
-  it("leaves out archetype sections with no supplied facts", () => {
-    const pages = planSiteContent({
-      ...input,
-      photoCount: 0,
-      services: [],
-      archetype: classifyArchetype({ industry: "Restaurant" }),
-    });
-    const kinds = pages.flatMap((page) => page.sections.map((s) => s.kind));
-    expect(kinds).not.toContain("gallery");
-    expect(kinds).not.toContain("reviews");
-  });
-
-  it("keeps image-led archetype sections when starter AI pictures were generated", () => {
-    const pages = planSiteContent({
-      ...input,
-      photoCount: 0,
-      archetype: classifyArchetype({ industry: "Restaurant" }),
-      generatedAssets: [{
-        slot: "service",
-        label: "Dining room",
-        altText: "Restaurant dining room",
-        path: "org/generated-dining-room.webp",
-        mediaId: "media-1",
-        provider: "test",
-        model: "test-image",
-        prompt: "Editorial restaurant interior",
-        placement: ["gallery"],
-        aspectRatio: "3:2",
-      }],
-    });
-    expect(pages[0]?.sections.map((section) => section.kind)).toContain("gallery");
+    // The renderer supplies the same fillable inventory for every industry: the
+    // page set, section choice and order come from the AI design plan instead.
+    expect(new Set(shapes).size).toBe(1);
   });
 });
