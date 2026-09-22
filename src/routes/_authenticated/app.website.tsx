@@ -55,7 +55,7 @@ import { UpgradeStudio } from "@/components/app/UpgradeStudio";
 import { RevoraGenius } from "@/components/app/RevoraGenius";
 import { BuilderAudit } from "@/components/app/BuilderAudit";
 import { BuilderCanvas } from "@/components/app/BuilderCanvas";
-import { BuilderPreview } from "@/components/app/BuilderPreview";
+import { BuilderPreview, type PreviewSelection } from "@/components/app/BuilderPreview";
 import { Eye, History, Menu, MousePointer2, Paintbrush, Settings2 } from "lucide-react";
 import { PreFlightPanel } from "@/components/app/PreFlight";
 import { preflight } from "@/lib/preflight";
@@ -459,6 +459,9 @@ function WebsitePage() {
         <div className={previewOpen ? "hidden lg:block" : "min-w-0 lg:sticky lg:top-20 lg:self-start"}>
           <BuilderAssistant
             compact
+            selection={selected}
+            onClearSelection={() => setSelected(null)}
+            onOpenHistory={() => setHistoryOpen(true)}
             organizationId={orgId ?? null}
             requests={requests}
             onOpenExtras={() => setAdvanced("assistant")}
@@ -468,7 +471,16 @@ function WebsitePage() {
         </div>
         {!firstRun && org?.slug ? (
           <div className={!previewOpen ? "hidden min-w-0 lg:block" : "min-w-0"}>
-            <BuilderPreview slug={org.slug} pages={pages ?? []} refreshing={requests.refreshing} />
+            <BuilderPreview
+              slug={org.slug}
+              pages={pages ?? []}
+              refreshing={requests.refreshing}
+              selectedId={selected?.id ?? null}
+              onSelect={(pick) => {
+                setSelected(pick);
+                setPreviewOpen(false);
+              }}
+            />
           </div>
         ) : null}
       </div>
