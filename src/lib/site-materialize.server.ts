@@ -14,7 +14,6 @@ import { safeLinkUrl } from "@/lib/website-content";
 import type { DesignDirection } from "@/lib/design-directions";
 import { writeSectionEffect } from "@/lib/site-effects";
 import { writeComponentVisual, writeSectionVisual } from "@/lib/site-style";
-import { compositionForKind, variantForKind } from "@/lib/builder/elite-site-output";
 import {
   sectionDesignFromFingerprint,
   type DesignFingerprint,
@@ -576,9 +575,6 @@ export function materializedSectionDesign(
   creativeBrief?: CreativeBrief | null,
 ): { variant: string; settings: Record<string, unknown> } {
   if (!direction && !fingerprint) return { variant: "default", settings: {} };
-  const dark = direction
-    ? direction.secondary !== "#ffffff" && !/^#f/i.test(direction.secondary)
-    : fingerprint?.colorSystem !== "light-neutral";
   const effect = direction
     ? kind === "hero"
       ? direction.heroEffect
@@ -589,22 +585,24 @@ export function materializedSectionDesign(
           : direction.bodyEffect
     : null;
   const identity = fingerprint ? sectionDesignFromFingerprint(kind, fingerprint, index) : null;
-  const visual = writeSectionVisual(
-    {},
-    identity
-      ? {
-          ...compositionForKind(kind, dark),
+  // Composition comes from the site's authored identity. There is no per-kind
+  // house layout behind this: when there is no identity to read, the section is
+  // left unstyled for the design team to style directly.
+  const visual = identity
+    ? writeSectionVisual(
+        {},
+        {
           layout: identity.layout,
           card_style: identity.cardStyle,
           image_treatment: identity.imageTreatment,
           max_width: identity.maxWidth,
           density: fingerprint?.density === "compact" ? "dense" : fingerprint?.density ?? "balanced",
-        }
-      : compositionForKind(kind, dark),
-  );
+        },
+      )
+    : {};
   const settings = effect ? writeSectionEffect(visual, effect) : visual;
   return {
-    variant: identity?.variant ?? (direction ? variantForKind(kind, direction.id) : "default"),
+    variant: identity?.variant ?? "default",
     settings: fingerprint
       ? writeExecutableCreativeSection(
           settings,
