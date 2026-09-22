@@ -13,6 +13,7 @@ import {
 } from "@/components/app/Bits";
 import { CapabilityCenter } from "@/components/app/CapabilityCenter";
 import { FreeModelCollective } from "@/components/app/FreeModelCollective";
+import { OrchestrationCenter } from "@/components/app/OrchestrationCenter";
 import { getAiHealth } from "@/lib/ai/health.functions";
 import { getLunaStatus } from "@/lib/ai/luna.functions";
 
@@ -300,6 +301,8 @@ function AdminAi() {
           </div>
         </Panel>
       </div>
+
+      <OrchestrationCenter />
 
       <FreeModelCollective />
 

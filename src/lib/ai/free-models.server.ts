@@ -302,7 +302,12 @@ const STRICT_ROLES: ModelRole[] = ["image", "transcription"];
 export function pickDiscoveredModels(
   provider: FreeProviderName,
   role: ModelRole,
-  limit = 4,
+  /**
+   * Unbounded by default: the whole verified catalogue for the role is ranked
+   * and returned. A caller that needs one model asks for one; nothing imposes
+   * an arbitrary ceiling on how many models may participate.
+   */
+  limit = Number.POSITIVE_INFINITY,
 ): string[] {
   const models = discoveredFreeModels(provider, role);
   if (models.length === 0 || limit <= 0) return [];

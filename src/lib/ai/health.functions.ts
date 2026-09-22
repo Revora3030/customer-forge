@@ -374,3 +374,136 @@ export const getAiModelInventory = createServerFn({ method: "GET" })
       benchmarks: await modelBenchmarks(),
     };
   });
+
+/* ------------------------- orchestration visibility ------------------------ */
+
+export type OrchestrationModel = {
+  provider: string;
+  model: string;
+  displayName: string;
+  quality: number;
+  reliability: number;
+  healthy: boolean;
+  blockedReason: string | null;
+  /** Where the capability data came from: a live probe, provider metadata, or a declaration. */
+  evidence: string;
+  verifiedAt: number;
+  costPerMTok: number | null;
+  paid: boolean;
+  /** Only capabilities Revora has actually proven. */
+  proven: string[];
+  /** Capabilities that are still unproven — never advertised as supported. */
+  unknown: string[];
+};
+
+export type AiOrchestration = {
+  at: number | null;
+  /**
+   * Honest, separated counts. "Discovered" is only what the provider catalogues
+   * listed; nothing here is a marketing number.
+   */
+  totals: {
+    discovered: number;
+    verified: number;
+    healthy: number;
+    specialists: number;
+    specialistsHealthy: number;
+    participated: number;
+  };
+  specialists: (OrchestrationModel & { charter: string; domains: string[] })[];
+  /** A bounded window of the catalogue for display; `totals.discovered` is the truth. */
+  models: OrchestrationModel[];
+  modelsShown: number;
+  decisions: import("@/lib/ai/orchestration/telemetry").RoutingDecision[];
+  participation: ReturnType<
+    typeof import("@/lib/ai/orchestration/telemetry").participationSummary
+  >;
+  outcomes: import("@/lib/ai/orchestration/telemetry").CallOutcome[];
+  probe: { version: number; capabilities: string[] };
+};
+
+/**
+ * The live orchestration picture, for the platform admin only: what was
+ * discovered, what is proven, what is healthy, which models actually
+ * participated in recent work, and why each was chosen or skipped.
+ */
+export const getAiOrchestration = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }): Promise<AiOrchestration> => {
+    const { assertSuperAdmin } = await import("@/lib/admin.server");
+    await assertSuperAdmin(
+      context.supabase as unknown as Parameters<typeof assertSuperAdmin>[0],
+      String(context.userId),
+    );
+
+    const { buildModelCatalog } = await import("@/lib/ai/orchestration/catalog.server");
+    const { SPECIALIST_SIX } = await import("@/lib/ai/orchestration/specialists");
+    const { PROBE_VERSION, probeableCapabilities } = await import(
+      "@/lib/ai/orchestration/probe.server"
+    );
+    const { recentRoutingDecisions, recentCallOutcomes, participationSummary } = await import(
+      "@/lib/ai/orchestration/telemetry"
+    );
+
+    let snapshot: Awaited<ReturnType<typeof buildModelCatalog>> | null = null;
+    try {
+      snapshot = await buildModelCatalog();
+    } catch {
+      // A provider catalogue being unreachable means fewer rows, not an error page.
+    }
+
+    const shape = (
+      record: import("@/lib/ai/orchestration/contracts").ModelRecord,
+    ): OrchestrationModel => {
+      const proven: string[] = [];
+      const unknown: string[] = [];
+      for (const [capability, state] of Object.entries(record.capabilities))
+        if (state === "supported") proven.push(capability);
+        else if (state !== "unsupported") unknown.push(capability);
+      return {
+        provider: record.provider,
+        model: record.id,
+        displayName: record.displayName,
+        quality: record.quality,
+        reliability: record.reliability,
+        healthy: record.healthy,
+        blockedReason: record.blockedReason,
+        evidence: record.evidence,
+        verifiedAt: record.verifiedAt,
+        costPerMTok: record.costPerMTok,
+        paid: record.paid,
+        proven,
+        unknown,
+      };
+    };
+
+    const participation = participationSummary();
+    const specialists = (snapshot?.specialists ?? []).map((record) => {
+      const entry = SPECIALIST_SIX.find((candidate) => candidate.model === record.id);
+      return {
+        ...shape(record),
+        charter: entry?.charter ?? "",
+        domains: entry ? [...entry.domains] : [],
+      };
+    });
+    const models = (snapshot?.models ?? []).map(shape);
+
+    return {
+      at: snapshot?.at ?? null,
+      totals: {
+        discovered: snapshot?.totals.discovered ?? 0,
+        verified: snapshot?.totals.verified ?? 0,
+        healthy: snapshot?.totals.healthy ?? 0,
+        specialists: specialists.length,
+        specialistsHealthy: specialists.filter((entry) => entry.healthy).length,
+        participated: participation.length,
+      },
+      specialists,
+      models: models.slice(0, 200),
+      modelsShown: Math.min(models.length, 200),
+      decisions: recentRoutingDecisions(15),
+      participation,
+      outcomes: recentCallOutcomes(25),
+      probe: { version: PROBE_VERSION, capabilities: probeableCapabilities() },
+    };
+  });

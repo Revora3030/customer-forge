@@ -56,6 +56,7 @@ import {
   type FreeProviderName,
 } from "@/lib/ai/free";
 import { pickDiscoveredModels, refreshFreeModels } from "@/lib/ai/free-models.server";
+import { preserveGroupOrder, qualityFirstOrder } from "@/lib/ai/orchestration/order";
 import { cloudflareAdapter } from "@/lib/ai/providers/cloudflare";
 import { googleAdapter } from "@/lib/ai/providers/google";
 import { groqAdapter } from "@/lib/ai/providers/groq";
@@ -311,14 +312,21 @@ async function buildChain(
       candidates.push({ config, model, free: null });
     }
 
-  const ordered = [
-    ...candidates.filter((entry) =>
-      providerHealthy({ caller, provider: entry.config.name, model: entry.model }),
-    ),
-    ...candidates.filter(
-      (entry) => !providerHealthy({ caller, provider: entry.config.name, model: entry.model }),
-    ),
-  ];
+  // QUALITY-FIRST ORDER. Candidates are ranked by capability fit, then quality,
+  // then recent health — and cost LAST, so a free model is never tried ahead of
+  // a stronger compatible one merely because Revora does not pay for it. The
+  // free-only and zero-cost switches above still decide what is *reachable*;
+  // they no longer decide what is *best*.
+  const ranked = qualityFirstOrder(candidates, (entry) => ({
+    model: entry.model,
+    provider: entry.config.name,
+    healthy: providerHealthy({ caller, provider: entry.config.name, model: entry.model }),
+    paid: entry.free === null,
+  }));
+  // Quality decides where the paid chain sits; the operator still decides which
+  // paid provider is tried first, so an explicitly configured default/fallback
+  // provider order is preserved inside the paid group.
+  const ordered = preserveGroupOrder(ranked, candidates, (entry) => entry.free === null);
   // The POOL is unlimited; one single request's FAILOVER depth is not, so a
   // simple call can never turn into a 60-model latency wall. The ensemble
   // orchestrator uses the full pool in parallel instead.
@@ -448,10 +456,11 @@ async function run<T>(
   const limits = aiLimits();
   const requestId = caller.requestId ?? newRequestId();
 
-  // FREE-FIRST GATE. Free providers are tried first; paid providers are only in
-  // this chain when an operator has explicitly opted out of free-only and
-  // zero-cost mode. An empty chain is not a crash: the caller falls back to
-  // Revora's deterministic engine and the owner gets a precise explanation.
+  // REACHABILITY GATE, then QUALITY-FIRST ORDER. Paid providers only enter this
+  // chain when an operator has explicitly opted out of free-only and zero-cost
+  // mode; whatever is reachable is then ranked on capability and quality, with
+  // cost last. An empty chain is not a crash: the caller falls back to Revora's
+  // deterministic engine and the owner gets a precise explanation.
   const chain = await buildChain(caller, role, options?.capable, options?.freeOnly === true);
   if (chain.length === 0) throw freeAiUnavailable("no free provider configured or in budget");
 
