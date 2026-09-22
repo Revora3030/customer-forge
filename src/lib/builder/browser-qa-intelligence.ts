@@ -275,6 +275,7 @@ export function runBrowserStyleQa(
   runNavigationChecks(context, findings);
   const conversionPaths = runConversionChecks(context, findings);
   runAccessibilityChecks(context, findings);
+  runReadabilityChecks(context, context.business.secondaryColor ?? null, findings);
   runRichnessChecks(context, findings);
   runMobileChecks(context, instruction, findings);
 
