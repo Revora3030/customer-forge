@@ -101,6 +101,21 @@ describe("Cloudflare Workers AI picture request", () => {
     ).rejects.toThrow(/cannot change a picture/i);
   });
 
+  it("refuses to make a new picture with an editing-only model before any network call", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(
+      cloudflareAdapter.image({
+        apiKey: "cf-token",
+        model: "@cf/runwayml/stable-diffusion-v1-5-inpainting",
+        prompt: "A calm workshop interior",
+        source: null,
+        signal: new AbortController().signal,
+      }),
+    ).rejects.toThrow(/requires a source picture/i);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it("sends the source picture and a mask to an edit-capable model", async () => {
     let body: Record<string, unknown> | null = null;
     vi.stubGlobal(
