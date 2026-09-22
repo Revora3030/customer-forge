@@ -734,6 +734,12 @@ export function blockCss(style: BlockStyle, surface?: string | null): React.CSSP
     css.textTransform = style.textTransform;
     (css as Record<string, string | number>)["--rv-block-text-transform"] = style.textTransform;
   }
+  if (style.italic !== null) {
+    css.fontStyle = style.italic ? "italic" : "normal";
+    (css as Record<string, string | number>)["--rv-block-font-style"] = style.italic
+      ? "italic"
+      : "normal";
+  }
   if (style.textColor) css.color = readableTextColor(style, surface);
 
   if (style.padTop !== null) css.paddingTop = `${style.padTop}px`;
