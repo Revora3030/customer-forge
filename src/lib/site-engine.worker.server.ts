@@ -627,7 +627,8 @@ export async function drainSiteEngineQueue(
             completed_at: new Date().toISOString(),
             lease_expires_at: null,
           } as never)
-          .eq("id", job.id);
+          .eq("id", job.id)
+          .eq("attempts", job.attempts);
         await writeQueueState(db, { last_error: message });
         continue;
       }
@@ -645,7 +646,8 @@ export async function drainSiteEngineQueue(
             completed_at: new Date().toISOString(),
             lease_expires_at: null,
           } as never)
-          .eq("id", job.id);
+          .eq("id", job.id)
+          .eq("attempts", job.attempts);
         await db.from("notifications").insert({
           organization_id: job.organization_id,
           title: "AI website generation needs attention",
