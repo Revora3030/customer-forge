@@ -6,17 +6,32 @@ const customerPlanner = readFileSync(
   "utf8",
 );
 
-describe("customer website planning boundary", () => {
-  it("cannot dispatch customer requests to Luna or external model orchestration", () => {
-    expect(customerPlanner).not.toContain('import("@/lib/ai/luna.server")');
-    expect(customerPlanner).not.toContain('import("@/lib/agent/orchestrator.server")');
-    expect(customerPlanner).not.toContain('const { planChanges } = await import("@/lib/site-agent.server")');
-    expect(customerPlanner).not.toContain('import("@/lib/builder/ai-composition.server")');
-    expect(customerPlanner).not.toContain('import("@/lib/ai/ensemble.server")');
+const aiPlanner = readFileSync(
+  new URL("../builder/ai-agent-plan.server.ts", import.meta.url),
+  "utf8",
+);
+
+describe("customer website planning is AI-authored", () => {
+  it("routes every customer build and edit request to the AI design team", () => {
+    expect(customerPlanner).toContain('import("@/lib/builder/ai-agent-plan.server")');
+    expect(customerPlanner).toContain("planWebsiteChangesWithAi");
   });
 
-  it("records native-only execution in the customer-visible evidence", () => {
-    expect(customerPlanner).toContain("Built with Revora's own engine — no outside AI involved.");
-    expect(customerPlanner).toContain('model: "revora-ai"');
+  it("no longer uses the deterministic template engine for creative decisions", () => {
+    expect(customerPlanner).not.toContain("buildAutonomousPlan");
+    expect(customerPlanner).not.toContain("Built with Revora's own engine — no outside AI involved.");
+    expect(customerPlanner).toContain("model: planModel,");
+  });
+
+  it("fails loudly instead of falling back to a stock layout", () => {
+    expect(customerPlanner).toContain("I'd rather wait than drop a stock layout onto your site.");
+    expect(aiPlanner).toContain("review_rejected");
+    expect(aiPlanner).toContain("unusable_answer");
+  });
+
+  it("keeps the truthfulness and design guardrails in the AI planner", () => {
+    expect(aiPlanner).toContain("Never invent a fact");
+    expect(aiPlanner).toContain("Never write placeholder or filler text");
+    expect(aiPlanner).toContain("adversarial_review");
   });
 });
