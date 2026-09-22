@@ -85,6 +85,8 @@ export type BlockStyle = {
   lineHeight: number | null;
   letterSpacing: number | null;
   textTransform: (typeof TEXT_TRANSFORMS)[number] | null;
+  /** Italic emphasis — the editorial accent premium sites lean on. */
+  italic: boolean | null;
   textColor: string | null;
   /* layout */
   columns: number | null;
