@@ -224,6 +224,8 @@ function WebsitePage() {
   const [advanced, setAdvanced] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
+  /** The block the owner clicked in the preview, scoping their next message. */
+  const [selected, setSelected] = useState<PreviewSelection | null>(null);
   const [editorMode, setEditorMode] = useState<"content" | "visual" | null>(null);
 
   /** One request engine for the whole workspace. */
