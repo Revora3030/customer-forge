@@ -2,9 +2,8 @@ import { describe, expect, it } from "vitest";
 import { blockCss, blockRules, normalizeStyleInput, readBlockStyle } from "@/lib/site-style";
 import { siteFontHasItalic, siteFontHref } from "@/lib/site-theme";
 
-const settings = (patch: Record<string, unknown>, device = "desktop") => ({
-  style: { [device]: patch },
-});
+// The desktop layer is the root of `style`; tablet and mobile nest below it.
+const settings = (patch: Record<string, unknown>) => ({ style: patch });
 
 describe("italic emphasis", () => {
   it("accepts an explicit italic flag and renders a real italic", () => {
@@ -79,7 +78,9 @@ describe("gradient backgrounds", () => {
   it("emits a whole gradient in a phone-only override", () => {
     const css = blockRules("abc123", {
       style: {
-        desktop: { bgColor: "#0a0a0a", bgGradient: "#d4af37", bgGradientAngle: 135 },
+        bgColor: "#0a0a0a",
+        bgGradient: "#d4af37",
+        bgGradientAngle: 135,
         mobile: { bgGradient: "#ffffff" },
       },
     });
