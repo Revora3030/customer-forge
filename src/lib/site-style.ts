@@ -245,7 +245,7 @@ export function normalizeStyleInput(raw: unknown): Record<string, unknown> {
 
   for (const [rawKey, value] of Object.entries(source)) {
     const compact = rawKey.trim().toLowerCase().replace(/[\s_-]+/g, "");
-    let key = known.has(rawKey) ? rawKey : (STYLE_ALIASES[compact] ?? null);
+    const key = known.has(rawKey) ? rawKey : (STYLE_ALIASES[compact] ?? null);
 
     // `padding: 48` / `padding: "48px"` sets all four sides.
     if (!key && (compact === "padding" || compact === "pad")) {
