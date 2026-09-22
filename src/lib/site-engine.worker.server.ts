@@ -599,6 +599,11 @@ async function runJob(
     creativeBrief: creative.brief,
     industryPlaybook,
     generatedAssets: starterImages.assets,
+    directedBy:
+      refined.passes.find((pass) => pass.used && pass.model)?.model ?? "revora-collective",
+    reviewedBy:
+      refined.passes.filter((pass) => pass.used && pass.model)[1]?.model ?? null,
+    conversionGoal: org.data.conversion_goal ?? "enquiries",
     replaceExisting: freshReplace,
   });
   const attachedEvidence = {
