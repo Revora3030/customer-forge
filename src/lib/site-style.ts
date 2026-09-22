@@ -627,57 +627,21 @@ const VISUAL_KEYS = [
   "image_ratio",
 ] as const;
 
-const AI_CSS_KEYS = [
-  "background",
-  "backgroundColor",
-  "backgroundImage",
-  "color",
-  "border",
-  "borderColor",
-  "borderRadius",
-  "boxShadow",
-  "transform",
-  "filter",
-  "clipPath",
-  "mixBlendMode",
-  "gridTemplateColumns",
-  "gridTemplateAreas",
-  "gap",
-  "rowGap",
-  "columnGap",
-  "padding",
-  "paddingTop",
-  "paddingRight",
-  "paddingBottom",
-  "paddingLeft",
-  "margin",
-  "marginTop",
-  "marginRight",
-  "marginBottom",
-  "marginLeft",
-  "maxWidth",
-  "minHeight",
-  "aspectRatio",
-  "objectFit",
-  "objectPosition",
-  "opacity",
-  "display",
-  "alignItems",
-  "justifyContent",
-  "textAlign",
-  "fontFamily",
-  "fontSize",
-  "lineHeight",
-  "letterSpacing",
-  "position",
-  "top",
-  "right",
-  "bottom",
-  "left",
-  "zIndex",
-  "containerType",
-  "containerName",
-] as const;
+const UNSAFE_AI_CSS_PROPERTIES = new Set([
+  "cssText",
+  "style",
+  "content",
+  "behavior",
+  "-moz-binding",
+  "binding",
+]);
+
+function safeAiCssProperty(rawKey: string): string | null {
+  const key = rawKey.trim();
+  if (!key || key.length > 80 || UNSAFE_AI_CSS_PROPERTIES.has(key.toLowerCase())) return null;
+  if (!/^--?[a-zA-Z][a-zA-Z0-9_-]*$/.test(key) && !/^--[a-zA-Z0-9_-]+$/.test(key)) return null;
+  return key;
+}
 
 function safeAiCssValue(value: unknown): string | number | null {
   if (typeof value === "number" && Number.isFinite(value)) return value;
@@ -726,8 +690,10 @@ export function aiAuthoredCss(settings: unknown): React.CSSProperties {
   const raw = (settings as Record<string, unknown>)["ai_visual"];
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
   const out: Record<string, string | number> = {};
-  for (const key of AI_CSS_KEYS) {
-    const value = safeAiCssValue((raw as Record<string, unknown>)[key]);
+  for (const [rawKey, rawValue] of Object.entries(raw as Record<string, unknown>)) {
+    const key = safeAiCssProperty(rawKey);
+    if (!key) continue;
+    const value = safeAiCssValue(rawValue);
     if (value !== null) out[key] = value;
   }
   return out as React.CSSProperties;
@@ -747,8 +713,10 @@ export function aiAuthoredResponsiveCss(settings: unknown, selector: string): st
     const visual = (state as Record<string, unknown>)["visual"];
     if (!visual || typeof visual !== "object" || Array.isArray(visual)) continue;
     const declarations: string[] = [];
-    for (const key of AI_CSS_KEYS) {
-      const value = safeAiCssValue((visual as Record<string, unknown>)[key]);
+    for (const [rawKey, rawValue] of Object.entries(visual as Record<string, unknown>)) {
+      const key = safeAiCssProperty(rawKey);
+      if (!key) continue;
+      const value = safeAiCssValue(rawValue);
       if (value === null) continue;
       const cssKey = key.replace(/[A-Z]/g, (letter) => "-" + letter.toLowerCase());
       declarations.push(`${cssKey}:${String(value)}`);
