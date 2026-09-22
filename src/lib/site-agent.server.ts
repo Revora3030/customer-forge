@@ -279,8 +279,6 @@ export async function planChanges(
   attachments: AgentAttachment[] = [],
   caller?: Partial<AiCaller>,
 ): Promise<Record<string, unknown>> {
-
-
   const intent = translateIntent(instruction);
   const parts: ContentPart[] = [
     {
