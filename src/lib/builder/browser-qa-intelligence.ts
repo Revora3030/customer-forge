@@ -8,6 +8,8 @@
  */
 
 import type { AgentContext } from "@/lib/site-agent.server";
+import { DEVICES, readBlockStyle } from "@/lib/site-style";
+import { isReadable } from "@/lib/readable-color";
 
 export type BrowserQaCheckKind =
   | "page"
@@ -18,7 +20,8 @@ export type BrowserQaCheckKind =
   | "seo"
   | "accessibility"
   | "richness"
-  | "consistency";
+  | "consistency"
+  | "readability";
 
 const TEMPLATE_FILLER = /\b(?:lorem ipsum|your business name|your company name|business name here|service name here|insert (?:text|copy|headline)|coming soon)\b|\[(?:business|company|service|city|state|headline|description)(?: name)?\]/i;
 
