@@ -815,9 +815,7 @@ async function imageCall(
     // Changing an existing picture needs an image-to-image / inpainting model.
     // A text-to-image model would ignore the source and hand back an unrelated
     // picture, so it is kept out of the chain entirely.
-    source
-      ? { capable: imageEditCapableModel, nextProviderOnInvalidRequest: true }
-      : { nextProviderOnInvalidRequest: true },
+    source ? { capable: imageEditCapableModel } : undefined,
   );
   return {
     base64: outcome.value.base64,
