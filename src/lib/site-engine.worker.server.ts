@@ -10,7 +10,6 @@
  *  - customer builds use Revora's native engine and never dispatch content to
  *    an outside model
  */
-import type { PageArchitectureOutcome } from "@/lib/builder/ai-page-architecture.server";
 import { nextPublishState } from "@/lib/publish-state";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
