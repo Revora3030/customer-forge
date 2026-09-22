@@ -2,6 +2,7 @@ import { callBestThinker } from "@/lib/ai/hall-of-fame.server";
 import {
   CREATIVE_SITE_AUTHORITY,
   CREATIVE_SITE_CONTRACT_VERSION,
+  mergeCreativeSiteContracts,
   validateCreativeSiteContract,
   type CreativeSiteContract,
 } from "@/lib/builder/creative-site-contract";
@@ -87,28 +88,131 @@ export async function authorCreativeSiteContract(input: {
     hasOwnerMedia: input.hasOwnerMedia,
   };
 
-  const sol = await callBestThinker({
-    purpose: "creative_direction",
-    complexity: "high",
-    organizationId: input.organizationId,
-    json: true,
-    maxOutputTokens: 12000,
-    ...(input.signal ? { signal: input.signal } : {}),
-    system: SYSTEM,
-    user: [
-      "BUSINESS FACTS:",
-      JSON.stringify(facts, null, 2),
-      "",
-      "Create the complete site contract now.",
-      "The site may have any valid number of pages and sections needed by the business.",
-      "Do not include claims not present in the facts.",
-      input.hasOwnerMedia
-        ? "Owner media exists; you may assign it where useful, but do not invent asset ids."
-        : "No owner media is available; do not mark any section media as required unless the contract can materialize a real asset.",
-      "Use stable ids such as page-home and section-home-intro-01, but invent the actual architecture.",
-    ].join("\n"),
-  });
+  let solModel = "gpt-5.6-sol";
+  let solCostMicrocents = 0;
+  let contract: CreativeSiteContract | null = null;
+  let continuation = { chunkIndex: 0, totalChunks: undefined as number | undefined, cursor: null as string | null, hasMore: false };
 
+  // Large websites are authored in resumable chunks. Each chunk is a
+  // complete JSON contract fragment with stable page/section IDs, and the
+  // fragments are merged by ID before Terra sees the site.
+  for (let chunkIndex = 0; chunkIndex < 12; chunkIndex += 1) {
+    const sol = await callBestThinker({
+      purpose: "creative_direction",
+      complexity: "high",
+      organizationId: input.organizationId,
+      json: true,
+      maxOutputTokens: 12000,
+      ...(input.signal ? { signal: input.signal } : {}),
+      system: SYSTEM,
+      user: [
+        "BUSINESS FACTS:",
+        JSON.stringify(facts, null, 2),
+        "",
+        chunkIndex === 0
+          ? "Create the complete site contract now."
+          : [
+              "Continue the same website contract from the previous chunk.",
+              "Do not redesign or overwrite existing pages/sections. Add only missing pages/sections/components and any additional identity data required to complete the site.",
+              "Previous chunk index: " + continuation.chunkIndex + ". Cursor: " + (continuation.cursor ?? "none") + ".",
+              "Return stable IDs so the chunks can be merged without loss.",
+              "Set continuation.hasMore=true only when another chunk is actually required; otherwise set hasMore=false.",
+              "Return one CreativeSiteContract JSON object only.",
+            ].join("\n"),
+        "The site may have any valid number of pages and sections needed by the business.",
+        "Do not include claims not present in the facts.",
+        input.hasOwnerMedia
+          ? "Owner media exists; you may assign it where useful, but do not invent asset ids."
+          : "No owner media is available; do not mark any section media as required unless the contract can materialize a real asset.",
+        "Use stable ids such as page-home and section-home-intro-01, but invent the actual architecture.",
+        contract ? "CURRENT MERGED CONTRACT:\n" + JSON.stringify(contract) : "",
+      ].filter(Boolean).join("\n"),
+    });
+
+    if (!sol.ok || !sol.text) {
+      return {
+        contract: null,
+        reviewed: false,
+        skipped: sol.detail ?? sol.reason,
+        models: [solModel].filter(Boolean),
+        costMicrocents: solCostMicrocents,
+      };
+    }
+
+    solModel = sol.model ?? solModel;
+    solCostMicrocents += sol.costMicrocents;
+    const parsedChunk = parseJson(sol.text);
+    if (!parsedChunk) {
+      return {
+        contract: null,
+        reviewed: false,
+        skipped: "Sol returned invalid JSON in chunk " + (chunkIndex + 1),
+        models: [solModel],
+        costMicrocents: solCostMicrocents,
+      };
+    }
+
+    const chunk = normalize(parsedChunk, solModel);
+    const chunkValidation = validateCreativeSiteContract(chunk);
+    if (!chunkValidation.valid) {
+      return {
+        contract: null,
+        reviewed: false,
+        skipped: chunkValidation.violations.slice(0, 8).join("; "),
+        models: [solModel],
+        costMicrocents: solCostMicrocents,
+      };
+    }
+
+    contract = contract ? mergeCreativeSiteContracts(contract, chunk) : chunk;
+    continuation = {
+      chunkIndex,
+      totalChunks: chunk.continuation?.totalChunks,
+      cursor: chunk.continuation?.cursor ?? null,
+      hasMore: chunk.continuation?.hasMore === true,
+    };
+    if (!continuation.hasMore) break;
+    if (chunkIndex === 11) {
+      return {
+        contract: null,
+        reviewed: false,
+        skipped: "Sol required more than the supported continuation window",
+        models: [solModel],
+        costMicrocents: solCostMicrocents,
+      };
+    }
+  }
+
+  if (!contract) {
+    return {
+      contract: null,
+      reviewed: false,
+      skipped: "Sol did not produce a complete site contract",
+      models: [solModel],
+      costMicrocents: solCostMicrocents,
+    };
+  }
+
+  contract = {
+    ...contract,
+    continuation: {
+      chunkIndex: continuation.chunkIndex,
+      totalChunks: continuation.totalChunks,
+      cursor: continuation.cursor,
+      hasMore: false,
+    },
+    complete: true,
+  };
+  const finalValidation = validateCreativeSiteContract(contract);
+  if (!finalValidation.valid) {
+    return {
+      contract: null,
+      reviewed: false,
+      skipped: finalValidation.violations.slice(0, 8).join("; "),
+      models: [solModel],
+      costMicrocents: solCostMicrocents,
+    };
+  }
   if (!sol.ok || !sol.text)
     return {
       contract: null,
@@ -118,27 +222,6 @@ export async function authorCreativeSiteContract(input: {
       costMicrocents: 0,
     };
 
-  const parsed = parseJson(sol.text);
-  if (!parsed)
-    return {
-      contract: null,
-      reviewed: false,
-      skipped: "Sol returned invalid JSON",
-      models: sol.model ? [sol.model] : [],
-      costMicrocents: sol.costMicrocents,
-    };
-
-  let contract = normalize(parsed, sol.model ?? "gpt-5.6-sol");
-  let validation = validateCreativeSiteContract(contract);
-  if (!validation.valid) {
-    return {
-      contract: null,
-      reviewed: false,
-      skipped: validation.violations.slice(0, 8).join("; "),
-      models: sol.model ? [sol.model] : [],
-      costMicrocents: sol.costMicrocents,
-    };
-  }
 
   const terra = await callBestThinker({
     purpose: "quality_review",
@@ -169,8 +252,8 @@ export async function authorCreativeSiteContract(input: {
       contract: null,
       reviewed: false,
       skipped: terra.detail ?? terra.reason ?? "Terra review unavailable",
-      models: [sol.model].filter(Boolean) as string[],
-      costMicrocents: sol.costMicrocents,
+      models: [solModel].filter(Boolean) as string[],
+      costMicrocents: solCostMicrocents,
     };
 
   const repaired = parseJson(terra.text);
@@ -179,8 +262,8 @@ export async function authorCreativeSiteContract(input: {
       contract: null,
       reviewed: false,
       skipped: "Terra returned invalid JSON",
-      models: [sol.model, terra.model].filter(Boolean) as string[],
-      costMicrocents: sol.costMicrocents + terra.costMicrocents,
+      models: [solModel, terra.model].filter(Boolean) as string[],
+      costMicrocents: solCostMicrocents + terra.costMicrocents,
     };
 
   contract = normalize(repaired, sol.model ?? "gpt-5.6-sol");
@@ -199,7 +282,7 @@ export async function authorCreativeSiteContract(input: {
     contract,
     reviewed: true,
     skipped: null,
-    models: [sol.model, terra.model].filter(Boolean) as string[],
-    costMicrocents: sol.costMicrocents + terra.costMicrocents,
+    models: [solModel, terra.model].filter(Boolean) as string[],
+    costMicrocents: solCostMicrocents + terra.costMicrocents,
   };
 }
