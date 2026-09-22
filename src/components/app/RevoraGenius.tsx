@@ -93,11 +93,13 @@ export function RevoraGenius({
   canManage,
   pages,
   facts,
+  onRefresh,
 }: {
   organizationId: string | undefined;
   canManage: boolean;
   pages: ContentPage[];
   facts: GemFacts;
+  onRefresh?: () => Promise<void> | void;
 }) {
   const queryClient = useQueryClient();
   const applyFn = useServerFn(applyWebsiteChanges);
@@ -172,6 +174,7 @@ export function RevoraGenius({
       void queryClient.invalidateQueries({ queryKey: ["score_facts", organizationId] });
       void queryClient.invalidateQueries({ queryKey: ["business_profile", organizationId] });
       void queryClient.invalidateQueries({ queryKey: ["website_settings"] });
+      void onRefresh?.();
     },
     onError: (error: Error) => toast.error(friendlyError(error, "Couldn't apply that yet.")),
   });

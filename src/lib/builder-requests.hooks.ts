@@ -317,6 +317,7 @@ export function useBuilderRequests({
     busy,
     refreshing,
     refreshRevision,
+    refresh,
     ready,
     summary,
     capabilities,
