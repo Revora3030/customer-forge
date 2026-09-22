@@ -20,7 +20,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { MotionIntensity } from "@/lib/builder/motion-pack";
 import { planWebsiteChangesWithAi } from "@/lib/builder/ai-agent-plan.server";
-import { applyWebsiteActions, loadAgentContext, runAiWebsiteUpgrade } from "@/lib/site-agent.functions";
+import { applyWebsiteActions, runAiWebsiteUpgrade } from "@/lib/site-agent.functions";
 import {
   parseVisionReview,
   visionRepairs,
