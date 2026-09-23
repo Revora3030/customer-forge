@@ -120,15 +120,6 @@ export type PaidVideoJob = {
   size?: "1280x720" | "1792x1024" | "720x1280";
 };
 
-type JobState = { id: string; status: string; error?: { message?: string } | null };
-
-async function readJson(response: Response): Promise<Record<string, unknown>> {
-  try {
-    return (await response.json()) as Record<string, unknown>;
-  } catch {
-    return {};
-  }
-}
 
 /**
  * Makes ONE clip, fully accounted against the durable cap. Never throws: every
