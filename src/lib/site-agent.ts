@@ -6,6 +6,7 @@ import {
   type BackdropId,
   type SectionEffectId,
 } from "@/lib/site-effects";
+import { validateComposition, type CompositionTree } from "@/lib/builder/composition-tree";
 import { safeLinkUrl } from "@/lib/website-content";
 import { siteBodyFont, siteHeadingFont } from "@/lib/site-theme";
 import { describeCustomBlock, parseCustomBlock, type CustomBlockSpec } from "@/lib/builder/custom-block";
@@ -379,6 +380,13 @@ export type AgentAction =
       type: "set_custom_block";
       sectionId: string;
       spec: CustomBlockSpec;
+    }
+
+  /** An AI-authored composition tree: any structure the AI invents. */
+  | {
+      type: "set_composition";
+      sectionId: string;
+      tree: CompositionTree;
     }
 
 
@@ -1300,6 +1308,20 @@ export function readActions(
       /* ------------------------------------------------------------------ */
       /* CUSTOM INTERACTIVE BLOCK                                           */
       /* ------------------------------------------------------------------ */
+
+      case "set_composition": {
+        if (!knownSection(sectionId)) {
+          note("A layout step pointed at a section that isn't on this website, so it was left out.");
+          break;
+        }
+        const checked = validateComposition(row["tree"]);
+        if (!checked.ok) {
+          note(`A layout needs repair: ${checked.issues.slice(0, 5).map((i) => `${i.path} ${i.problem}`).join("; ")}.`);
+          break;
+        }
+        out.push({ type, sectionId, tree: checked.tree });
+        break;
+      }
 
       case "set_custom_block": {
         if (
@@ -2412,6 +2434,16 @@ export function describeActions(
             title: `Style this ${action.target} for ${action.device}`,
             where: locate(index, action.target === "section" ? { sectionId: action.targetId } : { componentId: action.targetId }),
             after: Object.entries(action.patch).map(([name, value]) => `${name}: ${String(value)}`).join(" · "),
+            destructive: false,
+            action,
+          };
+
+        case "set_composition":
+          return {
+            key,
+            title: `Compose a new layout${action.tree.label ? `: ${action.tree.label}` : ""}`,
+            where: locate(index, { sectionId: action.sectionId }),
+            after: "AI-authored layout",
             destructive: false,
             action,
           };
