@@ -502,6 +502,7 @@ export const getAiOrchestration = createServerFn({ method: "GET" })
     const models = (snapshot?.models ?? []).map(shape);
 
     const { hallOfFameSquad, recentHallOfFameRuns } = await import("@/lib/ai/hall-of-fame.server");
+    const { freeModelForm, freeModelFormSnapshot } = await import("@/lib/ai/free-reputation");
     const squadPurposes = [
       "creative_direction",
       "content_strategy",
@@ -515,11 +516,20 @@ export const getAiOrchestration = createServerFn({ method: "GET" })
         return {
           purpose,
           capability: built.capability,
-          members: built.squad.map((member) => ({
-            provider: member.provider,
-            model: member.model,
-            ready: member.healthy && (member.remainingToday ?? 1) > 0,
-          })),
+          members: built.squad.map((member) => {
+            const form = freeModelForm(member.provider, member.model);
+            return {
+              provider: member.provider,
+              model: member.model,
+              ready: member.healthy && (member.remainingToday ?? 1) > 0,
+              form: {
+                attempts: form.attempts,
+                wins: form.wins,
+                averageLatencyMs: form.averageLatencyMs,
+                score: Number(form.score.toFixed(3)),
+              },
+            };
+          }),
         };
       }),
     );
@@ -541,6 +551,10 @@ export const getAiOrchestration = createServerFn({ method: "GET" })
       participation,
       outcomes: recentCallOutcomes(25),
       probe: { version: PROBE_VERSION, capabilities: probeableCapabilities() },
-      hallOfFame: { squads, runs: recentHallOfFameRuns(15) },
+      hallOfFame: {
+        squads,
+        runs: recentHallOfFameRuns(15),
+        form: freeModelFormSnapshot().slice(0, 30),
+      },
     };
   });
