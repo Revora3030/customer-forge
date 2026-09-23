@@ -39,7 +39,9 @@ export type LunaPurpose =
   | "design_direction"
   | "visual_review"
   | "repair_review"
-  | "image_generation";
+  | "image_generation"
+  | "video_generation";
+
 
 /**
  * The three paid tiers. `luna` keeps its original behaviour exactly; `sol` and
