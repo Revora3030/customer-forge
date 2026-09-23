@@ -196,68 +196,28 @@ export async function generateSiteVideo(
     return { ok: false, reason, message };
   };
 
+  const MESSAGES: Record<"model_unavailable" | "provider_error" | "timed_out" | "invalid_video", string> =
+    {
+      model_unavailable: "This account cannot use the moving-background model yet",
+      provider_error: "The moving background could not be rendered",
+      timed_out: "The moving background took too long to render, so the section kept its picture",
+      invalid_video: "The returned clip was empty, so nothing was saved",
+    };
+
   try {
-    const created = await fetch(`${BASE}/videos`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-      body: JSON.stringify({
-        model,
-        prompt: job.prompt,
-        seconds: String(seconds),
-        size: job.size ?? "1280x720",
-      }),
-    });
-    if (!created.ok) {
-      const body = await readJson(created);
-      const detail =
-        typeof (body["error"] as { message?: string } | undefined)?.message === "string"
-          ? (body["error"] as { message: string }).message
-          : `HTTP ${created.status}`;
+    const outcome = await callPinnedPaidVideo(
+      { organizationId: caller.organizationId, userId: caller.userId ?? null },
+      { model, prompt: job.prompt, seconds, size: job.size ?? "1280x720" },
+      { maxWaitMs: MAX_WAIT_MS, pollMs: POLL_MS },
+    );
+    if (!outcome.ok)
       return await fail(
-        created.status === 404 || created.status === 403 ? "model_unavailable" : "provider_error",
-        `The moving-background service refused the request (${detail.slice(0, 160)}). Nothing was charged.`,
-        0,
+        outcome.kind,
+        `${MESSAGES[outcome.kind]} (${outcome.detail}).${
+          outcome.charged ? "" : " Nothing was charged."
+        }`,
+        outcome.charged ? estimate : 0,
       );
-    }
-    const job1 = (await created.json()) as JobState;
-    if (!job1?.id) return await fail("provider_error", "No video job was started. Nothing was charged.", 0);
-
-    // Poll until the clip is finished. The clip is only billed once the job has
-    // actually run, so a refusal before that settles at zero.
-    const started = Date.now();
-    let state: JobState = job1;
-    while (state.status !== "completed" && state.status !== "failed") {
-      if (Date.now() - started > MAX_WAIT_MS)
-        return await fail(
-          "timed_out",
-          "The moving background took too long to render, so the section kept its picture.",
-          estimate,
-        );
-      await new Promise((resolve) => setTimeout(resolve, POLL_MS));
-      const polled = await fetch(`${BASE}/videos/${state.id}`, {
-        headers: { Authorization: `Bearer ${apiKey}` },
-      });
-      if (!polled.ok)
-        return await fail("provider_error", "The moving background could not be checked on.", estimate);
-      state = (await polled.json()) as JobState;
-    }
-    if (state.status === "failed")
-      return await fail(
-        "provider_error",
-        `The moving background could not be rendered${
-          state.error?.message ? ` (${state.error.message.slice(0, 160)})` : ""
-        }.`,
-        estimate,
-      );
-
-    const content = await fetch(`${BASE}/videos/${state.id}/content`, {
-      headers: { Authorization: `Bearer ${apiKey}` },
-    });
-    if (!content.ok)
-      return await fail("provider_error", "The finished clip could not be downloaded.", estimate);
-    const bytes = new Uint8Array(await content.arrayBuffer());
-    if (bytes.byteLength < 10_000)
-      return await fail("invalid_video", "The returned clip was empty, so nothing was saved.", estimate);
 
     await settleBudget(caller.organizationId, estimate, estimate);
     await recordUsage({
@@ -269,8 +229,16 @@ export async function generateSiteVideo(
       outcome: "succeeded",
       reason: null,
     });
-    return { ok: true, bytes, mimeType: "video/mp4", model, tier, seconds, costMicrocents: estimate };
-  } catch (error) {
+    return {
+      ok: true,
+      bytes: outcome.bytes,
+      mimeType: "video/mp4",
+      model,
+      tier,
+      seconds,
+      costMicrocents: estimate,
+    };
+  } catch {
     return await fail(
       "provider_error",
       "The moving-background service could not be reached. Nothing was charged.",
@@ -278,3 +246,4 @@ export async function generateSiteVideo(
     );
   }
 }
+
