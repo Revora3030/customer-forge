@@ -379,6 +379,8 @@ export function SiteSection({ site, section }: { site: Site; section: Section })
 }
 
 function SiteSectionBody({ site, section }: { site: Site; section: Section }) {
+  const heroMotionAllowed = useMotionAllowed();
+
   const components = section.components ?? [];
   const { profile, services, reviews, gallery, org } = site;
   const rating = reviews.length
@@ -443,7 +445,8 @@ function SiteSectionBody({ site, section }: { site: Site; section: Section }) {
                     <video
                       src={heroImageSrc}
                       poster={profile?.hero_image_url ?? undefined}
-                      autoPlay
+                      autoPlay={heroMotionAllowed}
+
                       loop
                       muted
                       playsInline
