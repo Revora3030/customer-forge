@@ -192,3 +192,94 @@ export async function openaiModelReachable(
     return { available: false, status: null };
   }
 }
+
+/* ------------------------------- video lane -------------------------------- */
+
+export type OpenAiVideoOutcome =
+  | { ok: true; bytes: Uint8Array }
+  | {
+      ok: false;
+      /** `charged` says whether the job actually ran before it failed. */
+      kind: "model_unavailable" | "provider_error" | "timed_out" | "invalid_video";
+      detail: string;
+      charged: boolean;
+    };
+
+/**
+ * Renders ONE silent clip on the account's own video model: starts the job,
+ * waits for it, then downloads the finished file. No timer abort on the create
+ * call, because an aborted render is still billed while producing nothing. Only
+ * the router calls this.
+ */
+export async function openaiVideo(
+  apiKey: string,
+  input: { model: string; prompt: string; seconds: number; size: string },
+  waiting: { maxWaitMs: number; pollMs: number },
+): Promise<OpenAiVideoOutcome> {
+  type JobState = { id?: string; status?: string; error?: { message?: string } | null };
+  const auth = { Authorization: `Bearer ${apiKey}` };
+  try {
+    const created = await fetch(`${BASE}/videos`, {
+      method: "POST",
+      headers: { ...auth, "content-type": "application/json" },
+      body: JSON.stringify({
+        model: input.model,
+        prompt: input.prompt,
+        seconds: String(input.seconds),
+        size: input.size,
+      }),
+    });
+    if (!created.ok) {
+      let detail = `HTTP ${created.status}`;
+      try {
+        const body = (await created.json()) as { error?: { message?: string } };
+        if (typeof body.error?.message === "string") detail = body.error.message;
+      } catch {
+        /* keep the status as the detail */
+      }
+      return {
+        ok: false,
+        kind: created.status === 403 || created.status === 404 ? "model_unavailable" : "provider_error",
+        detail: detail.slice(0, 160),
+        charged: false,
+      };
+    }
+    let state = (await created.json()) as JobState;
+    if (!state.id)
+      return { ok: false, kind: "provider_error", detail: "no job was started", charged: false };
+
+    const started = Date.now();
+    while (state.status !== "completed" && state.status !== "failed") {
+      if (Date.now() - started > waiting.maxWaitMs)
+        return { ok: false, kind: "timed_out", detail: "render took too long", charged: true };
+      await new Promise((resolve) => setTimeout(resolve, waiting.pollMs));
+      const polled = await fetch(`${BASE}/videos/${state.id}`, { headers: auth });
+      if (!polled.ok)
+        return { ok: false, kind: "provider_error", detail: "job could not be checked", charged: true };
+      state = (await polled.json()) as JobState;
+    }
+    if (state.status === "failed")
+      return {
+        ok: false,
+        kind: "provider_error",
+        detail: (state.error?.message ?? "the render failed").slice(0, 160),
+        charged: true,
+      };
+
+    const content = await fetch(`${BASE}/videos/${state.id}/content`, { headers: auth });
+    if (!content.ok)
+      return { ok: false, kind: "provider_error", detail: "the clip could not be downloaded", charged: true };
+    const bytes = new Uint8Array(await content.arrayBuffer());
+    if (bytes.byteLength < 10_000)
+      return { ok: false, kind: "invalid_video", detail: "the clip was empty", charged: true };
+    return { ok: true, bytes };
+  } catch {
+    return {
+      ok: false,
+      kind: "provider_error",
+      detail: "the video service could not be reached",
+      charged: false,
+    };
+  }
+}
+
