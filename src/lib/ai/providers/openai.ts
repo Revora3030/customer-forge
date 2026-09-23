@@ -48,11 +48,14 @@ function usageOf(payload: unknown): AiUsage {
 
 /** GPT-5 era models take `max_completion_tokens` and reject a custom temperature. */
 function isReasoningModel(model: string) {
-  return /^(gpt-5|o\d)/i.test(model);
+  return /^(gpt-5|gpt-6|o\d)/i.test(model);
 }
 
-function isGpt56Model(model: string) {
-  return /^gpt-5\.6-/i.test(model);
+/** gpt-5.6 takes `none`; gpt-6 requires a real effort, so it gets `low`. */
+function reasoningEffortFor(model: string): Record<string, string> {
+  if (/^gpt-5\.6-/i.test(model)) return { reasoning_effort: "none" };
+  if (/^gpt-6-/i.test(model)) return { reasoning_effort: "low" };
+  return {};
 }
 
 export const openAiAdapter: ProviderAdapter = {
@@ -69,7 +72,7 @@ export const openAiAdapter: ProviderAdapter = {
       ...(isReasoningModel(model)
         ? {
             max_completion_tokens: maxOutputTokens,
-            ...(isGpt56Model(model) ? { reasoning_effort: "none" } : {}),
+            ...reasoningEffortFor(model),
           }
         : {
             max_tokens: maxOutputTokens,
@@ -103,7 +106,7 @@ export const openAiAdapter: ProviderAdapter = {
         ...(isReasoningModel(model)
           ? {
               max_completion_tokens: maxOutputTokens,
-              ...(isGpt56Model(model) ? { reasoning_effort: "none" } : {}),
+              ...reasoningEffortFor(model),
             }
           : { max_tokens: maxOutputTokens }),
       }),

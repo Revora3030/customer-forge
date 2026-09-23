@@ -250,6 +250,10 @@ const PRICE_PER_MTOK: Record<string, { input: number; output: number }> = {
   "gpt-image-2.5-sunburst": { input: 5, output: 40 },
   "gpt-image-2.5-flare": { input: 2, output: 16 },
   "whisper-1": { input: 0, output: 0 },
+  "gpt-5.4-nano": { input: 0, output: 0 },
+  "gpt-5-mini": { input: 0, output: 0 },
+  "o4-mini": { input: 0, output: 0 },
+  "o3-mini": { input: 0, output: 0 },
 };
 
 /** Returns null rather than a guess when the model's price isn't known. */

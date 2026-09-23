@@ -21,6 +21,7 @@ import { providerConfig, type ModelRole } from "@/lib/ai/config";
 import type { Capability, CapabilityState, ModelRecord } from "@/lib/ai/orchestration/contracts";
 import { probeEvidence } from "@/lib/ai/orchestration/probe.server";
 import { SPECIALIST_SIX, specialistRecord } from "@/lib/ai/orchestration/specialists";
+import { OPENAI_ROSTER, rosterRecord } from "@/lib/ai/openai-roster";
 import { buildFreeModelRegistry, type ModelCapability, type RegistryModel } from "@/lib/ai/registry.server";
 
 const CAPABILITY_MAP: Partial<Record<ModelCapability, Capability[]>> = {
@@ -207,6 +208,11 @@ export async function buildModelCatalog(): Promise<CatalogSnapshot> {
 
   const runtime = specialistRuntime();
   const specialists = SPECIALIST_SIX.map((entry) => specialistRecord(entry, runtime));
+  for (const entry of OPENAI_ROSTER) {
+    const key = `openai/${entry.model}`;
+    if (!seen.has(key))
+      seen.set(key, rosterRecord(entry, { healthy: runtime.healthy, blockedReason: runtime.blockedReason }));
+  }
   const models = [...seen.values()].sort((a, b) => b.quality - a.quality);
   snapshot = {
     at: Date.now(),
