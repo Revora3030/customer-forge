@@ -42,7 +42,7 @@ describe("command router", () => {
     expect(routed.target).toBe("assistant");
     expect(routed.confident).toBe(true);
     expect(routed.instruction).toBe("i want people to stop leaving my page");
-    expect(routed.action).toMatch(/Revora will handle/);
+    expect(routed.action).toBe("i want people to stop leaving my page");
   });
 
   it("handles an empty command without throwing", () => {
