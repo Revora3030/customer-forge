@@ -32,7 +32,6 @@ const FLAGSHIP = 250_000;
 
 export const OPENAI_ROSTER: RosterEntry[] = [
   { model: "gpt-5.6-sol", role: "Previous Sol, kept as a master reasoning backup", capabilities: [...TEXT, "code_generation", "image_input", "long_context", "tool_calling"], quality: 98, contextTokens: 400_000, freeDailyTokens: null, output: "text" },
-  //, role: "Conversational co-pilot and consultation", capabilities: [...TEXT, "image_input", "long_context", "tool_calling"], quality: 97, contextTokens: 400_000, freeDailyTokens: null, output: "text" },
   { model: "gpt-5.6-luna", role: "Previous Luna, kept as a utility backup", capabilities: [...TEXT, "tool_calling"], quality: 80, contextTokens: 128_000, freeDailyTokens: null, output: "text" },
   { model: "gpt-5.5-pro", role: "Deep architectural and accessibility audits", capabilities: [...TEXT, "code_generation", "long_context"], quality: 94, contextTokens: 400_000, freeDailyTokens: null, output: "text" },
   { model: "gpt-5.5", role: "Flagship reasoning reserve", capabilities: [...TEXT, "code_generation", "image_input", "long_context", "tool_calling"], quality: 93, contextTokens: 400_000, freeDailyTokens: null, output: "text" },
