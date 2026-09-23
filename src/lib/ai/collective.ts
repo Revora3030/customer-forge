@@ -28,9 +28,9 @@ export const COLLECTIVE_TIERS: CollectiveTier[] = ["sol", "terra", "luna"];
 
 /** Default model per tier. Each is overridable by environment variable. */
 export const DEFAULT_COLLECTIVE_MODELS: Record<CollectiveTier, string> = {
-  sol: "gpt-5.6-sol",
+  sol: "gpt-6-sol",
   terra: "gpt-5.6-terra",
-  luna: "gpt-5.6-luna",
+  luna: "gpt-6-luna",
 };
 
 /**

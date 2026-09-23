@@ -69,12 +69,12 @@ const DEFAULT_MODELS: Record<PaidProviderName, Record<ModelRole, string>> = {
   },
   openai: {
     primary: "gpt-5.6-terra",
-    design: "gpt-5.6-sol",
+    design: "gpt-6-sol",
     fast: "gpt-5.4-mini",
     vision: "gpt-5.6-terra",
-    coding: "gpt-5.6-sol",
+    coding: "gpt-6-sol",
     image: "gpt-image-2.5-sunburst",
-    transcription: "whisper-1",
+    transcription: "gpt-transcribe",
   },
 };
 

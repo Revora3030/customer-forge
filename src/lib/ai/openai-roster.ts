@@ -29,9 +29,9 @@ const SMALL = 2_500_000;
 const FLAGSHIP = 250_000;
 
 export const OPENAI_ROSTER: RosterEntry[] = [
-  { model: "gpt-6-sol", role: "Next-generation master reasoning reserve for Sol", capabilities: [...TEXT, "code_generation", "image_input", "long_context", "tool_calling"], quality: 99, contextTokens: 500_000, freeDailyTokens: null, output: "text" },
+  { model: "gpt-5.6-sol", role: "Previous Sol, kept as a master reasoning backup", capabilities: [...TEXT, "code_generation", "image_input", "long_context", "tool_calling"], quality: 98, contextTokens: 400_000, freeDailyTokens: null, output: "text" },
   { model: "gpt-6-astra", role: "Conversational co-pilot and consultation", capabilities: [...TEXT, "image_input", "long_context", "tool_calling"], quality: 97, contextTokens: 400_000, freeDailyTokens: null, output: "text" },
-  { model: "gpt-6-luna", role: "Next-generation metadata, SEO and classification", capabilities: [...TEXT, "tool_calling"], quality: 84, contextTokens: 128_000, freeDailyTokens: null, output: "text" },
+  { model: "gpt-5.6-luna", role: "Previous Luna, kept as a utility backup", capabilities: [...TEXT, "tool_calling"], quality: 80, contextTokens: 128_000, freeDailyTokens: null, output: "text" },
   { model: "gpt-5.5-pro", role: "Deep architectural and accessibility audits", capabilities: [...TEXT, "code_generation", "long_context"], quality: 94, contextTokens: 400_000, freeDailyTokens: null, output: "text" },
   { model: "gpt-5.5", role: "Flagship reasoning reserve", capabilities: [...TEXT, "code_generation", "image_input", "long_context", "tool_calling"], quality: 93, contextTokens: 400_000, freeDailyTokens: null, output: "text" },
   { model: "o3", role: "Logic, math and flow proofing", capabilities: [...TEXT, "code_generation"], quality: 88, contextTokens: 200_000, freeDailyTokens: FLAGSHIP, output: "text" },
@@ -40,7 +40,7 @@ export const OPENAI_ROSTER: RosterEntry[] = [
   { model: "gpt-5.4-nano", role: "Zero-cost micro-edits", capabilities: TEXT, quality: 70, contextTokens: 128_000, freeDailyTokens: SMALL, output: "text" },
   { model: "gpt-5-mini", role: "Zero-cost small edits and rewrites", capabilities: TEXT, quality: 76, contextTokens: 128_000, freeDailyTokens: SMALL, output: "text" },
   { model: "gpt-4.1-mini", role: "Zero-cost routine transforms", capabilities: TEXT, quality: 72, contextTokens: 1_000_000, freeDailyTokens: SMALL, output: "text" },
-  { model: "gpt-transcribe", role: "Next-generation speech transcription", capabilities: ["speech_recognition", "audio_input", "multilingual"], quality: 90, contextTokens: null, freeDailyTokens: null, output: "text" },
+  { model: "whisper-1", role: "Previous transcription model, kept as a backup", capabilities: ["speech_recognition", "audio_input", "multilingual"], quality: 85, contextTokens: null, freeDailyTokens: null, output: "text" },
   { model: "sora-2", role: "Cinematic video backgrounds (registered, not yet wired to the renderer)", capabilities: ["video_generation"], quality: 88, contextTokens: null, freeDailyTokens: null, output: "video" },
   { model: "sora-2-pro", role: "Premium cinematic video (registered, not yet wired to the renderer)", capabilities: ["video_generation"], quality: 93, contextTokens: null, freeDailyTokens: null, output: "video" },
 ];

@@ -674,7 +674,7 @@ export async function materializeSiteContent(
         businessName: input.businessName,
         fingerprint: input.fingerprint,
         brief: input.creativeBrief,
-        directedBy: input.directedBy ?? "gpt-5.6-sol",
+        directedBy: input.directedBy ?? "gpt-6-sol",
         reviewedBy: input.reviewedBy ?? null,
         conversionGoal: input.conversionGoal ?? "enquiries",
         navigationItems: architecture.map((page) => page.title),
