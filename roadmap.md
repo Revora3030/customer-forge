@@ -32,4 +32,6 @@ Ordered by user-felt impact. Each item: extend existing code, never duplicate.
 - [x] Phase 2: open composition tree
 - [x] Phase 3: tree renderer (old section types kept as compatibility)
 - [x] Phase 4: keyword sorter + industry design fallback removed; builder told to prefer compositions (destructive-step approval kept on purpose)
-- [ ] Phase 5: model-only fallback chain audit; delete dead modules
+- [x] Phase 5a: redesign failure fixed (Sol reply was cut off at 6000 tokens; cap raised, cut-off replies now hand over)
+- [ ] Phase 5b: fallback-chain tests, compositions by default, delete dead modules, full quality gate
+- [ ] Terra (gpt-5.6-terra) rejected by OpenAI with 401 — key lacks access

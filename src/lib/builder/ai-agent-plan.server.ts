@@ -243,7 +243,8 @@ export async function planWebsiteChangesWithAi(input: {
     system,
     user,
     organizationId: input.organizationId,
-    maxOutputTokens: 6000,
+    // A full-site redesign is a long JSON plan; 6000 tokens cut it off mid-way.
+    maxOutputTokens: 32000,
   });
   if (!direction.ok) {
     return { ok: false, reason: direction.reason, detail: direction.detail };
@@ -285,7 +286,7 @@ export async function planWebsiteChangesWithAi(input: {
       proposedActions.map((action, index) => `${index}: ${JSON.stringify(action)}`).join("\n"),
     ].join("\n"),
     organizationId: input.organizationId,
-    maxOutputTokens: 1200,
+    maxOutputTokens: 4000,
   });
 
   let actions = proposedActions;
