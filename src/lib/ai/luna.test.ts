@@ -43,7 +43,7 @@ describe("luna configuration", () => {
   it("defaults to the GPT-5.6 Luna orchestrator model", () => {
     delete process.env["LUNA_MODEL"];
     expect(lunaModel()).toBe(DEFAULT_LUNA_MODEL);
-    expect(DEFAULT_LUNA_MODEL).toBe("gpt-5.6-luna");
+    expect(DEFAULT_LUNA_MODEL).toBe("gpt-6-luna");
   });
 
   it("lets an operator point the orchestrator at another model without a deploy", () => {

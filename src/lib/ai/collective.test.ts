@@ -192,9 +192,9 @@ describe("models and cost truthfulness", () => {
       expect(tierModel(tier)).toBe(DEFAULT_COLLECTIVE_MODELS[tier]);
     }
     expect(DEFAULT_COLLECTIVE_MODELS).toEqual({
-      sol: "gpt-5.6-sol",
+      sol: "gpt-6-sol",
       terra: "gpt-5.6-terra",
-      luna: "gpt-5.6-luna",
+      luna: "gpt-6-luna",
     });
   });
 

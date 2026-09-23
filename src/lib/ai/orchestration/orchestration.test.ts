@@ -98,7 +98,7 @@ describe("specialist six", () => {
 
   it("reports the owner as blocked instead of silently downgrading", () => {
     const blocked = specialists.map((entry) =>
-      entry.id === "whisper-1" ? { ...entry, blockedReason: "no credentials" } : entry,
+      entry.id === "gpt-transcribe" ? { ...entry, blockedReason: "no credentials" } : entry,
     );
     const coverage = specialistCoverage({ contract: contractFor("transcription"), records: blocked });
     expect(coverage.owner).toBeNull();
@@ -152,7 +152,7 @@ describe("orchestration plan", () => {
       catalog: [],
       requestId: "req-1",
     });
-    expect(plan.lead?.record.id).toBe("gpt-5.6-sol");
+    expect(plan.lead?.record.id).toBe("gpt-6-sol");
     expect(plan.stages).toContain("terra_verification");
     expect(plan.stages).toContain("visual_qa");
     expect(plan.decision.participants.some((entry) => entry.role === "verification")).toBe(true);
@@ -186,7 +186,7 @@ describe("failover", () => {
     const contract = contractFor("transcription");
     const outcome = capabilityAwareFailover({
       contract,
-      attempted: ["whisper-1"],
+      attempted: ["gpt-transcribe"],
       catalog: [record({ id: "text-only" })],
     });
     expect(outcome.kind).toBe("capability_unavailable");
