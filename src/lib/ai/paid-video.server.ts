@@ -19,6 +19,7 @@
  */
 
 import { rosterEntry } from "@/lib/ai/openai-roster";
+import { callPinnedPaidVideo } from "@/lib/ai/router.server";
 import {
   MICROCENTS_PER_DOLLAR,
   formatUsd,
@@ -29,11 +30,10 @@ import {
   settleBudget,
 } from "@/lib/ai/luna.server";
 
-const BASE = "https://api.openai.com/v1";
-
 /** How long one job may take before Revora stops waiting, and the poll gap. */
 const MAX_WAIT_MS = 8 * 60 * 1000;
 const POLL_MS = 5_000;
+
 
 export const VIDEO_TIERS = ["standard", "premium"] as const;
 export type VideoTier = (typeof VIDEO_TIERS)[number];

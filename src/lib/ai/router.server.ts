@@ -64,7 +64,13 @@ import { groqAdapter } from "@/lib/ai/providers/groq";
 import { llm7Adapter } from "@/lib/ai/providers/llm7";
 import { nvidiaAdapter } from "@/lib/ai/providers/nvidia";
 import { openRouterAdapter } from "@/lib/ai/providers/openrouter";
-import { openAiAdapter, openaiModelReachable } from "@/lib/ai/providers/openai";
+import {
+  openAiAdapter,
+  openaiModelReachable,
+  openaiVideo,
+  type OpenAiVideoOutcome,
+} from "@/lib/ai/providers/openai";
+
 import { base64ByteLength } from "@/lib/ai/providers/shared";
 import { checkAiLimits, recordAiEvent } from "@/lib/ai/telemetry.server";
 import type {
