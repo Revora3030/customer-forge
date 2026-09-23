@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import { planSiteContent, type MaterializeInput } from "@/lib/site-materialize.server";
 import { materializedSectionDesign } from "@/lib/site-materialize.server";
 import { DESIGN_DIRECTIONS } from "@/lib/design-directions";
-import { classifyArchetype } from "@/lib/site-archetypes";
 import { createDesignFingerprint } from "@/lib/builder/design-fingerprint";
 import { playbookFor } from "@/lib/builder/industry";
 
