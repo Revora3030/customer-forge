@@ -36,10 +36,8 @@ describe("execution blueprint", () => {
 
     expect(blueprint.risk).toBe("high");
     expect(blueprint.requiresApproval).toBe(true);
-    expect(blueprint.approvalCheckpoints).toEqual([
-      "phase-conversion",
-      "phase-seo",
-    ]);
+    // SEO page edits are medium-risk creative work: no approval needed.
+    expect(blueprint.approvalCheckpoints).toEqual(["phase-conversion"]);
     expect(blueprint.steps.find((step) => step.phase === "conversion")?.approvalRequired).toBe(true);
     expect(blueprint.steps.find((step) => step.phase === "content")?.risk).toBe("low");
     expect(blueprint.impactSummary).toContain("customer-facing");

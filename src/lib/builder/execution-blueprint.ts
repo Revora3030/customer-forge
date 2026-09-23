@@ -138,7 +138,9 @@ export function buildExecutionBlueprint(actions: AgentAction[]): ExecutionBluepr
       actionCount: items.length,
       risk,
       impact: impactOf(phase),
-      approvalRequired: risk !== "low",
+      // Safety gate only: destructive/fact changes need a human; creative
+      // adds, reorders and restructures execute autonomously.
+      approvalRequired: risk === "high",
     });
   }
 
