@@ -411,20 +411,43 @@ function SiteSectionBody({ site, section }: { site: Site; section: Section }) {
                       : "aspect-[4/3] !min-h-0 rounded-2xl sm:aspect-[3/2] lg:aspect-[16/10]"
                   }`}
                 >
-                  <img
-                    src={profile?.hero_image_url ?? heroImageSrc ?? ""}
-                    alt={heroImageVisual?.alt || org.name + " featured work"}
-                    width={1200}
-                    height={800}
-                    fetchPriority="high"
-                    decoding="async"
-                    className="h-full w-full object-cover object-center"
-                    style={{
-                      objectPosition: safeObjectPosition(
-                        heroImageVisual?.focal_point ?? heroImageVisual?.object_position,
-                      ),
-                    }}
-                  />
+                  {heroImageVisual?.media_kind === "video" && heroImageSrc ? (
+                    // A moving background plays silently on a loop and never
+                    // blocks the headline: the poster picture shows first, and a
+                    // visitor who asked for less motion keeps a still frame.
+                    <video
+                      src={heroImageSrc}
+                      poster={profile?.hero_image_url ?? undefined}
+                      autoPlay
+                      loop
+                      muted
+                      playsInline
+                      preload="metadata"
+                      aria-label={heroImageVisual?.alt || org.name + " featured work"}
+                      className="rv-hero-video h-full w-full object-cover object-center"
+                      style={{
+                        objectPosition: safeObjectPosition(
+                          heroImageVisual?.focal_point ?? heroImageVisual?.object_position,
+                        ),
+                      }}
+                    />
+                  ) : (
+                    <img
+                      src={profile?.hero_image_url ?? heroImageSrc ?? ""}
+                      alt={heroImageVisual?.alt || org.name + " featured work"}
+                      width={1200}
+                      height={800}
+                      fetchPriority="high"
+                      decoding="async"
+                      className="h-full w-full object-cover object-center"
+                      style={{
+                        objectPosition: safeObjectPosition(
+                          heroImageVisual?.focal_point ?? heroImageVisual?.object_position,
+                        ),
+                      }}
+                    />
+                  )}
+
                   {heroImageVisual ? <MediaCredit visual={heroImageVisual} /> : null}
                 </figure>
               ) : null}
