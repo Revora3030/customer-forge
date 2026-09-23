@@ -16,6 +16,7 @@ import { callBestThinker } from "@/lib/ai/hall-of-fame.server";
 import type { AgentContext } from "@/lib/site-agent.server";
 import { MAX_ACTIONS } from "@/lib/site-agent";
 import { SITE_HEADING_FONTS } from "@/lib/site-theme";
+import { COMPOSITION_PRIMITIVES } from "@/lib/builder/composition-tree";
 
 export type AiPlanFailure = {
   ok: false;
