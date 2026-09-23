@@ -188,14 +188,29 @@ function SectionMedia({ site, section }: { site: Site; section: Section }) {
         const overlayClass = visual.overlay ? "rv-overlay-" + visual.overlay : "";
         return (
           <figure key={component.id} data-rvb={component.id} style={blockCss(style, siteSurface(site))} className={`rv-media-frame ${ratioClass(visual.aspect_ratio)} ${overlayClass} overflow-hidden`}>
-            <img
-              src={src}
-              alt={visual.alt || component.label || `${site.org.name} work sample`}
-              loading="lazy"
-              decoding="async"
-              className={visualImageClass(visual)}
-              style={{ objectPosition: safeObjectPosition(visual.focal_point ?? visual.object_position) }}
-            />
+            {visual.media_kind === "video" ? (
+              <video
+                src={src}
+                autoPlay
+                loop
+                muted
+                playsInline
+                preload="metadata"
+                aria-label={visual.alt || component.label || `${site.org.name} work sample`}
+                className={visualImageClass(visual)}
+                style={{ objectPosition: safeObjectPosition(visual.focal_point ?? visual.object_position) }}
+              />
+            ) : (
+              <img
+                src={src}
+                alt={visual.alt || component.label || `${site.org.name} work sample`}
+                loading="lazy"
+                decoding="async"
+                className={visualImageClass(visual)}
+                style={{ objectPosition: safeObjectPosition(visual.focal_point ?? visual.object_position) }}
+              />
+            )}
+
             <MediaCredit visual={visual} />
           </figure>
         );
