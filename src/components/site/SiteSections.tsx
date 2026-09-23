@@ -211,7 +211,7 @@ function SectionMedia({ site, section }: { site: Site; section: Section }) {
         const overlayClass = visual.overlay ? "rv-overlay-" + visual.overlay : "";
         return (
           <figure key={component.id} data-rvb={component.id} style={blockCss(style, siteSurface(site))} className={`rv-media-frame ${ratioClass(visual.aspect_ratio)} ${overlayClass} overflow-hidden`}>
-            {visual.media_kind === "video" ? (
+            {visual.media_kind === "video" && motionAllowed ? (
               <video
                 src={src}
                 autoPlay
