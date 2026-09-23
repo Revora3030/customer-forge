@@ -429,10 +429,31 @@ export type AiOrchestration = {
     squads: {
       purpose: string;
       capability: string;
-      members: { provider: string; model: string; ready: boolean }[];
+      members: {
+        provider: string;
+        model: string;
+        ready: boolean;
+        /** Recent real outcomes for this model. Never any prompt content. */
+        form: {
+          attempts: number;
+          wins: number;
+          averageLatencyMs: number | null;
+          score: number;
+        };
+      }[];
     }[];
     runs: import("@/lib/ai/hall-of-fame.server").HallOfFameRun[];
+    /** Recent form across every free model that has actually been tried. */
+    form: {
+      provider: string;
+      model: string;
+      attempts: number;
+      wins: number;
+      averageLatencyMs: number | null;
+      score: number;
+    }[];
   };
+
 };
 
 /**
