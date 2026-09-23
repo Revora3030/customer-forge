@@ -211,10 +211,11 @@ function SectionMedia({ site, section }: { site: Site; section: Section }) {
         const overlayClass = visual.overlay ? "rv-overlay-" + visual.overlay : "";
         return (
           <figure key={component.id} data-rvb={component.id} style={blockCss(style, siteSurface(site))} className={`rv-media-frame ${ratioClass(visual.aspect_ratio)} ${overlayClass} overflow-hidden`}>
-            {visual.media_kind === "video" && motionAllowed ? (
+            {visual.media_kind === "video" ? (
+              // A visitor who prefers less motion gets the opening frame only.
               <video
                 src={src}
-                autoPlay
+                autoPlay={motionAllowed}
                 loop
                 muted
                 playsInline
@@ -223,6 +224,7 @@ function SectionMedia({ site, section }: { site: Site; section: Section }) {
                 className={visualImageClass(visual)}
                 style={{ objectPosition: safeObjectPosition(visual.focal_point ?? visual.object_position) }}
               />
+
             ) : (
               <img
                 src={src}
