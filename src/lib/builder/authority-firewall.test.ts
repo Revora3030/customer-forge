@@ -21,6 +21,37 @@ describe("creative authority firewall", () => {
     expect(offenders).toEqual([]);
   });
 
+  it("deleted rule-based creative modules stay deleted", () => {
+    const gone = [
+      "src/lib/site-archetypes.ts",
+      "src/lib/visual-palette.ts",
+      "src/lib/builder/template-gallery.ts",
+      "src/lib/builder/conversion-blueprint.ts",
+      "src/lib/builder/site-conversion-architecture.ts",
+      "src/lib/builder/sitewide-cta.ts",
+      "src/lib/builder/copy-depth.ts",
+    ];
+    const present = gone.filter((f) => {
+      try {
+        statSync(f);
+        return true;
+      } catch {
+        return false;
+      }
+    });
+    expect(present).toEqual([]);
+  });
+
+  it("a cut-off model answer is a failure that hands over, never a partial plan", () => {
+    const src = readFileSync("src/lib/ai/luna.server.ts", "utf8");
+    expect(src).toMatch(/readFinishReason\(payload\) === "length"/);
+    const thinker = readFileSync("src/lib/ai/hall-of-fame.server.ts", "utf8");
+    const body = thinker.slice(thinker.indexOf("export async function callBestThinker"));
+    // The only fallback after the paid lane is the free model squad.
+    expect(body).toContain("callHallOfFame(");
+    expect(body).not.toMatch(/fingerprint|archetype|template|preset/i);
+  });
+
   it("the fingerprint can no longer pick designs from finite pools", () => {
     const neutral = neutralDesignFingerprint();
     const a = createDesignFingerprint({ businessName: "Alpha Plumbing", industry: "plumbing", city: "Austin" });
