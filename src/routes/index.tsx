@@ -99,20 +99,20 @@ export const Route = createFileRoute("/")({
           }
         : ({
             meta: [
-              { title: "Revora — AI Growth Software That Books Local Jobs 24/7" },
+              { title: "Revora Growth Systems — $750 Setup, First Month Free" },
               {
                 name: "description",
                 content:
-                  "AI growth software for local service businesses: website, instant quotes, online booking, CRM, follow-up, reviews, local SEO and analytics — in one system.",
+                  "AI website, booking, CRM, follow-up, reviews and SEO in one growth system. $750 one-time setup, first month free, then $100/month.",
               },
               {
                 property: "og:title",
-                content: "Revora — AI growth software for local service businesses",
+                content: "Revora Growth Systems — $750 Setup, First Month Free",
               },
               {
                 property: "og:description",
                 content:
-                  "Website, instant quotes, booking, CRM, follow-up, reviews, local SEO and analytics in one AI-run system. Built, launched and managed for you. Try it free for 1 day.",
+                  "AI website, booking, CRM, follow-up, reviews and SEO in one growth system. $750 one-time setup, first month free, then $100/month.",
               },
               { property: "og:type", content: "website" },
               { name: "twitter:card", content: "summary_large_image" },
@@ -303,7 +303,10 @@ function Landing() {
                 <span className="text-foreground">
                   website, quotes, booking, follow-up, reviews and local SEO
                 </span>{" "}
-                — so the work finds you and books itself while you work.
+                — so the work finds you and books itself while you work.{" "}
+                <span className="text-foreground">
+                  $750 one-time setup, your first month free, then $100/month.
+                </span>
               </p>
 
               {/* The two doors, right in the hero: create an account, or sign
