@@ -100,6 +100,7 @@ const FREE_MODEL_DEFAULTS: Record<FreeProviderName, Partial<Record<ModelRole, st
     // allowance. Cloudflare's other zero-price image models are reached through
     // live discovery as backups.
     image: "@cf/black-forest-labs/flux-1-schnell",
+    conversation: "@cf/openai/gpt-oss-120b",
   },
   // Verified live against Groq's free developer-tier catalogue. Groq serves no
   // multimodal model to this key, so `vision` is deliberately absent and the
@@ -109,6 +110,7 @@ const FREE_MODEL_DEFAULTS: Record<FreeProviderName, Partial<Record<ModelRole, st
     design: "openai/gpt-oss-120b",
     fast: "openai/gpt-oss-20b",
     coding: "qwen/qwen3.8-27b",
+    conversation: "openai/gpt-oss-120b",
   },
   // Verified live against this NVIDIA key's hosted NIM catalogue. Only these
   // answered; several listed ids are retired or not served to this account.
@@ -122,6 +124,7 @@ const FREE_MODEL_DEFAULTS: Record<FreeProviderName, Partial<Record<ModelRole, st
     fast: "nvidia/nemotron-3.5-lightning-30b-a3b",
     coding: "nvidia/nemotron-3-super-120b-a12b",
     vision: "meta/llama-3.2-11b-vision-instruct",
+    conversation: "nvidia/nemotron-3-super-120b-a12b",
   },
   // Verified live against LLM7's catalogue: only its non usage-based (free)
   // chat models. LLM7 serves no free multimodal model, so `vision` is absent
@@ -131,6 +134,7 @@ const FREE_MODEL_DEFAULTS: Record<FreeProviderName, Partial<Record<ModelRole, st
     design: "mistral-Nemo-Instruct-2407",
     fast: "mistral-Nemo-Instruct-2407",
     coding: "codestral-latest",
+    conversation: "mistral-Nemo-Instruct-2407",
   },
   // Verified live against OpenRouter's zero-price pool. `openrouter/free` is
   // its free auto-router, so it survives individual models being retired.
@@ -140,6 +144,7 @@ const FREE_MODEL_DEFAULTS: Record<FreeProviderName, Partial<Record<ModelRole, st
     fast: "openrouter/free",
     coding: "cohere/north-mini-code:free",
     vision: "inclusionai/ling-3.0-flash-vl:free",
+    conversation: "openrouter/free",
   },
   // Verified live against the Gemini free-tier catalogue; the 2.5 line is no
   // longer served to new keys, so the current flash/flash-lite class is used.
@@ -153,6 +158,7 @@ const FREE_MODEL_DEFAULTS: Record<FreeProviderName, Partial<Record<ModelRole, st
     coding: "gemini-3.6-flash",
     vision: "gemini-3.6-flash",
     transcription: "gemini-3.5-flash",
+    conversation: "gemini-3.6-flash",
   },
 };
 
