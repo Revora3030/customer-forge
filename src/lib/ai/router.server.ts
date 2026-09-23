@@ -961,6 +961,41 @@ export async function paidImageModelReachable(
   };
 }
 
+/* -------------------------- pinned paid video call -------------------------- */
+
+/**
+ * ONE silent clip from the paid OpenAI video model, pinned by name. Lives in the
+ * router for the same reason the picture lane does: the request guard, the
+ * per-workspace concurrency limit and the provider adapter are the router's, and
+ * no module outside it may reach a provider. Spending permission and the durable
+ * cap are enforced by the caller before this runs.
+ */
+export async function callPinnedPaidVideo(
+  caller: AiCaller,
+  input: { model: string; prompt: string; seconds: number; size: string },
+  waiting: { maxWaitMs: number; pollMs: number },
+): Promise<OpenAiVideoOutcome> {
+  const limits = aiLimits();
+  if (input.prompt.length > limits.maxRequestChars)
+    throw new RevoraAiError(413, "That video brief is too long for Revora AI.", {
+      category: "too_large",
+    });
+  const config = providerConfig("openai");
+  if (!config?.apiKey) throw freeAiUnavailable("openai has no credentials configured");
+
+  const concurrencyKey = caller.organizationId ?? caller.userId ?? "platform";
+  if (!acquire(concurrencyKey, limits.maxConcurrentPerWorkspace))
+    throw new RevoraAiError(429, "Revora AI is already working on this workspace's requests.", {
+      category: "rate_limited",
+    });
+  try {
+    return await openaiVideo(config.apiKey, input, waiting);
+  } finally {
+    release(concurrencyKey);
+  }
+}
+
+
 /* ---------------------- pinned free-model calls (ensemble) ------------------ */
 
 /**
