@@ -24,7 +24,7 @@ import type {
 } from "@/lib/ai/orchestration/contracts";
 import { missingCapabilities, supports } from "@/lib/ai/orchestration/contracts";
 
-export type SpecialistId = "sol" | "terra" | "luna" | "sunburst" | "flare" | "whisper";
+export type SpecialistId = "sol" | "astra" | "terra" | "luna" | "sunburst" | "flare" | "whisper";
 
 export type Specialist = {
   id: SpecialistId;
@@ -70,6 +70,26 @@ export const SPECIALIST_SIX: Specialist[] = [
       "multilingual",
     ],
     quality: 98,
+    contextTokens: 400_000,
+  },
+  {
+    id: "astra",
+    model: "gpt-6-astra",
+    provider: "openai",
+    charter:
+      "Live client co-pilot and intake advisor: conversational consultation and clarifying questions. Never takes a creative domain from Sol.",
+    domains: [],
+    capabilities: [
+      "text_generation",
+      "reasoning",
+      "structured_output",
+      "tool_calling",
+      "image_input",
+      "long_context",
+      "streaming",
+      "multilingual",
+    ],
+    quality: 97,
     contextTokens: 400_000,
   },
   {
