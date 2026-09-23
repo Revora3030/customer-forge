@@ -15,7 +15,6 @@ import { RevoraAiError } from "@/lib/ai/errors";
 import { generateStructuredOutput, transcribeAudio } from "@/lib/ai/router.server";
 import type { AiCaller, AiMessage, AiPart } from "@/lib/ai/types";
 import type { ModelRole } from "@/lib/ai/config";
-import { translateIntent } from "@/lib/intent-translator";
 import { SITE_HEADING_FONTS } from "@/lib/site-theme";
 import {
   MAX_ACTIONS,
@@ -281,15 +280,10 @@ export async function planChanges(
   attachments: AgentAttachment[] = [],
   caller?: Partial<AiCaller>,
 ): Promise<Record<string, unknown>> {
-  const intent = translateIntent(instruction);
   const parts: ContentPart[] = [
     {
       type: "text",
-      text: `REQUEST FROM THE OWNER:\n${instruction}\n\nTRANSLATED BRIEF (worked out from their words — the owner does not know Revora's terms):\n${intent.brief}${
-        intent.question
-          ? `\n\nIf and only if this is genuinely blocking, ask exactly this one question and nothing else: ${intent.question}`
-          : ""
-      }`,
+      text: `REQUEST FROM THE OWNER:\n${instruction}\n\nInterpret it yourself. For new or restructured sections prefer set_composition so the layout is entirely yours.`,
     },
   ];
   if (attachments.length) {
