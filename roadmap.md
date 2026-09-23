@@ -36,3 +36,5 @@ Ordered by user-felt impact. Each item: extend existing code, never duplicate.
 - [x] Phase 5b: fallback guard tests, 7 unused rule-based modules deleted, quality gate green
 - [ ] Phase 5c: fingerprint/story/motion/first-build-creative modules still imported by live code — retire gradually
 - [ ] Terra (gpt-5.6-terra) rejected by OpenAI with 401 — key lacks access
+- [x] Phase 6a: AI custom layouts are the default for builds/redesigns/edits; approval only for destructive, fact, billing and account actions; fallback guard tests
+- [ ] Phase 6b (= 5c): retire leftover fingerprint/story/motion/first-build-creative helpers still read by live sites
