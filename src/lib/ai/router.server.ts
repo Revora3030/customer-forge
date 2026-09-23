@@ -195,7 +195,9 @@ function freeCandidate(
     coding: model,
     image: model,
     transcription: model,
+    conversation: model,
   } as Record<ModelRole, string>;
+
   models[role] = model;
   return { config: { name: name as ProviderName, apiKey, models }, model, free: name };
 }

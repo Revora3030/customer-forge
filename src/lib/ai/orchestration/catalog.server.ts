@@ -52,7 +52,9 @@ const SCANNED_ROLES: ModelRole[] = [
   "vision",
   "image",
   "transcription",
+  "conversation",
 ];
+
 
 function stateFor(proven: boolean, probed: CapabilityState | undefined): CapabilityState {
   if (probed) return probed;

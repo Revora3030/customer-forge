@@ -289,6 +289,9 @@ const ROLE_HINTS: Record<ModelRole, RegExp[]> = {
   // and cleanest first (flux schnell), then the diffusion family as backup.
   image: [/flux-1|schnell/i, /stable-diffusion|sdxl|dreamshaper/i],
   transcription: [],
+  // Client-facing conversation: instruction-following mid-size chat models.
+  conversation: [/flash|instruct|chat|70b|72b|32b|27b|nemotron|glm|qwen/i],
+
 };
 
 /** Roles where a name-based guess is unsafe, so only an explicit match counts. */
