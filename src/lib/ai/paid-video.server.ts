@@ -206,7 +206,7 @@ export async function generateSiteVideo(
 
   try {
     const outcome = await callPinnedPaidVideo(
-      { organizationId: caller.organizationId, userId: caller.userId ?? null },
+      { task: "site.video", organizationId: caller.organizationId, userId: caller.userId ?? null },
       { model, prompt: job.prompt, seconds, size: job.size ?? "1280x720" },
       { maxWaitMs: MAX_WAIT_MS, pollMs: POLL_MS },
     );
