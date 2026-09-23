@@ -111,11 +111,18 @@ function readiness(candidate: HallOfFameCandidate): number {
 }
 
 /**
+ * How much recent proven form may move a model. Large enough that a model that
+ * keeps failing loses its front seat, small enough that a much stronger model
+ * is never buried behind a tiny one with a lucky streak.
+ */
+export const FORM_INFLUENCE = 22;
+
+/**
  * Builds the ordered squad for one purpose.
  *
  * Candidates that cannot serve the capability are dropped entirely. The rest
- * are ordered ready-first, then strongest-first, and finally spread so that
- * consecutive attempts prefer different providers.
+ * are ordered ready-first, then by strength adjusted for recent proven form,
+ * and finally spread so consecutive attempts prefer different providers.
  */
 export function rankHallOfFame(input: {
   purpose: CollectivePurpose;
@@ -123,24 +130,33 @@ export function rankHallOfFame(input: {
   squadSize?: number;
   /** Optional capability override, for a caller that knows better. */
   capability?: string;
+  /**
+   * Recent proven form per model, -1 to +1. Supplied by the live runner; the
+   * default treats every model as unproven so ranking stays pure.
+   */
+  form?: (candidate: HallOfFameCandidate) => number;
 }): HallOfFameCandidate[] {
   const capability = input.capability ?? capabilityForPurpose(input.purpose);
   const capable = input.candidates.filter((candidate) =>
     candidate.capabilities.includes(capability),
   );
+  const form = input.form ?? (() => 0);
+  const standing = (candidate: HallOfFameCandidate) =>
+    candidate.weight + Math.max(-1, Math.min(1, form(candidate))) * FORM_INFLUENCE;
 
   const ordered = capable
     .map((candidate, index) => ({ candidate, index }))
     .sort(
       (a, b) =>
         readiness(b.candidate) - readiness(a.candidate) ||
-        b.candidate.weight - a.candidate.weight ||
+        standing(b.candidate) - standing(a.candidate) ||
         a.index - b.index,
     )
     .map((row) => row.candidate);
 
   return spreadProviders(ordered).slice(0, Math.max(input.squadSize ?? DEFAULT_SQUAD_SIZE, 1));
 }
+
 
 /**
  * Re-orders a ranked list so consecutive entries prefer different providers,
