@@ -42,7 +42,7 @@ export type Specialist = {
 export const SPECIALIST_SIX: Specialist[] = [
   {
     id: "sol",
-    model: "gpt-5.6-sol",
+    model: "gpt-6-sol",
     provider: "openai",
     charter:
       "Master reasoning and site-wide creative authority: unique identity, editorial hierarchy, page-specific composition, information and conversion architecture, visual reasoning, quality review and final synthesis.",
@@ -103,7 +103,7 @@ export const SPECIALIST_SIX: Specialist[] = [
   },
   {
     id: "luna",
-    model: "gpt-5.6-luna",
+    model: "gpt-6-luna",
     provider: "openai",
     charter:
       "Post-creative utility: metadata, structured details, routine transformation, extraction and classification after the design passes review.",
@@ -141,7 +141,7 @@ export const SPECIALIST_SIX: Specialist[] = [
   },
   {
     id: "whisper",
-    model: "whisper-1",
+    model: "gpt-transcribe",
     provider: "openai",
     charter: "Speech transcription.",
     domains: ["transcription"],
