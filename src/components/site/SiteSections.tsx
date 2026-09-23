@@ -16,6 +16,8 @@ import {
   type PersistedComponentVisual,
 } from "@/lib/site-style";
 import { Link } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
+
 import { SitePageLink } from "@/components/site/site-links";
 import { Mail, MapPin, Phone, Star } from "lucide-react";
 import { Button } from "@/components/ui/button";
