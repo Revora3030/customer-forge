@@ -20,7 +20,6 @@ import { MemoryPanel } from "@/components/app/MemoryPanel";
 import { StockPhotoPanel } from "@/components/app/StockPhotoPanel";
 import { SearchSettings } from "@/components/app/SearchSettings";
 import { GoogleSearchGrowth } from "@/components/app/GoogleSearchGrowth";
-import { TemplateGalleryPanel } from "@/components/app/TemplateGalleryPanel";
 
 import { BuilderWizard } from "@/components/app/BuilderWizard";
 import { BuilderShell } from "@/components/app/BuilderShell";
@@ -709,12 +708,6 @@ function WebsitePage() {
                       onRefresh={requests.refresh}
                     />
                   </Disclosure>
-                  <TemplateGalleryPanel
-                    canManage={manage}
-                    industry={(profile?.["industry"] as string) ?? null}
-                    description={(profile?.["description"] as string) ?? null}
-                    businessName={org?.name ?? null}
-                  />
                 </>
               ),
             },

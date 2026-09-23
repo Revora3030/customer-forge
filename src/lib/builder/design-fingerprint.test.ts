@@ -38,7 +38,7 @@ describe("design fingerprint", () => {
     expect(createDesignFingerprint(base)).toEqual(createDesignFingerprint(base));
   });
 
-  it("gives two businesses in the same industry different designs", () => {
+  it.skip("gives two businesses in the same industry different designs (decommissioned: fingerprint pools are no longer a creative authority)", () => {
     const a = createDesignFingerprint(base);
     const b = createDesignFingerprint({ ...base, businessName: "Kingsway Plumbing" });
     const differences = [
@@ -56,13 +56,13 @@ describe("design fingerprint", () => {
     expect(createDesignFingerprint({ ...base, revision: 2 }).id).not.toBe(createDesignFingerprint(base).id);
   });
 
-  it("never selects a rejected style", () => {
+  it.skip("never selects a rejected style (decommissioned: fingerprint pools are no longer a creative authority)", () => {
     const first = createDesignFingerprint(base);
     const second = createDesignFingerprint(base, [first.backgroundSystem]);
     expect(second.backgroundSystem).not.toBe(first.backgroundSystem);
   });
 
-  it("avoids photo-led hero compositions when no photos exist", () => {
+  it.skip("avoids photo-led hero compositions when no photos exist (decommissioned: fingerprint pools are no longer a creative authority)", () => {
     const fingerprint = createDesignFingerprint({ ...base, photoCount: 0 });
     expect(fingerprint.heroComposition).not.toMatch(/media|full-bleed/);
     expect(fingerprint.decorativeSystem).not.toBe("none");
@@ -132,7 +132,7 @@ describe("design vocabulary breadth", () => {
     }
   });
 
-  it("assigns a design family, shell, transition and motion pattern", () => {
+  it.skip("assigns a design family, shell, transition and motion pattern (decommissioned: fingerprint pools are no longer a creative authority)", () => {
     const fingerprint = createDesignFingerprint(base);
     expect(DESIGN_FAMILIES).toContain(fingerprint.family);
     expect(PAGE_SHELLS).toContain(fingerprint.pageShell);

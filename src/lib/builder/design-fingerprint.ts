@@ -282,74 +282,23 @@ function pick<T>(pool: readonly T[], seed: number, salt: string, rejected: Set<s
 }
 
 /**
- * Builds the identity. Deterministic for a given business, and wide enough that
- * two businesses in the same industry receive materially different sites.
+ * DECOMMISSIONED as a creative authority. This used to roll a seeded hash
+ * across finite hero/background/nav/CTA/card/proof/... pools and hand the
+ * result to the AI as its design. It now returns the plain, opinion-free
+ * compatibility record only; every real design decision comes from the
+ * AI-authored contract. The signature stays so stored/legacy callers keep
+ * compiling and old sites keep rendering.
  */
 export function createDesignFingerprint(
   input: FingerprintInput,
   rejected: string[] = [],
 ): DesignFingerprint {
   const seed = fingerprintSeed(input);
-  const blocked = new Set(rejected.map((value) => value.trim().toLowerCase()).filter(Boolean));
-  const photos = Math.max(0, input.photoCount ?? 0);
-  const densityHint = input.contentDensity ?? "balanced";
-
-  // With no real photography, lean on decorative artwork instead of empty frames.
-  const decorativePool = photos >= 4
-    ? DECORATIVE_SYSTEMS
-    : DECORATIVE_SYSTEMS.filter((system) => system !== "none");
-  // First builds can receive safe generated marketing imagery after this
-  // fingerprint is compiled. Do not permanently remove cinematic/media-led
-  // compositions merely because the owner has not uploaded a photo yet.
-  const heroPool = HERO_COMPOSITIONS;
-
-  const motionRoll = (seed >>> 5) % 10;
-  const motionLevel: DesignFingerprint["motionLevel"] =
-    motionRoll < 2 ? "none" : motionRoll < 8 ? "subtle" : "expressive";
-
-  const density: DesignFingerprint["density"] =
-    densityHint === "rich" ? "compact" : densityHint === "light" ? "airy" : ((seed >>> 9) % 3 === 0 ? "airy" : "balanced");
-
-  const motionPattern = motionLevel === "none"
-    ? "none"
-    : pick(MOTION_PATTERNS.filter((pattern) => pattern !== "none"), seed, "motion", blocked);
-
   return {
+    ...neutralDesignFingerprint(),
     id: `fp_${seed.toString(36)}`,
     seed,
-    family: pick(DESIGN_FAMILIES, seed, "family", blocked),
-    heroComposition: pick(heroPool, seed, "hero", blocked),
-    backgroundSystem: pick(BACKGROUND_SYSTEMS, seed, "background", blocked),
-    sectionRhythm: pick(SECTION_COMPOSITIONS, seed, "section", blocked),
-    navSystem: pick(NAV_SYSTEMS, seed, "nav", blocked),
-    ctaSystem: pick(CTA_SYSTEMS, seed, "cta", blocked),
-    cardSystem: pick(CARD_SYSTEMS, seed, "card", blocked),
-    proofLayout: pick(PROOF_LAYOUTS, seed, "proof", blocked),
-    pricingLayout: pick(PRICING_LAYOUTS, seed, "pricing", blocked),
-    faqLayout: pick(FAQ_LAYOUTS, seed, "faq", blocked),
-    galleryLayout: pick(GALLERY_LAYOUTS, seed, "gallery", blocked),
-    statsLayout: pick(STATS_LAYOUTS, seed, "stats", blocked),
-    timelineLayout: pick(TIMELINE_LAYOUTS, seed, "timeline", blocked),
-    formLayout: pick(FORM_LAYOUTS, seed, "form", blocked),
-    footerSystem: pick(FOOTER_SYSTEMS, seed, "footer", blocked),
-    decorativeSystem: pick(decorativePool, seed, "decor", blocked),
-    typeSystem: pick(TYPE_SYSTEMS, seed, "type", blocked),
-    colorSystem: pick(COLOR_SYSTEMS, seed, "color", blocked),
-    sectionTransition: pick(SECTION_TRANSITIONS, seed, "transition", blocked),
-    pageShell: pick(PAGE_SHELLS, seed, "shell", blocked),
-    imageTreatment: photos > 0 ? pick(IMAGE_TREATMENTS, seed, "imagetreat", blocked) : "plain",
-    motionPattern,
-    motionLevel,
-    density,
-    artDirection: {
-      style: pick(ART_STYLES, seed, "artstyle", blocked),
-      subject: photos > 0 ? "the owner's own supplied photographs" : "abstract generated artwork (depicts nothing about the business)",
-      crop: pick(ART_CROPS, seed, "crop", blocked),
-      focalPoint: pick(FOCAL_POINTS, seed, "focal", blocked),
-      aspectRatio: pick(RATIOS, seed, "ratio", blocked),
-      overlay: pick(ART_OVERLAYS, seed, "overlay", blocked),
-    },
-    rejected: [...blocked],
+    rejected: rejected.map((value) => value.trim().toLowerCase()).filter(Boolean),
   };
 }
 
