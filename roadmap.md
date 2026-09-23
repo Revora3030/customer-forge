@@ -31,5 +31,5 @@ Ordered by user-felt impact. Each item: extend existing code, never duplicate.
 - [x] Phase 1: firewall for story-pass / motion-pack / first-build-creative / native-first-build callers
 - [x] Phase 2: open composition tree
 - [x] Phase 3: tree renderer (old section types kept as compatibility)
-- [ ] Phase 4: rewire first build/redesign/edits; remove keyword intent routing and approval gate for autonomous builds
+- [x] Phase 4: keyword sorter + industry design fallback removed; builder told to prefer compositions (destructive-step approval kept on purpose)
 - [ ] Phase 5: model-only fallback chain audit; delete dead modules

@@ -53,3 +53,26 @@ describe("first build", () => {
     }
   });
 });
+
+describe("request understanding and design fallbacks", () => {
+  it("the keyword intent translator is gone from production", () => {
+    const offenders = production.filter((f) => /intent-translator|translateIntent\(/.test(readFileSync(f, "utf8")));
+    expect(offenders).toEqual([]);
+  });
+
+  it("no-model design fallback carries no layout, type, palette or story opinion", async () => {
+    const { designWithoutModel } = await import("@/lib/agent/design-brief.server");
+    for (const trade of ["plumbing", "dental", "wedding photography", null]) {
+      const d = designWithoutModel(trade);
+      expect([d.goal, d.layout, d.typography, d.palette, d.motion]).toEqual(["", "", "", "", ""]);
+      expect(d.story).toEqual([]);
+    }
+  });
+
+  it("no-model understanding passes the owner's words through unchanged", async () => {
+    const { understandWithoutModel } = await import("@/lib/agent/understanding.server");
+    const u = understandWithoutModel("make it feel like a moody jazz club");
+    expect(u.goal).toBe("make it feel like a moody jazz club");
+    expect(u.tasks[0]?.brief).toBe("make it feel like a moody jazz club");
+  });
+});

@@ -283,7 +283,7 @@ describe("orchestrator pipeline", () => {
     const brief = String(plan.mock.calls[0]?.[1] ?? "");
     expect(brief).toMatch(/THE DESIGN DIRECTION/);
     expect(brief).toMatch(/must NOT look like/);
-    expect(result.design.story.length).toBeGreaterThan(0);
+    expect(Array.isArray(result.design.story)).toBe(true);
     expect(result.critique?.overall).toBe(9);
   });
 

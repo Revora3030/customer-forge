@@ -13,7 +13,6 @@
  * builder work by the intent translator and handed to the assistant.
  */
 
-import { translateIntent } from "@/lib/intent-translator";
 
 export type CommandTarget =
   | "assistant"
@@ -251,10 +250,9 @@ export function routeCommand(input: string): RoutedCommand {
 
   // No rule matched, and that is not a rejection: the intent translator turns
   // any wording into builder work, so this always goes to the assistant.
-  const intent = translateIntent(text);
   return {
     target: "assistant",
-    action: intent.restated,
+    action: text.trim(),
     route: null,
     anchor: "website-assistant",
     instruction: text,

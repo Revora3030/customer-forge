@@ -13,7 +13,6 @@
 
 import { callJson } from "@/lib/site-agent.server";
 import type { ModelRole } from "@/lib/ai/config";
-import { translateIntent, type IntentArea } from "@/lib/intent-translator";
 import { BASELINE_CAPABILITIES, isCapabilityId, type CapabilityId } from "@/lib/agent/capabilities";
 
 /** How complex the work is — drives how much reasoning the agent spends. */
@@ -83,16 +82,6 @@ const list = (value: unknown, max: number, limit: number) =>
         .slice(0, limit)
     : [];
 
-const AREA_TO_CAPABILITY: Record<IntentArea, CapabilityId> = {
-  pages: "pages",
-  sections: "sections",
-  copy: "copy",
-  design: "design",
-  seo: "seo",
-  images: "images",
-  cta: "cta",
-  functionality: "capture",
-};
 
 /**
  * Deterministic understanding, used only when the model cannot be reached. It
@@ -100,18 +89,17 @@ const AREA_TO_CAPABILITY: Record<IntentArea, CapabilityId> = {
  * than telling the owner to reword anything.
  */
 export function understandWithoutModel(instruction: string): Understanding {
-  const intent = translateIntent(instruction);
-  const capabilities = intent.areas.length
-    ? intent.areas.map((area) => AREA_TO_CAPABILITY[area])
-    : BASELINE_CAPABILITIES;
-  const unique = [...new Set(capabilities)];
+  // No keyword rules decide what the owner meant. When no model can read the
+  // request, their exact words are passed through unchanged for the next AI
+  // in the fallback chain to interpret.
+  const capabilities = [...BASELINE_CAPABILITIES];
   return {
-    goal: intent.restated,
-    requirements: unique.map((capability) => `Improve ${capability} for this request`),
-    capabilities: unique,
-    tasks: [{ title: "Carry out the request", brief: intent.brief, capabilities: unique }],
-    complexity: unique.length > 2 ? "complex" : "simple",
-    question: intent.question,
+    goal: instruction,
+    requirements: [],
+    capabilities,
+    tasks: [{ title: "Carry out the request", brief: instruction, capabilities }],
+    complexity: "simple",
+    question: null,
     source: "fallback",
   };
 }
