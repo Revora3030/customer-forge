@@ -18,3 +18,10 @@ Ordered by user-felt impact. Each item: extend existing code, never duplicate.
 - Truthful content gates stay. RLS/tenant isolation, Stripe, publishing untouched.
 - No deterministic template authority; AI keeps creative control.
 - Verify each batch: tsgo --noEmit, vitest, lint, build log.
+
+## Current requests (Sep 23)
+- [ ] Fix 14 TS errors on PR #175 branch — blocked: branch lives in godbody4040-oss/customer-forge, no write access from here
+- [x] Email for notify.revoragrowthsystems.com — already verified and sending
+- [x] Live test of gpt-6-sol/astra/luna + minis — all answered; o3-mini returned empty text at small token limit
+- [x] Homepage metadata + hero copy with $750 / first month free / $100/mo
+- [ ] Sora-2 video hero — next build (needs video job pipeline, storage, and renderer support)
