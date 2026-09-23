@@ -60,6 +60,6 @@ describe("quality-first runtime ordering", () => {
     expect(modelQualityWeight("llama-3.1-70b-instruct")).toBeGreaterThan(
       modelQualityWeight("llama-3.1-8b-instruct"),
     );
-    expect(candidateQuality("gpt-5.6-sol")).toBe(98);
+    expect(candidateQuality("gpt-6-sol")).toBe(98);
   });
 });
