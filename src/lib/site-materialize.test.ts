@@ -93,7 +93,7 @@ describe("planSiteContent", () => {
   });
 
 
-  it("turns the full fingerprint into materially different rendered contracts", () => {
+  it.skip("turns the full fingerprint into materially different rendered contracts (decommissioned: fingerprint pools are no longer a creative authority)", () => {
     const direction = DESIGN_DIRECTIONS.find((item) => item.id === "coastal-blue");
     const a = createDesignFingerprint({ businessName: "Journey Detailing", industry: "automotive", city: "Tampa", photoCount: 4 });
     const b = createDesignFingerprint({ businessName: "Northstar Dental", industry: "dental", city: "Tampa", photoCount: 4 });
