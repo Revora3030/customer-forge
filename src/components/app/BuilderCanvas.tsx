@@ -1327,16 +1327,26 @@ export function BuilderCanvas({
                 />
               </Field>
               {selectedComponent.media_url ? (
-                <PictureControls
-                  settings={selectedComponent.settings}
-                  disabled={!canManage}
-                  onChange={(patch) =>
-                    stageComponent(selectedComponent.id, {
-                      settings: writeComponentVisual(selectedComponent.settings, patch),
-                    })
-                  }
-                />
+                <>
+                  <PictureControls
+                    settings={selectedComponent.settings}
+                    disabled={!canManage}
+                    onChange={(patch) =>
+                      stageComponent(selectedComponent.id, {
+                        settings: writeComponentVisual(selectedComponent.settings, patch),
+                      })
+                    }
+                  />
+                  <MotionBackgroundControls
+                    organizationId={organizationId}
+                    componentId={selectedComponent.id}
+                    label={selectedComponent.label ?? sectionLabel(selectedSection?.kind ?? "section")}
+                    settings={selectedComponent.settings}
+                    disabled={!canManage}
+                  />
+                </>
               ) : null}
+
               {editingMode === "visual" ? <StyleControls
                 scope="component"
                 device={device}
