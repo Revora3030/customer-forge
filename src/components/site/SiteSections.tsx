@@ -16,6 +16,8 @@ import {
   type PersistedComponentVisual,
 } from "@/lib/site-style";
 import { Link } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
+
 import { SitePageLink } from "@/components/site/site-links";
 import { Mail, MapPin, Phone, Star } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -110,6 +112,25 @@ function safeObjectPosition(value: string | undefined): string {
 }
 
 /**
+ * True only once the page is running in a browser that has NOT asked for less
+ * motion. Moving backgrounds render as their still frame on the server, on the
+ * first paint and for any visitor who prefers reduced motion.
+ */
+function useMotionAllowed(): boolean {
+  const [allowed, setAllowed] = useState(false);
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return;
+    const query = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const apply = () => setAllowed(!query.matches);
+    apply();
+    query.addEventListener?.("change", apply);
+    return () => query.removeEventListener?.("change", apply);
+  }, []);
+  return allowed;
+}
+
+
+/**
  * A credit line, shown only when the picture actually carries one. Stock and
  * generated pictures must credit their source; the customer's own photos don't.
  */
@@ -171,10 +192,12 @@ function componentImageUrl(component: Component): string | null {
 function SectionMedia({ site, section }: { site: Site; section: Section }) {
   const sectionStyle = readBlockStyle(section.settings);
   const sectionVisual = readSectionVisual(section.settings);
+  const motionAllowed = useMotionAllowed();
   const items = section.components.filter(
     (component) => IMAGE_COMPONENT_KINDS.has(component.kind) && componentImageUrl(component),
   );
   if (!items.length) return null;
+
   return (
     <div
       className={`rv-generated-media rv-media-position-${sectionVisual.image_position ?? "center"} rv-media-ratio-${sectionVisual.image_ratio?.replace(":", "-") ?? "auto"} mx-auto grid max-w-6xl gap-4 px-4 pb-10 ${sectionStyle.columns === null ? "md:grid-cols-2" : ""}`}
@@ -188,14 +211,31 @@ function SectionMedia({ site, section }: { site: Site; section: Section }) {
         const overlayClass = visual.overlay ? "rv-overlay-" + visual.overlay : "";
         return (
           <figure key={component.id} data-rvb={component.id} style={blockCss(style, siteSurface(site))} className={`rv-media-frame ${ratioClass(visual.aspect_ratio)} ${overlayClass} overflow-hidden`}>
-            <img
-              src={src}
-              alt={visual.alt || component.label || `${site.org.name} work sample`}
-              loading="lazy"
-              decoding="async"
-              className={visualImageClass(visual)}
-              style={{ objectPosition: safeObjectPosition(visual.focal_point ?? visual.object_position) }}
-            />
+            {visual.media_kind === "video" ? (
+              // A visitor who prefers less motion gets the opening frame only.
+              <video
+                src={src}
+                autoPlay={motionAllowed}
+                loop
+                muted
+                playsInline
+                preload="metadata"
+                aria-label={visual.alt || component.label || `${site.org.name} work sample`}
+                className={visualImageClass(visual)}
+                style={{ objectPosition: safeObjectPosition(visual.focal_point ?? visual.object_position) }}
+              />
+
+            ) : (
+              <img
+                src={src}
+                alt={visual.alt || component.label || `${site.org.name} work sample`}
+                loading="lazy"
+                decoding="async"
+                className={visualImageClass(visual)}
+                style={{ objectPosition: safeObjectPosition(visual.focal_point ?? visual.object_position) }}
+              />
+            )}
+
             <MediaCredit visual={visual} />
           </figure>
         );
@@ -339,6 +379,8 @@ export function SiteSection({ site, section }: { site: Site; section: Section })
 }
 
 function SiteSectionBody({ site, section }: { site: Site; section: Section }) {
+  const heroMotionAllowed = useMotionAllowed();
+
   const components = section.components ?? [];
   const { profile, services, reviews, gallery, org } = site;
   const rating = reviews.length
@@ -396,20 +438,44 @@ function SiteSectionBody({ site, section }: { site: Site; section: Section }) {
                       : "aspect-[4/3] !min-h-0 rounded-2xl sm:aspect-[3/2] lg:aspect-[16/10]"
                   }`}
                 >
-                  <img
-                    src={profile?.hero_image_url ?? heroImageSrc ?? ""}
-                    alt={heroImageVisual?.alt || org.name + " featured work"}
-                    width={1200}
-                    height={800}
-                    fetchPriority="high"
-                    decoding="async"
-                    className="h-full w-full object-cover object-center"
-                    style={{
-                      objectPosition: safeObjectPosition(
-                        heroImageVisual?.focal_point ?? heroImageVisual?.object_position,
-                      ),
-                    }}
-                  />
+                  {heroImageVisual?.media_kind === "video" && heroImageSrc ? (
+                    // A moving background plays silently on a loop and never
+                    // blocks the headline: the poster picture shows first, and a
+                    // visitor who asked for less motion keeps a still frame.
+                    <video
+                      src={heroImageSrc}
+                      poster={profile?.hero_image_url ?? undefined}
+                      autoPlay={heroMotionAllowed}
+
+                      loop
+                      muted
+                      playsInline
+                      preload="metadata"
+                      aria-label={heroImageVisual?.alt || org.name + " featured work"}
+                      className="rv-hero-video h-full w-full object-cover object-center"
+                      style={{
+                        objectPosition: safeObjectPosition(
+                          heroImageVisual?.focal_point ?? heroImageVisual?.object_position,
+                        ),
+                      }}
+                    />
+                  ) : (
+                    <img
+                      src={profile?.hero_image_url ?? heroImageSrc ?? ""}
+                      alt={heroImageVisual?.alt || org.name + " featured work"}
+                      width={1200}
+                      height={800}
+                      fetchPriority="high"
+                      decoding="async"
+                      className="h-full w-full object-cover object-center"
+                      style={{
+                        objectPosition: safeObjectPosition(
+                          heroImageVisual?.focal_point ?? heroImageVisual?.object_position,
+                        ),
+                      }}
+                    />
+                  )}
+
                   {heroImageVisual ? <MediaCredit visual={heroImageVisual} /> : null}
                 </figure>
               ) : null}

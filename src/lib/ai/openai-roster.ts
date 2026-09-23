@@ -47,8 +47,9 @@ export const OPENAI_ROSTER: RosterEntry[] = [
   { model: "gpt-5-mini", role: "Zero-cost small edits and rewrites", capabilities: TEXT, quality: 76, contextTokens: 128_000, freeDailyTokens: SMALL, output: "text" },
   { model: "gpt-4.1-mini", role: "Zero-cost routine transforms", capabilities: TEXT, quality: 72, contextTokens: 1_000_000, freeDailyTokens: SMALL, output: "text" },
   { model: "whisper-1", role: "Previous transcription model, kept as a backup", capabilities: ["speech_recognition", "audio_input", "multilingual"], quality: 85, contextTokens: null, freeDailyTokens: null, output: "text" },
-  { model: "sora-2", role: "Cinematic video backgrounds (registered, not yet wired to the renderer)", capabilities: ["video_generation"], quality: 88, contextTokens: null, freeDailyTokens: null, output: "video" },
-  { model: "sora-2-pro", role: "Premium cinematic video (registered, not yet wired to the renderer)", capabilities: ["video_generation"], quality: 93, contextTokens: null, freeDailyTokens: null, output: "video" },
+  { model: "sora-2", role: "Cinematic moving backgrounds for website sections", capabilities: ["video_generation"], quality: 88, contextTokens: null, freeDailyTokens: null, output: "video" },
+  { model: "sora-2-pro", role: "Premium cinematic moving backgrounds", capabilities: ["video_generation"], quality: 93, contextTokens: null, freeDailyTokens: null, output: "video" },
+
 ];
 
 export const OPENAI_ROSTER_IDS = OPENAI_ROSTER.map((entry) => entry.model);
@@ -78,7 +79,7 @@ export function rosterRecord(
       : entry.capabilities.includes("image_input")
         ? ["text", "image"]
         : ["text"],
-    outputModalities: entry.output === "image" ? ["image"] : ["text"],
+    outputModalities: entry.output === "image" ? ["image"] : entry.output === "video" ? ["video"] : ["text"],
     contextTokens: entry.contextTokens,
     maxOutputTokens: entry.contextTokens === null ? null : 32_000,
     quality: entry.quality,
@@ -92,9 +93,7 @@ export function rosterRecord(
     evidence: "declared",
     verifiedAt: Date.now(),
     healthy: runtime.healthy ?? true,
-    blockedReason:
-      runtime.blockedReason ??
-      entry.blockedReason ??
-      (entry.output === "video" ? "video renderer not wired yet" : null),
+    blockedReason: runtime.blockedReason ?? entry.blockedReason ?? null,
+
   };
 }

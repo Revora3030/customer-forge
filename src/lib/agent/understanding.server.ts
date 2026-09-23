@@ -39,7 +39,12 @@ export type Understanding = {
   source: "model" | "fallback";
 };
 
-const UNDERSTAND_ROLE: ModelRole = "fast";
+/**
+ * Astra's role. Reading what the owner asked for is client-facing conversation
+ * work, not creative authority: Astra interprets, Sol still designs and writes.
+ */
+const UNDERSTAND_ROLE: ModelRole = "conversation";
+
 
 const SYSTEM = `You read a small business owner's request about their website or business
 software and work out what it MEANS. You never ask them to use special vocabulary and you

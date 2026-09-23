@@ -672,12 +672,18 @@ export type PersistedComponentVisual = {
   shadow?: "none" | "soft" | "medium" | "strong";
   aspect_ratio?: "1:1" | "4:3" | "3:2" | "16:9" | "21:9";
   focal_point?: string;
+  /**
+   * What the stored media actually is. A "video" plays silently on a loop in
+   * the same frame a picture would fill; anything else renders as a picture.
+   */
+  media_kind?: "image" | "video";
   /** Where the picture came from, so credits and licences stay honest. */
   source?: "customer" | "stock" | "generated" | "unknown";
   credit?: string;
   license?: string;
   source_url?: string;
 };
+
 
 /** The nine focal points an owner can choose, as CSS object-position values. */
 export const FOCAL_POINTS = [
@@ -718,7 +724,10 @@ export function readComponentVisual(settings: unknown): PersistedComponentVisual
     out.aspect_ratio = aspectRatio;
   }
   if (typeof value["focal_point"] === "string") out.focal_point = value["focal_point"];
+  if (value["media_kind"] === "video" || value["media_kind"] === "image")
+    out.media_kind = value["media_kind"];
   const source = value["source"];
+
   if (source === "customer" || source === "stock" || source === "generated" || source === "unknown") {
     out.source = source;
   }

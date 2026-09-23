@@ -14,6 +14,9 @@
  * straight back.
  */
 import * as React from "react";
+import { useServerFn } from "@tanstack/react-start";
+import { generateSectionVideo } from "@/lib/site-video.functions";
+
 import {
   ArrowDown,
   ArrowUp,
@@ -299,10 +302,75 @@ import {
 } from "@/lib/builder/staged-edit";
 
 /**
+ * Turns the selected picture into a short, silent, looping moving background.
+ * Nothing is invented: the clip is generated from the owner's own description of
+ * their business, and a failure is reported in plain words with the picture left
+ * exactly as it was.
+ */
+function MotionBackgroundControls({
+  organizationId,
+  componentId,
+  label,
+  settings,
+  disabled,
+}: {
+  organizationId: string | undefined;
+  componentId: string;
+  label: string;
+  settings: unknown;
+  disabled: boolean;
+}) {
+  const visual = readComponentVisual(settings);
+  const [prompt, setPrompt] = React.useState("");
+  const [busy, setBusy] = React.useState(false);
+  const [message, setMessage] = React.useState<string | null>(null);
+  const run = useServerFn(generateSectionVideo);
+
+  const generate = async () => {
+    if (!organizationId || prompt.trim().length < 10) {
+      setMessage("Describe the moving background you want, in a sentence.");
+      return;
+    }
+    setBusy(true);
+    setMessage("Making your moving background — this can take a couple of minutes.");
+    try {
+      const result = await run({
+        data: { organizationId, componentId, prompt: prompt.trim(), alt: `${label} moving background` },
+      });
+      setMessage(result.message);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "That didn't work. Your picture is unchanged.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="space-y-2 rounded-xl border border-border p-3">
+      <p className="text-[12px] font-medium">
+        Moving background {visual.media_kind === "video" ? "· playing now" : ""}
+      </p>
+      <Textarea
+        value={prompt}
+        rows={3}
+        disabled={disabled || busy}
+        placeholder="Slow drifting shot of a detailer polishing a dark car under warm evening light"
+        onChange={(event) => setPrompt(event.target.value.slice(0, 1200))}
+      />
+      <Button type="button" size="sm" disabled={disabled || busy} onClick={generate}>
+        {busy ? "Making it…" : visual.media_kind === "video" ? "Make a new clip" : "Bring this picture to life"}
+      </Button>
+      {message ? <p className="text-[12px] text-muted-foreground">{message}</p> : null}
+    </div>
+  );
+}
+
+/**
  * Picture framing and provenance. Cropping here is non-destructive: the frame
  * shape and the focal point decide what is shown, so the original file is never
  * altered and any choice can be undone.
  */
+
 function PictureControls({
   settings,
   disabled,
@@ -1327,16 +1395,26 @@ export function BuilderCanvas({
                 />
               </Field>
               {selectedComponent.media_url ? (
-                <PictureControls
-                  settings={selectedComponent.settings}
-                  disabled={!canManage}
-                  onChange={(patch) =>
-                    stageComponent(selectedComponent.id, {
-                      settings: writeComponentVisual(selectedComponent.settings, patch),
-                    })
-                  }
-                />
+                <>
+                  <PictureControls
+                    settings={selectedComponent.settings}
+                    disabled={!canManage}
+                    onChange={(patch) =>
+                      stageComponent(selectedComponent.id, {
+                        settings: writeComponentVisual(selectedComponent.settings, patch),
+                      })
+                    }
+                  />
+                  <MotionBackgroundControls
+                    organizationId={organizationId}
+                    componentId={selectedComponent.id}
+                    label={selectedComponent.label ?? sectionLabel(selectedSection?.kind ?? "section")}
+                    settings={selectedComponent.settings}
+                    disabled={!canManage}
+                  />
+                </>
               ) : null}
+
               {editingMode === "visual" ? <StyleControls
                 scope="component"
                 device={device}
