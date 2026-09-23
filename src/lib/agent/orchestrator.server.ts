@@ -223,7 +223,7 @@ export async function orchestrate(options: {
   trace.push(
     design.source === "model"
       ? `Set the design direction: ${design.layout}`
-      : `Set the design direction from Revora's built-in direction for this trade: ${design.layout}`,
+      : "No design direction was available; the planning AI decides the design itself",
   );
 
   const brief = designBrief(design);
