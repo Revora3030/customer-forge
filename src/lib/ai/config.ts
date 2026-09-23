@@ -44,7 +44,13 @@ export type ModelRole =
   | "vision"
   | "coding"
   | "image"
-  | "transcription";
+  | "transcription"
+  /**
+   * `conversation` is the client-facing role: reading what the owner asked for,
+   * intake questions and clarifying replies. Astra owns it so Sol is never
+   * spent on conversation and never loses creative authority to it.
+   */
+  | "conversation";
 
 export type ProviderConfig = {
   name: ProviderName;
@@ -66,6 +72,7 @@ const DEFAULT_MODELS: Record<PaidProviderName, Record<ModelRole, string>> = {
     coding: "gemini-2.5-pro",
     image: "gemini-2.5-flash-image",
     transcription: "gemini-2.5-flash",
+    conversation: "gemini-2.5-flash",
   },
   openai: {
     primary: "gpt-5.6-terra",
@@ -75,6 +82,7 @@ const DEFAULT_MODELS: Record<PaidProviderName, Record<ModelRole, string>> = {
     coding: "gpt-6-sol",
     image: "gpt-image-2.5-sunburst",
     transcription: "gpt-transcribe",
+    conversation: "gpt-6-astra",
   },
 };
 
@@ -91,7 +99,9 @@ const ROLES: ModelRole[] = [
   "coding",
   "image",
   "transcription",
+  "conversation",
 ];
+
 
 function env(name: string) {
   const value = process.env[name];
