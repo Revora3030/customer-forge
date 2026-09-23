@@ -72,7 +72,7 @@ export const openAiAdapter: ProviderAdapter = {
       ...(isReasoningModel(model)
         ? {
             max_completion_tokens: maxOutputTokens,
-            ...(isGpt56Model(model) ? { reasoning_effort: "none" } : {}),
+            ...reasoningEffortFor(model),
           }
         : {
             max_tokens: maxOutputTokens,
@@ -106,7 +106,7 @@ export const openAiAdapter: ProviderAdapter = {
         ...(isReasoningModel(model)
           ? {
               max_completion_tokens: maxOutputTokens,
-              ...(isGpt56Model(model) ? { reasoning_effort: "none" } : {}),
+              ...reasoningEffortFor(model),
             }
           : { max_tokens: maxOutputTokens }),
       }),
