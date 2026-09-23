@@ -30,3 +30,26 @@ describe("creative authority firewall", () => {
     }
   });
 });
+
+describe("upgrade rule passes", () => {
+  it("story pass never writes rule-authored buttons", async () => {
+    const src = readFileSync("src/lib/site-upgrade.functions.ts", "utf8");
+    expect(src).toContain("export const STORY_WRITES_DECOMMISSIONED = true;");
+    const redesign = src.slice(src.indexOf("export const applySiteWideRedesign"), src.indexOf("export const reviewPageScreenshot"));
+    expect(redesign).not.toMatch(/planMotionAssignments\(/);
+  });
+});
+
+describe("first build", () => {
+  it("never consumes industry page/section recipes or conversion placements", () => {
+    for (const f of [
+      "src/lib/site-engine.worker.server.ts",
+      "src/lib/builder/collective-first-build.server.ts",
+      "src/lib/builder/native-first-build.ts",
+      "src/lib/builder/first-build-images.server.ts",
+    ]) {
+      const src = readFileSync(f, "utf8");
+      expect(src, f).not.toMatch(/industry\.homeSections|industry\.pageSlugs|conversion\.placements/);
+    }
+  });
+});
