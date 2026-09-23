@@ -29,6 +29,7 @@ import {
   roleForPurpose,
   type HallOfFameCandidate,
 } from "@/lib/ai/hall-of-fame";
+import { freeModelForm, recordFreeModelOutcome } from "@/lib/ai/free-reputation";
 import { callCollective, type LunaSkipReason } from "@/lib/ai/luna.server";
 
 export type HallOfFameAttempt = {
@@ -106,7 +107,17 @@ export async function hallOfFameSquad(
   } catch {
     // A provider catalogue being unreachable means a shorter squad, not a crash.
   }
-  return { role, capability, squad: rankHallOfFame({ purpose, candidates, squadSize }) };
+  return {
+    role,
+    capability,
+    squad: rankHallOfFame({
+      purpose,
+      candidates,
+      squadSize,
+      // Live proven form: models genuinely delivering today lead the squad.
+      form: (candidate) => freeModelForm(candidate.provider, candidate.model).score,
+    }),
+  };
 }
 
 export type HallOfFameRequest = {
@@ -177,6 +188,12 @@ export async function callHallOfFame(request: HallOfFameRequest): Promise<HallOf
       );
       const text = result.text.trim();
       const usable = text.length > 0 && (request.json !== true || result.data !== null);
+      recordFreeModelOutcome({
+        provider: member.provider,
+        model: member.model,
+        ok: usable,
+        latencyMs: result.latencyMs,
+      });
       attempts.push({
         provider: member.provider,
         model: member.model,
@@ -197,6 +214,12 @@ export async function callHallOfFame(request: HallOfFameRequest): Promise<HallOf
         return { ok: true, text, provider: member.provider, model: member.model, attempts };
       }
     } catch (error) {
+      recordFreeModelOutcome({
+        provider: member.provider,
+        model: member.model,
+        ok: false,
+        latencyMs: Date.now() - started,
+      });
       attempts.push({
         provider: member.provider,
         model: member.model,

@@ -429,10 +429,31 @@ export type AiOrchestration = {
     squads: {
       purpose: string;
       capability: string;
-      members: { provider: string; model: string; ready: boolean }[];
+      members: {
+        provider: string;
+        model: string;
+        ready: boolean;
+        /** Recent real outcomes for this model. Never any prompt content. */
+        form: {
+          attempts: number;
+          wins: number;
+          averageLatencyMs: number | null;
+          score: number;
+        };
+      }[];
     }[];
     runs: import("@/lib/ai/hall-of-fame.server").HallOfFameRun[];
+    /** Recent form across every free model that has actually been tried. */
+    form: {
+      provider: string;
+      model: string;
+      attempts: number;
+      wins: number;
+      averageLatencyMs: number | null;
+      score: number;
+    }[];
   };
+
 };
 
 /**
@@ -502,6 +523,7 @@ export const getAiOrchestration = createServerFn({ method: "GET" })
     const models = (snapshot?.models ?? []).map(shape);
 
     const { hallOfFameSquad, recentHallOfFameRuns } = await import("@/lib/ai/hall-of-fame.server");
+    const { freeModelForm, freeModelFormSnapshot } = await import("@/lib/ai/free-reputation");
     const squadPurposes = [
       "creative_direction",
       "content_strategy",
@@ -515,11 +537,20 @@ export const getAiOrchestration = createServerFn({ method: "GET" })
         return {
           purpose,
           capability: built.capability,
-          members: built.squad.map((member) => ({
-            provider: member.provider,
-            model: member.model,
-            ready: member.healthy && (member.remainingToday ?? 1) > 0,
-          })),
+          members: built.squad.map((member) => {
+            const form = freeModelForm(member.provider, member.model);
+            return {
+              provider: member.provider,
+              model: member.model,
+              ready: member.healthy && (member.remainingToday ?? 1) > 0,
+              form: {
+                attempts: form.attempts,
+                wins: form.wins,
+                averageLatencyMs: form.averageLatencyMs,
+                score: Number(form.score.toFixed(3)),
+              },
+            };
+          }),
         };
       }),
     );
@@ -541,6 +572,10 @@ export const getAiOrchestration = createServerFn({ method: "GET" })
       participation,
       outcomes: recentCallOutcomes(25),
       probe: { version: PROBE_VERSION, capabilities: probeableCapabilities() },
-      hallOfFame: { squads, runs: recentHallOfFameRuns(15) },
+      hallOfFame: {
+        squads,
+        runs: recentHallOfFameRuns(15),
+        form: freeModelFormSnapshot().slice(0, 30),
+      },
     };
   });
