@@ -280,6 +280,7 @@ export type StoryPassResult = {
 };
 
 const STORY_SECTION_KIND = "cta";
+export const STORY_WRITES_DECOMMISSIONED = true;
 
 export const applyStoryPass = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -309,7 +310,10 @@ export const applyStoryPass = createServerFn({ method: "POST" })
       summary: plan.summary,
     };
 
-    if (!data.write) {
+    // Read-only review. Rule-written next-step buttons were a deterministic
+    // creative layer (they chose wording and placement) and are decommissioned:
+    // the findings are handed to the AI builder, which decides what to write.
+    if (!data.write || STORY_WRITES_DECOMMISSIONED) {
       return { ...base, linksWritten: 0, restorePointId: null };
     }
 
@@ -456,18 +460,9 @@ export const applySiteWideRedesign = createServerFn({ method: "POST" })
       );
     if (saved.error) throw new Error("Revora couldn't save the new look. Nothing was changed.");
 
-    // The redesign reaches every page through the motion pack too, so movement
-    // matches the new character instead of contradicting it.
-    const plan = buildMotionPlan(next);
-    const assignments = planMotionAssignments(sections, plan);
-    for (const assignment of assignments) {
-      const section = sections.find((entry) => entry.id === assignment.sectionId);
-      await supabase
-        .from("website_sections")
-        .update({ settings: writeSectionEffect(section?.settings ?? null, assignment.to) as never })
-        .eq("id", assignment.sectionId)
-        .eq("organization_id", data.organizationId);
-    }
+    // Movement follows the AI-authored motion level stored above; no rule
+    // re-assigns per-section effects on the AI's behalf.
+    const assignments: { sectionId: string; from: unknown }[] = [];
 
     return {
       ok: true,

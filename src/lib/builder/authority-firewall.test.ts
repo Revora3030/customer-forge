@@ -30,3 +30,12 @@ describe("creative authority firewall", () => {
     }
   });
 });
+
+describe("upgrade rule passes", () => {
+  it("story pass never writes rule-authored buttons", async () => {
+    const src = readFileSync("src/lib/site-upgrade.functions.ts", "utf8");
+    expect(src).toContain("export const STORY_WRITES_DECOMMISSIONED = true;");
+    const redesign = src.slice(src.indexOf("export const applySiteWideRedesign"), src.indexOf("export const reviewPageScreenshot"));
+    expect(redesign).not.toMatch(/planMotionAssignments\(/);
+  });
+});
