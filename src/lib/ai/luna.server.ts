@@ -443,9 +443,25 @@ export async function callLuna(request: LunaRequest): Promise<LunaResult> {
     return skip("bad_response", "empty answer");
   }
 
+  // A reply cut off at the length limit is incomplete (half a JSON plan), so
+  // it is a failure that hands over to the next model — never a usable answer.
+  if (readFinishReason(payload) === "length") {
+    await recordUsage({
+      organizationId,
+      purpose: request.purpose,
+      model,
+      usage,
+      cost: actual,
+      outcome: "failed",
+      reason: "answer cut off at length limit",
+    });
+    return skip("bad_response", "answer cut off at length limit");
+  }
+
   await recordUsage({
     organizationId,
     purpose: request.purpose,
+    model,
     usage,
     cost: actual,
     outcome: "succeeded",
@@ -463,6 +479,13 @@ export function readUsage(payload: unknown): TokenUsage {
     cachedInputTokens: number(details["cached_tokens"]),
     outputTokens: number(usage["completion_tokens"]),
   };
+}
+
+export function readFinishReason(payload: unknown): string | null {
+  const choices = (payload as { choices?: unknown } | null)?.choices;
+  if (!Array.isArray(choices) || !choices.length) return null;
+  const reason = (choices[0] as { finish_reason?: unknown } | null)?.finish_reason;
+  return typeof reason === "string" ? reason : null;
 }
 
 export function readText(payload: unknown): string | null {
