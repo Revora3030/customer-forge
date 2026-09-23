@@ -462,7 +462,7 @@ export const applySiteWideRedesign = createServerFn({ method: "POST" })
 
     // Movement follows the AI-authored motion level stored above; no rule
     // re-assigns per-section effects on the AI's behalf.
-    const assignments: { sectionId: string; from: unknown }[] = [];
+    const assignments: { sectionId: string; from: string }[] = [];
 
     return {
       ok: true,
