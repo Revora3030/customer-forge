@@ -22,6 +22,8 @@ export type RosterEntry = {
   /** Covered by OpenAI's shared-traffic daily allowance (tokens/day), if any. */
   freeDailyTokens: number | null;
   output: "text" | "image" | "video";
+  /** Honest reason the model cannot be routed yet, if any. */
+  blockedReason?: string;
 };
 
 const TEXT: Capability[] = ["text_generation", "reasoning", "structured_output", "streaming", "multilingual"];
@@ -30,10 +32,14 @@ const FLAGSHIP = 250_000;
 
 export const OPENAI_ROSTER: RosterEntry[] = [
   { model: "gpt-5.6-sol", role: "Previous Sol, kept as a master reasoning backup", capabilities: [...TEXT, "code_generation", "image_input", "long_context", "tool_calling"], quality: 98, contextTokens: 400_000, freeDailyTokens: null, output: "text" },
-  { model: "gpt-6-astra", role: "Conversational co-pilot and consultation", capabilities: [...TEXT, "image_input", "long_context", "tool_calling"], quality: 97, contextTokens: 400_000, freeDailyTokens: null, output: "text" },
   { model: "gpt-5.6-luna", role: "Previous Luna, kept as a utility backup", capabilities: [...TEXT, "tool_calling"], quality: 80, contextTokens: 128_000, freeDailyTokens: null, output: "text" },
   { model: "gpt-5.5-pro", role: "Deep architectural and accessibility audits", capabilities: [...TEXT, "code_generation", "long_context"], quality: 94, contextTokens: 400_000, freeDailyTokens: null, output: "text" },
   { model: "gpt-5.5", role: "Flagship reasoning reserve", capabilities: [...TEXT, "code_generation", "image_input", "long_context", "tool_calling"], quality: 93, contextTokens: 400_000, freeDailyTokens: null, output: "text" },
+  { model: "gpt-5.4", role: "Conversion flow auditing", capabilities: [...TEXT, "code_generation", "long_context"], quality: 90, contextTokens: 400_000, freeDailyTokens: FLAGSHIP, output: "text" },
+  { model: "gpt-5.4-pro", role: "Deep conversion flow auditing", capabilities: [...TEXT, "long_context"], quality: 92, contextTokens: 400_000, freeDailyTokens: null, output: "text", blockedReason: "only answers on OpenAI's Responses endpoint, not wired yet" },
+  { model: "o1-pro", role: "Exact data and formula validation", capabilities: TEXT, quality: 88, contextTokens: 200_000, freeDailyTokens: null, output: "text", blockedReason: "only answers on OpenAI's Responses endpoint, not wired yet" },
+  { model: "gpt-5-search-api", role: "Live local business and market research", capabilities: ["text_generation", "web_search"], quality: 85, contextTokens: 128_000, freeDailyTokens: null, output: "text" },
+  { model: "gpt-image-2", role: "Image generation backup", capabilities: ["image_generation", "image_editing"], quality: 88, contextTokens: null, freeDailyTokens: null, output: "image" },
   { model: "o3", role: "Logic, math and flow proofing", capabilities: [...TEXT, "code_generation"], quality: 88, contextTokens: 200_000, freeDailyTokens: FLAGSHIP, output: "text" },
   { model: "o4-mini", role: "Zero-cost contract and code validation", capabilities: [...TEXT, "code_generation"], quality: 82, contextTokens: 200_000, freeDailyTokens: SMALL, output: "text" },
   { model: "o3-mini", role: "Zero-cost structured validation", capabilities: [...TEXT, "code_generation"], quality: 78, contextTokens: 200_000, freeDailyTokens: SMALL, output: "text" },
@@ -88,6 +94,7 @@ export function rosterRecord(
     healthy: runtime.healthy ?? true,
     blockedReason:
       runtime.blockedReason ??
+      entry.blockedReason ??
       (entry.output === "video" ? "video renderer not wired yet" : null),
   };
 }
