@@ -112,6 +112,25 @@ function safeObjectPosition(value: string | undefined): string {
 }
 
 /**
+ * True only once the page is running in a browser that has NOT asked for less
+ * motion. Moving backgrounds render as their still frame on the server, on the
+ * first paint and for any visitor who prefers reduced motion.
+ */
+function useMotionAllowed(): boolean {
+  const [allowed, setAllowed] = useState(false);
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return;
+    const query = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const apply = () => setAllowed(!query.matches);
+    apply();
+    query.addEventListener?.("change", apply);
+    return () => query.removeEventListener?.("change", apply);
+  }, []);
+  return allowed;
+}
+
+
+/**
  * A credit line, shown only when the picture actually carries one. Stock and
  * generated pictures must credit their source; the customer's own photos don't.
  */
