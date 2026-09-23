@@ -462,7 +462,7 @@ export function freeProviderReadiness() {
       allowance: FREE_ALLOWANCE[name].allowance,
       configured: credentials !== null,
       models: (
-        ["primary", "design", "fast", "coding", "vision", "image", "transcription"] as ModelRole[]
+        ["primary", "design", "fast", "coding", "vision", "image", "transcription", "conversation"] as ModelRole[]
       )
         .map((role) => ({ role, model: freeModelFor(name, role) }))
         .filter((entry): entry is { role: ModelRole; model: string } => entry.model !== null),
