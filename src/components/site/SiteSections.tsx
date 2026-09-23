@@ -5,6 +5,8 @@
  * claims. Lead-capture blocks (quote, booking, sticky call bar) render the same
  * forms used on the home page, so any page can convert a visitor.
  */
+import { CompositionRenderer } from "@/components/site/CompositionRenderer";
+import { readComposition } from "@/lib/builder/composition-tree";
 import {
   blockCss,
   itemsCss,
@@ -401,6 +403,10 @@ function SiteSectionBody({ site, section }: { site: Site; section: Section }) {
 
 
   switch (section.kind) {
+    case "composition": {
+      const tree = readComposition(section.settings);
+      return tree ? <CompositionRenderer tree={tree} scope={`s-${section.id}`} /> : null;
+    }
     case "hero":
       return (
         <section className="rv-hero border-b border-border">

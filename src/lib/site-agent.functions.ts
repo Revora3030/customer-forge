@@ -9,6 +9,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
  * keeps one client's website out of another's.
  */
 
+import { writeComposition } from "@/lib/builder/composition-tree";
 import { writeBackdrop, writeSectionEffect } from "@/lib/site-effects";
 import { writeBlockStyle, writeComponentVisual, writeSectionVisual } from "@/lib/site-style";
 import { writeCustomBlock } from "@/lib/builder/custom-block";
@@ -1080,6 +1081,17 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
           });
           break;
         }
+        case "set_composition":
+          await run(action.type, () => {
+            const settings = writeComposition(readColumn("website_sections", action.sectionId, "settings"), action.tree);
+            noteColumn("website_sections", action.sectionId, "settings", settings);
+            return supabase
+              .from("website_sections")
+              .update({ kind: "composition", settings } as never)
+              .eq("id", action.sectionId)
+              .eq("organization_id", orgId);
+          });
+          break;
         case "set_custom_block":
           await run(action.type, () => {
             const settings = writeCustomBlock(

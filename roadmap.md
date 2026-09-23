@@ -29,7 +29,7 @@ Ordered by user-felt impact. Each item: extend existing code, never duplicate.
 ## AI sole creative authority migration
 - [x] Phase 1 (part): fingerprint pools decommissioned, template gallery removed from UI, firewall test added
 - [x] Phase 1: firewall for story-pass / motion-pack / first-build-creative / native-first-build callers
-- [ ] Phase 2: open composition tree in AI Design Contract
-- [ ] Phase 3: tree renderer + legacy adapter
+- [x] Phase 2: open composition tree
+- [x] Phase 3: tree renderer (old section types kept as compatibility)
 - [ ] Phase 4: rewire first build/redesign/edits; remove keyword intent routing and approval gate for autonomous builds
 - [ ] Phase 5: model-only fallback chain audit; delete dead modules
