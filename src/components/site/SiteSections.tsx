@@ -192,10 +192,12 @@ function componentImageUrl(component: Component): string | null {
 function SectionMedia({ site, section }: { site: Site; section: Section }) {
   const sectionStyle = readBlockStyle(section.settings);
   const sectionVisual = readSectionVisual(section.settings);
+  const motionAllowed = useMotionAllowed();
   const items = section.components.filter(
     (component) => IMAGE_COMPONENT_KINDS.has(component.kind) && componentImageUrl(component),
   );
   if (!items.length) return null;
+
   return (
     <div
       className={`rv-generated-media rv-media-position-${sectionVisual.image_position ?? "center"} rv-media-ratio-${sectionVisual.image_ratio?.replace(":", "-") ?? "auto"} mx-auto grid max-w-6xl gap-4 px-4 pb-10 ${sectionStyle.columns === null ? "md:grid-cols-2" : ""}`}
