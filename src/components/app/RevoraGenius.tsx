@@ -50,7 +50,6 @@ import {
   type HiddenGem,
   type SiteGap,
 } from "@/lib/hidden-gems";
-import { directionActions, directionPreview, recommendDirections } from "@/lib/design-directions";
 
 type TabKey = "gems" | "missing" | "ahead" | "options" | "surprise";
 
@@ -106,26 +105,12 @@ export function RevoraGenius({
   const [tab, setTab] = useState<TabKey>("gems");
   const [open, setOpen] = useState<string | null>(null);
   const [shuffle, setShuffle] = useState(0);
-  const [designShuffle, setDesignShuffle] = useState(0);
   const [tone, setTone] = useState<"any" | "light" | "dark">("any");
 
   const gems = useMemo(() => suggestGems(pages, facts), [pages, facts]);
   const gaps = useMemo(() => findGaps(pages, facts), [pages, facts]);
   const moves = useMemo(() => thinkAhead(pages, facts), [pages, facts]);
   const ideas = useMemo(() => surpriseIdeas(facts, shuffle), [facts, shuffle]);
-  const directions = useMemo(
-    () =>
-      recommendDirections({
-        businessName: facts.businessName,
-        industry: facts.industry,
-        services: facts.services,
-        city: facts.city,
-        count: 6,
-        refresh: designShuffle,
-        tone,
-      }),
-    [facts, designShuffle, tone],
-  );
   const visibleSections = useMemo(
     () =>
       pages
@@ -403,11 +388,10 @@ export function RevoraGenius({
       {tab === "options" ? (
         <div className="mt-4 space-y-3">
           <p className="text-[12.5px] text-muted-foreground">
-            Six complete identities built for{" "}
-            <span className="text-foreground">{facts.businessName ?? "your business"}</span>
-            {facts.industry ? ` (${facts.industry})` : ""} — colours, type, background and motion
-            together. Every Revora client gets a different starting set, so no two sites look alike.
-            Installing one is reversible.
+            Your AI designer invents a brand-new look for{" "}
+            <span className="text-foreground">{facts.businessName ?? "your business"}</span> from
+            scratch: colours, type, background and motion. There is no preset list. Every change
+            is saved with a restore point.
           </p>
           <div className="flex flex-wrap items-center gap-2">
             {(
@@ -431,67 +415,18 @@ export function RevoraGenius({
                 {option.label}
               </button>
             ))}
-            <button
-              type="button"
-              onClick={() => setDesignShuffle((value) => value + 1)}
-              className="cursor-pointer rounded-full border border-border px-3 py-1.5 text-[12px] text-muted-foreground transition-colors hover:bg-elevated"
-            >
-              Show me a fresh set
-            </button>
           </div>
-          <div className="grid gap-3 sm:grid-cols-2">
-            {directions.map((direction) => (
-              <div key={direction.id} className="rounded-md border border-border p-3.5">
-                <div className="flex items-center gap-2">
-                  <span className="flex gap-1" aria-hidden="true">
-                    {[direction.primary, direction.accent, direction.secondary].map((colour) => (
-                      <span
-                        key={colour}
-                        className="size-4 rounded-full border border-border"
-                        style={{ backgroundColor: colour }}
-                      />
-                    ))}
-                  </span>
-                  <p className="text-[13px] font-medium">{direction.name}</p>
-                </div>
-                <p className="mt-1.5 text-[12.5px] text-muted-foreground">{direction.mood}</p>
-                <p className="mt-1 text-[11.5px] text-muted-foreground">
-                  Best for: {direction.bestFor}
-                </p>
-                <ul className="mt-2 list-disc space-y-1 pl-4 text-[11.5px] text-muted-foreground">
-                  {directionPreview(direction, visibleSections).map((line) => (
-                    <li key={line}>{line}</li>
-                  ))}
-                </ul>
-                <div className="mt-2.5 flex flex-wrap gap-3">
-                  <button
-                    type="button"
-                    disabled={!canManage || busy || !pages.length}
-                    onClick={() =>
-                      apply.mutate({
-                        actions: directionActions(direction, pages),
-                        label: `${direction.name} design direction`,
-                      })
-                    }
-                    className="cursor-pointer text-[12px] font-medium text-primary underline-offset-2 hover:underline disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    Use this design
-                  </button>
-                  <button
-                    type="button"
-                    className="cursor-pointer text-[12px] text-muted-foreground underline-offset-2 hover:underline"
-                    onClick={() =>
-                      askAssistant(
-                        `Show me a "${direction.name}" version of my homepage — ${direction.mood} Give me two different hero layouts and headline options to choose from.`,
-                      )
-                    }
-                  >
-                    Show me layouts in this style
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
+          <Button
+            size="sm"
+            disabled={!canManage || busy || !pages.length}
+            onClick={() =>
+              askAssistant(
+                `Design a completely new look for my whole website${tone === "any" ? "" : ` as a ${tone} website`}. Invent the colours, fonts, background and motion yourself.`,
+              )
+            }
+          >
+            <Layers className="size-4" /> Design a new look for me
+          </Button>
           <Button
             variant="outline"
             size="sm"
