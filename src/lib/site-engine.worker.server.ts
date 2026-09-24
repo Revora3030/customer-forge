@@ -744,6 +744,33 @@ async function runJob(
     } as never);
   }
 
+  // Every content section is laid out by Sol as its own composition. No
+  // built-in section layout is used for a new site; a section that cannot be
+  // given a safe AI layout stops the build.
+  if (!built.skipped) {
+    const { composeFirstBuildSections } = await import("@/lib/builder/first-build-compositions.server");
+    const composed = await composeFirstBuildSections({
+      db: db as never,
+      organizationId: orgId,
+      facts: buildFacts,
+      lookSummary: JSON.stringify({
+        family: creative.fingerprint.family,
+        personality: creative.brief.personality,
+        colors: direction ? { primary: direction.primary, secondary: direction.secondary, accent: direction.accent } : null,
+        font: direction?.font ?? null,
+      }),
+    });
+    await db.from("ai_generations").insert({
+      organization_id: orgId,
+      job_id: job.id,
+      kind: "first_build_compositions",
+      model: composed.models.join("+") || "none",
+      instruction: null,
+      result: composed as unknown as never,
+      created_by: job.created_by,
+    } as never);
+  }
+
   // A brand chosen by the owner wins. Only replace the untouched generated
   // defaults during a first build, so onboarding produces a distinctive site
   // without overwriting deliberate colours on an existing workspace.

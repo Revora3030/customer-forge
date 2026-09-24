@@ -131,7 +131,7 @@ export async function composeFirstBuildSections(input: {
     for (let attempt = 0; attempt < 2 && pending.length; attempt += 1) {
       const call = await callBestThinker({
         json: true,
-        purpose: "design_direction",
+        purpose: "creative_direction",
         complexity: "high",
         organizationId,
         maxOutputTokens: 16000,
