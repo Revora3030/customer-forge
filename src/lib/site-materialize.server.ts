@@ -208,7 +208,7 @@ export function applyAuthoredHeadings(pages: Page[], architecture: PageArchitect
         // Page openings already carry AI-written copy or the real service name;
         // the AI may still retitle them.
         if (section.kind === "hero")
-          return authored?.heading ? { ...section, heading: authored.heading, subheading: authored.subheading ?? section.subheading } : section;
+          return authored?.heading ? { ...section, heading: authored.heading, subheading: authored.subheading ?? section.subheading ?? null } : section;
         return { ...section, heading: authored?.heading ?? null, subheading: authored?.subheading ?? null };
       }),
     };
