@@ -2740,3 +2740,18 @@ a[href*="lovable.app"][target="_blank"][class*="fixed"],
   outline: 3px solid var(--primary);
   outline-offset: 2px;
 }
+
+.fx-authored-layer {
+  position: absolute;
+  inset: -10%;
+  display: block;
+}
+.fx-authored-drift-slow { animation: fx-authored-drift 40s ease-in-out infinite alternate; }
+.fx-authored-drift-medium { animation: fx-authored-drift 22s ease-in-out infinite alternate; }
+@keyframes fx-authored-drift {
+  from { transform: translate3d(-2%, -1%, 0) scale(1); }
+  to { transform: translate3d(2%, 1%, 0) scale(1.05); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .fx-authored-drift-slow, .fx-authored-drift-medium { animation: none; }
+}

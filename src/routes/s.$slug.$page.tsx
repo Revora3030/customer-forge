@@ -17,7 +17,7 @@ import { safeText } from "@/lib/builder/presentation";
 import { SiteBackdrop } from "@/components/site/SiteBackdrop";
 import { siteFontHref, siteFontStyle, siteThemeStyle } from "@/lib/site-theme";
 import { readComposition } from "@/lib/visual-composition";
-import { readBackdrop } from "@/lib/site-effects";
+import { readBackdrop, readBackdropSpec } from "@/lib/site-effects";
 import { getPublicSite, trackPublicEvent, type PublicSite } from "@/lib/public-site.functions";
 import { SiteVitals } from "@/components/site/SiteVitals";
 import { BuilderReturnBar } from "@/components/site/BuilderReturnBar";
@@ -161,6 +161,7 @@ export function SitePageView({
       <SiteBackdrop
         backdrop={readBackdrop(site.settings?.generation ?? null)}
         composition={readComposition(site.settings?.generation ?? null)}
+        spec={readBackdropSpec(site.settings?.generation ?? null)}
       />
       <div className="relative z-[1]">
         {/* The bar is opaque and uses the site's own foreground colour, so the
