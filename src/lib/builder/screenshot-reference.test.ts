@@ -10,24 +10,13 @@ import {
 const base = blankDesignFingerprint();
 
 describe("screenshot reference fingerprint", () => {
-  it("maps bounded observations into the finite design fingerprint vocabulary", () => {
-    const result = deriveScreenshotReferenceFingerprint({
+  it("never patches the saved look — signals only go to the AI", () => {
+    const ref = deriveScreenshotReferenceFingerprint({
+      observations: { layout: ["split hero", "bento grid"], color: ["dark"] },
       base,
-      businessName: "Northline",
-      observations: {
-        layout: ["split two column hero with a bento grid below"],
-        typography: ["large headline with geometric modern sans"],
-        spacing: ["airy spacious rhythm"],
-        color: ["dark black canvas with gold accents"],
-        interactions: ["sticky navigation with subtle fade animation"],
-      },
     });
-    expect(result.applied).toBe(true);
-    expect(result.fingerprint.pageShell).toBe("split-screen");
-    expect(result.fingerprint.typeSystem).toBe("geometric-sans");
-    expect(result.fingerprint.density).toBe("airy");
-    expect(result.fingerprint.colorSystem).toBe("ivory-gold");
-    expect(result.fingerprint.motionLevel).toBe("subtle");
+    expect(ref.fingerprint).toEqual(base);
+    expect(ref.signals.layout.length).toBeGreaterThan(0);
   });
 
   it("never preserves copy, brand names, urls or exact colours from the reference", () => {
@@ -86,65 +75,4 @@ describe("screenshot reference fingerprint", () => {
     expect(JSON.stringify(normalized)).not.toMatch(/Northline|clone|#ffcc00|competitor/i);
   });
 
-  it("aligns the creative brief to a reference fingerprint without importing copy", () => {
-    const creative = {
-      fingerprint: base,
-      brief: {
-        fingerprintId: base.id,
-        archetype: "service-business",
-        personality: "precise and premium",
-        density: "balanced",
-        heroComposition: base.heroComposition,
-        sectionRhythm: base.sectionRhythm,
-        cardLanguage: "soft cards",
-        ctaLanguage: "paired buttons",
-        backgroundTreatment: "quiet canvas",
-        color: { system: base.colorSystem },
-        motion: { level: base.motionLevel, language: "subtle motion" },
-        photography: {
-          language: "clean service details",
-          lighting: "soft light",
-          environment: "studio",
-          treatment: "natural crops",
-        },
-        mobileStrategy: ["short hero"],
-        conversionStrategy: ["lead form near proof"],
-        industryConventions: ["service menu"],
-        imageInventory: [
-          {
-            slot: "hero",
-            label: "Hero visual",
-            purpose: "show the service atmosphere",
-            subject: "detail bay",
-            aspectRatio: "16:9",
-            framing: "wide",
-            mobileCrop: "center",
-            evidenceTag: "generated-artwork",
-            palette: base.colorSystem,
-            mood: base.family,
-          },
-        ],
-      },
-      imagery: { status: "needed", shots: [], assetPlan: { readiness: "needs_assets", missingRequired: [] } },
-      industry: { objections: [], avoid: [] },
-      audience: "local buyers",
-      unknowns: [],
-    } as unknown as FirstBuildCreativeDirection;
-
-    const result = applyScreenshotReferenceToCreative({
-      creative,
-      observations: {
-        layout: ["split two column hero"],
-        typography: ["geometric modern sans"],
-        color: ["dark canvas with gold accent"],
-      },
-      businessName: "Northline",
-    });
-
-    expect(result.reference.applied).toBe(true);
-    expect(result.creative.fingerprint.pageShell).toBe("split-screen");
-    expect(result.creative.brief.fingerprintId).toBe(result.creative.fingerprint.id);
-    expect(result.creative.brief.color.system).toBe(result.creative.fingerprint.colorSystem);
-    expect(JSON.stringify(result.reference.signals)).not.toMatch(/exact wording|logo|clone/i);
-  });
 });

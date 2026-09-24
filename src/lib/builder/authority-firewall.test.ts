@@ -63,9 +63,11 @@ describe("creative authority firewall", () => {
 });
 
 describe("upgrade rule passes", () => {
-  it("story pass never writes rule-authored buttons", async () => {
+  it("no rule-based motion or story pass exists; Motion goes through the AI redesign", async () => {
     const src = readFileSync("src/lib/site-upgrade.functions.ts", "utf8");
-    expect(src).toContain("export const STORY_WRITES_DECOMMISSIONED = true;");
+    expect(src).not.toMatch(/applyMotionPack|applyStoryPass|motion-pack|story-pass/);
+    const panel = readFileSync("src/components/app/SiteUpgradePanel.tsx", "utf8");
+    expect(panel).toMatch(/applySiteWideRedesign\(\{ data: \{ organizationId, instruction: ask \} \}\)/);
     const redesign = src.slice(src.indexOf("export const applySiteWideRedesign"), src.indexOf("export const reviewPageScreenshot"));
     expect(redesign).not.toMatch(/planMotionAssignments\(/);
   });

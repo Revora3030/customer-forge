@@ -15,8 +15,8 @@ describe("leftover first-build helpers carry no creative authority", () => {
     expect(src).not.toMatch(/brief\.(archetype|personality|heroComposition|sectionRhythm|cardLanguage|ctaLanguage|backgroundTreatment)/);
   });
 
-  it("the first-build direction carries no industry page or section recipe", () => {
-    const src = read("src/lib/builder/first-build-creative.ts");
-    expect(src).not.toMatch(/homeSections|pageSlugs/);
+  it("the first-build contract starts blank and imports no picker", () => {
+    const src = read("src/lib/builder/first-build-contract.ts");
+    expect(src).not.toMatch(/homeSections|pageSlugs|playbookFor|pickVisualDirection|createDesignFingerprint|pick\(/);
   });
 });
