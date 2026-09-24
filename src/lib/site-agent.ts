@@ -2,8 +2,10 @@ import {
   backdropLabel,
   isBackdropId,
   isSectionEffectId,
+  safeBackdropSpec,
   sectionEffectLabel,
   type BackdropId,
+  type BackdropSpec,
   type SectionEffectId,
 } from "@/lib/site-effects";
 import { validateComposition, type CompositionTree } from "@/lib/builder/composition-tree";
@@ -499,6 +501,8 @@ export type AgentAction =
   | {
       type: "set_backdrop";
       backdrop: BackdropId;
+      /** A background the AI wrote itself; wins over the legacy named backdrop. */
+      spec?: BackdropSpec | null;
     }
 
   | {
@@ -2107,17 +2111,15 @@ export function readActions(
             30,
           );
 
-        if (
-          !isBackdropId(
-            backdrop,
-          )
-        ) {
+        const spec = safeBackdropSpec(row["spec"]);
+        if (!isBackdropId(backdrop) && !spec) {
           break;
         }
 
         out.push({
           type,
-          backdrop,
+          backdrop: isBackdropId(backdrop) ? backdrop : "none",
+          ...(spec ? { spec } : {}),
         });
 
         break;
@@ -2798,9 +2800,9 @@ export function describeActions(
             key,
 
             title:
-              `Install the "${backdropLabel(
-                action.backdrop,
-              )}" animated background`,
+              action.spec
+                ? "Install the AI-designed background"
+                : `Install the "${backdropLabel(action.backdrop)}" animated background`,
 
             where:
               "Whole website",

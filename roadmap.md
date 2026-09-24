@@ -39,3 +39,5 @@ Ordered by user-felt impact. Each item: extend existing code, never duplicate.
 - [x] Phase 6a: AI custom layouts are the default for builds/redesigns/edits; approval only for destructive, fact, billing and account actions; fallback guard tests
 - [x] Phase 6b (= 5c): retire leftover fingerprint/story/motion/first-build-creative helpers still read by live sites
 - [x] Phase 7: remove every remaining old design layer (style lists, Motion/story rules, first-build presets, industry guides, photo-style list, default looks, request reader, seeded pickers). Guard tests in authority-firewall.test.ts.
+
+- [x] Phase 8: removed last built-in looks (style library, font list in prompts, default colors, rule-based layer designer, default effect map, preset quick-button wording); AI-authored backgrounds added

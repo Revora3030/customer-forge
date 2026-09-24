@@ -8,7 +8,7 @@
  * design team cannot author an identity, the build fails loudly instead of
  * falling back to a stock look.
  */
-import type { DesignDirection } from "@/lib/design-directions";
+import type { DesignDirection } from "@/lib/authored-direction";
 import {
   isBackdropId,
   isSectionEffectId,
@@ -164,7 +164,6 @@ export async function authorBrandIdentity(
       ctaEffect: effect("ctaEffect"),
       formEffect: effect("formEffect"),
       bodyEffect: effect("bodyEffect"),
-      affinity: [],
     },
     model: outcome.model ?? null,
     lane: outcome.lane,

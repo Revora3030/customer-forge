@@ -10,7 +10,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
  */
 
 import { writeComposition } from "@/lib/builder/composition-tree";
-import { writeBackdrop, writeSectionEffect } from "@/lib/site-effects";
+import { writeBackdrop, writeBackdropSpec, writeSectionEffect } from "@/lib/site-effects";
 import { writeBlockStyle, writeComponentVisual, writeSectionVisual } from "@/lib/site-style";
 import { writeCustomBlock } from "@/lib/builder/custom-block";
 import { createServerFn } from "@tanstack/react-start";
@@ -1392,9 +1392,9 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
           break;
         case "set_backdrop":
           await run(action.type, () => {
-            const generation = writeBackdrop(
-              readColumn("website_settings", null, "generation"),
-              action.backdrop,
+            const generation = writeBackdropSpec(
+              writeBackdrop(readColumn("website_settings", null, "generation"), action.backdrop),
+              action.spec ?? null,
             );
             noteColumn("website_settings", null, "generation", generation);
             return supabase

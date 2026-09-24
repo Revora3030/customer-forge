@@ -19,7 +19,6 @@
 import { currency } from "@/lib/format";
 import type { AgentAction, BackdropId, SectionEffectId } from "@/lib/site-agent";
 import type { ContentPage, ContentSection } from "@/lib/website-content";
-import { directionActions, directionTone, recommendDirections } from "@/lib/design-directions";
 
 export type UpgradeTier =
   "Conversion" | "Trust" | "Search" | "Local" | "Premium visuals" | "Structure";
@@ -690,43 +689,6 @@ export function scanForUpgrades(pages: ContentPage[], facts: StudioFacts): Elite
         },
       ]),
     });
-  }
-
-  // ---------- Colour identities ----------
-  // Always offers a complete alternative look (light/white, blue, dark) built
-  // for this trade. Rotates on every scan so the client keeps seeing new elite
-  // options instead of the same four forever. Applying one is reversible.
-  const visibleSections = pages
-    .filter((page) => page.is_visible)
-    .reduce((sum, page) => sum + page.sections.filter((section) => section.is_visible).length, 0);
-  if (visibleSections) {
-    const identities = recommendDirections({
-      businessName: facts.businessName,
-      industry: facts.industry ?? null,
-      services: facts.services.map((service) => ({ name: service.name })),
-      city: facts.city,
-      count: 2,
-      refresh: facts.cycle ?? 0,
-    }).filter(
-      (direction) => direction.primary.toLowerCase() !== (facts.primaryColor ?? "").toLowerCase(),
-    );
-
-    for (const direction of identities) {
-      push({
-        id: `identity-${direction.id}`,
-        title: `Restyle the whole site: ${direction.name}`,
-        tier: "Premium visuals",
-        why: `${direction.mood} Best for: ${direction.bestFor.toLowerCase()}. Colours, type, background and motion change together, so the site looks designed rather than assembled.`,
-        impact: 7,
-        preview: [
-          `Overall look → ${directionTone(direction) === "light" ? "light, white-page website" : "dark, high-contrast website"}`,
-          `Colours → ${direction.primary} with ${direction.accent}`,
-          `Headings → ${direction.font} (${direction.fontNote})`,
-          `Motion → ${visibleSections} section${visibleSections === 1 ? "" : "s"} restyled`,
-        ],
-        actions: directionActions(direction, pages),
-      });
-    }
   }
 
   return out.sort((a, b) => b.impact - a.impact);

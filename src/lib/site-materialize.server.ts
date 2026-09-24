@@ -11,7 +11,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { safeLinkUrl } from "@/lib/website-content";
-import type { DesignDirection } from "@/lib/design-directions";
+import type { DesignDirection } from "@/lib/authored-direction";
 import { writeSectionEffect } from "@/lib/site-effects";
 import { writeComponentVisual, writeSectionVisual } from "@/lib/site-style";
 import type { DesignFingerprint } from "@/lib/builder/design-fingerprint";

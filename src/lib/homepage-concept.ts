@@ -1,10 +1,7 @@
 /**
  * Revora's own homepage visual concept.
  *
- * Produced by the builder's "Create something new" creative command
- * (`inventComposition`, daring mode) using Revora's own business facts, then
- * pinned here so the marketing homepage renders the exact approved concept on
- * every request (no per-visit randomness, no server work, SSR-safe).
+ * Revora's own marketing homepage backdrop, stored as fixed approved data.
  *
  * Palettes were locked to the Revora dark + gold identity; every other value is
  * the generated one. Safety, mobile behaviour and reduced-motion handling come

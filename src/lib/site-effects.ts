@@ -114,29 +114,77 @@ export function writeSectionEffect(settings: unknown, effect: SectionEffectId) {
 export const sectionEffectClass = (effect: SectionEffectId) =>
   effect === "none" ? "" : `fx-sec fx-sec-${effect.replace(/_/g, "-")}`;
 
+/* ----------------------- AI-authored backdrop spec ------------------------ */
+
 /**
- * Sensible default effect per section type, so a new site doesn't need every
- * section hand-tuned. Conversion-critical blocks (cta, sticky cta, the
- * current-offer banner) earn the eye-catching gold treatments; forms get a
- * soft frosted-glass lift; the hero, trust bar and legal pages stay plain —
- * the hero is already above the fold so an entrance animation is wasted on
- * it, and legal/utility content shouldn't draw the eye. Everything else
- * defaults to a gentle scroll-reveal, which is safe and premium-feeling
- * without needing a per-section decision.
+ * A site background the AI writes itself, as plain numbers and hex colours.
+ * There is no menu: any gradient composition inside these safe bounds renders.
+ * Only numbers and #RRGGBB colours are stored, so nothing can inject CSS.
  */
-const RECOMMENDED_SECTION_EFFECT: Record<string, SectionEffectId> = {
-  hero: "none",
-  trust_bar: "none",
-  policy: "none",
-  custom: "none",
-  offer: "gold_glow",
-  cta: "gold_glow",
-  sticky_cta: "gold_glow",
-  quote: "glass",
-  booking: "glass",
+export type BackdropLayerSpec = {
+  shape: "radial" | "linear";
+  colors: string[];
+  angle: number;
+  x: number;
+  y: number;
+  size: number;
+  opacity: number;
+};
+export type BackdropSpec = { layers: BackdropLayerSpec[]; drift: "none" | "slow" | "medium" };
+
+const SPEC_HEX = /^#[0-9a-fA-F]{6}$/;
+const bound = (value: unknown, min: number, max: number, fallback: number) => {
+  const n = typeof value === "number" && Number.isFinite(value) ? value : fallback;
+  return Math.min(max, Math.max(min, Math.round(n)));
 };
 
-export function recommendedSectionEffect(kind: string): SectionEffectId {
-  return RECOMMENDED_SECTION_EFFECT[kind] ?? "rise";
+export function safeBackdropSpec(value: unknown): BackdropSpec | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const raw = value as Record<string, unknown>;
+  const layers: BackdropLayerSpec[] = [];
+  for (const entry of Array.isArray(raw["layers"]) ? raw["layers"].slice(0, 4) : []) {
+    if (!entry || typeof entry !== "object") continue;
+    const l = entry as Record<string, unknown>;
+    const colors = (Array.isArray(l["colors"]) ? l["colors"] : [])
+      .filter((c): c is string => typeof c === "string" && SPEC_HEX.test(c))
+      .slice(0, 4);
+    if (colors.length < 1) continue;
+    layers.push({
+      shape: l["shape"] === "linear" ? "linear" : "radial",
+      colors,
+      angle: bound(l["angle"], 0, 360, 135),
+      x: bound(l["x"], 0, 100, 50),
+      y: bound(l["y"], 0, 100, 0),
+      size: bound(l["size"], 10, 200, 80),
+      opacity: bound(l["opacity"], 0, 60, 30),
+    });
+  }
+  if (!layers.length) return null;
+  const drift = raw["drift"] === "slow" || raw["drift"] === "medium" ? raw["drift"] : "none";
+  return { layers, drift };
 }
 
+export function readBackdropSpec(generation: unknown): BackdropSpec | null {
+  const effects = (generation as { effects?: unknown } | null)?.effects;
+  return safeBackdropSpec((effects as { spec?: unknown } | null)?.spec);
+}
+
+/** Stores (or clears) the authored spec beside the legacy backdrop id. */
+export function writeBackdropSpec(generation: unknown, spec: BackdropSpec | null) {
+  const base = (generation && typeof generation === "object" ? generation : {}) as Record<string, unknown>;
+  const effects = (
+    base["effects"] && typeof base["effects"] === "object" ? base["effects"] : {}
+  ) as Record<string, unknown>;
+  const next = { ...effects };
+  if (spec) next["spec"] = spec;
+  else delete next["spec"];
+  return { ...base, effects: next };
+}
+
+/** CSS for one authored layer. Values are already bounded numbers and hex colours. */
+export function backdropLayerCss(layer: BackdropLayerSpec): string {
+  const stops = layer.colors.length === 1 ? [layer.colors[0], "transparent"] : layer.colors;
+  return layer.shape === "linear"
+    ? `linear-gradient(${layer.angle}deg, ${stops.join(", ")})`
+    : `radial-gradient(${layer.size}% ${layer.size}% at ${layer.x}% ${layer.y}%, ${stops.join(", ")})`;
+}

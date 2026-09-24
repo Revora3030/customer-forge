@@ -7,7 +7,7 @@
  * FREE provider (through the central router — no direct provider calls, no paid
  * model reachable) for two structural judgements only:
  *
- *   1. which visual direction from the existing library fits this business, and
+ *   1. the whole visual direction (colours, font, motion), authored from scratch, and
  *   2. which sections each page should contain, in which order.
  *
  * The model never writes copy and never states a fact. Every answer is
@@ -22,11 +22,11 @@ import type { AgentAction } from "@/lib/site-agent";
 import type { AgentContext, SiteMapPage } from "@/lib/site-agent.server";
 import type { ContentPage } from "@/lib/website-content";
 import {
-  DESIGN_DIRECTIONS,
   directionActions,
-  recommendDirections,
+  directionTone,
+  parseAuthoredDirection,
   type DesignDirection,
-} from "@/lib/design-directions";
+} from "@/lib/authored-direction";
 
 export type {
   BrandPreference,
@@ -89,7 +89,7 @@ function visiblePages(context: AgentContext): SiteMapPage[] {
   return context.pages.filter((page) => page.is_visible !== false);
 }
 
-function brief(context: AgentContext, directions: DesignDirection[]): string {
+function brief(context: AgentContext): string {
   const business = context.business;
   return JSON.stringify(
     {
@@ -104,12 +104,6 @@ function brief(context: AgentContext, directions: DesignDirection[]): string {
           (service) => service.price !== null || service.startingPrice !== null,
         ),
       },
-      directions: directions.map((direction) => ({
-        id: direction.id,
-        name: direction.name,
-        mood: direction.mood,
-        bestFor: direction.bestFor,
-      })),
       allowedSectionKinds: context.sectionKinds,
       pages: visiblePages(context).map((page) => ({
         pageId: page.id,
@@ -131,7 +125,16 @@ mention prices, reviews, awards or years in business.
 
 Return ONLY this JSON:
 {
-  "directionId": "<one id from directions>",
+  "direction": {
+    "name": "<a short name you invent for this look>",
+    "mood": "<one plain sentence>",
+    "bestFor": "<who it suits>",
+    "primary": "#RRGGBB", "secondary": "#RRGGBB (page background)", "accent": "#RRGGBB",
+    "font": "<any Google Fonts family name>", "fontNote": "<why this type>",
+    "backdrop": "none|stars|aurora|nebula|grid|spotlight|gradient_mesh",
+    "heroEffect": "none|float_3d|tilt_3d|glass|gold_glow|rise|parallax_slow|shine",
+    "ctaEffect": "...same options", "formEffect": "...same options", "bodyEffect": "...same options"
+  },
   "pages": [{ "pageId": "<a pageId given to you>", "order": ["<section kind>", ...] }],
   "because": "<one short sentence, plain English, no jargon>"
 }
@@ -145,17 +148,15 @@ Rules:
   "portfolio" unless photoCount is above 2.
 - Compose for THIS trade: order the page the way a buyer in that trade decides.
   Two different businesses should get genuinely different structures.
-- Pick the direction that suits the trade and audience, not the safest one.`;
+- Invent the whole look yourself: colours, font and motion. There is no library to pick from.
+  Keep text readable (strong contrast between secondary and body text) and never copy a
+  generic default. If the owner gave colours or a font, use them exactly.`;
 
 export function parseProposal(
   data: Record<string, unknown>,
   context: AgentContext,
-  directions: DesignDirection[],
 ): { direction: DesignDirection; pages: PageProposal[]; because: string } | null {
-  const directionId = typeof data['directionId'] === "string" ? data['directionId'] : "";
-  const direction =
-    directions.find((entry) => entry.id === directionId) ??
-    DESIGN_DIRECTIONS.find((entry) => entry.id === directionId);
+  const direction = parseAuthoredDirection(data['direction']);
   if (!direction) return null;
 
   const allowedKinds = new Set(context.sectionKinds);
@@ -351,32 +352,18 @@ export async function proposeSiteComposition(
   const brand = options.brand ?? null;
   const { brandLockMode, brandLockNote } = await import("./brand-lock");
   const lockMode = brandLockMode(options.instruction);
-  // Each request draws a fresh set of candidate identities, so the same
-  // business asking twice is never handed the same look twice.
-  const refresh = hashText(`${options.instruction}|${new Date().toISOString().slice(0, 13)}`);
-  const tone = brand?.tone && brand.tone !== "any" ? brand.tone : undefined;
-  const chosen = brand?.directionId
-    ? DESIGN_DIRECTIONS.find((entry) => entry.id === brand.directionId)
-    : undefined;
-  const directions = recommendDirections({
-    businessName: context.business.name,
-    industry: context.business.industry,
-    services: context.business.services,
-    city: context.business.city,
-    currentFont: brand?.font ?? context.business.fontPreference,
-    count: 8,
-    refresh,
-    ...(tone ? { tone } : {}),
-  });
-  const candidates = chosen
-    ? [chosen, ...directions.filter((entry) => entry.id !== chosen.id)]
-    : directions;
-
+  const ownerBrand = brand
+    ? {
+        tone: brand.tone && brand.tone !== "any" ? brand.tone : null,
+        primary: brand.primaryColor ?? null,
+        secondary: brand.secondaryColor ?? null,
+        accent: brand.accentColor ?? null,
+        font: brand.font ?? null,
+      }
+    : null;
   const userBrief = `OWNER'S REQUEST (context only — do not write copy):\n${options.instruction}\n\n${
-    chosen
-      ? `The owner already chose the look "${chosen.name}" (id ${chosen.id}). Use that directionId.\n\n`
-      : ""
-  }WORKSPACE:\n${brief(context, candidates)}`;
+    ownerBrand ? `OWNER'S OWN BRAND CHOICES (use exactly when set): ${JSON.stringify(ownerBrand)}\n\n` : ""
+  }WORKSPACE:\n${brief(context)}`;
 
   try {
     // MULTI-MODEL FIRST. Several verified free models independently propose a
@@ -384,10 +371,10 @@ export async function proposeSiteComposition(
     // the proposal the most models arrived at wins. Every proposal is validated
     // against the real workspace first, so a consensus can only ever be reached
     // between answers that were already safe.
-    const ensembleProof = await composeByEnsemble(context, candidates, userBrief, options);
+    const ensembleProof = await composeByEnsemble(context, userBrief, options);
     const proposal =
       ensembleProof?.winner ??
-      (await composeBySingleModel(context, candidates, userBrief, options));
+      (await composeBySingleModel(context, userBrief, options));
     if (!proposal) return null;
     const ensembleNotes = [
       ...(ensembleProof ? [proofSummaryLine(ensembleProof)] : []),
@@ -396,7 +383,7 @@ export async function proposeSiteComposition(
 
     // The colours the design team chose are used exactly as chosen. Nothing
     // shifts them afterwards, so what the models decide is what the site shows.
-    const personalised: DesignDirection = chosen ?? proposal.direction;
+    const personalised: DesignDirection = proposal.direction;
 
     // The owner's own choices are final for ordinary edits; a request that asks
     // for a new look installs the chosen palette instead.
@@ -408,7 +395,6 @@ export async function proposeSiteComposition(
     );
     if (!composed.actions.length) return null;
 
-    const { directionTone } = await import("@/lib/design-directions");
     return {
       actions: composed.actions,
       notes: [...composed.notes, ...ensembleNotes],
@@ -437,15 +423,6 @@ export async function proposeSiteComposition(
   }
 }
 
-/** Small stable hash, used only to vary the candidate set per request. */
-function hashText(value: string): number {
-  let hash = 2166136261;
-  for (let index = 0; index < value.length; index += 1) {
-    hash ^= value.charCodeAt(index);
-    hash = Math.imul(hash, 16777619);
-  }
-  return Math.abs(hash) % 100000;
-}
 
 
 /* --------------------------- multi-model composition ----------------------- */
@@ -495,7 +472,6 @@ const COMPOSITION_LANES = [
  */
 async function composeByEnsemble(
   context: AgentContext,
-  candidates: DesignDirection[],
   userBrief: string,
   options: ComposeOptions,
 ) {
@@ -531,7 +507,7 @@ async function composeByEnsemble(
         ],
         // The existing validator is the gate: unknown ids, banned section kinds
         // and fact-gated blocks without the facts are all rejected here.
-        parse: ({ data }) => parseProposal(data, context, candidates),
+        parse: ({ data }) => parseProposal(data, context),
         consensusKey: (value) =>
           `${value.direction.id}|${value.pages
             .map((page) => `${page.pageId}:${page.order.join(",")}`)
@@ -552,7 +528,6 @@ function proofSummaryLine(proof: { mode: string; attempted: unknown[]; providers
 /** The original single-call path, kept as the ensemble's backstop. */
 async function composeBySingleModel(
   context: AgentContext,
-  candidates: DesignDirection[],
   userBrief: string,
   options: ComposeOptions,
 ): Promise<ValidatedProposal | null> {
@@ -574,5 +549,5 @@ async function composeBySingleModel(
       ],
     },
   );
-  return parseProposal(result.data, context, candidates);
+  return parseProposal(result.data, context);
 }

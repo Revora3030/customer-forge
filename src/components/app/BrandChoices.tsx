@@ -9,22 +9,8 @@
  */
 import { useEffect, useState } from "react";
 import { ChevronDown } from "lucide-react";
-import { DESIGN_DIRECTIONS } from "@/lib/design-directions";
 import type { BrandPreference } from "@/lib/builder/composition-preview";
 import { cn } from "@/lib/utils";
-
-const FONTS = [
-  "Inter",
-  "Manrope",
-  "Figtree",
-  "Sora",
-  "Space Grotesk",
-  "IBM Plex Sans",
-  "Playfair Display",
-  "Instrument Serif",
-  "Lora",
-  "Archivo Black",
-];
 
 const EMPTY: BrandPreference = {
   tone: "any",
@@ -55,8 +41,7 @@ export function hasBrandChoices(brand: BrandPreference): boolean {
       brand.primaryColor ||
       brand.secondaryColor ||
       brand.accentColor ||
-      brand.font ||
-      brand.directionId,
+      brand.font,
   );
 }
 
@@ -92,17 +77,15 @@ export function BrandChoices({
     }
   };
 
-  const chosenStyle = DESIGN_DIRECTIONS.find((entry) => entry.id === brand.directionId);
   const summary = hasBrandChoices(brand)
     ? [
-        chosenStyle?.name,
         brand.tone && brand.tone !== "any" ? `${brand.tone} pages` : null,
         brand.font,
         brand.primaryColor,
       ]
         .filter(Boolean)
         .join(" · ")
-    : "Revora chooses for you";
+    : "The AI designs it for you";
 
   const color = (
     label: string,
@@ -149,36 +132,16 @@ export function BrandChoices({
         <div className="mt-3 space-y-3">
           <div className="grid gap-2 sm:grid-cols-2">
             <label className="text-[12px]">
-              <span className="mb-1 block font-medium">Style</span>
-              <select
-                disabled={disabled}
-                value={brand.directionId ?? ""}
-                onChange={(event) => update({ directionId: event.target.value || null })}
-                className="h-9 w-full rounded-md border border-border bg-background px-2 text-[12.5px]"
-              >
-                <option value="">Let Revora choose</option>
-                {DESIGN_DIRECTIONS.map((direction) => (
-                  <option key={direction.id} value={direction.id}>
-                    {direction.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="text-[12px]">
               <span className="mb-1 block font-medium">Headings font</span>
-              <select
+              <input
+                type="text"
                 disabled={disabled}
+                maxLength={42}
+                placeholder="Any Google font, or leave for the AI"
                 value={brand.font ?? ""}
-                onChange={(event) => update({ font: event.target.value || null })}
+                onChange={(event) => update({ font: event.target.value.trim() ? event.target.value : null })}
                 className="h-9 w-full rounded-md border border-border bg-background px-2 text-[12.5px]"
-              >
-                <option value="">Let Revora choose</option>
-                {FONTS.map((font) => (
-                  <option key={font} value={font}>
-                    {font}
-                  </option>
-                ))}
-              </select>
+              />
             </label>
           </div>
 

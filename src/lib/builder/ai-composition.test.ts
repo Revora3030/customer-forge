@@ -1,9 +1,24 @@
 import { describe, expect, it } from "vitest";
 import { composeActions, parseProposal } from "@/lib/builder/ai-composition.server";
-import { DESIGN_DIRECTIONS } from "@/lib/design-directions";
+import { parseAuthoredDirection } from "@/lib/authored-direction";
 import type { AgentContext } from "@/lib/site-agent.server";
 
-const direction = DESIGN_DIRECTIONS[0]!;
+const AUTHORED = {
+  name: "Test authored look",
+  mood: "Written by the model under test.",
+  bestFor: "Tests",
+  primary: "#1f6feb",
+  secondary: "#0b1020",
+  accent: "#f5c451",
+  font: "Fraunces",
+  fontNote: "test",
+  backdrop: "none",
+  heroEffect: "none",
+  ctaEffect: "none",
+  formEffect: "none",
+  bodyEffect: "rise",
+};
+const direction = parseAuthoredDirection(AUTHORED)!;
 
 function context(overrides?: Partial<AgentContext["business"]>): AgentContext {
   return {
@@ -81,19 +96,17 @@ describe("AI-composed site structure", () => {
   it("rejects an answer that names a page or direction that does not exist", () => {
     expect(
       parseProposal(
-        { directionId: "not-a-direction", pages: [{ pageId: "page-1", order: ["hero"] }] },
+        { direction: { name: "x", primary: "red" }, pages: [{ pageId: "page-1", order: ["hero"] }] },
         context(),
-        DESIGN_DIRECTIONS,
       ),
     ).toBeNull();
     expect(
       parseProposal(
         {
-          directionId: direction.id,
+          direction: AUTHORED,
           pages: [{ pageId: "ghost-page", order: ["hero", "services", "cta"] }],
         },
         context(),
-        DESIGN_DIRECTIONS,
       ),
     ).toBeNull();
   });
@@ -101,7 +114,7 @@ describe("AI-composed site structure", () => {
   it("drops sections that would need facts the business has not supplied", () => {
     const parsed = parseProposal(
       {
-        directionId: direction.id,
+        direction: AUTHORED,
         pages: [
           {
             pageId: "page-1",
@@ -110,7 +123,6 @@ describe("AI-composed site structure", () => {
         ],
       },
       context(),
-      DESIGN_DIRECTIONS,
     );
     expect(parsed).not.toBeNull();
     expect(parsed!.pages[0]!.order).toEqual(["hero", "services", "cta"]);
@@ -119,11 +131,10 @@ describe("AI-composed site structure", () => {
   it("keeps proof sections when the reviews and photos are real", () => {
     const parsed = parseProposal(
       {
-        directionId: direction.id,
+        direction: AUTHORED,
         pages: [{ pageId: "page-1", order: ["hero", "reviews", "gallery", "cta"] }],
       },
       context({ publishedReviewCount: 6, photoCount: 9 }),
-      DESIGN_DIRECTIONS,
     );
     expect(parsed!.pages[0]!.order).toEqual(["hero", "reviews", "gallery", "cta"]);
   });
@@ -160,8 +171,7 @@ describe("AI-composed site structure", () => {
 describe("brand choices the owner made", () => {
   it("uses the owner's colours and font instead of the look's own", async () => {
     const { applyBrandPreference } = await import("@/lib/builder/ai-composition.server");
-    const { DESIGN_DIRECTIONS } = await import("@/lib/design-directions");
-    const base = DESIGN_DIRECTIONS[0]!;
+    const base = direction;
     const result = applyBrandPreference(base, {
       tone: "dark",
       primaryColor: "#123456",
@@ -180,8 +190,7 @@ describe("brand choices the owner made", () => {
 
   it("leaves the look untouched when nothing was chosen", async () => {
     const { applyBrandPreference } = await import("@/lib/builder/ai-composition.server");
-    const { DESIGN_DIRECTIONS } = await import("@/lib/design-directions");
-    const base = DESIGN_DIRECTIONS[1]!;
+    const base = direction;
     const result = applyBrandPreference(base, null);
     expect(result.locked).toBe(false);
     expect(result.direction).toEqual(base);

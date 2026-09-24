@@ -1,5 +1,5 @@
 import type { AgentAction, SectionVisualPatch, ThemePatch } from "@/lib/site-agent";
-import type { DesignDirection } from "@/lib/design-directions";
+import type { DesignDirection } from "@/lib/authored-direction";
 
 export type DesignSystemContract = {
   theme: ThemePatch;

@@ -15,7 +15,6 @@
 import { callBestThinker } from "@/lib/ai/hall-of-fame.server";
 import type { AgentContext } from "@/lib/site-agent.server";
 import { MAX_ACTIONS } from "@/lib/site-agent";
-import { SITE_HEADING_FONTS } from "@/lib/site-theme";
 import { COMPOSITION_PRIMITIVES } from "@/lib/builder/composition-tree";
 
 export type AiPlanFailure = {
@@ -60,7 +59,7 @@ const DESIGN_RULES = [
 
 /** Compact JSON contract. Anything outside it is dropped by the validator. */
 function actionContract(context: AgentContext): string {
-  const fonts = Object.keys(SITE_HEADING_FONTS).join("|");
+  const fonts = "any Google Fonts family name";
   return [
     "Reply with ONE JSON object and nothing else:",
     '{"reply":string,"summary":string,"requirements":string[],"questions":string[],"notes":string[],"actions":Action[]}',
