@@ -20,3 +20,14 @@ describe("leftover first-build helpers carry no creative authority", () => {
     expect(src).not.toMatch(/homeSections|pageSlugs|playbookFor|pickVisualDirection|createDesignFingerprint|pick\(/);
   });
 });
+
+describe("no built-in first-build copy writer", () => {
+  it("keeps the rule-based copy engine deleted", async () => {
+    const { readFileSync } = await import("node:fs");
+    const engine = readFileSync("src/lib/site-engine.server.ts", "utf8");
+    const worker = readFileSync("src/lib/site-engine.worker.server.ts", "utf8");
+    expect(engine).not.toMatch(/export function fallbackCopy/);
+    expect(worker).not.toMatch(/fallbackCopy/);
+    expect(worker).toMatch(/missingAiCopy/);
+  });
+});
