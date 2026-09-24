@@ -213,7 +213,8 @@ async function runJob(
   const { gatherBriefFacts } = await import("@/lib/site-brief.server");
   const {
     fallbackBrief,
-    fallbackCopy,
+    blankCopy,
+    missingAiCopy,
   } = await import("@/lib/site-engine.server");
 
   const done: string[] = [];
@@ -373,8 +374,8 @@ async function runJob(
   await step("structure");
 
   const copyFactsForWrite = { ...copyFacts, ctaLabel: plan.primaryCtaLabel };
-  let copy = fallbackCopy(copyFactsForWrite, brief);
-  let copyModel = "revora-native";
+  let copy = blankCopy(copyFactsForWrite);
+  let copyModel = "pending-ai";
   await step("copy");
 
   await db.from("ai_generations").insert({
@@ -519,14 +520,15 @@ async function runJob(
     .select("id", { count: "exact", head: true })
     .eq("organization_id", orgId);
   const firstBuild = freshReplace || (existingPages.count ?? 0) === 0;
-  if (firstBuild && (!refined.passes.some((pass) => pass.used) || !refined.changed)) {
+  const missingCopy = missingAiCopy(copy);
+  if (firstBuild && (!refined.passes.some((pass) => pass.used) || !refined.changed || missingCopy.length)) {
     const why = refined.passes
       .map((pass) => pass.skipped)
       .filter(Boolean)
       .slice(0, 3)
       .join("; ");
     throw new Error(
-      `The design team could not author this website's wording and look, so nothing was published (${why || (refined.passes.some((pass) => pass.used) ? "no model returned usable wording" : "no model was reachable")}). Please try again in a moment.`,
+      `The design team could not author this website's wording and look, so nothing was published (${missingCopy.length ? `missing AI wording: ${missingCopy.join(", ")}` : why || (refined.passes.some((pass) => pass.used) ? "no model returned usable wording" : "no model was reachable")}). Please try again in a moment.`,
     );
   }
 

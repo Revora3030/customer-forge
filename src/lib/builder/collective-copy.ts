@@ -155,7 +155,7 @@ export function reviewRefinement(input: {
     const problem =
       values.length === 0
         ? "no usable lines"
-        : values.length > Math.max(input.baseline.benefits.length, 3)
+        : values.length > Math.max(input.baseline.benefits.length, 6)
           ? "more lines than the design supports"
           : (values.map((value) => screenText(value, input.facts, 140)).find(Boolean) ?? null);
     if (problem) rejected.push({ field: "benefits", reason: problem });
@@ -209,18 +209,19 @@ export function reviewRefinement(input: {
         problem = "a question is missing its wording or answer";
         break;
       }
-      if (!questions.includes(question)) {
+      if (questions.length && !questions.includes(question)) {
         problem = "a question the build never planned";
         break;
       }
-      const textProblem = screenText(answer, input.facts, 480);
+      const textProblem = screenText(question, input.facts, 200) ?? screenText(answer, input.facts, 480);
       if (textProblem) {
         problem = textProblem;
         break;
       }
       next.push({ question, answer });
     }
-    if (!problem && next.length !== input.baseline.faqs.length)
+    if (!problem && !questions.length && next.length > 8) problem = "more questions than the page supports";
+    if (!problem && questions.length && next.length !== input.baseline.faqs.length)
       problem = "a planned question is missing";
     if (problem) rejected.push({ field: "faqs", reason: problem });
     else if (next.length) accepted.faqs = next;

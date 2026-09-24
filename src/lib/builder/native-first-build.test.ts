@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { fallbackBrief, fallbackCopy } from "@/lib/site-engine.server";
+import { fallbackBrief, blankCopy } from "@/lib/site-engine.server";
 import { generateWebsitePlan } from "@/lib/website-plan";
 import { blankFirstBuildDirection } from "./first-build-contract";
 import { synthesizeNativeFirstBuild } from "./native-first-build";
@@ -23,7 +23,15 @@ const facts = {
 
 function fixture() {
   const brief = fallbackBrief(facts);
-  const copy = fallbackCopy(facts, brief);
+  const copy = {
+    ...blankCopy(facts),
+    heroHeadline: "Roof repair across West Yorkshire",
+    heroSubheadline: "We repair and replace roofs.",
+    primaryCta: "Get a quote",
+    intro: "Northline Roofing repairs and replaces roofs.",
+    metaTitle: "Northline Roofing",
+    metaDescription: "Roof repair and replacement in West Yorkshire.",
+  };
   const plan = generateWebsitePlan({ ...facts, goals: ["quote"], photoCount: 0, testimonialCount: 0, hasCredentials: false, socialLinks: 0 });
   const creative = blankFirstBuildDirection({
     organizationId: "11111111-1111-4111-8111-111111111111",
