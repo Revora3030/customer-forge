@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
-import { blankDesignFingerprint, blankDesignFingerprint } from "./design-fingerprint";
+import { blankDesignFingerprint } from "./design-fingerprint";
 
 function files(dir: string): string[] {
   return readdirSync(dir).flatMap((name) => {
