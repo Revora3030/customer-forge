@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { planSiteContent, type MaterializeInput } from "@/lib/site-materialize.server";
 import { materializedSectionDesign } from "@/lib/site-materialize.server";
 import { DESIGN_DIRECTIONS } from "@/lib/design-directions";
-import { createDesignFingerprint } from "@/lib/builder/design-fingerprint";
+import { blankDesignFingerprint } from "@/lib/builder/design-fingerprint";
 import { playbookFor } from "@/lib/builder/industry";
 
 const input: MaterializeInput = {
@@ -94,8 +94,8 @@ describe("planSiteContent", () => {
 
   it.skip("turns the full fingerprint into materially different rendered contracts (decommissioned: fingerprint pools are no longer a creative authority)", () => {
     const direction = DESIGN_DIRECTIONS.find((item) => item.id === "coastal-blue");
-    const a = createDesignFingerprint({ businessName: "Journey Detailing", industry: "automotive", city: "Tampa", photoCount: 4 });
-    const b = createDesignFingerprint({ businessName: "Northstar Dental", industry: "dental", city: "Tampa", photoCount: 4 });
+    const a = blankDesignFingerprint();
+    const b = blankDesignFingerprint();
     const first = materializedSectionDesign("hero", direction, a, 0);
     const second = materializedSectionDesign("hero", direction, b, 0);
     expect(first.variant).not.toBe(second.variant);

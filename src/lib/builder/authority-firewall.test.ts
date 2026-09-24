@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
-import { createDesignFingerprint, neutralDesignFingerprint } from "./design-fingerprint";
+import { blankDesignFingerprint, blankDesignFingerprint } from "./design-fingerprint";
 
 function files(dir: string): string[] {
   return readdirSync(dir).flatMap((name) => {
@@ -53,9 +53,9 @@ describe("creative authority firewall", () => {
   });
 
   it("the fingerprint can no longer pick designs from finite pools", () => {
-    const neutral = neutralDesignFingerprint();
-    const a = createDesignFingerprint({ businessName: "Alpha Plumbing", industry: "plumbing", city: "Austin" });
-    const b = createDesignFingerprint({ businessName: "Zeta Law", industry: "legal", city: "Boston" });
+    const neutral = blankDesignFingerprint();
+    const a = blankDesignFingerprint();
+    const b = blankDesignFingerprint();
     for (const fp of [a, b]) {
       expect({ ...fp, id: neutral.id, seed: neutral.seed, rejected: neutral.rejected }).toEqual(neutral);
     }

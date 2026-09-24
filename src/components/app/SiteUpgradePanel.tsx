@@ -11,7 +11,7 @@ import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Loader2, Sparkles, Undo2, Waves } from "lucide-react";
 import { toast } from "@/lib/ui/notify";
-import { Panel, SectionHeading } from "@/components/app/Bits";
+import { Panel, Pill, SectionHeading } from "@/components/app/Bits";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {

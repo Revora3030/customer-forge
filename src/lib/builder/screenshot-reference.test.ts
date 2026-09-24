@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createDesignFingerprint } from "@/lib/builder/design-fingerprint";
+import { blankDesignFingerprint } from "@/lib/builder/design-fingerprint";
 import type { FirstBuildCreativeDirection } from "@/lib/builder/first-build-contract";
 import {
   applyScreenshotReferenceToCreative,
@@ -7,7 +7,7 @@ import {
   normalizeScreenshotReferenceObservations,
 } from "@/lib/builder/screenshot-reference";
 
-const base = createDesignFingerprint({
+const base = blankDesignFingerprint({
   businessName: "Northline",
   industry: "Automotive detailing",
   city: "New York",
