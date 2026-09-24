@@ -613,7 +613,7 @@ export async function refineFirstBuildWithCollective(input: {
     purpose: "content_strategy",
     complexity: "high",
     organizationId: input.organizationId,
-    maxOutputTokens: 2400,
+    maxOutputTokens: 6000,
     ...(input.signal ? { signal: input.signal } : {}),
     system: `${RULES} You are the master content strategist for a first build. Follow the approved creative direction without adding unsupported facts.`,
     user: [
@@ -623,7 +623,7 @@ export async function refineFirstBuildWithCollective(input: {
       "APPROVED CREATIVE DIRECTION (presentation only):",
       creativeSheet(creative),
       "",
-      "CURRENT WORDING (written by a deterministic engine):",
+      "CURRENT WORDING (blank — you author every field from scratch):",
       JSON.stringify(
         {
           heroHeadline: input.copy.heroHeadline,
@@ -639,11 +639,12 @@ export async function refineFirstBuildWithCollective(input: {
         2,
       ),
       "",
-      "Return JSON with any of these keys you can genuinely improve:",
-      "heroHeadline, heroSubheadline, intro, about, areaCopy, benefits (array of strings),",
-      "serviceCards (array of {name, copy} — names exactly as given, same order),",
-      "faqs (array of {question, answer} — questions exactly as given).",
-      "Omit a key rather than weaken it. Do not add keys.",
+      "Write the whole website's wording yourself. Return JSON with EVERY key:",
+      "heroHeadline, heroSubheadline, primaryCta (<=24 chars), secondaryCta (<=24 chars), intro, about, areaCopy,",
+      "benefits (3-6 strings), serviceCards (array of {name, copy} — names exactly as given, same order),",
+      "faqs (3-8 {question, answer} you choose, answerable only from the facts),",
+      "metaTitle (<=60 chars), metaDescription (<=155 chars), ogTitle, ogDescription.",
+      "Every sentence must be supported by the facts. Do not add other keys.",
     ].join("\n"),
   });
 
@@ -677,7 +678,7 @@ export async function refineFirstBuildWithCollective(input: {
       organizationId: input.organizationId,
       maxOutputTokens: 900,
       ...(input.signal ? { signal: input.signal } : {}),
-      system: `${RULES} You are an adversarial reviewer. Approve a field only if it is truthful against the facts, clearer than the current wording, aligned to the creative direction, and free of invented detail.`,
+      system: `${RULES} You are an adversarial reviewer. Approve a field only if it is truthful against the facts, clear and specific, aligned to the creative direction, and free of invented detail.`,
       user: [
         "FACTS:",
         sheet,
