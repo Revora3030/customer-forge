@@ -186,6 +186,35 @@ function imageComponent(asset: FirstBuildImageAsset, kind = "image"): Component 
 
 
 
+/**
+ * Section headings are the AI's words. Every section except a page's opening
+ * takes the heading the AI wrote for it — or none — so no built-in heading
+ * ("What we do", "Common questions" …) ever reaches a first build.
+ */
+export function applyAuthoredHeadings(pages: Page[], architecture: PageArchitecture[]): Page[] {
+  const bySlug = new Map(architecture.map((page) => [page.slug, page]));
+  return pages.map((page) => {
+    const plan = bySlug.get(page.slug);
+    if (!plan) return page;
+    const used = new Map<string, number>();
+    return {
+      ...page,
+      sections: page.sections.map((section) => {
+        if (section.kind === "sticky_cta") return section;
+        const n = used.get(section.kind) ?? 0;
+        used.set(section.kind, n + 1);
+        const authored = plan.sections.filter((entry) => entry.role === section.kind)[n];
+        if (page.slug === "home" && section.kind === "hero") return section;
+        // Page openings already carry AI-written copy or the real service name;
+        // the AI may still retitle them.
+        if (section.kind === "hero")
+          return authored?.heading ? { ...section, heading: authored.heading, subheading: authored.subheading ?? section.subheading ?? null } : section;
+        return { ...section, heading: authored?.heading ?? null, subheading: authored?.subheading ?? null };
+      }),
+    };
+  });
+}
+
 /** Builds the page tree. Pure — easy to reason about and to test. */
 export function planSiteContent(input: MaterializeInput): Page[] {
   const { copy, services } = input;
@@ -625,6 +654,7 @@ export async function materializeSiteContent(
   // otherwise the build fails rather than publishing a blank box.
   let tree = planSiteContent(input);
   let designContract: AiDesignContract | null = input.designContract ?? null;
+  let authoredArchitecture: PageArchitecture[] | null = null;
   if (!designContract && input.fingerprint && input.creativeBrief) {
     const primaryAction = clean(input.copy.primaryCta) ?? "Get in touch";
     // The AI authors the page set, the section selection and the order. The
@@ -640,6 +670,7 @@ export async function materializeSiteContent(
       );
     }
     const architecture = authored;
+    authoredArchitecture = authored;
     designContract = requireAiDesignContract({
       attempt: compileAiDesignContract({
         businessName: input.businessName,
@@ -661,6 +692,7 @@ export async function materializeSiteContent(
     assertMediaIntegrity(applied.pages, designContract);
     tree = applied.pages as unknown as typeof tree;
   }
+  if (authoredArchitecture) tree = applyAuthoredHeadings(tree, authoredArchitecture);
   const campaign = input.fingerprint && input.creativeBrief
     ? compileSiteCampaign({
         fingerprint: input.fingerprint,
