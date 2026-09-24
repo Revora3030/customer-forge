@@ -61,7 +61,7 @@ describe("first-build creative direction", () => {
     const restaurant = compileFirstBuildCreativeDirection({ ...base, businessName: "Table 12", industry: "Restaurant", services: [{ name: "Dinner" }], photoCount: 5 });
     const software = compileFirstBuildCreativeDirection({ ...base, businessName: "Signal Desk", industry: "SaaS software", services: [{ name: "Workflow automation" }], photoCount: 0 });
     expect(restaurant.industry.id).not.toBe(software.industry.id);
-    expect(restaurant.industry.homeSections).not.toEqual(software.industry.homeSections);
+    expect("homeSections" in restaurant.industry).toBe(false);
     expect(restaurant.fingerprint.id).not.toBe(software.fingerprint.id);
     expect(restaurant.imagery.directionId).not.toBe(software.imagery.directionId);
   });
