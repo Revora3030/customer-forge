@@ -1,34 +1,16 @@
 /**
- * DESIGN FINGERPRINT
- * ==================
+ * SAVED DESIGN RECORD (read-only data contract)
+ * =============================================
  *
- * A website's visual identity, derived once from what the business actually is
- * and then reused on every later request so the look does not drift.
+ * The design record the AI design team authored for a website, as stored in
+ * website_settings.generation.designFingerprint. This module only reads,
+ * writes and renders that stored record. It contains no style pools, no
+ * seeded picking and no mapping that decides a layout: every value in the
+ * record was written by the AI (or, for sites built before the migration,
+ * was saved long ago and is displayed exactly as stored).
  *
- * Why this exists: the builder used to re-decide the look from scratch on each
- * request, so two businesses in the same trade could land on the same layout,
- * and the same business could quietly change character between turns. The
- * fingerprint fixes both: it is deterministic (same business in, same identity
- * out) and it is wide (the selection pools are large enough that two firms in
- * one industry still differ).
- *
- * It contains no business facts and no copy — only design choices. Nothing in
- * here is ever shown to a visitor as a claim about the business.
+ * It contains no business facts and no copy.
  */
-
-export type FingerprintInput = {
-  businessName: string | null;
-  industry: string | null;
-  city: string | null;
-  audience?: string | null;
-  goal?: string | null;
-  /** How many real photos the owner has supplied. Drives art direction. */
-  photoCount?: number;
-  /** How much written content exists — drives density and rhythm. */
-  contentDensity?: "light" | "balanced" | "rich";
-  /** Bump to deliberately re-roll the identity. */
-  revision?: number;
-};
 
 export type DesignFingerprint = {
   /** Stable id for this identity — safe to show in admin/proof reports. */
@@ -77,239 +59,12 @@ export type DesignFingerprint = {
   updatedAt?: string;
 };
 
-/* ------------------------------------------------------------------ pools */
-
-export const HERO_COMPOSITIONS = [
-  "split-left", "split-right", "centered-stack", "offset-overlap", "full-bleed-overlay",
-  "editorial-columns", "card-on-canvas", "diagonal-split", "framed-panel", "stacked-proof",
-  "wide-statement", "asymmetric-thirds", "media-band", "floating-panel", "boxed-contrast",
-  "type-first", "grid-inset", "layered-depth", "ribbon-band", "quiet-minimal",
-  "poster", "magazine-lede", "spotlight", "collage", "bordered-frame",
-  "corner-accent", "stepped-columns", "tall-portrait", "banner-strip", "duotone-panel",
-  "arch-frame", "marquee-lede",
-] as const;
-
-export const BACKGROUND_SYSTEMS = [
-  "flat", "soft-wash", "mesh-bloom", "linear-fade", "radial-glow", "dual-tone",
-  "grain", "fine-grid", "dot-field", "topographic", "contour-lines", "ribbon-waves",
-  "concentric-rings", "terrazzo", "blueprint", "diagonal-stripes", "halftone",
-  "arc-stack", "blob-drift", "prism", "glass-panels", "paper", "tint-band",
-  "vignette", "spotlit", "mosaic", "hatched", "sunburst", "layered-fades",
-  "edge-glow", "quiet-canvas", "cross-hatch",
-] as const;
-
-export const SECTION_COMPOSITIONS = [
-  "stacked", "two-column", "three-column", "alternating", "zigzag", "sidebar-left",
-  "sidebar-right", "wide-band", "inset-card", "bordered-rows", "numbered-steps",
-  "feature-grid", "masonry", "carousel-rail", "split-media", "quote-break",
-  "table-rows", "accordion-stack", "tab-panels", "timeline", "comparison-columns",
-  "metric-band", "mosaic-grid", "checklist-pair", "spotlight-row",
-] as const;
-
-export const NAV_SYSTEMS = [
-  "simple-left", "centered-logo", "split-actions", "pill-bar", "underline-tabs",
-  "bordered-bar", "transparent-overlay", "sticky-condensed", "two-row", "mega-panel",
-  "drawer-mobile", "sheet-mobile", "bottom-actions", "icon-compact", "contrast-bar",
-  "floating-capsule", "inline-phone", "cta-emphasis", "quiet-minimal", "boxed-logo",
-  "rail-vertical", "hours-strip", "search-lead", "breadcrumb-bar", "segmented-tabs",
-] as const;
-
-export const CTA_SYSTEMS = [
-  "band-solid", "band-tinted", "card-centered", "split-form", "sticky-bar",
-  "inline-pair", "panel-offset", "full-bleed", "bordered-frame", "gradient-band",
-  "quote-lead", "phone-first", "booking-first", "checklist-cta", "two-step",
-  "testimonial-backed", "urgency-strip", "quiet-link", "boxed-contrast", "footer-merge",
-  "map-side", "faq-adjacent", "stat-backed", "dual-audience", "callback-request",
-] as const;
-
-export const CARD_SYSTEMS = [
-  "soft", "sharp", "pill", "outlined", "elevated", "flat-tinted", "glass",
-  "bordered-top", "numbered", "icon-lead", "media-top", "media-side", "split-tone",
-  "hover-lift", "hover-tint", "minimal-rule", "stacked-rows", "compact-list",
-  "wide-feature", "badge-corner", "ruled-columns", "gradient-edge", "inset-shadow",
-  "monoline-icon", "tall-portrait",
-] as const;
-
-export const PROOF_LAYOUTS = [
-  "quote-grid", "quote-rail", "single-spotlight", "stacked-quotes", "rating-band",
-  "avatar-row", "logo-wall", "quote-with-metric", "columns-two", "columns-three",
-  "bordered-rows", "card-carousel", "editorial-pullquote", "compact-list", "mixed-proof",
-  "quote-over-media", "rating-with-list", "sidebar-quotes", "banner-quote", "grouped-by-service",
-] as const;
-
-export const PRICING_LAYOUTS = [
-  "three-tier", "two-tier", "single-offer", "table-compare", "list-rows",
-  "feature-matrix", "starting-from", "package-cards", "estimator-lead", "tier-highlight",
-  "inline-band", "bordered-columns", "stacked-mobile", "toggle-interval", "quote-only",
-  "per-service-rows", "bundle-pair", "range-band", "callout-plus-list", "contact-for-quote",
-] as const;
-
-export const FAQ_LAYOUTS = [
-  "accordion", "two-column-accordion", "open-list", "grouped", "bordered-rows",
-  "card-grid", "sidebar-nav", "numbered", "compact", "split-intro",
-  "inline-cta", "search-lead", "tabbed", "quiet-list", "wide-rows",
-  "two-column-open", "question-first", "topic-chips", "boxed-contrast", "footer-adjacent",
-] as const;
-
-export const GALLERY_LAYOUTS = [
-  "grid-3", "grid-4", "masonry", "rail", "before-after", "mosaic", "full-bleed-strip",
-  "framed-grid", "duotone-grid", "captioned", "lightbox-grid", "staggered",
-  "single-feature", "two-up", "compact-thumbs", "filmstrip", "quilt", "offset-pairs",
-  "wide-feature-plus-thumbs", "category-tabs",
-] as const;
-
-export const STATS_LAYOUTS = [
-  "band-four", "band-three", "card-grid", "inline-row", "bordered-columns",
-  "big-number", "icon-pair", "stacked-rows", "split-with-copy", "ring-set",
-  "bar-set", "compact-strip", "contrast-band", "quiet-list", "metric-with-proof",
-  "two-up-large", "counter-band", "table-figures", "sidebar-metrics", "footer-strip",
-] as const;
-
-export const TIMELINE_LAYOUTS = [
-  "vertical-line", "horizontal-rail", "numbered-steps", "stepped-cards", "zigzag-path",
-  "milestone-band", "process-columns", "arrow-flow", "checklist-steps", "phase-tabs",
-  "compact-list", "two-column-steps", "calendar-band", "day-plan", "before-during-after",
-  "icon-path", "progress-bar", "annotated-rail", "quarter-grid", "story-scroll",
-] as const;
-
-export const FORM_LAYOUTS = [
-  "single-column", "two-column", "card-panel", "split-with-copy", "inline-band",
-  "stepped", "sidebar-contact", "boxed-contrast", "minimal-rows", "phone-first",
-  "booking-calendar", "quote-wizard", "compact", "full-width", "footer-embedded",
-  "map-side", "service-picker-lead", "callback-slot", "upload-supported", "two-step-confirm",
-] as const;
-
-export const FOOTER_SYSTEMS = [
-  "simple-center", "three-column", "four-column", "split-cta", "contrast-band",
-  "compact-bar", "sitemap-wide", "logo-lead", "hours-panel", "area-list",
-  "newsletter-lead", "phone-emphasis", "bordered-top", "stacked-mobile", "quiet-minimal",
-  "map-embedded", "two-tier", "credential-row", "service-links", "dark-band",
-] as const;
-
-export const DECORATIVE_SYSTEMS = [
-  "none", "soft-blobs", "arc-set", "ring-set", "dot-grid", "line-rays", "wave-band",
-  "corner-shapes", "floating-tiles", "contour-drift", "prism-shards", "grid-fade",
-  "halo", "stacked-bars", "orbit",
-] as const;
-
-export const TYPE_SYSTEMS = [
-  "display-grotesque", "editorial-serif", "humanist-sans", "geometric-sans",
-  "condensed-impact", "literary-serif", "technical-mono-accent", "rounded-friendly",
-  "high-contrast-didone", "neutral-swiss", "warm-slab", "modern-variable",
-  "grotesque-with-serif-lede", "wide-display", "compact-ui-sans", "elegant-oldstyle",
-  "industrial-stencil-accent", "soft-geometric", "newsprint-serif", "mono-display",
-] as const;
-
-export const COLOR_SYSTEMS = [
-  "light-neutral", "light-tinted", "warm-cream", "cool-paper", "dark-charcoal",
-  "dark-ink", "high-contrast", "duotone", "muted-earth", "vivid-accent",
-  "monochrome-accent", "pastel-calm", "deep-forest", "clay-warm", "slate-cool",
-  "ivory-gold", "midnight-teal", "sand-terracotta", "graphite-lime", "plum-quiet",
-] as const;
-
-export const DESIGN_FAMILIES = [
-  "luxury-editorial", "premium-minimal", "cinematic", "bold-statement", "glass-modern",
-  "organic-soft", "startup-bright", "technical-precise", "warm-local", "hospitality-inviting",
-  "professional-high-trust", "industrial-robust", "wellness-calm", "creative-expressive",
-  "futuristic", "playful", "elegant-classic", "dark-focused", "light-airy", "documentary-honest",
-] as const;
-
-export const MOTION_PATTERNS = [
-  "none", "fade-in-sections", "rise-on-scroll", "stagger-cards", "soft-parallax",
-  "hover-lift", "underline-sweep", "counter-count-up", "image-zoom-slow", "border-draw",
-  "sticky-reveal", "gradient-drift", "cursor-accent", "marquee-band", "step-highlight",
-] as const;
-
-export const IMAGE_TREATMENTS = [
-  "plain", "rounded-soft", "sharp-edge", "framed-border", "duotone", "warm-grade",
-  "cool-grade", "high-contrast", "desaturated", "gradient-overlay", "arch-mask",
-  "inset-shadow", "offset-outline", "split-tone", "grain-overlay",
-] as const;
-
-export const SECTION_TRANSITIONS = [
-  "hard-edge", "hairline-rule", "tone-shift", "soft-fade", "curve-top",
-  "angled-cut", "wave-edge", "overlap-card", "inset-notch", "shadow-lift",
-  "band-divider", "double-rule", "arc-cut", "stepped-edge", "quiet-gap",
-] as const;
-
-export const PAGE_SHELLS = [
-  "full-width", "boxed-centered", "wide-with-gutters", "framed-canvas", "rail-sidebar",
-  "sticky-aside", "split-screen", "magazine-columns", "narrow-reading", "hero-overlap",
-  "floating-header", "grid-shell", "bordered-page", "panelled", "continuous-scroll",
-] as const;
-
-const ART_STYLES = [
-  "documentary", "editorial", "clean-studio", "lifestyle", "environmental",
-  "detail-macro", "candid", "architectural", "product-forward", "portrait-led",
-] as const;
-
-const ART_CROPS = ["wide", "tight", "portrait", "square", "panoramic"] as const;
-const ART_OVERLAYS = ["none", "soft-dark", "soft-light", "gradient-bottom", "tint", "duotone"] as const;
-const FOCAL_POINTS = ["0.5 0.5", "0.4 0.4", "0.6 0.45", "0.5 0.35", "0.35 0.5"] as const;
-const RATIOS = ["16:9", "4:3", "3:2", "1:1", "21:9"] as const;
-
-/* ------------------------------------------------------------------- seed */
-
-/** Stable 32-bit hash. Same input always gives the same identity. */
-export function fingerprintSeed(input: FingerprintInput): number {
-  const key = [
-    (input.businessName ?? "").trim().toLowerCase(),
-    (input.industry ?? "").trim().toLowerCase(),
-    (input.city ?? "").trim().toLowerCase(),
-    (input.audience ?? "").trim().toLowerCase(),
-    (input.goal ?? "").trim().toLowerCase(),
-    String(input.revision ?? 0),
-  ].join("|");
-  let out = 2166136261;
-  for (let i = 0; i < key.length; i += 1) {
-    out ^= key.charCodeAt(i);
-    out = Math.imul(out, 16777619) >>> 0;
-  }
-  return out >>> 0;
-}
-
-function pick<T>(pool: readonly T[], seed: number, salt: string, rejected: Set<string>): T {
-  let cursor = seed;
-  for (let i = 0; i < salt.length; i += 1) {
-    cursor ^= salt.charCodeAt(i);
-    cursor = Math.imul(cursor, 16777619) >>> 0;
-  }
-  for (let attempt = 0; attempt < pool.length; attempt += 1) {
-    const value = pool[(cursor + attempt * 7) % pool.length] as T;
-    if (!rejected.has(String(value))) return value;
-  }
-  return pool[cursor % pool.length] as T;
-}
-
 /**
- * DECOMMISSIONED as a creative authority. This used to roll a seeded hash
- * across finite hero/background/nav/CTA/card/proof/... pools and hand the
- * result to the AI as its design. It now returns the plain, opinion-free
- * compatibility record only; every real design decision comes from the
- * AI-authored contract. The signature stays so stored/legacy callers keep
- * compiling and old sites keep rendering.
+ * A blank record for a site with nothing saved yet. It carries no design
+ * opinion — the renderer shows plain, unstyled output until the AI writes the
+ * real record. It is never presented to the AI as a look to keep.
  */
-export function createDesignFingerprint(
-  input: FingerprintInput,
-  rejected: string[] = [],
-): DesignFingerprint {
-  const seed = fingerprintSeed(input);
-  return {
-    ...neutralDesignFingerprint(),
-    id: `fp_${seed.toString(36)}`,
-    seed,
-    rejected: rejected.map((value) => value.trim().toLowerCase()).filter(Boolean),
-  };
-}
-
-/**
- * The look used when a website has no design recorded yet: deliberately plain.
- *
- * Nothing here expresses an opinion about fonts, palettes or hero style, so a
- * fixed table can never decide how a customer's site looks. The real design is
- * always the one the AI design team authored and saved.
- */
-export function neutralDesignFingerprint(): DesignFingerprint {
+export function blankDesignFingerprint(): DesignFingerprint {
   return {
     id: "fp_neutral",
     seed: 0,
@@ -349,17 +104,6 @@ export function neutralDesignFingerprint(): DesignFingerprint {
   };
 }
 
-
-/** How many distinct design combinations the pools can express. */
-export function fingerprintVocabularySize(): number {
-  return (
-    DESIGN_FAMILIES.length * HERO_COMPOSITIONS.length * BACKGROUND_SYSTEMS.length *
-    SECTION_COMPOSITIONS.length * NAV_SYSTEMS.length * CTA_SYSTEMS.length *
-    CARD_SYSTEMS.length * DECORATIVE_SYSTEMS.length * TYPE_SYSTEMS.length *
-    COLOR_SYSTEMS.length * PAGE_SHELLS.length * SECTION_TRANSITIONS.length
-  );
-}
-
 /* ------------------------------------------------------- persistence + brief */
 
 /** Reads a stored fingerprint out of the website's generation settings blob. */
@@ -390,6 +134,7 @@ export function rejectStyle(fingerprint: DesignFingerprint, style: string): Desi
 }
 
 /** One compact message the planner reads so the look stays consistent. */
+/** Tells the AI which look it authored earlier, so later edits stay consistent. */
 export function fingerprintBrief(fingerprint: DesignFingerprint): string {
   return [
     "Design identity already established for this website. Keep it consistent unless this request asks to change it:",
@@ -497,81 +242,4 @@ export function fingerprintClassNames(fingerprint: DesignFingerprint): string {
     `rv-transition-${safeToken(fingerprint.sectionTransition)}`,
     `rv-density-site-${safeToken(fingerprint.density)}`,
   ].join(" ");
-}
-
-/** Converts the wide identity vocabulary into renderer-supported section tokens. */
-export function sectionDesignFromFingerprint(
-  kind: string,
-  fingerprint: DesignFingerprint,
-  index = 0,
-): {
-  variant: string;
-  layout: "split" | "centered" | "image_left" | "image_right" | "full_bleed" | "editorial" | "layered" | "stacked";
-  cardStyle: "soft" | "sharp" | "pill" | "glass" | "editorial" | "floating";
-  imageTreatment: "natural" | "rounded" | "soft_shadow" | "glass_frame" | "duotone" | "gradient_overlay" | "cinematic" | "cutout" | "full_bleed";
-  maxWidth: "narrow" | "standard" | "wide" | "edge";
-} {
-  const hero = fingerprint.heroComposition;
-  const layout = kind === "hero"
-    ? /full-bleed|poster|spotlight|banner|wide-statement/.test(hero)
-      ? "full_bleed"
-      : /centered|type-first|quiet|minimal|stacked/.test(hero)
-        ? "centered"
-        : /left|tall-portrait/.test(hero)
-          ? "image_left"
-          : /right|split/.test(hero)
-            ? "image_right"
-            : /layer|overlap|collage|floating|inset/.test(hero)
-              ? "layered"
-              : "editorial"
-    : kind === "cta" || kind === "offer"
-      ? "full_bleed"
-      : index % 3 === 1
-        ? "editorial"
-        : index % 3 === 2
-          ? "split"
-          : "stacked";
-  const card = fingerprint.cardSystem;
-  const cardStyle = /sharp|rule|minimal/.test(card)
-    ? "sharp"
-    : /pill/.test(card)
-      ? "pill"
-      : /glass|inset/.test(card)
-        ? "glass"
-        : /editorial|media-side|wide-feature/.test(card)
-          ? "editorial"
-          : /elevated|floating|hover-lift|gradient-edge/.test(card)
-            ? "floating"
-            : "soft";
-  const image = fingerprint.imageTreatment;
-  const imageTreatment = /duotone|desaturated/.test(image)
-    ? "duotone"
-    : /gradient|grain/.test(image)
-      ? "gradient_overlay"
-      : /full-bleed/.test(image)
-        ? "full_bleed"
-        : /framed|outline/.test(image)
-          ? "glass_frame"
-          : /high-contrast/.test(image)
-            ? "cinematic"
-            : /rounded|arch/.test(image)
-              ? "rounded"
-              : "natural";
-  const source = kind === "services" ? fingerprint.cardSystem
-    : kind === "reviews" ? fingerprint.proofLayout
-      : kind === "pricing" ? fingerprint.pricingLayout
-        : kind === "faq" ? fingerprint.faqLayout
-          : kind === "gallery" ? fingerprint.galleryLayout
-            : kind === "process" ? fingerprint.timelineLayout
-              : kind === "quote" || kind === "booking" || kind === "contact" ? fingerprint.formLayout
-                : kind === "cta" || kind === "offer" ? fingerprint.ctaSystem
-                  : kind === "hero" ? fingerprint.heroComposition
-                    : fingerprint.sectionRhythm;
-  return {
-    variant: `${rendererVariant(kind, source)}--${safeToken(source)}`,
-    layout,
-    cardStyle,
-    imageTreatment,
-    maxWidth: /full-bleed|edge|wide|mosaic|band/.test(source) ? "edge" : layout === "centered" ? "standard" : "wide",
-  };
 }
