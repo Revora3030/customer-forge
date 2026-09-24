@@ -41,3 +41,11 @@ Ordered by user-felt impact. Each item: extend existing code, never duplicate.
 - [x] Phase 7: remove every remaining old design layer (style lists, Motion/story rules, first-build presets, industry guides, photo-style list, default looks, request reader, seeded pickers). Guard tests in authority-firewall.test.ts.
 
 - [x] Phase 8: removed last built-in looks (style library, font list in prompts, default colors, rule-based layer designer, default effect map, preset quick-button wording); AI-authored backgrounds added
+
+## World-class AI builds (plan 2026-09-24)
+- [x] 1. Built-in first-build copy writer removed; Sol writes all words, Terra checks, build stops if key words are missing
+- [ ] 2. AI chooses pages/sections (remove fixed planSiteContent order + headings)
+- [ ] 3. Every first-build section as an AI composition
+- [ ] 4. AI-designed menu and footer
+- [ ] 5. New building blocks (tabs, accordion, compare, toggle, marquee, gallery, quote)
+- [ ] 6. Optional AI-requested hero video in first build
