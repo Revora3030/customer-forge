@@ -143,3 +143,44 @@ describe("old design layer is fully removed", () => {
     expect(src).not.toMatch(/pickReferencePatch|allowedPatch|alignCreativeBriefToFingerprint/);
   });
 });
+
+describe("no built-in looks remain", () => {
+  it("the preset style library stays deleted", () => {
+    expect(() => statSync("src/lib/design-directions.ts")).toThrow();
+    const offenders = production.filter((f) => /DESIGN_DIRECTIONS|recommendDirections|design-directions/.test(readFileSync(f, "utf8")));
+    expect(offenders).toEqual([]);
+  });
+
+  it("AI prompts never restrict fonts to a fixed list", () => {
+    for (const f of ["src/lib/site-agent.server.ts", "src/lib/builder/ai-agent-plan.server.ts"]) {
+      expect(readFileSync(f, "utf8"), f).not.toMatch(/Object\.keys\(SITE_HEADING_FONTS\)/);
+    }
+  });
+
+  it("new clients and onboarding start with no built-in colours", () => {
+    expect(readFileSync("src/components/admin/NewClientDialog.tsx", "utf8")).not.toMatch(/"#34d399"|"#0f172a"|"#fbbf24"/);
+    expect(readFileSync("src/routes/_authenticated/onboarding.tsx", "utf8")).not.toMatch(/"#0B0B0C"|"#C9A227"/);
+    expect(readFileSync("src/lib/site-engine.worker.server.ts", "utf8")).not.toMatch(/#34d399/i);
+  });
+
+  it("the rule-based layer designer and default effect map are gone", () => {
+    const vc = readFileSync("src/lib/visual-composition.ts", "utf8");
+    expect(vc).not.toMatch(/inventComposition|interpretVisualPrompt|CREATIVE_COMMANDS|seedPromptFor|originalityScore|RECIPES/);
+    expect(readFileSync("src/lib/site-effects.ts", "utf8")).not.toMatch(/RECOMMENDED_SECTION_EFFECT/);
+  });
+
+  it("an AI-written background is accepted and unsafe values are dropped", async () => {
+    const { safeBackdropSpec } = await import("@/lib/site-effects");
+    const spec = safeBackdropSpec({ drift: "slow", layers: [{ shape: "radial", colors: ["#112233", "red;}"], size: 999, opacity: 90 }] });
+    expect(spec?.layers[0]?.colors).toEqual(["#112233"]);
+    expect(spec?.layers[0]?.size).toBe(200);
+    expect(spec?.layers[0]?.opacity).toBe(60);
+    expect(safeBackdropSpec({ layers: [{ colors: ["url(x)"] }] })).toBeNull();
+  });
+
+  it("an authored direction with no valid colours or font is rejected, never replaced", async () => {
+    const { parseAuthoredDirection } = await import("@/lib/authored-direction");
+    expect(parseAuthoredDirection({ name: "x", primary: "blue", secondary: "#000000", accent: "#ffffff", font: "Inter" })).toBeNull();
+    expect(parseAuthoredDirection({ name: "x", primary: "#111111", secondary: "#000000", accent: "#ffffff", font: "<script>" })).toBeNull();
+  });
+});
