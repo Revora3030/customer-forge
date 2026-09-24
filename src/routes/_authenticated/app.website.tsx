@@ -606,22 +606,7 @@ function WebsitePage() {
               node: (
                 <>
                   <DesignIdentity
-                    organizationId={orgId ?? ""}
-                    facts={{
-                      businessName: org?.name ?? null,
-                      industry:
-                        (org?.industry as string | undefined) ??
-                        (profile?.["industry"] as string) ??
-                        null,
-                      city: (profile?.["city"] as string) ?? null,
-                      serviceArea: (profile?.["service_area"] as string) ?? null,
-                      services: (services ?? []).map((service) => String(service.name ?? "")),
-                      certifications: (profile?.["certifications"] as string) ?? null,
-                      awards: (profile?.["awards"] as string) ?? null,
-                      phone: (profile?.["phone"] as string) ?? null,
-                      email: (profile?.["email"] as string) ?? null,
-                      hasHours: Boolean(profile?.["hours"]),
-                    }}
+                    generation={generation ?? null}
                     onRestyle={(instruction: string) => {
                       setAdvanced(null);
                       askAssistant(instruction);
