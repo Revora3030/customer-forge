@@ -55,17 +55,17 @@ export const BUILDER_PRIMARY_ACTIONS: BuilderQuickAction[] = [
   {
     label: "Redesign it premium",
     instruction:
-      "Redesign my whole website to feel premium and designer-grade: pick a look that fits my industry, install it across every page and section, rewrite empty or template hero copy from my real business details, and keep every fact I've entered exactly as it is.",
+      "Redesign my whole website to feel premium. Design the look yourself across every page, and keep every fact I've entered exactly as it is.",
   },
   {
     label: "Rebuild for conversions",
     instruction:
-      "Rebuild my whole website around conversions: reorder every page so the most persuasive content comes first, add a proof strip, reviews, FAQ and a strong closing call to action where they are missing, and make sure a call and quote button are obvious on every page. Keep all my real details exactly as they are.",
+      "Rebuild my whole website so more visitors contact me. Decide the structure yourself, and keep all my real details exactly as they are.",
   },
   {
     label: "Refresh the look",
     instruction:
-      "Refresh the whole look of my website: a fresh colour palette, refined typography and calmer, more confident section styles across every page. Do not change any of my real business details.",
+      "Refresh the whole look of my website. Design something new yourself, and do not change any of my real business details.",
   },
   {
     label: "Polish every page",
@@ -86,7 +86,7 @@ export const BUILDER_PRIMARY_ACTIONS: BuilderQuickAction[] = [
 
     label: "Improve my website",
     instruction:
-      "Improve my whole website: clearer wording, tidier layout, consistent spacing and a stronger first screen. Keep all of my real business details exactly as they are.",
+      "Improve my whole website however you judge best. Keep all of my real business details exactly as they are.",
   },
   {
     label: "Get more leads",
@@ -101,7 +101,7 @@ export const BUILDER_PRIMARY_ACTIONS: BuilderQuickAction[] = [
   {
     label: "Make it look better",
     instruction:
-      "Make my website look more premium: generous spacing, refined typography, calmer colours and larger imagery, without changing any of my real details.",
+      "Make my website look better. Design it yourself, without changing any of my real details.",
   },
   {
     label: "Improve Google search",
@@ -128,7 +128,7 @@ export const BUILDER_QUICK_ACTIONS: BuilderQuickAction[] = [
   {
     label: "Improve design",
     instruction:
-      "Improve the overall look of my website: consistent spacing, clearer headings, a tidy layout and a colour and button style that suits my industry. Keep all my real business details exactly as they are.",
+      "Improve the overall look of my website. Design it yourself, and keep all my real business details exactly as they are.",
   },
   {
     label: "Rewrite copy",
@@ -178,26 +178,26 @@ export const BUILDER_QUICK_ACTIONS: BuilderQuickAction[] = [
   {
     label: "Make it feel premium",
     instruction:
-      "Make my website feel more premium: generous spacing, refined typography, calmer colours, larger imagery and a confident hero — without changing any of my real details.",
+      "Make my website feel more premium. Design it yourself, without changing any of my real details.",
   },
   {
     label: "Make it less cluttered",
     instruction:
-      "Simplify my website: fewer competing messages per section, shorter paragraphs, one clear action per section and a cleaner menu.",
+      "Make my website less cluttered. Decide what to simplify yourself.",
   },
   {
     label: "Make it more professional",
     instruction:
-      "Make my website read and look more professional and trustworthy: consistent tone, clear service explanations, visible contact details and a tidy, balanced layout.",
+      "Make my website read and look more professional and trustworthy. Decide how yourself.",
   },
   {
     label: "Make it bolder",
     instruction:
-      "Give my website a bolder feel: stronger headline sizes, higher contrast buttons and more decisive section backgrounds, while keeping it readable.",
+      "Give my website a bolder feel, designed by you, while keeping it readable.",
   },
   {
     label: "Put the important things first",
     instruction:
-      "Reorder my home page so the most persuasive content comes first: what I do, why customers trust me, then services, then everything else.",
+      "Reorder my home page so the most persuasive content comes first. Decide the order yourself.",
   },
 ];
