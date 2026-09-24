@@ -665,6 +665,10 @@ function WebsitePage() {
                     services={(services ?? []).map((service) => ({
                       name: String(service.name ?? ""),
                     }))}
+                    photography={
+                      ((generation?.["firstBuildCreative"] as { brief?: { photography?: unknown } } | undefined)
+                        ?.brief?.photography) ?? null
+                    }
                     mediaCount={mediaCount}
                     hasHeroImage={!!(profile?.["hero_image_url"] as string)}
                     onSetHero={(path) => saveProfile.mutate({ hero_image_url: path })}

@@ -15,7 +15,7 @@ import {
   REFINEMENTS,
   altTextFor,
   buildImageBrief,
-  pickVisualDirection,
+  savedVisualDirection,
   planShots,
   type PlannedShot,
   type RefinementId,
@@ -57,14 +57,16 @@ export function ImageStudio({
   primaryColor?: string | null;
   accentColor?: string | null;
   services: { name: string }[];
+  /** Photo direction from the AI's saved brief, if any. */
+  photography?: unknown;
   mediaCount: number;
   hasHeroImage: boolean;
   onSetHero?: (path: string) => void;
 }) {
   const queryClient = useQueryClient();
   const direction = useMemo(
-    () => pickVisualDirection({ industry: industry ?? null, services }),
-    [industry, services],
+    () => savedVisualDirection(photography),
+    [photography],
   );
   const shots = useMemo(
     () =>

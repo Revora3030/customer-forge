@@ -26,7 +26,7 @@ import { MEDIA_BUCKET, buildObjectPath } from "@/lib/media";
 import type { FirstBuildCreativeDirection } from "@/lib/builder/first-build-contract";
 import {
   CANDIDATE_STYLES,
-  VISUAL_DIRECTIONS,
+  savedVisualDirection,
   altTextFor,
   buildImageBrief,
   type PlannedShot,
@@ -137,7 +137,7 @@ export async function generateFirstBuildImages(
   },
 ): Promise<FirstBuildImageResult> {
   const direction =
-    VISUAL_DIRECTIONS.find((item) => item.id === input.creative.imagery.directionId) ?? null;
+    savedVisualDirection(input.creative.brief.photography);
   const shots = firstBuildImageShots(input.creative, input.photoCount, input.occupiedSlots);
   if (!direction || shots.length === 0) {
     const ownerCovered = input.occupiedSlots?.size && shots.length === 0;
