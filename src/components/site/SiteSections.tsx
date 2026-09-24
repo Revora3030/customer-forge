@@ -36,7 +36,7 @@ import { readSectionEffect, sectionEffectClass } from "@/lib/site-effects";
 import { businessFacts, factsAddressLine } from "@/lib/builder/facts";
 import { phoneDisplay, phoneLink, safeParagraph, safeText } from "@/lib/builder/presentation";
 import {
-  neutralDesignFingerprint,
+  blankDesignFingerprint,
   readDesignFingerprint,
   type DesignFingerprint,
 } from "@/lib/builder/design-fingerprint";
@@ -61,7 +61,7 @@ export function siteDesignFingerprint(site: Site): DesignFingerprint {
   const settings = (site as { settings?: { generation?: unknown } | null }).settings ?? null;
   // No fixed table ever decides how a live site looks. If the design team has
   // not authored a look yet, the page renders plainly rather than borrowing one.
-  return readDesignFingerprint(settings?.generation) ?? neutralDesignFingerprint();
+  return readDesignFingerprint(settings?.generation) ?? blankDesignFingerprint();
 }
 
 
