@@ -470,11 +470,9 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
     }
 
     const memoryChanged = nextMemory !== priorMemory;
-    const fingerprintNew = !priorFingerprint;
-    if ((memoryChanged || fingerprintNew) && settingsRow.data) {
-      let generation: Record<string, unknown> = { ...storedGeneration };
-      if (memoryChanged) generation["designMemory"] = nextMemory;
-      if (fingerprintNew) generation = writeDesignFingerprint(generation, fingerprint);
+    if (memoryChanged && settingsRow.data) {
+      const generation: Record<string, unknown> = { ...storedGeneration };
+      generation["designMemory"] = nextMemory;
       const saved = await supabase
         .from("website_settings")
         .update({ generation: generation as never })

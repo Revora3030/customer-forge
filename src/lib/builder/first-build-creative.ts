@@ -46,8 +46,6 @@ export type FirstBuildCreativeDirection = {
     objections: string[];
     trust: string[];
     avoid: string[];
-    homeSections: string[];
-    pageSlugs: string[];
   };
   audience: string;
   offerHierarchy: string[];
@@ -127,7 +125,8 @@ export function compileFirstBuildCreativeDirection(
   const assetPlan = assetPlanFor(
     { businessName: input.businessName, logoUrl: null, heroImageUrl: null },
     playbook,
-    playbook.homeSections,
+    // No industry section recipe: image slots follow the AI's own layout.
+    ["hero"],
     {
       hasHeroImage: input.hasHeroImage === true,
       galleryPhotoCount: input.photoCount,
@@ -157,8 +156,6 @@ export function compileFirstBuildCreativeDirection(
       objections: playbook.objections.slice(0, 6),
       trust: playbook.trust.slice(0, 6),
       avoid: [...dna.prohibited],
-      homeSections: [...playbook.homeSections],
-      pageSlugs: playbook.pages.map((page) => page.slug).filter(Boolean),
     },
     audience: dna.targetCustomer,
     offerHierarchy: serviceNames.slice(0, 12),

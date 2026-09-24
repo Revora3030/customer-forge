@@ -219,15 +219,11 @@ function factSheet(facts: DnaFacts, brief: SiteBrief, creative: FirstBuildCreati
 function creativeSheet(creative: FirstBuildCreativeDirection) {
   return JSON.stringify(
     {
-      currentFingerprint: creative.fingerprint,
+      // Look, layout, hero, rhythm, cards, CTA style and backgrounds are left
+      // undecided on purpose: Sol authors them. Only non-creative constraints
+      // (conversion goals, photo status, image slots, quality bar) are sent.
+      designDecisions: "undecided — you author every visual and structural choice",
       currentBrief: {
-        archetype: creative.brief.archetype,
-        personality: creative.brief.personality,
-        heroComposition: creative.brief.heroComposition,
-        sectionRhythm: creative.brief.sectionRhythm,
-        cardLanguage: creative.brief.cardLanguage,
-        ctaLanguage: creative.brief.ctaLanguage,
-        backgroundTreatment: creative.brief.backgroundTreatment,
         mobileStrategy: creative.brief.mobileStrategy,
         conversionStrategy: creative.brief.conversionStrategy,
         photography: creative.brief.photography,
