@@ -164,6 +164,8 @@ export type FirstBuildCreativeDirection = {
   };
   brief: CreativeBrief;
   unknowns: string[];
+  /** Cleaned, anti-cloning screenshot observations handed to Sol as inspiration. */
+  referenceSignals?: Record<string, string[]> | null;
 };
 
 const IMAGE_CONSTRAINTS = [

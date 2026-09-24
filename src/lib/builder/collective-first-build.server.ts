@@ -223,6 +223,7 @@ function creativeSheet(creative: FirstBuildCreativeDirection) {
         })),
         qualityMatrix: creative.brief.qualityMatrix,
       },
+      referenceInspiration: creative.referenceSignals ?? null,
       imageStatus: creative.imagery.status,
       plannedShots: creative.imagery.shots.map((shot) => ({
         slot: shot.slot,
