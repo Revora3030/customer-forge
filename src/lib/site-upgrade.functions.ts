@@ -2,10 +2,10 @@
  * SITE-WIDE UPGRADE ENDPOINTS
  * ===========================
  *
- * Four owner-facing operations that act on the whole website rather than one
- * block: apply a coherent motion pack, write the cross-page story links, apply
- * a site-wide redesign direction, and have a free multimodal model review a
- * real screenshot of a page (and repair what it flags).
+ * Owner-facing operations that act on the whole website: an AI-authored
+ * site-wide redesign (including movement), and a multimodal review of a real
+ * screenshot of a page (and repair of what it flags). No rule-based motion or
+ * story pass remains — movement and page flow are authored by the AI.
  *
  * Every one of them:
  *  - runs through the caller's own Supabase client, so tenant isolation is the
@@ -18,8 +18,6 @@
 
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { buildMotionPlan, motionSummary, planMotionAssignments, type MotionIntensity } from "@/lib/builder/motion-pack";
-import { buildStoryPlan, pendingStoryLinks, type StoryPage } from "@/lib/builder/story-pass";
 import {
   authoredRedesignSummary,
   authorSiteWideRedesign,
@@ -149,225 +147,16 @@ async function saveRestorePoint(
   );
 }
 
-/* ------------------------------------------------------------- motion pack */
+/* ------------------------------------------------------------ undo record */
 
 /**
- * Everything needed to put a whole-site change back exactly as it was. Handed
- * to the owner's browser so a change can be tried and reversed in one click,
- * without touching the version history.
+ * Everything needed to put a whole-site change back exactly as it was.
  */
 export type SiteUpgradeUndo = {
   effects: { sectionId: string; effect: string }[];
   fingerprint: Record<string, string> | null;
 };
 
-export type MotionPackResult = {
-  ok: boolean;
-  intensity: MotionIntensity;
-  changed: number;
-  summary: string;
-  restorePointId: string | null;
-  undo: SiteUpgradeUndo | null;
-};
-
-export const applyMotionPack = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
-  .inputValidator((input: { organizationId: string; intensity?: MotionIntensity }) => {
-    if (!input?.organizationId) throw new Error("organizationId is required");
-    if (input.intensity && !["none", "subtle", "expressive"].includes(input.intensity)) {
-      throw new Error("Unknown movement level.");
-    }
-    return input;
-  })
-  .handler(async ({ data, context }): Promise<MotionPackResult> => {
-    const supabase = context.supabase as unknown as SupabaseLike;
-    await requireManager(supabase, data.organizationId, context.userId);
-
-    const { createDesignFingerprint, readDesignFingerprint, writeDesignFingerprint } = await import(
-      "@/lib/builder/design-fingerprint"
-    );
-    const [{ data: settings }, { data: profile }] = await Promise.all([
-      supabase.from("website_settings").select("generation").eq("organization_id", data.organizationId).maybeSingle(),
-      supabase
-        .from("business_profiles")
-        .select("industry, city")
-        .eq("organization_id", data.organizationId)
-        .maybeSingle(),
-    ]);
-    const generation = (settings as { generation?: unknown } | null)?.generation ?? null;
-    const stored = readDesignFingerprint(generation);
-    const fingerprint =
-      stored ??
-      createDesignFingerprint({
-        businessName: null,
-        industry: (profile as { industry?: string | null } | null)?.industry ?? null,
-        city: (profile as { city?: string | null } | null)?.city ?? null,
-      });
-
-    const plan = buildMotionPlan(fingerprint, data.intensity);
-    const { pages, sections } = await loadPagesAndSections(supabase, data.organizationId);
-    const assignments = planMotionAssignments(sections, plan);
-
-    if (assignments.length === 0) {
-      return {
-        ok: true,
-        intensity: plan.intensity,
-        changed: 0,
-        summary: motionSummary(assignments, plan),
-        restorePointId: null,
-        undo: null,
-      };
-    }
-
-    const restorePointId = await saveRestorePoint(
-      supabase,
-      data.organizationId,
-      context.userId,
-      "Before movement was updated",
-      pages,
-      sections,
-    );
-
-    for (const assignment of assignments) {
-      const section = sections.find((entry) => entry.id === assignment.sectionId);
-      const next = writeSectionEffect(section?.settings ?? null, assignment.to);
-      await supabase
-        .from("website_sections")
-        .update({ settings: next as never })
-        .eq("id", assignment.sectionId)
-        .eq("organization_id", data.organizationId);
-    }
-
-    // The chosen level is remembered on the site's identity so later builds
-    // keep the same character.
-    if (data.intensity && data.intensity !== fingerprint.motionLevel) {
-      const nextGeneration = writeDesignFingerprint(generation, {
-        ...fingerprint,
-        motionLevel: data.intensity,
-      });
-      await supabase
-        .from("website_settings")
-        .upsert({ organization_id: data.organizationId, generation: nextGeneration } as never, {
-          onConflict: "organization_id",
-        });
-    }
-
-    return {
-      ok: true,
-      intensity: plan.intensity,
-      changed: assignments.length,
-      summary: motionSummary(assignments, plan),
-      restorePointId,
-      undo: {
-        effects: assignments.map((entry) => ({ sectionId: entry.sectionId, effect: entry.from })),
-        fingerprint:
-          data.intensity && data.intensity !== fingerprint.motionLevel
-            ? { motionLevel: fingerprint.motionLevel }
-            : null,
-      },
-    };
-  });
-
-/* ------------------------------------------------------- storytelling pass */
-
-export type StoryPassResult = {
-  ok: boolean;
-  order: { slug: string; title: string; role: string }[];
-  linksWritten: number;
-  findings: { kind: string; slug: string; detail: string }[];
-  summary: string;
-  restorePointId: string | null;
-};
-
-const STORY_SECTION_KIND = "cta";
-export const STORY_WRITES_DECOMMISSIONED = true;
-
-export const applyStoryPass = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
-  .inputValidator((input: { organizationId: string; write?: boolean }) => {
-    if (!input?.organizationId) throw new Error("organizationId is required");
-    return input;
-  })
-  .handler(async ({ data, context }): Promise<StoryPassResult> => {
-    const supabase = context.supabase as unknown as SupabaseLike;
-    await requireManager(supabase, data.organizationId, context.userId);
-
-    const { pages, sections } = await loadPagesAndSections(supabase, data.organizationId);
-    const storyPages: StoryPage[] = pages.map((page) => ({
-      id: page.id,
-      slug: page.slug,
-      title: page.title ?? page.slug,
-      kind: page.kind ?? "page",
-      isVisible: page.is_visible !== false,
-      sectionKinds: sections.filter((section) => section.page_id === page.id).map((section) => section.kind),
-    }));
-
-    const plan = buildStoryPlan(storyPages);
-    const base = {
-      ok: true,
-      order: plan.order.map((step) => ({ slug: step.slug, title: step.title, role: step.role })),
-      findings: plan.findings.map((finding) => ({ kind: finding.kind, slug: finding.slug, detail: finding.detail })),
-      summary: plan.summary,
-    };
-
-    // Read-only review. Rule-written next-step buttons were a deterministic
-    // creative layer (they chose wording and placement) and are decommissioned:
-    // the findings are handed to the AI builder, which decides what to write.
-    if (!data.write || STORY_WRITES_DECOMMISSIONED) {
-      return { ...base, linksWritten: 0, restorePointId: null };
-    }
-
-    // Which next-step links already exist, read from the stored buttons.
-    const existing: { pageSlug: string; href: string }[] = [];
-    const pageById = new Map(pages.map((page) => [page.id, page]));
-    for (const section of sections) {
-      const settings = (section.settings ?? {}) as Record<string, unknown>;
-      const buttons = Array.isArray(settings["buttons"]) ? (settings["buttons"] as unknown[]) : [];
-      const page = pageById.get(section.page_id);
-      if (!page) continue;
-      for (const button of buttons) {
-        const href = (button as { href?: unknown })?.href;
-        if (typeof href === "string") existing.push({ pageSlug: page.slug, href });
-      }
-    }
-
-    const pending = pendingStoryLinks(plan, existing);
-    if (pending.length === 0) {
-      return { ...base, linksWritten: 0, restorePointId: null };
-    }
-
-    const restorePointId = await saveRestorePoint(
-      supabase,
-      data.organizationId,
-      context.userId,
-      "Before page-to-page links were written",
-      pages,
-      sections,
-    );
-
-    let written = 0;
-    for (const link of pending) {
-      const page = pages.find((entry) => entry.slug === link.pageSlug);
-      if (!page) continue;
-      const pageSections = sections.filter((section) => section.page_id === page.id);
-      const target =
-        pageSections.find((section) => section.kind === STORY_SECTION_KIND) ??
-        pageSections[pageSections.length - 1];
-      if (!target) continue;
-      const settings = { ...((target.settings ?? {}) as Record<string, unknown>) };
-      const buttons = Array.isArray(settings["buttons"]) ? [...(settings["buttons"] as unknown[])] : [];
-      buttons.push({ label: link.label, href: link.href });
-      settings["buttons"] = buttons.slice(0, 4);
-      const { error } = await supabase
-        .from("website_sections")
-        .update({ settings: settings as never })
-        .eq("id", target.id)
-        .eq("organization_id", data.organizationId);
-      if (!error) written += 1;
-    }
-
-    return { ...base, linksWritten: written, restorePointId };
-  });
 
 /* --------------------------------------------------------- site-wide look */
 
@@ -397,26 +186,22 @@ export const applySiteWideRedesign = createServerFn({ method: "POST" })
     const supabase = context.supabase as unknown as SupabaseLike;
     await requireManager(supabase, data.organizationId, context.userId);
 
-    const { createDesignFingerprint, readDesignFingerprint, writeDesignFingerprint } = await import(
+    const { blankDesignFingerprint, readDesignFingerprint, writeDesignFingerprint } = await import(
       "@/lib/builder/design-fingerprint"
     );
     const [{ data: settings }, { data: profile }] = await Promise.all([
       supabase.from("website_settings").select("generation").eq("organization_id", data.organizationId).maybeSingle(),
       supabase
         .from("business_profiles")
-        .select("industry, city")
+        .select("industry")
         .eq("organization_id", data.organizationId)
         .maybeSingle(),
     ]);
     const generation = (settings as { generation?: unknown } | null)?.generation ?? null;
     const industry = (profile as { industry?: string | null } | null)?.industry ?? null;
-    const fingerprint =
-      readDesignFingerprint(generation) ??
-      createDesignFingerprint({
-        businessName: null,
-        industry,
-        city: (profile as { city?: string | null } | null)?.city ?? null,
-      });
+    // No invented starting look: the AI's saved record, or a blank one the AI
+    // fills in completely.
+    const fingerprint = readDesignFingerprint(generation) ?? blankDesignFingerprint();
 
     // The design team reads the owner's sentence and writes the new identity
     // itself. Any wording works: nothing is matched against a keyword list and
