@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
-import { createDesignFingerprint, neutralDesignFingerprint } from "./design-fingerprint";
+import { blankDesignFingerprint } from "./design-fingerprint";
 
 function files(dir: string): string[] {
   return readdirSync(dir).flatMap((name) => {
@@ -53,9 +53,9 @@ describe("creative authority firewall", () => {
   });
 
   it("the fingerprint can no longer pick designs from finite pools", () => {
-    const neutral = neutralDesignFingerprint();
-    const a = createDesignFingerprint({ businessName: "Alpha Plumbing", industry: "plumbing", city: "Austin" });
-    const b = createDesignFingerprint({ businessName: "Zeta Law", industry: "legal", city: "Boston" });
+    const neutral = blankDesignFingerprint();
+    const a = blankDesignFingerprint();
+    const b = blankDesignFingerprint();
     for (const fp of [a, b]) {
       expect({ ...fp, id: neutral.id, seed: neutral.seed, rejected: neutral.rejected }).toEqual(neutral);
     }
@@ -63,9 +63,11 @@ describe("creative authority firewall", () => {
 });
 
 describe("upgrade rule passes", () => {
-  it("story pass never writes rule-authored buttons", async () => {
+  it("no rule-based motion or story pass exists; Motion goes through the AI redesign", async () => {
     const src = readFileSync("src/lib/site-upgrade.functions.ts", "utf8");
-    expect(src).toContain("export const STORY_WRITES_DECOMMISSIONED = true;");
+    expect(src).not.toMatch(/applyMotionPack|applyStoryPass|motion-pack|story-pass/);
+    const panel = readFileSync("src/components/app/SiteUpgradePanel.tsx", "utf8");
+    expect(panel).toMatch(/applySiteWideRedesign\(\{ data: \{ organizationId, instruction: ask \} \}\)/);
     const redesign = src.slice(src.indexOf("export const applySiteWideRedesign"), src.indexOf("export const reviewPageScreenshot"));
     expect(redesign).not.toMatch(/planMotionAssignments\(/);
   });
@@ -105,5 +107,39 @@ describe("request understanding and design fallbacks", () => {
     const u = understandWithoutModel("make it feel like a moody jazz club");
     expect(u.goal).toBe("make it feel like a moody jazz club");
     expect(u.tasks[0]?.brief).toBe("make it feel like a moody jazz club");
+  });
+});
+
+describe("old design layer is fully removed", () => {
+  it("every retired module stays deleted", () => {
+    for (const f of [
+      "src/lib/builder/industry.ts",
+      "src/lib/builder/interpreter.ts",
+      "src/lib/builder/visual-intelligence.ts",
+      "src/lib/builder/autopilot.ts",
+      "src/lib/builder/context-targeting.ts",
+      "src/lib/builder/motion-pack.ts",
+      "src/lib/builder/story-pass.ts",
+      "src/lib/builder/first-build-creative.ts",
+      "src/lib/builder/creative-brief.ts",
+      "src/lib/builder/executable-creative.ts",
+    ]) {
+      expect(() => statSync(f)).toThrow();
+    }
+  });
+
+  it("the saved design record has no style pools or pickers", () => {
+    const src = readFileSync("src/lib/builder/design-fingerprint.ts", "utf8");
+    expect(src).not.toMatch(/_COMPOSITIONS|_SYSTEMS|_LAYOUTS|fingerprintSeed|createDesignFingerprint|sectionDesignFromFingerprint|function pick/);
+  });
+
+  it("Sol's first-build creative pass has no fixed vocabulary", () => {
+    const src = readFileSync("src/lib/builder/collective-first-build.server.ts", "utf8");
+    expect(src).not.toMatch(/Choose only from the supplied design vocabulary|not in the supported design vocabulary/);
+  });
+
+  it("screenshot references never map keywords to styles", () => {
+    const src = readFileSync("src/lib/builder/screenshot-reference.ts", "utf8");
+    expect(src).not.toMatch(/pickReferencePatch|allowedPatch|alignCreativeBriefToFingerprint/);
   });
 });

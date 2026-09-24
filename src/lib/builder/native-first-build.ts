@@ -6,7 +6,7 @@
  * before any website rows are written. It performs no I/O and calls no model.
  */
 import { screenClaims, type DnaFacts } from "@/lib/business-dna";
-import type { FirstBuildCreativeDirection } from "@/lib/builder/first-build-creative";
+import type { FirstBuildCreativeDirection } from "@/lib/builder/first-build-contract";
 import type { SiteCopy } from "@/lib/site-engine";
 import type { SiteBrief } from "@/lib/site-brief";
 import type { WebsitePlan } from "@/lib/website-plan";

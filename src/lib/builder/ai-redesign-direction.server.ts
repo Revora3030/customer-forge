@@ -13,7 +13,7 @@
  * prices, claims and business facts are never touched here.
  */
 import type { DesignFingerprint } from "@/lib/builder/design-fingerprint";
-import type { MotionIntensity } from "@/lib/builder/motion-pack";
+type MotionIntensity = DesignFingerprint["motionLevel"];
 import { callBestThinker } from "@/lib/ai/hall-of-fame.server";
 
 /** Identity fields the design team may rewrite in a site-wide redesign. */

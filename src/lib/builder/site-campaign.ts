@@ -1,4 +1,4 @@
-import type { CreativeBrief } from "@/lib/builder/creative-brief";
+import type { CreativeBrief } from "@/lib/builder/first-build-contract";
 import type { DesignFingerprint } from "@/lib/builder/design-fingerprint";
 
 export const SITE_CAMPAIGN_VERSION = 1 as const;

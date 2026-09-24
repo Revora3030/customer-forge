@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { DESIGN_DIRECTIONS, recommendDirections } from "./design-directions";
 import { SITE_HEADING_FONTS, siteFontHref, siteFontStyle, siteHeadingFont } from "./site-theme";
 import { contrastRatio } from "./builder/site-design-system";
-import { pickVisualDirection } from "./visual-direction";
+import { savedVisualDirection } from "./visual-direction";
 
 describe("the design library", () => {
   it("offers a large, varied set of complete looks", () => {
@@ -58,10 +58,8 @@ describe("the design library", () => {
   });
 
   it("selects dedicated picture languages for specialist local services", () => {
-    expect(pickVisualDirection({ industry: "pet grooming" }).id).toBe("pet-care");
-    expect(pickVisualDirection({ industry: "locksmith" }).id).toBe("secure-trade");
-    expect(pickVisualDirection({ industry: "junk removal" }).id).toBe("moving-logistics");
-    expect(pickVisualDirection({ industry: "solar installer" }).id).toBe("technology");
+    expect(savedVisualDirection(null).language).toBe("");
+    expect(savedVisualDirection({ language: "moody macro" }).id).toBe("ai-authored");
   });
 });
 

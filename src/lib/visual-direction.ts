@@ -25,318 +25,27 @@ export type VisualDirection = {
 };
 
 /**
- * Industry visual languages. Chosen by keyword, so a detailer gets cinematic
- * automotive work and a law firm gets restrained editorial authority.
+ * The photo direction the AI wrote into the site's saved brief. There is no
+ * built-in list of industry styles: with nothing saved, every field is blank
+ * and the owner's own note (and the AI) decide the picture.
  */
-export const VISUAL_DIRECTIONS: VisualDirection[] = [
-  {
-    id: "automotive",
-    label: "Cinematic automotive",
-    language: "Premium vehicle photography with deep reflections and close detail work",
-    subjects: [
-      "a freshly detailed dark car with mirror-like paint reflections",
-      "close macro detail of polished paint and clean trim",
-      "a spotless car interior with clean leather and dashboard",
-      "a technician working with a polisher in a clean bay",
-    ],
-    lighting: "controlled studio strip lighting with soft reflected highlights",
-    environment: "dark clean detailing bay or dusk city backdrop",
-    treatment: "high contrast, deep blacks, subtle warm highlights, no lens flare clutter",
-    affinity: [
-      "detail",
-      "auto",
-      "car",
-      "mobile detail",
-      "ceramic",
-      "tint",
-      "wrap",
-      "mechanic",
-      "tow",
-    ],
-  },
-  {
-    id: "home-trade",
-    label: "Real craftsmanship",
-    language: "Honest project photography that shows real work and real results",
-    subjects: [
-      "a finished residential project shot in natural daylight",
-      "close detail of clean workmanship and materials",
-      "a tradesperson working carefully on site with proper equipment",
-      "a tidy work van and organised tools",
-    ],
-    lighting: "bright natural daylight, soft shadows",
-    environment: "residential exterior or freshly finished interior",
-    treatment: "true-to-life colour, sharp detail, nothing staged or glossy",
-    affinity: [
-      "roof",
-      "plumb",
-      "hvac",
-      "electric",
-      "remodel",
-      "construct",
-      "concrete",
-      "paint",
-      "fence",
-      "deck",
-      "floor",
-      "tile",
-      "handyman",
-      "carpent",
-      "landscap",
-      "lawn",
-      "tree",
-    ],
-  },
-  {
-    id: "clean",
-    label: "Fresh and spotless",
-    language: "Before/after clarity with bright, hygienic surfaces",
-    subjects: [
-      "a spotless bright room after a professional clean",
-      "close detail of a gleaming surface catching daylight",
-      "a uniformed cleaner working with professional equipment",
-      "a pressure washed driveway with a clear clean line",
-    ],
-    lighting: "airy daylight, high key, clean whites",
-    environment: "bright domestic or commercial interior",
-    treatment: "crisp, fresh, high clarity, cool clean tones",
-    affinity: [
-      "clean",
-      "wash",
-      "maid",
-      "janitor",
-      "carpet",
-      "window",
-      "pest",
-      "restoration",
-      "septic",
-    ],
-  },
-  {
-    id: "food",
-    label: "Appetite-first",
-    language: "Food photography with atmosphere and human energy",
-    subjects: [
-      "an appetising signature dish styled simply on a dark table",
-      "warm interior atmosphere with soft ambient light",
-      "hands plating or preparing food in a working kitchen",
-      "close detail of texture and steam on freshly made food",
-    ],
-    lighting: "warm directional window light with soft falloff",
-    environment: "characterful restaurant interior or clean kitchen",
-    treatment: "rich warm colour, shallow depth of field, no plastic-looking food",
-    affinity: ["restaur", "food", "cafe", "bake", "cater", "bar", "coffee", "pizza", "kitchen"],
-  },
-  {
-    id: "beauty",
-    label: "Premium lifestyle",
-    language: "Clean studio beauty with close, tactile detail",
-    subjects: [
-      "a calm premium treatment space with soft textures",
-      "close detail of a finished result on a neutral background",
-      "professional tools laid out neatly on a clean surface",
-      "a serene lifestyle moment in soft light",
-    ],
-    lighting: "soft diffused studio light, gentle gradients",
-    environment: "minimal studio or refined salon interior",
-    treatment: "soft, luminous, low contrast, elegant negative space",
-    affinity: [
-      "salon",
-      "beauty",
-      "hair",
-      "nail",
-      "spa",
-      "lash",
-      "brow",
-      "barber",
-      "skin",
-      "massage",
-      "groom",
-    ],
-  },
-  {
-    id: "professional",
-    label: "Quiet authority",
-    language: "Restrained editorial photography that signals competence",
-    subjects: [
-      "a calm modern office interior with strong architectural lines",
-      "a professional workspace detail with documents and a laptop",
-      "a considered handshake or consultation moment, faces not central",
-      "a city skyline detail at golden hour",
-    ],
-    lighting: "even natural light with controlled contrast",
-    environment: "modern office, meeting room or city exterior",
-    treatment: "muted editorial palette, generous space, no clichéd stock posing",
-    affinity: [
-      "law",
-      "attorney",
-      "account",
-      "financ",
-      "insur",
-      "consult",
-      "coach",
-      "real estate",
-      "mortgage",
-      "it",
-      "tech",
-    ],
-  },
-  {
-    id: "health",
-    label: "Calm and clinical",
-    language: "Reassuring healthcare photography, clean and human",
-    subjects: [
-      "a bright welcoming treatment room",
-      "clean professional equipment detail",
-      "a reassuring care moment in soft light",
-      "a calm waiting area with natural materials",
-    ],
-    lighting: "soft even daylight, no harsh shadows",
-    environment: "modern clinic interior",
-    treatment: "clean, calm, trustworthy, gentle colour",
-    affinity: [
-      "dental",
-      "dentist",
-      "med",
-      "clinic",
-      "health",
-      "therap",
-      "chiro",
-      "vet",
-      "care",
-      "wellness",
-      "yoga",
-    ],
-  },
-  {
-    id: "pet-care",
-    label: "Warm pet care",
-    language: "Playful but polished pet-care photography with warmth, texture and calm handling",
-    subjects: [
-      "a freshly groomed dog in a bright calm studio, no branded accessories",
-      "close detail of clean grooming tools and soft natural textures",
-      "a calm pet-care setting prepared for an appointment, without identifiable people",
-      "a relaxed dog or cat in a clean welcoming care environment",
-    ],
-    lighting: "soft daylight with warm highlights and clear natural colour",
-    environment: "clean grooming studio, veterinary reception or safe outdoor pet setting",
-    treatment: "warm editorial colour, lively framing, tactile detail, never childish clip art",
-    affinity: ["pet", "groom", "veterinar", "animal", "dog", "cat", "kennel", "boarding"],
-  },
-  {
-    id: "secure-trade",
-    label: "Precision and security",
-    language: "Confident technical trade photography focused on precision tools, access and protection",
-    subjects: [
-      "a precision lock mechanism and professional locksmith tools in close detail",
-      "a clean modern door hardware installation photographed at an architectural angle",
-      "organised specialist tools prepared for a local service call",
-      "a secured residential entry in crisp evening light",
-    ],
-    lighting: "controlled directional light with crisp metal highlights",
-    environment: "modern residential or commercial entryway",
-    treatment: "dark premium surfaces, sharp detail, restrained amber accents",
-    affinity: ["locksmith", "lock", "key", "access control", "safe"],
-  },
-  {
-    id: "moving-logistics",
-    label: "Organised movement",
-    language: "Bright editorial logistics photography showing care, order and useful space",
-    subjects: [
-      "carefully packed unbranded boxes in a bright uncluttered home",
-      "an organised unbranded moving vehicle with clean protective equipment",
-      "protected furniture and moving equipment arranged with care",
-      "a clean cleared space ready for its next use",
-    ],
-    lighting: "clear natural daylight with soft dimensional shadows",
-    environment: "tidy residential interior, driveway or neutral loading space",
-    treatment: "confident wide framing, clean neutrals, practical detail, no staged smiling crews",
-    affinity: ["moving", "mover", "relocation", "junk", "hauling", "removal", "storage"],
-  },
-  {
-    id: "events",
-    label: "Atmosphere and moment",
-    language: "Story-driven photography with mood and movement",
-    subjects: [
-      "an event space glowing with warm string lighting",
-      "a candid moment of celebration in low light",
-      "a beautifully arranged detail shot from a real event",
-      "a wide atmospheric venue shot at dusk",
-    ],
-    lighting: "warm practical lights with deep shadows",
-    environment: "venue interior or outdoor evening setting",
-    treatment: "cinematic, warm, slightly grainy, emotive",
-    affinity: ["event", "wedding", "photo", "music", "dj", "entertain", "party", "venue"],
-  },
-  {
-    id: "technology",
-    label: "Precision technology",
-    language: "Clean technical photography with engineered detail",
-    subjects: [
-      "a professionally installed system with tidy cabling",
-      "close detail of modern hardware on a clean surface",
-      "a technician configuring equipment with focus",
-      "an abstract lit surface suggesting energy or data",
-    ],
-    lighting: "cool directional light with controlled speculars",
-    environment: "modern building exterior or clean install site",
-    treatment: "sharp, cool tones, engineered and deliberate",
-    affinity: [
-      "solar",
-      "renewable",
-      "panel",
-      "battery",
-      "security",
-      "camera",
-      "network",
-      "smart",
-      "ev",
-      "energy",
-      "automation",
-      "audio",
-      "install",
-    ],
-  },
-  {
-    id: "service",
-    label: "Dependable and local",
-    language: "Straightforward, friendly photography of real local service",
-    subjects: [
-      "a service professional arriving ready to work",
-      "clean equipment prepared for the job",
-      "a satisfied result photographed simply in daylight",
-      "a local neighbourhood street in soft daylight",
-    ],
-    lighting: "natural daylight, honest and clear",
-    environment: "local residential or commercial setting",
-    treatment: "warm, human, unpretentious, sharp detail",
+export function savedVisualDirection(photography: unknown): VisualDirection {
+  const raw = (photography && typeof photography === "object" ? photography : {}) as Record<string, unknown>;
+  const text = (key: string) => (typeof raw[key] === "string" ? (raw[key] as string).slice(0, 200) : "");
+  const subjects = Array.isArray(raw["subjects"])
+    ? (raw["subjects"] as unknown[]).filter((item): item is string => typeof item === "string").slice(0, 6)
+    : [];
+  const language = text("language");
+  return {
+    id: language ? "ai-authored" : "",
+    label: language ? "your AI-designed style" : "your own direction",
+    language,
+    subjects,
+    lighting: text("lighting"),
+    environment: text("environment"),
+    treatment: text("treatment"),
     affinity: [],
-  },
-];
-
-const hash = (value: string) => {
-  let out = 2166136261;
-  for (let i = 0; i < value.length; i += 1) {
-    out ^= value.charCodeAt(i);
-    out = Math.imul(out, 16777619) >>> 0;
-  }
-  return out;
-};
-
-/** Picks the visual language for this business; falls back to dependable local service. */
-export function pickVisualDirection(input: {
-  industry?: string | null;
-  services?: { name: string }[];
-}): VisualDirection {
-  const words = [input.industry ?? "", ...(input.services ?? []).map((s) => s.name)]
-    .join(" ")
-    .toLowerCase();
-  const scored = VISUAL_DIRECTIONS.map((direction) => ({
-    direction,
-    score: direction.affinity.filter((word) => words.includes(word)).length,
-  })).sort((a, b) => b.score - a.score);
-  const best = scored[0];
-  return best && best.score > 0 ? best.direction : VISUAL_DIRECTIONS[VISUAL_DIRECTIONS.length - 1]!;
+  };
 }
 
 /* ------------------------------- shot plan -------------------------------- */
@@ -360,7 +69,8 @@ export type PlannedShot = {
  * services present, photos already uploaded, sections that exist.
  */
 export function planShots(input: {
-  direction: VisualDirection;
+  /** Optional: subject hints only. Null when the AI hasn't chosen a direction. */
+  direction: VisualDirection | null;
   serviceNames: string[];
   hasHeroImage: boolean;
   mediaCount: number;
@@ -375,7 +85,7 @@ export function planShots(input: {
         "The first thing a visitor sees — it has to make them believe the quality before reading.",
       aspect: "16:9",
       placement: ["hero"],
-      subjectHint: input.direction.subjects[0],
+      subjectHint: input.direction?.subjects[0],
     });
   }
 
@@ -399,7 +109,7 @@ export function planShots(input: {
       purpose: "Shows the craft, environment or tools behind the business without impersonating its real team.",
       aspect: "3:2",
       placement: ["about"],
-      subjectHint: `${input.direction.environment}; craft detail or unoccupied workspace, no identifiable person`,
+      subjectHint: `${input.direction?.environment ?? "the business setting"}; craft detail or unoccupied workspace, no identifiable person`,
     },
     {
       slot: "proof",
@@ -407,7 +117,7 @@ export function planShots(input: {
       purpose: "Evidence of finished work for the proof or gallery section.",
       aspect: "4:3",
       placement: ["gallery", "proof", "testimonials"],
-      subjectHint: input.direction.subjects[1],
+      subjectHint: input.direction?.subjects[1],
     },
     {
       slot: "cta",
@@ -415,7 +125,7 @@ export function planShots(input: {
       purpose: "High-emotion image behind the enquiry block to push the decision.",
       aspect: "16:9",
       placement: ["cta", "quote", "contact"],
-      subjectHint: input.direction.subjects[3],
+      subjectHint: input.direction?.subjects[3],
     },
     {
       slot: "background",

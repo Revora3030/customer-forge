@@ -36,11 +36,11 @@ import { readSectionEffect, sectionEffectClass } from "@/lib/site-effects";
 import { businessFacts, factsAddressLine } from "@/lib/builder/facts";
 import { phoneDisplay, phoneLink, safeParagraph, safeText } from "@/lib/builder/presentation";
 import {
-  neutralDesignFingerprint,
+  blankDesignFingerprint,
   readDesignFingerprint,
   type DesignFingerprint,
 } from "@/lib/builder/design-fingerprint";
-import { resolveExecutableCreativeSection } from "@/lib/builder/executable-creative";
+import { resolveExecutableCreativeSection } from "@/lib/builder/section-creative-record";
 
 type Site = NonNullable<PublicSite>;
 type Section = NonNullable<Site["content"]>["sections"][number];
@@ -61,7 +61,7 @@ export function siteDesignFingerprint(site: Site): DesignFingerprint {
   const settings = (site as { settings?: { generation?: unknown } | null }).settings ?? null;
   // No fixed table ever decides how a live site looks. If the design team has
   // not authored a look yet, the page renders plainly rather than borrowing one.
-  return readDesignFingerprint(settings?.generation) ?? neutralDesignFingerprint();
+  return readDesignFingerprint(settings?.generation) ?? blankDesignFingerprint();
 }
 
 
@@ -319,7 +319,6 @@ export function SiteSection({ site, section }: { site: Site; section: Section })
   const creative = resolveExecutableCreativeSection({
     kind: section.kind,
     settings: section.settings,
-    fingerprint,
     hasMedia,
   });
   const inner = <SiteSectionBody site={site} section={section} />;
@@ -396,7 +395,6 @@ function SiteSectionBody({ site, section }: { site: Site; section: Section }) {
   const heroCreative = resolveExecutableCreativeSection({
     kind: section.kind,
     settings: section.settings,
-    fingerprint: siteDesignFingerprint(site),
     hasMedia: Boolean(profile?.hero_image_url || heroImageSrc),
   });
   const backgroundHero = heroCreative?.mediaRole === "background";

@@ -606,22 +606,7 @@ function WebsitePage() {
               node: (
                 <>
                   <DesignIdentity
-                    organizationId={orgId ?? ""}
-                    facts={{
-                      businessName: org?.name ?? null,
-                      industry:
-                        (org?.industry as string | undefined) ??
-                        (profile?.["industry"] as string) ??
-                        null,
-                      city: (profile?.["city"] as string) ?? null,
-                      serviceArea: (profile?.["service_area"] as string) ?? null,
-                      services: (services ?? []).map((service) => String(service.name ?? "")),
-                      certifications: (profile?.["certifications"] as string) ?? null,
-                      awards: (profile?.["awards"] as string) ?? null,
-                      phone: (profile?.["phone"] as string) ?? null,
-                      email: (profile?.["email"] as string) ?? null,
-                      hasHours: Boolean(profile?.["hours"]),
-                    }}
+                    generation={generation ?? null}
                     onRestyle={(instruction: string) => {
                       setAdvanced(null);
                       askAssistant(instruction);
@@ -665,6 +650,10 @@ function WebsitePage() {
                     services={(services ?? []).map((service) => ({
                       name: String(service.name ?? ""),
                     }))}
+                    photography={
+                      ((generation?.["firstBuildCreative"] as { brief?: { photography?: unknown } } | undefined)
+                        ?.brief?.photography) ?? null
+                    }
                     mediaCount={mediaCount}
                     hasHeroImage={!!(profile?.["hero_image_url"] as string)}
                     onSetHero={(path) => saveProfile.mutate({ hero_image_url: path })}

@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { compileFirstBuildCreativeDirection } from "./first-build-creative";
+import { blankFirstBuildDirection } from "./first-build-contract";
 import { firstBuildImageShots } from "./first-build-images.server";
 
-const creative = compileFirstBuildCreativeDirection({
+const creative = blankFirstBuildDirection({
   organizationId: "11111111-1111-4111-8111-111111111111",
   businessName: "Northline Detail",
   industry: "Automotive detailing",

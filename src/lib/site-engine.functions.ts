@@ -454,17 +454,12 @@ async function referenceBaseFingerprint(
     supabase.from("business_profiles").select("city, service_area").eq("organization_id", organizationId).maybeSingle(),
   ]);
   const generation = (settings?.generation ?? {}) as Record<string, unknown>;
-  const { readDesignFingerprint, createDesignFingerprint } = await import("@/lib/builder/design-fingerprint");
+  const { readDesignFingerprint, blankDesignFingerprint } = await import("@/lib/builder/design-fingerprint");
   const stored = readDesignFingerprint(generation);
   if (stored) return { generation, fingerprint: stored, businessName: org?.name ?? null };
   return {
     generation,
-    fingerprint: createDesignFingerprint({
-      businessName: org?.name ?? null,
-      industry: org?.industry ?? null,
-      city: (profile?.city as string | null | undefined) ?? (profile?.service_area as string | null | undefined) ?? null,
-      photoCount: 0,
-    }),
+    fingerprint: blankDesignFingerprint(),
     businessName: org?.name ?? null,
   };
 }

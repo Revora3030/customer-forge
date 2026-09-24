@@ -21,32 +21,9 @@ import { screenClaims, type DnaFacts } from "@/lib/business-dna";
 import { formatLocality } from "@/lib/locality";
 import type { SiteCopy } from "@/lib/site-engine";
 import type { SiteBrief } from "@/lib/site-brief";
-import type { FirstBuildCreativeDirection } from "@/lib/builder/first-build-creative";
-import type { CreativeBrief } from "@/lib/builder/creative-brief";
-import {
-  BACKGROUND_SYSTEMS,
-  CARD_SYSTEMS,
-  COLOR_SYSTEMS,
-  CTA_SYSTEMS,
-  DESIGN_FAMILIES,
-  FAQ_LAYOUTS,
-  FOOTER_SYSTEMS,
-  GALLERY_LAYOUTS,
-  HERO_COMPOSITIONS,
-  IMAGE_TREATMENTS,
-  MOTION_PATTERNS,
-  NAV_SYSTEMS,
-  PAGE_SHELLS,
-  PRICING_LAYOUTS,
-  PROOF_LAYOUTS,
-  SECTION_COMPOSITIONS,
-  SECTION_TRANSITIONS,
-  STATS_LAYOUTS,
-  TIMELINE_LAYOUTS,
-  TYPE_SYSTEMS,
-  type DesignFingerprint,
-} from "@/lib/builder/design-fingerprint";
-import { alignCreativeBriefToFingerprint } from "@/lib/builder/screenshot-reference";
+import type { FirstBuildCreativeDirection } from "@/lib/builder/first-build-contract";
+import type { CreativeBrief } from "@/lib/builder/first-build-contract";
+import type { DesignFingerprint } from "@/lib/builder/design-fingerprint";
 import {
   approvableFields,
   mergeRefinement,
@@ -145,35 +122,43 @@ const CREATIVE_RULES = [
   "You are shaping presentation only for a first website build.",
   "Do not write visitor-facing copy, claims, testimonials, review language, guarantees, badges or proof.",
   "Do not invent prices, credentials, locations, service results, staff, response times or customer facts.",
-  "Choose only from the supplied design vocabulary. Omit uncertain fields.",
+  "There is no style list: invent every design token yourself (short lowercase-hyphenated names). Omit uncertain fields.",
   "Respect owner photos: generated images are marketing visuals, never proof of work.",
   "Return a single JSON object and nothing else.",
 ].join(" ");
 
+/**
+ * Fields Sol may author. Values are free: Sol invents them. Only motionLevel
+ * and density are bounded, because the renderer and reduced-motion safety
+ * need to know them exactly.
+ */
 const FINGERPRINT_FIELDS = {
-  family: DESIGN_FAMILIES,
-  heroComposition: HERO_COMPOSITIONS,
-  backgroundSystem: BACKGROUND_SYSTEMS,
-  sectionRhythm: SECTION_COMPOSITIONS,
-  navSystem: NAV_SYSTEMS,
-  ctaSystem: CTA_SYSTEMS,
-  cardSystem: CARD_SYSTEMS,
-  proofLayout: PROOF_LAYOUTS,
-  pricingLayout: PRICING_LAYOUTS,
-  faqLayout: FAQ_LAYOUTS,
-  galleryLayout: GALLERY_LAYOUTS,
-  statsLayout: STATS_LAYOUTS,
-  timelineLayout: TIMELINE_LAYOUTS,
-  footerSystem: FOOTER_SYSTEMS,
-  typeSystem: TYPE_SYSTEMS,
-  colorSystem: COLOR_SYSTEMS,
-  sectionTransition: SECTION_TRANSITIONS,
-  pageShell: PAGE_SHELLS,
-  imageTreatment: IMAGE_TREATMENTS,
-  motionPattern: MOTION_PATTERNS,
-  motionLevel: ["none", "subtle", "expressive"] as const,
-  density: ["compact", "balanced", "airy"] as const,
-} as const;
+  family: null,
+  heroComposition: null,
+  backgroundSystem: null,
+  sectionRhythm: null,
+  navSystem: null,
+  ctaSystem: null,
+  cardSystem: null,
+  proofLayout: null,
+  pricingLayout: null,
+  faqLayout: null,
+  galleryLayout: null,
+  statsLayout: null,
+  timelineLayout: null,
+  footerSystem: null,
+  typeSystem: null,
+  colorSystem: null,
+  sectionTransition: null,
+  pageShell: null,
+  imageTreatment: null,
+  motionPattern: null,
+  motionLevel: ["none", "subtle", "expressive"],
+  density: ["compact", "balanced", "airy"],
+} as const satisfies Record<string, readonly string[] | null>;
+
+/** Safe-token check only — keeps renderer class names valid, decides nothing. */
+const SAFE_TOKEN = /^[a-z0-9][a-z0-9-]{0,59}$/;
 
 const BRIEF_TEXT_LIMITS = {
   personality: 90,
@@ -238,6 +223,7 @@ function creativeSheet(creative: FirstBuildCreativeDirection) {
         })),
         qualityMatrix: creative.brief.qualityMatrix,
       },
+      referenceInspiration: creative.referenceSignals ?? null,
       imageStatus: creative.imagery.status,
       plannedShots: creative.imagery.shots.map((shot) => ({
         slot: shot.slot,
@@ -323,8 +309,9 @@ export function reviewCreativeProposal(input: {
         rejected.push({ field: dotted, reason: "not approved by the review pass" });
         continue;
       }
-      if (!(FINGERPRINT_FIELDS[field] as readonly string[]).includes(value)) {
-        rejected.push({ field: dotted, reason: "not in the supported design vocabulary" });
+      const bounded = FINGERPRINT_FIELDS[field] as readonly string[] | null;
+      if (bounded ? !bounded.includes(value) : !SAFE_TOKEN.test(value)) {
+        rejected.push({ field: dotted, reason: bounded ? "unknown value" : "not a safe token (lowercase letters, digits, hyphens)" });
         continue;
       }
       if (value === String(input.baseline.fingerprint[field])) continue;
@@ -405,7 +392,7 @@ export function mergeCreativeRefinement(
   const fingerprint: DesignFingerprint = accepted.fingerprint
     ? { ...creative.fingerprint, ...accepted.fingerprint, updatedAt: new Date().toISOString() }
     : creative.fingerprint;
-  let brief = alignCreativeBriefToFingerprint(creative.brief, fingerprint);
+  let brief = { ...creative.brief, fingerprintId: fingerprint.id, density: fingerprint.density, motion: { ...creative.brief.motion, level: fingerprint.motionLevel } };
   if (accepted.brief) {
     const nextBrief = accepted.brief;
     brief = {
@@ -468,9 +455,8 @@ async function refineCreativeWithCollective(input: {
   const current = creativeSheet(input.creative);
   const vocabulary = JSON.stringify(
     {
-      fingerprint: Object.fromEntries(
-        Object.entries(FINGERPRINT_FIELDS).map(([key, values]) => [key, Array.from(values).slice(0, 40)]),
-      ),
+      fingerprintFields: Object.keys(FINGERPRINT_FIELDS),
+      boundedFields: { motionLevel: FINGERPRINT_FIELDS.motionLevel, density: FINGERPRINT_FIELDS.density },
       briefFields: [
         "personality",
         "heroComposition",
@@ -503,10 +489,10 @@ async function refineCreativeWithCollective(input: {
       "CURRENT CREATIVE DIRECTION:",
       current,
       "",
-      "SUPPORTED DESIGN VOCABULARY:",
+      "FIELDS YOU MAY AUTHOR (values are yours to invent):",
       vocabulary,
       "",
-      "Return JSON with optional keys fingerprint and brief. fingerprint values must be exact supported tokens. brief may include presentation-only language and photography direction. Omit any field you cannot improve.",
+      "Return JSON with optional keys fingerprint and brief. fingerprint values are your own short lowercase-hyphenated tokens; only motionLevel and density must use the listed values. brief may include presentation-only language and photography direction. Omit any field you cannot improve.",
     ].join("\n"),
   });
 

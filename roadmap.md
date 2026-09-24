@@ -38,3 +38,4 @@ Ordered by user-felt impact. Each item: extend existing code, never duplicate.
 - [ ] Terra (gpt-5.6-terra) rejected by OpenAI with 401 — key lacks access
 - [x] Phase 6a: AI custom layouts are the default for builds/redesigns/edits; approval only for destructive, fact, billing and account actions; fallback guard tests
 - [x] Phase 6b (= 5c): retire leftover fingerprint/story/motion/first-build-creative helpers still read by live sites
+- [x] Phase 7: remove every remaining old design layer (style lists, Motion/story rules, first-build presets, industry guides, photo-style list, default looks, request reader, seeded pickers). Guard tests in authority-firewall.test.ts.
