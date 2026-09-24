@@ -164,7 +164,6 @@ export async function authorBrandIdentity(
       ctaEffect: effect("ctaEffect"),
       formEffect: effect("formEffect"),
       bodyEffect: effect("bodyEffect"),
-      affinity: [],
     },
     model: outcome.model ?? null,
     lane: outcome.lane,

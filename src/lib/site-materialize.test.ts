@@ -1,7 +1,22 @@
 import { describe, expect, it } from "vitest";
 import { planSiteContent, type MaterializeInput } from "@/lib/site-materialize.server";
 import { materializedSectionDesign } from "@/lib/site-materialize.server";
-import { DESIGN_DIRECTIONS } from "@/lib/design-directions";
+import { parseAuthoredDirection } from "@/lib/authored-direction";
+const AUTHORED_LOOK = {
+  name: "Test authored look",
+  mood: "Written by the model under test.",
+  bestFor: "Tests",
+  primary: "#1f6feb",
+  secondary: "#0b1020",
+  accent: "#f5c451",
+  font: "Fraunces",
+  fontNote: "test",
+  backdrop: "none",
+  heroEffect: "none",
+  ctaEffect: "none",
+  formEffect: "none",
+  bodyEffect: "rise",
+};
 import { blankDesignFingerprint } from "@/lib/builder/design-fingerprint";
 
 const input: MaterializeInput = {
@@ -78,7 +93,7 @@ describe("planSiteContent", () => {
   });
 
   it("applies no house layout of its own when there is no authored identity", () => {
-    const direction = DESIGN_DIRECTIONS.find((item) => item.id === "coastal-blue");
+    const direction = parseAuthoredDirection(AUTHORED_LOOK);
     expect(direction).toBeTruthy();
     const hero = materializedSectionDesign("hero", direction);
     const services = materializedSectionDesign("services", direction);
@@ -92,7 +107,7 @@ describe("planSiteContent", () => {
 
 
   it.skip("turns the full fingerprint into materially different rendered contracts (decommissioned: fingerprint pools are no longer a creative authority)", () => {
-    const direction = DESIGN_DIRECTIONS.find((item) => item.id === "coastal-blue");
+    const direction = parseAuthoredDirection(AUTHORED_LOOK);
     const a = blankDesignFingerprint();
     const b = blankDesignFingerprint();
     const first = materializedSectionDesign("hero", direction, a, 0);

@@ -229,12 +229,12 @@ export function safeComposition(value: unknown): VisualComposition | null {
   if (!layers.length) return null;
   const origin = entry["origin"];
   return {
-    id: typeof entry["id"] === "string" ? entry["id"].slice(0, 60) : `comp-${signature(layers)}`,
+    id: typeof entry["id"] === "string" ? entry["id"].slice(0, 60) : `comp-${layers.map((l) => l.kind).join("-").slice(0, 50)}`,
     name: typeof entry["name"] === "string" ? entry["name"].slice(0, 60) : "Custom visual",
     summary:
       typeof entry["summary"] === "string"
         ? entry["summary"].slice(0, 240)
-        : describeComposition(layers),
+        : layers.map((l) => l.kind).join(" + "),
     layers,
     intensity: clamp(entry["intensity"], 10, 100, 65),
     origin:
