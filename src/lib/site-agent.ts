@@ -2,8 +2,10 @@ import {
   backdropLabel,
   isBackdropId,
   isSectionEffectId,
+  safeBackdropSpec,
   sectionEffectLabel,
   type BackdropId,
+  type BackdropSpec,
   type SectionEffectId,
 } from "@/lib/site-effects";
 import { validateComposition, type CompositionTree } from "@/lib/builder/composition-tree";

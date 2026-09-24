@@ -116,8 +116,8 @@ HARD RULES
 - Do not use placeholder brackets, lorem ipsum, emoji or ALL CAPS shouting.
 - Local-business copy: plain, confident, specific, benefit-first, with a clear next step
   (call, book, get a price). Keep headlines under ~70 characters.
-- Visual effects are available: use set_backdrop for a site-wide animated background
-  (stars, aurora, nebula, grid, spotlight, gradient_mesh) and set_section_effect for depth
+- Visual effects are available: use set_backdrop with a "spec" you design yourself for a
+  site-wide background, and set_section_effect for depth
   on a single section (float_3d, tilt_3d, glass, gold_glow, rise, parallax_slow, shine).
   Use them when the owner asks for something premium, 3D, animated or "wow" — never more
   than a couple of section effects per page, so the site stays fast and readable.
@@ -154,7 +154,8 @@ ACTION SHAPES (use exactly these)
 {"type":"set_page","pageId":"<id>","patch":{"title":"...","slug":"...","is_visible":true,"noindex":false,"seo_title":"...","seo_description":"...","og_title":"...","og_description":"..."}}
 {"type":"delete_page","pageId":"<id>"}
 {"type":"set_theme","patch":{"primary_color":"#RRGGBB","secondary_color":"#RRGGBB","accent_color":"#RRGGBB","heading_font":"${SUPPORTED_SITE_FONTS}","body_font":"${SUPPORTED_SITE_FONTS}"}}
-{"type":"set_backdrop","backdrop":"none|stars|aurora|nebula|grid|spotlight|gradient_mesh"}
+{"type":"set_backdrop","backdrop":"none","spec":{"drift":"none|slow|medium","layers":[{"shape":"radial|linear","colors":["#RRGGBB","#RRGGBB"],"angle":0,"x":50,"y":0,"size":80,"opacity":30}]}}
+  (design the site background yourself: up to 4 gradient layers, any colours, x/y 0-100, size 10-200, opacity 0-60)
 {"type":"set_section_effect","sectionId":"<id>","effect":"none|float_3d|tilt_3d|glass|gold_glow|rise|parallax_slow|shine"}
 {"type":"set_composition","sectionId":"<id>","tree":{"version":1,"label":"...","root":{"type":"stack|grid|row|text|heading|media|button|link|card|list|divider|spacer|icon","text":"...","href":"/page|https://...|tel:|mailto:","src":"https://...","alt":"...","level":1,"items":["..."],"style":{"columns":1,"gap":0,"padding":0,"paddingX":0,"paddingY":0,"maxWidth":1200,"align":"left","justify":"between","items":"center","span":1,"size":16,"weight":400,"lineHeight":1.5,"letterSpacing":0,"italic":false,"uppercase":false,"font":"any font family","color":"#RRGGBB","background":"#RRGGBB","gradientTo":"#RRGGBB","gradientAngle":135,"radius":0,"borderWidth":0,"borderColor":"#RRGGBB","shadow":"none|subtle|medium|strong","opacity":100,"aspect":"16:9","minHeight":0},"responsive":{"mobile":{},"tablet":{},"desktop":{}},"motion":{"kind":"none|fade|rise|scale|float","delayMs":0},"children":[]}}}
   (compose ANY layout you invent from these building blocks, nested freely; it replaces the section's old kind. Invalid trees are returned to you for repair.)
