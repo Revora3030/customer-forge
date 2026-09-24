@@ -456,27 +456,18 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
     if (recall) data.history = [{ role: "user" as const, content: recall }, ...data.history];
     const nextMemory = mergeDesignMemory(priorMemory, data.instruction);
 
-    // DESIGN IDENTITY. Worked out once from what the business actually is, then
-    // reused on every later request so unrelated edits cannot quietly redesign
-    // the site. Design choices only — never a business fact and never copy.
-    const { createDesignFingerprint, fingerprintBrief, readDesignFingerprint, writeDesignFingerprint } =
-      await import("@/lib/builder/design-fingerprint");
+    // DESIGN IDENTITY. Only an identity the AI itself previously authored is
+    // recalled, so unrelated edits stay consistent. No identity is ever
+    // derived from the business here: a plain placeholder must never steer
+    // the AI toward a fixed look.
+    const { fingerprintBrief, readDesignFingerprint } = await import("@/lib/builder/design-fingerprint");
     const storedGeneration = ((settingsRow.data as { generation?: unknown } | null)?.generation ??
       {}) as Record<string, unknown>;
     noteStage(orgId, runId, "recalling your design identity");
     const priorFingerprint = readDesignFingerprint(storedGeneration);
-    const fingerprint =
-      priorFingerprint ??
-      createDesignFingerprint({
-        businessName: agentContext.business.name || null,
-        industry: agentContext.business.industry ?? null,
-        city: agentContext.business.city ?? null,
-        audience: agentContext.business.serviceArea ?? null,
-        goal: null,
-        photoCount: agentContext.business.photoCount ?? 0,
-        contentDensity: "balanced",
-      });
-    data.history = [{ role: "user" as const, content: fingerprintBrief(fingerprint) }, ...data.history];
+    if (priorFingerprint && priorFingerprint.family !== "neutral") {
+      data.history = [{ role: "user" as const, content: fingerprintBrief(priorFingerprint) }, ...data.history];
+    }
 
     const memoryChanged = nextMemory !== priorMemory;
     const fingerprintNew = !priorFingerprint;
