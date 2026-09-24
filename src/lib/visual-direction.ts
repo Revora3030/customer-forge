@@ -360,7 +360,8 @@ export type PlannedShot = {
  * services present, photos already uploaded, sections that exist.
  */
 export function planShots(input: {
-  direction: VisualDirection;
+  /** Optional: subject hints only. Null when the AI hasn't chosen a direction. */
+  direction: VisualDirection | null;
   serviceNames: string[];
   hasHeroImage: boolean;
   mediaCount: number;
@@ -375,7 +376,7 @@ export function planShots(input: {
         "The first thing a visitor sees — it has to make them believe the quality before reading.",
       aspect: "16:9",
       placement: ["hero"],
-      subjectHint: input.direction.subjects[0],
+      subjectHint: input.direction?.subjects[0],
     });
   }
 
@@ -399,7 +400,7 @@ export function planShots(input: {
       purpose: "Shows the craft, environment or tools behind the business without impersonating its real team.",
       aspect: "3:2",
       placement: ["about"],
-      subjectHint: `${input.direction.environment}; craft detail or unoccupied workspace, no identifiable person`,
+      subjectHint: `${input.direction?.environment ?? "the business setting"}; craft detail or unoccupied workspace, no identifiable person`,
     },
     {
       slot: "proof",
@@ -407,7 +408,7 @@ export function planShots(input: {
       purpose: "Evidence of finished work for the proof or gallery section.",
       aspect: "4:3",
       placement: ["gallery", "proof", "testimonials"],
-      subjectHint: input.direction.subjects[1],
+      subjectHint: input.direction?.subjects[1],
     },
     {
       slot: "cta",
@@ -415,7 +416,7 @@ export function planShots(input: {
       purpose: "High-emotion image behind the enquiry block to push the decision.",
       aspect: "16:9",
       placement: ["cta", "quote", "contact"],
-      subjectHint: input.direction.subjects[3],
+      subjectHint: input.direction?.subjects[3],
     },
     {
       slot: "background",

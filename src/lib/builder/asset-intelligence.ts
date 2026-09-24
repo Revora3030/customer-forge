@@ -17,7 +17,6 @@
  * report, never a placeholder to quietly fill.
  */
 
-import type { IndustryPlaybook } from "./industry";
 import type { BusinessFacts } from "./facts";
 
 /** How a slot may honestly be filled. */
@@ -70,18 +69,8 @@ function suppliedFrom(facts: Facts, supplied?: Partial<SuppliedAssets>): Supplie
   };
 }
 
-/** How much visual proof the industry expects, translated into real numbers. */
-const GALLERY_COUNT_BY_PROOF: Record<IndustryPlaybook["visualProof"], number> = {
-  low: 3,
-  medium: 6,
-  high: 9,
-};
-
-const RATIO_BY_PROOF: Record<IndustryPlaybook["visualProof"], AssetRatio> = {
-  low: "4:3",
-  medium: "4:3",
-  high: "3:2",
-};
+/** Real work photos planned for a gallery the AI chose to include. */
+const GALLERY_PHOTO_COUNT = 6;
 
 function altFor(kind: AssetKind, businessName: string | null): string {
   const name = businessName ?? "the business";
@@ -108,7 +97,6 @@ function altFor(kind: AssetKind, businessName: string | null): string {
  */
 export function assetPlanFor(
   facts: Facts,
-  playbook: IndustryPlaybook,
   sectionKinds: string[],
   supplied?: Partial<SuppliedAssets>,
 ): AssetPlan {
@@ -150,7 +138,7 @@ export function assetPlanFor(
         section: "hero",
         kind: "hero",
         count: 1,
-        ratio: RATIO_BY_PROOF[playbook.visualProof],
+        ratio: "4:3",
         policy: "user_preferred",
         required: false,
         altTemplate: altFor("hero", facts.businessName),
@@ -158,19 +146,19 @@ export function assetPlanFor(
     }
 
     if (normalized === "gallery" || normalized === "portfolio" || normalized === "work") {
-      const count = GALLERY_COUNT_BY_PROOF[playbook.visualProof];
+      const count = GALLERY_PHOTO_COUNT;
       slots.push({
         id: `${normalized}-photos`,
         section: normalized,
         kind: "gallery",
         count,
-        ratio: RATIO_BY_PROOF[playbook.visualProof],
+        ratio: "4:3",
         policy: "must_be_real",
         required: true,
         altTemplate: altFor("gallery", facts.businessName),
       });
       rationale.push(
-        `${playbook.label} sites lean on visual proof (${playbook.visualProof}); planned ${count} real work photos for the ${normalized} section.`,
+        `Planned ${count} real work photos for the ${normalized} section.`,
       );
     }
 

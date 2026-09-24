@@ -16,7 +16,6 @@ import { StickyCallBar, siteDesignFingerprint } from "@/components/site/SiteSect
 import { SiteVitals } from "@/components/site/SiteVitals";
 import { businessFacts } from "@/lib/builder/facts";
 import { placeDisplay } from "@/lib/builder/presentation";
-import { playbookFor, schemaTypeFor } from "@/lib/builder/industry";
 import { safeLinkUrl } from "@/lib/website-content";
 import { SiteBackdrop } from "@/components/site/SiteBackdrop";
 import { siteFontHref, siteFontStyle, siteThemeStyle } from "@/lib/site-theme";
