@@ -22,7 +22,7 @@ import {
   type CompositionIssue,
   type CompositionTree,
 } from "@/lib/builder/composition-tree";
-import type { DnaFacts } from "@/lib/builder/business-dna";
+import type { DnaFacts } from "@/lib/business-dna";
 
 type Db = { from: (table: string) => any }; // eslint-disable-line @typescript-eslint/no-explicit-any
 
