@@ -467,7 +467,7 @@ export const applyVisionRepairs = createServerFn({ method: "POST" })
       sections,
     );
 
-    const { createDesignFingerprint, readDesignFingerprint, writeDesignFingerprint } = await import(
+    const { blankDesignFingerprint, readDesignFingerprint, writeDesignFingerprint } = await import(
       "@/lib/builder/design-fingerprint"
     );
     const { data: settings } = await supabase
@@ -478,7 +478,7 @@ export const applyVisionRepairs = createServerFn({ method: "POST" })
     const generation = (settings as { generation?: unknown } | null)?.generation ?? null;
     let fingerprint =
       readDesignFingerprint(generation) ??
-      createDesignFingerprint({ businessName: null, industry: null, city: null });
+      blankDesignFingerprint();
     let fingerprintChanged = false;
 
     const applied: string[] = [];
@@ -620,7 +620,7 @@ export const undoSiteUpgrade = createServerFn({ method: "POST" })
     }
 
     if (data.undo.fingerprint && Object.keys(data.undo.fingerprint).length > 0) {
-      const { createDesignFingerprint, readDesignFingerprint, writeDesignFingerprint } = await import(
+      const { blankDesignFingerprint, readDesignFingerprint, writeDesignFingerprint } = await import(
         "@/lib/builder/design-fingerprint"
       );
       const { data: settings } = await supabase
@@ -631,7 +631,7 @@ export const undoSiteUpgrade = createServerFn({ method: "POST" })
       const generation = (settings as { generation?: unknown } | null)?.generation ?? null;
       const current =
         readDesignFingerprint(generation) ??
-        createDesignFingerprint({ businessName: null, industry: null, city: null });
+        blankDesignFingerprint();
       const next = { ...current } as unknown as Record<string, unknown>;
       for (const [field, value] of Object.entries(data.undo.fingerprint)) {
         if (field in (current as unknown as Record<string, unknown>)) next[field] = value;
