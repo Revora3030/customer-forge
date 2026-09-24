@@ -200,10 +200,15 @@ export function applyAuthoredHeadings(pages: Page[], architecture: PageArchitect
     return {
       ...page,
       sections: page.sections.map((section) => {
-        if (section.kind === "hero" || section.kind === "sticky_cta") return section;
+        if (section.kind === "sticky_cta") return section;
         const n = used.get(section.kind) ?? 0;
         used.set(section.kind, n + 1);
         const authored = plan.sections.filter((entry) => entry.role === section.kind)[n];
+        if (page.slug === "home" && section.kind === "hero") return section;
+        // Page openings already carry AI-written copy or the real service name;
+        // the AI may still retitle them.
+        if (section.kind === "hero")
+          return authored?.heading ? { ...section, heading: authored.heading, subheading: authored.subheading ?? section.subheading } : section;
         return { ...section, heading: authored?.heading ?? null, subheading: authored?.subheading ?? null };
       }),
     };

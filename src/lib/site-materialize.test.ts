@@ -162,3 +162,18 @@ describe("industry blueprints have no authority over structure", () => {
     expect(new Set(shapes).size).toBe(1);
   });
 });
+
+describe("applyAuthoredHeadings", () => {
+  it("uses only AI-written section headings", async () => {
+    const { applyAuthoredHeadings } = await import("@/lib/site-materialize.server");
+    const pages = [{ slug: "home", title: "Home", kind: "home", sections: [
+      { kind: "hero", heading: "AI hero" },
+      { kind: "services", heading: "What we do" },
+      { kind: "faq", heading: "Common questions" },
+    ] }] as never;
+    const out = applyAuthoredHeadings(pages, [{ slug: "home", title: "Home", purpose: "home", primaryAction: "Call", sections: [
+      { role: "hero" }, { role: "services", heading: "Roofs we fix", subheading: null }, { role: "faq" },
+    ] }]) as unknown as { sections: { heading: string | null }[] }[];
+    expect(out[0]!.sections.map((s) => s.heading)).toEqual(["AI hero", "Roofs we fix", null]);
+  });
+});
