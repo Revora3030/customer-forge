@@ -14,16 +14,9 @@ import { safeLinkUrl } from "@/lib/website-content";
 import type { DesignDirection } from "@/lib/design-directions";
 import { writeSectionEffect } from "@/lib/site-effects";
 import { writeComponentVisual, writeSectionVisual } from "@/lib/site-style";
-import {
-  sectionDesignFromFingerprint,
-  type DesignFingerprint,
-} from "@/lib/builder/design-fingerprint";
+import type { DesignFingerprint } from "@/lib/builder/design-fingerprint";
 import type { FirstBuildImageAsset } from "@/lib/builder/first-build-images.server";
 import type { CreativeBrief } from "@/lib/builder/first-build-contract";
-import {
-  compileExecutableCreativeSection,
-  writeExecutableCreativeSection,
-} from "@/lib/builder/executable-creative";
 import { slugify } from "@/lib/format";
 import { compileSiteCampaign, type SiteCampaign } from "@/lib/builder/site-campaign";
 import {
@@ -570,46 +563,24 @@ export function planSiteContent(input: MaterializeInput): Page[] {
 export function materializedSectionDesign(
   kind: string,
   direction: DesignDirection | null | undefined,
-  fingerprint?: DesignFingerprint | null,
-  index = 0,
-  creativeBrief?: CreativeBrief | null,
+  _fingerprint?: DesignFingerprint | null,
+  _index = 0,
+  _creativeBrief?: CreativeBrief | null,
 ): { variant: string; settings: Record<string, unknown> } {
-  if (!direction && !fingerprint) return { variant: "default", settings: {} };
-  const effect = direction
-    ? kind === "hero"
+  // No stamped defaults: layout, card style, image treatment and width are
+  // written only by the AI (its design contract and later compositions). The
+  // only thing carried here is the motion effect the AI's own brand identity
+  // authored.
+  if (!direction) return { variant: "default", settings: {} };
+  const effect =
+    kind === "hero"
       ? direction.heroEffect
       : kind === "cta" || kind === "offer" || kind === "sticky_cta"
         ? direction.ctaEffect
         : kind === "quote" || kind === "booking" || kind === "contact"
           ? direction.formEffect
-          : direction.bodyEffect
-    : null;
-  const identity = fingerprint ? sectionDesignFromFingerprint(kind, fingerprint, index) : null;
-  // Composition comes from the site's authored identity. There is no per-kind
-  // house layout behind this: when there is no identity to read, the section is
-  // left unstyled for the design team to style directly.
-  const visual = identity
-    ? writeSectionVisual(
-        {},
-        {
-          layout: identity.layout,
-          card_style: identity.cardStyle,
-          image_treatment: identity.imageTreatment,
-          max_width: identity.maxWidth,
-          density: fingerprint?.density === "compact" ? "dense" : fingerprint?.density ?? "balanced",
-        },
-      )
-    : {};
-  const settings = effect ? writeSectionEffect(visual, effect) : visual;
-  return {
-    variant: identity?.variant ?? "default",
-    settings: fingerprint
-      ? writeExecutableCreativeSection(
-          settings,
-          compileExecutableCreativeSection(kind, fingerprint, creativeBrief),
-        )
-      : settings,
-  };
+          : direction.bodyEffect;
+  return { variant: "default", settings: effect ? writeSectionEffect({}, effect) : {} };
 }
 
 /**

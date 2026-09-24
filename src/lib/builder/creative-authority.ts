@@ -107,7 +107,9 @@ export function compileAiDesignContract(input: {
     const sections: SectionDesign[] = page.sections.map((section, index) => ({
       id: `${page.slug.replace(/[^a-z0-9]+/gi, "-")}-${section.role}-${index}`,
       role: section.role,
-      layout: section.layout ?? sectionLayoutFor(section.role, input.fingerprint),
+      // The AI names the layout. When it did not, the role is recorded as-is —
+      // no style is chosen on its behalf.
+      layout: section.layout ?? section.role,
       intent: section.intent ?? `${section.role} advances ${page.purpose}`,
       media: section.media ?? mediaNeedFor(section.role),
       emphasis: index + 1,
@@ -209,31 +211,6 @@ export function compileAiDesignContract(input: {
     qualityMatrix: input.brief.qualityMatrix,
     pages,
   };
-}
-
-function sectionLayoutFor(role: string, fingerprint: DesignFingerprint): string {
-  switch (role) {
-    case "hero":
-      return fingerprint.heroComposition;
-    case "services":
-      return fingerprint.cardSystem;
-    case "proof":
-    case "testimonials":
-      return fingerprint.proofLayout;
-    case "pricing":
-      return fingerprint.pricingLayout;
-    case "faq":
-      return fingerprint.faqLayout;
-    case "gallery":
-      return fingerprint.galleryLayout;
-    case "stats":
-      return fingerprint.statsLayout;
-    case "quote":
-    case "contact":
-      return fingerprint.formLayout;
-    default:
-      return fingerprint.sectionRhythm;
-  }
 }
 
 function mediaNeedFor(role: string): SectionDesign["media"] {
