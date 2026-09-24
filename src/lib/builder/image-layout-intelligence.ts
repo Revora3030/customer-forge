@@ -11,7 +11,7 @@
  * Pure and deterministic: no network, no database, no business claims.
  */
 
-import type { CreativeBrief, ImageBriefSpec } from "@/lib/builder/creative-brief";
+import type { CreativeBrief, ImageBriefSpec } from "@/lib/builder/first-build-contract";
 
 export type ImageSample = { r: number; g: number; b: number; x: number; y: number };
 

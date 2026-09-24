@@ -400,7 +400,7 @@ async function runJob(
   const [
     { materializeSiteContent },
     { authorBrandIdentity },
-    { compileFirstBuildCreativeDirection },
+    { blankFirstBuildDirection },
     { synthesizeNativeFirstBuild },
     { generateFirstBuildImages },
     { imageRepairPlan },
@@ -409,7 +409,7 @@ async function runJob(
     await Promise.all([
       import("@/lib/site-materialize.server"),
       import("@/lib/builder/ai-brand-identity.server"),
-      import("@/lib/builder/first-build-creative"),
+      import("@/lib/builder/first-build-contract"),
       import("@/lib/builder/native-first-build"),
       import("@/lib/builder/first-build-images.server"),
       import("@/lib/builder/first-build-image-qa"),
@@ -428,7 +428,7 @@ async function runJob(
     requestedFont: (p["font_preference"] as string) ?? null,
   });
   const direction = identity.direction;
-  let creative = compileFirstBuildCreativeDirection({
+  let creative = blankFirstBuildDirection({
     organizationId: orgId,
     businessName: org.data.name ?? "",
     industry: org.data.industry ?? null,

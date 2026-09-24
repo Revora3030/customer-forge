@@ -21,8 +21,8 @@ import { screenClaims, type DnaFacts } from "@/lib/business-dna";
 import { formatLocality } from "@/lib/locality";
 import type { SiteCopy } from "@/lib/site-engine";
 import type { SiteBrief } from "@/lib/site-brief";
-import type { FirstBuildCreativeDirection } from "@/lib/builder/first-build-creative";
-import type { CreativeBrief } from "@/lib/builder/creative-brief";
+import type { FirstBuildCreativeDirection } from "@/lib/builder/first-build-contract";
+import type { CreativeBrief } from "@/lib/builder/first-build-contract";
 import {
   BACKGROUND_SYSTEMS,
   CARD_SYSTEMS,

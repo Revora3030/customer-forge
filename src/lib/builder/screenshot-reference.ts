@@ -27,7 +27,7 @@ import {
   TYPE_SYSTEMS,
   type DesignFingerprint,
 } from "@/lib/builder/design-fingerprint";
-import type { CreativeBrief } from "@/lib/builder/creative-brief";
+import type { CreativeBrief } from "@/lib/builder/first-build-contract";
 
 export type ScreenshotReferenceObservation = {
   layout?: unknown;

@@ -23,7 +23,7 @@ import type {
   FirstBuildImageSource,
 } from "@/lib/builder/first-build-images.types";
 import { MEDIA_BUCKET, buildObjectPath } from "@/lib/media";
-import type { FirstBuildCreativeDirection } from "@/lib/builder/first-build-creative";
+import type { FirstBuildCreativeDirection } from "@/lib/builder/first-build-contract";
 import {
   CANDIDATE_STYLES,
   VISUAL_DIRECTIONS,

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createDesignFingerprint } from "@/lib/builder/design-fingerprint";
-import type { FirstBuildCreativeDirection } from "@/lib/builder/first-build-creative";
+import type { FirstBuildCreativeDirection } from "@/lib/builder/first-build-contract";
 import {
   applyScreenshotReferenceToCreative,
   deriveScreenshotReferenceFingerprint,
