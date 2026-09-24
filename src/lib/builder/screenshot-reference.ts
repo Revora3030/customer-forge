@@ -197,7 +197,7 @@ export function deriveScreenshotReferenceFingerprint(input: {
 }
 
 export function applyScreenshotReferenceToCreative<
-  T extends { fingerprint: DesignFingerprint; brief: CreativeBrief; referenceSignals?: ScreenshotReferenceBrief["signals"] | null },
+  T extends { fingerprint: DesignFingerprint; brief: CreativeBrief; referenceSignals?: Record<string, string[]> | null },
 >(input: {
   creative: T;
   observations: unknown;
