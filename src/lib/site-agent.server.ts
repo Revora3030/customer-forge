@@ -15,7 +15,6 @@ import { RevoraAiError } from "@/lib/ai/errors";
 import { generateStructuredOutput, transcribeAudio } from "@/lib/ai/router.server";
 import type { AiCaller, AiMessage, AiPart } from "@/lib/ai/types";
 import type { ModelRole } from "@/lib/ai/config";
-import { SITE_HEADING_FONTS } from "@/lib/site-theme";
 import {
   MAX_ACTIONS,
   readChapters,
@@ -86,7 +85,7 @@ export type AgentContext = {
   componentKinds: string[];
 };
 
-const SUPPORTED_SITE_FONTS = Object.keys(SITE_HEADING_FONTS).join("|");
+const SUPPORTED_SITE_FONTS = "any Google Fonts family name";
 
 const SYSTEM = `You are Revora's website agent. You edit a local business's live website
 on the owner's behalf. You are competent, calm and specific — like a senior web
