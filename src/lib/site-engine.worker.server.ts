@@ -749,7 +749,7 @@ async function runJob(
     (p["font_preference"] as string) ||
       (p["secondary_color"] as string) ||
       (p["accent_color"] as string) ||
-      ((p["primary_color"] as string) && (p["primary_color"] as string).toLowerCase() !== "#34d399"),
+      (p["primary_color"] as string),
   );
   if (!built.skipped && direction && !hasOwnerBrand) {
     const { error: themeError } = await db

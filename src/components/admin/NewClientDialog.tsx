@@ -52,9 +52,9 @@ export function NewClientDialog({
     description: "",
     logo_url: "",
     hero_image_url: "",
-    primary_color: "#34d399",
-    secondary_color: "#0f172a",
-    accent_color: "#fbbf24",
+    primary_color: "",
+    secondary_color: "",
+    accent_color: "",
     instagram: "",
     facebook: "",
     tiktok: "",
@@ -301,24 +301,24 @@ export function NewClientDialog({
                   onChange={(e) => set("hero_image_url")(e.target.value)}
                 />
               </Field>
-              <Field label="Primary colour">
+              <Field label="Primary colour (optional, the AI picks if left)">
                 <Input
                   type="color"
-                  value={form.primary_color}
+                  value={form.primary_color || "#000000"}
                   onChange={(e) => set("primary_color")(e.target.value)}
                 />
               </Field>
               <Field label="Secondary colour">
                 <Input
                   type="color"
-                  value={form.secondary_color}
+                  value={form.secondary_color || "#000000"}
                   onChange={(e) => set("secondary_color")(e.target.value)}
                 />
               </Field>
               <Field label="Accent colour">
                 <Input
                   type="color"
-                  value={form.accent_color}
+                  value={form.accent_color || "#000000"}
                   onChange={(e) => set("accent_color")(e.target.value)}
                 />
               </Field>

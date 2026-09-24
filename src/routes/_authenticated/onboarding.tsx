@@ -101,8 +101,8 @@ function Onboarding() {
     serviceArea: "",
     about: "",
     services: [emptyService()],
-    primaryColor: "#0B0B0C",
-    accentColor: "#C9A227",
+    primaryColor: "",
+    accentColor: "",
     logoUrl: "",
     heroImageUrl: "",
     phone: "",
@@ -377,8 +377,8 @@ function Onboarding() {
           website: draft.website || null,
           logo_url: draft.logoUrl || null,
           hero_image_url: draft.heroImageUrl || null,
-          primary_color: draft.primaryColor,
-          accent_color: draft.accentColor,
+          primary_color: draft.primaryColor || null,
+          accent_color: draft.accentColor || null,
           years_in_business: draft.yearsInBusiness ? Number(draft.yearsInBusiness) : null,
           certifications: draft.certifications || null,
           awards: draft.awards || null,
@@ -780,11 +780,11 @@ function Onboarding() {
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="o-primary">Primary colour</Label>
+                  <Label htmlFor="o-primary">Primary colour (optional, the AI picks if left)</Label>
                   <Input
                     id="o-primary"
                     type="color"
-                    value={draft.primaryColor}
+                    value={draft.primaryColor || "#000000"}
                     onChange={(e) => set("primaryColor", e.target.value)}
                     className="h-10 p-1"
                   />
@@ -794,7 +794,7 @@ function Onboarding() {
                   <Input
                     id="o-accent"
                     type="color"
-                    value={draft.accentColor}
+                    value={draft.accentColor || "#000000"}
                     onChange={(e) => set("accentColor", e.target.value)}
                     className="h-10 p-1"
                   />
