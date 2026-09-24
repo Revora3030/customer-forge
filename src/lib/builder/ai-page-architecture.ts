@@ -82,18 +82,30 @@ function text(value: unknown): string | null {
   return trimmed.length > 0 ? trimmed : null;
 }
 
-function sectionRoles(value: unknown): string[] {
+const UNSAFE_HEADING = /<|>|javascript:|\{|\}/i;
+
+/** An AI-written section heading, bounded and free of markup. */
+function headingText(value: unknown, max: number): string | null {
+  const value2 = text(value);
+  if (!value2 || value2.length > max || UNSAFE_HEADING.test(value2)) return null;
+  return value2;
+}
+
+type RawSection = { role: string; heading: string | null; subheading: string | null };
+
+function sectionRoles(value: unknown): RawSection[] {
   if (!Array.isArray(value)) return [];
-  const roles: string[] = [];
+  const roles: RawSection[] = [];
   for (const entry of value) {
     if (typeof entry === "string") {
       const role = text(entry);
-      if (role) roles.push(role);
+      if (role) roles.push({ role, heading: null, subheading: null });
       continue;
     }
     if (entry && typeof entry === "object") {
-      const role = text((entry as { role?: unknown }).role);
-      if (role) roles.push(role);
+      const row = entry as { role?: unknown; heading?: unknown; subheading?: unknown };
+      const role = text(row.role);
+      if (role) roles.push({ role, heading: headingText(row.heading, 120), subheading: headingText(row.subheading, 260) });
     }
   }
   return roles;
@@ -146,7 +158,7 @@ export function normalizePageArchitecture(input: {
       available.set(section.role, (available.get(section.role) ?? 0) + 1);
 
     const sections: PageArchitecture["sections"] = [];
-    for (const role of sectionRoles(raw.sections)) {
+    for (const { role, heading, subheading } of sectionRoles(raw.sections)) {
       const left = available.get(role) ?? 0;
       if (left <= 0) {
         rejected.push({
@@ -158,7 +170,7 @@ export function normalizePageArchitecture(input: {
         continue;
       }
       available.set(role, left - 1);
-      sections.push({ role });
+      sections.push({ role, heading, subheading });
     }
     if (sections.length === 0) {
       rejected.push({ field: `page.${slug}`, reason: "the page was left with no fillable sections" });

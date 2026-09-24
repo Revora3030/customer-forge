@@ -57,7 +57,7 @@ export async function proposePageArchitecture(input: {
     purpose: "information_architecture",
     complexity: "high",
     organizationId: input.organizationId,
-    maxOutputTokens: 1600,
+    maxOutputTokens: 5000,
     ...(input.signal ? { signal: input.signal } : {}),
     system: `${RULES} You are Sol, the lead information and conversion architect. Decide the page set, the sections on each page and their order so the whole site converts for this specific business. Every retained page needs a deliberate hero opening, a useful body and a decisive closing action. Different pages must feel related but composed for their own job. ${creativeQualityPrompt()}`,
     user: [
@@ -68,8 +68,10 @@ export async function proposePageArchitecture(input: {
       "AVAILABLE PAGES AND SECTIONS (you may reorder and omit, never invent):",
       JSON.stringify(available, null, 2),
       "",
-      'Return JSON: {"pages": [{"slug": "home", "title": "...", "purpose": "...", "sections": ["hero", "services", ...]}]}',
+      'Return JSON: {"pages": [{"slug": "home", "title": "...", "purpose": "...", "sections": [{"role": "hero"}, {"role": "services", "heading": "...", "subheading": "..."}]}]}',
       "Keep the home page. Omit anything that weakens the site. Order sections deliberately.",
+      "Write your own heading (<=120 chars) and optional subheading (<=260 chars) for every section except each page's hero. There are no default headings: a section you leave without one shows none.",
+      "Headings may only use the business name, its real services and its real place — never an unsupported claim.",
     ].join("\n"),
   });
 

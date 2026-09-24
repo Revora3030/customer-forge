@@ -46,7 +46,7 @@ export type PageArchitecture = {
   purpose: string;
   primaryAction: string;
   /** Section roles in the AI's intended order for this page. */
-  sections: { role: string; layout?: string; intent?: string; media?: SectionDesign["media"] }[];
+  sections: { role: string; layout?: string; intent?: string; media?: SectionDesign["media"]; heading?: string | null; subheading?: string | null }[];
 };
 
 function responsivePlan(input: {
