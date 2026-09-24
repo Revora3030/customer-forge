@@ -442,99 +442,35 @@ const briefContext = (brief?: SiteBrief | null) =>
       )}`
     : "";
 
-/* --------------------------- Deterministic copy ---------------------------- */
+/* ------------------------------ Blank copy -------------------------------- */
 
 /**
- * Rule-based website copy built only from facts the owner supplied.
- *
- * This is the safety net for the generation queue: when the AI gateway denies a
- * request (credits exhausted, policy block) the build must still produce a real,
- * publishable site rather than failing and leaving the client with nothing. No
- * claim here is invented — every sentence is derived from stored business data.
+ * The empty starting record for a first build. It carries only the service
+ * names the owner supplied — every sentence is left blank for the AI to write.
+ * There is no rule-based wording: if no model authors the copy, the build stops.
  */
-export function fallbackCopy(facts: CopyFacts, brief?: SiteBrief | null): SiteCopy {
-  const name = facts.businessName || "Our business";
-  const category = (facts.industry || "local services").toLowerCase();
-  const place = [facts.city, facts.state].filter(Boolean).join(", ");
-  const area = facts.serviceArea?.trim() || place;
-  const cta = facts.ctaLabel || brief?.primaryAction || "Get in touch";
-  const priced = facts.services.filter((s) => s.price != null || s.starting_price != null);
-  const money = (value: number) => `$${Math.round(value)}`;
-
-  const benefits = [
-    area ? `Serving ${area}` : "Local, responsive service",
-    facts.yearsInBusiness
-      ? `${facts.yearsInBusiness}+ years in business`
-      : "Straight answers, no pressure",
-    facts.hasHours ? "Published hours so you know when we work" : "Fast replies to every request",
-    priced.length ? "Clear pricing before any work starts" : "A quote before any work starts",
-    facts.phone ? "Reach a real person by phone" : "Every request answered",
-  ].slice(0, 5);
-
+export function blankCopy(facts: CopyFacts): SiteCopy {
   return {
-    heroHeadline: place ? `${category.replace(/^\w/, (c) => c.toUpperCase())} in ${place}` : name,
-    heroSubheadline: facts.description?.trim()
-      ? facts.description.trim().slice(0, 160)
-      : `${name} handles ${category}${area ? ` across ${area}` : ""}. Tell us what you need and we'll take it from there.`,
-    primaryCta: cta.slice(0, 24),
-    secondaryCta: "See services",
-    intro: `${name} provides ${category}${area ? ` in ${area}` : ""}. Send a request and you'll get a clear answer on scope, timing and price.`,
-    about: `${
-      facts.description?.trim() ||
-      `${name} is a ${category} business${place ? ` based in ${place}` : ""}.`
-    }\n\n${
-      facts.yearsInBusiness
-        ? `We've been doing this for ${facts.yearsInBusiness}+ years.`
-        : "We keep the process simple: you tell us what you need, we confirm what it takes."
-    }${facts.phone ? " Call or send a request and we'll get back to you." : " Send a request and we'll get back to you."}`,
-    benefits,
-    serviceCards: facts.services.slice(0, 12).map((s) => ({
-      name: s.name,
-      copy:
-        s.description?.trim() ||
-        (s.price != null
-          ? `${s.name} — ${money(s.price)}.`
-          : s.starting_price != null
-            ? `${s.name} — from ${money(s.starting_price)}.`
-            : `${s.name}. Request a quote and we'll confirm scope and price.`),
-    })),
-    faqs: [
-      {
-        question: area ? `Do you work in ${area}?` : "What areas do you cover?",
-        answer: area
-          ? `Yes — we cover ${area}.`
-          : "Send a request with your location and we'll confirm coverage.",
-      },
-      {
-        question: "How much does it cost?",
-        answer: priced.length
-          ? `Published pricing starts at ${money(
-              Math.min(...priced.map((s) => (s.starting_price ?? s.price) as number)),
-            )}. Final price depends on the job.`
-          : "Pricing depends on the job, so we quote each request instead of guessing.",
-      },
-      {
-        question: "How do I get started?",
-        answer: `Use the ${cta.toLowerCase()} option on this page${facts.phone ? " or call us" : ""}. We'll reply with next steps.`,
-      },
-      {
-        question: "How fast do you respond?",
-        answer: facts.hasHours
-          ? "Requests are answered during our published hours."
-          : "Requests are answered as quickly as we can get to them, usually the same day.",
-      },
-    ],
-    areaCopy: area
-      ? `We work throughout ${area}. If you're just outside it, send a request and we'll tell you honestly.`
-      : "Send a request with your location and we'll confirm whether we can reach you.",
-    metaTitle: `${name}${place ? ` — ${category} in ${place}` : ` — ${category}`}`.slice(0, 60),
-    metaDescription:
-      `${name} provides ${category}${area ? ` in ${area}` : ""}. ${cta} today.`.slice(0, 155),
-    ogTitle: `${name}${place ? ` — ${place}` : ""}`.slice(0, 60),
-    ogDescription:
-      `${category.replace(/^\w/, (c) => c.toUpperCase())}${area ? ` in ${area}` : ""} from ${name}.`.slice(
-        0,
-        155,
-      ),
+    heroHeadline: "",
+    heroSubheadline: "",
+    primaryCta: "",
+    secondaryCta: "",
+    intro: "",
+    about: "",
+    benefits: [],
+    serviceCards: facts.services.slice(0, 12).map((s) => ({ name: s.name, copy: "" })),
+    faqs: [],
+    areaCopy: "",
+    metaTitle: "",
+    metaDescription: "",
+    ogTitle: "",
+    ogDescription: "",
   };
+}
+
+/** The copy fields a first build cannot ship without. */
+export const REQUIRED_AI_COPY_FIELDS = ["heroHeadline", "heroSubheadline", "primaryCta", "metaTitle", "metaDescription"] as const;
+
+export function missingAiCopy(copy: SiteCopy): string[] {
+  return REQUIRED_AI_COPY_FIELDS.filter((key) => !copy[key]?.trim());
 }
