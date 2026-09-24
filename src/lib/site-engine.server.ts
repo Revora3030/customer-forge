@@ -453,7 +453,7 @@ export function blankCopy(facts: CopyFacts): SiteCopy {
   return {
     heroHeadline: "",
     heroSubheadline: "",
-    primaryCta: "",
+    primaryCta: (facts.ctaLabel ?? "").slice(0, 24),
     secondaryCta: "",
     intro: "",
     about: "",

@@ -17,8 +17,6 @@ import type { SiteCopy } from "@/lib/site-engine";
 export const REFINABLE_TEXT_FIELDS = {
   heroHeadline: 90,
   heroSubheadline: 200,
-  primaryCta: 24,
-  secondaryCta: 24,
   intro: 700,
   about: 1000,
   areaCopy: 450,

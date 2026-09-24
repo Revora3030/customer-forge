@@ -640,7 +640,7 @@ export async function refineFirstBuildWithCollective(input: {
       ),
       "",
       "Write the whole website's wording yourself. Return JSON with EVERY key:",
-      "heroHeadline, heroSubheadline, primaryCta (<=24 chars), secondaryCta (<=24 chars), intro, about, areaCopy,",
+      "heroHeadline, heroSubheadline, intro, about, areaCopy,",
       "benefits (3-6 strings), serviceCards (array of {name, copy} — names exactly as given, same order),",
       "faqs (3-8 {question, answer} you choose, answerable only from the facts),",
       "metaTitle (<=60 chars), metaDescription (<=155 chars), ogTitle, ogDescription.",
