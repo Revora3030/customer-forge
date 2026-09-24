@@ -3,7 +3,6 @@ import { planSiteContent, type MaterializeInput } from "@/lib/site-materialize.s
 import { materializedSectionDesign } from "@/lib/site-materialize.server";
 import { DESIGN_DIRECTIONS } from "@/lib/design-directions";
 import { blankDesignFingerprint } from "@/lib/builder/design-fingerprint";
-import { playbookFor } from "@/lib/builder/industry";
 
 const input: MaterializeInput = {
   businessName: "Journey Detailing",

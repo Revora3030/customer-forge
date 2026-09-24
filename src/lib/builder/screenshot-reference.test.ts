@@ -7,12 +7,7 @@ import {
   normalizeScreenshotReferenceObservations,
 } from "@/lib/builder/screenshot-reference";
 
-const base = blankDesignFingerprint({
-  businessName: "Northline",
-  industry: "Automotive detailing",
-  city: "New York",
-  photoCount: 0,
-});
+const base = blankDesignFingerprint();
 
 describe("screenshot reference fingerprint", () => {
   it("maps bounded observations into the finite design fingerprint vocabulary", () => {
