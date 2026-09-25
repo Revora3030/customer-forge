@@ -46,6 +46,6 @@ Ordered by user-felt impact. Each item: extend existing code, never duplicate.
 - [x] 1. Built-in first-build copy writer removed; Sol writes all words, Terra checks, build stops if key words are missing
 - [x] 2. AI chooses pages/sections and now writes every section heading (built-in headings no longer reach first builds)
 - [x] 3. Every first-build content section laid out by Sol as its own composition (forms/booking kept working)
-- [ ] 4. AI-designed menu and footer
+- [x] 4. AI-designed menu and footer (Sol designs both on first builds; plain menu stays for older sites)
 - [ ] 5. New building blocks (tabs, accordion, compare, toggle, marquee, gallery, quote)
 - [ ] 6. Optional AI-requested hero video in first build
