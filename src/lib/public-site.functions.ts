@@ -98,12 +98,16 @@ export const getOwnerDraftSite = createServerFn({ method: "GET" })
  * the link is unknown, revoked or expired so the page can say so plainly.
  */
 export const getPreviewSite = createServerFn({ method: "GET" })
-  .inputValidator((input: { token: string }) => {
+  .inputValidator((input: { token: string; pageSlug?: string }) => {
     const token = String(input?.token ?? "")
       .trim()
       .slice(0, 120);
     if (!/^[A-Za-z0-9_-]{16,}$/.test(token)) throw new Error("Invalid preview link");
-    return { token };
+    const page = String(input?.pageSlug ?? "")
+      .trim()
+      .slice(0, 80);
+    if (page && !/^[a-z0-9-]+$/.test(page)) throw new Error("Invalid page address");
+    return page ? { token, pageSlug: page } : { token };
   })
   .handler(async ({ data }) => {
     const { loadSite, resolvePreviewToken } = await import("@/lib/public-site.server");
@@ -116,7 +120,10 @@ export const getPreviewSite = createServerFn({ method: "GET" })
         expiresAt: null as string | null,
         label: null as string | null,
       };
-    const site = await loadSite(link.slug, { allowUnpublished: true });
+    const site = await loadSite(link.slug, {
+      allowUnpublished: true,
+      ...(data.pageSlug ? { pageSlug: data.pageSlug } : {}),
+    });
     if (!site)
       return {
         ok: false as const,

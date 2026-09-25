@@ -1,8 +1,11 @@
 # Roadmap — Five-phase blocker elimination
 
-- [x] Phase 1 inventory: design-fingerprint and creative-authority are read-only stores of AI-written values; no style pools remain reachable.
-- [x] Phase 2: removed the silent label trim; size limits now fail and go back to the AI.
-- [x] Phase 4: visual evidence is tied to the exact site version; publishing needs the latest check of every page to pass; the AI repair loop (Sol edits, Terra review, re-measure) runs after a failed check.
-- [ ] Phase 2 (remaining): line-by-line audit of site-style / site-effects fallbacks.
-- [ ] Phase 3: larger layout and motion vocabulary. Needs a design pass and Sol prompt updates.
-- [ ] Phase 5: second-industry build and a security fix pass (six earlier warnings).
+- [x] Phase 1 inventory: no style pools remain reachable.
+- [x] Phase 2: silent label trim removed; site-style / site-effects audited.
+- [x] Phase 3: larger layout and motion vocabulary + Sol prompt updates.
+- [x] Phase 4: visual evidence tied to site version; AI repair loop ("Fix with AI").
+- [x] Phase 5 security pass: all scan warnings fixed.
+- [x] Visual check was broken in real browsers (security rules blocked it; sub-pages 404'd on preview links) — fixed.
+- [x] "Fix with AI" runs live: 3 AI repair rounds ran on the Northline test site.
+- [ ] Northline test site still scores 0/100 after 3 rounds (phone-width clipping, small tap targets, 12px text, overlap). Next: make repair edits target the header/phone layout directly.
+- [ ] Phase 5: second-industry build, approve, publish, show phone + desktop.
