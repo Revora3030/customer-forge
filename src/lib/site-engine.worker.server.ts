@@ -207,7 +207,6 @@ async function runJob(
 ) {
   const orgId = job.organization_id;
   const { GENERATION_STEPS } = await import("@/lib/site-engine");
-  const { generateWebsitePlan } = await import("@/lib/website-plan");
   const { readBrief } = await import("@/lib/site-brief");
   const { captureQa } = await import("@/lib/launch-qa");
   const { gatherBriefFacts } = await import("@/lib/site-brief.server");
@@ -355,27 +354,9 @@ async function runJob(
   }
   await step("analysis");
 
-  const plan = generateWebsitePlan({
-    businessName: org.data.name ?? "",
-    industry: org.data.industry ?? "",
-    description: (p["description"] as string) ?? null,
-    city: (p["city"] as string) ?? null,
-    state: (p["state"] as string) ?? null,
-    serviceArea: (p["service_area"] as string) ?? null,
-    phone: (p["phone"] as string) ?? null,
-    email: (p["email"] as string) ?? null,
-    goals: goals as never,
-    services: serviceRows,
-    photoCount: realMediaCount,
-    testimonialCount: testimonials.length,
-    hasCredentials: Boolean(p["certifications"] || p["awards"] || p["years_in_business"]),
-    hasHours: Boolean(p["hours"] && Object.keys(p["hours"] as object).length),
-    socialLinks,
-  });
   await step("structure");
 
-  const copyFactsForWrite = { ...copyFacts, ctaLabel: plan.primaryCtaLabel };
-  let copy = blankCopy(copyFactsForWrite);
+  let copy = blankCopy(copyFacts);
   let copyModel = "pending-ai";
   await step("copy");
 
@@ -393,7 +374,7 @@ async function runJob(
   const qaFacts = await gatherBriefFacts(db, orgId, brief.missingFacts);
   const qa = captureQa({
     ...qaFacts.qaInput,
-    primaryCtaLabel: copy.primaryCta || plan.primaryCtaLabel,
+    primaryCtaLabel: copy.primaryCta,
     secondaryCtaLabel: copy.secondaryCta || qaFacts.qaInput.secondaryCtaLabel,
   });
 
@@ -552,7 +533,7 @@ async function runJob(
   } as never);
   // The same adversarial gate runs AFTER any model wording, so a refined page
   // can never reach the site with an unsupported claim.
-  const safetyProblems = checkFirstBuildSafety({ facts: buildFacts, plan, copy });
+  const safetyProblems = checkFirstBuildSafety({ facts: buildFacts, copy });
   if (safetyProblems.length) throw new Error(safetyProblems[0]!.detail);
   let generatedAssets: import("@/lib/builder/first-build-images.types").FirstBuildImageAsset[] = [];
   try {
@@ -646,24 +627,32 @@ async function runJob(
       );
     }
   }
+  const attachedPaths = new Set<string>();
+  if (!built.skipped && starterImages.assets.length) {
+    const componentMedia = await db
+      .from("website_components")
+      .select("media_url")
+      .eq("organization_id", orgId)
+      .in("media_url", starterImages.assets.map((asset) => asset.path));
+    for (const row of componentMedia.data ?? [])
+      if (row.media_url) attachedPaths.add(row.media_url);
+  }
   const attachedEvidence = {
     ...starterImages.evidence,
-    attached: built.skipped ? 0 : starterImages.assets.length,
+    attached: attachedPaths.size,
   };
   await db.from("ai_generations").insert({
     organization_id: orgId,
     job_id: job.id,
     kind: "first_build_images",
-    model: starterImages.evidence.models.join("+") || starterImages.evidence.provider || "revora-artwork",
+    model: starterImages.evidence.models.join("+") || starterImages.evidence.provider || "none",
     instruction: null,
     result: attachedEvidence as unknown as never,
     created_by: job.created_by,
   } as never);
 
-  // Section-by-section wording authority. The renderer's fillable text is only
-  // a floor: Sol rewrites each section in place, Terra approves it individually
-  // and the same fact gate blocks anything invented. Deterministic wording
-  // survives untouched whenever the tiers are unavailable or refuse.
+  // Section-by-section wording authority. Sol reviews every authored section,
+  // Terra approves it individually and the same fact gate blocks invention.
   if (!built.skipped) {
     const { refineSectionWordingWithCollective } = await import(
       "@/lib/builder/collective-sections.server"
@@ -692,6 +681,8 @@ async function runJob(
       sections: wording,
       directionSummary: `${creative.fingerprint.family} · ${creative.brief.personality}`,
     });
+    if (!outcome.passes.some((pass) => pass.used))
+      throw new Error("The AI team could not complete section-level copy review, so the build stopped without publishing unreviewed wording.");
     for (const patch of outcome.patches) {
       const update: Record<string, string> = {};
       if (patch.heading !== undefined) update["heading"] = patch.heading;
@@ -712,7 +703,7 @@ async function runJob(
         outcome.passes
           .filter((pass) => pass.used && pass.model)
           .map((pass) => pass.model)
-          .join("+") || "revora-deterministic",
+          .join("+") || "none",
       instruction: null,
       result: {
         sections: wording.length,
@@ -793,8 +784,8 @@ async function runJob(
 
   const report = {
     builtAt: new Date().toISOString(),
-    pages: built.skipped ? plan.pages.length : built.pages,
-    sections: built.skipped ? plan.sections.length : built.sections,
+    pages: built.pages,
+    sections: built.sections,
     services: serviceRows.length,
 
     faqs: copy.faqs.length,
@@ -810,7 +801,7 @@ async function runJob(
       status: creative.imagery.status,
       generatedStatus: starterImages.evidence.status,
       generated: starterImages.evidence.generated,
-      attached: !built.skipped ? starterImages.assets.length : 0,
+      attached: attachedPaths.size,
       source: starterImages.evidence.source ?? "none",
       rejected: starterImages.evidence.rejected ?? [],
       paidNote: starterImages.evidence.paidNote ?? null,
@@ -873,10 +864,9 @@ async function runJob(
   const { error: saveError } = await db.from("website_settings").upsert(
     {
       organization_id: orgId,
-      template: plan.template,
+      template: null,
       generation: {
         ...withoutPendingBuild(priorGeneration),
-        ...plan,
         copy,
         brief,
         report: {
@@ -899,11 +889,11 @@ async function runJob(
       review_state: "ready_for_review",
       publish_state: keepState,
       seo: {
-        title: copy.metaTitle || plan.seoTitle,
+        title: copy.metaTitle,
         headline: copy.heroHeadline,
         subheadline: copy.heroSubheadline,
-        meta_description: copy.metaDescription || plan.metaDescription,
-        primary_cta_label: copy.primaryCta || plan.primaryCtaLabel,
+        meta_description: copy.metaDescription,
+        primary_cta_label: copy.primaryCta,
         og_title: copy.ogTitle,
         og_description: copy.ogDescription,
       },

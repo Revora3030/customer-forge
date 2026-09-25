@@ -7,10 +7,12 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
   useCreateWebsiteRequest,
-  useGenerateWebsite,
   useSetWebsiteReviewState,
   useWebsiteRequests,
 } from "@/lib/queries";
+import { runSiteGeneration } from "@/lib/site-engine.functions";
+import { useServerFn } from "@tanstack/react-start";
+import { toast } from "@/lib/ui/notify";
 import {
   REQUEST_KINDS,
   readPlan,
@@ -42,7 +44,8 @@ type Props = {
 export function WebsiteReview({ organizationId, slug, settings, canManage }: Props) {
   const [device, setDevice] = useState<(typeof DEVICES)[number]["key"]>("desktop");
   const [showRequest, setShowRequest] = useState(false);
-  const generate = useGenerateWebsite(organizationId);
+  const runGeneration = useServerFn(runSiteGeneration);
+  const [generating, setGenerating] = useState(false);
   const setState = useSetWebsiteReviewState(organizationId);
   const createRequest = useCreateWebsiteRequest(organizationId);
   const { data: requests } = useWebsiteRequests(organizationId);
@@ -70,10 +73,21 @@ export function WebsiteReview({ organizationId, slug, settings, canManage }: Pro
             {canManage ? (
               <Button
                 variant="outline"
-                onClick={() => generate.mutate()}
-                disabled={generate.isPending}
+                onClick={async () => {
+                  if (!organizationId) return;
+                  setGenerating(true);
+                  try {
+                    await runGeneration({ data: { organizationId } });
+                    toast.success("AI website build queued.");
+                  } catch (error) {
+                    toast.error(error instanceof Error ? error.message : "Couldn't queue the AI website build.");
+                  } finally {
+                    setGenerating(false);
+                  }
+                }}
+                disabled={generating}
               >
-                {generate.isPending ? (
+                {generating ? (
                   <Loader2 className="size-4 animate-spin" />
                 ) : (
                   <RefreshCw className="size-4" />
