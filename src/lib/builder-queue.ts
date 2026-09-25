@@ -11,6 +11,7 @@
  */
 
 import type { CompositionPreview } from "@/lib/builder/composition-preview";
+import type { AgentAttachment } from "@/lib/site-agent";
 
 export type QueueState =
   "queued" | "planning" | "waiting_for_approval" | "building" | "complete" | "failed" | "skipped";
@@ -57,6 +58,8 @@ export type QueueTask = {
    * before anything is written.
    */
   composition?: CompositionPreview | null;
+  /** Photos or clips supplied with this exact turn. */
+  attachments?: AgentAttachment[];
 };
 
 
@@ -72,7 +75,7 @@ export const QUEUE_LABELS: Record<QueueState, string> = {
 
 let counter = 0;
 
-export function newTask(instruction: string): QueueTask {
+export function newTask(instruction: string, attachments: AgentAttachment[] = []): QueueTask {
   counter += 1;
   const text = instruction.trim().slice(0, 1200);
   return {
@@ -81,6 +84,7 @@ export function newTask(instruction: string): QueueTask {
     state: "queued",
     steps: [],
     questions: [],
+    attachments,
   };
 }
 

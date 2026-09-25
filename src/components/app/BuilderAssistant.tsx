@@ -9,7 +9,7 @@
  * an explicit press before anything is removed.
  */
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowDown, ArrowUp, Image as ImageIcon, Mic, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, History, Trash2 } from "lucide-react";
 import {
   Conversation,
   ConversationContent,
@@ -28,6 +28,7 @@ import {
 import { Shimmer } from "@/components/ai-elements/shimmer";
 import { Button } from "@/components/ui/button";
 import { BrandChoices } from "@/components/app/BrandChoices";
+import { AssistantMedia } from "@/components/app/AssistantMedia";
 import { CompositionPreviewCard } from "@/components/app/CompositionPreviewCard";
 import { attachmentNotice } from "@/lib/builder/capabilities";
 import { useBuildProgress } from "@/lib/builder/progress.hooks";
@@ -36,6 +37,7 @@ import { QUEUE_LABELS, timelineFor, type QueueTask } from "@/lib/builder-queue";
 import { onAssistantPrompt } from "@/lib/assistant-bridge";
 import { selectionPrefix } from "@/lib/builder/preview-bridge";
 import { INSTRUCTION_LIMIT, type BuilderRequests } from "@/lib/builder-requests.hooks";
+import type { AgentAttachment } from "@/lib/site-agent";
 import { cn } from "@/lib/utils";
 
 const SUGGESTIONS = [...BUILDER_PRIMARY_ACTIONS.slice(0, 4), ...BUILDER_QUICK_ACTIONS.slice(0, 4)];
@@ -43,7 +45,6 @@ const SUGGESTIONS = [...BUILDER_PRIMARY_ACTIONS.slice(0, 4), ...BUILDER_QUICK_AC
 export function BuilderAssistant({
   organizationId,
   requests,
-  onOpenExtras,
   emptyTitle,
   emptyHint,
   compact = false,
@@ -54,8 +55,6 @@ export function BuilderAssistant({
 }: {
   organizationId: string | null;
   requests: BuilderRequests;
-  /** Photo upload, voice and the full chat history live one door away. */
-  onOpenExtras: () => void;
   emptyTitle: string;
   emptyHint: string;
   compact?: boolean;
@@ -68,6 +67,8 @@ export function BuilderAssistant({
 }) {
   const [value, setValue] = useState("");
   const [moreOpen, setMoreOpen] = useState(false);
+  const [mediaOpen, setMediaOpen] = useState(false);
+  const [attachments, setAttachments] = useState<AgentAttachment[]>([]);
   /** A question Revora asked, which the next message answers. */
   const [answering, setAnswering] = useState<string | null>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -99,9 +100,11 @@ export function BuilderAssistant({
   };
 
   const send = (text: string) => {
-    if (!text.trim()) return;
-    requests.queue(scoped(text));
+    if (!text.trim() && attachments.length === 0) return;
+    requests.queue(scoped(text), attachments);
     setValue("");
+    setAttachments([]);
+    setMediaOpen(false);
     setAnswering(null);
     onClearSelection?.();
     window.requestAnimationFrame(() => inputRef.current?.focus());
@@ -121,17 +124,17 @@ export function BuilderAssistant({
     <section
       id="website-assistant"
       className={cn(
-        "flex flex-col overflow-hidden rounded-xl border border-border bg-card/45 p-0 shadow-panel",
+        "builder-conversation flex flex-col overflow-hidden border border-border/80 bg-card/72 p-0 shadow-lift",
         compact ? "min-h-[520px] h-[calc(100dvh-11.5rem)] lg:h-[calc(100vh-8rem)]" : "min-h-[560px] h-[calc(100dvh-10rem)]",
       )}
     >
       <Conversation className="min-h-0 flex-1">
-        <ConversationContent className="gap-7 px-4 py-6 sm:px-6">
+        <ConversationContent className="gap-7 px-4 py-6 sm:px-6 lg:px-7">
           {requests.tasks.length === 0 ? (
             <ConversationEmptyState className="items-start justify-end text-left" title={emptyTitle} description={emptyHint}>
               <div className="max-w-md space-y-2">
                 <div className="flex items-center gap-2">
-                  <img src="/revora-mark-144.png" alt="" className="size-7 rounded-md" />
+                   <img src="/revora-mark-144.png" alt="" className="size-8 rounded-lg shadow-signal" />
                   <p className="text-[13px] font-semibold">Revora</p>
                 </div>
                 <h2 className="text-lg font-semibold">{emptyTitle}</h2>
@@ -164,7 +167,7 @@ export function BuilderAssistant({
 
       <div className="border-t border-border bg-background/85 p-3 backdrop-blur">
         {/* Everything the old separate AI panels offered, as one tap each. */}
-        <div className="mb-2 flex gap-1.5 overflow-x-auto pb-0.5">
+         <div className="mb-2 flex gap-2 overflow-x-auto pb-1">
           {(moreOpen ? SUGGESTIONS : SUGGESTIONS.slice(0, 3)).map((action) => (
             <button
               key={action.label}
@@ -172,8 +175,8 @@ export function BuilderAssistant({
               disabled={!requests.ready}
               onClick={() => requests.queue(action.instruction)}
               className={cn(
-                "min-h-8 shrink-0 cursor-pointer rounded-full border border-border px-3 py-1 text-[12px] text-muted-foreground transition-colors",
-                "hover:bg-elevated hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none disabled:opacity-50",
+                 "builder-suggestion min-h-8 shrink-0 cursor-pointer rounded-full border border-border px-3 py-1 text-[12px] text-foreground transition-all",
+                 "hover:-translate-y-px hover:border-primary/55 hover:bg-elevated focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none disabled:opacity-50",
               )}
             >
               {action.label}
@@ -212,7 +215,8 @@ export function BuilderAssistant({
           </div>
         ) : null}
 
-        <PromptInput
+         <PromptInput
+           className="builder-prompt"
           onSubmit={(_message, event) => {
             event.preventDefault();
             send(value);
@@ -229,33 +233,29 @@ export function BuilderAssistant({
           />
           <PromptInputFooter>
             <PromptInputTools>
-              <PromptInputButton
-                onClick={onOpenExtras}
-                disabled={!requests.ready}
-                title={
-                  requests.capabilities
-                    ? (attachmentNotice(requests.capabilities, "image") ?? undefined)
-                    : undefined
-                }
-              >
-                <ImageIcon className="size-4" aria-hidden /> Photo
-              </PromptInputButton>
-              <PromptInputButton onClick={onOpenExtras} disabled={!requests.ready}>
-                <Mic className="size-4" aria-hidden /> Speak
-              </PromptInputButton>
+               <PromptInputButton onClick={() => setMediaOpen((open) => !open)} disabled={!requests.ready} title={requests.capabilities ? (attachmentNotice(requests.capabilities, "image") ?? undefined) : undefined}>
+                 Add photo, video or voice
+               </PromptInputButton>
             </PromptInputTools>
             <PromptInputSubmit
               {...(requests.busy ? { status: "submitted" as const } : {})}
-              disabled={!requests.ready || !value.trim()}
+               disabled={!requests.ready || (!value.trim() && attachments.length === 0)}
             />
           </PromptInputFooter>
         </PromptInput>
 
-        <BrandChoices
-          organizationId={organizationId}
-          disabled={!requests.ready}
-          onChange={requests.setBrand}
-        />
+         {mediaOpen || attachments.length ? (
+           <div className="mt-3 border-t border-border/70 pt-3">
+             <AssistantMedia
+               organizationId={organizationId ?? undefined}
+               attachments={attachments}
+               onChange={setAttachments}
+               onTranscript={(text) => setValue((prior) => (prior ? `${prior.trim()} ${text}` : text).slice(0, INSTRUCTION_LIMIT))}
+               onInsert={(text) => setValue((prior) => (prior ? `${prior.trim()} ${text}` : text).slice(0, INSTRUCTION_LIMIT))}
+               disabled={!requests.ready}
+             />
+           </div>
+         ) : null}
         {requests.summary ? (
           <p className="mt-2 text-[11.5px] text-muted-foreground" role="status">
             {requests.summary}
@@ -474,7 +474,7 @@ function TaskBody({
         ) : null}
         {task.state === "complete" && (task.applied ?? 0) > 0 && onOpenHistory ? (
           <Button size="sm" variant="outline" onClick={onOpenHistory}>
-            See what changed
+            <History className="size-4" /> Undo or restore
           </Button>
         ) : null}
         {task.state === "failed" || task.retryable ? (
