@@ -587,7 +587,7 @@ function Landing() {
         </section>
 
         {/* OPPORTUNITY / LOST REVENUE */}
-        <section id="roi" className="border-b border-border">
+        <section id="roi" className="scroll-mt-20 border-b border-border">
           <div className="mx-auto max-w-6xl px-4 py-16">
             <SectionHeading
               eyebrow="Revenue calculator"
