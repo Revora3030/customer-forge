@@ -5,8 +5,12 @@ vi.mock("@/lib/ai/hall-of-fame.server", () => ({
   callBestThinker: vi.fn(async (req: { user: string }) => {
     calls.push(req.user);
     const good = { version: 1, root: { type: "stack", children: [{ type: "heading", level: 2, text: "Roof repair" }] } };
+    const withPicture = { version: 1, root: { type: "stack", children: [
+      { type: "media", mediaRef: "11111111-1111-4111-8111-111111111111", alt: "Roof repair work" },
+      { type: "heading", level: 2, text: "Roof repair" },
+    ] } };
     const bad = { version: 1, root: { type: "banana" } };
-    return { ok: true, model: "gpt-6-sol", costMicrocents: 1, text: JSON.stringify({ sections: { s1: good, s2: calls.length === 1 ? bad : good } }) };
+    return { ok: true, model: "gpt-6-sol", costMicrocents: 1, text: JSON.stringify({ sections: { s1: withPicture, s2: calls.length === 1 ? bad : good } }) };
   }),
 }));
 
