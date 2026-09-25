@@ -20,6 +20,7 @@
 import type { ModelRole, ProviderName } from "@/lib/ai/config";
 
 export type FreeProviderName =
+  | "openai"
   | "cloudflare"
   | "groq"
   | "nvidia"
@@ -28,6 +29,7 @@ export type FreeProviderName =
   | "google";
 
 export const FREE_PROVIDERS: FreeProviderName[] = [
+  "openai",
   "cloudflare",
   "groq",
   "nvidia",
@@ -35,6 +37,7 @@ export const FREE_PROVIDERS: FreeProviderName[] = [
   "openrouter",
   "google",
 ];
+
 
 export function isFreeProvider(name: string): name is FreeProviderName {
   return (FREE_PROVIDERS as string[]).includes(name);
@@ -49,6 +52,16 @@ export const FREE_ALLOWANCE: Record<
   FreeProviderName,
   { label: string; allowance: string; dailyRequestCap: number | null }
 > = {
+  openai: {
+    label: "OpenAI shared-traffic daily allowance",
+    allowance:
+      "Free daily usage on traffic shared with OpenAI: 250,000 tokens/day across the flagship models (gpt-5.4, gpt-5.2, gpt-5.1, gpt-5, gpt-4.1, gpt-4o, o1, o3) and 2,500,000 tokens/day across the mini/nano models. Usage beyond those limits is billed at standard rates.",
+    // Tokens, not requests, are what OpenAI meters here. Revora keeps its own
+    // conservative daily request guard so one workspace cannot burn the whole
+    // shared allowance before the rest of the day's builds run.
+    dailyRequestCap: 600,
+  },
+
   cloudflare: {
     label: "Cloudflare Workers AI",
     allowance: "Workers Free: 10,000 Neurons per day (shared across models).",
@@ -88,6 +101,19 @@ export const FREE_ALLOWANCE: Record<
  * free-eligibility rules below before it can be used.
  */
 const FREE_MODEL_DEFAULTS: Record<FreeProviderName, Partial<Record<ModelRole, string>>> = {
+  // OpenAI's shared-traffic allowance, on Revora's own OpenAI key. Only the
+  // models OpenAI names in that allowance are listed, so nothing here can be
+  // billed while the allowance lasts. Pictures, video and transcription are NOT
+  // covered by it, so those roles are deliberately absent.
+  openai: {
+    primary: "gpt-5.4",
+    design: "gpt-5.4",
+    fast: "gpt-5.4-mini",
+    coding: "gpt-5.4",
+    vision: "gpt-4o",
+    conversation: "gpt-5.4-mini",
+  },
+
   // Verified against Cloudflare's live Workers AI catalogue; live discovery can
   // widen this, and every id is still re-checked for free eligibility.
   cloudflare: {
@@ -314,13 +340,57 @@ function llm7FreeEligible(name: string) {
   return LLM7_VERIFIED_FREE.has(id) || llm7DiscoveredFree.has(id);
 }
 
+/**
+ * The exact models OpenAI covers with its shared-traffic daily allowance. An
+ * exact-match allowlist on purpose: every other OpenAI model is billed, and a
+ * pattern would eventually let one of those into a free-only chain.
+ */
+const OPENAI_SHARED_TRAFFIC_FREE = new Set(
+  [
+    // 250,000 tokens/day pool
+    "gpt-5.4",
+    "gpt-5.2",
+    "gpt-5.1",
+    "gpt-5",
+    "gpt-4.1",
+    "gpt-4o",
+    "o1",
+    "o3",
+    // 2,500,000 tokens/day pool
+    "gpt-5.4-mini",
+    "gpt-5.4-nano",
+    "gpt-5-mini",
+    "gpt-5-nano",
+    "gpt-4.1-mini",
+    "gpt-4.1-nano",
+    "gpt-4o-mini",
+    "o3-mini",
+    "o4-mini",
+  ].map((id) => id.toLowerCase()),
+);
+
+/** Is this model inside OpenAI's shared-traffic daily allowance? */
+export function openAiSharedTrafficFree(model: string) {
+  return OPENAI_SHARED_TRAFFIC_FREE.has(model.trim().toLowerCase());
+}
+
+/** The shared-traffic allowance ids, for the admin surface. */
+export function openAiSharedTrafficModels(): string[] {
+  return [...OPENAI_SHARED_TRAFFIC_FREE];
+}
+
 export function isFreeEligibleModel(provider: FreeProviderName, model: string): boolean {
   const name = model.trim();
   if (name.length === 0) return false;
+  // OpenAI is a free provider ONLY for the ids its shared-traffic allowance
+  // covers, so this is checked before the generic paid-name rules below (which
+  // reject every `gpt-`/`o<n>` name).
+  if (provider === "openai") return openAiSharedTrafficFree(name);
   const unprefixed = provider === "groq" ? name.replace(/^openai\/(?=gpt-oss)/i, "") : name;
   if (PAID_MODEL_PATTERNS.some((pattern) => pattern.test(unprefixed))) {
     if (!(provider === "groq" && /^gpt-oss/i.test(unprefixed))) return false;
   }
+
   if (provider === "openrouter") return openRouterFree(name) && !NON_CHAT_MODEL.test(name);
   if (provider === "google") return /flash|lite|gemma|transcribe/i.test(name);
   if (provider === "groq") return groqFreeEligible(name);
@@ -345,7 +415,16 @@ export type FreeProviderCredentials = { apiKey: string; accountId?: string };
 export function freeProviderCredentials(
   provider: FreeProviderName,
 ): FreeProviderCredentials | null {
+  if (provider === "openai") {
+    // The allowance only exists while "share traffic with OpenAI" is on for the
+    // key's project. It is on for this account, and an operator can switch the
+    // free lane off with OPENAI_FREE_TIER_SHARING=false if that ever changes.
+    if (env("OPENAI_FREE_TIER_SHARING")?.toLowerCase() === "false") return null;
+    const apiKey = env("OPENAI_API_KEY");
+    return apiKey ? { apiKey } : null;
+  }
   if (provider === "cloudflare") {
+
     const apiKey = env("CLOUDFLARE_AI_API_TOKEN") ?? env("CLOUDFLARE_API_TOKEN");
     const accountId = env("CLOUDFLARE_ACCOUNT_ID");
     if (!apiKey || !accountId) return null;
@@ -386,6 +465,10 @@ export function freeModelFor(provider: FreeProviderName, role: ModelRole): strin
 /* --------------------------------- ordering -------------------------------- */
 
 const DEFAULT_ORDER: FreeProviderName[] = [
+  // OpenAI's shared-traffic allowance first: it is the strongest free pool
+  // available to this account, and it costs nothing until the daily token
+  // allowance is used up, after which OpenAI's own limits push the chain on.
+  "openai",
   "cloudflare",
   "groq",
   "nvidia",
@@ -393,6 +476,7 @@ const DEFAULT_ORDER: FreeProviderName[] = [
   "openrouter",
   "google",
 ];
+
 
 /**
  * An in-process priority override an authorised admin can set. It is deliberately

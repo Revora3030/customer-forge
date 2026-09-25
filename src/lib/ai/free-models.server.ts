@@ -253,9 +253,15 @@ export async function refreshFreeModels(
     return images;
   }
   const models =
-    provider === "openrouter"
-      ? await openRouterFreeModels(credentials)
-      : provider === "cloudflare"
+    provider === "openai"
+      ? // OpenAI's own model list, filtered down to the shared-traffic
+        // allowance ids by `isFreeEligibleModel`. A model the account can no
+        // longer address therefore drops out without a code change.
+        await openAiCompatibleFreeModels("openai", "https://api.openai.com/v1/models", credentials)
+      : provider === "openrouter"
+        ? await openRouterFreeModels(credentials)
+        : provider === "cloudflare"
+
         ? await cloudflareFreeModels(credentials)
         : provider === "groq"
           ? await openAiCompatibleFreeModels(

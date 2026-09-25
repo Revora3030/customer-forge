@@ -163,7 +163,13 @@ describe("automatic failover between free providers", () => {
     process.env["AI_DEFAULT_PROVIDER"] = "openai";
     process.env["GOOGLE_AI_API_KEY"] = "paid-google";
     process.env["OPENAI_API_KEY"] = "paid-openai";
+    // The OpenAI shared-traffic free lane is switched off here so the assertion
+    // below still proves what it is meant to prove: that no PAID lane is
+    // reached. The free lane's own behaviour is covered in
+    // openai-free-allowance.test.ts.
+    process.env["OPENAI_FREE_TIER_SHARING"] = "false";
     const { calls } = stubFetch(() => new Response("nope", { status: 500 }));
+
     const { generateStructuredOutput } = await router();
     await expect(
       generateStructuredOutput(caller, {
