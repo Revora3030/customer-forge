@@ -8,34 +8,21 @@ const getEnv = (key: string): string => {
 
 export type StripeEnv = "sandbox" | "live";
 
-const GATEWAY_STRIPE_BASE = "https://connector-gateway.lovable.dev/stripe";
-
-export function getConnectionApiKey(env: StripeEnv): string {
-  return env === "sandbox" ? getEnv("STRIPE_SANDBOX_API_KEY") : getEnv("STRIPE_LIVE_API_KEY");
+/**
+ * The app is bound to ONE connected Stripe account (bring-your-own key). Both
+ * environment names are kept for database/subscription compatibility, but every
+ * Stripe call goes to the same connected account via STRIPE_SECRET_KEY.
+ */
+export function getConnectionApiKey(_env: StripeEnv): string {
+  return getEnv("STRIPE_SECRET_KEY");
 }
 
 export function createStripeClient(env: StripeEnv): Stripe {
-  const connectionApiKey = getConnectionApiKey(env);
-  const lovableApiKey = getEnv("LOVABLE_API_KEY");
+  const secretKey = getConnectionApiKey(env);
 
-  return new Stripe(connectionApiKey, {
+  return new Stripe(secretKey, {
     apiVersion: "2026-03-25.dahlia",
-    httpClient: Stripe.createFetchHttpClient((input, init) => {
-      const stripeUrl = input instanceof Request ? input.url : input.toString();
-      const gatewayUrl = stripeUrl.replace("https://api.stripe.com", GATEWAY_STRIPE_BASE);
-      return fetch(gatewayUrl, {
-        ...init,
-        headers: {
-          ...Object.fromEntries(
-            new Headers(
-              init?.headers ?? (input instanceof Request ? input.headers : undefined),
-            ).entries(),
-          ),
-          "X-Connection-Api-Key": connectionApiKey,
-          "Lovable-API-Key": lovableApiKey,
-        },
-      });
-    }),
+    httpClient: Stripe.createFetchHttpClient(),
   });
 }
 
