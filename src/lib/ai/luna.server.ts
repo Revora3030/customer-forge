@@ -28,7 +28,7 @@ import {
 
 /** Microcents: one hundred-millionth of a dollar. $20 => 2_000_000_000. */
 export const MICROCENTS_PER_DOLLAR = 100_000_000;
-export const DEFAULT_MONTHLY_CAP_MICROCENTS = 20 * MICROCENTS_PER_DOLLAR;
+export const DEFAULT_MONTHLY_CAP_MICROCENTS = 100 * MICROCENTS_PER_DOLLAR;
 
 /** The paid orchestrator model. Overridable without a deploy. */
 export const DEFAULT_LUNA_MODEL = "gpt-6-luna";
@@ -136,7 +136,7 @@ export function availableTiers(): CollectiveTier[] {
 }
 
 export function lunaMonthlyCapMicrocents(): number {
-  const dollars = dollarsEnv("LUNA_MONTHLY_CAP_USD", 20);
+  const dollars = dollarsEnv("LUNA_MONTHLY_CAP_USD", 100);
   return Math.round(dollars * MICROCENTS_PER_DOLLAR);
 }
 
