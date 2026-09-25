@@ -1,15 +1,14 @@
 /**
  * Section-level wording authority.
  *
- * The deterministic renderer supplies a *fillable* heading, subheading and body
- * for every section so a build is never blank. This pass hands that wording to
+ * The materializer supplies the AI-authored heading, subheading and body for
+ * every section. This pass hands that wording to
  * the premium tiers: Sol rewrites it section by section with the page it lives
  * on and the role it plays in view, Terra approves each section individually,
  * and every accepted string still passes the same fact gate as the first-build
  * copy — nothing may invent a price, a phone number, an email or a claim.
  *
- * When the paid lane is off, out of budget, unavailable, refused, or answers in
- * the wrong shape, the deterministic wording survives untouched.
+ * A missing or unusable model result is a hard failure for a new build.
  */
 import { callBestThinker } from "@/lib/ai/hall-of-fame.server";
 import type { DnaFacts } from "@/lib/business-dna";
@@ -157,7 +156,7 @@ function record(
 /**
  * Sol rewrites every section's wording in one pass, Terra approves section by
  * section, and only fact-safe changes are returned. An empty patch list means
- * the deterministic wording stands.
+ * the build must stop rather than ship unreviewed wording.
  */
 export async function refineSectionWordingWithCollective(input: {
   organizationId: string;
@@ -186,7 +185,7 @@ export async function refineSectionWordingWithCollective(input: {
       facts,
       ...(input.directionSummary ? ["", "APPROVED CREATIVE DIRECTION:", input.directionSummary] : []),
       "",
-      "SECTIONS AS BUILT (wording written by a deterministic renderer):",
+       "AI-AUTHORED SECTIONS AS BUILT:",
       sheet,
       "",
       'Return JSON: {"sections":[{"id":"...","heading":"...","subheading":"...","body":"..."}]}',

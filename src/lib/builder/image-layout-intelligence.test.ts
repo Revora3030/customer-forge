@@ -77,6 +77,7 @@ describe("image → layout intelligence", () => {
       mood: "calm",
       section: ["hero"],
       mobileCrop: "4:5 at 320px",
+      altText: "Detailed car in a clean work bay",
       constraints: ["no text"],
       evidenceTag: "AI_GENERATED_MARKETING_VISUAL",
     });

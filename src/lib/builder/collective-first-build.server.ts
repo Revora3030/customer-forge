@@ -7,14 +7,12 @@
  *  1. Sol proposes a bounded creative direction that can change the real
  *     fingerprint, brief, image briefs and page composition.
  *  2. Terra reviews Sol's creative proposal adversarially, field by field.
- *  3. Sol proposes stronger wording for the deterministic copy.
+ *  3. Sol authors the visitor-facing wording from the supplied facts.
  *  4. Terra reviews Sol's copy proposal, then Luna tightens metadata only.
  *
- * Nothing a model returns is trusted: creative choices are mapped onto closed
- * renderer vocabularies and copy passes through the fact gate before it can
- * reach the page. When the paid lane is off, unavailable, out of budget,
- * refuses, or answers in the wrong shape, this returns the deterministic build
- * completely unchanged and says so — the build never depends on paid AI.
+ * Nothing a model returns is trusted: values pass safety validation and copy
+ * passes through the fact gate before it can reach the page. Callers require
+ * complete AI output and stop the build when the team cannot provide it.
  */
 import { callBestThinker } from "@/lib/ai/hall-of-fame.server";
 import { screenClaims, type DnaFacts } from "@/lib/business-dna";
@@ -211,7 +209,7 @@ function creativeSheet(creative: FirstBuildCreativeDirection) {
     {
       // Look, layout, hero, rhythm, cards, CTA style and backgrounds are left
       // undecided on purpose: Sol authors them. Only non-creative constraints
-      // (conversion goals, photo status, image slots, quality bar) are sent.
+      // (conversion goals, photo status and quality bar) are sent.
       designDecisions: "undecided — you author every visual and structural choice",
       currentBrief: {
         mobileStrategy: creative.brief.mobileStrategy,
@@ -230,12 +228,6 @@ function creativeSheet(creative: FirstBuildCreativeDirection) {
       },
       referenceInspiration: creative.referenceSignals ?? null,
       imageStatus: creative.imagery.status,
-      plannedShots: creative.imagery.shots.map((shot) => ({
-        slot: shot.slot,
-        label: shot.label,
-        placement: shot.placement,
-        aspect: shot.aspect,
-      })),
     },
     null,
     2,
@@ -474,6 +466,14 @@ export function mergeCreativeRefinement(
       ...creative.imagery,
       language: brief.photography.language,
       treatment: brief.photography.treatment,
+      shots: brief.imageInventory.map((item) => ({
+        slot: item.slot as FirstBuildCreativeDirection["imagery"]["shots"][number]["slot"],
+        label: item.label,
+        purpose: item.purpose,
+        aspect: item.aspectRatio,
+        placement: item.section,
+        subjectHint: item.subject,
+      })),
     },
   };
 }
@@ -560,10 +560,8 @@ async function refineCreativeWithCollective(input: {
   });
 
   let proposal: Record<string, unknown> | null = null;
-  if (!solCall.ok) {
-    passes.push(record(solCall.wanted, "creative_direction", { skipped: solCall.detail ?? solCall.reason }));
-    return { creative: input.creative, changed: false, passes };
-  }
+  if (!solCall.ok)
+    throw new Error(`Sol could not author the creative direction (${solCall.detail ?? solCall.reason}). Nothing was generated.`);
 
   proposal = parseCreativeProposal(solCall.text);
   passes.push(
@@ -575,7 +573,7 @@ async function refineCreativeWithCollective(input: {
       acceptedFields: creativeApprovableFields(proposal),
     }),
   );
-  if (!proposal) return { creative: input.creative, changed: false, passes };
+  if (!proposal) throw new Error("Sol's creative direction was unreadable. Nothing was generated.");
 
   let approvedFields: string[] | null = null;
   const terraCall = await callBestThinker({
@@ -601,7 +599,7 @@ async function refineCreativeWithCollective(input: {
   });
 
   if (!terraCall.ok) {
-    passes.push(record(terraCall.wanted, "creative_review", { skipped: terraCall.detail ?? terraCall.reason }));
+    throw new Error(`Terra could not review the creative direction (${terraCall.detail ?? terraCall.reason}). Nothing was generated.`);
   } else {
     const parsed = parseReview(terraCall.text);
     approvedFields = parsed ? parsed.approvedFields : [];
@@ -635,7 +633,8 @@ async function refineCreativeWithCollective(input: {
     if (!acceptedFields.length && !solPass.skipped)
       solPass.skipped = "every proposed creative field was refused by the safety check";
   }
-  if (!acceptedFields.length) return { creative: input.creative, changed: false, passes };
+  if (!acceptedFields.length || !gated.accepted.brief?.imageInventory?.length)
+    throw new Error("The reviewed creative direction did not include a complete AI-authored picture campaign. Nothing was generated.");
   return {
     creative: mergeCreativeRefinement(input.creative, gated.accepted),
     changed: true,

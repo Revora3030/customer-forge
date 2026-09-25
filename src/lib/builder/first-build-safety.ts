@@ -5,7 +5,6 @@
  */
 import { screenClaims, type DnaFacts } from "@/lib/business-dna";
 import type { SiteCopy } from "@/lib/site-engine";
-import type { WebsitePlan } from "@/lib/website-plan";
 
 export type SafetyProblem = { code: string; detail: string };
 
@@ -16,7 +15,7 @@ const COPY_FIELDS: (keyof SiteCopy)[] = [
   "areaCopy", "metaTitle", "metaDescription", "ogTitle", "ogDescription",
 ];
 
-export function checkFirstBuildSafety(input: { facts: DnaFacts; plan: WebsitePlan; copy: SiteCopy }): SafetyProblem[] {
+export function checkFirstBuildSafety(input: { facts: DnaFacts; copy: SiteCopy }): SafetyProblem[] {
   const problems: SafetyProblem[] = [];
   const lines = [
     ...COPY_FIELDS.map((key) => String(input.copy[key] ?? "")),
@@ -32,6 +31,5 @@ export function checkFirstBuildSafety(input: { facts: DnaFacts; plan: WebsitePla
   if (!has(input.copy.heroHeadline)) problems.push({ code: "missing-headline", detail: "The home page needs a headline." });
   if (!has(input.copy.primaryCta)) problems.push({ code: "missing-primary-action", detail: "The website needs one clear primary action." });
   if (!has(input.copy.metaTitle) || !has(input.copy.metaDescription)) problems.push({ code: "missing-search-metadata", detail: "Search title and description are required." });
-  if (input.plan.pages.some((page) => !/^[a-z0-9-]+$/i.test(page.key))) problems.push({ code: "unsafe-page-path", detail: "The sitemap contains an unsafe page path." });
   return problems;
 }
