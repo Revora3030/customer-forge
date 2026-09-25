@@ -58,7 +58,7 @@ function PortalApp() {
         </div>
       </aside>
       <div className="min-w-0 flex-1">
-        <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-border bg-background/95 px-4 backdrop-blur lg:hidden">
+        <header className="sticky top-0 z-30 flex h-[calc(3.5rem+env(safe-area-inset-top))] pt-[env(safe-area-inset-top)] items-center gap-3 border-b border-border bg-background/95 px-4 backdrop-blur lg:hidden">
           <Button variant="ghost" size="icon-sm" onClick={() => setNavOpen(true)} aria-label="Open navigation"><Menu className="size-4" /></Button>
           <p className="truncate text-[13px] font-medium">{org?.name ?? "Your business"}</p>
         </header>
