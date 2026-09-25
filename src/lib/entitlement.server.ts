@@ -27,7 +27,7 @@ export async function orgEntitlement(
     return { allowed: false, reason: "We couldn't verify your workspace.", state: "EXPIRED" };
   if (org.is_demo) return { allowed: true, reason: "demo", state: "DEMO" };
   if (!org.is_suspended && isPlatformOwnerOrg(org.id))
-    return { allowed: true, reason: "platform owner", state: "ACTIVE" };
+    return { allowed: true, reason: "platform owner", state: "ACTIVE_SUBSCRIPTION" };
 
   // Builder usage itself is never metered: access is the only gate.
   const access = resolveAccess(org as never);
