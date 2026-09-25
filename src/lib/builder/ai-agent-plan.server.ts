@@ -189,7 +189,7 @@ const textList = (value: unknown, limit: number, max = 300): string[] =>
  * Terra's review. It may only *remove* actions and add notes, so a review can
  * never introduce a change the owner's request and facts do not support.
  */
-function applyReview(
+export function applyReview(
   actions: unknown[],
   review: Record<string, unknown> | null,
 ): { actions: unknown[]; notes: string[] } {
@@ -205,6 +205,30 @@ function applyReview(
         .filter((value) => Number.isInteger(value))
     : [];
   for (const value of rejectNumbers) rejected.add(value);
+  // Dependency-aware: a rejected action that CREATES a ref (a new section,
+  // component or page) is reinstated when a kept action builds on that ref —
+  // otherwise the kept action would be orphaned and silently dropped. The
+  // reviewer's objection ("empty section") is answered by the dependent.
+  const refOf = (action: unknown) => {
+    const ref = (action as Record<string, unknown> | null)?.["ref"];
+    return typeof ref === "string" && ref ? ref : null;
+  };
+  const uses = (action: unknown, ref: string) =>
+    Object.entries((action ?? {}) as Record<string, unknown>).some(
+      ([key, value]) => key !== "ref" && typeof value === "string" && value === ref,
+    );
+  let changed = true;
+  while (changed) {
+    changed = false;
+    actions.forEach((action, index) => {
+      const ref = refOf(action);
+      if (!ref || !rejected.has(index)) return;
+      if (actions.some((other, j) => j !== index && !rejected.has(j) && uses(other, ref))) {
+        rejected.delete(index);
+        changed = true;
+      }
+    });
+  }
   const kept = actions.filter((_, index) => !rejected.has(index));
   return { actions: kept, notes: textList(review["notes"], 6) };
 }
