@@ -46,13 +46,11 @@ import { planQualityImprovements } from "@/lib/builder/quality-improvement-plan"
 import { PublishRetryBar } from "@/components/app/PublishRetryBar";
 
 
-import { EffectStudio } from "@/components/app/EffectStudio";
 import { ImageStudio } from "@/components/app/ImageStudio";
-import { readBackdrop, writeBackdrop } from "@/lib/site-effects";
+import { readBackdrop } from "@/lib/site-effects";
 import { BuilderAudit } from "@/components/app/BuilderAudit";
-import { BuilderCanvas } from "@/components/app/BuilderCanvas";
 import { BuilderPreview, type PreviewSelection } from "@/components/app/BuilderPreview";
-import { Eye, History, Menu, MousePointer2, Paintbrush, Settings2 } from "lucide-react";
+import { Eye, History, Menu, Settings2 } from "lucide-react";
 import { PreFlightPanel } from "@/components/app/PreFlight";
 import { preflight } from "@/lib/preflight";
 import { usePreflightFacts } from "@/lib/preflight.hooks";
@@ -63,7 +61,6 @@ import { LaunchChecks } from "@/components/app/LaunchChecks";
 import { VisualCheckPanel } from "@/components/app/VisualCheckPanel";
 import { VisionReviewPanel } from "@/components/app/VisionReviewPanel";
 import { LiveSyncPanel } from "@/components/app/LiveSyncPanel";
-import { SiteUpgradePanel } from "@/components/app/SiteUpgradePanel";
 import { PortalAccess } from "@/components/app/PortalAccess";
 import { PreviewLinks, PreviewSiteButton } from "@/components/app/PreviewLinks";
 import { VersionDiff } from "@/components/app/VersionDiff";
@@ -219,7 +216,6 @@ function WebsitePage() {
   const [previewOpen, setPreviewOpen] = useState(false);
   /** The block the owner clicked in the preview, scoping their next message. */
   const [selected, setSelected] = useState<PreviewSelection | null>(null);
-  const [editorMode, setEditorMode] = useState<"content" | "visual" | null>(null);
 
   /** One request engine for the whole workspace. */
   const requests = useBuilderRequests({ organizationId: orgId ?? null, canManage: manage });
