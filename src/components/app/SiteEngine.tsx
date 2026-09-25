@@ -471,8 +471,7 @@ export function VersionHistory({
                   ) : null}
                 </p>
                 <p className="text-[12px] text-muted-foreground">
-                  Saved {dateShort(String(v.created_at))} · template{" "}
-                  {String(v.template ?? "default")}
+                  Saved {dateShort(String(v.created_at))}
                 </p>
               </div>
               <div className="flex items-center gap-2">

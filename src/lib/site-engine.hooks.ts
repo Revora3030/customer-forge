@@ -188,7 +188,6 @@ export function useSnapshotWebsiteVersion(organizationId: string | undefined) {
         organization_id: orgId,
         version,
         label: label ?? `Version ${version}`,
-        template: settings.template,
         generation: settings.generation as never,
         seo: settings.seo as never,
         pages: { settings_pages: settings.pages ?? null, content } as never,
@@ -231,7 +230,6 @@ export function useRestoreWebsiteVersion(organizationId: string | undefined) {
       const { error } = await supabase.from("website_settings").upsert(
         {
           organization_id: orgId,
-          template: snapshot.template ?? "default",
           generation: snapshot.generation as never,
           seo: snapshot.seo as never,
           pages: settingsPages as never,

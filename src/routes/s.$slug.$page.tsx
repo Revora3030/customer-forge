@@ -169,7 +169,7 @@ export function SitePageView({
             <CompositionRenderer as="div" scope="site-header" tree={chrome.header} resolveHref={chromeHref} />
           </header>
         ) : (
-        <header className={`rv-site-header rv-header-${campaign?.header ?? "solid"} sticky top-0 z-40 border-b border-border bg-background text-foreground`}>
+        <header className="rv-site-header sticky top-0 z-40 border-b border-border bg-background text-foreground">
           <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3.5">
             <SitePageLink slug={org.slug} className="min-w-0 max-w-40 sm:max-w-none">
               <p className="break-words font-display text-[16px] leading-tight font-semibold">{org.name}</p>

@@ -879,7 +879,6 @@ async function runJob(
             (screenshotReference as { applied?: unknown }).applied === true,
         },
         firstBuildCreative: creative,
-        siteCampaign: built.campaign,
         screenshotReference,
         screenshotReferenceObservations: storedReferenceObservations ?? null,
         designFingerprint: { ...creative.fingerprint, updatedAt: new Date().toISOString() },
