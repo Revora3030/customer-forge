@@ -47,6 +47,8 @@ import {
   freeBudgetAllows,
   freeBudgetCap,
   freeBudgetRemaining,
+  freeImageBudgetCap,
+  freeImageBudgetKey,
   freeProviderChain,
   freeProviderCredentials,
   freeProviderReadiness,
@@ -259,7 +261,9 @@ export async function freeModelPool(
     // far more of the free daily allowance than one short answer.
     if (!freeBudgetAllows(entry.name, role)) continue;
     // Shared counters: skip a provider another worker has already exhausted.
-    if (durableBudgetExhausted(entry.name, freeBudgetCap(entry.name))) continue;
+    const durableKey = role === "image" ? freeImageBudgetKey(entry.name) : entry.name;
+    const durableCap = role === "image" ? freeImageBudgetCap(entry.name) : freeBudgetCap(entry.name);
+    if (durableBudgetExhausted(durableKey, durableCap)) continue;
     if (durableProviderResting(entry.name)) continue;
     const models: string[] = [];
     const consider = (model: string) => {
@@ -482,8 +486,8 @@ async function run<T>(
   // REACHABILITY GATE, then QUALITY-FIRST ORDER. Paid providers only enter this
   // chain when an operator has explicitly opted out of free-only and zero-cost
   // mode; whatever is reachable is then ranked on capability and quality, with
-  // cost last. An empty chain is not a crash: the caller falls back to Revora's
-  // deterministic engine and the owner gets a precise explanation.
+  // cost last. An empty chain is an explicit AI failure; creative callers stop
+  // rather than substituting a built-in website engine.
   const chain = await buildChain(caller, role, options?.capable, options?.freeOnly === true);
   if (chain.length === 0) throw freeAiUnavailable("no free provider configured or in budget");
 
@@ -515,7 +519,9 @@ async function run<T>(
         try {
           if (candidate.free) {
             noteFreeUse(candidate.free, role);
-            void noteDurableFreeUse(candidate.free, freeBudgetCap(candidate.free));
+            const durableKey = role === "image" ? freeImageBudgetKey(candidate.free) : candidate.free;
+            const durableCap = role === "image" ? freeImageBudgetCap(candidate.free) : freeBudgetCap(candidate.free);
+            void noteDurableFreeUse(durableKey, durableCap);
           }
           const result = await execute({ adapter, config, model, signal: controller.signal });
           noteSuccess(breakerScope);
@@ -693,7 +699,7 @@ export async function generateStructuredOutput(
   // The shape check runs INSIDE the provider loop, so a model that answers with
   // something unparseable is treated as that provider failing: the next free
   // provider is tried, and only when none can answer does the caller fall back
-  // to Revora's deterministic engine.
+  // to another AI provider in the capability chain.
   const outcome = await run(
     caller,
     request.role ?? "primary",

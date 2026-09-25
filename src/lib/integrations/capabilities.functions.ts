@@ -15,7 +15,7 @@ export type IntegrationCenterData = {
   freeOnly: boolean;
   capabilities: CapabilitySnapshot[];
   providers: ProviderSnapshot[];
-  summary: { ready: number; deterministic: number; needsConnection: number; unavailable: number };
+  summary: { ready: number; needsConnection: number; unavailable: number };
 };
 
 export const getIntegrationCenter = createServerFn({ method: "GET" })
@@ -36,7 +36,6 @@ export const getIntegrationCenter = createServerFn({ method: "GET" })
     const capabilities = await capabilitySnapshot();
     const summary = {
       ready: capabilities.filter((entry) => entry.status === "ready").length,
-      deterministic: capabilities.filter((entry) => entry.status === "deterministic").length,
       needsConnection: capabilities.filter((entry) => entry.status === "needs_connection").length,
       unavailable: capabilities.filter((entry) => entry.status === "unavailable").length,
     };

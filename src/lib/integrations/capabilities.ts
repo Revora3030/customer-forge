@@ -5,8 +5,7 @@
  * never for a vendor. This module owns the honest catalogue: which capabilities
  * exist, which provider can serve each one, which server credentials that
  * provider needs, whether Revora has actually implemented the server-side call
- * for it, and whether a deterministic Revora path can cover it when nothing is
- * connected.
+ * for it.
  *
  * Nothing here reads credentials or talks to a provider — it contains no
  * secrets and is safe to import from a component. The runtime half lives in
@@ -16,8 +15,8 @@
  *  - `implemented: false` means catalogued only. It can never report "ready",
  *    no matter how many keys are configured.
  *  - `cost: "paid"` providers are never selected while free-only mode is on.
- *  - A capability without a deterministic fallback reports "unavailable"
- *    instead of pretending a text fallback is equivalent (image, voice, SMS).
+ *  - A capability without a ready provider reports its real unavailable or
+ *    connection-required state; no built-in engine is claimed.
  */
 
 export type Capability =
@@ -73,8 +72,6 @@ export type ProviderStatus =
 export type CapabilityStatus =
   /** An authorized provider can serve it right now. */
   | "ready"
-  /** No provider, but Revora's own deterministic path covers it. */
-  | "deterministic"
   /** A provider is implemented but not yet authorized. */
   | "needs_connection"
   /** Genuinely cannot be done here, and nothing pretends otherwise. */
@@ -100,19 +97,9 @@ export type CapabilitySnapshot = {
   /** The provider that would serve the next call, when there is one. */
   selected: string | null;
   fallback: string | null;
-  deterministic: boolean;
   providers: ProviderSnapshot[];
   detail: string;
 };
-
-/** Revora's own deterministic engine, by capability. */
-export const DETERMINISTIC_CAPABILITIES: Capability[] = [
-  "ai.text",
-  "research.web",
-  "seo.keywords",
-  "crm.leads",
-  "storage.files",
-];
 
 export const CAPABILITY_LABELS: Record<Capability, string> = {
   "ai.text": "Writing and planning",
@@ -346,11 +333,6 @@ export function providersFor(capability: Capability): ProviderDefinition[] {
   return PROVIDERS.filter((provider) => provider.capabilities.includes(capability));
 }
 
-/** True when a capability has a deterministic Revora path if nothing is connected. */
-export function hasDeterministicPath(capability: Capability): boolean {
-  return DETERMINISTIC_CAPABILITIES.includes(capability);
-}
-
 /**
  * The provider Revora would use next, given what is configured. Pure so the
  * same decision can be checked without any environment.
@@ -375,14 +357,12 @@ export function capabilityStatus(input: {
   anyImplemented: boolean;
 }): CapabilityStatus {
   if (input.selected) return "ready";
-  if (hasDeterministicPath(input.capability)) return "deterministic";
   if (input.anyImplemented) return "needs_connection";
   return "unavailable";
 }
 
 export const CAPABILITY_STATUS_LABELS: Record<CapabilityStatus, string> = {
   ready: "Ready",
-  deterministic: "Revora's own engine",
   needs_connection: "Needs connection",
   unavailable: "Not available here",
 };

@@ -56,7 +56,7 @@ export type SiteBrief = {
   toneNotes: string;
   /** Facts the site would be stronger with — never guessed, only requested. */
   missingFacts: string[];
-  /** Which model produced the brief, or "rules" for the deterministic fallback. */
+  /** Which model produced the brief, or null when no AI-authored brief exists. */
   source: string;
   /** The owner reviewed (and possibly edited) this brief and approved the build. */
   approved: boolean;

@@ -23,7 +23,6 @@ import { analyzeSiteBrief, runSiteGeneration, saveSiteBrief } from "@/lib/site-e
 
 import {
   WEBSITE_GOALS,
-  generateWebsitePlan,
   revoraShareAddress,
   safeSlug,
   type GoalKey,
@@ -433,45 +432,15 @@ function Onboarding() {
         console.error("[onboarding] quote calculator seed failed", supabaseErrorMessage(seedError));
       }
 
-      const plan = generateWebsitePlan({
-        businessName: draft.businessName,
-        industry: draft.industry,
-        description: draft.about,
-        city: draft.city,
-        state: draft.state,
-        serviceArea: draft.serviceArea || draft.city,
-        phone: draft.phone,
-        email: draft.email,
-        goals,
-        services: services.map((s) => ({
-          name: s.name,
-          description: s.description,
-          price: s.price ? Number(s.price) : null,
-        })),
-        photoCount: draft.heroImageUrl ? 1 : 0,
-        testimonialCount: testimonials.length,
-        hasCredentials: Boolean(draft.certifications || draft.awards || draft.yearsInBusiness),
-        hasHours: Boolean(draft.hours),
-        socialLinks: [socialRow.instagram, socialRow.facebook, socialRow.google_business].filter(
-          Boolean,
-        ).length,
-      });
-
       const { error: settingsError } = await supabase.from("website_settings").upsert(
         {
           organization_id: org.id,
-          template: plan.template,
+          template: null,
           publish_state: "preview",
-          review_state: "ready_for_review",
-          generation: plan as never,
-          generated_at: plan.generatedAt,
-          seo: {
-            headline: plan.headline,
-            subheadline: plan.subheadline,
-            meta_description: plan.metaDescription,
-            primary_cta_label: plan.primaryCtaLabel,
-            title: plan.seoTitle,
-          } as never,
+          review_state: "generating",
+          generation: {} as never,
+          generated_at: null,
+          seo: {} as never,
         } as never,
         { onConflict: "organization_id" },
       );

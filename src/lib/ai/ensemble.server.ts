@@ -1,7 +1,7 @@
 /**
  * The Revora free-AI ensemble orchestrator.
  *
- * Revora's deterministic engine is still the thing that writes to a site. This
+ * Revora's validated execution layer is still the thing that writes to a site. This
  * module is the advisory layer in front of it: it puts the ENTIRE verified free
  * model pool to work on one job at the same time, as a coordinated agency of
  * specialists rather than a single model doing everything.
@@ -19,7 +19,7 @@
  * - No model is a single point of failure. One model failing, timing out or
  *   answering rubbish removes that one result; the rest of the ensemble carries
  *   the job. An empty ensemble returns no proposal, and the caller keeps its
- *   deterministic result.
+ *   validated result.
  * - Bounded work. Global concurrency, per-provider concurrency, a per-call
  *   timeout and a wall-clock deadline are all enforced, so "use every model"
  *   never becomes a 67x latency wall.

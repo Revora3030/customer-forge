@@ -16,7 +16,7 @@ import {
   blankDesignFingerprint,
   type DesignFingerprint,
 } from "@/lib/builder/design-fingerprint";
-import { planShots, type PlannedShot } from "@/lib/visual-direction";
+import type { PlannedShot } from "@/lib/builder/image-campaign";
 import { assetPlanFor, type AssetPlan } from "@/lib/builder/asset-intelligence";
 import {
   SITE_WIDE_CREATIVE_QUALITY_MATRIX,
@@ -78,6 +78,8 @@ export type ImageBriefSpec = {
   mood: string;
   section: string[];
   mobileCrop: string;
+  /** Truthful description of the visible subject, authored with the campaign. */
+  altText: string;
   constraints: string[];
   evidenceTag: VisualEvidenceTag;
 };
@@ -196,6 +198,7 @@ function blankImageBrief(shot: PlannedShot): ImageBriefSpec {
     mood: "",
     section: [...shot.placement],
     mobileCrop: "must stay readable at 320px",
+    altText: "",
     constraints: [...IMAGE_CONSTRAINTS],
     evidenceTag: AI_GENERATED_MARKETING_VISUAL,
   };
@@ -283,12 +286,9 @@ export function blankFirstBuildDirection(input: FirstBuildCreativeInput): FirstB
     ...blankDesignFingerprint(),
     id: `fp_${slug(input.organizationId).slice(0, 24)}`,
   };
-  const shots = planShots({
-    direction: null,
-    serviceNames,
-    hasHeroImage: input.hasHeroImage === true,
-    mediaCount: input.photoCount,
-  });
+  // Empty by design. Sol authors the picture campaign after seeing the facts;
+  // no built-in slot inventory or image style is supplied as a starting point.
+  const shots: PlannedShot[] = [];
   const assetPlan = assetPlanFor(
     { businessName: input.businessName, logoUrl: null, heroImageUrl: null },
     ["hero"],
@@ -304,7 +304,7 @@ export function blankFirstBuildDirection(input: FirstBuildCreativeInput): FirstB
       avoid: [...dna.prohibited],
     },
     audience: dna.targetCustomer,
-    offerHierarchy: serviceNames.slice(0, 12),
+    offerHierarchy: serviceNames,
     conversion: {
       goal: dna.desiredAction,
       primaryCta: dna.primaryCta,

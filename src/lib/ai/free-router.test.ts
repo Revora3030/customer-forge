@@ -310,6 +310,6 @@ describe("no free provider available", () => {
     const error = freeAiUnavailable("no free provider configured or in budget");
     expect(error.category).toBe("free_unavailable");
     expect(error.retryable).toBe(false);
-    expect(error.message).toMatch(/no paid AI is required/i);
+    expect(error.message).toMatch(/nothing was generated/i);
   });
 });

@@ -1,7 +1,7 @@
 /**
  * The Revora model collective — who should think about what.
  *
- * Three paid tiers sit above the free model fabric and the deterministic
+ * Three paid tiers sit above the free and paid model fabric plus the validated
  * engine:
  *
  *  - `sol`   master reasoning: fresh creative strategy, information
@@ -18,7 +18,7 @@
  * are unit-testable. Credential gating, budget reservation, spend accounting
  * and the actual HTTP call all live in `luna.server.ts`; no tier can ever be
  * reached without passing through those gates, and no tier can bypass the
- * deterministic execution, fact locks, tenant isolation, verification,
+ * validated execution, fact locks, tenant isolation, verification,
  * rollback or publishing gates.
  */
 
@@ -143,7 +143,7 @@ export type TierSelection =
 /**
  * Picks the tier for a task, then degrades gracefully to the strongest tier
  * that is actually available. When nothing paid is available the answer is
- * `null` and the caller stays on the free fabric plus the deterministic engine
+ * `null` and the caller stays on the free AI fabric
  * — never a silent paid substitution, never a blocked build.
  */
 export function selectTier(input: {

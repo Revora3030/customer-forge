@@ -92,7 +92,7 @@ function headingText(value: unknown, max: number): string | null {
   return value2;
 }
 
-type RawSection = { role: string; heading: string | null; subheading: string | null; body: string | null };
+type RawSection = { role: string; heading: string | null; subheading: string | null; body: string | null; layout: string | null; intent: string | null; media: "none" | "optional" | "required" | null };
 
 function sectionRoles(value: unknown): RawSection[] {
   if (!Array.isArray(value)) return [];
@@ -100,13 +100,14 @@ function sectionRoles(value: unknown): RawSection[] {
   for (const entry of value) {
     if (typeof entry === "string") {
       const role = text(entry);
-      if (role) roles.push({ role, heading: null, subheading: null, body: null });
+      if (role) roles.push({ role, heading: null, subheading: null, body: null, layout: null, intent: null, media: null });
       continue;
     }
     if (entry && typeof entry === "object") {
-      const row = entry as { role?: unknown; heading?: unknown; subheading?: unknown; body?: unknown };
+      const row = entry as { role?: unknown; heading?: unknown; subheading?: unknown; body?: unknown; layout?: unknown; intent?: unknown; media?: unknown };
       const role = text(row.role);
-      if (role) roles.push({ role, heading: headingText(row.heading, 120), subheading: headingText(row.subheading, 260), body: headingText(row.body, 1200) });
+      const media = row.media === "required" || row.media === "optional" || row.media === "none" ? row.media : null;
+      if (role) roles.push({ role, heading: headingText(row.heading, 120), subheading: headingText(row.subheading, 260), body: headingText(row.body, 1200), layout: headingText(row.layout, 100), intent: headingText(row.intent, 300), media });
     }
   }
   return roles;
@@ -133,7 +134,8 @@ function sameShape(a: PageArchitecture[], b: PageArchitecture[]): boolean {
 const FEATURE_ROLES = new Set(["quote", "booking", "contact", "sticky_cta", "embed", "post_list", "composition", "hero", "gallery", "feature_media"]);
 const SAFE_ROLE = /^[a-z][a-z0-9_]{1,30}$/;
 const SAFE_SLUG = /^[a-z0-9][a-z0-9-]{1,39}$/;
-export const MAX_INVENTED_PAGES = 4;
+/** Resource ceiling only; it is not a prescribed site size. */
+export const MAX_INVENTED_PAGES = 24;
 
 export function normalizePageArchitecture(input: {
   proposal: RawPage[];
@@ -147,14 +149,14 @@ export function normalizePageArchitecture(input: {
 
   const inventedSection = (slug: string, s: RawSection) => {
     if (!SAFE_ROLE.test(s.role) || FEATURE_ROLES.has(s.role)) {
-      rejected.push({ field: `page.${slug}.${s.role}`, reason: "a new section needs a plain name and cannot be a form, booking, contact, embed, hero or gallery" });
+      rejected.push({ field: `page.${slug}.${s.role}`, reason: "a new section needs a plain name and cannot invent an unavailable functional feature" });
       return null;
     }
     if (!s.heading) {
       rejected.push({ field: `page.${slug}.${s.role}`, reason: "a new section needs its own heading" });
       return null;
     }
-    return { role: s.role, heading: s.heading, subheading: s.subheading, body: s.body, custom: true, media: "none" as const };
+    return { role: s.role, heading: s.heading, subheading: s.subheading, body: s.body, custom: true, layout: s.layout ?? undefined, intent: s.intent ?? undefined, media: s.media ?? "none" as const };
   };
 
   for (const raw of input.proposal) {
@@ -180,15 +182,28 @@ export function normalizePageArchitecture(input: {
 
     const sections: PageArchitecture["sections"] = [];
     for (const entry of sectionRoles(raw.sections)) {
-      const { role, heading, subheading } = entry;
+      const { role, heading, subheading, body, layout, intent, media } = entry;
       const left = available.get(role) ?? 0;
       if (left > 0) {
         available.set(role, left - 1);
-        sections.push({ role, heading, subheading });
+        sections.push({
+          role, heading, subheading, body, media: media ?? "none",
+          ...(layout ? { layout } : {}),
+          ...(intent ? { intent } : {}),
+        });
         continue;
       }
       const made = inventedSection(slug, entry);
-      if (made) sections.push(made);
+      if (made) sections.push({
+        role: made.role,
+        heading: made.heading,
+        subheading: made.subheading,
+        body: made.body,
+        custom: true,
+        media: made.media,
+        ...(made.layout ? { layout: made.layout } : {}),
+        ...(made.intent ? { intent: made.intent } : {}),
+      });
     }
     if (sections.length === 0) {
       rejected.push({ field: `page.${slug}`, reason: "the page was left with no sections" });

@@ -7,7 +7,7 @@
  * switched paid pictures on, plus for the precision changes the free fabric has
  * never been able to prove it can do. It is deliberately strict:
  *
- *  1. off unless `PAID_IMAGE_ENABLED` is explicitly opted in,
+ *  1. on when Luna is configured, unless `PAID_IMAGE_ENABLED` explicitly opts out,
  *  2. off unless the paid lane as a whole is enabled and an OpenAI key exists,
  *  3. the model is chosen by JOB, not by caller: the premium Sunburst tier makes
  *     the hero/editorial frames and every change to an existing picture, the fast
@@ -79,6 +79,11 @@ function optedIn(name: string): boolean {
   return raw === "true" || raw === "1" || raw === "on" || raw === "yes";
 }
 
+function optedOut(name: string): boolean {
+  const raw = (env(name) ?? "").toLowerCase();
+  return raw === "false" || raw === "0" || raw === "off" || raw === "no";
+}
+
 /** The model wired for a tier: environment override first, then the pinned default. */
 export function paidImageTierModel(tier: ImageTier): string {
   const override = env(IMAGE_TIER_MODEL_ENV[tier]);
@@ -100,12 +105,12 @@ export function paidImagePriceMicrocents(tier: ImageTier = "sunburst"): number {
 
 /** True only when a paid picture may genuinely be attempted right now. */
 export function paidImageAllowed(): boolean {
-  return optedIn("PAID_IMAGE_ENABLED") && lunaEnabled();
+  return !optedOut("PAID_IMAGE_ENABLED") && lunaEnabled();
 }
 
 /** Plain-language status for the builder, safe to show a business owner. */
 export function paidImageStatus(): { allowed: boolean; message: string } {
-  if (!optedIn("PAID_IMAGE_ENABLED"))
+  if (optedOut("PAID_IMAGE_ENABLED"))
     return {
       allowed: false,
       message: "The specialist picture team is switched off, so the standard capability-matched picture lane is used.",

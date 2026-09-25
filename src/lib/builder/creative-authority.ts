@@ -110,8 +110,8 @@ export function compileAiDesignContract(input: {
       // The AI names the layout. When it did not, the role is recorded as-is —
       // no style is chosen on its behalf.
       layout: section.layout ?? section.role,
-      intent: section.intent ?? `${section.role} advances ${page.purpose}`,
-      media: section.media ?? mediaNeedFor(section.role),
+      intent: section.intent ?? page.purpose,
+      media: section.media ?? "none",
       emphasis: index + 1,
     }));
     return {
@@ -192,7 +192,9 @@ export function compileAiDesignContract(input: {
       system: input.fingerprint.ctaSystem,
       primary: input.primaryAction,
       secondary: input.secondaryAction ?? null,
-      placement: ["hero", "mid-page", "closing"],
+      placement: input.architecture.flatMap((page) =>
+        page.sections.filter((section) => /cta|quote|booking|contact/i.test(section.role)).map((section) => `${page.slug}:${section.role}`),
+      ),
     },
     cards: { style: input.fingerprint.cardSystem, mediaRatio: input.fingerprint.artDirection.aspectRatio },
     forms: { layout: input.fingerprint.formLayout, fields: ["name", "contact", "need"] },
@@ -211,17 +213,6 @@ export function compileAiDesignContract(input: {
     qualityMatrix: input.brief.qualityMatrix,
     pages,
   };
-}
-
-function mediaNeedFor(role: string): SectionDesign["media"] {
-  if (
-    role === "hero" ||
-    role === "gallery" ||
-    role === "feature_media"
-  )
-    return "required";
-  if (role === "services" || role === "cta" || role === "intro") return "optional";
-  return "none";
 }
 
 /**

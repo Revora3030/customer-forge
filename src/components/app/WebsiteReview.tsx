@@ -7,13 +7,14 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
   useCreateWebsiteRequest,
-  useGenerateWebsite,
   useSetWebsiteReviewState,
   useWebsiteRequests,
 } from "@/lib/queries";
+import { runSiteGeneration } from "@/lib/site-engine.functions";
+import { useServerFn } from "@tanstack/react-start";
+import { toast } from "@/lib/ui/notify";
 import {
   REQUEST_KINDS,
-  readPlan,
   requestStatusMeta,
   reviewStateMeta,
   revoraShareAddress,
@@ -42,13 +43,13 @@ type Props = {
 export function WebsiteReview({ organizationId, slug, settings, canManage }: Props) {
   const [device, setDevice] = useState<(typeof DEVICES)[number]["key"]>("desktop");
   const [showRequest, setShowRequest] = useState(false);
-  const generate = useGenerateWebsite(organizationId);
+  const runGeneration = useServerFn(runSiteGeneration);
+  const [generating, setGenerating] = useState(false);
   const setState = useSetWebsiteReviewState(organizationId);
   const createRequest = useCreateWebsiteRequest(organizationId);
   const { data: requests } = useWebsiteRequests(organizationId);
 
   const state = reviewStateMeta(settings?.review_state);
-  const plan = readPlan(settings?.generation);
   const previewUrl = slug ? `/s/${slug}` : null;
   const frameWidth = DEVICES.find((d) => d.key === device)!.width;
 
@@ -70,10 +71,21 @@ export function WebsiteReview({ organizationId, slug, settings, canManage }: Pro
             {canManage ? (
               <Button
                 variant="outline"
-                onClick={() => generate.mutate()}
-                disabled={generate.isPending}
+                onClick={async () => {
+                  if (!organizationId) return;
+                  setGenerating(true);
+                  try {
+                    await runGeneration({ data: { organizationId } });
+                    toast.success("AI website build queued.");
+                  } catch (error) {
+                    toast.error(error instanceof Error ? error.message : "Couldn't queue the AI website build.");
+                  } finally {
+                    setGenerating(false);
+                  }
+                }}
+                disabled={generating}
               >
-                {generate.isPending ? (
+                {generating ? (
                   <Loader2 className="size-4 animate-spin" />
                 ) : (
                   <RefreshCw className="size-4" />
@@ -177,46 +189,7 @@ export function WebsiteReview({ organizationId, slug, settings, canManage }: Pro
         ) : null}
       </Panel>
 
-      {plan ? (
-        <Panel className="p-5">
-          <SectionHeading
-            eyebrow="Generated structure"
-            title={`${plan.pages.length} pages built from your information`}
-          />
-          <ul className="mt-4 grid gap-2 sm:grid-cols-2">
-            {plan.pages.map((page) => (
-              <li key={page.key} className="rounded-md border border-border p-3">
-                <div className="flex items-center gap-2">
-                  <p className="text-[13px] font-medium">{page.label}</p>
-                  {page.core ? <Pill tone="neutral">Core</Pill> : null}
-                </div>
-                <p className="mt-1 text-[12px] text-muted-foreground">{page.reason}</p>
-              </li>
-            ))}
-          </ul>
 
-          {plan.placeholders.length ? (
-            <div className="mt-5 rounded-md border border-accent/40 bg-accent/5 p-4">
-              <p className="text-[13px] font-medium">
-                Needs your input ({plan.placeholders.length})
-              </p>
-              <p className="mt-1 text-[12px] text-muted-foreground">
-                Revora only publishes facts you supply. These items are empty or generated
-                placeholders:
-              </p>
-              <ul className="mt-2 space-y-1 text-[12px] text-muted-foreground">
-                {plan.placeholders.map((item) => (
-                  <li key={item}>• {item}</li>
-                ))}
-              </ul>
-            </div>
-          ) : (
-            <p className="mt-5 text-[12px] text-muted-foreground">
-              Every generated section is backed by information you provided.
-            </p>
-          )}
-        </Panel>
-      ) : null}
 
       {previewUrl ? (
         <Panel className="p-5">

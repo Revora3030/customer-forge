@@ -11,7 +11,7 @@
  *  2. gated on a durable monthly spend cap enforced in our own database
  *     (default $100/month; OpenAI is never trusted to enforce it),
  *  3. non-blocking — any failure returns a reason and the builder continues on
- *     the deterministic engine plus the free model pool.
+ *     the free model pool.
  *
  * Server-only. The key is read inside functions, never at module scope, and is
  * never returned to a caller.
@@ -321,7 +321,7 @@ export type LunaRequest = {
 
 /**
  * Calls the paid lane. Never throws: every failure path returns
- * `{ ok: false, reason }` so the caller falls through to the deterministic
+ * `{ ok: false, reason }` so the caller falls through to the available
  * engine and the free pool.
  */
 export async function callLuna(request: LunaRequest): Promise<LunaResult> {
@@ -524,7 +524,7 @@ export type CollectiveOutcome =
  * through the same credential gate, monthly cap and usage ledger as before.
  * It never throws and never blocks: with the paid lane off — which is the
  * default — it returns `no_tier_available` immediately and the caller keeps
- * running on the free fabric and the deterministic engine.
+ * running on the free AI fabric.
  */
 export async function callCollective(request: {
   purpose: CollectivePurpose;

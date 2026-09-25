@@ -29,7 +29,6 @@ import {
   requireAiDesignContract,
   type PageArchitecture,
 } from "@/lib/builder/creative-authority";
-import { deriveCandidateArchitecture } from "@/lib/builder/ai-page-architecture";
 import { assertMediaIntegrity } from "@/lib/builder/media-integrity";
 
 type Db = SupabaseClient;
@@ -96,9 +95,8 @@ export type MaterializeInput = {
    */
   designContract?: AiDesignContract | null;
   /**
-   * Lets the AI author the page architecture. It receives the architecture the
-   * renderer can fill and returns its own page set, section selection and
-   * order. Returning null keeps the renderer's candidate — nothing is invented.
+   * Lets the AI author page architecture from a facts-only capability inventory.
+   * Returning null is a hard failure.
    */
   architect?: (candidate: PageArchitecture[]) => Promise<PageArchitecture[] | null>;
 };
@@ -159,22 +157,6 @@ function mediaSettings(asset: FirstBuildImageAsset): Record<string, unknown> {
   );
 }
 
-function firstAsset(input: MaterializeInput, slot: FirstBuildImageAsset["slot"]) {
-  return (input.generatedAssets ?? []).find((asset) => asset.slot === slot) ?? null;
-}
-
-function serviceAsset(
-  input: MaterializeInput,
-  serviceName: string,
-  index: number,
-): FirstBuildImageAsset | null {
-  const serviceAssets = (input.generatedAssets ?? []).filter((asset) => asset.slot === "service");
-  const exact = serviceAssets.find((asset) =>
-    asset.label.toLowerCase().includes(serviceName.toLowerCase()),
-  );
-  return exact ?? (serviceAssets.length ? serviceAssets[index % serviceAssets.length] ?? null : null);
-}
-
 function imageComponent(asset: FirstBuildImageAsset, kind = "image"): Component {
   return {
     kind,
@@ -232,374 +214,6 @@ export function addInventedMaterial(pages: Page[], architecture: PageArchitectur
     bySlug.set(design.slug, page);
   }
   return [...bySlug.values()];
-}
-
-export function planSiteContent(input: MaterializeInput): Page[] {
-  const { copy, services } = input;
-  const place =
-    clean([input.city, input.state].filter(Boolean).join(", ")) ?? clean(input.serviceArea);
-  const primaryTarget = input.hasQuoteForm ? "/#quote" : input.hasBooking ? "/book" : "/contact";
-  const primaryCta = clean(copy.primaryCta) ?? "Get in touch";
-  const secondaryCta = clean(copy.secondaryCta) ?? "See services";
-  const heroAsset = firstAsset(input, "hero");
-  const aboutAsset = firstAsset(input, "about");
-  const ctaAsset = firstAsset(input, "cta");
-  const backgroundAsset = firstAsset(input, "background");
-  const ogAsset = firstAsset(input, "social") ?? heroAsset;
-
-  const serviceCards: Component[] = (
-    services.length
-      ? services.map((service, index) => ({
-          name: service.name,
-          body:
-            clean(copy.serviceCards.find((card) => card.name === service.name)?.copy) ??
-            clean(service.description),
-          asset: serviceAsset(input, service.name, index),
-        }))
-      : copy.serviceCards.map((card, index) => ({
-          name: card.name,
-          body: clean(card.copy),
-          asset: serviceAsset(input, card.name, index),
-        }))
-  ).map((card) => ({
-    kind: "card",
-    label: card.name,
-    body: card.body ?? null,
-    link_url: `/services/${slugify(card.name)}`,
-    media_url: card.asset?.path ?? null,
-    settings: card.asset ? mediaSettings(card.asset) : null,
-  }));
-
-  const trustItems: Component[] = [
-    input.yearsInBusiness
-      ? { kind: "feature", label: `${input.yearsInBusiness} years in business` }
-      : null,
-    place ? { kind: "feature", label: `Serving ${place}` } : null,
-    input.phone ? { kind: "feature", label: "Call or text for a fast answer" } : null,
-  ].filter(Boolean) as Component[];
-
-  const home: Page = {
-    slug: "home",
-    title: "Home",
-    kind: "home",
-    seo_title: clean(copy.metaTitle),
-    seo_description: clean(copy.metaDescription),
-    og_title: clean(copy.ogTitle),
-    og_description: clean(copy.ogDescription),
-    og_image_url: ogAsset?.path ?? null,
-    sections: [
-      {
-        kind: "hero",
-        heading: clean(copy.heroHeadline) ?? input.businessName,
-        subheading: clean(copy.heroSubheadline),
-        components: [
-          { kind: "button", label: primaryCta, link_label: primaryCta, link_url: primaryTarget },
-          { kind: "button", label: secondaryCta, link_label: secondaryCta, link_url: "/services" },
-          ...(heroAsset ? [imageComponent(heroAsset, "hero_image")] : []),
-        ],
-      },
-      ...(trustItems.length ? [{ kind: "trust_bar", components: trustItems }] : []),
-      ...(clean(copy.intro)
-        ? [{
-            kind: "intro",
-            heading: `About ${input.businessName}`,
-            body: clean(copy.intro),
-            components: backgroundAsset ? [imageComponent(backgroundAsset)] : [],
-          }]
-        : []),
-      ...(serviceCards.length
-        ? [
-            {
-              kind: "services",
-              heading: "What we do",
-              subheading: place ? `Services available across ${place}.` : null,
-              components: serviceCards,
-            },
-          ]
-        : []),
-      ...(copy.benefits.length
-        ? [
-            {
-              kind: "benefits",
-              heading: "Why customers choose us",
-              components: copy.benefits.map((benefit) => ({ kind: "feature", label: benefit })),
-            },
-          ]
-        : []),
-      ...(input.hasQuoteForm
-        ? [
-            {
-              kind: "quote",
-              heading: "Get a price",
-              subheading: "Answer a few questions and we'll come back to you.",
-            },
-          ]
-        : []),
-      ...(input.hasBooking
-        ? [{ kind: "booking", heading: "Book a time", subheading: "Pick a slot that suits you." }]
-        : []),
-      ...(copy.faqs.length
-        ? [
-            {
-              kind: "faq",
-              heading: "Common questions",
-              components: copy.faqs.map((faq) => ({
-                kind: "faq",
-                label: faq.question,
-                body: faq.answer,
-              })),
-            },
-          ]
-        : []),
-      {
-        kind: "cta",
-        heading: `Ready to get started with ${input.businessName}?`,
-        body: clean(copy.areaCopy),
-        components: [
-          { kind: "button", label: primaryCta, link_label: primaryCta, link_url: primaryTarget },
-          ...(ctaAsset ? [imageComponent(ctaAsset, "image")] : []),
-        ],
-      },
-      { kind: "sticky_cta" },
-    ],
-  };
-
-
-  const pages: Page[] = [home];
-
-  if (serviceCards.length)
-    pages.push({
-      slug: "services",
-      title: "Services",
-      kind: "services",
-      seo_title: clean(`Services — ${input.businessName}`),
-      seo_description: clean(copy.metaDescription),
-        og_image_url: ogAsset?.path ?? null,
-      sections: [
-        {
-          kind: "hero",
-          heading: `Services from ${input.businessName}`,
-          subheading: place ? `Explore services available across ${place}.` : clean(copy.intro),
-          components: [
-            { kind: "button", label: primaryCta, link_label: primaryCta, link_url: primaryTarget },
-            ...((serviceAsset(input, services[0]?.name ?? copy.serviceCards[0]?.name ?? "", 0) ?? heroAsset)
-              ? [imageComponent((serviceAsset(input, services[0]?.name ?? copy.serviceCards[0]?.name ?? "", 0) ?? heroAsset)!, "hero_image")]
-              : []),
-          ],
-        },
-        {
-          kind: "services",
-          heading: "Our services",
-          subheading: clean(copy.intro),
-          components: serviceCards,
-        },
-        {
-          kind: "cta",
-          heading: "Not sure which one you need?",
-          body: "Tell us what you're dealing with and we'll point you the right way.",
-          components: [
-            { kind: "button", label: primaryCta, link_label: primaryCta, link_url: primaryTarget },
-            ...(ctaAsset ? [imageComponent(ctaAsset)] : []),
-          ],
-        },
-      ],
-    });
-
-  // Every supplied service receives a real, image-led landing page. Copy stays
-  // strictly source-derived: no invented inclusions, outcomes or guarantees.
-  for (const [index, service] of services.slice(0, 12).entries()) {
-    const asset = serviceAsset(input, service.name, index);
-    const description =
-      clean(copy.serviceCards.find((card) => card.name === service.name)?.copy) ??
-      clean(service.description);
-    const price = service.starting_price ?? service.price;
-    pages.push({
-      slug: `services/${slugify(service.name)}`,
-      title: service.name,
-      kind: "service",
-      seo_title: clean(`${service.name} — ${input.businessName}`),
-      seo_description: clean(description ?? copy.metaDescription),
-      og_image_url: asset?.path ?? ogAsset?.path ?? null,
-      sections: [
-        {
-          kind: "hero",
-          heading: service.name,
-          subheading: description,
-          components: [
-            { kind: "button", label: primaryCta, link_label: primaryCta, link_url: primaryTarget },
-            ...(asset ? [imageComponent(asset, "hero_image")] : []),
-          ],
-        },
-        {
-          kind: "service_detail",
-          heading: `About ${service.name}`,
-          body: description,
-          components: [
-            ...(price !== null && price !== undefined
-              ? [{
-                  kind: "price_row",
-                  label: service.name,
-                  body: `${service.starting_price ? "From " : ""}$${Number(price).toLocaleString()}`,
-                }]
-              : []),
-            { kind: "button", label: primaryCta, link_label: primaryCta, link_url: primaryTarget },
-            ...(asset ? [imageComponent(asset)] : []),
-          ],
-        },
-        ...(copy.faqs.length
-          ? [{
-              kind: "faq",
-              heading: `${service.name} questions`,
-              components: copy.faqs.slice(0, 4).map((faq) => ({ kind: "faq", label: faq.question, body: faq.answer })),
-            }]
-          : []),
-        {
-          kind: "cta",
-          heading: `Ask about ${service.name}`,
-          components: [{ kind: "button", label: primaryCta, link_label: primaryCta, link_url: primaryTarget }],
-        },
-      ],
-    });
-  }
-
-  const priced = services.filter(
-    (service) => service.price !== null || service.starting_price !== null,
-  );
-  if (priced.length)
-    pages.push({
-      slug: "pricing",
-      title: "Pricing",
-      kind: "pricing",
-      seo_title: clean(`Pricing — ${input.businessName}`),
-      seo_description: clean(copy.metaDescription),
-      sections: [
-        {
-          kind: "hero",
-          heading: `Pricing from ${input.businessName}`,
-          subheading: "Review the prices supplied for available services.",
-          components: [
-            { kind: "button", label: primaryCta, link_label: primaryCta, link_url: primaryTarget },
-            ...((backgroundAsset ?? ctaAsset ?? heroAsset) ? [imageComponent((backgroundAsset ?? ctaAsset ?? heroAsset)!, "hero_image")] : []),
-          ],
-        },
-        {
-          kind: "pricing",
-          heading: "Pricing",
-          subheading: "Straight answers on what things cost.",
-          components: priced.map((service) => ({
-            kind: "price_row",
-            label: service.name,
-            body: `${service.starting_price ? "From " : ""}$${Number(
-              service.starting_price ?? service.price,
-            ).toLocaleString()}`,
-          })),
-        },
-        {
-          kind: "cta",
-          heading: "Ready to discuss what you need?",
-          components: [{ kind: "button", label: primaryCta, link_label: primaryCta, link_url: primaryTarget }],
-        },
-      ],
-    });
-
-  pages.push({
-    slug: "about",
-    title: "About",
-    kind: "about",
-    seo_title: clean(`About ${input.businessName}`),
-    seo_description: clean(copy.metaDescription),
-    sections: [
-      {
-        kind: "hero",
-        heading: `About ${input.businessName}`,
-        subheading: clean(copy.about) ?? clean(copy.intro),
-        components: [
-          { kind: "button", label: primaryCta, link_label: primaryCta, link_url: primaryTarget },
-          ...((aboutAsset ?? backgroundAsset ?? heroAsset) ? [imageComponent((aboutAsset ?? backgroundAsset ?? heroAsset)!, "hero_image")] : []),
-        ],
-      },
-      {
-        kind: "intro",
-        heading: "Our approach",
-        body: clean(copy.about) ?? clean(copy.intro),
-        components: (aboutAsset ?? ctaAsset) ? [imageComponent((aboutAsset ?? ctaAsset)!)] : [],
-      },
-      ...(place
-        ? [
-            {
-              kind: "area",
-              heading: `Where we work`,
-              body: clean(copy.areaCopy) ?? `${input.businessName} serves ${place}.`,
-            },
-          ]
-        : []),
-      ...(copy.benefits.length
-        ? [{
-            kind: "benefits",
-            heading: "What matters in the work",
-            components: copy.benefits.map((benefit) => ({ kind: "feature", label: benefit })),
-          }]
-        : []),
-      {
-        kind: "cta",
-        heading: `Talk with ${input.businessName}`,
-        components: [{ kind: "button", label: primaryCta, link_label: primaryCta, link_url: primaryTarget }],
-      },
-    ],
-  });
-
-  if (input.hasBooking)
-    pages.push({
-      slug: "book",
-      title: "Book",
-      kind: "book",
-      seo_title: clean(`Book ${input.businessName}`),
-      seo_description: clean(copy.metaDescription),
-      sections: [
-        {
-          kind: "hero",
-          heading: `Book with ${input.businessName}`,
-          subheading: "Choose an available service and request a suitable time.",
-          components: (ctaAsset ?? backgroundAsset ?? heroAsset) ? [imageComponent((ctaAsset ?? backgroundAsset ?? heroAsset)!, "hero_image")] : [],
-        },
-        { kind: "booking", heading: "Book a time", subheading: "Pick a slot that suits you." },
-        {
-          kind: "cta",
-          heading: "Need help before booking?",
-          components: [{ kind: "button", label: "Contact us", link_label: "Contact us", link_url: "/contact" }],
-        },
-      ],
-    });
-
-
-  pages.push({
-    slug: "contact",
-    title: "Contact",
-    kind: "contact",
-    seo_title: clean(`Contact ${input.businessName}`),
-    seo_description: clean(copy.metaDescription),
-    sections: [
-      {
-        kind: "hero",
-        heading: `Contact ${input.businessName}`,
-        subheading: place ? `Speak with the team serving ${place}.` : "Speak with the team directly.",
-        components: (ctaAsset ?? heroAsset) ? [imageComponent((ctaAsset ?? heroAsset)!, "hero_image")] : [],
-      },
-      {
-        kind: "contact",
-        heading: "Contact us",
-        subheading: input.phone || input.email ? null : "Send a message and we'll reply.",
-      },
-      ...(place
-        ? [{ kind: "area", heading: "Service area", body: clean(copy.areaCopy) ?? `${input.businessName} serves ${place}.` }]
-        : []),
-      ...(input.hasQuoteForm
-        ? [{ kind: "quote", heading: "Request a price", subheading: "Share what you need and the team can respond." }]
-        : []),
-    ],
-  });
-
-  return pages;
 }
 
 /**
@@ -670,15 +284,77 @@ export async function materializeSiteContent(
   // The contract OVERRIDES the renderer's page set and section order, and any
   // visual container the design requires must resolve to a real picture —
   // otherwise the build fails rather than publishing a blank box.
-  let tree = planSiteContent(input);
+  const primaryAction = clean(input.copy.primaryCta) ?? "Get in touch";
+  const functionalSections = [
+    ...(input.hasQuoteForm ? [{ role: "quote" }] : []),
+    ...(input.hasBooking ? [{ role: "booking" }] : []),
+    { role: "contact" },
+    { role: "sticky_cta" },
+  ];
+  const factInventory: PageArchitecture[] = [{
+    slug: "home",
+    title: input.businessName,
+    purpose: "primary website entry",
+    primaryAction,
+    sections: [
+      { role: "hero" },
+      ...(input.services.length ? [{ role: "services" }] : []),
+      ...functionalSections,
+    ],
+  }];
   let designContract: AiDesignContract | null = input.designContract ?? null;
+  const authored = designContract
+    ? null
+    : input.architect
+      ? await input.architect(factInventory)
+      : null;
+  if (!designContract && !authored?.length)
+    throw new Error("The design team could not author this website's page plan, so nothing was created. Please try again in a moment.");
+  const architecture: PageArchitecture[] = authored ?? designContract!.pages.map((page) => ({
+    slug: page.slug,
+    title: page.title,
+    purpose: page.purpose,
+    primaryAction: page.primaryAction,
+    sections: page.sections.map((section) => ({ role: section.role, layout: section.layout, intent: section.intent, media: section.media })),
+  }));
+  const primaryTarget = input.hasQuoteForm ? "/#quote" : input.hasBooking ? "/book" : "/contact";
+  const generatedByLabel = new Map((input.generatedAssets ?? []).map((asset) => [asset.label.toLowerCase(), asset]));
+  let tree: Page[] = architecture.map((page) => ({
+    slug: page.slug,
+    title: page.title,
+    kind: page.slug === "home" ? "home" : "page",
+    seo_title: page.slug === "home" ? clean(input.copy.metaTitle) : clean(`${page.title} — ${input.businessName}`),
+    seo_description: clean(input.copy.metaDescription),
+    og_title: page.slug === "home" ? clean(input.copy.ogTitle) : clean(page.title),
+    og_description: clean(input.copy.ogDescription),
+    sections: page.sections.map((section, index) => {
+      const role = section.role;
+      if (["quote", "booking", "contact", "sticky_cta"].includes(role))
+        return { kind: role, heading: section.heading ?? null, subheading: section.subheading ?? null, body: section.body ?? null };
+      const matching = (input.generatedAssets ?? []).find((asset) =>
+        asset.placement.some((placement) => placement === role || placement === `${page.slug}:${role}`),
+      ) ?? generatedByLabel.get(role.toLowerCase()) ?? null;
+      const components: Component[] = [];
+      if (matching) components.push(imageComponent(matching, index === 0 ? "hero_image" : "image"));
+      if (/hero|cta|action|conversion/i.test(role))
+        components.push({ kind: "button", label: primaryAction, link_label: primaryAction, link_url: primaryTarget });
+      if (/services|offers|solutions/i.test(role))
+        for (const service of input.services) {
+          const asset = generatedByLabel.get(service.name.toLowerCase()) ?? null;
+          components.push({
+            kind: "card",
+            label: service.name,
+            body: clean(input.copy.serviceCards.find((card) => card.name === service.name)?.copy) ?? clean(service.description),
+            link_url: `/services/${slugify(service.name)}`,
+            media_url: asset?.path ?? null,
+            settings: asset ? mediaSettings(asset) : null,
+          });
+        }
+      return { kind: role, heading: section.heading ?? null, subheading: section.subheading ?? null, body: section.body ?? null, components };
+    }),
+  }));
   let authoredArchitecture: PageArchitecture[] | null = null;
   if (!designContract && input.fingerprint && input.creativeBrief) {
-    const primaryAction = clean(input.copy.primaryCta) ?? "Get in touch";
-    // The AI authors the page set, the section selection and the order. The
-    // renderer's own layout is only the inventory of fillable material.
-    const candidate = deriveCandidateArchitecture(tree, primaryAction);
-    const authored = input.architect ? await input.architect(candidate) : null;
     // No template fallback: the page set, section selection and order come from
     // the design team's own plan. When it could not author one, the build stops
     // and says so rather than shipping the renderer's inventory as a design.
@@ -687,9 +363,7 @@ export async function materializeSiteContent(
         "The design team could not author this website's page plan, so nothing was created. Please try again in a moment.",
       );
     }
-    const architecture = authored;
-    authoredArchitecture = authored;
-    tree = addInventedMaterial(tree, authored);
+    authoredArchitecture = architecture;
     designContract = requireAiDesignContract({
       attempt: compileAiDesignContract({
         businessName: input.businessName,

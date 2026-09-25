@@ -2,7 +2,7 @@
  * Server side of the Revora AI Image Studio.
  *
  * Asks Revora's own AI layer for one image from a production brief built by
- * `visual-direction.ts`, then the caller stores the result in the tenant's own
+ * the AI-authored campaign, then the caller stores the result in the tenant's own
  * private media folder.
  *
  * Honesty rules baked in:
