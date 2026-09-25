@@ -100,3 +100,24 @@ describe("AI-authored page architecture", () => {
     expect(result!.rejected.some((entry) => entry.field === "page.about")).toBe(true);
   });
 });
+
+describe("AI-invented sections and pages", () => {
+  const candidate = [{ slug: "home", title: "Home", purpose: "home", primaryAction: "Call", sections: [{ role: "hero" }, { role: "services" }] }];
+  it("accepts invented content sections and pages with their own headings", () => {
+    const r = normalizePageArchitecture({ candidate, proposal: [
+      { slug: "home", sections: [{ role: "hero" }, { role: "our_approach", heading: "How we work", body: "Plain words." }] },
+      { slug: "process", title: "Process", sections: [{ role: "steps", heading: "The steps" }] },
+    ] });
+    expect(r?.architecture[0]?.sections[1]).toMatchObject({ role: "our_approach", custom: true, media: "none" });
+    expect(r?.architecture[1]?.slug).toBe("process");
+  });
+  it("never lets the AI invent working features, headless sections or unsafe pages", () => {
+    const r = normalizePageArchitecture({ candidate, proposal: [
+      { slug: "home", sections: [{ role: "hero" }, { role: "booking", heading: "Book" }, { role: "story" }] },
+      { slug: "../x", title: "X", sections: [{ role: "a_b", heading: "Hi" }] },
+    ] });
+    expect(r?.architecture).toHaveLength(1);
+    expect(r?.architecture[0]?.sections.map((s) => s.role)).toEqual(["hero"]);
+    expect(r?.rejected.length).toBeGreaterThanOrEqual(3);
+  });
+});
