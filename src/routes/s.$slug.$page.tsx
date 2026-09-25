@@ -29,7 +29,6 @@ import { SiteFooter } from "@/components/site/SiteFooter";
 import { CompositionRenderer } from "@/components/site/CompositionRenderer";
 import { useOwnAddress } from "@/components/site/site-links";
 import { readSiteChrome, resolveSiteHref } from "@/lib/builder/site-chrome";
-import { pageJourneyFor, readSiteCampaign } from "@/lib/builder/site-campaign";
 
 export const Route = createFileRoute("/s/$slug/$page")({
   loader: async ({ params }) => {
