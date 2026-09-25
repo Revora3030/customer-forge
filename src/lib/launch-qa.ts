@@ -220,12 +220,18 @@ export function factGaps(input: FactInput): FactGap[] {
       required: true,
       field: "business_name",
     });
+  const servicesWeak =
+    input.servicesCount < 1 ||
+    Boolean(input.serviceNames?.length && input.serviceNames.every((name) => weakText(name, 5)));
+  // Signup answers are enough to start: a real name plus real services lets
+  // the AI build honestly. Everything else is asked in chat after the build
+  // starts, and the site simply leaves out what it hasn't been told.
   if (weakText(input.description, 12))
     gaps.push({
       key: "description",
       label: "What your business does",
       prompt: "Describe what you do and who you help in one clear sentence.",
-      required: true,
+      required: servicesWeak,
       field: "description",
       multiline: true,
     });
@@ -242,15 +248,11 @@ export function factGaps(input: FactInput): FactGap[] {
       key: "city",
       label: "Your city",
       prompt: "The town or city you're based in.",
-      // Businesses that serve a wider area (a state, a country, online) don't
-      // need a city; the build must not force one onto them.
-      required: blank(input.serviceArea),
+      // Without a city the site makes no location claims; ask after the build.
+      required: false,
       field: "city",
     });
-  if (
-    input.servicesCount < 1 ||
-    (input.serviceNames?.length && input.serviceNames.every((name) => weakText(name, 5)))
-  )
+  if (servicesWeak)
     gaps.push({
       key: "services",
       label: "Services you offer",
