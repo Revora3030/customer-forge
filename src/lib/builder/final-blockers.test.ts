@@ -27,3 +27,13 @@ describe("final blocker regressions", () => {
     expect(src).not.toMatch(/asset\.slot === "hero" \? "(large|strong)"/);
   });
 });
+
+import { PHONE_SAFETY_CSS } from "@/components/site/CompositionRenderer";
+describe("phone safety safeguards", () => {
+  it("enforces readable text, tap size and no overflow only on phones, without choosing design", () => {
+    expect(PHONE_SAFETY_CSS).toContain("max(14px,1em)");
+    expect(PHONE_SAFETY_CSS).toContain("min-height:44px");
+    expect(PHONE_SAFETY_CSS).toContain("overflow-x:clip");
+    expect(PHONE_SAFETY_CSS).not.toMatch(/color:|font-family|background/);
+  });
+});
