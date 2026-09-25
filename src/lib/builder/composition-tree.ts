@@ -11,7 +11,17 @@ import { contrastRatio } from "@/lib/readable-color";
 export const COMPOSITION_PRIMITIVES = [
   "stack", "grid", "row", "text", "heading", "media", "button", "link",
   "card", "list", "divider", "spacer", "icon",
+  "tabs", "accordion", "compare", "marquee", "gallery", "quote",
 ] as const;
+
+/** How the interactive building blocks are used. Describes mechanics only — never a layout. */
+export const PRIMITIVE_GUIDE =
+  "Interactive blocks: tabs (each child is one panel; the child's text is its tab label), " +
+  "accordion (each child is one expandable item; the child's text is its question/title, its children are the answer), " +
+  "compare (exactly two media children: before then after — renders a drag slider), " +
+  "marquee (children scroll sideways in a loop; stops for reduced motion), " +
+  "gallery (media children in a grid; tap opens full size), " +
+  "quote (text is the quoted words; items[0] optional attribution — only real, supplied quotes).";
 export type CompositionPrimitive = (typeof COMPOSITION_PRIMITIVES)[number];
 export type Breakpoint = "mobile" | "tablet" | "desktop";
 
@@ -198,6 +208,7 @@ export function validateComposition(input: unknown, options: ValidateOptions = {
     }
     if (node.type === "media" && node.src && !node.alt) issues.push({ path: `${path}.alt`, problem: "images need alt text" });
     if ((node.type === "button" || node.type === "link") && !node.href) issues.push({ path: `${path}.href`, problem: "buttons and links need a destination" });
+    if (node.type === "quote" && !node.text) issues.push({ path: `${path}.text`, problem: "quote needs its words in text" });
     if (row["level"] != null) {
       if (![1, 2, 3, 4].includes(row["level"] as number)) issues.push({ path: `${path}.level`, problem: "level must be 1-4" });
       else node.level = row["level"] as 1 | 2 | 3 | 4;
@@ -235,6 +246,17 @@ export function validateComposition(input: unknown, options: ValidateOptions = {
       if (!Array.isArray(row["children"])) issues.push({ path: `${path}.children`, problem: "children must be a list" });
       else node.children = row["children"].map((child, i) => walk(child, `${path}.children[${i}]`, depth + 1)).filter((c): c is CompositionNode => c != null);
     }
+    const kids = node.children ?? [];
+    if ((node.type === "tabs" || node.type === "accordion") && (kids.length < 1 || kids.some((c) => !c.text))) {
+      issues.push({ path: `${path}.children`, problem: `${node.type} needs at least one child and every child needs a text label` });
+    }
+    if (node.type === "compare" && (kids.length !== 2 || kids.some((c) => c.type !== "media" || !c.src))) {
+      issues.push({ path: `${path}.children`, problem: "compare needs exactly two media children with src (before, after)" });
+    }
+    if (node.type === "gallery" && (kids.length < 1 || kids.some((c) => c.type !== "media" || !c.src))) {
+      issues.push({ path: `${path}.children`, problem: "gallery children must all be media with src" });
+    }
+    if (node.type === "marquee" && kids.length < 1) issues.push({ path: `${path}.children`, problem: "marquee needs children" });
     return node;
   };
 
