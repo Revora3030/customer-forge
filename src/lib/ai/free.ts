@@ -415,7 +415,16 @@ export type FreeProviderCredentials = { apiKey: string; accountId?: string };
 export function freeProviderCredentials(
   provider: FreeProviderName,
 ): FreeProviderCredentials | null {
+  if (provider === "openai") {
+    // The allowance only exists while "share traffic with OpenAI" is on for the
+    // key's project. It is on for this account, and an operator can switch the
+    // free lane off with OPENAI_FREE_TIER_SHARING=false if that ever changes.
+    if (env("OPENAI_FREE_TIER_SHARING")?.toLowerCase() === "false") return null;
+    const apiKey = env("OPENAI_API_KEY");
+    return apiKey ? { apiKey } : null;
+  }
   if (provider === "cloudflare") {
+
     const apiKey = env("CLOUDFLARE_AI_API_TOKEN") ?? env("CLOUDFLARE_API_TOKEN");
     const accountId = env("CLOUDFLARE_ACCOUNT_ID");
     if (!apiKey || !accountId) return null;
