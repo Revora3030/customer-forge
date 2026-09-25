@@ -551,14 +551,19 @@ async function refineCreativeWithCollective(input: {
   const current = creativeSheet(input.creative);
   const vocabulary = JSON.stringify(
     {
-      designRecordFields: Object.keys(DESIGN_RECORD_FIELDS),
       briefFields: [
+        "concept",
         "personality",
+        "typography",
+        "color",
         "heroComposition",
         "sectionRhythm",
+        "density",
         "cardLanguage",
         "ctaLanguage",
         "backgroundTreatment",
+        "shapeLanguage",
+        "motion",
         "mobileStrategy",
         "conversionStrategy",
         "industryConventions",
@@ -657,10 +662,7 @@ async function refineCreativeWithCollective(input: {
     baseline: input.creative,
     approvedFields,
   });
-  const acceptedFields = [
-    ...Object.keys(gated.accepted.designRecord ?? {}).map((key) => `designRecord.${key}`),
-    ...Object.keys(gated.accepted.brief ?? {}).map((key) => `brief.${key}`),
-  ];
+  const acceptedFields = Object.keys(gated.accepted.brief ?? {}).map((key) => `brief.${key}`);
   const solPass = passes.find((pass) => pass.purpose === "creative_direction");
   if (solPass) {
     solPass.acceptedFields = acceptedFields;
