@@ -606,8 +606,11 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
     // Every step Revora refuses to carry out records its reason here, and the
     // reasons are shown with the plan instead of disappearing.
     const droppedReasons: string[] = [];
+    const { polishEditCompositions } = await import("@/lib/builder/edit-polish.server");
+    const polished = await polishEditCompositions({ organizationId: orgId, instruction, actions: raw["actions"] });
+    if (polished.report) trace.push(polished.report.accepted ? "The review team improved this change before showing it to you." : "The review team checked this change; the original design scored best.");
     const parsedActions = readActions(
-      raw["actions"],
+      polished.actions,
       {
         pageIds: new Set(agentContext.pages.map((page) => page.id)),
         sectionIds: new Set(allSections.map((section) => section.id)),
