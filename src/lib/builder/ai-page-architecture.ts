@@ -186,11 +186,24 @@ export function normalizePageArchitecture(input: {
       const left = available.get(role) ?? 0;
       if (left > 0) {
         available.set(role, left - 1);
-        sections.push({ role, heading, subheading, body, layout: layout ?? undefined, intent: intent ?? undefined, media: media ?? "none" });
+        sections.push({
+          role, heading, subheading, body, media: media ?? "none",
+          ...(layout ? { layout } : {}),
+          ...(intent ? { intent } : {}),
+        });
         continue;
       }
       const made = inventedSection(slug, entry);
-      if (made) sections.push(made);
+      if (made) sections.push({
+        role: made.role,
+        heading: made.heading,
+        subheading: made.subheading,
+        body: made.body,
+        custom: true,
+        media: made.media,
+        ...(made.layout ? { layout: made.layout } : {}),
+        ...(made.intent ? { intent: made.intent } : {}),
+      });
     }
     if (sections.length === 0) {
       rejected.push({ field: `page.${slug}`, reason: "the page was left with no sections" });

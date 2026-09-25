@@ -204,7 +204,10 @@ export function validateAiDesignContract(contract: AiDesignContract): {
         severity: "blocker",
       });
     const roles = page.sections.map((section) => section.role);
-    if (contract.qualityMatrix.composition.deliberateOpeningRequired && roles.length === 0)
+    if (
+      contract.qualityMatrix.composition.deliberateOpeningRequired &&
+      !roles.some((role) => /hero|intro|opening|lead|masthead/i.test(role))
+    )
       violations.push({
         path: `pages.${page.slug}.sections`,
         detail: "every page needs a deliberate opening",

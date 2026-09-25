@@ -22,6 +22,13 @@ const creative = blankFirstBuildDirection({
   hasHours: false,
 });
 
+creative.brief.imageInventory = [
+  { slot: "hero", label: "Opening detail", purpose: "Lead the home page", subject: "A clean detailed vehicle", environment: "Bright detailing bay", action: "Stationary", lighting: "Directional daylight", camera: "Wide editorial", framing: "Wide scene", focalPoint: "right", negativeSpace: "left", aspectRatio: "16:9", palette: "Neutral", mood: "Precise", section: ["hero"], mobileCrop: "Keep vehicle visible", altText: "Clean detailed vehicle in a bright bay", constraints: ["no text"], evidenceTag: "AI_GENERATED_MARKETING_VISUAL" },
+  { slot: "service", label: "Interior detail", purpose: "Support the interior service", subject: "Carefully cleaned car interior", environment: "Detailing bay", action: "Detailing tools arranged nearby", lighting: "Soft daylight", camera: "Close editorial", framing: "Interior crop", focalPoint: "centre", negativeSpace: "top", aspectRatio: "4:3", palette: "Neutral", mood: "Meticulous", section: ["services"], mobileCrop: "Keep dashboard visible", altText: "Freshly cleaned car interior", constraints: ["no text"], evidenceTag: "AI_GENERATED_MARKETING_VISUAL" },
+  { slot: "service", label: "Exterior detail", purpose: "Support the exterior service", subject: "Polished vehicle exterior", environment: "Clean detailing bay", action: "Stationary", lighting: "Raking daylight", camera: "Three-quarter view", framing: "Exterior crop", focalPoint: "right", negativeSpace: "left", aspectRatio: "4:3", palette: "Neutral", mood: "Refined", section: ["services"], mobileCrop: "Keep bodywork visible", altText: "Polished vehicle exterior", constraints: ["no text"], evidenceTag: "AI_GENERATED_MARKETING_VISUAL" },
+  { slot: "about", label: "Editorial process", purpose: "Show the craft without impersonating staff", subject: "Detailing tools and materials", environment: "Organised workbench", action: "Tools ready for use", lighting: "Window light", camera: "Editorial still life", framing: "Layered close view", focalPoint: "centre", negativeSpace: "right", aspectRatio: "3:2", palette: "Neutral", mood: "Intentional", section: ["about"], mobileCrop: "Keep tools visible", altText: "Professional detailing tools on an organised workbench", constraints: ["no text"], evidenceTag: "AI_GENERATED_MARKETING_VISUAL" },
+];
+
 describe("first-build image coverage", () => {
   it("fills safe supporting slots when one owner photo already exists", () => {
     const shots = firstBuildImageShots(creative, 1, new Set(["hero"]));
