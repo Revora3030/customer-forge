@@ -97,7 +97,6 @@ export type CapabilitySnapshot = {
   /** The provider that would serve the next call, when there is one. */
   selected: string | null;
   fallback: string | null;
-  deterministic: boolean;
   providers: ProviderSnapshot[];
   detail: string;
 };

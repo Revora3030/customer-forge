@@ -50,7 +50,6 @@ describe("capability registry", () => {
     const sms = await resolveCapability("messaging.sms");
     expect(sms.provider).toBeNull();
     expect(sms.status).toBe("unavailable");
-    expect(sms.deterministic).toBe(false);
   });
 
   it("reports needs_connection for an implemented provider with missing credentials", async () => {

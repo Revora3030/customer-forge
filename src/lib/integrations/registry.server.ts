@@ -118,7 +118,6 @@ export type CapabilityResolution = {
   capability: Capability;
   provider: ProviderDefinition | null;
   status: ReturnType<typeof capabilityStatus>;
-  deterministic: boolean;
   /** Providers that would be tried after the selected one. */
   fallbacks: ProviderDefinition[];
   reason: string | null;
@@ -145,7 +144,6 @@ export async function resolveCapability(capability: Capability): Promise<Capabil
     capability,
     provider,
     status,
-    deterministic: false,
     fallbacks: eligible.slice(1),
     reason: provider
       ? null
@@ -168,8 +166,6 @@ export type CapabilityResult<T> =
       ok: false;
       provider: string | null;
       reason: string;
-      /** True when Revora's own deterministic path should take over. */
-      deterministic: boolean;
       attempts: number;
     };
 
@@ -181,7 +177,7 @@ function rateLimited(error: unknown) {
 /**
  * Runs `work` against the first authorized provider for the capability and
  * fails over to the next one on timeout, rate limit, 5xx or malformed output.
- * Never throws: a builder path can always continue deterministically.
+ * Never throws: callers receive an explicit unavailable result when every provider fails.
  */
 export async function callCapability<T>(
   capability: Capability,
@@ -201,7 +197,6 @@ export async function callCapability<T>(
       ok: false,
       provider: null,
       reason: resolution.reason ?? "unavailable",
-      deterministic: resolution.deterministic,
       attempts: 0,
     };
 
@@ -241,7 +236,6 @@ export async function callCapability<T>(
     ok: false,
     provider: lastProvider,
     reason: lastReason,
-    deterministic: resolution.deterministic,
     attempts,
   };
 }
@@ -264,7 +258,6 @@ function providerSnapshot(provider: ProviderDefinition): ProviderSnapshot {
 const DETAIL: Record<string, string> = {
   paid_provider_blocked_by_free_only:
     "A provider exists but it bills per call, so free-only mode blocks it.",
-  using_revora_engine: "Nothing external is connected — Revora's own engine handles this.",
   needs_connection: "Revora can use this once the connection is authorized.",
   no_provider_implemented: "No provider is wired up for this yet, so Revora won't claim it works.",
 };
@@ -282,7 +275,6 @@ export async function capabilitySnapshot(): Promise<CapabilitySnapshot[]> {
       status: resolution.status,
       selected: resolution.provider?.id ?? null,
       fallback: resolution.fallbacks[0]?.id ?? null,
-      deterministic: resolution.deterministic,
       providers,
       detail: resolution.provider
         ? `${resolution.provider.label} is serving this${resolution.fallbacks.length ? `, with ${resolution.fallbacks[0]!.label} as backup` : ""}.`
