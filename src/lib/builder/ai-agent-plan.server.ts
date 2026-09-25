@@ -74,7 +74,7 @@ function actionContract(context: AgentContext): string {
     '{"type":"delete_section","sectionId":id}',
     '{"type":"reorder_sections","pageId":id,"sectionIds":[id,...]}',
     '{"type":"set_composition","sectionId":id,"tree":{"version":1,"label":string,"root":Node}}',
-    `Node = {"type":"${COMPOSITION_PRIMITIVES.join("|")}","text"?:string,"href"?:string,"src"?:string,"alt"?:string,"level"?:1|2|3|4,"items"?:string[],"style"?:Style,"responsive"?:{"mobile"?:Style,"tablet"?:Style,"desktop"?:Style},"motion"?:{"kind":"none|fade|rise|scale|float","delayMs"?:number},"children"?:Node[]}`,
+    `Node = {"type":"${COMPOSITION_PRIMITIVES.join("|")}","text"?:string,"href"?:string,"src"?:string,"mediaRef"?:componentId,"alt"?:string,"level"?:1|2|3|4,"items"?:string[],"style"?:Style,"responsive"?:{"mobile"?:Style,"tablet"?:Style,"desktop"?:Style},"motion"?:{"kind":"none|fade|rise|scale|float","delayMs"?:number},"children"?:Node[]}`,
     PRIMITIVE_GUIDE,
     'Style keys: columns 1..12, gap 0..240, padding/paddingX/paddingY 0..320, maxWidth 200..2400, align left|center|right, justify start|center|end|between, items start|center|end|stretch, span 1..12, size 8..200, weight 100..900, lineHeight, letterSpacing, italic, uppercase, font, color, background, gradientTo, gradientAngle, radius, borderWidth, borderColor, shadow none|subtle|medium|strong, opacity 0..100, aspect, minHeight, hidden.',
     "DEFAULT LAYOUT RULE: for every section you add, restructure or redesign (first builds, redesigns and edits alike), author its layout with set_composition — invent the structure yourself. Use add_section only to create the section container (then compose it in the same list using its temp ref); set_section_variant / set_section_visual are only for small tweaks to an existing section the owner did not ask to restructure.",
@@ -92,7 +92,9 @@ function actionContract(context: AgentContext): string {
     `Allowed section kinds: ${context.sectionKinds.join(", ")}.`,
     `Allowed page kinds: ${context.pageKinds.join(", ")}.`,
     `Allowed component kinds: ${context.componentKinds.join(", ")}, image, hero_image.`,
-    "When a section should show photography, add the image component AND a generate_component_image action for it. Image prompts describe a real, specific scene for this business: no text, logos, watermarks, awards, reviews or identifiable customers in the picture.",
+    "For every existing component marked [has picture], place it visibly in that section's composition using a media node whose mediaRef is that exact component id.",
+    "When a section should show new photography, add the image component, add generate_component_image for it, AND place a media node with that same component id or temp ref inside the section's set_composition tree. A generated picture not referenced by the composition is invisible and is a failed plan.",
+    "Image prompts describe a real, specific scene for this business: no text, logos, watermarks, awards, reviews or identifiable customers in the picture.",
   ].join("\n");
 }
 

@@ -9,7 +9,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
  * keeps one client's website out of another's.
  */
 
-import { writeComposition } from "@/lib/builder/composition-tree";
+import { writeComposition, type CompositionNode, type CompositionTree } from "@/lib/builder/composition-tree";
 import { writeBackdrop, writeBackdropSpec, writeSectionEffect } from "@/lib/site-effects";
 import { writeBlockStyle, writeComponentVisual, writeSectionVisual } from "@/lib/site-style";
 import { writeCustomBlock } from "@/lib/builder/custom-block";
@@ -104,6 +104,18 @@ type LoadedSite = {
 };
 
 const RENDERED_IMAGE_KINDS = new Set(["image", "gallery", "media", "photo", "hero_image"]);
+
+function resolveCompositionMediaRefs(tree: CompositionTree, refs: ReadonlyMap<string, string>): CompositionTree {
+  const visit = (node: CompositionNode): CompositionNode => {
+    const mappedRef = node.mediaRef ? refs.get(node.mediaRef) : undefined;
+    return {
+      ...node,
+      ...(mappedRef ? { mediaRef: mappedRef } : {}),
+      ...(node.children ? { children: node.children.map(visit) } : {}),
+    };
+  };
+  return { ...tree, root: visit(tree.root) };
+}
 
 function requestsPictureWork(instruction: string): boolean {
   return /\b(images?|photos?|pictures?|photographs?|hero shots?)\b/i.test(instruction) &&
@@ -1109,7 +1121,8 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
         }
         case "set_composition":
           await run(action.type, () => {
-            const settings = writeComposition(readColumn("website_sections", action.sectionId, "settings"), action.tree);
+            const tree = resolveCompositionMediaRefs(action.tree, newComponents);
+            const settings = writeComposition(readColumn("website_sections", action.sectionId, "settings"), tree);
             noteColumn("website_sections", action.sectionId, "settings", settings);
             return supabase
               .from("website_sections")

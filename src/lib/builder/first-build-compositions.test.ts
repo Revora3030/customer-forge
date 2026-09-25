@@ -17,7 +17,7 @@ function fakeDb(updates: unknown[]) {
       { id: "s2", page_id: "p", kind: "faq", heading: "y", subheading: null, body: null, settings: {} },
       { id: "s3", page_id: "p", kind: "quote", heading: "z", subheading: null, body: null, settings: {} },
     ],
-    website_components: [],
+    website_components: [{ id: "11111111-1111-4111-8111-111111111111", section_id: "s1", kind: "image", label: "Roof", body: null, media_url: "org/image.png", link_url: null, link_label: null }],
   };
   return {
     from: (table: string) => {
@@ -52,5 +52,6 @@ describe("composeFirstBuildSections", () => {
     expect(result.gateReports).toEqual([]);
     expect(calls[1]).toContain("FIX THESE PROBLEMS");
     expect(calls[0]).not.toContain('"s3"');
+    expect(calls[0]).toContain('"mediaRef": "11111111-1111-4111-8111-111111111111"');
   });
 });

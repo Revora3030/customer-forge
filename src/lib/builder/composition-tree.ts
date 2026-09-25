@@ -54,6 +54,7 @@ export type NodeStyle = {
   shadow?: "none" | "subtle" | "medium" | "strong";
   opacity?: number;
   aspect?: string;
+  objectFit?: "cover" | "contain" | "fill";
   minHeight?: number;
   hidden?: boolean;
 };
@@ -63,6 +64,7 @@ export type CompositionNode = {
   text?: string;
   href?: string;
   src?: string;
+  mediaRef?: string;
   alt?: string;
   level?: 1 | 2 | 3 | 4;
   items?: string[];
@@ -93,6 +95,7 @@ const ENUMS: Record<string, readonly string[]> = {
   justify: ["start", "center", "end", "between"],
   items: ["start", "center", "end", "stretch"],
   shadow: ["none", "subtle", "medium", "strong"],
+  objectFit: ["cover", "contain", "fill"],
 };
 const ENUM_ALIASES: Record<string, string> = {
   "space-between": "between", "flex-start": "start", "flex-end": "end",
@@ -101,6 +104,7 @@ const COLOR_KEYS = ["color", "background", "gradientTo", "borderColor"];
 const HEX = /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i;
 const SAFE_FONT = /^[a-z0-9 \-']{1,60}$/i;
 const SAFE_ASPECT = /^\d{1,2}:\d{1,2}$/;
+const SAFE_MEDIA_REF = /^(?:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|temp_[a-z0-9_]{1,30})$/i;
 const UNSAFE_TEXT = /<\s*\/?\s*(script|iframe|object|embed|style)|javascript:|on\w+\s*=/i;
 
 export function isSafeHref(href: string): boolean {
@@ -213,7 +217,13 @@ export function validateComposition(input: unknown, options: ValidateOptions = {
       if (typeof value !== "string" || !isSafeHref(value)) issues.push({ path: `${path}.${key}`, problem: "unsafe or invalid address" });
       else node[key] = value;
     }
-    if (node.type === "media" && node.src && !node.alt) issues.push({ path: `${path}.alt`, problem: "images need alt text" });
+    if (row["mediaRef"] != null) {
+      const mediaRef = row["mediaRef"];
+      if (typeof mediaRef !== "string" || !SAFE_MEDIA_REF.test(mediaRef)) issues.push({ path: `${path}.mediaRef`, problem: "invalid website picture reference" });
+      else node.mediaRef = mediaRef;
+    }
+    if (node.type === "media" && !node.src && !node.mediaRef) issues.push({ path, problem: "images need a source or website picture reference" });
+    if (node.type === "media" && (node.src || node.mediaRef) && !node.alt) issues.push({ path: `${path}.alt`, problem: "images need alt text" });
     if ((node.type === "button" || node.type === "link") && !node.href) issues.push({ path: `${path}.href`, problem: "buttons and links need a destination" });
     if (node.type === "quote" && !node.text) issues.push({ path: `${path}.text`, problem: "quote needs its words in text" });
     if (row["level"] != null) {
@@ -263,11 +273,11 @@ export function validateComposition(input: unknown, options: ValidateOptions = {
     if ((node.type === "tabs" || node.type === "accordion") && (kids.length < 1 || kids.some((c) => !c.text))) {
       issues.push({ path: `${path}.children`, problem: `${node.type} needs at least one child and every child needs a text label` });
     }
-    if (node.type === "compare" && (kids.length !== 2 || kids.some((c) => c.type !== "media" || !c.src))) {
-      issues.push({ path: `${path}.children`, problem: "compare needs exactly two media children with src (before, after)" });
+    if (node.type === "compare" && (kids.length !== 2 || kids.some((c) => c.type !== "media" || (!c.src && !c.mediaRef)))) {
+      issues.push({ path: `${path}.children`, problem: "compare needs exactly two media children with a picture source (before, after)" });
     }
-    if (node.type === "gallery" && (kids.length < 1 || kids.some((c) => c.type !== "media" || !c.src))) {
-      issues.push({ path: `${path}.children`, problem: "gallery children must all be media with src" });
+    if (node.type === "gallery" && (kids.length < 1 || kids.some((c) => c.type !== "media" || (!c.src && !c.mediaRef)))) {
+      issues.push({ path: `${path}.children`, problem: "gallery children must all be media with a picture source" });
     }
     if (node.type === "toggle" && (kids.length !== 2 || kids.some((c) => !c.text))) issues.push({ path: `${path}.children`, problem: "toggle needs exactly two children, each with a text label" });
     if (node.type === "marquee" && kids.length < 1) issues.push({ path: `${path}.children`, problem: "marquee needs children" });

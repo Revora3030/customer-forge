@@ -97,7 +97,8 @@ function SiteSectionBody({ site, section }: { site: Site; section: Section }) {
   switch (section.kind) {
     case "composition": {
       const tree = readComposition(section.settings);
-      return tree ? <CompositionRenderer tree={tree} scope={`s-${section.id}`} /> : null;
+      const media = new Map(components.map((component) => [component.id, component.url]));
+      return tree ? <CompositionRenderer tree={tree} scope={`s-${section.id}`} resolveMedia={(ref) => media.get(ref) ?? null} /> : null;
     }
     case "quote":
       if (!site.quote) return null;
