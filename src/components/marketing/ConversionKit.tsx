@@ -48,7 +48,9 @@ function StickyCtaBar() {
 
   useEffect(() => {
     if (readFlag(BAR_KEY)) return;
-    const onScroll = () => setShow(window.scrollY > 640);
+    // Reveal once the visitor has read past the opening screen, on any device.
+    const onScroll = () => setShow(window.scrollY > Math.max(420, window.innerHeight * 0.55));
+
     onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
