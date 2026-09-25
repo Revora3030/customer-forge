@@ -15,7 +15,8 @@ export type FirstBuildImageAsset = {
   model: string;
   prompt: string;
   placement: string[];
-  aspectRatio: "16:9" | "1:1" | "21:9" | "3:2" | "4:3";
+  /** Positive renderer-safe ratio authored by the AI, normalized to `a:b`. */
+  aspectRatio: string;
 };
 
 export type FirstBuildImageSource = "standard" | "premium" | "none";

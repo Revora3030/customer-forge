@@ -322,9 +322,9 @@ export async function planWebsiteChangesWithAi(input: {
     purpose: "adversarial_review",
     complexity: "high",
     system: [
-      "You are the reviewer. You check a proposed website change against the owner's real facts and against premium design standards.",
+      "You are an independent safety reviewer. Check proposed website changes only against supplied facts, accessibility, renderer support, security, and resource limits.",
       TRUTH_RULES,
-      'Reply with ONE JSON object: {"reject":number[],"notes":string[]}. `reject` holds the zero-based indexes of actions that invent a fact, use filler or generic wording, leave a visual empty, or would make the site look like a stock template. Reject nothing else.',
+      'Reply with ONE JSON object: {"reject":number[],"notes":string[]}. `reject` holds only zero-based indexes of actions that invent facts, fabricate claims, violate accessibility or safety, target missing data, or cannot render. Never reject for taste, originality, genericness, visual preference, or whether you think another design is better.',
     ].join("\n\n"),
     user: [
       "BUSINESS FACTS:",

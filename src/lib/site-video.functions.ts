@@ -127,7 +127,6 @@ export const generateSectionVideo = createServerFn({ method: "POST" })
     const settings = writeComponentVisual(component.settings, {
       media_kind: "video",
       alt,
-      object_fit: "cover",
       source: "generated",
     });
     const update = await supabase

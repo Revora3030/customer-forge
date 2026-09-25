@@ -1244,7 +1244,7 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
               .from("website_components")
               .update({ media_url: path, settings: writeComponentVisual(
                 readColumn("website_components", action.componentId, "settings"),
-                { alt: action.alt, object_fit: "cover", source: "generated" },
+                { alt: action.alt, source: "generated" },
               ) } as never)
               .eq("id", action.componentId)
               .eq("organization_id", orgId),

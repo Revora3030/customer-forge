@@ -108,12 +108,12 @@ type Component = {
 };
 
 function primaryActionTarget(input: {
-  primaryAction: string;
+  authoredTarget: string;
   architecture: PageArchitecture[];
   hasQuoteForm: boolean;
   hasBooking: boolean;
 }): string {
-  const action = input.primaryAction.toLowerCase();
+  const action = input.authoredTarget.toLowerCase();
   const roles = new Set(
     input.architecture.flatMap((page) => page.sections.map((section) => section.role)),
   );
@@ -122,11 +122,8 @@ function primaryActionTarget(input: {
   const hasContact = roles.has("contact");
   if (hasBooking && /\b(book|booking|schedule|appointment|reserve)\b/.test(action)) return "/book";
   if (hasQuote && /\b(quote|estimate|price|pricing|cost|proposal)\b/.test(action)) return "/#quote";
-  if (hasContact || /\b(call|contact|email|message|talk|consult)\b/.test(action)) return "/contact";
-  if (hasBooking) return "/book";
-  if (hasQuote) return "/#quote";
-  if (hasContact) return "/contact";
-  throw new Error("The AI-authored primary action does not match a real quote, booking or contact destination, so nothing was created. Please try again in a moment.");
+  if (hasContact && /\b(call|contact|email|message|talk|consult)\b/.test(action)) return "/contact";
+  throw new Error("The AI-authored primary action destination does not match a real quote, booking or contact capability, so nothing was created. Please try again in a moment.");
 }
 
 type Section = {
@@ -162,11 +159,6 @@ function mediaSettings(asset: FirstBuildImageAsset): Record<string, unknown> {
     {},
     {
       alt: asset.altText,
-      // Treatment (overlay, radius, shadow, crop) is the AI composition's call;
-      // the materializer records only the objective defaults a picture needs.
-      object_fit: "cover",
-      object_position: "center",
-      overlay: "none",
       aspect_ratio: asset.aspectRatio,
       source: "generated",
       credit: GENERATED_IMAGE_CREDIT,
@@ -309,8 +301,9 @@ export async function materializeSiteContent(
     primaryAction: page.primaryAction,
     sections: page.sections.map((section) => ({ role: section.role, layout: section.layout, intent: section.intent, media: section.media })),
   }));
+  const authoredPrimaryAction = architecture.find((page) => page.slug === "home")?.primaryAction ?? architecture[0]?.primaryAction ?? "";
   const primaryTarget = primaryActionTarget({
-    primaryAction,
+    authoredTarget: authoredPrimaryAction,
     architecture,
     hasQuoteForm: input.hasQuoteForm,
     hasBooking: input.hasBooking,

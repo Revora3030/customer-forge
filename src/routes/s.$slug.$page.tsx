@@ -7,7 +7,7 @@
 import { createFileRoute, notFound } from "@tanstack/react-router";
 import { useEffect } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { SiteSection, StickyCallBar } from "@/components/site/SiteSections";
+import { SiteSection } from "@/components/site/SiteSections";
 import { PreviewSelectBridge } from "@/components/site/PreviewSelectBridge";
 import { SiteBackdrop } from "@/components/site/SiteBackdrop";
 import { siteFontHref, siteFontStyle, siteThemeStyle } from "@/lib/site-theme";
@@ -17,8 +17,6 @@ import { getPublicSite, trackPublicEvent, type PublicSite } from "@/lib/public-s
 import { SiteVitals } from "@/components/site/SiteVitals";
 import { BuilderReturnBar } from "@/components/site/BuilderReturnBar";
 import { styleSheet } from "@/lib/site-style";
-import { readSeo } from "@/lib/site-seo";
-import { readCopy } from "@/lib/site-engine";
 import { canonicalSiteUrl } from "@/lib/revora-address";
 import { CompositionRenderer } from "@/components/site/CompositionRenderer";
 import { readSiteChrome, resolveSiteHref } from "@/lib/builder/site-chrome";
@@ -113,10 +111,7 @@ export function SitePageView({
   preview?: boolean;
 }) {
   const track = useServerFn(trackPublicEvent);
-  const { org, profile, settings } = site;
-  const seo = readSeo(settings?.seo);
-  const copy = readCopy((settings?.generation as { copy?: unknown } | null)?.copy);
-  const ctaLabel = copy?.primaryCta || seo.primary_cta_label || "";
+  const { org, profile } = site;
   const page = site.content!.page;
   const ownAddress = useOwnAddress();
   const chrome = readSiteChrome(site.settings?.generation ?? null);
@@ -178,7 +173,6 @@ export function SitePageView({
           </footer>
         ) : null}
 
-        <StickyCallBar site={site} label={ctaLabel} />
         <SiteVitals slug={org.slug} preview={preview} />
         {/* Lets the builder's preview frame pick a block by clicking it. Inert
             for every ordinary visitor and for any frame from another origin. */}

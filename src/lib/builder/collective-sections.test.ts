@@ -25,29 +25,27 @@ const baseline: SectionWording[] = [
 ];
 
 describe("reviewSectionWording", () => {
-  it("accepts stronger truthful wording for an approved section", () => {
+  it("accepts truthful wording without a taste approval list", () => {
     const review = reviewSectionWording({
       proposal: {
         sections: [{ id: "s1", heading: "Mobile detailing that comes to your driveway" }],
       },
       facts,
       baseline,
-      approvedIds: ["s1"],
     });
     expect(review.accepted).toEqual([
       { id: "s1", heading: "Mobile detailing that comes to your driveway" },
     ]);
   });
 
-  it("drops a section the reviewer did not approve", () => {
+  it("keeps safe AI wording without reviewer creative veto", () => {
     const review = reviewSectionWording({
       proposal: { sections: [{ id: "s2", heading: "Book your detail today" }] },
       facts,
       baseline,
-      approvedIds: ["s1"],
     });
-    expect(review.accepted).toEqual([]);
-    expect(review.rejected[0]?.reason).toContain("not approved");
+    expect(review.accepted).toEqual([{ id: "s2", heading: "Book your detail today" }]);
+    expect(review.rejected).toEqual([]);
   });
 
   it("refuses an invented phone number", () => {
@@ -55,7 +53,6 @@ describe("reviewSectionWording", () => {
       proposal: { sections: [{ id: "s1", heading: "Call 555 010 2030 now" }] },
       facts,
       baseline,
-      approvedIds: ["s1"],
     });
     expect(review.accepted).toEqual([]);
     expect(review.rejected.some((entry) => entry.field === "s1.heading")).toBe(true);
@@ -66,7 +63,6 @@ describe("reviewSectionWording", () => {
       proposal: { sections: [{ id: "ghost", heading: "Anything" }] },
       facts,
       baseline,
-      approvedIds: ["ghost"],
     });
     expect(review.accepted).toEqual([]);
   });

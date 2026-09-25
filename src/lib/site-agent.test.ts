@@ -49,7 +49,7 @@ describe("building a page and filling it in one plan", () => {
         { type: "set_section_text", sectionId: "temp_section", field: "heading", value: "Our services" },
         { type: "add_component", sectionId: "temp_section", kind: "button", ref: "temp_component", label: "Book" },
         { type: "set_component", componentId: "temp_component", patch: { label: "Book now" } },
-        { type: "set_component_visual", componentId: "temp_component", patch: { radius: "pill", shadow: "medium" } },
+        { type: "set_component_visual", componentId: "temp_component", patch: { radius: 9999, shadow: 28 } },
       ],
       known,
     );

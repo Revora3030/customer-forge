@@ -38,12 +38,12 @@ describe("business DNA", () => {
 
   it("does not classify the business into deterministic creative or conversion strategy", () => {
     const dna = businessDna({ industry: "Mobile car detailing", bookableServices: 3 }) as unknown as Record<string, unknown>;
-    expect(dna.primaryCta).toBeUndefined();
-    expect(dna.urgency).toBeUndefined();
-    expect(dna.qualifyingFields).toBeUndefined();
-    expect(dna.pricingModel).toBeUndefined();
-    expect(dna.seoStrategy).toBeUndefined();
-    expect(dna.positioning).toBeUndefined();
+    expect(dna["primaryCta"]).toBeUndefined();
+    expect(dna["urgency"]).toBeUndefined();
+    expect(dna["qualifyingFields"]).toBeUndefined();
+    expect(dna["pricingModel"]).toBeUndefined();
+    expect(dna["seoStrategy"]).toBeUndefined();
+    expect(dna["positioning"]).toBeUndefined();
   });
 
   it("screens invented claims out of copy but allows supplied facts", () => {

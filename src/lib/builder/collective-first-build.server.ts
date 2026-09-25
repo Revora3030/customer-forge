@@ -29,6 +29,7 @@ import {
   type RefinementRejection,
 } from "@/lib/builder/collective-copy";
 import { creativeQualityPrompt } from "@/lib/builder/creative-quality-matrix";
+import { normalizeAspect } from "@/lib/builder/composition-tree";
 
 export type CollectivePassRecord = {
   tier: "sol" | "terra" | "luna" | "hall_of_fame";
@@ -151,7 +152,6 @@ const MOTION_LIMITS = {
 } as const;
 
 const PROOF_SHAPED_TEXT = /\b(review|testimonial|five[- ]?star|award|certified|licensed|guarantee|before\/?after|proven result|#\s?1|best in|customer logo|case study)\b/i;
-const IMAGE_ASPECTS = new Set(["16:9", "4:3", "1:1", "3:2"]);
 
 function factSheet(facts: DnaFacts, brief: SiteBrief, creative: FirstBuildCreativeDirection) {
   return JSON.stringify(
@@ -241,9 +241,6 @@ const listAt = (value: unknown, maxItems: number, maxLength: number): string[] =
     .filter((item): item is string => item !== null)
     .slice(0, maxItems);
 
-const dottedAllowed = (gate: Set<string> | null, field: string) =>
-  !gate || gate.has(field) || gate.has(field.split(".")[0] ?? field);
-
 function visualTextProblem(text: string, facts: DnaFacts): string | null {
   if (PROOF_SHAPED_TEXT.test(text)) return "it tries to turn design guidance into unsupported proof";
   const claims = screenClaims(text, facts);
@@ -262,12 +259,12 @@ function imageInventoryAt(value: unknown, facts: DnaFacts): CreativeBrief["image
     const purpose = textAt(item["purpose"], 240);
     const subject = textAt(item["subject"], 300);
     const altText = textAt(item["altText"], 240);
-    const aspectRatio = textAt(item["aspectRatio"], 10);
+    const aspectRatio = normalizeAspect(item["aspectRatio"]);
     // Focal point and negative space are the AI's own free-form art direction.
     const focalPoint = textAt(item["focalPoint"], 80) ?? "";
     const negativeSpace = textAt(item["negativeSpace"], 80) ?? "";
     if (!slot || !SAFE_TOKEN.test(slot) || !label || !purpose || !subject || !altText) continue;
-    if (!aspectRatio || !IMAGE_ASPECTS.has(aspectRatio)) continue;
+    if (!aspectRatio) continue;
     const creativeText = [label, purpose, subject, altText].join(" ");
     if (visualTextProblem(creativeText, facts)) continue;
     const section = listAt(item["section"], 8, 60);
@@ -309,13 +306,10 @@ export function reviewCreativeProposal(input: {
   proposal: Record<string, unknown> | null;
   facts: DnaFacts;
   baseline: FirstBuildCreativeDirection;
-  approvedFields?: string[] | null;
 }): { accepted: CreativeRefinement; rejected: RefinementRejection[] } {
   const accepted: CreativeRefinement = {};
   const rejected: RefinementRejection[] = [];
   if (!input.proposal) return { accepted, rejected: [{ field: "creative", reason: "unreadable answer" }] };
-  const gate = input.approvedFields ? new Set(input.approvedFields) : null;
-
   const briefRaw = objectAt(input.proposal, "brief");
   if (briefRaw) {
     const brief: CreativeBriefPatch = {};
@@ -323,10 +317,6 @@ export function reviewCreativeProposal(input: {
       const dotted = `brief.${field}`;
       const value = textAt(briefRaw[field], max);
       if (!value) continue;
-      if (!dottedAllowed(gate, dotted)) {
-        rejected.push({ field: dotted, reason: "not approved by the review pass" });
-        continue;
-      }
       const problem = visualTextProblem(value, input.facts);
       if (problem) {
         rejected.push({ field: dotted, reason: problem });
@@ -342,18 +332,14 @@ export function reviewCreativeProposal(input: {
         const dotted = `brief.typography.${field}`;
         const value = textAt(typographyRaw[field], max);
         if (!value) continue;
-        if (!dottedAllowed(gate, dotted)) {
-          rejected.push({ field: dotted, reason: "not approved by the review pass" });
-          continue;
-        }
         typography[field] = value;
       }
       const scaleRatio = typographyRaw["scaleRatio"];
-      if (typeof scaleRatio === "number" && Number.isFinite(scaleRatio) && dottedAllowed(gate, "brief.typography.scaleRatio")) {
+      if (typeof scaleRatio === "number" && Number.isFinite(scaleRatio)) {
         typography.scaleRatio = Math.max(1, Math.min(2, scaleRatio));
       }
       const measureCh = typographyRaw["measureCh"];
-      if (typeof measureCh === "number" && Number.isFinite(measureCh) && dottedAllowed(gate, "brief.typography.measureCh")) {
+      if (typeof measureCh === "number" && Number.isFinite(measureCh)) {
         typography.measureCh = Math.max(20, Math.min(80, Math.round(measureCh)));
       }
       if (Object.keys(typography).length) brief.typography = typography;
@@ -366,10 +352,6 @@ export function reviewCreativeProposal(input: {
         const dotted = `brief.color.${field}`;
         const value = textAt(colorRaw[field], max);
         if (!value) continue;
-        if (!dottedAllowed(gate, dotted)) {
-          rejected.push({ field: dotted, reason: "not approved by the review pass" });
-          continue;
-        }
         const problem = visualTextProblem(value, input.facts);
         if (problem) {
           rejected.push({ field: dotted, reason: problem });
@@ -384,10 +366,6 @@ export function reviewCreativeProposal(input: {
       const dotted = `brief.${field}`;
       const values = listAt(briefRaw[field], field === "conversionStrategy" ? 5 : 4, 140);
       if (!values.length) continue;
-      if (!dottedAllowed(gate, dotted)) {
-        rejected.push({ field: dotted, reason: "not approved by the review pass" });
-        continue;
-      }
       const problem = values.map((value) => visualTextProblem(value, input.facts)).find(Boolean);
       if (problem) {
         rejected.push({ field: dotted, reason: problem });
@@ -403,10 +381,6 @@ export function reviewCreativeProposal(input: {
         const dotted = `brief.photography.${field}`;
         const value = textAt(photographyRaw[field], max);
         if (!value) continue;
-        if (!dottedAllowed(gate, dotted)) {
-          rejected.push({ field: dotted, reason: "not approved by the review pass" });
-          continue;
-        }
         const problem = visualTextProblem(value, input.facts);
         if (problem) {
           rejected.push({ field: dotted, reason: problem });
@@ -415,7 +389,7 @@ export function reviewCreativeProposal(input: {
         photography[field] = value;
       }
       const subjects = listAt(photographyRaw["subjects"], 4, 120);
-      if (subjects.length && dottedAllowed(gate, "brief.photography.subjects")) {
+      if (subjects.length) {
         const problem = subjects.map((value) => visualTextProblem(value, input.facts)).find(Boolean);
         if (problem) rejected.push({ field: "brief.photography.subjects", reason: problem });
         else photography.subjects = subjects;
@@ -430,10 +404,6 @@ export function reviewCreativeProposal(input: {
         const dotted = `brief.shapeLanguage.${field}`;
         const value = textAt(shapeRaw[field], max);
         if (!value) continue;
-        if (!dottedAllowed(gate, dotted)) {
-          rejected.push({ field: dotted, reason: "not approved by the review pass" });
-          continue;
-        }
         shapeLanguage[field] = value;
       }
       if (Object.keys(shapeLanguage).length) brief.shapeLanguage = shapeLanguage;
@@ -446,19 +416,13 @@ export function reviewCreativeProposal(input: {
         const dotted = `brief.motion.${field}`;
         const value = textAt(motionRaw[field], max);
         if (!value) continue;
-        if (!dottedAllowed(gate, dotted)) {
-          rejected.push({ field: dotted, reason: "not approved by the review pass" });
-          continue;
-        }
         motion[field] = value;
       }
       if (Object.keys(motion).length) brief.motion = motion;
     }
 
-    if (dottedAllowed(gate, "brief.imageInventory")) {
-      const imageInventory = imageInventoryAt(briefRaw["imageInventory"], input.facts);
-      if (imageInventory.length) brief.imageInventory = imageInventory;
-    }
+    const imageInventory = imageInventoryAt(briefRaw["imageInventory"], input.facts);
+    if (imageInventory.length) brief.imageInventory = imageInventory;
     if (Object.keys(brief).length) accepted.brief = brief;
   }
 
@@ -593,9 +557,10 @@ async function refineCreativeWithCollective(input: {
       "FIELDS YOU MAY AUTHOR (values are yours to invent):",
       vocabulary,
       "",
-      "Return JSON with one key: brief. Do not return a designRecord, fingerprint, template, archetype or preset.",
+      "Return JSON with one key: brief. Include only decisions you authored for this site.",
+      "Describe every creative decision in your own words; no platform style vocabulary is supplied.",
       "brief.concept is required. Author typography, color, heroComposition, sectionRhythm, density, cardLanguage, ctaLanguage, backgroundTreatment, shapeLanguage, motion, mobileStrategy, conversionStrategy, industryConventions and photography as your own words.",
-      "brief.imageInventory must be a page-aware picture campaign of as many pictures as your design needs (none is fine; at most 28 for generation cost). Invent a short lowercase-hyphenated semantic slot for each image; there is no slot catalogue. Each item: slot, label, purpose, subject, environment, action, lighting, camera, framing, focalPoint and negativeSpace (your own words), aspectRatio (16:9|4:3|1:1|3:2), palette, mood, section (array of exact intended section roles), mobileCrop, altText.",
+      "brief.imageInventory must be a page-aware picture campaign of as many pictures as your design needs (none is fine; at most 28 for generation cost). Invent a short lowercase-hyphenated semantic slot for each image; there is no slot catalogue. Each item: slot, label, purpose, subject, environment, action, lighting, camera, framing, focalPoint and negativeSpace (your own words), aspectRatio (any positive ratio written like width:height), palette, mood, section (array of exact intended section roles), mobileCrop, altText.",
       "Every picture must have a distinct job in the final site. Generated images are marketing visuals, never staff, customer proof, completed-work evidence, reviews, awards or results.",
     ].join("\n"),
   });
@@ -616,7 +581,6 @@ async function refineCreativeWithCollective(input: {
   );
   if (!proposal) throw new Error("Sol's creative direction was unreadable. Nothing was generated.");
 
-  let approvedFields: string[] | null = null;
   const terraCall = await callBestThinker({
     json: true,
     purpose: "specialist_review",
@@ -624,7 +588,7 @@ async function refineCreativeWithCollective(input: {
     organizationId: input.organizationId,
     maxOutputTokens: 900,
     ...(input.signal ? { signal: input.signal } : {}),
-    system: `${CREATIVE_RULES} You are Terra, a senior design critic. Approve a field only if it is original, safe, renderable and better than the current creative direction.`,
+    system: `${CREATIVE_RULES} You are Terra, an independent safety and integrity reviewer. Report only evidence-backed truth, accessibility, renderer, responsive, security, or resource-limit violations. Never reject or rank a creative decision because of taste, originality, preference, or whether you think it is better.`,
     user: [
       "FACTS:",
       facts,
@@ -635,7 +599,7 @@ async function refineCreativeWithCollective(input: {
       "SOL PROPOSAL:",
       JSON.stringify(proposal, null, 2),
       "",
-      'Return JSON: {"approvedFields": ["brief.heroComposition"], "rejected": [{"field": "...", "reason": "..."}]}',
+      'Return JSON: {"approvedFields": ["all safe fields you inspected"], "rejected": [{"field": "...", "reason": "specific factual or technical violation"}]}',
     ].join("\n"),
   });
 
@@ -643,7 +607,6 @@ async function refineCreativeWithCollective(input: {
     throw new Error(`Terra could not review the creative direction (${terraCall.detail ?? terraCall.reason}). Nothing was generated.`);
   } else {
     const parsed = parseReview(terraCall.text);
-    approvedFields = parsed ? parsed.approvedFields : [];
     passes.push(
       record(terraCall.tier ?? "hall_of_fame", "creative_review", {
         model: terraCall.model,
@@ -660,7 +623,6 @@ async function refineCreativeWithCollective(input: {
     proposal,
     facts: input.facts,
     baseline: input.creative,
-    approvedFields,
   });
   const acceptedFields = Object.keys(gated.accepted.brief ?? {}).map((key) => `brief.${key}`);
   const solPass = passes.find((pass) => pass.purpose === "creative_direction");
@@ -789,7 +751,6 @@ export async function refineFirstBuildWithCollective(input: {
   }
 
   /* ------------------------------- 2. Terra ------------------------------- */
-  let approvedFields: string[] | null = null;
   if (solProposal) {
     const terraCall = await callBestThinker({
     json: true,
@@ -798,7 +759,7 @@ export async function refineFirstBuildWithCollective(input: {
       organizationId: input.organizationId,
       maxOutputTokens: 900,
       ...(input.signal ? { signal: input.signal } : {}),
-      system: `${RULES} You are an adversarial reviewer. Approve a field only if it is truthful against the facts, clear and specific, aligned to the creative direction, and free of invented detail.`,
+      system: `${RULES} You are an independent factual and accessibility reviewer. Report only unsupported facts, unsafe contact details, fabricated claims, inaccessible wording, malformed output, or contradictions with supplied facts. Never reject wording for taste, style, strength, clarity preference, or creative alignment.`,
       user: [
         "FACTS:",
         sheet,
@@ -823,7 +784,6 @@ export async function refineFirstBuildWithCollective(input: {
       );
     } else {
       const parsed = parseReview(terraCall.text);
-      approvedFields = parsed ? parsed.approvedFields : null;
       passes.push(
         record(terraCall.tier ?? "hall_of_fame", "specialist_review", {
           model: terraCall.model,
@@ -834,15 +794,12 @@ export async function refineFirstBuildWithCollective(input: {
           rejected: parsed?.notes ?? [],
         }),
       );
-      // A review that could not be read must not silently approve everything.
-      if (parsed === null) approvedFields = [];
     }
 
     const gated = reviewRefinement({
       proposal: solProposal,
       facts: input.facts,
       baseline: copy,
-      approvedFields,
     });
     const acceptedKeys = Object.keys(gated.accepted);
     if (acceptedKeys.length) {

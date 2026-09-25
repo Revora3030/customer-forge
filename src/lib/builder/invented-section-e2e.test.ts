@@ -41,7 +41,7 @@ const architecture: PageArchitecture[] = [{
   slug: "home",
   title: "Harbor Kayak Tours",
   purpose: "primary website entry",
-  primaryAction: "Reserve a paddle",
+  primaryAction: "Contact the team",
   sections: [
     { role: "hero", heading: "Paddle the harbor at first light", custom: true },
     { role: INVENTED, heading: "Read the tide before you book", body: "Our launch times follow the tide table.", custom: true },
@@ -52,7 +52,7 @@ const architecture: PageArchitecture[] = [{
 const input: MaterializeInput = {
   businessName: "Harbor Kayak Tours",
   copy: {
-    heroHeadline: "", heroSubheadline: "", primaryCta: "Reserve a paddle", secondaryCta: "",
+    heroHeadline: "", heroSubheadline: "", primaryCta: "Contact the team", secondaryCta: "",
     intro: "", about: "", benefits: [], serviceCards: [], faqs: [], areaCopy: "",
     metaTitle: "Harbor Kayak Tours", metaDescription: "Guided kayak tours.",
     ogTitle: "Harbor Kayak Tours", ogDescription: "Guided kayak tours.",

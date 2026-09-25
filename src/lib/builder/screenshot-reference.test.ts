@@ -4,22 +4,27 @@ import {
   deriveScreenshotReferenceBrief,
   normalizeScreenshotReferenceObservations,
 } from "@/lib/builder/screenshot-reference";
+import { blankCreativeBrief } from "@/lib/builder/first-build-contract";
 
 const creative = {
   brief: {
+    ...blankCreativeBrief([]),
     concept: "AI-authored test brief",
     personality: "calm",
-    typography: "large editorial sans",
-    color: "quiet blue",
+    typography: { ...blankCreativeBrief([]).typography, display: "Editorial sans", body: "Humanist sans" },
+    color: { ...blankCreativeBrief([]).color, system: "quiet blue", strategy: "warm contrast" },
     heroComposition: "wide opening",
+    photography: { language: "real work", lighting: "natural", environment: "on location", treatment: "honest", subjects: [] },
     sectionRhythm: "varied",
+    density: "authored",
     cardLanguage: "soft panels",
     ctaLanguage: "direct",
     backgroundTreatment: "plain",
-    shapeLanguage: "rounded",
-    motion: "restrained",
-    photography: "real work",
+    shapeLanguage: { radius: "authored", border: "authored", shadow: "authored" },
+    motion: { level: "restrained", language: "authored" },
+    mobileStrategy: [], conversionStrategy: [], industryConventions: [], imageInventory: [],
   },
+  referenceSignals: null as Record<string, string[]> | null,
 };
 
 describe("screenshot reference signals", () => {
@@ -68,7 +73,7 @@ describe("screenshot reference signals", () => {
       creative,
       observations: { layout: ["asymmetric opener"], color: ["warm earth tones"] },
     });
-    expect(result.creative.referenceSignals?.layout).toEqual(["asymmetric opener"]);
+    expect(result.creative.referenceSignals?.["layout"]).toEqual(["asymmetric opener"]);
     expect(result.creative.brief).toEqual(creative.brief);
   });
 

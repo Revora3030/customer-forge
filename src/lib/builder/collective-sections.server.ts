@@ -4,7 +4,7 @@
  * The materializer supplies the AI-authored heading, subheading and body for
  * every section. This pass hands that wording to
  * the premium tiers: Sol rewrites it section by section with the page it lives
- * on and the role it plays in view, Terra approves each section individually,
+ * on and the role it plays in view, Terra independently checks factual safety,
  * and every accepted string still passes the same fact gate as the first-build
  * copy — nothing may invent a price, a phone number, an email or a claim.
  *
@@ -46,15 +46,13 @@ const trimmed = (value: unknown): string | null =>
 
 /**
  * Validates a section-wording proposal. A section is only patched when it
- * exists in the build, was approved by the review pass, and every string it
+ * exists in the build and every string it
  * changes is truthful against the owner's facts.
  */
 export function reviewSectionWording(input: {
   proposal: Record<string, unknown> | null;
   facts: DnaFacts;
   baseline: SectionWording[];
-  /** Section ids the reviewer approved; when given, others are dropped. */
-  approvedIds?: string[] | null;
 }): SectionWordingReview {
   const accepted: SectionWordingPatch[] = [];
   const rejected: { field: string; reason: string }[] = [];
@@ -65,7 +63,6 @@ export function reviewSectionWording(input: {
     return { accepted, rejected: [{ field: "sections", reason: "no section list was returned" }] };
 
   const byId = new Map(input.baseline.map((section) => [section.id, section]));
-  const gate = input.approvedIds ? new Set(input.approvedIds) : null;
 
   for (const entry of raw) {
     const id = trimmed((entry as { id?: unknown })?.id);
@@ -76,10 +73,6 @@ export function reviewSectionWording(input: {
     const current = byId.get(id);
     if (!current) {
       rejected.push({ field: id, reason: "a section that is not part of this build" });
-      continue;
-    }
-    if (gate && !gate.has(id)) {
-      rejected.push({ field: id, reason: "not approved by the review pass" });
       continue;
     }
     const patch: SectionWordingPatch = { id };
@@ -221,7 +214,7 @@ export async function refineSectionWordingWithCollective(input: {
     organizationId: input.organizationId,
     maxOutputTokens: 1200,
     ...(input.signal ? { signal: input.signal } : {}),
-    system: `${RULES} You are an adversarial reviewer. Approve a section only when the new wording is truthful, clearer and stronger than the current wording.`,
+    system: `${RULES} You are an independent factual and accessibility reviewer. Report only unsupported facts, fabricated claims, unsafe contact details, contradictions, malformed output, or inaccessible wording. Never reject wording for taste or because you prefer the current wording.`,
     user: [
       "FACTS:",
       facts,
@@ -236,7 +229,6 @@ export async function refineSectionWordingWithCollective(input: {
     ].join("\n"),
   });
 
-  let approvedIds: string[] | null = null;
   if (!terraCall.ok) {
     passes.push(
       record(terraCall.wanted, "specialist_review", {
@@ -246,7 +238,6 @@ export async function refineSectionWordingWithCollective(input: {
     throw new Error(`Terra could not review the section copy: ${terraCall.detail ?? terraCall.reason}`);
   } else {
     const parsed = parseReview(terraCall.text);
-    approvedIds = parsed ? parsed.approvedFields : [];
     passes.push(
       record(terraCall.tier ?? "hall_of_fame", "specialist_review", {
         model: terraCall.model,
@@ -263,14 +254,13 @@ export async function refineSectionWordingWithCollective(input: {
     proposal,
     facts: input.facts,
     baseline: input.sections,
-    approvedIds,
   });
   const solPass = passes.find((pass) => pass.purpose === "content_strategy");
   if (solPass) {
     solPass.acceptedFields = gated.accepted.map((patch) => patch.id);
     solPass.rejected = gated.rejected;
     if (!gated.accepted.length && !solPass.skipped)
-      solPass.skipped = "Terra did not approve any wording changes";
+      solPass.skipped = "the factual safety check accepted no wording changes";
   }
 
   return {

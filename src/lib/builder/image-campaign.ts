@@ -6,7 +6,8 @@ export type PlannedShot = {
   slot: CampaignImageSlot;
   label: string;
   purpose: string;
-  aspect: "16:9" | "4:3" | "1:1" | "3:2";
+  /** Positive renderer-safe ratio authored by the AI, normalized to `a:b`. */
+  aspect: string;
   placement: string[];
   subjectHint?: string | undefined;
 };

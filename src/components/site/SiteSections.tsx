@@ -9,7 +9,7 @@ import { useOwnAddress } from "@/components/site/site-links";
  */
 import { CompositionRenderer } from "@/components/site/CompositionRenderer";
 import { readComposition } from "@/lib/builder/composition-tree";
-import { blockCss, readBlockStyle } from "@/lib/site-style";
+import { blockCss, readBlockStyle, readComponentVisual } from "@/lib/site-style";
 import { SitePageLink } from "@/components/site/site-links";
 import { Mail, MapPin, Phone } from "lucide-react";
 import { BookingForm, QuoteCalculator } from "@/components/site/SiteForms";
@@ -21,8 +21,7 @@ import { safeLinkUrl, sectionLabel } from "@/lib/website-content";
 import { readEmbed } from "@/lib/site-embed";
 import { readSectionEffect, sectionEffectClass } from "@/lib/site-effects";
 import { businessFacts, factsAddressLine } from "@/lib/builder/facts";
-import { phoneDisplay, phoneLink, safeParagraph, safeText } from "@/lib/builder/presentation";
-import { Button } from "@/components/ui/button";
+import { safeParagraph, safeText } from "@/lib/builder/presentation";
 
 type Site = NonNullable<PublicSite>;
 type Section = NonNullable<Site["content"]>["sections"][number];
@@ -100,7 +99,10 @@ function SiteSectionBody({ site, section }: { site: Site; section: Section }) {
   switch (section.kind) {
     case "composition": {
       const tree = readComposition(section.settings);
-      const media = new Map(components.map((component) => [component.id, component.url]));
+      const media = new Map(components.map((component) => [component.id, {
+        url: component.url,
+        visual: readComponentVisual(component.settings),
+      }]));
       return tree ? (
         <CompositionRenderer
           tree={tree}
@@ -317,31 +319,3 @@ function SiteSectionBody({ site, section }: { site: Site; section: Section }) {
  * "Call" only appears when the saved number is actually callable, and the safe
  * area inset keeps the bar clear of the iPhone home indicator.
  */
-export function StickyCallBar({ site, label }: { site: Site; label: string }) {
-  const phoneHref = phoneLink(site.profile?.phone);
-  const phone = phoneDisplay(site.profile?.phone);
-  const target = site.quote ? "#quote" : site.nav.some((item) => item.slug === "book") ? "book" : "contact";
-  const safeLabel = label.trim();
-  if (!phoneHref && !safeLabel) return null;
-  return (
-    <div
-      className="sticky bottom-0 z-40 border-t border-border bg-background/95 px-4 py-3 backdrop-blur md:hidden"
-      style={{ paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom, 0px))" }}
-    >
-      <div className="flex gap-2">
-        {phoneHref ? (
-          <Button asChild variant="outline" className="min-h-11 flex-1">
-            <a href={phoneHref} aria-label={`Call ${site.org.name}${phone ? ` at ${phone}` : ""}`}>
-              <Phone className="size-4" aria-hidden="true" /> Call
-            </a>
-          </Button>
-        ) : null}
-        {safeLabel ? (
-          <Button asChild variant="signal" className="min-h-11 flex-1">
-            <SitePageLink slug={site.org.slug} page={target}>{safeLabel}</SitePageLink>
-          </Button>
-        ) : null}
-      </div>
-    </div>
-  );
-}

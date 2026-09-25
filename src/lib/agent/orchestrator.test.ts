@@ -281,8 +281,8 @@ describe("orchestrator pipeline", () => {
     });
 
     const brief = String(plan.mock.calls[0]?.[1] ?? "");
-    expect(brief).toMatch(/THE DESIGN DIRECTION/);
-    expect(brief).toMatch(/must NOT look like/);
+    expect(brief).toMatch(/THE AI-AUTHORED DESIGN DIRECTION/);
+    expect(brief).toMatch(/do not replace it with a template/);
     expect(Array.isArray(result.design.story)).toBe(true);
     expect(result.critique?.overall).toBe(9);
   });

@@ -9,6 +9,7 @@ import {
   type SectionEffectId,
 } from "@/lib/site-effects";
 import { validateComposition, type CompositionTree } from "@/lib/builder/composition-tree";
+import { normalizeAspect } from "@/lib/builder/composition-tree";
 import { safeLinkUrl } from "@/lib/website-content";
 import { siteBodyFont, siteHeadingFont } from "@/lib/site-theme";
 import { describeCustomBlock, parseCustomBlock, type CustomBlockSpec } from "@/lib/builder/custom-block";
@@ -180,8 +181,8 @@ export type ComponentPatch = {
 /**
  * Visual properties for a single media-bearing component.
  *
- * These are deliberately finite values rather than arbitrary CSS.
- * This prevents the AI from injecting unsafe or unsupported styles.
+ * Values are validated CSS data, never raw CSS. Numeric treatments remain open
+ * inside renderer-safe bounds rather than forcing the AI through style tokens.
  */
 export type VisualComponentPatch = {
   media_url?: string | null;
@@ -194,7 +195,7 @@ export type VisualComponentPatch = {
   /**
    * CSS object-fit strategy.
    */
-  object_fit?: "cover" | "contain";
+  object_fit?: "cover" | "contain" | "fill" | "scale-down" | "none";
 
   /**
    * Safe human-readable focal positioning.
@@ -210,22 +211,22 @@ export type VisualComponentPatch = {
   /**
    * Visual overlay treatment.
    */
-  overlay?: "none" | "soft" | "dark" | "brand" | "gradient";
+  overlay?: number;
 
   /**
    * Border-radius design token.
    */
-  radius?: "none" | "small" | "medium" | "large" | "pill";
+  radius?: number;
 
   /**
    * Shadow design token.
    */
-  shadow?: "none" | "soft" | "medium" | "strong";
+  shadow?: number;
 
   /**
    * Preferred image composition ratio.
    */
-  aspect_ratio?: "1:1" | "4:3" | "3:2" | "16:9" | "21:9";
+  aspect_ratio?: string;
 
   /**
    * Optional normalized focal point.
@@ -538,116 +539,6 @@ const CSS_POSITION =
 const SAFE_FOCAL_POINT =
   /^(?:0|0\.[0-9]+|1)(?:\s+(?:0|0\.[0-9]+|1))?$/;
 
-/**
- * Finite visual vocabularies.
- *
- * The planner can be creative about WHICH value it chooses,
- * but it cannot invent arbitrary CSS.
- */
-const VISUAL_VALUES = {
-  object_fit: new Set([
-    "cover",
-    "contain",
-  ]),
-
-  overlay: new Set([
-    "none",
-    "soft",
-    "dark",
-    "brand",
-    "gradient",
-  ]),
-
-  radius: new Set([
-    "none",
-    "small",
-    "medium",
-    "large",
-    "pill",
-  ]),
-
-  shadow: new Set([
-    "none",
-    "soft",
-    "medium",
-    "strong",
-  ]),
-
-  aspect_ratio: new Set([
-    "1:1",
-    "4:3",
-    "3:2",
-    "16:9",
-    "21:9",
-  ]),
-
-  layout: new Set([
-    "split",
-    "centered",
-    "image_left",
-    "image_right",
-    "full_bleed",
-    "editorial",
-    "layered",
-    "stacked",
-  ]),
-
-  density: new Set([
-    "airy",
-    "balanced",
-    "dense",
-  ]),
-
-  image_position: new Set([
-    "left",
-    "right",
-    "center",
-    "background",
-  ]),
-
-  image_treatment: new Set([
-    "natural",
-    "rounded",
-    "soft_shadow",
-    "glass_frame",
-    "duotone",
-    "gradient_overlay",
-    "cinematic",
-    "cutout",
-    "full_bleed",
-  ]),
-
-  spacing: new Set([
-    "tight",
-    "standard",
-    "generous",
-  ]),
-
-  max_width: new Set([
-    "narrow",
-    "standard",
-    "wide",
-    "edge",
-  ]),
-
-  card_style: new Set([
-    "soft",
-    "sharp",
-    "pill",
-    "glass",
-    "editorial",
-    "floating",
-  ]),
-
-  image_ratio: new Set([
-    "1:1",
-    "4:3",
-    "3:2",
-    "16:9",
-    "21:9",
-  ]),
-} as const;
-
 /* -------------------------------------------------------------------------- */
 /* BASIC HELPERS                                                              */
 /* -------------------------------------------------------------------------- */
@@ -810,11 +701,8 @@ const readVisualPatch = (
   }
 
   if (
-    typeof raw["object_fit"] ===
-    "string" &&
-    VISUAL_VALUES.object_fit.has(
-      raw["object_fit"] as never,
-    )
+    typeof raw["object_fit"] === "string" &&
+    ["cover", "contain", "fill", "scale-down", "none"].includes(raw["object_fit"])
   ) {
     patch.object_fit =
       raw["object_fit"] as NonNullable<VisualComponentPatch["object_fit"]>;
@@ -839,48 +727,31 @@ const readVisualPatch = (
   }
 
   if (
-    typeof raw["overlay"] ===
-    "string" &&
-    VISUAL_VALUES.overlay.has(
-      raw["overlay"] as never,
-    )
+    typeof raw["overlay"] === "number" && Number.isFinite(raw["overlay"]) &&
+    raw["overlay"] >= 0 && raw["overlay"] <= 100
   ) {
     patch.overlay =
-      raw["overlay"] as NonNullable<VisualComponentPatch["overlay"]>;
+      raw["overlay"];
   }
 
   if (
-    typeof raw["radius"] ===
-    "string" &&
-    VISUAL_VALUES.radius.has(
-      raw["radius"] as never,
-    )
+    typeof raw["radius"] === "number" && Number.isFinite(raw["radius"]) &&
+    raw["radius"] >= 0 && raw["radius"] <= 9999
   ) {
     patch.radius =
-      raw["radius"] as NonNullable<VisualComponentPatch["radius"]>;
+      raw["radius"];
   }
 
   if (
-    typeof raw["shadow"] ===
-    "string" &&
-    VISUAL_VALUES.shadow.has(
-      raw["shadow"] as never,
-    )
+    typeof raw["shadow"] === "number" && Number.isFinite(raw["shadow"]) &&
+    raw["shadow"] >= 0 && raw["shadow"] <= 200
   ) {
     patch.shadow =
-      raw["shadow"] as NonNullable<VisualComponentPatch["shadow"]>;
+      raw["shadow"];
   }
 
-  if (
-    typeof raw["aspect_ratio"] ===
-    "string" &&
-    VISUAL_VALUES.aspect_ratio.has(
-      raw["aspect_ratio"] as never,
-    )
-  ) {
-    patch.aspect_ratio =
-      raw["aspect_ratio"] as NonNullable<VisualComponentPatch["aspect_ratio"]>;
-  }
+  const aspectRatio = normalizeAspect(raw["aspect_ratio"]);
+  if (aspectRatio) patch.aspect_ratio = aspectRatio;
 
   if (
     typeof raw["focal_point"] ===

@@ -119,23 +119,11 @@ export function reviewRefinement(input: {
   proposal: Record<string, unknown> | null;
   facts: DnaFacts;
   baseline: SiteCopy;
-  /** Fields a reviewer tier explicitly approved; when given, others are dropped. */
-  approvedFields?: string[] | null;
 }): RefinementReview {
   const accepted: CopyRefinement = {};
   const rejected: RefinementRejection[] = [];
   const proposal = input.proposal;
   if (!proposal) return { accepted, rejected: [{ field: "*", reason: "unreadable answer" }] };
-  const gate = input.approvedFields ? new Set(input.approvedFields) : null;
-
-  const allow = (field: string) => {
-    if (gate && !gate.has(field)) {
-      rejected.push({ field, reason: "not approved by the review pass" });
-      return false;
-    }
-    return true;
-  };
-
   for (const [field, max] of Object.entries(REFINABLE_TEXT_FIELDS) as [
     RefinableTextField,
     number,
@@ -143,7 +131,6 @@ export function reviewRefinement(input: {
     const value = trimmed(proposal[field]);
     if (value === null) continue;
     if (value === input.baseline[field]) continue;
-    if (!allow(field)) continue;
     const problem = screenText(value, input.facts, max);
     if (problem) {
       rejected.push({ field, reason: problem });
@@ -153,7 +140,7 @@ export function reviewRefinement(input: {
   }
 
   const benefits = proposal["benefits"];
-  if (Array.isArray(benefits) && allow("benefits")) {
+  if (Array.isArray(benefits)) {
     const values = benefits.map(trimmed).filter((value): value is string => value !== null);
     const problem =
       values.length === 0
@@ -166,7 +153,7 @@ export function reviewRefinement(input: {
   }
 
   const cards = proposal["serviceCards"];
-  if (Array.isArray(cards) && allow("serviceCards")) {
+  if (Array.isArray(cards)) {
     const byName = new Map(input.baseline.serviceCards.map((card) => [card.name, card.copy]));
     const next: { name: string; copy: string }[] = [];
     let problem: string | null = null;
@@ -201,7 +188,7 @@ export function reviewRefinement(input: {
   }
 
   const faqs = proposal["faqs"];
-  if (Array.isArray(faqs) && allow("faqs")) {
+  if (Array.isArray(faqs)) {
     const questions = input.baseline.faqs.map((faq) => faq.question);
     const next: { question: string; answer: string }[] = [];
     let problem: string | null = null;

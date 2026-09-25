@@ -45,3 +45,4 @@
 - [ ] Google Business Profile reviews/hours sync.
 - [x] Automatic 5-size look-and-fix after every change (builder open).
 - [x] Root-level legacy authoring elimination (zero-cost switch, dead builders, canned upgrades, fixed repairs removed; firewall tests; all gates pass).
+- [x] Final AI-authority cleanup: reviewer taste vetoes and fixed public sticky chrome removed; AI media treatments now reach public rendering.

@@ -85,15 +85,14 @@ describe("reviewRefinement", () => {
     expect(review.rejected).toHaveLength(0);
   });
 
-  it("drops a field the reviewer did not approve", () => {
+  it("does not give a reviewer taste-based veto power", () => {
     const review = reviewRefinement({
       proposal: { heroHeadline: "New words here" },
       facts,
       baseline,
-      approvedFields: ["about"],
     });
-    expect(review.accepted.heroHeadline).toBeUndefined();
-    expect(review.rejected[0]?.reason).toContain("not approved");
+    expect(review.accepted.heroHeadline).toBe("New words here");
+    expect(review.rejected).toHaveLength(0);
   });
 
   it("refuses renamed services", () => {

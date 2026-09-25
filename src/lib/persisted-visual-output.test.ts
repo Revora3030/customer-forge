@@ -11,15 +11,16 @@ describe("persisted visual output contract", () => {
     const settings = writeComponentVisual({}, {
       alt: "Finished roof replacement",
       object_fit: "cover",
-      radius: "large",
-      shadow: "medium",
-      aspect_ratio: "4:3",
-      focal_point: "0.5 0.5",
+      radius: 37,
+      shadow: 24,
+      aspect_ratio: "7:5",
+      focal_point: "50% 50%",
     });
     const visual = readComponentVisual(settings);
     expect(visual.alt).toBe("Finished roof replacement");
     expect(visual.object_fit).toBe("cover");
-    expect(visual.radius).toBe("large");
-    expect(visual.shadow).toBe("medium");
+    expect(visual.radius).toBe(37);
+    expect(visual.shadow).toBe(24);
+    expect(visual.aspect_ratio).toBe("7:5");
   });
 });

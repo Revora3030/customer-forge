@@ -23,6 +23,7 @@
 import type * as React from "react";
 import { readableOn } from "@/lib/readable-color";
 import { safeLinkUrl } from "@/lib/website-content";
+import { normalizeAspect } from "@/lib/builder/composition-tree";
 
 /* ------------------------------- device tiers ------------------------------ */
 
@@ -596,12 +597,13 @@ export function clearDeviceLayer(settings: unknown, device: Device): Record<stri
 
 export type PersistedComponentVisual = {
   alt?: string;
-  object_fit?: "cover" | "contain";
+  object_fit?: "cover" | "contain" | "fill" | "scale-down" | "none";
   object_position?: string;
-  overlay?: "none" | "soft" | "dark" | "brand" | "gradient";
-  radius?: "none" | "small" | "medium" | "large" | "pill";
-  shadow?: "none" | "soft" | "medium" | "strong";
-  aspect_ratio?: "1:1" | "4:3" | "3:2" | "16:9" | "21:9";
+  /** Exact opacity/depth/radius authored by AI, bounded for safe rendering. */
+  overlay?: number;
+  radius?: number;
+  shadow?: number;
+  aspect_ratio?: string;
   focal_point?: string;
   /**
    * What the stored media actually is. A "video" plays silently on a loop in
@@ -636,25 +638,20 @@ export function readComponentVisual(settings: unknown): PersistedComponentVisual
   const value = raw as Record<string, unknown>;
   const out: PersistedComponentVisual = {};
   if (typeof value["alt"] === "string") out.alt = value["alt"].slice(0, 160);
-  if (value["object_fit"] === "cover" || value["object_fit"] === "contain") out.object_fit = value["object_fit"];
-  if (typeof value["object_position"] === "string") out.object_position = value["object_position"];
-  const overlay = value["overlay"];
-  if (overlay === "none" || overlay === "soft" || overlay === "dark" || overlay === "brand" || overlay === "gradient") {
-    out.overlay = overlay;
-  }
-  const radius = value["radius"];
-  if (radius === "none" || radius === "small" || radius === "medium" || radius === "large" || radius === "pill") {
-    out.radius = radius;
-  }
-  const shadow = value["shadow"];
-  if (shadow === "none" || shadow === "soft" || shadow === "medium" || shadow === "strong") {
-    out.shadow = shadow;
-  }
-  const aspectRatio = value["aspect_ratio"];
-  if (aspectRatio === "1:1" || aspectRatio === "4:3" || aspectRatio === "3:2" || aspectRatio === "16:9" || aspectRatio === "21:9") {
-    out.aspect_ratio = aspectRatio;
-  }
-  if (typeof value["focal_point"] === "string") out.focal_point = value["focal_point"];
+  if (typeof value["object_fit"] === "string" && OBJECT_FITS.includes(value["object_fit"] as never))
+    out.object_fit = value["object_fit"] as NonNullable<PersistedComponentVisual["object_fit"]>;
+  if (typeof value["object_position"] === "string" && /^((left|center|right|top|bottom)(\s+(left|center|right|top|bottom))?|\d{1,3}(?:\.\d+)?%\s+\d{1,3}(?:\.\d+)?%)$/i.test(value["object_position"]))
+    out.object_position = value["object_position"].slice(0, 40);
+  const overlay = boundedNumber(value["overlay"], 0, 100);
+  if (overlay !== null) out.overlay = overlay;
+  const radius = boundedNumber(value["radius"], 0, 9999);
+  if (radius !== null) out.radius = radius;
+  const shadow = boundedNumber(value["shadow"], 0, 200);
+  if (shadow !== null) out.shadow = shadow;
+  const aspectRatio = normalizeAspect(value["aspect_ratio"]);
+  if (aspectRatio) out.aspect_ratio = aspectRatio;
+  if (typeof value["focal_point"] === "string" && /^\d{1,3}(?:\.\d+)?%?\s+\d{1,3}(?:\.\d+)?%?$/.test(value["focal_point"]))
+    out.focal_point = value["focal_point"].slice(0, 40);
   if (value["media_kind"] === "video" || value["media_kind"] === "image")
     out.media_kind = value["media_kind"];
   const source = value["source"];
@@ -676,7 +673,7 @@ export function writeComponentVisual(
     settings && typeof settings === "object" && !Array.isArray(settings)
       ? { ...(settings as Record<string, unknown>) }
       : {};
-  base["visual"] = { ...readComponentVisual(settings), ...patch };
+  base["visual"] = readComponentVisual({ visual: { ...readComponentVisual(settings), ...patch } });
   return base;
 }
 
