@@ -33,7 +33,9 @@ import { AssistantMedia } from "@/components/app/AssistantMedia";
 import { CompositionPreviewCard } from "@/components/app/CompositionPreviewCard";
 import { attachmentNotice } from "@/lib/builder/capabilities";
 import { useBuildProgress } from "@/lib/builder/progress.hooks";
-import { BUILDER_PRIMARY_ACTIONS, BUILDER_QUICK_ACTIONS } from "@/lib/builder-modes";
+import { useQuery } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
+import { getAiSuggestions } from "@/lib/ai-suggestions.functions";
 import { QUEUE_LABELS, timelineFor, type QueueTask } from "@/lib/builder-queue";
 import { onAssistantPrompt } from "@/lib/assistant-bridge";
 import { selectionPrefix } from "@/lib/builder/preview-bridge";
@@ -41,7 +43,6 @@ import { INSTRUCTION_LIMIT, type BuilderRequests } from "@/lib/builder-requests.
 import type { AgentAttachment } from "@/lib/site-agent";
 import { cn } from "@/lib/utils";
 
-const SUGGESTIONS = [...BUILDER_PRIMARY_ACTIONS.slice(0, 4), ...BUILDER_QUICK_ACTIONS.slice(0, 4)];
 
 export function BuilderAssistant({
   organizationId,
@@ -84,6 +85,21 @@ export function BuilderAssistant({
     () => requests.tasks.map((task) => `${task.id}:${task.state}`).join("|"),
     [requests.tasks],
   );
+  // Suggestions come live from the AI team after reading this site; they
+  // refresh whenever a change finishes. No fixed list is ever shown.
+  const settledKey = useMemo(
+    () => requests.tasks.filter((t) => t.state === "done" || t.state === "applied").length,
+    [requests.tasks],
+  );
+  const fetchSuggestions = useServerFn(getAiSuggestions);
+  const suggestionsQuery = useQuery({
+    queryKey: ["ai-suggestions", organizationId, settledKey],
+    enabled: Boolean(organizationId) && !requests.busy,
+    staleTime: 10 * 60_000,
+    retry: false,
+    queryFn: () => fetchSuggestions({ data: { organizationId: organizationId! } }),
+  });
+  const SUGGESTIONS = suggestionsQuery.data?.suggestions ?? [];
 
   // Any panel elsewhere in the builder can hand its request to this box.
   useEffect(
@@ -211,10 +227,16 @@ export function BuilderAssistant({
       <div className="max-h-[55%] shrink-0 overflow-y-auto overscroll-contain px-3 pt-1 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
         {/* Everything the old separate AI panels offered, as one tap each. */}
          <div className="-mx-3 mb-2 flex gap-2 overflow-x-auto px-3 pb-1 [scrollbar-width:none]">
+          {suggestionsQuery.isFetching && SUGGESTIONS.length === 0 ? (
+            <span className="builder-suggestion min-h-9 shrink-0 rounded-full border border-border px-3.5 py-1.5 text-[13px] text-muted-foreground">
+              <Shimmer>AI team is reviewing your site…</Shimmer>
+            </span>
+          ) : null}
           {(moreOpen ? SUGGESTIONS : SUGGESTIONS.slice(0, 3)).map((action) => (
             <button
               key={action.label}
               type="button"
+              title={action.reason}
               disabled={!requests.ready || firstBuildBusy}
               onClick={() => onFirstBuild ? void onFirstBuild(action.instruction) : requests.queue(action.instruction)}
               className={cn(
@@ -225,14 +247,14 @@ export function BuilderAssistant({
               {action.label}
             </button>
           ))}
-          <button
+          {SUGGESTIONS.length > 3 ? <button
             type="button"
             aria-expanded={moreOpen}
             onClick={() => setMoreOpen((open) => !open)}
             className="gold-hl min-h-9 shrink-0 cursor-pointer rounded-full px-2.5 py-1 text-[13px] transition-colors hover:bg-primary/10 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
           >
             {moreOpen ? "Fewer ideas" : "More ideas"}
-          </button>
+          </button> : null}
         </div>
 
         {selection || answering ? (
