@@ -7,8 +7,8 @@
  *    process the same job
  *  - progress is written to the job row at every stage, so the client sees
  *    reliable progress even if the browser reloads
- *  - customer builds use Revora's native engine and never dispatch content to
- *    an outside model
+ *  - every customer build is written and designed by the AI team; a missing
+ *    AI result stops the build, there is no built-in substitute
  */
 import type { PageArchitectureOutcome } from "@/lib/builder/ai-page-architecture.server";
 import { nextPublishState } from "@/lib/publish-state";

@@ -84,7 +84,7 @@ export function notConfigured() {
  * the request instead.
  */
 export const AI_ZERO_COST_MESSAGE =
-  "External AI is disabled (ZERO_AI_COST_MODE). Revora's native engine handles this request.";
+  "External AI is disabled (ZERO_AI_COST_MODE). The AI team is required for this request.";
 
 export function zeroCostBlocked(provider?: string) {
   return new RevoraAiError(503, AI_ZERO_COST_MESSAGE, {
