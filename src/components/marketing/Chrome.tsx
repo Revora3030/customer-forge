@@ -20,6 +20,19 @@ const NAV = [
   { to: "/contact", label: "Contact" },
 ] as const;
 
+/**
+ * Straight-to-the-answer jumps for phone visitors: the home page is long, so
+ * the menu offers the sections people actually decide with.
+ */
+const JUMP_LINKS = [
+  { hash: "see-it", label: "See it in action" },
+  { hash: "how-it-works", label: "How it works" },
+  { hash: "pricing", label: "Pricing" },
+  { hash: "roi", label: "What you'd earn back" },
+  { hash: "faq", label: "Questions" },
+] as const;
+
+
 export function SiteHeader() {
   const [open, setOpen] = useState(false);
   const { loading, user } = useSession();
@@ -115,6 +128,25 @@ export function SiteHeader() {
               </Link>
             ))}
           </nav>
+
+          <div className="mt-3 border-t border-border pt-3">
+            <p className="eyebrow">Jump to</p>
+            <ul className="mt-2 flex flex-wrap gap-1.5">
+              {JUMP_LINKS.map((item) => (
+                <li key={item.hash}>
+                  <Link
+                    to="/"
+                    hash={item.hash}
+                    onClick={() => setOpen(false)}
+                    className="inline-flex min-h-9 items-center rounded-full border border-border bg-background/60 px-3 text-[12.5px] text-muted-foreground transition-colors hover:border-primary/40 hover:text-primary"
+                  >
+                    {item.label}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+
           <div className="mt-3 flex flex-col gap-2">
             {signedIn ? (
               <>

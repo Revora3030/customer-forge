@@ -48,7 +48,9 @@ function StickyCtaBar() {
 
   useEffect(() => {
     if (readFlag(BAR_KEY)) return;
-    const onScroll = () => setShow(window.scrollY > 640);
+    // Reveal once the visitor has read past the opening screen, on any device.
+    const onScroll = () => setShow(window.scrollY > Math.max(420, window.innerHeight * 0.55));
+
     onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
@@ -57,7 +59,7 @@ function StickyCtaBar() {
   if (loading || user || !show) return null;
 
   return (
-    <div className="fixed inset-x-0 bottom-0 z-40 border-t border-primary/35 bg-background/95 px-3 py-2.5 backdrop-blur-sm sm:px-4">
+    <div className="animate-in fade-in slide-in-from-bottom-4 fixed inset-x-0 bottom-0 z-40 border-t border-primary/35 bg-background/95 px-3 py-2.5 pb-[calc(0.625rem+env(safe-area-inset-bottom))] backdrop-blur-sm duration-500 sm:px-4">
       <div className="mx-auto flex max-w-6xl items-center gap-3">
         <div className="min-w-0 flex-1">
           <p className="text-[12.5px] leading-snug">
