@@ -9,10 +9,7 @@
 - [x] "Fix with AI" runs live: 3 AI repair rounds ran on the Northline test site.
 - [x] Test site check: 0 overflow, 0 small text, 0 small taps at 320/390/768/1440.
 - [x] Northline visual check now PASSES (0 serious issues; saved score 91). Remaining advice (slow server, big scripts) comes from the unbundled preview server.
-- [ ] Phase 5: second-industry build, approve, publish, show phone + desktop.
 - [x] Automatic buttons/cards by section name removed; AI must request them (rebuild of test site still to confirm).
-- [ ] Second-industry build → approve → publish → show phone + desktop (plan step 3).
-- [ ] Remove old design shortcut; retention cleanup; fresh security scan (plan step 4).
 - [x] Design compiler no longer invents phone/tablet columns, menu style, button stacking, crop or text scale; blank design record carries no look.
 - [ ] Rebuild test site to confirm buttons/cards still appear (needs a live AI build).
 - [ ] Second-industry build → approve → publish → verify publicly (BLOCKED: needs a real business’s details from owner).
@@ -21,7 +18,6 @@
 - [ ] Remaining 12/16-point areas (expressiveness, effects ceilings, AI screenshot critique, job fencing audit, full security/billing audit).
 - [x] 46-vs-91 explained: 46 is the launch-review score (visual design hard-set to 0 until screenshot evidence exists; trust needs real reviews; publishing needs custom domain). 91 is the visual check. Different measures.
 - [x] Launch score uses passing visual check for current revision; trust skipped without real reviews; own /s/ address counts.
-- [ ] Add "Open 24 hours" to Revora draft, visual check, approve, publish, verify live.
 - [x] Build attempt fencing: progress/complete/fail writes tied to attempt; superseded attempts stop silently; failed fresh rebuild restores backup (rollbackFreshBuild). Tests in final-blockers.test.ts.
 - [x] Database security check clean after new server-only revision lookup.
 
@@ -40,8 +36,10 @@
 - [x] Phase 3: AI designs its own motion (start position, tilt, fade, blur, easing, repeats, play-on-scroll) within safety limits; bad values reported to the AI, never dropped.
 - [x] Phase 4: "Review every page at 5 sizes" (320/390/768/1024/1440) — photo, AI review, safe repair, re-photo and re-review.
 - [x] Phase 5: jobs audited (all cron-secret protected, lease + attempt fence), nightly record clean-up added, security scan clean.
-- [ ] 5-phase plan phases 3–5: invented-section end-to-end test, safe effect/motion vocabulary, screenshot critique loop at 5 widths, job fencing + record retention, fresh security scan.
 - [x] AI-designed hover/focus/touch response (bounded, reduced-motion safe).
-- [ ] Trial length: DB gives 1 day, offer says 3 days — waiting on owner decision.
-- [ ] Second-industry build — waiting on real business details.
-- [ ] Publish Revora site — waiting on Stripe confirming $750 setup payment.
+
+## Remaining blockers (Sep 25)
+- [x] Stale roadmap items closed; preview page split warning fixed; dead Stripe test keys removed.
+- [ ] Real AI build to prove motion, 5-size review, buttons/cards — needs owner go-ahead (uses AI allowance).
+- [ ] Strengthen near-ranking city/industry pages with truthful content.
+- [ ] Google Business Profile reviews/hours sync.

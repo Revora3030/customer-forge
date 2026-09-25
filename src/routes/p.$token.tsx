@@ -31,7 +31,7 @@ export const Route = createFileRoute("/p/$token")({
   ),
 });
 
-export function PreviewMessage({ title, body }: { title: string; body: string }) {
+function PreviewMessage({ title, body }: { title: string; body: string }) {
   return (
     <div className="flex min-h-screen items-center justify-center px-4 text-center">
       <div>
@@ -42,7 +42,7 @@ export function PreviewMessage({ title, body }: { title: string; body: string })
   );
 }
 
-export function PreviewRoute() {
+function PreviewRoute() {
   const result = Route.useLoaderData();
 
   if (!result?.ok || !result.site) {
