@@ -20,6 +20,7 @@ import {
 import { useWebsiteContent } from "@/lib/website-content.hooks";
 import { useWorkspace } from "@/lib/use-tenant";
 import { canManage } from "@/lib/domain";
+import { useLaunchFlow } from "@/lib/production.hooks";
 import { readSeo } from "@/lib/site-seo";
 import { readCopy } from "@/lib/site-engine";
 import type { AutoFixKey, GrowthAuditInput } from "@/lib/growth-command";
@@ -56,6 +57,7 @@ function CommandCenterPage() {
   const org = ws?.workspace?.organization;
   const orgId = ws?.workspace?.organizationId;
   const manage = canManage(ws?.workspace?.role ?? "viewer");
+  const launchFlow = useLaunchFlow(orgId);
 
   const profileQuery = useBusinessProfile(orgId);
   const settingsQuery = useWebsiteSettings(orgId);
@@ -297,11 +299,7 @@ function CommandCenterPage() {
         });
       }
       if (key === "publish_site") {
-        await saveSettings.mutateAsync({
-          publish_state: "published",
-          published: true,
-          last_published_at: new Date().toISOString(),
-        });
+        launchFlow.launch();
       }
     } finally {
       setBusyFix(null);
