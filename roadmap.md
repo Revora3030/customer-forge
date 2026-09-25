@@ -24,3 +24,13 @@
 - [ ] Add "Open 24 hours" to Revora draft, visual check, approve, publish, verify live.
 - [x] Build attempt fencing: progress/complete/fail writes tied to attempt; superseded attempts stop silently; failed fresh rebuild restores backup (rollbackFreshBuild). Tests in final-blockers.test.ts.
 - [x] Database security check clean after new server-only revision lookup.
+
+## Hall of Fame architecture (Sep 25)
+- [x] Independent + visual review routed to Terra (pinned, never raised to Sol)
+- [x] Visual check: lazy pictures, one-page menu, home/anchor links fixed
+- [ ] Wire orchestration plan (fan-out panel -> Sol -> Terra) into the real first-build and edit paths (currently only used in tests)
+- [ ] Persisted per-model capability registry with probe evidence + admin counts
+- [ ] Per-build team trace table and admin view
+- [ ] Revora site: two small header buttons to 44px, reach 95, approve, publish
+- [ ] Second genuinely different industry build — needs real business details from owner
+- [ ] Northline rebuild; final security/billing review
