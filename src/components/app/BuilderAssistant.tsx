@@ -88,7 +88,7 @@ export function BuilderAssistant({
   // Suggestions come live from the AI team after reading this site; they
   // refresh whenever a change finishes. No fixed list is ever shown.
   const settledKey = useMemo(
-    () => requests.tasks.filter((t) => t.state === "done" || t.state === "applied").length,
+    () => requests.tasks.filter((t) => t.state === "complete").length,
     [requests.tasks],
   );
   const fetchSuggestions = useServerFn(getAiSuggestions);
