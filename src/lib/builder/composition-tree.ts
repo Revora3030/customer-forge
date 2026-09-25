@@ -11,12 +11,13 @@ import { contrastRatio } from "@/lib/readable-color";
 export const COMPOSITION_PRIMITIVES = [
   "stack", "grid", "row", "text", "heading", "media", "button", "link",
   "card", "list", "divider", "spacer", "icon",
-  "tabs", "accordion", "compare", "marquee", "gallery", "quote",
+  "tabs", "toggle", "accordion", "compare", "marquee", "gallery", "quote",
 ] as const;
 
 /** How the interactive building blocks are used. Describes mechanics only — never a layout. */
 export const PRIMITIVE_GUIDE =
   "Interactive blocks: tabs (each child is one panel; the child's text is its tab label), " +
+  "toggle (exactly two children, e.g. monthly/one-time price views; each child's text is its switch label — only real supplied prices), " +
   "accordion (each child is one expandable item; the child's text is its question/title, its children are the answer), " +
   "compare (exactly two media children: before then after — renders a drag slider), " +
   "marquee (children scroll sideways in a loop; stops for reduced motion), " +
@@ -256,6 +257,7 @@ export function validateComposition(input: unknown, options: ValidateOptions = {
     if (node.type === "gallery" && (kids.length < 1 || kids.some((c) => c.type !== "media" || !c.src))) {
       issues.push({ path: `${path}.children`, problem: "gallery children must all be media with src" });
     }
+    if (node.type === "toggle" && (kids.length !== 2 || kids.some((c) => !c.text))) issues.push({ path: `${path}.children`, problem: "toggle needs exactly two children, each with a text label" });
     if (node.type === "marquee" && kids.length < 1) issues.push({ path: `${path}.children`, problem: "marquee needs children" });
     return node;
   };
