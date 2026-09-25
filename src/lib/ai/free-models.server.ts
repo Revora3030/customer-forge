@@ -260,8 +260,8 @@ export async function refreshFreeModels(
         await openAiCompatibleFreeModels("openai", "https://api.openai.com/v1/models", credentials)
       : provider === "openrouter"
         ? await openRouterFreeModels(credentials)
+        : provider === "cloudflare"
 
-      : provider === "cloudflare"
         ? await cloudflareFreeModels(credentials)
         : provider === "groq"
           ? await openAiCompatibleFreeModels(
