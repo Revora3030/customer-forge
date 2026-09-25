@@ -537,6 +537,29 @@ async function runJob(
   if (safetyProblems.length) throw new Error(safetyProblems[0]!.detail);
   let generatedAssets: import("@/lib/builder/first-build-images.types").FirstBuildImageAsset[] = [];
   try {
+  // A retry of the same first build may find the partial pages written by its
+  // previous attempt. They are not an existing customer site and must never
+  // make the retry silently skip architecture, composition, chrome, or media.
+  // Only rows tagged with this job are cleared; fresh rebuilds remain protected
+  // by their restore point and unrelated customer content is untouched.
+  const retryOwnsPartialBuild = !freshReplace && (existingPages.count ?? 0) > 0 && Number(job.attempts ?? 0) > 1;
+  if (retryOwnsPartialBuild) {
+    const partial = await db
+      .from("website_settings")
+      .select("generation")
+      .eq("organization_id", orgId)
+      .maybeSingle();
+    const partialGeneration = (partial.data?.generation ?? {}) as Record<string, unknown>;
+    const report = partialGeneration["report"] as Record<string, unknown> | undefined;
+    if (report?.["jobId"] === job.id) {
+      const componentDelete = await db.from("website_components").delete().eq("organization_id", orgId);
+      if (componentDelete.error) throw new Error(`Couldn't clear the incomplete build components: ${componentDelete.error.message}`);
+      const sectionDelete = await db.from("website_sections").delete().eq("organization_id", orgId);
+      if (sectionDelete.error) throw new Error(`Couldn't clear the incomplete build sections: ${sectionDelete.error.message}`);
+      const pageDelete = await db.from("website_pages").delete().eq("organization_id", orgId);
+      if (pageDelete.error) throw new Error(`Couldn't clear the incomplete build pages: ${pageDelete.error.message}`);
+    }
+  }
   const starterImages = await generateFirstBuildImages(db, {
     organizationId: orgId,
     userId: job.created_by,
