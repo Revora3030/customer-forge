@@ -332,7 +332,7 @@ export async function planWebsiteChangesWithAi(input: {
     return {
       ok: false,
       reason: "review_rejected",
-      detail: "the review removed every proposed change",
+      detail: `the review removed every proposed change${notes.length ? ` — ${notes.slice(0, 2).join(" ")}` : ""}`,
     };
   }
 
