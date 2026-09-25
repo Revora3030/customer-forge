@@ -52,6 +52,9 @@ export type AccessibilityMeasurement = {
 };
 
 export type PerformanceMeasurement = {
+  /** True when the page came from the unbundled development server, whose
+   * speed and script size say nothing about the published site. */
+  devServer?: boolean | undefined;
   ttfb: number | null;
   fcp: number | null;
   lcp: number | null;
@@ -669,6 +672,7 @@ export function gradeViewport(
     }
 
     if (
+      !performance.devServer &&
       performance.ttfb !== null &&
       performance.ttfb > 1500
     ) {
@@ -702,7 +706,7 @@ export function gradeViewport(
       );
     }
 
-    if (performance.scriptBytes > 2_500_000) {
+    if (!performance.devServer && performance.scriptBytes > 2_500_000) {
       add(
         "heavy_scripts",
         "advice",
@@ -2239,6 +2243,7 @@ export const MEASURE_SCRIPT = `(() => {
       );
 
   const performanceMeasurement = {
+    devServer: Boolean(document.querySelector('script[src*="/@vite/client"], script[src*="/@id/virtual:"]')),
     ttfb:
       navigation
         ? Math.round(

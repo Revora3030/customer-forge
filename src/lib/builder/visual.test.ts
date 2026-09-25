@@ -223,3 +223,12 @@ describe("freshVisualReport", () => {
     ).toBeNull();
   });
 });
+
+import { describe as dd, it as ii, expect as ee } from "vitest";
+import { MEASURE_SCRIPT as MS } from "./visual";
+dd("development server speed", () => {
+  ii("measures whether the page came from the development server", () => {
+    ee(MS).toContain("/@vite/client");
+    ee(() => new Function(MS)).not.toThrow();
+  });
+});

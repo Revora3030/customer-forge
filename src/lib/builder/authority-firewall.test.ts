@@ -46,7 +46,7 @@ describe("creative authority firewall", () => {
     const src = readFileSync("src/lib/ai/luna.server.ts", "utf8");
     expect(src).toMatch(/readFinishReason\(payload\) === "length"/);
     const thinker = readFileSync("src/lib/ai/hall-of-fame.server.ts", "utf8");
-    const body = thinker.slice(thinker.indexOf("export async function callBestThinker"));
+    const body = thinker.slice(thinker.indexOf("async function callBestThinkerInner"));
     // The only fallback after the paid lane is the free model squad.
     expect(body).toContain("callHallOfFame(");
     expect(body).not.toMatch(/fingerprint|archetype|template|preset/i);

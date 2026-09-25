@@ -23,7 +23,7 @@ import {
   type CompositionTree,
 } from "@/lib/builder/composition-tree";
 import type { DnaFacts } from "@/lib/business-dna";
-import { runReviewPanel } from "@/lib/builder/review-panel.server";
+import { runAdvisoryPanel, runReviewPanel } from "@/lib/builder/review-panel.server";
 import { runImprovementGate, type GateReport } from "@/lib/builder/improvement-gate.server";
 
 const IMPROVEMENT_ROUNDS = 2;
@@ -149,6 +149,21 @@ export async function composeFirstBuildSections(input: {
   }
 
   const result: CompositionPassResult = { composed: 0, kept: rows.length, models: [], costMicrocents: 0, gateReports: [] };
+  // The wider team advises Sol before the first design, from supplied material
+  // only. A failed adviser is skipped; advice never blocks a build.
+  let advice: { area: string; issues: string[] }[] = [];
+  try {
+    const panel = await runAdvisoryPanel({
+      organizationId,
+      material: JSON.stringify(rows.filter((r) => !FUNCTIONAL_SECTION_KINDS.has(r.kind)).map((s) => materialFor(s, parts.filter((p) => p.section_id === s.id)))),
+    });
+    result.models.push(...panel.models);
+    result.costMicrocents += panel.costMicrocents;
+    advice = panel.notes.filter((n) => n.issues.length).map(({ area, issues }) => ({ area, issues }));
+  } catch (error) {
+    console.warn("advisory panel skipped", (error as Error).message);
+  }
+
   for (const pageSections of byPage.values()) {
     let pending = pageSections;
     let feedback: Record<string, CompositionIssue[]> = {};
@@ -167,6 +182,7 @@ export async function composeFirstBuildSections(input: {
           "",
           "SECTIONS TO DESIGN (material only):",
           JSON.stringify(pending.map((s) => materialFor(s, parts.filter((p) => p.section_id === s.id))), null, 2),
+          ...(advice.length ? ["", "TEAM ADVICE (independent reviewers; use your judgement, never invent facts):", JSON.stringify(advice)] : []),
           ...(Object.keys(feedback).length ? ["", "FIX THESE PROBLEMS FROM YOUR LAST ATTEMPT:", JSON.stringify(feedback, null, 2)] : []),
           "",
           'Return JSON: {"sections": {"<sectionId>": {"version": 1, "label": "...", "root": {...}}}} with one tree per section.',

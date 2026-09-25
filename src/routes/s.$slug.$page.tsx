@@ -170,7 +170,7 @@ export function SitePageView({
         ) : (
         <header className="rv-site-header sticky top-0 z-40 border-b border-border bg-background text-foreground">
           <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3.5">
-            <SitePageLink slug={org.slug} className="min-w-0 max-w-40 sm:max-w-none">
+            <SitePageLink slug={org.slug} className="inline-flex min-h-11 min-w-0 max-w-40 items-center sm:max-w-none">
               <p className="break-words font-display text-[16px] leading-tight font-semibold">{org.name}</p>
               {facts.city ? (
                 <p className="text-[11px] text-muted-foreground">{facts.city}</p>

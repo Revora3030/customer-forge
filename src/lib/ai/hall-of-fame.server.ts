@@ -284,7 +284,7 @@ export type ThinkerOutcome =
  * job goes to the Hall of Fame free squad. Only when both are exhausted does
  * this report failure, and the caller then tells the owner plainly.
  */
-export async function callBestThinker(request: {
+async function callBestThinkerInner(request: {
   purpose: CollectivePurpose;
   system: string;
   user: string;
@@ -357,4 +357,32 @@ export async function callBestThinker(request: {
     attempts: free.attempts,
     handoverReason,
   };
+}
+
+/**
+ * Every Sol / Terra / Hall-of-Fame step is recorded in the team trace so the
+ * owner can see which model did which job, and why. Recording never breaks
+ * the build.
+ */
+export async function callBestThinker(
+  request: Parameters<typeof callBestThinkerInner>[0] & { stage?: string; area?: string },
+): Promise<ThinkerOutcome> {
+  const started = Date.now();
+  const outcome = await callBestThinkerInner(request);
+  const { recordTeamStep } = await import("@/lib/ai/telemetry.server");
+  await recordTeamStep({
+    organizationId: request.organizationId ?? null,
+    stage: request.stage ?? request.purpose,
+    purpose: request.purpose,
+    lane: outcome.lane,
+    model: outcome.ok ? outcome.model : null,
+    ok: outcome.ok,
+    latencyMs: Date.now() - started,
+    reason: outcome.ok
+      ? outcome.handoverReason ? `free squad took over: ${outcome.handoverReason}` : `routed to ${outcome.tier ?? "free"} tier`
+      : `${outcome.reason}${outcome.detail ? `: ${outcome.detail}` : ""}`,
+    contribution: outcome.ok ? `${outcome.text.length} chars` : null,
+    costMicrocents: outcome.ok ? outcome.costMicrocents ?? 0 : 0,
+  });
+  return outcome;
 }
