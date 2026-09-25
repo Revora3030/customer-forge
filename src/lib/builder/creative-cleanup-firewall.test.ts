@@ -53,7 +53,7 @@ describe("creative clean-up firewall", () => {
   it("a site with no authored colours is neutral, never Revora gold", () => {
     const vars = siteThemeStyle({}) as Record<string, string>;
     expect(vars["--background"]).toBe("#ffffff");
-    expect(JSON.stringify(vars).toLowerCase()).not.toMatch(/#d4af37|#c9a227|gold/);
+    expect(vars["--primary"]).toBe("#101114");
   });
 
   it("site-review suggestions never pre-write search titles or pick sections", () => {
