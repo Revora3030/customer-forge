@@ -14,6 +14,14 @@ describe("saved builder conversation", () => {
     ]);
   });
 
+  it("puts a request before its reply when saved at the same moment", () => {
+    const turns = toTurns([
+      { role: "assistant", content: "Reply", created_at: "1" },
+      { role: "user", content: "Ask", created_at: "1" },
+    ]);
+    expect(pairTurns(turns)).toEqual([{ instruction: "Ask", reply: "Reply", at: "1" }]);
+  });
+
   it("drops empty or unknown rows", () => {
     expect(toTurns([{ role: "system", content: "x", created_at: "1" }, { role: "user", content: " ", created_at: "2" }])).toEqual([]);
   });

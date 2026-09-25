@@ -11,7 +11,9 @@ export type SavedTurn = { role: "user" | "assistant"; content: string; at: strin
 export const MEMORY_TURNS = 40;
 
 export function toTurns(rows: Array<{ role: string; content: string; created_at: string }>): SavedTurn[] {
-  return rows
+  return [...rows]
+    // Same moment: a request always comes before its reply.
+    .sort((a, b) => a.created_at.localeCompare(b.created_at) || (a.role === "user" ? -1 : b.role === "user" ? 1 : 0))
     .filter((row) => (row.role === "user" || row.role === "assistant") && row.content.trim())
     .map((row) => ({ role: row.role as SavedTurn["role"], content: row.content, at: row.created_at }));
 }
