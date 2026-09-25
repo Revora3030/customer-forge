@@ -212,16 +212,31 @@ export function BuilderAssistant({
         <ConversationContent className="gap-8 px-4 py-5 text-[15px] leading-relaxed sm:px-6 lg:px-7">
 
           {requests.tasks.length === 0 && !factQuestion && factLog.length === 0 ? (
-            <ConversationEmptyState className="items-start justify-end text-left" title={emptyTitle} description={emptyHint}>
-              <div className="max-w-md space-y-2">
-                <div className="flex items-center gap-2">
-                   <img src="/revora-mark-144.png" alt="" className="size-8 rounded-lg shadow-signal" />
-                  <p className="text-[13px] font-semibold">Revora</p>
-                </div>
-                <h2 className="gold-text text-lg font-semibold">{emptyTitle}</h2>
-                <p className="text-[13px] leading-relaxed text-muted-foreground">{emptyHint}</p>
-              </div>
-            </ConversationEmptyState>
+            <div className="chat-rise">
+              <Message from="assistant">
+                <MessageContent className="w-full space-y-3">
+                  <div className="flex items-center gap-2">
+                    <img src="/revora-mark-144.png" alt="" className="size-8 rounded-lg shadow-signal" />
+                    <div className="min-w-0">
+                      <p className="text-[13px] font-semibold">Revora</p>
+                      <p className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                        <span className="inline-block size-1.5 animate-pulse rounded-full bg-emerald-400" aria-hidden />
+                        Your AI team is here and ready
+                      </p>
+                    </div>
+                  </div>
+                  <h2 className="gold-text text-lg font-semibold">
+                    {businessName ? `Hi — let's build ${businessName}` : emptyTitle}
+                  </h2>
+                  <p className="text-[13.5px] leading-relaxed text-muted-foreground">{emptyHint}</p>
+                  <p className="text-[12.5px] leading-relaxed text-muted-foreground">
+                    Tell me in your own words what you do, who you help and where you work. I'll ask
+                    for anything else I need, then write and design every page with you — no
+                    made-up details, ever.
+                  </p>
+                </MessageContent>
+              </Message>
+            </div>
           ) : null}
           {requests.tasks.map((task) => (
             <div key={task.id} className="chat-rise space-y-3">
