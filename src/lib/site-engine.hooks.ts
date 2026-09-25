@@ -8,8 +8,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { fetchAllRows } from "@/lib/paginate";
 import {
   aiEditSiteCopy,
-  analyzeSiteBrief,
-  saveSiteBrief,
   extractScreenshotReference,
   pumpSiteEngineQueue,
   runSiteGeneration,
