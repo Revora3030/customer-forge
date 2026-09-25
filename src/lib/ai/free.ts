@@ -101,6 +101,19 @@ export const FREE_ALLOWANCE: Record<
  * free-eligibility rules below before it can be used.
  */
 const FREE_MODEL_DEFAULTS: Record<FreeProviderName, Partial<Record<ModelRole, string>>> = {
+  // OpenAI's shared-traffic allowance, on Revora's own OpenAI key. Only the
+  // models OpenAI names in that allowance are listed, so nothing here can be
+  // billed while the allowance lasts. Pictures, video and transcription are NOT
+  // covered by it, so those roles are deliberately absent.
+  openai: {
+    primary: "gpt-5.4",
+    design: "gpt-5.4",
+    fast: "gpt-5.4-mini",
+    coding: "gpt-5.4",
+    vision: "gpt-4o",
+    conversation: "gpt-5.4-mini",
+  },
+
   // Verified against Cloudflare's live Workers AI catalogue; live discovery can
   // widen this, and every id is still re-checked for free eligibility.
   cloudflare: {
