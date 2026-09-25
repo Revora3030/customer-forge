@@ -813,13 +813,8 @@ async function runJob(
       provider: starterImages.evidence.provider,
       models: starterImages.evidence.models,
       message: starterImages.evidence.message,
-      readiness: creative.imagery.assetPlan.readiness,
-      missingRequired: creative.imagery.assetPlan.missingRequired.map((slot) => ({
-        id: slot.id,
-        section: slot.section,
-        count: slot.count,
-        policy: slot.policy,
-      })),
+      readiness: starterImages.evidence.status === "generated" || starterImages.evidence.status === "owner_photos" ? 100 : 0,
+      missingRequired: starterImages.evidence.skipped,
     },
     firstPreviewGate: {
       content: qa.blockers.length === 0 ? "PASS" : "FAIL",

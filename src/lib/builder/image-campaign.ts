@@ -1,13 +1,6 @@
 /** Renderer-safe shapes for an image campaign authored entirely by AI. */
-export type CampaignImageSlot =
-  | "hero"
-  | "service"
-  | "about"
-  | "proof"
-  | "background"
-  | "cta"
-  | "social"
-  | "icon";
+/** An AI-authored semantic role. It is data, never a built-in layout choice. */
+export type CampaignImageSlot = string;
 
 export type PlannedShot = {
   slot: CampaignImageSlot;
