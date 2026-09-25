@@ -435,7 +435,7 @@ function Onboarding() {
       const { error: settingsError } = await supabase.from("website_settings").upsert(
         {
           organization_id: org.id,
-          template: null,
+          template: "ai-authored",
           publish_state: "preview",
           review_state: "generating",
           generation: {} as never,

@@ -859,7 +859,9 @@ async function runJob(
   const { error: saveError } = await db.from("website_settings").upsert(
     {
       organization_id: orgId,
-      template: null,
+      // Legacy non-null database compatibility marker only. No renderer or
+      // creative path reads this value; the authored composition is above.
+      template: "ai-authored",
       generation: {
         ...withoutPendingBuild(priorGeneration),
         copy,
