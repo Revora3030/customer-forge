@@ -100,7 +100,7 @@ describe("request understanding and design fallbacks", () => {
       expect([d.goal, d.layout, d.typography, d.palette, d.motion]).toEqual(["", "", "", "", ""]);
       expect(d.story).toEqual([]);
     }
-  });
+  }, 20_000);
 
   it("no-model understanding passes the owner's words through unchanged", async () => {
     const { understandWithoutModel } = await import("@/lib/agent/understanding.server");

@@ -221,22 +221,16 @@ export function compileWholeRepoUpgrades(
     }
   }
 
-  if (context.business.name.trim() && context.pages.length > 0) {
-    for (const page of context.pages) {
-      const first = page.sections.find((section) => section.kind === "hero");
-      if (!first || first.heading?.includes(context.business.name)) continue;
-      if (!first.heading?.trim()) {
-        safeAction(
-          actions,
-          {
-            type: "set_section_text",
-            sectionId: first.id,
-            field: "heading",
-            value: context.business.name.trim(),
-          },
-          cap,
-        );
-      }
+  // Report only — code never writes headline text; the AI decides how to fix it.
+  for (const page of context.pages) {
+    const first = page.sections.find((section) => section.kind === "hero" && section.is_visible);
+    if (first && !first.heading?.trim()) {
+      pushFinding(findings, {
+        area: "content",
+        severity: "warning",
+        message: `"${page.title || page.slug}" opens with a section that has no headline.`,
+        evidence: "static",
+      });
     }
   }
 
