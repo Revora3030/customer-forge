@@ -46,13 +46,11 @@ import { planQualityImprovements } from "@/lib/builder/quality-improvement-plan"
 import { PublishRetryBar } from "@/components/app/PublishRetryBar";
 
 
-import { EffectStudio } from "@/components/app/EffectStudio";
 import { ImageStudio } from "@/components/app/ImageStudio";
-import { readBackdrop, writeBackdrop } from "@/lib/site-effects";
+import { readBackdrop } from "@/lib/site-effects";
 import { BuilderAudit } from "@/components/app/BuilderAudit";
-import { BuilderCanvas } from "@/components/app/BuilderCanvas";
 import { BuilderPreview, type PreviewSelection } from "@/components/app/BuilderPreview";
-import { Eye, History, Menu, MousePointer2, Paintbrush, Settings2 } from "lucide-react";
+import { Eye, History, Menu, Settings2 } from "lucide-react";
 import { PreFlightPanel } from "@/components/app/PreFlight";
 import { preflight } from "@/lib/preflight";
 import { usePreflightFacts } from "@/lib/preflight.hooks";
@@ -63,7 +61,6 @@ import { LaunchChecks } from "@/components/app/LaunchChecks";
 import { VisualCheckPanel } from "@/components/app/VisualCheckPanel";
 import { VisionReviewPanel } from "@/components/app/VisionReviewPanel";
 import { LiveSyncPanel } from "@/components/app/LiveSyncPanel";
-import { SiteUpgradePanel } from "@/components/app/SiteUpgradePanel";
 import { PortalAccess } from "@/components/app/PortalAccess";
 import { PreviewLinks, PreviewSiteButton } from "@/components/app/PreviewLinks";
 import { VersionDiff } from "@/components/app/VersionDiff";
@@ -219,7 +216,6 @@ function WebsitePage() {
   const [previewOpen, setPreviewOpen] = useState(false);
   /** The block the owner clicked in the preview, scoping their next message. */
   const [selected, setSelected] = useState<PreviewSelection | null>(null);
-  const [editorMode, setEditorMode] = useState<"content" | "visual" | null>(null);
 
   /** One request engine for the whole workspace. */
   const requests = useBuilderRequests({ organizationId: orgId ?? null, canManage: manage });
@@ -567,12 +563,6 @@ function WebsitePage() {
           <Button variant="outline" className="justify-start" onClick={() => { setMenuOpen(false); setSetupOpen(true); }}>
             <Settings2 className="size-4" /> Business details
           </Button>
-          <Button variant="outline" className="justify-start" onClick={() => { setMenuOpen(false); setEditorMode("content"); }}>
-            <MousePointer2 className="size-4" /> Edit words manually
-          </Button>
-          <Button variant="outline" className="justify-start" onClick={() => { setMenuOpen(false); setEditorMode("visual"); }}>
-            <Paintbrush className="size-4" /> Edit design manually
-          </Button>
           <Button variant="outline" className="justify-start" onClick={() => { setMenuOpen(false); setHistoryOpen(true); }}>
             <History className="size-4" /> History and restore
           </Button>
@@ -580,20 +570,6 @@ function WebsitePage() {
             <Settings2 className="size-4" /> All settings
           </Button>
         </div>
-      </OverlayPanel>
-
-      <OverlayPanel open={editorMode !== null} title={editorMode === "visual" ? "Edit design" : "Edit words"} description="Select any part of your website to adjust it directly." onClose={() => setEditorMode(null)}>
-        <BuilderCanvas
-          organizationId={orgId}
-          pages={pages ?? []}
-          canManage={manage}
-          refreshing={requests.refreshing}
-          editingMode={editorMode === "visual" ? "visual" : "content"}
-          onRewriteSection={(target) => {
-            setEditorMode(null);
-            requests.queue(`Improve the ${target.sectionLabel.toLowerCase()} section on the ${target.pageTitle} page. Keep every fact, name, price and phone number exactly as it is, and keep it consistent with the rest of the website's look.`);
-          }}
-        />
       </OverlayPanel>
 
       {/* ------------------------ One advanced door ------------------------ */}
@@ -612,19 +588,23 @@ function WebsitePage() {
               key: "design",
               label: "Design",
               node: (
-                <>
-                  <EffectStudio
-                    organizationId={orgId}
-                    canManage={manage}
-                    backdrop={readBackdrop(generation ?? null)}
-                    onBackdrop={(backdrop) =>
-                      saveSettings.mutate({
-                        generation: writeBackdrop(generation ?? null, backdrop),
-                      })
-                    }
-                  />
-                  <SiteUpgradePanel organizationId={orgId} canManage={manage} onRefresh={requests.refresh} />
-                </>
+                <div className="panel space-y-3 p-4">
+                  <p className="text-sm text-muted-foreground">
+                    Your AI team designs every part of your website. Tell it what you want in the chat —
+                    for example "make the top of my site feel more premium" — and it will design, check
+                    and apply the change.
+                  </p>
+                  <Button
+                    variant="signal"
+                    disabled={!manage}
+                    onClick={() => {
+                      setAdvanced(null);
+                      askAssistant("Review my website's design and make it look more premium. Keep every fact exactly as it is.");
+                    }}
+                  >
+                    Ask my AI team to improve the design
+                  </Button>
+                </div>
               ),
             },
             {
