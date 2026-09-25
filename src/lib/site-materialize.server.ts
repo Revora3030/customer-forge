@@ -686,12 +686,24 @@ export async function materializeSiteContent(
       ...functionalSections,
     ],
   }];
-  const authored = input.architect ? await input.architect(factInventory) : null;
-  if (!authored?.length)
+  let designContract: AiDesignContract | null = input.designContract ?? null;
+  const authored = designContract
+    ? null
+    : input.architect
+      ? await input.architect(factInventory)
+      : null;
+  if (!designContract && !authored?.length)
     throw new Error("The design team could not author this website's page plan, so nothing was created. Please try again in a moment.");
+  const architecture: PageArchitecture[] = authored ?? designContract!.pages.map((page) => ({
+    slug: page.slug,
+    title: page.title,
+    purpose: page.purpose,
+    primaryAction: page.primaryAction,
+    sections: page.sections.map((section) => ({ role: section.role, layout: section.layout, intent: section.intent, media: section.media })),
+  }));
   const primaryTarget = input.hasQuoteForm ? "/#quote" : input.hasBooking ? "/book" : "/contact";
   const generatedByLabel = new Map((input.generatedAssets ?? []).map((asset) => [asset.label.toLowerCase(), asset]));
-  let tree: Page[] = authored.map((page) => ({
+  let tree: Page[] = architecture.map((page) => ({
     slug: page.slug,
     title: page.title,
     kind: page.slug === "home" ? "home" : "page",
@@ -725,7 +737,6 @@ export async function materializeSiteContent(
       return { kind: role, heading: section.heading ?? null, subheading: section.subheading ?? null, body: section.body ?? null, components };
     }),
   }));
-  let designContract: AiDesignContract | null = input.designContract ?? null;
   let authoredArchitecture: PageArchitecture[] | null = null;
   if (!designContract && input.fingerprint && input.creativeBrief) {
     // No template fallback: the page set, section selection and order come from
@@ -736,8 +747,7 @@ export async function materializeSiteContent(
         "The design team could not author this website's page plan, so nothing was created. Please try again in a moment.",
       );
     }
-    const architecture = authored;
-    authoredArchitecture = authored;
+    authoredArchitecture = architecture;
     designContract = requireAiDesignContract({
       attempt: compileAiDesignContract({
         businessName: input.businessName,
