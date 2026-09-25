@@ -20,6 +20,7 @@
 import type { ModelRole, ProviderName } from "@/lib/ai/config";
 
 export type FreeProviderName =
+  | "openai"
   | "cloudflare"
   | "groq"
   | "nvidia"
@@ -28,6 +29,7 @@ export type FreeProviderName =
   | "google";
 
 export const FREE_PROVIDERS: FreeProviderName[] = [
+  "openai",
   "cloudflare",
   "groq",
   "nvidia",
@@ -35,6 +37,7 @@ export const FREE_PROVIDERS: FreeProviderName[] = [
   "openrouter",
   "google",
 ];
+
 
 export function isFreeProvider(name: string): name is FreeProviderName {
   return (FREE_PROVIDERS as string[]).includes(name);
