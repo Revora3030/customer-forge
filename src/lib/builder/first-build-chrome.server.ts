@@ -16,7 +16,7 @@ const RULES = [
   "You are Sol, lead art director. Design this website's menu bar (header) and footer from scratch.",
   `Use only these primitives: ${COMPOSITION_PRIMITIVES.join(", ")}.`,
   PRIMITIVE_GUIDE,
-  "Node shape: {type, text?, href?, src?, alt?, level?, items?, style?, responsive?: {mobile?, tablet?, desktop?}, motion?, children?}. Colours are #RRGGBB.",
+  "Node shape: {type, text?, href?, src?, alt?, level?, items?, style?, responsive?: {mobile?, tablet?, desktop?}, motion?, children?}. Colours are #RRGGBB. Sizes (padding, paddingX, paddingY, gap, etc.) are plain numbers in pixels, e.g. 24 — not CSS strings. Alignment uses align (left|center|right) and justify (start|center|end|between).",
   "Internal links use '/' for home and '/<page-slug>' for pages. Phone links use tel:, email links use mailto:.",
   "The header must link to every listed page. Design it as one refined, compact row for wide screens (brand, links, one call to action). On phones the platform shows it inside a full-screen menu, so also make it read beautifully stacked in one column with generous 44px touch targets.",
   "Design like a $15,000 agency site: confident typography scale, restrained palette, deliberate whitespace, one strong focal point per section, no link grids or repeated menus in the footer body.",

@@ -200,6 +200,45 @@ export function isSafeHref(href: string): boolean {
   }
 }
 
+const CSS_KEYS: Record<string, string> = {
+  justifyContent: "justify", textAlign: "align", alignItems: "items", fontFamily: "font", fontSize: "size",
+  fontWeight: "weight", borderRadius: "radius", backgroundColor: "background", fontStyle: "italic",
+};
+const WEIGHT_WORDS: Record<string, number> = { normal: 400, bold: 700, lighter: 300, bolder: 800 };
+const PX = /^\s*(-?\d+(?:\.\d+)?)\s*(px)?\s*$/i;
+/**
+ * Translates standard CSS spellings of the same value into this schema's
+ * shape ("24px" → 24, padding "16px 32px" → paddingY/paddingX, justifyContent →
+ * justify). It never chooses a value; anything it can't translate is passed
+ * through so the validator reports it.
+ */
+function cssSpellings(style: Record<string, unknown>): [string, unknown][] {
+  const out: [string, unknown][] = [];
+  for (const [rawKey, value] of Object.entries(style)) {
+    const key = CSS_KEYS[rawKey] ?? rawKey;
+    if (rawKey === "fontStyle" && typeof value === "string") { out.push(["italic", value.trim() === "italic"]); continue; }
+    if (rawKey === "textTransform" && typeof value === "string") { out.push(["uppercase", value.trim() === "uppercase"]); continue; }
+    if (key === "font" && typeof value === "string") {
+      out.push([key, value.split(",")[0]!.replace(/["']/g, "").trim()]);
+      continue;
+    }
+    if (key === "weight" && typeof value === "string" && WEIGHT_WORDS[value.trim().toLowerCase()]) {
+      out.push([key, WEIGHT_WORDS[value.trim().toLowerCase()]]);
+      continue;
+    }
+    if (key in NUMERIC && typeof value === "string") {
+      const parts = value.trim().split(/\s+/);
+      const nums = parts.map((part) => PX.exec(part)?.[1]).map((n) => (n === undefined ? NaN : Number(n)));
+      if (nums.every(Number.isFinite)) {
+        if (nums.length === 1) { out.push([key, nums[0]]); continue; }
+        if (key === "padding" && nums.length >= 2) { out.push(["paddingY", nums[0]], ["paddingX", nums[1]]); continue; }
+      }
+    }
+    out.push([key, value]);
+  }
+  return out;
+}
+
 function checkStyle(style: unknown, path: string, issues: CompositionIssue[]): NodeStyle {
   if (style == null) return {};
   if (typeof style !== "object" || Array.isArray(style)) {
@@ -207,7 +246,7 @@ function checkStyle(style: unknown, path: string, issues: CompositionIssue[]): N
     return {};
   }
   const out: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(style as Record<string, unknown>)) {
+  for (const [key, value] of cssSpellings(style as Record<string, unknown>)) {
     const at = `${path}.${key}`;
     if (key in NUMERIC) {
       const [min, max] = NUMERIC[key]!;
