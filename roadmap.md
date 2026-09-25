@@ -51,4 +51,6 @@ Ordered by user-felt impact. Each item: extend existing code, never duplicate.
 - [x] 6. Hero video idea written by Sol in first build; owner clicks to make it (no automatic video spend)
 - [x] Toggle building block added
 - [x] Monthly AI spend limit raised to $100 (owner choice)
-- [ ] Retire fixed starting page list, old section layouts, style-token compression, non-AI fallbacks
+- [x] Non-AI backups removed (built-in review, on-device model, built-in engine report, built-in business strategy)
+- [ ] Fixed starting page list (planSiteContent) + candidate menu — next
+- [ ] Old section layouts + style-token squeezing — needs AI restyle of existing customer sites first (would change their look)
