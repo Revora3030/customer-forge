@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { planSiteContent, type MaterializeInput } from "@/lib/site-materialize.server";
+import type { MaterializeInput } from "@/lib/site-materialize.server";
 import { materializedSectionDesign } from "@/lib/site-materialize.server";
 import { parseAuthoredDirection } from "@/lib/authored-direction";
 const AUTHORED_LOOK = {
@@ -49,49 +49,7 @@ const input: MaterializeInput = {
   hasBooking: true,
 };
 
-describe("planSiteContent", () => {
-  it("builds a home page plus the core pages", () => {
-    const pages = planSiteContent(input);
-    const slugs = pages.map((page) => page.slug);
-    expect(slugs[0]).toBe("home");
-    expect(pages[0]!.kind).toBe("home");
-    expect(slugs).toEqual(
-      expect.arrayContaining(["home", "services", "pricing", "about", "book", "contact"]),
-    );
-  });
-
-  it("fills the home page with real content", () => {
-    const home = planSiteContent(input)[0]!;
-    const kinds = home.sections.map((section) => section.kind);
-    expect(kinds).toContain("hero");
-    expect(kinds).toContain("services");
-    expect(kinds).toContain("faq");
-    expect(kinds).toContain("quote");
-    const hero = home.sections.find((section) => section.kind === "hero")!;
-    expect(hero.heading).toContain("Tampa");
-    expect(hero.components?.[0]?.link_url).toBe("/#quote");
-  });
-
-  it("omits sections that have no supplied facts", () => {
-    const bare = planSiteContent({
-      ...input,
-      services: [],
-      copy: { ...input.copy, serviceCards: [], benefits: [], faqs: [] },
-      yearsInBusiness: null,
-      city: null,
-      state: null,
-      phone: null,
-      hasQuoteForm: false,
-      hasBooking: false,
-    });
-    const home = bare[0]!;
-    const kinds = home.sections.map((section) => section.kind);
-    expect(kinds).not.toContain("services");
-    expect(kinds).not.toContain("benefits");
-    expect(kinds).not.toContain("trust_bar");
-    expect(bare.map((page) => page.slug)).not.toContain("pricing");
-  });
-
+describe("AI-only materialization", () => {
   it("applies no house layout of its own when there is no authored identity", () => {
     const direction = parseAuthoredDirection(AUTHORED_LOOK);
     expect(direction).toBeTruthy();
@@ -103,63 +61,6 @@ describe("planSiteContent", () => {
     expect(services.settings).toMatchObject({ effect: direction?.bodyEffect });
     expect((hero.settings as { visual?: unknown }).visual).toBeUndefined();
     expect((services.settings as { visual?: unknown }).visual).toBeUndefined();
-  });
-
-
-  it.skip("turns the full fingerprint into materially different rendered contracts (decommissioned: fingerprint pools are no longer a creative authority)", () => {
-    const direction = parseAuthoredDirection(AUTHORED_LOOK);
-    const a = blankDesignFingerprint();
-    const b = blankDesignFingerprint();
-    const first = materializedSectionDesign("hero", direction, a, 0);
-    const second = materializedSectionDesign("hero", direction, b, 0);
-    expect(first.variant).not.toBe(second.variant);
-    expect(first.settings).not.toEqual(second.settings);
-  });
-
-  it("opens the home page with a hero and closes it with a standing call to action", () => {
-    const home = planSiteContent(input)[0]!;
-    const kinds = home.sections.map((section) => section.kind);
-    expect(kinds[0]).toBe("hero");
-    expect(kinds.at(-1)).toBe("sticky_cta");
-  });
-
-  it("creates an image-led, conversion-ready landing page for each supplied service", () => {
-    const pages = planSiteContent(input);
-    const servicePages = pages.filter((page) => page.slug.startsWith("services/"));
-    expect(servicePages).toHaveLength(input.services.length);
-    expect(servicePages[0]?.sections.map((section) => section.kind)).toEqual(
-      expect.arrayContaining(["hero", "service_detail", "cta"]),
-    );
-    const serviceLinks = pages[0]?.sections
-      .find((section) => section.kind === "services")
-      ?.components?.map((component) => component.link_url);
-    expect(serviceLinks).toContain(`/services/${input.services[0]!.name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`);
-  });
-
-  it("gives core interior pages a deliberate opening, useful body, and closing action", () => {
-    const pages = planSiteContent(input);
-    for (const slug of ["services", "pricing", "about", "book"]) {
-      const page = pages.find((candidate) => candidate.slug === slug)!;
-      expect(page.sections[0]?.kind).toBe("hero");
-      expect(page.sections.at(-1)?.kind).toBe("cta");
-      expect(page.sections.length).toBeGreaterThanOrEqual(3);
-    }
-    const contact = pages.find((page) => page.slug === "contact")!;
-    expect(contact.sections[0]?.kind).toBe("hero");
-    expect(contact.sections.map((section) => section.kind)).toContain("quote");
-  });
-});
-
-describe("industry blueprints have no authority over structure", () => {
-  it("ignores the industry classification when shaping the site", () => {
-    const shapes = ["Restaurant", "Dental", "Gym", "Hotel", "Law"].map((industry) =>
-      planSiteContent({ ...input, photoCount: 4, industry } as typeof input)
-        .map((page) => page.slug)
-        .join(","),
-    );
-    // The renderer supplies the same fillable inventory for every industry: the
-    // page set, section choice and order come from the AI design plan instead.
-    expect(new Set(shapes).size).toBe(1);
   });
 });
 
