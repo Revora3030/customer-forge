@@ -48,4 +48,4 @@ Ordered by user-felt impact. Each item: extend existing code, never duplicate.
 - [x] 3. Every first-build content section laid out by Sol as its own composition (forms/booking kept working)
 - [x] 4. AI-designed menu and footer (Sol designs both on first builds; plain menu stays for older sites)
 - [x] 5. New building blocks (tabs, accordion, compare, toggle, marquee, gallery, quote)
-- [ ] 6. Optional AI-requested hero video in first build
+- [x] 6. Hero video idea written by Sol in first build; owner clicks to make it (no automatic video spend)

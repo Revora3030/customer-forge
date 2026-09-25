@@ -24,6 +24,20 @@ export const sectionVideoStatus = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async () => paidVideoStatus());
 
+/** Sol's hero-video idea from the first build, if any. The owner still decides whether to make it. */
+export const heroVideoBrief = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { organizationId: string }) => {
+    const id = String(input?.organizationId ?? "");
+    if (!UUID.test(id)) throw new Error("Invalid workspace");
+    return { organizationId: id };
+  })
+  .handler(async ({ data, context }) => {
+    const { data: row } = await context.supabase.from("website_settings").select("generation").eq("organization_id", data.organizationId).maybeSingle();
+    const brief = (row?.generation as Record<string, unknown> | null)?.["heroVideoBrief"];
+    return { brief: typeof brief === "string" ? brief.slice(0, 600) : null };
+  });
+
 export const generateSectionVideo = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator(
