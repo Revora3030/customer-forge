@@ -48,6 +48,17 @@ export function styleToCss(style: NodeStyle | undefined, type: CompositionNode["
   if (style.objectFit) css.objectFit = style.objectFit;
   if (style.minHeight != null) css.minHeight = style.minHeight;
   if (style.hidden) css.display = "none";
+  if (style.position) css.position = style.position;
+  if (style.top != null) css.top = style.top;
+  if (style.left != null) css.left = style.left;
+  if (style.right != null) css.right = style.right;
+  if (style.bottom != null) css.bottom = style.bottom;
+  if (style.zIndex != null) css.zIndex = style.zIndex;
+  if (style.overlap != null) { css.marginTop = -style.overlap; css.position = css.position ?? "relative"; }
+  if (style.blur != null) { css.backdropFilter = `blur(${style.blur}px)`; css.WebkitBackdropFilter = `blur(${style.blur}px)`; }
+  if (style.rotate != null) css.transform = `rotate(${style.rotate}deg)`;
+  if (style.gridAreas && type === "grid") css.gridTemplateAreas = style.gridAreas;
+  if (style.area) css.gridArea = style.area;
   return css;
 }
 
@@ -92,7 +103,9 @@ function renderNode(node: CompositionNode, ctx: Ctx, key: string): ReactNode {
     "data-cn": id,
     "data-motion": motion?.kind,
     className: motion ? "rv-cn-motion" : undefined,
-    style: motion?.delayMs ? { ...style, animationDelay: `${motion.delayMs}ms` } : style,
+    style: motion && (motion.delayMs || motion.durationMs)
+      ? { ...style, ...(motion.delayMs ? { animationDelay: `${motion.delayMs}ms` } : {}), ...(motion.durationMs ? { animationDuration: `${motion.durationMs}ms` } : {}) }
+      : style,
   };
   const kids = node.children?.map((child, i) => renderNode(child, ctx, `${key}.${i}`));
 
@@ -208,7 +221,7 @@ function Compare({ props, before, after, beforeSource, afterSource }: { props: N
 
 const MARQUEE_CSS = `@media (prefers-reduced-motion: no-preference){.rv-cn-marquee{animation:rv-cn-marquee 30s linear infinite}}@keyframes rv-cn-marquee{to{transform:translateX(-50%)}}`;
 
-const MOTION_CSS = `@media (prefers-reduced-motion: no-preference){.rv-cn-motion{animation:rv-cn-in .7s ease both}.rv-cn-motion[data-motion=rise]{animation-name:rv-cn-rise}.rv-cn-motion[data-motion=scale]{animation-name:rv-cn-scale}.rv-cn-motion[data-motion=float]{animation:rv-cn-float 6s ease-in-out infinite}}@keyframes rv-cn-in{from{opacity:0}to{opacity:1}}@keyframes rv-cn-rise{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:none}}@keyframes rv-cn-scale{from{opacity:0;transform:scale(.94)}to{opacity:1;transform:none}}@keyframes rv-cn-float{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}`;
+const MOTION_CSS = `@media (prefers-reduced-motion: no-preference){.rv-cn-motion{animation:rv-cn-in .7s ease both}.rv-cn-motion[data-motion=rise]{animation-name:rv-cn-rise}.rv-cn-motion[data-motion=scale]{animation-name:rv-cn-scale}.rv-cn-motion[data-motion=float]{animation:rv-cn-float 6s ease-in-out infinite}.rv-cn-motion[data-motion=slide-left]{animation-name:rv-cn-sl}.rv-cn-motion[data-motion=slide-right]{animation-name:rv-cn-sr}.rv-cn-motion[data-motion=blur]{animation-name:rv-cn-blur}.rv-cn-motion[data-motion=reveal]{animation-name:rv-cn-reveal}}@keyframes rv-cn-sl{from{opacity:0;transform:translateX(32px)}to{opacity:1;transform:none}}@keyframes rv-cn-sr{from{opacity:0;transform:translateX(-32px)}to{opacity:1;transform:none}}@keyframes rv-cn-blur{from{opacity:0;filter:blur(12px)}to{opacity:1;filter:none}}@keyframes rv-cn-reveal{from{clip-path:inset(0 0 100% 0)}to{clip-path:inset(0 0 0 0)}}@keyframes rv-cn-in{from{opacity:0}to{opacity:1}}@keyframes rv-cn-rise{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:none}}@keyframes rv-cn-scale{from{opacity:0;transform:scale(.94)}to{opacity:1;transform:none}}@keyframes rv-cn-float{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}`;
 
 export function CompositionRenderer({ tree, scope, as = "section", resolveHref, resolveMedia }: { tree: CompositionTree; scope: string; as?: "section" | "div"; resolveHref?: (href: string) => string; resolveMedia?: (ref: string) => string | null }) {
   const ctx: Ctx = { rules: [], counter: { n: 0 }, scope: scope.replace(/[^\w-]/g, "") || "cn", href: resolveHref ?? ((h) => h), media: resolveMedia ?? (() => null) };

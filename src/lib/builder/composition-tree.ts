@@ -22,7 +22,11 @@ export const PRIMITIVE_GUIDE =
   "compare (exactly two media children: before then after — renders a drag slider), " +
   "marquee (children scroll sideways in a loop; stops for reduced motion), " +
   "gallery (media children in a grid; tap opens full size), " +
-  "quote (text is the quoted words; items[0] optional attribution — only real, supplied quotes).";
+  "quote (text is the quoted words; items[0] optional attribution — only real, supplied quotes). " +
+  "Layering: style.position (relative|sticky|absolute), style.top/left/right/bottom (px), style.zIndex (0-50), style.overlap (px a block pulls up over the one before it), style.blur (frosted-glass backdrop px), style.rotate (deg), style.gridAreas + style.area for named grid regions. " +
+  "Motion: motion.kind fade|rise|scale|float|slide-left|slide-right|blur|reveal, motion.delayMs, motion.durationMs; all motion is skipped for reduced-motion visitors.";
+export const MOTION_KINDS = ["none", "fade", "rise", "scale", "float", "slide-left", "slide-right", "blur", "reveal"] as const;
+export type MotionKind = (typeof MOTION_KINDS)[number];
 export type CompositionPrimitive = (typeof COMPOSITION_PRIMITIVES)[number];
 export type Breakpoint = "mobile" | "tablet" | "desktop";
 
@@ -57,6 +61,17 @@ export type NodeStyle = {
   objectFit?: "cover" | "contain" | "fill";
   minHeight?: number;
   hidden?: boolean;
+  position?: "relative" | "sticky" | "absolute";
+  top?: number;
+  left?: number;
+  right?: number;
+  bottom?: number;
+  zIndex?: number;
+  overlap?: number;
+  blur?: number;
+  rotate?: number;
+  gridAreas?: string;
+  area?: string;
 };
 
 export type CompositionNode = {
@@ -70,7 +85,7 @@ export type CompositionNode = {
   items?: string[];
   style?: NodeStyle;
   responsive?: Partial<Record<Breakpoint, NodeStyle>>;
-  motion?: { kind: "none" | "fade" | "rise" | "scale" | "float"; delayMs?: number };
+  motion?: { kind: MotionKind; delayMs?: number; durationMs?: number };
   children?: CompositionNode[];
 };
 
@@ -89,6 +104,8 @@ const NUMERIC: Record<string, [number, number]> = {
   maxWidth: [200, 2400], span: [1, 12], size: [8, 200], weight: [100, 900], lineHeight: [0.7, 3],
   letterSpacing: [-0.05, 0.5], gradientAngle: [0, 360], radius: [0, 999], borderWidth: [0, 16],
   opacity: [0, 100], minHeight: [0, 1600],
+  top: [-400, 1600], left: [-400, 1600], right: [-400, 1600], bottom: [-400, 1600],
+  zIndex: [0, 50], overlap: [0, 400], blur: [0, 40], rotate: [-45, 45],
 };
 const ENUMS: Record<string, readonly string[]> = {
   align: ["left", "center", "right"],
@@ -96,6 +113,7 @@ const ENUMS: Record<string, readonly string[]> = {
   items: ["start", "center", "end", "stretch"],
   shadow: ["none", "subtle", "medium", "strong"],
   objectFit: ["cover", "contain", "fill"],
+  position: ["relative", "sticky", "absolute"],
 };
 const ENUM_ALIASES: Record<string, string> = {
   "space-between": "between", "flex-start": "start", "flex-end": "end",
@@ -103,6 +121,8 @@ const ENUM_ALIASES: Record<string, string> = {
 const COLOR_KEYS = ["color", "background", "gradientTo", "borderColor"];
 const HEX = /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i;
 const SAFE_FONT = /^[a-z0-9 \-']{1,60}$/i;
+const SAFE_AREA = /^[a-z][a-z0-9-]{0,30}$/i;
+const SAFE_GRID_AREAS = /^(?:"[a-z0-9.\- ]{1,120}"\s*){1,12}$/i;
 const SAFE_ASPECT = /^\d{1,2}:\d{1,2}$/;
 const SAFE_MEDIA_REF = /^(?:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|temp_[a-z0-9_]{1,30})$/i;
 const UNSAFE_TEXT = /<\s*\/?\s*(script|iframe|object|embed|style)|javascript:|on\w+\s*=/i;
@@ -148,6 +168,12 @@ function checkStyle(style: unknown, path: string, issues: CompositionIssue[]): N
     } else if (key === "aspect") {
       if (typeof value !== "string" || !SAFE_ASPECT.test(value)) issues.push({ path: at, problem: "aspect must look like 16:9" });
       else out[key] = value;
+    } else if (key === "area") {
+      if (typeof value !== "string" || !SAFE_AREA.test(value)) issues.push({ path: at, problem: "area must be a simple name like media" });
+      else out[key] = value;
+    } else if (key === "gridAreas") {
+      if (typeof value !== "string" || !SAFE_GRID_AREAS.test(value.trim())) issues.push({ path: at, problem: 'gridAreas must look like "media copy" "media cta"' });
+      else out[key] = value.trim();
     } else if (key === "italic" || key === "uppercase" || key === "hidden") {
       if (typeof value !== "boolean") issues.push({ path: at, problem: "must be true or false" });
       else out[key] = value;
@@ -268,11 +294,13 @@ export function validateComposition(input: unknown, options: ValidateOptions = {
     if (row["motion"] != null) {
       const motion = row["motion"] as Record<string, unknown>;
       const kind = motion?.["kind"];
-      if (!["none", "fade", "rise", "scale", "float"].includes(kind as string)) issues.push({ path: `${path}.motion.kind`, problem: "unknown motion" });
+      if (!MOTION_KINDS.includes(kind as MotionKind)) issues.push({ path: `${path}.motion.kind`, problem: "unknown motion" });
       else {
         const delay = motion["delayMs"];
         node.motion = { kind: kind as NonNullable<CompositionNode["motion"]>["kind"] };
         if (typeof delay === "number" && delay >= 0 && delay <= 3000) node.motion.delayMs = delay;
+        const duration = motion["durationMs"];
+        if (typeof duration === "number" && duration >= 150 && duration <= 4000) node.motion.durationMs = duration;
       }
     }
     if (row["children"] != null) {
