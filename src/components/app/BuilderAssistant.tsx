@@ -347,7 +347,7 @@ export function BuilderAssistant({
             value={value}
             maxLength={INSTRUCTION_LIMIT}
              disabled={!requests.ready || firstBuildBusy}
-            placeholder="Ask Revora…"
+            placeholder={factQuestion ? "Type your answer…" : "Ask Revora…"}
             aria-label="Tell Revora what to change"
             className="text-base"
             enterKeyHint="send"
