@@ -117,7 +117,7 @@ export function compileAiDesignContract(input: {
       name: input.businessName,
       concept: `${input.brief.archetype} — ${input.fingerprint.family}`,
       personality: input.brief.personality,
-      differentiators: input.differentiators ?? input.brief.industryConventions.slice(0, 4),
+      differentiators: input.differentiators ?? input.brief.industryConventions,
     },
     typography: {
       display: input.brief.typography.display,
@@ -172,7 +172,7 @@ export function compileAiDesignContract(input: {
       primary: input.primaryAction,
       secondary: input.secondaryAction ?? null,
       placement: input.architecture.flatMap((page) =>
-        page.sections.filter((section) => /cta|quote|booking|contact/i.test(section.role)).map((section) => `${page.slug}:${section.role}`),
+        page.sections.filter((section) => section.includes?.includes("primary_action")).map((section) => `${page.slug}:${section.role}`),
       ),
     },
     cards: { style: input.fingerprint.cardSystem, mediaRatio: input.fingerprint.artDirection.aspectRatio },
