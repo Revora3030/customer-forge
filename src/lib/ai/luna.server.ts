@@ -108,8 +108,6 @@ export function lunaEnabled(): boolean {
     return raw === "true" || raw === "1" || raw === "on" || raw === "yes";
   };
   if (off("LUNA_ENABLED")) return false;
-  if (on("ZERO_AI_COST_MODE")) return false;
-  if (off("BUILDER_EXTERNAL_AI_ALLOWED")) return false;
   return Boolean(env("OPENAI_API_KEY"));
 }
 
