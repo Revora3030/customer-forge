@@ -159,7 +159,7 @@ export function BuilderAssistant({
     <section
       id="website-assistant"
       className={cn(
-        "builder-conversation -mx-4 flex flex-col overflow-hidden rounded-none border-0 bg-transparent p-0 shadow-none sm:mx-0 lg:rounded-2xl lg:border lg:border-border/80 lg:bg-card/72 lg:shadow-lift",
+        "builder-conversation flex w-full max-w-full min-w-0 flex-col overflow-hidden rounded-none border-0 bg-transparent p-0 shadow-none sm:mx-0 lg:rounded-2xl lg:border lg:border-border/80 lg:bg-card/72 lg:shadow-lift",
         compact ? "h-[calc(100dvh-9.75rem)] min-h-[360px] lg:h-[calc(100vh-8rem)]" : "h-[calc(100dvh-9rem)] min-h-[360px]",
       )}
     >
@@ -208,7 +208,7 @@ export function BuilderAssistant({
         <ConversationScrollButton />
       </Conversation>
 
-      <div className="px-3 pt-1 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+      <div className="max-h-[55%] shrink-0 overflow-y-auto overscroll-contain px-3 pt-1 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
         {/* Everything the old separate AI panels offered, as one tap each. */}
          <div className="-mx-3 mb-2 flex gap-2 overflow-x-auto px-3 pb-1 [scrollbar-width:none]">
           {(moreOpen ? SUGGESTIONS : SUGGESTIONS.slice(0, 3)).map((action) => (
