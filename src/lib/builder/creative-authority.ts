@@ -46,41 +46,26 @@ export type PageArchitecture = {
   purpose: string;
   primaryAction: string;
   /** Section roles in the AI's intended order for this page. */
+  /** The AI's own per-width behaviour, when it described one. */
+  responsive?: Partial<Record<number, Partial<ResponsiveBehaviour>>>;
   sections: { role: string; layout?: string; intent?: string; media?: SectionDesign["media"]; heading?: string | null; subheading?: string | null; body?: string | null; custom?: boolean; includes?: ("primary_action" | "service_cards")[] }[];
 };
 
+/**
+ * Records the AI's own per-width behaviour. Nothing is derived: widths the AI
+ * did not describe keep the AI's authored section order and carry no invented
+ * column count, nav style, CTA placement, crop or type scale. Actual responsive
+ * styling lives on the AI's composition nodes (node.responsive).
+ */
 function responsivePlan(input: {
   sections: SectionDesign[];
-  mobileStrategy: string[];
-  navSystem: string;
-  ctaSystem: string;
-  crop: string;
+  authored?: Partial<Record<number, Partial<ResponsiveBehaviour>>>;
 }): Record<number, ResponsiveBehaviour> {
-  // Mobile order is an intentional hierarchy decision, taken from the design's
-  // own emphasis ranking rather than from the desktop order.
-  const mobileOrder = [...input.sections]
-    .sort((a, b) => a.emphasis - b.emphasis)
-    .map((section) => section.id);
-  const desktopOrder = input.sections.map((section) => section.id);
-  const stickyCta = /sticky|persistent|bar/i.test(input.ctaSystem);
+  const authoredOrder = input.sections.map((section) => section.id);
   const plan: Record<number, ResponsiveBehaviour> = {};
   for (const width of REQUIRED_RESPONSIVE_WIDTHS) {
-    const phone = width < 500;
-    const tablet = width >= 500 && width < 1100;
-    plan[width] = {
-      order: phone ? mobileOrder : desktopOrder,
-      typeScale: width <= 375 ? 0.84 : phone ? 0.9 : tablet ? 0.96 : 1,
-      cta: phone ? (stickyCta ? "sticky_bar" : "stacked") : "inline",
-      columns: phone ? 1 : tablet ? 2 : 3,
-      imageCrop: phone
-        ? input.crop === "21:9"
-          ? "landscape"
-          : "portrait"
-        : tablet
-          ? "landscape"
-          : "wide",
-      nav: phone ? "drawer" : tablet ? "condensed" : "full",
-    };
+    const own = input.authored?.[width] ?? {};
+    plan[width] = { ...own, order: own.order ?? authoredOrder };
   }
   return plan;
 }
@@ -120,13 +105,7 @@ export function compileAiDesignContract(input: {
       purpose: page.purpose,
       sections,
       primaryAction: page.primaryAction,
-      responsive: responsivePlan({
-        sections,
-        mobileStrategy: input.brief.mobileStrategy,
-        navSystem: input.fingerprint.navSystem,
-        ctaSystem: input.fingerprint.ctaSystem,
-        crop: input.fingerprint.artDirection.aspectRatio,
-      }),
+      responsive: responsivePlan({ sections, authored: page.responsive }),
     };
   });
 

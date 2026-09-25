@@ -51,15 +51,15 @@ export type ResponsiveBehaviour = {
   /** Section ids in the order they appear on a narrow screen. */
   order: string[];
   /** Type scale multiplier at this width, relative to the desktop scale. */
-  typeScale: number;
+  typeScale?: number;
   /** How the primary action behaves at this width. */
-  cta: "inline" | "stacked" | "sticky_bar" | "hidden";
+  cta?: "inline" | "stacked" | "sticky_bar" | "hidden";
   /** How multi-item groups lay out at this width. */
-  columns: number;
+  columns?: number;
   /** How imagery is cropped at this width. */
-  imageCrop: "square" | "portrait" | "landscape" | "wide" | "full_bleed";
+  imageCrop?: "square" | "portrait" | "landscape" | "wide" | "full_bleed";
   /** Navigation behaviour at this width. */
-  nav: "full" | "condensed" | "drawer" | "bottom_bar";
+  nav?: "full" | "condensed" | "drawer" | "bottom_bar";
 };
 
 export type SectionDesign = {
