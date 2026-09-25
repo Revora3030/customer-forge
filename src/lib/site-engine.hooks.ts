@@ -454,15 +454,22 @@ export function useSiteEngineCheck(organizationId: string | undefined) {
  */
 export function useEnsureFirstBuild(
   organizationId: string | undefined,
-  state: { jobsLoaded: boolean; hasAnyJob: boolean; pageCount: number | undefined; canManage: boolean },
+  state: {
+    jobsLoaded: boolean;
+    hasAnyJob: boolean;
+    pageCount: number | undefined;
+    canManage: boolean;
+    /** Required facts are filled; otherwise the builder asks for them first. */
+    ready: boolean;
+  },
 ) {
   const queryClient = useQueryClient();
   const analyze = useServerFn(analyzeSiteBrief);
   const approve = useServerFn(saveSiteBrief);
   const queue = useServerFn(runSiteGeneration);
-  const { jobsLoaded, hasAnyJob, pageCount, canManage } = state;
+  const { jobsLoaded, hasAnyJob, pageCount, canManage, ready } = state;
   useEffect(() => {
-    if (!organizationId || !canManage || !jobsLoaded || hasAnyJob) return;
+    if (!organizationId || !canManage || !ready || !jobsLoaded || hasAnyJob) return;
     if (pageCount === undefined || pageCount > 0) return;
     const key = `revora.firstbuild.${organizationId}`;
     if (sessionStorage.getItem(key)) return;
@@ -475,6 +482,8 @@ export function useEnsureFirstBuild(
             return await fn();
           } catch (e) {
             last = e;
+            // Only network drops are worth retrying; missing facts are not.
+            if (!/load failed|failed to fetch|network/i.test(String((e as Error)?.message))) break;
             await new Promise((r) => setTimeout(r, 1500 * (i + 1)));
           }
         }
@@ -502,5 +511,5 @@ export function useEnsureFirstBuild(
         void queryClient.invalidateQueries({ queryKey: ["website_settings"] });
       }
     })();
-  }, [organizationId, canManage, jobsLoaded, hasAnyJob, pageCount, analyze, approve, queue, queryClient]);
+  }, [organizationId, canManage, ready, jobsLoaded, hasAnyJob, pageCount, analyze, approve, queue, queryClient]);
 }

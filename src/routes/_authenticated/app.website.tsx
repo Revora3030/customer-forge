@@ -230,6 +230,7 @@ function WebsitePage() {
     hasAnyJob: !!latestJob.data,
     pageCount: pages ? (pages as unknown[]).length : undefined,
     canManage: manage,
+    ready: !!readiness && readiness.requiredGaps.length === 0,
   });
 
   /** Older deep links (and panels that ask to jump) resolve to the new doors. */
