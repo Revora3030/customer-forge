@@ -13,7 +13,6 @@ import { ArrowDown, ArrowUp, History, Plus, Trash2 } from "lucide-react";
 import {
   Conversation,
   ConversationContent,
-  ConversationEmptyState,
   ConversationScrollButton,
 } from "@/components/ai-elements/conversation";
 import { Message, MessageContent } from "@/components/ai-elements/message";
@@ -49,6 +48,7 @@ export function BuilderAssistant({
   requests,
   emptyTitle,
   emptyHint,
+  businessName = null,
   compact = false,
   selection = null,
   onClearSelection,
@@ -64,6 +64,8 @@ export function BuilderAssistant({
   requests: BuilderRequests;
   emptyTitle: string;
   emptyHint: string;
+  /** Shown in Revora's greeting so the chat feels addressed to this business. */
+  businessName?: string | null;
   compact?: boolean;
   /** The block the owner clicked in the preview, if any. */
   selection?: { id: string; label: string | null; kind: string | null; text: string | null } | null;
