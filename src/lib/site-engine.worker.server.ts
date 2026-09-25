@@ -212,7 +212,7 @@ async function runJob(
   const { captureQa } = await import("@/lib/launch-qa");
   const { gatherBriefFacts } = await import("@/lib/site-brief.server");
   const {
-    fallbackBrief,
+    analyzeBusiness,
     blankCopy,
     missingAiCopy,
   } = await import("@/lib/site-engine.server");
