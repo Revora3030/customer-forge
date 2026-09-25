@@ -214,7 +214,7 @@ export function QuoteCalculator({ site }: { site: Site }) {
             </div>
             <Button
               variant="signal"
-              className="min-h-11"
+              className="min-h-11 sm:min-h-11"
               disabled={!complete}
               onClick={() => {
                 track("quote_complete");
