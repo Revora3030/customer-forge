@@ -33,4 +33,5 @@
 - [x] Per-build team trace table and admin view
 - [ ] Revora site: visual 97/100 and hours fixed — publish waits on the $750 setup payment
 - [ ] Second genuinely different industry build — needs real business details from owner
-- [ ] Northline rebuild; final security/billing review
+- [x] Final security/billing review (clean)
+- [ ] Northline rebuild — waiting on owner go-ahead (uses AI budget)
