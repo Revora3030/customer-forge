@@ -264,6 +264,18 @@ function readBrand(
   return Object.values(brand).some(Boolean) ? brand : null;
 }
 
+/** Owner-saved opening hours as plain text (string or simple day map), else null. */
+function hoursText(value: unknown): string | null {
+  if (typeof value === "string") return value.trim() || null;
+  if (value && typeof value === "object" && !Array.isArray(value)) {
+    const parts = Object.entries(value as Record<string, unknown>)
+      .filter(([, v]) => typeof v === "string" && v.trim())
+      .map(([day, v]) => `${day}: ${String(v).trim()}`);
+    return parts.length ? parts.join("; ") : null;
+  }
+  return null;
+}
+
 export const planWebsiteChanges = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator(
@@ -367,6 +379,7 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
           phone: (p["phone"] as string) ?? null,
           email: (p["email"] as string) ?? null,
           yearsInBusiness: (p["years_in_business"] as number) ?? null,
+          hours: hoursText(p["hours"]),
           primaryColor: (p["primary_color"] as string) ?? null,
           secondaryColor: (p["secondary_color"] as string) ?? null,
           accentColor: (p["accent_color"] as string) ?? null,

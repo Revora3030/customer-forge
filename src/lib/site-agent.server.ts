@@ -71,6 +71,8 @@ export type AgentContext = {
     phone: string | null;
     email: string | null;
     yearsInBusiness: number | null;
+    /** Opening hours exactly as the owner saved them, or null. */
+    hours?: string | null;
     primaryColor: string | null;
     secondaryColor: string | null;
     accentColor: string | null;

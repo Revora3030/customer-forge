@@ -109,6 +109,7 @@ function businessBlock(context: AgentContext): string {
     `phone supplied: ${b.phone ? "yes" : "no"}`,
     `email supplied: ${b.email ? "yes" : "no"}`,
     `years in business: ${b.yearsInBusiness ?? "(not supplied)"}`,
+    `opening hours (owner-supplied, use verbatim): ${b.hours ?? "(not supplied)"}`,
     `published reviews: ${b.publishedReviewCount ?? 0}`,
     `owner photos available: ${b.photoCount ?? 0}`,
     `current colours: ${[b.primaryColor, b.secondaryColor, b.accentColor].filter(Boolean).join(" ") || "(none set)"}`,
