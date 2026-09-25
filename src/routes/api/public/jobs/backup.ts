@@ -42,7 +42,16 @@ async function run() {
     }
   }
 
+  // Retention: remove old build-progress, error and usage rows (never customer
+  // content, leads, bookings, billing or analytics). Failure is recorded, not hidden.
+  let pruned: unknown = null;
+  const { data: prunedRows, error: pruneError } = await supabaseAdmin.rpc("prune_old_operational_records" as never);
+  if (pruneError) {
+    await captureError({ message: `Record clean-up failed: ${pruneError.message}`, source: "job", level: "error", route: "/api/public/jobs/backup" });
+  } else pruned = prunedRows;
+
   return {
+    pruned,
     backedUp: results.filter((row) => row.ok).length,
     failed: results.filter((row) => !row.ok).length,
     results,
