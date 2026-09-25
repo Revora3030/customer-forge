@@ -1,4 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
+import { getRequest } from "@tanstack/react-start/server";
+import { createHash } from "node:crypto";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { createClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
@@ -36,6 +38,29 @@ function publicClient() {
       },
     },
   });
+}
+
+function sha256Hex(value: string) {
+  return createHash("sha256").update(value).digest("hex");
+}
+
+function publicSubmissionSource() {
+  const request = getRequest();
+  const headers = request.headers;
+  const cfIp = headers.get("cf-connecting-ip")?.trim();
+  const trueClientIp = headers.get("true-client-ip")?.trim();
+  // Only trust edge-controlled client IP headers. Arbitrary X-Forwarded-For is
+  // not used here because public visitors can spoof it before Cloudflare.
+  const ip = cfIp || trueClientIp || `edge:${new URL(request.url).host}`;
+  const userAgent = headers.get("user-agent")?.trim().slice(0, 500) || null;
+  return { ip, userAgent };
+}
+
+function contactFingerprint(input: { email?: string | null; phone?: string | null }) {
+  const email = input.email?.trim().toLowerCase();
+  if (email) return `email:${email}`;
+  const phone = input.phone?.replace(/[^0-9+]/g, "").trim();
+  return phone ? `phone:${phone}` : null;
 }
 
 /** Everything a public business website needs, in one SSR-friendly read. */
@@ -214,6 +239,30 @@ export const submitPublicLead = createServerFn({ method: "POST" })
     if (!org?.id) throw new Error("We couldn't find that business.");
     const orgId: string = org.id;
 
+    const source = publicSubmissionSource();
+    const contact = contactFingerprint(data);
+    const { data: attempt, error: attemptError } = await supabase.rpc(
+      "register_public_submission_attempt",
+      {
+        _organization_id: orgId,
+        _purpose: `public_${data.kind}`,
+        _ip_hash: sha256Hex(`ip|${orgId}|${source.ip}`),
+        _contact_hash: contact ? sha256Hex(`contact|${orgId}|${contact}`) : null,
+        _user_agent_hash: source.userAgent
+          ? sha256Hex(`ua|${orgId}|${source.userAgent}`)
+          : null,
+      },
+    );
+    if (attemptError) {
+      console.error("public submission attempt gate failed", attemptError.message);
+      throw new Error("We couldn't save your request. Please try again.");
+    }
+    if (!((attempt as { allowed?: boolean } | null)?.allowed ?? false)) {
+      throw new Error(
+        "We've already received your details. Please wait a few minutes before sending again.",
+      );
+    }
+
     // Origin event for the CRM timeline: every public submission is visible as
     // the first activity on the lead, with the channel it came from.
     const originBody =
@@ -367,9 +416,7 @@ export const submitPublicLead = createServerFn({ method: "POST" })
       const ownerEmail = profile?.email || profile?.owner_email || null;
       const alertEmail = alertRecipient((profile ?? {}) as Record<string, never>);
 
-      const { deliverRun, sendLeadAlert, sendLeadAlertCopyToRevora } = await import(
-        "@/lib/messaging.server"
-      );
+      const { deliverRun, sendLeadAlert } = await import("@/lib/messaging.server");
       const { logAlertDelivery } = await import("@/lib/notifications.server");
 
       const alertData = {
@@ -406,17 +453,6 @@ export const submitPublicLead = createServerFn({ method: "POST" })
         if (!alert.ok) console.warn("lead alert not delivered", alert.reason);
       }
 
-      // Revora's own inbox gets every lead, whether or not the business set up
-      // its own alerts. A failure here is logged, never hidden.
-      const copy = await sendLeadAlertCopyToRevora(alertData, `lead-alert-${lead.id}`, alertEmail);
-      if (copy)
-        await logAlertDelivery(null, {
-          organizationId: orgId,
-          leadId: lead.id,
-          recipient: copy.recipient,
-          kind: `${data.kind}_revora_copy`,
-          result: copy.result,
-        });
 
       const { enqueueAutomations } = await import("@/lib/automation-engine");
       await enqueueAutomations(

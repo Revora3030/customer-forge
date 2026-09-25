@@ -56,15 +56,19 @@ export async function proposePageArchitecture(input: {
     purpose: page.purpose,
     availableSections: page.sections.map((section) => section.role),
   }));
+  const businessFacts = {
+    business: input.businessName,
+    industry: input.industry ?? null,
+    conversionGoal: input.conversionGoal,
+    description: input.description?.trim().slice(0, 1200) || null,
+    services: input.services?.filter((service) => service.trim()).slice(0, 30) ?? [],
+    serviceArea: input.serviceArea?.trim() || null,
+  };
 
   const system = `${RULES} You are Sol, the lead information and conversion architect. Decide the page set, the sections on each page and their order so the whole site converts for this specific business. Every page structure is your decision; nothing about its shape is prescribed. ${creativeQualityPrompt()}`;
   const prompt = [
-      `BUSINESS: ${input.businessName}`,
-      `INDUSTRY: ${input.industry ?? "not supplied"}`,
-      `CONVERSION GOAL: ${input.conversionGoal}`,
-      input.description ? `WHAT THEY DO: ${input.description.slice(0, 1200)}` : null,
-      input.services?.length ? `REAL SERVICES: ${input.services.slice(0, 30).join("; ")}` : null,
-      input.serviceArea ? `SERVES: ${input.serviceArea}` : null,
+      "SUPPLIED BUSINESS FACTS:",
+      JSON.stringify(businessFacts, null, 2),
       "",
       "EXISTING PAGES AND SECTIONS (reorder, omit, or add your own):",
       JSON.stringify(available, null, 2),
@@ -144,8 +148,8 @@ export async function proposePageArchitecture(input: {
     ...(input.signal ? { signal: input.signal } : {}),
     system: `${RULES} You are Terra, the adversarial reviewer of website structure. Judge each page on whether it works for this business and its visitors; never demand a fixed page anatomy. Refuse a structure that is too thin to explain the business and its real services to a first-time visitor. ${creativeQualityPrompt()}`,
     user: [
-      `BUSINESS: ${input.businessName}`,
-      `CONVERSION GOAL: ${input.conversionGoal}`,
+      "SUPPLIED BUSINESS FACTS:",
+      JSON.stringify(businessFacts, null, 2),
       "",
       "AVAILABLE MATERIAL:",
       JSON.stringify(available, null, 2),
@@ -153,6 +157,7 @@ export async function proposePageArchitecture(input: {
       "PROPOSED STRUCTURE:",
       JSON.stringify(normalized.architecture, null, 2),
       "",
+      "Approve only if the proposed structure gives a first-time visitor enough factual coverage to understand what this business does, which supplied services matter, where it serves, and how to take a real available action. Refuse unsupported claims, omitted critical supplied facts, fake capabilities, or stub-like plans. Do not require any specific number of pages, sections, visual beats, or a house layout.",
       '{"approvedFields": ["structure"], "rejected": [{"field": "...", "reason": "..."}]}',
     ].join("\n"),
   });

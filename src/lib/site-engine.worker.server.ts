@@ -673,10 +673,7 @@ async function runJob(
           authored: architectureRef.current.architecture !== null,
           skipped: architectureRef.current.skipped,
           rejected: architectureRef.current.rejected,
-          pages: architectureRef.current.architecture?.map((page) => ({
-            slug: page.slug,
-            sections: page.sections.map((section) => section.role),
-          })) ?? null,
+          pages: architectureRef.current.architecture ?? null,
           costMicrocents: architectureRef.current.costMicrocents,
         }
       : { authored: false, skipped: "the page plan was not requested for this build" }) as unknown as never,
