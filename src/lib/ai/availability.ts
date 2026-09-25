@@ -1,7 +1,7 @@
 /**
  * What AI the builder can actually reach, right now, for free.
  *
- * The deterministic native engine always answers first, so this is only asked
+ * The validated builder execution layer remains available, so this is only asked
  * when a request genuinely needs a generative model. It answers honestly per
  * capability: a free provider is "available" only when its credentials are
  * present and it has a free-eligible model for that role.

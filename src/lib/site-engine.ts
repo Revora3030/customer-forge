@@ -2,7 +2,7 @@
  * Revora Site Engine — shared, browser-safe types and scoring.
  *
  * The engine turns the information a client supplies into a website: a
- * deterministic structure (see `website-plan.ts`) plus native marketing copy.
+ * AI-authored structure and copy.
  * Nothing here invents facts: reviews, awards, certifications,
  * guarantees, prices, addresses and history are only ever passed through from
  * what the client entered.
