@@ -40,6 +40,7 @@ export interface TemplateEntry {
 export const TEMPLATES: Record<string, TemplateEntry> = {
   "automation-message": automationMessageTemplate,
   "lead-alert": leadAlertTemplate,
+  "new-signup-alert": newSignupAlertTemplate,
   "growth-assessment": growthAssessmentTemplate,
   "billing-welcome": welcomeTemplate,
   "billing-sale-alert": saleAlertTemplate,
