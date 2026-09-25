@@ -129,12 +129,14 @@ export function VisionReviewPanel({
    * inside applyVisionRepairs) and that same page and width is photographed
    * and reviewed again so the result is proven, not assumed.
    */
-  const runSweep = async () => {
-    if (!organizationId || !slug || busy) return;
-    if (pages.length === 0) {
-      toast.error("Add a page first — there is nothing to review yet.");
+  const runSweep = async (only?: typeof pages, automatic = false) => {
+    const targets = only ?? pages;
+    if (!organizationId || !slug || busy || sweepingRef.current) return;
+    if (targets.length === 0) {
+      if (!automatic) toast.error("Add a page first — there is nothing to review yet.");
       return;
     }
+    sweepingRef.current = true;
     setBusy("sweep");
     setSweep([]);
     setResult(null);
@@ -142,10 +144,11 @@ export function VisionReviewPanel({
     const push = (row: SweepRow) => { rows.push(row); setSweep([...rows]); };
     try {
       const base = await pageBase();
-      const total = pages.length * FULL_REVIEW_WIDTHS.length;
+      const total = targets.length * FULL_REVIEW_WIDTHS.length;
       let step = 0;
       let stop = false;
-      for (const page of pages) {
+      if (automatic) setSweepStatus(`A change was made — checking ${targets.length === 1 ? "that page" : `${targets.length} changed pages`} at 5 sizes.`);
+      for (const page of targets) {
         if (stop) break;
         const clean = page.slug.replace(/^\//, "");
         const home = !clean || clean === "home" || page.kind === "home";
