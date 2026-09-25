@@ -1,3 +1,4 @@
+import { isPlatformOwnerOrg } from "@/lib/platform-owner";
 /**
  * Authoritative Revora platform funnel.
  *
@@ -200,6 +201,20 @@ const pct = (numerator: number | null, denominator: number | null) => {
  * from every customer metric. A failed query returns `null` (rendered as
  * "Analytics unavailable"), never 0.
  */
+/** A workspace counts as a customer unless it is a demo or Revora's own. */
+function isCustomerOrg(org: { id: string; is_demo: boolean | null }) {
+  return !org.is_demo && !isPlatformOwnerOrg(org.id);
+}
+
+/** User ids of Revora staff (super admins); excluded from customer counts. */
+async function platformStaffIds(admin: {
+  from: (t: "user_roles") => any;
+}): Promise<string[]> {
+  const { data, error } = await admin.from("user_roles").select("user_id").eq("role", "super_admin");
+  if (error) return [];
+  return ((data ?? []) as { user_id: string }[]).map((r) => r.user_id);
+}
+
 export const getPlatformFunnel = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input?: { days?: number }) => ({
@@ -271,10 +286,15 @@ export const getPlatformFunnel = createServerFn({ method: "GET" })
     //    and nothing is ever invented.
     const reconcile = await supabaseAdmin.rpc("sync_platform_accounts");
     if (reconcile.error) errors.push("accounts");
-    const accountsQuery = await supabaseAdmin
+    // Revora staff (super admins) are not customers, so their own sign-ups
+    // never count as "accounts created".
+    const staffIds = await platformStaffIds(supabaseAdmin);
+    let accountsBuilder = supabaseAdmin
       .from("platform_accounts")
       .select("user_id", { count: "exact", head: true })
       .gte("created_at", since);
+    if (staffIds.length > 0) accountsBuilder = accountsBuilder.not("user_id", "in", `(${staffIds.join(",")})`);
+    const accountsQuery = await accountsBuilder;
     if (accountsQuery.error) errors.push("accounts");
     const accounts = accountsQuery.error ? null : (accountsQuery.count ?? 0);
 
@@ -290,8 +310,9 @@ export const getPlatformFunnel = createServerFn({ method: "GET" })
     if (trialRows.error) errors.push("trials");
     if (orgRows.error) errors.push("workspaces");
 
+    // Demo workspaces and Revora's own workspace are never customers.
     const realOrgs = new Map(
-      (orgRows.data ?? []).filter((o) => !o.is_demo).map((o) => [o.id, o] as const),
+      (orgRows.data ?? []).filter((o) => isCustomerOrg(o)).map((o) => [o.id, o] as const),
     );
     const trialsStarted =
       trialRows.error || orgRows.error
@@ -522,7 +543,11 @@ export const getFunnelDetails = createServerFn({ method: "GET" })
       throw new Error("Analytics unavailable");
     }
 
-    const orgs = new Map((orgsRes.data ?? []).map((o) => [o.id, o] as const));
+    // Same customer definition as the summary: no demo or Revora-owned workspaces.
+    const orgs = new Map(
+      (orgsRes.data ?? []).filter((o) => isCustomerOrg(o)).map((o) => [o.id, o] as const),
+    );
+    const staff = new Set(await platformStaffIds(supabaseAdmin));
     const now = Date.now();
 
     // Group traffic by UTC day: page views, distinct sessions, distinct visitors.
@@ -556,7 +581,7 @@ export const getFunnelDetails = createServerFn({ method: "GET" })
           sessions: bucket.sessions.size,
           visitors: bucket.visitors.size,
         })),
-      accounts: accountsRes.rows.map((a) => ({ id: a.user_id, createdAt: a.created_at })),
+      accounts: accountsRes.rows.filter((a) => !staff.has(a.user_id)).map((a) => ({ id: a.user_id, createdAt: a.created_at })),
       trials: trialsRes.rows
         .filter((t) => orgs.get(t.organization_id) && !orgs.get(t.organization_id)!.is_demo)
         .map((t) => {
