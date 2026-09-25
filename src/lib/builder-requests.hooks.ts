@@ -38,6 +38,7 @@ import type { AgentStep } from "@/lib/site-agent";
 import type { AgentAttachment } from "@/lib/site-agent";
 import { trackConversion } from "@/lib/conversion";
 import { friendlyError } from "@/lib/user-error";
+import { clearTurns, loadTurns, pairTurns, saveTurns } from "@/lib/builder-memory";
 
 export const INSTRUCTION_LIMIT = 1200;
 
@@ -85,6 +86,40 @@ export function useBuilderRequests({
   const applyFn = useServerFn(applyWebsiteChanges);
 
   const ready = canManage && Boolean(organizationId);
+
+  // Bring back this business's saved conversation, so the AI team remembers
+  // earlier requests and the owner sees them when they come back.
+  const [memoryLoaded, setMemoryLoaded] = useState(false);
+  useEffect(() => {
+    if (!organizationId) return;
+    let live = true;
+    loadTurns(organizationId).then(
+      (turns) => {
+        if (!live) return;
+        setConversation(turns.map(({ role, content }) => ({ role, content })).slice(-24));
+        const past = pairTurns(turns).map((pair) => ({
+          ...newTask(pair.instruction),
+          state: "complete" as const,
+          reply: pair.reply || "Done.",
+          answered: true,
+          restored: true,
+        }));
+        setTasks((current) => [...past, ...current]);
+        setMemoryLoaded(true);
+      },
+      () => live && setMemoryLoaded(true),
+    );
+    return () => {
+      live = false;
+    };
+  }, [organizationId]);
+
+  const remember = (turns: Array<{ role: "user" | "assistant"; content: string }>) => {
+    if (!organizationId || !canManage) return;
+    void saveTurns(organizationId, turns).catch(() => {
+      // Saving the chat never blocks building; the change itself is already safe.
+    });
+  };
   /** Full plan actions kept out of React state: only the labels are editable. */
   const actionsRef = useRef(new Map<string, AgentStep>());
   const runningRef = useRef(false);
@@ -245,6 +280,10 @@ export function useBuilderRequests({
             { role: "assistant" as const, content: result.reply },
           ].slice(-24),
         );
+        remember([
+          { role: "user", content: task.instruction },
+          { role: "assistant", content: result.reply },
+        ]);
         return;
       }
       const steps = result.steps as AgentStep[];
@@ -291,6 +330,10 @@ export function useBuilderRequests({
         ...(result.reply ? [{ role: "assistant" as const, content: result.reply }] : []),
       ] satisfies Array<{ role: "user" | "assistant"; content: string }>;
       setConversation(nextConversation.slice(-24));
+      remember([
+        { role: "user", content: task.instruction },
+        ...(result.reply ? [{ role: "assistant" as const, content: result.reply }] : []),
+      ]);
       // A composed look and page structure is always previewed first: the owner
       // approves or adjusts it before anything is written.
       if (!result.unavailable && !planned.composition && canAutoApply(planned))
@@ -344,6 +387,13 @@ export function useBuilderRequests({
     apply: (task: QueueTask) => void runBuild(task),
     retry: (id: string) => patch(id, { state: "queued", error: "" }),
     dismiss: (id: string) => setTasks((current) => current.filter((task) => task.id !== id)),
+    memoryLoaded,
+    /** Starts a fresh conversation and forgets the saved one for this business. */
+    newChat: async () => {
+      setTasks((current) => current.filter((task) => task.state === "planning" || task.state === "building"));
+      setConversation([]);
+      if (organizationId && canManage) await clearTurns(organizationId);
+    },
     toggleStep: (id: string, key: string) =>
       setTasks((current) => current.map((t) => (t.id === id ? toggleStep(t, key) : t))),
     moveStep: (id: string, key: string, delta: -1 | 1) =>
