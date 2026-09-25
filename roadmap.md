@@ -22,3 +22,5 @@
 - [x] 46-vs-91 explained: 46 is the launch-review score (visual design hard-set to 0 until screenshot evidence exists; trust needs real reviews; publishing needs custom domain). 91 is the visual check. Different measures.
 - [x] Launch score uses passing visual check for current revision; trust skipped without real reviews; own /s/ address counts.
 - [ ] Add "Open 24 hours" to Revora draft, visual check, approve, publish, verify live.
+- [x] Build attempt fencing: progress/complete/fail writes tied to attempt; superseded attempts stop silently; failed fresh rebuild restores backup (rollbackFreshBuild). Tests in final-blockers.test.ts.
+- [x] Database security check clean after new server-only revision lookup.

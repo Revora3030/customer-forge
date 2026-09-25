@@ -163,6 +163,14 @@ export async function resumeQueue(db: Db) {
   });
 }
 
+/** Thrown when a newer attempt has taken over this job; the stale run must stop. */
+export class StaleAttemptError extends Error {
+  constructor(jobId: string) {
+    super(`Build attempt for job ${jobId} was superseded by a newer attempt.`);
+    this.name = "StaleAttemptError";
+  }
+}
+
 /** Claims one runnable job with a lease. Returns null when there is nothing to do. */
 async function claimJob(db: Db, organizationId?: string) {
   const now = new Date();
@@ -220,7 +228,7 @@ async function runJob(
   const step = async (key: string) => {
     done.push(key);
     const meta = GENERATION_STEPS.find((s) => s.key === key);
-    await db
+    const { data: fenced } = await db
       .from("generation_jobs")
       .update({
         current_step: key,
@@ -229,7 +237,12 @@ async function runJob(
         lease_expires_at: new Date(Date.now() + LEASE_SECONDS * 1000).toISOString(),
         updated_at: new Date().toISOString(),
       } as never)
-      .eq("id", job.id);
+      .eq("id", job.id)
+      // Attempt fence: a stale worker whose lease was taken over stops here
+      // instead of writing over the newer attempt.
+      .eq("attempts", job.attempts)
+      .select("id");
+    if (!fenced || fenced.length === 0) throw new StaleAttemptError(job.id);
   };
 
   const [org, profile, services, media, socials, forms, bookable] = await Promise.all([
@@ -965,7 +978,8 @@ async function runJob(
       lease_expires_at: null,
       updated_at: new Date().toISOString(),
     } as never)
-    .eq("id", job.id);
+    .eq("id", job.id)
+    .eq("attempts", job.attempts);
 
   const leadCapture = (forms.data ?? []).length > 0 || (bookable.data ?? []).length > 0;
   await db.from("notifications").insert({
@@ -1054,6 +1068,9 @@ export async function drainSiteEngineQueue(
       processed += 1;
       if (state.paused || state.consecutive_rate_limits > 0) await resumeQueue(db);
     } catch (error) {
+      // A superseded attempt must not requeue, fail or restore anything —
+      // the newer attempt owns the job and the site now.
+      if (error instanceof StaleAttemptError) continue;
       const { RevoraAiError } = await import("@/lib/site-engine.server");
       const isGateway = error instanceof RevoraAiError;
       const status = isGateway ? (error as InstanceType<typeof RevoraAiError>).status : 0;
@@ -1125,7 +1142,9 @@ export async function drainSiteEngineQueue(
               }
             : { status: "queued", error_message: message, lease_expires_at: null },
         )
-        .eq("id", job.id);
+        .eq("id", job.id)
+        // Only the attempt that failed may requeue/fail the job.
+        .eq("attempts", job.attempts);
       await writeQueueState(db, { last_error: message });
     }
   }
