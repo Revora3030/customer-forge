@@ -7,7 +7,7 @@
  * switched paid pictures on, plus for the precision changes the free fabric has
  * never been able to prove it can do. It is deliberately strict:
  *
- *  1. off unless `PAID_IMAGE_ENABLED` is explicitly opted in,
+ *  1. on when Luna is configured, unless `PAID_IMAGE_ENABLED` explicitly opts out,
  *  2. off unless the paid lane as a whole is enabled and an OpenAI key exists,
  *  3. the model is chosen by JOB, not by caller: the premium Sunburst tier makes
  *     the hero/editorial frames and every change to an existing picture, the fast

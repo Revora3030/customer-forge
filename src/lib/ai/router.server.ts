@@ -699,7 +699,7 @@ export async function generateStructuredOutput(
   // The shape check runs INSIDE the provider loop, so a model that answers with
   // something unparseable is treated as that provider failing: the next free
   // provider is tried, and only when none can answer does the caller fall back
-  // to Revora's deterministic engine.
+  // to another AI provider in the capability chain.
   const outcome = await run(
     caller,
     request.role ?? "primary",

@@ -204,10 +204,10 @@ export function validateAiDesignContract(contract: AiDesignContract): {
         severity: "blocker",
       });
     const roles = page.sections.map((section) => section.role);
-    if (contract.qualityMatrix.composition.deliberateOpeningRequired && roles[0] !== "hero")
+    if (contract.qualityMatrix.composition.deliberateOpeningRequired && roles.length === 0)
       violations.push({
         path: `pages.${page.slug}.sections`,
-        detail: "every page needs a deliberate opening section",
+        detail: "every page needs a deliberate opening",
         severity: "blocker",
       });
     const closingRoles = new Set(["cta", "quote", "booking", "contact", "sticky_cta"]);
@@ -301,7 +301,7 @@ export type MaterialPage = { slug: string; sections: MaterialSection[]; [key: st
 
 export type ContractApplication<P> = {
   pages: P[];
-  /** Pages the deterministic layer produced that the AI design did not ask for. */
+  /** Fact-material pages the AI design did not ask for. */
   droppedPages: string[];
   /** Sections dropped because the AI design did not place them on that page. */
   droppedSections: { page: string; kind: string }[];

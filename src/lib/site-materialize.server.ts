@@ -29,7 +29,6 @@ import {
   requireAiDesignContract,
   type PageArchitecture,
 } from "@/lib/builder/creative-authority";
-import { deriveCandidateArchitecture } from "@/lib/builder/ai-page-architecture";
 import { assertMediaIntegrity } from "@/lib/builder/media-integrity";
 
 type Db = SupabaseClient;
@@ -96,9 +95,8 @@ export type MaterializeInput = {
    */
   designContract?: AiDesignContract | null;
   /**
-   * Lets the AI author the page architecture. It receives the architecture the
-   * renderer can fill and returns its own page set, section selection and
-   * order. Returning null keeps the renderer's candidate — nothing is invented.
+   * Lets the AI author page architecture from a facts-only capability inventory.
+   * Returning null is a hard failure.
    */
   architect?: (candidate: PageArchitecture[]) => Promise<PageArchitecture[] | null>;
 };
@@ -670,15 +668,66 @@ export async function materializeSiteContent(
   // The contract OVERRIDES the renderer's page set and section order, and any
   // visual container the design requires must resolve to a real picture —
   // otherwise the build fails rather than publishing a blank box.
-  let tree = planSiteContent(input);
+  const primaryAction = clean(input.copy.primaryCta) ?? "Get in touch";
+  const functionalSections = [
+    ...(input.hasQuoteForm ? [{ role: "quote" }] : []),
+    ...(input.hasBooking ? [{ role: "booking" }] : []),
+    { role: "contact" },
+    { role: "sticky_cta" },
+  ];
+  const factInventory: PageArchitecture[] = [{
+    slug: "home",
+    title: input.businessName,
+    purpose: "primary website entry",
+    primaryAction,
+    sections: [
+      { role: "hero" },
+      ...(input.services.length ? [{ role: "services" }] : []),
+      ...functionalSections,
+    ],
+  }];
+  const authored = input.architect ? await input.architect(factInventory) : null;
+  if (!authored?.length)
+    throw new Error("The design team could not author this website's page plan, so nothing was created. Please try again in a moment.");
+  const primaryTarget = input.hasQuoteForm ? "/#quote" : input.hasBooking ? "/book" : "/contact";
+  const generatedByLabel = new Map((input.generatedAssets ?? []).map((asset) => [asset.label.toLowerCase(), asset]));
+  let tree: Page[] = authored.map((page) => ({
+    slug: page.slug,
+    title: page.title,
+    kind: page.slug === "home" ? "home" : "page",
+    seo_title: page.slug === "home" ? clean(input.copy.metaTitle) : clean(`${page.title} — ${input.businessName}`),
+    seo_description: clean(input.copy.metaDescription),
+    og_title: page.slug === "home" ? clean(input.copy.ogTitle) : clean(page.title),
+    og_description: clean(input.copy.ogDescription),
+    sections: page.sections.map((section, index) => {
+      const role = section.role;
+      if (["quote", "booking", "contact", "sticky_cta"].includes(role))
+        return { kind: role, heading: section.heading ?? null, subheading: section.subheading ?? null, body: section.body ?? null };
+      const matching = (input.generatedAssets ?? []).find((asset) =>
+        asset.placement.some((placement) => placement === role || placement === `${page.slug}:${role}`),
+      ) ?? generatedByLabel.get(role.toLowerCase()) ?? null;
+      const components: Component[] = [];
+      if (matching) components.push(imageComponent(matching, index === 0 ? "hero_image" : "image"));
+      if (/hero|cta|action|conversion/i.test(role))
+        components.push({ kind: "button", label: primaryAction, link_label: primaryAction, link_url: primaryTarget });
+      if (/services|offers|solutions/i.test(role))
+        for (const service of input.services) {
+          const asset = generatedByLabel.get(service.name.toLowerCase()) ?? null;
+          components.push({
+            kind: "card",
+            label: service.name,
+            body: clean(input.copy.serviceCards.find((card) => card.name === service.name)?.copy) ?? clean(service.description),
+            link_url: `/services/${slugify(service.name)}`,
+            media_url: asset?.path ?? null,
+            settings: asset ? mediaSettings(asset) : null,
+          });
+        }
+      return { kind: role, heading: section.heading ?? null, subheading: section.subheading ?? null, body: section.body ?? null, components };
+    }),
+  }));
   let designContract: AiDesignContract | null = input.designContract ?? null;
   let authoredArchitecture: PageArchitecture[] | null = null;
   if (!designContract && input.fingerprint && input.creativeBrief) {
-    const primaryAction = clean(input.copy.primaryCta) ?? "Get in touch";
-    // The AI authors the page set, the section selection and the order. The
-    // renderer's own layout is only the inventory of fillable material.
-    const candidate = deriveCandidateArchitecture(tree, primaryAction);
-    const authored = input.architect ? await input.architect(candidate) : null;
     // No template fallback: the page set, section selection and order come from
     // the design team's own plan. When it could not author one, the build stops
     // and says so rather than shipping the renderer's inventory as a design.
@@ -689,7 +738,6 @@ export async function materializeSiteContent(
     }
     const architecture = authored;
     authoredArchitecture = authored;
-    tree = addInventedMaterial(tree, authored);
     designContract = requireAiDesignContract({
       attempt: compileAiDesignContract({
         businessName: input.businessName,
