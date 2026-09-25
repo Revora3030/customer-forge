@@ -16,4 +16,5 @@
 - [x] Design compiler no longer invents phone/tablet columns, menu style, button stacking, crop or text scale; blank design record carries no look.
 - [ ] Rebuild test site to confirm buttons/cards still appear (needs a live AI build).
 - [ ] Second-industry build → approve → publish → verify publicly.
+- [x] Fixed page shape (required opening/closing/picture sections) removed from AI instructions.
 - [ ] Remaining 12/16-point areas (expressiveness, effects ceilings, AI screenshot critique, job fencing audit, full security/billing audit).
