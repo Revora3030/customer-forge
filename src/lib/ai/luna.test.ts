@@ -81,8 +81,8 @@ describe("monthly hard cap", () => {
   it("defaults to a $20 monthly cap", () => {
     delete process.env["LUNA_MONTHLY_CAP_USD"];
     expect(lunaMonthlyCapMicrocents()).toBe(DEFAULT_MONTHLY_CAP_MICROCENTS);
-    expect(DEFAULT_MONTHLY_CAP_MICROCENTS).toBe(20 * MICROCENTS_PER_DOLLAR);
-    expect(formatUsd(DEFAULT_MONTHLY_CAP_MICROCENTS)).toBe("$20.00");
+    expect(DEFAULT_MONTHLY_CAP_MICROCENTS).toBe(100 * MICROCENTS_PER_DOLLAR);
+    expect(formatUsd(DEFAULT_MONTHLY_CAP_MICROCENTS)).toBe("$100.00");
   });
 
   it("honours a configured cap", () => {

@@ -49,3 +49,6 @@ Ordered by user-felt impact. Each item: extend existing code, never duplicate.
 - [x] 4. AI-designed menu and footer (Sol designs both on first builds; plain menu stays for older sites)
 - [x] 5. New building blocks (tabs, accordion, compare, toggle, marquee, gallery, quote)
 - [x] 6. Hero video idea written by Sol in first build; owner clicks to make it (no automatic video spend)
+- [x] Toggle building block added
+- [x] Monthly AI spend limit raised to $100 (owner choice)
+- [ ] Retire fixed starting page list, old section layouts, style-token compression, non-AI fallbacks

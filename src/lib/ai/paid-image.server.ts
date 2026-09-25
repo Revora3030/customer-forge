@@ -13,7 +13,7 @@
  *     the hero/editorial frames and every change to an existing picture, the fast
  *     Flare tier makes supporting photos, iterations and variations,
  *  4. every picture is reserved against the SAME durable monthly cap as the paid
- *     text lane (default $20/month, enforced in our own database), settled after
+ *     text lane (default $100/month, enforced in our own database), settled after
  *     the call and written to the usage ledger,
  *  5. no auto-top-up and no silent overage: once the cap binds, the answer is a
  *     precise blocked reason and the caller keeps the existing picture,
