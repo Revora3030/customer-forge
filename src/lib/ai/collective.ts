@@ -71,10 +71,12 @@ const PURPOSE_TIER: Record<CollectivePurpose, CollectiveTier> = {
   information_architecture: "sol",
   conversion_architecture: "sol",
   content_strategy: "sol",
-  visual_review: "sol",
+  // Independent review belongs to Terra: the reviewer must never be the same
+  // model that authored the work it is attacking.
+  visual_review: "terra",
   repair_priority: "sol",
   quality_review: "sol",
-  adversarial_review: "sol",
+  adversarial_review: "terra",
   synthesis: "sol",
   hard_request: "sol",
 
@@ -93,6 +95,8 @@ const PURPOSE_TIER: Record<CollectivePurpose, CollectiveTier> = {
   small_edit: "luna",
   metadata: "luna",
 };
+
+const INDEPENDENT_REVIEW = new Set<CollectivePurpose>(["adversarial_review", "visual_review"]);
 
 export type TaskComplexity = "low" | "medium" | "high";
 
@@ -156,8 +160,13 @@ export function selectTier(input: {
   const byComplexity = input.complexity ? TIER_FOR_COMPLEXITY[input.complexity] : null;
   // Complexity may raise a purpose's tier but never lower a master task below
   // its purpose: a fresh first build is always master work.
-  const wanted =
-    byComplexity && RANK[byComplexity] > RANK[byPurpose] ? byComplexity : byPurpose;
+  // Independent-review purposes are pinned: raising them to Sol would make
+  // Sol grade its own creative work.
+  const wanted = INDEPENDENT_REVIEW.has(input.purpose)
+    ? byPurpose
+    : byComplexity && RANK[byComplexity] > RANK[byPurpose]
+      ? byComplexity
+      : byPurpose;
 
   const available = COLLECTIVE_TIERS.filter((tier) => input.available.includes(tier));
   if (!available.length) return { tier: null, wanted, downgraded: false, reason: "no_tier_available" };
