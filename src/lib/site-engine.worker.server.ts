@@ -980,14 +980,12 @@ export async function drainSiteEngineQueue(
   const max = Math.min(Math.max(options.max ?? 2, 1), 5);
   const state = await readQueueState(db);
 
-  // Paused-state guard. Rate limits and credit/policy denials are both
-  // self-healing: every generation stage has a deterministic Revora fallback, so
-  // the builder keeps running at full speed with rules-only writing instead of
-  // parking the queue. Only an explicit hard block keeps the probe-only budget.
+  // Paused-state guard. Rate limits may recover on a later run. Credit and
+  // policy blocks require an owner/admin action and stay paused.
   let budget = max;
   if (state.paused) {
-    if (state.pause_kind === "rate_limit" || state.pause_kind === "credits") {
-      await resumeQueue(db); // transient or fallback-covered — retry immediately
+    if (state.pause_kind === "rate_limit") {
+      await resumeQueue(db);
     } else if (options.probeWhilePaused) {
       budget = 1;
     } else {
@@ -1036,15 +1034,16 @@ export async function drainSiteEngineQueue(
         continue;
       }
 
-      // Credit/policy denials must never stop the builder. Every generation
-      // stage has a deterministic Revora fallback, so a denial is retried
-      // immediately in rules-only mode instead of pausing the queue.
+      // Credit and policy denials are terminal for this run. Pause the whole
+      // generation queue until the owner/admin restores access.
       if (status === 402 || status === 403) {
+        failed += 1;
+        await pauseQueue(db, "credits", message);
         await db
           .from("generation_jobs")
-          .update({ status: "queued", error_message: null, lease_expires_at: null } as never)
+          .update({ status: "queued", error_message: message, lease_expires_at: null } as never)
           .eq("id", job.id);
-        continue;
+        return { processed, failed, paused: true, pauseReason: message, idle: false };
       }
 
       if (status === 429) {

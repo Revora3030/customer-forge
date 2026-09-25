@@ -508,14 +508,16 @@ export function freeBudgetRemaining(provider: FreeProviderName): number | null {
 }
 
 export function freeBudgetAllows(provider: FreeProviderName, role?: ModelRole) {
-  if (role === "image" && !freeImageBudgetAllows(provider)) return false;
+  // Picture requests have their own allowance. They must not also consume the
+  // text allowance or one image campaign can starve copy and planning work.
+  if (role === "image") return freeImageBudgetAllows(provider);
   const remaining = freeBudgetRemaining(provider);
   return remaining === null || remaining > 0;
 }
 
 export function noteFreeUse(provider: FreeProviderName, role?: ModelRole) {
   const day = today();
-  const keys = role === "image" ? [provider, imageKey(provider)] : [provider];
+  const keys = role === "image" ? [freeImageBudgetKey(provider)] : [provider];
   for (const key of keys) {
     const entry = budget.get(key);
     budget.set(key, entry && entry.day === day ? { day, used: entry.used + 1 } : { day, used: 1 });
@@ -536,7 +538,7 @@ export function noteFreeUse(provider: FreeProviderName, role?: ModelRole) {
  */
 const DEFAULT_IMAGE_DAILY_CAP = 40;
 
-function imageKey(provider: FreeProviderName) {
+export function freeImageBudgetKey(provider: FreeProviderName) {
   return `${provider}#image`;
 }
 
@@ -549,7 +551,7 @@ export function freeImageBudgetCap(provider: FreeProviderName): number {
 }
 
 export function freeImageBudgetRemaining(provider: FreeProviderName): number {
-  const entry = budget.get(imageKey(provider));
+  const entry = budget.get(freeImageBudgetKey(provider));
   const used = entry && entry.day === today() ? entry.used : 0;
   return Math.max(0, freeImageBudgetCap(provider) - used);
 }

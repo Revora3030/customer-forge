@@ -11,9 +11,8 @@
  * like. It is injected into the planning brief, so the planner is never left to
  * fall back on a generic template arrangement.
  *
- * A model writes the direction. When the gateway is unusable, an industry-aware
- * deterministic direction is used instead, so the design stage never disappears
- * — it only gets less bespoke.
+ * A model writes the direction. When no model is usable, this stage returns no
+ * creative direction; callers may stop or continue only with owner-supplied intent.
  */
 
 import { callJson } from "@/lib/site-agent.server";
@@ -77,9 +76,7 @@ const list = (value: unknown, max: number, limit: number) =>
     : [];
 
 /**
- * The industry-aware direction used when the gateway cannot be reached. It is
- * deliberately opinionated rather than neutral: a plain fallback is exactly the
- * generic result this stage exists to prevent.
+ * Empty no-model result. It carries no layout, palette, type or story opinion.
  */
 export function designWithoutModel(_industry?: string | null): DesignDirection {
   // Decommissioned industry design recipes. With no model answer there is no

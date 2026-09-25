@@ -133,7 +133,8 @@ function sameShape(a: PageArchitecture[], b: PageArchitecture[]): boolean {
 const FEATURE_ROLES = new Set(["quote", "booking", "contact", "sticky_cta", "embed", "post_list", "composition", "hero", "gallery", "feature_media"]);
 const SAFE_ROLE = /^[a-z][a-z0-9_]{1,30}$/;
 const SAFE_SLUG = /^[a-z0-9][a-z0-9-]{1,39}$/;
-export const MAX_INVENTED_PAGES = 4;
+/** Resource ceiling only; it is not a prescribed site size. */
+export const MAX_INVENTED_PAGES = 24;
 
 export function normalizePageArchitecture(input: {
   proposal: RawPage[];

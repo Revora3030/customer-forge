@@ -1,8 +1,8 @@
 /**
  * The single error type every Revora AI call throws.
  *
- * It carries an HTTP-like status so callers can decide between "retry", "use
- * the deterministic Revora builder instead" and "tell the owner". Nothing here
+ * It carries an HTTP-like status so callers can decide between a bounded retry,
+ * pausing work and telling the owner. Nothing here
  * is provider-specific: an adapter maps its provider's failure onto one of
  * these categories, so the rest of Revora never branches on a provider name.
  */
@@ -77,11 +77,8 @@ export function notConfigured() {
 }
 
 /**
- * Zero-cost mode is Revora's default architecture: the native engine builds
- * websites, and no external model is ever called on a customer's behalf. This
- * error exists so an optional enhancement path fails closed, loudly, on the
- * server — it is never shown to a customer, because the native engine answers
- * the request instead.
+ * Retained for compatibility with callers that inspect this category. Creative
+ * work has no native substitute, so the request fails closed.
  */
 export const AI_ZERO_COST_MESSAGE =
   "External AI is disabled (ZERO_AI_COST_MODE). The AI team is required for this request.";
@@ -103,13 +100,11 @@ export function providerUnavailable(provider: string, detail?: string) {
 }
 
 /**
- * FREE-AI-FIRST message. Shown when a request needed a generative model and no
- * free provider could serve it. It is deliberately non-blocking: Revora's own
- * deterministic engine still does the work, so this explains a reduced
- * capability rather than a failure.
+ * Shown when a request needed a generative model and no free provider could
+ * serve it. Creative callers fail closed rather than substituting built-in work.
  */
 export const AI_FREE_UNAVAILABLE_MESSAGE =
-  "No free AI provider is available right now, so Revora is completing this from your own business details. Nothing is blocked and no paid AI is required.";
+  "No AI provider is available for this request right now. Nothing was generated; please try again later.";
 
 export function freeAiUnavailable(detail?: string) {
   return new RevoraAiError(503, AI_FREE_UNAVAILABLE_MESSAGE, {

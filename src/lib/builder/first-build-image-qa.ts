@@ -6,9 +6,8 @@
  * check below. This is a pure function so it can be tested without a network,
  * a database or a browser.
  *
- * The gate never blocks the whole build: a rejected picture is simply dropped and
- * that slot falls back to Revora's own abstract artwork, with the reason recorded
- * so the builder can tell the owner the truth.
+ * A rejected picture is removed and handed to the repair/blocking path. It is
+ * never replaced with built-in artwork or silently treated as complete.
  */
 
 import type { FirstBuildImageAsset } from "@/lib/builder/first-build-images.types";

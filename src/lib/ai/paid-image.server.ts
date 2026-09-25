@@ -79,6 +79,11 @@ function optedIn(name: string): boolean {
   return raw === "true" || raw === "1" || raw === "on" || raw === "yes";
 }
 
+function optedOut(name: string): boolean {
+  const raw = (env(name) ?? "").toLowerCase();
+  return raw === "false" || raw === "0" || raw === "off" || raw === "no";
+}
+
 /** The model wired for a tier: environment override first, then the pinned default. */
 export function paidImageTierModel(tier: ImageTier): string {
   const override = env(IMAGE_TIER_MODEL_ENV[tier]);
@@ -100,12 +105,12 @@ export function paidImagePriceMicrocents(tier: ImageTier = "sunburst"): number {
 
 /** True only when a paid picture may genuinely be attempted right now. */
 export function paidImageAllowed(): boolean {
-  return optedIn("PAID_IMAGE_ENABLED") && lunaEnabled();
+  return !optedOut("PAID_IMAGE_ENABLED") && lunaEnabled();
 }
 
 /** Plain-language status for the builder, safe to show a business owner. */
 export function paidImageStatus(): { allowed: boolean; message: string } {
-  if (!optedIn("PAID_IMAGE_ENABLED"))
+  if (optedOut("PAID_IMAGE_ENABLED"))
     return {
       allowed: false,
       message: "The specialist picture team is switched off, so the standard capability-matched picture lane is used.",
