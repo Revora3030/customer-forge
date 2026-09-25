@@ -340,13 +340,14 @@ async function runJob(
   const freshReplace = pendingBuild?.mode === "fresh_replace";
   const approvedBrief = readBrief(priorGeneration["brief"]);
 
-  const brief = approvedBrief?.approved ? approvedBrief : fallbackBrief(copyFacts);
+  // No built-in strategy: an unapproved brief is written by the AI.
+  const brief = approvedBrief?.approved ? approvedBrief : await analyzeBusiness(copyFacts);
   if (!approvedBrief?.approved) {
     await db.from("ai_generations").insert({
       organization_id: orgId,
       job_id: job.id,
       kind: "business_brief",
-      model: "revora-native",
+      model: brief.source ?? "ai",
       instruction: null,
       result: brief as unknown as never,
       created_by: job.created_by,
@@ -464,7 +465,7 @@ async function runJob(
       organization_id: orgId,
       job_id: job.id,
       kind: "screenshot_reference_applied",
-      model: "revora-native",
+      model: "none",
       instruction: null,
       result: applied.reference as unknown as never,
       created_by: job.created_by,
@@ -615,7 +616,7 @@ async function runJob(
     organization_id: orgId,
     job_id: job.id,
     kind: "ai_page_architecture",
-    model: architectureRef.current?.models.join("+") || "revora-native",
+    model: architectureRef.current?.models.join("+") || "none",
     instruction: null,
     result: (architectureRef.current
       ? {
