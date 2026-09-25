@@ -479,9 +479,15 @@ function WebsitePage() {
             } : null}
             onFactAnswer={async (key, answer) => {
               await saveFacts.mutateAsync({ [key]: answer });
+              const label = factQuestion?.label ?? key;
+              // Keep the question and answer in the saved conversation so the
+              // chat is still there when the owner comes back.
+              requests.remember([
+                { role: "user", content: `${label}: ${answer}` },
+                { role: "assistant", content: firstRun ? "Got it — saved. I'll keep going." : `Saved. I'll update your website with your ${label.toLowerCase()}.` },
+              ]);
               // Existing site: hand the new fact straight to the AI team.
               if (!firstRun) {
-                const label = factQuestion?.label ?? key;
                 requests.queue(`Update my website everywhere it's relevant with my ${label.toLowerCase()}: ${answer}`);
               }
             }}
@@ -495,6 +501,12 @@ function WebsitePage() {
                     description: "Revora starts building as soon as it has what it needs.",
                   });
                   return;
+                }
+                if (_instruction.trim()) {
+                  requests.remember([
+                    { role: "user", content: _instruction.trim() },
+                    { role: "assistant", content: "On it — I'm building your website now. I'll show you each step as it finishes." },
+                  ]);
                 }
                 await firstBuild.mutateAsync();
               },
