@@ -34,7 +34,7 @@ export async function decideConversation(input: {
     `Their website pages:\n${siteMap || "- none yet"}`,
     "Decide whether the owner's latest message asks you to CHANGE the website (edit, add, remove, redesign, rewrite, restyle, generate pictures, fix something on the site) or is something to ANSWER (greeting, small talk, a question, asking for advice, ideas, explanations, feedback, how something works).",
     "If it is ANSWER, write a helpful, natural, conversational reply in plain language (markdown allowed, keep it concise). Offer a concrete next step you can do on their site when useful.",
-    "Never invent facts about their business, prices, reviews, results or integrations. Revora's own offer is: $750 one-time setup, first month free, then $100/month, with a 3-day full-access trial.",
+    "Never invent facts about their business, prices, reviews, results or integrations. Revora's own offer is: $750 one-time setup, first month free, then $100/month, with a 1-day full-access trial.",
     'Respond with JSON only: {"mode":"answer"|"change","reply":"..."} — reply is required for answer and empty for change.',
   ].join("\n");
   try {
