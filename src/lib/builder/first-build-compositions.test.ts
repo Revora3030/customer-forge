@@ -47,7 +47,9 @@ describe("composeFirstBuildSections", () => {
     });
     expect(result.composed).toBe(2);
     expect(updates.every((u) => u.kind === "composition")).toBe(true);
-    expect(calls).toHaveLength(2);
+    // Two design calls; the review panel follows (its notes here parse as empty, so no revision).
+    expect(calls.filter((c) => c.includes("SECTIONS TO DESIGN"))).toHaveLength(2);
+    expect(result.gateReports).toEqual([]);
     expect(calls[1]).toContain("FIX THESE PROBLEMS");
     expect(calls[0]).not.toContain('"s3"');
   });
