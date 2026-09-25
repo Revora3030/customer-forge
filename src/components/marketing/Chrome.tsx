@@ -8,6 +8,7 @@ import { useSignOut } from "@/lib/use-tenant";
 import { MAIL_SUBJECTS, REVORA, revoraMailto, revoraTel } from "@/lib/brand";
 import { GROWTH_SYSTEM } from "@/lib/offer";
 import { MarketingConversionKit } from "@/components/marketing/ConversionKit";
+import { openCookieSettings } from "@/components/marketing/CookieConsent";
 import { AuthActions, SIGN_IN_SEARCH, SIGN_UP_SEARCH } from "@/components/marketing/AuthButtons";
 
 const NAV = [
