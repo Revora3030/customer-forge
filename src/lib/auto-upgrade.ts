@@ -73,7 +73,7 @@ export type ProposalContext = {
 };
 
 const blank = (value: unknown) => !(typeof value === "string" && value.trim().length > 0);
-const clip = (value: string, max = 160) =>
+const clip = (value: string, max = 160): string =>
   value.length <= max ? value : `${value.slice(0, max - 1).trimEnd()}…`;
 
 /** Builds the approved-before-applied proposal list from audit issues. */
