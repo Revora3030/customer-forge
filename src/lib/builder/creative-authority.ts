@@ -59,7 +59,7 @@ export type PageArchitecture = {
  */
 function responsivePlan(input: {
   sections: SectionDesign[];
-  authored?: Partial<Record<number, Partial<ResponsiveBehaviour>>>;
+  authored?: Partial<Record<number, Partial<ResponsiveBehaviour>>> | undefined;
 }): Record<number, ResponsiveBehaviour> {
   const authoredOrder = input.sections.map((section) => section.id);
   const plan: Record<number, ResponsiveBehaviour> = {};
