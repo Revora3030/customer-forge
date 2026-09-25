@@ -1,3 +1,4 @@
+import { isPlatformOwnerOrg } from "@/lib/platform-owner";
 /**
  * Server-side paywall. The dashboard also hides paid features in the UI, but
  * that is cosmetic — every paid server capability must call this, because a
@@ -25,6 +26,8 @@ export async function orgEntitlement(
   if (error || !org)
     return { allowed: false, reason: "We couldn't verify your workspace.", state: "EXPIRED" };
   if (org.is_demo) return { allowed: true, reason: "demo", state: "DEMO" };
+  if (!org.is_suspended && isPlatformOwnerOrg(org.id))
+    return { allowed: true, reason: "platform owner", state: "ACTIVE" };
 
   // Builder usage itself is never metered: access is the only gate.
   const access = resolveAccess(org as never);
