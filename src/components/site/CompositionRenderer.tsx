@@ -1,5 +1,5 @@
 import { useState, type CSSProperties, type ReactNode } from "react";
-import type { Breakpoint, CompositionNode, CompositionTree, NodeStyle } from "@/lib/builder/composition-tree";
+import type { Breakpoint, CompositionNode, CompositionTree, MotionEasing, NodeMotion, NodeStyle } from "@/lib/builder/composition-tree";
 
 /**
  * Draws any validated AI-authored composition tree. It only translates the
