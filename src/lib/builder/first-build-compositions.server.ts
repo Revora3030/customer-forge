@@ -15,7 +15,7 @@
 import { callBestThinker } from "@/lib/ai/hall-of-fame.server";
 import { screenText } from "@/lib/builder/collective-copy";
 import {
-  COMPOSITION_PRIMITIVES,
+  COMPOSITION_PRIMITIVES, PRIMITIVE_GUIDE,
   isSafeHref,
   validateComposition,
   writeComposition,
@@ -60,6 +60,7 @@ export type CompositionPassResult = {
 const RULES = [
   "You are Sol, the lead art director of a world-class web studio.",
   `Design each section from scratch as a composition tree built only from these primitives: ${COMPOSITION_PRIMITIVES.join(", ")}.`,
+  PRIMITIVE_GUIDE,
   "Node shape: {type, text?, href?, src?, alt?, level?, items?, style?, responsive?: {mobile?, tablet?, desktop?}, motion?: {kind: none|fade|rise|scale|float, delayMs?}, children?}.",
   "style keys: columns, gap, padding, paddingX, paddingY, maxWidth, align, justify, items, span, size, weight, lineHeight, letterSpacing, italic, uppercase, font, color, background, gradientTo, gradientAngle, radius, borderWidth, borderColor, shadow, opacity, aspect, minHeight, hidden. Colours are #RRGGBB.",
   "Use ONLY the words, pictures and links supplied for the section — you may restructure, never invent facts, prices, reviews, awards or results.",

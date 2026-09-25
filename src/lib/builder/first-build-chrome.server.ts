@@ -6,7 +6,7 @@
  */
 import { callBestThinker } from "@/lib/ai/hall-of-fame.server";
 import { screenText } from "@/lib/builder/collective-copy";
-import { COMPOSITION_PRIMITIVES, validateComposition, type CompositionIssue, type CompositionTree } from "@/lib/builder/composition-tree";
+import { COMPOSITION_PRIMITIVES, PRIMITIVE_GUIDE, validateComposition, type CompositionIssue, type CompositionTree } from "@/lib/builder/composition-tree";
 import { collectHrefs, requiredChromeLinks, writeSiteChrome } from "@/lib/builder/site-chrome";
 import type { DnaFacts } from "@/lib/business-dna";
 
@@ -15,6 +15,7 @@ type Db = { from: (table: string) => any }; // eslint-disable-line @typescript-e
 const RULES = [
   "You are Sol, lead art director. Design this website's menu bar (header) and footer from scratch.",
   `Use only these primitives: ${COMPOSITION_PRIMITIVES.join(", ")}.`,
+  PRIMITIVE_GUIDE,
   "Node shape: {type, text?, href?, src?, alt?, level?, items?, style?, responsive?: {mobile?, tablet?, desktop?}, motion?, children?}. Colours are #RRGGBB.",
   "Internal links use '/' for home and '/<page-slug>' for pages. Phone links use tel:, email links use mailto:.",
   "The header must link to every listed page and stay usable on a 320px phone (wrap or stack links; touch targets at least 44px).",

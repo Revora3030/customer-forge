@@ -1,4 +1,4 @@
-import type { CSSProperties, ReactNode } from "react";
+import { useState, type CSSProperties, type ReactNode } from "react";
 import type { Breakpoint, CompositionNode, CompositionTree, NodeStyle } from "@/lib/builder/composition-tree";
 
 /**
@@ -115,10 +115,93 @@ function renderNode(node: CompositionNode, ctx: Ctx, key: string): ReactNode {
       return <span key={key} aria-hidden="true" {...props}>{node.text}</span>;
     case "card":
       return <article key={key} {...props}>{kids}</article>;
+    case "quote":
+      return (
+        <figure key={key} {...props}>
+          <blockquote>{node.text}</blockquote>
+          {node.items?.[0] ? <figcaption>{node.items[0]}</figcaption> : null}
+        </figure>
+      );
+    case "accordion":
+      return (
+        <div key={key} {...props}>
+          {node.children?.map((child, i) => (
+            <details key={i} style={styleToCss(child.style, "card")}>
+              <summary style={{ cursor: "pointer", minHeight: 44, display: "flex", alignItems: "center" }}>{child.text}</summary>
+              {child.children?.map((c, j) => renderNode(c, ctx, `${key}.${i}.${j}`))}
+            </details>
+          ))}
+        </div>
+      );
+    case "tabs":
+      return (
+        <Tabs key={key} props={props} labels={node.children?.map((c) => c.text ?? "") ?? []}
+          panels={node.children?.map((child, i) => <div key={i} style={styleToCss(child.style, "stack")}>{child.children?.map((c, j) => renderNode(c, ctx, `${key}.${i}.${j}`))}</div>) ?? []} />
+      );
+    case "compare": {
+      const [before, after] = node.children ?? [];
+      return before?.src && after?.src ? <Compare key={key} props={props} before={before} after={after} /> : null;
+    }
+    case "gallery":
+      return (
+        <div key={key} {...props} style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(220px,1fr))", ...props.style }}>
+          {node.children?.map((c, i) => c.src ? (
+            <a key={i} href={c.src} target="_blank" rel="noopener noreferrer">
+              <img src={c.src} alt={c.alt ?? ""} loading="lazy" style={{ width: "100%", height: "100%", objectFit: "cover", ...styleToCss(c.style, "media") }} />
+            </a>
+          ) : null)}
+        </div>
+      );
+    case "marquee":
+      return (
+        <div key={key} {...props} style={{ overflow: "hidden", ...props.style }}>
+          <div className="rv-cn-marquee" style={{ display: "flex", width: "max-content", gap: props.style.gap }}>
+            {kids}
+            <div aria-hidden="true" style={{ display: "flex", gap: props.style.gap }}>{node.children?.map((c, i) => renderNode(c, ctx, `${key}.dup.${i}`))}</div>
+          </div>
+        </div>
+      );
     default:
       return <div key={key} {...props}>{node.text ? <span>{node.text}</span> : null}{kids}</div>;
   }
 }
+
+type NodeProps = { "data-cn": string; "data-motion": string | undefined; className: string | undefined; style: CSSProperties };
+
+function Tabs({ props, labels, panels }: { props: NodeProps; labels: string[]; panels: ReactNode[] }) {
+  const [active, setActive] = useState(0);
+  const id = props["data-cn"];
+  return (
+    <div {...props}>
+      <div role="tablist" style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+        {labels.map((label, i) => (
+          <button key={i} type="button" role="tab" id={`${id}-t${i}`} aria-selected={active === i} aria-controls={`${id}-p${i}`}
+            onClick={() => setActive(i)} style={{ minHeight: 44, padding: "0 16px", borderRadius: 999, border: "1px solid currentColor", background: "transparent", color: "inherit", font: "inherit", opacity: active === i ? 1 : 0.6, cursor: "pointer" }}>
+            {label}
+          </button>
+        ))}
+      </div>
+      {panels.map((panel, i) => (
+        <div key={i} role="tabpanel" id={`${id}-p${i}`} aria-labelledby={`${id}-t${i}`} hidden={active !== i}>{panel}</div>
+      ))}
+    </div>
+  );
+}
+
+function Compare({ props, before, after }: { props: NodeProps; before: CompositionNode; after: CompositionNode }) {
+  const [pos, setPos] = useState(50);
+  return (
+    <div {...props} style={{ position: "relative", overflow: "hidden", ...props.style }}>
+      <img src={after.src} alt={after.alt ?? ""} loading="lazy" style={{ display: "block", width: "100%", height: "100%", objectFit: "cover" }} />
+      <img src={before.src} alt={before.alt ?? ""} loading="lazy" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", clipPath: `inset(0 ${100 - pos}% 0 0)` }} />
+      <div aria-hidden="true" style={{ position: "absolute", top: 0, bottom: 0, left: `${pos}%`, width: 2, background: "currentColor" }} />
+      <input type="range" min={0} max={100} value={pos} onChange={(e) => setPos(Number(e.target.value))} aria-label="Compare before and after"
+        style={{ position: "absolute", inset: 0, width: "100%", height: "100%", opacity: 0, cursor: "ew-resize", margin: 0 }} />
+    </div>
+  );
+}
+
+const MARQUEE_CSS = `@media (prefers-reduced-motion: no-preference){.rv-cn-marquee{animation:rv-cn-marquee 30s linear infinite}}@keyframes rv-cn-marquee{to{transform:translateX(-50%)}}`;
 
 const MOTION_CSS = `@media (prefers-reduced-motion: no-preference){.rv-cn-motion{animation:rv-cn-in .7s ease both}.rv-cn-motion[data-motion=rise]{animation-name:rv-cn-rise}.rv-cn-motion[data-motion=scale]{animation-name:rv-cn-scale}.rv-cn-motion[data-motion=float]{animation:rv-cn-float 6s ease-in-out infinite}}@keyframes rv-cn-in{from{opacity:0}to{opacity:1}}@keyframes rv-cn-rise{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:none}}@keyframes rv-cn-scale{from{opacity:0;transform:scale(.94)}to{opacity:1;transform:none}}@keyframes rv-cn-float{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}`;
 
