@@ -66,6 +66,14 @@ const SECTIONS: { heading: string; body: string[] }[] = [
     heading: "Service providers",
     body: [
       "We use vetted providers to deliver the platform: cloud hosting and database, authentication, email delivery, AI content generation, analytics and payment processing (Stripe). Providers receive only what they need to perform their function.",
+      "Advertising measurement is provided by Google Ads (Google LLC). With your consent where required, Google sets cookies on our marketing site so we can measure whether an ad click leads to a trial signup, and how our ads perform. This data is used for measurement, not to build advertising profiles for other sites. Google's own privacy practices are described at https://business.safety.google/privacy/.",
+    ],
+  },
+  {
+    heading: "Cookies and your advertising choice",
+    body: [
+      "Where the law requires it — including the European Economic Area, the United Kingdom, Switzerland and Quebec — we show a cookie banner and set advertising cookies only after you accept. If you reject, those cookies are not set and your visits are measured only in limited, cookieless ways.",
+      "Outside those regions, measurement is on by default; you can still opt out at any time with the \"Cookie settings\" link in the site footer. Your choice is stored in your browser and applies until you change it. Ad clicks and impressions are counted regardless of your choice; the choice controls whether we can connect an ad click to a signup.",
     ],
   },
   {
