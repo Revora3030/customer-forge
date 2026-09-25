@@ -146,6 +146,10 @@ export function normalizePageArchitecture(input: {
   const architecture: PageArchitecture[] = [];
   const seen = new Set<string>();
   let invented = 0;
+  const availableFeatures = new Set<string>();
+  for (const page of input.candidate)
+    for (const section of page.sections)
+      if (FEATURE_ROLES.has(section.role)) availableFeatures.add(section.role);
 
   const inventedSection = (slug: string, s: RawSection) => {
     if (!SAFE_ROLE.test(s.role) || FEATURE_ROLES.has(s.role)) {
@@ -188,6 +192,18 @@ export function normalizePageArchitecture(input: {
         available.set(role, left - 1);
         sections.push({
           role, heading, subheading, body, media: media ?? "none",
+          ...(layout ? { layout } : {}),
+          ...(intent ? { intent } : {}),
+        });
+        continue;
+      }
+      if (FEATURE_ROLES.has(role) && availableFeatures.has(role)) {
+        sections.push({
+          role,
+          heading,
+          subheading,
+          body,
+          media: media ?? "none",
           ...(layout ? { layout } : {}),
           ...(intent ? { intent } : {}),
         });

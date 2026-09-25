@@ -94,6 +94,14 @@ function materialFor(section: SectionRow, parts: ComponentRow[]) {
   };
 }
 
+function mediaRefsFor(section: SectionRow, parts: ComponentRow[]) {
+  return new Set(
+    parts
+      .filter((part) => part.section_id === section.id && Boolean(part.media_url))
+      .map((part) => part.id),
+  );
+}
+
 function parseTrees(text: string): Record<string, unknown> | null {
   const start = text.indexOf("{");
   const end = text.lastIndexOf("}");
@@ -170,7 +178,12 @@ export async function composeFirstBuildSections(input: {
       const next: SectionRow[] = [];
       feedback = {};
       for (const section of pending) {
-        const checked = validateComposition(trees[section.id], { screenText: screen });
+        const mediaRefs = mediaRefsFor(section, parts);
+        const checked = validateComposition(trees[section.id], {
+          screenText: screen,
+          allowedMediaRefs: mediaRefs,
+          requiredMediaRefs: mediaRefs,
+        });
         if (!checked.ok) {
           feedback[section.id] = checked.issues.slice(0, 12);
           next.push(section);
@@ -258,7 +271,13 @@ async function improveWithTeam(input: {
       const trees = parseTrees(call.text) ?? {};
       const proposed = new Map<string, CompositionTree>();
       for (const [id, tree] of best) {
-        const checked = validateComposition(trees[id], { screenText: input.screen });
+        const section = input.sections.find((candidate) => candidate.id === id);
+        const mediaRefs = section ? mediaRefsFor(section, input.parts) : new Set<string>();
+        const checked = validateComposition(trees[id], {
+          screenText: input.screen,
+          allowedMediaRefs: mediaRefs,
+          requiredMediaRefs: mediaRefs,
+        });
         proposed.set(id, checked.ok ? checked.tree : tree);
       }
       const gate = await runImprovementGate({

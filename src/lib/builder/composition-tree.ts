@@ -180,11 +180,16 @@ function checkText(value: unknown, path: string, issues: CompositionIssue[], scr
 export type ValidateOptions = {
   /** Truth screen: returns a problem description for an unsupported claim, else null. */
   screenText?: (text: string) => string | null;
+  /** Picture references that can resolve inside this section. */
+  allowedMediaRefs?: ReadonlySet<string>;
+  /** Supplied pictures that must remain visible in the composition. */
+  requiredMediaRefs?: ReadonlySet<string>;
 };
 
 export function validateComposition(input: unknown, options: ValidateOptions = {}): CompositionResult {
   const issues: CompositionIssue[] = [];
   let count = 0;
+  const usedMediaRefs = new Set<string>();
 
   const walk = (raw: unknown, path: string, depth: number): CompositionNode | null => {
     count += 1;
@@ -220,7 +225,12 @@ export function validateComposition(input: unknown, options: ValidateOptions = {
     if (row["mediaRef"] != null) {
       const mediaRef = row["mediaRef"];
       if (typeof mediaRef !== "string" || !SAFE_MEDIA_REF.test(mediaRef)) issues.push({ path: `${path}.mediaRef`, problem: "invalid website picture reference" });
-      else node.mediaRef = mediaRef;
+      else if (options.allowedMediaRefs && !options.allowedMediaRefs.has(mediaRef))
+        issues.push({ path: `${path}.mediaRef`, problem: "website picture reference does not belong to this section" });
+      else {
+        node.mediaRef = mediaRef;
+        usedMediaRefs.add(mediaRef);
+      }
     }
     if (node.type === "media" && !node.src && !node.mediaRef) issues.push({ path, problem: "images need a source or website picture reference" });
     if (node.type === "media" && (node.src || node.mediaRef) && !node.alt) issues.push({ path: `${path}.alt`, problem: "images need alt text" });
@@ -288,6 +298,9 @@ export function validateComposition(input: unknown, options: ValidateOptions = {
   const tree = input as Record<string, unknown>;
   const root = walk(tree["root"], "root", 0);
   const label = typeof tree["label"] === "string" ? tree["label"].slice(0, 120) : undefined;
+  for (const mediaRef of options.requiredMediaRefs ?? [])
+    if (!usedMediaRefs.has(mediaRef))
+      issues.push({ path: "root", problem: `supplied website picture ${mediaRef} is missing from the composition` });
   if (issues.length || !root) return { ok: false, issues: issues.length ? issues : [{ path: "root", problem: "missing root" }] };
   return { ok: true, tree: { version: 1, ...(label ? { label } : {}), root } };
 }

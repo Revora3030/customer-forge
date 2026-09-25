@@ -317,6 +317,36 @@ export async function materializeSiteContent(
   }));
   const primaryTarget = input.hasQuoteForm ? "/#quote" : input.hasBooking ? "/book" : "/contact";
   const generatedByLabel = new Map((input.generatedAssets ?? []).map((asset) => [asset.label.toLowerCase(), asset]));
+  const contentSlots = architecture.flatMap((page) =>
+    page.sections
+      .filter((section) => !["quote", "booking", "contact", "sticky_cta"].includes(section.role))
+      .map((section, index) => ({ page: page.slug, role: section.role, index, media: section.media })),
+  );
+  const allocatedAssets = new Map<string, FirstBuildImageAsset[]>();
+  const slotKey = (page: string, role: string, index: number) => `${page}:${role}:${index}`;
+  const claim = (slot: (typeof contentSlots)[number], asset: FirstBuildImageAsset) => {
+    const key = slotKey(slot.page, slot.role, slot.index);
+    allocatedAssets.set(key, [...(allocatedAssets.get(key) ?? []), asset]);
+  };
+  const unassigned = [...(input.generatedAssets ?? [])];
+  for (const slot of contentSlots) {
+    const exact = unassigned.findIndex((asset) =>
+      asset.placement.some((placement) => placement === slot.role || placement === `${slot.page}:${slot.role}`),
+    );
+    if (exact >= 0) {
+      const [asset] = unassigned.splice(exact, 1);
+      if (asset) claim(slot, asset);
+    }
+  }
+  for (const slot of contentSlots.filter((entry) => entry.media === "required")) {
+    const key = slotKey(slot.page, slot.role, slot.index);
+    if (!(allocatedAssets.get(key)?.length) && unassigned.length) {
+      const asset = unassigned.shift();
+      if (asset) claim(slot, asset);
+    }
+  }
+  if (contentSlots.length)
+    for (const [index, asset] of unassigned.entries()) claim(contentSlots[index % contentSlots.length]!, asset);
   let tree: Page[] = architecture.map((page) => ({
     slug: page.slug,
     title: page.title,
@@ -329,11 +359,10 @@ export async function materializeSiteContent(
       const role = section.role;
       if (["quote", "booking", "contact", "sticky_cta"].includes(role))
         return { kind: role, heading: section.heading ?? null, subheading: section.subheading ?? null, body: section.body ?? null };
-      const matching = (input.generatedAssets ?? []).find((asset) =>
-        asset.placement.some((placement) => placement === role || placement === `${page.slug}:${role}`),
-      ) ?? generatedByLabel.get(role.toLowerCase()) ?? null;
+      const matching = allocatedAssets.get(slotKey(page.slug, role, index)) ?? [];
       const components: Component[] = [];
-      if (matching) components.push(imageComponent(matching, index === 0 ? "hero_image" : "image"));
+      for (const asset of matching)
+        components.push(imageComponent(asset, index === 0 ? "hero_image" : "image"));
       if (/hero|cta|action|conversion/i.test(role))
         components.push({ kind: "button", label: primaryAction, link_label: primaryAction, link_url: primaryTarget });
       if (/services|offers|solutions/i.test(role))
