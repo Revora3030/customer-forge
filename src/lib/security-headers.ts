@@ -11,7 +11,10 @@
  * - Supabase (auth, data, storage, realtime) is reached over https + wss.
  * - Google Fonts serve CSS from `fonts.googleapis.com` and files from
  *   `fonts.gstatic.com`.
- * - GA4 is optional and loads from `googletagmanager.com`.
+ * - GA4 is optional and loads from `googletagmanager.com`; Google Ads
+ *   measurement (same tag family) beacons to Google's Ads endpoints and is
+ *   consent-gated by the cookie banner.
+
  * - Client websites show images the business uploaded or linked, which can live
  *   on any https host, so `img-src` stays broad while script/frame/connect
  *   sources stay locked down.
@@ -57,7 +60,7 @@ export const CONTENT_SECURITY_POLICY = [
     "https://www.google.com",
     "https://google.com",
   ].join(" "),
-  "frame-src 'self' https://js.stripe.com https://hooks.stripe.com",
+  "frame-src 'self' https://js.stripe.com https://hooks.stripe.com https://googleads.g.doubleclick.net https://td.doubleclick.net",
   "worker-src 'self' blob:",
   "manifest-src 'self'",
   "upgrade-insecure-requests",
