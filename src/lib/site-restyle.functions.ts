@@ -66,10 +66,13 @@ export const restyleSiteWithAi = createServerFn({ method: "POST" })
       db.from("website_settings").select("generation").eq("organization_id", orgId).maybeSingle(),
     ]);
     const rows = (sections ?? []) as Saved[];
-    const legacy = rows.filter((row) => !FUNCTIONAL.has(row.kind));
+    // Recompose existing AI sections too: older composition trees can predate
+    // media references, so treating them as permanently complete strands
+    // generated pictures outside the visible layout.
+    const legacy = rows.filter((row) => row.kind === "composition" || !FUNCTIONAL.has(row.kind));
     const alreadyAi = rows.filter((row) => row.kind === "composition").length;
     if (legacy.length === 0)
-      return { composed: 0, alreadyAi, restyleId: null, summary: "Every section already has an AI-designed layout. Nothing was changed." };
+      return { composed: 0, alreadyAi, restyleId: null, summary: "This site has no sections that need an AI layout." };
 
     const o = (org ?? {}) as { name?: string | null; industry?: string | null; conversion_goal?: string | null };
     const p = (profile ?? {}) as Record<string, unknown>;
