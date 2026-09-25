@@ -57,13 +57,18 @@ export type CollectivePurpose =
   | "specialist_review"
   | "repair_plan"
   | "plan_review"
+  // independent senior pre-publish review (GPT-5.6 Sol, in the Sol tier)
+  | "final_review"
   // high volume / cost sensitive
   | "intent"
   | "extraction"
   | "classification"
   | "rewrite"
   | "small_edit"
-  | "metadata";
+  | "metadata"
+  // structured completeness utility (GPT-5.6 Luna, in the Luna tier)
+  | "schema_markup"
+  | "completeness_check";
 
 /** The tier a purpose is worth on its own merits. */
 const PURPOSE_TIER: Record<CollectivePurpose, CollectiveTier> = {
@@ -87,6 +92,7 @@ const PURPOSE_TIER: Record<CollectivePurpose, CollectiveTier> = {
   specialist_review: "terra",
   repair_plan: "terra",
   plan_review: "terra",
+  final_review: "sol",
 
   intent: "luna",
   extraction: "luna",
@@ -94,9 +100,24 @@ const PURPOSE_TIER: Record<CollectivePurpose, CollectiveTier> = {
   rewrite: "luna",
   small_edit: "luna",
   metadata: "luna",
+  schema_markup: "luna",
+  completeness_check: "luna",
 };
 
-const INDEPENDENT_REVIEW = new Set<CollectivePurpose>(["adversarial_review", "visual_review"]);
+/**
+ * Purposes served by a peer model inside their tier. GPT-5.6 Sol reviews GPT-6
+ * Sol's work (a different model, so it is a genuine second opinion) and
+ * GPT-5.6 Luna shares structured utility work with GPT-6 Luna. Overridable by
+ * SOL_PEER_MODEL / LUNA_PEER_MODEL.
+ */
+export const PEER_PURPOSE_MODELS: Partial<Record<CollectivePurpose, { model: string; env: string }>> = {
+  final_review: { model: "gpt-5.6-sol", env: "SOL_PEER_MODEL" },
+  schema_markup: { model: "gpt-5.6-luna", env: "LUNA_PEER_MODEL" },
+  completeness_check: { model: "gpt-5.6-luna", env: "LUNA_PEER_MODEL" },
+};
+
+/** Independent review purposes must not be raised to Sol by complexity. */
+const INDEPENDENT_REVIEW = new Set<CollectivePurpose>(["adversarial_review", "visual_review", "final_review"]);
 
 export type TaskComplexity = "low" | "medium" | "high";
 

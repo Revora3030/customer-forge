@@ -20,6 +20,8 @@
 import {
   COLLECTIVE_TIERS,
   DEFAULT_COLLECTIVE_MODELS,
+  PEER_PURPOSE_MODELS,
+  purposeTier,
   selectTier,
   type CollectivePurpose,
   type CollectiveTier,
@@ -330,7 +332,11 @@ export async function callLuna(request: LunaRequest): Promise<LunaResult> {
   const tier: CollectiveTier = request.tier ?? "luna";
   if (!availableTiers().includes(tier)) return skip("disabled", `${tier} tier is switched off`);
 
-  const model = tierModel(tier);
+  const peer = PEER_PURPOSE_MODELS[request.purpose as CollectivePurpose];
+  // A peer model serves its purpose only when the call landed in the peer's
+  // own tier; a downgraded call keeps the tier's model.
+  const peerTier = peer ? purposeTier(request.purpose as CollectivePurpose) : null;
+  const model = peer && peerTier === tier ? (env(peer.env) ?? peer.model) : tierModel(tier);
   const maxOutputTokens = Math.max(request.maxOutputTokens ?? 900, 64);
   const promptChars = request.system.length + request.user.length;
   const estimate = estimateMicrocents(promptChars, maxOutputTokens, tier);
