@@ -7,7 +7,7 @@
 import { createFileRoute, notFound } from "@tanstack/react-router";
 import { useEffect } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { SiteSection, StickyCallBar } from "@/components/site/SiteSections";
+import { SiteSection } from "@/components/site/SiteSections";
 import { PreviewSelectBridge } from "@/components/site/PreviewSelectBridge";
 import { SiteBackdrop } from "@/components/site/SiteBackdrop";
 import { siteFontHref, siteFontStyle, siteThemeStyle } from "@/lib/site-theme";
@@ -178,7 +178,6 @@ export function SitePageView({
           </footer>
         ) : null}
 
-        <StickyCallBar site={site} label={ctaLabel} />
         <SiteVitals slug={org.slug} preview={preview} />
         {/* Lets the builder's preview frame pick a block by clicking it. Inert
             for every ordinary visitor and for any frame from another origin. */}

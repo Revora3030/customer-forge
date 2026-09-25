@@ -1,5 +1,6 @@
 import { useState, type CSSProperties, type ReactNode } from "react";
 import type { Breakpoint, CompositionNode, CompositionTree, MotionEasing, NodeHover, NodeMotion, NodeStyle } from "@/lib/builder/composition-tree";
+import type { PersistedComponentVisual } from "@/lib/site-style";
 
 /**
  * Draws any validated AI-authored composition tree. It only translates the
@@ -78,7 +79,20 @@ const MEDIA: Record<Breakpoint, string> = {
   desktop: "(min-width: 1024px)",
 };
 
-type Ctx = { rules: string[]; counter: { n: number }; scope: string; href: (h: string) => string; media: (ref: string) => string | null };
+type ResolvedMedia = { url: string | null; visual?: PersistedComponentVisual };
+type Ctx = { rules: string[]; counter: { n: number }; scope: string; href: (h: string) => string; media: (ref: string) => ResolvedMedia | null };
+
+function mediaCss(visual: PersistedComponentVisual | undefined): CSSProperties {
+  if (!visual) return {};
+  const css: CSSProperties = {};
+  if (visual.object_fit) css.objectFit = visual.object_fit;
+  if (visual.object_position ?? visual.focal_point) css.objectPosition = visual.object_position ?? visual.focal_point;
+  if (visual.aspect_ratio) css.aspectRatio = visual.aspect_ratio.replace(":", " / ");
+  if (visual.radius != null) css.borderRadius = visual.radius;
+  if (visual.shadow != null) css.boxShadow = visual.shadow <= 0 ? "none" : `0 ${Math.round(visual.shadow * .55)}px ${Math.round(visual.shadow * 1.4)}px -${Math.round(visual.shadow * .35)}px rgba(0,0,0,.45)`;
+  if (visual.overlay != null) css.opacity = 1 - visual.overlay / 200;
+  return css;
+}
 
 function baseLayout(type: CompositionNode["type"]): CSSProperties {
   switch (type) {
@@ -116,8 +130,9 @@ function renderNode(node: CompositionNode, ctx: Ctx, key: string): ReactNode {
     case "text":
       return <p key={key} {...props}>{node.text}{kids}</p>;
     case "media":
-      { const source = node.src ?? (node.mediaRef ? ctx.media(node.mediaRef) : null);
-        return source ? <img key={key} {...props} src={source} alt={node.alt ?? ""} loading="lazy" style={{ objectFit: "cover", width: "100%", ...props.style }} /> : null; }
+      { const resolved = node.mediaRef ? ctx.media(node.mediaRef) : null;
+        const source = node.src ?? resolved?.url ?? null;
+        return source ? <img key={key} {...props} src={source} alt={node.alt ?? resolved?.visual?.alt ?? ""} loading="lazy" style={{ width: "100%", ...mediaCss(resolved?.visual), ...props.style }} /> : null; }
     case "button":
     case "link":
       return <a key={key} {...props} href={node.href ? ctx.href(node.href) : undefined}>{node.text}{kids}</a>;
@@ -155,16 +170,16 @@ function renderNode(node: CompositionNode, ctx: Ctx, key: string): ReactNode {
       );
     case "compare": {
       const [before, after] = node.children ?? [];
-      const beforeSource = before?.src ?? (before?.mediaRef ? ctx.media(before.mediaRef) : null);
-      const afterSource = after?.src ?? (after?.mediaRef ? ctx.media(after.mediaRef) : null);
+      const beforeSource = before?.src ?? (before?.mediaRef ? ctx.media(before.mediaRef)?.url : null);
+      const afterSource = after?.src ?? (after?.mediaRef ? ctx.media(after.mediaRef)?.url : null);
       return before && after && beforeSource && afterSource ? <Compare key={key} props={props} before={before} after={after} beforeSource={beforeSource} afterSource={afterSource} /> : null;
     }
     case "gallery":
       return (
         <div key={key} {...props} style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(220px,1fr))", ...props.style }}>
-          {node.children?.map((c, i) => { const source = c.src ?? (c.mediaRef ? ctx.media(c.mediaRef) : null); return source ? (
+          {node.children?.map((c, i) => { const resolved = c.mediaRef ? ctx.media(c.mediaRef) : null; const source = c.src ?? resolved?.url ?? null; return source ? (
             <a key={i} href={source} target="_blank" rel="noopener noreferrer">
-              <img src={source} alt={c.alt ?? ""} loading="lazy" style={{ width: "100%", height: "100%", objectFit: "cover", ...styleToCss(c.style, "media") }} />
+              <img src={source} alt={c.alt ?? resolved?.visual?.alt ?? ""} loading="lazy" style={{ width: "100%", height: "100%", ...mediaCss(resolved?.visual), ...styleToCss(c.style, "media") }} />
             </a>
           ) : null; })}
         </div>
@@ -267,7 +282,7 @@ export const PHONE_SAFETY_CSS = `[data-composition]{max-width:100%;overflow-x:cl
 
 const MOTION_CSS = `@media (prefers-reduced-motion: no-preference){.rv-cn-motion{animation:rv-cn-in .7s ease both}.rv-cn-motion[data-motion=rise]{animation-name:rv-cn-rise}.rv-cn-motion[data-motion=scale]{animation-name:rv-cn-scale}.rv-cn-motion[data-motion=float]{animation:rv-cn-float 6s ease-in-out infinite}.rv-cn-motion[data-motion=slide-left]{animation-name:rv-cn-sl}.rv-cn-motion[data-motion=slide-right]{animation-name:rv-cn-sr}.rv-cn-motion[data-motion=blur]{animation-name:rv-cn-blur}.rv-cn-motion[data-motion=reveal]{animation-name:rv-cn-reveal}.rv-cn-motion[data-motion=custom]{animation-name:rv-cn-custom}}@keyframes rv-cn-custom{from{opacity:var(--rv-o,1);transform:translate(var(--rv-x,0),var(--rv-y,0)) scale(var(--rv-s,1)) rotate(var(--rv-r,0));filter:blur(var(--rv-b,0))}}@keyframes rv-cn-sl{from{opacity:0;transform:translateX(32px)}to{opacity:1;transform:none}}@keyframes rv-cn-sr{from{opacity:0;transform:translateX(-32px)}to{opacity:1;transform:none}}@keyframes rv-cn-blur{from{opacity:0;filter:blur(12px)}to{opacity:1;filter:none}}@keyframes rv-cn-reveal{from{clip-path:inset(0 0 100% 0)}to{clip-path:inset(0 0 0 0)}}@keyframes rv-cn-in{from{opacity:0}to{opacity:1}}@keyframes rv-cn-rise{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:none}}@keyframes rv-cn-scale{from{opacity:0;transform:scale(.94)}to{opacity:1;transform:none}}@keyframes rv-cn-float{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}`;
 
-export function CompositionRenderer({ tree, scope, as = "section", resolveHref, resolveMedia }: { tree: CompositionTree; scope: string; as?: "section" | "div"; resolveHref?: (href: string) => string; resolveMedia?: (ref: string) => string | null }) {
+export function CompositionRenderer({ tree, scope, as = "section", resolveHref, resolveMedia }: { tree: CompositionTree; scope: string; as?: "section" | "div"; resolveHref?: (href: string) => string; resolveMedia?: (ref: string) => ResolvedMedia | null }) {
   const ctx: Ctx = { rules: [], counter: { n: 0 }, scope: scope.replace(/[^\w-]/g, "") || "cn", href: resolveHref ?? ((h) => h), media: resolveMedia ?? (() => null) };
   const body = renderNode(tree.root, ctx, "root");
   return (
