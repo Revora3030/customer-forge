@@ -133,7 +133,7 @@ export async function verifyWorkspaceSite(
   // Inspect the whole visible site, with a hard cap so verification stays fast
   // even for large workspaces. This is intentionally broader than the old
   // four-page sample: a successful home page must not hide a broken inner page.
-  const list = (pages.data ?? []).slice(0, 8);
+  const list = pages.data ?? [];
   const home = list.find((page) => page["kind"] === "home") ?? list[0];
 
   const checks: Check[] = [];
@@ -149,6 +149,19 @@ export async function verifyWorkspaceSite(
     .eq("is_visible", true)
     .order("sort_order");
   const { validateComposition } = await import("@/lib/builder/composition-tree");
+  const { isRenderableSectionKind } = await import("@/lib/builder/renderable-sections");
+  // An AI-invented section that never became a drawable layout would vanish
+  // silently on the live page. Report it so the AI redesigns it instead.
+  for (const section of (sections.data ?? []) as Record<string, unknown>[]) {
+    if (isRenderableSectionKind(section["kind"])) continue;
+    checks.push({
+      label: "Every section can be shown",
+      ok: false,
+      severity: "critical",
+      where: String(section["id"]),
+      detail: `the "${String(section["kind"])}" section has no layout yet, so visitors would not see it`,
+    });
+  }
   for (const section of ((sections.data ?? []) as Record<string, unknown>[]).filter(
     (row) => row["kind"] === "composition",
   )) {
@@ -170,7 +183,6 @@ export async function verifyWorkspaceSite(
       { path: `/s/${slug}`, label: String(home?.["title"] ?? "Home") },
       ...list
         .filter((page) => page !== home && page["slug"])
-        .slice(0, 7)
         .map((page) => ({
           path: `/s/${slug}/${String(page["slug"])}`,
           label: String(page["title"] ?? page["slug"]),
