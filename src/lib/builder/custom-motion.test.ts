@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { validateCompositionTree } from "./composition-tree";
+import { validateComposition } from "./composition-tree";
 import { motionStyle } from "@/components/site/CompositionRenderer";
 
 const tree = (motion: unknown) => ({ version: 1, root: { type: "stack", children: [{ type: "heading", level: 1, text: "Hi", motion }] } });
 
 describe("AI-described motion", () => {
   it("keeps a custom motion the AI designs", () => {
-    const r = validateCompositionTree(tree({ kind: "custom", from: { y: 40, rotate: -6, opacity: 0 }, easing: "spring", repeat: 2, trigger: "view" }));
+    const r = validateComposition(tree({ kind: "custom", from: { y: 40, rotate: -6, opacity: 0 }, easing: "spring", repeat: 2, trigger: "view" }));
     expect(r.ok).toBe(true);
     if (!r.ok) return;
     const m = r.tree.root.children![0]!.motion!;
@@ -17,7 +17,7 @@ describe("AI-described motion", () => {
     expect(css["animationIterationCount"]).toBe("2");
   });
   it("reports out-of-range values instead of silently dropping them", () => {
-    const r = validateCompositionTree(tree({ kind: "custom", from: { x: 9999, spin: 1 }, durationMs: 50 }));
+    const r = validateComposition(tree({ kind: "custom", from: { x: 9999, spin: 1 }, durationMs: 50 }));
     expect(r.ok).toBe(false);
     if (r.ok) return;
     const paths = r.issues.map((i) => i.path).join(" ");
@@ -26,6 +26,6 @@ describe("AI-described motion", () => {
     expect(paths).toContain("durationMs");
   });
   it("rejects custom motion with no starting values", () => {
-    expect(validateCompositionTree(tree({ kind: "custom" })).ok).toBe(false);
+    expect(validateComposition(tree({ kind: "custom" })).ok).toBe(false);
   });
 });
