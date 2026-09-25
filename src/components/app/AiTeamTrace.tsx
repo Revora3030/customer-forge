@@ -34,7 +34,7 @@ export function AiTeamTrace() {
               {r.reason ? <span className="block text-xs text-muted-foreground">{r.reason}</span> : null}
             </span>
             <span className="flex items-center gap-2 text-muted-foreground">
-              <Pill tone={r.ok ? "success" : "danger"}>{r.ok ? "done" : "failed"}</Pill>
+              <Pill tone={r.ok ? "signal" : "danger"}>{r.ok ? "done" : "failed"}</Pill>
               {r.lane} · {r.latencyMs === null ? "—" : `${(r.latencyMs / 1000).toFixed(1)}s`}
             </span>
           </div>
