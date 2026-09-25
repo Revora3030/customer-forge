@@ -139,7 +139,7 @@ async function gatherReadiness(
       .maybeSingle(),
     supabase
       .from("website_settings")
-      .select("seo, custom_domain, domain_status, publish_state")
+      .select("seo, generation, generated_at, review_state, custom_domain, domain_status, publish_state")
       .eq("organization_id", organizationId)
       .maybeSingle(),
     supabase
@@ -159,6 +159,13 @@ async function gatherReadiness(
 
   const p = (profile.data ?? {}) as Record<string, unknown>;
   const seo = (settings.data?.seo ?? {}) as Record<string, unknown>;
+  const generation = (settings.data?.generation ?? {}) as Record<string, unknown>;
+  const creative = generation["firstBuildCreative"];
+  const report = generation["report"];
+  const imagery = report && typeof report === "object" ? (report as Record<string, unknown>)["imagery"] : null;
+  const imageStatus = imagery && typeof imagery === "object" ? String((imagery as Record<string, unknown>)["generatedStatus"] ?? "") : "";
+  const aiEvidence = Boolean(settings.data?.generated_at && creative && typeof creative === "object");
+  const imageEvidence = ["generated", "owner_photos"].includes(imageStatus);
   const pageRows = pages.data ?? [];
   const visibleSections = (sections.data ?? []).filter((s) => s.is_visible);
   const captureKinds = new Set(["quote", "booking", "contact", "cta", "sticky_cta"]);
@@ -226,6 +233,31 @@ async function gatherReadiness(
       label: "Search settings filled in",
       ok: !!(seo["headline"] && seo["meta_description"]),
       detail: "Headline and meta description are used by Google and social previews.",
+    },
+    {
+      key: "ai-evidence",
+      label: "AI design evidence recorded",
+      ok: aiEvidence,
+      detail: aiEvidence
+        ? "The AI-authored design contract is attached to this website."
+        : "Run the AI website build so its design contract is recorded before launch.",
+    },
+    {
+      key: "image-evidence",
+      label: "Website pictures verified",
+      ok: imageEvidence,
+      detail: imageEvidence
+        ? "Generated or owner-supplied pictures are recorded with the build."
+        : "Add owner photos or complete AI picture generation before launch.",
+    },
+    {
+      key: "review",
+      label: "Website approved",
+      ok: settings.data?.review_state === "approved",
+      detail:
+        settings.data?.review_state === "approved"
+          ? "The current website has been approved."
+          : "Review and approve the website before launch.",
     },
     {
       key: "quality",

@@ -6,6 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import type { AppointmentStatus, LeadStatus } from "@/lib/domain";
 import { AUTOMATION_RECIPES, enqueueAutomations } from "@/lib/automation-engine";
 import { runDueAutomations } from "@/lib/automations.functions";
+import { setWebsiteReviewState } from "@/lib/website-review.functions";
 
 /**
  * Client code can only queue automation steps — actual email/SMS delivery runs
@@ -1208,18 +1209,10 @@ export function useSetWebsiteReviewState(organizationId: string | undefined) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({ state, message }: { state: string; message?: string }) => {
-      const patch: Record<string, unknown> = {
-        organization_id: organizationId!,
-        review_state: state,
-      };
-      if (state === "approved") {
-        patch["approved_at"] = new Date().toISOString();
-        patch["approved_by"] = (await supabase.auth.getUser()).data.user?.id ?? null;
+      if (state !== "approved" && state !== "changes_requested") {
+        throw new Error("That review status is not supported.");
       }
-      const { error } = await supabase
-        .from("website_settings")
-        .upsert(patch as never, { onConflict: "organization_id" });
-      if (error) throw error;
+      await setWebsiteReviewState({ data: { organizationId: organizationId!, state } });
       return message;
     },
     onSuccess: (message) => {
