@@ -180,7 +180,7 @@ export function terminalStateForEmptyPlan(input: {
 /** One honest sentence about the queue, never rounded up. */
 export function queueSummary(tasks: QueueTask[]): string {
   if (tasks.length === 0) return "";
-  const done = tasks.filter((t) => t.state === "complete").length;
+  const done = tasks.filter((t) => t.state === "complete" && !t.answered).length;
   const failed = tasks.filter((t) => t.state === "failed").length;
   const waiting = tasks.filter(
     (t) => t.state === "queued" || t.state === "waiting_for_approval",
