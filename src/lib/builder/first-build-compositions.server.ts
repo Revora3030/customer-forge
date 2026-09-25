@@ -23,6 +23,10 @@ import {
   type CompositionTree,
 } from "@/lib/builder/composition-tree";
 import type { DnaFacts } from "@/lib/business-dna";
+import { runReviewPanel } from "@/lib/builder/review-panel.server";
+import { runImprovementGate, type GateReport } from "@/lib/builder/improvement-gate.server";
+
+const IMPROVEMENT_ROUNDS = 2;
 
 type Db = { from: (table: string) => any }; // eslint-disable-line @typescript-eslint/no-explicit-any
 
@@ -55,6 +59,8 @@ export type CompositionPassResult = {
   kept: number;
   models: string[];
   costMicrocents: number;
+  /** One entry per improvement round: whether the team's revision beat the prior version. */
+  gateReports: GateReport[];
 };
 
 const RULES = [
@@ -131,10 +137,11 @@ export async function composeFirstBuildSections(input: {
     byPage.set(row.page_id, [...(byPage.get(row.page_id) ?? []), row]);
   }
 
-  const result: CompositionPassResult = { composed: 0, kept: rows.length, models: [], costMicrocents: 0 };
+  const result: CompositionPassResult = { composed: 0, kept: rows.length, models: [], costMicrocents: 0, gateReports: [] };
   for (const pageSections of byPage.values()) {
     let pending = pageSections;
     let feedback: Record<string, CompositionIssue[]> = {};
+    const designed = new Map<string, CompositionTree>();
     for (let attempt = 0; attempt < 2 && pending.length; attempt += 1) {
       const call = await callBestThinker({
         json: true,
@@ -167,9 +174,7 @@ export async function composeFirstBuildSections(input: {
           next.push(section);
           continue;
         }
-        await saveTree(db, organizationId, section, checked.tree);
-        result.composed += 1;
-        result.kept -= 1;
+        designed.set(section.id, checked.tree);
       }
       pending = next;
     }
@@ -178,6 +183,14 @@ export async function composeFirstBuildSections(input: {
         `The design team could not produce a safe layout for ${pending.length} section(s), so nothing was published. Please try again in a moment.`,
         { cause: feedback },
       );
+    const best = await improveWithTeam({ organizationId, lookSummary: input.lookSummary, sections: pageSections, parts, designed, screen, result });
+    for (const section of pageSections) {
+      const tree = best.get(section.id);
+      if (!tree) continue;
+      await saveTree(db, organizationId, section, tree);
+      result.composed += 1;
+      result.kept -= 1;
+    }
   }
   return result;
 }
@@ -190,4 +203,78 @@ async function saveTree(db: Db, organizationId: string, section: SectionRow, tre
     .eq("id", section.id)
     .eq("organization_id", organizationId);
   if (error) throw new Error(error.message);
+}
+
+/**
+ * The wider team reviews Sol's page, Sol revises from their notes, and Terra
+ * keeps whichever version scores better. Any failure keeps the version that
+ * already passed every safety check — this step can only improve a page.
+ */
+async function improveWithTeam(input: {
+  organizationId: string;
+  lookSummary: string;
+  sections: SectionRow[];
+  parts: ComponentRow[];
+  designed: Map<string, CompositionTree>;
+  screen: (text: string) => string | null;
+  result: CompositionPassResult;
+}): Promise<Map<string, CompositionTree>> {
+  let best = input.designed;
+  const material = JSON.stringify(
+    input.sections.map((s) => materialFor(s, input.parts.filter((p) => p.section_id === s.id))),
+  );
+  for (let round = 0; round < IMPROVEMENT_ROUNDS; round += 1) {
+    try {
+      const current = Object.fromEntries(best);
+      const panel = await runReviewPanel({
+        organizationId: input.organizationId,
+        mode: "full",
+        material: ["SUPPLIED MATERIAL:", material, "", "SOL'S DESIGN:", JSON.stringify(current)].join("\n"),
+      });
+      input.result.models.push(...panel.models);
+      input.result.costMicrocents += panel.costMicrocents;
+      const notes = panel.notes.filter((n) => n.issues.length);
+      if (!notes.length) break;
+      const call = await callBestThinker({
+        json: true,
+        purpose: "creative_direction",
+        complexity: "high",
+        organizationId: input.organizationId,
+        maxOutputTokens: 16000,
+        system: RULES,
+        user: [
+          "SITE LOOK (follow it):", input.lookSummary, "",
+          "SECTION MATERIAL:", material, "",
+          "YOUR CURRENT DESIGN:", JSON.stringify(current), "",
+          "REVIEW PANEL NOTES (use your judgement; improve, never downgrade):", JSON.stringify(notes), "",
+          'Return JSON: {"sections": {"<sectionId>": {"version": 1, "label": "...", "root": {...}}}} with one improved tree per section.',
+        ].join("\n"),
+      });
+      if (!call.ok) break;
+      if (call.model) input.result.models.push(call.model);
+      input.result.costMicrocents += call.costMicrocents ?? 0;
+      const trees = parseTrees(call.text) ?? {};
+      const proposed = new Map<string, CompositionTree>();
+      for (const [id, tree] of best) {
+        const checked = validateComposition(trees[id], { screenText: input.screen });
+        proposed.set(id, checked.ok ? checked.tree : tree);
+      }
+      const gate = await runImprovementGate({
+        organizationId: input.organizationId,
+        context: `Website sections. Supplied material: ${material}`,
+        current,
+        proposed: Object.fromEntries(proposed),
+      });
+      input.result.costMicrocents += gate.costMicrocents;
+      if (gate.model) input.result.models.push(gate.model);
+      const { costMicrocents: _cost, ...report } = gate;
+      input.result.gateReports.push(report);
+      if (!gate.accepted) break;
+      best = proposed;
+    } catch (error) {
+      console.warn("team improvement round skipped", (error as Error).message);
+      break;
+    }
+  }
+  return best;
 }
