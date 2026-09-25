@@ -34,7 +34,7 @@ export const CONTENT_SECURITY_POLICY = [
   // builder open a customer page in a same-origin frame to photograph what
   // actually rendered for the visual review.
   "frame-ancestors 'self'",
-  "script-src 'self' 'unsafe-inline' https://js.stripe.com https://www.googletagmanager.com",
+  "script-src 'self' 'unsafe-inline' https://js.stripe.com https://www.googletagmanager.com https://pagead2.googlesyndication.com https://googleads.g.doubleclick.net",
   "script-src-attr 'none'",
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
   "font-src 'self' data: https://fonts.gstatic.com",
@@ -50,6 +50,12 @@ export const CONTENT_SECURITY_POLICY = [
     "https://www.google-analytics.com",
     "https://region1.google-analytics.com",
     "https://www.googletagmanager.com",
+    // Google Ads measurement beacons (conversion + consent pings).
+    "https://pagead2.googlesyndication.com",
+    "https://googleads.g.doubleclick.net",
+    "https://td.doubleclick.net",
+    "https://www.google.com",
+    "https://google.com",
   ].join(" "),
   "frame-src 'self' https://js.stripe.com https://hooks.stripe.com",
   "worker-src 'self' blob:",
