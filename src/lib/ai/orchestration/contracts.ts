@@ -77,6 +77,8 @@ export type TaskKind =
   | "repair_plan"
   | "seo_analysis"
   | "design_alternative"
+  // independent senior pre-publish review (GPT-5.6 Sol)
+  | "final_review"
   // routine utility
   | "metadata"
   | "rewrite"
@@ -84,6 +86,9 @@ export type TaskKind =
   | "extraction"
   | "classification"
   | "intent"
+  // structured SEO/completeness utility (GPT-5.6 Luna)
+  | "schema_markup"
+  | "completeness_check"
   // media / non-text lanes
   | "image_hero"
   | "image_support"
@@ -229,6 +234,9 @@ const CONTRACTS: Record<TaskKind, TaskContract> = {
     "reasoning",
     "structured_output",
   ]),
+  final_review: text("final_review", "high", ["text_generation", "reasoning", "structured_output"]),
+  schema_markup: text("schema_markup", "low", ["text_generation", "structured_output"]),
+  completeness_check: text("completeness_check", "low", ["text_generation", "structured_output"]),
   design_alternative: text("design_alternative", "medium", [
     "text_generation",
     "reasoning",
