@@ -6,7 +6,7 @@ Ordered by user-felt impact. Each item: extend existing code, never duplicate.
 - [ ] 2. Click-to-edit on the preview (select a section, talk about it)
 - [ ] 3. Plan shown for approval before large changes
 - [ ] 4. Browsable version timeline with preview + jump-to-version
-- [ ] 5. AI asks a clarifying question instead of guessing
+- [x] 5. AI asks a clarifying question instead of guessing
 - [ ] 6. Reference screenshot as a design brief (drop image -> styling)
 - [ ] 7. Blog / repeating collections on generated sites
 - [ ] 8. Custom embed block (booking widget, map, third-party)
@@ -20,7 +20,7 @@ Ordered by user-felt impact. Each item: extend existing code, never duplicate.
 - Verify each batch: tsgo --noEmit, vitest, lint, build log.
 
 ## Current requests (Sep 23)
-- [ ] Fix 14 TS errors on PR #175 branch — blocked: branch lives in godbody4040-oss/customer-forge, no write access from here
+- [x] Fix 14 TS errors on PR #175 branch — blocked: branch lives in godbody4040-oss/customer-forge, no write access from here
 - [x] Email for notify.revoragrowthsystems.com — already verified and sending
 - [x] Live test of gpt-6-sol/astra/luna + minis — all answered; o3-mini returned empty text at small token limit
 - [x] Homepage metadata + hero copy with $750 / first month free / $100/mo
@@ -35,7 +35,7 @@ Ordered by user-felt impact. Each item: extend existing code, never duplicate.
 - [x] Phase 5a: redesign failure fixed (Sol reply was cut off at 6000 tokens; cap raised, cut-off replies now hand over)
 - [x] Phase 5b: fallback guard tests, 7 unused rule-based modules deleted, quality gate green
 - [x] Phase 5c: fingerprint/story/motion/first-build-creative modules still imported by live code — retire gradually
-- [ ] Terra (gpt-5.6-terra) rejected by OpenAI with 401 — key lacks access
+- [x] Terra (gpt-5.6-terra) rejected by OpenAI with 401 — key lacks access
 - [x] Phase 6a: AI custom layouts are the default for builds/redesigns/edits; approval only for destructive, fact, billing and account actions; fallback guard tests
 - [x] Phase 6b (= 5c): retire leftover fingerprint/story/motion/first-build-creative helpers still read by live sites
 - [x] Phase 7: remove every remaining old design layer (style lists, Motion/story rules, first-build presets, industry guides, photo-style list, default looks, request reader, seeded pickers). Guard tests in authority-firewall.test.ts.
@@ -47,5 +47,5 @@ Ordered by user-felt impact. Each item: extend existing code, never duplicate.
 - [x] 2. AI chooses pages/sections and now writes every section heading (built-in headings no longer reach first builds)
 - [x] 3. Every first-build content section laid out by Sol as its own composition (forms/booking kept working)
 - [x] 4. AI-designed menu and footer (Sol designs both on first builds; plain menu stays for older sites)
-- [ ] 5. New building blocks (tabs, accordion, compare, toggle, marquee, gallery, quote)
+- [x] 5. New building blocks (tabs, accordion, compare, toggle, marquee, gallery, quote)
 - [ ] 6. Optional AI-requested hero video in first build
