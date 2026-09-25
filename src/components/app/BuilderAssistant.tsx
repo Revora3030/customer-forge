@@ -56,6 +56,9 @@ export function BuilderAssistant({
   onFirstBuild,
   firstBuildBusy = false,
   publishState = "draft",
+  factQuestion = null,
+  onFactAnswer,
+  onFactSkip,
 }: {
   organizationId: string | null;
   requests: BuilderRequests;
@@ -71,11 +74,17 @@ export function BuilderAssistant({
   onFirstBuild?: (instruction: string) => Promise<void>;
   firstBuildBusy?: boolean;
   publishState?: string;
+  /** A fact Revora still needs from the owner, asked in the chat. */
+  factQuestion?: { key: string; label: string; prompt: string; required: boolean } | null;
+  onFactAnswer?: (key: string, answer: string) => Promise<void>;
+  onFactSkip?: (key: string) => void;
 }) {
   const [value, setValue] = useState("");
   const [moreOpen, setMoreOpen] = useState(false);
   const [mediaOpen, setMediaOpen] = useState(false);
   const [attachments, setAttachments] = useState<AgentAttachment[]>([]);
+  const [factLog, setFactLog] = useState<{ question: string; answer: string }[]>([]);
+  const [factBusy, setFactBusy] = useState(false);
   /** A question Revora asked, which the next message answers. */
   const [answering, setAnswering] = useState<string | null>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -136,6 +145,19 @@ export function BuilderAssistant({
 
   const send = (text: string) => {
     if (!text.trim() && attachments.length === 0) return;
+    // Revora asked for a missing fact: this message is the answer.
+    if (factQuestion && onFactAnswer && text.trim()) {
+      const q = factQuestion;
+      const answer = text.trim();
+      setValue("");
+      afterSend();
+      setFactBusy(true);
+      void onFactAnswer(q.key, answer)
+        .then(() => setFactLog((log) => [...log, { question: q.label, answer }]))
+        .catch(() => setValue(answer))
+        .finally(() => setFactBusy(false));
+      return;
+    }
     if (onFirstBuild) {
       const instruction = scoped(text);
       setValue("");
@@ -189,7 +211,7 @@ export function BuilderAssistant({
       <Conversation className="min-h-0 flex-1 overscroll-contain" onPointerDown={dismissKeyboard}>
         <ConversationContent className="gap-8 px-4 py-5 text-[15px] leading-relaxed sm:px-6 lg:px-7">
 
-          {requests.tasks.length === 0 ? (
+          {requests.tasks.length === 0 && !factQuestion && factLog.length === 0 ? (
             <ConversationEmptyState className="items-start justify-end text-left" title={emptyTitle} description={emptyHint}>
               <div className="max-w-md space-y-2">
                 <div className="flex items-center gap-2">
@@ -220,6 +242,40 @@ export function BuilderAssistant({
               </Message>
             </div>
           ))}
+          {factLog.map((entry, i) => (
+            <div key={`fact-${i}`} className="chat-rise space-y-3">
+              <Message from="assistant">
+                <MessageContent className="w-full text-[14px]">{entry.question}</MessageContent>
+              </Message>
+              <Message from="user">
+                <MessageContent className="bg-primary text-primary-foreground whitespace-pre-wrap">{entry.answer}</MessageContent>
+              </Message>
+            </div>
+          ))}
+          {factQuestion ? (
+            <div className="chat-rise">
+              <Message from="assistant">
+                <MessageContent className="w-full space-y-2 text-[14px]">
+                  <div className="flex items-center gap-2">
+                    <img src="/revora-mark-144.png" alt="" className="size-6 rounded-md" />
+                    <span className="text-[12px] font-semibold">Revora</span>
+                  </div>
+                  <p className="font-medium text-foreground">{factQuestion.label}</p>
+                  <p className="text-muted-foreground">{factQuestion.prompt}</p>
+                  {factBusy ? <Shimmer>Saving and updating your site…</Shimmer> : null}
+                  {!factQuestion.required && onFactSkip && !factBusy ? (
+                    <button
+                      type="button"
+                      onClick={() => onFactSkip(factQuestion.key)}
+                      className="cursor-pointer rounded-full border border-border px-3 py-1 text-[12px] text-muted-foreground hover:border-primary/55"
+                    >
+                      Skip for now
+                    </button>
+                  ) : null}
+                </MessageContent>
+              </Message>
+            </div>
+          ) : null}
         </ConversationContent>
         <ConversationScrollButton />
       </Conversation>
