@@ -79,17 +79,4 @@ describe("applyAuthoredHeadings", () => {
   });
 });
 
-import { addInventedMaterial } from "./site-materialize.server";
-describe("invented material", () => {
-  it("adds only the AI's own invented sections and pages", () => {
-    const pages = addInventedMaterial(
-      [{ slug: "home", title: "Home", kind: "home", sections: [{ kind: "hero" }] }],
-      [
-        { slug: "home", title: "Home", purpose: "", primaryAction: "", sections: [{ role: "hero" }, { role: "steps", heading: "Steps", custom: true }] },
-        { slug: "process", title: "Process", purpose: "", primaryAction: "", sections: [{ role: "story", heading: "Story", body: "B", custom: true }] },
-      ],
-    );
-    expect(pages[0]?.sections.map((s) => s.kind)).toEqual(["hero", "steps"]);
-    expect(pages[1]).toMatchObject({ slug: "process", kind: "page" });
-  });
-});
+

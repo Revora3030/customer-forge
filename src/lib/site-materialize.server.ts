@@ -196,25 +196,6 @@ export function applyAuthoredHeadings(pages: Page[], architecture: PageArchitect
   });
 }
 
-/** Builds the page tree. Pure — easy to reason about and to test. */
-/**
- * Adds the sections and pages the AI invented as real material, carrying only
- * the AI's own words, so the contract can place them and the composition pass
- * can design them. Nothing is added that the AI did not write.
- */
-export function addInventedMaterial(pages: Page[], architecture: PageArchitecture[]): Page[] {
-  const bySlug = new Map(pages.map((page) => [page.slug, { ...page, sections: [...page.sections] }]));
-  for (const design of architecture) {
-    const custom = design.sections.filter((section) => section.custom);
-    if (!custom.length) continue;
-    const page = bySlug.get(design.slug) ?? { slug: design.slug, title: design.title, kind: "page", sections: [] };
-    for (const section of custom)
-      page.sections.push({ kind: section.role, heading: section.heading ?? null, subheading: section.subheading ?? null, body: section.body ?? null, components: [] });
-    bySlug.set(design.slug, page);
-  }
-  return [...bySlug.values()];
-}
-
 /**
  * Gives every newly generated section a complete, renderable design contract.
  * This runs during first-site generation, rather than waiting for the owner to

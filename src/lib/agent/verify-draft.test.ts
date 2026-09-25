@@ -43,7 +43,9 @@ function client(publishState: string) {
           }),
           eq: () => ({
             order: async () => ({
-              data: [
+              data: table === "website_sections"
+                ? []
+                : [
                 { slug: "", title: "Home", kind: "home", is_visible: true, sort_order: 0 },
                 { slug: "services", title: "Services", kind: "page", is_visible: true, sort_order: 1 },
               ],
