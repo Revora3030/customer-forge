@@ -153,6 +153,7 @@ export function VisualCheckPanel({
       void queryClient.invalidateQueries({ queryKey: ["build_readiness"] });
       return saved.report;
     } catch (error) {
+      console.error("[visual-check] failed", error);
       if (!automatic) {
         toast.error(friendlyError(error, "The visual check couldn't run. Please try again."));
       }
