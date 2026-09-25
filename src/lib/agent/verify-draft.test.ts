@@ -44,7 +44,7 @@ function client(publishState: string) {
           eq: () => ({
             order: async () => ({
               data: table === "website_sections"
-                ? [{ id: "sec-1", kind: "composition", is_visible: true, settings: null }].filter(() => false)
+                ? []
                 : [
                 { slug: "", title: "Home", kind: "home", is_visible: true, sort_order: 0 },
                 { slug: "services", title: "Services", kind: "page", is_visible: true, sort_order: 1 },
