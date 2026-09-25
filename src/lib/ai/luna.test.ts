@@ -184,14 +184,11 @@ describe("never blocks the builder", () => {
   });
 });
 
-describe("free workforce is untouched", () => {
-  it("keeps every worker role on the free/deterministic path", () => {
+describe("no built-in engine switch", () => {
+  it("can never switch the AI team off", () => {
     process.env["OPENAI_API_KEY"] = "sk-test";
     process.env["ZERO_AI_COST_MODE"] = "true";
-    expect(zeroAiCostMode()).toBe(true);
-    // The paid worker chain stays empty even with a paid key present, so no
-    // worker role (primary/design/fast/vision/coding/image/transcription) can
-    // ever resolve to a billed model.
-    expect(providerChain()).toEqual([]);
+    expect(zeroAiCostMode()).toBe(false);
+    expect(providerChain().length).toBeGreaterThan(0);
   });
 });

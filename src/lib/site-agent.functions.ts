@@ -1216,12 +1216,11 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
             : null;
           const image = free.ok ? free : paid?.ok ? paid : null;
           if (!image) {
-            fatal = new Error(
-              paid && !paid.ok
-                ? paid.message
-                : !free.ok
-                  ? free.message
-                  : "The picture could not be generated.",
+            // A picture that couldn't be made keeps the current picture; it must
+            // not undo every other design change in the same request.
+            console.warn(
+              "[site-agent] picture not generated:",
+              paid && !paid.ok ? paid.message : !free.ok ? free.message : "unknown",
             );
             failed.push("generate_component_image:generation_failed");
             break;

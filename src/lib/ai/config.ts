@@ -128,20 +128,12 @@ function modelsFor(provider: PaidProviderName): Record<ModelRole, string> {
 }
 
 /**
- * ZERO-COST MODE — an administrative cost-safety switch, off by default.
- *
- * Quality comes first: every connected model may answer a call, and spend stays
- * bounded by the monthly cap rather than by blocking the whole paid lane. An
- * operator can still force the native-only lane by setting
- * `ZERO_AI_COST_MODE=true` on the server.
- *
- * This is read from the server environment on every call, so it cannot be
- * flipped from the browser.
+ * There is no built-in non-AI engine any more, so nothing can switch the AI
+ * team off. Spend is bounded by the monthly cap instead. Kept as a function so
+ * existing callers compile; it always answers false.
  */
 export function zeroAiCostMode(): boolean {
-  const raw = (env("ZERO_AI_COST_MODE") ?? "").trim().toLowerCase();
-  // Default OFF: only an explicit opt-in shuts external AI off.
-  return raw === "true" || raw === "1" || raw === "on" || raw === "yes";
+  return false;
 }
 
 /**
