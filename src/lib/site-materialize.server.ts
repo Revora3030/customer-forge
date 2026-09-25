@@ -11,7 +11,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { safeLinkUrl } from "@/lib/website-content";
-import type { DesignDirection } from "@/lib/authored-direction";
+import { effectForKind, type DesignDirection } from "@/lib/authored-direction";
 import { writeSectionEffect } from "@/lib/site-effects";
 import { writeComponentVisual, writeSectionVisual } from "@/lib/site-style";
 import type { DesignFingerprint } from "@/lib/builder/design-fingerprint";
@@ -213,14 +213,7 @@ export function materializedSectionDesign(
   // only thing carried here is the motion effect the AI's own brand identity
   // authored.
   if (!direction) return { variant: "default", settings: {} };
-  const effect =
-    kind === "hero"
-      ? direction.heroEffect
-      : kind === "cta" || kind === "offer" || kind === "sticky_cta"
-        ? direction.ctaEffect
-        : kind === "quote" || kind === "booking" || kind === "contact"
-          ? direction.formEffect
-          : direction.bodyEffect;
+  const effect = effectForKind(direction, kind);
   return { variant: "default", settings: effect ? writeSectionEffect({}, effect) : {} };
 }
 

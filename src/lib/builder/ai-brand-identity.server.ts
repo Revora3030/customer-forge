@@ -9,12 +9,8 @@
  * falling back to a stock look.
  */
 import type { DesignDirection } from "@/lib/authored-direction";
-import {
-  isBackdropId,
-  isSectionEffectId,
-  type BackdropId,
-  type SectionEffectId,
-} from "@/lib/site-effects";
+import { readSectionEffects } from "@/lib/authored-direction";
+import { isBackdropId, safeBackdropSpec, type BackdropId } from "@/lib/site-effects";
 import { safeColor } from "@/lib/site-style";
 import { siteHeadingFont } from "@/lib/site-theme";
 import { callBestThinker } from "@/lib/ai/hall-of-fame.server";
@@ -72,18 +68,21 @@ function schemaPrompt(input: BrandIdentityInput): string {
         headingFont: "Family Name",
         bodyFont: "Family Name",
         fontNote: "one line on why this pairing",
-        backdrop: "one of: none, stars, aurora, nebula, grid, spotlight, gradient_mesh",
-        heroEffect: "section treatment id",
-        ctaEffect: "section treatment id",
-        formEffect: "section treatment id",
-        bodyEffect: "section treatment id",
+        backdropSpec: {
+          layers: [
+            { shape: "radial | linear", colors: ["#hex", "#hex"], angle: 0, x: 50, y: 0, size: 80, opacity: 30 },
+          ],
+          drift: "none | slow | medium",
+        },
+        sectionEffects: { "<any section type you plan, e.g. hero>": "motion id" },
+        defaultEffect: "motion id for section types you did not list",
       },
       null,
       2,
     ),
     "",
-    "Valid section treatment ids: none, float_3d, tilt_3d, glass, gold_glow, rise, parallax_slow, shine.",
-    "If an id you want is not listed, pick the closest listed one — the treatment is only a surface hint, the colours and type carry the design.",
+    "backdropSpec is optional: compose your own background from up to 8 gradient layers (any colours, positions and sizes), or omit it or set layers to [] for a plain page.",
+    "Motion ids the renderer can draw safely: none, float_3d, tilt_3d, glass, gold_glow, rise, parallax_slow, shine. Use none wherever you want no motion. Page-level motion beyond these is authored later on each section's own composition.",
   ]
     .filter((line) => line !== null)
     .join("\n");
@@ -174,9 +173,8 @@ export async function authorBrandIdentity(
     );
   }
 
+  // Nothing is filled in on the AI's behalf: an effect it didn't name is "none".
   const backdrop: BackdropId = isBackdropId(data["backdrop"]) ? data["backdrop"] : "none";
-  const effect = (key: string): SectionEffectId =>
-    isSectionEffectId(data[key]) ? data[key] : "rise";
 
   return {
     direction: {
@@ -190,10 +188,8 @@ export async function authorBrandIdentity(
       font: body && body !== heading ? `${heading}|${body}` : heading,
       fontNote: str(data["fontNote"], 200) ?? "",
       backdrop,
-      heroEffect: effect("heroEffect"),
-      ctaEffect: effect("ctaEffect"),
-      formEffect: effect("formEffect"),
-      bodyEffect: effect("bodyEffect"),
+      backdropSpec: safeBackdropSpec(data["backdropSpec"]),
+      ...readSectionEffects(data),
     },
     model: outcome.model ?? null,
     lane: outcome.lane,

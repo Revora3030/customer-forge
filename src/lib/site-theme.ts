@@ -57,9 +57,12 @@ const mix = (a: string, b: string, percent: number) =>
   `color-mix(in oklab, ${a} ${Math.round(percent)}%, ${b})`;
 
 /**
- * CSS variable overrides for a tenant's website. Returns `undefined` when the
- * client has not chosen colours, so the default Revora dark/gold identity is
- * used untouched.
+ * CSS variable overrides for a tenant's website.
+ *
+ * A customer site NEVER inherits Revora's own dark/gold identity. When the AI
+ * (or owner) has not chosen a colour yet, the site renders in a plain,
+ * unbranded black-on-white scheme — a readable blank state, not a house
+ * design — until the AI authors the real palette.
  */
 export function siteThemeStyle(input: {
   primaryColor?: string | null;
@@ -69,9 +72,8 @@ export function siteThemeStyle(input: {
   const primary = clean(input.primaryColor);
   const surface = clean(input.secondaryColor);
   const accent = clean(input.accentColor) ?? primary;
-  if (!primary && !surface) return undefined;
-
-  const background = surface ?? "#141416";
+  // Neutral blank state (no brand opinion): white surface, ink for actions.
+  const background = surface ?? "#ffffff";
   const light = isLight(background);
   const ink = light ? "#101114" : "#f7f7f8";
   const onPrimary = primary && isLight(primary) ? "#101114" : "#ffffff";
@@ -97,20 +99,20 @@ export function siteThemeStyle(input: {
     "--sidebar": step(light ? 2 : 3),
   };
 
-  if (primary) {
-    vars["--primary"] = primary;
-    vars["--primary-foreground"] = onPrimary;
-    vars["--ring"] = primary;
-    vars["--gold"] = primary;
-    vars["--gold-deep"] = mix("#000000", primary, 18);
-    vars["--chart-1"] = primary;
-  }
-  if (accent) {
-    vars["--accent"] = accent;
-    vars["--accent-foreground"] = onAccent;
-    vars["--gold-soft"] = accent;
-    vars["--chart-2"] = accent;
-  }
+  // Without an authored colour, actions use the page ink — never Revora gold.
+  const action = primary ?? ink;
+  const actionText = primary ? onPrimary : light ? "#ffffff" : "#101114";
+  vars["--primary"] = action;
+  vars["--primary-foreground"] = actionText;
+  vars["--ring"] = action;
+  vars["--gold"] = action;
+  vars["--gold-deep"] = mix("#000000", action, 18);
+  vars["--chart-1"] = action;
+  const support = accent ?? action;
+  vars["--accent"] = support;
+  vars["--accent-foreground"] = accent ? onAccent : actionText;
+  vars["--gold-soft"] = support;
+  vars["--chart-2"] = support;
 
   return vars as CSSProperties;
 }

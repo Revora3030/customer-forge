@@ -5,7 +5,7 @@
  * The container a first build carries from intake to publish. It is built from
  * the owner's facts only and starts with every design field BLANK. Sol writes
  * the look, the brief and the picture direction into it; Terra reviews. Nothing
- * in here picks a style, an archetype, a type pairing, a palette, a layout or
+ * in here picks a style, a concept, a type pairing, a palette, a layout or
  * a photo style. There are no pools and no seeded choices.
  *
  * Safety-only content that stays: evidence tags for images, the list of things
@@ -47,14 +47,16 @@ export type TypographySpec = {
   body: string;
   character: string;
   scaleRatio: number;
-  headlineWeight: "light" | "regular" | "medium" | "bold";
-  headlineCase: "sentence" | "title" | "upper";
+  /** Free-form: the AI names the weight and case it wants. */
+  headlineWeight: string;
+  headlineCase: string;
   measureCh: number;
 };
 
 export type ColorSpec = {
   system: string;
-  strategy: "dark-dominant" | "light-dominant" | "duotone" | "tonal";
+  /** Free-form colour strategy written by the AI. */
+  strategy: string;
   accentUse: string;
   minBodyContrast: number;
   minLargeTextContrast: number;
@@ -70,8 +72,9 @@ export type ImageBriefSpec = {
   lighting: string;
   camera: string;
   framing: string;
-  focalPoint: "left" | "right" | "centre" | "lower-third";
-  negativeSpace: "left" | "right" | "top" | "bottom";
+  /** Free-form art direction written by the AI (empty until it does). */
+  focalPoint: string;
+  negativeSpace: string;
   aspectRatio: PlannedShot["aspect"];
   palette: string;
   mood: string;
@@ -85,8 +88,8 @@ export type ImageBriefSpec = {
 
 export type CreativeBrief = {
   version: 1;
-  /** Free text written by the AI. Empty until it does. */
-  archetype: string;
+  /** The AI's own one-line design concept. Empty until it writes one. */
+  concept: string;
   personality: string;
   fingerprintId: string;
   typography: TypographySpec;
@@ -100,7 +103,7 @@ export type CreativeBrief = {
     subjects: string[];
   };
   sectionRhythm: string;
-  density: DesignFingerprint["density"];
+  density: string;
   cardLanguage: string;
   ctaLanguage: string;
   backgroundTreatment: string;
@@ -189,8 +192,8 @@ function blankImageBrief(shot: PlannedShot): ImageBriefSpec {
     lighting: "",
     camera: "",
     framing: `${shot.aspect} frame`,
-    focalPoint: "centre",
-    negativeSpace: "right",
+    focalPoint: "",
+    negativeSpace: "",
     aspectRatio: shot.aspect,
     palette: "",
     mood: "",
@@ -210,7 +213,7 @@ export function blankCreativeBrief(
 ): CreativeBrief {
   return {
     version: 1,
-    archetype: "",
+    concept: "",
     personality: "",
     fingerprintId: fingerprint.id,
     typography: {
@@ -218,14 +221,16 @@ export function blankCreativeBrief(
       display: "",
       body: "",
       character: "",
-      scaleRatio: 1.25,
-      headlineWeight: "regular",
-      headlineCase: "sentence",
+      // 0 = not chosen yet; the AI sets its own type scale.
+      scaleRatio: 0,
+      headlineWeight: "",
+      headlineCase: "",
+      // Readability default only (WCAG line length), not a style.
       measureCh: 65,
     },
     color: {
       system: "",
-      strategy: "tonal",
+      strategy: "",
       accentUse: "",
       // Accessibility minimums — safety, not style.
       minBodyContrast: 4.5,

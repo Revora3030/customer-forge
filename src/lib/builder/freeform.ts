@@ -97,16 +97,16 @@ export type FreeformParseResult =
 /* Caps                                                                       */
 /* -------------------------------------------------------------------------- */
 
-const MAX_NODES = 160;
-const MAX_DEPTH = 7;
+const MAX_NODES = 400;
+const MAX_DEPTH = 10;
 const MAX_FIELDS = 12;
 const MAX_EXPR_DEPTH = 8;
 const MAX_EXPR_NODES = 60;
-const MAX_TEXT = 90;
-const MAX_BODY = 420;
+const MAX_TEXT = 200;
+const MAX_BODY = 2000;
 const MAX_NUMBER = 10_000_000;
-const MAX_LIST_ITEMS = 14;
-const MAX_CHILDREN = 16;
+const MAX_LIST_ITEMS = 40;
+const MAX_CHILDREN = 40;
 
 const VARIADIC = new Set(["add", "mul", "min", "max", "and", "or"]);
 const BINARY = new Set(["sub", "div", "gt", "gte", "lt", "lte", "eq"]);

@@ -3,9 +3,14 @@
  * client's website: animated backdrops for the whole site and 3D / motion
  * treatments for individual sections.
  *
- * Effects are an ALLOWLIST. Clients and the AI only ever choose an id from the
- * catalogs below — no raw CSS, HTML or scripts are ever accepted or stored, so
- * a creative request can never turn into an injection.
+ * Two kinds of effect exist:
+ *  - AI-AUTHORED (primary): backgrounds the AI composes itself as numbers and
+ *    hex colours (BackdropSpec below), and per-section motion/interaction the
+ *    AI writes on its compositions. No menu; only safety bounds.
+ *  - NAMED IDS (compatibility + owner controls): the small id catalogs below
+ *    are renderer-safe drawings kept so saved sites render unchanged and the
+ *    owner's Effect Studio has buttons. They never decide a look for the AI.
+ * No raw CSS, HTML or scripts are ever accepted or stored.
  *
  * Storage (no schema changes needed):
  *  - site backdrop → `website_settings.generation.effects.backdrop`
@@ -122,7 +127,7 @@ export const sectionEffectClass = (effect: SectionEffectId) =>
  * Only numbers and #RRGGBB colours are stored, so nothing can inject CSS.
  */
 export type BackdropLayerSpec = {
-  shape: "radial" | "linear";
+  shape: "radial" | "linear" | "conic";
   colors: string[];
   angle: number;
   x: number;
@@ -142,21 +147,22 @@ export function safeBackdropSpec(value: unknown): BackdropSpec | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const raw = value as Record<string, unknown>;
   const layers: BackdropLayerSpec[] = [];
-  for (const entry of Array.isArray(raw["layers"]) ? raw["layers"].slice(0, 4) : []) {
+  for (const entry of Array.isArray(raw["layers"]) ? raw["layers"].slice(0, 8) : []) {
     if (!entry || typeof entry !== "object") continue;
     const l = entry as Record<string, unknown>;
     const colors = (Array.isArray(l["colors"]) ? l["colors"] : [])
       .filter((c): c is string => typeof c === "string" && SPEC_HEX.test(c))
-      .slice(0, 4);
+      .slice(0, 6);
     if (colors.length < 1) continue;
     layers.push({
-      shape: l["shape"] === "linear" ? "linear" : "radial",
+      shape: l["shape"] === "linear" || l["shape"] === "conic" ? l["shape"] : "radial",
       colors,
       angle: bound(l["angle"], 0, 360, 135),
       x: bound(l["x"], 0, 100, 50),
       y: bound(l["y"], 0, 100, 0),
-      size: bound(l["size"], 10, 200, 80),
-      opacity: bound(l["opacity"], 0, 60, 30),
+      size: bound(l["size"], 1, 400, 80),
+      // Opacity stays capped so a background can never drown out page text.
+      opacity: bound(l["opacity"], 0, 80, 30),
     });
   }
   if (!layers.length) return null;
@@ -184,6 +190,8 @@ export function writeBackdropSpec(generation: unknown, spec: BackdropSpec | null
 /** CSS for one authored layer. Values are already bounded numbers and hex colours. */
 export function backdropLayerCss(layer: BackdropLayerSpec): string {
   const stops = layer.colors.length === 1 ? [layer.colors[0], "transparent"] : layer.colors;
+  if (layer.shape === "conic")
+    return `conic-gradient(from ${layer.angle}deg at ${layer.x}% ${layer.y}%, ${stops.join(", ")})`;
   return layer.shape === "linear"
     ? `linear-gradient(${layer.angle}deg, ${stops.join(", ")})`
     : `radial-gradient(${layer.size}% ${layer.size}% at ${layer.x}% ${layer.y}%, ${stops.join(", ")})`;

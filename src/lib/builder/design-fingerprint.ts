@@ -44,7 +44,8 @@ export type DesignFingerprint = {
   /** The specific motion pattern used, within the motion level below. */
   motionPattern: string;
   motionLevel: "none" | "subtle" | "expressive";
-  density: "compact" | "balanced" | "airy";
+  /** Free-form density token written by the AI. */
+  density: string;
   /** Art direction for imagery — never invents what the photo depicts. */
   artDirection: {
     style: string;
@@ -91,7 +92,7 @@ export function blankDesignFingerprint(): DesignFingerprint {
     imageTreatment: "unspecified",
     motionPattern: "unspecified",
     motionLevel: "none",
-    density: "balanced",
+    density: "unspecified",
     artDirection: {
       style: "unspecified",
       subject: "abstract generated artwork (depicts nothing about the business)",

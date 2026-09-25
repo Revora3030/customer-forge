@@ -12,10 +12,9 @@ const AUTHORED_LOOK = {
   font: "Fraunces",
   fontNote: "test",
   backdrop: "none",
-  heroEffect: "none",
-  ctaEffect: "none",
-  formEffect: "none",
-  bodyEffect: "rise",
+  backdropSpec: null,
+  sectionEffects: { hero: "none" },
+  defaultEffect: "rise",
 };
 import { blankDesignFingerprint } from "@/lib/builder/design-fingerprint";
 
@@ -57,8 +56,8 @@ describe("AI-only materialization", () => {
     const services = materializedSectionDesign("services", direction);
     expect(hero.variant).toBe("default");
     expect(services.variant).toBe("default");
-    expect(hero.settings).toMatchObject({ effect: direction?.heroEffect });
-    expect(services.settings).toMatchObject({ effect: direction?.bodyEffect });
+    expect(hero.settings).toMatchObject({ effect: direction?.sectionEffects["hero"] });
+    expect(services.settings).toMatchObject({ effect: direction?.defaultEffect });
     expect((hero.settings as { visual?: unknown }).visual).toBeUndefined();
     expect((services.settings as { visual?: unknown }).visual).toBeUndefined();
   });
