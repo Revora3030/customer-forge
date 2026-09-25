@@ -34,7 +34,7 @@ export type PageArchitectureOutcome = {
 const RULES = [
   "You design real websites for real businesses.",
   "Never invent facts, services, prices, reviews, awards or results.",
-  "You may only use the pages and sections listed as available.",
+  "Working features (quote forms, booking, contact, embeds) exist only where listed.",
 ].join(" ");
 
 export async function proposePageArchitecture(input: {
@@ -65,11 +65,13 @@ export async function proposePageArchitecture(input: {
       `INDUSTRY: ${input.industry ?? "not supplied"}`,
       `CONVERSION GOAL: ${input.conversionGoal}`,
       "",
-      "AVAILABLE PAGES AND SECTIONS (you may reorder and omit, never invent):",
+      "EXISTING PAGES AND SECTIONS (reorder, omit, or add your own):",
       JSON.stringify(available, null, 2),
       "",
-      'Return JSON: {"pages": [{"slug": "home", "title": "...", "purpose": "...", "sections": [{"role": "hero"}, {"role": "services", "heading": "...", "subheading": "..."}]}]}',
+      'Return JSON: {"pages": [{"slug": "home", "title": "...", "purpose": "...", "sections": [{"role": "hero"}, {"role": "services", "heading": "...", "subheading": "..."}, {"role": "our_approach", "heading": "...", "body": "..."}]}]}',
       "Keep the home page. Omit anything that weakens the site. Order sections deliberately.",
+      "You may INVENT new content sections (give each a new plain role name like \"process\" or \"our_approach\", a heading, and a body of up to 1200 chars) and up to 4 new pages (new slug, title, and invented sections).",
+      "Invented words may only restate the business's supplied facts, services and place — never new claims, numbers, reviews or guarantees. You cannot invent forms, booking, contact, embeds, heroes or galleries.",
       "Write your own heading (<=120 chars) and optional subheading (<=260 chars) for every section except each page's hero. There are no default headings: a section you leave without one shows none.",
       "Headings may only use the business name, its real services and its real place — never an unsupported claim.",
     ].join("\n"),

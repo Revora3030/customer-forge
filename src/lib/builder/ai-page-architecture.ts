@@ -7,10 +7,11 @@
  * candidate architecture the AI can reason about, parses the AI's answer, and
  * normalizes it against what actually exists.
  *
- * The AI may REORDER, OMIT and RETITLE. It may never invent a page slug or a
- * section role the renderer cannot fill — that would produce an empty container
- * on a real customer's website. Rejections are reported, never silently patched
- * back to the old deterministic order.
+ * The AI may REORDER, OMIT, RETITLE and INVENT. An invented section or page is
+ * accepted when it carries its own AI-written heading (and optional body); the
+ * composition pass then designs it from those words. Working features (forms,
+ * booking, contact, embeds) can never be invented — they need real setup.
+ * Rejections are reported, never silently patched back to a built-in order.
  *
  * Pure module: no environment, no network, no secrets.
  */
@@ -91,7 +92,7 @@ function headingText(value: unknown, max: number): string | null {
   return value2;
 }
 
-type RawSection = { role: string; heading: string | null; subheading: string | null };
+type RawSection = { role: string; heading: string | null; subheading: string | null; body: string | null };
 
 function sectionRoles(value: unknown): RawSection[] {
   if (!Array.isArray(value)) return [];
@@ -99,13 +100,13 @@ function sectionRoles(value: unknown): RawSection[] {
   for (const entry of value) {
     if (typeof entry === "string") {
       const role = text(entry);
-      if (role) roles.push({ role, heading: null, subheading: null });
+      if (role) roles.push({ role, heading: null, subheading: null, body: null });
       continue;
     }
     if (entry && typeof entry === "object") {
-      const row = entry as { role?: unknown; heading?: unknown; subheading?: unknown };
+      const row = entry as { role?: unknown; heading?: unknown; subheading?: unknown; body?: unknown };
       const role = text(row.role);
-      if (role) roles.push({ role, heading: headingText(row.heading, 120), subheading: headingText(row.subheading, 260) });
+      if (role) roles.push({ role, heading: headingText(row.heading, 120), subheading: headingText(row.subheading, 260), body: headingText(row.body, 1200) });
     }
   }
   return roles;
@@ -128,6 +129,12 @@ function sameShape(a: PageArchitecture[], b: PageArchitecture[]): boolean {
  * is refused outright: the caller then retries or fails the build rather than
  * quietly reverting to the deterministic order.
  */
+/** Section roles that are working features and can never be invented. */
+const FEATURE_ROLES = new Set(["quote", "booking", "contact", "sticky_cta", "embed", "post_list", "composition", "hero", "gallery", "feature_media"]);
+const SAFE_ROLE = /^[a-z][a-z0-9_]{1,30}$/;
+const SAFE_SLUG = /^[a-z0-9][a-z0-9-]{1,39}$/;
+export const MAX_INVENTED_PAGES = 4;
+
 export function normalizePageArchitecture(input: {
   proposal: RawPage[];
   candidate: PageArchitecture[];
@@ -136,6 +143,19 @@ export function normalizePageArchitecture(input: {
   const bySlug = new Map(input.candidate.map((page) => [page.slug, page]));
   const architecture: PageArchitecture[] = [];
   const seen = new Set<string>();
+  let invented = 0;
+
+  const inventedSection = (slug: string, s: RawSection) => {
+    if (!SAFE_ROLE.test(s.role) || FEATURE_ROLES.has(s.role)) {
+      rejected.push({ field: `page.${slug}.${s.role}`, reason: "a new section needs a plain name and cannot be a form, booking, contact, embed, hero or gallery" });
+      return null;
+    }
+    if (!s.heading) {
+      rejected.push({ field: `page.${slug}.${s.role}`, reason: "a new section needs its own heading" });
+      return null;
+    }
+    return { role: s.role, heading: s.heading, subheading: s.subheading, body: s.body, custom: true, media: "none" as const };
+  };
 
   for (const raw of input.proposal) {
     const slug = text(raw.slug);
@@ -143,46 +163,50 @@ export function normalizePageArchitecture(input: {
       rejected.push({ field: "page.slug", reason: "a page was proposed without a slug" });
       continue;
     }
-    const source = bySlug.get(slug);
-    if (!source) {
-      rejected.push({ field: `page.${slug}`, reason: "no real content exists for that page" });
-      continue;
-    }
     if (seen.has(slug)) {
       rejected.push({ field: `page.${slug}`, reason: "the same page was proposed twice" });
       continue;
     }
-
+    const source = bySlug.get(slug);
     const available = new Map<string, number>();
-    for (const section of source.sections)
+    for (const section of source?.sections ?? [])
       available.set(section.role, (available.get(section.role) ?? 0) + 1);
-
-    const sections: PageArchitecture["sections"] = [];
-    for (const { role, heading, subheading } of sectionRoles(raw.sections)) {
-      const left = available.get(role) ?? 0;
-      if (left <= 0) {
-        rejected.push({
-          field: `page.${slug}.${role}`,
-          reason: left === 0 && !source.sections.some((section) => section.role === role)
-            ? "that section does not exist on this page"
-            : "that section was placed more times than there is content for",
-        });
+    if (!source) {
+      if (!SAFE_SLUG.test(slug) || invented >= MAX_INVENTED_PAGES) {
+        rejected.push({ field: `page.${slug}`, reason: invented >= MAX_INVENTED_PAGES ? `no more than ${MAX_INVENTED_PAGES} new pages` : "unsafe page address" });
         continue;
       }
-      available.set(role, left - 1);
-      sections.push({ role, heading, subheading });
+    }
+
+    const sections: PageArchitecture["sections"] = [];
+    for (const entry of sectionRoles(raw.sections)) {
+      const { role, heading, subheading } = entry;
+      const left = available.get(role) ?? 0;
+      if (left > 0) {
+        available.set(role, left - 1);
+        sections.push({ role, heading, subheading });
+        continue;
+      }
+      const made = inventedSection(slug, entry);
+      if (made) sections.push(made);
     }
     if (sections.length === 0) {
-      rejected.push({ field: `page.${slug}`, reason: "the page was left with no fillable sections" });
+      rejected.push({ field: `page.${slug}`, reason: "the page was left with no sections" });
       continue;
     }
 
+    const title = text(raw.title) ?? source?.title ?? null;
+    if (!source && (!title || title.length > 60 || UNSAFE_HEADING.test(title))) {
+      rejected.push({ field: `page.${slug}`, reason: "a new page needs a short plain title" });
+      continue;
+    }
+    if (!source) invented += 1;
     seen.add(slug);
     architecture.push({
       slug,
-      title: text(raw.title) ?? source.title,
-      purpose: text(raw.purpose) ?? source.purpose,
-      primaryAction: text(raw.primaryAction) ?? source.primaryAction,
+      title: title ?? slug,
+      purpose: text(raw.purpose) ?? source?.purpose ?? "page",
+      primaryAction: text(raw.primaryAction) ?? source?.primaryAction ?? input.candidate[0]?.primaryAction ?? "",
       sections,
     });
   }
