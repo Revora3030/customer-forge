@@ -17,6 +17,7 @@ import {
   ConversationScrollButton,
 } from "@/components/ai-elements/conversation";
 import { Message, MessageContent } from "@/components/ai-elements/message";
+import { ReplyText } from "@/components/app/ReplyText";
 import {
   PromptInput,
   PromptInputButton,
@@ -143,6 +144,13 @@ export function BuilderAssistant({
         compact ? "h-[calc(100dvh-9.75rem)] min-h-[480px] lg:h-[calc(100vh-8rem)]" : "h-[calc(100dvh-9rem)] min-h-[520px]",
       )}
     >
+      {requests.tasks.length > 0 && !requests.busy ? (
+        <div className="flex justify-end px-4 pt-2 sm:px-6">
+          <Button size="sm" variant="ghost" onClick={() => void requests.newChat()}>
+            New chat
+          </Button>
+        </div>
+      ) : null}
       <Conversation className="min-h-0 flex-1">
         <ConversationContent className="gap-8 px-4 py-5 text-[15px] leading-relaxed sm:px-6 lg:px-7">
 
@@ -341,9 +349,10 @@ function TaskBody({
       )}
 
       {task.reply ? (
-        <p className={cn("whitespace-pre-line", task.answered ? "text-[15px] leading-relaxed" : "text-[13px]")}>
-          {task.reply}
-        </p>
+        <ReplyText
+          text={task.reply}
+          className={task.answered ? "text-[15px] leading-relaxed" : "text-[13px]"}
+        />
       ) : null}
       {task.error ? <p className="text-[12.5px]">{task.error}</p> : null}
 

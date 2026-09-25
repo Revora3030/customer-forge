@@ -824,6 +824,54 @@ export type Database = {
           },
         ]
       }
+      builder_messages: {
+        Row: {
+          content: string
+          created_at: string
+          id: string
+          organization_id: string
+          plan: Json | null
+          restore_version_id: string | null
+          role: string
+          user_id: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          id?: string
+          organization_id: string
+          plan?: Json | null
+          restore_version_id?: string | null
+          role: string
+          user_id?: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: string
+          organization_id?: string
+          plan?: Json | null
+          restore_version_id?: string | null
+          role?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "builder_messages_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "builder_messages_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "public_organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       builder_progress: {
         Row: {
           created_at: string
