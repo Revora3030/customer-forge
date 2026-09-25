@@ -24,13 +24,7 @@ import type {
 } from "@/lib/builder/first-build-images.types";
 import { MEDIA_BUCKET, buildObjectPath } from "@/lib/media";
 import type { FirstBuildCreativeDirection } from "@/lib/builder/first-build-contract";
-import {
-  CANDIDATE_STYLES,
-  savedVisualDirection,
-  altTextFor,
-  buildImageBrief,
-  type PlannedShot,
-} from "@/lib/visual-direction";
+import type { PlannedShot } from "@/lib/visual-direction";
 
 type Db = SupabaseClient;
 
@@ -111,7 +105,15 @@ export function firstBuildImageShots(
   const unique = new Set<string>();
   const singularSlots = new Set<PlannedShot["slot"]>(["hero", "about", "background", "cta", "social"]);
   const shots: PlannedShot[] = [];
-  for (const shot of creative.imagery.shots) {
+  const campaignShots: PlannedShot[] = creative.brief.imageInventory.map((item) => ({
+    slot: item.slot as PlannedShot["slot"],
+    label: item.label,
+    purpose: item.purpose,
+    aspect: item.aspectRatio,
+    placement: item.section,
+    subjectHint: item.subject,
+  }));
+  for (const shot of campaignShots) {
     if (!safeSlot(shot)) continue;
     // An existing owner picture is presumed to cover the hero first. It should
     // not suppress safe supporting marketing pictures for the rest of the site.
@@ -136,10 +138,8 @@ export async function generateFirstBuildImages(
     creative: FirstBuildCreativeDirection;
   },
 ): Promise<FirstBuildImageResult> {
-  const direction =
-    savedVisualDirection(input.creative.brief.photography);
   const shots = firstBuildImageShots(input.creative, input.photoCount, input.occupiedSlots);
-  if (!direction || shots.length === 0) {
+  if (shots.length === 0) {
     const ownerCovered = input.occupiedSlots?.size && shots.length === 0;
     return {
       assets: [],
@@ -173,30 +173,37 @@ export async function generateFirstBuildImages(
 
 
   for (const [index, shot] of shots.entries()) {
-    const style = CANDIDATE_STYLES[index % CANDIDATE_STYLES.length] ?? CANDIDATE_STYLES[0];
-    const brief = buildImageBrief({
-      direction,
-      shot,
-      style,
-      businessName: input.businessName,
-      city: input.city,
-      primaryColor: input.creative.fingerprint.colorSystem,
-      accentColor: input.creative.fingerprint.colorSystem,
-      seed: `${input.organizationId}:${shot.slot}:${index}`,
-      extra: [
-        artDirectionNote(input.creative, shot),
-        "Starter website image only. Do not depict a real employee, actual customer, award, review, brand logo, licence plate, address, or before-and-after result.",
-      ]
-        .filter(Boolean)
-        .join(" "),
-    });
+    const spec = input.creative.brief.imageInventory.find(
+      (item) => item.slot === shot.slot && item.label === shot.label,
+    );
+    if (!spec?.subject || !spec.altText) {
+      skipped.push({ slot: shot.slot, label: shot.label, reason: "the AI picture campaign was incomplete" });
+      continue;
+    }
+    const prompt = [
+      "Commissioned website photograph. No typography baked into the picture.",
+      `Purpose: ${spec.purpose}. Subject: ${spec.subject}.`,
+      spec.action ? `Action: ${spec.action}.` : "",
+      spec.environment ? `Environment: ${spec.environment}.` : "",
+      spec.lighting ? `Lighting: ${spec.lighting}.` : "",
+      spec.camera ? `Camera: ${spec.camera}.` : "",
+      spec.framing ? `Framing: ${spec.framing}.` : "",
+      `Aspect ratio: ${spec.aspectRatio}. Focal point: ${spec.focalPoint}. Keep clear negative space on the ${spec.negativeSpace}.`,
+      spec.mobileCrop ? `Mobile crop: ${spec.mobileCrop}.` : "",
+      spec.palette ? `Palette: ${spec.palette}.` : "",
+      spec.mood ? `Mood: ${spec.mood}.` : "",
+      artDirectionNote(input.creative, shot),
+      ...spec.constraints,
+      "Starter marketing image only. Do not depict a real employee, actual customer, award, review, brand logo, licence plate, address, or before-and-after result.",
+      "Photorealistic professional photography, not an illustration or generic stock composition.",
+    ].filter(Boolean).join(" ");
 
     type Made = { base64: string; mimeType: string; provider: string; model: string };
     let made: Made | null = null;
 
     if (paid.allowed) {
       const specialist = await generatePaidImageBase64(
-        brief.prompt,
+        prompt,
         { organizationId: input.organizationId, userId: input.userId },
         shot.slot === "hero"
           ? "hero_master"
@@ -216,7 +223,7 @@ export async function generateFirstBuildImages(
     }
 
     if (!made && !standardBlocked) {
-      const standard = await generateImageBase64(brief.prompt, {
+      const standard = await generateImageBase64(prompt, {
         organizationId: input.organizationId,
         userId: input.userId,
       });
@@ -256,7 +263,7 @@ export async function generateFirstBuildImages(
       continue;
     }
 
-    const altText = altTextFor(shot, input.businessName);
+    const altText = spec.altText;
     const { data: row, error: rowError } = await db
       .from("media")
       .insert({
@@ -289,7 +296,7 @@ export async function generateFirstBuildImages(
       mediaId: row?.["id"] ? String(row["id"]) : null,
       provider: image.provider,
       model: image.model,
-      prompt: brief.prompt,
+      prompt,
       placement: shot.placement,
       aspectRatio: shot.aspect,
     });

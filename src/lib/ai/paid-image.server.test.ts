@@ -116,7 +116,7 @@ describe("premium picture lane", () => {
   });
 
   it("never calls a paid model when the paid lane is switched off", async () => {
-    delete process.env["PAID_IMAGE_ENABLED"];
+    process.env["PAID_IMAGE_ENABLED"] = "false";
     const { generatePaidImageBase64 } = await paidImage();
     const result = await generatePaidImageBase64("anything", { organizationId: "org" });
     expect(result.ok).toBe(false);

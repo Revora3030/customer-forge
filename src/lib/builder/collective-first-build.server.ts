@@ -100,6 +100,7 @@ type CreativeBriefPatch = Partial<
   >
 > & {
   photography?: Partial<CreativeBrief["photography"]>;
+  imageInventory?: CreativeBrief["imageInventory"];
 };
 
 export type CreativeRefinement = {
@@ -177,6 +178,10 @@ const PHOTOGRAPHY_LIMITS = {
 } as const;
 
 const PROOF_SHAPED_TEXT = /\b(review|testimonial|five[- ]?star|award|certified|licensed|guarantee|before\/?after|proven result|#\s?1|best in|customer logo|case study)\b/i;
+const IMAGE_SLOTS = new Set(["hero", "service", "about", "background", "cta", "social"]);
+const IMAGE_ASPECTS = new Set(["16:9", "4:3", "1:1", "3:2"]);
+const FOCAL_POINTS = new Set(["left", "right", "centre", "lower-third"]);
+const NEGATIVE_SPACE = new Set(["left", "right", "top", "bottom"]);
 
 function factSheet(facts: DnaFacts, brief: SiteBrief, creative: FirstBuildCreativeDirection) {
   return JSON.stringify(
@@ -284,6 +289,57 @@ function visualTextProblem(text: string, facts: DnaFacts): string | null {
   return null;
 }
 
+function imageInventoryAt(value: unknown, facts: DnaFacts): CreativeBrief["imageInventory"] {
+  if (!Array.isArray(value)) return [];
+  const images: CreativeBrief["imageInventory"] = [];
+  for (const raw of value.slice(0, 28)) {
+    if (!raw || typeof raw !== "object") continue;
+    const item = raw as Record<string, unknown>;
+    const slot = textAt(item["slot"], 20);
+    const label = textAt(item["label"], 100);
+    const purpose = textAt(item["purpose"], 240);
+    const subject = textAt(item["subject"], 300);
+    const altText = textAt(item["altText"], 240);
+    const aspectRatio = textAt(item["aspectRatio"], 10);
+    const focalPoint = textAt(item["focalPoint"], 20);
+    const negativeSpace = textAt(item["negativeSpace"], 20);
+    if (!slot || !IMAGE_SLOTS.has(slot) || !label || !purpose || !subject || !altText) continue;
+    if (!aspectRatio || !IMAGE_ASPECTS.has(aspectRatio)) continue;
+    if (!focalPoint || !FOCAL_POINTS.has(focalPoint)) continue;
+    if (!negativeSpace || !NEGATIVE_SPACE.has(negativeSpace)) continue;
+    const creativeText = [label, purpose, subject, altText].join(" ");
+    if (visualTextProblem(creativeText, facts)) continue;
+    const section = listAt(item["section"], 8, 60);
+    if (!section.length) continue;
+    images.push({
+      slot,
+      label,
+      purpose,
+      subject,
+      environment: textAt(item["environment"], 240) ?? "",
+      action: textAt(item["action"], 200) ?? "",
+      lighting: textAt(item["lighting"], 180) ?? "",
+      camera: textAt(item["camera"], 180) ?? "",
+      framing: textAt(item["framing"], 200) ?? "",
+      focalPoint: focalPoint as CreativeBrief["imageInventory"][number]["focalPoint"],
+      negativeSpace: negativeSpace as CreativeBrief["imageInventory"][number]["negativeSpace"],
+      aspectRatio: aspectRatio as CreativeBrief["imageInventory"][number]["aspectRatio"],
+      palette: textAt(item["palette"], 160) ?? "",
+      mood: textAt(item["mood"], 160) ?? "",
+      section,
+      mobileCrop: textAt(item["mobileCrop"], 180) ?? "",
+      altText,
+      constraints: [
+        "no text", "no logos", "no watermarks", "no readable signage",
+        "no recognisable real people or brands",
+        "never presented as proof of completed work, reviews, awards or results",
+      ],
+      evidenceTag: "AI_GENERATED_MARKETING_VISUAL",
+    });
+  }
+  return images;
+}
+
 export function parseCreativeProposal(text: string): Record<string, unknown> | null {
   return parseRefinement(text);
 }
@@ -379,6 +435,10 @@ export function reviewCreativeProposal(input: {
       }
       if (Object.keys(photography).length) brief.photography = photography;
     }
+    if (dottedAllowed(gate, "brief.imageInventory")) {
+      const imageInventory = imageInventoryAt(briefRaw["imageInventory"], input.facts);
+      if (imageInventory.length) brief.imageInventory = imageInventory;
+    }
     if (Object.keys(brief).length) accepted.brief = brief;
   }
 
@@ -468,6 +528,7 @@ async function refineCreativeWithCollective(input: {
         "conversionStrategy",
         "industryConventions",
         "photography",
+        "imageInventory",
       ],
     },
     null,
@@ -479,7 +540,7 @@ async function refineCreativeWithCollective(input: {
     purpose: "creative_direction",
     complexity: "high",
     organizationId: input.organizationId,
-    maxOutputTokens: 1800,
+    maxOutputTokens: 8000,
     ...(input.signal ? { signal: input.signal } : {}),
     system: `${CREATIVE_RULES} You are Sol, the master creative director. Improve the design strategy so it can materially shape layout, imagery and section composition across every page. ${creativeQualityPrompt(input.creative.brief.qualityMatrix)}`,
     user: [
@@ -492,7 +553,9 @@ async function refineCreativeWithCollective(input: {
       "FIELDS YOU MAY AUTHOR (values are yours to invent):",
       vocabulary,
       "",
-      "Return JSON with optional keys fingerprint and brief. fingerprint values are your own short lowercase-hyphenated tokens; only motionLevel and density must use the listed values. brief may include presentation-only language and photography direction. Omit any field you cannot improve.",
+      "Return JSON with keys fingerprint and brief. fingerprint values are your own short lowercase-hyphenated tokens; only motionLevel and density must use the listed values.",
+      "brief.imageInventory must be a complete page-aware picture campaign of 3-28 items. Each item: slot (hero|service|about|background|cta|social), label, purpose, subject, environment, action, lighting, camera, framing, focalPoint (left|right|centre|lower-third), negativeSpace (left|right|top|bottom), aspectRatio (16:9|4:3|1:1|3:2), palette, mood, section (array of exact intended section roles), mobileCrop, altText.",
+      "Every picture must have a distinct job in the final site. Generated images are marketing visuals, never staff, customer proof, completed-work evidence, reviews, awards or results.",
     ].join("\n"),
   });
 

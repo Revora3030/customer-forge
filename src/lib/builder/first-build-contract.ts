@@ -78,6 +78,8 @@ export type ImageBriefSpec = {
   mood: string;
   section: string[];
   mobileCrop: string;
+  /** Truthful description of the visible subject, authored with the campaign. */
+  altText: string;
   constraints: string[];
   evidenceTag: VisualEvidenceTag;
 };
@@ -196,6 +198,7 @@ function blankImageBrief(shot: PlannedShot): ImageBriefSpec {
     mood: "",
     section: [...shot.placement],
     mobileCrop: "must stay readable at 320px",
+    altText: "",
     constraints: [...IMAGE_CONSTRAINTS],
     evidenceTag: AI_GENERATED_MARKETING_VISUAL,
   };
