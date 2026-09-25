@@ -154,7 +154,6 @@ async function saveRestorePoint(
  */
 export type SiteUpgradeUndo = {
   effects: { sectionId: string; effect: string }[];
-  designRecord: Record<string, string> | null;
 };
 
 
@@ -186,33 +185,28 @@ export const applySiteWideRedesign = createServerFn({ method: "POST" })
     const supabase = context.supabase as unknown as SupabaseLike;
     await requireManager(supabase, data.organizationId, context.userId);
 
-    const { blankAiDesignRecord, readAiDesignRecord, writeAiDesignRecord } = await import(
-      "@/lib/builder/ai-design-record"
-    );
-    const [{ data: settings }, { data: profile }] = await Promise.all([
+    const [{ data: settings }, { data: profile }, { data: org }] = await Promise.all([
       supabase.from("website_settings").select("generation").eq("organization_id", data.organizationId).maybeSingle(),
       supabase
         .from("business_profiles")
         .select("industry")
         .eq("organization_id", data.organizationId)
         .maybeSingle(),
+      supabase.from("organizations").select("name, industry").eq("id", data.organizationId).maybeSingle(),
     ]);
-    const generation = (settings as { generation?: unknown } | null)?.generation ?? null;
-    const industry = (profile as { industry?: string | null } | null)?.industry ?? null;
-    // No invented starting look: the AI's saved record, or a blank one the AI
-    // fills in completely.
-    const designRecord = readAiDesignRecord(generation) ?? blankAiDesignRecord();
+    const generation = ((settings as { generation?: unknown } | null)?.generation ?? {}) as Record<string, unknown>;
+    const industry =
+      (profile as { industry?: string | null } | null)?.industry ??
+      (org as { industry?: string | null } | null)?.industry ??
+      null;
 
-    // The design team reads the owner's sentence and writes the new identity
-    // itself. Any wording works: nothing is matched against a keyword list and
-    // no look is chosen from a fixed set.
     const authored = await authorSiteWideRedesign({
       organizationId: data.organizationId,
       instruction: data.instruction,
-      designRecord,
+      currentBrief: generation["aiCreativeBrief"] ?? (generation["firstBuildCreative"] as Record<string, unknown> | undefined)?.["brief"] ?? null,
       industry,
     });
-    const { next, changes, blocked } = authored;
+    const { changes, blocked } = authored;
     if (changes.length === 0) {
       return {
         ok: true,
@@ -237,17 +231,69 @@ export const applySiteWideRedesign = createServerFn({ method: "POST" })
       sections,
     );
 
+    const lookSummary = JSON.stringify({
+      label: authored.label,
+      brief: authored.brief,
+      choices: authored.choices,
+      instruction: data.instruction,
+    });
+    const facts = {
+      businessName: (org as { name?: string | null } | null)?.name ?? null,
+      industry,
+      services: [],
+      description: null,
+      city: null,
+      region: null,
+      serviceArea: null,
+      phone: null,
+      email: null,
+      yearsInBusiness: null,
+      certifications: null,
+      awards: null,
+      reviewLink: null,
+      hasPrices: false,
+      goals: null,
+      conversionGoal: null,
+      hasHours: false,
+    };
+    const { composeFirstBuildSections } = await import("@/lib/builder/first-build-compositions.server");
+    const composed = await composeFirstBuildSections({
+      db: supabase as never,
+      organizationId: data.organizationId,
+      facts,
+      lookSummary,
+    });
+    try {
+      const { composeSiteChrome } = await import("@/lib/builder/first-build-chrome.server");
+      await composeSiteChrome({
+        db: supabase as never,
+        organizationId: data.organizationId,
+        businessName: (org as { name?: string | null } | null)?.name ?? "",
+        facts,
+        lookSummary,
+      });
+    } catch (error) {
+      console.error("site-wide redesign chrome skipped", error);
+    }
+
+    const nextGeneration = {
+      ...generation,
+      aiCreativeBrief: {
+        label: authored.label,
+        describe: authored.describe,
+        brief: authored.brief,
+        choices: authored.choices,
+        model: authored.model,
+        updatedAt: new Date().toISOString(),
+      },
+    };
     const saved = await supabase
       .from("website_settings")
       .upsert(
-        { organization_id: data.organizationId, generation: writeAiDesignRecord(generation, next) } as never,
+        { organization_id: data.organizationId, generation: nextGeneration } as never,
         { onConflict: "organization_id" },
       );
     if (saved.error) throw new Error("Revora couldn't save the new look. Nothing was changed.");
-
-    // Movement follows the AI-authored motion level stored above; no rule
-    // re-assigns per-section effects on the AI's behalf.
-    const assignments: { sectionId: string; from: string }[] = [];
 
     return {
       ok: true,
@@ -255,13 +301,10 @@ export const applySiteWideRedesign = createServerFn({ method: "POST" })
       direction: authored.label,
       changes,
       blocked,
-      motionChanged: assignments.length,
-      summary: authoredRedesignSummary(authored),
+      motionChanged: 0,
+      summary: `${authoredRedesignSummary(authored)} ${composed.composed} section${composed.composed === 1 ? "" : "s"} redesigned by AI.`,
       restorePointId,
-      undo: {
-        effects: assignments.map((entry) => ({ sectionId: entry.sectionId, effect: entry.from })),
-        designRecord: Object.fromEntries(changes.map((change) => [change.field, change.from])),
-      },
+      undo: { effects: [] },
     };
   });
 
@@ -467,20 +510,6 @@ export const applyVisionRepairs = createServerFn({ method: "POST" })
       sections,
     );
 
-    const { blankAiDesignRecord, readAiDesignRecord, writeAiDesignRecord } = await import(
-      "@/lib/builder/ai-design-record"
-    );
-    const { data: settings } = await supabase
-      .from("website_settings")
-      .select("generation")
-      .eq("organization_id", data.organizationId)
-      .maybeSingle();
-    const generation = (settings as { generation?: unknown } | null)?.generation ?? null;
-    let designRecord =
-      readAiDesignRecord(generation) ??
-      blankAiDesignRecord();
-    let designRecordChanged = false;
-
     const applied: string[] = [];
 
     for (const repair of repairs) {
@@ -497,12 +526,7 @@ export const applyVisionRepairs = createServerFn({ method: "POST" })
           break;
         }
         case "set_image_overlay": {
-          designRecord = {
-            ...designRecord,
-            artDirection: { ...designRecord.artDirection, overlay: repair.overlay },
-          };
-          designRecordChanged = true;
-          applied.push("Darker shading behind text sitting on photos");
+          skipped.push(repair.kind);
           break;
         }
         case "set_image_fit": {
@@ -531,14 +555,6 @@ export const applyVisionRepairs = createServerFn({ method: "POST" })
       }
     }
 
-    if (designRecordChanged) {
-      await supabase
-        .from("website_settings")
-        .upsert(
-          { organization_id: data.organizationId, generation: writeAiDesignRecord(generation, designRecord) } as never,
-          { onConflict: "organization_id" },
-        );
-    }
 
     return {
       ok: true,
@@ -564,15 +580,7 @@ export const undoSiteUpgrade = createServerFn({ method: "POST" })
   .inputValidator((input: { organizationId: string; undo: SiteUpgradeUndo }) => {
     if (!input?.organizationId) throw new Error("organizationId is required");
     const effects = Array.isArray(input.undo?.effects) ? input.undo.effects.slice(0, 400) : [];
-    const designRecord =
-      input.undo?.designRecord && typeof input.undo.designRecord === "object"
-        ? Object.fromEntries(
-            Object.entries(input.undo.designRecord)
-              .filter(([key, value]) => typeof key === "string" && typeof value === "string")
-              .slice(0, 20),
-          )
-        : null;
-    return { organizationId: input.organizationId, undo: { effects, designRecord } };
+    return { organizationId: input.organizationId, undo: { effects } };
   })
   .handler(async ({ data, context }): Promise<{ ok: boolean; reverted: number; summary: string }> => {
     const supabase = context.supabase as unknown as SupabaseLike;
@@ -599,41 +607,3 @@ export const undoSiteUpgrade = createServerFn({ method: "POST" })
       if (!error) reverted += 1;
     }
 
-    if (data.undo.designRecord && Object.keys(data.undo.designRecord).length > 0) {
-      const { blankAiDesignRecord, readAiDesignRecord, writeAiDesignRecord } = await import(
-        "@/lib/builder/ai-design-record"
-      );
-      const { data: settings } = await supabase
-        .from("website_settings")
-        .select("generation")
-        .eq("organization_id", data.organizationId)
-        .maybeSingle();
-      const generation = (settings as { generation?: unknown } | null)?.generation ?? null;
-      const current =
-        readAiDesignRecord(generation) ??
-        blankAiDesignRecord();
-      const next = { ...current } as unknown as Record<string, unknown>;
-      for (const [field, value] of Object.entries(data.undo.designRecord)) {
-        if (field in (current as unknown as Record<string, unknown>)) next[field] = value;
-      }
-      await supabase
-        .from("website_settings")
-        .upsert(
-          {
-            organization_id: data.organizationId,
-            generation: writeAiDesignRecord(generation, next as never),
-          } as never,
-          { onConflict: "organization_id" },
-        );
-      reverted += Object.keys(data.undo.designRecord).length;
-    }
-
-    return {
-      ok: true,
-      reverted,
-      summary:
-        reverted === 0
-          ? "There was nothing left to put back."
-          : "Put back exactly as it was before that change.",
-    };
-  });
