@@ -19,11 +19,11 @@ import { safeLinkUrl, sectionLabel } from "@/lib/website-content";
 import { readEmbed } from "@/lib/site-embed";
 import { readSectionEffect, sectionEffectClass } from "@/lib/site-effects";
 import { businessFacts, factsAddressLine } from "@/lib/builder/facts";
-import { safeText } from "@/lib/builder/presentation";
+import { phoneDisplay, phoneLink, safeParagraph, safeText } from "@/lib/builder/presentation";
+import { Button } from "@/components/ui/button";
 
 type Site = NonNullable<PublicSite>;
 type Section = NonNullable<Site["content"]>["sections"][number];
-type Component = NonNullable<Section["components"]>[number];
 
 /**
  * The colour a block sits on when it sets no background of its own — the
