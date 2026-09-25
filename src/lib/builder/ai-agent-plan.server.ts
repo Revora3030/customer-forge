@@ -257,10 +257,32 @@ export async function planWebsiteChangesWithAi(input: {
     return { ok: false, reason: direction.reason, detail: direction.detail };
   }
 
-  const proposal = parseJsonObject(direction.text);
-  const proposedActions = Array.isArray(proposal?.["actions"])
-    ? (proposal["actions"] as unknown[]).slice(0, MAX_ACTIONS)
-    : [];
+  const readActions = (text: string) => {
+    const parsed = parseJsonObject(text);
+    const list = Array.isArray(parsed?.["actions"])
+      ? (parsed["actions"] as unknown[]).slice(0, MAX_ACTIONS)
+      : [];
+    return { parsed, list };
+  };
+  let { parsed: proposal, list: proposedActions } = readActions(direction.text);
+  let retryCost = 0;
+  if (!proposal || !proposedActions.length) {
+    // One repair attempt: the AI is asked to restate its OWN change as the
+    // required JSON. Nothing is invented for it if this also fails.
+    const retry = await callBestThinker({
+      json: true,
+      purpose: "creative_direction",
+      complexity: "high",
+      system,
+      user: `${user}\n\nYOUR PREVIOUS ANSWER could not be used: it was not a single JSON object with a non-empty "actions" array. Reply again with ONLY that JSON object, carrying out the owner's request with the actions listed above.`,
+      organizationId: input.organizationId,
+      maxOutputTokens: 32000,
+    });
+    if (retry.ok) {
+      retryCost = retry.costMicrocents;
+      ({ parsed: proposal, list: proposedActions } = readActions(retry.text));
+    }
+  }
   if (!proposal || !proposedActions.length) {
     return {
       ok: false,
@@ -269,7 +291,7 @@ export async function planWebsiteChangesWithAi(input: {
     };
   }
 
-  let costMicrocents = direction.costMicrocents;
+  let costMicrocents = direction.costMicrocents + retryCost;
   let reviewModel: string | null = null;
   let notes = textList(proposal["notes"], 6);
 
