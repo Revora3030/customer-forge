@@ -26,7 +26,8 @@ export const PRIMITIVE_GUIDE =
   "Layering: style.position (relative|sticky|absolute), style.top/left/right/bottom (px), style.zIndex (0-50), style.overlap (px a block pulls up over the one before it), style.blur (frosted-glass backdrop px), style.rotate (deg), style.gridAreas + style.area for named grid regions. " +
   "Motion: motion.kind fade|rise|scale|float|slide-left|slide-right|blur|reveal, motion.delayMs, motion.durationMs, motion.easing (ease|ease-in|ease-out|ease-in-out|linear|spring|snap); presets are optional shortcuts. " +
   "Or design your own: motion.kind custom with motion.from { opacity 0-100, x/y px -240..240, scale 0.5-1.5, rotate deg -45..45, blur px 0-24 } (the block animates from those values to its designed state), " +
-  "motion.repeat (1-3 plays, or loop for a gentle back-and-forth), motion.trigger (load|view). All motion is skipped for reduced-motion visitors.";
+  "motion.repeat (1-3 plays, or loop for a gentle back-and-forth), motion.trigger (load|view). " +
+  "Pointer/touch response: hover { scale 0.9-1.15, x/y px -24..24, rotate deg -10..10, opacity 40-100, shadow none|subtle|medium|strong, durationMs 100-800 } — applies on hover, keyboard focus and touch press. All motion is skipped for reduced-motion visitors.";
 export const MOTION_KINDS = ["none", "fade", "rise", "scale", "float", "slide-left", "slide-right", "blur", "reveal", "custom"] as const;
 export const MOTION_EASINGS = ["ease", "ease-in", "ease-out", "ease-in-out", "linear", "spring", "snap"] as const;
 export type MotionEasing = (typeof MOTION_EASINGS)[number];
@@ -34,6 +35,10 @@ export type MotionFrom = { opacity?: number; x?: number; y?: number; scale?: num
 /** Rendering-safety bounds for AI-described motion — not creative choices. */
 export const MOTION_FROM_LIMITS: Record<keyof MotionFrom, [number, number]> = {
   opacity: [0, 100], x: [-240, 240], y: [-240, 240], scale: [0.5, 1.5], rotate: [-45, 45], blur: [0, 24],
+};
+export type NodeHover = { scale?: number; x?: number; y?: number; rotate?: number; opacity?: number; shadow?: "none" | "subtle" | "medium" | "strong"; durationMs?: number };
+export const HOVER_LIMITS: Record<"scale" | "x" | "y" | "rotate" | "opacity" | "durationMs", [number, number]> = {
+  scale: [0.9, 1.15], x: [-24, 24], y: [-24, 24], rotate: [-10, 10], opacity: [40, 100], durationMs: [100, 800],
 };
 export type NodeMotion = {
   kind: MotionKind; delayMs?: number; durationMs?: number; easing?: MotionEasing;
@@ -99,6 +104,7 @@ export type CompositionNode = {
   style?: NodeStyle;
   responsive?: Partial<Record<Breakpoint, NodeStyle>>;
   motion?: NodeMotion;
+  hover?: NodeHover;
   children?: CompositionNode[];
 };
 
@@ -381,6 +387,25 @@ export function validateComposition(input: unknown, options: ValidateOptions = {
           }
         } else if (from != null) bad("from", "from is only used with kind custom");
         node.motion = m;
+      }
+    }
+    if (row["hover"] != null) {
+      const hover = row["hover"];
+      if (!hover || typeof hover !== "object" || Array.isArray(hover)) issues.push({ path: `${path}.hover`, problem: "must be an object" });
+      else {
+        const out: NodeHover = {};
+        for (const [k, v] of Object.entries(hover as Record<string, unknown>)) {
+          if (k === "shadow") {
+            if (v === "none" || v === "subtle" || v === "medium" || v === "strong") out.shadow = v;
+            else issues.push({ path: `${path}.hover.shadow`, problem: "must be none, subtle, medium or strong" });
+            continue;
+          }
+          const range = HOVER_LIMITS[k as keyof typeof HOVER_LIMITS];
+          if (!range) issues.push({ path: `${path}.hover.${k}`, problem: "unknown hover property" });
+          else if (typeof v !== "number" || !Number.isFinite(v) || v < range[0] || v > range[1]) issues.push({ path: `${path}.hover.${k}`, problem: `must be ${range[0]}..${range[1]}` });
+          else (out as Record<string, number>)[k] = v;
+        }
+        if (Object.keys(out).length) node.hover = out;
       }
     }
     if (row["children"] != null) {

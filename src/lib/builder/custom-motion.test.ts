@@ -29,3 +29,20 @@ describe("AI-described motion", () => {
     expect(validateComposition(tree({ kind: "custom" })).ok).toBe(false);
   });
 });
+
+import { hoverCss } from "@/components/site/CompositionRenderer";
+describe("AI-described hover/touch response", () => {
+  it("keeps valid hover and renders it only for motion-OK visitors", () => {
+    const r = validateComposition({ version: 1, root: { type: "card", text: "x", hover: { y: -6, scale: 1.03, shadow: "medium" } } });
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    const css = hoverCss("a", r.tree.root.hover!);
+    expect(css).toContain("prefers-reduced-motion: no-preference");
+    expect(css).toContain("translate(0px,-6px) scale(1.03)");
+    expect(css).toContain(":focus-visible");
+  });
+  it("reports out-of-range hover values", () => {
+    const r = validateComposition({ version: 1, root: { type: "card", text: "x", hover: { scale: 3, glow: 1 } } });
+    expect(r.ok).toBe(false);
+  });
+});

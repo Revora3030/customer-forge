@@ -1,5 +1,5 @@
 import { useState, type CSSProperties, type ReactNode } from "react";
-import type { Breakpoint, CompositionNode, CompositionTree, MotionEasing, NodeMotion, NodeStyle } from "@/lib/builder/composition-tree";
+import type { Breakpoint, CompositionNode, CompositionTree, MotionEasing, NodeHover, NodeMotion, NodeStyle } from "@/lib/builder/composition-tree";
 
 /**
  * Draws any validated AI-authored composition tree. It only translates the
@@ -97,6 +97,7 @@ function renderNode(node: CompositionNode, ctx: Ctx, key: string): ReactNode {
     const text = cssText(styleToCss(style, node.type));
     if (text) ctx.rules.push(`@media ${MEDIA[bp]}{[data-cn="${id}"]{${text}}}`);
   }
+  if (node.hover) ctx.rules.push(hoverCss(id, node.hover));
   const style: CSSProperties = { ...baseLayout(node.type), ...styleToCss(node.style, node.type) };
   const motion = node.motion && node.motion.kind !== "none" ? node.motion : null;
   const props = {
@@ -206,6 +207,18 @@ export function motionStyle(motion: NodeMotion): CSSProperties {
     out["--rv-b"] = `${f.blur ?? 0}px`;
   }
   return out as CSSProperties;
+}
+
+const HOVER_SHADOW = { none: "none", subtle: "0 4px 14px rgb(0 0 0 / .08)", medium: "0 10px 30px rgb(0 0 0 / .14)", strong: "0 20px 50px rgb(0 0 0 / .22)" } as const;
+/** CSS for the AI's validated pointer/touch response; off for reduced-motion visitors. */
+export function hoverCss(id: string, h: NodeHover): string {
+  const t: string[] = [];
+  if (h.x || h.y) t.push(`translate(${h.x ?? 0}px,${h.y ?? 0}px)`);
+  if (h.scale != null && h.scale !== 1) t.push(`scale(${h.scale})`);
+  if (h.rotate) t.push(`rotate(${h.rotate}deg)`);
+  const decl = [t.length ? `transform:${t.join(" ")}` : "", h.opacity != null ? `opacity:${h.opacity / 100}` : "", h.shadow ? `box-shadow:${HOVER_SHADOW[h.shadow]}` : ""].filter(Boolean).join(";");
+  const sel = `[data-cn="${id}"]`;
+  return `@media (prefers-reduced-motion: no-preference){${sel}{transition:transform ${h.durationMs ?? 240}ms ease,opacity ${h.durationMs ?? 240}ms ease,box-shadow ${h.durationMs ?? 240}ms ease}${sel}:hover,${sel}:focus-visible,${sel}:active{${decl}}}`;
 }
 
 type NodeProps = { "data-cn": string; "data-motion": string | undefined; className: string | undefined; style: CSSProperties };
