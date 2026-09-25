@@ -7,7 +7,7 @@ describe("leftover first-build helpers carry no creative authority", () => {
   it("the site agent never derives or saves a design identity from business facts", () => {
     const src = read("src/lib/site-agent.functions.ts");
     expect(src).not.toMatch(/createAiDesignRecord|writeAiDesignRecord/);
-    expect(src).toMatch(/hasAuthoredAiDesignRecord\(priorDesignRecord\)/);
+    expect(src).not.toMatch(/hasAuthoredAiDesignRecord|priorDesignRecord|aiDesignRecord/);
   });
 
   it("Sol is not handed pre-picked hero, rhythm, card, CTA or background choices", () => {

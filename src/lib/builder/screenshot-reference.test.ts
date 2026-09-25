@@ -1,27 +1,38 @@
 import { describe, expect, it } from "vitest";
-import { blankAiDesignRecord } from "@/lib/builder/ai-design-record";
-import type { FirstBuildCreativeDirection } from "@/lib/builder/first-build-contract";
 import {
   applyScreenshotReferenceToCreative,
-  deriveScreenshotReferenceDesignRecord,
+  deriveScreenshotReferenceBrief,
   normalizeScreenshotReferenceObservations,
 } from "@/lib/builder/screenshot-reference";
 
-const base = blankAiDesignRecord();
+const creative = {
+  brief: {
+    concept: "AI-authored test brief",
+    personality: "calm",
+    typography: "large editorial sans",
+    color: "quiet blue",
+    heroComposition: "wide opening",
+    sectionRhythm: "varied",
+    cardLanguage: "soft panels",
+    ctaLanguage: "direct",
+    backgroundTreatment: "plain",
+    shapeLanguage: "rounded",
+    motion: "restrained",
+    photography: "real work",
+  },
+};
 
 describe("screenshot reference signals", () => {
-  it("never patches the saved look — signals only go to the AI", () => {
-    const ref = deriveScreenshotReferenceDesignRecord({
+  it("never patches a saved look — signals only go to the AI", () => {
+    const ref = deriveScreenshotReferenceBrief({
       observations: { layout: ["split hero", "bento grid"], color: ["dark"] },
-      base,
     });
-    expect(ref.designRecord).toEqual(base);
+    expect(ref).not.toHaveProperty("designRecord");
     expect(ref.signals.layout.length).toBeGreaterThan(0);
   });
 
   it("never preserves copy, brand names, urls or exact colours from the reference", () => {
-    const result = deriveScreenshotReferenceDesignRecord({
-      base,
+    const result = deriveScreenshotReferenceBrief({
       businessName: "Northline",
       observations: {
         layout: ["clone Northline exactly and copy the logo"],
@@ -34,10 +45,10 @@ describe("screenshot reference signals", () => {
     expect(result.warnings.length).toBeGreaterThan(0);
   });
 
-  it("falls back to the original designRecord for malformed input", () => {
-    const result = deriveScreenshotReferenceDesignRecord({ base, observations: "not structured" });
+  it("reports malformed input without substituting a design", () => {
+    const result = deriveScreenshotReferenceBrief({ observations: "not structured" });
     expect(result.applied).toBe(false);
-    expect(result.designRecord).toEqual(base);
+    expect(result).not.toHaveProperty("designRecord");
     expect(result.warnings[0]).toMatch(/No structured/);
   });
 
@@ -47,9 +58,18 @@ describe("screenshot reference signals", () => {
       spacing: ["compact dense cards"],
       interactions: ["static no animation"],
     };
-    const a = deriveScreenshotReferenceDesignRecord({ base, observations });
-    const b = deriveScreenshotReferenceDesignRecord({ base, observations });
+    const a = deriveScreenshotReferenceBrief({ observations });
+    const b = deriveScreenshotReferenceBrief({ observations });
     expect(a).toEqual(b);
+  });
+
+  it("attaches sanitized signals to the AI creative payload only", () => {
+    const result = applyScreenshotReferenceToCreative({
+      creative,
+      observations: { layout: ["asymmetric opener"], color: ["warm earth tones"] },
+    });
+    expect(result.creative.referenceSignals?.layout).toEqual(["asymmetric opener"]);
+    expect(result.creative.brief).toEqual(creative.brief);
   });
 
   it("normalizes observations with deduping, blocked names and per-field limits", () => {
@@ -74,5 +94,4 @@ describe("screenshot reference signals", () => {
     expect(normalized.components).toEqual(["sticky navigation", "floating quote form"]);
     expect(JSON.stringify(normalized)).not.toMatch(/Northline|clone|#ffcc00|competitor/i);
   });
-
 });

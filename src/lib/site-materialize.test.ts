@@ -16,7 +16,6 @@ const AUTHORED_LOOK = {
   sectionEffects: { hero: "none" },
   defaultEffect: "rise",
 };
-import { blankAiDesignRecord } from "@/lib/builder/ai-design-record";
 
 const input: MaterializeInput = {
   businessName: "Journey Detailing",
