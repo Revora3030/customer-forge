@@ -15,7 +15,6 @@ import { useServerFn } from "@tanstack/react-start";
 import { toast } from "@/lib/ui/notify";
 import {
   REQUEST_KINDS,
-  readPlan,
   requestStatusMeta,
   reviewStateMeta,
   revoraShareAddress,
@@ -51,7 +50,6 @@ export function WebsiteReview({ organizationId, slug, settings, canManage }: Pro
   const { data: requests } = useWebsiteRequests(organizationId);
 
   const state = reviewStateMeta(settings?.review_state);
-  const plan = readPlan(settings?.generation);
   const previewUrl = slug ? `/s/${slug}` : null;
   const frameWidth = DEVICES.find((d) => d.key === device)!.width;
 
@@ -191,46 +189,7 @@ export function WebsiteReview({ organizationId, slug, settings, canManage }: Pro
         ) : null}
       </Panel>
 
-      {plan ? (
-        <Panel className="p-5">
-          <SectionHeading
-            eyebrow="Generated structure"
-            title={`${plan.pages.length} pages built from your information`}
-          />
-          <ul className="mt-4 grid gap-2 sm:grid-cols-2">
-            {plan.pages.map((page) => (
-              <li key={page.key} className="rounded-md border border-border p-3">
-                <div className="flex items-center gap-2">
-                  <p className="text-[13px] font-medium">{page.label}</p>
-                  {page.core ? <Pill tone="neutral">Core</Pill> : null}
-                </div>
-                <p className="mt-1 text-[12px] text-muted-foreground">{page.reason}</p>
-              </li>
-            ))}
-          </ul>
 
-          {plan.placeholders.length ? (
-            <div className="mt-5 rounded-md border border-accent/40 bg-accent/5 p-4">
-              <p className="text-[13px] font-medium">
-                Needs your input ({plan.placeholders.length})
-              </p>
-              <p className="mt-1 text-[12px] text-muted-foreground">
-                Revora only publishes facts you supply. These items are empty or generated
-                placeholders:
-              </p>
-              <ul className="mt-2 space-y-1 text-[12px] text-muted-foreground">
-                {plan.placeholders.map((item) => (
-                  <li key={item}>• {item}</li>
-                ))}
-              </ul>
-            </div>
-          ) : (
-            <p className="mt-5 text-[12px] text-muted-foreground">
-              Every generated section is backed by information you provided.
-            </p>
-          )}
-        </Panel>
-      ) : null}
 
       {previewUrl ? (
         <Panel className="p-5">
