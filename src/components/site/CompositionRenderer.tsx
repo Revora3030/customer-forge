@@ -1,4 +1,4 @@
-import type { CSSProperties, ReactNode } from "react";
+import { useState, type CSSProperties, type ReactNode } from "react";
 import type { Breakpoint, CompositionNode, CompositionTree, NodeStyle } from "@/lib/builder/composition-tree";
 
 /**
