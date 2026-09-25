@@ -10,16 +10,7 @@ import {
   generateStudioImage,
   studioImageStatus,
 } from "@/lib/image-studio.functions";
-import {
-  CANDIDATE_STYLES,
-  REFINEMENTS,
-  altTextFor,
-  buildImageBrief,
-  savedVisualDirection,
-  planShots,
-  type PlannedShot,
-  type RefinementId,
-} from "@/lib/visual-direction";
+import type { ImageBriefSpec } from "@/lib/builder/first-build-contract";
 
 type Candidate = {
   id: string;
@@ -44,7 +35,7 @@ export function ImageStudio({
   primaryColor,
   accentColor,
   services,
-  photography,
+  campaign,
   mediaCount,
   hasHeroImage,
   onSetHero,
@@ -57,30 +48,24 @@ export function ImageStudio({
   primaryColor?: string | null;
   accentColor?: string | null;
   services: { name: string }[];
-  /** Photo direction from the AI's saved brief, if any. */
-  photography?: unknown;
+  /** Complete image campaign authored by the AI for this site. */
+  campaign?: unknown;
   mediaCount: number;
   hasHeroImage: boolean;
   onSetHero?: (path: string) => void;
 }) {
   const queryClient = useQueryClient();
-  const direction = useMemo(
-    () => savedVisualDirection(photography),
-    [photography],
-  );
-  const shots = useMemo(
-    () =>
-      planShots({
-        direction,
-        serviceNames: services.map((s) => s.name),
-        hasHeroImage,
-        mediaCount,
-      }),
-    [direction, services, hasHeroImage, mediaCount],
-  );
+  const shots = useMemo(() => {
+    if (!Array.isArray(campaign)) return [];
+    return campaign.filter((item): item is ImageBriefSpec => {
+      if (!item || typeof item !== "object") return false;
+      const row = item as Partial<ImageBriefSpec>;
+      return typeof row.label === "string" && typeof row.subject === "string" &&
+        typeof row.altText === "string" && Array.isArray(row.section);
+    });
+  }, [campaign]);
 
   const [shotIndex, setShotIndex] = useState(0);
-  const [refinements, setRefinements] = useState<RefinementId[]>([]);
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
   const [candidates, setCandidates] = useState<Candidate[]>([]);
@@ -100,55 +85,35 @@ export function ImageStudio({
     queryFn: () => studioImageStatus({ data: { organizationId: organizationId! } }),
   });
 
-  const shot: PlannedShot | undefined = shots[shotIndex];
+  const shot = shots[shotIndex];
 
   const brief = useMemo(() => {
     if (!shot) return null;
-    return buildImageBrief({
-      direction,
-      shot,
-      style: CANDIDATE_STYLES[0]!,
-      businessName: businessName ?? null,
-      city: city ?? null,
-      primaryColor: primaryColor ?? null,
-      accentColor: accentColor ?? null,
-      refinements,
-      extra: note || null,
-    });
-  }, [direction, shot, businessName, city, primaryColor, accentColor, refinements, note]);
-
-  const toggleRefinement = (id: RefinementId) =>
-    setRefinements((current) =>
-      current.includes(id) ? current.filter((r) => r !== id) : [...current, id],
-    );
+    const prompt = [
+      `Subject: ${shot.subject}.`, `Purpose: ${shot.purpose}.`, `Environment: ${shot.environment}.`,
+      `Action: ${shot.action}.`, `Lighting: ${shot.lighting}.`, `Camera: ${shot.camera}.`,
+      `Framing: ${shot.framing}.`, `Mood: ${shot.mood}.`, `Palette: ${shot.palette}.`,
+      `Focal point: ${shot.focalPoint}. Negative space: ${shot.negativeSpace}.`, shot.mobileCrop,
+      ...shot.constraints, note ? `Owner note: ${note}.` : "",
+      "No readable text, logos, watermarks, fabricated proof, staff, customers, awards, reviews, or results.",
+    ].filter(Boolean).join(" ");
+    return { prompt };
+  }, [shot, note]);
 
   const generate = async (count: number) => {
     if (!organizationId || !shot) return;
     setBusy(true);
-    const styles = CANDIDATE_STYLES.slice(0, count);
     let blocked = false;
 
-    for (const style of styles) {
-      const imageBrief = buildImageBrief({
-        direction,
-        shot,
-        style,
-        businessName: businessName ?? null,
-        city: city ?? null,
-        primaryColor: primaryColor ?? null,
-        accentColor: accentColor ?? null,
-        refinements,
-        extra: note || null,
-      });
-
+    for (let option = 0; option < count; option += 1) {
       try {
         const result = await generateStudioImage({
           data: {
             organizationId,
-            prompt: imageBrief.prompt,
-            altText: altTextFor(shot, businessName),
+            prompt: `${brief?.prompt ?? ""} Distinct commissioned variation ${option + 1}.`,
+            altText: shot.altText,
             category: shot.slot === "hero" ? "hero" : shot.slot === "about" ? "team" : "work",
-            label: `${shot.slot}-${style.id}`,
+            label: `${shot.slot}-${option + 1}`,
             aspectRatio,
           },
         });
@@ -156,8 +121,8 @@ export function ImageStudio({
         if (result.ok && result.path) {
           setCandidates((current) => [
             {
-              id: `${style.id}-${Date.now()}`,
-              styleLabel: style.label,
+              id: `${option}-${Date.now()}`,
+              styleLabel: `AI direction ${option + 1}`,
               preview: result.preview ?? result.path!,
               path: result.path!,
             },
@@ -188,25 +153,16 @@ export function ImageStudio({
   const generateStarterSet = async () => {
     if (!organizationId) return;
     setBusy(true);
-    const style = CANDIDATE_STYLES[0]!;
-    for (const entry of shots.slice(0, 3)) {
-      const imageBrief = buildImageBrief({
-        direction,
-        shot: entry,
-        style,
-        businessName: businessName ?? null,
-        city: city ?? null,
-        primaryColor: primaryColor ?? null,
-        accentColor: accentColor ?? null,
-        refinements: [],
-        extra: null,
-      });
+    for (const entry of shots) {
+      const imageBrief = [entry.subject, entry.purpose, entry.environment, entry.action, entry.lighting,
+        entry.camera, entry.framing, entry.mood, entry.palette, entry.mobileCrop, ...entry.constraints,
+        "No readable text, logos, watermarks, fabricated proof, staff, customers, awards, reviews, or results."].join(". ");
       try {
         const result = await generateStudioImage({
           data: {
             organizationId,
-            prompt: imageBrief.prompt,
-            altText: altTextFor(entry, businessName),
+            prompt: imageBrief,
+            altText: entry.altText,
             category: entry.slot === "hero" ? "hero" : entry.slot === "about" ? "team" : "work",
             label: `starter-${entry.slot}`,
             aspectRatio: entry.slot === "hero" ? "16:9" : "4:3",
@@ -243,7 +199,7 @@ export function ImageStudio({
           organizationId,
           sourcePath,
           change: changeNote.trim(),
-          altText: shot ? altTextFor(shot, businessName) : "",
+          altText: shot?.altText ?? "",
           category: shot?.slot === "hero" ? "hero" : "work",
           label: `${shot?.slot ?? "image"}-changed`,
         },
@@ -276,7 +232,7 @@ export function ImageStudio({
       <SectionHeading eyebrow="AI Image Studio" title="Create the photography your website needs" />
       <p className="mt-1.5 text-[13px] text-muted-foreground">
         Revora works out which images this website is missing, then shoots them in your own visual
-        language — <span className="text-primary">{direction.label.toLowerCase()}</span>. Every
+        language authored for this exact site. Every
         image you keep goes into your photo library.
       </p>
 
@@ -363,10 +319,7 @@ export function ImageStudio({
         <p className="text-[12px] uppercase tracking-wide text-muted-foreground">
           Visual direction
         </p>
-        <p className="mt-1 text-[13px]">{direction.language}.</p>
-        <p className="mt-1 text-[12px] text-muted-foreground">
-          Lighting: {direction.lighting} · Environment: {direction.environment}
-        </p>
+        <p className="mt-1 text-[13px]">Each shot below uses the saved AI campaign without preset styles.</p>
       </div>
 
       <p className="mt-5 text-[12px] uppercase tracking-wide text-muted-foreground">
@@ -397,32 +350,6 @@ export function ImageStudio({
       {shot ? (
         <div className="mt-4 space-y-3">
           <p className="text-[13px] text-muted-foreground">{shot.purpose}</p>
-
-          <div>
-            <p className="text-[12px] uppercase tracking-wide text-muted-foreground">Adjustments</p>
-            <div className="mt-2 flex flex-wrap gap-2">
-              {REFINEMENTS.map((refinement) => {
-                const active = refinements.includes(refinement.id);
-                return (
-                  <button
-                    key={refinement.id}
-                    type="button"
-                    onClick={() => toggleRefinement(refinement.id)}
-                    aria-pressed={active}
-                    disabled={!canManage}
-                    className={cn(
-                      "cursor-pointer rounded-full border px-3 py-1.5 text-[12px] transition-all disabled:cursor-not-allowed disabled:opacity-60",
-                      active
-                        ? "border-primary bg-primary/15 text-primary"
-                        : "border-border text-muted-foreground hover:bg-elevated",
-                    )}
-                  >
-                    {refinement.label}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
 
           <label className="block">
             <span className="text-[12px] uppercase tracking-wide text-muted-foreground">
@@ -487,7 +414,7 @@ export function ImageStudio({
             >
               <img
                 src={candidate.preview}
-                alt={shot ? altTextFor(shot, businessName) : "Generated website image"}
+                alt={shot?.altText ?? "Generated website image"}
                 loading="lazy"
                 className="aspect-video w-full object-cover"
               />
