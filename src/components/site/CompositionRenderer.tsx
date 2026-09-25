@@ -31,7 +31,7 @@ export function styleToCss(style: NodeStyle | undefined, type: CompositionNode["
   if (style.size != null) css.fontSize = style.size;
   if (style.weight != null) css.fontWeight = style.weight;
   if (style.lineHeight != null) css.lineHeight = style.lineHeight;
-  if (style.letterSpacing != null) css.letterSpacing = `${style.letterSpacing}em`;
+  if (style.letterSpacing != null) css.letterSpacing = `${Math.max(-0.05, Math.min(0.5, style.letterSpacing))}em`;
   if (style.italic) css.fontStyle = "italic";
   if (style.uppercase) css.textTransform = "uppercase";
   if (style.font) css.fontFamily = `"${style.font}", var(--font-body, system-ui), sans-serif`;

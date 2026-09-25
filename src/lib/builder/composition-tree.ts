@@ -85,7 +85,7 @@ export const COMPOSITION_LIMITS = { maxDepth: 12, maxNodes: 600, maxText: 4000 }
 const NUMERIC: Record<string, [number, number]> = {
   columns: [1, 12], gap: [0, 240], padding: [0, 320], paddingX: [0, 320], paddingY: [0, 320],
   maxWidth: [200, 2400], span: [1, 12], size: [8, 200], weight: [100, 900], lineHeight: [0.7, 3],
-  letterSpacing: [-0.2, 0.5], gradientAngle: [0, 360], radius: [0, 999], borderWidth: [0, 16],
+  letterSpacing: [-0.05, 0.5], gradientAngle: [0, 360], radius: [0, 999], borderWidth: [0, 16],
   opacity: [0, 100], minHeight: [0, 1600],
 };
 const ENUMS: Record<string, readonly string[]> = {
