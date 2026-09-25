@@ -293,6 +293,18 @@ export function BuilderAssistant({
               </Message>
             </div>
           ) : null}
+          {(firstBuildBusy || factBusy) && !requests.busy ? (
+            <div className="chat-rise">
+              <Message from="assistant">
+                <MessageContent className="w-full">
+                  <LiveActivity
+                    organizationId={organizationId}
+                    fallback={firstBuildBusy ? "Starting your website build…" : "Saving your answer…"}
+                  />
+                </MessageContent>
+              </Message>
+            </div>
+          ) : null}
         </ConversationContent>
         <ConversationScrollButton />
       </Conversation>
@@ -406,6 +418,52 @@ export function BuilderAssistant({
   );
 }
 
+/**
+ * Live "what the AI is doing right now" card. Shows only steps the server has
+ * genuinely recorded, plus a running timer so the owner sees it's alive.
+ */
+function LiveActivity({ organizationId, fallback }: { organizationId: string | null | undefined; fallback: string }) {
+  const { latest, steps } = useBuildProgress(organizationId, true);
+  const [startedAt] = useState(() => Date.now());
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(id);
+  }, []);
+  const seconds = Math.max(0, Math.round((now - startedAt) / 1000));
+  const done = steps.slice(1).reverse();
+  return (
+    <div className="space-y-2.5 rounded-2xl border border-primary/30 bg-card/60 p-3.5 shadow-signal" aria-live="polite">
+      <div className="flex items-center gap-2">
+        <span className="relative inline-flex size-7 items-center justify-center">
+          <span className="absolute inset-0 animate-ping rounded-lg bg-primary/25" aria-hidden />
+          <img src="/revora-mark-144.png" alt="" className="relative size-7 rounded-lg" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="text-[12.5px] font-semibold">Revora is working</p>
+          <p className="text-[11px] text-muted-foreground">
+            {seconds < 60 ? `${seconds}s` : `${Math.floor(seconds / 60)}m ${seconds % 60}s`} · live
+          </p>
+        </div>
+      </div>
+      {done.length ? (
+        <ul className="space-y-1">
+          {done.map((step) => (
+            <li key={`${step.stage}-${step.at}`} className="chat-rise flex items-start gap-1.5 text-[12px] text-muted-foreground">
+              <span aria-hidden className="text-primary">✓</span>
+              <span className="min-w-0 break-words">{step.stage}</span>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      <div className="text-[13px]">
+        <Shimmer>{latest ? `${latest.stage}…` : fallback}</Shimmer>
+        {latest?.detail ? <p className="mt-1 text-[11.5px] text-muted-foreground break-words">{latest.detail}</p> : null}
+      </div>
+    </div>
+  );
+}
+
 /** One request's honest state: what Revora will do, did, or couldn't do. */
 function TaskBody({
   task,
@@ -425,38 +483,19 @@ function TaskBody({
 }) {
   const working = task.state === "queued" || task.state === "planning" || task.state === "building";
   const timeline = timelineFor(task);
-  // The steps the server has genuinely recorded for this build, shown live.
-  const { latest, steps } = useBuildProgress(organizationId, working);
-  // Steps already finished, oldest first, so the owner watches the work land
-  // instead of staring at one line. Only genuinely recorded steps are shown.
-  const done = working ? steps.slice(1).reverse() : [];
   return (
     <div className="space-y-2">
       {working ? (
-        <div className="space-y-1">
-          {done.length ? (
-            <ul className="space-y-0.5">
-              {done.map((step) => (
-                <li
-                  key={`${step.stage}-${step.at}`}
-                  className="text-[12px] text-muted-foreground flex items-center gap-1.5"
-                >
-                  <span aria-hidden="true">✓</span>
-                  <span>{step.stage}</span>
-                </li>
-              ))}
-            </ul>
-          ) : null}
-          <Shimmer>
-            {latest
-              ? `${latest.stage}…`
-              : task.state === "queued"
-                ? "Got it — I’m starting now…"
+        <LiveActivity
+          organizationId={organizationId}
+          fallback={
+            task.state === "queued"
+              ? "Got it — I’m starting now…"
               : task.state === "planning"
                 ? "Working out the change…"
-                : "Applying…"}
-          </Shimmer>
-        </div>
+                : "Applying…"
+          }
+        />
       ) : task.answered ? null : (
         <p className="text-[11px] tracking-wide text-muted-foreground uppercase">
           {QUEUE_LABELS[task.state]}
