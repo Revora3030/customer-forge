@@ -10,7 +10,7 @@ import { useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { Menu, Phone, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { SiteSection, StickyCallBar, siteDesignFingerprint } from "@/components/site/SiteSections";
+import { SiteSection, StickyCallBar } from "@/components/site/SiteSections";
 import { PreviewSelectBridge } from "@/components/site/PreviewSelectBridge";
 import { businessFacts } from "@/lib/builder/facts";
 import { safeText } from "@/lib/builder/presentation";
@@ -25,7 +25,6 @@ import { styleSheet } from "@/lib/site-style";
 import { readSeo } from "@/lib/site-seo";
 import { readCopy } from "@/lib/site-engine";
 import { canonicalSiteUrl } from "@/lib/revora-address";
-import { fingerprintClassNames } from "@/lib/builder/design-fingerprint";
 import { SiteFooter } from "@/components/site/SiteFooter";
 import { CompositionRenderer } from "@/components/site/CompositionRenderer";
 import { useOwnAddress } from "@/components/site/site-links";
@@ -128,7 +127,6 @@ export function SitePageView({
   const page = site.content!.page;
   // Validated business details — an unusable phone number never becomes a link.
   const facts = businessFacts(profile as Record<string, unknown> | null, org.name);
-  const fingerprint = siteDesignFingerprint(site);
   const campaign = readSiteCampaign(settings?.generation ?? null);
   const ownAddress = useOwnAddress();
   const chrome = readSiteChrome(site.settings?.generation ?? null);
@@ -150,9 +148,7 @@ export function SitePageView({
 
   return (
     <div
-      className={`min-h-screen bg-background ${fingerprintClassNames(fingerprint)}`}
-      data-rv-family={fingerprint.family}
-      data-rv-hero={fingerprint.heroComposition}
+      className="min-h-screen bg-background"
       data-rv-page-purpose={journey?.purpose}
       data-rv-page-opening={journey?.opening}
       style={{

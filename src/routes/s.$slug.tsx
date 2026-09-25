@@ -12,7 +12,7 @@ import { readSeo } from "@/lib/site-seo";
 import { readCopy } from "@/lib/site-engine";
 import { canonicalSiteUrl } from "@/lib/revora-address";
 import { SiteNav, SitePageView } from "@/routes/s.$slug.$page";
-import { StickyCallBar, siteDesignFingerprint } from "@/components/site/SiteSections";
+import { StickyCallBar } from "@/components/site/SiteSections";
 import { SiteVitals } from "@/components/site/SiteVitals";
 import { businessFacts } from "@/lib/builder/facts";
 import { placeDisplay } from "@/lib/builder/presentation";
@@ -21,7 +21,6 @@ import { SiteBackdrop } from "@/components/site/SiteBackdrop";
 import { siteFontHref, siteFontStyle, siteThemeStyle } from "@/lib/site-theme";
 import { readComposition } from "@/lib/visual-composition";
 import { readBackdrop } from "@/lib/site-effects";
-import { fingerprintClassNames } from "@/lib/builder/design-fingerprint";
 import { SiteFooter } from "@/components/site/SiteFooter";
 
 export const Route = createFileRoute("/s/$slug")({
