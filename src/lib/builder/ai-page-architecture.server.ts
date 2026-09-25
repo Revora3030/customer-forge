@@ -51,7 +51,7 @@ export async function proposePageArchitecture(input: {
     availableSections: page.sections.map((section) => section.role),
   }));
 
-  const system = `${RULES} You are Sol, the lead information and conversion architect. Decide the page set, the sections on each page and their order so the whole site converts for this specific business. Give each page a deliberate opening, useful body and real conversion path without forcing every page into the same anatomy. ${creativeQualityPrompt()}`;
+  const system = `${RULES} You are Sol, the lead information and conversion architect. Decide the page set, the sections on each page and their order so the whole site converts for this specific business. Every page structure is your decision; nothing about its shape is prescribed. ${creativeQualityPrompt()}`;
   const prompt = [
       `BUSINESS: ${input.businessName}`,
       `INDUSTRY: ${input.industry ?? "not supplied"}`,
@@ -63,7 +63,7 @@ export async function proposePageArchitecture(input: {
        'Return JSON: {"pages": [{"slug": "home", "title": "...", "purpose": "...", "primaryAction": "...", "sections": [{"role": "...", "heading": "...", "subheading": "...", "body": "...", "layout": "your composition name", "intent": "why it exists", "media": "none|optional|required", "includes": ["primary_action", "service_cards"]}]}]}',
       "includes is optional: add \"primary_action\" to put the business's main action button in that section, and \"service_cards\" to list the real services as cards there. Nothing is added to a section you do not ask for.",
       "Keep the home page. Omit anything that weakens the site. Order sections deliberately.",
-      "QUALITY CONTRACT: every page must include a deliberate opening role (hero, intro, opening, lead, or masthead), a closing role named exactly cta, quote, booking, contact, or sticky_cta, and at least one section with media set to required.",
+      "There is no required page anatomy: you decide how each page opens, flows and closes. Only place working features (quote, booking, contact) where they genuinely help.",
       "You may invent any justified content sections and pages within the supplied facts. Give every section its own layout, intent and media requirement. Give each new section a plain role name, heading, and body of up to 1200 characters.",
       "Invented words may only restate the business's supplied facts, services and place — never new claims, numbers, reviews or guarantees. You cannot invent forms, booking, contact, embeds, heroes or galleries.",
       "Write your own heading (<=120 chars) and optional subheading (<=260 chars) for every section except each page's hero. There are no default headings: a section you leave without one shows none.",
@@ -131,7 +131,7 @@ export async function proposePageArchitecture(input: {
     organizationId: input.organizationId,
     maxOutputTokens: 700,
     ...(input.signal ? { signal: input.signal } : {}),
-    system: `${RULES} You are Terra, the adversarial reviewer of website structure. Approve only when every retained page has a deliberate opening, useful body and real conversion path; the pages must share one identity without repeating one generic anatomy. ${creativeQualityPrompt()}`,
+    system: `${RULES} You are Terra, the adversarial reviewer of website structure. Judge each page on whether it works for this business and its visitors; never demand a fixed page anatomy. ${creativeQualityPrompt()}`,
     user: [
       `BUSINESS: ${input.businessName}`,
       `CONVERSION GOAL: ${input.conversionGoal}`,

@@ -19,3 +19,10 @@ describe("design compiler makes no creative choices", () => {
       expect(fp[key]).toBe("unspecified");
   });
 });
+
+describe("no prescribed page anatomy", () => {
+  it("the page planner is never told to use fixed opening/closing/media roles", () => {
+    const planner = readFileSync("src/lib/builder/ai-page-architecture.server.ts", "utf8");
+    expect(planner).not.toMatch(/QUALITY CONTRACT|closing role named exactly|deliberate opening role/);
+  });
+});
