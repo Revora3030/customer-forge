@@ -512,7 +512,7 @@ function Onboarding() {
     step === 0
       ? draft.businessName.trim().length > 1 && draft.city.trim().length > 1
       : step === 1
-        ? draft.services.some((s) => s.name.trim().length > 1)
+        ? draft.services.some((s) => s.name.trim().length >= 5)
         : step === 3
           ? draft.phone.trim().length > 5 || draft.email.trim().length > 4
           : step === 5
@@ -997,6 +997,11 @@ function Onboarding() {
           ) : null}
 
           {error ? <div className="mt-5">{<ErrorNote message={error} />}</div> : null}
+          {step === 1 && !canContinue ? (
+            <p className="mt-4 text-sm text-muted-foreground">
+              Name at least one service clearly (for example "Full interior detail") so your AI team can build a page for it.
+            </p>
+          ) : null}
 
           <div className="mt-7 flex items-center justify-between">
             <Button
