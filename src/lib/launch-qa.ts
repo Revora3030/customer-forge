@@ -249,7 +249,7 @@ export function factGaps(input: FactInput): FactGap[] {
     });
   if (
     input.servicesCount < 1 ||
-    (input.serviceNames?.length && input.serviceNames.every((name) => weakText(name, 3)))
+    (input.serviceNames?.length && input.serviceNames.every((name) => weakText(name, 5)))
   )
     gaps.push({
       key: "services",
