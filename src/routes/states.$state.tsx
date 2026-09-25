@@ -60,7 +60,7 @@ export const Route = createFileRoute("/states/$state")({
         meta: [{ title: "Page not found — Revora" }, { name: "robots", content: "noindex" }],
       };
     }
-    const title = `${state.name} small business websites & lead generation — Revora`;
+    const title = `${state.name} Websites, CRM & Lead Generation for Service Businesses | Revora`;
     const description = `Revora builds ${state.name} service businesses a complete customer acquisition system — website, instant quotes, online booking, CRM and follow-up. Serving ${state.metros.slice(0, 3).join(", ")} and the whole state. ${usdExact(GROWTH_SYSTEM.setupPrice)} setup, first month free, then ${usdExact(GROWTH_SYSTEM.monthlyPrice)}/month.`;
     const path = `/states/${state.slug}`;
     return {

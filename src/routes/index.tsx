@@ -106,11 +106,11 @@ export const Route = createFileRoute("/")({
           }
         : ({
             meta: [
-              { title: "Revora Growth Systems — $750 Setup, First Month Free" },
+              { title: "Revora Growth Systems — AI Websites, CRM & Lead Follow-Up" },
               {
                 name: "description",
                 content:
-                  "AI website, booking, CRM, follow-up, reviews and SEO in one growth system. $750 one-time setup, first month free, then $100/month.",
+                  "Get a website that turns visitors into booked customers: AI-built site, instant quotes, booking, CRM, automatic follow-up, reviews and SEO. $750 setup, first month free, then $100/month.",
               },
               {
                 property: "og:title",
@@ -119,7 +119,7 @@ export const Route = createFileRoute("/")({
               {
                 property: "og:description",
                 content:
-                  "AI website, booking, CRM, follow-up, reviews and SEO in one growth system. $750 one-time setup, first month free, then $100/month.",
+                  "Get a website that turns visitors into booked customers: AI-built site, instant quotes, booking, CRM, automatic follow-up, reviews and SEO. $750 setup, first month free, then $100/month.",
               },
               { property: "og:type", content: "website" },
               { name: "twitter:card", content: "summary_large_image" },
