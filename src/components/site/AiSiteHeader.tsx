@@ -31,7 +31,7 @@ export function AiSiteHeader(props: {
       <div className="hidden md:block">
         <CompositionRenderer as="div" scope="site-header" tree={props.tree} resolveHref={props.resolveHref} />
       </div>
-      <div className="flex items-center justify-between gap-3 border-b border-border bg-background/92 px-4 py-3 text-foreground backdrop-blur-md md:hidden">
+      <nav aria-label="Main" className="flex items-center justify-between gap-3 border-b border-border bg-background/92 px-4 py-3 text-foreground backdrop-blur-md md:hidden">
         <a href={props.homeHref} className="flex min-h-11 min-w-0 items-center font-display text-[16px] font-semibold leading-tight tracking-tight [overflow-wrap:anywhere]">
           {props.name}
         </a>
@@ -44,7 +44,7 @@ export function AiSiteHeader(props: {
         >
           {open ? <X className="size-5" /> : <Menu className="size-5" />}
         </button>
-      </div>
+      </nav>
       {open ? (
         <div
           className="fixed inset-x-0 top-[4.25rem] bottom-0 overflow-y-auto bg-background md:hidden"
