@@ -91,7 +91,7 @@ export function OverlayPanel({
         type="button"
         aria-label="Close"
         onClick={onClose}
-        className="absolute inset-0 bg-black/70"
+        className="overlay-scrim absolute inset-0"
       />
       <div className="absolute inset-x-0 bottom-0 max-h-[86vh] overflow-y-auto rounded-t-2xl border-t border-border bg-surface p-4 pb-10 sm:inset-x-auto sm:top-0 sm:right-0 sm:bottom-0 sm:w-[min(560px,100vw)] sm:max-h-none sm:rounded-none sm:border-t-0 sm:border-l">
         <div className="mb-4 flex items-start justify-between gap-3">

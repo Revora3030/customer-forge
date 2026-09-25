@@ -49,7 +49,6 @@ import { PublishRetryBar } from "@/components/app/PublishRetryBar";
 import { EffectStudio } from "@/components/app/EffectStudio";
 import { ImageStudio } from "@/components/app/ImageStudio";
 import { readBackdrop, writeBackdrop } from "@/lib/site-effects";
-import { SiteChatbot } from "@/components/app/SiteChatbot";
 import { UpgradeStudio } from "@/components/app/UpgradeStudio";
 import { BuilderAudit } from "@/components/app/BuilderAudit";
 import { BuilderCanvas } from "@/components/app/BuilderCanvas";
@@ -465,7 +464,6 @@ function WebsitePage() {
             publishState={publishState}
             organizationId={orgId ?? null}
             requests={requests}
-            onOpenExtras={() => setAdvanced("assistant")}
             emptyTitle={firstRun ? "Describe your business" : "What would you like to change?"}
             emptyHint={firstRun ? "Tell me what you do and who you serve. I’ll build the complete website with you." : "Keep talking to me naturally. I’ll keep the context as we work through this website together."}
           />
@@ -821,14 +819,6 @@ function WebsitePage() {
               label: "Content",
               node: (
                 <>
-                  <SiteChatbot
-                    organizationId={orgId}
-                    canManage={manage}
-                    hasSections={visibleSections > 0}
-                    publishState={publishState}
-                    isPublishing={launchFlow.isLaunching || saveSettings.isPending}
-                    onPublishNow={launchFlow.launch}
-                  />
                   <Disclosure
                     label="Improve my website"
                     hint="Revora checks your site and fixes what it finds"

@@ -35,6 +35,7 @@ import {
 } from "@/lib/builder-queue";
 import { applyWebsiteChanges, planWebsiteChanges } from "@/lib/site-agent.functions";
 import type { AgentStep } from "@/lib/site-agent";
+import type { AgentAttachment } from "@/lib/site-agent";
 import { trackConversion } from "@/lib/conversion";
 import { friendlyError } from "@/lib/user-error";
 
@@ -228,7 +229,7 @@ export function useBuilderRequests({
           organizationId: organizationId!,
           instruction: task.instruction,
           history: conversation.slice(-24),
-          attachments: [],
+          attachments: task.attachments ?? [],
           ...(brand && hasBrandChoices(brand) ? { brand } : {}),
         },
       });
@@ -303,10 +304,11 @@ export function useBuilderRequests({
 
   const busy = tasks.some((task) => task.state === "planning" || task.state === "building");
 
-  const queue = (instruction: string) => {
+  const queue = (instruction: string, attachments: AgentAttachment[] = []) => {
     const text = instruction.trim().slice(0, INSTRUCTION_LIMIT);
-    if (!text || !ready) return;
-    setTasks((current) => [...current, newTask(text)]);
+    if ((!text && attachments.length === 0) || !ready) return;
+    const request = text || "Use the attached media to improve this website without inventing details.";
+    setTasks((current) => [...current, newTask(request, attachments)]);
     // Funnel stage: an owner actually asked for a build (never the text itself).
     trackConversion("build_requested", { metadata: { organization_id: organizationId ?? "" } });
   };
