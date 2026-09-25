@@ -46,4 +46,4 @@ A generated site is a product artifact, not just a collection of files.
 
 ## Evidence boundary
 
-The deterministic builder may plan these checks, but a static planner must never report a browser, runtime, visual, database or production check as passed without corresponding evidence.
+A static planner must never report a browser, runtime, visual, database or production check as passed without corresponding evidence.

@@ -195,7 +195,7 @@ function WebsitePage() {
           applied?: boolean;
           source?: string | null;
           model?: string | null;
-          fingerprint?: {
+          designRecord?: {
             family?: string;
             heroComposition?: string;
             colorSystem?: string;

@@ -95,7 +95,7 @@ function largeBuild() {
         field: "heading",
         value: `Heading ${index}`,
       });
-      actions.push({ type: "set_section_visual", sectionId, patch: { density: "airy" } });
+      actions.push({ type: "set_block_style", target: "section", targetId: sectionId, device: "desktop", patch: { gap: 24 } });
       for (let slot = 0; slot < 2; slot += 1) {
         const componentId = `cmp-${page}-${index}-${slot}`;
         components.push({ id: componentId, organization_id: ORG, section_id: sectionId });

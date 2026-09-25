@@ -292,7 +292,7 @@ async function runJob(
 
   const testimonials = Array.isArray(p["testimonials"]) ? (p["testimonials"] as unknown[]) : [];
   const goalsRaw = (p["website_goals"] as string[] | undefined) ?? [];
-  const goals = (goalsRaw.length ? goalsRaw : [org.data.conversion_goal ?? "quote"]) as string[];
+  const goals = (goalsRaw.length ? goalsRaw : org.data.conversion_goal ? [org.data.conversion_goal] : []) as string[];
 
   const copyFacts = {
     businessName: org.data.name ?? "",
@@ -307,7 +307,7 @@ async function runJob(
     hasHours: Boolean(p["hours"] && Object.keys(p["hours"] as object).length),
     style: (p["font_preference"] as string) ?? null,
     goals,
-    ctaLabel: "Get in touch",
+    ctaLabel: "",
     services: serviceRows,
   };
 
@@ -437,7 +437,7 @@ async function runJob(
     yearsInBusiness: (p["years_in_business"] as number) ?? null,
     services: serviceRows,
     goals,
-    conversionGoal: org.data.conversion_goal ?? null,
+    conversionGoal: goals[0] ?? org.data.conversion_goal ?? null,
     photoCount: realMediaCount,
     hasHeroImage: Boolean(p["hero_image_url"]),
     testimonialCount: testimonials.length,
@@ -538,7 +538,7 @@ async function runJob(
       changed: refined.changed,
       creativeChanged: refined.creativeChanged,
       copyChanged: refined.copyChanged,
-      fingerprintId: refined.creative.fingerprint.id,
+      designRecordId: refined.creative.designRecord.id,
       totalCostMicrocents: refined.totalCostMicrocents,
       passes: refined.passes,
     } as unknown as never,
@@ -619,7 +619,7 @@ async function runJob(
   generatedAssets = starterImages.assets;
   const architectBusinessName = org.data.name ?? "";
   const architectIndustry = org.data.industry ?? null;
-  const architectGoal = org.data.conversion_goal ?? "enquiries";
+  const architectGoal = goals[0] ?? org.data.conversion_goal ?? null;
   const architectureRef: { current: PageArchitectureOutcome | null } = { current: null };
   const built = await materializeSiteContent(db, orgId, {
     businessName: org.data.name ?? "",
@@ -635,14 +635,14 @@ async function runJob(
     hasQuoteForm: (forms.data ?? []).length > 0,
     hasBooking: (bookable.data ?? []).length > 0,
     direction,
-    fingerprint: creative.fingerprint,
+    designRecord: creative.designRecord,
     creativeBrief: creative.brief,
     generatedAssets: starterImages.assets,
     directedBy:
       refined.passes.find((pass) => pass.used && pass.model)?.model ?? "revora-collective",
     reviewedBy:
       refined.passes.filter((pass) => pass.used && pass.model)[1]?.model ?? null,
-    conversionGoal: org.data.conversion_goal ?? "enquiries",
+    conversionGoal: goals[0] ?? org.data.conversion_goal ?? null,
     replaceExisting: freshReplace,
     architect: async (candidate) => {
       const { proposePageArchitecture } = await import(
@@ -745,7 +745,7 @@ async function runJob(
       organizationId: orgId,
       facts: buildFacts,
       sections: wording,
-      directionSummary: `${creative.fingerprint.family} · ${creative.brief.personality}`,
+      directionSummary: [creative.brief.concept, creative.brief.personality].filter(Boolean).join(" · "),
     });
     if (!outcome.passes.some((pass) => pass.used))
       throw new Error("The AI team could not complete section-level copy review, so the build stopped without publishing unreviewed wording.");
@@ -791,7 +791,7 @@ async function runJob(
       organizationId: orgId,
       facts: buildFacts,
       lookSummary: JSON.stringify({
-        family: creative.fingerprint.family,
+        family: creative.designRecord.family,
         personality: creative.brief.personality,
         colors: direction ? { primary: direction.primary, secondary: direction.secondary, accent: direction.accent } : null,
         font: direction?.font ?? null,
@@ -944,7 +944,7 @@ async function runJob(
         firstBuildCreative: creative,
         screenshotReference,
         screenshotReferenceObservations: storedReferenceObservations ?? null,
-        designFingerprint: { ...creative.fingerprint, updatedAt: new Date().toISOString() },
+        aiDesignRecord: { ...creative.designRecord, updatedAt: new Date().toISOString() },
         ...(!built.skipped && direction ? { effects: { backdrop: direction.backdrop, ...(direction.backdropSpec ? { spec: direction.backdropSpec } : {}) } } : {}),
       } as unknown as Record<string, unknown>,
       generated_at: new Date().toISOString(),

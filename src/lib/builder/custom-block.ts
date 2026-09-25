@@ -475,7 +475,10 @@ export function parseCustomBlock(raw: unknown): ParseResult {
       }
       const hrefRaw = clean(row["ctaHref"], 120) ?? "#contact";
       const ctaHref = /^(#|\/)[A-Za-z0-9/_?&=.%#-]*$/.test(hrefRaw) ? hrefRaw : "#contact";
-      const ctaLabel = clean(row["ctaLabel"], MAX_LABEL) ?? "Request this time";
+      const ctaLabel = clean(row["ctaLabel"], MAX_LABEL);
+      if (!ctaLabel) {
+        return { ok: false, reason: "a booking selector needs an AI-authored button label" };
+      }
       return {
         ok: true,
         spec: { type: "booking", ...(title ? { title } : {}), note, services, times, ctaLabel, ctaHref },

@@ -1,12 +1,13 @@
 /**
- * Screenshot reference fingerprinting.
+ * Screenshot reference signals.
  *
  * A reference screenshot can influence layout, hierarchy, spacing, type feel,
  * colour mood and interaction language, but it must never copy brand assets,
  * wording, logos, exact colours or claims. This module accepts only bounded
- * structured observations and maps them into Revora's finite design vocabulary.
+ * structured observations and passes those signals to the AI design team; it
+ * never maps them into a finite design vocabulary.
  */
-import type { DesignFingerprint } from "@/lib/builder/design-fingerprint";
+import type { AiDesignRecord } from "@/lib/builder/ai-design-record";
 import type { CreativeBrief } from "@/lib/builder/first-build-contract";
 
 export type ScreenshotReferenceObservation = {
@@ -32,7 +33,7 @@ export type NormalizedScreenshotReferenceObservation = {
 export type ScreenshotReferenceBrief = {
   version: 1;
   applied: boolean;
-  fingerprint: DesignFingerprint;
+  designRecord: AiDesignRecord;
   signals: {
     layout: string[];
     hierarchy: string[];
@@ -158,9 +159,9 @@ export function normalizeScreenshotReferenceObservations(
   return normal;
 }
 
-export function deriveScreenshotReferenceFingerprint(input: {
+export function deriveScreenshotReferenceDesignRecord(input: {
   observations: unknown;
-  base: DesignFingerprint;
+  base: AiDesignRecord;
   businessName?: string | null;
   blockedNames?: string[];
 }): ScreenshotReferenceBrief {
@@ -171,11 +172,11 @@ export function deriveScreenshotReferenceFingerprint(input: {
   // No keyword → style mapping: the cleaned signals go to Sol as inspiration
   // and the saved look is never patched here.
   const applied = text.length > 0;
-  const fingerprint = input.base;
+  const designRecord = input.base;
   return {
     version: 1,
     applied,
-    fingerprint,
+    designRecord,
     signals,
     antiCloning: {
       copiedTextAllowed: false,
@@ -197,16 +198,16 @@ export function deriveScreenshotReferenceFingerprint(input: {
 }
 
 export function applyScreenshotReferenceToCreative<
-  T extends { fingerprint: DesignFingerprint; brief: CreativeBrief; referenceSignals?: Record<string, string[]> | null },
+  T extends { designRecord: AiDesignRecord; brief: CreativeBrief; referenceSignals?: Record<string, string[]> | null },
 >(input: {
   creative: T;
   observations: unknown;
   businessName?: string | null;
   blockedNames?: string[];
 }): { creative: T; reference: ScreenshotReferenceBrief } {
-  const reference = deriveScreenshotReferenceFingerprint({
+  const reference = deriveScreenshotReferenceDesignRecord({
     observations: input.observations,
-    base: input.creative.fingerprint,
+    base: input.creative.designRecord,
     ...(input.businessName === undefined ? {} : { businessName: input.businessName }),
     ...(input.blockedNames === undefined ? {} : { blockedNames: input.blockedNames }),
   });

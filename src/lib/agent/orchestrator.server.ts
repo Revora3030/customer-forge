@@ -1,22 +1,22 @@
 /**
  * THE REVORA AGENT ORCHESTRATOR.
  *
- * UNDERSTAND → INSPECT → DESIGN → PLAN → REFLECT → CRITIQUE → AUTO-FIX →
+ * UNDERSTAND → INSPECT → DESIGN → PLAN → REFLECT → OBJECTIVE REVIEW → AUTO-FIX →
  * VERIFY → REPORT. Execution itself happens after the owner approves, in
  * `applyWebsiteChanges`.
  *
  * This module owns the pipeline itself and nothing else: understanding comes
  * from `understanding.server`, the workspace picture (INSPECT) from
  * `workspace-context.server`, the design direction from `design-brief.server`,
- * the plan from the site planner, the grading from `critique.server`, and the
+ * the plan from the site planner, the objective review from `critique.server`, and the
  * writes from `applyWebsiteChanges` after the owner approves. Keeping the
  * stages apart is what lets the agent grow without rewriting the builder.
  *
  * Three honesty rules are enforced here, not just prompted:
  * - a requirement is only reported as covered when the review pass says so,
- * - reflection and grading are skipped for simple requests, so a small ask
+ * - reflection and objective review are skipped for simple requests, so a small ask
  *   stays cheap, and
- * - a score is only shown when a grading pass actually ran.
+ * - a readiness score is only shown when a review pass actually ran.
  */
 
 import type { AgentContext } from "@/lib/site-agent.server";
@@ -29,12 +29,7 @@ import {
   designWithoutModel,
   type DesignDirection,
 } from "@/lib/agent/design-brief.server";
-import {
-  QUALITY_THRESHOLD,
-  critiquePlan,
-  improvementBrief,
-  type Critique,
-} from "@/lib/agent/critique.server";
+import { critiquePlan, improvementBrief, type Critique } from "@/lib/agent/critique.server";
 
 export type RequirementCheck = { label: string; covered: boolean };
 
@@ -205,9 +200,8 @@ export async function orchestrate(options: {
   if (understanding.tasks.length > 1)
     trace.push(`Broke it into ${understanding.tasks.length} coordinated tasks`);
 
-  // DESIGN. Visual and conversion decisions are made once, up front, so the
-  // planner never falls back on a generic template arrangement — and so the
-  // owner is never asked to name a layout, colour or font.
+  // DESIGN. Visual and conversion decisions are made by the model team, not by
+  // a fixed template or deterministic layout chooser.
   const industry = context.business.industry;
   let design: DesignDirection;
   try {
@@ -222,7 +216,7 @@ export async function orchestrate(options: {
   }
   trace.push(
     design.source === "model"
-      ? `Set the design direction: ${design.layout}`
+      ? `Set the AI-authored design direction${design.layout ? `: ${design.layout}` : ""}`
       : "No design direction was available; the planning AI decides the design itself",
   );
 
@@ -277,9 +271,8 @@ export async function orchestrate(options: {
     }
   }
 
-  // CRITIQUE, then AUTO-FIX. The agent grades its own plan on the ten things
-  // that decide whether a website earns customers. Below the professional
-  // threshold it improves the plan itself rather than shipping a weak draft.
+  // OBJECTIVE REVIEW, then AUTO-FIX. The agent checks its own plan for concrete
+  // launch issues. It never blocks or alters a plan because of aesthetic taste.
   let critique: Critique | null = null;
   if (understanding.complexity === "complex" && reviewable) {
     const graded = await (options.critique ?? critiquePlan)({
@@ -291,9 +284,9 @@ export async function orchestrate(options: {
     if (graded.source === "model") {
       critique = graded;
       trace.push(
-        `Graded its own work ${graded.overall}/10${graded.verdict ? ` — ${graded.verdict}` : ""}`,
+        `Reviewed its own work for launch issues${graded.verdict ? ` — ${graded.verdict}` : ""}`,
       );
-      if (graded.overall < QUALITY_THRESHOLD && graded.fixes.length) {
+      if (graded.fixes.length) {
         try {
           const improved = await plan(
             context,
@@ -309,10 +302,10 @@ export async function orchestrate(options: {
             reply = str(improved["reply"], 1500) || reply;
             summary = str(improved["summary"], 300) || summary;
             trace.push(
-              `Raised it itself with ${extra.length} further change${extra.length === 1 ? "" : "s"} before showing you`,
+              `Fixed ${extra.length} objective issue${extra.length === 1 ? "" : "s"} before showing you`,
             );
           } else {
-            trace.push("Tried to raise the plan further but found nothing more it could change");
+            trace.push("Tried to fix the objective issues but found nothing more it could change");
           }
         } catch {
           trace.push("Could not run the improvement pass — showing the reviewed plan");

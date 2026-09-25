@@ -23,7 +23,7 @@ Environment
 JOURNEY_BASE_URL            default http://localhost:8080
 JOURNEY_SESSION_FILE        Supabase session JSON (default the Lovable auth cache)
 JOURNEY_ALLOW_MUTATE=1      run the edit / persistence / rollback steps
-JOURNEY_ALLOW_BUILD=1       submit a real deterministic build request
+JOURNEY_ALLOW_BUILD=1       submit a real AI-authored build request
 JOURNEY_FIXTURE_WORKSPACE   expected workspace name (asserted when provided)
 
 Outputs
@@ -89,7 +89,7 @@ BUILD_STAGES = [
 ]
 
 BUILD_PROMPT = (
-    "Build a simple three page website for a deterministic smoke-test business. "
+    "Build a simple three page website for a repeatable smoke-test business. "
     "Keep every fact exactly as supplied and invent nothing."
 )
 
@@ -698,10 +698,10 @@ async def main() -> int:
             ("01_app_loads", "The application loads", journey.step_app_loads),
             ("02_no_error_screen", "No global error screen", journey.step_no_error_screen),
             ("03_auth_session", "Signed-out gate holds and a session signs in", journey.step_auth),
-            ("04_fixture_workspace", "A deterministic workspace is entered", journey.step_fixture_workspace),
+            ("04_fixture_workspace", "A test workspace is entered", journey.step_fixture_workspace),
             ("05_builder_opens", "The builder opens", journey.step_builder_opens),
             ("06_builder_console_clean", "The builder loads without console errors", journey.step_builder_console),
-            ("07_build_request", "A deterministic build request is submitted", journey.step_build_request),
+            ("07_build_request", "An AI-authored build request is submitted", journey.step_build_request),
             ("08_build_stages", "Build progresses through the user-facing stages", journey.step_build_stages),
             ("09_preview_renders", "The generated site renders", journey.step_preview_renders),
             ("10_page_navigation", "Navigation between generated pages works", journey.step_page_navigation),
@@ -710,7 +710,7 @@ async def main() -> int:
             ("13_no_overflow", "No horizontal overflow at any width", journey.step_no_overflow),
             ("14_actionable", "Important buttons and links are actionable", journey.step_actionable),
             ("15_real_content", "The page carries real content", journey.step_real_content),
-            ("16_builder_edit", "One deterministic builder edit is applied", journey.step_builder_edit),
+            ("16_builder_edit", "One builder edit is applied", journey.step_builder_edit),
             ("17_edit_visible", "The edit appears in the rendered preview", journey.step_edit_visible),
             ("18_edit_persists", "The edit survives a refresh", journey.step_edit_persists),
             ("19_rollback", "Undo / rollback is available and used", journey.step_rollback),

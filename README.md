@@ -62,8 +62,7 @@ caller  ->  router.server.ts   choice of model class, limits, timeouts, retries,
 Nothing outside `src/lib/ai/providers/` knows which provider served a request, and no other
 module holds a provider key. Adding a provider means one new adapter file. With no key
 configured every AI feature fails closed with a single clear message rather than degrading
-silently, and each deterministic Revora fallback (the built-in site builder, the built-in
-request reader) still completes the job.
+silently. The builder does not replace failed AI work with deterministic website writing.
 
 Usage is recorded in `ai_usage_events` and every attempted tool call in `ai_tool_audit`.
 Neither table stores prompts, generated content, keys or personal details.
@@ -161,7 +160,7 @@ one and backfill safely. Before shipping, run typecheck, lint, tests and the pro
 
 ## Whole-repository engineering
 
-Customer Forge now treats all repository files as part of the engineering surface. The CI audit scans the complete working tree for file inventory, oversized artifacts, TODO/FIXME markers, credential patterns, route/migration/test/workflow coverage and suspicious client environment values. The deterministic builder also runs a final whole-repository quality pass while preserving the existing action cap and runtime evidence boundaries.
+Customer Forge now treats all repository files as part of the engineering surface. The CI audit scans the complete working tree for file inventory, oversized artifacts, TODO/FIXME markers, credential patterns, route/migration/test/workflow coverage and suspicious client environment values. The repository audit also runs a final whole-repository quality pass while preserving the existing action cap and runtime evidence boundaries.
 
 Run `npm run repo:audit` for the repository-wide report.
 

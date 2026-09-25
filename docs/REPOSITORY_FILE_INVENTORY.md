@@ -178,7 +178,6 @@ Generated for branch `feat/revora-maximum-whole-repo-upgrade`. **813 files** are
 - `src/components/app/TrafficMonitor.tsx`
 - `src/components/app/VersionDiff.tsx`
 - `src/components/app/VisualCheckPanel.tsx`
-- `src/components/app/VisualDirectorPanel.tsx`
 - `src/components/app/WebsiteProject.tsx`
 - `src/components/app/WebsiteReview.tsx`
 - `src/components/app/WebsiteStructure.tsx`
@@ -339,8 +338,6 @@ Generated for branch `feat/revora-maximum-whole-repo-upgrade`. **813 files** are
 - `src/lib/builder/capabilities.ts`
 - `src/lib/builder/context-targeting.test.ts`
 - `src/lib/builder/context-targeting.ts`
-- `src/lib/builder/conversion-blueprint.test.ts`
-- `src/lib/builder/conversion-blueprint.ts`
 - `src/lib/builder/copy.ts`
 - `src/lib/builder/design.ts`
 - `src/lib/builder/deterministic.ts`
@@ -386,8 +383,6 @@ Generated for branch `feat/revora-maximum-whole-repo-upgrade`. **813 files** are
 - `src/lib/builder/sitewide-cta.ts`
 - `src/lib/builder/visual-composition.test.ts`
 - `src/lib/builder/visual-composition.ts`
-- `src/lib/builder/visual-director.test.ts`
-- `src/lib/builder/visual-director.ts`
 - `src/lib/builder/visual-intelligence.ts`
 - `src/lib/builder/visual-measure.ts`
 - `src/lib/builder/visual.test.ts`
@@ -526,7 +521,6 @@ Generated for branch `feat/revora-maximum-whole-repo-upgrade`. **813 files** are
 - `src/lib/public-site.server.ts`
 - `src/lib/publish-state.ts`
 - `src/lib/queries.ts`
-- `src/lib/quote-seed.ts`
 - `src/lib/readiness.ts`
 - `src/lib/revora-address.ts`
 - `src/lib/section-guide.ts`

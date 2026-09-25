@@ -66,8 +66,8 @@ export function readCopy(value: unknown): SiteCopy | null {
   return {
     heroHeadline: copy.heroHeadline,
     heroSubheadline: copy.heroSubheadline ?? "",
-    primaryCta: copy.primaryCta ?? "Get in touch",
-    secondaryCta: copy.secondaryCta ?? "See services",
+    primaryCta: copy.primaryCta ?? "",
+    secondaryCta: copy.secondaryCta ?? "",
     intro: copy.intro ?? "",
     benefits: Array.isArray(copy.benefits)
       ? copy.benefits.filter((b) => typeof b === "string")

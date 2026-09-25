@@ -63,8 +63,6 @@ export function targetOf(action: AgentAction): Target | null {
   switch (action.type) {
     case "set_section_text":
     case "set_section_visibility":
-    case "set_section_variant":
-    case "set_section_visual":
     case "set_custom_block":
     case "set_composition":
     case "set_section_effect":

@@ -26,7 +26,7 @@ export function BuilderAudit({
   canManage,
 }: {
   organizationId: string | undefined;
-  org: { name?: string | null; slug?: string | null } | null | undefined;
+  org: { name?: string | null; slug?: string | null; conversion_goal?: string | null } | null | undefined;
   canManage: boolean;
 }) {
   const model = useAuditModel(organizationId, org);

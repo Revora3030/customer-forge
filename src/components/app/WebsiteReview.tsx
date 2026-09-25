@@ -19,6 +19,7 @@ import {
   reviewStateMeta,
   revoraShareAddress,
 } from "@/lib/website-plan";
+import { previewPath } from "@/lib/builder-preview";
 import { cn } from "@/lib/utils";
 
 const DEVICES = [
@@ -34,7 +35,12 @@ type Props = {
   organizationId: string | undefined;
   slug: string | undefined;
   settings:
-    | { review_state?: string | null; generation?: unknown; generated_at?: string | null }
+    | {
+        review_state?: string | null;
+        publish_state?: string | null;
+        generation?: unknown;
+        generated_at?: string | null;
+      }
     | null
     | undefined;
   canManage: boolean;
@@ -50,7 +56,11 @@ export function WebsiteReview({ organizationId, slug, settings, canManage }: Pro
   const { data: requests } = useWebsiteRequests(organizationId);
 
   const state = reviewStateMeta(settings?.review_state);
-  const previewUrl = slug ? `/s/${slug}` : null;
+  const previewUrl = slug
+    ? settings?.publish_state === "published"
+      ? `/s/${encodeURIComponent(slug)}`
+      : previewPath(slug, "home")
+    : null;
   const frameWidth = DEVICES.find((d) => d.key === device)!.width;
 
   return (

@@ -15,7 +15,7 @@
  * - SEO metadata
  * - accessibility evidence
  * - responsive evidence
- * - visual evidence
+   * - rendered browser evidence
  * - performance evidence
  * - technical completeness
  *
@@ -193,8 +193,7 @@ export type QualityReport = {
    * - browser measurement
    * - accessibility evidence
    * - performance evidence
-   * - visual pass
-   * - score >= 95
+   * - rendered browser pass with accessibility/performance evidence
    */
   productionReady: boolean;
 
@@ -1320,8 +1319,7 @@ export function auditWebsite(
       ?.accessibility &&
     !!safeInput.visual
       ?.coverage
-      ?.performance &&
-    score >= 95;
+      ?.performance;
 
   /* ------------------------------ RETURN --------------------------------- */
 

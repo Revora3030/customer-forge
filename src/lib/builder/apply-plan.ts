@@ -24,7 +24,7 @@
  */
 
 import type { AgentAction } from "@/lib/site-agent";
-import { readBlockStyle, readComponentVisual, readSectionVisual } from "@/lib/site-style";
+import { readBlockStyle, readComponentVisual } from "@/lib/site-style";
 
 /** Ids that really exist in the database right now, per table. */
 export type KnownTargets = {
@@ -217,17 +217,9 @@ export function dropUnchangedActions(
     if (action.type === "set_section_text") {
       const current = state.sections.get(action.sectionId);
       if (current && sameText(current[action.field], action.value)) noop = true;
-    } else if (action.type === "set_section_variant") {
-      const current = state.sections.get(action.sectionId);
-      if (current && (current.variant ?? "") === action.variant) noop = true;
     } else if (action.type === "set_section_visibility") {
       const current = state.sections.get(action.sectionId);
       if (current && current.is_visible === action.visible) noop = true;
-    } else if (action.type === "set_section_visual") {
-      const current = state.sections.get(action.sectionId);
-      const visual = readSectionVisual(current?.settings);
-      const entries = Object.entries(action.patch);
-      noop = Boolean(current) && entries.length > 0 && entries.every(([key, value]) => visual[key as keyof typeof visual] === value);
     } else if (action.type === "set_component_visual") {
       const current = state.components?.get(action.componentId);
       const visual = readComponentVisual(current?.settings);

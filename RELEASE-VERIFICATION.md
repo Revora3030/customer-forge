@@ -28,10 +28,10 @@ Totals: NOT_TESTED 5, PASS 20
 | 01_app_loads | PASS | The application loads |
 | 02_no_error_screen | PASS | No global error screen |
 | 03_auth_session | PASS | Signed-out gate holds and a session signs in |
-| 04_fixture_workspace | PASS | A deterministic workspace is entered |
+| 04_fixture_workspace | PASS | A test workspace is entered |
 | 05_builder_opens | PASS | The builder opens |
 | 06_builder_console_clean | PASS | The builder loads without console errors |
-| 07_build_request | NOT_TESTED | A deterministic build request is submitted |
+| 07_build_request | NOT_TESTED | An AI-authored build request is submitted |
 | 08_build_stages | NOT_TESTED | Build progresses through the user-facing stages |
 | 09_preview_renders | PASS | The generated site renders |
 | 10_page_navigation | PASS | Navigation between generated pages works |
@@ -40,7 +40,7 @@ Totals: NOT_TESTED 5, PASS 20
 | 13_no_overflow | PASS | No horizontal overflow at any width |
 | 14_actionable | PASS | Important buttons and links are actionable |
 | 15_real_content | PASS | The page carries real content |
-| 16_builder_edit | PASS | One deterministic builder edit is applied |
+| 16_builder_edit | PASS | One builder edit is applied |
 | 17_edit_visible | PASS | The edit appears in the rendered preview |
 | 18_edit_persists | PASS | The edit survives a refresh |
 | 19_rollback | PASS | Undo / rollback is available and used |

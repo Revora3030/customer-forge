@@ -4,7 +4,8 @@
  * Sol designs both as ordinary composition trees; they are stored on
  * `website_settings.generation.chrome`. Reading re-validates every tree, so bad
  * stored data renders nothing rather than a substitute design. Sites without an
- * AI-authored chrome keep the plain accessible menu and footer.
+ * AI-authored chrome show no replacement chrome; the build/review pipeline must
+ * repair or reject them instead of installing fixed copy.
  */
 import { validateComposition, type CompositionTree } from "@/lib/builder/composition-tree";
 

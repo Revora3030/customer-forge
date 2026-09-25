@@ -143,7 +143,7 @@ describe("orchestrator pipeline", () => {
 
   const understand = async () => understanding.complex;
 
-  // The design and grading stages are stubbed here so the pipeline is tested,
+  // The design and objective-review stages are stubbed here so the pipeline is tested,
   // not the gateway. `strongCritique` keeps the auto-fix pass out of the way;
   // the auto-fix test below supplies a weak grade on purpose.
   const design = async () => designWithoutModel("roofing");
@@ -287,7 +287,7 @@ describe("orchestrator pipeline", () => {
     expect(result.critique?.overall).toBe(9);
   });
 
-  it("improves its own plan when it grades itself below the professional bar", async () => {
+  it("improves its own plan when objective launch issues are found", async () => {
     const plan = vi
       .fn()
       .mockResolvedValueOnce({
@@ -322,7 +322,7 @@ describe("orchestrator pipeline", () => {
 
     expect(plan).toHaveBeenCalledTimes(3);
     expect((result.raw["actions"] as unknown[]).length).toBe(2);
-    expect(result.trace.join(" ")).toMatch(/Raised it itself/);
+    expect(result.trace.join(" ")).toMatch(/Fixed 1 objective issue/);
   });
 
   it("does not grade or improve a simple request", async () => {

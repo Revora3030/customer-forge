@@ -300,7 +300,7 @@ export const PAGE_LIBRARY: { kind: PageKind; label: string; help: string }[] = [
     label: "Pricing & instant quote",
     help: "Starting prices plus the quote calculator.",
   },
-  { kind: "book", label: "Book online", help: "A page dedicated to taking the booking." },
+  { kind: "book", label: "Booking page", help: "A page dedicated to taking the booking." },
   { kind: "about", label: "About", help: "Who you are and why customers trust you." },
   { kind: "reviews", label: "Reviews", help: "Published customer reviews in one place." },
   { kind: "gallery", label: "Work gallery", help: "Photos of real jobs." },

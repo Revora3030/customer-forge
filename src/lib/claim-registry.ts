@@ -53,7 +53,7 @@ export const CLAIMS: Claim[] = [
   {
     key: "quotes",
     promise: "Customers get an instant price.",
-    module: "src/lib/quote-seed.ts",
+    module: "src/routes/_authenticated/app.quotes.tsx",
     test: "src/lib/flows.e2e.test.ts",
     to: "/app/quotes",
   },

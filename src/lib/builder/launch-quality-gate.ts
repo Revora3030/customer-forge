@@ -2,7 +2,6 @@ export type LaunchQualityDimension =
   | 'conversion'
   | 'messaging'
   | 'content'
-  | 'visual_design'
   | 'mobile'
   | 'accessibility'
   | 'seo'
@@ -38,7 +37,6 @@ const dimensions: Array<{
   { key: 'conversion', weight: 16, title: 'Clarify the primary conversion path', recommendation: 'Give the hero one clear customer action and repeat that action at the natural decision points.' },
   { key: 'messaging', weight: 13, title: 'Make the value proposition more specific', recommendation: 'Name the audience, their desired outcome, and the reason to choose this business in the first screen.' },
   { key: 'content', weight: 10, title: 'Complete the decision-making content', recommendation: 'Add service detail, process, FAQs, and practical proof so visitors can decide without leaving the site.' },
-  { key: 'visual_design', weight: 10, title: 'Strengthen visual hierarchy', recommendation: 'Use one premium visual direction, intentional spacing, readable type scale, and imagery that supports the offer.' },
   { key: 'mobile', weight: 11, title: 'Improve the mobile experience', recommendation: 'Prioritize the primary action, simplify dense sections, and verify comfortable tap targets at phone widths.' },
   { key: 'accessibility', weight: 9, title: 'Resolve accessibility basics', recommendation: 'Check color contrast, heading order, meaningful labels, keyboard access, and reduced-motion behavior.' },
   { key: 'seo', weight: 9, title: 'Finish search foundations', recommendation: 'Write a unique page title and description, use one clear H1, and include service and location intent naturally.' },

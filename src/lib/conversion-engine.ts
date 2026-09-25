@@ -57,8 +57,12 @@ const GOAL_ALIASES: Record<string, ConversionGoal> = {
   pricing: "quote",
   buy: "buy",
   purchase: "buy",
+  purchases: "buy",
   checkout: "buy",
   pay: "buy",
+  consultation: "lead",
+  consultations: "lead",
+  consult: "lead",
   lead: "lead",
   contact: "lead",
   enquiry: "lead",
@@ -66,8 +70,8 @@ const GOAL_ALIASES: Record<string, ConversionGoal> = {
   form: "lead",
 };
 
-/** Maps free text (a CTA label, brief answer or stored setting) to a goal. */
-export function normalizeGoal(value: unknown, fallback: ConversionGoal = "quote"): ConversionGoal {
+/** Maps explicit free text (a CTA label, brief answer or stored setting) to a goal. */
+export function normalizeGoal(value: unknown, fallback: ConversionGoal | null = null): ConversionGoal | null {
   if (typeof value !== "string") return fallback;
   const words = value.toLowerCase().match(/[a-z]+/g) ?? [];
   for (const word of words) {
@@ -100,7 +104,8 @@ export type CtaStep = {
 const digits = (value: string) => value.replace(/[^\d+]/g, "");
 
 /** Builds the ordered conversion ladder for a goal: primary first, fallbacks after. */
-export function ctaLadder(goal: ConversionGoal, ctx: ConversionContext): CtaStep[] {
+export function ctaLadder(goal: ConversionGoal | null, ctx: ConversionContext): CtaStep[] {
+  if (!goal) return [];
   const site = ctx.slug ? `/s/${ctx.slug}` : null;
   const steps: Record<ConversionGoal, CtaStep> = {
     call: {
@@ -124,7 +129,7 @@ export function ctaLadder(goal: ConversionGoal, ctx: ConversionContext): CtaStep
     },
     book: {
       key: "book",
-      label: "Book online",
+      label: "Booking path",
       href: site && ctx.bookableCount > 0 ? `${site}/book` : null,
       available: ctx.bookableCount > 0,
       note:
@@ -134,7 +139,7 @@ export function ctaLadder(goal: ConversionGoal, ctx: ConversionContext): CtaStep
     },
     quote: {
       key: "quote",
-      label: "Get my quote",
+      label: "Quote request",
       href: site && ctx.quoteFormCount > 0 ? `${site}/pricing` : null,
       available: ctx.quoteFormCount > 0,
       note:
@@ -144,7 +149,7 @@ export function ctaLadder(goal: ConversionGoal, ctx: ConversionContext): CtaStep
     },
     buy: {
       key: "buy",
-      label: "Buy now",
+      label: "Online purchase",
       href: ctx.paymentsEnabled && site ? `${site}/pricing` : null,
       available: ctx.paymentsEnabled,
       note: ctx.paymentsEnabled
@@ -153,7 +158,7 @@ export function ctaLadder(goal: ConversionGoal, ctx: ConversionContext): CtaStep
     },
     lead: {
       key: "lead",
-      label: "Send a message",
+      label: "Contact form",
       href: site ? `${site}/contact` : null,
       available: !!site,
       note: ctx.email
@@ -214,12 +219,13 @@ export type ConversionGap = {
  * visible section kinds across the site, `faqQuestions` the FAQ copy in place.
  */
 export function conversionGaps(
-  goal: ConversionGoal,
+  goal: ConversionGoal | null,
   ctx: ConversionContext,
   sectionKinds: string[],
   faqQuestions: string[],
 ): ConversionGap[] {
   const gaps: ConversionGap[] = [];
+  if (!goal) return gaps;
   const ladder = ctaLadder(goal, ctx);
   const primary = ladder[0]!;
 

@@ -139,9 +139,9 @@ export type AiDesignContract = {
     /** Slot names the design needs filled, in priority order. */
     slots: string[];
   };
-  motion: { pattern: string; intensity: "none" | "subtle" | "expressive" };
+  motion: { pattern: string; intensity: string };
   accessibility: { minContrast: number; minTouchTargetPx: number; reducedMotionSafe: boolean };
-  conversion: { goal: string; steps: string[] };
+  conversion: { goal: string | null; steps: string[] };
   qualityMatrix: import("@/lib/builder/creative-quality-matrix").CreativeQualityMatrix;
   /** Each page composes itself. Different structures are expected, not a bug. */
   pages: PageDesign[];

@@ -29,7 +29,7 @@ describe("browser-style content intelligence", () => {
     expect(report.score).toBeLessThan(100);
   });
 
-  it("flags shallow interior pages without a deliberate opening or action", () => {
+  it("does not score the AI's section count or page anatomy as a defect", () => {
     const context = {
       pages: [{
         id: "about", slug: "about", title: "About", seo_title: "About us", seo_description: "Our story.",
@@ -38,7 +38,7 @@ describe("browser-style content intelligence", () => {
       }],
     } as unknown as AgentContext;
     const report = runBrowserStyleQa(context);
-    expect(report.findings.some((finding) => finding.kind === "richness")).toBe(true);
-    expect(report.findings.some((finding) => finding.kind === "cta")).toBe(true);
+    expect(report.findings.some((finding) => finding.message.includes("fewer than two"))).toBe(false);
+    expect(report.findings.some((finding) => finding.message.includes("section anatomy"))).toBe(false);
   });
 });

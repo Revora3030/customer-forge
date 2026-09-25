@@ -60,7 +60,7 @@ export function NewClientDialog({
     google_business: "",
     review_link: "",
     desired_domain: "",
-    conversion_goal: "quotes",
+    conversion_goal: "",
     support_email: "",
   });
   const [hours, setHours] = useState<Record<string, string>>({
@@ -215,6 +215,7 @@ export function NewClientDialog({
                   value={form.conversion_goal}
                   onChange={(e) => set("conversion_goal")(e.target.value)}
                 >
+                  <option value="">No saved goal yet</option>
                   {CONVERSION_GOALS.map((g) => (
                     <option key={g.value} value={g.value}>
                       {g.label}

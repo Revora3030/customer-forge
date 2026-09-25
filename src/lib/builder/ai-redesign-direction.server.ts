@@ -12,8 +12,7 @@
  * choice: a look the owner previously turned down is never re-applied, and copy,
  * prices, claims and business facts are never touched here.
  */
-import type { DesignFingerprint } from "@/lib/builder/design-fingerprint";
-type MotionIntensity = DesignFingerprint["motionLevel"];
+import type { AiDesignRecord } from "@/lib/builder/ai-design-record";
 import { callBestThinker } from "@/lib/ai/hall-of-fame.server";
 
 /** Identity fields the design team may rewrite in a site-wide redesign. */
@@ -49,14 +48,11 @@ export type AuthoredRedesign = {
   label: string;
   /** One line the owner reads about what changed. */
   describe: string;
-  next: DesignFingerprint;
+  next: AiDesignRecord;
   changes: RedesignChange[];
   blocked: string[];
   model: string | null;
 };
-
-const DENSITIES = new Set(["compact", "balanced", "airy"]);
-const MOTIONS = new Set(["none", "subtle", "expressive"]);
 
 const SYSTEM = [
   "You are the sole creative authority for an existing business website.",
@@ -101,12 +97,12 @@ function readJson(text: string): Record<string, unknown> | null {
 export async function authorSiteWideRedesign(input: {
   organizationId: string;
   instruction: string;
-  fingerprint: DesignFingerprint;
+  designRecord: AiDesignRecord;
   industry?: string | null;
   signal?: AbortSignal;
 }): Promise<AuthoredRedesign> {
   const current = Object.fromEntries(
-    REDESIGNABLE_FIELDS.map((field) => [field, String(input.fingerprint[field] ?? "")]),
+    REDESIGNABLE_FIELDS.map((field) => [field, String(input.designRecord[field] ?? "")]),
   );
 
   const outcome = await callBestThinker({
@@ -121,21 +117,21 @@ export async function authorSiteWideRedesign(input: {
       JSON.stringify(
         {
           ...current,
-          density: input.fingerprint.density,
-          motionLevel: input.fingerprint.motionLevel,
+          density: input.designRecord.density,
+          motionLevel: input.designRecord.motionLevel,
         },
         null,
         2,
       ),
-      input.fingerprint.rejected?.length
-        ? `The owner has already turned these down — do not use them: ${input.fingerprint.rejected.join(", ")}`
+      input.designRecord.rejected?.length
+        ? `The owner has already turned these down — do not use them: ${input.designRecord.rejected.join(", ")}`
         : null,
       "",
       'Reply as: { "label": "short name for the new look", "describe": "one sentence for the owner", "identity": { ...only the fields you are changing... } }',
       "Inside identity you may set any of these fields: " +
         REDESIGNABLE_FIELDS.join(", ") +
-        ', plus "density" (compact, balanced or airy) and "motionLevel" (none, subtle or expressive).',
-      "Field values are lowercase words joined by hyphens, e.g. \"serif-display\", \"paper-ink\", \"asymmetric-split\". Invent the ones you need.",
+        ', plus "density" and "motionLevel".',
+      "Field values are lowercase words joined by hyphens, e.g. \"serif-display\", \"paper-ink\", \"asymmetric-split\", \"kinetic-scroll\". Invent the ones you need.",
     ]
       .filter((entry) => entry !== null)
       .join("\n"),
@@ -163,8 +159,8 @@ export async function authorSiteWideRedesign(input: {
     );
   }
 
-  const rejected = new Set(input.fingerprint.rejected ?? []);
-  const next: DesignFingerprint = { ...input.fingerprint };
+  const rejected = new Set(input.designRecord.rejected ?? []);
+  const next: AiDesignRecord = { ...input.designRecord };
   const changes: RedesignChange[] = [];
   const blocked: string[] = [];
 
@@ -182,17 +178,13 @@ export async function authorSiteWideRedesign(input: {
     if (!(field in identity)) continue;
     const value = token(identity[field]);
     if (!value) continue;
-    record(field, String(input.fingerprint[field] ?? ""), value);
+    record(field, String(input.designRecord[field] ?? ""), value);
   }
 
   const density = token(identity["density"]);
-  if (density && DENSITIES.has(density)) {
-    record("density", input.fingerprint.density, density);
-  }
+  if (density) record("density", input.designRecord.density, density);
   const motion = token(identity["motionLevel"]);
-  if (motion && MOTIONS.has(motion)) {
-    record("motionLevel", input.fingerprint.motionLevel, motion as MotionIntensity);
-  }
+  if (motion) record("motionLevel", input.designRecord.motionLevel, motion);
 
   next.updatedAt = new Date().toISOString();
 

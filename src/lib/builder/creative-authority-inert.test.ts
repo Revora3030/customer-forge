@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { blankDesignFingerprint } from "@/lib/builder/design-fingerprint";
+import { blankAiDesignRecord } from "@/lib/builder/ai-design-record";
 
 const src = readFileSync("src/lib/builder/creative-authority.ts", "utf8");
 
@@ -14,9 +14,9 @@ describe("design compiler makes no creative choices", () => {
     expect(src).toContain('includes?.includes("primary_action")');
   });
   it("the blank design record carries no layout opinion", () => {
-    const fp = blankDesignFingerprint();
+    const fp = blankAiDesignRecord();
     for (const key of ["heroComposition", "navSystem", "ctaSystem", "cardSystem", "pageShell", "imageTreatment"] as const)
-      expect(fp[key]).toBe("unspecified");
+      expect(fp[key]).toBe("");
   });
 });
 

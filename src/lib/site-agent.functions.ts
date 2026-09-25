@@ -11,7 +11,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { writeComposition, type CompositionNode, type CompositionTree } from "@/lib/builder/composition-tree";
 import { writeBackdrop, writeBackdropSpec, writeSectionEffect } from "@/lib/site-effects";
-import { writeBlockStyle, writeComponentVisual, writeSectionVisual } from "@/lib/site-style";
+import { writeBlockStyle, writeComponentVisual } from "@/lib/site-style";
 import { writeCustomBlock } from "@/lib/builder/custom-block";
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
@@ -445,13 +445,13 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
     // recalled, so unrelated edits stay consistent. No identity is ever
     // derived from the business here: a plain placeholder must never steer
     // the AI toward a fixed look.
-    const { fingerprintBrief, readDesignFingerprint } = await import("@/lib/builder/design-fingerprint");
+    const { aiDesignRecordBrief, hasAuthoredAiDesignRecord, readAiDesignRecord } = await import("@/lib/builder/ai-design-record");
     const storedGeneration = ((settingsRow.data as { generation?: unknown } | null)?.generation ??
       {}) as Record<string, unknown>;
     noteStage(orgId, runId, "recalling your design identity");
-    const priorFingerprint = readDesignFingerprint(storedGeneration);
-    if (priorFingerprint && priorFingerprint.family !== "neutral") {
-      data.history = [{ role: "user" as const, content: fingerprintBrief(priorFingerprint) }, ...data.history];
+    const priorDesignRecord = readAiDesignRecord(storedGeneration);
+    if (hasAuthoredAiDesignRecord(priorDesignRecord)) {
+      data.history = [{ role: "user" as const, content: aiDesignRecordBrief(priorDesignRecord) }, ...data.history];
     }
 
     const memoryChanged = nextMemory !== priorMemory;
@@ -1018,29 +1018,7 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
               .eq("organization_id", orgId),
           );
           break;
-        case "set_section_variant":
-          await run(action.type, () =>
-            supabase
-              .from("website_sections")
-              .update({ variant: action.variant })
-              .eq("id", action.sectionId)
-              .eq("organization_id", orgId),
-          );
-          break;
-        case "set_section_visual":
-          await run(action.type, () => {
-            const settings = writeSectionVisual(
-              readColumn("website_sections", action.sectionId, "settings"),
-              action.patch,
-            );
-            noteColumn("website_sections", action.sectionId, "settings", settings);
-            return supabase
-              .from("website_sections")
-              .update({ settings } as never)
-              .eq("id", action.sectionId)
-              .eq("organization_id", orgId);
-          });
-          break;
+
         case "set_block_style": {
           const table = action.target === "section" ? "website_sections" : "website_components";
           await run(action.type, () => {

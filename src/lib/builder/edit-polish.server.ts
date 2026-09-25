@@ -1,8 +1,8 @@
 /**
  * EDIT POLISH — every chat edit that lays out a section gets a light team
  * review (truthfulness, SEO, accessibility, phone layout). Sol revises from
- * the notes and Terra keeps whichever version scores better. The owner's
- * requested change always happens; the team only decides how well it's done.
+ * the notes and Terra keeps only revisions that improve objective readiness.
+ * The owner's requested change always happens; taste is left to Sol.
  * Any failure returns Sol's original proposal untouched.
  */
 import { callBestThinker } from "@/lib/ai/hall-of-fame.server";

@@ -217,55 +217,46 @@ export const COMPONENT_LIBRARY: {
     kind: "button",
     label: "Button",
     help: "Sends visitors to a page, a phone call or your quote form.",
-    defaults: { label: "Get a quote", link_url: "#quote" },
   },
   {
     kind: "custom",
     label: "Text block",
     help: "A short titled paragraph you write yourself.",
-    defaults: { label: "New heading", body: "Say something useful here." },
   },
   {
     kind: "service_card",
     label: "Service card",
     help: "One service with its own description and link.",
-    defaults: { label: "New service", body: "What this service includes." },
   },
   {
     kind: "benefit",
     label: "Reason to choose you",
     help: "One short reason customers pick you.",
-    defaults: { label: "Why us", body: "Something you genuinely offer." },
   },
   {
     kind: "step",
     label: "Process step",
     help: "One step in how you work.",
-    defaults: { label: "Step", body: "What happens at this stage." },
   },
   {
     kind: "faq_item",
     label: "Question & answer",
     help: "Answers a question before someone calls.",
-    defaults: { label: "A common question", body: "Your answer." },
   },
   {
     kind: "price_row",
     label: "Price row",
     help: "A named starting price.",
-    defaults: { label: "Service", body: "From $0" },
   },
   {
     kind: "trust_item",
     label: "Trust point",
     help: "Licensed, insured, years in business.",
-    defaults: { label: "Fully insured" },
   },
   {
     kind: "gallery",
     label: "Image",
     help: "A photo of your work, with alt text.",
-    defaults: { label: "Photo" },
   },
 ];
 
@@ -339,21 +330,21 @@ export function visualEditSuggestions(
   if (component) {
     switch (elementKindOf(component)) {
       case "button":
-        return ["Make this CTA stand out", "Improve this button copy", "Make this button feel more premium"];
+        return ["Ask AI to improve this button", "Ask AI to rewrite this button", "Ask AI to restyle this button"];
       case "image":
-        return ["Improve this image presentation", "Make this image fit the section better", "Improve this image alt text"];
+        return ["Ask AI to improve this image", "Ask AI to fit this image better", "Ask AI to improve this alt text"];
       case "review":
-        return ["Make this testimonial easier to trust", "Improve the review layout", "Make this review feel more premium"];
+        return ["Ask AI to improve this review", "Ask AI to adjust this review layout", "Ask AI to refine this review"];
       case "faq":
-        return ["Make this answer clearer", "Improve the FAQ presentation", "Make this question easier to scan"];
+        return ["Ask AI to improve this answer", "Ask AI to adjust this FAQ", "Ask AI to refine this question"];
       default:
-        return ["Make this more premium", "Improve this content hierarchy", "Make this easier to scan"];
+        return ["Ask AI to improve this item", "Ask AI to adjust this item", "Ask AI to refine this item"];
     }
   }
   if (section) {
-    return ["Make this section more premium", "Improve this section hierarchy", "Make this section convert better"];
+    return ["Ask AI to improve this section", "Ask AI to adjust this section", "Ask AI to refine this section"];
   }
-  return ["Make this page more polished", "Improve this page hierarchy", "Make this page easier to scan"];
+  return ["Ask AI to improve this page", "Ask AI to adjust this page", "Ask AI to refine this page"];
 }
 
 export function aiInstruction(

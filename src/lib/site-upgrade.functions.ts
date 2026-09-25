@@ -154,7 +154,7 @@ async function saveRestorePoint(
  */
 export type SiteUpgradeUndo = {
   effects: { sectionId: string; effect: string }[];
-  fingerprint: Record<string, string> | null;
+  designRecord: Record<string, string> | null;
 };
 
 
@@ -186,8 +186,8 @@ export const applySiteWideRedesign = createServerFn({ method: "POST" })
     const supabase = context.supabase as unknown as SupabaseLike;
     await requireManager(supabase, data.organizationId, context.userId);
 
-    const { blankDesignFingerprint, readDesignFingerprint, writeDesignFingerprint } = await import(
-      "@/lib/builder/design-fingerprint"
+    const { blankAiDesignRecord, readAiDesignRecord, writeAiDesignRecord } = await import(
+      "@/lib/builder/ai-design-record"
     );
     const [{ data: settings }, { data: profile }] = await Promise.all([
       supabase.from("website_settings").select("generation").eq("organization_id", data.organizationId).maybeSingle(),
@@ -201,7 +201,7 @@ export const applySiteWideRedesign = createServerFn({ method: "POST" })
     const industry = (profile as { industry?: string | null } | null)?.industry ?? null;
     // No invented starting look: the AI's saved record, or a blank one the AI
     // fills in completely.
-    const fingerprint = readDesignFingerprint(generation) ?? blankDesignFingerprint();
+    const designRecord = readAiDesignRecord(generation) ?? blankAiDesignRecord();
 
     // The design team reads the owner's sentence and writes the new identity
     // itself. Any wording works: nothing is matched against a keyword list and
@@ -209,7 +209,7 @@ export const applySiteWideRedesign = createServerFn({ method: "POST" })
     const authored = await authorSiteWideRedesign({
       organizationId: data.organizationId,
       instruction: data.instruction,
-      fingerprint,
+      designRecord,
       industry,
     });
     const { next, changes, blocked } = authored;
@@ -240,7 +240,7 @@ export const applySiteWideRedesign = createServerFn({ method: "POST" })
     const saved = await supabase
       .from("website_settings")
       .upsert(
-        { organization_id: data.organizationId, generation: writeDesignFingerprint(generation, next) } as never,
+        { organization_id: data.organizationId, generation: writeAiDesignRecord(generation, next) } as never,
         { onConflict: "organization_id" },
       );
     if (saved.error) throw new Error("Revora couldn't save the new look. Nothing was changed.");
@@ -260,7 +260,7 @@ export const applySiteWideRedesign = createServerFn({ method: "POST" })
       restorePointId,
       undo: {
         effects: assignments.map((entry) => ({ sectionId: entry.sectionId, effect: entry.from })),
-        fingerprint: Object.fromEntries(changes.map((change) => [change.field, change.from])),
+        designRecord: Object.fromEntries(changes.map((change) => [change.field, change.from])),
       },
     };
   });
@@ -467,8 +467,8 @@ export const applyVisionRepairs = createServerFn({ method: "POST" })
       sections,
     );
 
-    const { blankDesignFingerprint, readDesignFingerprint, writeDesignFingerprint } = await import(
-      "@/lib/builder/design-fingerprint"
+    const { blankAiDesignRecord, readAiDesignRecord, writeAiDesignRecord } = await import(
+      "@/lib/builder/ai-design-record"
     );
     const { data: settings } = await supabase
       .from("website_settings")
@@ -476,10 +476,10 @@ export const applyVisionRepairs = createServerFn({ method: "POST" })
       .eq("organization_id", data.organizationId)
       .maybeSingle();
     const generation = (settings as { generation?: unknown } | null)?.generation ?? null;
-    let fingerprint =
-      readDesignFingerprint(generation) ??
-      blankDesignFingerprint();
-    let fingerprintChanged = false;
+    let designRecord =
+      readAiDesignRecord(generation) ??
+      blankAiDesignRecord();
+    let designRecordChanged = false;
 
     const applied: string[] = [];
 
@@ -497,11 +497,11 @@ export const applyVisionRepairs = createServerFn({ method: "POST" })
           break;
         }
         case "set_image_overlay": {
-          fingerprint = {
-            ...fingerprint,
-            artDirection: { ...fingerprint.artDirection, overlay: repair.overlay },
+          designRecord = {
+            ...designRecord,
+            artDirection: { ...designRecord.artDirection, overlay: repair.overlay },
           };
-          fingerprintChanged = true;
+          designRecordChanged = true;
           applied.push("Darker shading behind text sitting on photos");
           break;
         }
@@ -531,11 +531,11 @@ export const applyVisionRepairs = createServerFn({ method: "POST" })
       }
     }
 
-    if (fingerprintChanged) {
+    if (designRecordChanged) {
       await supabase
         .from("website_settings")
         .upsert(
-          { organization_id: data.organizationId, generation: writeDesignFingerprint(generation, fingerprint) } as never,
+          { organization_id: data.organizationId, generation: writeAiDesignRecord(generation, designRecord) } as never,
           { onConflict: "organization_id" },
         );
     }
@@ -564,15 +564,15 @@ export const undoSiteUpgrade = createServerFn({ method: "POST" })
   .inputValidator((input: { organizationId: string; undo: SiteUpgradeUndo }) => {
     if (!input?.organizationId) throw new Error("organizationId is required");
     const effects = Array.isArray(input.undo?.effects) ? input.undo.effects.slice(0, 400) : [];
-    const fingerprint =
-      input.undo?.fingerprint && typeof input.undo.fingerprint === "object"
+    const designRecord =
+      input.undo?.designRecord && typeof input.undo.designRecord === "object"
         ? Object.fromEntries(
-            Object.entries(input.undo.fingerprint)
+            Object.entries(input.undo.designRecord)
               .filter(([key, value]) => typeof key === "string" && typeof value === "string")
               .slice(0, 20),
           )
         : null;
-    return { organizationId: input.organizationId, undo: { effects, fingerprint } };
+    return { organizationId: input.organizationId, undo: { effects, designRecord } };
   })
   .handler(async ({ data, context }): Promise<{ ok: boolean; reverted: number; summary: string }> => {
     const supabase = context.supabase as unknown as SupabaseLike;
@@ -599,9 +599,9 @@ export const undoSiteUpgrade = createServerFn({ method: "POST" })
       if (!error) reverted += 1;
     }
 
-    if (data.undo.fingerprint && Object.keys(data.undo.fingerprint).length > 0) {
-      const { blankDesignFingerprint, readDesignFingerprint, writeDesignFingerprint } = await import(
-        "@/lib/builder/design-fingerprint"
+    if (data.undo.designRecord && Object.keys(data.undo.designRecord).length > 0) {
+      const { blankAiDesignRecord, readAiDesignRecord, writeAiDesignRecord } = await import(
+        "@/lib/builder/ai-design-record"
       );
       const { data: settings } = await supabase
         .from("website_settings")
@@ -610,10 +610,10 @@ export const undoSiteUpgrade = createServerFn({ method: "POST" })
         .maybeSingle();
       const generation = (settings as { generation?: unknown } | null)?.generation ?? null;
       const current =
-        readDesignFingerprint(generation) ??
-        blankDesignFingerprint();
+        readAiDesignRecord(generation) ??
+        blankAiDesignRecord();
       const next = { ...current } as unknown as Record<string, unknown>;
-      for (const [field, value] of Object.entries(data.undo.fingerprint)) {
+      for (const [field, value] of Object.entries(data.undo.designRecord)) {
         if (field in (current as unknown as Record<string, unknown>)) next[field] = value;
       }
       await supabase
@@ -621,11 +621,11 @@ export const undoSiteUpgrade = createServerFn({ method: "POST" })
         .upsert(
           {
             organization_id: data.organizationId,
-            generation: writeDesignFingerprint(generation, next as never),
+            generation: writeAiDesignRecord(generation, next as never),
           } as never,
           { onConflict: "organization_id" },
         );
-      reverted += Object.keys(data.undo.fingerprint).length;
+      reverted += Object.keys(data.undo.designRecord).length;
     }
 
     return {

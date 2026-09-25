@@ -5,11 +5,10 @@
  * the finished thing should LOOK and how it should sell — the way a senior
  * designer writes a direction before touching a layout.
  *
- * The output is a short, opinionated direction: the one conversion goal, a
- * layout archetype, a typographic and colour temperament, the section order
- * that tells the story, and a list of things this particular site must not look
- * like. It is injected into the planning brief, so the planner is never left to
- * fall back on a generic template arrangement.
+ * The output is a short, opinionated direction: the conversion intent, the
+ * AI's own layout intent, type and colour intent, story flow, motion intent and
+ * any fact/safety constraints. It is injected into the planning brief so the
+ * planner follows the AI's own creative decision instead of a stock recipe.
  *
  * A model writes the direction. When no model is usable, this stage returns no
  * creative direction; callers may stop or continue only with owner-supplied intent.
@@ -21,7 +20,7 @@ import type { ModelRole } from "@/lib/ai/config";
 export type DesignDirection = {
   /** The single action the site is built to produce. */
   goal: string;
-  /** Layout archetype, e.g. "editorial split with a full-bleed proof band". */
+  /** Layout intent in the model's own words. */
   layout: string;
   /** Typographic temperament in words the planner can act on. */
   typography: string;
@@ -31,7 +30,7 @@ export type DesignDirection = {
   story: string[];
   /** Motion intent — always restrained, always purposeful. */
   motion: string;
-  /** What this site must NOT become. Anti-generic guardrails. */
+  /** Fact, safety or owner-specific constraints. Not style preferences. */
   avoid: string[];
   source: "model" | "fallback";
 };
@@ -47,20 +46,18 @@ effect, and you never ask them to.
 Return JSON only:
 {
   "goal": "the ONE action this site exists to produce (a call, a booking, a quote request, a purchase, a signup) and why that is the right one for this business",
-  "layout": "one distinctive layout archetype in a sentence — editorial, asymmetric, bento, full-bleed, split, dense command-centre — chosen for THIS industry and audience",
+  "layout": "the layout intent in your own words, specific to this business and audience",
   "typography": "the typographic temperament and how headings differ from body",
   "palette": "the colour temperament and the role each colour plays (surface, ink, accent, proof)",
   "story": ["4-8 sections in order, each named by its job, e.g. 'hero: the outcome, not the trade'"],
   "motion": "restrained motion intent that survives reduced-motion",
-  "avoid": ["3-6 specific things this site must not look like"]
+  "avoid": ["fact, safety or owner-specific constraints only; do not list aesthetic dislikes unless the owner supplied them"]
 }
 
 Rules:
 - Commit to one direction. Never offer options, never hedge.
 - Fit the industry, the audience, the offer and the price point. A roofer, a dentist and a
   wedding photographer must not receive the same direction.
-- Never propose purple-on-white SaaS gradients, stacked identical cards, glassmorphism
-  everywhere, hero-features-testimonials-footer boilerplate, or motion with no meaning.
 - Never rely on facts nobody gave you: no awards, ratings, review counts or guarantees.
 - Mobile is a designed layout of its own, not a squeezed desktop one. Say what changes.`;
 
@@ -148,18 +145,19 @@ export async function designDirection(
 
 /** The design direction as planner-facing instructions. */
 export function designBrief(direction: DesignDirection) {
-  return [
-    "THE DESIGN DIRECTION FOR THIS SITE — follow it, do not re-decide it:",
-    `- One conversion goal: ${direction.goal}`,
-    `- Layout: ${direction.layout}`,
-    `- Typography: ${direction.typography}`,
-    `- Colour: ${direction.palette}`,
-    `- Motion: ${direction.motion}`,
-    "- Section story, in this order:",
+  const lines = [
+    "THE AI-AUTHORED DESIGN DIRECTION FOR THIS SITE — follow it, do not replace it with a template:",
+    direction.goal ? `- Conversion intent: ${direction.goal}` : null,
+    direction.layout ? `- Layout intent: ${direction.layout}` : null,
+    direction.typography ? `- Typography intent: ${direction.typography}` : null,
+    direction.palette ? `- Colour intent: ${direction.palette}` : null,
+    direction.motion ? `- Motion intent: ${direction.motion}` : null,
+    direction.story.length ? "- Section story, in this order:" : null,
     ...direction.story.map((step, index) => `  ${index + 1}. ${step}`),
-    "- This site must NOT look like:",
+    direction.avoid.length ? "- Fact, safety or owner-specific constraints:" : null,
     ...direction.avoid.map((item) => `  - ${item}`),
     "Write real copy for every section you add — never a placeholder, never a label.",
     "Mobile is a designed layout: keep the conversion action reachable with a thumb and never rely on hover alone.",
-  ].join("\n");
+  ];
+  return lines.filter(Boolean).join("\n");
 }

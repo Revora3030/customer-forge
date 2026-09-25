@@ -4,16 +4,11 @@
  * anything else the builder laid out. Each one carries its own metadata and its
  * own lead-capture blocks.
  */
-import { SitePageLink } from "@/components/site/site-links";
-import { createFileRoute, Link, notFound } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { createFileRoute, notFound } from "@tanstack/react-router";
+import { useEffect } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { Menu, Phone, X } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { SiteSection, StickyCallBar } from "@/components/site/SiteSections";
 import { PreviewSelectBridge } from "@/components/site/PreviewSelectBridge";
-import { businessFacts } from "@/lib/builder/facts";
-import { safeText } from "@/lib/builder/presentation";
 import { SiteBackdrop } from "@/components/site/SiteBackdrop";
 import { siteFontHref, siteFontStyle, siteThemeStyle } from "@/lib/site-theme";
 import { readComposition } from "@/lib/visual-composition";
@@ -25,11 +20,10 @@ import { styleSheet } from "@/lib/site-style";
 import { readSeo } from "@/lib/site-seo";
 import { readCopy } from "@/lib/site-engine";
 import { canonicalSiteUrl } from "@/lib/revora-address";
-import { SiteFooter } from "@/components/site/SiteFooter";
 import { CompositionRenderer } from "@/components/site/CompositionRenderer";
-import { useOwnAddress } from "@/components/site/site-links";
 import { readSiteChrome, resolveSiteHref } from "@/lib/builder/site-chrome";
 import { AiSiteHeader } from "@/components/site/AiSiteHeader";
+import { useOwnAddress } from "@/components/site/site-links";
 
 export const Route = createFileRoute("/s/$slug/$page")({
   loader: async ({ params }) => {
@@ -50,7 +44,7 @@ export const Route = createFileRoute("/s/$slug/$page")({
     const description = (
       page.seo_description ||
       loaderData.profile?.tagline ||
-      `${page.title} from ${name}. See what's included and get a price.`
+      `${page.title} from ${name}.`
     ).slice(0, 158);
     const url =
       canonicalSiteUrl(loaderData.settings, params.slug, params.page, page.seo_canonical) ??
@@ -122,11 +116,8 @@ export function SitePageView({
   const { org, profile, settings } = site;
   const seo = readSeo(settings?.seo);
   const copy = readCopy((settings?.generation as { copy?: unknown } | null)?.copy);
-  const ctaLabel =
-    copy?.primaryCta || seo.primary_cta_label || (site.quote ? "Get my price" : "Book now");
+  const ctaLabel = copy?.primaryCta || seo.primary_cta_label || "";
   const page = site.content!.page;
-  // Validated business details — an unusable phone number never becomes a link.
-  const facts = businessFacts(profile as Record<string, unknown> | null, org.name);
   const ownAddress = useOwnAddress();
   const chrome = readSiteChrome(site.settings?.generation ?? null);
   const chromeHref = (href: string) => resolveSiteHref(href, org.slug, ownAddress);
@@ -167,38 +158,7 @@ export function SitePageView({
             than inheriting whatever colour the section below it chose. */}
         {chrome.header ? (
           <AiSiteHeader tree={chrome.header} name={org.name} homeHref={chromeHref("/")} resolveHref={chromeHref} />
-        ) : (
-        <header className="rv-site-header sticky top-0 z-40 border-b border-border bg-background text-foreground">
-          <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3.5">
-            <SitePageLink slug={org.slug} className="inline-flex min-h-11 min-w-0 max-w-40 items-center sm:max-w-none">
-              <p className="break-words font-display text-[16px] leading-tight font-semibold">{org.name}</p>
-              {facts.city ? (
-                <p className="text-[11px] text-muted-foreground">{facts.city}</p>
-              ) : null}
-            </SitePageLink>
-            <div className="flex items-center gap-2">
-              {facts.phoneHref ? (
-                <Button asChild variant="outline" size="sm">
-                  <a
-                    href={facts.phoneHref}
-                    onClick={() =>
-                      void track({ data: { slug: org.slug, eventType: "call_click" } }).catch(
-                        () => undefined,
-                      )
-                    }
-                  >
-                    <Phone className="size-4" /> Call
-                  </a>
-                </Button>
-              ) : null}
-              <Button asChild variant="signal" size="sm">
-                <SitePageLink slug={org.slug} page={site.quote ? "#quote" : site.nav.some((item) => item.slug === "book") ? "book" : "contact"}>{ctaLabel}</SitePageLink>
-              </Button>
-            </div>
-          </div>
-          <SiteNav site={site} current={page.slug} />
-        </header>
-        )}
+        ) : null}
 
         {/* Tablet and phone overrides the client set in the visual builder. */}
         <ResponsiveStyles
@@ -216,9 +176,7 @@ export function SitePageView({
           <footer className="rv-site-footer rv-ai-footer">
             <CompositionRenderer as="div" scope="site-footer" tree={chrome.footer} resolveHref={chromeHref} />
           </footer>
-        ) : (
-          <SiteFooter site={site} />
-        )}
+        ) : null}
 
         <StickyCallBar site={site} label={ctaLabel} />
         <SiteVitals slug={org.slug} preview={preview} />
@@ -228,77 +186,6 @@ export function SitePageView({
         {preview ? <BuilderReturnBar /> : null}
       </div>
     </div>
-  );
-}
-
-/**
- * Site navigation, generated from the pages that actually exist.
- *
- * Phones get a real menu button and an expanding panel — the old horizontal
- * strip clipped page names off the side of the screen. Desktop keeps the
- * inline row. Menu items with no readable name are dropped, and duplicates are
- * removed, so a visitor never sees a blank or repeated link.
- */
-export function SiteNav({ site, current }: { site: NonNullable<PublicSite>; current?: string }) {
-  const [open, setOpen] = useState(false);
-  const seen = new Set<string>();
-  const pages = (site.nav ?? [])
-    // Articles are browsed from the articles hub, not the top menu.
-    .filter((p) => p.kind !== "thanks" && p.kind !== "post" && p.slug !== "home")
-    .map((p) => ({ slug: p.slug, title: safeText(p.title) }))
-    .filter((p): p is { slug: string; title: string } => {
-      if (!p.title || !p.slug || seen.has(p.slug)) return false;
-      seen.add(p.slug);
-      return true;
-    });
-  if (!pages.length) return null;
-
-  const itemClass = (active: boolean) =>
-    `block rounded-md px-2 py-2.5 hover:text-foreground md:px-0 md:py-0 ${
-      active ? "text-foreground" : "text-muted-foreground"
-    }`;
-
-  return (
-    <nav aria-label="Site pages" className="border-t border-border">
-      <div className="mx-auto max-w-6xl px-4">
-        <button
-          type="button"
-          aria-expanded={open}
-          aria-controls="site-nav-pages"
-          onClick={() => setOpen((value) => !value)}
-          className="flex min-h-11 w-full items-center justify-between gap-2 text-[13px] font-medium md:hidden"
-        >
-          <span>Menu</span>
-          {open ? (
-            <X className="size-4" aria-hidden="true" />
-          ) : (
-            <Menu className="size-4" aria-hidden="true" />
-          )}
-        </button>
-        <ul
-          id="site-nav-pages"
-          className={`${open ? "block" : "hidden"} pb-2 text-[13px] md:flex md:max-w-full md:flex-wrap md:gap-4 md:py-2.5 md:pb-2.5 md:text-[13px]`}
-        >
-          <li>
-            <SitePageLink slug={site.org.slug} className={itemClass(!current)}>
-              Home
-            </SitePageLink>
-          </li>
-          {pages.map((p) => (
-            <li key={p.slug}>
-              <SitePageLink
-                slug={site.org.slug}
-                page={p.slug}
-                aria-current={current === p.slug ? "page" : undefined}
-                className={itemClass(current === p.slug)}
-              >
-                {p.title}
-              </SitePageLink>
-            </li>
-          ))}
-        </ul>
-      </div>
-    </nav>
   );
 }
 

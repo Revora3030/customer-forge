@@ -51,7 +51,7 @@ export type UpgradeProposal = {
 };
 
 export type ProposalContext = {
-  goal: ConversionGoal;
+  goal: ConversionGoal | null;
   /** Drafted copy Revora can safely promote into blank fields. */
   copyHeadline: string | null;
   copyMetaDescription: string | null;
@@ -124,7 +124,9 @@ export function proposeUpgrades(issues: AuditIssue[], ctx: ProposalContext): Upg
       id: "apply_cta",
       kind: "apply_cta",
       title: "Set one primary action for every page",
-      why: `Your goal is ${ctx.goal}. One repeated button converts better than several competing links.`,
+      why: ctx.goal
+        ? `Your saved goal is ${ctx.goal}. One repeated button converts better than several competing links.`
+        : "Use the AI-written button consistently; choose a primary conversion goal before goal-specific tuning.",
       impact: 6,
       changes: [{ label: "Primary button", before: "(none)", after: ctx.copyPrimaryCta! }],
       applyable: true,

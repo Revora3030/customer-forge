@@ -3,6 +3,7 @@ import path from "node:path";
 
 const root = process.cwd();
 const ignored = new Set([".git", "node_modules", "dist", ".output", ".vinxi"]);
+const ignoredFiles = new Set([".env", ".env.local", ".env.development", ".env.production"]);
 const textExtensions = new Set([
   ".ts", ".tsx", ".js", ".mjs", ".cjs", ".json", ".css", ".md", ".sql",
   ".yml", ".yaml", ".toml", ".txt", ".html", ".xml", ".webmanifest",
@@ -17,6 +18,7 @@ async function walk(dir) {
     if (ignored.has(entry.name)) continue;
     const full = path.join(dir, entry.name);
     const relative = path.relative(root, full).replaceAll(path.sep, "/");
+    if (ignoredFiles.has(relative)) continue;
     if (entry.isDirectory()) {
       await walk(full);
       continue;

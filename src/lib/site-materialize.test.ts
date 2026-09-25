@@ -16,7 +16,7 @@ const AUTHORED_LOOK = {
   sectionEffects: { hero: "none" },
   defaultEffect: "rise",
 };
-import { blankDesignFingerprint } from "@/lib/builder/design-fingerprint";
+import { blankAiDesignRecord } from "@/lib/builder/ai-design-record";
 
 const input: MaterializeInput = {
   businessName: "Journey Detailing",

@@ -1,7 +1,6 @@
 /** Server-only helpers for platform admin (client creation, domains, support mode). */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { NewClientInput } from "@/lib/admin-types";
-import { seedQuoteCalculator } from "@/lib/quote-seed";
 import { newTrialEndsAt } from "@/lib/trial";
 import { areAddressesPublic, guardedFetch, isFetchableHostname } from "@/lib/net-guard.server";
 import { isRevoraOwnHost, isTrafficDomainHost } from "@/lib/revora-address";
@@ -326,7 +325,7 @@ export async function provisionClient(admin: SupabaseClient, input: NewClientInp
       plan_id: input.plan_id ?? null,
       subscription_status: "trialing",
       trial_ends_at: newTrialEndsAt(),
-      conversion_goal: input.conversion_goal ?? null,
+      conversion_goal: input.conversion_goal?.trim() || null,
       onboarding_step: 4,
       onboarding_completed: true,
       created_by: ownerId,
@@ -418,14 +417,6 @@ export async function provisionClient(admin: SupabaseClient, input: NewClientInp
       })),
     );
   }
-
-  // Every workspace launches with a working quote calculator so the public site's
-  // primary CTA always has a real destination (the owner can edit it afterwards).
-  await seedQuoteCalculator(
-    admin,
-    organizationId,
-    services.map((s) => s.name.trim()),
-  );
 
   await admin.from("subscriptions").insert({
     organization_id: organizationId,

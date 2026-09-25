@@ -1,13 +1,13 @@
 /**
- * IMPROVEMENT GATE — Terra scores the current and proposed versions side by
- * side. The proposal wins only when its total is higher AND it does not lose
- * on any protected area. Anything else keeps the current version, so a
- * revision can never downgrade a site.
+ * IMPROVEMENT GATE — Terra compares current and proposed versions side by side
+ * on objective safeguards only. The proposal wins only when objective readiness
+ * rises and it does not lose on a protected area. Aesthetic preference never
+ * decides the gate.
  */
 import { callBestThinker } from "@/lib/ai/hall-of-fame.server";
 import type { Thinker } from "@/lib/builder/review-panel.server";
 
-export const GATE_AREAS = ["design", "clarity", "conversion", "seo", "accessibility", "mobile", "truthfulness"] as const;
+export const GATE_AREAS = ["clarity", "conversion", "seo", "accessibility", "mobile", "truthfulness"] as const;
 export type GateArea = (typeof GATE_AREAS)[number];
 export const PROTECTED_AREAS: GateArea[] = ["truthfulness", "accessibility", "mobile"];
 
@@ -53,7 +53,7 @@ export async function runImprovementGate(
     organizationId: input.organizationId,
     maxOutputTokens: 900,
     system: [
-      "You are Terra, the senior quality reviewer. Score two versions (A = current, B = proposed) of the same website sections from 0 to 10 on each area:",
+      "You are Terra, the senior quality reviewer. Score two versions (A = current, B = proposed) from 0 to 10 on objective readiness only. Do not score visual taste. Areas:",
       GATE_AREAS.join(", "),
       ". Be strict and consistent; score each version independently on the same rubric.",
       'Respond with JSON only: {"A": {<area>: number}, "B": {<area>: number}}.',

@@ -1,26 +1,26 @@
 import { describe, expect, it } from "vitest";
-import { blankDesignFingerprint } from "@/lib/builder/design-fingerprint";
+import { blankAiDesignRecord } from "@/lib/builder/ai-design-record";
 import type { FirstBuildCreativeDirection } from "@/lib/builder/first-build-contract";
 import {
   applyScreenshotReferenceToCreative,
-  deriveScreenshotReferenceFingerprint,
+  deriveScreenshotReferenceDesignRecord,
   normalizeScreenshotReferenceObservations,
 } from "@/lib/builder/screenshot-reference";
 
-const base = blankDesignFingerprint();
+const base = blankAiDesignRecord();
 
-describe("screenshot reference fingerprint", () => {
+describe("screenshot reference signals", () => {
   it("never patches the saved look — signals only go to the AI", () => {
-    const ref = deriveScreenshotReferenceFingerprint({
+    const ref = deriveScreenshotReferenceDesignRecord({
       observations: { layout: ["split hero", "bento grid"], color: ["dark"] },
       base,
     });
-    expect(ref.fingerprint).toEqual(base);
+    expect(ref.designRecord).toEqual(base);
     expect(ref.signals.layout.length).toBeGreaterThan(0);
   });
 
   it("never preserves copy, brand names, urls or exact colours from the reference", () => {
-    const result = deriveScreenshotReferenceFingerprint({
+    const result = deriveScreenshotReferenceDesignRecord({
       base,
       businessName: "Northline",
       observations: {
@@ -34,10 +34,10 @@ describe("screenshot reference fingerprint", () => {
     expect(result.warnings.length).toBeGreaterThan(0);
   });
 
-  it("falls back to the original fingerprint for malformed input", () => {
-    const result = deriveScreenshotReferenceFingerprint({ base, observations: "not structured" });
+  it("falls back to the original designRecord for malformed input", () => {
+    const result = deriveScreenshotReferenceDesignRecord({ base, observations: "not structured" });
     expect(result.applied).toBe(false);
-    expect(result.fingerprint).toEqual(base);
+    expect(result.designRecord).toEqual(base);
     expect(result.warnings[0]).toMatch(/No structured/);
   });
 
@@ -47,8 +47,8 @@ describe("screenshot reference fingerprint", () => {
       spacing: ["compact dense cards"],
       interactions: ["static no animation"],
     };
-    const a = deriveScreenshotReferenceFingerprint({ base, observations });
-    const b = deriveScreenshotReferenceFingerprint({ base, observations });
+    const a = deriveScreenshotReferenceDesignRecord({ base, observations });
+    const b = deriveScreenshotReferenceDesignRecord({ base, observations });
     expect(a).toEqual(b);
   });
 

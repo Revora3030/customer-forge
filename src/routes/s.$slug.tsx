@@ -1,27 +1,11 @@
 import { createFileRoute, notFound, Outlet, useChildMatches } from "@tanstack/react-router";
-import { useEffect } from "react";
-import { captureAttribution } from "@/lib/attribution";
-import { useServerFn } from "@tanstack/react-start";
-import { Mail, MapPin, Phone, Star } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Pill } from "@/components/app/Bits";
-import { BookingForm, QuoteCalculator } from "@/components/site/SiteForms";
 import { getPublicSite, trackPublicEvent, type PublicSite } from "@/lib/public-site.functions";
-import { currency, dateShort } from "@/lib/format";
 import { readSeo } from "@/lib/site-seo";
 import { readCopy } from "@/lib/site-engine";
 import { canonicalSiteUrl } from "@/lib/revora-address";
-import { SiteNav, SitePageView } from "@/routes/s.$slug.$page";
-import { StickyCallBar } from "@/components/site/SiteSections";
-import { SiteVitals } from "@/components/site/SiteVitals";
-import { businessFacts } from "@/lib/builder/facts";
+import { SitePageView } from "@/routes/s.$slug.$page";
 import { placeDisplay } from "@/lib/builder/presentation";
-import { safeLinkUrl } from "@/lib/website-content";
-import { SiteBackdrop } from "@/components/site/SiteBackdrop";
 import { siteFontHref, siteFontStyle, siteThemeStyle } from "@/lib/site-theme";
-import { readComposition } from "@/lib/visual-composition";
-import { readBackdrop } from "@/lib/site-effects";
-import { SiteFooter } from "@/components/site/SiteFooter";
 
 export const Route = createFileRoute("/s/$slug")({
   loader: async ({ params }) => {
@@ -51,7 +35,7 @@ export const Route = createFileRoute("/s/$slug")({
       generated?.metaDescription ||
       readSeo(loaderData.settings?.seo).meta_description ||
       loaderData.profile?.tagline ||
-      `Book ${name}${city ? ` in ${city}` : ""} online. See services, prices and reviews.`
+      `${name}${city ? ` in ${city}` : ""}.`
     ).slice(0, 158);
     // Canonical and og:url point at this page itself unless the client set
     // their own canonical address (e.g. after moving to a custom domain).

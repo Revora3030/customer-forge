@@ -86,6 +86,12 @@ describe("AI design contract is the only creative authority", () => {
     expect(validateAiDesignContract(contract()).valid).toBe(true);
   });
 
+  it("allows an unstated conversion goal without inventing one", () => {
+    const result = contract({ conversion: { goal: null, steps: [] } });
+    expect(validateAiDesignContract(result).valid).toBe(true);
+    expect(result.conversion.goal).toBeNull();
+  });
+
   it("rejects any contract that smuggles in a template or preset id", () => {
     const smuggled = contract() as unknown as Record<string, unknown>;
     smuggled["templateId"] = "automotive-dark-3";

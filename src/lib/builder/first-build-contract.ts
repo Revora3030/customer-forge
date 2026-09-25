@@ -12,10 +12,6 @@
  * a brief may never invent, the owner's unknown facts, and the quality bar.
  */
 import { businessDna } from "@/lib/business-dna";
-import {
-  blankDesignFingerprint,
-  type DesignFingerprint,
-} from "@/lib/builder/design-fingerprint";
 import type { PlannedShot } from "@/lib/builder/image-campaign";
 import {
   SITE_WIDE_CREATIVE_QUALITY_MATRIX,
@@ -91,7 +87,6 @@ export type CreativeBrief = {
   /** The AI's own one-line design concept. Empty until it writes one. */
   concept: string;
   personality: string;
-  fingerprintId: string;
   typography: TypographySpec;
   color: ColorSpec;
   heroComposition: string;
@@ -108,7 +103,7 @@ export type CreativeBrief = {
   ctaLanguage: string;
   backgroundTreatment: string;
   shapeLanguage: { radius: string; border: string; shadow: string };
-  motion: { level: DesignFingerprint["motionLevel"]; language: string };
+  motion: { level: string; language: string };
   mobileStrategy: string[];
   conversionStrategy: string[];
   industryConventions: string[];
@@ -157,7 +152,6 @@ export type FirstBuildCreativeDirection = {
     placements: string[];
     stickyMobile: boolean;
   };
-  fingerprint: DesignFingerprint;
   imagery: {
     directionId: string;
     language: string;
@@ -205,17 +199,11 @@ function blankImageBrief(shot: PlannedShot): ImageBriefSpec {
   };
 }
 
-export function blankCreativeBrief(
-  fingerprint: DesignFingerprint,
-  shots: PlannedShot[],
-  primaryCta: string,
-  secondaryCta: string,
-): CreativeBrief {
+export function blankCreativeBrief(shots: PlannedShot[]): CreativeBrief {
   return {
     version: 1,
     concept: "",
     personality: "",
-    fingerprintId: fingerprint.id,
     typography: {
       pairingId: "",
       display: "",
@@ -239,14 +227,14 @@ export function blankCreativeBrief(
     heroComposition: "",
     photography: { language: "", lighting: "", environment: "", treatment: "", subjects: [] },
     sectionRhythm: "",
-    density: fingerprint.density,
+    density: "",
     cardLanguage: "",
     ctaLanguage: "",
     backgroundTreatment: "",
     shapeLanguage: { radius: "", border: "", shadow: "" },
-    motion: { level: fingerprint.motionLevel, language: "" },
+    motion: { level: "", language: "" },
     mobileStrategy: [],
-    conversionStrategy: [`primary action: ${primaryCta}`, `secondary action: ${secondaryCta}`],
+    conversionStrategy: [],
     industryConventions: [],
     imageInventory: shots.map(blankImageBrief),
     qualityMatrix: SITE_WIDE_CREATIVE_QUALITY_MATRIX,
@@ -285,10 +273,6 @@ export function blankFirstBuildDirection(input: FirstBuildCreativeInput): FirstB
     conversionGoal: input.conversionGoal,
     hasHours: input.hasHours,
   });
-  const fingerprint: DesignFingerprint = {
-    ...blankDesignFingerprint(),
-    id: `fp_${slug(input.organizationId).slice(0, 24)}`,
-  };
   // Empty by design. Sol authors the picture campaign after seeing the facts;
   // no built-in slot inventory or image style is supplied as a starting point.
   const shots: PlannedShot[] = [];
@@ -301,16 +285,15 @@ export function blankFirstBuildDirection(input: FirstBuildCreativeInput): FirstB
       trust: [],
       avoid: [...dna.prohibited],
     },
-    audience: dna.targetCustomer,
+    audience: "",
     offerHierarchy: serviceNames,
     conversion: {
       goal: dna.desiredAction,
-      primaryCta: dna.primaryCta,
-      secondaryCta: dna.secondaryCta,
+      primaryCta: "",
+      secondaryCta: "",
       placements: [],
       stickyMobile: false,
     },
-    fingerprint,
     imagery: {
       directionId: "",
       language: "",
@@ -318,7 +301,7 @@ export function blankFirstBuildDirection(input: FirstBuildCreativeInput): FirstB
       status: input.photoCount > 0 ? "owner_photos" : "artwork_only",
       shots,
     },
-    brief: blankCreativeBrief(fingerprint, shots, dna.primaryCta, dna.secondaryCta),
+    brief: blankCreativeBrief(shots),
     unknowns: dna.needed,
   };
 }

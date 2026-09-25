@@ -31,11 +31,11 @@ describe("orderActionsForApply", () => {
     const actions: AgentAction[] = [
       { type: "delete_section", sectionId: SECTION },
       { type: "set_section_text", sectionId: SECTION, field: "heading", value: "A" },
-      { type: "set_section_variant", sectionId: SECTION, variant: "split" },
+      { type: "set_block_style", target: "section", targetId: SECTION, device: "desktop", patch: { gap: 24 } },
     ];
     expect(orderActionsForApply(actions).map((a) => a.type)).toEqual([
       "set_section_text",
-      "set_section_variant",
+      "set_block_style",
       "delete_section",
     ]);
   });

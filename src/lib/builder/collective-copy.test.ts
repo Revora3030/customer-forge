@@ -149,13 +149,23 @@ describe("reviewRefinement", () => {
     expect(review.rejected[0]?.reason).toBe("unreadable answer");
   });
 
-  it("never lets a model change the call to action", () => {
+  it("lets reviewed AI wording author safe button labels", () => {
     const review = reviewRefinement({
-      proposal: { primaryCta: "Buy now" },
+      proposal: { primaryCta: "Request details" },
       facts,
       baseline,
     });
-    expect(Object.keys(review.accepted)).toHaveLength(0);
+    expect(review.accepted.primaryCta).toBe("Request details");
+  });
+
+  it("rejects button labels with invented claims", () => {
+    const review = reviewRefinement({
+      proposal: { primaryCta: "5-star detail" },
+      facts,
+      baseline,
+    });
+    expect(review.accepted.primaryCta).toBeUndefined();
+    expect(review.rejected[0]?.reason).toContain("unsupported");
   });
 });
 
@@ -166,7 +176,7 @@ describe("mergeRefinement", () => {
     expect(merged.primaryCta).toBe(baseline.primaryCta);
     expect(merged.serviceCards).not.toBe(baseline.serviceCards);
   });
-  it("returns the deterministic copy unchanged when nothing was accepted", () => {
+  it("returns existing copy unchanged when nothing was accepted", () => {
     expect(mergeRefinement(baseline, {})).toEqual(baseline);
   });
 });

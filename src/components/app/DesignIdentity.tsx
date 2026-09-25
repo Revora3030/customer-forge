@@ -4,9 +4,9 @@
  * Read-only: nothing here picks, seeds or invents a style. When no look has
  * been saved yet, it says so and offers to ask the AI for one.
  */
-import { Fingerprint } from "lucide-react";
+import { DesignRecord } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { readDesignFingerprint } from "@/lib/builder/design-fingerprint";
+import { hasAuthoredAiDesignRecord, readAiDesignRecord } from "@/lib/builder/ai-design-record";
 
 const human = (value: string | undefined) => (value ? value.replace(/-/g, " ") : "—");
 
@@ -17,8 +17,8 @@ export function DesignIdentity({
   generation: unknown;
   onRestyle?: (instruction: string) => void;
 }) {
-  const saved = readDesignFingerprint(generation);
-  const authored = saved && saved.family !== "neutral" ? saved : null;
+  const saved = readAiDesignRecord(generation);
+  const authored = hasAuthoredAiDesignRecord(saved) ? saved : null;
   const rows: [string, string][] = authored
     ? [
         ["Look", human(authored.family)],
@@ -33,7 +33,7 @@ export function DesignIdentity({
   return (
     <section className="panel p-4" aria-labelledby="design-identity-title">
       <div className="flex items-center gap-2">
-        <Fingerprint className="size-4 text-primary" aria-hidden />
+        <DesignRecord className="size-4 text-primary" aria-hidden />
         <p id="design-identity-title" className="text-[13px] font-semibold">
           Your design identity
         </p>
