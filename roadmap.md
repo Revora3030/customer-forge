@@ -20,5 +20,5 @@
 - [x] Fresh security scan + database checks clean; delete paths reviewed (rebuild wipe only on owner-requested fresh rebuild with backup).
 - [ ] Remaining 12/16-point areas (expressiveness, effects ceilings, AI screenshot critique, job fencing audit, full security/billing audit).
 - [x] 46-vs-91 explained: 46 is the launch-review score (visual design hard-set to 0 until screenshot evidence exists; trust needs real reviews; publishing needs custom domain). 91 is the visual check. Different measures.
-- [ ] Feed passing visual-check evidence into the launch-review visual score (next).
+- [x] Launch score uses passing visual check for current revision; trust skipped without real reviews; own /s/ address counts.
 - [ ] Add "Open 24 hours" to Revora draft, visual check, approve, publish, verify live.
