@@ -7,7 +7,6 @@
  * structured observations and passes those signals to the AI design team; it
  * never maps them into a finite design vocabulary.
  */
-import type { AiDesignRecord } from "@/lib/builder/ai-design-record";
 import type { CreativeBrief } from "@/lib/builder/first-build-contract";
 
 export type ScreenshotReferenceObservation = {
@@ -33,7 +32,6 @@ export type NormalizedScreenshotReferenceObservation = {
 export type ScreenshotReferenceBrief = {
   version: 1;
   applied: boolean;
-  designRecord: AiDesignRecord;
   signals: {
     layout: string[];
     hierarchy: string[];
@@ -159,9 +157,8 @@ export function normalizeScreenshotReferenceObservations(
   return normal;
 }
 
-export function deriveScreenshotReferenceDesignRecord(input: {
+export function deriveScreenshotReferenceBrief(input: {
   observations: unknown;
-  base: AiDesignRecord;
   businessName?: string | null;
   blockedNames?: string[];
 }): ScreenshotReferenceBrief {
@@ -169,14 +166,11 @@ export function deriveScreenshotReferenceDesignRecord(input: {
     .map((value) => value.trim().toLowerCase())
     .filter(Boolean);
   const { signals, warnings, text } = boundedObservations(input.observations, blocked);
-  // No keyword → style mapping: the cleaned signals go to Sol as inspiration
-  // and the saved look is never patched here.
+  // No keyword → style mapping: the cleaned signals go to Sol as inspiration.
   const applied = text.length > 0;
-  const designRecord = input.base;
   return {
     version: 1,
     applied,
-    designRecord,
     signals,
     antiCloning: {
       copiedTextAllowed: false,
@@ -198,16 +192,15 @@ export function deriveScreenshotReferenceDesignRecord(input: {
 }
 
 export function applyScreenshotReferenceToCreative<
-  T extends { designRecord: AiDesignRecord; brief: CreativeBrief; referenceSignals?: Record<string, string[]> | null },
+  T extends { brief: CreativeBrief; referenceSignals?: Record<string, string[]> | null },
 >(input: {
   creative: T;
   observations: unknown;
   businessName?: string | null;
   blockedNames?: string[];
 }): { creative: T; reference: ScreenshotReferenceBrief } {
-  const reference = deriveScreenshotReferenceDesignRecord({
+  const reference = deriveScreenshotReferenceBrief({
     observations: input.observations,
-    base: input.creative.designRecord,
     ...(input.businessName === undefined ? {} : { businessName: input.businessName }),
     ...(input.blockedNames === undefined ? {} : { blockedNames: input.blockedNames }),
   });
