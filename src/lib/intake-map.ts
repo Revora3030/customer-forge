@@ -45,7 +45,7 @@ export const INTAKE_FIELDS: IntakeField[] = [
     store: "profile",
     column: "description",
     kind: "textarea",
-    required: true,
+    required: false,
     usedBy: [
       "AI copywriting",
       "Home & about pages",
@@ -61,7 +61,7 @@ export const INTAKE_FIELDS: IntakeField[] = [
     store: "profile",
     column: "phone",
     kind: "text",
-    required: true,
+    required: false,
     usedBy: [
       "Call & text CTAs",
       "Sticky call bar",
@@ -77,7 +77,7 @@ export const INTAKE_FIELDS: IntakeField[] = [
     store: "profile",
     column: "email",
     kind: "text",
-    required: true,
+    required: false,
     usedBy: ["Contact forms", "Lead alerts", "Automated follow-up", "Payment receipts"],
   },
   {
@@ -87,7 +87,7 @@ export const INTAKE_FIELDS: IntakeField[] = [
     store: "profile",
     column: "city",
     kind: "text",
-    required: true,
+    required: false,
     usedBy: ["Local SEO", "Area pages", "Page titles", "Booking travel rules"],
   },
   {
