@@ -21,6 +21,10 @@ export function CookieConsent() {
     let alive = true;
     void (async () => {
       if (typeof window === "undefined") return;
+      // The banner advertises Revora's own cookies — never show it on a
+      // client's published website, where none of this applies.
+      const { isRevoraOwnHost } = await import("@/lib/revora-address");
+      if (!isRevoraOwnHost(window.location.hostname)) return;
       const decided = window.localStorage.getItem("cookie_consent");
       if (decided !== null) return;
       const required = await isConsentRequiredRegion();
