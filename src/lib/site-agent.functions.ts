@@ -103,8 +103,6 @@ type LoadedSite = {
   }[];
 };
 
-const RENDERED_IMAGE_KINDS = new Set(["image", "gallery", "media", "photo", "hero_image"]);
-
 function resolveCompositionMediaRefs(tree: CompositionTree, refs: ReadonlyMap<string, string>): CompositionTree {
   const visit = (node: CompositionNode): CompositionNode => {
     const mappedRef = node.mediaRef ? refs.get(node.mediaRef) : undefined;

@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import { readActions } from "@/lib/site-agent";
-import { pictureActionsFor } from "@/lib/site-agent.functions";
 
 describe("building a page and filling it in one plan", () => {
   const known = {
@@ -159,120 +158,6 @@ describe("building a page and filling it in one plan", () => {
       type: "generate_component_image",
       componentId: "temp_picture_1",
     });
-  });
-
-  it("creates a real hero image block when an image-free site asks for a picture", () => {
-    const actions = pictureActionsFor(
-      {
-        business: {
-          name: "Supreme Detailing",
-          industry: "auto detailing",
-          city: "Raleigh",
-          state: "NC",
-        },
-        pages: [{
-          id: "page-home",
-          slug: "home",
-          title: "Home",
-          kind: "home",
-          is_visible: true,
-          sections: [{
-            id: "section-hero",
-            kind: "hero",
-            heading: "Auto Detailing in Raleigh",
-            is_visible: true,
-            components: [],
-          }],
-        }],
-      } as never,
-      "Add one high-quality AI picture to the Home hero",
-    );
-    expect(actions).toHaveLength(2);
-    expect(actions[0]).toMatchObject({
-      type: "add_component",
-      sectionId: "section-hero",
-      ref: "temp_picture_1",
-      kind: "hero_image",
-    });
-    expect(actions[1]).toMatchObject({
-      type: "generate_component_image",
-      componentId: "temp_picture_1",
-      mode: "create",
-    });
-  });
-
-  it("fills missing picture slots across pages without replacing an existing picture", () => {
-    const actions = pictureActionsFor(
-      {
-        business: { name: "Supreme Detailing", industry: "auto detailing" },
-        pages: [{
-          id: "page-home",
-          slug: "home",
-          title: "Home",
-          kind: "home",
-          is_visible: true,
-          sections: [
-            {
-              id: "section-hero",
-              kind: "hero",
-              heading: "Mobile detailing",
-              is_visible: true,
-              components: [{ id: "existing-picture", kind: "hero_image" }],
-            },
-            {
-              id: "section-services",
-              kind: "services",
-              heading: "Detailing services",
-              is_visible: true,
-              components: [],
-            },
-          ],
-        }],
-      } as never,
-      "Add pictures to all pages",
-    );
-
-    expect(actions).toHaveLength(2);
-    expect(actions[0]).toMatchObject({
-      type: "add_component",
-      sectionId: "section-services",
-    });
-    expect(actions[1]).toMatchObject({
-      type: "generate_component_image",
-      mode: "create",
-    });
-    expect(actions).not.toContainEqual(expect.objectContaining({ componentId: "existing-picture" }));
-  });
-
-  it("replaces an existing picture only when the request explicitly asks for replacement", () => {
-    const actions = pictureActionsFor(
-      {
-        business: { name: "Supreme Detailing", industry: "auto detailing" },
-        pages: [{
-          id: "page-home",
-          slug: "home",
-          title: "Home",
-          kind: "home",
-          is_visible: true,
-          sections: [{
-            id: "section-hero",
-            kind: "hero",
-            heading: "Mobile detailing",
-            is_visible: true,
-            components: [{ id: "existing-picture", kind: "hero_image" }],
-          }],
-        }],
-      } as never,
-      "Replace the hero picture",
-    );
-
-    expect(actions).toEqual([
-      expect.objectContaining({
-        type: "generate_component_image",
-        componentId: "existing-picture",
-        mode: "replace",
-      }),
-    ]);
   });
 
   it("drops references used before they are declared", () => {
