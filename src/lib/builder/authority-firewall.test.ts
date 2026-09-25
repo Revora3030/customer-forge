@@ -78,7 +78,7 @@ describe("first build", () => {
     for (const f of [
       "src/lib/site-engine.worker.server.ts",
       "src/lib/builder/collective-first-build.server.ts",
-      "src/lib/builder/native-first-build.ts",
+      "src/lib/builder/first-build-safety.ts",
       "src/lib/builder/first-build-images.server.ts",
     ]) {
       const src = readFileSync(f, "utf8");
