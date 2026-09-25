@@ -24,7 +24,16 @@ import type {
 } from "@/lib/ai/orchestration/contracts";
 import { missingCapabilities, supports } from "@/lib/ai/orchestration/contracts";
 
-export type SpecialistId = "sol" | "astra" | "terra" | "luna" | "sunburst" | "flare" | "whisper";
+export type SpecialistId =
+  | "sol"
+  | "astra"
+  | "sol56"
+  | "terra"
+  | "luna"
+  | "luna56"
+  | "sunburst"
+  | "flare"
+  | "whisper";
 
 export type Specialist = {
   id: SpecialistId;
@@ -136,6 +145,38 @@ export const SPECIALIST_SIX: Specialist[] = [
       "streaming",
       "multilingual",
     ],
+    quality: 80,
+    contextTokens: 128_000,
+  },
+  {
+    id: "sol56",
+    model: "gpt-5.6-sol",
+    provider: "openai",
+    charter:
+      "Independent senior professional-work reviewer: a second high-intelligence perspective that challenges Sol's architecture and implementation quality before publish. Critiques; never overrides Sol's creative authority.",
+    domains: ["final_review"],
+    capabilities: [
+      "text_generation",
+      "reasoning",
+      "structured_output",
+      "tool_calling",
+      "code_generation",
+      "image_input",
+      "long_context",
+      "streaming",
+      "multilingual",
+    ],
+    quality: 96,
+    contextTokens: 400_000,
+  },
+  {
+    id: "luna56",
+    model: "gpt-5.6-luna",
+    provider: "openai",
+    charter:
+      "High-volume utility partner to Luna: SEO, schema, metadata, page-completeness checks and content normalization on well-defined tasks.",
+    domains: ["schema_markup", "completeness_check"],
+    capabilities: ["text_generation", "reasoning", "structured_output", "tool_calling", "streaming", "multilingual"],
     quality: 80,
     contextTokens: 128_000,
   },
