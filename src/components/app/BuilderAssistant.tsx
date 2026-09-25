@@ -319,13 +319,17 @@ function TaskBody({
                 : "Applying…"}
           </Shimmer>
         </div>
-      ) : (
+      ) : task.answered ? null : (
         <p className="text-[11px] tracking-wide text-muted-foreground uppercase">
           {QUEUE_LABELS[task.state]}
         </p>
       )}
 
-      {task.reply ? <p className="text-[13px] whitespace-pre-line">{task.reply}</p> : null}
+      {task.reply ? (
+        <p className={cn("whitespace-pre-line", task.answered ? "text-[15px] leading-relaxed" : "text-[13px]")}>
+          {task.reply}
+        </p>
+      ) : null}
       {task.error ? <p className="text-[12.5px]">{task.error}</p> : null}
 
       {working ? (
@@ -334,7 +338,7 @@ function TaskBody({
         </p>
       ) : null}
 
-      {task.state === "complete" ? (
+      {task.state === "complete" && !task.answered ? (
         <div className="space-y-1 text-[12px] text-muted-foreground">
           <p>
           {task.applied ?? 0} change{(task.applied ?? 0) === 1 ? "" : "s"} applied

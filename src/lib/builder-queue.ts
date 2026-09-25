@@ -35,6 +35,8 @@ export type QueueTask = {
   steps: PlanStep[];
   /** Revora's own words about the request. */
   reply?: string;
+  /** True when the AI simply answered in chat and nothing was meant to change. */
+  answered?: boolean;
   summary?: string;
   questions: string[];
   /** Requested outcomes independently matched to concrete, renderable actions. */
@@ -178,7 +180,7 @@ export function terminalStateForEmptyPlan(input: {
 /** One honest sentence about the queue, never rounded up. */
 export function queueSummary(tasks: QueueTask[]): string {
   if (tasks.length === 0) return "";
-  const done = tasks.filter((t) => t.state === "complete").length;
+  const done = tasks.filter((t) => t.state === "complete" && !t.answered).length;
   const failed = tasks.filter((t) => t.state === "failed").length;
   const waiting = tasks.filter(
     (t) => t.state === "queued" || t.state === "waiting_for_approval",

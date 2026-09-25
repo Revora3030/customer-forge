@@ -265,7 +265,7 @@ export const planWebsiteChanges = createServerFn({ method: "POST" })
       const organizationId = orgIdOf(input);
       const instruction = str(input?.instruction, PLAN_INSTRUCTION_LIMIT);
       const attachments = readAttachments(input?.attachments);
-      if (instruction.length < 3 && !attachments.length)
+      if (instruction.length < 1 && !attachments.length)
         throw new Error(
           "Tell Revora what you'd like changed — type it, say it, or attach a photo or clip.",
         );
@@ -422,6 +422,40 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
       throw new Error(
         "Build your website structure first — then the assistant can change anything on it.",
       );
+
+    // CONVERSATION FIRST: greetings, questions and requests for advice are
+    // answered by the AI directly, like a real chat, instead of being forced
+    // through the design pipeline. Nothing on the website is touched.
+    noteStage(orgId, runId, "reading your message");
+    const { decideConversation } = await import("@/lib/builder/conversation.server");
+    const decision = await decideConversation({
+      organizationId: orgId,
+      userId,
+      instruction: data.instruction,
+      history: data.history,
+      hasAttachments: data.attachments.length > 0,
+      business: { name: agentContext.business.name, industry: agentContext.business.industry },
+      pages: agentContext.pages.map((page) => ({
+        title: page.title,
+        slug: page.slug,
+        sectionCount: page.sections.length,
+      })),
+    });
+    if (decision.mode === "answer") {
+      return {
+        reply: decision.reply,
+        summary: "",
+        steps: [] as AgentStep[],
+        questions: [] as string[],
+        notes: [] as string[],
+        dropped: [] as string[],
+        requirements: [] as { label: string; covered: boolean }[],
+        trace: ["Answered in chat. Nothing on your website changed."],
+        unavailable: null as { reason: string; retryable: boolean; instruction: string } | null,
+        composition: null as import("@/lib/builder/composition-preview").CompositionPreview | null,
+        conversational: true,
+      };
+    }
 
     const instruction =
       data.instruction || "(see the attached file(s) — follow what they show or say)";
