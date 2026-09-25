@@ -143,6 +143,13 @@ export function BuilderAssistant({
         compact ? "h-[calc(100dvh-9.75rem)] min-h-[480px] lg:h-[calc(100vh-8rem)]" : "h-[calc(100dvh-9rem)] min-h-[520px]",
       )}
     >
+      {requests.tasks.length > 0 && !requests.busy ? (
+        <div className="flex justify-end px-4 pt-2 sm:px-6">
+          <Button size="sm" variant="ghost" onClick={() => void requests.newChat()}>
+            New chat
+          </Button>
+        </div>
+      ) : null}
       <Conversation className="min-h-0 flex-1">
         <ConversationContent className="gap-8 px-4 py-5 text-[15px] leading-relaxed sm:px-6 lg:px-7">
 
