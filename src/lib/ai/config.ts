@@ -142,8 +142,8 @@ export function zeroAiCostMode(): boolean {
  * builder's external lane with `BUILDER_EXTERNAL_AI_ALLOWED=false`.
  */
 export function builderExternalAiAllowed(): boolean {
-  const raw = (env("BUILDER_EXTERNAL_AI_ALLOWED") ?? "").trim().toLowerCase();
-  return !(raw === "false" || raw === "0" || raw === "off" || raw === "no");
+  // The AI team always builds; there is no switch that turns it off.
+  return true;
 }
 
 /** A provider is available only when Revora's own key for it is present. */

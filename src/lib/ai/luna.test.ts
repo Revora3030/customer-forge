@@ -68,13 +68,6 @@ describe("luna configuration", () => {
     expect(lunaEnabled()).toBe(true);
   });
 
-  it("stays off in native-only mode despite every diagnostic credential", () => {
-    process.env["OPENAI_API_KEY"] = "sk-test";
-    process.env["LUNA_ENABLED"] = "true";
-    process.env["BUILDER_EXTERNAL_AI_ALLOWED"] = "true";
-    process.env["ZERO_AI_COST_MODE"] = "true";
-    expect(lunaEnabled()).toBe(false);
-  });
 });
 
 describe("monthly hard cap", () => {

@@ -12,7 +12,7 @@ built and improved through a natural-language AI builder.
 | Styling   | Tailwind CSS v4 (`src/styles.css`, CSS-first config)                                                                          |
 | Backend   | Supabase (Postgres, Auth, Storage, RLS)                                                                                       |
 | Payments  | Stripe (setup fee + monthly subscription, live/sandbox split)                                                                 |
-| AI        | Revora's own deterministic builder engine (zero external inference cost; external providers gated off by `ZERO_AI_COST_MODE`) |
+| AI        | The Revora AI team (Sol designs and writes, Terra reviews, Luna metadata, a review panel checks every build). There is no built-in non-AI engine. |
 
 ## Getting started
 

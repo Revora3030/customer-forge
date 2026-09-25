@@ -29,6 +29,7 @@ import { SiteFooter } from "@/components/site/SiteFooter";
 import { CompositionRenderer } from "@/components/site/CompositionRenderer";
 import { useOwnAddress } from "@/components/site/site-links";
 import { readSiteChrome, resolveSiteHref } from "@/lib/builder/site-chrome";
+import { AiSiteHeader } from "@/components/site/AiSiteHeader";
 
 export const Route = createFileRoute("/s/$slug/$page")({
   loader: async ({ params }) => {
@@ -165,9 +166,7 @@ export function SitePageView({
             business name stays readable on pale and dark themes alike rather
             than inheriting whatever colour the section below it chose. */}
         {chrome.header ? (
-          <header className="rv-site-header rv-ai-header sticky top-0 z-40">
-            <CompositionRenderer as="div" scope="site-header" tree={chrome.header} resolveHref={chromeHref} />
-          </header>
+          <AiSiteHeader tree={chrome.header} name={org.name} homeHref={chromeHref("/")} resolveHref={chromeHref} />
         ) : (
         <header className="rv-site-header sticky top-0 z-40 border-b border-border bg-background text-foreground">
           <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3.5">
