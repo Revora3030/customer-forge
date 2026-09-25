@@ -371,7 +371,7 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
 
     if (!agentContext.pages.length)
       throw new Error(
-        "Build your website structure first — then the assistant can change anything on it.",
+        "Your AI team is still building your first website. Once it's ready, ask for any change here.",
       );
 
     // CONVERSATION FIRST: greetings, questions and requests for advice are

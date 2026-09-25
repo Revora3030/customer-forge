@@ -567,12 +567,6 @@ function WebsitePage() {
           <Button variant="outline" className="justify-start" onClick={() => { setMenuOpen(false); setSetupOpen(true); }}>
             <Settings2 className="size-4" /> Business details
           </Button>
-          <Button variant="outline" className="justify-start" onClick={() => { setMenuOpen(false); setEditorMode("content"); }}>
-            <MousePointer2 className="size-4" /> Edit words manually
-          </Button>
-          <Button variant="outline" className="justify-start" onClick={() => { setMenuOpen(false); setEditorMode("visual"); }}>
-            <Paintbrush className="size-4" /> Edit design manually
-          </Button>
           <Button variant="outline" className="justify-start" onClick={() => { setMenuOpen(false); setHistoryOpen(true); }}>
             <History className="size-4" /> History and restore
           </Button>
@@ -580,20 +574,6 @@ function WebsitePage() {
             <Settings2 className="size-4" /> All settings
           </Button>
         </div>
-      </OverlayPanel>
-
-      <OverlayPanel open={editorMode !== null} title={editorMode === "visual" ? "Edit design" : "Edit words"} description="Select any part of your website to adjust it directly." onClose={() => setEditorMode(null)}>
-        <BuilderCanvas
-          organizationId={orgId}
-          pages={pages ?? []}
-          canManage={manage}
-          refreshing={requests.refreshing}
-          editingMode={editorMode === "visual" ? "visual" : "content"}
-          onRewriteSection={(target) => {
-            setEditorMode(null);
-            requests.queue(`Improve the ${target.sectionLabel.toLowerCase()} section on the ${target.pageTitle} page. Keep every fact, name, price and phone number exactly as it is, and keep it consistent with the rest of the website's look.`);
-          }}
-        />
       </OverlayPanel>
 
       {/* ------------------------ One advanced door ------------------------ */}
@@ -612,19 +592,23 @@ function WebsitePage() {
               key: "design",
               label: "Design",
               node: (
-                <>
-                  <EffectStudio
-                    organizationId={orgId}
-                    canManage={manage}
-                    backdrop={readBackdrop(generation ?? null)}
-                    onBackdrop={(backdrop) =>
-                      saveSettings.mutate({
-                        generation: writeBackdrop(generation ?? null, backdrop),
-                      })
-                    }
-                  />
-                  <SiteUpgradePanel organizationId={orgId} canManage={manage} onRefresh={requests.refresh} />
-                </>
+                <div className="panel space-y-3 p-4">
+                  <p className="text-sm text-muted-foreground">
+                    Your AI team designs every part of your website. Tell it what you want in the chat —
+                    for example "make the top of my site feel more premium" — and it will design, check
+                    and apply the change.
+                  </p>
+                  <Button
+                    variant="signal"
+                    disabled={!manage}
+                    onClick={() => {
+                      setAdvanced(null);
+                      askAssistant("Review my website's design and make it look more premium. Keep every fact exactly as it is.");
+                    }}
+                  >
+                    Ask my AI team to improve the design
+                  </Button>
+                </div>
               ),
             },
             {
