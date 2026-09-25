@@ -365,40 +365,11 @@ Never assert reviews, credentials, prices, guarantees or history that were not s
   }
 
   const brief = readBrief({ ...data, source: ANALYSIS_ROLE });
-  return brief ?? fallbackBrief(facts);
+  if (!brief) throw new Error("The AI business analysis was invalid. The build stopped without a fallback brief.");
+  return brief;
 }
 
 const INTENT_KEYS = INTENT_META;
-
-/**
- * Blank brief: only the owner's own facts. No strategy, buyer, objections or
- * page priorities are invented here — the AI writes those.
- */
-export function fallbackBrief(facts: CopyFacts): SiteBrief {
-  const priced = facts.services.some((s) => s.price != null || s.starting_price != null);
-  return {
-    positioning: facts.description?.trim().slice(0, 200) ?? "",
-    buyer: "",
-    buyerGoal: "",
-    intents: [],
-    primaryAction: facts.ctaLabel,
-    secondaryAction: "",
-    objections: [],
-    trustNeeds: [],
-    qualifyingFields: [],
-    pagePriorities: [],
-    toneNotes: "",
-    missingFacts: [
-      ...(facts.description ? [] : ["A short description of the business in your own words"]),
-      ...(facts.phone ? [] : ["A phone number customers can call"]),
-      ...(facts.serviceArea || facts.city ? [] : ["The areas you serve"]),
-      ...(priced ? [] : ["A price or starting price on at least one service"]),
-    ],
-    source: "rules",
-    approved: false,
-    factAnswers: {},
-  };
-}
 
 const briefContext = (brief?: SiteBrief | null) =>
   brief

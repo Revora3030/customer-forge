@@ -367,7 +367,7 @@ export async function provisionClient(admin: SupabaseClient, input: NewClientInp
   const domain = input.desired_domain ? normalizeDomain(input.desired_domain) : "";
   await admin.from("website_settings").insert({
     organization_id: organizationId,
-    template: input.template ?? "default",
+    template: null,
     pages: {},
     seo: {
       headline: input.tagline ?? `${input.business_name}`,

@@ -14,7 +14,6 @@ export type NewClientInput = {
   owner_email: string;
   phone?: string;
   industry?: string;
-  template?: string;
   address?: string;
   city?: string;
   state?: string;
