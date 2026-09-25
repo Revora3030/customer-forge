@@ -512,7 +512,7 @@ function Onboarding() {
     step === 0
       ? draft.businessName.trim().length > 1 && draft.city.trim().length > 1
       : step === 1
-        ? draft.services.some((s) => s.name.trim().length > 1)
+        ? draft.services.some((s) => s.name.trim().length >= 5)
         : step === 3
           ? draft.phone.trim().length > 5 || draft.email.trim().length > 4
           : step === 5
