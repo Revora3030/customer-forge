@@ -672,7 +672,7 @@ function Landing() {
         </section>
 
         {/* FAQ */}
-        <section id="faq" className="border-b border-border bg-card">
+        <section id="faq" className="scroll-mt-20 border-b border-border bg-card">
           <div className="mx-auto max-w-6xl px-4 py-16">
             <SectionHeading eyebrow="FAQ" title="Straight answers before you start" />
             <FAQ />
