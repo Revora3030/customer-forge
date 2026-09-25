@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { getPreviewSite } from "@/lib/public-site.functions";
 import { PublicSiteView } from "@/routes/s.$slug";
-import { PreviewMessage } from "@/routes/p.$token";
+import { PreviewMessage } from "@/components/PreviewMessage";
 
 /** Sub-pages of a private draft preview link, checked on the server like the home page. */
 export const Route = createFileRoute("/p/$token_/$page")({

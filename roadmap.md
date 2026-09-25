@@ -39,7 +39,7 @@
 - [x] AI-designed hover/focus/touch response (bounded, reduced-motion safe).
 
 ## Remaining blockers (Sep 25)
-- [x] Stale roadmap items closed; preview page split warning fixed; dead Stripe test keys removed.
+- [x] Stale roadmap items closed; preview page split warning fixed; old Stripe test keys kept — still used by payment tests.
 - [ ] Real AI build to prove motion, 5-size review, buttons/cards — needs owner go-ahead (uses AI allowance).
 - [ ] Strengthen near-ranking city/industry pages with truthful content.
 - [ ] Google Business Profile reviews/hours sync.

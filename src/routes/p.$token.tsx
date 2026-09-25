@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { getPreviewSite } from "@/lib/public-site.functions";
 import { PublicSiteView } from "@/routes/s.$slug";
+import { PreviewMessage } from "@/components/PreviewMessage";
 
 /**
  * Shareable, time-limited draft preview. The token is checked on the server;
@@ -30,17 +31,6 @@ export const Route = createFileRoute("/p/$token")({
     <PreviewMessage title="This preview link isn't valid" body="Ask for a new link." />
   ),
 });
-
-function PreviewMessage({ title, body }: { title: string; body: string }) {
-  return (
-    <div className="flex min-h-screen items-center justify-center px-4 text-center">
-      <div>
-        <h1 className="font-display text-[22px] font-semibold">{title}</h1>
-        <p className="mt-2 text-[13px] text-muted-foreground">{body}</p>
-      </div>
-    </div>
-  );
-}
 
 function PreviewRoute() {
   const result = Route.useLoaderData();
