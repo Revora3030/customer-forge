@@ -890,7 +890,6 @@ async function runJob(
         },
         firstBuildCreative: creative,
         siteCampaign: built.campaign,
-        nativeSynthesis: synthesis,
         screenshotReference,
         screenshotReferenceObservations: storedReferenceObservations ?? null,
         designFingerprint: { ...creative.fingerprint, updatedAt: new Date().toISOString() },
