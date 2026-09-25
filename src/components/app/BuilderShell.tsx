@@ -116,7 +116,7 @@ export function BuilderShell({
   return (
     <div className="-mt-1">
       {/* ---------------------------- Top bar ---------------------------- */}
-       <div className="sticky top-0 z-30 -mx-4 mb-3 border-b border-border bg-background/95 px-4 py-2.5 backdrop-blur">
+       <div className="sticky top-0 z-30 -mx-4 mb-3 border-b border-border bg-background/95 px-4 pt-[max(0.625rem,env(safe-area-inset-top))] pb-2.5 backdrop-blur">
          <div className="flex items-center gap-2">
           {sections.length > 1 ? (
           <button
