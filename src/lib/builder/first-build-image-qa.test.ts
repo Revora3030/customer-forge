@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import {
-  ATTACHABLE_SLOTS,
   gradeFirstBuildImages,
   imageRepairPlan,
 } from "@/lib/builder/first-build-image-qa";
@@ -36,7 +35,6 @@ describe("starter picture quality gate", () => {
     ]);
     expect(result.accepted).toHaveLength(0);
     expect(result.rejected).toHaveLength(2);
-    expect(ATTACHABLE_SLOTS.has("proof")).toBe(false);
   });
 
   it("rejects pictures with no usable description", () => {
@@ -66,7 +64,7 @@ describe("starter picture quality gate", () => {
     expect(result.rejected).toHaveLength(2);
   });
 
-  it("allows multiple service pictures but only one singular hero role", () => {
+  it("allows the AI to author multiple pictures for any safe semantic role", () => {
     const result = gradeFirstBuildImages([
       asset({ slot: "service", label: "Interior", path: "org/interior.png" }),
       asset({ slot: "service", label: "Exterior", path: "org/exterior.png" }),
@@ -74,7 +72,7 @@ describe("starter picture quality gate", () => {
       asset({ slot: "hero", label: "Hero two", path: "org/hero-two.png" }),
     ]);
     expect(result.accepted.filter((item) => item.slot === "service")).toHaveLength(2);
-    expect(result.accepted.filter((item) => item.slot === "hero")).toHaveLength(1);
+    expect(result.accepted.filter((item) => item.slot === "hero")).toHaveLength(2);
   });
 });
 

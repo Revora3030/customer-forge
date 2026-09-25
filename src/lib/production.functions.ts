@@ -351,7 +351,7 @@ export const activateProduction = createServerFn({ method: "POST" })
     const [{ data: settings }, { data: latest }, contentSnapshot] = await Promise.all([
       supabase
         .from("website_settings")
-        .select("template, generation, seo, pages")
+        .select("generation, seo, pages")
         .eq("organization_id", orgId)
         .maybeSingle(),
       supabase
@@ -370,7 +370,6 @@ export const activateProduction = createServerFn({ method: "POST" })
       organization_id: orgId,
       version: nextVersion,
       label: `Production v${nextVersion}`,
-      template: settings?.template ?? null,
       generation: settings?.generation ?? {},
       seo: settings?.seo ?? {},
       pages: {

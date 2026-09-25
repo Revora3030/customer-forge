@@ -25,7 +25,6 @@ import {
   useWebsiteSettings,
   useSaveWebsiteSettings,
   useQuoteBuilder,
-  useSetWebsiteReviewState,
 } from "@/lib/queries";
 import { reviewStateMeta, revoraShareAddress } from "@/lib/website-plan";
 import { saveOwnDomain } from "@/lib/domain.functions";
@@ -34,6 +33,7 @@ import { clientSiteUrl } from "@/lib/revora-address";
 import { DOMAIN_STATES, PUBLISH_STATES, readiness } from "@/lib/readiness";
 import { dateLong, number } from "@/lib/format";
 import { canManage } from "@/lib/domain";
+import { useLaunchFlow } from "@/lib/production.hooks";
 
 export const Route = createFileRoute("/_authenticated/app/launch")({
   head: () => ({
@@ -71,7 +71,7 @@ function Launch() {
   const { data: team } = useTeam(orgId);
   const saveSettings = useSaveWebsiteSettings(orgId);
   const { data: quoteBuilder } = useQuoteBuilder(orgId);
-  const setReviewState = useSetWebsiteReviewState(orgId);
+  const launchFlow = useLaunchFlow(orgId);
   const domainFn = useServerFn(saveOwnDomain);
   const queryClient = useQueryClient();
   const [domain, setDomain] = useState<string | null>(null);
@@ -115,9 +115,8 @@ function Launch() {
 
   const setPublish = (state: string) => {
     if (state === "published") {
-      setReviewState.mutate({ state: "live", message: "Website live." });
-    } else if (state === "unpublished") {
-      setReviewState.mutate({ state: "approved", message: "Website taken offline." });
+      launchFlow.launch();
+      return;
     }
     saveSettings.mutate(
       {
@@ -238,7 +237,7 @@ function Launch() {
                       ? "signal"
                       : "outline"
                 }
-                disabled={saveSettings.isPending || (state === "published" && !approved)}
+                disabled={saveSettings.isPending || launchFlow.isLaunching || (state === "published" && !approved)}
                 onClick={() => setPublish(state)}
               >
                 {PUBLISH_STATES[state]?.label}

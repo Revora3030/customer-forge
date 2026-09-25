@@ -17,7 +17,6 @@ import {
   type DesignFingerprint,
 } from "@/lib/builder/design-fingerprint";
 import type { PlannedShot } from "@/lib/builder/image-campaign";
-import { assetPlanFor, type AssetPlan } from "@/lib/builder/asset-intelligence";
 import {
   SITE_WIDE_CREATIVE_QUALITY_MATRIX,
   type CreativeQualityMatrix,
@@ -162,7 +161,6 @@ export type FirstBuildCreativeDirection = {
     treatment: string;
     status: "owner_photos" | "artwork_only";
     shots: PlannedShot[];
-    assetPlan: AssetPlan;
   };
   brief: CreativeBrief;
   unknowns: string[];
@@ -289,11 +287,6 @@ export function blankFirstBuildDirection(input: FirstBuildCreativeInput): FirstB
   // Empty by design. Sol authors the picture campaign after seeing the facts;
   // no built-in slot inventory or image style is supplied as a starting point.
   const shots: PlannedShot[] = [];
-  const assetPlan = assetPlanFor(
-    { businessName: input.businessName, logoUrl: null, heroImageUrl: null },
-    ["hero"],
-    { hasHeroImage: input.hasHeroImage === true, galleryPhotoCount: input.photoCount },
-  );
   return {
     version: 1,
     industry: {
@@ -319,7 +312,6 @@ export function blankFirstBuildDirection(input: FirstBuildCreativeInput): FirstB
       treatment: "",
       status: input.photoCount > 0 ? "owner_photos" : "artwork_only",
       shots,
-      assetPlan,
     },
     brief: blankCreativeBrief(fingerprint, shots, dna.primaryCta, dna.secondaryCta),
     unknowns: dna.needed,

@@ -531,8 +531,7 @@ export const analyzeSiteBrief = createServerFn({ method: "POST" })
     const { supabase, userId } = context;
     const orgId = data.organizationId;
     const { gatherBriefFacts } = await import("@/lib/site-brief.server");
-    const { analyzeBusiness, fallbackBrief, RevoraAiError } =
-      await import("@/lib/site-engine.server");
+    const { analyzeBusiness } = await import("@/lib/site-engine.server");
     const { readBrief } = await import("@/lib/site-brief");
 
     const facts = await gatherBriefFacts(supabase, orgId);
@@ -544,16 +543,7 @@ export const analyzeSiteBrief = createServerFn({ method: "POST" })
     const generation = (settings.data?.generation ?? {}) as Record<string, unknown>;
     const previous = readBrief(generation["brief"]);
 
-    let brief = fallbackBrief(facts.copyFacts);
-    let aiError: string | null = null;
-    try {
-      brief = await analyzeBusiness(facts.copyFacts);
-    } catch (error) {
-      // Credit/policy denials never block analysis — the deterministic brief
-      // built from the owner's own answers is used instead.
-      if (error instanceof RevoraAiError && error.status === 429) throw error;
-      aiError = error instanceof Error ? error.message : "Analysis unavailable";
-    }
+    let brief = await analyzeBusiness(facts.copyFacts);
 
     // A new analysis always needs re-approval, but the owner's answers stay.
     brief = { ...brief, approved: false, factAnswers: previous?.factAnswers ?? {} };
@@ -574,7 +564,7 @@ export const analyzeSiteBrief = createServerFn({ method: "POST" })
       created_by: userId,
     });
 
-    return { brief, aiError };
+    return { brief, aiError: null };
   });
 
 /** Saves the owner's edits to the brief, and their approval to build from it. */

@@ -59,7 +59,6 @@ async function snapshotForRollback(orgId: string, label: string) {
       organization_id: orgId,
       version,
       label,
-      template: settings.template,
       generation: settings.generation as never,
       seo: settings.seo as never,
       pages: { settings_pages: settings.pages ?? null, content } as never,
@@ -322,7 +321,6 @@ export function useUndoUpgrade(organizationId: string | undefined) {
       const { error: writeError } = await supabase.from("website_settings").upsert(
         {
           organization_id: orgId,
-          template: snapshot.template ?? "default",
           generation: snapshot.generation as never,
           seo: snapshot.seo as never,
           pages: settingsPages as never,

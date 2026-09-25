@@ -176,7 +176,6 @@ const PHOTOGRAPHY_LIMITS = {
 } as const;
 
 const PROOF_SHAPED_TEXT = /\b(review|testimonial|five[- ]?star|award|certified|licensed|guarantee|before\/?after|proven result|#\s?1|best in|customer logo|case study)\b/i;
-const IMAGE_SLOTS = new Set(["hero", "service", "about", "background", "cta", "social"]);
 const IMAGE_ASPECTS = new Set(["16:9", "4:3", "1:1", "3:2"]);
 const FOCAL_POINTS = new Set(["left", "right", "centre", "lower-third"]);
 const NEGATIVE_SPACE = new Set(["left", "right", "top", "bottom"]);
@@ -295,7 +294,7 @@ function imageInventoryAt(value: unknown, facts: DnaFacts): CreativeBrief["image
     const aspectRatio = textAt(item["aspectRatio"], 10);
     const focalPoint = textAt(item["focalPoint"], 20);
     const negativeSpace = textAt(item["negativeSpace"], 20);
-    if (!slot || !IMAGE_SLOTS.has(slot) || !label || !purpose || !subject || !altText) continue;
+    if (!slot || !SAFE_TOKEN.test(slot) || !label || !purpose || !subject || !altText) continue;
     if (!aspectRatio || !IMAGE_ASPECTS.has(aspectRatio)) continue;
     if (!focalPoint || !FOCAL_POINTS.has(focalPoint)) continue;
     if (!negativeSpace || !NEGATIVE_SPACE.has(negativeSpace)) continue;
@@ -554,7 +553,7 @@ async function refineCreativeWithCollective(input: {
       vocabulary,
       "",
       "Return JSON with keys fingerprint and brief. fingerprint values are your own short lowercase-hyphenated tokens; only motionLevel and density must use the listed values.",
-      "brief.imageInventory must be a complete page-aware picture campaign of 3-28 items. Each item: slot (hero|service|about|background|cta|social), label, purpose, subject, environment, action, lighting, camera, framing, focalPoint (left|right|centre|lower-third), negativeSpace (left|right|top|bottom), aspectRatio (16:9|4:3|1:1|3:2), palette, mood, section (array of exact intended section roles), mobileCrop, altText.",
+      "brief.imageInventory must be a complete page-aware picture campaign of 3-28 items. Invent a short lowercase-hyphenated semantic slot for each image; there is no slot catalogue. Each item: slot, label, purpose, subject, environment, action, lighting, camera, framing, focalPoint (left|right|centre|lower-third), negativeSpace (left|right|top|bottom), aspectRatio (16:9|4:3|1:1|3:2), palette, mood, section (array of exact intended section roles), mobileCrop, altText.",
       "Every picture must have a distinct job in the final site. Generated images are marketing visuals, never staff, customer proof, completed-work evidence, reviews, awards or results.",
     ].join("\n"),
   });

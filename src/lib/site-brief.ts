@@ -93,7 +93,7 @@ export function readBrief(value: unknown): SiteBrief | null {
     pagePriorities: strings(raw["pagePriorities"], 8, 40),
     toneNotes: text(raw["toneNotes"], ""),
     missingFacts: strings(raw["missingFacts"], 6),
-    source: text(raw["source"], "rules", 60),
+    source: text(raw["source"], "", 60),
     approved: raw["approved"] === true,
     factAnswers: readAnswers(raw["factAnswers"]),
   };

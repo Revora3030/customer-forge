@@ -34,15 +34,6 @@ const MIME_EXTENSION: Record<string, string> = {
   "image/webp": "webp",
 };
 
-const SAFE_STARTER_SLOTS = new Set<PlannedShot["slot"]>([
-  "hero",
-  "service",
-  "about",
-  "background",
-  "cta",
-  "social",
-]);
-
 export type {
   FirstBuildImageAsset,
   FirstBuildImageEvidence,
@@ -63,9 +54,9 @@ function maxStarterImages() {
 
 
 function safeSlot(shot: PlannedShot) {
-  if (!SAFE_STARTER_SLOTS.has(shot.slot)) return false;
-  if (shot.placement.some((place) => /gallery|proof|testimonial|team/i.test(place))) return false;
-  return !/result|completed work|proof/i.test(`${shot.label} ${shot.purpose}`);
+  if (!/^[a-z0-9][a-z0-9-]{0,59}$/.test(shot.slot)) return false;
+  if (shot.placement.some((place) => /gallery|proof|testimonial|review|award|team|result|before|after/i.test(place))) return false;
+  return !/testimonial|review|award|team|result|completed work|proof|before|after/i.test(`${shot.slot} ${shot.label} ${shot.purpose}`);
 }
 
 /**
@@ -103,7 +94,6 @@ export function firstBuildImageShots(
   occupiedSlots: ReadonlySet<PlannedShot["slot"]> = new Set(),
 ): PlannedShot[] {
   const unique = new Set<string>();
-  const singularSlots = new Set<PlannedShot["slot"]>(["hero", "about", "background", "cta", "social"]);
   const shots: PlannedShot[] = [];
   const campaignShots: PlannedShot[] = creative.brief.imageInventory.map((item) => ({
     slot: item.slot as PlannedShot["slot"],
@@ -118,7 +108,7 @@ export function firstBuildImageShots(
     // An existing owner picture is presumed to cover the hero first. It should
     // not suppress safe supporting marketing pictures for the rest of the site.
     if (occupiedSlots.has(shot.slot)) continue;
-    const key = singularSlots.has(shot.slot) ? shot.slot : `${shot.slot}:${shot.label.toLowerCase()}`;
+    const key = `${shot.slot}:${shot.label.toLowerCase()}`;
     if (unique.has(key)) continue;
     unique.add(key);
     shots.push(shot);
@@ -205,11 +195,11 @@ export async function generateFirstBuildImages(
       const specialist = await generatePaidImageBase64(
         prompt,
         { organizationId: input.organizationId, userId: input.userId },
-        shot.slot === "hero"
+        /hero|masthead|opening|lead/i.test(`${shot.slot} ${shot.placement.join(" ")}`)
           ? "hero_master"
-          : shot.slot === "about"
+          : /about|story|editorial/i.test(`${shot.slot} ${shot.placement.join(" ")}`)
             ? "editorial_feature"
-            : shot.slot === "service"
+            : /service|offering/i.test(`${shot.slot} ${shot.placement.join(" ")}`)
               ? "service_photo"
               : "starter_photo",
       );
@@ -269,7 +259,7 @@ export async function generateFirstBuildImages(
       .insert({
         organization_id: input.organizationId,
         url: path,
-        category: shot.slot === "hero" ? "hero" : shot.slot === "service" ? "work" : "other",
+        category: /hero|masthead|opening|lead/i.test(`${shot.slot} ${shot.placement.join(" ")}`) ? "hero" : "other",
         file_name: `${fileStem(shot, index)}.${extension}`,
         size_bytes: bytes.byteLength,
         alt_text: altText,

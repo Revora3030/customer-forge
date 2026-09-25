@@ -29,7 +29,6 @@ import { SiteFooter } from "@/components/site/SiteFooter";
 import { CompositionRenderer } from "@/components/site/CompositionRenderer";
 import { useOwnAddress } from "@/components/site/site-links";
 import { readSiteChrome, resolveSiteHref } from "@/lib/builder/site-chrome";
-import { pageJourneyFor, readSiteCampaign } from "@/lib/builder/site-campaign";
 
 export const Route = createFileRoute("/s/$slug/$page")({
   loader: async ({ params }) => {
@@ -127,11 +126,9 @@ export function SitePageView({
   const page = site.content!.page;
   // Validated business details — an unusable phone number never becomes a link.
   const facts = businessFacts(profile as Record<string, unknown> | null, org.name);
-  const campaign = readSiteCampaign(settings?.generation ?? null);
   const ownAddress = useOwnAddress();
   const chrome = readSiteChrome(site.settings?.generation ?? null);
   const chromeHref = (href: string) => resolveSiteHref(href, org.slug, ownAddress);
-  const journey = pageJourneyFor(campaign, page.slug);
 
   useEffect(() => {
     if (preview) return;
@@ -149,8 +146,6 @@ export function SitePageView({
   return (
     <div
       className="min-h-screen bg-background"
-      data-rv-page-purpose={journey?.purpose}
-      data-rv-page-opening={journey?.opening}
       style={{
         ...siteThemeStyle({
           primaryColor: profile?.primary_color ?? null,
@@ -174,7 +169,7 @@ export function SitePageView({
             <CompositionRenderer as="div" scope="site-header" tree={chrome.header} resolveHref={chromeHref} />
           </header>
         ) : (
-        <header className={`rv-site-header rv-header-${campaign?.header ?? "solid"} sticky top-0 z-40 border-b border-border bg-background text-foreground`}>
+        <header className="rv-site-header sticky top-0 z-40 border-b border-border bg-background text-foreground">
           <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3.5">
             <SitePageLink slug={org.slug} className="min-w-0 max-w-40 sm:max-w-none">
               <p className="break-words font-display text-[16px] leading-tight font-semibold">{org.name}</p>

@@ -12,9 +12,6 @@
 
 import type { FirstBuildImageAsset } from "@/lib/builder/first-build-images.types";
 
-/** Slots a generated picture may occupy. Proof-style slots are excluded. */
-export const ATTACHABLE_SLOTS = new Set(["hero", "service", "about", "background", "cta", "social"]);
-
 const UNSAFE_PLACEMENT = /gallery|proof|testimonial|review|award|team|result|before|after/i;
 const GENERIC_ALT = /^(?:professional (?:work|service|workspace|image)|website image|featured image|service image)(?:\s+(?:by|for)\s+.+)?$/i;
 
@@ -50,7 +47,9 @@ function provenanceProblem(asset: FirstBuildImageAsset): string | null {
 }
 
 function placementProblem(asset: FirstBuildImageAsset): string | null {
-  if (!ATTACHABLE_SLOTS.has(asset.slot))
+  if (!/^[a-z0-9][a-z0-9-]{0,59}$/.test(asset.slot))
+    return "the AI-authored image role was not safe to store";
+  if (UNSAFE_PLACEMENT.test(`${asset.slot} ${asset.label}`))
     return "that part of the page must only show your own photos";
   if ((asset.placement ?? []).some((place) => UNSAFE_PLACEMENT.test(place)))
     return "that part of the page must only show your own work, so a starter picture was not used";
@@ -66,8 +65,6 @@ export function gradeFirstBuildImages(assets: FirstBuildImageAsset[]): ImageQaOu
   const rejected: ImageQaFinding[] = [];
   const seenPaths = new Set<string>();
   const seenSlotLabels = new Set<string>();
-  const seenSingularSlots = new Set<string>();
-  const singularSlots = new Set(["hero", "background", "cta", "social"]);
 
   for (const asset of assets) {
     const reason =
@@ -75,9 +72,6 @@ export function gradeFirstBuildImages(assets: FirstBuildImageAsset[]): ImageQaOu
       provenanceProblem(asset) ??
       altTextProblem(asset) ??
       (seenPaths.has(asset.path) ? "the same picture was produced twice" : null) ??
-      (singularSlots.has(asset.slot) && seenSingularSlots.has(asset.slot)
-        ? "that spot already had a starter picture"
-        : null) ??
       (seenSlotLabels.has(`${asset.slot}:${asset.label.toLowerCase()}`)
         ? "that spot already had a starter picture"
         : null);
@@ -87,7 +81,6 @@ export function gradeFirstBuildImages(assets: FirstBuildImageAsset[]): ImageQaOu
       continue;
     }
     seenPaths.add(asset.path);
-    if (singularSlots.has(asset.slot)) seenSingularSlots.add(asset.slot);
     seenSlotLabels.add(`${asset.slot}:${asset.label.toLowerCase()}`);
     accepted.push(asset);
   }

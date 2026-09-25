@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/dialog";
 import { Panel, Pill } from "@/components/app/Bits";
 import { createClientOrg } from "@/lib/admin.functions";
-import { INDUSTRIES, TEMPLATES, CONVERSION_GOALS } from "@/lib/domain";
+import { INDUSTRIES, CONVERSION_GOALS } from "@/lib/domain";
 import type { NewClientInput, NewClientService } from "@/lib/admin-types";
 
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
@@ -42,7 +42,6 @@ export function NewClientDialog({
     owner_email: "",
     phone: "",
     industry: "",
-    template: "default",
     address: "",
     city: "",
     state: "",
@@ -199,27 +198,13 @@ export function NewClientDialog({
                   value={form.industry}
                   onChange={(e) => {
                     const industry = e.target.value;
-                    const match = INDUSTRIES.find((i) => i.name === industry);
-                    setForm((f) => ({ ...f, industry, template: match?.template ?? f.template }));
+                    setForm((f) => ({ ...f, industry }));
                   }}
                 >
                   <option value="">Select industry</option>
                   {INDUSTRIES.map((i) => (
                     <option key={i.name} value={i.name}>
                       {i.name}
-                    </option>
-                  ))}
-                </select>
-              </Field>
-              <Field label="Website template">
-                <select
-                  className="h-9 w-full rounded-md border border-border bg-background px-2 text-[13px]"
-                  value={form.template}
-                  onChange={(e) => set("template")(e.target.value)}
-                >
-                  {TEMPLATES.map((t) => (
-                    <option key={t.id} value={t.id}>
-                      {t.name}
                     </option>
                   ))}
                 </select>
