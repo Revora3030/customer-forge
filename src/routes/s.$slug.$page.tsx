@@ -126,11 +126,9 @@ export function SitePageView({
   const page = site.content!.page;
   // Validated business details — an unusable phone number never becomes a link.
   const facts = businessFacts(profile as Record<string, unknown> | null, org.name);
-  const campaign = readSiteCampaign(settings?.generation ?? null);
   const ownAddress = useOwnAddress();
   const chrome = readSiteChrome(site.settings?.generation ?? null);
   const chromeHref = (href: string) => resolveSiteHref(href, org.slug, ownAddress);
-  const journey = pageJourneyFor(campaign, page.slug);
 
   useEffect(() => {
     if (preview) return;
@@ -148,8 +146,6 @@ export function SitePageView({
   return (
     <div
       className="min-h-screen bg-background"
-      data-rv-page-purpose={journey?.purpose}
-      data-rv-page-opening={journey?.opening}
       style={{
         ...siteThemeStyle({
           primaryColor: profile?.primary_color ?? null,

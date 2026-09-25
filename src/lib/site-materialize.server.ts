@@ -18,7 +18,6 @@ import type { DesignFingerprint } from "@/lib/builder/design-fingerprint";
 import type { FirstBuildImageAsset } from "@/lib/builder/first-build-images.server";
 import type { CreativeBrief } from "@/lib/builder/first-build-contract";
 import { slugify } from "@/lib/format";
-import { compileSiteCampaign, type SiteCampaign } from "@/lib/builder/site-campaign";
 import {
   applyDesignContract,
   type AiDesignContract,
@@ -258,7 +257,6 @@ export async function materializeSiteContent(
   sections: number;
   components: number;
   skipped: boolean;
-  campaign: SiteCampaign | null;
   /** The AI design this site was built from, when one governed the build. */
   designContract: AiDesignContract | null;
 }> {
@@ -268,7 +266,7 @@ export async function materializeSiteContent(
     .eq("organization_id", orgId);
   if ((count ?? 0) > 0) {
     if (!input.replaceExisting)
-      return { pages: 0, sections: 0, components: 0, skipped: true, campaign: null, designContract: null };
+      return { pages: 0, sections: 0, components: 0, skipped: true, designContract: null };
     const { error: componentDeleteError } = await db.from("website_components").delete().eq("organization_id", orgId);
     if (componentDeleteError)
       throw new Error(`Couldn't clear old components before rebuilding: ${componentDeleteError.message}`);
@@ -386,21 +384,6 @@ export async function materializeSiteContent(
     tree = applied.pages as unknown as typeof tree;
   }
   if (authoredArchitecture) tree = applyAuthoredHeadings(tree, authoredArchitecture);
-  const campaign = input.fingerprint && input.creativeBrief
-    ? compileSiteCampaign({
-        fingerprint: input.fingerprint,
-        brief: input.creativeBrief,
-        pages: tree.map((page) => ({
-          slug: page.slug,
-          kind: page.kind,
-          sectionKinds: page.sections.map((section) => section.kind),
-        })),
-        primaryAction: clean(input.copy.primaryCta) ?? "Get in touch",
-        primaryTarget: input.hasQuoteForm ? "/#quote" : input.hasBooking ? "/book" : "/contact",
-        hasPhone: Boolean(clean(input.phone)),
-        hasPlace: Boolean(clean(input.city) || clean(input.state) || clean(input.serviceArea)),
-      })
-    : null;
   let sections = 0;
   let components = 0;
 
@@ -473,5 +456,5 @@ export async function materializeSiteContent(
     }
   }
 
-  return { pages: tree.length, sections, components, skipped: false, campaign, designContract };
+  return { pages: tree.length, sections, components, skipped: false, designContract };
 }
