@@ -7,5 +7,5 @@
 - [x] Phase 5 security pass: all scan warnings fixed.
 - [x] Visual check was broken in real browsers (security rules blocked it; sub-pages 404'd on preview links) — fixed.
 - [x] "Fix with AI" runs live: 3 AI repair rounds ran on the Northline test site.
-- [x] Test site phone check: 0 overflow, 0 small text, 0 small taps at 320/390; forms + labels raised to 14px.
+- [x] Test site check: 0 overflow, 0 small text, 0 small taps at 320/390/768/1440.
 - [ ] Phase 5: second-industry build, approve, publish, show phone + desktop.
