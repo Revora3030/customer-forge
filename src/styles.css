@@ -4,9 +4,8 @@
 
 /*
  * REVORA — design system
- * Direction: blackened graphite surfaces, hairline borders, metallic gold as the
- * single signature accent (CTAs, key metrics, active states), emerald reserved
- * for success/positive deltas only. Space Grotesk for display/numerics, Inter
+ * Direction: carbon surfaces, hairline borders, signal red as the signature
+ * accent, with amber reserved for attention and emerald for success. Space Grotesk for display/numerics, DM Sans
  * for body. Single dark theme (no mode toggle).
  *
  * All colors are oklch semantic tokens. Never hardcode colors in components.
@@ -65,7 +64,7 @@
 
   --shadow-panel: 0 1px 0 0 oklch(1 0 0 / 4%) inset;
   --shadow-lift: 0 18px 40px -24px oklch(0 0 0 / 80%);
-  --shadow-signal: 0 12px 32px -14px oklch(0.8 0.135 85 / 32%);
+  --shadow-signal: 0 12px 32px -14px oklch(0.64 0.24 27 / 40%);
 
   --color-gold: var(--gold);
   --color-gold-soft: var(--gold-soft);
@@ -76,7 +75,7 @@
   --radius: 0.625rem;
 
   --font-heading: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
-  --font-body: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-body: "DM Sans", ui-sans-serif, system-ui, sans-serif;
 
   /* surfaces — blackened graphite, subtle tonal steps */
   --background: oklch(0.1421 0.0032 286);
@@ -87,10 +86,10 @@
   --popover: oklch(0.1948 0.0038 286);
   --popover-foreground: oklch(0.9842 0 0);
 
-  /* signature gold */
-  --gold: oklch(0.8 0.135 85);
-  --gold-soft: oklch(0.885 0.086 90);
-  --gold-deep: oklch(0.66 0.121 78);
+  /* signal system — legacy token names remain aliases for compatible surfaces */
+  --gold: oklch(0.64 0.24 27);
+  --gold-soft: oklch(0.77 0.16 28);
+  --gold-deep: oklch(0.52 0.21 27);
 
   --primary: var(--gold);
   --primary-foreground: oklch(0.1421 0.0032 286);
@@ -131,6 +130,22 @@
   --sidebar-accent-foreground: oklch(0.9842 0 0);
   --sidebar-border: oklch(0.2582 0.006 286);
   --sidebar-ring: var(--gold);
+}
+
+@utility builder-conversation {
+  min-height: min(72dvh, 820px);
+  border-radius: var(--radius-lg);
+  background-image: linear-gradient(180deg, color-mix(in oklab, var(--card) 95%, var(--primary) 5%), var(--card));
+}
+
+@utility builder-prompt {
+  border-color: color-mix(in oklab, var(--border) 68%, var(--primary) 32%);
+  background: color-mix(in oklab, var(--popover) 92%, transparent);
+  box-shadow: 0 18px 50px -30px color-mix(in oklab, var(--primary) 42%, transparent);
+}
+
+@utility builder-suggestion {
+  background: color-mix(in oklab, var(--elevated) 76%, transparent);
 }
 
 @layer base {

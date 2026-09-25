@@ -234,7 +234,7 @@ function AppShell() {
   }, [navOpen]);
 
   return (
-    <div className="min-h-screen bg-background lg:flex">
+    <div className="min-h-screen bg-background/76 backdrop-blur-[2px] lg:flex">
       {/* Mobile drawer backdrop */}
       {navOpen ? (
         <button

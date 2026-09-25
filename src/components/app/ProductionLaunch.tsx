@@ -61,7 +61,7 @@ export function ProductionLaunchModal({
   if (!open) return null;
   return (
     <div
-      className="fixed inset-0 z-[80] flex items-end justify-center bg-black/70 p-4 sm:items-center"
+      className="overlay-scrim fixed inset-0 z-[80] flex items-end justify-center p-4 sm:items-center"
       role="dialog"
       aria-modal="true"
       aria-label="Launch your website"
