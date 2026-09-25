@@ -1,7 +1,9 @@
-const clientToken = import.meta.env["VITE_PAYMENTS_CLIENT_TOKEN"] as string | undefined;
+import { paymentsMode } from "@/lib/payments-public-config";
 
 export function PaymentTestModeBanner() {
-  if (!clientToken) {
+  const mode = paymentsMode();
+
+  if (mode === "unconfigured") {
     return (
       <div className="rounded-md border border-destructive/40 bg-destructive/10 px-4 py-2 text-[12px] text-destructive">
         Live card checkout is not configured yet. Finish payment go-live in your Revora project to
@@ -9,7 +11,8 @@ export function PaymentTestModeBanner() {
       </div>
     );
   }
-  if (clientToken.startsWith("pk_test_")) {
+
+  if (mode === "sandbox") {
     return (
       <div className="rounded-md border border-primary/40 bg-primary/10 px-4 py-2 text-[12px] text-primary">
         Test mode — payments made here are not real charges. Use card 4242 4242 4242 4242 to test
@@ -17,6 +20,7 @@ export function PaymentTestModeBanner() {
       </div>
     );
   }
+
   return (
     <div className="rounded-md border border-border bg-elevated px-4 py-2 text-[12px] text-muted-foreground">
       Secure live checkout — your card is charged for real by Stripe. Setup is a one-time payment
