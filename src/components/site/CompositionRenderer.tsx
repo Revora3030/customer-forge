@@ -166,7 +166,7 @@ function renderNode(node: CompositionNode, ctx: Ctx, key: string): ReactNode {
   }
 }
 
-type NodeProps = { "data-cn": string; "data-motion"?: string; className?: string; style: CSSProperties };
+type NodeProps = { "data-cn": string; "data-motion": string | undefined; className: string | undefined; style: CSSProperties };
 
 function Tabs({ props, labels, panels }: { props: NodeProps; labels: string[]; panels: ReactNode[] }) {
   const [active, setActive] = useState(0);
