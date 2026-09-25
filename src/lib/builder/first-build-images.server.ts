@@ -331,9 +331,10 @@ export function firstBuildImageEvidenceJson(evidence: FirstBuildImageEvidence): 
 }
 
 /** Removes only assets created by this generation attempt. Owner media is never touched. */
-export async function cleanupFirstBuildImages(db: Db, assets: FirstBuildImageAsset[]): Promise<void> {
-  const paths = [...new Set(assets.map((asset) => asset.path).filter(Boolean))];
+export async function cleanupFirstBuildImages(db: Db, orgId: string, assets: FirstBuildImageAsset[]): Promise<void> {
+  // Only this tenant's own storage folder may be touched.
+  const paths = [...new Set(assets.map((asset) => asset.path).filter((path) => Boolean(path) && path.startsWith(`${orgId}/`)))];
   const ids = [...new Set(assets.map((asset) => asset.mediaId).filter((id): id is string => Boolean(id)))];
   if (paths.length) await db.storage.from(MEDIA_BUCKET).remove(paths);
-  if (ids.length) await db.from("media").delete().in("id", ids);
+  if (ids.length) await db.from("media").delete().eq("organization_id", orgId).in("id", ids);
 }

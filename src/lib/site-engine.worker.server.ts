@@ -994,7 +994,7 @@ async function runJob(
   } catch (error) {
     if (generatedAssets.length) {
       const { cleanupFirstBuildImages } = await import("@/lib/builder/first-build-images.server");
-      await cleanupFirstBuildImages(db, generatedAssets).catch(() => undefined);
+      await cleanupFirstBuildImages(db, orgId, generatedAssets).catch(() => undefined);
     }
     const message = error instanceof Error ? error.message : "Generation failed.";
     if (freshReplace && pendingBuild?.backupId) {
