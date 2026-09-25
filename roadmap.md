@@ -8,4 +8,8 @@
 - [x] Visual check was broken in real browsers (security rules blocked it; sub-pages 404'd on preview links) — fixed.
 - [x] "Fix with AI" runs live: 3 AI repair rounds ran on the Northline test site.
 - [x] Test site check: 0 overflow, 0 small text, 0 small taps at 320/390/768/1440.
+- [x] Northline visual check now PASSES (0 serious issues; saved score 91). Remaining advice (slow server, big scripts) comes from the unbundled preview server.
 - [ ] Phase 5: second-industry build, approve, publish, show phone + desktop.
+- [ ] Remove automatic buttons/cards added by section name (plan step 2).
+- [ ] Second-industry build → approve → publish → show phone + desktop (plan step 3).
+- [ ] Remove old design shortcut; retention cleanup; fresh security scan (plan step 4).
