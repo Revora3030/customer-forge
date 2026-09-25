@@ -120,4 +120,18 @@ describe("AI-invented sections and pages", () => {
     expect(r?.architecture[0]?.sections.map((s) => s.role)).toEqual(["hero"]);
     expect(r?.rejected.length).toBeGreaterThanOrEqual(3);
   });
+  it("allows a real functional capability to close an AI-invented page", () => {
+    const withContact = [{
+      ...candidate[0]!,
+      sections: [...candidate[0]!.sections, { role: "contact" }],
+    }];
+    const r = normalizePageArchitecture({ candidate: withContact, proposal: [
+      { slug: "home", sections: [{ role: "hero" }, { role: "contact" }] },
+      { slug: "about", title: "About", sections: [
+        { role: "story", heading: "Our approach" },
+        { role: "contact", heading: "Start a conversation" },
+      ] },
+    ] });
+    expect(r?.architecture[1]?.sections.map((section) => section.role)).toEqual(["story", "contact"]);
+  });
 });

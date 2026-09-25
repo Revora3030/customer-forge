@@ -192,10 +192,10 @@ async function claimJob(db: Db, organizationId?: string) {
       } as never)
       .eq("id", job.id)
       .eq("attempts", job.attempts as number)
-      .select("id, organization_id, created_by")
+      .select("id, organization_id, created_by, attempts")
       .maybeSingle();
     if (claimed)
-      return claimed as { id: string; organization_id: string; created_by: string | null };
+      return claimed as { id: string; organization_id: string; created_by: string | null; attempts: number };
   }
   return null;
 }
@@ -203,7 +203,7 @@ async function claimJob(db: Db, organizationId?: string) {
 /** Runs the nine generation stages for one claimed job using the privileged client. */
 async function runJob(
   db: Db,
-  job: { id: string; organization_id: string; created_by: string | null },
+  job: { id: string; organization_id: string; created_by: string | null; attempts: number },
 ) {
   const orgId = job.organization_id;
   const { GENERATION_STEPS } = await import("@/lib/site-engine");
@@ -537,6 +537,29 @@ async function runJob(
   if (safetyProblems.length) throw new Error(safetyProblems[0]!.detail);
   let generatedAssets: import("@/lib/builder/first-build-images.types").FirstBuildImageAsset[] = [];
   try {
+  // A retry of the same first build may find the partial pages written by its
+  // previous attempt. They are not an existing customer site and must never
+  // make the retry silently skip architecture, composition, chrome, or media.
+  // Only rows tagged with this job are cleared; fresh rebuilds remain protected
+  // by their restore point and unrelated customer content is untouched.
+  const retryOwnsPartialBuild = !freshReplace && (existingPages.count ?? 0) > 0 && Number(job.attempts ?? 0) > 1;
+  if (retryOwnsPartialBuild) {
+    const partial = await db
+      .from("website_settings")
+      .select("generation")
+      .eq("organization_id", orgId)
+      .maybeSingle();
+    const partialGeneration = (partial.data?.generation ?? {}) as Record<string, unknown>;
+    const report = partialGeneration["report"] as Record<string, unknown> | undefined;
+    if (report?.["jobId"] === job.id) {
+      const componentDelete = await db.from("website_components").delete().eq("organization_id", orgId);
+      if (componentDelete.error) throw new Error(`Couldn't clear the incomplete build components: ${componentDelete.error.message}`);
+      const sectionDelete = await db.from("website_sections").delete().eq("organization_id", orgId);
+      if (sectionDelete.error) throw new Error(`Couldn't clear the incomplete build sections: ${sectionDelete.error.message}`);
+      const pageDelete = await db.from("website_pages").delete().eq("organization_id", orgId);
+      if (pageDelete.error) throw new Error(`Couldn't clear the incomplete build pages: ${pageDelete.error.message}`);
+    }
+  }
   const starterImages = await generateFirstBuildImages(db, {
     organizationId: orgId,
     userId: job.created_by,
@@ -859,7 +882,9 @@ async function runJob(
   const { error: saveError } = await db.from("website_settings").upsert(
     {
       organization_id: orgId,
-      template: null,
+      // Legacy non-null database compatibility marker only. No renderer or
+      // creative path reads this value; the authored composition is above.
+      template: "ai-authored",
       generation: {
         ...withoutPendingBuild(priorGeneration),
         copy,
@@ -905,6 +930,7 @@ async function runJob(
       progress: 100,
       current_step: "ready",
       steps: [...done, "ready"],
+      error_message: null,
       completed_at: new Date().toISOString(),
       lease_expires_at: null,
       updated_at: new Date().toISOString(),

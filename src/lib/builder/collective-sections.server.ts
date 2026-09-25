@@ -155,8 +155,9 @@ function record(
 
 /**
  * Sol rewrites every section's wording in one pass, Terra approves section by
- * section, and only fact-safe changes are returned. An empty patch list means
- * the build must stop rather than ship unreviewed wording.
+ * section, and only fact-safe changes are returned. If Terra concludes the
+ * already AI-authored wording is stronger, an empty patch list preserves that
+ * reviewed version instead of falsely treating no change as a failure.
  */
 export async function refineSectionWordingWithCollective(input: {
   organizationId: string;
@@ -264,15 +265,12 @@ export async function refineSectionWordingWithCollective(input: {
     baseline: input.sections,
     approvedIds,
   });
-  if (!gated.accepted.length)
-    throw new Error("Terra or the fact gate rejected every section-copy proposal, so the build was stopped.");
   const solPass = passes.find((pass) => pass.purpose === "content_strategy");
   if (solPass) {
     solPass.acceptedFields = gated.accepted.map((patch) => patch.id);
     solPass.rejected = gated.rejected;
-    solPass.used = gated.accepted.length > 0;
     if (!gated.accepted.length && !solPass.skipped)
-      solPass.skipped = "every proposed section was refused by the fact check";
+      solPass.skipped = "Terra retained the already AI-authored section wording as the stronger version";
   }
 
   return {

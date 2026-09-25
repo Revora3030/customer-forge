@@ -132,6 +132,7 @@ function sameShape(a: PageArchitecture[], b: PageArchitecture[]): boolean {
  */
 /** Section roles that are working features and can never be invented. */
 const FEATURE_ROLES = new Set(["quote", "booking", "contact", "sticky_cta", "embed", "post_list", "composition", "hero", "gallery", "feature_media"]);
+const RELOCATABLE_FEATURE_ROLES = new Set(["quote", "booking", "contact", "sticky_cta", "embed", "post_list"]);
 const SAFE_ROLE = /^[a-z][a-z0-9_]{1,30}$/;
 const SAFE_SLUG = /^[a-z0-9][a-z0-9-]{1,39}$/;
 /** Resource ceiling only; it is not a prescribed site size. */
@@ -146,6 +147,10 @@ export function normalizePageArchitecture(input: {
   const architecture: PageArchitecture[] = [];
   const seen = new Set<string>();
   let invented = 0;
+  const availableFeatures = new Set<string>();
+  for (const page of input.candidate)
+    for (const section of page.sections)
+      if (RELOCATABLE_FEATURE_ROLES.has(section.role)) availableFeatures.add(section.role);
 
   const inventedSection = (slug: string, s: RawSection) => {
     if (!SAFE_ROLE.test(s.role) || FEATURE_ROLES.has(s.role)) {
@@ -188,6 +193,18 @@ export function normalizePageArchitecture(input: {
         available.set(role, left - 1);
         sections.push({
           role, heading, subheading, body, media: media ?? "none",
+          ...(layout ? { layout } : {}),
+          ...(intent ? { intent } : {}),
+        });
+        continue;
+      }
+      if (FEATURE_ROLES.has(role) && availableFeatures.has(role)) {
+        sections.push({
+          role,
+          heading,
+          subheading,
+          body,
+          media: media ?? "none",
           ...(layout ? { layout } : {}),
           ...(intent ? { intent } : {}),
         });

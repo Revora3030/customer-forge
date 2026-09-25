@@ -93,6 +93,19 @@ describe("AI-authored compositions", () => {
     expect(html).toContain('src="https://example.com/signed.jpg"');
   });
 
+  it("rejects unresolved or omitted section picture references", () => {
+    const real = "11111111-1111-4111-8111-111111111111";
+    const other = "22222222-2222-4222-8222-222222222222";
+    expect(validateComposition(
+      { version: 1, root: { type: "media", mediaRef: other, alt: "Detailed vehicle" } },
+      { allowedMediaRefs: new Set([real]), requiredMediaRefs: new Set([real]) },
+    ).ok).toBe(false);
+    expect(validateComposition(
+      { version: 1, root: { type: "stack", children: [] } },
+      { allowedMediaRefs: new Set([real]), requiredMediaRefs: new Set([real]) },
+    ).ok).toBe(false);
+  });
+
   it("the site agent accepts set_composition and reports invalid trees for repair", () => {
     const dropped: string[] = [];
     const known = { pageIds: new Set(["p1"]), sectionIds: new Set(["s1"]), componentIds: new Set<string>() };
