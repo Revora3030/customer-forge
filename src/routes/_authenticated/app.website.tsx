@@ -85,7 +85,7 @@ import {
   MissingFactsPanel,
 } from "@/components/app/BriefReview";
 import { readBrief, readReport } from "@/lib/site-brief";
-import { StarterImages } from "@/components/app/StarterImages";
+import { AiTeamImages, AiTeamPages } from "@/components/app/AiTeamTabs";
 import {
   EDITABLE_COPY_FIELDS,
   growthRecommendations,
@@ -610,36 +610,7 @@ function WebsitePage() {
             {
               key: "images",
               label: "Images",
-              node: (
-                <>
-                  <StarterImages
-                    organizationId={orgId}
-                    canManage={manage}
-                    report={buildReport?.images ?? null}
-                    businessName={org?.name ?? null}
-                    industry={(profile?.["industry"] as string) ?? null}
-                    city={(profile?.["city"] as string) ?? null}
-                  />
-                  <ImageStudio
-                    organizationId={orgId}
-                    canManage={manage}
-                    industry={(profile?.["industry"] as string) ?? null}
-                    campaign={
-                      ((generation?.["firstBuildCreative"] as { brief?: { imageInventory?: unknown } } | undefined)
-                        ?.brief?.imageInventory) ?? null
-                    }
-                    mediaCount={mediaCount}
-                    hasHeroImage={!!(profile?.["hero_image_url"] as string)}
-                    onSetHero={(path) => saveProfile.mutate({ hero_image_url: path })}
-                  />
-                  <StockPhotoPanel
-                    organizationId={orgId}
-                    canManage={manage}
-                    industry={(profile?.["industry"] as string) ?? null}
-                  />
-                </>
-              ),
-
+              node: <AiTeamImages canManage={manage} onSent={() => setAdvanced(null)} />,
             },
             {
               key: "enquiries",
@@ -698,7 +669,12 @@ function WebsitePage() {
               label: "Pages",
               node: (
                 <>
-                  <WebsiteStructure organizationId={orgId} canManage={manage} />
+                  <AiTeamPages
+                    organizationId={orgId}
+                    pages={(pages ?? []) as { slug?: string | null; title?: string | null }[]}
+                    canManage={manage}
+                    onSent={() => setAdvanced(null)}
+                  />
                   <InteractionHealth pages={pages ?? []} onFix={() => setAdvanced(null)} />
                 </>
               ),
