@@ -5,7 +5,7 @@
  * own area; Sol decides what to change. A reviewer that fails is skipped, so
  * the panel can never block or degrade a build.
  */
-import { callBestThinker } from "@/lib/ai/hall-of-fame.server";
+import { callBestThinker, callHallOfFame } from "@/lib/ai/hall-of-fame.server";
 import type { CollectivePurpose } from "@/lib/ai/collective";
 
 export type ReviewArea = "design" | "conversion" | "truthfulness" | "seo" | "accessibility" | "mobile";
@@ -47,14 +47,82 @@ export function parseNote(text: string, area: ReviewArea, model: string | null):
   }
 }
 
+/**
+ * Areas where an independent free model gives a genuinely different opinion.
+ * Truthfulness stays with Terra (paid-first) because it guards against
+ * invented facts; the other areas go to the Hall-of-Fame free squad so the
+ * panel draws on several providers instead of one model repeated six times.
+ * If the free squad cannot answer, that reviewer falls back to Terra/Sol.
+ */
+const DIVERSE_AREAS = new Set<ReviewArea>(["design", "conversion", "seo", "accessibility", "mobile"]);
+
+export const diverseThinker: Thinker = async (request) => {
+  const purpose = request.purpose;
+  const area = (request as { area?: ReviewArea }).area;
+  if (area && DIVERSE_AREAS.has(area)) {
+    const started = Date.now();
+    const free = await callHallOfFame({
+      purpose,
+      system: request.system,
+      user: request.user,
+      json: true,
+      squadSize: 2,
+      ...(request.maxOutputTokens === undefined ? {} : { maxOutputTokens: request.maxOutputTokens }),
+      ...(request.organizationId === undefined ? {} : { organizationId: request.organizationId }),
+    });
+    if (free.ok) {
+      const { recordTeamStep } = await import("@/lib/ai/telemetry.server");
+      await recordTeamStep({
+        organizationId: request.organizationId ?? null,
+        stage: request.stage ?? `review.${area}`,
+        purpose,
+        lane: "free",
+        model: `${free.provider} · ${free.model}`,
+        ok: true,
+        latencyMs: Date.now() - started,
+        reason: `independent ${area} reviewer from the free squad`,
+        contribution: "critique notes",
+        costMicrocents: 0,
+      });
+      return {
+        ok: true, lane: "free", tier: null, wanted: "terra", downgraded: false,
+        text: free.text, model: `${free.provider} · ${free.model}`, costMicrocents: 0,
+        attempts: free.attempts, handoverReason: null,
+      } satisfies Awaited<ReturnType<Thinker>>;
+    }
+  }
+  return callBestThinker(request);
+};
+
+/**
+ * Advisers speak BEFORE Sol designs: they read only the supplied material and
+ * hand Sol evidence-backed notes. They never write the site.
+ */
+export async function runAdvisoryPanel(
+  input: { organizationId: string; material: string },
+  thinker: Thinker = diverseThinker,
+) {
+  return runReviewPanel(
+    {
+      organizationId: input.organizationId,
+      mode: "full",
+      stage: "advise",
+      material: ["NO DESIGN EXISTS YET. Advise the lead designer on what this site must get right, using only this material:", input.material].join("\n"),
+    },
+    thinker,
+  );
+}
+
 export async function runReviewPanel(
-  input: { organizationId: string; material: string; mode: "full" | "light" },
-  thinker: Thinker = callBestThinker,
+  input: { organizationId: string; material: string; mode: "full" | "light"; stage?: string },
+  thinker: Thinker = diverseThinker,
 ): Promise<{ notes: ReviewNote[]; models: string[]; costMicrocents: number; failed: ReviewArea[] }> {
   const reviewers = panelFor(input.mode);
   const settled = await Promise.allSettled(
     reviewers.map((reviewer) =>
       thinker({
+        area: reviewer.area,
+        stage: `${input.stage ?? "review"}.${reviewer.area}`,
         json: true,
         purpose: reviewer.purpose,
         complexity: reviewer.complexity,

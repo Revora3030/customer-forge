@@ -34,6 +34,7 @@ const accessibilitySchema = z
 
 const performanceSchema = z
   .object({
+    devServer: z.boolean().optional(),
     ttfb: z.number().finite().nullable(),
     fcp: z.number().finite().nullable(),
     lcp: z.number().finite().nullable(),

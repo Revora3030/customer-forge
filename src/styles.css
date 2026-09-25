@@ -2037,12 +2037,18 @@ a[href*="lovable.app"][target="_blank"][class*="fixed"],
   min-height: 12rem;
 }
 
+/* Header links are the first thing a visitor taps, on every screen size. */
+.rv-site-header a {
+  min-height: 44px;
+}
+
 /* Phone-sized touch targets on a customer website. Navigation, footer and
    call-to-action links are what a visitor taps with a thumb, so they get a real
    44px target instead of a 20px line of text. Inline links inside prose are
    deliberately left alone: growing them would break the flow of a sentence. */
 @media (max-width: 480px) {
   .rv-site nav a,
+  .rv-site header a,
   .rv-site-footer a,
   .rv-site a[data-rv-tap="cta"],
   .rv-site .rv-nav-link {

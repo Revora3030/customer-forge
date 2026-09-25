@@ -79,6 +79,72 @@ export type Database = {
           },
         ]
       }
+      ai_model_registry: {
+        Row: {
+          blocked_reason: string | null
+          capabilities: Json
+          context_tokens: number | null
+          display_name: string | null
+          evidence: string
+          healthy: boolean
+          input_modalities: string[]
+          last_seen_at: string
+          latency_ms: number | null
+          model: string
+          output_modalities: string[]
+          paid: boolean
+          provider: string
+          quality: number
+          reliability: number
+          retired: boolean
+          specialist: boolean
+          updated_at: string
+          verified_at: string | null
+        }
+        Insert: {
+          blocked_reason?: string | null
+          capabilities?: Json
+          context_tokens?: number | null
+          display_name?: string | null
+          evidence?: string
+          healthy?: boolean
+          input_modalities?: string[]
+          last_seen_at?: string
+          latency_ms?: number | null
+          model: string
+          output_modalities?: string[]
+          paid?: boolean
+          provider: string
+          quality?: number
+          reliability?: number
+          retired?: boolean
+          specialist?: boolean
+          updated_at?: string
+          verified_at?: string | null
+        }
+        Update: {
+          blocked_reason?: string | null
+          capabilities?: Json
+          context_tokens?: number | null
+          display_name?: string | null
+          evidence?: string
+          healthy?: boolean
+          input_modalities?: string[]
+          last_seen_at?: string
+          latency_ms?: number | null
+          model?: string
+          output_modalities?: string[]
+          paid?: boolean
+          provider?: string
+          quality?: number
+          reliability?: number
+          retired?: boolean
+          specialist?: boolean
+          updated_at?: string
+          verified_at?: string | null
+        }
+        Relationships: []
+      }
       ai_provider_runtime: {
         Row: {
           created_at: string
@@ -120,6 +186,69 @@ export type Database = {
           used?: number
         }
         Relationships: []
+      }
+      ai_team_trace: {
+        Row: {
+          contribution: string | null
+          cost_microcents: number
+          created_at: string
+          id: string
+          lane: string
+          latency_ms: number | null
+          model: string | null
+          ok: boolean
+          organization_id: string | null
+          provider: string | null
+          purpose: string
+          reason: string | null
+          stage: string
+        }
+        Insert: {
+          contribution?: string | null
+          cost_microcents?: number
+          created_at?: string
+          id?: string
+          lane: string
+          latency_ms?: number | null
+          model?: string | null
+          ok: boolean
+          organization_id?: string | null
+          provider?: string | null
+          purpose: string
+          reason?: string | null
+          stage: string
+        }
+        Update: {
+          contribution?: string | null
+          cost_microcents?: number
+          created_at?: string
+          id?: string
+          lane?: string
+          latency_ms?: number | null
+          model?: string | null
+          ok?: boolean
+          organization_id?: string | null
+          provider?: string | null
+          purpose?: string
+          reason?: string | null
+          stage?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_team_trace_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_team_trace_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "public_organizations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       ai_tool_audit: {
         Row: {

@@ -63,6 +63,42 @@ export async function recordAiEvent(event: AiEvent) {
   }
 }
 
+export type TeamStep = {
+  organizationId: string | null;
+  stage: string;
+  purpose: string;
+  lane: string;
+  model: string | null;
+  ok: boolean;
+  latencyMs: number;
+  reason: string | null;
+  contribution: string | null;
+  costMicrocents: number;
+};
+
+/** One AI team step. Never prompts or generated content. */
+export async function recordTeamStep(step: TeamStep) {
+  try {
+    const client = await admin();
+    const [provider, model] = step.model?.includes(" · ") ? step.model.split(" · ") : [step.lane === "paid" ? "openai" : null, step.model];
+    await client.from("ai_team_trace").insert({
+      organization_id: step.organizationId,
+      stage: step.stage.slice(0, 60),
+      purpose: step.purpose.slice(0, 60),
+      lane: step.lane,
+      provider: provider ?? null,
+      model: model ?? null,
+      ok: step.ok,
+      latency_ms: Math.round(step.latencyMs),
+      reason: step.reason?.slice(0, 300) ?? null,
+      contribution: step.contribution?.slice(0, 200) ?? null,
+      cost_microcents: Math.max(0, Math.round(step.costMicrocents)),
+    });
+  } catch (error) {
+    console.error("[revora-ai] team trace write failed", (error as Error).message);
+  }
+}
+
 export type LimitVerdict = { allowed: true } | { allowed: false; reason: string };
 
 /**

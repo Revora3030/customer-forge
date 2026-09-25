@@ -161,6 +161,41 @@ export function catalogSnapshot() {
   return snapshot;
 }
 
+/** Keeps a durable, admin-readable record of every model and its evidence. */
+async function persistRegistry(records: ModelRecord[]) {
+  try {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const now = new Date().toISOString();
+    const rows = records.map((r) => ({
+      provider: r.provider,
+      model: r.id,
+      display_name: r.displayName,
+      capabilities: r.capabilities,
+      input_modalities: r.inputModalities,
+      output_modalities: r.outputModalities,
+      context_tokens: r.contextTokens,
+      quality: Math.round(r.quality),
+      reliability: Math.round(r.reliability),
+      latency_ms: r.latencyMs === null ? null : Math.round(r.latencyMs),
+      paid: r.paid,
+      specialist: r.specialist,
+      evidence: r.evidence,
+      healthy: r.healthy,
+      blocked_reason: r.blockedReason,
+      verified_at: r.verifiedAt ? new Date(r.verifiedAt).toISOString() : null,
+      last_seen_at: now,
+      retired: false,
+      updated_at: now,
+    }));
+    for (let i = 0; i < rows.length; i += 200)
+      await supabaseAdmin.from("ai_model_registry").upsert(rows.slice(i, i + 200) as never);
+    // Models no longer listed by any provider are marked retired, never deleted.
+    await supabaseAdmin.from("ai_model_registry").update({ retired: true } as never).lt("last_seen_at", now);
+  } catch (error) {
+    console.error("[revora-ai] model registry write failed", (error as Error).message);
+  }
+}
+
 export function resetCatalogSnapshot() {
   snapshot = null;
 }
@@ -229,5 +264,6 @@ export async function buildModelCatalog(): Promise<CatalogSnapshot> {
       specialists: specialists.filter((record) => record.healthy).length,
     },
   };
+  await persistRegistry([...specialists, ...models]);
   return snapshot;
 }
