@@ -16,7 +16,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { ensureProfile, enforceSessionPolicy, resolvePostLoginPath } from "@/lib/auth-session";
 import { OG_IMAGE, ORGANIZATION_SCHEMA, WEBSITE_SCHEMA } from "@/lib/seo";
 import { RouteError, RouteNotFound } from "@/components/app/RouteStates";
+import { CookieConsent } from "@/components/marketing/CookieConsent";
 import { PlatformAnalytics } from "@/components/marketing/PlatformAnalytics";
+import { loadGoogleAds } from "@/lib/google-ads";
 import { reportRouteError } from "@/lib/route-error-reporting";
 
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
@@ -81,6 +83,13 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "mobile-web-app-capable", content: "yes" },
     ],
     scripts: [
+      // Consent Mode defaults must exist before the Google Ads tag loads.
+      // Granted globally, denied in regions that require consent until the
+      // visitor answers the cookie banner.
+      {
+        children:
+          "window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('consent','default',{ad_storage:'granted',ad_user_data:'granted',ad_personalization:'granted'});gtag('consent','default',{ad_storage:'denied',ad_user_data:'denied',ad_personalization:'denied',wait_for_update:500,region:['AT','BE','BG','HR','CY','CZ','DK','EE','FI','FR','DE','GR','HU','IE','IT','LV','LT','LU','MT','NL','PL','PT','RO','SK','SI','ES','SE','IS','LI','NO','GB','CH','CA-QC']});",
+      },
       { type: "application/ld+json", children: JSON.stringify(ORGANIZATION_SCHEMA) },
       { type: "application/ld+json", children: JSON.stringify(WEBSITE_SCHEMA) },
     ],
@@ -202,11 +211,18 @@ function RootComponent() {
     };
   }, []);
 
+  useEffect(() => {
+    // Google Ads measurement (Advanced Consent Mode): the tag loads after the
+    // head's consent defaults, and Google's signals follow the cookie banner.
+    void loadGoogleAds(true);
+  }, []);
+
   return (
     <QueryClientProvider client={queryClient}>
       <PlatformAnalytics />
       {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
       <Outlet />
+      <CookieConsent />
       <Toaster position="top-right" />
     </QueryClientProvider>
   );

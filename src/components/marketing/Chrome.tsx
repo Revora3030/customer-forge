@@ -306,9 +306,18 @@ export function SiteFooter() {
             © {new Date().getFullYear()} <span className="text-foreground">REVORA™</span> — The
             Business Growth Operating System
           </p>
-          <p className="text-[11px] text-muted-foreground">
-            Estimated opportunity figures are estimates, not guaranteed revenue.
-          </p>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
+            <p className="text-[11px] text-muted-foreground">
+              Estimated opportunity figures are estimates, not guaranteed revenue.
+            </p>
+            <button
+              type="button"
+              onClick={openCookieSettings}
+              className="min-h-11 self-start text-[11px] text-muted-foreground underline-offset-2 transition-colors hover:text-primary hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring sm:min-h-0 sm:self-auto"
+            >
+              Cookie settings
+            </button>
+          </div>
         </div>
       </div>
       <MarketingConversionKit />
