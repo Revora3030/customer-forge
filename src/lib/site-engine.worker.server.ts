@@ -907,6 +907,7 @@ async function runJob(
       progress: 100,
       current_step: "ready",
       steps: [...done, "ready"],
+      error_message: null,
       completed_at: new Date().toISOString(),
       lease_expires_at: null,
       updated_at: new Date().toISOString(),
