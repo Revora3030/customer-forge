@@ -37,7 +37,7 @@ function Success({ title, body }: { title: string; body: string }) {
         <Check className="size-5" aria-hidden="true" />
       </span>
       <h3 className="mt-4 font-display text-[17px] font-semibold">{title}</h3>
-      <p className="mt-1.5 max-w-sm text-[13px] leading-relaxed text-muted-foreground">{body}</p>
+      <p className="mt-1.5 max-w-sm text-[14px] leading-relaxed text-muted-foreground">{body}</p>
     </div>
   );
 }
@@ -127,7 +127,7 @@ export function QuoteCalculator({ site }: { site: Site }) {
             <fieldset key={question.id}>
               <legend className="text-[14px] font-medium">{question.label}</legend>
               {question.helper_text ? (
-                <p className="mt-1 text-[13px] text-muted-foreground">{question.helper_text}</p>
+                <p className="mt-1 text-[14px] text-muted-foreground">{question.helper_text}</p>
               ) : null}
               <div className="mt-3 grid gap-2 sm:grid-cols-2">
                 {question.options.map((option) => {
@@ -142,7 +142,7 @@ export function QuoteCalculator({ site }: { site: Site }) {
                       }}
                       aria-pressed={active}
                       className={cn(
-                        "min-h-11 cursor-pointer rounded-md border px-3.5 py-2.5 text-left text-[13px] transition-colors",
+                        "min-h-11 cursor-pointer rounded-md border px-3.5 py-2.5 text-left text-[14px] transition-colors",
                         active
                           ? "border-primary bg-primary/10 text-foreground"
                           : "border-border hover:bg-elevated",
@@ -175,7 +175,7 @@ export function QuoteCalculator({ site }: { site: Site }) {
                         )
                       }
                       className={cn(
-                        "min-h-11 cursor-pointer rounded-md border px-3.5 py-2.5 text-left text-[13px] transition-colors",
+                        "min-h-11 cursor-pointer rounded-md border px-3.5 py-2.5 text-left text-[14px] transition-colors",
                         active
                           ? "border-primary bg-primary/10 text-foreground"
                           : "border-border hover:bg-elevated",
@@ -186,7 +186,7 @@ export function QuoteCalculator({ site }: { site: Site }) {
                         <span className="tnum text-primary">+{currency(Number(addon.price))}</span>
                       </span>
                       {addon.description ? (
-                        <span className="mt-1 block text-[13px] text-muted-foreground">
+                        <span className="mt-1 block text-[14px] text-muted-foreground">
                           {addon.description}
                         </span>
                       ) : null}
@@ -207,7 +207,7 @@ export function QuoteCalculator({ site }: { site: Site }) {
                   {currency(min)} – {currency(max)}
                 </p>
               ) : (
-                <p className="mt-1 text-[13px] text-muted-foreground">
+                <p className="mt-1 text-[14px] text-muted-foreground">
                   Choose your options to see your price
                 </p>
               )}
@@ -273,7 +273,7 @@ export function QuoteCalculator({ site }: { site: Site }) {
           }}
         >
           <Honeypot />
-          <p className="tnum text-[13px] text-muted-foreground">
+          <p className="tnum text-[14px] text-muted-foreground">
             Your estimate:{" "}
             <span className="font-semibold text-primary">
               {currency(min)} – {currency(max)}
@@ -407,7 +407,7 @@ export function BookingForm({ site }: { site: Site }) {
             id={fid("service")}
             value={serviceId}
             onChange={(e) => setServiceId(e.target.value)}
-            className="h-11 w-full rounded-md border border-input bg-transparent px-3 text-[13px] sm:h-10"
+            className="h-11 w-full rounded-md border border-input bg-transparent px-3 text-[14px] sm:h-10"
           >
             {bookable.map((s) => (
               <option key={s.id} value={s.id}>
@@ -450,7 +450,7 @@ export function BookingForm({ site }: { site: Site }) {
         ) : null}
       </div>
       {bookable.length ? (
-        <p className="text-[13px] text-muted-foreground">
+        <p className="text-[14px] text-muted-foreground">
           {/* Real limitation, not just copy: nothing in this codebase stores the
               business's own timezone, so a time typed here is captured in the
               visitor's own device timezone. If a customer books while set to a
@@ -473,7 +473,7 @@ export function BookingForm({ site }: { site: Site }) {
       <Button type="submit" variant="signal" disabled={pending}>
         {pending ? <Loader2 className="size-4 animate-spin" /> : null} Request appointment
       </Button>
-      <p className="text-[13px] text-muted-foreground">
+      <p className="text-[14px] text-muted-foreground">
         No payment now — you'll get a confirmation before anything is charged.
       </p>
     </form>
