@@ -284,7 +284,7 @@
 
 /* Hairline label used above numbers and section headings. */
 @utility eyebrow {
-  font-size: 0.6875rem;
+  font-size: 0.875rem;
   line-height: 1.2;
   letter-spacing: 0.08em;
   text-transform: uppercase;
