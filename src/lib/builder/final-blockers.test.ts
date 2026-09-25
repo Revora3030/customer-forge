@@ -37,3 +37,18 @@ describe("phone safety safeguards", () => {
     expect(PHONE_SAFETY_CSS).not.toMatch(/color:|font-family|background/);
   });
 });
+
+describe("visual check false positives", () => {
+  const src = read("src/lib/builder/visual.ts");
+  const measure = read("src/lib/builder/visual-measure.ts");
+  it("ignores hidden answers inside closed details and sticky chrome for overlap", () => {
+    expect(src).toContain('details:not([open])');
+    expect(src).toMatch(/pos === "sticky" \|\| pos === "fixed"/);
+  });
+  it("does not count its own resize reflow as visitor layout shift", () => {
+    expect(measure).toMatch(/index > 0[\s\S]*__revoraCls = 0/);
+  });
+  it("renders phone safeguards after AI breakpoint rules so they win", () => {
+    expect(read("src/components/site/CompositionRenderer.tsx")).toContain('ctx.rules.join("") + PHONE_SAFETY_CSS');
+  });
+});
