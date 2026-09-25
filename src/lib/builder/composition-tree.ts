@@ -24,8 +24,21 @@ export const PRIMITIVE_GUIDE =
   "gallery (media children in a grid; tap opens full size), " +
   "quote (text is the quoted words; items[0] optional attribution — only real, supplied quotes). " +
   "Layering: style.position (relative|sticky|absolute), style.top/left/right/bottom (px), style.zIndex (0-50), style.overlap (px a block pulls up over the one before it), style.blur (frosted-glass backdrop px), style.rotate (deg), style.gridAreas + style.area for named grid regions. " +
-  "Motion: motion.kind fade|rise|scale|float|slide-left|slide-right|blur|reveal, motion.delayMs, motion.durationMs; all motion is skipped for reduced-motion visitors.";
-export const MOTION_KINDS = ["none", "fade", "rise", "scale", "float", "slide-left", "slide-right", "blur", "reveal"] as const;
+  "Motion: motion.kind fade|rise|scale|float|slide-left|slide-right|blur|reveal, motion.delayMs, motion.durationMs, motion.easing (ease|ease-in|ease-out|ease-in-out|linear|spring|snap); presets are optional shortcuts. " +
+  "Or design your own: motion.kind custom with motion.from { opacity 0-100, x/y px -240..240, scale 0.5-1.5, rotate deg -45..45, blur px 0-24 } (the block animates from those values to its designed state), " +
+  "motion.repeat (1-3 plays, or loop for a gentle back-and-forth), motion.trigger (load|view). All motion is skipped for reduced-motion visitors.";
+export const MOTION_KINDS = ["none", "fade", "rise", "scale", "float", "slide-left", "slide-right", "blur", "reveal", "custom"] as const;
+export const MOTION_EASINGS = ["ease", "ease-in", "ease-out", "ease-in-out", "linear", "spring", "snap"] as const;
+export type MotionEasing = (typeof MOTION_EASINGS)[number];
+export type MotionFrom = { opacity?: number; x?: number; y?: number; scale?: number; rotate?: number; blur?: number };
+/** Rendering-safety bounds for AI-described motion — not creative choices. */
+export const MOTION_FROM_LIMITS: Record<keyof MotionFrom, [number, number]> = {
+  opacity: [0, 100], x: [-240, 240], y: [-240, 240], scale: [0.5, 1.5], rotate: [-45, 45], blur: [0, 24],
+};
+export type NodeMotion = {
+  kind: MotionKind; delayMs?: number; durationMs?: number; easing?: MotionEasing;
+  from?: MotionFrom; repeat?: 1 | 2 | 3 | "loop"; trigger?: "load" | "view";
+};
 export type MotionKind = (typeof MOTION_KINDS)[number];
 export type CompositionPrimitive = (typeof COMPOSITION_PRIMITIVES)[number];
 export type Breakpoint = "mobile" | "tablet" | "desktop";
@@ -85,7 +98,7 @@ export type CompositionNode = {
   items?: string[];
   style?: NodeStyle;
   responsive?: Partial<Record<Breakpoint, NodeStyle>>;
-  motion?: { kind: MotionKind; delayMs?: number; durationMs?: number };
+  motion?: NodeMotion;
   children?: CompositionNode[];
 };
 
@@ -340,11 +353,34 @@ export function validateComposition(input: unknown, options: ValidateOptions = {
       const kind = motion?.["kind"];
       if (!MOTION_KINDS.includes(kind as MotionKind)) issues.push({ path: `${path}.motion.kind`, problem: "unknown motion" });
       else {
+        const m: NodeMotion = { kind: kind as MotionKind };
+        const bad = (key: string, problem: string) => issues.push({ path: `${path}.motion.${key}`, problem });
         const delay = motion["delayMs"];
-        node.motion = { kind: kind as NonNullable<CompositionNode["motion"]>["kind"] };
-        if (typeof delay === "number" && delay >= 0 && delay <= 3000) node.motion.delayMs = delay;
+        if (delay != null) { if (typeof delay === "number" && delay >= 0 && delay <= 3000) m.delayMs = delay; else bad("delayMs", "must be 0-3000"); }
         const duration = motion["durationMs"];
-        if (typeof duration === "number" && duration >= 150 && duration <= 4000) node.motion.durationMs = duration;
+        if (duration != null) { if (typeof duration === "number" && duration >= 150 && duration <= 4000) m.durationMs = duration; else bad("durationMs", "must be 150-4000"); }
+        const easing = motion["easing"];
+        if (easing != null) { if (MOTION_EASINGS.includes(easing as MotionEasing)) m.easing = easing as MotionEasing; else bad("easing", `must be one of ${MOTION_EASINGS.join(", ")}`); }
+        const repeat = motion["repeat"];
+        if (repeat != null) { if (repeat === 1 || repeat === 2 || repeat === 3 || repeat === "loop") m.repeat = repeat; else bad("repeat", "must be 1, 2, 3 or loop"); }
+        const trigger = motion["trigger"];
+        if (trigger != null) { if (trigger === "load" || trigger === "view") m.trigger = trigger; else bad("trigger", "must be load or view"); }
+        const from = motion["from"];
+        if (m.kind === "custom") {
+          if (!from || typeof from !== "object" || Array.isArray(from)) bad("from", "custom motion needs a from object");
+          else {
+            const out: MotionFrom = {};
+            for (const [k, v] of Object.entries(from as Record<string, unknown>)) {
+              const range = MOTION_FROM_LIMITS[k as keyof MotionFrom];
+              if (!range) bad(`from.${k}`, "unknown motion property");
+              else if (typeof v !== "number" || !Number.isFinite(v) || v < range[0] || v > range[1]) bad(`from.${k}`, `must be ${range[0]}..${range[1]}`);
+              else out[k as keyof MotionFrom] = v;
+            }
+            if (!Object.keys(out).length) bad("from", "custom motion needs at least one starting value");
+            m.from = out;
+          }
+        } else if (from != null) bad("from", "from is only used with kind custom");
+        node.motion = m;
       }
     }
     if (row["children"] != null) {
