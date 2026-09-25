@@ -203,35 +203,8 @@ export function validateAiDesignContract(contract: AiDesignContract): {
         detail: "the AI designed a page with no sections",
         severity: "blocker",
       });
-    const roles = page.sections.map((section) => section.role);
-    if (
-      contract.qualityMatrix.composition.deliberateOpeningRequired &&
-      !roles.some((role) => /hero|intro|opening|lead|masthead/i.test(role))
-    )
-      violations.push({
-        path: `pages.${page.slug}.sections`,
-        detail: "every page needs a deliberate opening",
-        severity: "blocker",
-      });
-    const closingRoles = new Set(["cta", "quote", "booking", "contact", "sticky_cta"]);
-    if (
-      contract.qualityMatrix.composition.closingActionRequired &&
-      !roles.some((role) => closingRoles.has(role))
-    )
-      violations.push({
-        path: `pages.${page.slug}.sections`,
-        detail: "every page needs a decisive conversion close",
-        severity: "blocker",
-      });
-    if (
-      contract.qualityMatrix.imagery.importantPageVisualRequired &&
-      !page.sections.some((section) => section.media === "required")
-    )
-      violations.push({
-        path: `pages.${page.slug}.sections`,
-        detail: "every important page needs at least one required visual",
-        severity: "blocker",
-      });
+    // No prescribed page anatomy: the AI decides how each page opens, flows,
+    // closes and whether it carries pictures. Only structural validity is checked.
     const ids = new Set<string>();
     for (const section of page.sections) {
       if (ids.has(section.id))

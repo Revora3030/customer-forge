@@ -148,15 +148,11 @@ describe("AI design contract is the only creative authority", () => {
     expect(validateAiDesignContract(contract({ accessibility: { minContrast: 3, minTouchTargetPx: 44, reducedMotionSafe: true } })).valid).toBe(false);
     expect(validateAiDesignContract(contract({ accessibility: { minContrast: 4.5, minTouchTargetPx: 30, reducedMotionSafe: true } })).valid).toBe(false);
   });
-  it("rejects pages without a designed opening, closing action or required visual", () => {
-    const weak = contract();
-    weak.pages[0]!.sections = [{ id: "home-copy-0", role: "copy", layout: "plain", intent: "filler", media: "none", emphasis: 1 }];
-    const result = validateAiDesignContract(weak);
-    expect(result.valid).toBe(false);
-    const details = result.violations.map((item) => item.detail).join(" ");
-    expect(details).toMatch(/opening/i);
-    expect(details).toMatch(/conversion close/i);
-    expect(details).toMatch(/required visual/i);
+  it("never imposes a page anatomy (opening, closing action or required visual)", () => {
+    const authored = contract();
+    authored.pages[0]!.sections = [{ id: "home-copy-0", role: "copy", layout: "plain", intent: "manifesto", media: "none", emphasis: 1 }];
+    const details = validateAiDesignContract(authored).violations.map((item) => item.detail).join(" ");
+    expect(details).not.toMatch(/deliberate opening|conversion close|required visual/i);
   });
 });
 
