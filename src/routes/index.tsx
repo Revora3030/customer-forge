@@ -508,7 +508,7 @@ function Landing() {
         </section>
 
         {/* VALUE + PRICING */}
-        <section id="pricing" className="border-b border-border">
+        <section id="pricing" className="scroll-mt-20 border-b border-border">
           <div className="mx-auto max-w-6xl px-4 py-16">
             <SectionHeading
               eyebrow="Pricing"
