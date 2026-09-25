@@ -191,3 +191,57 @@ describe("no built-in looks remain", () => {
     expect(parseAuthoredDirection({ name: "x", primary: "#111111", secondary: "#000000", accent: "#ffffff", font: "<script>" })).toBeNull();
   });
 });
+
+describe("root-level clean-up (Sep 25)", () => {
+  it("no zero-cost switch can turn the AI team off", () => {
+    const offenders = production.filter((f) => /ZERO_AI_COST_MODE|zeroAiCostMode|zeroCostBlocked/.test(readFileSync(f, "utf8")));
+    expect(offenders).toEqual([]);
+  });
+
+  it("the unused keyword intent resolver stays deleted", () => {
+    expect(() => statSync("src/lib/builder/intent-resolution.ts")).toThrow();
+  });
+
+  it("audit gaps are handed to the AI team, never inserted as a fixed section", () => {
+    const src = readFileSync("src/lib/auto-upgrade.hooks.ts", "utf8");
+    expect(src).not.toMatch(/from\("website_sections"\)\s*\.insert/);
+    expect(src).toMatch(/runWebsiteTask\(/);
+  });
+});
+
+describe("no fixed page or section recipes", () => {
+  it("the goal-to-sections recipe and fixed site outline stay deleted", () => {
+    expect(() => statSync("src/lib/builder/prompt-site-blueprint.ts")).toThrow();
+    const offenders = production.filter((f) => /GOAL_SECTIONS|createPromptSiteBlueprint/.test(readFileSync(f, "utf8")));
+    expect(offenders).toEqual([]);
+  });
+});
+
+describe("review repairs never author a design", () => {
+  it("design findings are handed to the AI team, not mapped to a fixed look", async () => {
+    const { visionRepairs, aiDesignInstruction } = await import("./vision-review");
+    const findings = [
+      { kind: "low_contrast_text", where: "Hero", detail: "Grey text on grey" },
+      { kind: "cta_not_prominent", where: "Offer", detail: "Button blends in" },
+      { kind: "cramped_spacing", where: "Services", detail: "Tight" },
+    ] as never;
+    const { repairs } = visionRepairs({ score: 60, verdict: "", findings, discarded: 0, clean: false } as never);
+    expect(repairs).toEqual([]);
+    expect(aiDesignInstruction(findings, "Home", 390)).toMatch(/Redesign/);
+    const upgrade = readFileSync("src/lib/site-upgrade.functions.ts", "utf8");
+    expect(upgrade).not.toMatch(/"high-contrast"|"gold_glow"/);
+  });
+
+  it("page search titles are written by the AI team", () => {
+    const src = readFileSync("src/lib/auto-upgrade.hooks.ts", "utf8");
+    expect(src).not.toMatch(/kind === "page_seo" \|\| proposal\.kind === "page_index"/);
+  });
+});
+
+describe("no canned upgrade engine", () => {
+  it("the fixed per-section effect and wording upgrade studio stays deleted", () => {
+    expect(() => statSync("src/lib/upgrade-studio.ts")).toThrow();
+    const offenders = production.filter((f) => /upgrade-studio|scanForUpgrades|effectFor\(/.test(readFileSync(f, "utf8")));
+    expect(offenders).toEqual([]);
+  });
+});

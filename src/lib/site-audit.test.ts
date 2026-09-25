@@ -179,9 +179,9 @@ describe("conversion engine", () => {
     expect(gaps[0]?.severity).toBe("critical");
   });
 
-  it("flags unanswered objections and missing goal sections", () => {
+  it("flags unanswered objections but never prescribes a fixed section list", () => {
     const gaps = conversionGaps("quote", ctx, ["hero", "cta"], ["What does it cost?"]);
-    expect(gaps.some((g) => g.key === "missing-sections")).toBe(true);
+    expect(gaps.some((g) => g.key === "missing-sections")).toBe(false);
     expect(gaps.some((g) => g.key === "objections")).toBe(true);
   });
 });

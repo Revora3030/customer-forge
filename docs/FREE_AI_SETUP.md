@@ -55,13 +55,13 @@ in-flight de-duplication so identical requests are never spent twice.
 ## Guarantees
 
 - Free-only mode is the default: a paid model id is rejected by pattern, and a
-  paid provider account is only reachable when an operator explicitly turns off
-  **both** `FREE_AI_ONLY` and `ZERO_AI_COST_MODE`.
-- Failover order is free provider → next free provider → deterministic engine,
+  paid provider account is reachable when an operator turns off `FREE_AI_ONLY`.
+  There is no zero-cost switch; spend is bounded by the monthly AI cap.
+- Failover order is free provider → next free provider → next AI specialist,
   triggered by missing credentials, rate limits, quota exhaustion, timeouts,
   provider 5xx, malformed structured output, an open circuit, or a spent budget.
 - When nothing free can answer, the call fails with a clear, non-retryable
-  explanation and the deterministic builder takes over — nothing is blocked.
+  explanation and the build stops honestly — no built-in design is substituted.
 
 ## Where to watch it
 

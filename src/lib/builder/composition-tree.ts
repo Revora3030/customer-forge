@@ -157,7 +157,7 @@ export function normalizeGridAreas(value: unknown): string | null {
     const text = value.trim();
     if (SAFE_GRID_AREAS.test(text)) return text;
     const quoted = [...text.matchAll(/["']([^"']*)["']/g)].map((m) => m[1]!);
-    rows = quoted.length ? quoted : text.split(/\s*[\/\n;|]\s*/);
+    rows = quoted.length ? quoted : text.split(/\s*[/\n;|]\s*/);
   } else return null;
   rows = rows.map((row) => row.trim().replace(/\s+/g, " ")).filter(Boolean);
   if (!rows.length || rows.length > 12 || !rows.every((row) => SAFE_GRID_ROW.test(row))) return null;

@@ -43,3 +43,5 @@
 - [ ] Real AI build to prove motion, 5-size review, buttons/cards — needs owner go-ahead (uses AI allowance).
 - [ ] Strengthen near-ranking city/industry pages with truthful content.
 - [ ] Google Business Profile reviews/hours sync.
+- [x] Automatic 5-size look-and-fix after every change (builder open).
+- [x] Root-level legacy authoring elimination (zero-cost switch, dead builders, canned upgrades, fixed repairs removed; firewall tests; all gates pass).

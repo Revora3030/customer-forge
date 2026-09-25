@@ -31,7 +31,6 @@ import {
   type ModelRole,
   type ProviderConfig,
   type ProviderName,
-  zeroAiCostMode,
 } from "@/lib/ai/config";
 import { RevoraAiError, freeAiUnavailable, providerUnavailable } from "@/lib/ai/errors";
 import {
@@ -313,7 +312,7 @@ async function buildChain(
   // can leave Revora merely because a provider happens to have a free tier.
   // External calls are reserved for explicit operator diagnostics and require
   // both switches to be deliberately opened on the server.
-  if (zeroAiCostMode() || !builderExternalAiAllowed()) return [];
+  if (!builderExternalAiAllowed()) return [];
 
   // First choice per provider (breadth), then each provider's remaining free
   // models (depth). Breadth first means a provider outage costs one attempt,
@@ -373,7 +372,7 @@ export function freeAiStatus() {
     freeAiEnabled: freeAiEnabled(),
     freeOnly: freeAiOnly(),
     paidFallbackReachable:
-      builderExternalAiAllowed() && !freeAiOnly() && !zeroAiCostMode(),
+      builderExternalAiAllowed() && !freeAiOnly(),
     /** The most recent model call: who served it and how it ended. */
     last: lastAiOutcome(),
     providers: freeProviderReadiness().map((entry) => {

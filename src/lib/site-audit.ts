@@ -13,7 +13,7 @@
  */
 
 import type { ContentPage } from "@/lib/website-content";
-import { GOAL_SECTIONS, type ConversionGoal } from "@/lib/conversion-engine";
+import type { ConversionGoal } from "@/lib/conversion-engine";
 
 export type AuditSeverity = "critical" | "warning" | "opportunity";
 
@@ -198,16 +198,6 @@ export function auditStructure(input: StructureAuditInput) {
     severity: "warning",
     weight: 3,
     upgrade: "add_faq_section",
-  });
-
-  const missingGoal = GOAL_SECTIONS[input.goal].filter((kind) => !allKinds.has(kind));
-  siteCheck(missingGoal.length === 0, {
-    key: "goal-sections",
-    title: "Site isn't built around your goal",
-    detail: `Your primary goal needs ${missingGoal.join(", ")} — not present.`,
-    action: "Add the missing sections so every page leads to your main action.",
-    severity: "warning",
-    weight: 4,
   });
 
   siteCheck(filled(input.metaDescription) && filled(input.headline), {

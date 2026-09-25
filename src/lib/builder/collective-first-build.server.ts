@@ -534,7 +534,7 @@ async function refineCreativeWithCollective(input: {
     2,
   );
 
-  let solCall = await callBestThinker({
+  const solCall = await callBestThinker({
     json: true,
     purpose: "creative_direction",
     complexity: "high",

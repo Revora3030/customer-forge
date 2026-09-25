@@ -12,7 +12,6 @@
 import {
   builderExternalAiAllowed,
   providerChain,
-  zeroAiCostMode,
   type ModelRole,
 } from "@/lib/ai/config";
 import { freeProviderChain } from "@/lib/ai/free";
@@ -20,7 +19,6 @@ import { freeProviderChain } from "@/lib/ai/free";
 /** Free AI for one role: configured credentials plus a free-eligible model. */
 export function freeAiAvailable(role: ModelRole = "primary") {
   return (
-    !zeroAiCostMode() &&
     builderExternalAiAllowed() &&
     freeProviderChain(role).length > 0
   );
@@ -32,7 +30,7 @@ export function freeAiAvailable(role: ModelRole = "primary") {
  * the builder can turn this on by itself.
  */
 export function paidAiAllowedForBuilder() {
-  return !zeroAiCostMode() && builderExternalAiAllowed() && providerChain().length > 0;
+  return builderExternalAiAllowed() && providerChain().length > 0;
 }
 
 /** Can the builder call a model for this role at all (free first)? */

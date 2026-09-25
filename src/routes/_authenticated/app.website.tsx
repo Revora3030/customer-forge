@@ -49,7 +49,6 @@ import { PublishRetryBar } from "@/components/app/PublishRetryBar";
 import { EffectStudio } from "@/components/app/EffectStudio";
 import { ImageStudio } from "@/components/app/ImageStudio";
 import { readBackdrop, writeBackdrop } from "@/lib/site-effects";
-import { UpgradeStudio } from "@/components/app/UpgradeStudio";
 import { BuilderAudit } from "@/components/app/BuilderAudit";
 import { BuilderCanvas } from "@/components/app/BuilderCanvas";
 import { BuilderPreview, type PreviewSelection } from "@/components/app/BuilderPreview";
@@ -832,21 +831,6 @@ function WebsitePage() {
                     hint="Revora checks your site and fixes what it finds"
                   >
                     <BuilderAudit organizationId={orgId} org={org ?? null} canManage={manage} />
-                  </Disclosure>
-                  <Disclosure
-                    label="Grow my business"
-                    hint="More calls, more quote requests, more trust"
-                  >
-                    <UpgradeStudio
-                      organizationId={orgId}
-                      canManage={manage}
-                      pages={pages ?? []}
-                      facts={{
-                        ...geniusFacts,
-                        primaryColor: (profile?.["primary_color"] as string) ?? null,
-                      }}
-                      onRefresh={requests.refresh}
-                    />
                   </Disclosure>
                   <Disclosure label="Wording" hint="Edit the words Revora wrote">
                     <AiCopyAssistant

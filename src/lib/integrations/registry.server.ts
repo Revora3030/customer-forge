@@ -81,11 +81,8 @@ function breakerOpen(providerId: string, now = Date.now()) {
 /** Free-only mode is the platform default and is read from the AI config. */
 async function freeOnlyMode(): Promise<boolean> {
   try {
-    const [{ zeroAiCostMode }, { freeAiOnly }] = await Promise.all([
-      import("@/lib/ai/config"),
-      import("@/lib/ai/free"),
-    ]);
-    return freeAiOnly() || zeroAiCostMode();
+    const { freeAiOnly } = await import("@/lib/ai/free");
+    return freeAiOnly();
   } catch {
     return true;
   }

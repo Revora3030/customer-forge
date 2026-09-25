@@ -105,7 +105,18 @@ async function writeProposal(
     const { activateProduction } = await import("@/lib/production.functions");
     const result = await activateProduction({ data: { organizationId: orgId } });
     if (!result.activated) throw new Error(result.reason);
-  } else if (proposal.kind === "page_seo" || proposal.kind === "page_index") {
+  } else if (proposal.kind === "page_seo") {
+    // Search titles and descriptions are wording: the AI team writes them from
+    // the business's own facts. No fill-in-the-blanks title is saved.
+    const where = proposal.pageTitle ? `the "${proposal.pageTitle}" page` : "this page";
+    const { runWebsiteTask } = await import("@/lib/site-agent.functions");
+    await runWebsiteTask({
+      data: {
+        organizationId: orgId,
+        instruction: `Write a search title and search description for ${where} that fit what the page offers, using only facts I have given.`,
+      },
+    });
+  } else if (proposal.kind === "page_index") {
     const { error } = await supabase
       .from("website_pages")
       .update((proposal.seoPatch ?? {}) as never)
@@ -117,33 +128,22 @@ async function writeProposal(
     proposal.kind === "add_capture_section" ||
     proposal.kind === "add_faq_section"
   ) {
-    let pageId = proposal.pageId ?? null;
-    if (!pageId) {
-      const { data: home } = await supabase
-        .from("website_pages")
-        .select("id")
-        .eq("organization_id", orgId)
-        .order("sort_order")
-        .limit(1)
-        .maybeSingle();
-      pageId = home?.id ?? null;
-    }
-    if (!pageId) throw new Error("There are no pages to add a section to yet.");
-    const { data: last } = await supabase
-      .from("website_sections")
-      .select("sort_order")
-      .eq("organization_id", orgId)
-      .eq("page_id", pageId)
-      .order("sort_order", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    const { error } = await supabase.from("website_sections").insert({
-      organization_id: orgId,
-      page_id: pageId,
-      kind: proposal.sectionKind ?? "cta",
-      sort_order: Number(last?.sort_order ?? 0) + 1,
-    } as never);
-    if (error) throw error;
+    // The audit only names the gap. The AI team decides whether, where and how
+    // the new part is designed — no section is inserted by a fixed rule.
+    const need =
+      proposal.kind === "add_faq_section"
+        ? "answers to the questions visitors ask most, using only facts I have given"
+        : proposal.kind === "add_capture_section"
+          ? "a clear way for visitors to leave their details"
+          : "a strong call to action";
+    const where = proposal.pageTitle ? `the "${proposal.pageTitle}" page` : "the home page";
+    const { runWebsiteTask } = await import("@/lib/site-agent.functions");
+    await runWebsiteTask({
+      data: {
+        organizationId: orgId,
+        instruction: `The site review found that ${where} is missing ${need}. Design and add it where it works best for this site, matching the site's look.`,
+      },
+    });
   } else if (proposal.kind === "rebuild_site") {
     await runEngine({ data: { organizationId: orgId } });
   }

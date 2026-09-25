@@ -168,17 +168,6 @@ export function ctaLadder(goal: ConversionGoal, ctx: ConversionContext): CtaStep
   return [steps[goal], ...rest.map((key) => steps[key])];
 }
 
-/** Sections a page needs so the ladder has somewhere to live. */
-export const GOAL_SECTIONS: Record<ConversionGoal, string[]> = {
-  call: ["hero", "sticky_cta", "trust_bar", "services", "reviews", "faq", "cta", "contact"],
-  text: ["hero", "sticky_cta", "services", "reviews", "faq", "cta", "contact"],
-  book: ["hero", "booking", "services", "process", "reviews", "faq", "cta"],
-  quote: ["hero", "quote", "services", "pricing", "reviews", "faq", "cta"],
-  buy: ["hero", "offer", "pricing", "guarantee", "reviews", "faq", "cta"],
-  lead: ["hero", "contact", "services", "reviews", "faq", "cta"],
-};
-
-/** Objections a local-service visitor has before they act. */
 export const OBJECTIONS: { key: string; question: string; why: string }[] = [
   {
     key: "price",
@@ -253,18 +242,6 @@ export function conversionGaps(
       action:
         "Offer at least two more paths — some visitors will call, others will only ever use a form.",
       severity: "warning",
-    });
-  }
-
-  const have = new Set(sectionKinds);
-  const missing = GOAL_SECTIONS[goal].filter((kind) => !have.has(kind));
-  if (missing.length) {
-    gaps.push({
-      key: "missing-sections",
-      title: "Missing conversion sections",
-      detail: `This goal needs ${GOAL_SECTIONS[goal].length} section types; ${missing.join(", ")} ${missing.length === 1 ? "is" : "are"} not on the site.`,
-      action: "Add the missing sections so the visitor is guided from promise to proof to action.",
-      severity: missing.includes("hero") || missing.includes("cta") ? "critical" : "warning",
     });
   }
 

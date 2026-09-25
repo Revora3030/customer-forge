@@ -18,7 +18,9 @@ import { Camera, Loader2, Wrench } from "lucide-react";
 import { toast } from "@/lib/ui/notify";
 import { Panel, Pill, SectionHeading } from "@/components/app/Bits";
 import { Button } from "@/components/ui/button";
+import { AI_DESIGN_FINDINGS, aiDesignInstruction } from "@/lib/builder/vision-review";
 import {
+  applySiteWideRedesign,
   applyVisionRepairs,
   reviewPageScreenshot,
   type VisionReviewResult,
@@ -176,10 +178,21 @@ export function VisionReviewPanel({
               continue;
             }
             const row: SweepRow = { page: label, width: w, score: first.review.score, note: first.summary ?? "" };
-            if (canManage && (first.repairs ?? []).length > 0) {
-              const outcome = await applyVisionRepairs({
-                data: { organizationId, pageSlug: clean || "home", findings: first.review.findings },
-              });
+            const designAsk = aiDesignInstruction(first.review.findings, label, w);
+            if (canManage && ((first.repairs ?? []).length > 0 || designAsk)) {
+              const notes: string[] = [];
+              if ((first.repairs ?? []).length > 0) {
+                const repaired = await applyVisionRepairs({
+                  data: { organizationId, pageSlug: clean || "home", findings: first.review.findings },
+                });
+                notes.push(repaired.summary);
+              }
+              // Design problems are redesigned by the AI team, not patched by a rule.
+              if (designAsk) {
+                const redesign = await applySiteWideRedesign({ data: { organizationId, instruction: designAsk } });
+                notes.push(redesign.summary);
+              }
+              const outcome = { summary: notes.join(" ") };
               const again = await review();
               row.fixed = again.code === "REVIEWED" && again.review
                 ? `${outcome.summary} Re-checked: ${again.review.score}/100.`
@@ -280,9 +293,19 @@ export function VisionReviewPanel({
     if (!organizationId || !result?.review || busy) return;
     setBusy("repair");
     try {
-      const outcome = await applyVisionRepairs({
-        data: { organizationId, pageSlug, findings: result.review.findings },
-      });
+      const notes: string[] = [];
+      if ((result.repairs ?? []).length > 0) {
+        const repaired = await applyVisionRepairs({
+          data: { organizationId, pageSlug, findings: result.review.findings },
+        });
+        notes.push(repaired.summary);
+      }
+      const designAsk = aiDesignInstruction(result.review.findings, pageSlug, width);
+      if (designAsk) {
+        const redesign = await applySiteWideRedesign({ data: { organizationId, instruction: designAsk } });
+        notes.push(redesign.summary);
+      }
+      const outcome = { summary: notes.join(" ") || "Nothing needed changing." };
       setRepairNote(outcome.summary);
       void queryClient.invalidateQueries({ queryKey: ["website_content", organizationId] });
       void queryClient.invalidateQueries({ queryKey: ["website_settings", organizationId] });
@@ -296,7 +319,7 @@ export function VisionReviewPanel({
   };
 
   const review = result?.review ?? null;
-  const fixable = (result?.repairs ?? []).length;
+  const fixable = (result?.repairs ?? []).length + (result?.review ? result.review.findings.filter((f) => AI_DESIGN_FINDINGS.has(f.kind)).length : 0);
 
   return (
     <Panel className="p-5">

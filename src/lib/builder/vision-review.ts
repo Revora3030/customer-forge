@@ -159,12 +159,25 @@ export function parseVisionReview(data: unknown): VisionReview {
 
 export type VisionRepair =
   | { action: "set_section_effect"; effect: SectionEffectId; reason: string; kind: VisionIssueKind }
-  | { action: "set_density"; density: "compact" | "balanced" | "airy"; reason: string; kind: VisionIssueKind }
   | { action: "set_image_overlay"; overlay: "scrim-strong"; reason: string; kind: VisionIssueKind }
   | { action: "set_image_fit"; fit: "cover"; reason: string; kind: VisionIssueKind }
-  | { action: "emphasise_cta"; reason: string; kind: VisionIssueKind }
-  | { action: "shorten_heading"; reason: string; kind: VisionIssueKind }
-  | { action: "raise_contrast"; reason: string; kind: VisionIssueKind };
+  | { action: "shorten_heading"; reason: string; kind: VisionIssueKind };
+
+/** Design problems the AI team fixes itself — no fixed value is applied here. */
+export const AI_DESIGN_FINDINGS = new Set<VisionIssueKind>([
+  "low_contrast_text",
+  "cramped_spacing",
+  "empty_space_excess",
+  "cta_not_prominent",
+]);
+
+/** The instruction handed to the AI team for design findings. */
+export function aiDesignInstruction(findings: VisionFinding[], pageTitle: string, width: number): string | null {
+  const design = findings.filter((finding) => AI_DESIGN_FINDINGS.has(finding.kind));
+  if (!design.length) return null;
+  const list = design.map((finding) => `${finding.where}: ${finding.detail}`).join("; ");
+  return `A screenshot review of the ${pageTitle} page at ${width}px found: ${list}. Redesign what is needed to fix these, keeping the site's look and every fact unchanged.`.slice(0, 600);
+}
 
 /**
  * The problems Revora can genuinely fix, and how. Anything not listed here is
@@ -178,18 +191,11 @@ export function visionRepairs(review: VisionReview): {
   const unfixable: VisionFinding[] = [];
 
   for (const finding of review.findings) {
+    // Design findings go to the AI team (aiDesignInstruction), not a fixed repair.
+    if (AI_DESIGN_FINDINGS.has(finding.kind)) continue;
     switch (finding.kind) {
-      case "low_contrast_text":
-        repairs.push({ action: "raise_contrast", reason: finding.detail, kind: finding.kind });
-        break;
       case "text_over_busy_image":
         repairs.push({ action: "set_image_overlay", overlay: "scrim-strong", reason: finding.detail, kind: finding.kind });
-        break;
-      case "cramped_spacing":
-        repairs.push({ action: "set_density", density: "airy", reason: finding.detail, kind: finding.kind });
-        break;
-      case "empty_space_excess":
-        repairs.push({ action: "set_density", density: "balanced", reason: finding.detail, kind: finding.kind });
         break;
       case "too_much_movement":
         repairs.push({ action: "set_section_effect", effect: "none", reason: finding.detail, kind: finding.kind });
@@ -197,9 +203,6 @@ export function visionRepairs(review: VisionReview): {
       case "image_stretched":
       case "image_badly_cropped":
         repairs.push({ action: "set_image_fit", fit: "cover", reason: finding.detail, kind: finding.kind });
-        break;
-      case "cta_not_prominent":
-        repairs.push({ action: "emphasise_cta", reason: finding.detail, kind: finding.kind });
         break;
       case "heading_too_long":
         repairs.push({ action: "shorten_heading", reason: finding.detail, kind: finding.kind });

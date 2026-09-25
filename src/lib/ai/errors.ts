@@ -9,7 +9,6 @@
 
 export type AiErrorCategory =
   | "not_configured"
-  | "zero_cost_mode"
   | "invalid_request"
   | "unauthorized"
   | "rate_limited"
@@ -74,20 +73,6 @@ export const AI_NOT_CONFIGURED_MESSAGE =
 
 export function notConfigured() {
   return new RevoraAiError(503, AI_NOT_CONFIGURED_MESSAGE, { category: "not_configured" });
-}
-
-/**
- * Retained for compatibility with callers that inspect this category. Creative
- * work has no native substitute, so the request fails closed.
- */
-export const AI_ZERO_COST_MESSAGE =
-  "External AI is disabled (ZERO_AI_COST_MODE). The AI team is required for this request.";
-
-export function zeroCostBlocked(provider?: string) {
-  return new RevoraAiError(503, AI_ZERO_COST_MESSAGE, {
-    category: "zero_cost_mode",
-    provider: provider ?? null,
-  });
 }
 
 /** Truthful message for a provider that is configured but not answering. */

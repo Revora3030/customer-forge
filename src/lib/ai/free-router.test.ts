@@ -11,7 +11,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const KEYS = [
-  "ZERO_AI_COST_MODE",
   "FREE_AI_ENABLED",
   "FREE_AI_ONLY",
   "FREE_AI_PROVIDER_ORDER",
@@ -200,7 +199,6 @@ describe("free-only enforcement", () => {
 
   it("allows the paid lane only when both switches are explicitly on", async () => {
     process.env["GOOGLE_AI_API_KEY"] = "paid-key";
-    process.env["ZERO_AI_COST_MODE"] = "false";
     process.env["BUILDER_EXTERNAL_AI_ALLOWED"] = "true";
     vi.resetModules();
     const { paidAiAllowedForBuilder } = await import("@/lib/ai/availability");
@@ -227,7 +225,6 @@ describe("free budgets, so one workspace cannot burn the allowance", () => {
 describe("builder availability", () => {
   it("reports free AI as reachable once a free provider is configured", async () => {
     process.env["OPENROUTER_API_KEY"] = "or-key";
-    process.env["ZERO_AI_COST_MODE"] = "false";
     process.env["BUILDER_EXTERNAL_AI_ALLOWED"] = "true";
     vi.resetModules();
     const { builderAiAvailable, freeAiAvailable } = await import("@/lib/ai/availability");
@@ -276,7 +273,6 @@ describe("builder availability", () => {
   });
 
   it("reports voice as available from the free tier, and pictures too", async () => {
-    process.env["ZERO_AI_COST_MODE"] = "false";
     process.env["BUILDER_EXTERNAL_AI_ALLOWED"] = "true";
     process.env["GOOGLE_AI_FREE_API_KEY"] = "google-free-key";
     process.env["CLOUDFLARE_AI_API_TOKEN"] = "cf-token";

@@ -20,7 +20,7 @@ import {
   readText,
   readUsage,
 } from "@/lib/ai/luna.server";
-import { providerChain, zeroAiCostMode } from "@/lib/ai/config";
+import { providerChain } from "@/lib/ai/config";
 
 const saved = { ...process.env };
 
@@ -32,7 +32,6 @@ afterEach(() => {
 describe("luna configuration", () => {
   it("is available with a key and turns off only on an explicit switch", () => {
     process.env["OPENAI_API_KEY"] = "configured";
-    delete process.env["ZERO_AI_COST_MODE"];
     delete process.env["BUILDER_EXTERNAL_AI_ALLOWED"];
     delete process.env["LUNA_ENABLED"];
     expect(lunaEnabled()).toBe(true);
@@ -180,8 +179,6 @@ describe("never blocks the builder", () => {
 describe("no built-in engine switch", () => {
   it("can never switch the AI team off", () => {
     process.env["OPENAI_API_KEY"] = "sk-test";
-    process.env["ZERO_AI_COST_MODE"] = "true";
-    expect(zeroAiCostMode()).toBe(false);
     expect(providerChain().length).toBeGreaterThan(0);
   });
 });

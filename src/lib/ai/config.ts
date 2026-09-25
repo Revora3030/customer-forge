@@ -10,7 +10,7 @@
  * available in the browser and these names must never reach a client bundle.
  */
 
-import { notConfigured, zeroCostBlocked } from "@/lib/ai/errors";
+import { notConfigured } from "@/lib/ai/errors";
 
 /**
  * Every provider Revora can address. `cloudflare` and `openrouter` exist only
@@ -128,15 +128,6 @@ function modelsFor(provider: PaidProviderName): Record<ModelRole, string> {
 }
 
 /**
- * There is no built-in non-AI engine any more, so nothing can switch the AI
- * team off. Spend is bounded by the monthly cap instead. Kept as a function so
- * existing callers compile; it always answers false.
- */
-export function zeroAiCostMode(): boolean {
-  return false;
-}
-
-/**
  * The website builder's lane. Building the best possible website comes first,
  * so every connected model is reachable by default. An operator can shut the
  * builder's external lane with `BUILDER_EXTERNAL_AI_ALLOWED=false`.
@@ -163,9 +154,6 @@ function readProviderName(value: string | null): PaidProviderName | null {
  * Gateway is not in this list and can never be reached from here.
  */
 export function providerChain(): ProviderConfig[] {
-  // Zero-cost mode empties the chain no matter which keys exist, so no adapter
-  // and no provider URL is reachable from anywhere in the platform.
-  if (zeroAiCostMode()) return [];
   const preferred = [
     readProviderName(env("AI_DEFAULT_PROVIDER")),
     readProviderName(env("AI_FALLBACK_PROVIDER")),
@@ -188,7 +176,6 @@ export function isAiConfigured() {
 
 /** Throws the single fail-closed error when Revora owns no provider key. */
 export function requireProviderChain(): ProviderConfig[] {
-  if (zeroAiCostMode()) throw zeroCostBlocked();
   const chain = providerChain();
   if (chain.length === 0) throw notConfigured();
   return chain;
