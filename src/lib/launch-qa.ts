@@ -242,7 +242,9 @@ export function factGaps(input: FactInput): FactGap[] {
       key: "city",
       label: "Your city",
       prompt: "The town or city you're based in.",
-      required: true,
+      // Businesses that serve a wider area (a state, a country, online) don't
+      // need a city; the build must not force one onto them.
+      required: blank(input.serviceArea),
       field: "city",
     });
   if (
