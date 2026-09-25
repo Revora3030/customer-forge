@@ -86,6 +86,13 @@ describe("AI-authored compositions", () => {
     expect(readComposition(settings)?.label).toBe("Asymmetric offer lattice");
   });
 
+  it("renders a stored website picture reference through the signed-url resolver", () => {
+    const result = validateComposition({ version: 1, root: { type: "media", mediaRef: "11111111-1111-4111-8111-111111111111", alt: "Detailed vehicle" } });
+    if (!result.ok) throw new Error("invalid");
+    const html = renderToStaticMarkup(createElement(CompositionRenderer, { tree: result.tree, scope: "media", resolveMedia: () => "https://example.com/signed.jpg" }));
+    expect(html).toContain('src="https://example.com/signed.jpg"');
+  });
+
   it("the site agent accepts set_composition and reports invalid trees for repair", () => {
     const dropped: string[] = [];
     const known = { pageIds: new Set(["p1"]), sectionIds: new Set(["s1"]), componentIds: new Set<string>() };

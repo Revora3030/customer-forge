@@ -45,6 +45,7 @@ export function styleToCss(style: NodeStyle | undefined, type: CompositionNode["
   if (style.shadow) css.boxShadow = SHADOWS[style.shadow];
   if (style.opacity != null) css.opacity = style.opacity / 100;
   if (style.aspect) css.aspectRatio = style.aspect.replace(":", " / ");
+  if (style.objectFit) css.objectFit = style.objectFit;
   if (style.minHeight != null) css.minHeight = style.minHeight;
   if (style.hidden) css.display = "none";
   return css;
@@ -66,7 +67,7 @@ const MEDIA: Record<Breakpoint, string> = {
   desktop: "(min-width: 1024px)",
 };
 
-type Ctx = { rules: string[]; counter: { n: number }; scope: string; href: (h: string) => string };
+type Ctx = { rules: string[]; counter: { n: number }; scope: string; href: (h: string) => string; media: (ref: string) => string | null };
 
 function baseLayout(type: CompositionNode["type"]): CSSProperties {
   switch (type) {
@@ -103,7 +104,8 @@ function renderNode(node: CompositionNode, ctx: Ctx, key: string): ReactNode {
     case "text":
       return <p key={key} {...props}>{node.text}{kids}</p>;
     case "media":
-      return node.src ? <img key={key} {...props} src={node.src} alt={node.alt ?? ""} loading="lazy" style={{ objectFit: "cover", width: "100%", ...props.style }} /> : null;
+      { const source = node.src ?? (node.mediaRef ? ctx.media(node.mediaRef) : null);
+        return source ? <img key={key} {...props} src={source} alt={node.alt ?? ""} loading="lazy" style={{ objectFit: "cover", width: "100%", ...props.style }} /> : null; }
     case "button":
     case "link":
       return <a key={key} {...props} href={node.href ? ctx.href(node.href) : undefined}>{node.text}{kids}</a>;
@@ -146,11 +148,11 @@ function renderNode(node: CompositionNode, ctx: Ctx, key: string): ReactNode {
     case "gallery":
       return (
         <div key={key} {...props} style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(220px,1fr))", ...props.style }}>
-          {node.children?.map((c, i) => c.src ? (
-            <a key={i} href={c.src} target="_blank" rel="noopener noreferrer">
-              <img src={c.src} alt={c.alt ?? ""} loading="lazy" style={{ width: "100%", height: "100%", objectFit: "cover", ...styleToCss(c.style, "media") }} />
+          {node.children?.map((c, i) => { const source = c.src ?? (c.mediaRef ? ctx.media(c.mediaRef) : null); return source ? (
+            <a key={i} href={source} target="_blank" rel="noopener noreferrer">
+              <img src={source} alt={c.alt ?? ""} loading="lazy" style={{ width: "100%", height: "100%", objectFit: "cover", ...styleToCss(c.style, "media") }} />
             </a>
-          ) : null)}
+          ) : null; })}
         </div>
       );
     case "marquee":
@@ -206,8 +208,8 @@ const MARQUEE_CSS = `@media (prefers-reduced-motion: no-preference){.rv-cn-marqu
 
 const MOTION_CSS = `@media (prefers-reduced-motion: no-preference){.rv-cn-motion{animation:rv-cn-in .7s ease both}.rv-cn-motion[data-motion=rise]{animation-name:rv-cn-rise}.rv-cn-motion[data-motion=scale]{animation-name:rv-cn-scale}.rv-cn-motion[data-motion=float]{animation:rv-cn-float 6s ease-in-out infinite}}@keyframes rv-cn-in{from{opacity:0}to{opacity:1}}@keyframes rv-cn-rise{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:none}}@keyframes rv-cn-scale{from{opacity:0;transform:scale(.94)}to{opacity:1;transform:none}}@keyframes rv-cn-float{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}`;
 
-export function CompositionRenderer({ tree, scope, as = "section", resolveHref }: { tree: CompositionTree; scope: string; as?: "section" | "div"; resolveHref?: (href: string) => string }) {
-  const ctx: Ctx = { rules: [], counter: { n: 0 }, scope: scope.replace(/[^\w-]/g, "") || "cn", href: resolveHref ?? ((h) => h) };
+export function CompositionRenderer({ tree, scope, as = "section", resolveHref, resolveMedia }: { tree: CompositionTree; scope: string; as?: "section" | "div"; resolveHref?: (href: string) => string; resolveMedia?: (ref: string) => string | null }) {
+  const ctx: Ctx = { rules: [], counter: { n: 0 }, scope: scope.replace(/[^\w-]/g, "") || "cn", href: resolveHref ?? ((h) => h), media: resolveMedia ?? (() => null) };
   const body = renderNode(tree.root, ctx, "root");
   return (
     as === "div" ? (

@@ -45,6 +45,7 @@ type SectionRow = {
   settings: unknown;
 };
 type ComponentRow = {
+  id: string;
   section_id: string;
   kind: string;
   label: string | null;
@@ -67,9 +68,10 @@ const RULES = [
   "You are Sol, the lead art director of a world-class web studio.",
   `Design each section from scratch as a composition tree built only from these primitives: ${COMPOSITION_PRIMITIVES.join(", ")}.`,
   PRIMITIVE_GUIDE,
-  "Node shape: {type, text?, href?, src?, alt?, level?, items?, style?, responsive?: {mobile?, tablet?, desktop?}, motion?: {kind: none|fade|rise|scale|float, delayMs?}, children?}.",
-  "style keys: columns, gap, padding, paddingX, paddingY, maxWidth, align, justify, items, span, size, weight, lineHeight, letterSpacing, italic, uppercase, font, color, background, gradientTo, gradientAngle, radius, borderWidth, borderColor, shadow, opacity, aspect, minHeight, hidden. Colours are #RRGGBB.",
+  "Node shape: {type, text?, href?, src?, mediaRef?, alt?, level?, items?, style?, responsive?: {mobile?, tablet?, desktop?}, motion?: {kind: none|fade|rise|scale|float, delayMs?}, children?}.",
+  "style keys: columns, gap, padding, paddingX, paddingY, maxWidth, align, justify, items, span, size, weight, lineHeight, letterSpacing, italic, uppercase, font, color, background, gradientTo, gradientAngle, radius, borderWidth, borderColor, shadow, opacity, aspect, objectFit, minHeight, hidden. Colours are #RRGGBB.",
   "Use ONLY the words, pictures and links supplied for the section — you may restructure, never invent facts, prices, reviews, awards or results.",
+  "Every supplied picture must appear visibly as a media node using its exact mediaRef. Never copy its private storage path into src.",
   "Text on a background needs contrast of at least 4.5. Buttons need an href. Images need alt text. Collapse to one column on mobile.",
   "Make each section distinct and premium, consistent with the site's look.",
 ].join(" ");
@@ -85,7 +87,7 @@ function materialFor(section: SectionRow, parts: ComponentRow[]) {
       kind: part.kind,
       label: part.label,
       body: part.body,
-      image: part.media_url && isSafeHref(part.media_url) ? part.media_url : null,
+      mediaRef: part.media_url ? part.id : null,
       href: part.link_url && isSafeHref(part.link_url) ? part.link_url : null,
       linkLabel: part.link_label,
     })),
@@ -115,7 +117,7 @@ export async function composeFirstBuildSections(input: {
   const { db, organizationId, facts } = input;
   const [{ data: sections, error }, { data: components }] = await Promise.all([
     db.from("website_sections").select("id,page_id,kind,heading,subheading,body,settings").eq("organization_id", organizationId).order("sort_order"),
-    db.from("website_components").select("section_id,kind,label,body,media_url,link_url,link_label").eq("organization_id", organizationId).order("sort_order"),
+    db.from("website_components").select("id,section_id,kind,label,body,media_url,link_url,link_label").eq("organization_id", organizationId).order("sort_order"),
   ]);
   if (error) throw new Error(error.message);
   const rows = (sections ?? []) as SectionRow[];
