@@ -234,6 +234,9 @@ const CONTRACTS: Record<TaskKind, TaskContract> = {
     "reasoning",
     "structured_output",
   ]),
+  final_review: text("final_review", "high", ["text_generation", "reasoning", "structured_output"]),
+  schema_markup: text("schema_markup", "low", ["text_generation", "structured_output"]),
+  completeness_check: text("completeness_check", "low", ["text_generation", "structured_output"]),
   design_alternative: text("design_alternative", "medium", [
     "text_generation",
     "reasoning",
