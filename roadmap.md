@@ -41,3 +41,7 @@
 - [x] Phase 4: "Review every page at 5 sizes" (320/390/768/1024/1440) — photo, AI review, safe repair, re-photo and re-review.
 - [x] Phase 5: jobs audited (all cron-secret protected, lease + attempt fence), nightly record clean-up added, security scan clean.
 - [ ] 5-phase plan phases 3–5: invented-section end-to-end test, safe effect/motion vocabulary, screenshot critique loop at 5 widths, job fencing + record retention, fresh security scan.
+- [x] AI-designed hover/focus/touch response (bounded, reduced-motion safe).
+- [ ] Trial length: DB gives 1 day, offer says 3 days — waiting on owner decision.
+- [ ] Second-industry build — waiting on real business details.
+- [ ] Publish Revora site — waiting on Stripe confirming $750 setup payment.
