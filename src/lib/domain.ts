@@ -74,62 +74,41 @@ export const CONVERSION_GOALS: { value: ConversionGoal; label: string; descripti
 export const INDUSTRIES = [
   {
     name: "Auto Detailing",
-    template: "detailing",
     emphasis: "Before/after proof, then an instant estimate.",
   },
-  { name: "Hair Stylists", template: "beauty", emphasis: "Portfolio first, booking one tap away." },
-  { name: "Barbers", template: "beauty", emphasis: "Recurring bookings and walk-in slots." },
+  { name: "Hair Stylists", emphasis: "Portfolio first, booking one tap away." },
+  { name: "Barbers", emphasis: "Recurring bookings and walk-in slots." },
   {
     name: "Landscaping",
-    template: "landscaping",
     emphasis: "Project gallery plus a property estimate.",
   },
   {
     name: "Pressure Washing",
-    template: "landscaping",
     emphasis: "Square-footage pricing and fast quotes.",
   },
-  { name: "Cleaning", template: "cleaning", emphasis: "Service packages with online booking." },
+  { name: "Cleaning", emphasis: "Service packages with online booking." },
   {
     name: "Contractors",
-    template: "contractor",
     emphasis: "Trust signals and a quote request path.",
   },
-  { name: "HVAC", template: "contractor", emphasis: "Emergency calls and maintenance plans." },
-  { name: "Plumbing", template: "contractor", emphasis: "Call-now urgency and service areas." },
+  { name: "HVAC", emphasis: "Emergency calls and maintenance plans." },
+  { name: "Plumbing", emphasis: "Call-now urgency and service areas." },
   {
     name: "Roofing",
-    template: "contractor",
     emphasis: "Inspection requests and financing questions.",
   },
-  { name: "Photography", template: "beauty", emphasis: "Galleries that lead into consultations." },
-  { name: "Beauty", template: "beauty", emphasis: "Treatment menus and appointment booking." },
-  { name: "Med Spa", template: "beauty", emphasis: "Consultation requests and treatment pages." },
-  { name: "Fitness", template: "cleaning", emphasis: "Trial signups and class scheduling." },
+  { name: "Photography", emphasis: "Galleries that lead into consultations." },
+  { name: "Beauty", emphasis: "Treatment menus and appointment booking." },
+  { name: "Med Spa", emphasis: "Consultation requests and treatment pages." },
+  { name: "Fitness", emphasis: "Trial signups and class scheduling." },
   {
     name: "Home Services",
-    template: "contractor",
     emphasis: "Multi-service quoting with service areas.",
   },
   {
     name: "Professional Services",
-    template: "contractor",
     emphasis: "Consultations and credibility.",
   },
-] as const;
-
-export const TEMPLATES = [
-  { id: "detailing", name: "Detailing", focus: "Visual-first, before/after led", primary: "quote" },
-  { id: "beauty", name: "Beauty & Hair", focus: "Portfolio and appointment led", primary: "book" },
-  {
-    id: "landscaping",
-    name: "Landscaping",
-    focus: "Project gallery and estimate led",
-    primary: "quote",
-  },
-  { id: "contractor", name: "Contractor", focus: "Trust and quote request led", primary: "quote" },
-  { id: "cleaning", name: "Cleaning", focus: "Service packages and booking led", primary: "book" },
-  { id: "default", name: "Universal", focus: "Balanced conversion paths", primary: "quote" },
 ] as const;
 
 export const LEAD_SOURCES = [

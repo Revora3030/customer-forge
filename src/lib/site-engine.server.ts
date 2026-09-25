@@ -20,8 +20,7 @@ export { RevoraAiError };
 export const COPY_ROLE: ModelRole = "fast";
 /**
  * Analysis is a reasoning job, not a writing job, so it asks for the reasoning
- * model class. If Revora AI can't serve it the build still completes using the
- * blank, facts-only brief in `fallbackBrief`.
+ * model class. Invalid or unavailable model output is a hard failure.
  */
 export const ANALYSIS_ROLE: ModelRole = "coding";
 
