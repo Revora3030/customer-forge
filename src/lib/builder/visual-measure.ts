@@ -36,14 +36,27 @@ function waitForLoad(iframe: HTMLIFrameElement): Promise<void> {
   });
 }
 
-type FrameWindow = Window & {
-  eval: (code: string) => unknown;
-};
+type FrameWindow = Window & { __revoraEval?: unknown };
 
-/** Runs a snippet inside the measured page's own window. */
+/**
+ * Runs a snippet inside the measured page's own window.
+ *
+ * The site's security policy forbids `eval`, so the snippet runs as an inline
+ * script element in the same-origin frame (inline scripts are already allowed
+ * for server-rendered HTML) and hands its value back through a one-shot slot.
+ */
 function evaluate(win: Window, code: string): unknown {
   const frame = win as FrameWindow;
-  return frame.eval.call(frame, code);
+  const doc = frame.document;
+  const script = doc.createElement("script");
+  script.textContent = `window.__revoraEval = ${code};`;
+  frame.__revoraEval = undefined;
+  (doc.head ?? doc.documentElement).appendChild(script);
+  script.remove();
+  const value = frame.__revoraEval;
+  delete frame.__revoraEval;
+  if (value === undefined) throw new Error("The page refused the measurement snippet.");
+  return value;
 }
 
 /**
