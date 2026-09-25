@@ -21,8 +21,9 @@ import {
   type SiteUpgradeUndo,
 } from "@/lib/site-upgrade.functions";
 import { friendlyError } from "@/lib/user-error";
+import { restyleSiteWithAi, undoAiRestyle } from "@/lib/site-restyle.functions";
 
-type Busy = null | "motion" | "redesign" | "undo";
+type Busy = null | "motion" | "redesign" | "undo" | "restyle";
 
 /** Plain requests handed to the AI design team — it decides the movement. */
 const MOTION_CHOICES: { id: string; label: string; hint: string; ask: string }[] = [
@@ -46,6 +47,38 @@ export function SiteUpgradePanel({
   const [redesign, setRedesign] = useState<RedesignResult | null>(null);
   const [wish, setWish] = useState("");
   const [undo, setUndo] = useState<{ label: string; undo: SiteUpgradeUndo } | null>(null);
+
+  const [restyle, setRestyle] = useState<{ summary: string; restyleId: string | null } | null>(null);
+
+  const runRestyle = async () => {
+    if (!organizationId || busy) return;
+    setBusy("restyle");
+    try {
+      const result = await restyleSiteWithAi({ data: { organizationId } });
+      setRestyle(result);
+      refresh();
+      toast.success(result.summary);
+    } catch (error) {
+      toast.error(friendlyError(error, "The AI couldn't restyle your site. Nothing was changed."));
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const undoRestyle = async () => {
+    if (!organizationId || !restyle?.restyleId || busy) return;
+    setBusy("undo");
+    try {
+      const outcome = await undoAiRestyle({ data: { organizationId, restyleId: restyle.restyleId } });
+      setRestyle(null);
+      refresh();
+      toast.success(outcome.summary);
+    } catch (error) {
+      toast.error(friendlyError(error, "The earlier layout couldn't be put back."));
+    } finally {
+      setBusy(null);
+    }
+  };
 
   const refresh = () => {
     void queryClient.invalidateQueries({ queryKey: ["website_content", organizationId] });
@@ -116,6 +149,26 @@ export function SiteUpgradePanel({
           </Button>
         </Panel>
       ) : null}
+      <Panel className="p-5">
+        <SectionHeading eyebrow="AI layouts" title="Let the AI redesign every section" />
+        <p className="mt-2 max-w-xl text-[13px] text-muted-foreground">
+          The AI designs a fresh layout for each section, plus your menu and footer, using only your
+          own words and photos. Your current layout is saved first so you can put it back.
+        </p>
+        <div className="mt-4 flex flex-wrap gap-2">
+          <Button size="sm" disabled={!canManage || busy !== null} onClick={() => void runRestyle()}>
+            {busy === "restyle" ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
+            Redesign with AI
+          </Button>
+          {restyle?.restyleId ? (
+            <Button size="sm" variant="outline" disabled={busy !== null} onClick={() => void undoRestyle()}>
+              <Undo2 className="size-4" /> Put the old layout back
+            </Button>
+          ) : null}
+        </div>
+        {restyle ? <p className="mt-3 text-[12px] text-muted-foreground" role="status">{restyle.summary}</p> : null}
+      </Panel>
+
       <Panel className="p-5">
         <SectionHeading eyebrow="Movement" title="How your site moves" />
         <p className="mt-2 max-w-xl text-[13px] text-muted-foreground">

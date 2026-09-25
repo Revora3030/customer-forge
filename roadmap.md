@@ -53,4 +53,5 @@ Ordered by user-felt impact. Each item: extend existing code, never duplicate.
 - [x] Monthly AI spend limit raised to $100 (owner choice)
 - [x] Non-AI backups removed (built-in review, on-device model, built-in engine report, built-in business strategy)
 - [x] AI may invent its own sections and up to 4 new pages (starting list is now only the owner's real material; features cannot be invented)
-- [ ] Old section layouts + style-token squeezing — needs AI restyle of existing customer sites first (would change their look)
+- [x] One-time "Redesign with AI" button for existing sites (saves old layout, one-tap undo)
+- [ ] Delete old section layouts + style-token squeezing — blocked until existing customer sites have been restyled (owner action per site)
