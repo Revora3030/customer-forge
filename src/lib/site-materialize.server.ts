@@ -143,11 +143,11 @@ function mediaSettings(asset: FirstBuildImageAsset): Record<string, unknown> {
     {},
     {
       alt: asset.altText,
+      // Treatment (overlay, radius, shadow, crop) is the AI composition's call;
+      // the materializer records only the objective defaults a picture needs.
       object_fit: "cover",
       object_position: "center",
-      overlay: asset.slot === "hero" || asset.slot === "cta" ? "gradient" : "none",
-      radius: asset.slot === "hero" ? "large" : "medium",
-      shadow: asset.slot === "hero" ? "strong" : "soft",
+      overlay: "none",
       aspect_ratio: asset.aspectRatio,
       source: "generated",
       credit: GENERATED_IMAGE_CREDIT,
