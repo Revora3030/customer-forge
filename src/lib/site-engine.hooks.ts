@@ -444,3 +444,63 @@ export function useSiteEngineCheck(organizationId: string | undefined) {
     onError: (error: Error) => toast.error(friendlyError(error, "The system check couldn't run.")),
   });
 }
+
+/**
+ * Guarantees a brand-new workspace's first website build actually starts.
+ * Onboarding queues it, but on flaky mobile connections that request can drop
+ * ("Load failed") after the answers were saved. When the builder opens a
+ * workspace that has never had a build and has no pages, this finishes the
+ * same steps once: analyse the brief (if missing), approve it, queue the build.
+ */
+export function useEnsureFirstBuild(
+  organizationId: string | undefined,
+  state: { jobsLoaded: boolean; hasAnyJob: boolean; pageCount: number | undefined; canManage: boolean },
+) {
+  const queryClient = useQueryClient();
+  const analyze = useServerFn(analyzeSiteBrief);
+  const approve = useServerFn(saveSiteBrief);
+  const queue = useServerFn(runSiteGeneration);
+  const { jobsLoaded, hasAnyJob, pageCount, canManage } = state;
+  useEffect(() => {
+    if (!organizationId || !canManage || !jobsLoaded || hasAnyJob) return;
+    if (pageCount === undefined || pageCount > 0) return;
+    const key = `revora.firstbuild.${organizationId}`;
+    if (sessionStorage.getItem(key)) return;
+    sessionStorage.setItem(key, "1");
+    void (async () => {
+      const withRetry = async <T,>(fn: () => Promise<T>): Promise<T> => {
+        let last: unknown;
+        for (let i = 0; i < 3; i++) {
+          try {
+            return await fn();
+          } catch (e) {
+            last = e;
+            await new Promise((r) => setTimeout(r, 1500 * (i + 1)));
+          }
+        }
+        throw last;
+      };
+      try {
+        const { data: settings } = await supabase
+          .from("website_settings")
+          .select("generation")
+          .eq("organization_id", organizationId)
+          .maybeSingle();
+        const existing = (settings?.generation as Record<string, unknown> | null)?.["brief"];
+        const brief =
+          existing ?? (await withRetry(() => analyze({ data: { organizationId } }))).brief;
+        await withRetry(() => approve({ data: { organizationId, brief, approved: true } }));
+        await withRetry(() => queue({ data: { organizationId } }));
+        toast.message("Revora is building your website", {
+          description: "Progress updates below.",
+        });
+      } catch (error) {
+        sessionStorage.removeItem(key);
+        toast.error(friendlyError(error as Error, "Revora couldn't start your first build."));
+      } finally {
+        void queryClient.invalidateQueries({ queryKey: ["generation_job", organizationId] });
+        void queryClient.invalidateQueries({ queryKey: ["website_settings"] });
+      }
+    })();
+  }, [organizationId, canManage, jobsLoaded, hasAnyJob, pageCount, analyze, approve, queue, queryClient]);
+}
