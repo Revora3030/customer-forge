@@ -3879,6 +3879,7 @@ export type Database = {
           page_slug: string | null
           page_url: string
           report: Json
+          revision_hash: string | null
         }
         Insert: {
           id?: string
@@ -3888,6 +3889,7 @@ export type Database = {
           page_slug?: string | null
           page_url: string
           report: Json
+          revision_hash?: string | null
         }
         Update: {
           id?: string
@@ -3897,6 +3899,7 @@ export type Database = {
           page_slug?: string | null
           page_url?: string
           report?: Json
+          revision_hash?: string | null
         }
         Relationships: [
           {
