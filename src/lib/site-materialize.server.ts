@@ -363,9 +363,12 @@ export async function materializeSiteContent(
       const components: Component[] = [];
       for (const asset of matching)
         components.push(imageComponent(asset, index === 0 ? "hero_image" : "image"));
-      if (/hero|cta|action|conversion/i.test(role))
+      // Structure comes only from the AI's plan: material is attached only when
+      // the section explicitly asked for it, never because of its name.
+      const includes = section.includes ?? [];
+      if (includes.includes("primary_action"))
         components.push({ kind: "button", label: primaryAction, link_label: primaryAction, link_url: primaryTarget });
-      if (/services|offers|solutions/i.test(role))
+      if (includes.includes("service_cards"))
         for (const service of input.services) {
           const asset = generatedByLabel.get(service.name.toLowerCase()) ?? null;
           components.push({
