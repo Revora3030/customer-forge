@@ -14,6 +14,7 @@ import {
 import { CapabilityCenter } from "@/components/app/CapabilityCenter";
 import { FreeModelCollective } from "@/components/app/FreeModelCollective";
 import { OrchestrationCenter } from "@/components/app/OrchestrationCenter";
+import { TeamReviewLog } from "@/components/app/TeamReviewLog";
 import { getAiHealth } from "@/lib/ai/health.functions";
 import { getLunaStatus } from "@/lib/ai/luna.functions";
 
@@ -303,6 +304,7 @@ function AdminAi() {
       </div>
 
       <OrchestrationCenter />
+      <TeamReviewLog />
 
       <FreeModelCollective />
 
