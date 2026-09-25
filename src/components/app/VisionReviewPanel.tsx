@@ -12,7 +12,7 @@
  * was reviewed next to the findings, and can repair the ones Revora can fix
  * safely. A restore point is always saved first.
  */
-import { useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Camera, Loader2, Wrench } from "lucide-react";
 import { toast } from "@/lib/ui/notify";
@@ -110,8 +110,12 @@ export function VisionReviewPanel({
   const [shot, setShot] = useState<string | null>(null);
   const [result, setResult] = useState<VisionReviewResult | null>(null);
   const [repairNote, setRepairNote] = useState<string | null>(null);
+  const [autoReview, setAutoReview] = useState(true);
+  const sweepingRef = useRef(false);
+  const settleUntilRef = useRef(0);
+  const baselineRef = useRef<Map<string, string> | null>(null);
 
-  const pages = (content ?? []).filter((page) => page.is_visible);
+  const pages = useMemo(() => (content ?? []).filter((page) => page.is_visible), [content]);
 
   const pageBase = async () => {
     if (!slug) throw new Error("This site has no address yet.");
@@ -195,8 +199,32 @@ export function VisionReviewPanel({
       setSweepStatus(friendlyError(error, "The full review stopped."));
     } finally {
       setBusy(null);
+      sweepingRef.current = false;
+      // Repairs made by this review must not trigger another review.
+      settleUntilRef.current = Date.now() + 8000;
     }
   };
+
+  // Automatic look-and-fix after every change: when a page's saved content
+  // changes (an AI edit, a build, a manual edit), only the changed pages are
+  // photographed at all five sizes and repaired. Changes made by the review's
+  // own repairs are absorbed into the baseline, so it never loops.
+  const fingerprints = useMemo(
+    () => new Map(pages.map((page) => [page.id, JSON.stringify([page.slug, page.title, page.sections])])),
+    [pages],
+  );
+  useEffect(() => {
+    const previous = baselineRef.current;
+    baselineRef.current = fingerprints;
+    if (!previous || !autoReview || !canManage) return;
+    if (sweepingRef.current || Date.now() < settleUntilRef.current) return;
+    const changed = pages.filter((page) => previous.get(page.id) !== fingerprints.get(page.id));
+    if (changed.length === 0) return;
+    const timer = window.setTimeout(() => void runSweep(changed, true), 3000);
+    return () => window.clearTimeout(timer);
+    // runSweep is recreated each render; the fingerprint change is the trigger.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fingerprints, autoReview, canManage]);
 
   const run = async () => {
     if (!organizationId || !slug || busy) return;
