@@ -13,6 +13,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { isPaymentsConfigured } from "@/lib/stripe";
 import { REVORA, revoraMailto } from "@/lib/brand";
 import { getAttribution, trackConversion } from "@/lib/conversion";
+import { trackTrialStarted } from "@/lib/google-ads";
 import { provisionWorkspace, recordAccountCreated } from "@/lib/platform-funnel.functions";
 import { useStepScroll } from "@/lib/use-step-scroll";
 import { smartIntakeValue } from "@/lib/intake-smart";
@@ -268,6 +269,8 @@ function GetStarted() {
     setStartingTrial(true);
     try {
       await ensureWorkspace();
+      // The trial genuinely starts here — tell Google Ads the ad worked.
+      void trackTrialStarted();
       navigate({ to: "/app" });
     } catch (cause) {
       setError(

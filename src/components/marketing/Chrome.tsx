@@ -8,6 +8,7 @@ import { useSignOut } from "@/lib/use-tenant";
 import { MAIL_SUBJECTS, REVORA, revoraMailto, revoraTel } from "@/lib/brand";
 import { GROWTH_SYSTEM } from "@/lib/offer";
 import { MarketingConversionKit } from "@/components/marketing/ConversionKit";
+import { openCookieSettings } from "@/components/marketing/CookieConsent";
 import { AuthActions, SIGN_IN_SEARCH, SIGN_UP_SEARCH } from "@/components/marketing/AuthButtons";
 
 const NAV = [
@@ -306,9 +307,18 @@ export function SiteFooter() {
             © {new Date().getFullYear()} <span className="text-foreground">REVORA™</span> — The
             Business Growth Operating System
           </p>
-          <p className="text-[11px] text-muted-foreground">
-            Estimated opportunity figures are estimates, not guaranteed revenue.
-          </p>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
+            <p className="text-[11px] text-muted-foreground">
+              Estimated opportunity figures are estimates, not guaranteed revenue.
+            </p>
+            <button
+              type="button"
+              onClick={openCookieSettings}
+              className="min-h-11 self-start text-[11px] text-muted-foreground underline-offset-2 transition-colors hover:text-primary hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring sm:min-h-0 sm:self-auto"
+            >
+              Cookie settings
+            </button>
+          </div>
         </div>
       </div>
       <MarketingConversionKit />
