@@ -26,6 +26,13 @@ Ordered by user-felt impact. Each item: extend existing code, never duplicate.
 - [x] Homepage metadata + hero copy with $750 / first month free / $100/mo
 - [ ] Sora-2 video hero — next build (needs video job pipeline, storage, and renderer support)
 
+## AI-built agency-grade sites (Sep 25)
+- [ ] Remove the remaining deterministic website plan and materialization scaffold from live builds
+- [ ] Replace preset image slots/styles with Sol-authored page-aware art direction and generated pictures
+- [ ] Make compositions consume the final generated-picture inventory without generic reuse
+- [ ] Add Terra repair passes for architecture, compositions, chrome, and rendered responsive QA
+- [ ] Verify a complete new build with generated pictures across phone, tablet, and desktop
+
 ## AI sole creative authority migration
 - [x] Phase 1 (part): fingerprint pools decommissioned, template gallery removed from UI, firewall test added
 - [x] Phase 1: firewall for story-pass / motion-pack / first-build-creative / native-first-build callers
