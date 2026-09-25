@@ -77,6 +77,8 @@ export type TaskKind =
   | "repair_plan"
   | "seo_analysis"
   | "design_alternative"
+  // independent senior pre-publish review (GPT-5.6 Sol)
+  | "final_review"
   // routine utility
   | "metadata"
   | "rewrite"
@@ -84,6 +86,9 @@ export type TaskKind =
   | "extraction"
   | "classification"
   | "intent"
+  // structured SEO/completeness utility (GPT-5.6 Luna)
+  | "schema_markup"
+  | "completeness_check"
   // media / non-text lanes
   | "image_hero"
   | "image_support"
