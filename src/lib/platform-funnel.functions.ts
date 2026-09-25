@@ -53,19 +53,47 @@ export const recordAccountCreated = createServerFn({ method: "POST" })
   )
   .handler(async ({ context, data }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { error } = await supabaseAdmin.from("platform_accounts").upsert(
-      {
-        user_id: context.userId,
-        first_landing_path: data.landingPath,
-        first_referrer: data.referrer,
-        first_utm_source: data.utmSource,
-        first_utm_campaign: data.utmCampaign,
-      },
-      { onConflict: "user_id", ignoreDuplicates: true },
-    );
+    const { data: inserted, error } = await supabaseAdmin
+      .from("platform_accounts")
+      .upsert(
+        {
+          user_id: context.userId,
+          first_landing_path: data.landingPath,
+          first_referrer: data.referrer,
+          first_utm_source: data.utmSource,
+          first_utm_campaign: data.utmCampaign,
+        },
+        { onConflict: "user_id", ignoreDuplicates: true },
+      )
+      .select("user_id");
     if (error) {
       console.error("[funnel] account_created insert failed", error.code ?? error.message);
       return { ok: false as const };
+    }
+    // With ignoreDuplicates, a returning user upserts nothing, so an empty
+    // result means "already recorded" — only a genuinely new account notifies
+    // the owner. Email failure must never break signup.
+    if (inserted && inserted.length > 0) {
+      try {
+        const { sendTemplateEmail } = await import("@/lib/email-templates/send-email");
+        const { data: authUser } = await supabaseAdmin.auth.admin.getUserById(context.userId);
+        await sendTemplateEmail("new-signup-alert", "revorabusiness0@gmail.com", {
+          templateData: {
+            email: authUser?.user?.email ?? "unknown",
+            signedUpAt: new Date().toUTCString(),
+            landingPath: data.landingPath ?? undefined,
+            referrer: data.referrer ?? undefined,
+            utmSource: data.utmSource ?? undefined,
+            utmCampaign: data.utmCampaign ?? undefined,
+          },
+          idempotencyKey: `new-signup-${context.userId}`,
+        });
+      } catch (emailError) {
+        console.error(
+          "[funnel] signup alert email failed",
+          emailError instanceof Error ? emailError.message : "unknown",
+        );
+      }
     }
     return { ok: true as const };
   });
