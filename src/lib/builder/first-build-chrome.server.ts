@@ -21,14 +21,15 @@ const RULES = [
   "The header must link to every listed page and stay usable on a 320px phone (wrap or stack links; touch targets at least 44px).",
   "The footer must link to every listed page. Use only the supplied business facts — never invent addresses, hours, awards or claims.",
   "Text contrast at least 4.5. Match the site's look.",
+  "Also write heroVideoBrief: one vivid 1-3 sentence art-direction brief (max 600 chars) for an optional silent, looping hero background video that fits this business and look. Show only real, generic scenes of the work — no text, logos, people's faces or invented claims.",
 ].join(" ");
 
-function parse(text: string): { header?: unknown; footer?: unknown } | null {
+function parse(text: string): { header?: unknown; footer?: unknown; heroVideoBrief?: unknown } | null {
   const start = text.indexOf("{");
   const end = text.lastIndexOf("}");
   if (start < 0 || end <= start) return null;
   try {
-    return JSON.parse(text.slice(start, end + 1)) as { header?: unknown; footer?: unknown };
+    return JSON.parse(text.slice(start, end + 1)) as { header?: unknown; footer?: unknown; heroVideoBrief?: unknown };
   } catch {
     return null;
   }
@@ -74,7 +75,7 @@ export async function composeSiteChrome(input: {
         "SITE LOOK:", input.lookSummary, "",
         "MATERIAL (only these facts):", JSON.stringify(material, null, 2),
         ...(Object.keys(feedback).length ? ["", "FIX THESE PROBLEMS:", JSON.stringify(feedback, null, 2)] : []),
-        "", 'Return JSON: {"header": {"version":1,"root":{...}}, "footer": {"version":1,"root":{...}}}',
+        "", 'Return JSON: {"header": {"version":1,"root":{...}}, "footer": {"version":1,"root":{...}}, "heroVideoBrief": "..."}',
       ].join("\n"),
     });
     if (!call.ok) throw new Error(`The design team could not design this website's menu and footer (${call.detail ?? call.reason}). Nothing was published.`);
@@ -93,11 +94,22 @@ export async function composeSiteChrome(input: {
     }
     if (trees.header && trees.footer) {
       const { data } = await db.from("website_settings").select("generation").eq("organization_id", organizationId).maybeSingle();
-      const generation = writeSiteChrome(data?.generation ?? {}, { header: trees.header, footer: trees.footer });
+      const chromed = writeSiteChrome(data?.generation ?? {}, { header: trees.header, footer: trees.footer });
+      const brief = cleanVideoBrief(parsed.heroVideoBrief, screen);
+      const generation = brief ? { ...chromed, heroVideoBrief: brief } : chromed;
       const { error: saveError } = await db.from("website_settings").upsert({ organization_id: organizationId, generation } as never, { onConflict: "organization_id" });
       if (saveError) throw new Error(saveError.message);
       return { models, costMicrocents: cost };
     }
   }
   throw new Error("The design team could not produce a safe menu and footer, so nothing was published. Please try again in a moment.");
+}
+
+/** Keeps Sol's hero-video idea only when it is safe, plain text with no unsupported claims. */
+export function cleanVideoBrief(raw: unknown, screen?: (text: string) => string | null): string | null {
+  if (typeof raw !== "string") return null;
+  const text = raw.replace(/\s+/g, " ").trim().slice(0, 600);
+  if (text.length < 20 || /<|>|javascript:|https?:/i.test(text)) return null;
+  if (screen?.(text)) return null;
+  return text;
 }
