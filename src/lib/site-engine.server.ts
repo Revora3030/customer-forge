@@ -21,7 +21,7 @@ export const COPY_ROLE: ModelRole = "fast";
 /**
  * Analysis is a reasoning job, not a writing job, so it asks for the reasoning
  * model class. If Revora AI can't serve it the build still completes using the
- * deterministic brief in `fallbackBrief`.
+ * blank, facts-only brief in `fallbackBrief`.
  */
 export const ANALYSIS_ROLE: ModelRole = "coding";
 
@@ -370,49 +370,24 @@ Never assert reviews, credentials, prices, guarantees or history that were not s
 
 const INTENT_KEYS = INTENT_META;
 
-/** Deterministic brief used when the analysis pass is unavailable. */
+/**
+ * Blank brief: only the owner's own facts. No strategy, buyer, objections or
+ * page priorities are invented here — the AI writes those.
+ */
 export function fallbackBrief(facts: CopyFacts): SiteBrief {
-  const bookable = facts.goals.includes("bookings");
   const priced = facts.services.some((s) => s.price != null || s.starting_price != null);
   return {
-    positioning: facts.description?.trim()
-      ? facts.description.trim().slice(0, 200)
-      : `${facts.businessName} provides ${facts.industry || "local services"}${facts.city ? ` in ${facts.city}` : ""}.`,
-    buyer: `People nearby looking for ${facts.industry || "this service"}.`,
-    buyerGoal: bookable
-      ? "Book a time without a back-and-forth."
-      : "Find out what it costs and who to trust.",
-    intents: bookable
-      ? ["ready_to_book", "wants_price", "local_search"]
-      : ["wants_price", "researching", "local_search"],
+    positioning: facts.description?.trim().slice(0, 200) ?? "",
+    buyer: "",
+    buyerGoal: "",
+    intents: [],
     primaryAction: facts.ctaLabel,
-    secondaryAction: "See services",
-    objections: [
-      "Not sure what this will cost.",
-      "Not sure the business covers my area.",
-      "Not sure how quickly they can get to me.",
-    ],
-    trustNeeds: [
-      "Clear service detail",
-      "A real way to make contact",
-      priced ? "Visible pricing" : "Honest pricing guidance",
-    ],
-    qualifyingFields: [
-      "Name",
-      "Phone",
-      "Email",
-      "Service needed",
-      "Location",
-      "Preferred timing",
-      "Notes",
-    ],
-    pagePriorities: [
-      "Home",
-      "Services",
-      facts.goals.includes("bookings") ? "Booking" : "Quote",
-      "Contact",
-    ],
-    toneNotes: "Plain, specific and local. No hype.",
+    secondaryAction: "",
+    objections: [],
+    trustNeeds: [],
+    qualifyingFields: [],
+    pagePriorities: [],
+    toneNotes: "",
     missingFacts: [
       ...(facts.description ? [] : ["A short description of the business in your own words"]),
       ...(facts.phone ? [] : ["A phone number customers can call"]),

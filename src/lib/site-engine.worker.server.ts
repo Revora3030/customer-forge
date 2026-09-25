@@ -212,7 +212,7 @@ async function runJob(
   const { captureQa } = await import("@/lib/launch-qa");
   const { gatherBriefFacts } = await import("@/lib/site-brief.server");
   const {
-    fallbackBrief,
+    analyzeBusiness,
     blankCopy,
     missingAiCopy,
   } = await import("@/lib/site-engine.server");
@@ -340,13 +340,14 @@ async function runJob(
   const freshReplace = pendingBuild?.mode === "fresh_replace";
   const approvedBrief = readBrief(priorGeneration["brief"]);
 
-  const brief = approvedBrief?.approved ? approvedBrief : fallbackBrief(copyFacts);
+  // No built-in strategy: an unapproved brief is written by the AI.
+  const brief = approvedBrief?.approved ? approvedBrief : await analyzeBusiness(copyFacts);
   if (!approvedBrief?.approved) {
     await db.from("ai_generations").insert({
       organization_id: orgId,
       job_id: job.id,
       kind: "business_brief",
-      model: "revora-native",
+      model: brief.source ?? "ai",
       instruction: null,
       result: brief as unknown as never,
       created_by: job.created_by,
@@ -402,7 +403,7 @@ async function runJob(
     { materializeSiteContent },
     { authorBrandIdentity },
     { blankFirstBuildDirection },
-    { synthesizeNativeFirstBuild },
+    { checkFirstBuildSafety },
     { generateFirstBuildImages },
     { imageRepairPlan },
     { applyScreenshotReferenceToCreative },
@@ -411,7 +412,7 @@ async function runJob(
       import("@/lib/site-materialize.server"),
       import("@/lib/builder/ai-brand-identity.server"),
       import("@/lib/builder/first-build-contract"),
-      import("@/lib/builder/native-first-build"),
+      import("@/lib/builder/first-build-safety"),
       import("@/lib/builder/first-build-images.server"),
       import("@/lib/builder/first-build-image-qa"),
       import("@/lib/builder/screenshot-reference"),
@@ -464,7 +465,7 @@ async function runJob(
       organization_id: orgId,
       job_id: job.id,
       kind: "screenshot_reference_applied",
-      model: "revora-native",
+      model: "none",
       instruction: null,
       result: applied.reference as unknown as never,
       created_by: job.created_by,
@@ -551,29 +552,8 @@ async function runJob(
   } as never);
   // The same adversarial gate runs AFTER any model wording, so a refined page
   // can never reach the site with an unsupported claim.
-  const synthesis = synthesizeNativeFirstBuild({
-    facts: buildFacts,
-    language: typeof p["language"] === "string" ? (p["language"] as string) : "English",
-    brief,
-    plan,
-    copy,
-    creative,
-  });
-  if (!synthesis.valid) {
-    throw new Error(
-      synthesis.findings.find((finding) => finding.severity === "blocker")?.detail ??
-        "The native quality review blocked unsafe website content.",
-    );
-  }
-  await db.from("ai_generations").insert({
-    organization_id: orgId,
-    job_id: job.id,
-    kind: "native_first_build_synthesis",
-    model: "revora-native",
-    instruction: null,
-    result: synthesis as unknown as never,
-    created_by: job.created_by,
-  } as never);
+  const safetyProblems = checkFirstBuildSafety({ facts: buildFacts, plan, copy });
+  if (safetyProblems.length) throw new Error(safetyProblems[0]!.detail);
   let generatedAssets: import("@/lib/builder/first-build-images.types").FirstBuildImageAsset[] = [];
   try {
   const starterImages = await generateFirstBuildImages(db, {
@@ -636,7 +616,7 @@ async function runJob(
     organization_id: orgId,
     job_id: job.id,
     kind: "ai_page_architecture",
-    model: architectureRef.current?.models.join("+") || "revora-native",
+    model: architectureRef.current?.models.join("+") || "none",
     instruction: null,
     result: (architectureRef.current
       ? {
@@ -910,7 +890,6 @@ async function runJob(
         },
         firstBuildCreative: creative,
         siteCampaign: built.campaign,
-        nativeSynthesis: synthesis,
         screenshotReference,
         screenshotReferenceObservations: storedReferenceObservations ?? null,
         designFingerprint: { ...creative.fingerprint, updatedAt: new Date().toISOString() },
