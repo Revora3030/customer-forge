@@ -7,40 +7,19 @@
  */
 import { CompositionRenderer } from "@/components/site/CompositionRenderer";
 import { readComposition } from "@/lib/builder/composition-tree";
-import {
-  blockCss,
-  itemsCss,
-  buttonClasses,
-  buttonCss,
-  readBlockStyle,
-  readSectionVisual,
-  readComponentVisual,
-  type PersistedComponentVisual,
-} from "@/lib/site-style";
-import { Link } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
-
+import { blockCss, readBlockStyle } from "@/lib/site-style";
 import { SitePageLink } from "@/components/site/site-links";
-import { Mail, MapPin, Phone, Star } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Pill } from "@/components/app/Bits";
+import { Mail, MapPin, Phone } from "lucide-react";
 import { BookingForm, QuoteCalculator } from "@/components/site/SiteForms";
-import { DirectContact, mailHref, telHref } from "@/components/site/ContactDetails";
+import { DirectContact } from "@/components/site/ContactDetails";
 import type { PublicSite } from "@/lib/public-site.functions";
 import { readCustomBlock } from "@/lib/builder/custom-block";
 import { CustomBlock } from "@/components/site/CustomBlock";
-import { currency, dateShort } from "@/lib/format";
 import { safeLinkUrl, sectionLabel } from "@/lib/website-content";
 import { readEmbed } from "@/lib/site-embed";
 import { readSectionEffect, sectionEffectClass } from "@/lib/site-effects";
 import { businessFacts, factsAddressLine } from "@/lib/builder/facts";
-import { phoneDisplay, phoneLink, safeParagraph, safeText } from "@/lib/builder/presentation";
-import {
-  blankDesignFingerprint,
-  readDesignFingerprint,
-  type DesignFingerprint,
-} from "@/lib/builder/design-fingerprint";
-import { resolveExecutableCreativeSection } from "@/lib/builder/section-creative-record";
+import { safeText } from "@/lib/builder/presentation";
 
 type Site = NonNullable<PublicSite>;
 type Section = NonNullable<Site["content"]>["sections"][number];
