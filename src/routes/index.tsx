@@ -64,10 +64,11 @@ export const Route = createFileRoute("/")({
     loaderData && "pending" in loaderData
       ? {
           meta: [
-            { title: "Website coming soon" },
+            { title: "A new website is on the way" },
             {
               name: "description",
-              content: "This website is being set up and will be online shortly.",
+              content:
+                "This website is being built and will be online shortly. Please check back soon.",
             },
             { name: "robots", content: "noindex" },
           ],
@@ -146,9 +147,9 @@ function HomeRoute() {
     return (
       <div className="flex min-h-screen items-center justify-center px-4 text-center">
         <div>
-          <h1 className="font-display text-[22px] font-semibold">Website coming soon</h1>
+          <h1 className="font-display text-[22px] font-semibold">A new website is on the way</h1>
           <p className="mt-2 text-[13px] text-muted-foreground">
-            This website is being set up and will be online shortly.
+            This website is being built and will be online shortly. Please check back soon.
           </p>
         </div>
       </div>
