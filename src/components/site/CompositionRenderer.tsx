@@ -1,5 +1,5 @@
 import { useState, type CSSProperties, type ReactNode } from "react";
-import type { Breakpoint, CompositionNode, CompositionTree, NodeStyle } from "@/lib/builder/composition-tree";
+import type { Breakpoint, CompositionNode, CompositionTree, MotionEasing, NodeMotion, NodeStyle } from "@/lib/builder/composition-tree";
 
 /**
  * Draws any validated AI-authored composition tree. It only translates the
@@ -103,9 +103,7 @@ function renderNode(node: CompositionNode, ctx: Ctx, key: string): ReactNode {
     "data-cn": id,
     "data-motion": motion?.kind,
     className: motion ? "rv-cn-motion" : undefined,
-    style: motion && (motion.delayMs || motion.durationMs)
-      ? { ...style, ...(motion.delayMs ? { animationDelay: `${motion.delayMs}ms` } : {}), ...(motion.durationMs ? { animationDuration: `${motion.durationMs}ms` } : {}) }
-      : style,
+    style: motion ? { ...style, ...motionStyle(motion) } : style,
   };
   const kids = node.children?.map((child, i) => renderNode(child, ctx, `${key}.${i}`));
 
@@ -184,6 +182,32 @@ function renderNode(node: CompositionNode, ctx: Ctx, key: string): ReactNode {
   }
 }
 
+const EASING_CSS: Record<MotionEasing, string> = {
+  ease: "ease", "ease-in": "ease-in", "ease-out": "ease-out", "ease-in-out": "ease-in-out", linear: "linear",
+  spring: "cubic-bezier(.34,1.56,.64,1)", snap: "cubic-bezier(.2,.9,.1,1)",
+};
+/** Turns the AI's validated motion description into CSS variables/animation settings. */
+export function motionStyle(motion: NodeMotion): CSSProperties {
+  const out: Record<string, string> = {};
+  if (motion.delayMs) out["animationDelay"] = `${motion.delayMs}ms`;
+  if (motion.durationMs) out["animationDuration"] = `${motion.durationMs}ms`;
+  if (motion.easing) out["animationTimingFunction"] = EASING_CSS[motion.easing];
+  if (motion.repeat === "loop") { out["animationIterationCount"] = "infinite"; out["animationDirection"] = "alternate"; }
+  else if (motion.repeat && motion.repeat > 1) { out["animationIterationCount"] = String(motion.repeat); out["animationDirection"] = "alternate"; }
+  if (motion.trigger === "view") out["animationTimeline"] = "view()";
+  if (motion.trigger === "view") out["animationRange"] = "entry 0% cover 35%";
+  const f = motion.from;
+  if (motion.kind === "custom" && f) {
+    out["--rv-o"] = String((f.opacity ?? 100) / 100);
+    out["--rv-x"] = `${f.x ?? 0}px`;
+    out["--rv-y"] = `${f.y ?? 0}px`;
+    out["--rv-s"] = String(f.scale ?? 1);
+    out["--rv-r"] = `${f.rotate ?? 0}deg`;
+    out["--rv-b"] = `${f.blur ?? 0}px`;
+  }
+  return out as CSSProperties;
+}
+
 type NodeProps = { "data-cn": string; "data-motion": string | undefined; className: string | undefined; style: CSSProperties };
 
 function Tabs({ props, labels, panels }: { props: NodeProps; labels: string[]; panels: ReactNode[] }) {
@@ -228,7 +252,7 @@ const MARQUEE_CSS = `@media (prefers-reduced-motion: no-preference){.rv-cn-marqu
  */
 export const PHONE_SAFETY_CSS = `[data-composition]{max-width:100%;overflow-x:clip}[data-composition] *{min-width:0;overflow-wrap:anywhere}[data-composition] img,[data-composition] video,[data-composition] iframe{max-width:100%;height:auto}@media (max-width:639px){[data-composition] p,[data-composition] li,[data-composition] span,[data-composition] a,[data-composition] small,[data-composition] label{font-size:max(14px,1em)!important}[data-composition] a,[data-composition] button{min-height:44px!important}[data-composition] a{display:inline-flex!important;align-items:center}[data-composition] [style*="position: absolute"],[data-composition] [style*="position:absolute"]{position:relative!important;inset:auto!important}[data-composition] [style*="margin-top: -"]{margin-top:0!important}[data-composition] [style*="rotate("]{transform:none!important}[data-composition] [style*="grid-template-columns"]{grid-template-columns:minmax(0,1fr)!important}[data-composition] [style*="grid-template-areas"]{grid-template-areas:none!important}[data-composition] [style*="grid-area"]{grid-area:auto!important}}`;
 
-const MOTION_CSS = `@media (prefers-reduced-motion: no-preference){.rv-cn-motion{animation:rv-cn-in .7s ease both}.rv-cn-motion[data-motion=rise]{animation-name:rv-cn-rise}.rv-cn-motion[data-motion=scale]{animation-name:rv-cn-scale}.rv-cn-motion[data-motion=float]{animation:rv-cn-float 6s ease-in-out infinite}.rv-cn-motion[data-motion=slide-left]{animation-name:rv-cn-sl}.rv-cn-motion[data-motion=slide-right]{animation-name:rv-cn-sr}.rv-cn-motion[data-motion=blur]{animation-name:rv-cn-blur}.rv-cn-motion[data-motion=reveal]{animation-name:rv-cn-reveal}}@keyframes rv-cn-sl{from{opacity:0;transform:translateX(32px)}to{opacity:1;transform:none}}@keyframes rv-cn-sr{from{opacity:0;transform:translateX(-32px)}to{opacity:1;transform:none}}@keyframes rv-cn-blur{from{opacity:0;filter:blur(12px)}to{opacity:1;filter:none}}@keyframes rv-cn-reveal{from{clip-path:inset(0 0 100% 0)}to{clip-path:inset(0 0 0 0)}}@keyframes rv-cn-in{from{opacity:0}to{opacity:1}}@keyframes rv-cn-rise{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:none}}@keyframes rv-cn-scale{from{opacity:0;transform:scale(.94)}to{opacity:1;transform:none}}@keyframes rv-cn-float{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}`;
+const MOTION_CSS = `@media (prefers-reduced-motion: no-preference){.rv-cn-motion{animation:rv-cn-in .7s ease both}.rv-cn-motion[data-motion=rise]{animation-name:rv-cn-rise}.rv-cn-motion[data-motion=scale]{animation-name:rv-cn-scale}.rv-cn-motion[data-motion=float]{animation:rv-cn-float 6s ease-in-out infinite}.rv-cn-motion[data-motion=slide-left]{animation-name:rv-cn-sl}.rv-cn-motion[data-motion=slide-right]{animation-name:rv-cn-sr}.rv-cn-motion[data-motion=blur]{animation-name:rv-cn-blur}.rv-cn-motion[data-motion=reveal]{animation-name:rv-cn-reveal}.rv-cn-motion[data-motion=custom]{animation-name:rv-cn-custom}}@keyframes rv-cn-custom{from{opacity:var(--rv-o,1);transform:translate(var(--rv-x,0),var(--rv-y,0)) scale(var(--rv-s,1)) rotate(var(--rv-r,0));filter:blur(var(--rv-b,0))}}@keyframes rv-cn-sl{from{opacity:0;transform:translateX(32px)}to{opacity:1;transform:none}}@keyframes rv-cn-sr{from{opacity:0;transform:translateX(-32px)}to{opacity:1;transform:none}}@keyframes rv-cn-blur{from{opacity:0;filter:blur(12px)}to{opacity:1;filter:none}}@keyframes rv-cn-reveal{from{clip-path:inset(0 0 100% 0)}to{clip-path:inset(0 0 0 0)}}@keyframes rv-cn-in{from{opacity:0}to{opacity:1}}@keyframes rv-cn-rise{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:none}}@keyframes rv-cn-scale{from{opacity:0;transform:scale(.94)}to{opacity:1;transform:none}}@keyframes rv-cn-float{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}`;
 
 export function CompositionRenderer({ tree, scope, as = "section", resolveHref, resolveMedia }: { tree: CompositionTree; scope: string; as?: "section" | "div"; resolveHref?: (href: string) => string; resolveMedia?: (ref: string) => string | null }) {
   const ctx: Ctx = { rules: [], counter: { n: 0 }, scope: scope.replace(/[^\w-]/g, "") || "cn", href: resolveHref ?? ((h) => h), media: resolveMedia ?? (() => null) };
