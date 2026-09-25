@@ -1,12 +1,4 @@
-/**
- * Revora website generation engine.
- *
- * Pure, deterministic planning: it turns the information a client provides
- * during onboarding into a website structure, headline/CTA copy and SEO
- * metadata. It NEVER invents reviews, awards, certifications, licences,
- * guarantees, locations or pricing — anything the client has not supplied is
- * returned as a marked placeholder for completion.
- */
+/** Client-site addressing, review workflow, and intake choices. */
 
 import type { Tone } from "@/lib/domain";
 import { slugify } from "@/lib/format";

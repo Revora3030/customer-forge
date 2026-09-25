@@ -861,7 +861,7 @@ export async function refineFirstBuildWithCollective(input: {
           ? null
           : proposal === null
             ? "the answer was not in the agreed shape"
-            : "nothing improved on the deterministic wording",
+            : "nothing improved on the current wording",
         acceptedFields: acceptedKeys,
         rejected: gated.rejected,
       }),

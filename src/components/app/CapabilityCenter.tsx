@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { CheckCircle2, CircleSlash, HelpCircle, Wrench } from "lucide-react";
+import { CheckCircle2, CircleSlash, HelpCircle } from "lucide-react";
 import { Panel, SectionHeading } from "@/components/app/Bits";
 import {
   CAPABILITY_STATUS_LABELS,
@@ -10,14 +10,12 @@ import { getIntegrationCenter } from "@/lib/integrations/capabilities.functions"
 
 const icons: Record<CapabilityStatus, typeof CheckCircle2> = {
   ready: CheckCircle2,
-  deterministic: Wrench,
   needs_connection: HelpCircle,
   unavailable: CircleSlash,
 };
 
 const tones: Record<CapabilityStatus, string> = {
   ready: "text-emerald-400",
-  deterministic: "text-sky-400",
   needs_connection: "text-amber-400",
   unavailable: "text-muted-foreground",
 };
@@ -54,8 +52,7 @@ export function CapabilityCenter() {
       ) : (
         <>
           <p className="mt-3 text-sm text-muted-foreground">
-            {query.data.summary.ready} ready · {query.data.summary.deterministic} on Revora's own
-            engine · {query.data.summary.needsConnection} awaiting connection ·{" "}
+            {query.data.summary.ready} ready · {query.data.summary.needsConnection} awaiting connection ·{" "}
             {query.data.summary.unavailable} not available
             {query.data.freeOnly ? " · free-only mode is on, so paid services stay blocked" : ""}
           </p>
