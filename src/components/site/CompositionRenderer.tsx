@@ -143,7 +143,9 @@ function renderNode(node: CompositionNode, ctx: Ctx, key: string): ReactNode {
       );
     case "compare": {
       const [before, after] = node.children ?? [];
-      return before?.src && after?.src ? <Compare key={key} props={props} before={before} after={after} /> : null;
+      const beforeSource = before?.src ?? (before?.mediaRef ? ctx.media(before.mediaRef) : null);
+      const afterSource = after?.src ?? (after?.mediaRef ? ctx.media(after.mediaRef) : null);
+      return before && after && beforeSource && afterSource ? <Compare key={key} props={props} before={before} after={after} beforeSource={beforeSource} afterSource={afterSource} /> : null;
     }
     case "gallery":
       return (
@@ -191,12 +193,12 @@ function Tabs({ props, labels, panels }: { props: NodeProps; labels: string[]; p
   );
 }
 
-function Compare({ props, before, after }: { props: NodeProps; before: CompositionNode; after: CompositionNode }) {
+function Compare({ props, before, after, beforeSource, afterSource }: { props: NodeProps; before: CompositionNode; after: CompositionNode; beforeSource: string; afterSource: string }) {
   const [pos, setPos] = useState(50);
   return (
     <div {...props} style={{ position: "relative", overflow: "hidden", ...props.style }}>
-      <img src={after.src} alt={after.alt ?? ""} loading="lazy" style={{ display: "block", width: "100%", height: "100%", objectFit: "cover" }} />
-      <img src={before.src} alt={before.alt ?? ""} loading="lazy" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", clipPath: `inset(0 ${100 - pos}% 0 0)` }} />
+      <img src={afterSource} alt={after.alt ?? ""} loading="lazy" style={{ display: "block", width: "100%", height: "100%", objectFit: after.style?.objectFit ?? "cover" }} />
+      <img src={beforeSource} alt={before.alt ?? ""} loading="lazy" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: before.style?.objectFit ?? "cover", clipPath: `inset(0 ${100 - pos}% 0 0)` }} />
       <div aria-hidden="true" style={{ position: "absolute", top: 0, bottom: 0, left: `${pos}%`, width: 2, background: "currentColor" }} />
       <input type="range" min={0} max={100} value={pos} onChange={(e) => setPos(Number(e.target.value))} aria-label="Compare before and after"
         style={{ position: "absolute", inset: 0, width: "100%", height: "100%", opacity: 0, cursor: "ew-resize", margin: 0 }} />
