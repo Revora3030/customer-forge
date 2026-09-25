@@ -297,7 +297,9 @@ export function validateComposition(input: unknown, options: ValidateOptions = {
   if (!input || typeof input !== "object") return { ok: false, issues: [{ path: "tree", problem: "tree must be an object" }] };
   const tree = input as Record<string, unknown>;
   const root = walk(tree["root"], "root", 0);
-  const label = typeof tree["label"] === "string" ? tree["label"].slice(0, 120) : undefined;
+  const label = typeof tree["label"] === "string" ? tree["label"] : undefined;
+  // Size limits fail loudly so the AI repairs the value — never a silent trim.
+  if (label && label.length > 120) issues.push({ path: "label", problem: "label must be 120 characters or fewer" });
   for (const mediaRef of options.requiredMediaRefs ?? [])
     if (!usedMediaRefs.has(mediaRef))
       issues.push({ path: "root", problem: `supplied website picture ${mediaRef} is missing from the composition` });

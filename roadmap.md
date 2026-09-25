@@ -1,8 +1,8 @@
 # Roadmap — Five-phase blocker elimination
 
-- [x] Phase 1 inventory (first pass): design-fingerprint and creative-authority are now read-only data contracts that hold AI-written values; no style pools remain. site-style, site-effects, and visual-composition still translate stored values into styles; their defaults still need a check for opinionated values.
-- [x] Phase 4 core: visual evidence is tied to the exact site version (revision_hash stamped by the database); publish requires a passing latest check of the current version.
-- [ ] Phase 2: audit site-style/site-effects defaults so each applies only when a field is missing; add round-trip survival tests.
-- [ ] Phase 3: extend the composition vocabulary (grid areas, per-breakpoint overrides, declarative motion).
-- [ ] Phase 4: automatic three-size capture in the builder, plus a Sol/Terra screenshot critique and repair loop.
-- [ ] Phase 5: second-industry end-to-end build, security scan, final A–N report.
+- [x] Phase 1 inventory: design-fingerprint and creative-authority are read-only stores of AI-written values; no style pools remain reachable.
+- [x] Phase 2: removed the silent label trim; size limits now fail and go back to the AI.
+- [x] Phase 4: visual evidence is tied to the exact site version; publishing needs the latest check of every page to pass; the AI repair loop (Sol edits, Terra review, re-measure) runs after a failed check.
+- [ ] Phase 2 (remaining): line-by-line audit of site-style / site-effects fallbacks.
+- [ ] Phase 3: larger layout and motion vocabulary. Needs a design pass and Sol prompt updates.
+- [ ] Phase 5: second-industry build and a security fix pass (six earlier warnings).

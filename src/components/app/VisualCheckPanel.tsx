@@ -2,7 +2,7 @@
  * LAYER 2 in the builder: the "Run visual check" control.
  *
  * The website is loaded in a hidden frame on the owner's own browser, resized
- * through eight required phone and desktop widths, and measured for real — sideways
+ * through eight required phone, tablet and desktop widths, and measured for real — sideways
  * scrolling, broken pictures, cut-off text, buttons a thumb can't hit. The raw
  * measurements go to the server, which grades them itself and stores the
  * verdict the launch gate reads.
@@ -24,6 +24,23 @@ import {
 import { friendlyError } from "@/lib/user-error";
 import { useLatestGenerationJob } from "@/lib/site-engine.hooks";
 import { useSelfHeal } from "@/lib/self-heal.hooks";
+import { useServerFn } from "@tanstack/react-start";
+import { runWebsiteTask } from "@/lib/site-agent.functions";
+
+/** Safety ceiling on AI repair rounds per check (spend/time), not a quality target. */
+const MAX_AI_REPAIR_ROUNDS = 3;
+
+/** Turns measured browser failures into a repair brief for the AI team. */
+export function repairBriefFrom(report: VisualReport): string {
+  const lines = report.findings
+    .map((f) => `- ${f.page ? `[${f.page}] ` : ""}${f.detail} ${f.fix}`.trim())
+    .join("\n");
+  return [
+    "The real-browser quality check measured these problems on the rendered site.",
+    "Repair every one through the site's composition, keeping the design direction, all owner words, facts, pictures, forms and links. Do not remove anything.",
+    lines,
+  ].join("\n");
+}
 
 export function VisualCheckPanel({
   organizationId,
@@ -50,6 +67,37 @@ export function VisualCheckPanel({
   const autoRunRef = useRef<string | null>(null);
   const repairedRef = useRef<string | null>(null);
   const selfHeal = useSelfHeal(organizationId);
+  const runTask = useServerFn(runWebsiteTask);
+  const [aiRepairing, setAiRepairing] = useState(false);
+
+  /** Sol repairs, Terra's review keeps the stronger version, then the site is measured again. */
+  const aiRepairLoop = useCallback(
+    async (start: VisualReport, measure: () => Promise<VisualReport | null>) => {
+      if (!organizationId) return start;
+      let current = start;
+      setAiRepairing(true);
+      try {
+        for (let round = 1; round <= MAX_AI_REPAIR_ROUNDS && !current.passed; round++) {
+          setRepair(`The AI team is repairing what the check found (round ${round})…`);
+          await runTask({ data: { organizationId, instruction: repairBriefFrom(current) } });
+          const next = await measure();
+          if (!next) break;
+          current = next;
+        }
+        setRepair(
+          current.passed
+            ? `AI repair complete — the re-check passes at ${current.score}/100.`
+            : "The AI repairs didn't clear every problem yet, so publishing stays locked.",
+        );
+      } catch (error) {
+        setRepair(friendlyError(error, "The AI repair couldn't run, so the failing result stands."));
+      } finally {
+        setAiRepairing(false);
+      }
+      return current;
+    },
+    [organizationId, runTask],
+  );
 
   const run = useCallback(async (automatic = false): Promise<VisualReport | null> => {
     if (!organizationId || !slug || running) return null;
@@ -145,10 +193,14 @@ export function VisualCheckPanel({
       try {
         const healed = await selfHeal.mutateAsync();
         if (healed.rolledBack || healed.fixed.length === 0) {
-          setRepair(healed.summary);
+          await aiRepairLoop(first, () => run(true));
           return;
         }
         const second = await run(true);
+        if (second && !second.passed) {
+          await aiRepairLoop(second, () => run(true));
+          return;
+        }
         setRepair(
           second
             ? second.passed
@@ -160,7 +212,7 @@ export function VisualCheckPanel({
         setRepair("The automatic fix couldn't run, so the failing result stands.");
       }
     })();
-  }, [canManage, latestJob, organizationId, run, running, selfHeal, slug]);
+  }, [aiRepairLoop, canManage, latestJob, organizationId, run, running, selfHeal, slug]);
 
   return (
     <Panel className="p-5">
@@ -202,6 +254,16 @@ export function VisualCheckPanel({
           ) : null}
         </div>
         {canManage ? (
+          <div className="flex flex-wrap gap-2">
+          {result && !result.passed ? (
+            <Button
+              onClick={() => void aiRepairLoop(result, () => run(false))}
+              disabled={running || aiRepairing || selfHeal.isPending}
+            >
+              {aiRepairing ? <Loader2 className="size-4 animate-spin" /> : null}
+              {aiRepairing ? "AI is repairing…" : "Fix with AI"}
+            </Button>
+          ) : null}
           <Button
             variant="outline"
             onClick={() => void run(false)}
@@ -214,6 +276,7 @@ export function VisualCheckPanel({
             )}
             {running ? "Checking…" : "Run visual check"}
           </Button>
+          </div>
         ) : null}
       </div>
     </Panel>
