@@ -30,10 +30,14 @@ export function writeSiteChrome(generation: unknown, chrome: { header: Compositi
  * Site-internal links are authored as "/" or "/<page>". On the platform share
  * path they must become "/s/<slug>/<page>"; on the owner's own domain they stay.
  */
-export function resolveSiteHref(href: string, slug: string, ownAddress: boolean): string {
+export function resolveSiteHref(rawHref: string, slug: string, ownAddress: boolean): string {
+  // "/home" is the home page's slug; it is the same page as "/".
+  const href = rawHref === "/home" ? "/" : rawHref.replace(/^\/home(?=[#?])/, "/");
   if (ownAddress || !href.startsWith("/") || href.startsWith("//") || href.startsWith("/s/")) return href;
   const base = `/s/${encodeURIComponent(slug)}`;
-  return href === "/" ? base : `${base}${href}`;
+  if (href === "/") return base;
+  if (href.startsWith("/#") || href.startsWith("/?")) return `${base}${href.slice(1)}`;
+  return `${base}${href}`;
 }
 
 /** Every page link the chrome must offer: home plus each real page. */

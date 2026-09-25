@@ -139,6 +139,32 @@ export async function verifyWorkspaceSite(
   const checks: Check[] = [];
   const linkTargets = new Set<string>();
 
+  // A saved layout that fails validation is not drawn (never replaced with a
+  // substitute design) — so it must be reported here, or a whole section can
+  // disappear without anyone noticing.
+  const sections = await client
+    .from("website_sections")
+    .select("id, kind, settings, is_visible")
+    .eq("organization_id", organizationId)
+    .eq("is_visible", true)
+    .order("sort_order");
+  const { validateComposition } = await import("@/lib/builder/composition-tree");
+  for (const section of ((sections.data ?? []) as Record<string, unknown>[]).filter(
+    (row) => row["kind"] === "composition",
+  )) {
+    const raw = (section["settings"] as Record<string, unknown> | null)?.["composition"];
+    const result = validateComposition(raw);
+    checks.push({
+      label: "Every section's layout can be shown",
+      ok: result.ok,
+      severity: "critical",
+      where: String(section["id"]),
+      ...(result.ok
+        ? {}
+        : { detail: result.issues.map((i) => `${i.path}: ${i.problem}`).join("; ") }),
+    });
+  }
+
   if (published) {
     const targets: { path: string; label: string }[] = [
       { path: `/s/${slug}`, label: String(home?.["title"] ?? "Home") },

@@ -1212,9 +1212,13 @@ export const MEASURE_SCRIPT = `(() => {
     ...document.images
   ]
     .filter(
+      // A lazy picture that simply hasn't been scrolled to yet is not broken:
+      // only a picture the browser finished trying to load and got nothing
+      // from counts as a failure.
       (img) =>
-        !img.complete ||
-        img.naturalWidth === 0
+        img.complete &&
+        img.naturalWidth === 0 &&
+        Boolean(img.currentSrc || img.src)
     )
     .slice(0, 12)
     .map((img) =>
@@ -1707,10 +1711,37 @@ export const MEASURE_SCRIPT = `(() => {
       )
     ].filter(visible).length >= 2;
 
+  // A one-page site has nowhere else to go, so it needs no menu. Only
+  // require navigation when the page links to at least one other page.
+  // Share (/s/<slug>) and private preview (/p/<token>) addresses carry a
+  // prefix; strip it so the same page reached two ways is one page.
+  const pageKey = (path) => {
+    const bare = path.replace(/^\\/(?:s|p)\\/[^/]+/, "").replace(/\\/+$/, "");
+    return bare === "" || bare === "/home" ? "/" : bare;
+  };
+  const here = pageKey(location.pathname);
+  const otherPages = new Set(
+    [...document.querySelectorAll("a[href]")]
+      .map((a) => {
+        try {
+          const url = new URL(a.getAttribute("href") || "", location.href);
+          return url.origin === location.origin &&
+            pageKey(url.pathname) !== here &&
+            !url.pathname.startsWith("/app")
+            ? pageKey(url.pathname)
+            : null;
+        } catch {
+          return null;
+        }
+      })
+      .filter(Boolean),
+  );
+
   const navigable =
-    width > 500
+    otherPages.size === 0 ||
+    (width > 500
       ? inlineNav || menuButton
-      : menuButton || inlineNav;
+      : menuButton || inlineNav);
 
   /* ---------------------------------------------------------------------- */
   /* ACCESSIBLE NAMES                                                        */
