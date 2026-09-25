@@ -45,7 +45,6 @@ const ENV_KEYS = [
   "PAID_IMAGE_ENABLED",
   "LUNA_ENABLED",
   "OPENAI_API_KEY",
-  "ZERO_AI_COST_MODE",
   "BUILDER_EXTERNAL_AI_ALLOWED",
 ];
 const saved = new Map<string, string | undefined>();

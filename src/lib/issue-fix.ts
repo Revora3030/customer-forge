@@ -108,7 +108,7 @@ function classify(issue: AuditIssue): { category: IssueCategory; area: BuilderAr
     return { category: "conversion", area: "pages" };
   if (key === "no-capture" || issue.upgrade === "add_capture_section")
     return { category: "forms", area: "pages" };
-  if (key === "no-trust" || key === "goal-sections")
+  if (key === "no-trust")
     return { category: "conversion", area: "upgrades" };
   if (key === "no-faq" || issue.upgrade === "add_faq_section")
     return { category: "content", area: "upgrades" };

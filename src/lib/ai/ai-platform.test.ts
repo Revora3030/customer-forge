@@ -88,7 +88,6 @@ describe("provider configuration", () => {
     // These suites cover the OPTIONAL enhancement path, so they opt out of
     // zero-cost mode explicitly. Zero-cost mode itself is proven in
     // `zero-cost.test.ts`, which asserts providers stay blocked by default.
-    process.env["ZERO_AI_COST_MODE"] = "false";
     process.env["BUILDER_EXTERNAL_AI_ALLOWED"] = "true";
     delete process.env["GOOGLE_AI_API_KEY"];
     delete process.env["OPENAI_API_KEY"];
@@ -169,7 +168,6 @@ describe("provider fallback", () => {
   const saved = { ...process.env };
 
   beforeEach(() => {
-    process.env["ZERO_AI_COST_MODE"] = "false";
     process.env["BUILDER_EXTERNAL_AI_ALLOWED"] = "true";
     // These tests cover the optional PAID chain, so the free chain is off.
     process.env["FREE_AI_ENABLED"] = "false";

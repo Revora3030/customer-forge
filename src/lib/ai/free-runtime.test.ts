@@ -15,7 +15,6 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const ENV_KEYS = [
-  "ZERO_AI_COST_MODE",
   "FREE_AI_ENABLED",
   "FREE_AI_ONLY",
   "FREE_AI_PROVIDER_ORDER",
@@ -39,7 +38,6 @@ const saved: Record<string, string | undefined> = {};
 
 /** Two free providers configured, cloudflare first, no paid keys at all. */
 function configureTwoFreeProviders() {
-  process.env["ZERO_AI_COST_MODE"] = "false";
   process.env["BUILDER_EXTERNAL_AI_ALLOWED"] = "true";
   process.env["CLOUDFLARE_AI_API_TOKEN"] = "cf-token";
   process.env["CLOUDFLARE_ACCOUNT_ID"] = "cf-account";
@@ -162,7 +160,6 @@ describe("automatic failover between free providers", () => {
   it("honors request-scoped freeOnly even when paid fallback is otherwise enabled", async () => {
     configureTwoFreeProviders();
     process.env["FREE_AI_ONLY"] = "false";
-    process.env["ZERO_AI_COST_MODE"] = "false";
     process.env["AI_DEFAULT_PROVIDER"] = "openai";
     process.env["GOOGLE_AI_API_KEY"] = "paid-google";
     process.env["OPENAI_API_KEY"] = "paid-openai";

@@ -31,7 +31,6 @@ export const getIntegrationCenter = createServerFn({ method: "GET" })
       "@/lib/integrations/registry.server"
     );
     const { freeAiOnly } = await import("@/lib/ai/free");
-    const { zeroAiCostMode } = await import("@/lib/ai/config");
 
     const capabilities = await capabilitySnapshot();
     const summary = {
@@ -41,7 +40,7 @@ export const getIntegrationCenter = createServerFn({ method: "GET" })
     };
 
     return {
-      freeOnly: freeAiOnly() || zeroAiCostMode(),
+      freeOnly: freeAiOnly(),
       capabilities,
       providers: providerSnapshots(),
       summary,

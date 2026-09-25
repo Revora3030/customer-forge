@@ -91,7 +91,7 @@ describe("vision review", () => {
       ],
     });
     const { repairs, unfixable } = visionRepairs(review);
-    expect(repairs.map((repair) => repair.action)).toEqual(["raise_contrast"]);
+    expect(repairs.map((repair) => repair.action)).toEqual([]);
     expect(unfixable.map((finding) => finding.kind)).toEqual(["inconsistent_style"]);
   });
 

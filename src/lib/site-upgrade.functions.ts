@@ -496,12 +496,6 @@ export const applyVisionRepairs = createServerFn({ method: "POST" })
           applied.push("Movement switched off on this page");
           break;
         }
-        case "set_density": {
-          fingerprint = { ...fingerprint, density: repair.density };
-          fingerprintChanged = true;
-          applied.push(repair.density === "airy" ? "More space between blocks" : "Spacing tightened a little");
-          break;
-        }
         case "set_image_overlay": {
           fingerprint = {
             ...fingerprint,
@@ -525,23 +519,9 @@ export const applyVisionRepairs = createServerFn({ method: "POST" })
           applied.push("Photos cropped to fit rather than stretched");
           break;
         }
-        case "raise_contrast": {
-          fingerprint = { ...fingerprint, colorSystem: "high-contrast" };
-          fingerprintChanged = true;
-          applied.push("Stronger contrast between text and background");
-          break;
-        }
-        case "emphasise_cta": {
-          for (const section of scope.filter((entry) => ["cta", "sticky_cta", "offer"].includes(entry.kind))) {
-            await supabase
-              .from("website_sections")
-              .update({ settings: writeSectionEffect(section.settings ?? null, "gold_glow") as never })
-              .eq("id", section.id)
-              .eq("organization_id", data.organizationId);
-          }
-          applied.push("The main action made more prominent");
-          break;
-        }
+        // Contrast and call-to-action emphasis are design choices: they are
+        // handed back to the AI team (see VisionReviewPanel), never swapped for
+        // a fixed colour system or effect here.
         default: {
           // A shortening repair would change the owner's own words, so Revora
           // reports it instead of rewriting it.
