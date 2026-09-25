@@ -388,6 +388,8 @@ export function useBuilderRequests({
     retry: (id: string) => patch(id, { state: "queued", error: "" }),
     dismiss: (id: string) => setTasks((current) => current.filter((task) => task.id !== id)),
     memoryLoaded,
+    /** Saves chat turns from flows outside the queue (first build, fact answers). */
+    remember,
     /** Starts a fresh conversation and forgets the saved one for this business. */
     newChat: async () => {
       setTasks((current) => current.filter((task) => task.state === "planning" || task.state === "building"));
