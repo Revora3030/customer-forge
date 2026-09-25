@@ -340,13 +340,57 @@ function llm7FreeEligible(name: string) {
   return LLM7_VERIFIED_FREE.has(id) || llm7DiscoveredFree.has(id);
 }
 
+/**
+ * The exact models OpenAI covers with its shared-traffic daily allowance. An
+ * exact-match allowlist on purpose: every other OpenAI model is billed, and a
+ * pattern would eventually let one of those into a free-only chain.
+ */
+const OPENAI_SHARED_TRAFFIC_FREE = new Set(
+  [
+    // 250,000 tokens/day pool
+    "gpt-5.4",
+    "gpt-5.2",
+    "gpt-5.1",
+    "gpt-5",
+    "gpt-4.1",
+    "gpt-4o",
+    "o1",
+    "o3",
+    // 2,500,000 tokens/day pool
+    "gpt-5.4-mini",
+    "gpt-5.4-nano",
+    "gpt-5-mini",
+    "gpt-5-nano",
+    "gpt-4.1-mini",
+    "gpt-4.1-nano",
+    "gpt-4o-mini",
+    "o3-mini",
+    "o4-mini",
+  ].map((id) => id.toLowerCase()),
+);
+
+/** Is this model inside OpenAI's shared-traffic daily allowance? */
+export function openAiSharedTrafficFree(model: string) {
+  return OPENAI_SHARED_TRAFFIC_FREE.has(model.trim().toLowerCase());
+}
+
+/** The shared-traffic allowance ids, for the admin surface. */
+export function openAiSharedTrafficModels(): string[] {
+  return [...OPENAI_SHARED_TRAFFIC_FREE];
+}
+
 export function isFreeEligibleModel(provider: FreeProviderName, model: string): boolean {
   const name = model.trim();
   if (name.length === 0) return false;
+  // OpenAI is a free provider ONLY for the ids its shared-traffic allowance
+  // covers, so this is checked before the generic paid-name rules below (which
+  // reject every `gpt-`/`o<n>` name).
+  if (provider === "openai") return openAiSharedTrafficFree(name);
   const unprefixed = provider === "groq" ? name.replace(/^openai\/(?=gpt-oss)/i, "") : name;
   if (PAID_MODEL_PATTERNS.some((pattern) => pattern.test(unprefixed))) {
     if (!(provider === "groq" && /^gpt-oss/i.test(unprefixed))) return false;
   }
+
   if (provider === "openrouter") return openRouterFree(name) && !NON_CHAT_MODEL.test(name);
   if (provider === "google") return /flash|lite|gemma|transcribe/i.test(name);
   if (provider === "groq") return groqFreeEligible(name);
