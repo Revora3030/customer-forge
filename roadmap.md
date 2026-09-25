@@ -44,4 +44,4 @@
 - [ ] Strengthen near-ranking city/industry pages with truthful content.
 - [ ] Google Business Profile reviews/hours sync.
 - [x] Automatic 5-size look-and-fix after every change (builder open).
-- [ ] Root-level legacy authoring elimination: ZERO_AI_COST_MODE removed; reachability scan, deletions, firewall + capability tests, full gates, re-scan, report.
+- [x] Root-level legacy authoring elimination (zero-cost switch, dead builders, canned upgrades, fixed repairs removed; firewall tests; all gates pass).
