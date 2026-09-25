@@ -93,7 +93,7 @@ import {
   readCopy,
   revoraScore,
 } from "@/lib/site-engine";
-import { useBuildReadiness, useScoreFacts } from "@/lib/site-engine.hooks";
+import { useBuildReadiness, useSaveMissingFacts, useScoreFacts } from "@/lib/site-engine.hooks";
 import {
   useEnsureFirstBuild,
   useGenerateSectionsFromText,
@@ -269,6 +269,11 @@ function WebsitePage() {
   }, [orgId]);
 
   const requiredCount = (readiness?.requiredGaps ?? []).length;
+  /** Revora asks for what it still needs in the chat, one question at a time. */
+  const saveFacts = useSaveMissingFacts(orgId);
+  const [skippedFacts, setSkippedFacts] = useState<string[]>([]);
+  const askable = (readiness?.gaps ?? []).filter((g) => g.field && !skippedFacts.includes(g.key));
+  const factQuestion = askable.find((g) => g.required) ?? askable[0] ?? null;
 
   // One server-verified launch path for every publish button on this page.
   const { data: production } = useProductionStatus(orgId);
@@ -458,15 +463,6 @@ function WebsitePage() {
       </div>
       <div className="grid min-w-0 gap-3 lg:grid-cols-[minmax(340px,430px)_minmax(0,1fr)]">
         <div className={previewOpen ? "hidden lg:block" : "min-w-0 lg:sticky lg:top-20 lg:self-start"}>
-          {firstRun && requiredCount > 0 ? (
-            <div id="first-build-facts" className="mb-3 min-w-0 scroll-mt-24">
-              <MissingFactsPanel
-                organizationId={orgId}
-                gaps={(readiness?.gaps ?? []).filter((g) => g.required)}
-                canManage={manage}
-              />
-            </div>
-          ) : null}
           <BuilderAssistant
             compact
             selection={selected}
@@ -475,16 +471,28 @@ function WebsitePage() {
             publishState={publishState}
             organizationId={orgId ?? null}
             requests={requests}
+            factQuestion={manage && factQuestion ? {
+              key: factQuestion.key,
+              label: factQuestion.label,
+              prompt: factQuestion.prompt,
+              required: factQuestion.required,
+            } : null}
+            onFactAnswer={async (key, answer) => {
+              await saveFacts.mutateAsync({ [key]: answer });
+              // Existing site: hand the new fact straight to the AI team.
+              if (!firstRun) {
+                const label = factQuestion?.label ?? key;
+                requests.queue(`Update my website everywhere it's relevant with my ${label.toLowerCase()}: ${answer}`);
+              }
+            }}
+            onFactSkip={(key) => setSkippedFacts((s) => [...s, key])}
             {...(firstRun ? {
               onFirstBuild: async (_instruction: string) => {
-                // Missing required facts: point at the form instead of firing
-                // a build the server will refuse. Saving answers auto-starts it.
+                // Missing required facts are asked in the chat first; the
+                // build starts on its own once they're saved.
                 if (requiredCount > 0) {
-                  document
-                    .getElementById("first-build-facts")
-                    ?.scrollIntoView({ behavior: "smooth", block: "start" });
-                  toast.message("Add your services above first", {
-                    description: "Save them and Revora starts building automatically.",
+                  toast.message("Answer Revora's question above first", {
+                    description: "Revora starts building as soon as it has what it needs.",
                   });
                   return;
                 }
