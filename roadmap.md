@@ -38,6 +38,6 @@
 - [x] Site review no longer writes the business name into empty headlines (report only); page caps removed; build picture cleanup scoped to one business.
 - [x] Phase 2: invented sections proven to reach the page; site check covers every page and flags sections with no layout.
 - [x] Phase 3: AI designs its own motion (start position, tilt, fade, blur, easing, repeats, play-on-scroll) within safety limits; bad values reported to the AI, never dropped.
-- [ ] Phase 4: screenshot review-and-fix loop at 320/390/768/1024/1440.
+- [x] Phase 4: "Review every page at 5 sizes" (320/390/768/1024/1440) — photo, AI review, safe repair, re-photo and re-review.
 - [ ] Phase 5: job audits, record clean-up, fresh security scan.
 - [ ] 5-phase plan phases 3–5: invented-section end-to-end test, safe effect/motion vocabulary, screenshot critique loop at 5 widths, job fencing + record retention, fresh security scan.

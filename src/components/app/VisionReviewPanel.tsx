@@ -144,7 +144,9 @@ export function VisionReviewPanel({
       const base = await pageBase();
       const total = pages.length * FULL_REVIEW_WIDTHS.length;
       let step = 0;
+      let stop = false;
       for (const page of pages) {
+        if (stop) break;
         const clean = page.slug.replace(/^\//, "");
         const home = !clean || clean === "home" || page.kind === "home";
         const url = home ? base : `${base}/${clean}`;
@@ -163,7 +165,7 @@ export function VisionReviewPanel({
             const first = await review();
             if (first.code !== "REVIEWED" || !first.review) {
               push({ page: label, width: w, score: null, note: first.reason ?? "Not reviewed" });
-              if (first.code === "VISION_UNAVAILABLE") throw new Error(first.reason ?? "No reviewer available.");
+              if (first.code === "VISION_UNAVAILABLE") { stop = true; break; }
               continue;
             }
             const row: SweepRow = { page: label, width: w, score: first.review.score, note: first.summary ?? "" };
@@ -180,7 +182,6 @@ export function VisionReviewPanel({
             push(row);
           } catch (error) {
             push({ page: label, width: w, score: null, note: friendlyError(error, "This check could not run.") });
-            if (error instanceof Error && /reviewer available/i.test(error.message)) throw error;
           }
         }
       }
