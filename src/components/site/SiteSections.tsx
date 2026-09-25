@@ -21,8 +21,7 @@ import { safeLinkUrl, sectionLabel } from "@/lib/website-content";
 import { readEmbed } from "@/lib/site-embed";
 import { readSectionEffect, sectionEffectClass } from "@/lib/site-effects";
 import { businessFacts, factsAddressLine } from "@/lib/builder/facts";
-import { phoneDisplay, phoneLink, safeParagraph, safeText } from "@/lib/builder/presentation";
-import { Button } from "@/components/ui/button";
+import { safeParagraph, safeText } from "@/lib/builder/presentation";
 
 type Site = NonNullable<PublicSite>;
 type Section = NonNullable<Site["content"]>["sections"][number];
