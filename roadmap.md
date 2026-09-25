@@ -5,4 +5,4 @@
 - [x] Implement the selected Carbon + Signal Red workspace across phone and desktop
 - [x] Extend the living background and normalize product surfaces
 - [x] Secure review-state and AI-evidence publish gates
-- [ ] Verify customer workflows and run the full quality gate
+- [x] Verify customer workflows and run the full quality gate

@@ -9,7 +9,7 @@
  * an explicit press before anything is removed.
  */
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowDown, ArrowUp, History, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, History, Paperclip, Trash2 } from "lucide-react";
 import {
   Conversation,
   ConversationContent,
@@ -231,10 +231,12 @@ export function BuilderAssistant({
             aria-label="Tell Revora what to change"
             onChange={(event) => setValue(event.target.value)}
           />
-          <PromptInputFooter>
+           <PromptInputFooter className="items-center justify-between gap-2">
             <PromptInputTools>
-               <PromptInputButton onClick={() => setMediaOpen((open) => !open)} disabled={!requests.ready} title={requests.capabilities ? (attachmentNotice(requests.capabilities, "image") ?? undefined) : undefined}>
-                 Add photo, video or voice
+               <PromptInputButton className="max-w-[13rem] truncate" onClick={() => setMediaOpen((open) => !open)} disabled={!requests.ready} title={requests.capabilities ? (attachmentNotice(requests.capabilities, "image") ?? undefined) : undefined}>
+                 <Paperclip className="size-4 shrink-0" aria-hidden />
+                 <span className="hidden sm:inline">Add photo, video or voice</span>
+                 <span className="sm:hidden">Add media</span>
                </PromptInputButton>
             </PromptInputTools>
             <PromptInputSubmit
