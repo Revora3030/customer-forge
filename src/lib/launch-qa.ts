@@ -197,7 +197,9 @@ export type FactInput = {
 
 /**
  * Only the blanks. Required gaps block a build, because without them the site
- * cannot honestly say who the business is, where it works or how to reach it.
+ * cannot honestly say who the business is or what it offers. Contact details
+ * improve launch readiness, but a customer may intentionally use only Revora's
+ * CRM-backed forms and must never be forced to publish a phone number.
  */
 export function factGaps(input: FactInput): FactGap[] {
   const gaps: FactGap[] = [];
@@ -232,7 +234,7 @@ export function factGaps(input: FactInput): FactGap[] {
       key: "phone",
       label: "Phone number",
       prompt: "The number customers should call.",
-      required: true,
+      required: false,
       field: "phone",
     });
   if (blank(input.city))

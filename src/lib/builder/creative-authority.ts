@@ -236,7 +236,7 @@ export function requireAiDesignContract(input: {
   const result = validateAiDesignContract(input.attempt);
   if (!result.valid)
     throw new CreativeAuthorityError(
-      "The AI's website design did not pass validation, and Revora does not fall back to a stock template. The build stopped so the design can be repaired and retried.",
+      `The AI's website design did not pass validation (${result.violations.map((item) => `${item.path}: ${item.detail}`).join("; ")}), and Revora does not fall back to a stock template. The build stopped so the design can be repaired and retried.`,
       result.violations,
       input.attempts,
     );

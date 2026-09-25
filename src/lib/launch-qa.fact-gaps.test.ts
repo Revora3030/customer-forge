@@ -20,6 +20,10 @@ describe("first-build fact quality", () => {
     expect(requiredFactGaps(complete)).toEqual([]);
   });
 
+  it("does not force a business to publish a phone number before AI can build", () => {
+    expect(requiredFactGaps({ ...complete, phone: null })).toEqual([]);
+  });
+
   it("blocks template debris and unusably vague service input", () => {
     const gaps = requiredFactGaps({
       ...complete,

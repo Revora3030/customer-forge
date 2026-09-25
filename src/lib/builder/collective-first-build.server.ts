@@ -534,7 +534,7 @@ async function refineCreativeWithCollective(input: {
     2,
   );
 
-  const solCall = await callBestThinker({
+  let solCall = await callBestThinker({
     json: true,
     purpose: "creative_direction",
     complexity: "high",
@@ -668,8 +668,39 @@ export async function refineFirstBuildWithCollective(input: {
 
   const sheet = factSheet(input.facts, input.brief, creative);
 
+  const contentPrompt = [
+    "FACTS (the only truth you may use):",
+    sheet,
+    "",
+    "APPROVED CREATIVE DIRECTION (presentation only):",
+    creativeSheet(creative),
+    "",
+    "CURRENT WORDING (blank — you author every field from scratch):",
+    JSON.stringify(
+      {
+        heroHeadline: input.copy.heroHeadline,
+        heroSubheadline: input.copy.heroSubheadline,
+        intro: input.copy.intro,
+        about: input.copy.about,
+        areaCopy: input.copy.areaCopy,
+        benefits: input.copy.benefits,
+        serviceCards: input.copy.serviceCards,
+        faqs: input.copy.faqs,
+      },
+      null,
+      2,
+    ),
+    "",
+    "Write the whole website's wording yourself. Return JSON with EVERY key:",
+    "heroHeadline, heroSubheadline, intro, about, areaCopy,",
+    "benefits (3-6 strings), serviceCards (array of {name, copy} — names exactly as given, same order),",
+    "faqs (3-8 {question, answer} you choose, answerable only from the facts),",
+    "metaTitle (<=60 chars), metaDescription (<=155 chars), ogTitle, ogDescription.",
+    "Every sentence must be supported by the facts. Do not add other keys.",
+  ].join("\n");
+
   /* -------------------------------- 1. Sol -------------------------------- */
-  const solCall = await callBestThinker({
+  let solCall = await callBestThinker({
     json: true,
     purpose: "content_strategy",
     complexity: "high",
@@ -677,39 +708,27 @@ export async function refineFirstBuildWithCollective(input: {
     maxOutputTokens: 6000,
     ...(input.signal ? { signal: input.signal } : {}),
     system: `${RULES} You are the master content strategist for a first build. Follow the approved creative direction without adding unsupported facts.`,
-    user: [
-      "FACTS (the only truth you may use):",
-      sheet,
-      "",
-      "APPROVED CREATIVE DIRECTION (presentation only):",
-      creativeSheet(creative),
-      "",
-      "CURRENT WORDING (blank — you author every field from scratch):",
-      JSON.stringify(
-        {
-          heroHeadline: input.copy.heroHeadline,
-          heroSubheadline: input.copy.heroSubheadline,
-          intro: input.copy.intro,
-          about: input.copy.about,
-          areaCopy: input.copy.areaCopy,
-          benefits: input.copy.benefits,
-          serviceCards: input.copy.serviceCards,
-          faqs: input.copy.faqs,
-        },
-        null,
-        2,
-      ),
-      "",
-      "Write the whole website's wording yourself. Return JSON with EVERY key:",
-      "heroHeadline, heroSubheadline, intro, about, areaCopy,",
-      "benefits (3-6 strings), serviceCards (array of {name, copy} — names exactly as given, same order),",
-      "faqs (3-8 {question, answer} you choose, answerable only from the facts),",
-      "metaTitle (<=60 chars), metaDescription (<=155 chars), ogTitle, ogDescription.",
-      "Every sentence must be supported by the facts. Do not add other keys.",
-    ].join("\n"),
+    user: contentPrompt,
   });
 
   let solProposal: Record<string, unknown> | null = null;
+  const requiredContent = ["heroHeadline", "heroSubheadline", "metaTitle", "metaDescription"];
+  const incomplete = (proposal: Record<string, unknown> | null) =>
+    !proposal || requiredContent.some((field) => typeof proposal[field] !== "string" || !(proposal[field] as string).trim());
+  if (solCall.ok) solProposal = parseRefinement(solCall.text);
+  if (!solCall.ok || incomplete(solProposal)) {
+    solCall = await callBestThinker({
+      json: true,
+      purpose: "content_strategy",
+      complexity: "high",
+      organizationId: input.organizationId,
+      maxOutputTokens: 6000,
+      ...(input.signal ? { signal: input.signal } : {}),
+      system: `${RULES} You are the master content strategist repairing an incomplete first-build response. Follow the approved creative direction without adding unsupported facts.`,
+      user: `${contentPrompt}\n\nREPAIR: The previous response was missing required wording or malformed. Return one complete JSON object only, including every requested key and non-empty heroHeadline, heroSubheadline, metaTitle, and metaDescription.`,
+    });
+    solProposal = solCall.ok ? parseRefinement(solCall.text) : null;
+  }
   if (!solCall.ok) {
     passes.push(
       record(solCall.wanted, "content_strategy", {
@@ -717,7 +736,6 @@ export async function refineFirstBuildWithCollective(input: {
       }),
     );
   } else {
-    solProposal = parseRefinement(solCall.text);
     passes.push(
       record(solCall.tier ?? "hall_of_fame", "content_strategy", {
         model: solCall.model,
