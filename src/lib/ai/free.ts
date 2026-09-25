@@ -196,7 +196,8 @@ export function freeAiEnabled() {
  * `FREE_AI_ONLY=true` as a cost-safety switch.
  */
 export function freeAiOnly() {
-  return flag("FREE_AI_ONLY", false);
+  // The paid team is never switched off; free models are backup only.
+  return false;
 }
 
 /* -------------------------- free-eligibility rules -------------------------- */
