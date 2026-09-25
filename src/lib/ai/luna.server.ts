@@ -9,7 +9,7 @@
  *
  *  1. gated on `OPENAI_API_KEY` existing,
  *  2. gated on a durable monthly spend cap enforced in our own database
- *     (default $20/month; OpenAI is never trusted to enforce it),
+ *     (default $100/month; OpenAI is never trusted to enforce it),
  *  3. non-blocking — any failure returns a reason and the builder continues on
  *     the deterministic engine plus the free model pool.
  *
