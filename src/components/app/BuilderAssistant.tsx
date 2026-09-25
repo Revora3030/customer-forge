@@ -9,7 +9,7 @@
  * an explicit press before anything is removed.
  */
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowDown, ArrowUp, History, Paperclip, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, History, Plus, Trash2 } from "lucide-react";
 import {
   Conversation,
   ConversationContent,
@@ -124,12 +124,13 @@ export function BuilderAssistant({
     <section
       id="website-assistant"
       className={cn(
-        "builder-conversation flex flex-col overflow-hidden border border-border/80 bg-card/72 p-0 shadow-lift",
-        compact ? "min-h-[520px] h-[calc(100dvh-11.5rem)] lg:h-[calc(100vh-8rem)]" : "min-h-[560px] h-[calc(100dvh-10rem)]",
+        "builder-conversation -mx-4 flex flex-col overflow-hidden rounded-none border-0 bg-transparent p-0 shadow-none sm:mx-0 lg:rounded-2xl lg:border lg:border-border/80 lg:bg-card/72 lg:shadow-lift",
+        compact ? "h-[calc(100dvh-9.75rem)] min-h-[480px] lg:h-[calc(100vh-8rem)]" : "h-[calc(100dvh-9rem)] min-h-[520px]",
       )}
     >
       <Conversation className="min-h-0 flex-1">
-        <ConversationContent className="gap-7 px-4 py-6 sm:px-6 lg:px-7">
+        <ConversationContent className="gap-8 px-4 py-5 text-[15px] leading-relaxed sm:px-6 lg:px-7">
+
           {requests.tasks.length === 0 ? (
             <ConversationEmptyState className="items-start justify-end text-left" title={emptyTitle} description={emptyHint}>
               <div className="max-w-md space-y-2">
@@ -165,9 +166,9 @@ export function BuilderAssistant({
         <ConversationScrollButton />
       </Conversation>
 
-      <div className="border-t border-border bg-background/85 p-3 backdrop-blur">
+      <div className="px-3 pt-1 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
         {/* Everything the old separate AI panels offered, as one tap each. */}
-         <div className="mb-2 flex gap-2 overflow-x-auto pb-1">
+         <div className="-mx-3 mb-2 flex gap-2 overflow-x-auto px-3 pb-1 [scrollbar-width:none]">
           {(moreOpen ? SUGGESTIONS : SUGGESTIONS.slice(0, 3)).map((action) => (
             <button
               key={action.label}
@@ -175,7 +176,7 @@ export function BuilderAssistant({
               disabled={!requests.ready}
               onClick={() => requests.queue(action.instruction)}
               className={cn(
-                 "builder-suggestion min-h-8 shrink-0 cursor-pointer rounded-full border border-border px-3 py-1 text-[12px] text-foreground transition-all",
+                 "builder-suggestion min-h-9 shrink-0 cursor-pointer rounded-full border border-border px-3.5 py-1.5 text-[13px] text-foreground transition-all",
                  "hover:-translate-y-px hover:border-primary/55 hover:bg-elevated focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none disabled:opacity-50",
               )}
             >
@@ -186,7 +187,7 @@ export function BuilderAssistant({
             type="button"
             aria-expanded={moreOpen}
             onClick={() => setMoreOpen((open) => !open)}
-            className="gold-hl min-h-8 shrink-0 cursor-pointer rounded-full px-2.5 py-1 text-[12px] transition-colors hover:bg-primary/10 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+            className="gold-hl min-h-9 shrink-0 cursor-pointer rounded-full px-2.5 py-1 text-[13px] transition-colors hover:bg-primary/10 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
           >
             {moreOpen ? "Fewer ideas" : "More ideas"}
           </button>
@@ -214,9 +215,8 @@ export function BuilderAssistant({
             ) : null}
           </div>
         ) : null}
-
          <PromptInput
-           className="builder-prompt"
+           className="builder-prompt rounded-3xl"
           onSubmit={(_message, event) => {
             event.preventDefault();
             send(value);
@@ -229,16 +229,16 @@ export function BuilderAssistant({
             disabled={!requests.ready}
             placeholder="Ask Revora…"
             aria-label="Tell Revora what to change"
+            className="text-[15px]"
             onChange={(event) => setValue(event.target.value)}
           />
            <PromptInputFooter className="items-center justify-between gap-2">
             <PromptInputTools>
-               <PromptInputButton className="max-w-[13rem] truncate" onClick={() => setMediaOpen((open) => !open)} disabled={!requests.ready} title={requests.capabilities ? (attachmentNotice(requests.capabilities, "image") ?? undefined) : undefined}>
-                 <Paperclip className="size-4 shrink-0" aria-hidden />
-                 <span className="hidden sm:inline">Add photo, video or voice</span>
-                 <span className="sm:hidden">Add media</span>
+               <PromptInputButton className="size-9 rounded-full border border-border p-0" onClick={() => setMediaOpen((open) => !open)} disabled={!requests.ready} aria-label="Add photo, video or voice" title={requests.capabilities ? (attachmentNotice(requests.capabilities, "image") ?? "Add photo, video or voice") : "Add photo, video or voice"}>
+                 <Plus className="size-4 shrink-0" aria-hidden />
                </PromptInputButton>
             </PromptInputTools>
+
             <PromptInputSubmit
               {...(requests.busy ? { status: "submitted" as const } : {})}
                disabled={!requests.ready || (!value.trim() && attachments.length === 0)}

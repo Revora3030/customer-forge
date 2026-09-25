@@ -444,7 +444,7 @@ function WebsitePage() {
   /** Chat is the workspace. Preview stays beside it on desktop and one tap away on mobile. */
   const workspace = (
     <div className="min-w-0">
-      <div className="mb-2 flex items-center justify-center gap-1 lg:hidden" role="tablist" aria-label="Builder view">
+      <div className="mb-1 flex items-center justify-center gap-1 lg:hidden" role="tablist" aria-label="Builder view">
         <Button size="sm" variant={!previewOpen ? "secondary" : "ghost"} role="tab" aria-selected={!previewOpen} onClick={() => setPreviewOpen(false)}>
           Chat
         </Button>
