@@ -198,7 +198,7 @@ export function compileWholeRepoUpgrades(
     }
   }
 
-  for (const page of context.pages.slice(0, 24)) {
+  for (const page of context.pages) {
     const visible = page.sections.filter((section) => section.is_visible);
     const empty = visible.filter((section) => !hasRealText(section));
     if (empty.length > 0) {
@@ -222,7 +222,7 @@ export function compileWholeRepoUpgrades(
   }
 
   if (context.business.name.trim() && context.pages.length > 0) {
-    for (const page of context.pages.slice(0, 12)) {
+    for (const page of context.pages) {
       const first = page.sections.find((section) => section.kind === "hero");
       if (!first || first.heading?.includes(context.business.name)) continue;
       if (!first.heading?.trim()) {
