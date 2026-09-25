@@ -51,15 +51,8 @@ export async function proposePageArchitecture(input: {
     availableSections: page.sections.map((section) => section.role),
   }));
 
-  const sol = await callBestThinker({
-    json: true,
-    purpose: "information_architecture",
-    complexity: "high",
-    organizationId: input.organizationId,
-    maxOutputTokens: 5000,
-    ...(input.signal ? { signal: input.signal } : {}),
-    system: `${RULES} You are Sol, the lead information and conversion architect. Decide the page set, the sections on each page and their order so the whole site converts for this specific business. Give each page a deliberate opening, useful body and real conversion path without forcing every page into the same anatomy. ${creativeQualityPrompt()}`,
-    user: [
+  const system = `${RULES} You are Sol, the lead information and conversion architect. Decide the page set, the sections on each page and their order so the whole site converts for this specific business. Give each page a deliberate opening, useful body and real conversion path without forcing every page into the same anatomy. ${creativeQualityPrompt()}`;
+  const prompt = [
       `BUSINESS: ${input.businessName}`,
       `INDUSTRY: ${input.industry ?? "not supplied"}`,
       `CONVERSION GOAL: ${input.conversionGoal}`,
@@ -69,12 +62,37 @@ export async function proposePageArchitecture(input: {
       "",
        'Return JSON: {"pages": [{"slug": "home", "title": "...", "purpose": "...", "primaryAction": "...", "sections": [{"role": "...", "heading": "...", "subheading": "...", "body": "...", "layout": "your composition name", "intent": "why it exists", "media": "none|optional|required"}]}]}',
       "Keep the home page. Omit anything that weakens the site. Order sections deliberately.",
+      "QUALITY CONTRACT: every page must include a deliberate opening role (hero, intro, opening, lead, or masthead), a closing role named exactly cta, quote, booking, contact, or sticky_cta, and at least one section with media set to required.",
       "You may invent any justified content sections and pages within the supplied facts. Give every section its own layout, intent and media requirement. Give each new section a plain role name, heading, and body of up to 1200 characters.",
       "Invented words may only restate the business's supplied facts, services and place — never new claims, numbers, reviews or guarantees. You cannot invent forms, booking, contact, embeds, heroes or galleries.",
       "Write your own heading (<=120 chars) and optional subheading (<=260 chars) for every section except each page's hero. There are no default headings: a section you leave without one shows none.",
       "Headings may only use the business name, its real services and its real place — never an unsupported claim.",
-    ].join("\n"),
+    ].join("\n");
+  let sol = await callBestThinker({
+    json: true,
+    purpose: "information_architecture",
+    complexity: "high",
+    organizationId: input.organizationId,
+    maxOutputTokens: 5000,
+    ...(input.signal ? { signal: input.signal } : {}),
+    system,
+    user: prompt,
   });
+
+  // Treat malformed model output as a repairable response. The repair remains
+  // AI-authored; candidate inventory is never promoted into a fallback design.
+  if (sol.ok && !parsePageArchitecture(sol.text)) {
+    sol = await callBestThinker({
+      json: true,
+      purpose: "information_architecture",
+      complexity: "high",
+      organizationId: input.organizationId,
+      maxOutputTokens: 5000,
+      ...(input.signal ? { signal: input.signal } : {}),
+      system,
+      user: `${prompt}\n\nREPAIR: Your previous page plan was not valid JSON in the required shape. Return one complete JSON object only, with a non-empty pages array and a home page.`,
+    });
+  }
 
   if (!sol.ok)
     return {

@@ -101,6 +101,16 @@ function readJson(text: string): Record<string, unknown> | null {
   }
 }
 
+function unwrapIdentity(data: Record<string, unknown> | null): Record<string, unknown> | null {
+  if (!data) return null;
+  for (const key of ["identity", "direction", "design", "visualIdentity", "brandIdentity"]) {
+    const nested = data[key];
+    if (nested && typeof nested === "object" && !Array.isArray(nested))
+      return nested as Record<string, unknown>;
+  }
+  return data;
+}
+
 function str(value: unknown, max = 160): string | null {
   if (typeof value !== "string") return null;
   const trimmed = value.trim().slice(0, max);
@@ -114,33 +124,53 @@ function str(value: unknown, max = 160): string | null {
 export async function authorBrandIdentity(
   input: BrandIdentityInput,
 ): Promise<BrandIdentityOutcome> {
-  const outcome = await callBestThinker({
-    purpose: "creative_direction",
-    complexity: "high",
-    system: SYSTEM,
-    user: schemaPrompt(input),
-    organizationId: input.organizationId,
-    json: true,
-    maxOutputTokens: 1400,
-    ...(input.signal ? { signal: input.signal } : {}),
-  });
+  let outcome: Awaited<ReturnType<typeof callBestThinker>> | null = null;
+  let data: Record<string, unknown> | null = null;
+  let primary: string | null = null;
+  let secondary: string | null = null;
+  let accent: string | null = null;
+  let heading: string | null = null;
+  let body: string | null = null;
+  let repairContext = "";
 
-  if (!outcome.ok || !outcome.text) {
-    throw new Error(
-      "The design team could not author a visual identity for this website, so nothing was created. Please try again in a moment.",
-    );
+  // A valid but incomplete model response is repairable AI output, not provider
+  // failure. Give the team one explicit correction pass before stopping. This
+  // never introduces defaults: every creative value still comes from a model.
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    outcome = await callBestThinker({
+      purpose: "creative_direction",
+      complexity: "high",
+      system: SYSTEM,
+      user: [
+        schemaPrompt(input),
+        attempt
+          ? `REPAIR: Your previous response was incomplete or invalid (${repairContext || "required fields were missing"}). Return every required field, use literal six-digit hex colours such as #1a2b3c, use plain font family names without CSS fallbacks, and output one complete JSON object only.`
+          : null,
+      ].filter(Boolean).join("\n\n"),
+      organizationId: input.organizationId,
+      json: true,
+      maxOutputTokens: 1400,
+      ...(input.signal ? { signal: input.signal } : {}),
+    });
+    if (!outcome.ok || !outcome.text) continue;
+    data = unwrapIdentity(readJson(outcome.text));
+    primary = safeColor(data?.["primary"]);
+    secondary = safeColor(data?.["secondary"]);
+    accent = safeColor(data?.["accent"]) ?? primary;
+    heading = siteHeadingFont(str(data?.["headingFont"], 42));
+    body = siteHeadingFont(str(data?.["bodyFont"], 42));
+    if (data && primary && secondary && heading) break;
+    repairContext = [
+      !data ? "response was not a JSON object" : null,
+      !primary ? "primary colour was missing or invalid" : null,
+      !secondary ? "secondary colour was missing or invalid" : null,
+      !heading ? "heading font was missing or invalid" : null,
+    ].filter(Boolean).join(", ");
   }
 
-  const data = readJson(outcome.text);
-  const primary = safeColor(data?.["primary"]);
-  const secondary = safeColor(data?.["secondary"]);
-  const accent = safeColor(data?.["accent"]) ?? primary;
-  const heading = siteHeadingFont(str(data?.["headingFont"], 42));
-  const body = siteHeadingFont(str(data?.["bodyFont"], 42));
-
-  if (!data || !primary || !secondary || !heading) {
+  if (!outcome?.ok || !data || !primary || !secondary || !heading) {
     throw new Error(
-      "The design team's visual identity came back incomplete, so nothing was created. Please try again in a moment.",
+      `The design team's visual identity came back incomplete after its repair pass (${repairContext || "the model returned no usable response"}), so nothing was created. Please try again in a moment.`,
     );
   }
 

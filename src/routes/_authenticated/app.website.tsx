@@ -98,6 +98,7 @@ import {
   revoraScore,
 } from "@/lib/site-engine";
 import { useBuildReadiness, useScoreFacts } from "@/lib/site-engine.hooks";
+import { useGenerateSectionsFromText } from "@/lib/site-engine.hooks";
 import { useWebsiteContent } from "@/lib/website-content.hooks";
 import { websiteQa, type WizardStepKey } from "@/lib/website-content";
 
@@ -227,6 +228,7 @@ function WebsitePage() {
 
   /** One request engine for the whole workspace. */
   const requests = useBuilderRequests({ organizationId: orgId ?? null, canManage: manage });
+  const firstBuild = useGenerateSectionsFromText(orgId);
 
   /** Older deep links (and panels that ask to jump) resolve to the new doors. */
   const goTo = (key: string) => {
@@ -464,6 +466,12 @@ function WebsitePage() {
             publishState={publishState}
             organizationId={orgId ?? null}
             requests={requests}
+            {...(firstRun ? {
+              onFirstBuild: async (_instruction: string) => {
+                await firstBuild.mutateAsync();
+              },
+              firstBuildBusy: firstBuild.isPending,
+            } : {})}
             emptyTitle={firstRun ? "Describe your business" : "What would you like to change?"}
             emptyHint={firstRun ? "Tell me what you do and who you serve. I’ll build the complete website with you." : "Keep talking to me naturally. I’ll keep the context as we work through this website together."}
           />

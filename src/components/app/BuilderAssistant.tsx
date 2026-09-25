@@ -51,6 +51,8 @@ export function BuilderAssistant({
   selection = null,
   onClearSelection,
   onOpenHistory,
+  onFirstBuild,
+  firstBuildBusy = false,
   publishState = "draft",
 }: {
   organizationId: string | null;
@@ -63,6 +65,9 @@ export function BuilderAssistant({
   onClearSelection?: () => void;
   /** Opens History, where the before-and-after comparison lives. */
   onOpenHistory?: () => void;
+  /** Fresh workspaces use the full Sol → Terra first-build pipeline, not the edit planner. */
+  onFirstBuild?: (instruction: string) => Promise<void>;
+  firstBuildBusy?: boolean;
   publishState?: string;
 }) {
   const [value, setValue] = useState("");
@@ -101,6 +106,16 @@ export function BuilderAssistant({
 
   const send = (text: string) => {
     if (!text.trim() && attachments.length === 0) return;
+    if (onFirstBuild) {
+      const instruction = scoped(text);
+      setValue("");
+      setAttachments([]);
+      setMediaOpen(false);
+      setAnswering(null);
+      onClearSelection?.();
+      void onFirstBuild(instruction);
+      return;
+    }
     requests.queue(scoped(text), attachments);
     setValue("");
     setAttachments([]);
@@ -173,8 +188,8 @@ export function BuilderAssistant({
             <button
               key={action.label}
               type="button"
-              disabled={!requests.ready}
-              onClick={() => requests.queue(action.instruction)}
+              disabled={!requests.ready || firstBuildBusy}
+              onClick={() => onFirstBuild ? void onFirstBuild(action.instruction) : requests.queue(action.instruction)}
               className={cn(
                  "builder-suggestion min-h-9 shrink-0 cursor-pointer rounded-full border border-border px-3.5 py-1.5 text-[13px] text-foreground transition-all",
                  "hover:-translate-y-px hover:border-primary/55 hover:bg-elevated focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none disabled:opacity-50",
@@ -226,7 +241,7 @@ export function BuilderAssistant({
             ref={inputRef}
             value={value}
             maxLength={INSTRUCTION_LIMIT}
-            disabled={!requests.ready}
+             disabled={!requests.ready || firstBuildBusy}
             placeholder="Ask Revora…"
             aria-label="Tell Revora what to change"
             className="text-[15px]"
@@ -240,8 +255,8 @@ export function BuilderAssistant({
             </PromptInputTools>
 
             <PromptInputSubmit
-              {...(requests.busy ? { status: "submitted" as const } : {})}
-               disabled={!requests.ready || (!value.trim() && attachments.length === 0)}
+               {...(requests.busy || firstBuildBusy ? { status: "submitted" as const } : {})}
+                disabled={!requests.ready || firstBuildBusy || (!value.trim() && attachments.length === 0)}
             />
           </PromptInputFooter>
         </PromptInput>
