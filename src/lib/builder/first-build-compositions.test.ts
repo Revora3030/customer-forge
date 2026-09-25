@@ -14,6 +14,11 @@ vi.mock("@/lib/ai/hall-of-fame.server", () => ({
   }),
 }));
 
+vi.mock("@/lib/builder/review-panel.server", () => ({
+  runAdvisoryPanel: vi.fn(async () => ({ notes: [{ area: "seo", issues: ["Name the service in the heading"], severity: "low", model: "groq · x" }], models: ["groq · x"], costMicrocents: 0, failed: [] })),
+  runReviewPanel: vi.fn(async () => ({ notes: [], models: [], costMicrocents: 0, failed: [] })),
+}));
+
 function fakeDb(updates: unknown[]) {
   const rows: Record<string, unknown[]> = {
     website_sections: [
@@ -56,6 +61,10 @@ describe("composeFirstBuildSections", () => {
     expect(result.gateReports).toEqual([]);
     expect(calls[1]).toContain("FIX THESE PROBLEMS");
     expect(calls[0]).not.toContain('"s3"');
+    // Independent advisers speak before Sol's first design.
+    expect(calls[0]).toContain("TEAM ADVICE");
+    expect(calls[0]).toContain("Name the service in the heading");
+    expect(result.models).toContain("groq · x");
     expect(calls[0]).toContain('"mediaRef": "11111111-1111-4111-8111-111111111111"');
   });
 });
