@@ -26,3 +26,13 @@ describe("AI-authored site chrome", () => {
     expect(readFileSync("src/lib/site-engine.worker.server.ts", "utf8")).toContain("composeSiteChrome");
   });
 });
+
+import { cleanVideoBrief } from "./first-build-chrome.server";
+describe("hero video brief", () => {
+  it("keeps safe text and drops unsafe or claim-bearing briefs", () => {
+    expect(cleanVideoBrief("Slow drift across a gleaming dark car hood at dusk, water beading.")).toMatch(/Slow drift/);
+    expect(cleanVideoBrief("<script>x</script> a long enough brief here")).toBeNull();
+    expect(cleanVideoBrief("short")).toBeNull();
+    expect(cleanVideoBrief("Award-winning team polishing a car at dusk", () => "unsupported claim")).toBeNull();
+  });
+});

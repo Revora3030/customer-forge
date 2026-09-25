@@ -365,6 +365,11 @@ function MotionBackgroundControls({
         placeholder="Slow drifting shot of a detailer polishing a dark car under warm evening light"
         onChange={(event) => setPrompt(event.target.value.slice(0, 1200))}
       />
+      {brief && !prompt ? (
+        <button type="button" className="text-left text-[12px] text-muted-foreground underline-offset-2 hover:underline" disabled={disabled || busy} onClick={() => setPrompt(brief)}>
+          Use the design team's idea: “{brief}”
+        </button>
+      ) : null}
       <Button type="button" size="sm" disabled={disabled || busy} onClick={generate}>
         {busy ? "Making it…" : visual.media_kind === "video" ? "Make a new clip" : "Bring this picture to life"}
       </Button>
