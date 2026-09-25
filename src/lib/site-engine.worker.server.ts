@@ -1068,6 +1068,9 @@ export async function drainSiteEngineQueue(
       processed += 1;
       if (state.paused || state.consecutive_rate_limits > 0) await resumeQueue(db);
     } catch (error) {
+      // A superseded attempt must not requeue, fail or restore anything —
+      // the newer attempt owns the job and the site now.
+      if (error instanceof StaleAttemptError) continue;
       const { RevoraAiError } = await import("@/lib/site-engine.server");
       const isGateway = error instanceof RevoraAiError;
       const status = isGateway ? (error as InstanceType<typeof RevoraAiError>).status : 0;

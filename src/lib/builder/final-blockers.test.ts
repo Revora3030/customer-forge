@@ -74,3 +74,16 @@ describe("visual check false positives", () => {
     expect(read("src/components/site/CompositionRenderer.tsx")).toContain('ctx.rules.join("") + PHONE_SAFETY_CSS');
   });
 });
+
+import { readFileSync as __readAttemptSrc } from "node:fs";
+describe("build attempt fencing", () => {
+  const src = __readAttemptSrc("src/lib/site-engine.worker.server.ts", "utf8");
+  it("progress, completion and failure writes are fenced by attempt", () => {
+    expect(src).toMatch(/\.eq\("attempts", job\.attempts\)\s*\.select\("id"\)/);
+    expect(src).toMatch(/status: "completed"[\s\S]{0,400}\.eq\("attempts", job\.attempts\)/);
+    expect(src).toMatch(/lease_expires_at: null \},\s*\)\s*\.eq\("id", job\.id\)\s*\/\/[^\n]*\n\s*\.eq\("attempts", job\.attempts\)/);
+  });
+  it("a superseded attempt stops without requeuing or restoring", () => {
+    expect(src).toContain("if (error instanceof StaleAttemptError) continue;");
+  });
+});
