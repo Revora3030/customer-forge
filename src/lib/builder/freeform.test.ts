@@ -201,7 +201,7 @@ describe("free-form blocks", () => {
           node: "stack",
           direction: "column",
           gap: 2,
-          children: Array.from({ length: 40 }, () => ({ node: "text", text: "row" })),
+          children: Array.from({ length: 60 }, () => ({ node: "text", text: "row" })),
         },
       ],
     });

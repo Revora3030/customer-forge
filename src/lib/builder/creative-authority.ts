@@ -115,7 +115,7 @@ export function compileAiDesignContract(input: {
     reviewedBy: input.reviewedBy ?? null,
     identity: {
       name: input.businessName,
-      concept: `${input.brief.archetype} — ${input.fingerprint.family}`,
+      concept: [input.brief.concept, input.fingerprint.family].filter(Boolean).join(" — "),
       personality: input.brief.personality,
       differentiators: input.differentiators ?? input.brief.industryConventions,
     },
@@ -133,34 +133,18 @@ export function compileAiDesignContract(input: {
       text: input.brief.color.accentUse,
       accent: input.fingerprint.colorSystem,
       extras: {},
-      mode:
-        input.brief.color.strategy === "dark-dominant"
-          ? "dark"
-          : input.brief.color.strategy === "duotone"
-            ? "duotone"
-            : "light",
+      // Recorded as the AI wrote it — no mapping to a fixed set of modes.
+      mode: input.brief.color.strategy,
     },
     backgrounds: [input.fingerprint.backgroundSystem, input.brief.backgroundTreatment],
-    spacing: {
-      baseline: 8,
-      sectionRhythm: input.fingerprint.density === "compact" ? [48, 64, 80] : [72, 96, 128],
-      density:
-        input.fingerprint.density === "compact"
-          ? "tight"
-          : input.fingerprint.density === "airy"
-            ? "airy"
-            : "balanced",
-    },
-    grid: {
-      container: 1200,
-      columns: 12,
-      gutter: 24,
-      behaviour: input.fingerprint.pageShell,
-    },
+    // No numeric spacing or grid scale is invented here: the AI's composition
+    // nodes carry the real values, and this records only its stated intent.
+    spacing: { rhythm: input.brief.sectionRhythm, density: input.fingerprint.density },
+    grid: { behaviour: input.fingerprint.pageShell },
     navigation: {
       structure: input.fingerprint.navSystem,
       items: input.navigationItems,
-      behaviour: input.brief.mobileStrategy[0] ?? "drawer on phones, full bar on desktop",
+      behaviour: input.brief.mobileStrategy[0] ?? "",
     },
     hero: {
       composition: input.fingerprint.heroComposition,
@@ -176,7 +160,9 @@ export function compileAiDesignContract(input: {
       ),
     },
     cards: { style: input.fingerprint.cardSystem, mediaRatio: input.fingerprint.artDirection.aspectRatio },
-    forms: { layout: input.fingerprint.formLayout, fields: ["name", "contact", "need"] },
+    // Which fields a form collects is set by the form itself from the owner's
+    // setup; no field list is invented here.
+    forms: { layout: input.fingerprint.formLayout, fields: [] },
     imagery: {
       artDirection: `${input.brief.photography.language}; ${input.brief.photography.lighting}`,
       treatment: input.fingerprint.imageTreatment,

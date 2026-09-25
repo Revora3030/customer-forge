@@ -109,8 +109,9 @@ export type AiDesignContract = {
     display: string;
     body: string;
     scaleRatio: number;
-    headlineCase: "sentence" | "title" | "upper";
-    headlineWeight: "light" | "regular" | "medium" | "bold";
+    /** Free-form: the AI's own words. */
+    headlineCase: string;
+    headlineWeight: string;
     measureCh: number;
   };
   color: {
@@ -120,11 +121,13 @@ export type AiDesignContract = {
     accent: string;
     /** Extra roles the AI chose to introduce. */
     extras: Record<string, string>;
-    mode: "dark" | "light" | "duotone" | "high_contrast";
+    /** Free-form colour mode written by the AI. */
+    mode: string;
   };
   backgrounds: string[];
-  spacing: { baseline: number; sectionRhythm: number[]; density: "tight" | "balanced" | "airy" };
-  grid: { container: number; columns: number; gutter: number; behaviour: string };
+  /** Only what the AI stated; no numeric scale is invented on its behalf. */
+  spacing: { rhythm: string; density: string };
+  grid: { behaviour: string };
   navigation: { structure: string; items: string[]; behaviour: string };
   hero: { composition: string; mediaTreatment: string; intent: string };
   cta: { system: string; primary: string; secondary: string | null; placement: string[] };
@@ -248,19 +251,12 @@ export function validateAiDesignContract(contract: AiDesignContract): {
       detail: "interactive targets must be at least 44px",
       severity: "blocker",
     });
-  if (
-    Object.keys(contract.color.extras).length >
-    contract.qualityMatrix.identity.restrainedAccentRoles
-  )
-    violations.push({
-      path: "color.extras",
-      detail: "the accent system is too broad to remain visually disciplined",
-      severity: "blocker",
-    });
-  if (contract.typography.measureCh < 42 || contract.typography.measureCh > 76)
+  // Readability safety only (WCAG 1.4.8 recommends ≤80 characters per line).
+  // How many accent colours the AI uses is a creative choice, not checked here.
+  if (contract.typography.measureCh < 20 || contract.typography.measureCh > 80)
     violations.push({
       path: "typography.measureCh",
-      detail: "body text measure is outside the readable editorial range",
+      detail: "body text line length is outside the readable range (20–80 characters)",
       severity: "blocker",
     });
 

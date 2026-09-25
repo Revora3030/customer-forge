@@ -46,10 +46,15 @@ export const DEVICE_META: Record<
  * to these: any real family name is accepted too (see `safeFontFamily`), and
  * these slots simply follow whatever typefaces the site's identity chose.
  */
+/*
+ * The step lists below are the owner's picker buttons in the builder panel
+ * only. AI-authored values are NOT snapped to them: readLayer accepts any
+ * number inside a wide safety range, exactly as the AI wrote it.
+ */
 export const FONT_FAMILIES = ["display", "body", "serif", "mono"] as const;
 export const FONT_WEIGHTS = [100, 200, 300, 400, 500, 600, 700, 800, 900] as const;
 export const ALIGNMENTS = ["left", "center", "right"] as const;
-export const TEXT_TRANSFORMS = ["none", "uppercase", "capitalize"] as const;
+export const TEXT_TRANSFORMS = ["none", "uppercase", "capitalize", "lowercase"] as const;
 export const TEXT_SIZES = [10, 12, 14, 16, 18, 20, 24, 28, 32, 40, 48, 56, 64, 72, 80, 96, 120, 144, 160] as const;
 export const LINE_HEIGHTS = [1, 1.15, 1.3, 1.5, 1.7, 2] as const;
 export const LETTER_SPACINGS = [-0.03, -0.01, 0, 0.02, 0.06, 0.12] as const;
@@ -65,7 +70,7 @@ export const BORDER_WIDTHS = [0, 1, 2, 3, 4, 6, 8, 12] as const;
 export const SHADOWS = ["none", "subtle", "medium", "strong"] as const;
 export const OPACITIES = [100, 90, 80, 70, 60, 50, 40, 30] as const;
 export const OVERLAYS = [0, 10, 20, 30, 40, 50, 60, 70, 80] as const;
-export const OBJECT_FITS = ["cover", "contain", "fill"] as const;
+export const OBJECT_FITS = ["cover", "contain", "fill", "scale-down", "none"] as const;
 export const BUTTON_STYLES = ["solid", "outline", "ghost", "link"] as const;
 export const BUTTON_SIZES = ["sm", "md", "lg"] as const;
 

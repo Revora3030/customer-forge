@@ -180,8 +180,8 @@ describe("no built-in looks remain", () => {
     const { safeBackdropSpec } = await import("@/lib/site-effects");
     const spec = safeBackdropSpec({ drift: "slow", layers: [{ shape: "radial", colors: ["#112233", "red;}"], size: 999, opacity: 90 }] });
     expect(spec?.layers[0]?.colors).toEqual(["#112233"]);
-    expect(spec?.layers[0]?.size).toBe(200);
-    expect(spec?.layers[0]?.opacity).toBe(60);
+    expect(spec?.layers[0]?.size).toBe(400);
+    expect(spec?.layers[0]?.opacity).toBe(80);
     expect(safeBackdropSpec({ layers: [{ colors: ["url(x)"] }] })).toBeNull();
   });
 

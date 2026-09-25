@@ -128,8 +128,7 @@ const CREATIVE_RULES = [
 
 /**
  * Fields Sol may author. Values are free: Sol invents them. Only motionLevel
- * and density are bounded, because the renderer and reduced-motion safety
- * need to know them exactly.
+ * is bounded, because reduced-motion safety needs to know it exactly.
  */
 const FINGERPRINT_FIELDS = {
   family: null,
@@ -153,7 +152,7 @@ const FINGERPRINT_FIELDS = {
   imageTreatment: null,
   motionPattern: null,
   motionLevel: ["none", "subtle", "expressive"],
-  density: ["compact", "balanced", "airy"],
+  density: null,
 } as const satisfies Record<string, readonly string[] | null>;
 
 /** Safe-token check only — keeps renderer class names valid, decides nothing. */
@@ -177,8 +176,6 @@ const PHOTOGRAPHY_LIMITS = {
 
 const PROOF_SHAPED_TEXT = /\b(review|testimonial|five[- ]?star|award|certified|licensed|guarantee|before\/?after|proven result|#\s?1|best in|customer logo|case study)\b/i;
 const IMAGE_ASPECTS = new Set(["16:9", "4:3", "1:1", "3:2"]);
-const FOCAL_POINTS = new Set(["left", "right", "centre", "lower-third"]);
-const NEGATIVE_SPACE = new Set(["left", "right", "top", "bottom"]);
 
 function factSheet(facts: DnaFacts, brief: SiteBrief, creative: FirstBuildCreativeDirection) {
   return JSON.stringify(
@@ -292,12 +289,11 @@ function imageInventoryAt(value: unknown, facts: DnaFacts): CreativeBrief["image
     const subject = textAt(item["subject"], 300);
     const altText = textAt(item["altText"], 240);
     const aspectRatio = textAt(item["aspectRatio"], 10);
-    const focalPoint = textAt(item["focalPoint"], 20);
-    const negativeSpace = textAt(item["negativeSpace"], 20);
+    // Focal point and negative space are the AI's own free-form art direction.
+    const focalPoint = textAt(item["focalPoint"], 80) ?? "";
+    const negativeSpace = textAt(item["negativeSpace"], 80) ?? "";
     if (!slot || !SAFE_TOKEN.test(slot) || !label || !purpose || !subject || !altText) continue;
     if (!aspectRatio || !IMAGE_ASPECTS.has(aspectRatio)) continue;
-    if (!focalPoint || !FOCAL_POINTS.has(focalPoint)) continue;
-    if (!negativeSpace || !NEGATIVE_SPACE.has(negativeSpace)) continue;
     const creativeText = [label, purpose, subject, altText].join(" ");
     if (visualTextProblem(creativeText, facts)) continue;
     const section = listAt(item["section"], 8, 60);
@@ -312,8 +308,8 @@ function imageInventoryAt(value: unknown, facts: DnaFacts): CreativeBrief["image
       lighting: textAt(item["lighting"], 180) ?? "",
       camera: textAt(item["camera"], 180) ?? "",
       framing: textAt(item["framing"], 200) ?? "",
-      focalPoint: focalPoint as CreativeBrief["imageInventory"][number]["focalPoint"],
-      negativeSpace: negativeSpace as CreativeBrief["imageInventory"][number]["negativeSpace"],
+      focalPoint,
+      negativeSpace,
       aspectRatio: aspectRatio as CreativeBrief["imageInventory"][number]["aspectRatio"],
       palette: textAt(item["palette"], 160) ?? "",
       mood: textAt(item["mood"], 160) ?? "",
@@ -515,7 +511,7 @@ async function refineCreativeWithCollective(input: {
   const vocabulary = JSON.stringify(
     {
       fingerprintFields: Object.keys(FINGERPRINT_FIELDS),
-      boundedFields: { motionLevel: FINGERPRINT_FIELDS.motionLevel, density: FINGERPRINT_FIELDS.density },
+      boundedFields: { motionLevel: FINGERPRINT_FIELDS.motionLevel },
       briefFields: [
         "personality",
         "heroComposition",
@@ -552,8 +548,8 @@ async function refineCreativeWithCollective(input: {
       "FIELDS YOU MAY AUTHOR (values are yours to invent):",
       vocabulary,
       "",
-      "Return JSON with keys fingerprint and brief. fingerprint values are your own short lowercase-hyphenated tokens; only motionLevel and density must use the listed values.",
-      "brief.imageInventory must be a complete page-aware picture campaign of 3-28 items. Invent a short lowercase-hyphenated semantic slot for each image; there is no slot catalogue. Each item: slot, label, purpose, subject, environment, action, lighting, camera, framing, focalPoint (left|right|centre|lower-third), negativeSpace (left|right|top|bottom), aspectRatio (16:9|4:3|1:1|3:2), palette, mood, section (array of exact intended section roles), mobileCrop, altText.",
+      "Return JSON with keys fingerprint and brief. fingerprint values are your own short lowercase-hyphenated tokens; only motionLevel must use the listed values (it drives reduced-motion safety).",
+      "brief.imageInventory must be a page-aware picture campaign of as many pictures as your design needs (none is fine; at most 28 for generation cost). Invent a short lowercase-hyphenated semantic slot for each image; there is no slot catalogue. Each item: slot, label, purpose, subject, environment, action, lighting, camera, framing, focalPoint and negativeSpace (your own words), aspectRatio (16:9|4:3|1:1|3:2), palette, mood, section (array of exact intended section roles), mobileCrop, altText.",
       "Every picture must have a distinct job in the final site. Generated images are marketing visuals, never staff, customer proof, completed-work evidence, reviews, awards or results.",
     ].join("\n"),
   });

@@ -73,7 +73,7 @@ export type ProposalContext = {
 };
 
 const blank = (value: unknown) => !(typeof value === "string" && value.trim().length > 0);
-const clip = (value: string, max = 160) =>
+const clip = (value: string, max = 160): string =>
   value.length <= max ? value : `${value.slice(0, max - 1).trimEnd()}…`;
 
 /** Builds the approved-before-applied proposal list from audit issues. */
@@ -131,51 +131,40 @@ export function proposeUpgrades(issues: AuditIssue[], ctx: ProposalContext): Upg
     });
   }
 
+  // The audit only names a gap. Which section, where, and what it says are
+  // decided by the AI team when the owner approves — nothing is chosen here.
   for (const kind of ["add_cta_section", "add_capture_section", "add_faq_section"] as const) {
     if (!kinds.has(kind)) continue;
     const issue = issues.find((i) => i.upgrade === kind)!;
-    const sectionKind =
+    const gap =
       kind === "add_cta_section"
-        ? "cta"
+        ? "a clear next step for visitors"
         : kind === "add_faq_section"
-          ? "faq"
-          : ctx.goal === "book"
-            ? "booking"
-            : "quote";
+          ? "answers to common visitor questions"
+          : "a way for visitors to send their details";
     push({
       id: `${kind}-${issue.pageId ?? "site"}`,
       kind,
-      title:
-        kind === "add_cta_section"
-          ? `Add a closing call to action${issue.pageId ? ` to ${issue.scope}` : ""}`
-          : kind === "add_faq_section"
-            ? "Add an FAQ that answers price, timing and coverage"
-            : "Add a capture block so enquiries reach your CRM",
+      title: `Missing ${gap}${issue.pageId ? ` on ${issue.scope}` : ""}`,
       why: issue.detail,
       impact: issue.max,
       changes: [
         {
           label: issue.pageId ? `${issue.scope} — sections` : "Home page — sections",
-          before: "no such section",
-          after: `new "${sectionKind}" section at the end of the page`,
+          before: `no ${gap}`,
+          after: "the AI team designs and places it for this site, from your facts only",
         },
       ],
       applyable: true,
-      sectionKind,
       ...(issue.pageId ? { pageId: issue.pageId, pageTitle: issue.scope } : {}),
     });
   }
 
+  // Search titles and descriptions are written by the AI team from the
+  // business's real facts when approved — no "Page | Business" pattern.
   for (const issue of issues.filter((i) => i.upgrade === "page_seo" && i.pageId)) {
     const page = ctx.pages.find((p) => p.id === issue.pageId);
     if (!page) continue;
-    const where = ctx.city ? ` in ${ctx.city}` : "";
-    const name = ctx.businessName ?? "your business";
-    const title = clip(`${page.title}${where} | ${name}`, 60);
-    const description = clip(
-      `${page.title}${where} from ${name}. ${ctx.copyMetaDescription ?? "See services, prices and book online."}`,
-      158,
-    );
     push({
       id: `page_seo-${page.id}`,
       kind: "page_seo",
@@ -184,20 +173,14 @@ export function proposeUpgrades(issues: AuditIssue[], ctx: ProposalContext): Upg
       impact: issue.max,
       changes: [
         {
-          label: `${page.title} — search title`,
-          before: page.seo_title ?? "(empty)",
-          after: title,
-        },
-        {
-          label: `${page.title} — search description`,
-          before: page.seo_description ?? "(empty)",
-          after: description,
+          label: `${page.title} — search title and description`,
+          before: [page.seo_title, page.seo_description].filter(Boolean).join(" — ") || "(empty)",
+          after: "written by the AI team from your business facts",
         },
       ],
       applyable: true,
       pageId: page.id,
       pageTitle: page.title,
-      seoPatch: { seo_title: title, seo_description: description },
     });
   }
 

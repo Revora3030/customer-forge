@@ -11,7 +11,9 @@ import type { AgentAction } from "@/lib/site-agent";
 import {
   isBackdropId,
   isSectionEffectId,
+  safeBackdropSpec,
   type BackdropId,
+  type BackdropSpec,
   type SectionEffectId,
 } from "@/lib/site-effects";
 import type { ContentPage } from "@/lib/website-content";
@@ -29,11 +31,51 @@ export type DesignDirection = {
   font: string;
   fontNote: string;
   backdrop: BackdropId;
-  heroEffect: SectionEffectId;
-  ctaEffect: SectionEffectId;
-  formEffect: SectionEffectId;
-  bodyEffect: SectionEffectId;
+  /** A background the AI composed itself (layers, colours, drift). Wins over `backdrop`. */
+  backdropSpec: BackdropSpec | null;
+  /**
+   * Motion per section type, keyed by whatever section types the AI names.
+   * There is no built-in grouping of types: a type the AI did not mention
+   * gets `defaultEffect`, which the AI also chooses.
+   */
+  sectionEffects: Record<string, SectionEffectId>;
+  defaultEffect: SectionEffectId;
 };
+
+/** The AI's effect for one section type. No type is grouped with another. */
+export function effectForKind(direction: DesignDirection, kind: string): SectionEffectId {
+  return direction.sectionEffects[kind] ?? direction.defaultEffect;
+}
+
+/**
+ * Reads the AI's per-type effects. Also reads directions saved before this
+ * change (heroEffect/ctaEffect/formEffect/bodyEffect) exactly as they were
+ * saved, so existing customer sites keep the motion they already have.
+ */
+export function readSectionEffects(r: Record<string, unknown>): {
+  sectionEffects: Record<string, SectionEffectId>;
+  defaultEffect: SectionEffectId;
+} {
+  const sectionEffects: Record<string, SectionEffectId> = {};
+  const raw = r["sectionEffects"];
+  if (raw && typeof raw === "object" && !Array.isArray(raw)) {
+    for (const [kind, value] of Object.entries(raw as Record<string, unknown>).slice(0, 80)) {
+      if (/^[a-z0-9_-]{1,60}$/.test(kind) && isSectionEffectId(value)) sectionEffects[kind] = value;
+    }
+  }
+  // Compatibility reader for directions saved before per-type effects existed.
+  const legacy: [string, string[]][] = [
+    ["heroEffect", ["hero"]],
+    ["ctaEffect", ["cta", "offer", "sticky_cta"]],
+    ["formEffect", ["quote", "booking", "contact"]],
+  ];
+  for (const [key, kinds] of legacy) {
+    const value = r[key];
+    if (isSectionEffectId(value)) for (const kind of kinds) sectionEffects[kind] ??= value;
+  }
+  const fallback = r["defaultEffect"] ?? r["bodyEffect"];
+  return { sectionEffects, defaultEffect: isSectionEffectId(fallback) ? fallback : "none" };
+}
 
 const HEX = /^#[0-9a-fA-F]{6}$/;
 
@@ -63,7 +105,6 @@ export function parseAuthoredDirection(raw: unknown): DesignDirection | null {
   if (!font) return null;
   const name = cleanText(r["name"], 60);
   if (!name) return null;
-  const effect = (value: unknown): SectionEffectId => (isSectionEffectId(value) ? value : "none");
   return {
     id: slugOf(name) || "authored",
     name,
@@ -75,10 +116,8 @@ export function parseAuthoredDirection(raw: unknown): DesignDirection | null {
     font,
     fontNote: cleanText(r["fontNote"], 80),
     backdrop: isBackdropId(r["backdrop"]) ? r["backdrop"] : "none",
-    heroEffect: effect(r["heroEffect"]),
-    ctaEffect: effect(r["ctaEffect"]),
-    formEffect: effect(r["formEffect"]),
-    bodyEffect: effect(r["bodyEffect"]),
+    backdropSpec: safeBackdropSpec(r["backdropSpec"]),
+    ...readSectionEffects(r),
   };
 }
 
@@ -94,7 +133,11 @@ export function directionActions(direction: DesignDirection, pages: ContentPage[
         font_preference: direction.font,
       },
     },
-    { type: "set_backdrop", backdrop: direction.backdrop },
+    {
+      type: "set_backdrop",
+      backdrop: direction.backdrop,
+      ...(direction.backdropSpec ? { spec: direction.backdropSpec } : {}),
+    },
   ];
 
   const sections = pages
@@ -103,14 +146,7 @@ export function directionActions(direction: DesignDirection, pages: ContentPage[
     .slice(0, 40);
 
   for (const section of sections) {
-    const effect =
-      section.kind === "hero"
-        ? direction.heroEffect
-        : section.kind === "cta" || section.kind === "sticky_cta" || section.kind === "offer"
-          ? direction.ctaEffect
-          : section.kind === "quote" || section.kind === "booking" || section.kind === "contact"
-            ? direction.formEffect
-            : direction.bodyEffect;
+    const effect = effectForKind(direction, section.kind);
     actions.push({ type: "set_section_effect", sectionId: section.id, effect });
   }
 

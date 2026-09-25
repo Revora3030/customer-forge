@@ -945,7 +945,7 @@ async function runJob(
         screenshotReference,
         screenshotReferenceObservations: storedReferenceObservations ?? null,
         designFingerprint: { ...creative.fingerprint, updatedAt: new Date().toISOString() },
-        ...(!built.skipped && direction ? { effects: { backdrop: direction.backdrop } } : {}),
+        ...(!built.skipped && direction ? { effects: { backdrop: direction.backdrop, ...(direction.backdropSpec ? { spec: direction.backdropSpec } : {}) } } : {}),
       } as unknown as Record<string, unknown>,
       generated_at: new Date().toISOString(),
       review_state: "ready_for_review",
