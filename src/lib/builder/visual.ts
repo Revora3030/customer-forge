@@ -1108,6 +1108,13 @@ export const MEASURE_SCRIPT = `(() => {
       return false;
     }
 
+    // Content inside a closed <details> keeps a layout box in modern Chrome
+    // but is not painted; it must not count as visible content.
+    const closedDetails = el.closest("details:not([open])");
+    if (closedDetails && !el.closest("summary")) {
+      return false;
+    }
+
     const style =
       getComputedStyle(el);
 
@@ -1541,8 +1548,15 @@ export const MEASURE_SCRIPT = `(() => {
           (el.textContent || "").trim().length > 24
       )
       .filter(
-        (el) =>
-          getComputedStyle(el).position === "static"
+        (el) => {
+          // Sticky/fixed chrome (site header, sticky CTA) sits above scrolled
+          // content by design; only in-flow blocks can collide.
+          for (let node = el; node && node !== document.body; node = node.parentElement) {
+            const pos = getComputedStyle(node).position;
+            if (pos === "sticky" || pos === "fixed") return false;
+          }
+          return getComputedStyle(el).position === "static";
+        }
       )
       .slice(0, 160);
 

@@ -34,7 +34,7 @@ export function BuilderReturnBar() {
     // pale cream themes as well as dark ones, so it never inherits page ink.
     <a
       href="/app/website"
-      className="fixed bottom-4 left-4 z-[60] inline-flex items-center gap-2 rounded-full border border-foreground/15 bg-foreground px-4 py-2.5 font-display text-[13px] font-semibold text-background shadow-lg transition-opacity hover:opacity-90"
+      className="fixed bottom-4 left-4 z-[60] inline-flex items-center gap-2 rounded-full border border-foreground/15 bg-foreground px-4 min-h-11 py-2.5 font-display text-[14px] font-semibold text-background shadow-lg transition-opacity hover:opacity-90"
     >
       <ArrowLeft className="size-4" aria-hidden="true" />
       Back to builder
