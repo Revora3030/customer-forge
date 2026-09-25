@@ -231,7 +231,7 @@ export function VisualCheckPanel({
               <Pill tone={result.passed ? "signal" : "attention"}>
                 Score {result.score}/100 — {result.passed ? "passed" : "needs fixes"}
               </Pill>
-              {result.findings.slice(0, 5).map((finding, index) => (
+              {[...result.findings].sort((a, b) => (a.severity === b.severity ? 0 : a.severity === "p0" ? -1 : 1)).slice(0, 8).map((finding, index) => (
                 <p key={index} className="text-[12px] text-muted-foreground">
                   {finding.page ? <span className="font-medium">{finding.page}: </span> : null}
                   {finding.detail} {finding.fix}
