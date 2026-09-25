@@ -1,6 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
 import { getRequest } from "@tanstack/react-start/server";
-import { createHash } from "node:crypto";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { createClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
@@ -40,7 +39,8 @@ function publicClient() {
   });
 }
 
-function sha256Hex(value: string) {
+async function sha256Hex(value: string) {
+  const { createHash } = await import("node:crypto");
   return createHash("sha256").update(value).digest("hex");
 }
 
@@ -246,10 +246,10 @@ export const submitPublicLead = createServerFn({ method: "POST" })
       {
         _organization_id: orgId,
         _purpose: `public_${data.kind}`,
-        _ip_hash: sha256Hex(`ip|${orgId}|${source.ip}`),
-        _contact_hash: contact ? sha256Hex(`contact|${orgId}|${contact}`) : null,
+        _ip_hash: await sha256Hex(`ip|${orgId}|${source.ip}`),
+        _contact_hash: contact ? await sha256Hex(`contact|${orgId}|${contact}`) : null,
         _user_agent_hash: source.userAgent
-          ? sha256Hex(`ua|${orgId}|${source.userAgent}`)
+          ? await sha256Hex(`ua|${orgId}|${source.userAgent}`)
           : null,
       },
     );
