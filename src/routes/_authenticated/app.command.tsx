@@ -291,7 +291,7 @@ function CommandCenterPage() {
       };
       const nextGoal = websiteGoalByConversion[normalizedPrimaryGoal];
       const rest = selectedGoals.filter((selected) => normalizeGoal(selected) !== normalizedPrimaryGoal);
-      profilePatch.website_goals = [nextGoal, ...rest];
+      profilePatch["website_goals"] = [nextGoal, ...rest];
     }
     await saveProfile.mutateAsync(profilePatch);
     if (normalizedPrimaryGoal) {

@@ -639,7 +639,7 @@ export function readComponentVisual(settings: unknown): PersistedComponentVisual
   const out: PersistedComponentVisual = {};
   if (typeof value["alt"] === "string") out.alt = value["alt"].slice(0, 160);
   if (typeof value["object_fit"] === "string" && OBJECT_FITS.includes(value["object_fit"] as never))
-    out.object_fit = value["object_fit"] as PersistedComponentVisual["object_fit"];
+    out.object_fit = value["object_fit"] as NonNullable<PersistedComponentVisual["object_fit"]>;
   if (typeof value["object_position"] === "string" && /^((left|center|right|top|bottom)(\s+(left|center|right|top|bottom))?|\d{1,3}(?:\.\d+)?%\s+\d{1,3}(?:\.\d+)?%)$/i.test(value["object_position"]))
     out.object_position = value["object_position"].slice(0, 40);
   const overlay = boundedNumber(value["overlay"], 0, 100);
