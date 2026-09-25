@@ -4389,6 +4389,7 @@ export type Database = {
         }
         Returns: string
       }
+      prune_old_operational_records: { Args: never; Returns: Json }
       restore_website_state: {
         Args: { _organization_id: string; _snapshot: Json }
         Returns: Json
