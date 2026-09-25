@@ -211,14 +211,15 @@ export const applySiteWideRedesign = createServerFn({ method: "POST" })
     const supabase = context.supabase as unknown as SupabaseLike;
     await requireManager(supabase, data.organizationId, context.userId);
 
-    const [{ data: settings }, { data: profile }, { data: org }] = await Promise.all([
+    const [{ data: settings }, { data: profile }, { data: org }, { data: services }] = await Promise.all([
       supabase.from("website_settings").select("generation").eq("organization_id", data.organizationId).maybeSingle(),
       supabase
         .from("business_profiles")
-        .select("industry")
+        .select("description, industry, city, state, service_area, phone, email, years_in_business, certifications, awards, review_link, website_goals, hours")
         .eq("organization_id", data.organizationId)
         .maybeSingle(),
-      supabase.from("organizations").select("name, industry").eq("id", data.organizationId).maybeSingle(),
+      supabase.from("organizations").select("name, industry, conversion_goal").eq("id", data.organizationId).maybeSingle(),
+      supabase.from("services").select("name, price, starting_price").eq("organization_id", data.organizationId).eq("is_active", true),
     ]);
     const generation = ((settings as { generation?: unknown } | null)?.generation ?? {}) as Record<string, unknown>;
     const industry =
@@ -263,33 +264,36 @@ export const applySiteWideRedesign = createServerFn({ method: "POST" })
       choices: authored.choices,
       instruction: data.instruction,
     });
-    const facts = {
+    const p = (profile ?? {}) as Record<string, unknown>;
+    const svc = ((services ?? []) as ServiceFactRow[]).filter((service) => textOrNull(service.name));
+    const facts: DnaFacts = {
       businessName: (org as { name?: string | null } | null)?.name ?? null,
       industry,
-      services: [],
-      description: null,
-      city: null,
-      region: null,
-      serviceArea: null,
-      phone: null,
-      email: null,
-      yearsInBusiness: null,
-      certifications: null,
-      awards: null,
-      reviewLink: null,
-      hasPrices: false,
-      goals: null,
-      conversionGoal: null,
-      hasHours: false,
+      services: svc.map((service) => String(service.name)),
+      description: textOrNull(p["description"]),
+      city: textOrNull(p["city"]),
+      region: textOrNull(p["state"]),
+      serviceArea: textOrNull(p["service_area"]),
+      phone: textOrNull(p["phone"]),
+      email: textOrNull(p["email"]),
+      yearsInBusiness: typeof p["years_in_business"] === "number" ? (p["years_in_business"] as number) : null,
+      certifications: textOrNull(p["certifications"]),
+      awards: textOrNull(p["awards"]),
+      reviewLink: textOrNull(p["review_link"]),
+      hasPrices: svc.some((service) => service.price != null || service.starting_price != null),
+      goals: Array.isArray(p["website_goals"]) ? (p["website_goals"] as string[]).slice(0, 6) : null,
+      conversionGoal: (org as { conversion_goal?: string | null } | null)?.conversion_goal ?? null,
+      hasHours: Boolean(p["hours"] && typeof p["hours"] === "object" && Object.keys(p["hours"] as object).length),
     };
     const { composeFirstBuildSections } = await import("@/lib/builder/first-build-compositions.server");
-    const composed = await composeFirstBuildSections({
-      db: supabase as never,
-      organizationId: data.organizationId,
-      facts,
-      lookSummary,
-    });
+    let composed: Awaited<ReturnType<typeof composeFirstBuildSections>>;
     try {
+      composed = await composeFirstBuildSections({
+        db: supabase as never,
+        organizationId: data.organizationId,
+        facts,
+        lookSummary,
+      });
       const { composeSiteChrome } = await import("@/lib/builder/first-build-chrome.server");
       await composeSiteChrome({
         db: supabase as never,
@@ -299,7 +303,9 @@ export const applySiteWideRedesign = createServerFn({ method: "POST" })
         lookSummary,
       });
     } catch (error) {
-      console.error("site-wide redesign chrome skipped", error);
+      await restoreSectionLayouts(supabase, data.organizationId, sections);
+      await restoreGeneration(supabase, data.organizationId, generation);
+      throw error;
     }
 
     const nextGeneration = {
@@ -632,4 +638,13 @@ export const undoSiteUpgrade = createServerFn({ method: "POST" })
         .eq("organization_id", data.organizationId);
       if (!error) reverted += 1;
     }
+    return {
+      ok: true,
+      reverted,
+      summary:
+        reverted === 0
+          ? "There was nothing to undo."
+          : `Reverted ${reverted} section${reverted === 1 ? "" : "s"}.`,
+    };
+  });
 
