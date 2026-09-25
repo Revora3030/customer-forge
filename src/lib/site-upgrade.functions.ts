@@ -29,6 +29,7 @@ import {
   visionSummary,
   type VisionReview,
 } from "@/lib/builder/vision-review";
+import type { DnaFacts } from "@/lib/business-dna";
 import { writeSectionEffect } from "@/lib/site-effects";
 
 type SupabaseLike = {
@@ -70,6 +71,31 @@ type SectionRow = {
   sort_order: number | null;
   settings: unknown;
 };
+
+type ServiceFactRow = { name: string | null; price: number | null; starting_price: number | null };
+
+const textOrNull = (value: unknown): string | null =>
+  typeof value === "string" && value.trim() ? value.trim() : null;
+
+async function restoreSectionLayouts(supabase: SupabaseLike, organizationId: string, sections: SectionRow[]) {
+  for (const section of sections) {
+    await supabase
+      .from("website_sections")
+      .update({ kind: section.kind, settings: section.settings } as never)
+      .eq("id", section.id)
+      .eq("organization_id", organizationId);
+  }
+}
+
+async function restoreGeneration(
+  supabase: SupabaseLike,
+  organizationId: string,
+  generation: Record<string, unknown>,
+) {
+  await supabase
+    .from("website_settings")
+    .upsert({ organization_id: organizationId, generation } as never, { onConflict: "organization_id" });
+}
 
 async function loadPagesAndSections(supabase: SupabaseLike, organizationId: string) {
   const [pages, sections] = await Promise.all([
