@@ -552,12 +552,42 @@ async function runJob(
     const partialGeneration = (partial.data?.generation ?? {}) as Record<string, unknown>;
     const report = partialGeneration["report"] as Record<string, unknown> | undefined;
     if (report?.["jobId"] === job.id) {
-      const componentDelete = await db.from("website_components").delete().eq("organization_id", orgId);
-      if (componentDelete.error) throw new Error(`Couldn't clear the incomplete build components: ${componentDelete.error.message}`);
-      const sectionDelete = await db.from("website_sections").delete().eq("organization_id", orgId);
-      if (sectionDelete.error) throw new Error(`Couldn't clear the incomplete build sections: ${sectionDelete.error.message}`);
-      const pageDelete = await db.from("website_pages").delete().eq("organization_id", orgId);
-      if (pageDelete.error) throw new Error(`Couldn't clear the incomplete build pages: ${pageDelete.error.message}`);
+      // Fence by job: only rows written since this job was created are its own
+      // partial output. Anything older belongs to the customer and is kept.
+      const jobRow = await db
+        .from("generation_jobs")
+        .select("created_at")
+        .eq("id", job.id)
+        .eq("organization_id", orgId)
+        .maybeSingle();
+      const since = jobRow.data?.created_at as string | undefined;
+      if (!since) throw new Error("Couldn't confirm which rows this build attempt owns.");
+      const older = await db
+        .from("website_pages")
+        .select("id", { count: "exact", head: true })
+        .eq("organization_id", orgId)
+        .lt("created_at", since);
+      if ((older.count ?? 0) > 0) {
+        throw new Error("This retry found pages older than the build itself, so it stopped instead of deleting them.");
+      }
+      const pageIds = await db
+        .from("website_pages")
+        .select("id")
+        .eq("organization_id", orgId)
+        .gte("created_at", since);
+      const ids = (pageIds.data ?? []).map((row) => row.id as string);
+      if (ids.length) {
+        const sectionIds = await db.from("website_sections").select("id").eq("organization_id", orgId).in("page_id", ids);
+        const sIds = (sectionIds.data ?? []).map((row) => row.id as string);
+        if (sIds.length) {
+          const componentDelete = await db.from("website_components").delete().eq("organization_id", orgId).in("section_id", sIds);
+          if (componentDelete.error) throw new Error(`Couldn't clear the incomplete build components: ${componentDelete.error.message}`);
+          const sectionDelete = await db.from("website_sections").delete().eq("organization_id", orgId).in("id", sIds);
+          if (sectionDelete.error) throw new Error(`Couldn't clear the incomplete build sections: ${sectionDelete.error.message}`);
+        }
+        const pageDelete = await db.from("website_pages").delete().eq("organization_id", orgId).in("id", ids);
+        if (pageDelete.error) throw new Error(`Couldn't clear the incomplete build pages: ${pageDelete.error.message}`);
+      }
     }
   }
   const starterImages = await generateFirstBuildImages(db, {
