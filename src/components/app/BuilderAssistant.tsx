@@ -9,7 +9,7 @@
  * an explicit press before anything is removed.
  */
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowDown, ArrowUp, History, Paperclip, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, History, Plus, Trash2 } from "lucide-react";
 import {
   Conversation,
   ConversationContent,
@@ -169,7 +169,52 @@ export function BuilderAssistant({
       <div className="px-3 pt-1 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
         {/* Everything the old separate AI panels offered, as one tap each. */}
          <div className="-mx-3 mb-2 flex gap-2 overflow-x-auto px-3 pb-1 [scrollbar-width:none]">
-...
+          {(moreOpen ? SUGGESTIONS : SUGGESTIONS.slice(0, 3)).map((action) => (
+            <button
+              key={action.label}
+              type="button"
+              disabled={!requests.ready}
+              onClick={() => requests.queue(action.instruction)}
+              className={cn(
+                 "builder-suggestion min-h-9 shrink-0 cursor-pointer rounded-full border border-border px-3.5 py-1.5 text-[13px] text-foreground transition-all",
+                 "hover:-translate-y-px hover:border-primary/55 hover:bg-elevated focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none disabled:opacity-50",
+              )}
+            >
+              {action.label}
+            </button>
+          ))}
+          <button
+            type="button"
+            aria-expanded={moreOpen}
+            onClick={() => setMoreOpen((open) => !open)}
+            className="gold-hl min-h-9 shrink-0 cursor-pointer rounded-full px-2.5 py-1 text-[13px] transition-colors hover:bg-primary/10 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+          >
+            {moreOpen ? "Fewer ideas" : "More ideas"}
+          </button>
+        </div>
+
+        {selection || answering ? (
+          <div className="mb-2 flex flex-wrap gap-1.5">
+            {selection ? (
+              <button
+                type="button"
+                onClick={() => onClearSelection?.()}
+                className="cursor-pointer rounded-full border border-primary/50 bg-primary/10 px-3 py-1 text-[12px] text-foreground"
+              >
+                Editing: {selection.label ?? selection.kind ?? "the block you picked"} ✕
+              </button>
+            ) : null}
+            {answering ? (
+              <button
+                type="button"
+                onClick={() => setAnswering(null)}
+                className="cursor-pointer rounded-full border border-border px-3 py-1 text-[12px] text-muted-foreground"
+              >
+                Answering: {answering} ✕
+              </button>
+            ) : null}
+          </div>
+        ) : null}
          <PromptInput
            className="builder-prompt rounded-3xl"
           onSubmit={(_message, event) => {
