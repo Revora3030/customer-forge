@@ -125,7 +125,10 @@ export async function measureWebsiteAtAllWidths(
       // Same-origin, so the preview's own window runs the shared measurement
       // snippet against its own document — the real rendered numbers, not an
       // approximation taken from outside the frame.
-      const measured = evaluate(win, `(${MEASURE_SCRIPT})`) as ViewportMeasurement;
+      // Copy out of the frame's realm: its objects can't be sent to the server as-is.
+      const measured = JSON.parse(
+        JSON.stringify(evaluate(win, `(${MEASURE_SCRIPT})`)),
+      ) as ViewportMeasurement;
       measurements.push({ ...measured, width });
       onProgress?.(index + 1, VIEWPORTS.length);
     }
