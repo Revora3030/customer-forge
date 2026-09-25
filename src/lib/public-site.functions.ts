@@ -39,9 +39,10 @@ function publicClient() {
   });
 }
 
-async function sha256Hex(value: string) {
-  const { createHash } = await import("node:crypto");
-  return createHash("sha256").update(value).digest("hex");
+export async function sha256Hex(value: string) {
+  const bytes = new TextEncoder().encode(value);
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
 function publicSubmissionSource() {
@@ -241,17 +242,20 @@ export const submitPublicLead = createServerFn({ method: "POST" })
 
     const source = publicSubmissionSource();
     const contact = contactFingerprint(data);
+    const contactHash = contact ? await sha256Hex(`contact|${orgId}|${contact}`) : null;
+    const userAgentHash = source.userAgent
+      ? await sha256Hex(`ua|${orgId}|${source.userAgent}`)
+      : null;
+    const attemptArgs: Database["public"]["Functions"]["register_public_submission_attempt"]["Args"] = {
+      _organization_id: orgId,
+      _purpose: `public_${data.kind}`,
+      _ip_hash: await sha256Hex(`ip|${orgId}|${source.ip}`),
+    };
+    if (contactHash) attemptArgs._contact_hash = contactHash;
+    if (userAgentHash) attemptArgs._user_agent_hash = userAgentHash;
     const { data: attempt, error: attemptError } = await supabase.rpc(
       "register_public_submission_attempt",
-      {
-        _organization_id: orgId,
-        _purpose: `public_${data.kind}`,
-        _ip_hash: await sha256Hex(`ip|${orgId}|${source.ip}`),
-        _contact_hash: contact ? await sha256Hex(`contact|${orgId}|${contact}`) : null,
-        _user_agent_hash: source.userAgent
-          ? await sha256Hex(`ua|${orgId}|${source.userAgent}`)
-          : null,
-      },
+      attemptArgs,
     );
     if (attemptError) {
       console.error("public submission attempt gate failed", attemptError.message);

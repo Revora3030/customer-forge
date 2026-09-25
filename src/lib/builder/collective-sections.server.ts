@@ -270,7 +270,7 @@ export async function refineSectionWordingWithCollective(input: {
     solPass.acceptedFields = gated.accepted.map((patch) => patch.id);
     solPass.rejected = gated.rejected;
     if (!gated.accepted.length && !solPass.skipped)
-      solPass.skipped = "Terra retained the already AI-authored section wording as the stronger version";
+      solPass.skipped = "Terra did not approve any wording changes";
   }
 
   return {

@@ -82,7 +82,7 @@ describe("launch review", () => {
     expect(review.performance.passed).toBe(true);
     expect(review.report.score).toBeGreaterThanOrEqual(80);
     expect(review.report.passed).not.toContain("visual_design");
-    expect(review.report.nextAction?.dimension).toBe("visual_design");
+    expect(review.report.nextAction).toBeNull();
   });
 
   it("requires all eight widths before mobile counts as reviewed", () => {

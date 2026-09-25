@@ -80,7 +80,7 @@ export function captureQa(input: CaptureQaInput) {
       input.secondaryCtaLabel?.trim()
         ? `Second button reads “${input.secondaryCtaLabel.trim()}”.`
         : "There's no second option for visitors who aren't ready to enquire.",
-      "Add a secondary button such as “See services” or “Call now”.",
+      "Ask Revora to write a fact-supported backup button label.",
       "advice",
       "/app/website",
     ),

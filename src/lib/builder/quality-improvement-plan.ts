@@ -1,6 +1,6 @@
 import type { LaunchQualityFinding, LaunchQualityReport } from './launch-quality-gate';
 
-export type QualityImprovementScope = 'hero' | 'content' | 'visuals' | 'mobile' | 'accessibility' | 'seo' | 'trust' | 'performance' | 'launch';
+export type QualityImprovementScope = 'hero' | 'content' | 'mobile' | 'accessibility' | 'seo' | 'trust' | 'performance' | 'launch';
 
 export type QualityImprovementPlan = {
   id: string;
@@ -16,7 +16,6 @@ const scopeFor: Record<LaunchQualityFinding['dimension'], QualityImprovementScop
   conversion: 'hero',
   messaging: 'hero',
   content: 'content',
-  visual_design: 'visuals',
   mobile: 'mobile',
   accessibility: 'accessibility',
   seo: 'seo',
@@ -29,7 +28,6 @@ const instructionFor: Record<LaunchQualityFinding['dimension'], string> = {
   conversion: 'Improve the primary conversion path. Keep the business facts intact, make the hero action explicit, and repeat one consistent CTA at decision points. Do not publish automatically.',
   messaging: 'Rewrite the value proposition for specificity. State the target customer, desired outcome, and differentiator in the first screen. Preserve factual claims and do not invent credentials.',
   content: 'Add the highest-value missing decision content: service detail, a simple process, FAQs, and practical next steps. Keep all existing pages and require preview before applying.',
-  visual_design: 'Upgrade the visual hierarchy with a coherent premium direction, stronger type scale, spacing rhythm, and intentional media placement. Keep accessibility contrast and mobile readability intact.',
   mobile: 'Optimize the current site for phone widths. Prioritize the primary action, simplify dense layouts, protect readable text sizes, and preserve desktop content.',
   accessibility: 'Improve accessibility without changing the offer: semantic heading order, descriptive controls, contrast-safe colors, keyboard access, and reduced-motion-safe effects.',
   seo: 'Improve on-page search foundations. Draft unique metadata, one clear H1, and natural service and location intent. Do not add unsupported claims or keyword stuffing.',

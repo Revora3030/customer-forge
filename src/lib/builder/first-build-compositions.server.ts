@@ -240,9 +240,8 @@ async function saveTree(db: Db, organizationId: string, section: SectionRow, tre
 }
 
 /**
- * The wider team reviews Sol's page, Sol revises from their notes, and Terra
- * keeps whichever version scores better. Any failure keeps the version that
- * already passed every safety check — this step can only improve a page.
+ * The wider team gives Sol notes, Sol may revise from them, and the gate only
+ * rejects renderer-unsafe output. It never scores or overrules creative taste.
  */
 async function improveWithTeam(input: {
   organizationId: string;

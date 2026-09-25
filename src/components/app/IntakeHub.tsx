@@ -3,7 +3,7 @@ import { CheckCircle2, Loader2, Save, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Pill } from "@/components/app/Bits";
 import { INTAKE_FIELDS, intakeCompleteness, intakeGaps, type IntakeValues } from "@/lib/intake-map";
-import { CONVERSION_GOALS, normalizeGoal, type ConversionGoal } from "@/lib/conversion-engine";
+import { CONVERSION_GOALS, normalizeGoal } from "@/lib/conversion-engine";
 import { smartIntakeValue } from "@/lib/intake-smart";
 import { cn } from "@/lib/utils";
 
@@ -71,14 +71,14 @@ export function IntakeHub({
               {field.kind === "goal" ? (
                 <div className="mt-2 flex flex-wrap gap-1.5">
                   {CONVERSION_GOALS.map((goal) => {
-                    const active = normalizeGoal(value, "quote") === goal.value && !!value.trim();
+                    const active = normalizeGoal(value) === goal.value && !!value.trim();
                     return (
                       <button
                         key={goal.value}
                         type="button"
                         disabled={!canManage}
                         onClick={() =>
-                          setDraft((d) => ({ ...d, [field.key]: goalLabel(goal.value) }))
+                          setDraft((d) => ({ ...d, [field.key]: goal.label }))
                         }
                         className={cn(
                           "cursor-pointer rounded-full border px-2.5 py-1 text-[11px] transition-colors disabled:cursor-not-allowed",
@@ -180,14 +180,3 @@ export function IntakeHub({
   );
 }
 
-function goalLabel(goal: ConversionGoal) {
-  const map: Record<ConversionGoal, string> = {
-    call: "Call now",
-    text: "Text us",
-    book: "Book online",
-    quote: "Get my quote",
-    buy: "Buy now",
-    lead: "Send a message",
-  };
-  return map[goal];
-}

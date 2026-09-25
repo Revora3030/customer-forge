@@ -9,5 +9,6 @@ assert.match(script, /totalFiles/);
 assert.match(script, /supabase\/migrations/);
 assert.match(script, /github\/workflows/);
 assert.match(script, /PRIVATE KEY/);
+assert.match(script, /ignoredFiles/);
 assert.match(script, /TODO\|FIXME\|XXX/);
 console.log("whole-repo-upgrade-audit contract: PASS");

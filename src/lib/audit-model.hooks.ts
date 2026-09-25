@@ -19,7 +19,7 @@ import { proposeUpgrades } from "@/lib/auto-upgrade";
 
 export function useAuditModel(
   organizationId: string | undefined,
-  org: { name?: string | null; slug?: string | null } | null | undefined,
+  org: { name?: string | null; slug?: string | null; conversion_goal?: string | null } | null | undefined,
 ) {
   const profileQuery = useBusinessProfile(organizationId);
   const settingsQuery = useWebsiteSettings(organizationId);
@@ -38,7 +38,13 @@ export function useAuditModel(
     return typeof value === "string" && value.trim() ? value : null;
   };
 
-  const goal = normalizeGoal(seo.primary_cta_label ?? copy?.primaryCta ?? null, "quote");
+  const selectedGoals = Array.isArray(profile?.["website_goals"])
+    ? (profile["website_goals"] as unknown[]).filter((goal): goal is string => typeof goal === "string")
+    : [];
+  const goal =
+    normalizeGoal(org?.conversion_goal ?? null) ??
+    selectedGoals.map((selected) => normalizeGoal(selected)).find((selected) => selected !== null) ??
+    null;
 
   const conversionCtx: ConversionContext = {
     phone: str("phone"),

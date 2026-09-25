@@ -112,7 +112,7 @@ export async function gatherBriefFacts(
   ].filter((k) => typeof social[k] === "string" && String(social[k]).trim()).length;
   const testimonials = Array.isArray(p["testimonials"]) ? (p["testimonials"] as unknown[]) : [];
   const goalsRaw = (p["website_goals"] as string[] | undefined) ?? [];
-  const goals = goalsRaw.length ? goalsRaw : [org.data.conversion_goal ?? "quote"];
+  const goals = goalsRaw.length ? goalsRaw : org.data.conversion_goal ? [org.data.conversion_goal] : [];
   const photoCount = (media.data ?? []).length + (str(p["hero_image_url"]) ? 1 : 0);
   const seo = (settings.data?.seo ?? {}) as Record<string, unknown>;
   const hasHours = Boolean(p["hours"] && Object.keys(p["hours"] as object).length);
@@ -138,7 +138,7 @@ export async function gatherBriefFacts(
     hasHours,
     style: str(p["font_preference"]),
     goals: goals as never,
-    ctaLabel: str(seo["primary_cta_label"]) ?? "Get in touch",
+    ctaLabel: str(seo["primary_cta_label"]) ?? "",
     services: serviceRows,
   };
 

@@ -23,15 +23,13 @@ describe("dropUnchangedActions", () => {
     expect(dropUnchangedActions(actions, { sections }).actions).toHaveLength(1);
   });
 
-  it("drops a variant and visibility already in place", () => {
+  it("drops visibility already in place", () => {
     const actions: AgentAction[] = [
-      { type: "set_section_variant", sectionId: "s1", variant: "hero-split" },
       { type: "set_section_visibility", sectionId: "s1", visible: true },
-      { type: "set_section_variant", sectionId: "s1", variant: "hero-layered" },
     ];
     const result = dropUnchangedActions(actions, { sections });
-    expect(result.unchanged).toBe(2);
-    expect(result.actions).toHaveLength(1);
+    expect(result.unchanged).toBe(1);
+    expect(result.actions).toHaveLength(0);
   });
 
   it("keeps everything it cannot compare", () => {
@@ -42,14 +40,13 @@ describe("dropUnchangedActions", () => {
     expect(dropUnchangedActions(actions, { sections }).actions).toHaveLength(2);
   });
 
-  it("drops visual and direct styles already in place", () => {
-    const styledSections = new Map([["s1", { settings: { style: { bgColor: "#112233" }, visual: { density: "airy" } } }]]);
+  it("drops direct styles already in place", () => {
+    const styledSections = new Map([["s1", { settings: { style: { bgColor: "#112233" } } }]]);
     const components = new Map([["c1", { settings: { style: { buttonSize: "lg" } } }]]);
     const actions: AgentAction[] = [
       { type: "set_block_style", target: "section", targetId: "s1", device: "desktop", patch: { bgColor: "#112233" } },
-      { type: "set_section_visual", sectionId: "s1", patch: { density: "airy" } },
       { type: "set_block_style", target: "component", targetId: "c1", device: "desktop", patch: { buttonSize: "lg" } },
     ];
-    expect(dropUnchangedActions(actions, { sections: styledSections, components }).unchanged).toBe(3);
+    expect(dropUnchangedActions(actions, { sections: styledSections, components }).unchanged).toBe(2);
   });
 });

@@ -24,13 +24,6 @@ type ScreenshotReferenceSummary = {
   applied?: boolean;
   source?: string | null;
   model?: string | null;
-  fingerprint?: {
-    family?: string;
-    heroComposition?: string;
-    colorSystem?: string;
-    typeSystem?: string;
-    density?: string;
-  } | null;
   warnings?: string[];
 } | null;
 
@@ -420,9 +413,6 @@ export function BuilderWizard({
                     )}
                   >
                     <p className="text-[14px] font-medium">{goal.label}</p>
-                    <p className="mt-1 text-[12px] text-muted-foreground">
-                      Main button: {goal.cta}
-                    </p>
                   </button>
                 );
               })}
@@ -506,7 +496,6 @@ function DesignReferenceBox({
   onSaveNotes: () => void;
   onFile: (file: File | null) => void;
 }) {
-  const fingerprint = reference?.fingerprint ?? null;
   const applied = reference?.applied === true;
   const savedSignals = observations
     ? Object.entries(observations).flatMap(([key, values]) =>
@@ -528,22 +517,6 @@ function DesignReferenceBox({
           {applied ? "Will shape next build" : savedSignals.length ? "Saved" : "Optional"}
         </Pill>
       </div>
-      {fingerprint ? (
-        <div className="mt-3 grid gap-2 text-[12px] sm:grid-cols-2 lg:grid-cols-5">
-          {[
-            ["Family", fingerprint.family],
-            ["Hero", fingerprint.heroComposition],
-            ["Colour", fingerprint.colorSystem],
-            ["Type", fingerprint.typeSystem],
-            ["Density", fingerprint.density],
-          ].map(([label, value]) => (
-            <div key={label} className="rounded-md border border-border bg-background/60 p-2">
-              <span className="block text-[10px] uppercase tracking-wide text-muted-foreground">{label}</span>
-              <span className="font-medium">{value ?? "default"}</span>
-            </div>
-          ))}
-        </div>
-      ) : null}
       {savedSignals.length ? (
         <ul className="mt-3 grid gap-1.5 sm:grid-cols-2">
           {savedSignals.slice(0, 6).map((signal) => (

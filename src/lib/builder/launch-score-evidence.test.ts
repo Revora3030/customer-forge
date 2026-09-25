@@ -4,7 +4,7 @@ import { launchQualityInputFromSnapshot, notApplicableFromSnapshot } from "./lau
 import { currentPassingVisualScore } from "./launch-review.functions";
 
 const full = {
-  conversion: 100, messaging: 100, content: 100, visual_design: 96, mobile: 100,
+  conversion: 100, messaging: 100, content: 100, mobile: 100,
   accessibility: 100, seo: 100, trust: 0, performance: 100, publishing: 100,
 };
 
@@ -20,7 +20,7 @@ describe("launch score evidence", () => {
     expect(notApplicableFromSnapshot({ ...base, reviewCount: 1 })).toEqual([]);
   });
 
-  it("visual design stays 0 without a passing check for the current revision", () => {
+  it("browser visual evidence remains a separate publish gate", () => {
     const rows = [
       { report: { passed: false, score: 71 }, revision_hash: "cur" },
       { report: { passed: true, score: 91 }, revision_hash: "cur" },
@@ -30,6 +30,6 @@ describe("launch score evidence", () => {
     expect(currentPassingVisualScore([{ report: { passed: true, score: 91 }, revision_hash: "cur" }], "cur")).toBe(91);
     expect(currentPassingVisualScore(rows, null)).toBeNull();
     const snap = { visualCheckScore: null } as unknown as Parameters<typeof launchQualityInputFromSnapshot>[0];
-    expect(launchQualityInputFromSnapshot(snap).visual_design).toBe(0);
+    expect("visual_design" in launchQualityInputFromSnapshot(snap)).toBe(false);
   });
 });

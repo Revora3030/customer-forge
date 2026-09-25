@@ -87,7 +87,7 @@ export const Route = createFileRoute("/")({
                 name: "description",
                 content: (
                   loaderData.site.profile?.tagline ||
-                  `${loaderData.site.org.name} — services, prices and online booking.`
+                  `${loaderData.site.org.name}.`
                 ).slice(0, 158),
               },
               { property: "og:title", content: loaderData.site.org.name },
@@ -95,7 +95,7 @@ export const Route = createFileRoute("/")({
                 property: "og:description",
                 content: (
                   loaderData.site.profile?.tagline ||
-                  `${loaderData.site.org.name} — services, prices and online booking.`
+                  `${loaderData.site.org.name}.`
                 ).slice(0, 158),
               },
               { property: "og:type", content: "website" },

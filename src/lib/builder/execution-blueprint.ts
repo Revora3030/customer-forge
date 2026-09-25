@@ -53,8 +53,6 @@ export function buildExecutionBlueprint(actions: AgentAction[]): ExecutionBluepr
       case "delete_component":
         return "content";
       case "set_theme":
-      case "set_section_variant":
-      case "set_section_visual":
       case "set_component_visual":
       case "set_backdrop":
       case "set_section_effect":

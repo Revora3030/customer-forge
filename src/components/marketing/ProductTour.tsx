@@ -81,10 +81,10 @@ function Screen({ view }: { view: ScreenKey }) {
         </div>
         <div className="mt-3 rounded-md border border-border bg-background/40 p-4">
           <p className="font-display text-[15px] leading-tight font-semibold">
-            Emergency plumbing in Raleigh — answered in minutes
+            AI-authored headline from supplied business facts
           </p>
           <p className="mt-2 text-[13px] text-muted-foreground">
-            Licensed, insured, upfront pricing. Book online 24/7.
+            Verified details, real services and owner-approved actions only.
           </p>
           <div className="mt-3 flex flex-wrap gap-1.5">
             {["Drain cleaning", "Water heaters", "Leak repair", "Repiping"].map((s) => (

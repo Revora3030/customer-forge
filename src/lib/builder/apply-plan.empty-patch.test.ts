@@ -28,10 +28,10 @@ describe("empty style patches are not silent no-ops", () => {
     expect(result.unchanged).toBe(0);
   });
 
-  it("still drops a genuinely matching style step", () => {
+  it("keeps an empty component visual patch for honest reporting", () => {
     const action = {
-      type: "set_section_visual",
-      sectionId: "s1",
+      type: "set_component_visual",
+      componentId: "c1",
       patch: {},
     } as unknown as AgentAction;
     expect(dropUnchangedActions([action], state).actions).toHaveLength(1);

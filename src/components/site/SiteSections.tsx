@@ -321,6 +321,8 @@ export function StickyCallBar({ site, label }: { site: Site; label: string }) {
   const phoneHref = phoneLink(site.profile?.phone);
   const phone = phoneDisplay(site.profile?.phone);
   const target = site.quote ? "#quote" : site.nav.some((item) => item.slug === "book") ? "book" : "contact";
+  const safeLabel = label.trim();
+  if (!phoneHref && !safeLabel) return null;
   return (
     <div
       className="sticky bottom-0 z-40 border-t border-border bg-background/95 px-4 py-3 backdrop-blur md:hidden"
@@ -334,9 +336,11 @@ export function StickyCallBar({ site, label }: { site: Site; label: string }) {
             </a>
           </Button>
         ) : null}
-        <Button asChild variant="signal" className="min-h-11 flex-1">
-          <SitePageLink slug={site.org.slug} page={target}>{label}</SitePageLink>
-        </Button>
+        {safeLabel ? (
+          <Button asChild variant="signal" className="min-h-11 flex-1">
+            <SitePageLink slug={site.org.slug} page={target}>{safeLabel}</SitePageLink>
+          </Button>
+        ) : null}
       </div>
     </div>
   );

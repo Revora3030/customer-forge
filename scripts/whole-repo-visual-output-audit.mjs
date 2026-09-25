@@ -31,9 +31,9 @@ const sourceFiles = files.filter((file) => SOURCE_EXTENSIONS.has(path.extname(fi
 const read = (relative) => fs.readFileSync(path.join(ROOT, relative), "utf8");
 
 const contracts = [
-  ["set_section_visual", "src/lib/site-agent.ts", "src/lib/site-agent.functions.ts"],
   ["set_component_visual", "src/lib/site-agent.ts", "src/lib/site-agent.functions.ts"],
-  ["readSectionVisual", "src/lib/site-style.ts", "src/components/site/SiteSections.tsx"],
+  ["set_composition", "src/lib/site-agent.ts", "src/lib/site-agent.functions.ts"],
+  ["readComposition", "src/lib/builder/composition-tree.ts", "src/components/site/SiteSections.tsx"],
   ["readComponentVisual", "src/lib/site-style.ts", "src/components/site/SiteSections.tsx"],
   // These actions persist the settings; the public route consumes the resulting
   // model through the actual renderer APIs rather than repeating the action name.
@@ -50,20 +50,18 @@ for (const [token, producer, consumer] of contracts) {
       ? "siteThemeStyle"
       : token === "set_backdrop"
         ? "SiteBackdrop"
-        : token;
+        : token === "set_composition"
+          ? "writeComposition"
+          : token;
   if (!consumerText.includes(consumerToken)) failures.push(token + " consumer missing");
 }
 
 const renderer = read("src/components/site/SiteSections.tsx");
 const executor = read("src/lib/site-agent.functions.ts");
-const style = read("src/lib/site-style.ts");
 
-if (!renderer.includes("rv-variant-")) failures.push("section variant renderer missing");
-if (!renderer.includes("rv-generated-media")) failures.push("generated media renderer missing");
-if (!renderer.includes("hero_image_url")) failures.push("hero image renderer missing");
-if (!executor.includes('case "set_section_visual"')) failures.push("section visual executor missing");
+if (renderer.includes("rv-variant-")) failures.push("section variant renderer should not drive public layout");
+if (!renderer.includes("CompositionRenderer")) failures.push("AI composition renderer missing");
 if (!executor.includes('case "set_component_visual"')) failures.push("component visual executor missing");
-if (!style.includes("SECTION_VISUAL_VALUES")) failures.push("visual token allowlist missing");
 
 const result = {
   scannedFiles: files.length,

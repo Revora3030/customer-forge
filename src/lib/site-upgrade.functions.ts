@@ -29,6 +29,7 @@ import {
   visionSummary,
   type VisionReview,
 } from "@/lib/builder/vision-review";
+import type { DnaFacts } from "@/lib/business-dna";
 import { writeSectionEffect } from "@/lib/site-effects";
 
 type SupabaseLike = {
@@ -70,6 +71,31 @@ type SectionRow = {
   sort_order: number | null;
   settings: unknown;
 };
+
+type ServiceFactRow = { name: string | null; price: number | null; starting_price: number | null };
+
+const textOrNull = (value: unknown): string | null =>
+  typeof value === "string" && value.trim() ? value.trim() : null;
+
+async function restoreSectionLayouts(supabase: SupabaseLike, organizationId: string, sections: SectionRow[]) {
+  for (const section of sections) {
+    await supabase
+      .from("website_sections")
+      .update({ kind: section.kind, settings: section.settings } as never)
+      .eq("id", section.id)
+      .eq("organization_id", organizationId);
+  }
+}
+
+async function restoreGeneration(
+  supabase: SupabaseLike,
+  organizationId: string,
+  generation: Record<string, unknown>,
+) {
+  await supabase
+    .from("website_settings")
+    .upsert({ organization_id: organizationId, generation } as never, { onConflict: "organization_id" });
+}
 
 async function loadPagesAndSections(supabase: SupabaseLike, organizationId: string) {
   const [pages, sections] = await Promise.all([
@@ -154,7 +180,6 @@ async function saveRestorePoint(
  */
 export type SiteUpgradeUndo = {
   effects: { sectionId: string; effect: string }[];
-  fingerprint: Record<string, string> | null;
 };
 
 
@@ -186,33 +211,29 @@ export const applySiteWideRedesign = createServerFn({ method: "POST" })
     const supabase = context.supabase as unknown as SupabaseLike;
     await requireManager(supabase, data.organizationId, context.userId);
 
-    const { blankDesignFingerprint, readDesignFingerprint, writeDesignFingerprint } = await import(
-      "@/lib/builder/design-fingerprint"
-    );
-    const [{ data: settings }, { data: profile }] = await Promise.all([
+    const [{ data: settings }, { data: profile }, { data: org }, { data: services }] = await Promise.all([
       supabase.from("website_settings").select("generation").eq("organization_id", data.organizationId).maybeSingle(),
       supabase
         .from("business_profiles")
-        .select("industry")
+        .select("description, industry, city, state, service_area, phone, email, years_in_business, certifications, awards, review_link, website_goals, hours")
         .eq("organization_id", data.organizationId)
         .maybeSingle(),
+      supabase.from("organizations").select("name, industry, conversion_goal").eq("id", data.organizationId).maybeSingle(),
+      supabase.from("services").select("name, price, starting_price").eq("organization_id", data.organizationId).eq("is_active", true),
     ]);
-    const generation = (settings as { generation?: unknown } | null)?.generation ?? null;
-    const industry = (profile as { industry?: string | null } | null)?.industry ?? null;
-    // No invented starting look: the AI's saved record, or a blank one the AI
-    // fills in completely.
-    const fingerprint = readDesignFingerprint(generation) ?? blankDesignFingerprint();
+    const generation = ((settings as { generation?: unknown } | null)?.generation ?? {}) as Record<string, unknown>;
+    const industry =
+      (profile as { industry?: string | null } | null)?.industry ??
+      (org as { industry?: string | null } | null)?.industry ??
+      null;
 
-    // The design team reads the owner's sentence and writes the new identity
-    // itself. Any wording works: nothing is matched against a keyword list and
-    // no look is chosen from a fixed set.
     const authored = await authorSiteWideRedesign({
       organizationId: data.organizationId,
       instruction: data.instruction,
-      fingerprint,
+      currentBrief: generation["aiCreativeBrief"] ?? (generation["firstBuildCreative"] as Record<string, unknown> | undefined)?.["brief"] ?? null,
       industry,
     });
-    const { next, changes, blocked } = authored;
+    const { changes, blocked } = authored;
     if (changes.length === 0) {
       return {
         ok: true,
@@ -237,17 +258,74 @@ export const applySiteWideRedesign = createServerFn({ method: "POST" })
       sections,
     );
 
+    const lookSummary = JSON.stringify({
+      label: authored.label,
+      brief: authored.brief,
+      choices: authored.choices,
+      instruction: data.instruction,
+    });
+    const p = (profile ?? {}) as Record<string, unknown>;
+    const svc = ((services ?? []) as ServiceFactRow[]).filter((service) => textOrNull(service.name));
+    const facts: DnaFacts = {
+      businessName: (org as { name?: string | null } | null)?.name ?? null,
+      industry,
+      services: svc.map((service) => String(service.name)),
+      description: textOrNull(p["description"]),
+      city: textOrNull(p["city"]),
+      region: textOrNull(p["state"]),
+      serviceArea: textOrNull(p["service_area"]),
+      phone: textOrNull(p["phone"]),
+      email: textOrNull(p["email"]),
+      yearsInBusiness: typeof p["years_in_business"] === "number" ? (p["years_in_business"] as number) : null,
+      certifications: textOrNull(p["certifications"]),
+      awards: textOrNull(p["awards"]),
+      reviewLink: textOrNull(p["review_link"]),
+      hasPrices: svc.some((service) => service.price != null || service.starting_price != null),
+      goals: Array.isArray(p["website_goals"]) ? (p["website_goals"] as string[]).slice(0, 6) : null,
+      conversionGoal: (org as { conversion_goal?: string | null } | null)?.conversion_goal ?? null,
+      hasHours: Boolean(p["hours"] && typeof p["hours"] === "object" && Object.keys(p["hours"] as object).length),
+    };
+    const { composeFirstBuildSections } = await import("@/lib/builder/first-build-compositions.server");
+    let composed: Awaited<ReturnType<typeof composeFirstBuildSections>>;
+    try {
+      composed = await composeFirstBuildSections({
+        db: supabase as never,
+        organizationId: data.organizationId,
+        facts,
+        lookSummary,
+      });
+      const { composeSiteChrome } = await import("@/lib/builder/first-build-chrome.server");
+      await composeSiteChrome({
+        db: supabase as never,
+        organizationId: data.organizationId,
+        businessName: (org as { name?: string | null } | null)?.name ?? "",
+        facts,
+        lookSummary,
+      });
+    } catch (error) {
+      await restoreSectionLayouts(supabase, data.organizationId, sections);
+      await restoreGeneration(supabase, data.organizationId, generation);
+      throw error;
+    }
+
+    const nextGeneration = {
+      ...generation,
+      aiCreativeBrief: {
+        label: authored.label,
+        describe: authored.describe,
+        brief: authored.brief,
+        choices: authored.choices,
+        model: authored.model,
+        updatedAt: new Date().toISOString(),
+      },
+    };
     const saved = await supabase
       .from("website_settings")
       .upsert(
-        { organization_id: data.organizationId, generation: writeDesignFingerprint(generation, next) } as never,
+        { organization_id: data.organizationId, generation: nextGeneration } as never,
         { onConflict: "organization_id" },
       );
     if (saved.error) throw new Error("Revora couldn't save the new look. Nothing was changed.");
-
-    // Movement follows the AI-authored motion level stored above; no rule
-    // re-assigns per-section effects on the AI's behalf.
-    const assignments: { sectionId: string; from: string }[] = [];
 
     return {
       ok: true,
@@ -255,13 +333,10 @@ export const applySiteWideRedesign = createServerFn({ method: "POST" })
       direction: authored.label,
       changes,
       blocked,
-      motionChanged: assignments.length,
-      summary: authoredRedesignSummary(authored),
+      motionChanged: 0,
+      summary: `${authoredRedesignSummary(authored)} ${composed.composed} section${composed.composed === 1 ? "" : "s"} redesigned by AI.`,
       restorePointId,
-      undo: {
-        effects: assignments.map((entry) => ({ sectionId: entry.sectionId, effect: entry.from })),
-        fingerprint: Object.fromEntries(changes.map((change) => [change.field, change.from])),
-      },
+      undo: { effects: [] },
     };
   });
 
@@ -467,20 +542,6 @@ export const applyVisionRepairs = createServerFn({ method: "POST" })
       sections,
     );
 
-    const { blankDesignFingerprint, readDesignFingerprint, writeDesignFingerprint } = await import(
-      "@/lib/builder/design-fingerprint"
-    );
-    const { data: settings } = await supabase
-      .from("website_settings")
-      .select("generation")
-      .eq("organization_id", data.organizationId)
-      .maybeSingle();
-    const generation = (settings as { generation?: unknown } | null)?.generation ?? null;
-    let fingerprint =
-      readDesignFingerprint(generation) ??
-      blankDesignFingerprint();
-    let fingerprintChanged = false;
-
     const applied: string[] = [];
 
     for (const repair of repairs) {
@@ -497,12 +558,7 @@ export const applyVisionRepairs = createServerFn({ method: "POST" })
           break;
         }
         case "set_image_overlay": {
-          fingerprint = {
-            ...fingerprint,
-            artDirection: { ...fingerprint.artDirection, overlay: repair.overlay },
-          };
-          fingerprintChanged = true;
-          applied.push("Darker shading behind text sitting on photos");
+          skipped.push(repair.kind);
           break;
         }
         case "set_image_fit": {
@@ -531,14 +587,6 @@ export const applyVisionRepairs = createServerFn({ method: "POST" })
       }
     }
 
-    if (fingerprintChanged) {
-      await supabase
-        .from("website_settings")
-        .upsert(
-          { organization_id: data.organizationId, generation: writeDesignFingerprint(generation, fingerprint) } as never,
-          { onConflict: "organization_id" },
-        );
-    }
 
     return {
       ok: true,
@@ -564,15 +612,7 @@ export const undoSiteUpgrade = createServerFn({ method: "POST" })
   .inputValidator((input: { organizationId: string; undo: SiteUpgradeUndo }) => {
     if (!input?.organizationId) throw new Error("organizationId is required");
     const effects = Array.isArray(input.undo?.effects) ? input.undo.effects.slice(0, 400) : [];
-    const fingerprint =
-      input.undo?.fingerprint && typeof input.undo.fingerprint === "object"
-        ? Object.fromEntries(
-            Object.entries(input.undo.fingerprint)
-              .filter(([key, value]) => typeof key === "string" && typeof value === "string")
-              .slice(0, 20),
-          )
-        : null;
-    return { organizationId: input.organizationId, undo: { effects, fingerprint } };
+    return { organizationId: input.organizationId, undo: { effects } };
   })
   .handler(async ({ data, context }): Promise<{ ok: boolean; reverted: number; summary: string }> => {
     const supabase = context.supabase as unknown as SupabaseLike;
@@ -598,42 +638,13 @@ export const undoSiteUpgrade = createServerFn({ method: "POST" })
         .eq("organization_id", data.organizationId);
       if (!error) reverted += 1;
     }
-
-    if (data.undo.fingerprint && Object.keys(data.undo.fingerprint).length > 0) {
-      const { blankDesignFingerprint, readDesignFingerprint, writeDesignFingerprint } = await import(
-        "@/lib/builder/design-fingerprint"
-      );
-      const { data: settings } = await supabase
-        .from("website_settings")
-        .select("generation")
-        .eq("organization_id", data.organizationId)
-        .maybeSingle();
-      const generation = (settings as { generation?: unknown } | null)?.generation ?? null;
-      const current =
-        readDesignFingerprint(generation) ??
-        blankDesignFingerprint();
-      const next = { ...current } as unknown as Record<string, unknown>;
-      for (const [field, value] of Object.entries(data.undo.fingerprint)) {
-        if (field in (current as unknown as Record<string, unknown>)) next[field] = value;
-      }
-      await supabase
-        .from("website_settings")
-        .upsert(
-          {
-            organization_id: data.organizationId,
-            generation: writeDesignFingerprint(generation, next as never),
-          } as never,
-          { onConflict: "organization_id" },
-        );
-      reverted += Object.keys(data.undo.fingerprint).length;
-    }
-
     return {
       ok: true,
       reverted,
       summary:
         reverted === 0
-          ? "There was nothing left to put back."
-          : "Put back exactly as it was before that change.",
+          ? "There was nothing to undo."
+          : `Reverted ${reverted} section${reverted === 1 ? "" : "s"}.`,
     };
   });
+

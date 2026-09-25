@@ -7,18 +7,7 @@ describe("site-agent atomic journal coverage", () => {
     expect(targetOf({ type: "set_block_style", target: "section", targetId: "s1", device: "desktop", patch: { bgColor: "#112233" } })).toEqual({ kind: "update", table: "website_sections", id: "s1" });
     expect(targetOf({ type: "set_block_style", target: "component", targetId: "c1", device: "mobile", patch: { size: 24 } })).toEqual({ kind: "update", table: "website_components", id: "c1" });
   });
-  it("journals section visual edits so rollback can restore them", () => {
-    const action: AgentAction = {
-      type: "set_section_visual",
-      sectionId: "section-1",
-      patch: { layout: "layered", card_style: "floating" },
-    };
-    expect(targetOf(action)).toEqual({
-      kind: "update",
-      table: "website_sections",
-      id: "section-1",
-    });
-  });
+
 
   it("journals component visual edits so rollback can restore them", () => {
     const action: AgentAction = {

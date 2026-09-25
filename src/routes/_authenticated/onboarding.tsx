@@ -3,7 +3,6 @@ import { useEffect, useState } from "react";
 import { toast } from "@/lib/ui/notify";
 import { ArrowLeft, ArrowRight, Loader2, Plus, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { seedQuoteCalculator } from "@/lib/quote-seed";
 import { newTrialEndsAt } from "@/lib/trial";
 import { assertNoError, supabaseErrorMessage } from "@/lib/supabase-error";
 
@@ -75,6 +74,16 @@ type Draft = {
 
 const STEPS = ["Business", "Services", "Brand", "Contact", "Proof", "Goals"] as const;
 
+const STORED_GOAL: Partial<
+  Record<GoalKey, "calls" | "quotes" | "bookings" | "consultations" | "purchases">
+> = {
+  call: "calls",
+  quote: "quotes",
+  book: "bookings",
+  consult: "consultations",
+  purchase: "purchases",
+};
+
 const emptyService = (): ServiceDraft => ({ name: "", description: "", price: "" });
 
 function Onboarding() {
@@ -116,7 +125,7 @@ function Onboarding() {
     certifications: "",
     awards: "",
     testimonials: [],
-    goals: ["quote"],
+    goals: [],
   });
 
   // Signup answers are saved to the user's account, so signing out (or losing
@@ -164,7 +173,7 @@ function Onboarding() {
         supabase
           .from("business_profiles")
           .select(
-            "phone, email, address, city, state, service_area, description, hours, website, logo_url, hero_image_url, primary_color, accent_color, years_in_business, certifications, awards",
+            "phone, email, address, city, state, service_area, description, hours, website, logo_url, hero_image_url, primary_color, accent_color, years_in_business, certifications, awards, website_goals",
           )
           .eq("organization_id", orgId)
           .maybeSingle(),
@@ -229,6 +238,13 @@ function Onboarding() {
           instagram: keep(prev.instagram, text(social?.instagram)),
           facebook: keep(prev.facebook, text(social?.facebook)),
           google: keep(prev.google, text(social?.google_business)),
+          goals:
+            prev.goals.length || !Array.isArray(profile?.["website_goals"])
+              ? prev.goals
+              : (profile["website_goals"] as unknown[]).filter(
+                  (goal): goal is GoalKey =>
+                    typeof goal === "string" && WEBSITE_GOALS.some((option) => option.value === goal),
+                ),
           services:
             prev.services.some((s) => s.name.trim()) || !savedServices.length
               ? prev.services
@@ -294,18 +310,14 @@ function Onboarding() {
 
       const services = draft.services.filter((s) => s.name.trim());
       const testimonials = draft.testimonials.filter((t) => t.text.trim());
-      const goals: GoalKey[] = draft.goals.length ? draft.goals : ["quote"];
+      const goals: GoalKey[] = draft.goals;
+      if (!goals.length) throw new Error("Choose at least one website goal before Revora builds your site.");
 
       const legacyGoal =
-        goals[0] === "book"
-          ? "bookings"
-          : goals[0] === "call"
-            ? "calls"
-            : goals[0] === "consult"
-              ? "consultations"
-              : goals[0] === "purchase"
-                ? "purchases"
-                : "quotes";
+        goals
+          .map((goal) => STORED_GOAL[goal])
+          .find((goal): goal is NonNullable<(typeof STORED_GOAL)[GoalKey]> => Boolean(goal)) ??
+        null;
 
       const orgFields = {
         name: draft.businessName.trim(),
@@ -417,19 +429,6 @@ function Onboarding() {
           })) as never,
         );
         assertNoError(servicesError, "Could not save your services");
-      }
-
-      // Give the workspace a working quote calculator so the public site's
-      // primary "Get my quote" CTA has a real destination from day one.
-      // A calculator hiccup must never block the build — log and continue.
-      try {
-        await seedQuoteCalculator(
-          supabase,
-          org.id,
-          services.map((s) => s.name.trim()),
-        );
-      } catch (seedError) {
-        console.error("[onboarding] quote calculator seed failed", supabaseErrorMessage(seedError));
       }
 
       const { error: settingsError } = await supabase.from("website_settings").upsert(
@@ -973,7 +972,6 @@ function Onboarding() {
                       aria-pressed={active}
                     >
                       <p className="text-[14px] font-medium">{goal.label}</p>
-                      <p className="mt-1 text-[12px] text-muted-foreground">Button: {goal.cta}</p>
                     </button>
                   );
                 })}

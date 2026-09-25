@@ -72,7 +72,6 @@ import { RestorePointPanel } from "@/components/app/RestorePointPanel";
 import { ModelResponseLog } from "@/components/app/ModelResponseLog";
 
 import { PlatformEngine } from "@/components/app/PlatformEngine";
-import { DesignIdentity } from "@/components/app/DesignIdentity";
 import { recordHealth, snapshotFromPreflight } from "@/lib/site-health";
 import type { Regression } from "@/lib/site-regression";
 import { askAssistant } from "@/lib/assistant-bridge";
@@ -195,13 +194,6 @@ function WebsitePage() {
           applied?: boolean;
           source?: string | null;
           model?: string | null;
-          fingerprint?: {
-            family?: string;
-            heroComposition?: string;
-            colorSystem?: string;
-            typeSystem?: string;
-            density?: string;
-          } | null;
           warnings?: string[];
         })
       : null;
@@ -609,13 +601,6 @@ function WebsitePage() {
               label: "Design",
               node: (
                 <>
-                  <DesignIdentity
-                    generation={generation ?? null}
-                    onRestyle={(instruction: string) => {
-                      setAdvanced(null);
-                      askAssistant(instruction);
-                    }}
-                  />
                   <EffectStudio
                     organizationId={orgId}
                     canManage={manage}

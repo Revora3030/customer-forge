@@ -25,7 +25,13 @@ import { readSeo } from "@/lib/site-seo";
 import { readCopy } from "@/lib/site-engine";
 import type { AutoFixKey, GrowthAuditInput } from "@/lib/growth-command";
 import { auditStructure, type LivePageResult } from "@/lib/site-audit";
-import { conversionGaps, normalizeGoal, type ConversionContext } from "@/lib/conversion-engine";
+import {
+  CONVERSION_GOALS,
+  conversionGaps,
+  normalizeGoal,
+  type ConversionContext,
+  type ConversionGoal,
+} from "@/lib/conversion-engine";
 import { proposeUpgrades, type UpgradeProposal } from "@/lib/auto-upgrade";
 import {
   useApplyUpgrade,
@@ -125,7 +131,13 @@ function CommandCenterPage() {
 
   /* ---------------- Auditor · conversion engine · auto-upgrades ---------------- */
 
-  const goal = normalizeGoal(seo.primary_cta_label ?? copy?.primaryCta ?? null, "quote");
+  const selectedGoals = Array.isArray(profile?.["website_goals"])
+    ? (profile["website_goals"] as unknown[]).filter((goal): goal is string => typeof goal === "string")
+    : [];
+  const goal =
+    normalizeGoal(org?.conversion_goal ?? null) ??
+    selectedGoals.map((selected) => normalizeGoal(selected)).find((selected) => selected !== null) ??
+    null;
 
   const conversionCtx: ConversionContext = {
     phone: input.phone,
@@ -243,6 +255,8 @@ function CommandCenterPage() {
 
   /* ------------------------------ One-input intake ---------------------------- */
 
+  const goalLabel = goal ? (CONVERSION_GOALS.find((entry) => entry.value === goal)?.label ?? "") : "";
+
   const intakeValues: IntakeValues = {
     name: org?.name ?? "",
     description: input.description ?? "",
@@ -250,7 +264,7 @@ function CommandCenterPage() {
     email: input.email ?? "",
     city: input.city ?? "",
     service_area: input.serviceArea ?? "",
-    primary_goal: seo.primary_cta_label ?? "",
+    primary_goal: goalLabel,
   };
 
   const saveIntake = async (patch: IntakeValues) => {
@@ -258,17 +272,38 @@ function CommandCenterPage() {
     if (patch["name"] && patch["name"] !== org?.name) {
       await updateOrg.mutateAsync({ id: orgId, patch: { name: patch["name"] } });
     }
-    await saveProfile.mutateAsync({
+    const normalizedPrimaryGoal = normalizeGoal(patch["primary_goal"] ?? null);
+    const profilePatch: Record<string, unknown> = {
       description: patch["description"] ?? null,
       phone: patch["phone"] ?? null,
       email: patch["email"] ?? null,
       city: patch["city"] ?? null,
       service_area: patch["service_area"] ?? null,
-    });
-    if ((patch["primary_goal"] ?? "") !== (seo.primary_cta_label ?? "")) {
-      await saveSettings.mutateAsync({
-        seo: { ...seo, primary_cta_label: patch["primary_goal"] || null },
-      });
+    };
+    if (normalizedPrimaryGoal) {
+      const websiteGoalByConversion: Record<ConversionGoal, string> = {
+        call: "call",
+        text: "text",
+        book: "book",
+        quote: "quote",
+        buy: "purchase",
+        lead: "lead",
+      };
+      const nextGoal = websiteGoalByConversion[normalizedPrimaryGoal];
+      const rest = selectedGoals.filter((selected) => normalizeGoal(selected) !== normalizedPrimaryGoal);
+      profilePatch.website_goals = [nextGoal, ...rest];
+    }
+    await saveProfile.mutateAsync(profilePatch);
+    if (normalizedPrimaryGoal) {
+      const storedGoalByConversion: Partial<Record<ConversionGoal, string>> = {
+        call: "calls",
+        book: "bookings",
+        quote: "quotes",
+        buy: "purchases",
+      };
+      const storedGoal = storedGoalByConversion[normalizedPrimaryGoal] ?? null;
+      if ((org?.conversion_goal ?? null) !== storedGoal)
+        await updateOrg.mutateAsync({ id: orgId, patch: { conversion_goal: storedGoal } });
     }
   };
 

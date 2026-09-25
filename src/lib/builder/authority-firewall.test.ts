@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
-import { blankDesignFingerprint } from "./design-fingerprint";
 
 function files(dir: string): string[] {
   return readdirSync(dir).flatMap((name) => {
@@ -27,6 +26,8 @@ describe("creative authority firewall", () => {
       "src/lib/visual-palette.ts",
       "src/lib/builder/template-gallery.ts",
       "src/lib/builder/conversion-blueprint.ts",
+      "src/lib/builder/visual-director.ts",
+      "src/components/app/VisualDirectorPanel.tsx",
       "src/lib/builder/site-conversion-architecture.ts",
       "src/lib/builder/sitewide-cta.ts",
       "src/lib/builder/copy-depth.ts",
@@ -49,16 +50,13 @@ describe("creative authority firewall", () => {
     const body = thinker.slice(thinker.indexOf("async function callBestThinkerInner"));
     // The only fallback after the paid lane is the free model squad.
     expect(body).toContain("callHallOfFame(");
-    expect(body).not.toMatch(/fingerprint|archetype|template|preset/i);
+    expect(body).not.toMatch(/archetype|template|preset/i);
   });
 
-  it("the fingerprint can no longer pick designs from finite pools", () => {
-    const neutral = blankDesignFingerprint();
-    const a = blankDesignFingerprint();
-    const b = blankDesignFingerprint();
-    for (const fp of [a, b]) {
-      expect({ ...fp, id: neutral.id, seed: neutral.seed, rejected: neutral.rejected }).toEqual(neutral);
-    }
+  it("the saved design-record module stays deleted", () => {
+    expect(() => statSync("src/lib/builder/ai-design-record.ts")).toThrow();
+    const offenders = production.filter((f) => /aiDesignRecord|AiDesignRecord|designRecord/.test(readFileSync(f, "utf8")));
+    expect(offenders).toEqual([]);
   });
 });
 
@@ -135,19 +133,53 @@ describe("old design layer is fully removed", () => {
     }
   });
 
-  it("the saved design record has no style pools or pickers", () => {
-    const src = readFileSync("src/lib/builder/design-fingerprint.ts", "utf8");
-    expect(src).not.toMatch(/_COMPOSITIONS|_SYSTEMS|_LAYOUTS|fingerprintSeed|createDesignFingerprint|sectionDesignFromFingerprint|function pick/);
+  it("the saved design record source is not part of the codebase", () => {
+    expect(() => statSync("src/lib/builder/ai-design-record.ts")).toThrow();
   });
 
   it("Sol's first-build creative pass has no fixed vocabulary", () => {
     const src = readFileSync("src/lib/builder/collective-first-build.server.ts", "utf8");
     expect(src).not.toMatch(/Choose only from the supplied design vocabulary|not in the supported design vocabulary/);
+    expect(src).not.toMatch(/motionLevel must use|boundedFields|IMAGE_ASPECTS/);
+    expect(src).toMatch(/Describe every creative decision in your own words/);
+  });
+
+  it("first-build CTAs are AI-authored and fact-checked, not seeded from rules", () => {
+    const engine = readFileSync("src/lib/site-engine.server.ts", "utf8");
+    const worker = readFileSync("src/lib/site-engine.worker.server.ts", "utf8");
+    const collective = readFileSync("src/lib/builder/collective-first-build.server.ts", "utf8");
+    expect(engine).toMatch(/primaryCta: ""/);
+    expect(worker).toMatch(/ctaLabel: ""/);
+    expect(collective).toMatch(/primaryCta \(<=24 chars\)/);
+    expect(collective).toMatch(/requiredContent = \["heroHeadline", "heroSubheadline", "primaryCta"/);
+  });
+
+  it("customer website routes do not install fixed fallback chrome or canned CTAs", () => {
+    const pageRoute = readFileSync("src/routes/s.$slug.$page.tsx", "utf8");
+    const homeRoute = readFileSync("src/routes/s.$slug.tsx", "utf8");
+    const tree = readFileSync("src/lib/builder-tree.ts", "utf8");
+    expect(pageRoute).not.toMatch(/<SiteFooter|<SiteNav|Get my price|Book now/);
+    expect(homeRoute).not.toMatch(/services, prices and reviews|Book .*online/);
+    expect(tree).not.toMatch(/defaults: \{ label:|From \$0|Fully insured/);
+  });
+
+  it("starter quote pricing is never seeded from unsupported canned amounts", () => {
+    expect(() => statSync("src/lib/quote-seed.ts")).toThrow();
+    const admin = readFileSync("src/lib/admin.server.ts", "utf8");
+    const onboarding = readFileSync("src/routes/_authenticated/onboarding.tsx", "utf8");
+    expect(admin).not.toMatch(/seedQuoteCalculator/);
+    expect(onboarding).not.toMatch(/seedQuoteCalculator/);
+  });
+
+  it("AI may choose no generated picture campaign without triggering a design fallback", () => {
+    const src = readFileSync("src/lib/builder/collective-first-build.server.ts", "utf8");
+    expect(src).toMatch(/none is fine; at most 28/);
+    expect(src).not.toMatch(/complete AI-authored picture campaign/);
   });
 
   it("screenshot references never map keywords to styles", () => {
     const src = readFileSync("src/lib/builder/screenshot-reference.ts", "utf8");
-    expect(src).not.toMatch(/pickReferencePatch|allowedPatch|alignCreativeBriefToFingerprint/);
+    expect(src).not.toMatch(/pickReferencePatch|allowedPatch|alignCreativeBriefToDesignRecord/);
   });
 });
 

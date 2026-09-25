@@ -284,7 +284,7 @@ export const aiEditSiteCopy = createServerFn({ method: "POST" })
         hasHours: Boolean(p["hours"] && Object.keys(p["hours"] as object).length),
         style: (p["font_preference"] as string) ?? null,
         goals: ((p["website_goals"] as string[]) ?? []).slice(0, 6),
-        ctaLabel: "Get in touch",
+        ctaLabel: "",
         services: services.data ?? [],
       },
       data.fields,
@@ -359,7 +359,7 @@ export const aiEditSiteSections = createServerFn({ method: "POST" })
         hasHours: Boolean(p["hours"] && Object.keys(p["hours"] as object).length),
         style: (p["font_preference"] as string) ?? null,
         goals: ((p["website_goals"] as string[]) ?? []).slice(0, 6),
-        ctaLabel: "Get in touch",
+        ctaLabel: "",
         services: services.data ?? [],
       },
       sections.data.map((s) => ({
@@ -444,22 +444,16 @@ function observationInputOf(input: Record<string, unknown>) {
   };
 }
 
-async function referenceBaseFingerprint(
+async function referenceBaseDesignContext(
   supabase: SupabaseClient<Database>,
   organizationId: string,
 ) {
-  const [{ data: settings }, { data: org }, { data: profile }] = await Promise.all([
+  const [{ data: settings }, { data: org }] = await Promise.all([
     supabase.from("website_settings").select("generation").eq("organization_id", organizationId).maybeSingle(),
-    supabase.from("organizations").select("name, industry").eq("id", organizationId).maybeSingle(),
-    supabase.from("business_profiles").select("city, service_area").eq("organization_id", organizationId).maybeSingle(),
+    supabase.from("organizations").select("name").eq("id", organizationId).maybeSingle(),
   ]);
-  const generation = (settings?.generation ?? {}) as Record<string, unknown>;
-  const { readDesignFingerprint, blankDesignFingerprint } = await import("@/lib/builder/design-fingerprint");
-  const stored = readDesignFingerprint(generation);
-  if (stored) return { generation, fingerprint: stored, businessName: org?.name ?? null };
   return {
-    generation,
-    fingerprint: blankDesignFingerprint(),
+    generation: (settings?.generation ?? {}) as Record<string, unknown>,
     businessName: org?.name ?? null,
   };
 }
@@ -475,10 +469,10 @@ async function persistScreenshotReference(
     model?: string;
   },
 ) {
-  const { normalizeScreenshotReferenceObservations, deriveScreenshotReferenceFingerprint } = await import(
+  const { normalizeScreenshotReferenceObservations, deriveScreenshotReferenceBrief } = await import(
     "@/lib/builder/screenshot-reference"
   );
-  const base = await referenceBaseFingerprint(supabase, input.organizationId);
+  const base = await referenceBaseDesignContext(supabase, input.organizationId);
   const observations = normalizeScreenshotReferenceObservations(input.observations, {
     businessName: base.businessName,
     blockedNames: [base.businessName ?? ""],
@@ -486,9 +480,8 @@ async function persistScreenshotReference(
   });
   const hasAny = Object.values(observations).some((list) => list.length > 0);
   if (!hasAny) throw new Error("No reusable design patterns were found. Add layout, spacing, type or colour notes.");
-  const reference = deriveScreenshotReferenceFingerprint({
+  const reference = deriveScreenshotReferenceBrief({
     observations,
-    base: base.fingerprint,
     businessName: base.businessName,
     blockedNames: [base.businessName ?? ""],
   });
@@ -752,7 +745,7 @@ export const extractScreenshotReference = createServerFn({ method: "POST" })
                 {
                   type: "text",
                   text: [
-                    "Extract a website design fingerprint from this screenshot for inspiration only.",
+                    "Extract reusable website design signals from this screenshot for inspiration only.",
                     "Do NOT copy logos, brand names, exact wording, exact colours, URLs, people, claims, coordinates or proprietary assets.",
                     "Return JSON only with arrays named layout, hierarchy, typography, spacing, color, interactions, components.",
                     "Each array should contain short reusable patterns, not facts from the screenshot.",

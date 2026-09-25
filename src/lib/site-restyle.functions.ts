@@ -100,7 +100,8 @@ export const restyleSiteWithAi = createServerFn({ method: "POST" })
     const look = {
       colors: { primary: str(p["primary_color"]), secondary: str(p["secondary_color"]), accent: str(p["accent_color"]) },
       font: str(p["font_preference"]),
-      savedLook: (settings as { generation?: { fingerprint?: unknown } } | null)?.generation?.fingerprint ?? null,
+      savedCreativeBrief: (settings as { generation?: { aiCreativeBrief?: unknown; firstBuildCreative?: unknown } } | null)?.generation?.aiCreativeBrief ??
+        ((settings as { generation?: { firstBuildCreative?: { brief?: unknown } } } | null)?.generation?.firstBuildCreative?.brief ?? null),
     };
 
     // Save every section's current layout first; no save, no change.

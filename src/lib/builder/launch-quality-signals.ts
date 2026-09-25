@@ -49,9 +49,6 @@ export function launchQualityInputFromSnapshot(snapshot: SiteReadinessSnapshot):
     conversion: average(yes(snapshot.hasPrimaryCta), yes(snapshot.ctaRepeatedAtDecisionPoints)),
     messaging: average(yes(snapshot.heroIncludesAudience), yes(snapshot.heroIncludesOutcome), yes(snapshot.hasDifferentiator)),
     content: average(countScore(snapshot.serviceCount, 3), countScore(snapshot.faqCount, 4), yes(snapshot.hasProcess)),
-    // Only real browser evidence counts: a passing visual check for the current
-    // revision of the site. Configuration alone (a direction, image count) never does.
-    visual_design: typeof snapshot.visualCheckScore === "number" ? snapshot.visualCheckScore : 0,
     mobile: average(yes(snapshot.mobileReviewed), yes(snapshot.tapTargetsChecked)),
     accessibility: average(yes(snapshot.headingOrderValid), yes(snapshot.contrastChecked), yes(snapshot.descriptiveControls), yes(snapshot.reducedMotionSafe)),
     seo: average(yes(snapshot.seoTitle), yes(snapshot.seoDescription), yes(snapshot.hasSingleH1), yes(snapshot.locationIntent)),

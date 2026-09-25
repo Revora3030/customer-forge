@@ -39,7 +39,7 @@ const filled = (value: unknown) => typeof value === "string" && value.trim().len
 
 export type StructureAuditInput = {
   pages: ContentPage[];
-  goal: ConversionGoal;
+  goal?: ConversionGoal | null;
   /** Sections hidden on purpose still count as absent for the visitor. */
   metaDescription: string | null;
   headline: string | null;

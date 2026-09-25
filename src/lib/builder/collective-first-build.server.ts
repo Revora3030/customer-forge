@@ -4,8 +4,7 @@
  * Four passes, in order, each through the same credential gate, monthly cap
  * and usage ledger as every other paid call:
  *
- *  1. Sol proposes a bounded creative direction that can change the real
- *     fingerprint, brief, image briefs and page composition.
+ *  1. Sol proposes an open creative brief, image briefs and page composition.
  *  2. Terra reviews Sol's creative proposal adversarially, field by field.
  *  3. Sol authors the visitor-facing wording from the supplied facts.
  *  4. Terra reviews Sol's copy proposal, then Luna tightens metadata only.
@@ -21,7 +20,6 @@ import type { SiteCopy } from "@/lib/site-engine";
 import type { SiteBrief } from "@/lib/site-brief";
 import type { FirstBuildCreativeDirection } from "@/lib/builder/first-build-contract";
 import type { CreativeBrief } from "@/lib/builder/first-build-contract";
-import type { DesignFingerprint } from "@/lib/builder/design-fingerprint";
 import {
   approvableFields,
   mergeRefinement,
@@ -55,40 +53,14 @@ export type CollectiveFirstBuild = {
   totalCostMicrocents: number;
 };
 
-type CreativeFingerprintPatch = Partial<
-  Pick<
-    DesignFingerprint,
-    | "family"
-    | "heroComposition"
-    | "backgroundSystem"
-    | "sectionRhythm"
-    | "navSystem"
-    | "ctaSystem"
-    | "cardSystem"
-    | "proofLayout"
-    | "pricingLayout"
-    | "faqLayout"
-    | "galleryLayout"
-    | "statsLayout"
-    | "timelineLayout"
-    | "footerSystem"
-    | "typeSystem"
-    | "colorSystem"
-    | "sectionTransition"
-    | "pageShell"
-    | "imageTreatment"
-    | "motionPattern"
-    | "motionLevel"
-    | "density"
-  >
->;
-
 type CreativeBriefPatch = Partial<
   Pick<
     CreativeBrief,
+    | "concept"
     | "personality"
     | "heroComposition"
     | "sectionRhythm"
+    | "density"
     | "cardLanguage"
     | "ctaLanguage"
     | "backgroundTreatment"
@@ -97,12 +69,15 @@ type CreativeBriefPatch = Partial<
     | "industryConventions"
   >
 > & {
+  typography?: Partial<CreativeBrief["typography"]>;
+  color?: Partial<CreativeBrief["color"]>;
   photography?: Partial<CreativeBrief["photography"]>;
+  shapeLanguage?: Partial<CreativeBrief["shapeLanguage"]>;
+  motion?: Partial<CreativeBrief["motion"]>;
   imageInventory?: CreativeBrief["imageInventory"];
 };
 
 export type CreativeRefinement = {
-  fingerprint?: CreativeFingerprintPatch;
   brief?: CreativeBriefPatch;
 };
 
@@ -126,45 +101,35 @@ const CREATIVE_RULES = [
   "Return a single JSON object and nothing else.",
 ].join(" ");
 
-/**
- * Fields Sol may author. Values are free: Sol invents them. Only motionLevel
- * is bounded, because reduced-motion safety needs to know it exactly.
- */
-const FINGERPRINT_FIELDS = {
-  family: null,
-  heroComposition: null,
-  backgroundSystem: null,
-  sectionRhythm: null,
-  navSystem: null,
-  ctaSystem: null,
-  cardSystem: null,
-  proofLayout: null,
-  pricingLayout: null,
-  faqLayout: null,
-  galleryLayout: null,
-  statsLayout: null,
-  timelineLayout: null,
-  footerSystem: null,
-  typeSystem: null,
-  colorSystem: null,
-  sectionTransition: null,
-  pageShell: null,
-  imageTreatment: null,
-  motionPattern: null,
-  motionLevel: ["none", "subtle", "expressive"],
-  density: null,
-} as const satisfies Record<string, readonly string[] | null>;
+
 
 /** Safe-token check only — keeps renderer class names valid, decides nothing. */
 const SAFE_TOKEN = /^[a-z0-9][a-z0-9-]{0,59}$/;
 
 const BRIEF_TEXT_LIMITS = {
+  concept: 180,
   personality: 90,
   heroComposition: 140,
   sectionRhythm: 140,
+  density: 80,
   cardLanguage: 140,
   ctaLanguage: 140,
   backgroundTreatment: 140,
+} as const;
+
+const TYPOGRAPHY_LIMITS = {
+  pairingId: 80,
+  display: 80,
+  body: 80,
+  character: 120,
+  headlineWeight: 80,
+  headlineCase: 80,
+} as const;
+
+const COLOR_LIMITS = {
+  system: 160,
+  strategy: 160,
+  accentUse: 160,
 } as const;
 
 const PHOTOGRAPHY_LIMITS = {
@@ -172,6 +137,17 @@ const PHOTOGRAPHY_LIMITS = {
   lighting: 120,
   environment: 120,
   treatment: 160,
+} as const;
+
+const SHAPE_LIMITS = {
+  radius: 80,
+  border: 100,
+  shadow: 100,
+} as const;
+
+const MOTION_LIMITS = {
+  level: 80,
+  language: 160,
 } as const;
 
 const PROOF_SHAPED_TEXT = /\b(review|testimonial|five[- ]?star|award|certified|licensed|guarantee|before\/?after|proven result|#\s?1|best in|customer logo|case study)\b/i;
@@ -188,10 +164,8 @@ function factSheet(facts: DnaFacts, brief: SiteBrief, creative: FirstBuildCreati
       services: facts.services ?? [],
       hasPublishedPrices: Boolean(facts.hasPrices),
       hasTestimonials: (facts.testimonialCount ?? 0) > 0,
-      audience: creative.audience,
       buyerGoal: brief.buyerGoal,
       primaryAction: brief.primaryAction,
-      objections: creative.industry.objections,
       mustAvoid: creative.industry.avoid,
       unknownFacts: creative.unknowns,
     },
@@ -341,27 +315,6 @@ export function reviewCreativeProposal(input: {
   const rejected: RefinementRejection[] = [];
   if (!input.proposal) return { accepted, rejected: [{ field: "creative", reason: "unreadable answer" }] };
   const gate = input.approvedFields ? new Set(input.approvedFields) : null;
-  const fingerprintRaw = objectAt(input.proposal, "fingerprint");
-  if (fingerprintRaw) {
-    const patch: CreativeFingerprintPatch = {};
-    for (const field of Object.keys(FINGERPRINT_FIELDS) as (keyof typeof FINGERPRINT_FIELDS)[]) {
-      const value = textAt(fingerprintRaw[field], 60);
-      const dotted = `fingerprint.${field}`;
-      if (!value) continue;
-      if (!dottedAllowed(gate, dotted)) {
-        rejected.push({ field: dotted, reason: "not approved by the review pass" });
-        continue;
-      }
-      const bounded = FINGERPRINT_FIELDS[field] as readonly string[] | null;
-      if (bounded ? !bounded.includes(value) : !SAFE_TOKEN.test(value)) {
-        rejected.push({ field: dotted, reason: bounded ? "unknown value" : "not a safe token (lowercase letters, digits, hyphens)" });
-        continue;
-      }
-      if (value === String(input.baseline.fingerprint[field])) continue;
-      (patch as Record<string, string>)[field] = value;
-    }
-    if (Object.keys(patch).length) accepted.fingerprint = patch;
-  }
 
   const briefRaw = objectAt(input.proposal, "brief");
   if (briefRaw) {
@@ -381,6 +334,52 @@ export function reviewCreativeProposal(input: {
       }
       if (value !== String(input.baseline.brief[field])) (brief as Record<string, unknown>)[field] = value;
     }
+
+    const typographyRaw = objectAt(briefRaw, "typography");
+    if (typographyRaw) {
+      const typography: Partial<CreativeBrief["typography"]> = {};
+      for (const [field, max] of Object.entries(TYPOGRAPHY_LIMITS) as [keyof typeof TYPOGRAPHY_LIMITS, number][]) {
+        const dotted = `brief.typography.${field}`;
+        const value = textAt(typographyRaw[field], max);
+        if (!value) continue;
+        if (!dottedAllowed(gate, dotted)) {
+          rejected.push({ field: dotted, reason: "not approved by the review pass" });
+          continue;
+        }
+        typography[field] = value;
+      }
+      const scaleRatio = typographyRaw["scaleRatio"];
+      if (typeof scaleRatio === "number" && Number.isFinite(scaleRatio) && dottedAllowed(gate, "brief.typography.scaleRatio")) {
+        typography.scaleRatio = Math.max(1, Math.min(2, scaleRatio));
+      }
+      const measureCh = typographyRaw["measureCh"];
+      if (typeof measureCh === "number" && Number.isFinite(measureCh) && dottedAllowed(gate, "brief.typography.measureCh")) {
+        typography.measureCh = Math.max(20, Math.min(80, Math.round(measureCh)));
+      }
+      if (Object.keys(typography).length) brief.typography = typography;
+    }
+
+    const colorRaw = objectAt(briefRaw, "color");
+    if (colorRaw) {
+      const color: Partial<CreativeBrief["color"]> = {};
+      for (const [field, max] of Object.entries(COLOR_LIMITS) as [keyof typeof COLOR_LIMITS, number][]) {
+        const dotted = `brief.color.${field}`;
+        const value = textAt(colorRaw[field], max);
+        if (!value) continue;
+        if (!dottedAllowed(gate, dotted)) {
+          rejected.push({ field: dotted, reason: "not approved by the review pass" });
+          continue;
+        }
+        const problem = visualTextProblem(value, input.facts);
+        if (problem) {
+          rejected.push({ field: dotted, reason: problem });
+          continue;
+        }
+        color[field] = value;
+      }
+      if (Object.keys(color).length) brief.color = color;
+    }
+
     for (const field of ["mobileStrategy", "conversionStrategy", "industryConventions"] as const) {
       const dotted = `brief.${field}`;
       const values = listAt(briefRaw[field], field === "conversionStrategy" ? 5 : 4, 140);
@@ -396,6 +395,7 @@ export function reviewCreativeProposal(input: {
       }
       (brief as Record<string, unknown>)[field] = values;
     }
+
     const photographyRaw = objectAt(briefRaw, "photography");
     if (photographyRaw) {
       const photography: Partial<CreativeBrief["photography"]> = {};
@@ -422,6 +422,39 @@ export function reviewCreativeProposal(input: {
       }
       if (Object.keys(photography).length) brief.photography = photography;
     }
+
+    const shapeRaw = objectAt(briefRaw, "shapeLanguage");
+    if (shapeRaw) {
+      const shapeLanguage: Partial<CreativeBrief["shapeLanguage"]> = {};
+      for (const [field, max] of Object.entries(SHAPE_LIMITS) as [keyof typeof SHAPE_LIMITS, number][]) {
+        const dotted = `brief.shapeLanguage.${field}`;
+        const value = textAt(shapeRaw[field], max);
+        if (!value) continue;
+        if (!dottedAllowed(gate, dotted)) {
+          rejected.push({ field: dotted, reason: "not approved by the review pass" });
+          continue;
+        }
+        shapeLanguage[field] = value;
+      }
+      if (Object.keys(shapeLanguage).length) brief.shapeLanguage = shapeLanguage;
+    }
+
+    const motionRaw = objectAt(briefRaw, "motion");
+    if (motionRaw) {
+      const motion: Partial<CreativeBrief["motion"]> = {};
+      for (const [field, max] of Object.entries(MOTION_LIMITS) as [keyof typeof MOTION_LIMITS, number][]) {
+        const dotted = `brief.motion.${field}`;
+        const value = textAt(motionRaw[field], max);
+        if (!value) continue;
+        if (!dottedAllowed(gate, dotted)) {
+          rejected.push({ field: dotted, reason: "not approved by the review pass" });
+          continue;
+        }
+        motion[field] = value;
+      }
+      if (Object.keys(motion).length) brief.motion = motion;
+    }
+
     if (dottedAllowed(gate, "brief.imageInventory")) {
       const imageInventory = imageInventoryAt(briefRaw["imageInventory"], input.facts);
       if (imageInventory.length) brief.imageInventory = imageInventory;
@@ -436,18 +469,19 @@ export function mergeCreativeRefinement(
   creative: FirstBuildCreativeDirection,
   accepted: CreativeRefinement,
 ): FirstBuildCreativeDirection {
-  const fingerprint: DesignFingerprint = accepted.fingerprint
-    ? { ...creative.fingerprint, ...accepted.fingerprint, updatedAt: new Date().toISOString() }
-    : creative.fingerprint;
-  let brief = { ...creative.brief, fingerprintId: fingerprint.id, density: fingerprint.density, motion: { ...creative.brief.motion, level: fingerprint.motionLevel } };
+  let brief = { ...creative.brief };
   if (accepted.brief) {
     const nextBrief = accepted.brief;
     brief = {
       ...brief,
       ...nextBrief,
+      typography: nextBrief.typography ? { ...brief.typography, ...nextBrief.typography } : brief.typography,
+      color: nextBrief.color ? { ...brief.color, ...nextBrief.color } : brief.color,
       photography: nextBrief.photography
         ? { ...brief.photography, ...nextBrief.photography }
         : brief.photography,
+      shapeLanguage: nextBrief.shapeLanguage ? { ...brief.shapeLanguage, ...nextBrief.shapeLanguage } : brief.shapeLanguage,
+      motion: nextBrief.motion ? { ...brief.motion, ...nextBrief.motion } : brief.motion,
       mobileStrategy: nextBrief.mobileStrategy ?? brief.mobileStrategy,
       conversionStrategy: nextBrief.conversionStrategy ?? brief.conversionStrategy,
       industryConventions: nextBrief.industryConventions ?? brief.industryConventions,
@@ -455,7 +489,6 @@ export function mergeCreativeRefinement(
   }
   return {
     ...creative,
-    fingerprint,
     brief,
     imagery: {
       ...creative.imagery,
@@ -476,16 +509,24 @@ export function mergeCreativeRefinement(
 function creativeApprovableFields(proposal: Record<string, unknown> | null): string[] {
   if (!proposal) return [];
   const fields: string[] = [];
-  const fingerprint = objectAt(proposal, "fingerprint");
-  if (fingerprint) {
-    for (const key of Object.keys(fingerprint)) fields.push(`fingerprint.${key}`);
-  }
   const brief = objectAt(proposal, "brief");
   if (brief) {
     for (const key of Object.keys(brief)) {
-      if (key === "photography") {
+      if (key === "typography") {
+        const typography = objectAt(brief, "typography");
+        for (const typographyKey of Object.keys(typography ?? {})) fields.push(`brief.typography.${typographyKey}`);
+      } else if (key === "color") {
+        const color = objectAt(brief, "color");
+        for (const colorKey of Object.keys(color ?? {})) fields.push(`brief.color.${colorKey}`);
+      } else if (key === "photography") {
         const photo = objectAt(brief, "photography");
         for (const photoKey of Object.keys(photo ?? {})) fields.push(`brief.photography.${photoKey}`);
+      } else if (key === "shapeLanguage") {
+        const shape = objectAt(brief, "shapeLanguage");
+        for (const shapeKey of Object.keys(shape ?? {})) fields.push(`brief.shapeLanguage.${shapeKey}`);
+      } else if (key === "motion") {
+        const motion = objectAt(brief, "motion");
+        for (const motionKey of Object.keys(motion ?? {})) fields.push(`brief.motion.${motionKey}`);
       } else {
         fields.push(`brief.${key}`);
       }
@@ -510,15 +551,19 @@ async function refineCreativeWithCollective(input: {
   const current = creativeSheet(input.creative);
   const vocabulary = JSON.stringify(
     {
-      fingerprintFields: Object.keys(FINGERPRINT_FIELDS),
-      boundedFields: { motionLevel: FINGERPRINT_FIELDS.motionLevel },
       briefFields: [
+        "concept",
         "personality",
+        "typography",
+        "color",
         "heroComposition",
         "sectionRhythm",
+        "density",
         "cardLanguage",
         "ctaLanguage",
         "backgroundTreatment",
+        "shapeLanguage",
+        "motion",
         "mobileStrategy",
         "conversionStrategy",
         "industryConventions",
@@ -548,7 +593,8 @@ async function refineCreativeWithCollective(input: {
       "FIELDS YOU MAY AUTHOR (values are yours to invent):",
       vocabulary,
       "",
-      "Return JSON with keys fingerprint and brief. fingerprint values are your own short lowercase-hyphenated tokens; only motionLevel must use the listed values (it drives reduced-motion safety).",
+      "Return JSON with one key: brief. Do not return a designRecord, fingerprint, template, archetype or preset.",
+      "brief.concept is required. Author typography, color, heroComposition, sectionRhythm, density, cardLanguage, ctaLanguage, backgroundTreatment, shapeLanguage, motion, mobileStrategy, conversionStrategy, industryConventions and photography as your own words.",
       "brief.imageInventory must be a page-aware picture campaign of as many pictures as your design needs (none is fine; at most 28 for generation cost). Invent a short lowercase-hyphenated semantic slot for each image; there is no slot catalogue. Each item: slot, label, purpose, subject, environment, action, lighting, camera, framing, focalPoint and negativeSpace (your own words), aspectRatio (16:9|4:3|1:1|3:2), palette, mood, section (array of exact intended section roles), mobileCrop, altText.",
       "Every picture must have a distinct job in the final site. Generated images are marketing visuals, never staff, customer proof, completed-work evidence, reviews, awards or results.",
     ].join("\n"),
@@ -589,7 +635,7 @@ async function refineCreativeWithCollective(input: {
       "SOL PROPOSAL:",
       JSON.stringify(proposal, null, 2),
       "",
-      'Return JSON: {"approvedFields": ["fingerprint.heroComposition"], "rejected": [{"field": "...", "reason": "..."}]}',
+      'Return JSON: {"approvedFields": ["brief.heroComposition"], "rejected": [{"field": "...", "reason": "..."}]}',
     ].join("\n"),
   });
 
@@ -616,10 +662,7 @@ async function refineCreativeWithCollective(input: {
     baseline: input.creative,
     approvedFields,
   });
-  const acceptedFields = [
-    ...Object.keys(gated.accepted.fingerprint ?? {}).map((key) => `fingerprint.${key}`),
-    ...Object.keys(gated.accepted.brief ?? {}).map((key) => `brief.${key}`),
-  ];
+  const acceptedFields = Object.keys(gated.accepted.brief ?? {}).map((key) => `brief.${key}`);
   const solPass = passes.find((pass) => pass.purpose === "creative_direction");
   if (solPass) {
     solPass.acceptedFields = acceptedFields;
@@ -628,8 +671,8 @@ async function refineCreativeWithCollective(input: {
     if (!acceptedFields.length && !solPass.skipped)
       solPass.skipped = "every proposed creative field was refused by the safety check";
   }
-  if (!acceptedFields.length || !gated.accepted.brief?.imageInventory?.length)
-    throw new Error("The reviewed creative direction did not include a complete AI-authored picture campaign. Nothing was generated.");
+  if (!acceptedFields.length)
+    throw new Error("The reviewed creative direction did not include any usable AI-authored design decisions. Nothing was generated.");
   return {
     creative: mergeCreativeRefinement(input.creative, gated.accepted),
     changed: true,
@@ -676,6 +719,8 @@ export async function refineFirstBuildWithCollective(input: {
       {
         heroHeadline: input.copy.heroHeadline,
         heroSubheadline: input.copy.heroSubheadline,
+        primaryCta: input.copy.primaryCta,
+        secondaryCta: input.copy.secondaryCta,
         intro: input.copy.intro,
         about: input.copy.about,
         areaCopy: input.copy.areaCopy,
@@ -688,11 +733,11 @@ export async function refineFirstBuildWithCollective(input: {
     ),
     "",
     "Write the whole website's wording yourself. Return JSON with EVERY key:",
-    "heroHeadline, heroSubheadline, intro, about, areaCopy,",
+    "heroHeadline, heroSubheadline, primaryCta (<=24 chars), secondaryCta (<=24 chars), intro, about, areaCopy,",
     "benefits (3-6 strings), serviceCards (array of {name, copy} — names exactly as given, same order),",
     "faqs (3-8 {question, answer} you choose, answerable only from the facts),",
     "metaTitle (<=60 chars), metaDescription (<=155 chars), ogTitle, ogDescription.",
-    "Every sentence must be supported by the facts. Do not add other keys.",
+    "Every sentence and button label must be supported by the facts and conversion goal. Do not add other keys.",
   ].join("\n");
 
   /* -------------------------------- 1. Sol -------------------------------- */
@@ -708,7 +753,7 @@ export async function refineFirstBuildWithCollective(input: {
   });
 
   let solProposal: Record<string, unknown> | null = null;
-  const requiredContent = ["heroHeadline", "heroSubheadline", "metaTitle", "metaDescription"];
+  const requiredContent = ["heroHeadline", "heroSubheadline", "primaryCta", "metaTitle", "metaDescription"];
   const incomplete = (proposal: Record<string, unknown> | null) =>
     !proposal || requiredContent.some((field) => typeof proposal[field] !== "string" || !(proposal[field] as string).trim());
   if (solCall.ok) solProposal = parseRefinement(solCall.text);
@@ -721,7 +766,7 @@ export async function refineFirstBuildWithCollective(input: {
       maxOutputTokens: 6000,
       ...(input.signal ? { signal: input.signal } : {}),
       system: `${RULES} You are the master content strategist repairing an incomplete first-build response. Follow the approved creative direction without adding unsupported facts.`,
-      user: `${contentPrompt}\n\nREPAIR: The previous response was missing required wording or malformed. Return one complete JSON object only, including every requested key and non-empty heroHeadline, heroSubheadline, metaTitle, and metaDescription.`,
+      user: `${contentPrompt}\n\nREPAIR: The previous response was missing required wording or malformed. Return one complete JSON object only, including every requested key and non-empty heroHeadline, heroSubheadline, primaryCta, metaTitle, and metaDescription.`,
     });
     solProposal = solCall.ok ? parseRefinement(solCall.text) : null;
   }

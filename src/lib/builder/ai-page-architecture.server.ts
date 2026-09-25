@@ -40,7 +40,7 @@ export async function proposePageArchitecture(input: {
   organizationId: string;
   businessName: string;
   industry: string | null;
-  conversionGoal: string;
+  conversionGoal: string | null;
   candidate: PageArchitecture[];
   /** Real supplied facts so the plan can cover the whole business. */
   description?: string | null;
@@ -59,7 +59,7 @@ export async function proposePageArchitecture(input: {
   const businessFacts = {
     business: input.businessName,
     industry: input.industry ?? null,
-    conversionGoal: input.conversionGoal,
+    conversionGoal: input.conversionGoal?.trim() || null,
     description: input.description?.trim().slice(0, 1200) || null,
     services: input.services?.filter((service) => service.trim()).slice(0, 30) ?? [],
     serviceArea: input.serviceArea?.trim() || null,

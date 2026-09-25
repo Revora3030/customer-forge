@@ -55,7 +55,7 @@ export const SPECIALIST_SIX: Specialist[] = [
       "quality_review",
       "synthesis",
       "hard_request",
-      "design_fingerprint",
+      "design_record",
       "code_analysis",
     ],
     capabilities: [

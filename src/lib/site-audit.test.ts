@@ -163,7 +163,7 @@ describe("conversion engine", () => {
   it("normalizes free-text goals", () => {
     expect(normalizeGoal("Get my quote")).toBe("quote");
     expect(normalizeGoal("Call now")).toBe("call");
-    expect(normalizeGoal("Book online")).toBe("book");
+    expect(normalizeGoal("Book appointments")).toBe("book");
     expect(normalizeGoal(null, "lead")).toBe("lead");
   });
 
@@ -172,6 +172,12 @@ describe("conversion engine", () => {
     expect(ladder[0]?.key).toBe("call");
     expect(ladder[0]?.href).toBe("tel:9195550100");
     expect(ladder.filter((step) => step.available).length).toBeGreaterThanOrEqual(4);
+  });
+
+  it("stays neutral when no owner goal is saved", () => {
+    expect(normalizeGoal(null)).toBeNull();
+    expect(ctaLadder(null, ctx)).toEqual([]);
+    expect(conversionGaps(null, ctx, ["hero", "cta"], [])).toEqual([]);
   });
 
   it("flags a primary goal that cannot be completed", () => {

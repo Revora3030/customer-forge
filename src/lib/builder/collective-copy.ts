@@ -3,12 +3,12 @@
  *
  * Sol, Terra and Luna may only *improve wording that already describes facts
  * the owner supplied*. This module is the gate between a model's proposal and
- * the deterministic builder: it parses the proposal, throws away anything that
+ * the safety gate: it parses the proposal, throws away anything that
  * invents a claim, a phone number, an email, a price or a service name, and
  * returns only the fields that are safe to merge.
  *
  * It is pure and environment-free so every rule is unit-testable, and the
- * deterministic copy always survives a rejected field untouched.
+ * existing copy always survives a rejected field untouched.
  */
 import { screenClaims, type DnaFacts } from "@/lib/business-dna";
 import type { SiteCopy } from "@/lib/site-engine";
@@ -17,6 +17,8 @@ import type { SiteCopy } from "@/lib/site-engine";
 export const REFINABLE_TEXT_FIELDS = {
   heroHeadline: 90,
   heroSubheadline: 200,
+  primaryCta: 24,
+  secondaryCta: 24,
   intro: 700,
   about: 1000,
   areaCopy: 450,
@@ -108,9 +110,10 @@ export function screenText(
 }
 
 /**
- * Validates a whole proposal against the owner's facts and the deterministic
+ * Validates a whole proposal against the owner's facts and the existing
  * baseline. Service names and FAQ questions are locked: a model may improve the
- * answer, never rename the offer or invent a new question.
+ * answer, never rename the offer or invent a new question. Button labels are
+ * allowed only when they pass the same truth and contact-detail checks.
  */
 export function reviewRefinement(input: {
   proposal: Record<string, unknown> | null;
@@ -230,7 +233,7 @@ export function reviewRefinement(input: {
   return { accepted, rejected };
 }
 
-/** Applies accepted wording to the deterministic copy. Never mutates input. */
+/** Applies accepted wording. Never mutates input. */
 export function mergeRefinement(copy: SiteCopy, accepted: CopyRefinement): SiteCopy {
   const next: SiteCopy = {
     ...copy,

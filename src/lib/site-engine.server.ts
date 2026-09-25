@@ -58,11 +58,11 @@ export type CopyFacts = {
 };
 
 /**
- * Included-builder mode. Every generation stage has a deterministic Revora
- * fallback. Provider denial is isolated to the tenant whose request failed:
- * one customer's outage must never force unrelated customers onto fallback
- * copy. This memory is only an optimization; provider routing remains the
- * source of truth for eligibility and quota enforcement.
+ * Per-tenant AI cooldown. Provider denial is isolated to the tenant whose
+ * request failed: one customer's outage must never pause unrelated customers.
+ * This memory is only an optimization; provider routing remains the source of
+ * truth for eligibility and quota enforcement. Builds still fail honestly when
+ * the AI team cannot author required content.
  */
 const AI_COOLDOWN_MS = 30 * 60 * 1000;
 const aiUnavailableUntilByTenant = new Map<string, number>();
@@ -89,7 +89,7 @@ async function chatJson(
   caller?: { organizationId?: string | null; userId?: string | null; task?: string },
 ): Promise<Record<string, unknown>> {
   if (!isAiAvailable(caller?.organizationId))
-    throw new RevoraAiError(402, "Revora is writing this build from your own business details.", {
+    throw new RevoraAiError(402, "The AI team is temporarily unavailable for this workspace. The build stopped without using a fallback writer.", {
       category: "quota",
     });
 
@@ -111,8 +111,8 @@ async function chatJson(
     return result.data;
   } catch (error) {
     // A missing provider, a rejected key or a provider refusal will keep being
-    // refused, so stop asking for a cooldown window and let the deterministic
-    // Revora builder finish the site from the owner's own details.
+    // refused for a cooldown window. The caller fails honestly rather than
+    // replacing the AI team with a deterministic website writer.
     if (
       error instanceof RevoraAiError &&
       ["not_configured", "free_unavailable", "unauthorized", "quota", "policy"].includes(error.category)
@@ -191,6 +191,9 @@ export async function generateSiteCopy(
 ): Promise<SiteCopy> {
   const dnaFacts = dnaFor(facts);
   const dna = businessDna(dnaFacts);
+  const actionInstruction = facts.ctaLabel.trim()
+    ? `The owner-supplied action label is: ${facts.ctaLabel}.`
+    : "Author the primary and secondary button labels yourself from the supplied facts and conversion goal.";
   const data = await chatJson(
     `Return JSON with exactly these keys: heroHeadline (max 70 chars), heroSubheadline (max 160 chars),
 primaryCta (max 24 chars), secondaryCta (max 24 chars), intro (2 sentences),
@@ -199,7 +202,7 @@ serviceCards (array of {name, copy} — one per supplied service, copy max 220 c
 faqs (array of 4-6 {question, answer} relevant to this category, services and area — never promise anything not supplied),
 areaCopy (2 sentences about where they work; omit places not supplied),
 metaTitle (max 60 chars), metaDescription (max 155 chars), ogTitle (max 60 chars), ogDescription (max 155 chars).`,
-    `Write the website copy for this business. The main action visitors should take is: ${facts.ctaLabel}.${briefContext(brief)}\n\nBUSINESS DNA (authoritative — follow the strategy and the never-claim list):\n${dnaBrief(dna)}\n\nFACTS:\n${factSheet(facts)}`,
+    `Write the website copy for this business. ${actionInstruction}${briefContext(brief)}\n\nBUSINESS FACTS AND SAFETY LEDGER (do not treat this as a wording template):\n${dnaBrief(dna)}\n\nFACTS:\n${factSheet(facts)}`,
   );
 
   const cards = Array.isArray(data["serviceCards"])
@@ -210,12 +213,12 @@ metaTitle (max 60 chars), metaDescription (max 155 chars), ogTitle (max 60 chars
   const clean = (value: string) => stripUnsupportedClaims(value, dnaFacts);
 
   return {
-    heroHeadline: clean(str(data["heroHeadline"], facts.businessName)) || facts.businessName,
+    heroHeadline: clean(str(data["heroHeadline"])),
     heroSubheadline: clean(str(data["heroSubheadline"])),
-    primaryCta: str(data["primaryCta"], facts.ctaLabel),
-    secondaryCta: str(data["secondaryCta"], "See services"),
+    primaryCta: str(data["primaryCta"]),
+    secondaryCta: str(data["secondaryCta"]),
     intro: clean(str(data["intro"])),
-    about: clean(str(data["about"], facts.description ?? "")),
+    about: clean(str(data["about"])),
     benefits: (Array.isArray(data["benefits"]) ? (data["benefits"] as unknown[]) : [])
       .filter((b): b is string => typeof b === "string" && b.trim().length > 0)
       .filter((b) => screenClaims(b, dnaFacts).length === 0)
@@ -228,9 +231,9 @@ metaTitle (max 60 chars), metaDescription (max 155 chars), ogTitle (max 60 chars
       .filter((f) => f.question && f.answer)
       .slice(0, 6),
     areaCopy: clean(str(data["areaCopy"])),
-    metaTitle: str(data["metaTitle"], facts.businessName).slice(0, 60),
+    metaTitle: str(data["metaTitle"]).slice(0, 60),
     metaDescription: str(data["metaDescription"]).slice(0, 158),
-    ogTitle: str(data["ogTitle"], str(data["metaTitle"], facts.businessName)).slice(0, 60),
+    ogTitle: str(data["ogTitle"], str(data["metaTitle"])).slice(0, 60),
     ogDescription: str(data["ogDescription"], str(data["metaDescription"])).slice(0, 158),
   };
 }
@@ -398,7 +401,7 @@ export function blankCopy(facts: CopyFacts): SiteCopy {
   return {
     heroHeadline: "",
     heroSubheadline: "",
-    primaryCta: (facts.ctaLabel ?? "").slice(0, 24),
+    primaryCta: "",
     secondaryCta: "",
     intro: "",
     about: "",

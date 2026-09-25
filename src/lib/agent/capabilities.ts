@@ -61,7 +61,7 @@ export const CAPABILITIES: Capability[] = [
     id: "design",
     label: "look and feel",
     guidance:
-      "Change brand colours, accent colour and font preference, and pick section variants that improve hierarchy, contrast, rhythm and readability. Judge this yourself from the request's feeling words — never ask the owner to name a colour or a font.",
+      "Change brand colours, accent colour, font preference, composition trees and direct section/component styles. Judge this yourself from the request's feeling words — never ask the owner to name a colour or a font.",
   },
   {
     id: "motion",

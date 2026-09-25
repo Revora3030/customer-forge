@@ -1,22 +1,16 @@
 /**
  * CREATIVE AUTHORITY — WHO IS ALLOWED TO DESIGN THE WEBSITE.
  *
- * Exactly one answer: the AI. This module compiles the AI-owned design
- * specification (fingerprint + reviewed creative brief + page architecture) into
- * the canonical AI design contract, and refuses every other route to a design.
- *
- * The fingerprint is treated as a DESIGN SPECIFICATION, not a template id: its
- * values are read as the AI's stated choices (hero composition, colour system,
- * motion, art direction) and written into the contract as explicit design
- * decisions. Nothing here resolves to "use template X", and there is no
- * deterministic design to fall back to: when the AI cannot produce a usable
- * design, the build fails loudly and asks for another attempt.
+ * Exactly one answer: the AI. This module compiles the reviewed AI creative
+ * brief plus the AI page architecture into the canonical AI design contract.
+ * There is no persisted fingerprint, template id, archetype or deterministic
+ * creative fallback in this path. Code may reject unsafe or incomplete output; it
+ * may not replace creative decisions with house choices.
  *
  * Pure module: no environment, no network, no secrets.
  */
 
 import type { CreativeBrief } from "@/lib/builder/first-build-contract";
-import type { DesignFingerprint } from "@/lib/builder/design-fingerprint";
 import {
   CREATIVE_AUTHORITY,
   REQUIRED_RESPONSIVE_WIDTHS,
@@ -45,10 +39,20 @@ export type PageArchitecture = {
   title: string;
   purpose: string;
   primaryAction: string;
-  /** Section roles in the AI's intended order for this page. */
   /** The AI's own per-width behaviour, when it described one. */
   responsive?: Partial<Record<number, Partial<ResponsiveBehaviour>>>;
-  sections: { role: string; layout?: string; intent?: string; media?: SectionDesign["media"]; heading?: string | null; subheading?: string | null; body?: string | null; custom?: boolean; includes?: ("primary_action" | "service_cards")[] }[];
+  /** Section roles in the AI's intended order for this page. */
+  sections: {
+    role: string;
+    layout?: string;
+    intent?: string;
+    media?: SectionDesign["media"];
+    heading?: string | null;
+    subheading?: string | null;
+    body?: string | null;
+    custom?: boolean;
+    includes?: ("primary_action" | "service_cards")[];
+  }[];
 };
 
 /**
@@ -70,6 +74,8 @@ function responsivePlan(input: {
   return plan;
 }
 
+const briefText = (value: string | null | undefined) => value?.trim() ?? "";
+
 /**
  * Compiles the AI's creative decisions into the canonical contract. The page
  * architecture argument is the AI's own page plan; this function does not invent
@@ -77,12 +83,11 @@ function responsivePlan(input: {
  */
 export function compileAiDesignContract(input: {
   businessName: string;
-  fingerprint: DesignFingerprint;
   brief: CreativeBrief;
   architecture: PageArchitecture[];
   directedBy: string;
   reviewedBy?: string | null;
-  conversionGoal: string;
+  conversionGoal: string | null;
   navigationItems: string[];
   primaryAction: string;
   secondaryAction?: string | null;
@@ -115,66 +120,63 @@ export function compileAiDesignContract(input: {
     reviewedBy: input.reviewedBy ?? null,
     identity: {
       name: input.businessName,
-      concept: [input.brief.concept, input.fingerprint.family].filter(Boolean).join(" — "),
-      personality: input.brief.personality,
+      concept: briefText(input.brief.concept),
+      personality: briefText(input.brief.personality),
       differentiators: input.differentiators ?? input.brief.industryConventions,
     },
     typography: {
-      display: input.brief.typography.display,
-      body: input.brief.typography.body,
+      display: briefText(input.brief.typography.display),
+      body: briefText(input.brief.typography.body),
       scaleRatio: input.brief.typography.scaleRatio,
-      headlineCase: input.brief.typography.headlineCase,
-      headlineWeight: input.brief.typography.headlineWeight,
+      headlineCase: briefText(input.brief.typography.headlineCase),
+      headlineWeight: briefText(input.brief.typography.headlineWeight),
       measureCh: input.brief.typography.measureCh,
     },
     color: {
-      background: input.brief.color.system,
-      surface: input.fingerprint.backgroundSystem,
-      text: input.brief.color.accentUse,
-      accent: input.fingerprint.colorSystem,
+      background: briefText(input.brief.color.system),
+      surface: briefText(input.brief.backgroundTreatment),
+      text: briefText(input.brief.color.accentUse),
+      accent: briefText(input.brief.color.accentUse || input.brief.color.system),
       extras: {},
-      // Recorded as the AI wrote it — no mapping to a fixed set of modes.
-      mode: input.brief.color.strategy,
+      mode: briefText(input.brief.color.strategy),
     },
-    backgrounds: [input.fingerprint.backgroundSystem, input.brief.backgroundTreatment],
-    // No numeric spacing or grid scale is invented here: the AI's composition
-    // nodes carry the real values, and this records only its stated intent.
-    spacing: { rhythm: input.brief.sectionRhythm, density: input.fingerprint.density },
-    grid: { behaviour: input.fingerprint.pageShell },
+    backgrounds: [input.brief.backgroundTreatment].filter(Boolean),
+    spacing: { rhythm: briefText(input.brief.sectionRhythm), density: briefText(input.brief.density) },
+    grid: { behaviour: briefText(input.brief.sectionRhythm) },
     navigation: {
-      structure: input.fingerprint.navSystem,
+      structure: briefText(input.brief.mobileStrategy[0]),
       items: input.navigationItems,
-      behaviour: input.brief.mobileStrategy[0] ?? "",
+      behaviour: briefText(input.brief.mobileStrategy[0]),
     },
     hero: {
-      composition: input.fingerprint.heroComposition,
-      mediaTreatment: input.fingerprint.imageTreatment,
-      intent: input.brief.conversionStrategy[0] ?? input.conversionGoal,
+      composition: briefText(input.brief.heroComposition),
+      mediaTreatment: briefText(input.brief.photography.treatment),
+      intent: briefText(input.brief.conversionStrategy[0]),
     },
     cta: {
-      system: input.fingerprint.ctaSystem,
+      system: briefText(input.brief.ctaLanguage),
       primary: input.primaryAction,
       secondary: input.secondaryAction ?? null,
       placement: input.architecture.flatMap((page) =>
-        page.sections.filter((section) => section.includes?.includes("primary_action")).map((section) => `${page.slug}:${section.role}`),
+        page.sections
+          .filter((section) => section.includes?.includes("primary_action"))
+          .map((section) => `${page.slug}:${section.role}`),
       ),
     },
-    cards: { style: input.fingerprint.cardSystem, mediaRatio: input.fingerprint.artDirection.aspectRatio },
-    // Which fields a form collects is set by the form itself from the owner's
-    // setup; no field list is invented here.
-    forms: { layout: input.fingerprint.formLayout, fields: [] },
+    cards: { style: briefText(input.brief.cardLanguage), mediaRatio: "" },
+    forms: { layout: "", fields: [] },
     imagery: {
-      artDirection: `${input.brief.photography.language}; ${input.brief.photography.lighting}`,
-      treatment: input.fingerprint.imageTreatment,
+      artDirection: [input.brief.photography.language, input.brief.photography.lighting].filter(Boolean).join("; "),
+      treatment: briefText(input.brief.photography.treatment),
       slots: input.brief.imageInventory.map((entry) => entry.slot),
     },
-    motion: { pattern: input.fingerprint.motionPattern, intensity: input.fingerprint.motionLevel },
+    motion: { pattern: briefText(input.brief.motion.language), intensity: briefText(input.brief.motion.level) },
     accessibility: {
       minContrast: Math.max(4.5, input.brief.color.minBodyContrast),
       minTouchTargetPx: 44,
       reducedMotionSafe: true,
     },
-    conversion: { goal: input.conversionGoal, steps: input.brief.conversionStrategy },
+    conversion: { goal: input.conversionGoal?.trim() || null, steps: input.brief.conversionStrategy },
     qualityMatrix: input.brief.qualityMatrix,
     pages,
   };

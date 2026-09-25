@@ -8,7 +8,7 @@
 import { callBestThinker, callHallOfFame } from "@/lib/ai/hall-of-fame.server";
 import type { CollectivePurpose } from "@/lib/ai/collective";
 
-export type ReviewArea = "design" | "conversion" | "truthfulness" | "seo" | "accessibility" | "mobile";
+export type ReviewArea = "conversion" | "truthfulness" | "seo" | "accessibility" | "mobile";
 
 export type ReviewNote = { area: ReviewArea; issues: string[]; severity: "low" | "medium" | "high"; model: string | null };
 
@@ -17,7 +17,6 @@ export type Thinker = typeof callBestThinker;
 type Reviewer = { area: ReviewArea; purpose: CollectivePurpose; complexity: "high" | "medium" | "low"; brief: string };
 
 const FULL_PANEL: Reviewer[] = [
-  { area: "design", purpose: "design_alternative", complexity: "medium", brief: "Critique visual hierarchy, spacing, rhythm, typography and whether each section feels premium and distinct." },
   { area: "conversion", purpose: "conversion_architecture", complexity: "high", brief: "Critique the conversion flow: clarity of offer, call-to-action placement, friction, trust signals built only from supplied facts." },
   { area: "truthfulness", purpose: "adversarial_review", complexity: "medium", brief: "Flag any wording that states facts, prices, reviews, awards or results not present in the supplied material." },
   { area: "seo", purpose: "seo_analysis", complexity: "medium", brief: "Critique heading structure, keyword clarity, internal links and alt text." },
@@ -54,7 +53,7 @@ export function parseNote(text: string, area: ReviewArea, model: string | null):
  * panel draws on several providers instead of one model repeated six times.
  * If the free squad cannot answer, that reviewer falls back to Terra/Sol.
  */
-const DIVERSE_AREAS = new Set<ReviewArea>(["design", "conversion", "seo", "accessibility", "mobile"]);
+const DIVERSE_AREAS = new Set<ReviewArea>(["conversion", "seo", "accessibility", "mobile"]);
 
 export const diverseThinker: Thinker = async (request) => {
   const purpose = request.purpose;

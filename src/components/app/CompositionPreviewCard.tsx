@@ -37,12 +37,6 @@ export function CompositionPreviewCard({ composition }: { composition: Compositi
           >
             {composition.mood}
           </p>
-          <span
-            className="mt-2 inline-block rounded-md px-2.5 py-1 text-[11.5px] font-medium"
-            style={{ background: colors.accent, color: tone === "dark" ? "#0b0b0b" : "#ffffff" }}
-          >
-            Get in touch
-          </span>
         </div>
       </div>
 

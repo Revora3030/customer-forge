@@ -13,8 +13,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { safeLinkUrl } from "@/lib/website-content";
 import { effectForKind, type DesignDirection } from "@/lib/authored-direction";
 import { writeSectionEffect } from "@/lib/site-effects";
-import { writeComponentVisual, writeSectionVisual } from "@/lib/site-style";
-import type { DesignFingerprint } from "@/lib/builder/design-fingerprint";
+import { writeComponentVisual } from "@/lib/site-style";
 import type { FirstBuildImageAsset } from "@/lib/builder/first-build-images.server";
 import type { CreativeBrief } from "@/lib/builder/first-build-contract";
 import { slugify } from "@/lib/format";
@@ -72,9 +71,7 @@ export type MaterializeInput = {
   /** The industry-specific visual identity selected for this first build. */
   direction?: DesignDirection | null;
   /** The kind of website this business needs (restaurant, clinic, shop …). */
-  /** Complete composition identity resolved before first materialization. */
-  fingerprint?: DesignFingerprint | null;
-  /** Approved Sol/Terra presentation brief, compiled into a finite renderer contract. */
+  /** Approved Sol/Terra presentation brief, compiled into a renderer contract. */
   creativeBrief?: CreativeBrief | null;
   /** Safe generated starter pictures saved in tenant media for this first build. */
   generatedAssets?: FirstBuildImageAsset[];
@@ -109,6 +106,28 @@ type Component = {
   media_url?: string | null;
   settings?: Record<string, unknown> | null;
 };
+
+function primaryActionTarget(input: {
+  primaryAction: string;
+  architecture: PageArchitecture[];
+  hasQuoteForm: boolean;
+  hasBooking: boolean;
+}): string {
+  const action = input.primaryAction.toLowerCase();
+  const roles = new Set(
+    input.architecture.flatMap((page) => page.sections.map((section) => section.role)),
+  );
+  const hasQuote = input.hasQuoteForm && roles.has("quote");
+  const hasBooking = input.hasBooking && roles.has("booking");
+  const hasContact = roles.has("contact");
+  if (hasBooking && /\b(book|booking|schedule|appointment|reserve)\b/.test(action)) return "/book";
+  if (hasQuote && /\b(quote|estimate|price|pricing|cost|proposal)\b/.test(action)) return "/#quote";
+  if (hasContact || /\b(call|contact|email|message|talk|consult)\b/.test(action)) return "/contact";
+  if (hasBooking) return "/book";
+  if (hasQuote) return "/#quote";
+  if (hasContact) return "/contact";
+  throw new Error("The AI-authored primary action does not match a real quote, booking or contact destination, so nothing was created. Please try again in a moment.");
+}
 
 type Section = {
   kind: string;
@@ -204,7 +223,6 @@ export function applyAuthoredHeadings(pages: Page[], architecture: PageArchitect
 export function materializedSectionDesign(
   kind: string,
   direction: DesignDirection | null | undefined,
-  _fingerprint?: DesignFingerprint | null,
   _index = 0,
   _creativeBrief?: CreativeBrief | null,
 ): { variant: string; settings: Record<string, unknown> } {
@@ -291,7 +309,12 @@ export async function materializeSiteContent(
     primaryAction: page.primaryAction,
     sections: page.sections.map((section) => ({ role: section.role, layout: section.layout, intent: section.intent, media: section.media })),
   }));
-  const primaryTarget = input.hasQuoteForm ? "/#quote" : input.hasBooking ? "/book" : "/contact";
+  const primaryTarget = primaryActionTarget({
+    primaryAction,
+    architecture,
+    hasQuoteForm: input.hasQuoteForm,
+    hasBooking: input.hasBooking,
+  });
   const generatedByLabel = new Map((input.generatedAssets ?? []).map((asset) => [asset.label.toLowerCase(), asset]));
   const contentSlots = architecture.flatMap((page) =>
     page.sections
@@ -360,7 +383,7 @@ export async function materializeSiteContent(
     }),
   }));
   let authoredArchitecture: PageArchitecture[] | null = null;
-  if (!designContract && input.fingerprint && input.creativeBrief) {
+  if (!designContract && input.creativeBrief) {
     // No template fallback: the page set, section selection and order come from
     // the design team's own plan. When it could not author one, the build stops
     // and says so rather than shipping the renderer's inventory as a design.
@@ -373,11 +396,10 @@ export async function materializeSiteContent(
     designContract = requireAiDesignContract({
       attempt: compileAiDesignContract({
         businessName: input.businessName,
-        fingerprint: input.fingerprint,
         brief: input.creativeBrief,
         directedBy: input.directedBy ?? "gpt-6-sol",
         reviewedBy: input.reviewedBy ?? null,
-        conversionGoal: input.conversionGoal ?? "enquiries",
+        conversionGoal: input.conversionGoal?.trim() || null,
         navigationItems: architecture.map((page) => page.title),
         primaryAction,
         secondaryAction: clean(input.copy.secondaryCta),
@@ -420,7 +442,6 @@ export async function materializeSiteContent(
       const design = materializedSectionDesign(
         section.kind,
         input.direction,
-        input.fingerprint,
         pageIndex * 37 + sectionIndex,
         input.creativeBrief,
       );

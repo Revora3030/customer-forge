@@ -394,7 +394,7 @@ export function BookingForm({ site }: { site: Site }) {
       }}
     >
       <div>
-        <p className="eyebrow">Book now</p>
+        <p className="eyebrow">Appointment request</p>
         <h3 className="mt-1 font-display text-[19px] font-semibold">Request your appointment</h3>
       </div>
 

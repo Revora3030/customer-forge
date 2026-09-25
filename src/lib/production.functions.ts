@@ -263,9 +263,8 @@ async function gatherReadiness(
     {
       key: "quality",
       label: "Website quality check",
-      // Both layers must pass: clean content AND a real-browser measurement at
-      // 95+. A score built only from stored text can never prove the pages
-      // look right, so an unmeasured website does not pass.
+      // Both layers must pass: clean content and concrete browser evidence.
+      // A stored-text score alone can never prove the pages render safely.
       ok: quality.productionReady,
       detail: !quality.ready
         ? (quality.blockers[0]?.detail ??
@@ -274,7 +273,7 @@ async function gatherReadiness(
           ? "The content passes. Now run the visual check so Revora can measure the pages on real phone and desktop screen sizes."
           : !quality.productionReady
             ? (quality.issues.find((item) => item.severity === "blocker")?.detail ??
-              `Measured quality score ${quality.score}/100 — 95 is needed before launch. Fix the findings from the visual check and run it again.`)
+              "The browser check found launch blockers. Fix those findings and run it again.")
             : `Quality score ${quality.score}/100, verified in a real browser at phone and desktop sizes.`,
     },
     {

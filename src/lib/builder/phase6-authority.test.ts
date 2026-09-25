@@ -8,7 +8,7 @@ describe("phase 6: AI layouts by default, approval is safety-only", () => {
   it("planner offers set_composition and makes it the default layout path", () => {
     const src = readFileSync("src/lib/builder/ai-agent-plan.server.ts", "utf8");
     expect(src).toContain('"type":"set_composition"');
-    expect(src).toContain("DEFAULT LAYOUT RULE");
+    expect(src).not.toContain("set_section_visual");
   });
 
   it("creative production work runs without approval; destructive/billing needs a human", () => {
@@ -34,7 +34,7 @@ describe("phase 6: AI layouts by default, approval is safety-only", () => {
     expect(luna).toMatch(/length/);
     for (const f of ["src/lib/ai/luna.server.ts", "src/lib/ai/router.server.ts", "src/lib/ai/hall-of-fame.server.ts"]) {
       const s = readFileSync(f, "utf8");
-      expect(s).not.toMatch(/createDesignFingerprint|SITE_ARCHETYPES|template-gallery|site-archetypes/);
+      expect(s).not.toMatch(/createAiDesignRecord|SITE_ARCHETYPES|template-gallery|site-archetypes/);
     }
   });
 });

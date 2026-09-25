@@ -66,7 +66,7 @@ const QA_TASKS = new Set([
   "information_architecture",
   "conversion_architecture",
   "content_strategy",
-  "design_fingerprint",
+  "design_record",
   "visual_review",
   "image_hero",
   "image_support",

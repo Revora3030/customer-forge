@@ -68,7 +68,7 @@ export type TaskKind =
   | "quality_review"
   | "synthesis"
   | "hard_request"
-  | "design_fingerprint"
+  | "design_record"
   // senior verification
   | "adversarial_review"
   | "second_opinion"
@@ -192,8 +192,8 @@ const CONTRACTS: Record<TaskKind, TaskContract> = {
     "reasoning",
     "structured_output",
   ]),
-  design_fingerprint: text(
-    "design_fingerprint",
+  design_record: text(
+    "design_record",
     "high",
     ["image_input", "reasoning", "structured_output"],
     { inputModality: "image" },

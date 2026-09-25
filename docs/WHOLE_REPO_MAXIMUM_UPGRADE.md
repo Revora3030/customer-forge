@@ -35,7 +35,7 @@ No part of this upgrade:
 
 - adds a new paid AI provider;
 - bypasses authentication, RLS, tenant isolation or Stripe;
-- writes directly to the database from the deterministic builder;
+- lets non-AI code author customer-site creative decisions;
 - invents reviews, pricing, credentials, guarantees or business results;
 - treats a static scan as proof of browser, database, provider or production behavior.
 

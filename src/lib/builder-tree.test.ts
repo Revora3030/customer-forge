@@ -181,11 +181,11 @@ describe("AI addressing", () => {
   });
 
   it("offers deterministic suggestions for the selected element", () => {
-    expect(visualEditSuggestions(component(), section())).toContain("Make this CTA stand out");
+    expect(visualEditSuggestions(component(), section())).toContain("Ask AI to improve this button");
     expect(visualEditSuggestions(component({ kind: "gallery" }), section())).toContain(
-      "Improve this image presentation",
+      "Ask AI to improve this image",
     );
-    expect(visualEditSuggestions(null, section())).toContain("Make this section more premium");
+    expect(visualEditSuggestions(null, section())).toContain("Ask AI to improve this section");
   });
 
 });

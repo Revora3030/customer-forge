@@ -172,7 +172,7 @@ export function optimizerActions(input: OptimizerInput): {
       key: "booking-hidden",
       title: "Nobody is reaching your booking step",
       evidence: `${views} views, ${input.bookableServices} bookable service${input.bookableServices === 1 ? "" : "s"} and 0 booking starts.`,
-      action: "Add a “Book online” button to the hero and to each service card.",
+      action: "Ask Revora to make the booking path visible in the hero and service cards.",
       to: "/app/website",
       impact: "high",
     });

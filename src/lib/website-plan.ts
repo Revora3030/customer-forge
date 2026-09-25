@@ -166,14 +166,14 @@ export const REQUEST_KINDS: { value: string; label: string }[] = [
 export type GoalKey =
   "call" | "text" | "quote" | "book" | "lead" | "visit" | "purchase" | "consult";
 
-export const WEBSITE_GOALS: { value: GoalKey; label: string; cta: string }[] = [
-  { value: "call", label: "Call us", cta: "Call now" },
-  { value: "text", label: "Text us", cta: "Text us" },
-  { value: "quote", label: "Request a quote", cta: "Get my quote" },
-  { value: "book", label: "Book an appointment", cta: "Book now" },
-  { value: "lead", label: "Submit a lead form", cta: "Get in touch" },
-  { value: "visit", label: "Visit our location", cta: "Get directions" },
-  { value: "purchase", label: "Purchase online", cta: "Buy now" },
-  { value: "consult", label: "Request a consultation", cta: "Request a consultation" },
+export const WEBSITE_GOALS: { value: GoalKey; label: string }[] = [
+  { value: "call", label: "Call us" },
+  { value: "text", label: "Text us" },
+  { value: "quote", label: "Request a quote" },
+  { value: "book", label: "Book an appointment" },
+  { value: "lead", label: "Submit a lead form" },
+  { value: "visit", label: "Visit our location" },
+  { value: "purchase", label: "Purchase online" },
+  { value: "consult", label: "Request a consultation" },
 ];
 

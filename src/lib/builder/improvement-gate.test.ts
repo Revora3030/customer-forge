@@ -1,24 +1,35 @@
 import { describe, expect, it } from "vitest";
-import { decide, runImprovementGate, GATE_AREAS, type GateScores } from "./improvement-gate.server";
+import { decide, runImprovementGate, type GateBlocker } from "./improvement-gate.server";
 import { parseNote, runReviewPanel } from "./review-panel.server";
 
-const scores = (v: number, over: Partial<GateScores> = {}) =>
-  ({ ...Object.fromEntries(GATE_AREAS.map((a) => [a, v])), ...over }) as GateScores;
+const validTree = {
+  version: 1,
+  root: { type: "stack", children: [{ type: "heading", text: "Only supplied words", level: 2 }] },
+};
 
 describe("improvement gate", () => {
-  it("accepts a higher-scoring revision", () => {
-    expect(decide(scores(6), scores(8)).accepted).toBe(true);
+  it("accepts any valid AI revision without scoring taste", () => {
+    expect(decide([]).accepted).toBe(true);
   });
-  it("rejects a lower-scoring revision", () => {
-    expect(decide(scores(8), scores(6)).accepted).toBe(false);
+
+  it("rejects only non-creative safety blockers", () => {
+    const blockers: GateBlocker[] = [{ area: "renderer", path: "hero.root", issue: "unsupported primitive" }];
+    const decision = decide(blockers);
+    expect(decision.accepted).toBe(false);
+    expect(decision.reason).toMatch(/renderer safeguard/);
   });
-  it("rejects a revision that drops a protected area even when the total rises", () => {
-    expect(decide(scores(6), scores(9, { mobile: 5 })).accepted).toBe(false);
+
+  it("accepts valid proposed composition trees without calling a reviewer model", async () => {
+    const report = await runImprovementGate({ organizationId: "o", context: "", current: {}, proposed: { hero: validTree } });
+    expect(report.accepted).toBe(true);
+    expect(report.model).toBeNull();
+    expect(report.costMicrocents).toBe(0);
   });
-  it("keeps the current version when the reviewer fails", async () => {
-    const thinker = (async () => ({ ok: false, reason: "down" })) as never;
-    const report = await runImprovementGate({ organizationId: "o", context: "", current: {}, proposed: {} }, thinker);
+
+  it("rejects invalid proposed composition trees", async () => {
+    const report = await runImprovementGate({ organizationId: "o", context: "", current: {}, proposed: { hero: { version: 1, root: { type: "script" } } } });
     expect(report.accepted).toBe(false);
+    expect(report.blocked[0]?.area).toBe("renderer");
   });
 });
 

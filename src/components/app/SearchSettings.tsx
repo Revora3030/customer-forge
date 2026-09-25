@@ -117,7 +117,7 @@ export function SearchSettings({
             id="seo-cta"
             value={ctaLabel}
             disabled={!canManage}
-            placeholder="Get a quote"
+            placeholder="Ask Revora to write this"
             onChange={(event) => setCtaLabel(event.target.value)}
           />
         </div>

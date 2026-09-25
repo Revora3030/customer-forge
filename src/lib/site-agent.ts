@@ -237,73 +237,6 @@ export type VisualComponentPatch = {
   focal_point?: string;
 };
 
-/**
- * Visual composition for an entire section.
- *
- * This is intentionally independent from copy.
- *
- * Copy says WHAT the section says.
- * Visual composition says HOW the section looks.
- */
-export type SectionVisualPatch = {
-  layout?:
-    | "split"
-    | "centered"
-    | "image_left"
-    | "image_right"
-    | "full_bleed"
-    | "editorial"
-    | "layered"
-    | "stacked";
-
-  density?:
-    | "airy"
-    | "balanced"
-    | "dense";
-
-  image_position?:
-    | "left"
-    | "right"
-    | "center"
-    | "background";
-
-  image_treatment?:
-    | "natural"
-    | "rounded"
-    | "soft_shadow"
-    | "glass_frame"
-    | "duotone"
-    | "gradient_overlay"
-    | "cinematic"
-    | "cutout"
-    | "full_bleed";
-
-  spacing?:
-    | "tight"
-    | "standard"
-    | "generous";
-
-  max_width?:
-    | "narrow"
-    | "standard"
-    | "wide"
-    | "edge";
-
-  card_style?:
-    | "soft"
-    | "sharp"
-    | "pill"
-    | "glass"
-    | "editorial"
-    | "floating";
-
-  image_ratio?:
-    | "1:1"
-    | "4:3"
-    | "3:2"
-    | "16:9"
-    | "21:9";
-};
 
 export type { BackdropId, SectionEffectId };
 
@@ -353,17 +286,7 @@ export type AgentAction =
       visible: boolean;
     }
 
-  | {
-      type: "set_section_variant";
-      sectionId: string;
-      variant: string;
-    }
 
-  | {
-      type: "set_section_visual";
-      sectionId: string;
-      patch: SectionVisualPatch;
-    }
 
   | {
       type: "set_block_style";
@@ -979,53 +902,7 @@ const readVisualPatch = (
   return patch;
 };
 
-const readSectionVisualPatch = (
-  value: unknown,
-): SectionVisualPatch => {
-  if (
-    !value ||
-    typeof value !== "object"
-  ) {
-    return {};
-  }
 
-  const raw =
-    value as Record<string, unknown>;
-
-  const patch:
-    Partial<SectionVisualPatch> = {};
-
-  const values = [
-    "layout",
-    "density",
-    "image_position",
-    "image_treatment",
-    "spacing",
-    "max_width",
-    "card_style",
-    "image_ratio",
-  ] as const;
-
-  for (const key of values) {
-    const candidate =
-      text(
-        raw[key],
-        40,
-      );
-
-    if (
-      candidate &&
-      VISUAL_VALUES[key].has(
-        candidate as never,
-      )
-    ) {
-      patch[key] =
-        candidate as never;
-    }
-  }
-
-  return patch as SectionVisualPatch;
-};
 
 const readBlockStylePatch = (value: unknown): BlockStylePatch => {
   if (!value || typeof value !== "object" || Array.isArray(value)) return {};
@@ -1223,71 +1100,6 @@ export function readActions(
         break;
       }
 
-      /* ------------------------------------------------------------------ */
-      /* SECTION VARIANT                                                    */
-      /* ------------------------------------------------------------------ */
-
-      case "set_section_variant": {
-        const variant =
-          text(
-            row["variant"],
-            40,
-          );
-
-        if (
-          !knownSection(
-            sectionId,
-          ) ||
-          !KIND.test(variant)
-        ) {
-          break;
-        }
-
-        out.push({
-          type,
-          sectionId,
-          variant,
-        });
-
-        break;
-      }
-
-      /* ------------------------------------------------------------------ */
-      /* SECTION VISUAL                                                     */
-      /* ------------------------------------------------------------------ */
-
-      case "set_section_visual": {
-        if (
-          !knownSection(
-            sectionId,
-          )
-        ) {
-          break;
-        }
-
-        const patch =
-          readSectionVisualPatch(
-            row["patch"],
-          );
-
-        if (
-          Object.keys(patch)
-            .length === 0
-        ) {
-          note(
-            "A styling step carried no readable settings, so it was left out. Nothing else in the plan was affected.",
-          );
-          break;
-        }
-
-        out.push({
-          type,
-          sectionId,
-          patch,
-        });
-
-        break;
-      }
 
       case "set_block_style": {
         const target = row["target"] === "component" ? "component" : row["target"] === "section" ? "section" : null;
@@ -2379,56 +2191,6 @@ export function describeActions(
             action,
           };
 
-        case "set_section_variant":
-          return {
-            key,
-
-            title:
-              `Change the layout style to "${action.variant}"`,
-
-            where:
-              locate(
-                index,
-                {
-                  sectionId:
-                    action.sectionId,
-                },
-              ),
-
-            destructive:
-              false,
-
-            action,
-          };
-
-        case "set_section_visual":
-          return {
-            key,
-
-            title:
-              "Refine this section's visual composition",
-
-            where:
-              locate(
-                index,
-                {
-                  sectionId:
-                    action.sectionId,
-                },
-              ),
-
-            after:
-              Object.values(
-                action.patch,
-              )
-                .filter(Boolean)
-                .join(" · "),
-
-            destructive:
-              false,
-
-            action,
-          };
 
         case "set_block_style":
           return {

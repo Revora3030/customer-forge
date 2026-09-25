@@ -38,7 +38,7 @@ export const Route = createFileRoute("/$")({
     const description = (
       page.seo_description ||
       loaderData.site.profile?.tagline ||
-      `${page.title} from ${name}. See what's included and get a price.`
+      `${page.title} from ${name}.`
     ).slice(0, 158);
     const url = page.seo_canonical || `https://${loaderData.host}/${page.slug}`;
     const shareImage = page.og_image_url || loaderData.site.profile?.hero_image_url || null;

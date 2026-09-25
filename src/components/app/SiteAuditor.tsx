@@ -172,7 +172,7 @@ export function SiteAuditor({
 }: {
   structureIssues: AuditIssue[];
   pageScores: { pageId: string; title: string; score: number }[];
-  goal: ConversionGoal;
+  goal: ConversionGoal | null;
   conversionCtx: ConversionContext;
   conversionGaps: ConversionGap[];
   proposals: UpgradeProposal[];
@@ -310,40 +310,47 @@ export function SiteAuditor({
             <ShieldCheck className="size-3.5 text-primary" aria-hidden="true" /> Conversion engine
           </p>
           <p className="mt-1 text-[12px] text-muted-foreground">
-            Your site is built around one goal, with backup paths for visitors who convert
-            differently.
+            {goal
+              ? "Your site is built around one goal, with backup paths for visitors who convert differently."
+              : "No primary conversion goal is saved yet. Choose one before Revora audits conversion paths."}
           </p>
-          <ol className="mt-3 flex flex-wrap items-center gap-1.5">
-            {ladder.map((step, index) => (
-              <li key={step.key} className="flex items-center gap-1.5">
-                <span
-                  className={cn(
-                    "rounded-full border px-2.5 py-1 text-[11px]",
-                    index === 0
-                      ? "border-primary bg-primary/10 text-foreground"
-                      : step.available
-                        ? "border-border text-muted-foreground"
-                        : "border-dashed border-border text-muted-foreground/60",
-                  )}
-                  title={step.note}
-                >
-                  {index === 0 ? "Primary · " : ""}
-                  {step.label}
-                  {step.available ? "" : " (off)"}
-                </span>
-                {index < ladder.length - 1 ? (
-                  <ArrowRight className="size-3 text-muted-foreground" aria-hidden="true" />
-                ) : null}
-              </li>
-            ))}
-          </ol>
+          {ladder.length ? (
+            <ol className="mt-3 flex flex-wrap items-center gap-1.5">
+              {ladder.map((step, index) => (
+                <li key={step.key} className="flex items-center gap-1.5">
+                  <span
+                    className={cn(
+                      "rounded-full border px-2.5 py-1 text-[11px]",
+                      index === 0
+                        ? "border-primary bg-primary/10 text-foreground"
+                        : step.available
+                          ? "border-border text-muted-foreground"
+                          : "border-dashed border-border text-muted-foreground/60",
+                    )}
+                    title={step.note}
+                  >
+                    {index === 0 ? "Primary · " : ""}
+                    {step.label}
+                    {step.available ? "" : " (off)"}
+                  </span>
+                  {index < ladder.length - 1 ? (
+                    <ArrowRight className="size-3 text-muted-foreground" aria-hidden="true" />
+                  ) : null}
+                </li>
+              ))}
+            </ol>
+          ) : null}
         </div>
         <FixList
           targets={gapCards}
           canManage={canManage}
           busyProposalId={applyingId}
           onFixAutomatically={fixOne}
-          emptyLabel="Every conversion path for your goal is wired up."
+          emptyLabel={
+            goal
+              ? "Every conversion path for your goal is wired up."
+              : "Choose a primary conversion goal to audit conversion paths."
+          }
         />
       </section>
 

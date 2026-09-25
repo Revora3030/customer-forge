@@ -14,14 +14,13 @@ const roofer: DnaFacts = {
 };
 
 describe("business DNA", () => {
-  it("derives strategy from supplied facts and lists what is missing", () => {
+  it("keeps supplied facts and lists what is missing without strategy inference", () => {
     const dna = businessDna(roofer);
-    expect(dna.positioning).toContain("Dallas & Fort Worth");
-    expect(dna.urgency).toBe("emergency");
-    expect(dna.primaryCta).toBe("Call now");
-    expect(dna.desiredAction).toBe("Get the phone ringing");
-    expect(dna.geoStrategy).toBe("multi_area");
-    expect(dna.seoStrategy[0]).toBe("Roofing in Dallas & Fort Worth");
+    expect(dna.name).toBe("Lone Star Roofing");
+    expect(dna.industry).toBe("Roofing");
+    expect(dna.services).toEqual(["Roof replacement", "Roof repair", "Roof inspection"]);
+    expect(dna.serviceArea).toBe("Dallas & Fort Worth");
+    expect(dna.desiredAction).toBe("calls");
     expect(dna.unknown).toContain("photos of real work");
     expect(dna.needed.length).toBeGreaterThan(0);
     expect(dna.confidence).toBeGreaterThan(50);
@@ -37,18 +36,14 @@ describe("business DNA", () => {
     expect(dna.prohibited).toContain("awards");
   });
 
-  it("classifies appointment and project trades differently", () => {
-    expect(businessDna({ industry: "Mobile car detailing", bookableServices: 3 }).primaryCta).toBe(
-      "Book a time",
-    );
-    const remodel = businessDna({ industry: "Kitchen remodeling" });
-    expect(remodel.urgency).toBe("planned");
-    expect(remodel.qualifyingFields).toContain("Rough size of the job");
-  });
-
-  it("uses real prices only when the client entered them", () => {
-    expect(businessDna(roofer).pricingModel).toBe("quote_per_job");
-    expect(businessDna({ ...roofer, hasPrices: true }).pricingModel).toBe("starting_prices");
+  it("does not classify the business into deterministic creative or conversion strategy", () => {
+    const dna = businessDna({ industry: "Mobile car detailing", bookableServices: 3 }) as unknown as Record<string, unknown>;
+    expect(dna.primaryCta).toBeUndefined();
+    expect(dna.urgency).toBeUndefined();
+    expect(dna.qualifyingFields).toBeUndefined();
+    expect(dna.pricingModel).toBeUndefined();
+    expect(dna.seoStrategy).toBeUndefined();
+    expect(dna.positioning).toBeUndefined();
   });
 
   it("screens invented claims out of copy but allows supplied facts", () => {
@@ -72,5 +67,7 @@ describe("business DNA", () => {
     expect(brief).toContain("NEVER CLAIM");
     expect(brief).toContain("UNKNOWN — never guess");
     expect(brief).toContain("Lone Star Roofing");
+    expect(brief).not.toContain("PRIMARY CTA");
+    expect(brief).not.toContain("SEO STRATEGY");
   });
 });
