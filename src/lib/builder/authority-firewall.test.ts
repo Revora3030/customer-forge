@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
-import { blankAiDesignRecord } from "./ai-design-record";
 
 function files(dir: string): string[] {
   return readdirSync(dir).flatMap((name) => {
@@ -54,18 +53,10 @@ describe("creative authority firewall", () => {
     expect(body).not.toMatch(/archetype|template|preset/i);
   });
 
-  it("the AI design record can no longer pick designs from finite pools", () => {
-    const neutral = blankAiDesignRecord();
-    const a = blankAiDesignRecord();
-    const b = blankAiDesignRecord();
-    expect(neutral.family).toBe("");
-    expect(neutral.heroComposition).toBe("");
-    expect(neutral.motionLevel).toBe("");
-    expect(neutral.artDirection.subject).toBe("");
-    expect(neutral.artDirection.aspectRatio).toBe("");
-    for (const fp of [a, b]) {
-      expect({ ...fp, id: neutral.id, rejected: neutral.rejected }).toEqual(neutral);
-    }
+  it("the saved design-record module stays deleted", () => {
+    expect(() => statSync("src/lib/builder/ai-design-record.ts")).toThrow();
+    const offenders = production.filter((f) => /aiDesignRecord|AiDesignRecord|designRecord/.test(readFileSync(f, "utf8")));
+    expect(offenders).toEqual([]);
   });
 });
 
@@ -142,16 +133,15 @@ describe("old design layer is fully removed", () => {
     }
   });
 
-  it("the saved design record has no style pools or pickers", () => {
-    const src = readFileSync("src/lib/builder/ai-design-record.ts", "utf8");
-    expect(src).not.toMatch(/_COMPOSITIONS|_SYSTEMS|_LAYOUTS|recordSeed|createAiDesignRecord|sectionDesignFromRecord|function pick/);
+  it("the saved design record source is not part of the codebase", () => {
+    expect(() => statSync("src/lib/builder/ai-design-record.ts")).toThrow();
   });
 
   it("Sol's first-build creative pass has no fixed vocabulary", () => {
     const src = readFileSync("src/lib/builder/collective-first-build.server.ts", "utf8");
     expect(src).not.toMatch(/Choose only from the supplied design vocabulary|not in the supported design vocabulary/);
-    expect(src).not.toMatch(/motionLevel must use|boundedFields/);
-    expect(src).toMatch(/motionLevel and density, are your own short lowercase-hyphenated tokens/);
+    expect(src).not.toMatch(/motionLevel must use|boundedFields|IMAGE_ASPECTS/);
+    expect(src).toMatch(/Describe every creative decision in your own words/);
   });
 
   it("first-build CTAs are AI-authored and fact-checked, not seeded from rules", () => {
