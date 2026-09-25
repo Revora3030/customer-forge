@@ -1,3 +1,5 @@
+import { resolveSiteHref } from "@/lib/builder/site-chrome";
+import { useOwnAddress } from "@/components/site/site-links";
 /**
  * Renders the builder's structured sections on a public business website.
  *
@@ -93,12 +95,20 @@ export function SiteSection({ site, section }: { site: Site; section: Section })
 function SiteSectionBody({ site, section }: { site: Site; section: Section }) {
   const components = section.components ?? [];
   const { profile, org } = site;
+  const ownAddress = useOwnAddress();
 
   switch (section.kind) {
     case "composition": {
       const tree = readComposition(section.settings);
       const media = new Map(components.map((component) => [component.id, component.url]));
-      return tree ? <CompositionRenderer tree={tree} scope={`s-${section.id}`} resolveMedia={(ref) => media.get(ref) ?? null} /> : null;
+      return tree ? (
+        <CompositionRenderer
+          tree={tree}
+          scope={`s-${section.id}`}
+          resolveMedia={(ref) => media.get(ref) ?? null}
+          resolveHref={(href) => resolveSiteHref(href, org.slug, ownAddress)}
+        />
+      ) : null;
     }
     case "quote":
       if (!site.quote) return null;

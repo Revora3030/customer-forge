@@ -36,3 +36,13 @@ describe("hero video brief", () => {
     expect(cleanVideoBrief("Award-winning team polishing a car at dusk", () => "unsupported claim")).toBeNull();
   });
 });
+
+import { resolveSiteHref as r2 } from "./site-chrome";
+import { it as it2, expect as ex2 } from "vitest";
+it2("maps home and in-page anchors to the site's own front page", () => {
+  ex2(r2("/home", "acme", false)).toBe("/s/acme");
+  ex2(r2("/#quote", "acme", false)).toBe("/s/acme#quote");
+  ex2(r2("/home#services", "acme", false)).toBe("/s/acme#services");
+  ex2(r2("/about", "acme", false)).toBe("/s/acme/about");
+  ex2(r2("/#quote", "acme", true)).toBe("/#quote");
+});
