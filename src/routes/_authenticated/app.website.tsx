@@ -1,3 +1,4 @@
+import { toast } from "sonner";
 import { useEffect, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { LoadingRows } from "@/components/app/Bits";
@@ -457,6 +458,15 @@ function WebsitePage() {
       </div>
       <div className="grid min-w-0 gap-3 lg:grid-cols-[minmax(340px,430px)_minmax(0,1fr)]">
         <div className={previewOpen ? "hidden lg:block" : "min-w-0 lg:sticky lg:top-20 lg:self-start"}>
+          {firstRun && requiredCount > 0 ? (
+            <div id="first-build-facts" className="mb-3 min-w-0 scroll-mt-24">
+              <MissingFactsPanel
+                organizationId={orgId}
+                gaps={(readiness?.gaps ?? []).filter((g) => g.required)}
+                canManage={manage}
+              />
+            </div>
+          ) : null}
           <BuilderAssistant
             compact
             selection={selected}
@@ -467,6 +477,17 @@ function WebsitePage() {
             requests={requests}
             {...(firstRun ? {
               onFirstBuild: async (_instruction: string) => {
+                // Missing required facts: point at the form instead of firing
+                // a build the server will refuse. Saving answers auto-starts it.
+                if (requiredCount > 0) {
+                  document
+                    .getElementById("first-build-facts")
+                    ?.scrollIntoView({ behavior: "smooth", block: "start" });
+                  toast.message("Add your services above first", {
+                    description: "Save them and Revora starts building automatically.",
+                  });
+                  return;
+                }
                 await firstBuild.mutateAsync();
               },
               firstBuildBusy: firstBuild.isPending,
