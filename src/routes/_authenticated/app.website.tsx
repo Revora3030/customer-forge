@@ -642,14 +642,7 @@ function WebsitePage() {
                   <ImageStudio
                     organizationId={orgId}
                     canManage={manage}
-                    businessName={org?.name ?? null}
                     industry={(profile?.["industry"] as string) ?? null}
-                    city={(profile?.["city"] as string) ?? null}
-                    primaryColor={(profile?.["primary_color"] as string) ?? null}
-                    accentColor={(profile?.["accent_color"] as string) ?? null}
-                    services={(services ?? []).map((service) => ({
-                      name: String(service.name ?? ""),
-                    }))}
                     campaign={
                       ((generation?.["firstBuildCreative"] as { brief?: { imageInventory?: unknown } } | undefined)
                         ?.brief?.imageInventory) ?? null

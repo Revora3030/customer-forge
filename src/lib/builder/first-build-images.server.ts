@@ -24,7 +24,7 @@ import type {
 } from "@/lib/builder/first-build-images.types";
 import { MEDIA_BUCKET, buildObjectPath } from "@/lib/media";
 import type { FirstBuildCreativeDirection } from "@/lib/builder/first-build-contract";
-import type { PlannedShot } from "@/lib/visual-direction";
+import type { PlannedShot } from "@/lib/builder/image-campaign";
 
 type Db = SupabaseClient;
 

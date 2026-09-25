@@ -16,7 +16,7 @@ import {
   blankDesignFingerprint,
   type DesignFingerprint,
 } from "@/lib/builder/design-fingerprint";
-import type { PlannedShot } from "@/lib/visual-direction";
+import type { PlannedShot } from "@/lib/builder/image-campaign";
 import { assetPlanFor, type AssetPlan } from "@/lib/builder/asset-intelligence";
 import {
   SITE_WIDE_CREATIVE_QUALITY_MATRIX,

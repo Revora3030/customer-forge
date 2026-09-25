@@ -30,11 +30,6 @@ type Candidate = {
 export function ImageStudio({
   organizationId,
   canManage,
-  businessName,
-  city,
-  primaryColor,
-  accentColor,
-  services,
   campaign,
   mediaCount,
   hasHeroImage,
@@ -42,12 +37,7 @@ export function ImageStudio({
 }: {
   organizationId: string | undefined;
   canManage: boolean;
-  businessName?: string | null;
   industry?: string | null;
-  city?: string | null;
-  primaryColor?: string | null;
-  accentColor?: string | null;
-  services: { name: string }[];
   /** Complete image campaign authored by the AI for this site. */
   campaign?: unknown;
   mediaCount: number;
