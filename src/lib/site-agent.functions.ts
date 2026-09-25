@@ -441,17 +441,17 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
     if (recall) data.history = [{ role: "user" as const, content: recall }, ...data.history];
     const nextMemory = mergeDesignMemory(priorMemory, data.instruction);
 
-    // DESIGN IDENTITY. Only an identity the AI itself previously authored is
-    // recalled, so unrelated edits stay consistent. No identity is ever
-    // derived from the business here: a plain placeholder must never steer
-    // the AI toward a fixed look.
-    const { aiDesignRecordBrief, hasAuthoredAiDesignRecord, readAiDesignRecord } = await import("@/lib/builder/ai-design-record");
     const storedGeneration = ((settingsRow.data as { generation?: unknown } | null)?.generation ??
       {}) as Record<string, unknown>;
-    noteStage(orgId, runId, "recalling your design identity");
-    const priorDesignRecord = readAiDesignRecord(storedGeneration);
-    if (hasAuthoredAiDesignRecord(priorDesignRecord)) {
-      data.history = [{ role: "user" as const, content: aiDesignRecordBrief(priorDesignRecord) }, ...data.history];
+    const priorCreativeBrief = storedGeneration["aiCreativeBrief"];
+    if (priorCreativeBrief && typeof priorCreativeBrief === "object") {
+      data.history = [
+        {
+          role: "user" as const,
+          content: `Previously saved AI creative brief: ${JSON.stringify(priorCreativeBrief).slice(0, 1600)}`,
+        },
+        ...data.history,
+      ];
     }
 
     const memoryChanged = nextMemory !== priorMemory;
