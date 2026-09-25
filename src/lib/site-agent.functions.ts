@@ -264,6 +264,18 @@ function readBrand(
   return Object.values(brand).some(Boolean) ? brand : null;
 }
 
+/** Owner-saved opening hours as plain text (string or simple day map), else null. */
+function hoursText(value: unknown): string | null {
+  if (typeof value === "string") return value.trim() || null;
+  if (value && typeof value === "object" && !Array.isArray(value)) {
+    const parts = Object.entries(value as Record<string, unknown>)
+      .filter(([, v]) => typeof v === "string" && v.trim())
+      .map(([day, v]) => `${day}: ${String(v).trim()}`);
+    return parts.length ? parts.join("; ") : null;
+  }
+  return null;
+}
+
 export const planWebsiteChanges = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator(
@@ -367,6 +379,7 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
           phone: (p["phone"] as string) ?? null,
           email: (p["email"] as string) ?? null,
           yearsInBusiness: (p["years_in_business"] as number) ?? null,
+          hours: hoursText(p["hours"]),
           primaryColor: (p["primary_color"] as string) ?? null,
           secondaryColor: (p["secondary_color"] as string) ?? null,
           accentColor: (p["accent_color"] as string) ?? null,
@@ -846,6 +859,21 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
         );
       }
       plannedSlugs.add(slug);
+    }
+
+    // Baseline: problems the site already had before this change. A change is
+    // only reversed for problems IT introduced — otherwise one pre-existing
+    // issue (e.g. a page with no main headline) would block every edit,
+    // including the edit that fixes it.
+    let baselineCritical = new Set<string>();
+    if (data.verify !== false) {
+      try {
+        const { verifyWorkspaceSite } = await import("@/lib/agent/verify.server");
+        const before = await verifyWorkspaceSite(supabase, orgId);
+        baselineCritical = criticalKeys(before);
+      } catch (error) {
+        console.error("[site-agent] baseline verification could not run", error);
+      }
     }
 
     noteApplyStage(orgId, applyRunId, "saving a restore point");
@@ -1541,7 +1569,13 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
       } catch (error) {
         console.error("[site-agent] verification could not run", error);
       }
-      if (verification && verification.critical > 0) {
+      const introduced = verification
+        ? verification.checks.filter(
+            (check) =>
+              !check.ok && check.severity === "critical" && !baselineCritical.has(checkKey(check)),
+          )
+        : [];
+      if (verification && introduced.length > 0) {
         const reversal = await rollback(undoSteps);
         await supabase.from("ai_generations").insert({
           organization_id: orgId,
@@ -1558,8 +1592,7 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
           created_by: userId,
         });
         invalidateWorkspaceContext(orgId);
-        const worst = verification.checks
-          .filter((check) => !check.ok && check.severity === "critical")
+        const worst = introduced
           .slice(0, 3)
           .map((check) => `${check.where}: ${check.label.toLowerCase()}`)
           .join("; ");
@@ -1905,3 +1938,16 @@ export const builderMediaCapabilities = createServerFn({ method: "GET" }).handle
       : "Type your request — photos stay attached for you to place.",
   };
 });
+
+
+function checkKey(check: { where?: string; label: string }) {
+  return `${check.where ?? ""}|${check.label}`;
+}
+
+function criticalKeys(report: VerificationReport | null) {
+  return new Set(
+    (report?.checks ?? [])
+      .filter((check) => !check.ok && check.severity === "critical")
+      .map(checkKey),
+  );
+}

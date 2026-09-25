@@ -109,6 +109,7 @@ function businessBlock(context: AgentContext): string {
     `phone supplied: ${b.phone ? "yes" : "no"}`,
     `email supplied: ${b.email ? "yes" : "no"}`,
     `years in business: ${b.yearsInBusiness ?? "(not supplied)"}`,
+    `opening hours (owner-supplied, use verbatim): ${b.hours ?? "(not supplied)"}`,
     `published reviews: ${b.publishedReviewCount ?? 0}`,
     `owner photos available: ${b.photoCount ?? 0}`,
     `current colours: ${[b.primaryColor, b.secondaryColor, b.accentColor].filter(Boolean).join(" ") || "(none set)"}`,
@@ -188,7 +189,7 @@ const textList = (value: unknown, limit: number, max = 300): string[] =>
  * Terra's review. It may only *remove* actions and add notes, so a review can
  * never introduce a change the owner's request and facts do not support.
  */
-function applyReview(
+export function applyReview(
   actions: unknown[],
   review: Record<string, unknown> | null,
 ): { actions: unknown[]; notes: string[] } {
@@ -204,6 +205,30 @@ function applyReview(
         .filter((value) => Number.isInteger(value))
     : [];
   for (const value of rejectNumbers) rejected.add(value);
+  // Dependency-aware: a rejected action that CREATES a ref (a new section,
+  // component or page) is reinstated when a kept action builds on that ref —
+  // otherwise the kept action would be orphaned and silently dropped. The
+  // reviewer's objection ("empty section") is answered by the dependent.
+  const refOf = (action: unknown) => {
+    const ref = (action as Record<string, unknown> | null)?.["ref"];
+    return typeof ref === "string" && ref ? ref : null;
+  };
+  const uses = (action: unknown, ref: string) =>
+    Object.entries((action ?? {}) as Record<string, unknown>).some(
+      ([key, value]) => key !== "ref" && typeof value === "string" && value === ref,
+    );
+  let changed = true;
+  while (changed) {
+    changed = false;
+    actions.forEach((action, index) => {
+      const ref = refOf(action);
+      if (!ref || !rejected.has(index)) return;
+      if (actions.some((other, j) => j !== index && !rejected.has(j) && uses(other, ref))) {
+        rejected.delete(index);
+        changed = true;
+      }
+    });
+  }
   const kept = actions.filter((_, index) => !rejected.has(index));
   return { actions: kept, notes: textList(review["notes"], 6) };
 }
@@ -257,10 +282,32 @@ export async function planWebsiteChangesWithAi(input: {
     return { ok: false, reason: direction.reason, detail: direction.detail };
   }
 
-  const proposal = parseJsonObject(direction.text);
-  const proposedActions = Array.isArray(proposal?.["actions"])
-    ? (proposal["actions"] as unknown[]).slice(0, MAX_ACTIONS)
-    : [];
+  const readActions = (text: string) => {
+    const parsed = parseJsonObject(text);
+    const list = Array.isArray(parsed?.["actions"])
+      ? (parsed["actions"] as unknown[]).slice(0, MAX_ACTIONS)
+      : [];
+    return { parsed, list };
+  };
+  let { parsed: proposal, list: proposedActions } = readActions(direction.text);
+  let retryCost = 0;
+  if (!proposal || !proposedActions.length) {
+    // One repair attempt: the AI is asked to restate its OWN change as the
+    // required JSON. Nothing is invented for it if this also fails.
+    const retry = await callBestThinker({
+      json: true,
+      purpose: "creative_direction",
+      complexity: "high",
+      system,
+      user: `${user}\n\nYOUR PREVIOUS ANSWER could not be used: it was not a single JSON object with a non-empty "actions" array. Reply again with ONLY that JSON object, carrying out the owner's request with the actions listed above.`,
+      organizationId: input.organizationId,
+      maxOutputTokens: 32000,
+    });
+    if (retry.ok) {
+      retryCost = retry.costMicrocents;
+      ({ parsed: proposal, list: proposedActions } = readActions(retry.text));
+    }
+  }
   if (!proposal || !proposedActions.length) {
     return {
       ok: false,
@@ -269,7 +316,7 @@ export async function planWebsiteChangesWithAi(input: {
     };
   }
 
-  let costMicrocents = direction.costMicrocents;
+  let costMicrocents = direction.costMicrocents + retryCost;
   let reviewModel: string | null = null;
   let notes = textList(proposal["notes"], 6);
 
@@ -309,7 +356,7 @@ export async function planWebsiteChangesWithAi(input: {
     return {
       ok: false,
       reason: "review_rejected",
-      detail: "the review removed every proposed change",
+      detail: `the review removed every proposed change${notes.length ? ` — ${notes.slice(0, 2).join(" ")}` : ""}`,
     };
   }
 
