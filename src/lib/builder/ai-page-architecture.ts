@@ -102,18 +102,25 @@ function readIncludes(value: unknown): SectionInclude[] {
 
 type RawSection = { role: string; heading: string | null; subheading: string | null; body: string | null; layout: string | null; intent: string | null; media: "none" | "optional" | "required" | null; includes: SectionInclude[] };
 
+/** Turns a plain-language name like "How it works" into a safe role key (how_it_works). */
+function roleName(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const key = value.toLowerCase().replace(/&/g, " and ").replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 31);
+  return /^[a-z]/.test(key) ? key : null;
+}
+
 function sectionRoles(value: unknown): RawSection[] {
   if (!Array.isArray(value)) return [];
   const roles: RawSection[] = [];
   for (const entry of value) {
     if (typeof entry === "string") {
-      const role = text(entry);
+      const role = roleName(text(entry));
       if (role) roles.push({ role, heading: null, subheading: null, body: null, layout: null, intent: null, media: null, includes: [] });
       continue;
     }
     if (entry && typeof entry === "object") {
       const row = entry as { role?: unknown; heading?: unknown; subheading?: unknown; body?: unknown; layout?: unknown; intent?: unknown; media?: unknown; includes?: unknown };
-      const role = text(row.role);
+      const role = roleName(text(row.role));
       const media = row.media === "required" || row.media === "optional" || row.media === "none" ? row.media : null;
       if (role) roles.push({ role, heading: headingText(row.heading, 120), subheading: headingText(row.subheading, 260), body: headingText(row.body, 1200), layout: headingText(row.layout, 100), intent: headingText(row.intent, 300), media, includes: readIncludes(row.includes) });
     }

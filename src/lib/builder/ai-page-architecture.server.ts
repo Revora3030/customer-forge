@@ -42,7 +42,13 @@ export async function proposePageArchitecture(input: {
   industry: string | null;
   conversionGoal: string;
   candidate: PageArchitecture[];
+  /** Real supplied facts so the plan can cover the whole business. */
+  description?: string | null;
+  services?: string[];
+  serviceArea?: string | null;
   signal?: AbortSignal;
+  /** Reviewer notes from a refused plan; Sol gets one revision with them. */
+  revisionNotes?: string;
 }): Promise<PageArchitectureOutcome> {
   const available = input.candidate.map((page) => ({
     slug: page.slug,
@@ -56,6 +62,9 @@ export async function proposePageArchitecture(input: {
       `BUSINESS: ${input.businessName}`,
       `INDUSTRY: ${input.industry ?? "not supplied"}`,
       `CONVERSION GOAL: ${input.conversionGoal}`,
+      input.description ? `WHAT THEY DO: ${input.description.slice(0, 1200)}` : null,
+      input.services?.length ? `REAL SERVICES: ${input.services.slice(0, 30).join("; ")}` : null,
+      input.serviceArea ? `SERVES: ${input.serviceArea}` : null,
       "",
       "EXISTING PAGES AND SECTIONS (reorder, omit, or add your own):",
       JSON.stringify(available, null, 2),
@@ -68,7 +77,9 @@ export async function proposePageArchitecture(input: {
       "Invented words may only restate the business's supplied facts, services and place — never new claims, numbers, reviews or guarantees. You cannot invent forms, booking, contact, embeds, heroes or galleries.",
       "Write your own heading (<=120 chars) and optional subheading (<=260 chars) for every section except each page's hero. There are no default headings: a section you leave without one shows none.",
       "Headings may only use the business name, its real services and its real place — never an unsupported claim.",
-    ].join("\n");
+      input.revisionNotes ? `REVIEWER REFUSED YOUR LAST PLAN — address this: ${input.revisionNotes.slice(0, 1500)}` : null,
+      "COMPLETENESS: plan a whole website, not a stub. A visitor must be able to understand what the business does, see each real service explained, understand how working together goes, and act — using only the facts above. A plan that is just an opening and a form is incomplete and will be refused. The shape, count and order of pages and sections are still entirely yours.",
+    ].filter((line) => line !== null).join("\n");
   let sol = await callBestThinker({
     json: true,
     purpose: "information_architecture",
@@ -131,7 +142,7 @@ export async function proposePageArchitecture(input: {
     organizationId: input.organizationId,
     maxOutputTokens: 700,
     ...(input.signal ? { signal: input.signal } : {}),
-    system: `${RULES} You are Terra, the adversarial reviewer of website structure. Judge each page on whether it works for this business and its visitors; never demand a fixed page anatomy. ${creativeQualityPrompt()}`,
+    system: `${RULES} You are Terra, the adversarial reviewer of website structure. Judge each page on whether it works for this business and its visitors; never demand a fixed page anatomy. Refuse a structure that is too thin to explain the business and its real services to a first-time visitor. ${creativeQualityPrompt()}`,
     user: [
       `BUSINESS: ${input.businessName}`,
       `CONVERSION GOAL: ${input.conversionGoal}`,
@@ -162,6 +173,15 @@ export async function proposePageArchitecture(input: {
 
   const review = parseReview(terra.text);
   const approved = review?.approvedFields.some((field) => /structure|pages?/i.test(field)) ?? false;
+  if (!approved && review !== null && !input.revisionNotes) {
+    const notes = JSON.stringify(review.notes ?? []).slice(0, 1500) || "the structure was too thin";
+    const revised = await proposePageArchitecture({ ...input, revisionNotes: notes });
+    return {
+      ...revised,
+      models: [...models, ...revised.models],
+      costMicrocents: cost + revised.costMicrocents,
+    };
+  }
   if (!approved)
     return {
       architecture: null,

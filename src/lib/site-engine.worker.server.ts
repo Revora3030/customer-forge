@@ -654,6 +654,9 @@ async function runJob(
         industry: architectIndustry,
         conversionGoal: architectGoal,
         candidate,
+        description: (p["description"] as string) ?? null,
+        services: serviceRows.map((service) => String((service as { name?: unknown }).name ?? "")).filter(Boolean),
+        serviceArea: (p["service_area"] as string) ?? null,
       });
       architectureRef.current = outcome;
       return outcome.architecture;
