@@ -72,7 +72,7 @@ describe("capability registry", () => {
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.attempts).toBe(0);
-      expect(result.reason).toBe("unavailable");
+      expect(result.reason).toBe("no_provider_implemented");
     }
   });
 
@@ -104,7 +104,7 @@ describe("capability registry", () => {
       });
     const resolution = await resolveCapability("research.web");
     expect(resolution.provider).toBeNull();
-    expect(resolution.status).toBe("unavailable");
+    expect(resolution.status).toBe("needs_connection");
   });
 
   it("marks a provider runtime-verified only after a real call succeeds", async () => {
