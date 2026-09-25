@@ -14,7 +14,6 @@ import { safeLinkUrl } from "@/lib/website-content";
 import { effectForKind, type DesignDirection } from "@/lib/authored-direction";
 import { writeSectionEffect } from "@/lib/site-effects";
 import { writeComponentVisual } from "@/lib/site-style";
-import type { AiDesignRecord } from "@/lib/builder/ai-design-record";
 import type { FirstBuildImageAsset } from "@/lib/builder/first-build-images.server";
 import type { CreativeBrief } from "@/lib/builder/first-build-contract";
 import { slugify } from "@/lib/format";
@@ -72,9 +71,7 @@ export type MaterializeInput = {
   /** The industry-specific visual identity selected for this first build. */
   direction?: DesignDirection | null;
   /** The kind of website this business needs (restaurant, clinic, shop …). */
-  /** Complete composition identity resolved before first materialization. */
-  designRecord?: AiDesignRecord | null;
-  /** Approved Sol/Terra presentation brief, compiled into a finite renderer contract. */
+  /** Approved Sol/Terra presentation brief, compiled into a renderer contract. */
   creativeBrief?: CreativeBrief | null;
   /** Safe generated starter pictures saved in tenant media for this first build. */
   generatedAssets?: FirstBuildImageAsset[];
@@ -226,7 +223,6 @@ export function applyAuthoredHeadings(pages: Page[], architecture: PageArchitect
 export function materializedSectionDesign(
   kind: string,
   direction: DesignDirection | null | undefined,
-  _designRecord?: AiDesignRecord | null,
   _index = 0,
   _creativeBrief?: CreativeBrief | null,
 ): { variant: string; settings: Record<string, unknown> } {
@@ -387,7 +383,7 @@ export async function materializeSiteContent(
     }),
   }));
   let authoredArchitecture: PageArchitecture[] | null = null;
-  if (!designContract && input.designRecord && input.creativeBrief) {
+  if (!designContract && input.creativeBrief) {
     // No template fallback: the page set, section selection and order come from
     // the design team's own plan. When it could not author one, the build stops
     // and says so rather than shipping the renderer's inventory as a design.
@@ -400,7 +396,6 @@ export async function materializeSiteContent(
     designContract = requireAiDesignContract({
       attempt: compileAiDesignContract({
         businessName: input.businessName,
-        designRecord: input.designRecord,
         brief: input.creativeBrief,
         directedBy: input.directedBy ?? "gpt-6-sol",
         reviewedBy: input.reviewedBy ?? null,
@@ -447,7 +442,6 @@ export async function materializeSiteContent(
       const design = materializedSectionDesign(
         section.kind,
         input.direction,
-        input.designRecord,
         pageIndex * 37 + sectionIndex,
         input.creativeBrief,
       );
