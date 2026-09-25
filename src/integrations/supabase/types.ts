@@ -2630,6 +2630,51 @@ export type Database = {
         }
         Relationships: []
       }
+      public_submission_attempts: {
+        Row: {
+          contact_hash: string | null
+          created_at: string
+          id: string
+          ip_hash: string
+          organization_id: string | null
+          purpose: string
+          user_agent_hash: string | null
+        }
+        Insert: {
+          contact_hash?: string | null
+          created_at?: string
+          id?: string
+          ip_hash: string
+          organization_id?: string | null
+          purpose: string
+          user_agent_hash?: string | null
+        }
+        Update: {
+          contact_hash?: string | null
+          created_at?: string
+          id?: string
+          ip_hash?: string
+          organization_id?: string | null
+          purpose?: string
+          user_agent_hash?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "public_submission_attempts_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "public_submission_attempts_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "public_organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       quote_addons: {
         Row: {
           created_at: string
@@ -4438,6 +4483,16 @@ export type Database = {
         Returns: string
       }
       prune_old_operational_records: { Args: never; Returns: Json }
+      register_public_submission_attempt: {
+        Args: {
+          _contact_hash?: string
+          _ip_hash: string
+          _organization_id: string
+          _purpose: string
+          _user_agent_hash?: string
+        }
+        Returns: Json
+      }
       restore_website_state: {
         Args: { _organization_id: string; _snapshot: Json }
         Returns: Json

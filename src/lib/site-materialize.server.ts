@@ -256,7 +256,9 @@ export async function materializeSiteContent(
   // The contract OVERRIDES the renderer's page set and section order, and any
   // visual container the design requires must resolve to a real picture —
   // otherwise the build fails rather than publishing a blank box.
-  const primaryAction = clean(input.copy.primaryCta) ?? "Get in touch";
+  const primaryAction = clean(input.copy.primaryCta);
+  if (!primaryAction)
+    throw new Error("The design team did not author a primary action for this website, so nothing was created. Please try again in a moment.");
   const functionalSections = [
     ...(input.hasQuoteForm ? [{ role: "quote" }] : []),
     ...(input.hasBooking ? [{ role: "booking" }] : []),
