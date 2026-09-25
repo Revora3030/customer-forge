@@ -52,5 +52,5 @@ Ordered by user-felt impact. Each item: extend existing code, never duplicate.
 - [x] Toggle building block added
 - [x] Monthly AI spend limit raised to $100 (owner choice)
 - [x] Non-AI backups removed (built-in review, on-device model, built-in engine report, built-in business strategy)
-- [ ] Fixed starting page list (planSiteContent) + candidate menu — next
+- [x] AI may invent its own sections and up to 4 new pages (starting list is now only the owner's real material; features cannot be invented)
 - [ ] Old section layouts + style-token squeezing — needs AI restyle of existing customer sites first (would change their look)
