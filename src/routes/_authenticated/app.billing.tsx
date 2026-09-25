@@ -20,6 +20,7 @@ import { getStripeEnvironment, isPaymentsConfigured } from "@/lib/stripe";
 import { GROWTH_SYSTEM, usdExact } from "@/lib/offer";
 import { BUILDER_INCLUDED_DETAIL, BUILDER_INCLUDED_LABEL } from "@/lib/access-state";
 import { useWorkspace } from "@/lib/use-tenant";
+import { isPlatformOwnerOrg } from "@/lib/platform-owner";
 import { canManage } from "@/lib/use-tenant";
 import { REVORA } from "@/lib/brand";
 import { useQueryClient } from "@tanstack/react-query";
@@ -91,7 +92,8 @@ function BillingPage() {
     (p) => p.kind !== "subscription" && p.id !== GROWTH_SYSTEM.setupProductId,
   );
   const subscription = billing?.subscription ?? null;
-  const setupPaid = Boolean(billing?.setupPaid);
+  const ownerWorkspace = isPlatformOwnerOrg(orgId);
+  const setupPaid = Boolean(billing?.setupPaid) || ownerWorkspace;
 
   // Stripe embedded checkout redirects here after a completed payment.
   useEffect(() => {
@@ -149,7 +151,7 @@ function BillingPage() {
         </div>
       </PageHead>
 
-      <PaymentTestModeBanner />
+      {ownerWorkspace ? null : <PaymentTestModeBanner />}
 
       {subscription?.status === "past_due" ? (
         <div className="rounded-md border border-destructive/40 bg-destructive/10 px-4 py-3 text-[13px] text-destructive">
@@ -188,8 +190,8 @@ function BillingPage() {
         />
         <MetricCard
           label="Setup fee"
-          value={usdExact(GROWTH_SYSTEM.setupPrice)}
-          hint={setupPaid ? "Paid" : "Due at checkout"}
+          value={ownerWorkspace ? "Waived" : usdExact(GROWTH_SYSTEM.setupPrice)}
+          hint={ownerWorkspace ? "Revora's own workspace" : setupPaid ? "Paid" : "Due at checkout"}
         />
 
         <MetricCard
@@ -214,7 +216,13 @@ function BillingPage() {
                   ? new Date(org.trial_ends_at).toLocaleDateString()
                   : "—"
           }
-          hint={subscription?.cancel_at_period_end ? "Cancellation scheduled" : "Next billing date"}
+          hint={
+            subscription?.cancel_at_period_end
+              ? "Cancellation scheduled"
+              : ownerWorkspace
+                ? "No billing for Revora's own workspace"
+                : "Next billing date"
+          }
         />
       </div>
 
