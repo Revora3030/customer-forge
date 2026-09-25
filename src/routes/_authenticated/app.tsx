@@ -249,12 +249,12 @@ function AppShell() {
       <aside
         className={cn(
           "border-border bg-card",
-          "fixed inset-y-0 left-0 z-50 pt-[env(safe-area-inset-top)] lg:pt-0 flex w-[16rem] max-w-[86vw] flex-col overflow-y-auto overscroll-contain border-r shadow-lift transition-transform duration-200 ease-out",
-          "lg:sticky lg:top-0 lg:z-auto lg:h-screen lg:w-56 lg:max-w-none lg:shrink-0 lg:translate-x-0 lg:shadow-none",
+          "fixed inset-y-0 left-0 z-50 flex h-[100dvh] w-[16rem] max-w-[86vw] flex-col overflow-y-auto overscroll-contain border-r pb-[env(safe-area-inset-bottom)] shadow-lift transition-transform duration-200 ease-out",
+          "lg:sticky lg:top-0 lg:z-auto lg:h-screen lg:w-56 lg:max-w-none lg:shrink-0 lg:translate-x-0 lg:pb-0 lg:shadow-none",
           navOpen ? "translate-x-0" : "-translate-x-full",
         )}
       >
-        <div className="sticky top-0 z-10 flex h-16 shrink-0 items-center justify-between gap-2 border-b border-border bg-card px-4">
+        <div className="sticky top-0 z-10 flex h-[calc(4rem+env(safe-area-inset-top))] shrink-0 items-center justify-between gap-2 border-b border-border bg-card px-4 pt-[env(safe-area-inset-top)] lg:h-16 lg:pt-0">
           <Link to="/app" onClick={() => setNavOpen(false)}>
             <Logo />
           </Link>
@@ -274,8 +274,9 @@ function AppShell() {
           secondary={SECONDARY_NAV}
           secondaryLabel="More tools"
           onNavigate={() => setNavOpen(false)}
-          className="flex-1"
+          className="shrink-0"
         />
+        <div className="flex-1" aria-hidden="true" />
 
         {org ? (
           <div className="mx-2.5 mt-2 rounded-md border border-border p-3">
