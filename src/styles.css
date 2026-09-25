@@ -4,8 +4,8 @@
 
 /*
  * REVORA — design system
- * Direction: carbon surfaces, hairline borders, signal red as the signature
- * accent, with amber reserved for attention and emerald for success. Space Grotesk for display/numerics, DM Sans
+ * Direction: carbon surfaces, hairline borders, Revora metallic gold as the
+ * signature accent, with emerald reserved for success. Space Grotesk for display/numerics, DM Sans
  * for body. Single dark theme (no mode toggle).
  *
  * All colors are oklch semantic tokens. Never hardcode colors in components.
@@ -64,7 +64,7 @@
 
   --shadow-panel: 0 1px 0 0 oklch(1 0 0 / 4%) inset;
   --shadow-lift: 0 18px 40px -24px oklch(0 0 0 / 80%);
-  --shadow-signal: 0 12px 32px -14px oklch(0.64 0.24 27 / 40%);
+  --shadow-signal: 0 12px 32px -14px oklch(0.76 0.14 85 / 42%);
 
   --color-gold: var(--gold);
   --color-gold-soft: var(--gold-soft);
@@ -86,10 +86,10 @@
   --popover: oklch(0.1948 0.0038 286);
   --popover-foreground: oklch(0.9842 0 0);
 
-  /* signal system — legacy token names remain aliases for compatible surfaces */
-  --gold: oklch(0.64 0.24 27);
-  --gold-soft: oklch(0.77 0.16 28);
-  --gold-deep: oklch(0.52 0.21 27);
+  /* Revora metallic gold system */
+  --gold: oklch(0.76 0.14 85);
+  --gold-soft: oklch(0.88 0.1 91);
+  --gold-deep: oklch(0.61 0.12 75);
 
   --primary: var(--gold);
   --primary-foreground: oklch(0.1421 0.0032 286);

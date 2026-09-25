@@ -137,7 +137,7 @@ export function BuilderAssistant({
                    <img src="/revora-mark-144.png" alt="" className="size-8 rounded-lg shadow-signal" />
                   <p className="text-[13px] font-semibold">Revora</p>
                 </div>
-                <h2 className="text-lg font-semibold">{emptyTitle}</h2>
+                <h2 className="gold-text text-lg font-semibold">{emptyTitle}</h2>
                 <p className="text-[13px] leading-relaxed text-muted-foreground">{emptyHint}</p>
               </div>
             </ConversationEmptyState>
@@ -186,7 +186,7 @@ export function BuilderAssistant({
             type="button"
             aria-expanded={moreOpen}
             onClick={() => setMoreOpen((open) => !open)}
-            className="min-h-8 shrink-0 cursor-pointer rounded-full px-2.5 py-1 text-[12px] font-medium text-primary transition-colors hover:bg-primary/10 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+            className="gold-hl min-h-8 shrink-0 cursor-pointer rounded-full px-2.5 py-1 text-[12px] transition-colors hover:bg-primary/10 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
           >
             {moreOpen ? "Fewer ideas" : "More ideas"}
           </button>
