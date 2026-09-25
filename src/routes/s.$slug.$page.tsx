@@ -27,6 +27,9 @@ import { readCopy } from "@/lib/site-engine";
 import { canonicalSiteUrl } from "@/lib/revora-address";
 import { fingerprintClassNames } from "@/lib/builder/design-fingerprint";
 import { SiteFooter } from "@/components/site/SiteFooter";
+import { CompositionRenderer } from "@/components/site/CompositionRenderer";
+import { useOwnAddress } from "@/components/site/site-links";
+import { readSiteChrome, resolveSiteHref } from "@/lib/builder/site-chrome";
 import { pageJourneyFor, readSiteCampaign } from "@/lib/builder/site-campaign";
 
 export const Route = createFileRoute("/s/$slug/$page")({
@@ -127,6 +130,9 @@ export function SitePageView({
   const facts = businessFacts(profile as Record<string, unknown> | null, org.name);
   const fingerprint = siteDesignFingerprint(site);
   const campaign = readSiteCampaign(settings?.generation ?? null);
+  const ownAddress = useOwnAddress();
+  const chrome = readSiteChrome(site.settings?.generation ?? null);
+  const chromeHref = (href: string) => resolveSiteHref(href, org.slug, ownAddress);
   const journey = pageJourneyFor(campaign, page.slug);
 
   useEffect(() => {
@@ -167,6 +173,11 @@ export function SitePageView({
         {/* The bar is opaque and uses the site's own foreground colour, so the
             business name stays readable on pale and dark themes alike rather
             than inheriting whatever colour the section below it chose. */}
+        {chrome.header ? (
+          <header className="rv-site-header rv-ai-header sticky top-0 z-40">
+            <CompositionRenderer as="div" scope="site-header" tree={chrome.header} resolveHref={chromeHref} />
+          </header>
+        ) : (
         <header className={`rv-site-header rv-header-${campaign?.header ?? "solid"} sticky top-0 z-40 border-b border-border bg-background text-foreground`}>
           <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3.5">
             <SitePageLink slug={org.slug} className="min-w-0 max-w-40 sm:max-w-none">
@@ -197,6 +208,7 @@ export function SitePageView({
           </div>
           <SiteNav site={site} current={page.slug} />
         </header>
+        )}
 
         {/* Tablet and phone overrides the client set in the visual builder. */}
         <ResponsiveStyles
@@ -210,7 +222,13 @@ export function SitePageView({
           ))}
         </main>
 
-        <SiteFooter site={site} />
+        {chrome.footer ? (
+          <footer className="rv-site-footer rv-ai-footer">
+            <CompositionRenderer as="div" scope="site-footer" tree={chrome.footer} resolveHref={chromeHref} />
+          </footer>
+        ) : (
+          <SiteFooter site={site} />
+        )}
 
         <StickyCallBar site={site} label={ctaLabel} />
         <SiteVitals slug={org.slug} preview={preview} />
