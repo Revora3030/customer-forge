@@ -20,6 +20,19 @@ const NAV = [
   { to: "/contact", label: "Contact" },
 ] as const;
 
+/**
+ * Straight-to-the-answer jumps for phone visitors: the home page is long, so
+ * the menu offers the sections people actually decide with.
+ */
+const JUMP_LINKS = [
+  { hash: "see-it", label: "See it in action" },
+  { hash: "how-it-works", label: "How it works" },
+  { hash: "pricing", label: "Pricing" },
+  { hash: "roi", label: "What you'd earn back" },
+  { hash: "faq", label: "Questions" },
+] as const;
+
+
 export function SiteHeader() {
   const [open, setOpen] = useState(false);
   const { loading, user } = useSession();
