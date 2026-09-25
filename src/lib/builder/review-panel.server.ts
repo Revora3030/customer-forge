@@ -8,7 +8,14 @@
 import { callBestThinker, callHallOfFame } from "@/lib/ai/hall-of-fame.server";
 import type { CollectivePurpose } from "@/lib/ai/collective";
 
-export type ReviewArea = "conversion" | "truthfulness" | "seo" | "accessibility" | "mobile";
+export type ReviewArea =
+  | "conversion"
+  | "truthfulness"
+  | "seo"
+  | "accessibility"
+  | "mobile"
+  | "senior"
+  | "completeness";
 
 export type ReviewNote = { area: ReviewArea; issues: string[]; severity: "low" | "medium" | "high"; model: string | null };
 
@@ -22,9 +29,11 @@ const FULL_PANEL: Reviewer[] = [
   { area: "seo", purpose: "seo_analysis", complexity: "medium", brief: "Critique heading structure, keyword clarity, internal links and alt text." },
   { area: "accessibility", purpose: "specialist_review", complexity: "low", brief: "Flag contrast risks, missing alt text, tiny text, unclear link labels and reading order problems." },
   { area: "mobile", purpose: "specialist_review", complexity: "low", brief: "Flag layouts that will break or crowd on a 320–390px phone: multi-column rows, oversized text, overflow." },
+  { area: "senior", purpose: "final_review", complexity: "high", brief: "As an independent senior professional reviewer, challenge the lead designer's work: judge whether it is finished, coherent and genuinely serves this business's visitors. Judge whether it works — never ask it to match a template or house style." },
+  { area: "completeness", purpose: "completeness_check", complexity: "low", brief: "Flag unfinished or thin pages, empty sections, missing page metadata or structured-data gaps, and broken or dead-end links." },
 ];
 
-const LIGHT_AREAS: ReviewArea[] = ["truthfulness", "seo", "accessibility", "mobile"];
+const LIGHT_AREAS: ReviewArea[] = ["truthfulness", "seo", "accessibility", "mobile", "completeness"];
 
 export function panelFor(mode: "full" | "light"): Reviewer[] {
   return mode === "full" ? FULL_PANEL : FULL_PANEL.filter((r) => LIGHT_AREAS.includes(r.area));

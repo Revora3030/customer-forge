@@ -20,6 +20,8 @@
 import {
   COLLECTIVE_TIERS,
   DEFAULT_COLLECTIVE_MODELS,
+  PEER_PURPOSE_MODELS,
+  purposeTier,
   selectTier,
   type CollectivePurpose,
   type CollectiveTier,
