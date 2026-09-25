@@ -136,7 +136,7 @@ function SiteSectionBody({ site, section }: { site: Site; section: Section }) {
                 <dt className="eyebrow flex items-center gap-1.5">
                   <Phone className="size-3.5" aria-hidden="true" /> Phone
                 </dt>
-                <dd className="mt-1 text-[13px]">
+                <dd className="mt-1 text-[14px]">
                   <a href={facts.phoneHref} className="text-primary underline">
                     {facts.phone}
                   </a>
@@ -148,7 +148,7 @@ function SiteSectionBody({ site, section }: { site: Site; section: Section }) {
                 <dt className="eyebrow flex items-center gap-1.5">
                   <Mail className="size-3.5" aria-hidden="true" /> Email
                 </dt>
-                <dd className="mt-1 text-[13px]">
+                <dd className="mt-1 text-[14px]">
                   <a href={facts.emailHref} className="text-primary underline">
                     {facts.email}
                   </a>
@@ -160,7 +160,7 @@ function SiteSectionBody({ site, section }: { site: Site; section: Section }) {
                 <dt className="eyebrow flex items-center gap-1.5">
                   <MapPin className="size-3.5" aria-hidden="true" /> Area
                 </dt>
-                <dd className="mt-1 text-[13px]">{area}</dd>
+                <dd className="mt-1 text-[14px]">{area}</dd>
               </div>
             ) : null}
             {addressLine ? (
@@ -168,13 +168,13 @@ function SiteSectionBody({ site, section }: { site: Site; section: Section }) {
                 <dt className="eyebrow flex items-center gap-1.5">
                   <MapPin className="size-3.5" aria-hidden="true" /> Address
                 </dt>
-                <dd className="mt-1 text-[13px]">{addressLine}</dd>
+                <dd className="mt-1 text-[14px]">{addressLine}</dd>
               </div>
             ) : null}
             {facts.hours ? (
               <div>
                 <dt className="eyebrow">Hours</dt>
-                <dd className="mt-1 whitespace-pre-line text-[13px]">{facts.hours}</dd>
+                <dd className="mt-1 whitespace-pre-line text-[14px]">{facts.hours}</dd>
               </div>
             ) : null}
           </dl>
