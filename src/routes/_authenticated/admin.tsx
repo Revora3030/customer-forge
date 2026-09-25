@@ -90,7 +90,7 @@ function AdminShell() {
       {navOpen ? (
         <button type="button" aria-label="Close navigation" onClick={() => setNavOpen(false)} className="fixed inset-0 z-40 bg-background/80 backdrop-blur-sm lg:hidden" />
       ) : null}
-      <aside className={`fixed inset-y-0 left-0 z-50 pt-[env(safe-area-inset-top)] lg:pt-0 flex w-64 max-w-[86vw] flex-col border-r border-border bg-card transition-transform lg:sticky lg:top-0 lg:z-auto lg:h-screen lg:w-56 lg:translate-x-0 ${navOpen ? "translate-x-0" : "-translate-x-full"}`}>
+      <aside className={`fixed inset-y-0 left-0 z-50 pt-[env(safe-area-inset-top)] lg:pt-0 flex h-[100dvh] w-64 max-w-[86vw] flex-col overflow-y-auto overscroll-contain border-r border-border bg-card transition-transform lg:sticky lg:top-0 lg:z-auto lg:h-screen lg:w-56 lg:translate-x-0 ${navOpen ? "translate-x-0" : "-translate-x-full"}`}>
         <div className="flex h-14 items-center justify-between border-b border-border px-4">
           <Link to="/admin" onClick={() => setNavOpen(false)}><Logo /></Link>
           <Button variant="ghost" size="icon-sm" onClick={() => setNavOpen(false)} className="lg:hidden" aria-label="Close navigation"><X className="size-4" /></Button>
