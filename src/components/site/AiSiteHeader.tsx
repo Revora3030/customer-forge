@@ -27,7 +27,7 @@ export function AiSiteHeader(props: {
   }, [open]);
 
   return (
-    <header className="rv-site-header rv-ai-header sticky top-0 z-40">
+    <header className="rv-site-header rv-ai-header sticky top-0 z-40 pt-[env(safe-area-inset-top)]">
       <nav aria-label="Main" className="hidden md:block">
         <CompositionRenderer as="div" scope="site-header" tree={props.tree} resolveHref={props.resolveHref} />
       </nav>

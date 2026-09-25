@@ -27,7 +27,7 @@ export function SiteHeader() {
   const signedIn = !loading && user !== null;
 
   return (
-    <header className="sticky top-0 z-40 border-b border-border bg-background/90 backdrop-blur-sm">
+    <header className="sticky top-0 z-40 pt-[env(safe-area-inset-top)] border-b border-border bg-background/90 backdrop-blur-sm">
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4">
         <Link to="/" aria-label="Revora home">
           <Logo />
