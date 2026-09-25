@@ -114,8 +114,14 @@ export async function composeFirstBuildSections(input: {
   if (error) throw new Error(error.message);
   const rows = (sections ?? []) as SectionRow[];
   const parts = (components ?? []) as ComponentRow[];
+  // Prices already written on the owner's own site are supplied facts.
+  const materialText = [
+    ...rows.map((r) => [r.heading, r.subheading, r.body].join(" ")),
+    ...parts.map((c) => [c.label, c.body, c.link_label].join(" ")),
+  ].join(" ");
+  const screenFacts = /[$€£]\s?\d/.test(materialText) ? { ...facts, hasPrices: true } : facts;
   const screen = (text: string) => {
-    const problem = screenText(text, facts, 4000);
+    const problem = screenText(text, screenFacts, 4000);
     return problem && problem !== "empty" ? problem : null;
   };
 
@@ -170,6 +176,7 @@ export async function composeFirstBuildSections(input: {
     if (pending.length)
       throw new Error(
         `The design team could not produce a safe layout for ${pending.length} section(s), so nothing was published. Please try again in a moment.`,
+        { cause: feedback },
       );
   }
   return result;

@@ -94,6 +94,9 @@ const ENUMS: Record<string, readonly string[]> = {
   items: ["start", "center", "end", "stretch"],
   shadow: ["none", "subtle", "medium", "strong"],
 };
+const ENUM_ALIASES: Record<string, string> = {
+  "space-between": "between", "flex-start": "start", "flex-end": "end",
+};
 const COLOR_KEYS = ["color", "background", "gradientTo", "borderColor"];
 const HEX = /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i;
 const SAFE_FONT = /^[a-z0-9 \-']{1,60}$/i;
@@ -123,11 +126,14 @@ function checkStyle(style: unknown, path: string, issues: CompositionIssue[]): N
     const at = `${path}.${key}`;
     if (key in NUMERIC) {
       const [min, max] = NUMERIC[key]!;
-      if (typeof value !== "number" || !Number.isFinite(value) || value < min || value > max) {
+      if (typeof value !== "number" || !Number.isFinite(value)) {
         issues.push({ path: at, problem: `must be a number between ${min} and ${max}` });
-      } else out[key] = value;
+      } else out[key] = Math.min(max, Math.max(min, value)); // clamped into the safe range
     } else if (key in ENUMS) {
-      if (!ENUMS[key]!.includes(value as string)) issues.push({ path: at, problem: `must be one of ${ENUMS[key]!.join(", ")}` });
+      // Standard CSS spellings of the same choice are accepted as-is.
+      const alias = typeof value === "string" ? ENUM_ALIASES[value.trim().toLowerCase()] ?? value.trim().toLowerCase() : value;
+      if (ENUMS[key]!.includes(alias as string)) out[key] = alias;
+      else if (!ENUMS[key]!.includes(value as string)) issues.push({ path: at, problem: `must be one of ${ENUMS[key]!.join(", ")}` });
       else out[key] = value;
     } else if (COLOR_KEYS.includes(key)) {
       if (typeof value !== "string" || !HEX.test(value)) issues.push({ path: at, problem: "must be a #RRGGBB colour" });
@@ -229,7 +235,13 @@ export function validateComposition(input: unknown, options: ValidateOptions = {
         node.responsive = {};
         for (const [bp, style] of Object.entries(responsive as Record<string, unknown>)) {
           if (bp !== "mobile" && bp !== "tablet" && bp !== "desktop") issues.push({ path: `${path}.responsive.${bp}`, problem: "unknown breakpoint" });
-          else node.responsive[bp] = checkStyle(style, `${path}.responsive.${bp}`, issues);
+          else {
+            // Accept `{ mobile: { style: {...} } }` as the same thing as `{ mobile: {...} }`.
+            const inner = style && typeof style === "object" && !Array.isArray(style) && Object.keys(style).length === 1 && "style" in style
+              ? (style as { style: unknown }).style
+              : style;
+            node.responsive[bp] = checkStyle(inner, `${path}.responsive.${bp}`, issues);
+          }
         }
       }
     }

@@ -36,7 +36,6 @@ import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/
 import { Route as AuthenticatedAppRouteImport } from './routes/_authenticated/app'
 import { Route as AuthenticatedMyRouteImport } from './routes/_authenticated/my'
 import { Route as AuthenticatedOnboardingRouteImport } from './routes/_authenticated/onboarding'
-import { Route as ApiAdminPurgeAccountsRouteImport } from './routes/api/admin-purge-accounts'
 import { Route as CompareIndexRouteImport } from './routes/compare.index'
 import { Route as CompareSlugRouteImport } from './routes/compare.$slug'
 import { Route as CrmIndexRouteImport } from './routes/crm.index'
@@ -235,11 +234,6 @@ const AuthenticatedOnboardingRoute = AuthenticatedOnboardingRouteImport.update({
   id: '/onboarding',
   path: '/onboarding',
   getParentRoute: () => AuthenticatedRouteRoute,
-} as any)
-const ApiAdminPurgeAccountsRoute = ApiAdminPurgeAccountsRouteImport.update({
-  id: '/api/admin-purge-accounts',
-  path: '/api/admin-purge-accounts',
-  getParentRoute: () => rootRouteImport,
 } as any)
 const CompareIndexRoute = CompareIndexRouteImport.update({
   id: '/compare/',
@@ -609,7 +603,6 @@ export interface FileRoutesByFullPath {
   '/app': typeof AuthenticatedAppRouteWithChildren
   '/my': typeof AuthenticatedMyRouteWithChildren
   '/onboarding': typeof AuthenticatedOnboardingRoute
-  '/api/admin-purge-accounts': typeof ApiAdminPurgeAccountsRoute
   '/compare/$slug': typeof CompareSlugRoute
   '/crm/$trade': typeof CrmTradeRoute
   '/demo/dashboard': typeof DemoDashboardRoute
@@ -697,7 +690,6 @@ export interface FileRoutesByTo {
   '/tools': typeof ToolsRoute
   '/website-audit': typeof WebsiteAuditRoute
   '/onboarding': typeof AuthenticatedOnboardingRoute
-  '/api/admin-purge-accounts': typeof ApiAdminPurgeAccountsRoute
   '/compare/$slug': typeof CompareSlugRoute
   '/crm/$trade': typeof CrmTradeRoute
   '/demo/dashboard': typeof DemoDashboardRoute
@@ -792,7 +784,6 @@ export interface FileRoutesById {
   '/_authenticated/app': typeof AuthenticatedAppRouteWithChildren
   '/_authenticated/my': typeof AuthenticatedMyRouteWithChildren
   '/_authenticated/onboarding': typeof AuthenticatedOnboardingRoute
-  '/api/admin-purge-accounts': typeof ApiAdminPurgeAccountsRoute
   '/compare/$slug': typeof CompareSlugRoute
   '/crm/$trade': typeof CrmTradeRoute
   '/demo/dashboard': typeof DemoDashboardRoute
@@ -887,7 +878,6 @@ export interface FileRouteTypes {
     | '/app'
     | '/my'
     | '/onboarding'
-    | '/api/admin-purge-accounts'
     | '/compare/$slug'
     | '/crm/$trade'
     | '/demo/dashboard'
@@ -975,7 +965,6 @@ export interface FileRouteTypes {
     | '/tools'
     | '/website-audit'
     | '/onboarding'
-    | '/api/admin-purge-accounts'
     | '/compare/$slug'
     | '/crm/$trade'
     | '/demo/dashboard'
@@ -1069,7 +1058,6 @@ export interface FileRouteTypes {
     | '/_authenticated/app'
     | '/_authenticated/my'
     | '/_authenticated/onboarding'
-    | '/api/admin-purge-accounts'
     | '/compare/$slug'
     | '/crm/$trade'
     | '/demo/dashboard'
@@ -1160,7 +1148,6 @@ export interface RootRouteChildren {
   TermsRoute: typeof TermsRoute
   ToolsRoute: typeof ToolsRoute
   WebsiteAuditRoute: typeof WebsiteAuditRoute
-  ApiAdminPurgeAccountsRoute: typeof ApiAdminPurgeAccountsRoute
   CompareSlugRoute: typeof CompareSlugRoute
   CrmTradeRoute: typeof CrmTradeRoute
   GuidesSlugRoute: typeof GuidesSlugRoute
@@ -1376,13 +1363,6 @@ declare module '@tanstack/react-router' {
       fullPath: '/onboarding'
       preLoaderRoute: typeof AuthenticatedOnboardingRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/api/admin-purge-accounts': {
-      id: '/api/admin-purge-accounts'
-      path: '/api/admin-purge-accounts'
-      fullPath: '/api/admin-purge-accounts'
-      preLoaderRoute: typeof ApiAdminPurgeAccountsRouteImport
-      parentRoute: typeof rootRouteImport
     }
     '/compare/': {
       id: '/compare/'
@@ -2036,7 +2016,6 @@ const rootRouteChildren: RootRouteChildren = {
   TermsRoute: TermsRoute,
   ToolsRoute: ToolsRoute,
   WebsiteAuditRoute: WebsiteAuditRoute,
-  ApiAdminPurgeAccountsRoute: ApiAdminPurgeAccountsRoute,
   CompareSlugRoute: CompareSlugRoute,
   CrmTradeRoute: CrmTradeRoute,
   GuidesSlugRoute: GuidesSlugRoute,
