@@ -249,7 +249,7 @@ function AppShell() {
       <aside
         className={cn(
           "border-border bg-card",
-          "fixed inset-y-0 left-0 z-50 flex w-[16rem] max-w-[86vw] flex-col overflow-y-auto overscroll-contain border-r shadow-lift transition-transform duration-200 ease-out",
+          "fixed inset-y-0 left-0 z-50 pt-[env(safe-area-inset-top)] lg:pt-0 flex w-[16rem] max-w-[86vw] flex-col overflow-y-auto overscroll-contain border-r shadow-lift transition-transform duration-200 ease-out",
           "lg:sticky lg:top-0 lg:z-auto lg:h-screen lg:w-56 lg:max-w-none lg:shrink-0 lg:translate-x-0 lg:shadow-none",
           navOpen ? "translate-x-0" : "-translate-x-full",
         )}
@@ -347,7 +347,7 @@ function AppShell() {
           </div>
         ) : null}
 
-        <header className="sticky top-0 z-30 flex h-14 items-center justify-between gap-3 border-b border-border bg-background/95 px-4 backdrop-blur">
+        <header className="sticky top-0 z-30 flex h-[calc(3.5rem+env(safe-area-inset-top))] pt-[env(safe-area-inset-top)] items-center justify-between gap-3 border-b border-border bg-background/95 px-4 backdrop-blur">
           <div className="flex min-w-0 items-center gap-3">
             <Button
               type="button"
