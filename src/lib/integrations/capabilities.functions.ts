@@ -36,7 +36,7 @@ export const getIntegrationCenter = createServerFn({ method: "GET" })
     const capabilities = await capabilitySnapshot();
     const summary = {
       ready: capabilities.filter((entry) => entry.status === "ready").length,
-      deterministic: capabilities.filter((entry) => entry.status === "deterministic").length,
+      deterministic: 0,
       needsConnection: capabilities.filter((entry) => entry.status === "needs_connection").length,
       unavailable: capabilities.filter((entry) => entry.status === "unavailable").length,
     };

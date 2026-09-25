@@ -200,7 +200,7 @@ export async function refineSectionWordingWithCollective(input: {
     passes.push(
       record(solCall.wanted, "content_strategy", { skipped: solCall.detail ?? solCall.reason }),
     );
-    return { patches: [], passes, totalCostMicrocents: 0 };
+    throw new Error(`Sol could not author the section copy: ${solCall.detail ?? solCall.reason}`);
   }
   proposal = parseRefinement(solCall.text);
   passes.push(
@@ -211,12 +211,7 @@ export async function refineSectionWordingWithCollective(input: {
       skipped: proposal === null ? "the answer was not in the agreed shape" : null,
     }),
   );
-  if (!proposal)
-    return {
-      patches: [],
-      passes,
-      totalCostMicrocents: passes.reduce((sum, pass) => sum + pass.costMicrocents, 0),
-    };
+  if (!proposal) throw new Error("Sol returned unreadable section copy, so the build was stopped.");
 
   const terraCall = await callBestThinker({
     json: true,
@@ -247,6 +242,7 @@ export async function refineSectionWordingWithCollective(input: {
         skipped: terraCall.detail ?? terraCall.reason,
       }),
     );
+    throw new Error(`Terra could not review the section copy: ${terraCall.detail ?? terraCall.reason}`);
   } else {
     const parsed = parseReview(terraCall.text);
     approvedIds = parsed ? parsed.approvedFields : [];
@@ -268,6 +264,8 @@ export async function refineSectionWordingWithCollective(input: {
     baseline: input.sections,
     approvedIds,
   });
+  if (!gated.accepted.length)
+    throw new Error("Terra or the fact gate rejected every section-copy proposal, so the build was stopped.");
   const solPass = passes.find((pass) => pass.purpose === "content_strategy");
   if (solPass) {
     solPass.acceptedFields = gated.accepted.map((patch) => patch.id);

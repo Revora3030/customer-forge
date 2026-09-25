@@ -157,22 +157,6 @@ function mediaSettings(asset: FirstBuildImageAsset): Record<string, unknown> {
   );
 }
 
-function firstAsset(input: MaterializeInput, slot: FirstBuildImageAsset["slot"]) {
-  return (input.generatedAssets ?? []).find((asset) => asset.slot === slot) ?? null;
-}
-
-function serviceAsset(
-  input: MaterializeInput,
-  serviceName: string,
-  index: number,
-): FirstBuildImageAsset | null {
-  const serviceAssets = (input.generatedAssets ?? []).filter((asset) => asset.slot === "service");
-  const exact = serviceAssets.find((asset) =>
-    asset.label.toLowerCase().includes(serviceName.toLowerCase()),
-  );
-  return exact ?? (serviceAssets.length ? serviceAssets[index % serviceAssets.length] ?? null : null);
-}
-
 function imageComponent(asset: FirstBuildImageAsset, kind = "image"): Component {
   return {
     kind,

@@ -146,15 +146,13 @@ export async function resolveCapability(capability: Capability): Promise<Capabil
     capability,
     provider,
     status,
-    deterministic: hasDeterministicPath(capability),
+    deterministic: false,
     fallbacks: eligible.slice(1),
     reason: provider
       ? null
       : paidBlocked
         ? "paid_provider_blocked_by_free_only"
-        : status === "deterministic"
-          ? "using_revora_engine"
-          : status === "needs_connection"
+        : status === "needs_connection"
             ? "needs_connection"
             : "no_provider_implemented",
   };
