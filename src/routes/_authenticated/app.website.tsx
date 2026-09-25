@@ -96,7 +96,11 @@ import {
   revoraScore,
 } from "@/lib/site-engine";
 import { useBuildReadiness, useScoreFacts } from "@/lib/site-engine.hooks";
-import { useGenerateSectionsFromText } from "@/lib/site-engine.hooks";
+import {
+  useEnsureFirstBuild,
+  useGenerateSectionsFromText,
+  useLatestGenerationJob,
+} from "@/lib/site-engine.hooks";
 import { useWebsiteContent } from "@/lib/website-content.hooks";
 import { websiteQa, type WizardStepKey } from "@/lib/website-content";
 
@@ -220,6 +224,13 @@ function WebsitePage() {
   /** One request engine for the whole workspace. */
   const requests = useBuilderRequests({ organizationId: orgId ?? null, canManage: manage });
   const firstBuild = useGenerateSectionsFromText(orgId);
+  const latestJob = useLatestGenerationJob(orgId);
+  useEnsureFirstBuild(orgId, {
+    jobsLoaded: latestJob.isSuccess,
+    hasAnyJob: !!latestJob.data,
+    pageCount: pages ? (pages as unknown[]).length : undefined,
+    canManage: manage,
+  });
 
   /** Older deep links (and panels that ask to jump) resolve to the new doors. */
   const goTo = (key: string) => {

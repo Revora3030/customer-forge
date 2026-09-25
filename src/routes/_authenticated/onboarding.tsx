@@ -453,11 +453,24 @@ function Onboarding() {
       // queued. The builder polls the job and shows live progress.
       let queued = false;
       try {
-        const analysis = await analyzeBrief({ data: { organizationId: org.id } });
-        await approveBrief({
-          data: { organizationId: org.id, brief: analysis.brief, approved: true },
-        });
-        await queueBuild({ data: { organizationId: org.id } });
+        // Mobile connections drop long requests ("Load failed"); retry each step.
+        const retry = async <T,>(fn: () => Promise<T>): Promise<T> => {
+          let last: unknown;
+          for (let i = 0; i < 3; i++) {
+            try {
+              return await fn();
+            } catch (e) {
+              last = e;
+              await new Promise((r) => setTimeout(r, 1500 * (i + 1)));
+            }
+          }
+          throw last;
+        };
+        const analysis = await retry(() => analyzeBrief({ data: { organizationId: org.id } }));
+        await retry(() =>
+          approveBrief({ data: { organizationId: org.id, brief: analysis.brief, approved: true } }),
+        );
+        await retry(() => queueBuild({ data: { organizationId: org.id } }));
         queued = true;
       } catch (buildError) {
         // Never trap the owner in onboarding: their answers are saved, and the
