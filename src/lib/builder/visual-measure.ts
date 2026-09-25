@@ -122,6 +122,17 @@ export async function measureWebsiteAtAllWidths(
     for (const [index, width] of VIEWPORTS.entries()) {
       iframe.style.width = `${width}px`;
       await wait(SETTLE_MS);
+      // Reflow caused by our own resize is not visitor layout shift. Load-time
+      // shift is judged at the first width; later widths only count shifts
+      // that happen after the resize has settled.
+      if (index > 0) {
+        try {
+          evaluate(win, `(() => { if (window.__revoraCls !== undefined) window.__revoraCls = 0; return true; })()`);
+          await wait(SETTLE_MS);
+        } catch {
+          // Instrumentation refused; geometry is still measured.
+        }
+      }
       // Same-origin, so the preview's own window runs the shared measurement
       // snippet against its own document — the real rendered numbers, not an
       // approximation taken from outside the frame.
