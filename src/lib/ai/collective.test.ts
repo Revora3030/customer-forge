@@ -44,14 +44,22 @@ describe("tier routing", () => {
       "creative_direction",
       "information_architecture",
       "conversion_architecture",
-      "visual_review",
-      "adversarial_review",
       "quality_review",
       "hard_request",
     ] as const) {
       expect(purposeTier(purpose)).toBe("sol");
       expect(selectTier({ purpose, available: COLLECTIVE_TIERS })).toMatchObject({
         tier: "sol",
+        downgraded: false,
+      });
+    }
+  });
+
+  it("pins independent review to Terra, even for hard work", () => {
+    for (const purpose of ["adversarial_review", "visual_review"] as const) {
+      expect(purposeTier(purpose)).toBe("terra");
+      expect(selectTier({ purpose, complexity: "high", available: COLLECTIVE_TIERS })).toMatchObject({
+        tier: "terra",
         downgraded: false,
       });
     }
