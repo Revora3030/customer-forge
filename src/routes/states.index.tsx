@@ -12,7 +12,7 @@ import { GROWTH_SYSTEM, usdExact } from "@/lib/offer";
 import { breadcrumbSchema, canonicalLink, ogUrl } from "@/lib/seo";
 import { trackConversion } from "@/lib/conversion";
 
-const TITLE = "Small business website & lead generation in all 50 states — Revora";
+const TITLE = "Websites, CRM & Lead Generation for Service Businesses in All 50 States | Revora";
 const DESCRIPTION = `Revora builds service businesses in every US state a complete customer acquisition system: website, instant quotes, online booking, CRM and follow-up. ${usdExact(GROWTH_SYSTEM.setupPrice)} setup, first month free, then ${usdExact(GROWTH_SYSTEM.monthlyPrice)}/month.`;
 
 export const Route = createFileRoute("/states/")({
