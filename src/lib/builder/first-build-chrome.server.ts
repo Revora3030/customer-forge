@@ -55,8 +55,8 @@ export async function composeSiteChrome(input: {
   const material = {
     businessName: input.businessName,
     pages: nav.filter((p) => p.kind !== "thanks" && p.kind !== "post").map((p) => ({ href: p.slug === "home" ? "/" : `/${p.slug}`, title: p.title })),
-    phone: facts.phone ?? null,
-    email: facts.email ?? null,
+    phone: facts.phone?.trim() || null,
+    email: facts.email?.trim() || null,
     area: facts.serviceArea ?? facts.city ?? null,
     ctaLabel: (facts as { ctaLabel?: string | null }).ctaLabel ?? null,
   };
@@ -64,7 +64,7 @@ export async function composeSiteChrome(input: {
   const models: string[] = [];
   let cost = 0;
   let feedback: Record<string, CompositionIssue[]> = {};
-  for (let attempt = 0; attempt < 2; attempt += 1) {
+  for (let attempt = 0; attempt < 3; attempt += 1) {
     const call = await callBestThinker({
       json: true,
       purpose: "creative_direction",
@@ -103,7 +103,11 @@ export async function composeSiteChrome(input: {
       return { models, costMicrocents: cost };
     }
   }
-  throw new Error("The design team could not produce a safe menu and footer, so nothing was published. Please try again in a moment.");
+  const why = Object.entries(feedback)
+    .map(([part, issues]) => `${part}: ${issues.slice(0, 3).map((i) => `${i.path} ${i.problem}`).join("; ")}`)
+    .join(" | ");
+  console.warn("[first-build-chrome] repair attempts exhausted", why);
+  throw new Error(`The design team could not produce a safe menu and footer (${why.slice(0, 400) || "no usable response"}), so nothing was published. Please try again in a moment.`);
 }
 
 /** Keeps Sol's hero-video idea only when it is safe, plain text with no unsupported claims. */

@@ -1,3 +1,4 @@
+import { isPlatformOwnerOrg } from "@/lib/platform-owner";
 import { createServerFn } from "@tanstack/react-start";
 import { publishBlockReason } from "@/lib/builder/draft-branch";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
@@ -89,7 +90,7 @@ export const getProductionStatus = createServerFn({ method: "POST" })
     const setupPaymentStatus = ((org.setup_payment_status as SetupPaymentStatus | null) ??
       (org.setup_paid_at ? "paid" : "unpaid")) as SetupPaymentStatus;
     const paid = !!org.setup_paid_at || setupPaymentStatus === "paid";
-    const unlocked = !org.is_suspended && (paid || !!org.is_demo);
+    const unlocked = !org.is_suspended && (paid || !!org.is_demo || isPlatformOwnerOrg(data.organizationId));
 
     const accountStatus: ProductionStatus["accountStatus"] = org.is_suspended
       ? "suspended"
@@ -170,7 +171,7 @@ async function gatherReadiness(
   const visibleSections = (sections.data ?? []).filter((s) => s.is_visible);
   const captureKinds = new Set(["quote", "booking", "contact", "cta", "sticky_cta"]);
   const paid = !!org.data?.setup_paid_at || org.data?.setup_payment_status === "paid";
-  const unlocked = !org.data?.is_suspended && (paid || !!org.data?.is_demo);
+  const unlocked = !org.data?.is_suspended && (paid || !!org.data?.is_demo || isPlatformOwnerOrg(organizationId));
 
   // Real audit of the rendered website: broken contact details, unfinished copy
   // or unsupported claims stop a publish instead of reaching customers.

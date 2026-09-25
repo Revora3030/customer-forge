@@ -1,3 +1,4 @@
+import { isPlatformOwnerOrg } from "@/lib/platform-owner";
 /**
  * The single account-access model for Revora.
  *
@@ -30,6 +31,7 @@ export type AccountState =
   | "SUSPENDED";
 
 export type AccessOrgFields = TrialOrgFields & {
+  id?: string | null;
   is_demo?: boolean | null;
   is_suspended?: boolean | null;
   setup_paid_at?: string | null;
@@ -82,7 +84,9 @@ export function resolveAccess(org: AccessOrgFields | null | undefined): AccessDe
     };
   }
 
-  const setupPaid = Boolean(org.setup_paid_at) || org.setup_payment_status === "paid";
+  // Revora's own workspace is treated as set up (the owner doesn't pay itself).
+  const setupPaid =
+    Boolean(org.setup_paid_at) || org.setup_payment_status === "paid" || isPlatformOwnerOrg(org.id);
   const status = (org.subscription_status ?? "").toLowerCase();
 
   // Free full-access window first: status drift must never eat promised days.
