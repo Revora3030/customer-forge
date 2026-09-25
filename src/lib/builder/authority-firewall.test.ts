@@ -127,6 +127,7 @@ describe("old design layer is fully removed", () => {
       "src/lib/builder/image-layout-intelligence.ts",
       "src/lib/builder/navigation-intelligence.ts",
       "src/lib/builder/site-campaign.ts",
+      "src/lib/builder/asset-intelligence.ts",
       "src/lib/hidden-gems.ts",
       "src/lib/media/generative-art.ts",
     ]) {
