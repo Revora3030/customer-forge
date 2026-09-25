@@ -18,7 +18,7 @@ describe("authoritative funnel", () => {
 
   it("counts trials from unique workspaces, excluding demo workspaces", () => {
     expect(source).toContain('from("platform_trials")');
-    expect(source).toContain("!o.is_demo");
+    expect(source).toContain("!org.is_demo && !isPlatformOwnerOrg(org.id)");
   });
 
   it("counts paid customers only from stored Stripe subscription state", () => {
