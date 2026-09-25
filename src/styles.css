@@ -2776,3 +2776,29 @@ a[href*="lovable.app"][target="_blank"][class*="fixed"],
 @media (prefers-reduced-motion: reduce) {
   .fx-authored-drift-slow, .fx-authored-drift-medium { animation: none; }
 }
+
+/* ---- Mobile stability: no zoom-jump, keyboard-aware, nothing cut off ---- */
+@media (max-width: 1023px) {
+  /* iOS zooms (and shifts the page) when a field is under 16px. */
+  input, textarea, select { font-size: 16px !important; }
+  html, body { overscroll-behavior-y: none; }
+  /* Admin + workspace pages: wrap instead of clipping text. */
+  .product-canvas { overflow-wrap: anywhere; word-break: normal; min-width: 0; }
+  .product-canvas .truncate { white-space: normal; overflow: visible; text-overflow: clip; }
+  .product-canvas .line-clamp-1, .product-canvas .line-clamp-2 { -webkit-line-clamp: unset; display: block; overflow: visible; }
+  .product-canvas table { display: block; max-width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .product-canvas th, .product-canvas td { white-space: normal; }
+  .product-canvas [class*="grid-cols-"]:not([class*="sm:grid-cols"]):not([class*="grid-cols-1"]) > * { min-width: 0; }
+  .product-canvas pre, .product-canvas code { white-space: pre-wrap; overflow-wrap: anywhere; }
+  .product-canvas img, .product-canvas video, .product-canvas iframe { max-width: 100%; }
+}
+
+/* ---- Living chat ---- */
+@keyframes chat-rise { from { opacity: 0; transform: translateY(10px) scale(.985); } to { opacity: 1; transform: none; } }
+@keyframes chat-glow { 0%,100% { box-shadow: 0 0 0 0 color-mix(in oklab, var(--primary) 0%, transparent); } 50% { box-shadow: 0 0 0 4px color-mix(in oklab, var(--primary) 22%, transparent); } }
+.chat-rise { animation: chat-rise .38s cubic-bezier(.2,.8,.2,1) both; }
+.builder-prompt { transition: box-shadow .2s ease, border-color .2s ease, transform .15s ease; }
+.builder-prompt:focus-within { border-color: color-mix(in oklab, var(--primary) 60%, transparent); box-shadow: 0 0 0 3px color-mix(in oklab, var(--primary) 18%, transparent); }
+.builder-prompt.is-thinking { animation: chat-glow 1.6s ease-in-out infinite; }
+.builder-suggestion:active, .builder-prompt button:active { transform: scale(.94); }
+@media (prefers-reduced-motion: reduce) { .chat-rise, .builder-prompt.is-thinking { animation: none; } }
