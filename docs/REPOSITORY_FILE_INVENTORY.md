@@ -363,7 +363,6 @@ Generated for branch `feat/revora-maximum-whole-repo-upgrade`. **813 files** are
 - `src/lib/builder/launch-quality-signals.ts`
 - `src/lib/builder/literal.ts`
 - `src/lib/builder/local-inference.ts`
-- `src/lib/builder/master-engine.ts`
 - `src/lib/builder/navigation-intelligence.test.ts`
 - `src/lib/builder/navigation-intelligence.ts`
 - `src/lib/builder/outcome-evidence.test.ts`
