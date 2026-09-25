@@ -346,6 +346,16 @@ export function VisionReviewPanel({
           {busy === "sweep" ? <Loader2 className="size-4 animate-spin" /> : <Camera className="size-4" />}
           Review every page at 5 sizes
         </Button>
+        {canManage ? (
+          <label className="flex min-h-[36px] items-center gap-2 text-[12px] text-muted-foreground">
+            <input
+              type="checkbox"
+              checked={autoReview}
+              onChange={(event) => setAutoReview(event.target.checked)}
+            />
+            Check and fix automatically after every change
+          </label>
+        ) : null}
       </div>
 
       {sweepStatus ? <p className="mt-3 text-[12px] text-muted-foreground" role="status">{sweepStatus}</p> : null}
