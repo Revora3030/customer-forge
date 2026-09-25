@@ -7,6 +7,7 @@ import type { PersistedComponentVisual } from "@/lib/site-style";
  * AI's values into CSS — it never adds, reorders or restyles anything itself.
  * Responsive overrides become scoped CSS custom properties per breakpoint.
  */
+// Compatibility only for old saved trees; new compositions can author numeric depth.
 const SHADOWS: Record<string, string> = {
   none: "none",
   subtle: "0 1px 3px rgb(0 0 0 / 0.12)",
