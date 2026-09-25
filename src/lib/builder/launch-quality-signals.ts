@@ -1,4 +1,4 @@
-import type { LaunchQualityInput } from './launch-quality-gate';
+import type { LaunchQualityDimension, LaunchQualityInput } from './launch-quality-gate';
 
 export type SiteReadinessSnapshot = {
   hasPrimaryCta: boolean;
@@ -29,7 +29,16 @@ export type SiteReadinessSnapshot = {
   contactRouteVerified: boolean;
   analyticsConfigured: boolean;
   legalPagesPresent: boolean;
+  /** Score of a passing visual check for the site's CURRENT revision, else null. */
+  visualCheckScore?: number | null;
+  /** The site's own /s/:slug address is reserved and serves it once published. */
+  publicAddressAvailable?: boolean;
 };
+
+/** Trust is not applicable when the owner has no real reviews or credentials. */
+export function notApplicableFromSnapshot(snapshot: SiteReadinessSnapshot): LaunchQualityDimension[] {
+  return snapshot.reviewCount <= 0 && snapshot.credentialCount <= 0 ? ["trust"] : [];
+}
 
 const yes = (value: boolean) => (value ? 100 : 0);
 const countScore = (count: number, target: number) => Math.max(0, Math.min(100, Math.round((Math.max(0, count) / target) * 100)));
@@ -40,14 +49,14 @@ export function launchQualityInputFromSnapshot(snapshot: SiteReadinessSnapshot):
     conversion: average(yes(snapshot.hasPrimaryCta), yes(snapshot.ctaRepeatedAtDecisionPoints)),
     messaging: average(yes(snapshot.heroIncludesAudience), yes(snapshot.heroIncludesOutcome), yes(snapshot.hasDifferentiator)),
     content: average(countScore(snapshot.serviceCount, 3), countScore(snapshot.faqCount, 4), yes(snapshot.hasProcess)),
-    // A selected direction and an image count prove configuration, not visual
-    // quality. Keep this unmeasured until screenshot/perceptual evidence exists.
-    visual_design: 0,
+    // Only real browser evidence counts: a passing visual check for the current
+    // revision of the site. Configuration alone (a direction, image count) never does.
+    visual_design: typeof snapshot.visualCheckScore === "number" ? snapshot.visualCheckScore : 0,
     mobile: average(yes(snapshot.mobileReviewed), yes(snapshot.tapTargetsChecked)),
     accessibility: average(yes(snapshot.headingOrderValid), yes(snapshot.contrastChecked), yes(snapshot.descriptiveControls), yes(snapshot.reducedMotionSafe)),
     seo: average(yes(snapshot.seoTitle), yes(snapshot.seoDescription), yes(snapshot.hasSingleH1), yes(snapshot.locationIntent)),
     trust: average(countScore(snapshot.reviewCount, 3), countScore(snapshot.credentialCount, 1)),
     performance: average(yes(snapshot.performanceBudgetPassed), yes(snapshot.imageOptimizationPassed)),
-    publishing: average(yes(snapshot.customDomainConnected), yes(snapshot.contactRouteVerified), yes(snapshot.analyticsConfigured), yes(snapshot.legalPagesPresent)),
+    publishing: average(yes(snapshot.customDomainConnected || snapshot.publicAddressAvailable === true), yes(snapshot.contactRouteVerified), yes(snapshot.analyticsConfigured), yes(snapshot.legalPagesPresent)),
   };
 }

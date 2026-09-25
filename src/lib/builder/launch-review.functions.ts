@@ -132,6 +132,21 @@ function foldMeasurement(
   };
 }
 
+/** Score of the newest passing visual report stamped with the current revision. */
+export function currentPassingVisualScore(
+  rows: Array<{ report: unknown; revision_hash: string | null }>,
+  revision: string | null,
+): number | null {
+  if (!revision) return null;
+  for (const row of rows) {
+    if (row.revision_hash !== revision) continue;
+    const report = (row.report ?? {}) as { passed?: unknown; score?: unknown };
+    if (report.passed === true && typeof report.score === "number") return report.score;
+    return null; // newest report for this revision failed
+  }
+  return null;
+}
+
 export const getLaunchReview = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator(orgIdValidator)
@@ -167,7 +182,7 @@ export const getLaunchReview = createServerFn({ method: "POST" })
         supabase.from("media").select("id").eq("organization_id", organizationId),
         supabase
           .from("website_visual_reports")
-          .select("measured_at, measurements")
+          .select("measured_at, measurements, report, revision_hash")
           .eq("organization_id", organizationId)
           .order("measured_at", { ascending: false })
           .limit(20),
@@ -222,6 +237,22 @@ export const getLaunchReview = createServerFn({ method: "POST" })
         { title: text(seo.headline), description: text(seo.meta_description) },
       ),
     };
+
+    // Visual design only counts with a PASSING check for the CURRENT revision.
+    // The settings read above went through RLS, so reaching here with a row
+    // proves the caller belongs to this organization before the privileged read.
+    if (settings.data) {
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      const [{ data: revision }, { data: org }] = await Promise.all([
+        supabaseAdmin.rpc("current_site_revision", { _organization_id: organizationId }),
+        supabaseAdmin.from("organizations").select("slug").eq("id", organizationId).maybeSingle(),
+      ]);
+      facts.publicAddressAvailable = !!org?.slug;
+      facts.visualCheckScore = currentPassingVisualScore(
+        (visual.data ?? []) as Array<{ report: unknown; revision_hash: string | null }>,
+        typeof revision === "string" ? revision : null,
+      );
+    }
 
     return reviewLaunchQuality(facts);
   });

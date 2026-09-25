@@ -4187,6 +4187,10 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      current_site_revision: {
+        Args: { _organization_id: string }
+        Returns: string
+      }
       is_safe_link_url: { Args: { value: string }; Returns: boolean }
       luna_budget_reserve: {
         Args: { _cap_microcents?: number; _estimate_microcents: number }

@@ -12,7 +12,7 @@
  */
 
 import { assessLaunchQuality, type LaunchQualityReport } from "./launch-quality-gate";
-import { launchQualityInputFromSnapshot, type SiteReadinessSnapshot } from "./launch-quality-signals";
+import { launchQualityInputFromSnapshot, notApplicableFromSnapshot, type SiteReadinessSnapshot } from "./launch-quality-signals";
 import { evaluateSeo, type SeoSignals } from "@/lib/seo/site-seo-contract";
 import {
   evaluatePerformanceBudget,
@@ -43,6 +43,9 @@ export type LaunchReviewFacts = {
   analyticsConfigured: boolean;
   contactRouteVerified: boolean;
   customDomainConnected: boolean;
+  /** Passing visual-check score for the current site revision, or null. */
+  visualCheckScore?: number | null;
+  publicAddressAvailable?: boolean;
   /** Real-browser evidence, or null when nobody has measured the site yet. */
   measurement: LaunchReviewMeasurement | null;
 };
@@ -136,12 +139,16 @@ export function buildReadinessSnapshot(facts: LaunchReviewFacts): SiteReadinessS
     contactRouteVerified: facts.contactRouteVerified,
     analyticsConfigured: facts.analyticsConfigured,
     legalPagesPresent: facts.legalPagesPresent,
+    visualCheckScore: facts.visualCheckScore ?? null,
+    publicAddressAvailable: facts.publicAddressAvailable === true,
   };
 }
 
 export function reviewLaunchQuality(facts: LaunchReviewFacts): LaunchReview {
   const snapshot = buildReadinessSnapshot(facts);
-  const report = assessLaunchQuality(launchQualityInputFromSnapshot(snapshot));
+  const report = assessLaunchQuality(launchQualityInputFromSnapshot(snapshot), {
+    notApplicable: notApplicableFromSnapshot(snapshot),
+  });
   const m = facts.measurement;
   const seoResult = m ? evaluateSeo(m.seo) : { score: 0, failures: ["not measured"] };
   const performanceResult = m

@@ -1,0 +1,1 @@
+revoke execute on function public.current_site_revision(uuid) from authenticated;

@@ -64,8 +64,20 @@ function gradeFor(score: number): LaunchQualityReport['grade'] {
   return 'excellent';
 }
 
-export function assessLaunchQuality(input: LaunchQualityInput): LaunchQualityReport {
-  const findings = dimensions
+export type LaunchQualityOptions = {
+  /**
+   * Dimensions that do not apply to this business (for example trust when the
+   * owner has no real reviews or credentials — we never invent them). Their
+   * weight is shared across the remaining dimensions instead of scoring 0.
+   */
+  notApplicable?: LaunchQualityDimension[];
+};
+
+export function assessLaunchQuality(input: LaunchQualityInput, options: LaunchQualityOptions = {}): LaunchQualityReport {
+  const skip = new Set(options.notApplicable ?? []);
+  const active = dimensions.filter((dimension) => !skip.has(dimension.key));
+  const totalWeight = active.reduce((total, dimension) => total + dimension.weight, 0) || 1;
+  const findings = active
     .map((dimension) => {
       const score = bounded(input[dimension.key]);
       return { ...dimension, score, priority: priorityFor(score), dimension: dimension.key };
@@ -73,8 +85,8 @@ export function assessLaunchQuality(input: LaunchQualityInput): LaunchQualityRep
     .filter((finding) => finding.score < 80)
     .sort((a, b) => (a.score - b.score) || (b.weight - a.weight));
 
-  const score = Math.round(dimensions.reduce((total, dimension) => total + bounded(input[dimension.key]) * dimension.weight, 0) / 100);
-  const passed = dimensions.filter((dimension) => bounded(input[dimension.key]) >= 80).map((dimension) => dimension.key);
+  const score = Math.round(active.reduce((total, dimension) => total + bounded(input[dimension.key]) * dimension.weight, 0) / totalWeight);
+  const passed = active.filter((dimension) => bounded(input[dimension.key]) >= 80).map((dimension) => dimension.key);
 
   return {
     score,
