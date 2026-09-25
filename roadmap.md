@@ -62,3 +62,7 @@ Ordered by user-felt impact. Each item: extend existing code, never duplicate.
 - [x] AI may invent its own sections and up to 4 new pages (starting list is now only the owner's real material; features cannot be invented)
 - [x] One-time "Redesign with AI" button for existing sites (saves old layout, one-tap undo)
 - [ ] Delete old section layouts + style-token squeezing — blocked until existing customer sites have been restyled (owner action per site)
+## AI sole-authority completion (Sep 25)
+- [ ] Remove all remaining non-AI creative authority across intake, materialization, rendering, imagery, QA, and publish
+- [ ] Require a valid AI-authored contract and AI review before first publication
+- [ ] Verify complete authenticated build with generated pictures and responsive rendering
