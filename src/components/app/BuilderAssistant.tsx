@@ -17,7 +17,7 @@ import {
   ConversationScrollButton,
 } from "@/components/ai-elements/conversation";
 import { Message, MessageContent } from "@/components/ai-elements/message";
-import { Streamdown } from "streamdown";
+import { ReplyText } from "@/components/app/ReplyText";
 import {
   PromptInput,
   PromptInputButton,
@@ -349,14 +349,10 @@ function TaskBody({
       )}
 
       {task.reply ? (
-        <Streamdown
-          className={cn(
-            "[&_li]:my-0.5 [&_ol]:list-decimal [&_ol]:pl-5 [&_ul]:list-disc [&_ul]:pl-5 [&_p]:my-1.5",
-            task.answered ? "text-[15px] leading-relaxed" : "text-[13px]",
-          )}
-        >
-          {task.reply}
-        </Streamdown>
+        <ReplyText
+          text={task.reply}
+          className={task.answered ? "text-[15px] leading-relaxed" : "text-[13px]"}
+        />
       ) : null}
       {task.error ? <p className="text-[12.5px]">{task.error}</p> : null}
 
