@@ -105,6 +105,19 @@ export function BuilderAssistant({
     return parts.length ? `${parts.join(" ")} ${text}` : text;
   };
 
+  /** Phones: typing opens the keyboard, so only focus when the owner asks. */
+  const isTouch = () =>
+    typeof window !== "undefined" && window.matchMedia("(pointer: coarse)").matches;
+  const afterSend = () => {
+    if (isTouch()) {
+      inputRef.current?.blur();
+      (document.activeElement as HTMLElement | null)?.blur?.();
+      navigator.vibrate?.(8);
+    } else {
+      window.requestAnimationFrame(() => inputRef.current?.focus());
+    }
+  };
+
   const send = (text: string) => {
     if (!text.trim() && attachments.length === 0) return;
     if (onFirstBuild) {
@@ -114,6 +127,7 @@ export function BuilderAssistant({
       setMediaOpen(false);
       setAnswering(null);
       onClearSelection?.();
+      afterSend();
       void onFirstBuild(instruction);
       return;
     }
@@ -123,17 +137,22 @@ export function BuilderAssistant({
     setMediaOpen(false);
     setAnswering(null);
     onClearSelection?.();
-    window.requestAnimationFrame(() => inputRef.current?.focus());
+    afterSend();
   };
 
   useEffect(() => {
-    inputRef.current?.focus();
+    if (!isTouch()) inputRef.current?.focus();
   }, [activityKey]);
 
   // Pointing at a block moves the cursor straight into the message box.
   useEffect(() => {
-    if (selection) inputRef.current?.focus();
+    if (selection && !isTouch()) inputRef.current?.focus();
   }, [selection]);
+
+  // Tapping the conversation closes the keyboard, like a native chat.
+  const dismissKeyboard = () => {
+    if (isTouch() && document.activeElement === inputRef.current) inputRef.current?.blur();
+  };
 
 
   return (
