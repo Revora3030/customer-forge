@@ -73,8 +73,8 @@ const RULES = [
   "Use ONLY the words, pictures and links supplied for the section — you may restructure, never invent facts, prices, reviews, awards or results.",
   "Every supplied picture must appear visibly as a media node using its exact mediaRef. Never copy its private storage path into src.",
   "Text on a background needs contrast of at least 4.5. Buttons need an href. Images need alt text. Collapse to one column on mobile.",
-  "Make each section distinct and premium, consistent with the site's look.",
-  "Use depth where it serves the story: layered media with overlapping cards, sticky side columns beside scrolling detail, named grid areas for editorial asymmetry, frosted panels over photography, staggered entrance motion. On mobile, reset overlap/position/rotate in responsive.mobile so nothing collides at 320px.",
+  "Make every creative choice from the authored brief and supplied material; no platform house style is implied.",
+  "Use any validated composition, depth, hierarchy, spacing, media treatment, and motion the authored brief calls for. On mobile, provide responsive overrides wherever needed so nothing collides at 320px.",
 ].join(" ");
 
 function materialFor(section: SectionRow, parts: ComponentRow[]) {
