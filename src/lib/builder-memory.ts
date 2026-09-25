@@ -40,8 +40,11 @@ export async function loadTurns(organizationId: string): Promise<SavedTurn[]> {
 export async function saveTurns(organizationId: string, turns: Array<Omit<SavedTurn, "at">>): Promise<void> {
   const { data: auth } = await supabase.auth.getUser();
   if (!auth.user || !turns.length) return;
+  // Turns saved together get distinct times so they always read back in order.
+  const base = Date.now();
   const { error } = await supabase.from("builder_messages").insert(
-    turns.map((turn) => ({
+    turns.map((turn, index) => ({
+      created_at: new Date(base + index).toISOString(),
       organization_id: organizationId,
       user_id: auth.user!.id,
       role: turn.role,
