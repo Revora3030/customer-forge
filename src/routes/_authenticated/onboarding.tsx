@@ -997,6 +997,11 @@ function Onboarding() {
           ) : null}
 
           {error ? <div className="mt-5">{<ErrorNote message={error} />}</div> : null}
+          {step === 1 && !canContinue ? (
+            <p className="mt-4 text-sm text-muted-foreground">
+              Name at least one service clearly (for example "Full interior detail") so your AI team can build a page for it.
+            </p>
+          ) : null}
 
           <div className="mt-7 flex items-center justify-between">
             <Button
