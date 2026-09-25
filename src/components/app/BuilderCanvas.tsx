@@ -15,7 +15,7 @@
  */
 import * as React from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { generateSectionVideo } from "@/lib/site-video.functions";
+import { generateSectionVideo, heroVideoBrief } from "@/lib/site-video.functions";
 
 import {
   ArrowDown,
@@ -325,6 +325,14 @@ function MotionBackgroundControls({
   const [busy, setBusy] = React.useState(false);
   const [message, setMessage] = React.useState<string | null>(null);
   const run = useServerFn(generateSectionVideo);
+  const readBrief = useServerFn(heroVideoBrief);
+  const [brief, setBrief] = React.useState<string | null>(null);
+  React.useEffect(() => {
+    if (!organizationId) return;
+    let live = true;
+    readBrief({ data: { organizationId } }).then((r) => { if (live) setBrief(r.brief); }).catch(() => {});
+    return () => { live = false; };
+  }, [organizationId, readBrief]);
 
   const generate = async () => {
     if (!organizationId || prompt.trim().length < 10) {
