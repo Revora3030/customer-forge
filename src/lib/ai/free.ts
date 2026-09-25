@@ -465,6 +465,10 @@ export function freeModelFor(provider: FreeProviderName, role: ModelRole): strin
 /* --------------------------------- ordering -------------------------------- */
 
 const DEFAULT_ORDER: FreeProviderName[] = [
+  // OpenAI's shared-traffic allowance first: it is the strongest free pool
+  // available to this account, and it costs nothing until the daily token
+  // allowance is used up, after which OpenAI's own limits push the chain on.
+  "openai",
   "cloudflare",
   "groq",
   "nvidia",
@@ -472,6 +476,7 @@ const DEFAULT_ORDER: FreeProviderName[] = [
   "openrouter",
   "google",
 ];
+
 
 /**
  * An in-process priority override an authorised admin can set. It is deliberately
