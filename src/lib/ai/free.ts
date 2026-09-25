@@ -52,6 +52,16 @@ export const FREE_ALLOWANCE: Record<
   FreeProviderName,
   { label: string; allowance: string; dailyRequestCap: number | null }
 > = {
+  openai: {
+    label: "OpenAI shared-traffic daily allowance",
+    allowance:
+      "Free daily usage on traffic shared with OpenAI: 250,000 tokens/day across the flagship models (gpt-5.4, gpt-5.2, gpt-5.1, gpt-5, gpt-4.1, gpt-4o, o1, o3) and 2,500,000 tokens/day across the mini/nano models. Usage beyond those limits is billed at standard rates.",
+    // Tokens, not requests, are what OpenAI meters here. Revora keeps its own
+    // conservative daily request guard so one workspace cannot burn the whole
+    // shared allowance before the rest of the day's builds run.
+    dailyRequestCap: 600,
+  },
+
   cloudflare: {
     label: "Cloudflare Workers AI",
     allowance: "Workers Free: 10,000 Neurons per day (shared across models).",
