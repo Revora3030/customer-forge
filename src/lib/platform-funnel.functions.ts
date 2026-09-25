@@ -1,3 +1,4 @@
+import { isPlatformOwnerOrg } from "@/lib/platform-owner";
 /**
  * Authoritative Revora platform funnel.
  *
@@ -200,6 +201,20 @@ const pct = (numerator: number | null, denominator: number | null) => {
  * from every customer metric. A failed query returns `null` (rendered as
  * "Analytics unavailable"), never 0.
  */
+/** A workspace counts as a customer unless it is a demo or Revora's own. */
+function isCustomerOrg(org: { id: string; is_demo: boolean | null }) {
+  return !org.is_demo && !isPlatformOwnerOrg(org.id);
+}
+
+/** User ids of Revora staff (super admins); excluded from customer counts. */
+async function platformStaffIds(admin: {
+  from: (t: "user_roles") => any;
+}): Promise<string[]> {
+  const { data, error } = await admin.from("user_roles").select("user_id").eq("role", "super_admin");
+  if (error) return [];
+  return ((data ?? []) as { user_id: string }[]).map((r) => r.user_id);
+}
+
 export const getPlatformFunnel = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input?: { days?: number }) => ({
@@ -566,7 +581,7 @@ export const getFunnelDetails = createServerFn({ method: "GET" })
           sessions: bucket.sessions.size,
           visitors: bucket.visitors.size,
         })),
-      accounts: accountsRes.rows.map((a) => ({ id: a.user_id, createdAt: a.created_at })),
+      accounts: accountsRes.rows.filter((a) => !staff.has(a.user_id)).map((a) => ({ id: a.user_id, createdAt: a.created_at })),
       trials: trialsRes.rows
         .filter((t) => orgs.get(t.organization_id) && !orgs.get(t.organization_id)!.is_demo)
         .map((t) => {
