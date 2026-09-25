@@ -153,7 +153,7 @@ export async function composeFirstBuildSections(input: {
     let pending = pageSections;
     let feedback: Record<string, CompositionIssue[]> = {};
     const designed = new Map<string, CompositionTree>();
-    for (let attempt = 0; attempt < 2 && pending.length; attempt += 1) {
+    for (let attempt = 0; attempt < 3 && pending.length; attempt += 1) {
       const call = await callBestThinker({
         json: true,
         purpose: "creative_direction",
@@ -194,11 +194,13 @@ export async function composeFirstBuildSections(input: {
       }
       pending = next;
     }
-    if (pending.length)
+    if (pending.length) {
+      const first = Object.values(feedback).flat()[0];
       throw new Error(
-        `The design team could not produce a safe layout for ${pending.length} section(s), so nothing was published. Please try again in a moment.`,
+        `The design team could not produce a safe layout for ${pending.length} section(s)${first ? ` (${first.path}: ${first.problem})` : ""}, so nothing was published. Please try again in a moment.`,
         { cause: feedback },
       );
+    }
     const best = await improveWithTeam({ organizationId, lookSummary: input.lookSummary, sections: pageSections, parts, designed, screen, result });
     for (const section of pageSections) {
       const tree = best.get(section.id);

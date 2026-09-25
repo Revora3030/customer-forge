@@ -123,7 +123,49 @@ const HEX = /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i;
 const SAFE_FONT = /^[a-z0-9 \-']{1,60}$/i;
 const SAFE_AREA = /^[a-z][a-z0-9-]{0,30}$/i;
 const SAFE_GRID_AREAS = /^(?:"[a-z0-9.\- ]{1,120}"\s*){1,12}$/i;
+const SAFE_GRID_ROW = /^[a-z0-9.\- ]{1,120}$/i;
+
+/**
+ * Lossless spelling normalisation for grid-template-areas: the AI may write
+ * rows as an array, with single quotes, or unquoted rows separated by "/" or
+ * newlines. Every form is rewritten to the canonical quoted CSS form; anything
+ * with other characters is rejected, never guessed.
+ */
+export function normalizeGridAreas(value: unknown): string | null {
+  let rows: string[];
+  if (Array.isArray(value)) rows = value.map((row) => (typeof row === "string" ? row : "\u0000"));
+  else if (typeof value === "string") {
+    const text = value.trim();
+    if (SAFE_GRID_AREAS.test(text)) return text;
+    const quoted = [...text.matchAll(/["']([^"']*)["']/g)].map((m) => m[1]!);
+    rows = quoted.length ? quoted : text.split(/\s*[\/\n;|]\s*/);
+  } else return null;
+  rows = rows.map((row) => row.trim().replace(/\s+/g, " ")).filter(Boolean);
+  if (!rows.length || rows.length > 12 || !rows.every((row) => SAFE_GRID_ROW.test(row))) return null;
+  return rows.map((row) => `"${row}"`).join(" ");
+}
 const SAFE_ASPECT = /^\d{1,2}:\d{1,2}$/;
+
+/**
+ * Lossless spelling normalisation for aspect ratios: "16/9", "16 / 9", "4x5",
+ * "1", 1.5 and "square" all mean one exact ratio and become "a:b".
+ */
+export function normalizeAspect(value: unknown): string | null {
+  if (typeof value === "number" && Number.isFinite(value) && value > 0) value = String(value);
+  if (typeof value !== "string") return null;
+  const text = value.trim().toLowerCase();
+  if (SAFE_ASPECT.test(text)) return text;
+  if (text === "square") return "1:1";
+  const pair = text.match(/^(\d{1,2})\s*[/x×:]\s*(\d{1,2})$/);
+  if (pair) return `${pair[1]}:${pair[2]}`;
+  const ratio = text.match(/^(\d{1,2})(?:\.(\d{1,2}))?$/);
+  if (ratio) {
+    const scale = ratio[2] ? 10 ** ratio[2].length : 1;
+    const a = Number(ratio[1]) * scale + Number(ratio[2] ?? 0);
+    if (a > 0 && a <= 99 && scale <= 99) return `${a}:${scale}`;
+  }
+  return null;
+}
 const SAFE_MEDIA_REF = /^(?:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|temp_[a-z0-9_]{1,30})$/i;
 const UNSAFE_TEXT = /<\s*\/?\s*(script|iframe|object|embed|style)|javascript:|on\w+\s*=/i;
 
@@ -166,14 +208,16 @@ function checkStyle(style: unknown, path: string, issues: CompositionIssue[]): N
       if (typeof value !== "string" || !SAFE_FONT.test(value)) issues.push({ path: at, problem: "font name contains unsafe characters" });
       else out[key] = value;
     } else if (key === "aspect") {
-      if (typeof value !== "string" || !SAFE_ASPECT.test(value)) issues.push({ path: at, problem: "aspect must look like 16:9" });
-      else out[key] = value;
+      const aspect = normalizeAspect(value);
+      if (!aspect) issues.push({ path: at, problem: "aspect must look like 16:9" });
+      else out[key] = aspect;
     } else if (key === "area") {
       if (typeof value !== "string" || !SAFE_AREA.test(value)) issues.push({ path: at, problem: "area must be a simple name like media" });
       else out[key] = value;
     } else if (key === "gridAreas") {
-      if (typeof value !== "string" || !SAFE_GRID_AREAS.test(value.trim())) issues.push({ path: at, problem: 'gridAreas must look like "media copy" "media cta"' });
-      else out[key] = value.trim();
+      const normalized = normalizeGridAreas(value);
+      if (!normalized) issues.push({ path: at, problem: 'gridAreas must look like "media copy" "media cta"' });
+      else out[key] = normalized;
     } else if (key === "italic" || key === "uppercase" || key === "hidden") {
       if (typeof value !== "boolean") issues.push({ path: at, problem: "must be true or false" });
       else out[key] = value;
