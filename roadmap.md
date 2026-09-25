@@ -13,3 +13,7 @@
 - [x] Automatic buttons/cards by section name removed; AI must request them (rebuild of test site still to confirm).
 - [ ] Second-industry build → approve → publish → show phone + desktop (plan step 3).
 - [ ] Remove old design shortcut; retention cleanup; fresh security scan (plan step 4).
+- [x] Design compiler no longer invents phone/tablet columns, menu style, button stacking, crop or text scale; blank design record carries no look.
+- [ ] Rebuild test site to confirm buttons/cards still appear (needs a live AI build).
+- [ ] Second-industry build → approve → publish → verify publicly.
+- [ ] Remaining 12/16-point areas (expressiveness, effects ceilings, AI screenshot critique, job fencing audit, full security/billing audit).
