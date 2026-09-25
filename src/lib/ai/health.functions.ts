@@ -579,3 +579,45 @@ export const getAiOrchestration = createServerFn({ method: "GET" })
       },
     };
   });
+
+export type TeamReviewRow = {
+  id: string;
+  createdAt: string;
+  kind: string;
+  business: string;
+  accepted: number;
+  kept: number;
+  lastReason: string | null;
+};
+
+/** Recent team reviews across every customer: did the revision beat the prior version? */
+export const getTeamReviews = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }): Promise<TeamReviewRow[]> => {
+    const { assertSuperAdmin } = await import("@/lib/admin.server");
+    await assertSuperAdmin(
+      context.supabase as unknown as Parameters<typeof assertSuperAdmin>[0],
+      String(context.userId),
+    );
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data, error } = await supabaseAdmin
+      .from("ai_generations")
+      .select("id,created_at,kind,result,organization_id,organizations(name)")
+      .in("kind", ["first_build_compositions", "redesign_team_review", "edit_team_review"])
+      .order("created_at", { ascending: false })
+      .limit(30);
+    if (error) throw new Error("Could not read team reviews.");
+    return (data ?? []).map((row) => {
+      const reports = ((row.result as { gateReports?: { accepted: boolean; reason: string }[] } | null)?.gateReports ?? []);
+      const org = row.organizations as { name?: string } | null;
+      return {
+        id: row.id,
+        createdAt: row.created_at,
+        kind: row.kind,
+        business: org?.name ?? "Unknown",
+        accepted: reports.filter((r) => r.accepted).length,
+        kept: reports.filter((r) => !r.accepted).length,
+        lastReason: reports.at(-1)?.reason ?? null,
+      };
+    });
+  });

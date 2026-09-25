@@ -12,6 +12,24 @@ import { runImprovementGate, type GateReport } from "@/lib/builder/improvement-g
 
 type RawAction = Record<string, unknown>;
 
+/** Keep a record of every team decision so the owner of the platform can see it. */
+export async function recordTeamReview(entry: { organizationId: string; kind: string; instruction: string | null; models: string[]; reports: GateReport[] }) {
+  if (!entry.reports.length) return;
+  try {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { error } = await supabaseAdmin.from("ai_generations").insert({
+      organization_id: entry.organizationId,
+      kind: entry.kind,
+      model: entry.models.join("+").slice(0, 500) || "none",
+      instruction: entry.instruction?.slice(0, 1000) ?? null,
+      result: { gateReports: entry.reports } as never,
+    });
+    if (error) console.warn("team review not recorded", error.message);
+  } catch (error) {
+    console.warn("team review not recorded", (error as Error).message);
+  }
+}
+
 export async function polishEditCompositions(input: {
   organizationId: string;
   instruction: string;
@@ -61,6 +79,7 @@ export async function polishEditCompositions(input: {
     });
     if (gate.model) models.push(gate.model);
     const { costMicrocents: _cost, ...report } = gate;
+    await recordTeamReview({ organizationId: input.organizationId, kind: "edit_team_review", instruction: input.instruction, models, reports: [report] });
     if (!gate.accepted) return { actions: input.actions, report, models };
     const next = actions.map((action) =>
       action?.["type"] === "set_composition" && typeof action["sectionId"] === "string" && action["sectionId"] in proposed

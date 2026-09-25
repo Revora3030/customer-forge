@@ -119,6 +119,8 @@ export const restyleSiteWithAi = createServerFn({ method: "POST" })
     try {
       const { composeFirstBuildSections } = await import("@/lib/builder/first-build-compositions.server");
       const composed = await composeFirstBuildSections({ db: db as never, organizationId: orgId, facts, lookSummary: JSON.stringify(look) });
+      const { recordTeamReview } = await import("@/lib/builder/edit-polish.server");
+      await recordTeamReview({ organizationId: orgId, kind: "redesign_team_review", instruction: null, models: composed.models, reports: composed.gateReports });
       try {
         const { composeSiteChrome } = await import("@/lib/builder/first-build-chrome.server");
         await composeSiteChrome({ db: db as never, organizationId: orgId, businessName: o.name ?? "", facts, lookSummary: JSON.stringify(look) });
