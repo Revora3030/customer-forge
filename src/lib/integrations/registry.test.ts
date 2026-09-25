@@ -31,10 +31,10 @@ describe("capability registry", () => {
     vi.restoreAllMocks();
   });
 
-  it("serves web research with Revora's own reader when nothing is connected", async () => {
+  it("serves web research with the available native reader when nothing is connected", async () => {
     const resolution = await resolveCapability("research.web");
     expect(resolution.provider?.id).toBe("revora-native-fetch");
-    expect(resolution.deterministic).toBe(true);
+    expect(resolution.status).toBe("ready");
   });
 
   it("refuses to use a paid provider while free-only mode is on", async () => {
@@ -72,7 +72,7 @@ describe("capability registry", () => {
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.attempts).toBe(0);
-      expect(result.deterministic).toBe(false);
+      expect(result.reason).toBe("unavailable");
     }
   });
 
@@ -104,7 +104,7 @@ describe("capability registry", () => {
       });
     const resolution = await resolveCapability("research.web");
     expect(resolution.provider).toBeNull();
-    expect(resolution.deterministic).toBe(true);
+    expect(resolution.status).toBe("unavailable");
   });
 
   it("marks a provider runtime-verified only after a real call succeeds", async () => {
