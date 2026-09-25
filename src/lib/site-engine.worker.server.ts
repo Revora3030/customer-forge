@@ -192,10 +192,10 @@ async function claimJob(db: Db, organizationId?: string) {
       } as never)
       .eq("id", job.id)
       .eq("attempts", job.attempts as number)
-      .select("id, organization_id, created_by")
+      .select("id, organization_id, created_by, attempts")
       .maybeSingle();
     if (claimed)
-      return claimed as { id: string; organization_id: string; created_by: string | null };
+      return claimed as { id: string; organization_id: string; created_by: string | null; attempts: number };
   }
   return null;
 }
