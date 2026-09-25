@@ -21,7 +21,7 @@ export function SiteFooter({ site }: { site: Site }) {
         <div>
           <p className="font-display text-[24px] font-semibold">{site.org.name}</p>
           {site.profile?.tagline ? <p className="mt-3 max-w-md text-[14px] leading-relaxed text-muted-foreground">{site.profile.tagline}</p> : null}
-          <div className="mt-6 space-y-2 text-[13px] text-muted-foreground">
+          <div className="mt-6 space-y-2 text-[14px] text-muted-foreground">
             {facts.phoneHref && facts.phone ? <a className="flex items-center gap-2" href={facts.phoneHref}><Phone className="size-3.5" />{facts.phone}</a> : null}
             {facts.emailHref && facts.email ? <a className="flex items-center gap-2" href={facts.emailHref}><Mail className="size-3.5" />{facts.email}</a> : null}
             {(facts.serviceArea ?? facts.city) ? <p className="flex items-center gap-2"><MapPin className="size-3.5" />{facts.serviceArea ?? facts.city}</p> : null}
@@ -29,7 +29,7 @@ export function SiteFooter({ site }: { site: Site }) {
         </div>
         <nav aria-label="Footer pages">
           <p className="eyebrow">Explore</p>
-          <div className="mt-4 grid gap-3 text-[13px] text-muted-foreground">
+          <div className="mt-4 grid gap-3 text-[14px] text-muted-foreground">
             <SitePageLink slug={site.org.slug}>Home</SitePageLink>
             {site.nav.filter((item) => item.slug !== "home" && item.kind !== "thanks").slice(0, 8).map((item) => (
               <SitePageLink key={item.slug} slug={site.org.slug} page={item.slug}>{item.title}</SitePageLink>
@@ -39,13 +39,13 @@ export function SiteFooter({ site }: { site: Site }) {
         {socials.length ? (
           <div>
             <p className="eyebrow">Connect</p>
-            <div className="mt-4 grid gap-3 text-[13px] text-muted-foreground">
+            <div className="mt-4 grid gap-3 text-[14px] text-muted-foreground">
               {socials.map((item) => <a key={item.label} href={item.href!} rel="noopener noreferrer">{item.label}</a>)}
             </div>
           </div>
         ) : null}
       </div>
-      <div className="border-t border-border px-4 py-4 text-center text-[13px] text-muted-foreground">
+      <div className="border-t border-border px-4 py-4 text-center text-[14px] text-muted-foreground">
         © {new Date().getFullYear()} {site.org.name}{facts.city ? ` · ${facts.city}` : ""}
       </div>
     </footer>

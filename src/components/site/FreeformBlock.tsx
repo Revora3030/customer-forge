@@ -37,7 +37,7 @@ const BADGE: Record<string, string> = {
   neutral: "border-border text-muted-foreground",
 };
 const TEXT_SIZE: Record<string, string> = {
-  sm: "text-[13px]",
+  sm: "text-[14px]",
   md: "text-[15px]",
   lg: "text-[18px]",
 };
@@ -121,7 +121,7 @@ function Node({ node, ctx }: { node: FreeformNode; ctx: Ctx }) {
     case "badge":
       return (
         <span
-          className={`inline-flex w-fit items-center rounded-full border px-3 py-1 text-[12px] font-medium ${
+          className={`inline-flex w-fit items-center rounded-full border px-3 py-1 text-[14px] font-medium ${
             BADGE[node.tone] ?? BADGE["signal"]
           }`}
         >
@@ -228,9 +228,9 @@ function Node({ node, ctx }: { node: FreeformNode; ctx: Ctx }) {
       const result = evaluateExpr(node.expr, ctx.values);
       return (
         <div aria-live="polite" className="rounded-2xl border border-border bg-card/60 p-5">
-          <p className="text-[13px] text-muted-foreground">{node.label}</p>
+          <p className="text-[14px] text-muted-foreground">{node.label}</p>
           <p className="mt-1 font-display text-[28px] leading-tight font-semibold">{format(result, node.format)}</p>
-          {node.caption ? <p className="mt-2 text-[13px] text-muted-foreground">{node.caption}</p> : null}
+          {node.caption ? <p className="mt-2 text-[14px] text-muted-foreground">{node.caption}</p> : null}
         </div>
       );
     }
@@ -263,7 +263,7 @@ export function FreeformBlock({ spec }: { spec: FreeformSpec }) {
         <h2 className="font-display text-[28px] leading-tight font-semibold">{spec.title}</h2>
       ) : null}
       <Nodes nodes={spec.root} ctx={ctx} />
-      {spec.note ? <p className="text-[13px] text-muted-foreground">{spec.note}</p> : null}
+      {spec.note ? <p className="text-[14px] text-muted-foreground">{spec.note}</p> : null}
     </div>
   );
 }

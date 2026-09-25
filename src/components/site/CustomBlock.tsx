@@ -90,7 +90,7 @@ function Estimator({ spec }: { spec: Extract<CustomBlockSpec, { type: "calculato
         <p aria-live="polite" className="mt-1 font-display text-[30px] font-semibold">
           {money(total, spec.currency)}
         </p>
-        <p className="mt-2 text-[13px] text-muted-foreground">{spec.note}</p>
+        <p className="mt-2 text-[14px] text-muted-foreground">{spec.note}</p>
       </div>
     </div>
   );
@@ -162,7 +162,7 @@ function GuidedPicker({ spec }: { spec: Extract<CustomBlockSpec, { type: "quiz" 
             </Button>
           </div>
         ) : (
-          <p className="text-[13px] text-muted-foreground">
+          <p className="text-[14px] text-muted-foreground">
             {answered} of {spec.questions.length} answered.
           </p>
         )}
@@ -225,7 +225,7 @@ function ItemList({
           <li key={item.label} className="flex gap-3 rounded-2xl border border-border bg-card/40 p-4">
             <span
               aria-hidden="true"
-              className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[13px] font-semibold text-primary"
+              className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[14px] font-semibold text-primary"
             >
               {ordered ? index + 1 : "✓"}
             </span>
@@ -284,7 +284,7 @@ function Figures({ spec }: { spec: Extract<CustomBlockSpec, { type: "metrics" }>
       <dl className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {spec.items.map((item) => (
           <div key={item.label} className="rounded-2xl border border-border bg-card/40 p-4">
-            <dt className="text-[13px] text-muted-foreground">{item.label}</dt>
+            <dt className="text-[14px] text-muted-foreground">{item.label}</dt>
             <dd className="mt-1 font-display text-[26px] font-semibold">{item.value}</dd>
           </div>
         ))}
@@ -371,7 +371,7 @@ function FilterList({ spec }: { spec: Extract<CustomBlockSpec, { type: "filter" 
             {item.body ? (
               <p className="mt-1 text-[14px] leading-relaxed text-muted-foreground">{item.body}</p>
             ) : null}
-            <p className="mt-2 text-[13px] text-muted-foreground">{item.tags.join(" · ")}</p>
+            <p className="mt-2 text-[14px] text-muted-foreground">{item.tags.join(" · ")}</p>
           </li>
         ))}
       </ul>
@@ -422,11 +422,11 @@ function EligibilityChecker({ spec }: { spec: Extract<CustomBlockSpec, { type: "
             ) : null}
           </>
         ) : (
-          <p className="text-[13px] text-muted-foreground">
+          <p className="text-[14px] text-muted-foreground">
             {answered} of {spec.questions.length} answered.
           </p>
         )}
-        <p className="mt-3 text-[13px] text-muted-foreground">{spec.note}</p>
+        <p className="mt-3 text-[14px] text-muted-foreground">{spec.note}</p>
       </div>
     </div>
   );
@@ -473,7 +473,7 @@ function BookingSelector({ spec }: { spec: Extract<CustomBlockSpec, { type: "boo
         <p aria-live="polite" className="text-[15px] font-medium">
           {service} — {time}
         </p>
-        <p className="mt-2 text-[13px] text-muted-foreground">{spec.note}</p>
+        <p className="mt-2 text-[14px] text-muted-foreground">{spec.note}</p>
         <Button asChild variant="signal" className="mt-4 min-h-11">
           <a href={spec.ctaHref}>{spec.ctaLabel}</a>
         </Button>
@@ -500,13 +500,13 @@ function GaugeStrip({ spec }: { spec: Extract<CustomBlockSpec, { type: "gauge" }
               </div>
               <span className="mt-2 block font-display text-[22px] font-semibold">{item.value}%</span>
               {item.caption ? (
-                <span className="mt-1 block text-[13px] text-muted-foreground">{item.caption}</span>
+                <span className="mt-1 block text-[14px] text-muted-foreground">{item.caption}</span>
               ) : null}
             </dd>
           </div>
         ))}
       </dl>
-      {spec.note ? <p className="mt-4 text-[13px] text-muted-foreground">{spec.note}</p> : null}
+      {spec.note ? <p className="mt-4 text-[14px] text-muted-foreground">{spec.note}</p> : null}
     </div>
   );
 }
