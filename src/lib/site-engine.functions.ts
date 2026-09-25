@@ -444,22 +444,16 @@ function observationInputOf(input: Record<string, unknown>) {
   };
 }
 
-async function referenceBaseDesignRecord(
+async function referenceBaseDesignContext(
   supabase: SupabaseClient<Database>,
   organizationId: string,
 ) {
-  const [{ data: settings }, { data: org }, { data: profile }] = await Promise.all([
+  const [{ data: settings }, { data: org }] = await Promise.all([
     supabase.from("website_settings").select("generation").eq("organization_id", organizationId).maybeSingle(),
-    supabase.from("organizations").select("name, industry").eq("id", organizationId).maybeSingle(),
-    supabase.from("business_profiles").select("city, service_area").eq("organization_id", organizationId).maybeSingle(),
+    supabase.from("organizations").select("name").eq("id", organizationId).maybeSingle(),
   ]);
-  const generation = (settings?.generation ?? {}) as Record<string, unknown>;
-  const { readAiDesignRecord, blankAiDesignRecord } = await import("@/lib/builder/ai-design-record");
-  const stored = readAiDesignRecord(generation);
-  if (stored) return { generation, designRecord: stored, businessName: org?.name ?? null };
   return {
-    generation,
-    designRecord: blankAiDesignRecord(),
+    generation: (settings?.generation ?? {}) as Record<string, unknown>,
     businessName: org?.name ?? null,
   };
 }
@@ -475,10 +469,10 @@ async function persistScreenshotReference(
     model?: string;
   },
 ) {
-  const { normalizeScreenshotReferenceObservations, deriveScreenshotReferenceDesignRecord } = await import(
+  const { normalizeScreenshotReferenceObservations, deriveScreenshotReferenceBrief } = await import(
     "@/lib/builder/screenshot-reference"
   );
-  const base = await referenceBaseDesignRecord(supabase, input.organizationId);
+  const base = await referenceBaseDesignContext(supabase, input.organizationId);
   const observations = normalizeScreenshotReferenceObservations(input.observations, {
     businessName: base.businessName,
     blockedNames: [base.businessName ?? ""],
@@ -486,9 +480,8 @@ async function persistScreenshotReference(
   });
   const hasAny = Object.values(observations).some((list) => list.length > 0);
   if (!hasAny) throw new Error("No reusable design patterns were found. Add layout, spacing, type or colour notes.");
-  const reference = deriveScreenshotReferenceDesignRecord({
+  const reference = deriveScreenshotReferenceBrief({
     observations,
-    base: base.designRecord,
     businessName: base.businessName,
     blockedNames: [base.businessName ?? ""],
   });
