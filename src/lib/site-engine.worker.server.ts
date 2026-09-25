@@ -203,7 +203,7 @@ async function claimJob(db: Db, organizationId?: string) {
 /** Runs the nine generation stages for one claimed job using the privileged client. */
 async function runJob(
   db: Db,
-  job: { id: string; organization_id: string; created_by: string | null },
+  job: { id: string; organization_id: string; created_by: string | null; attempts: number },
 ) {
   const orgId = job.organization_id;
   const { GENERATION_STEPS } = await import("@/lib/site-engine");
