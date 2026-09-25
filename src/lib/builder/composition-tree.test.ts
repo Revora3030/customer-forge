@@ -53,7 +53,7 @@ describe("AI-authored compositions", () => {
         { type: "text", text: "<script>x</script>" },
         { type: "text", text: "hi", style: { color: "#777777", background: "#888888" } },
         { type: "media", src: "https://example.com/a.jpg" },
-        { type: "marquee" },
+        { type: "carousel" },
       ] },
     };
     const result = validateComposition(bad);
