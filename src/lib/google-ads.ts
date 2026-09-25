@@ -29,9 +29,9 @@ export async function loadGoogleAds(consentModeRoute = true): Promise<void> {
     // Keep Google's consent signals aligned with the visitor's actual choice.
     updateConsent(allowed ? "granted" : "denied");
 
-    window.dataLayer = window.dataLayer || [];
-    window.gtag = window.gtag || function gtag(...args: unknown[]) {
-      window.dataLayer.push(args);
+    window.dataLayer ??= [];
+    window.gtag = window.gtag || function gtag(...args: [string, ...unknown[]]) {
+      window.dataLayer!.push(args);
     };
     if (document.querySelector("script[data-google-ads]")) return;
     window.gtag("js", new Date());
@@ -39,7 +39,7 @@ export async function loadGoogleAds(consentModeRoute = true): Promise<void> {
     const script = document.createElement("script");
     script.src = `https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(GOOGLE_ADS_ID)}`;
     script.async = true;
-    script.dataset.googleAds = "";
+    script.dataset["googleAds"] = "";
     document.head.appendChild(script);
   })();
   return loadPromise;

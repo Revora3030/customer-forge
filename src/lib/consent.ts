@@ -11,12 +11,8 @@
  *   version of the notice was shown. The flag alone is not a consent record.
  */
 
-declare global {
-  interface Window {
-    dataLayer: unknown[];
-    gtag?: (...args: unknown[]) => void;
-  }
-}
+// window.dataLayer / window.gtag types come from the existing declaration in
+// src/lib/ga4.ts — do not redeclare them here.
 
 export const STORAGE_KEY = "cookie_consent";
 const RECORD_KEY = "revora.consent.record.v1";
