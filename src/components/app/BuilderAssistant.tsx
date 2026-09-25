@@ -160,7 +160,7 @@ export function BuilderAssistant({
       id="website-assistant"
       className={cn(
         "builder-conversation -mx-4 flex flex-col overflow-hidden rounded-none border-0 bg-transparent p-0 shadow-none sm:mx-0 lg:rounded-2xl lg:border lg:border-border/80 lg:bg-card/72 lg:shadow-lift",
-        compact ? "h-[calc(100dvh-9.75rem)] min-h-[480px] lg:h-[calc(100vh-8rem)]" : "h-[calc(100dvh-9rem)] min-h-[520px]",
+        compact ? "h-[calc(100dvh-9.75rem)] min-h-[360px] lg:h-[calc(100vh-8rem)]" : "h-[calc(100dvh-9rem)] min-h-[360px]",
       )}
     >
       {requests.tasks.length > 0 && !requests.busy ? (
@@ -170,7 +170,7 @@ export function BuilderAssistant({
           </Button>
         </div>
       ) : null}
-      <Conversation className="min-h-0 flex-1">
+      <Conversation className="min-h-0 flex-1 overscroll-contain" onPointerDown={dismissKeyboard}>
         <ConversationContent className="gap-8 px-4 py-5 text-[15px] leading-relaxed sm:px-6 lg:px-7">
 
           {requests.tasks.length === 0 ? (
@@ -186,7 +186,7 @@ export function BuilderAssistant({
             </ConversationEmptyState>
           ) : null}
           {requests.tasks.map((task) => (
-            <div key={task.id} className="space-y-3">
+            <div key={task.id} className="chat-rise space-y-3">
               <Message from="user">
                 <MessageContent className="bg-primary text-primary-foreground">{task.instruction}</MessageContent>
               </Message>
@@ -258,7 +258,7 @@ export function BuilderAssistant({
           </div>
         ) : null}
          <PromptInput
-           className="builder-prompt rounded-3xl"
+           className={cn("builder-prompt rounded-3xl", (requests.busy || firstBuildBusy) && "is-thinking")}
           onSubmit={(_message, event) => {
             event.preventDefault();
             send(value);
@@ -271,7 +271,8 @@ export function BuilderAssistant({
              disabled={!requests.ready || firstBuildBusy}
             placeholder="Ask Revora…"
             aria-label="Tell Revora what to change"
-            className="text-[15px]"
+            className="text-base"
+            enterKeyHint="send"
             onChange={(event) => setValue(event.target.value)}
           />
            <PromptInputFooter className="items-center justify-between gap-2">
