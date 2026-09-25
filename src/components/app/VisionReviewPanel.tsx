@@ -35,6 +35,11 @@ const WIDTHS = [
   { id: 1280, label: "Desktop" },
 ] as const;
 
+/** Every screen width the full review covers: small phone, phone, tablet, laptop, desktop. */
+export const FULL_REVIEW_WIDTHS = [320, 390, 768, 1024, 1440] as const;
+
+type SweepRow = { page: string; width: number; score: number | null; note: string; fixed?: string };
+
 /** Loads the page in a hidden frame and captures what actually rendered. */
 async function capturePage(url: string, width: number): Promise<{ dataUrl: string; height: number }> {
   const frame = document.createElement("iframe");
@@ -99,12 +104,96 @@ export function VisionReviewPanel({
   const createLink = useCreatePreviewLink(organizationId);
   const [width, setWidth] = useState<number>(1280);
   const [pageSlug, setPageSlug] = useState<string>("home");
-  const [busy, setBusy] = useState<null | "review" | "repair">(null);
+  const [busy, setBusy] = useState<null | "review" | "repair" | "sweep">(null);
+  const [sweep, setSweep] = useState<SweepRow[]>([]);
+  const [sweepStatus, setSweepStatus] = useState<string | null>(null);
   const [shot, setShot] = useState<string | null>(null);
   const [result, setResult] = useState<VisionReviewResult | null>(null);
   const [repairNote, setRepairNote] = useState<string | null>(null);
 
   const pages = (content ?? []).filter((page) => page.is_visible);
+
+  const pageBase = async () => {
+    if (!slug) throw new Error("This site has no address yet.");
+    if (publishState === "published") return `/s/${slug}`;
+    const active = (links ?? []).find(
+      (link) => !link.revoked && new Date(link.expires_at).getTime() > Date.now(),
+    );
+    const token = active?.token ?? (await createLink.mutateAsync({ label: "Page review", hours: 24 }));
+    return `/p/${token}`;
+  };
+
+  /**
+   * Look-and-fix loop: every visible page at every width is photographed and
+   * reviewed. When safe repairs exist, they are applied (restore point first,
+   * inside applyVisionRepairs) and that same page and width is photographed
+   * and reviewed again so the result is proven, not assumed.
+   */
+  const runSweep = async () => {
+    if (!organizationId || !slug || busy) return;
+    if (pages.length === 0) {
+      toast.error("Add a page first — there is nothing to review yet.");
+      return;
+    }
+    setBusy("sweep");
+    setSweep([]);
+    setResult(null);
+    const rows: SweepRow[] = [];
+    const push = (row: SweepRow) => { rows.push(row); setSweep([...rows]); };
+    try {
+      const base = await pageBase();
+      const total = pages.length * FULL_REVIEW_WIDTHS.length;
+      let step = 0;
+      let stop = false;
+      for (const page of pages) {
+        if (stop) break;
+        const clean = page.slug.replace(/^\//, "");
+        const home = !clean || clean === "home" || page.kind === "home";
+        const url = home ? base : `${base}/${clean}`;
+        const label = page.title || clean || "Home";
+        for (const w of FULL_REVIEW_WIDTHS) {
+          step += 1;
+          setSweepStatus(`Checking ${label} at ${w}px (${step} of ${total})`);
+          const review = async () => {
+            const captured = await capturePage(url, w);
+            setShot(captured.dataUrl);
+            return reviewPageScreenshot({
+              data: { organizationId, pageUrl: url, pageSlug: clean || "home", pageTitle: page.title ?? null, viewportWidth: w, screenshotDataUrl: captured.dataUrl },
+            });
+          };
+          try {
+            const first = await review();
+            if (first.code !== "REVIEWED" || !first.review) {
+              push({ page: label, width: w, score: null, note: first.reason ?? "Not reviewed" });
+              if (first.code === "VISION_UNAVAILABLE") { stop = true; break; }
+              continue;
+            }
+            const row: SweepRow = { page: label, width: w, score: first.review.score, note: first.summary ?? "" };
+            if (canManage && (first.repairs ?? []).length > 0) {
+              const outcome = await applyVisionRepairs({
+                data: { organizationId, pageSlug: clean || "home", findings: first.review.findings },
+              });
+              const again = await review();
+              row.fixed = again.code === "REVIEWED" && again.review
+                ? `${outcome.summary} Re-checked: ${again.review.score}/100.`
+                : `${outcome.summary} The re-check could not run.`;
+              if (again.review) row.score = again.review.score;
+            }
+            push(row);
+          } catch (error) {
+            push({ page: label, width: w, score: null, note: friendlyError(error, "This check could not run.") });
+          }
+        }
+      }
+      setSweepStatus(`Done: ${rows.filter((r) => r.score !== null).length} of ${total} checks reviewed.`);
+      void queryClient.invalidateQueries({ queryKey: ["website_content", organizationId] });
+      void queryClient.invalidateQueries({ queryKey: ["website_versions", organizationId] });
+    } catch (error) {
+      setSweepStatus(friendlyError(error, "The full review stopped."));
+    } finally {
+      setBusy(null);
+    }
+  };
 
   const run = async () => {
     if (!organizationId || !slug || busy) return;
@@ -222,7 +311,23 @@ export function VisionReviewPanel({
           {busy === "review" ? <Loader2 className="size-4 animate-spin" /> : <Camera className="size-4" />}
           Review this page
         </Button>
+        <Button size="sm" disabled={busy !== null || !slug} onClick={() => void runSweep()}>
+          {busy === "sweep" ? <Loader2 className="size-4 animate-spin" /> : <Camera className="size-4" />}
+          Review every page at 5 sizes
+        </Button>
       </div>
+
+      {sweepStatus ? <p className="mt-3 text-[12px] text-muted-foreground" role="status">{sweepStatus}</p> : null}
+      {sweep.length > 0 ? (
+        <ul className="mt-2 space-y-1 text-[12px]">
+          {sweep.map((row, i) => (
+            <li key={i}>
+              <span className="font-medium">{row.page}</span> · {row.width}px ·{" "}
+              {row.score === null ? "not reviewed" : `${row.score}/100`} — {row.fixed ?? row.note}
+            </li>
+          ))}
+        </ul>
+      ) : null}
 
       {(shot || review) ? (
         <div className="mt-5 grid gap-4 md:grid-cols-2">
