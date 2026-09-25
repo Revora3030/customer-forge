@@ -90,6 +90,7 @@ import { Route as AuthenticatedMySiteRouteImport } from './routes/_authenticated
 import { Route as AuthenticatedMyStartRouteImport } from './routes/_authenticated/my.start'
 import { Route as LocalIndustryIndexRouteImport } from './routes/local.$industry.index'
 import { Route as LocalIndustryStateRouteImport } from './routes/local.$industry.$state'
+import { Route as PTokenPageRouteImport } from './routes/p.$token_.$page'
 import { Route as SSlugPageRouteImport } from './routes/s.$slug.$page'
 import { Route as AuthenticatedAdminClientsOrgIdRouteImport } from './routes/_authenticated/admin.clients.$orgId'
 import { Route as AuthenticatedDraftSlugPageRouteImport } from './routes/_authenticated/draft.$slug.$page'
@@ -520,6 +521,11 @@ const LocalIndustryStateRoute = LocalIndustryStateRouteImport.update({
   path: '/local/$industry/$state',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PTokenPageRoute = PTokenPageRouteImport.update({
+  id: '/p/$token_/$page',
+  path: '/p/$token/$page',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SSlugPageRoute = SSlugPageRouteImport.update({
   id: '/$page',
   path: '/$page',
@@ -653,6 +659,7 @@ export interface FileRoutesByFullPath {
   '/my/site': typeof AuthenticatedMySiteRoute
   '/my/start': typeof AuthenticatedMyStartRoute
   '/local/$industry/$state': typeof LocalIndustryStateRoute
+  '/p/$token/$page': typeof PTokenPageRoute
   '/s/$slug/$page': typeof SSlugPageRoute
   '/admin/': typeof AuthenticatedAdminIndexRoute
   '/app/': typeof AuthenticatedAppIndexRoute
@@ -740,6 +747,7 @@ export interface FileRoutesByTo {
   '/my/site': typeof AuthenticatedMySiteRoute
   '/my/start': typeof AuthenticatedMyStartRoute
   '/local/$industry/$state': typeof LocalIndustryStateRoute
+  '/p/$token/$page': typeof PTokenPageRoute
   '/s/$slug/$page': typeof SSlugPageRoute
   '/admin': typeof AuthenticatedAdminIndexRoute
   '/app': typeof AuthenticatedAppIndexRoute
@@ -834,6 +842,7 @@ export interface FileRoutesById {
   '/_authenticated/my/site': typeof AuthenticatedMySiteRoute
   '/_authenticated/my/start': typeof AuthenticatedMyStartRoute
   '/local/$industry/$state': typeof LocalIndustryStateRoute
+  '/p/$token_/$page': typeof PTokenPageRoute
   '/s/$slug/$page': typeof SSlugPageRoute
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
   '/_authenticated/app/': typeof AuthenticatedAppIndexRoute
@@ -928,6 +937,7 @@ export interface FileRouteTypes {
     | '/my/site'
     | '/my/start'
     | '/local/$industry/$state'
+    | '/p/$token/$page'
     | '/s/$slug/$page'
     | '/admin/'
     | '/app/'
@@ -1015,6 +1025,7 @@ export interface FileRouteTypes {
     | '/my/site'
     | '/my/start'
     | '/local/$industry/$state'
+    | '/p/$token/$page'
     | '/s/$slug/$page'
     | '/admin'
     | '/app'
@@ -1108,6 +1119,7 @@ export interface FileRouteTypes {
     | '/_authenticated/my/site'
     | '/_authenticated/my/start'
     | '/local/$industry/$state'
+    | '/p/$token_/$page'
     | '/s/$slug/$page'
     | '/_authenticated/admin/'
     | '/_authenticated/app/'
@@ -1163,6 +1175,7 @@ export interface RootRouteChildren {
   LocationsIndexRoute: typeof LocationsIndexRoute
   StatesIndexRoute: typeof StatesIndexRoute
   LocalIndustryStateRoute: typeof LocalIndustryStateRoute
+  PTokenPageRoute: typeof PTokenPageRoute
   LocalIndustryIndexRoute: typeof LocalIndustryIndexRoute
   ApiPublicJobsBackupRoute: typeof ApiPublicJobsBackupRoute
   ApiPublicJobsLifecycleEmailRoute: typeof ApiPublicJobsLifecycleEmailRoute
@@ -1742,6 +1755,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LocalIndustryStateRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/p/$token_/$page': {
+      id: '/p/$token_/$page'
+      path: '/p/$token/$page'
+      fullPath: '/p/$token/$page'
+      preLoaderRoute: typeof PTokenPageRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/s/$slug/$page': {
       id: '/s/$slug/$page'
       path: '/$page'
@@ -2031,6 +2051,7 @@ const rootRouteChildren: RootRouteChildren = {
   LocationsIndexRoute: LocationsIndexRoute,
   StatesIndexRoute: StatesIndexRoute,
   LocalIndustryStateRoute: LocalIndustryStateRoute,
+  PTokenPageRoute: PTokenPageRoute,
   LocalIndustryIndexRoute: LocalIndustryIndexRoute,
   ApiPublicJobsBackupRoute: ApiPublicJobsBackupRoute,
   ApiPublicJobsLifecycleEmailRoute: ApiPublicJobsLifecycleEmailRoute,
