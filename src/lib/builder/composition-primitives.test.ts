@@ -27,3 +27,11 @@ describe("interactive building blocks", () => {
     if (!r.ok) expect(r.issues.length).toBeGreaterThanOrEqual(4);
   });
 });
+
+describe("toggle block", () => {
+  it("needs exactly two labelled options", () => {
+    const opt = (text: string) => ({ type: "stack", text, children: [{ type: "text", text: "x" }] });
+    expect(validateComposition(tree({ type: "toggle", children: [opt("A"), opt("B")] })).ok).toBe(true);
+    expect(validateComposition(tree({ type: "toggle", children: [opt("A")] })).ok).toBe(false);
+  });
+});

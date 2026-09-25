@@ -134,6 +134,7 @@ function renderNode(node: CompositionNode, ctx: Ctx, key: string): ReactNode {
         </div>
       );
     case "tabs":
+    case "toggle":
       return (
         <Tabs key={key} props={props} labels={node.children?.map((c) => c.text ?? "") ?? []}
           panels={node.children?.map((child, i) => <div key={i} style={styleToCss(child.style, "stack")}>{child.children?.map((c, j) => renderNode(c, ctx, `${key}.${i}.${j}`))}</div>) ?? []} />
