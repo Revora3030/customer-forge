@@ -35,3 +35,5 @@
 - [ ] Second genuinely different industry build — needs real business details from owner
 - [x] Final security/billing review (clean)
 - [ ] Northline rebuild — waiting on owner go-ahead (uses AI budget)
+- [x] Site review no longer writes the business name into empty headlines (report only); page caps removed; build picture cleanup scoped to one business.
+- [ ] 5-phase plan phases 2–5: invented-section end-to-end test, safe effect/motion vocabulary, screenshot critique loop at 5 widths, job fencing + record retention, fresh security scan.
