@@ -16,7 +16,6 @@ import {
   CAPABILITY_LABELS,
   PROVIDERS,
   capabilityStatus,
-  hasDeterministicPath,
   providersFor,
   selectProvider,
   type Capability,
