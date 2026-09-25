@@ -214,6 +214,7 @@ export function QuoteCalculator({ site }: { site: Site }) {
             </div>
             <Button
               variant="signal"
+              className="min-h-11 sm:min-h-11"
               disabled={!complete}
               onClick={() => {
                 track("quote_complete");
@@ -407,7 +408,7 @@ export function BookingForm({ site }: { site: Site }) {
             id={fid("service")}
             value={serviceId}
             onChange={(e) => setServiceId(e.target.value)}
-            className="h-11 w-full rounded-md border border-input bg-transparent px-3 text-[14px] sm:h-10"
+            className="h-11 w-full rounded-md border border-input bg-transparent px-3 text-[14px] "
           >
             {bookable.map((s) => (
               <option key={s.id} value={s.id}>
