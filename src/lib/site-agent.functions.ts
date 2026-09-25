@@ -265,7 +265,7 @@ export const planWebsiteChanges = createServerFn({ method: "POST" })
       const organizationId = orgIdOf(input);
       const instruction = str(input?.instruction, PLAN_INSTRUCTION_LIMIT);
       const attachments = readAttachments(input?.attachments);
-      if (instruction.length < 3 && !attachments.length)
+      if (instruction.length < 1 && !attachments.length)
         throw new Error(
           "Tell Revora what you'd like changed — type it, say it, or attach a photo or clip.",
         );

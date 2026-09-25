@@ -233,6 +233,20 @@ export function useBuilderRequests({
           ...(brand && hasBrandChoices(brand) ? { brand } : {}),
         },
       });
+      if ("conversational" in result && result.conversational) {
+        // A plain answer from the AI: shown as a chat reply, nothing to apply.
+        setTasks((current) =>
+          updateTask(current, task.id, { state: "complete", reply: result.reply, answered: true }),
+        );
+        setConversation((current) =>
+          [
+            ...current,
+            { role: "user" as const, content: task.instruction },
+            { role: "assistant" as const, content: result.reply },
+          ].slice(-24),
+        );
+        return;
+      }
       const steps = result.steps as AgentStep[];
       for (const step of steps) actionsRef.current.set(step.key, step);
       const plannedSteps = toPlanSteps(steps);

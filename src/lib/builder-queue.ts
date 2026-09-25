@@ -35,6 +35,8 @@ export type QueueTask = {
   steps: PlanStep[];
   /** Revora's own words about the request. */
   reply?: string;
+  /** True when the AI simply answered in chat and nothing was meant to change. */
+  answered?: boolean;
   summary?: string;
   questions: string[];
   /** Requested outcomes independently matched to concrete, renderable actions. */
