@@ -4,15 +4,15 @@ import {
   deriveScreenshotReferenceBrief,
   normalizeScreenshotReferenceObservations,
 } from "@/lib/builder/screenshot-reference";
-import type { CreativeBrief } from "@/lib/builder/first-build-contract";
+import { blankCreativeBrief } from "@/lib/builder/first-build-contract";
 
 const creative = {
   brief: {
-    version: 1,
+    ...blankCreativeBrief([]),
     concept: "AI-authored test brief",
     personality: "calm",
-    typography: { display: "Editorial sans", body: "Humanist sans", scale: "large" },
-    color: { background: "#ffffff", foreground: "#111111", primary: "#224466", secondary: "#6688aa", accent: "#cc8844", muted: "#eeeeee" },
+    typography: { ...blankCreativeBrief([]).typography, display: "Editorial sans", body: "Humanist sans" },
+    color: { ...blankCreativeBrief([]).color, system: "quiet blue", strategy: "warm contrast" },
     heroComposition: "wide opening",
     photography: { language: "real work", lighting: "natural", environment: "on location", treatment: "honest", subjects: [] },
     sectionRhythm: "varied",
@@ -23,8 +23,8 @@ const creative = {
     shapeLanguage: { radius: "authored", border: "authored", shadow: "authored" },
     motion: { level: "restrained", language: "authored" },
     mobileStrategy: [], conversionStrategy: [], industryConventions: [], imageInventory: [],
-    qualityMatrix: {}, prohibitedEvidence: [],
-  } as CreativeBrief,
+  },
+  referenceSignals: null as Record<string, string[]> | null,
 };
 
 describe("screenshot reference signals", () => {
