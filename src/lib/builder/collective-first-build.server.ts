@@ -635,7 +635,7 @@ async function refineCreativeWithCollective(input: {
       "SOL PROPOSAL:",
       JSON.stringify(proposal, null, 2),
       "",
-      'Return JSON: {"approvedFields": ["designRecord.heroComposition"], "rejected": [{"field": "...", "reason": "..."}]}',
+      'Return JSON: {"approvedFields": ["brief.heroComposition"], "rejected": [{"field": "...", "reason": "..."}]}',
     ].join("\n"),
   });
 
