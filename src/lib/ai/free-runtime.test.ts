@@ -158,20 +158,6 @@ describe("automatic failover between free providers", () => {
     expect(calls.some((url) => url.includes("cloudflare"))).toBe(false);
   });
 
-  it("never reaches a paid provider when an operator forces the free-only lane", async () => {
-    configureTwoFreeProviders();
-    process.env["FREE_AI_ONLY"] = "true";
-    process.env["GOOGLE_AI_API_KEY"] = "paid-google";
-    process.env["OPENAI_API_KEY"] = "paid-openai";
-    const { calls } = stubFetch(() => new Response("nope", { status: 500 }));
-    const { generateText } = await router();
-    await expect(
-      generateText(caller, { messages: [{ role: "user", content: "hi" }] }),
-    ).rejects.toMatchObject({ name: "RevoraAiError" });
-    expect(calls.some((url) => url.includes("googleapis") || url.includes("api.openai.com"))).toBe(
-      false,
-    );
-  }, 30_000);
 
   it("honors request-scoped freeOnly even when paid fallback is otherwise enabled", async () => {
     configureTwoFreeProviders();

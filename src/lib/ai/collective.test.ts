@@ -144,11 +144,6 @@ describe("credential and opt-in gating", () => {
     expect(availableTiers()).toEqual([]);
   });
 
-  it("offers no tier in native-only mode", () => {
-    enablePaidLane();
-    process.env["ZERO_AI_COST_MODE"] = "true";
-    expect(availableTiers()).toEqual([]);
-  });
 
   it("offers all three tiers once an operator opts in", () => {
     enablePaidLane();

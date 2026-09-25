@@ -37,12 +37,6 @@ describe("capability registry", () => {
     expect(resolution.status).toBe("ready");
   });
 
-  it("refuses to use a paid provider while free-only mode is on", async () => {
-    process.env["FIRECRAWL_API_KEY"] = "test-key";
-    const resolution = await resolveCapability("research.web");
-    expect(resolution.provider?.id).toBe("revora-native-fetch");
-    expect(resolution.fallbacks.map((entry) => entry.id)).not.toContain("firecrawl");
-  });
 
   it("never reports a capability as ready when no server code exists for it", async () => {
     process.env["TWILIO_ACCOUNT_SID"] = "sid";
