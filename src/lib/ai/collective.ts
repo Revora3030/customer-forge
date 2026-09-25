@@ -109,12 +109,24 @@ const PURPOSE_TIER: Record<CollectivePurpose, CollectiveTier> = {
  * Sol's work (a different model, so it is a genuine second opinion) and
  * GPT-5.6 Luna shares structured utility work with GPT-6 Luna. Overridable by
  * SOL_PEER_MODEL / LUNA_PEER_MODEL.
+ *
+ * The high-volume utility purposes are pointed at `gpt-5.4-mini`, which sits
+ * inside OpenAI's shared-traffic daily token allowance: that work is the bulk
+ * of Revora's call volume and none of it touches paid credit until the daily
+ * allowance is used up. Creative writing, design and the senior reviews stay on
+ * the full paid models — quality is never traded for the allowance.
  */
 export const PEER_PURPOSE_MODELS: Partial<Record<CollectivePurpose, { model: string; env: string }>> = {
   final_review: { model: "gpt-5.6-sol", env: "SOL_PEER_MODEL" },
   schema_markup: { model: "gpt-5.6-luna", env: "LUNA_PEER_MODEL" },
   completeness_check: { model: "gpt-5.6-luna", env: "LUNA_PEER_MODEL" },
+  intent: { model: "gpt-5.4-mini", env: "LUNA_ALLOWANCE_MODEL" },
+  extraction: { model: "gpt-5.4-mini", env: "LUNA_ALLOWANCE_MODEL" },
+  classification: { model: "gpt-5.4-mini", env: "LUNA_ALLOWANCE_MODEL" },
+  metadata: { model: "gpt-5.4-mini", env: "LUNA_ALLOWANCE_MODEL" },
+  small_edit: { model: "gpt-5.4-mini", env: "LUNA_ALLOWANCE_MODEL" },
 };
+
 
 /** Independent review purposes must not be raised to Sol by complexity. */
 const INDEPENDENT_REVIEW = new Set<CollectivePurpose>(["adversarial_review", "visual_review", "final_review"]);
