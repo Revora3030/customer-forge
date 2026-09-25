@@ -237,3 +237,11 @@ describe("review repairs never author a design", () => {
     expect(src).not.toMatch(/kind === "page_seo" \|\| proposal\.kind === "page_index"/);
   });
 });
+
+describe("no canned upgrade engine", () => {
+  it("the fixed per-section effect and wording upgrade studio stays deleted", () => {
+    expect(() => statSync("src/lib/upgrade-studio.ts")).toThrow();
+    const offenders = production.filter((f) => /upgrade-studio|scanForUpgrades|effectFor\(/.test(readFileSync(f, "utf8")));
+    expect(offenders).toEqual([]);
+  });
+});

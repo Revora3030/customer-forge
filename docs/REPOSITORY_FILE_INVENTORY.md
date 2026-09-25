@@ -176,7 +176,6 @@ Generated for branch `feat/revora-maximum-whole-repo-upgrade`. **813 files** are
 - `src/components/app/StripeServiceCheckout.tsx`
 - `src/components/app/TeamInvites.tsx`
 - `src/components/app/TrafficMonitor.tsx`
-- `src/components/app/UpgradeStudio.tsx`
 - `src/components/app/VersionDiff.tsx`
 - `src/components/app/VisualCheckPanel.tsx`
 - `src/components/app/VisualDirectorPanel.tsx`
@@ -603,7 +602,6 @@ Generated for branch `feat/revora-maximum-whole-repo-upgrade`. **813 files** are
 - `src/lib/trial-clock.ts`
 - `src/lib/trial.test.ts`
 - `src/lib/trial.ts`
-- `src/lib/upgrade-studio.ts`
 - `src/lib/us-states.ts`
 - `src/lib/use-countdown.ts`
 - `src/lib/use-step-scroll.ts`
