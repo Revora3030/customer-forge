@@ -769,6 +769,24 @@ async function runJob(
       result: composed as unknown as never,
       created_by: job.created_by,
     } as never);
+    // Sol also designs the menu bar and footer; no built-in chrome is used.
+    const { composeSiteChrome } = await import("@/lib/builder/first-build-chrome.server");
+    const chrome = await composeSiteChrome({
+      db: db as never,
+      organizationId: orgId,
+      businessName: org.data.name ?? "",
+      facts: buildFacts,
+      lookSummary: JSON.stringify({ colors: direction ? { primary: direction.primary, secondary: direction.secondary, accent: direction.accent } : null, font: direction?.font ?? null }),
+    });
+    await db.from("ai_generations").insert({
+      organization_id: orgId,
+      job_id: job.id,
+      kind: "first_build_chrome",
+      model: chrome.models.join("+") || "none",
+      instruction: null,
+      result: chrome as unknown as never,
+      created_by: job.created_by,
+    } as never);
   }
 
   // A brand chosen by the owner wins. Only replace the untouched generated

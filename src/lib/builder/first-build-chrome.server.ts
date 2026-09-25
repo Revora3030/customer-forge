@@ -55,7 +55,7 @@ export async function composeSiteChrome(input: {
     phone: facts.phone ?? null,
     email: facts.email ?? null,
     area: facts.serviceArea ?? facts.city ?? null,
-    ctaLabel: facts.ctaLabel ?? null,
+    ctaLabel: (facts as { ctaLabel?: string | null }).ctaLabel ?? null,
   };
 
   const models: string[] = [];

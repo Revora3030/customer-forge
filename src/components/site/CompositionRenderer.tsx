@@ -66,7 +66,7 @@ const MEDIA: Record<Breakpoint, string> = {
   desktop: "(min-width: 1024px)",
 };
 
-type Ctx = { rules: string[]; counter: { n: number }; scope: string };
+type Ctx = { rules: string[]; counter: { n: number }; scope: string; href: (h: string) => string };
 
 function baseLayout(type: CompositionNode["type"]): CSSProperties {
   switch (type) {
@@ -106,7 +106,7 @@ function renderNode(node: CompositionNode, ctx: Ctx, key: string): ReactNode {
       return node.src ? <img key={key} {...props} src={node.src} alt={node.alt ?? ""} loading="lazy" style={{ objectFit: "cover", width: "100%", ...props.style }} /> : null;
     case "button":
     case "link":
-      return <a key={key} {...props} href={node.href}>{node.text}{kids}</a>;
+      return <a key={key} {...props} href={node.href ? ctx.href(node.href) : undefined}>{node.text}{kids}</a>;
     case "list":
       return <ul key={key} {...props}>{node.items?.map((item, i) => <li key={i}>{item}</li>)}</ul>;
     case "divider":
@@ -122,13 +122,20 @@ function renderNode(node: CompositionNode, ctx: Ctx, key: string): ReactNode {
 
 const MOTION_CSS = `@media (prefers-reduced-motion: no-preference){.rv-cn-motion{animation:rv-cn-in .7s ease both}.rv-cn-motion[data-motion=rise]{animation-name:rv-cn-rise}.rv-cn-motion[data-motion=scale]{animation-name:rv-cn-scale}.rv-cn-motion[data-motion=float]{animation:rv-cn-float 6s ease-in-out infinite}}@keyframes rv-cn-in{from{opacity:0}to{opacity:1}}@keyframes rv-cn-rise{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:none}}@keyframes rv-cn-scale{from{opacity:0;transform:scale(.94)}to{opacity:1;transform:none}}@keyframes rv-cn-float{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}`;
 
-export function CompositionRenderer({ tree, scope }: { tree: CompositionTree; scope: string }) {
-  const ctx: Ctx = { rules: [], counter: { n: 0 }, scope: scope.replace(/[^\w-]/g, "") || "cn" };
+export function CompositionRenderer({ tree, scope, as = "section", resolveHref }: { tree: CompositionTree; scope: string; as?: "section" | "div"; resolveHref?: (href: string) => string }) {
+  const ctx: Ctx = { rules: [], counter: { n: 0 }, scope: scope.replace(/[^\w-]/g, "") || "cn", href: resolveHref ?? ((h) => h) };
   const body = renderNode(tree.root, ctx, "root");
   return (
-    <section data-composition={tree.label ?? "composition"}>
-      <style>{MOTION_CSS + ctx.rules.join("")}</style>
-      {body}
-    </section>
+    as === "div" ? (
+      <div data-composition={tree.label ?? "composition"}>
+        <style>{MOTION_CSS + ctx.rules.join("")}</style>
+        {body}
+      </div>
+    ) : (
+      <section data-composition={tree.label ?? "composition"}>
+        <style>{MOTION_CSS + ctx.rules.join("")}</style>
+        {body}
+      </section>
+    )
   );
 }
