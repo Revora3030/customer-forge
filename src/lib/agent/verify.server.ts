@@ -130,9 +130,8 @@ export async function verifyWorkspaceSite(
   const published = String(gate.data?.["publish_state"] ?? "") === "published";
 
   const base = origin();
-  // Inspect the whole visible site, with a hard cap so verification stays fast
-  // even for large workspaces. This is intentionally broader than the old
-  // four-page sample: a successful home page must not hide a broken inner page.
+  // Inspect every visible page: a successful home page must not hide a broken
+  // inner page, and no page is skipped to save time.
   const list = pages.data ?? [];
   const home = list.find((page) => page["kind"] === "home") ?? list[0];
 
