@@ -126,7 +126,7 @@ export function readiness(input: ReadinessInput) {
       // incomplete just because the owner hasn't bought a domain of their own.
       key: "domain",
       label: "Web address",
-      done: s?.domain_status === "connected" || s?.domain_status === "ssl_active" || !!s?.template,
+      done: s?.domain_status === "connected" || s?.domain_status === "ssl_active" || !!s?.custom_domain || !!org?.slug,
       fix: "Publish your site, or connect a domain you own.",
       to: "/app/launch",
     },

@@ -51,7 +51,6 @@ import { ImageStudio } from "@/components/app/ImageStudio";
 import { readBackdrop, writeBackdrop } from "@/lib/site-effects";
 import { SiteChatbot } from "@/components/app/SiteChatbot";
 import { UpgradeStudio } from "@/components/app/UpgradeStudio";
-import { RevoraGenius } from "@/components/app/RevoraGenius";
 import { BuilderAudit } from "@/components/app/BuilderAudit";
 import { BuilderCanvas } from "@/components/app/BuilderCanvas";
 import { BuilderPreview, type PreviewSelection } from "@/components/app/BuilderPreview";
@@ -681,15 +680,6 @@ function WebsitePage() {
                     canFreshRebuild={canFreshRebuild}
                     hasCopy={!!copy}
                   />
-                  <Disclosure label="Build a full website for me" hint="Describe it, Revora writes it">
-                    <RevoraGenius
-                      organizationId={orgId}
-                      canManage={manage}
-                      pages={pages ?? []}
-                      facts={geniusFacts}
-                      onRefresh={requests.refresh}
-                    />
-                  </Disclosure>
                 </>
               ),
             },
