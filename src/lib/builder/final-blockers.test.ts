@@ -26,6 +26,28 @@ describe("final blocker regressions", () => {
     const src = read("src/lib/site-materialize.server.ts");
     expect(src).not.toMatch(/asset\.slot === "hero" \? "(large|strong)"/);
   });
+
+  it("the materializer adds buttons and cards only when the AI asked, never by section name", () => {
+    const src = read("src/lib/site-materialize.server.ts");
+    expect(src).not.toMatch(/\/hero\|cta\|action\|conversion\/i\.test\(role\)/);
+    expect(src).not.toMatch(/\/services\|offers\|solutions\/i\.test\(role\)/);
+    expect(src).toContain('includes.includes("primary_action")');
+    expect(src).toContain('includes.includes("service_cards")');
+  });
+});
+
+import { normalizePageArchitecture } from "@/lib/builder/ai-page-architecture";
+describe("AI-requested section material", () => {
+  const candidate = [{ slug: "home", title: "Home", purpose: "p", primaryAction: "Call", sections: [{ role: "hero" }, { role: "services" }, { role: "contact" }] }];
+  it("keeps only the includes the AI requested and drops unknown ones", () => {
+    const out = normalizePageArchitecture({
+      candidate,
+      proposal: [{ slug: "home", sections: [{ role: "hero", includes: ["primary_action", "script"] }, { role: "services" }, { role: "contact" }] }] as never,
+    });
+    const sections = out!.architecture[0]!.sections;
+    expect(sections[0]!.includes).toEqual(["primary_action"]);
+    expect(sections[1]!.includes).toBeUndefined();
+  });
 });
 
 import { PHONE_SAFETY_CSS } from "@/components/site/CompositionRenderer";

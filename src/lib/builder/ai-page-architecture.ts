@@ -92,7 +92,15 @@ function headingText(value: unknown, max: number): string | null {
   return value2;
 }
 
-type RawSection = { role: string; heading: string | null; subheading: string | null; body: string | null; layout: string | null; intent: string | null; media: "none" | "optional" | "required" | null };
+/** Material the AI explicitly asks the materializer to attach to a section. */
+export type SectionInclude = "primary_action" | "service_cards";
+const INCLUDES = new Set<SectionInclude>(["primary_action", "service_cards"]);
+function readIncludes(value: unknown): SectionInclude[] {
+  if (!Array.isArray(value)) return [];
+  return [...new Set(value.filter((item): item is SectionInclude => typeof item === "string" && INCLUDES.has(item as SectionInclude)))];
+}
+
+type RawSection = { role: string; heading: string | null; subheading: string | null; body: string | null; layout: string | null; intent: string | null; media: "none" | "optional" | "required" | null; includes: SectionInclude[] };
 
 function sectionRoles(value: unknown): RawSection[] {
   if (!Array.isArray(value)) return [];
@@ -100,14 +108,14 @@ function sectionRoles(value: unknown): RawSection[] {
   for (const entry of value) {
     if (typeof entry === "string") {
       const role = text(entry);
-      if (role) roles.push({ role, heading: null, subheading: null, body: null, layout: null, intent: null, media: null });
+      if (role) roles.push({ role, heading: null, subheading: null, body: null, layout: null, intent: null, media: null, includes: [] });
       continue;
     }
     if (entry && typeof entry === "object") {
-      const row = entry as { role?: unknown; heading?: unknown; subheading?: unknown; body?: unknown; layout?: unknown; intent?: unknown; media?: unknown };
+      const row = entry as { role?: unknown; heading?: unknown; subheading?: unknown; body?: unknown; layout?: unknown; intent?: unknown; media?: unknown; includes?: unknown };
       const role = text(row.role);
       const media = row.media === "required" || row.media === "optional" || row.media === "none" ? row.media : null;
-      if (role) roles.push({ role, heading: headingText(row.heading, 120), subheading: headingText(row.subheading, 260), body: headingText(row.body, 1200), layout: headingText(row.layout, 100), intent: headingText(row.intent, 300), media });
+      if (role) roles.push({ role, heading: headingText(row.heading, 120), subheading: headingText(row.subheading, 260), body: headingText(row.body, 1200), layout: headingText(row.layout, 100), intent: headingText(row.intent, 300), media, includes: readIncludes(row.includes) });
     }
   }
   return roles;
@@ -187,7 +195,8 @@ export function normalizePageArchitecture(input: {
 
     const sections: PageArchitecture["sections"] = [];
     for (const entry of sectionRoles(raw.sections)) {
-      const { role, heading, subheading, body, layout, intent, media } = entry;
+      const { role, heading, subheading, body, layout, intent, media, includes } = entry;
+      const withIncludes = includes.length ? { includes } : {};
       const left = available.get(role) ?? 0;
       if (left > 0) {
         available.set(role, left - 1);
@@ -195,6 +204,7 @@ export function normalizePageArchitecture(input: {
           role, heading, subheading, body, media: media ?? "none",
           ...(layout ? { layout } : {}),
           ...(intent ? { intent } : {}),
+          ...withIncludes,
         });
         continue;
       }
@@ -207,6 +217,7 @@ export function normalizePageArchitecture(input: {
           media: media ?? "none",
           ...(layout ? { layout } : {}),
           ...(intent ? { intent } : {}),
+          ...withIncludes,
         });
         continue;
       }
@@ -220,6 +231,7 @@ export function normalizePageArchitecture(input: {
         media: made.media,
         ...(made.layout ? { layout: made.layout } : {}),
         ...(made.intent ? { intent: made.intent } : {}),
+        ...withIncludes,
       });
     }
     if (sections.length === 0) {
