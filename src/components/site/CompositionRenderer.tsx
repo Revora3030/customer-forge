@@ -80,8 +80,13 @@ const MEDIA: Record<Breakpoint, string> = {
   desktop: "(min-width: 1024px)",
 };
 
-type ResolvedMedia = { url: string | null; visual?: PersistedComponentVisual };
+type ResolvedMedia = string | { url: string | null; visual?: PersistedComponentVisual };
 type Ctx = { rules: string[]; counter: { n: number }; scope: string; href: (h: string) => string; media: (ref: string) => ResolvedMedia | null };
+
+const mediaUrl = (media: ResolvedMedia | null): string | null =>
+  typeof media === "string" ? media : media?.url ?? null;
+const mediaVisual = (media: ResolvedMedia | null): PersistedComponentVisual | undefined =>
+  typeof media === "string" ? undefined : media?.visual;
 
 function mediaCss(visual: PersistedComponentVisual | undefined): CSSProperties {
   if (!visual) return {};
@@ -132,8 +137,9 @@ function renderNode(node: CompositionNode, ctx: Ctx, key: string): ReactNode {
       return <p key={key} {...props}>{node.text}{kids}</p>;
     case "media":
       { const resolved = node.mediaRef ? ctx.media(node.mediaRef) : null;
-        const source = node.src ?? resolved?.url ?? null;
-        return source ? <img key={key} {...props} src={source} alt={node.alt ?? resolved?.visual?.alt ?? ""} loading="lazy" style={{ width: "100%", ...mediaCss(resolved?.visual), ...props.style }} /> : null; }
+        const visual = mediaVisual(resolved);
+        const source = node.src ?? mediaUrl(resolved);
+        return source ? <img key={key} {...props} src={source} alt={node.alt ?? visual?.alt ?? ""} loading="lazy" style={{ width: "100%", ...mediaCss(visual), ...props.style }} /> : null; }
     case "button":
     case "link":
       return <a key={key} {...props} href={node.href ? ctx.href(node.href) : undefined}>{node.text}{kids}</a>;
@@ -171,16 +177,16 @@ function renderNode(node: CompositionNode, ctx: Ctx, key: string): ReactNode {
       );
     case "compare": {
       const [before, after] = node.children ?? [];
-      const beforeSource = before?.src ?? (before?.mediaRef ? ctx.media(before.mediaRef)?.url : null);
-      const afterSource = after?.src ?? (after?.mediaRef ? ctx.media(after.mediaRef)?.url : null);
+      const beforeSource = before?.src ?? (before?.mediaRef ? mediaUrl(ctx.media(before.mediaRef)) : null);
+      const afterSource = after?.src ?? (after?.mediaRef ? mediaUrl(ctx.media(after.mediaRef)) : null);
       return before && after && beforeSource && afterSource ? <Compare key={key} props={props} before={before} after={after} beforeSource={beforeSource} afterSource={afterSource} /> : null;
     }
     case "gallery":
       return (
         <div key={key} {...props} style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(220px,1fr))", ...props.style }}>
-          {node.children?.map((c, i) => { const resolved = c.mediaRef ? ctx.media(c.mediaRef) : null; const source = c.src ?? resolved?.url ?? null; return source ? (
+          {node.children?.map((c, i) => { const resolved = c.mediaRef ? ctx.media(c.mediaRef) : null; const visual = mediaVisual(resolved); const source = c.src ?? mediaUrl(resolved); return source ? (
             <a key={i} href={source} target="_blank" rel="noopener noreferrer">
-              <img src={source} alt={c.alt ?? resolved?.visual?.alt ?? ""} loading="lazy" style={{ width: "100%", height: "100%", ...mediaCss(resolved?.visual), ...styleToCss(c.style, "media") }} />
+              <img src={source} alt={c.alt ?? visual?.alt ?? ""} loading="lazy" style={{ width: "100%", height: "100%", ...mediaCss(visual), ...styleToCss(c.style, "media") }} />
             </a>
           ) : null; })}
         </div>
