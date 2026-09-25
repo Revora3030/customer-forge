@@ -212,12 +212,12 @@ export function CompositionRenderer({ tree, scope, as = "section", resolveHref }
   return (
     as === "div" ? (
       <div data-composition={tree.label ?? "composition"}>
-        <style>{MOTION_CSS + ctx.rules.join("")}</style>
+        <style>{MOTION_CSS + MARQUEE_CSS + ctx.rules.join("")}</style>
         {body}
       </div>
     ) : (
       <section data-composition={tree.label ?? "composition"}>
-        <style>{MOTION_CSS + ctx.rules.join("")}</style>
+        <style>{MOTION_CSS + MARQUEE_CSS + ctx.rules.join("")}</style>
         {body}
       </section>
     )
