@@ -1,31 +1,30 @@
 # Finish the open list
 
-## 1. Launch score counts the real visual check
-- The launch score's design part is always 0 right now. Change it so that when the site's current version has a passing visual check, that check's score is used.
-- Trust: when no reviews or credentials exist, don't count that area at all instead of scoring it 0. We never make up reviews.
-- Publishing: count the site's free /s/ address as a valid address, so you don't need your own domain to reach the score.
-- Add tests: a site without reviews can reach 95, and a failed or out-of-date visual check still blocks publishing.
+## 1. Revora site: add a main headline
+- Ask the AI builder to add one main headline, using only real business details (name, what Revora does, the $750 setup / first month free / $100/month offer). No city, no made-up claims.
+- Confirm the page now has exactly one main headline, and that "Open 24 hours" is still there.
+- Check the gold button text is easy to read. If it isn't, have the AI fix the contrast.
 
-## 2. Revora site: add hours, check it, publish it
-- Ask the AI to add "Open 24 hours" to the Revora draft.
-- Run the visual check on every page at phone, tablet and desktop sizes. Use "Fix with AI" (up to 3 rounds) if anything fails.
-- Approve the site and publish it at /s/ (no custom domain). Check the live page on phone and desktop, starting from the top of the page.
+## 2. Revora site: check, approve and publish
+- Run the visual check on phone, tablet and desktop. Use "Fix with AI" (up to 3 rounds) if it fails.
+- Confirm the launch score reaches the 95 needed to publish, then approve and publish.
+- Open the live site on phone and desktop, take screenshots, and look at them.
+- If the "Back to builder" button still covers the bottom button on phones, move it. Only you see it, but it's still in the way.
 
-## 3. Rebuild the Northline test site
-- Rebuild it and confirm the buttons and service cards still show up now that the AI has to ask for them. Then re-run its visual check.
+## 3. Northline test site
+- Rebuild it and confirm its buttons and service cards still show up now that the AI has to ask for them.
+- Re-run its visual check.
 
-## 4. Builds that fail or retry
-- Review how builds retry and recover. Confirm an old attempt can never overwrite a newer one, and a failed build always brings back the previous site. Add tests for both.
+## 4. Final review
+- Run a full security scan and the database checks.
+- Check that only the right people can reach billing, trials, publishing and site edits.
+- Run all automated tests and the code check.
 
-## 5. Final security, billing and publishing review
-- Run a new security scan and the database checks.
-- Review who can reach billing, trials and publishing.
-- Fix anything the review finds. Then run all tests and the code check.
-
-## Left for later
-- More design and effect options, and AI review of screenshots. These are larger projects and will get their own plan.
+## 5. Report
+- What passed, with proof (screenshots, scores, test counts).
+- Anything still open, with the reason. Nothing will be called done unless it has been checked.
 
 ## Technical details
-- launch-quality-signals.ts: set visual_design from the latest website_visual_reports row that has passed=true and a revision_hash matching private.site_revision_hash(org). Skip the trust area when there's no review or credential evidence, and share its weight among the other areas. publishing: a working /s/:slug address counts as the domain.
-- The database publish check (guard_production_activation) stays as it is.
-- Retry review covers site-engine.worker.server.ts, builder-queue.ts and restore_website_state.
+- The headline check (`src/lib/agent/verify.ts`) looks for a single `<h1>`. The composition renderer only outputs `h1` when the AI sets `level: 1`. Neither section of the Revora site has that right now.
+- Two fixes from this turn now guard edits: `applyReview` keeps a new section that another change fills in, and after an edit only problems that edit caused undo it (compared with a check run before the edit).
+- Publishing goes through `private.guard_production_activation()`, which needs a passing visual report for the current version.
