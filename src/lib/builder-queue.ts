@@ -37,6 +37,8 @@ export type QueueTask = {
   reply?: string;
   /** True when the AI simply answered in chat and nothing was meant to change. */
   answered?: boolean;
+  /** Brought back from the saved conversation; shown, never re-run. */
+  restored?: boolean;
   summary?: string;
   questions: string[];
   /** Requested outcomes independently matched to concrete, renderable actions. */
