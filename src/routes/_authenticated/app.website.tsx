@@ -500,6 +500,7 @@ function WebsitePage() {
               },
               firstBuildBusy: firstBuild.isPending,
             } : {})}
+            businessName={org?.name ?? null}
             emptyTitle={firstRun ? "Describe your business" : "What would you like to change?"}
             emptyHint={firstRun ? "Tell me what you do and who you serve. I’ll build the complete website with you." : "Keep talking to me naturally. I’ll keep the context as we work through this website together."}
           />
