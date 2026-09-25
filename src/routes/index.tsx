@@ -64,11 +64,17 @@ export const Route = createFileRoute("/")({
     loaderData && "pending" in loaderData
       ? {
           meta: [
-            { title: "A new website is on the way" },
+            { title: "Revora Growth Systems" },
             {
               name: "description",
               content:
-                "This website is being built and will be online shortly. Please check back soon.",
+                "Revora Growth Systems — AI websites and automated customer-growth systems. This address will be online shortly.",
+            },
+            { property: "og:title", content: "Revora Growth Systems" },
+            {
+              property: "og:description",
+              content:
+                "Revora Growth Systems — AI websites and automated customer-growth systems. This address will be online shortly.",
             },
             { name: "robots", content: "noindex" },
           ],
@@ -147,9 +153,9 @@ function HomeRoute() {
     return (
       <div className="flex min-h-screen items-center justify-center px-4 text-center">
         <div>
-          <h1 className="font-display text-[22px] font-semibold">A new website is on the way</h1>
+          <h1 className="font-display text-[22px] font-semibold">Revora Growth Systems</h1>
           <p className="mt-2 text-[13px] text-muted-foreground">
-            This website is being built and will be online shortly. Please check back soon.
+            This address will be online shortly. Please check back soon.
           </p>
         </div>
       </div>
