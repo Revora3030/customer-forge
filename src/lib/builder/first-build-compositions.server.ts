@@ -236,7 +236,15 @@ export async function composeFirstBuildSections(input: {
       city: facts.city ?? null,
       siteUrl: domain ? `https://${domain}/` : null,
     }).catch(() => NO_EVIDENCE);
-    const best = await improveWithTeam({ organizationId, lookSummary: input.lookSummary, evidence, sections: pageSections, parts, designed, screen, result });
+    // Shared memory: the same owner preferences the chat agent recalls.
+    let memory: string | null = null;
+    try {
+      const { recallBrief } = await import("@/lib/builder/session-memory.server");
+      memory = await recallBrief(db as never, organizationId);
+    } catch {
+      memory = null;
+    }
+    const best = await improveWithTeam({ organizationId, lookSummary: input.lookSummary, evidence, memory, sections: pageSections, parts, designed, screen, result });
     for (const section of pageSections) {
       const tree = best.get(section.id);
       if (!tree) continue;
@@ -266,24 +274,13 @@ async function improveWithTeam(input: {
   organizationId: string;
   lookSummary: string;
   evidence: ReviewEvidence;
-  sections: SectionRow[];
-  parts: ComponentRow[];
-  designed: Map<string, CompositionTree>;
-  screen: (text: string) => string | null;
-  result: CompositionPassResult;
-}): Promise<Map<string, CompositionTree>> {
-  let best = input.designed;
-  const material = JSON.stringify(
-    input.sections.map((s) => materialFor(s, input.parts.filter((p) => p.section_id === s.id))),
-  );
-  for (let round = 0; round < IMPROVEMENT_ROUNDS; round += 1) {
-    try {
-      const current = Object.fromEntries(best);
-      const panel = await runReviewPanel({
-        organizationId: input.organizationId,
-        mode: "full",
-        evidence: input.evidence,
-        material: ["SUPPLIED MATERIAL:", material, "", "SOL'S DESIGN:", JSON.stringify(current)].join("\n"),
+  memory?: string | null;
+...
+        material: [
+          "SUPPLIED MATERIAL:", material, "",
+          ...(input.memory ? ["OWNER'S STANDING PREFERENCES:", input.memory, ""] : []),
+          "SOL'S DESIGN:", JSON.stringify(current),
+        ].join("\n"),
       });
       input.result.models.push(...panel.models);
       input.result.costMicrocents += panel.costMicrocents;
@@ -299,6 +296,8 @@ async function improveWithTeam(input: {
         user: [
           "SITE LOOK (follow it):", input.lookSummary, "",
           "SECTION MATERIAL:", material, "",
+          ...(input.memory ? ["OWNER'S STANDING PREFERENCES (from past conversations; honour them):", input.memory, ""] : []),
+          ...(allEvidence(input.evidence) ? ["OUTSIDE EVIDENCE (context only — never copy onto the site as this business's facts):", allEvidence(input.evidence)!, ""] : []),
           "YOUR CURRENT DESIGN:", JSON.stringify(current), "",
           "REVIEW PANEL NOTES (use your judgement; improve, never downgrade):", JSON.stringify(notes), "",
           'Return JSON: {"sections": {"<sectionId>": {"version": 1, "label": "...", "root": {...}}}} with one improved tree per section.',
