@@ -571,7 +571,7 @@ function TaskBody({
         <ul className="space-y-0.5 text-[11.5px] text-muted-foreground" aria-label="Requested result coverage">
           {task.requirements.map((requirement) => (
             <li key={requirement.label}>
-              {requirement.covered ? "✓" : "Not covered:"} {requirement.label}
+              {requirement.covered ? "✓" : "Still open:"} {requirement.label}
             </li>
           ))}
         </ul>
