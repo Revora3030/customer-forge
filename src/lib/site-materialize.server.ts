@@ -309,6 +309,18 @@ export async function materializeSiteContent(
     primaryAction: page.primaryAction,
     sections: page.sections.map((section) => ({ role: section.role, layout: section.layout, intent: section.intent, media: section.media })),
   }));
+  // Functional safeguard (not a creative choice): every site must give visitors
+  // a working way to send an enquiry, so leads reach the owner's lead inbox.
+  // If the AI plan left out every enquiry section, add the strongest real
+  // capability this business has to the home page instead of discarding the build.
+  const enquiryRoles = new Set(["booking", "quote", "contact"]);
+  if (!architecture.some((page) => page.sections.some((section) => enquiryRoles.has(section.role)))) {
+    const home = architecture.find((page) => page.slug === "home") ?? architecture[0];
+    if (home) {
+      const role = input.hasBooking ? "booking" : input.hasQuoteForm ? "quote" : "contact";
+      home.sections = [...home.sections, { role } as (typeof home.sections)[number]];
+    }
+  }
   const authoredPrimaryAction = architecture.find((page) => page.slug === "home")?.primaryAction ?? architecture[0]?.primaryAction ?? "";
   const primaryTarget = primaryActionTarget({
     authoredTarget: authoredPrimaryAction,
