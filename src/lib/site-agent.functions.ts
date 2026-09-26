@@ -369,11 +369,6 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
       };
     });
 
-    if (!agentContext.pages.length)
-      throw new Error(
-        "Your AI team is still building your first website. Once it's ready, ask for any change here.",
-      );
-
     // CONVERSATION FIRST: greetings, questions and requests for advice are
     // answered by the AI directly, like a real chat, instead of being forced
     // through the design pipeline. Nothing on the website is touched.
@@ -402,6 +397,29 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
         dropped: [] as string[],
         requirements: [] as { label: string; covered: boolean }[],
         trace: ["Answered in chat. Nothing on your website changed."],
+        unavailable: null as { reason: string; retryable: boolean; instruction: string } | null,
+        composition: null as import("@/lib/builder/composition-preview").CompositionPreview | null,
+        conversational: true,
+      };
+    }
+
+    // A first build and chat can run at the same time. There is no page to edit
+    // until materialization finishes, so keep the request in the conversation
+    // instead of turning it into a failed task. The first-build worker remains
+    // the only writer and the owner can retry the requested change once its
+    // pages arrive.
+    if (!agentContext.pages.length) {
+      const reply =
+        "I have your request. Your AI team is finishing the first website now; as soon as the pages appear, send this change again and I’ll apply it to the draft.";
+      return {
+        reply,
+        summary: "",
+        steps: [] as AgentStep[],
+        questions: [] as string[],
+        notes: [] as string[],
+        dropped: [] as string[],
+        requirements: [] as { label: string; covered: boolean }[],
+        trace: ["First website build is active; no editable page exists yet."],
         unavailable: null as { reason: string; retryable: boolean; instruction: string } | null,
         composition: null as import("@/lib/builder/composition-preview").CompositionPreview | null,
         conversational: true,
