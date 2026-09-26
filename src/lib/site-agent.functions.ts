@@ -40,6 +40,7 @@ import { safeLinkUrl } from "@/lib/website-content";
 import { MEDIA_BUCKET, buildObjectPath, isStoragePath } from "@/lib/media";
 import { decodeBase64, encodeBase64, generateImageBase64 } from "@/lib/image-studio.server";
 import { editPaidImage, generatePaidImageBase64 } from "@/lib/ai/paid-image.server";
+import { directPhotoPrompt, inspectPhoto } from "@/lib/ai/photo-direction.server";
 import {
   dropUnchangedActions,
   preflightActions,
