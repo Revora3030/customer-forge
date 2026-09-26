@@ -149,7 +149,7 @@ function SiteSectionBody({ site, section }: { site: Site; section: Section }) {
                   <Phone className="size-3.5" aria-hidden="true" /> Phone
                 </dt>
                 <dd className="mt-1 text-[14px]">
-                  <a href={facts.phoneHref} className="text-primary underline">
+                  <a href={facts.phoneHref} className="text-foreground underline decoration-primary decoration-2 underline-offset-4">
                     {facts.phone}
                   </a>
                 </dd>
@@ -161,7 +161,7 @@ function SiteSectionBody({ site, section }: { site: Site; section: Section }) {
                   <Mail className="size-3.5" aria-hidden="true" /> Email
                 </dt>
                 <dd className="mt-1 text-[14px]">
-                  <a href={facts.emailHref} className="text-primary underline">
+                  <a href={facts.emailHref} className="text-foreground underline decoration-primary decoration-2 underline-offset-4">
                     {facts.email}
                   </a>
                 </dd>
