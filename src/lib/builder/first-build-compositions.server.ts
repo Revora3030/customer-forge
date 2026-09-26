@@ -24,6 +24,7 @@ import {
 } from "@/lib/builder/composition-tree";
 import type { DnaFacts } from "@/lib/business-dna";
 import { runAdvisoryPanel, runReviewPanel } from "@/lib/builder/review-panel.server";
+import { NO_EVIDENCE, gatherReviewEvidence, type ReviewEvidence } from "@/lib/builder/review-evidence.server";
 import { runImprovementGate, type GateReport } from "@/lib/builder/improvement-gate.server";
 
 const IMPROVEMENT_ROUNDS = 2;
@@ -217,7 +218,25 @@ export async function composeFirstBuildSections(input: {
         { cause: feedback },
       );
     }
-    const best = await improveWithTeam({ organizationId, lookSummary: input.lookSummary, industry: facts.industry ?? null, sections: pageSections, parts, designed, screen, result });
+    // Search data only exists for a verified domain; a lookup failure never blocks the build.
+    let domain: string | null = null;
+    try {
+      const { data: settings } = await db
+        .from("website_settings")
+        .select("custom_domain,domain_verified")
+        .eq("organization_id", organizationId)
+        .maybeSingle();
+      domain = settings?.domain_verified ? settings.custom_domain : null;
+    } catch {
+      domain = null;
+    }
+    const evidence = await gatherReviewEvidence({
+      industry: facts.industry ?? null,
+      businessName: facts.businessName ?? null,
+      city: facts.city ?? null,
+      siteUrl: domain ? `https://${domain}/` : null,
+    }).catch(() => NO_EVIDENCE);
+    const best = await improveWithTeam({ organizationId, lookSummary: input.lookSummary, evidence, sections: pageSections, parts, designed, screen, result });
     for (const section of pageSections) {
       const tree = best.get(section.id);
       if (!tree) continue;
@@ -246,7 +265,7 @@ async function saveTree(db: Db, organizationId: string, section: SectionRow, tre
 async function improveWithTeam(input: {
   organizationId: string;
   lookSummary: string;
-  industry?: string | null;
+  evidence: ReviewEvidence;
   sections: SectionRow[];
   parts: ComponentRow[];
   designed: Map<string, CompositionTree>;
@@ -263,7 +282,7 @@ async function improveWithTeam(input: {
       const panel = await runReviewPanel({
         organizationId: input.organizationId,
         mode: "full",
-        industry: input.industry ?? null,
+        evidence: input.evidence,
         material: ["SUPPLIED MATERIAL:", material, "", "SOL'S DESIGN:", JSON.stringify(current)].join("\n"),
       });
       input.result.models.push(...panel.models);
