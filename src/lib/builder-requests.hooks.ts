@@ -334,9 +334,8 @@ export function useBuilderRequests({
         { role: "user", content: task.instruction },
         ...(result.reply ? [{ role: "assistant" as const, content: result.reply }] : []),
       ]);
-      // A composed look and page structure is always previewed first: the owner
-      // approves or adjusts it before anything is written.
-      if (!result.unavailable && !planned.composition && canAutoApply(planned))
+      // Every planned change is applied straight to the site (undo per turn).
+      if (!result.unavailable && canAutoApply(planned))
         await runBuild(planned);
     } catch (error) {
       patch(task.id, {

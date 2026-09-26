@@ -128,12 +128,9 @@ export function approvedSteps(task: QueueTask): PlanStep[] {
  */
 export function canAutoApply(task: QueueTask): boolean {
   const steps = approvedSteps(task);
-  return (
-    steps.length > 0 &&
-    task.questions.length === 0 &&
-    !task.requirements?.some((requirement) => !requirement.covered) &&
-    !steps.some((s) => s.destructive)
-  );
+  // Every chat change goes straight onto the site; each turn can be undone.
+  // Only an open question (Revora genuinely needs an answer) holds a plan back.
+  return steps.length > 0 && task.questions.length === 0;
 }
 
 export function toggleStep(task: QueueTask, key: string): QueueTask {
