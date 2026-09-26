@@ -471,7 +471,8 @@ function WebsitePage() {
             canManage={manage}
             changeKey={(() => {
               const done = requests.tasks.filter((t) => t.state === "complete" && (t.applied ?? 0) > 0);
-              return done.length ? `${done[done.length - 1].id}:${done.length}` : null;
+              const last = done[done.length - 1];
+              return last ? `${last.id}:${done.length}` : null;
             })()}
           />
           <BuilderAssistant
