@@ -178,13 +178,13 @@ const FREE_MODEL_DEFAULTS: Record<FreeProviderName, Partial<Record<ModelRole, st
   // image models are NOT included: every one of them answers 429 "quota
   // exceeded" on the free tier, so image generation stays an unserved role.
   google: {
-    primary: "gemini-3.6-flash",
-    design: "gemini-3.6-flash",
+    primary: "gemini-3.8-flash",
+    design: "gemini-3.8-flash",
     fast: "gemini-3.5-flash-lite",
-    coding: "gemini-3.6-flash",
-    vision: "gemini-3.6-flash",
+    coding: "gemini-3.8-flash",
+    vision: "gemini-3.8-flash",
     transcription: "gemini-3.5-transcribe",
-    conversation: "gemini-3.6-flash",
+    conversation: "gemini-3.8-flash",
   },
 };
 
