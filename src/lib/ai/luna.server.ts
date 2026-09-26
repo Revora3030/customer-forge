@@ -364,9 +364,13 @@ export async function callLuna(request: LunaRequest): Promise<LunaResult> {
   }
 
   const base = env("LUNA_BASE_URL") ?? "https://api.openai.com/v1";
+  // Pro-tier models (gpt-5.x-pro, o1-pro) only answer on /v1/responses; sending
+  // them to chat/completions returns 404 and the tier is lost. Everything else
+  // stays on chat/completions.
+  const responsesOnly = isResponsesOnlyModel(model);
   let response: Response;
   try {
-    response = await fetch(`${base}/chat/completions`, {
+    response = await fetch(`${base}/${responsesOnly ? "responses" : "chat/completions"}`, {
       method: "POST",
       headers: {
         "content-type": "application/json",
@@ -375,15 +379,27 @@ export async function callLuna(request: LunaRequest): Promise<LunaResult> {
       // No timer-driven abort: an orchestration run is allowed to take as long
       // as it needs. Only an explicit user cancel signal aborts it.
       ...(request.signal ? { signal: request.signal } : {}),
-      body: JSON.stringify({
-        model,
-        reasoning_effort: "none",
-        max_completion_tokens: maxOutputTokens,
-        messages: [
-          { role: "system", content: request.system },
-          { role: "user", content: request.user },
-        ],
-      }),
+      body: JSON.stringify(
+        responsesOnly
+          ? {
+              model,
+              store: false,
+              max_output_tokens: maxOutputTokens,
+              input: [
+                { role: "developer", content: request.system },
+                { role: "user", content: request.user },
+              ],
+            }
+          : {
+              model,
+              reasoning_effort: "none",
+              max_completion_tokens: maxOutputTokens,
+              messages: [
+                { role: "system", content: request.system },
+                { role: "user", content: request.user },
+              ],
+            },
+      ),
     });
   } catch (error) {
     await settleBudget(organizationId, estimate, 0);
