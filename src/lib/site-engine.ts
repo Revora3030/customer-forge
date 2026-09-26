@@ -56,7 +56,10 @@ export const EDITABLE_COPY_FIELDS: { key: keyof SiteCopy; label: string }[] = [
   { key: "intro", label: "Business introduction" },
   { key: "about", label: "About copy" },
   { key: "areaCopy", label: "Service area copy" },
+  { key: "metaTitle", label: "Search title" },
   { key: "metaDescription", label: "Search description" },
+  { key: "ogTitle", label: "Share title" },
+  { key: "ogDescription", label: "Share description" },
 ];
 
 export function readCopy(value: unknown): SiteCopy | null {
