@@ -118,6 +118,11 @@ const PURPOSE_TIER: Record<CollectivePurpose, CollectiveTier> = {
  */
 export const PEER_PURPOSE_MODELS: Partial<Record<CollectivePurpose, { model: string; env: string }>> = {
   final_review: { model: "gpt-5.6-sol", env: "SOL_PEER_MODEL" },
+  // Astra (GPT-6 Astra) takes the deep plan and specialist reviews: a strong
+  // reasoner that authored none of the work it checks. Terra keeps the
+  // adversarial, visual, SEO and repair lanes.
+  plan_review: { model: "gpt-6-astra", env: "ASTRA_REVIEW_MODEL" },
+  specialist_review: { model: "gpt-6-astra", env: "ASTRA_REVIEW_MODEL" },
   schema_markup: { model: "gpt-5.6-luna", env: "LUNA_PEER_MODEL" },
   completeness_check: { model: "gpt-5.6-luna", env: "LUNA_PEER_MODEL" },
   intent: { model: "gpt-5.4-mini", env: "LUNA_ALLOWANCE_MODEL" },

@@ -79,7 +79,7 @@ export async function decideConversation(input: {
     const result = await generateStructuredOutput(
       { organizationId: input.organizationId, userId: input.userId, task: "builder.converse" },
       {
-        role: "primary",
+        role: "conversation",
         json: true,
         maxOutputTokens: 6000,
         messages: [{ role: "system", content: system }, ...turns],
