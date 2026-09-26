@@ -506,17 +506,26 @@ function WebsitePage() {
             onFactSkip={(key) => setSkippedFacts((s) => [...s, key])}
             {...(firstRun ? {
               onFirstBuild: async (_instruction: string) => {
+                const text = _instruction.trim();
                 // Missing required facts are asked in the chat first; the
                 // build starts on its own once they're saved.
                 if (requiredCount > 0) {
-                  toast.message("Answer Revora's question above first", {
-                    description: "Revora starts building as soon as it has what it needs.",
-                  });
+                  if (text) requests.queue(text);
                   return;
                 }
-                if (_instruction.trim()) {
+                const jobStatus = (latestJob.data as { status?: string } | null | undefined)?.status;
+                const buildingAlready =
+                  jobStatus === "queued" || jobStatus === "processing" || firstBuild.isPending;
+                // A build is already under way: every message is a normal
+                // conversation with Revora, so questions and greetings always
+                // get a real answer instead of silence.
+                if (buildingAlready) {
+                  if (text) requests.queue(text);
+                  return;
+                }
+                if (text) {
                   requests.remember([
-                    { role: "user", content: _instruction.trim() },
+                    { role: "user", content: text },
                     { role: "assistant", content: "On it — I'm building your website now. I'll show you each step as it finishes." },
                   ]);
                 }
@@ -524,6 +533,7 @@ function WebsitePage() {
               },
               firstBuildBusy: firstBuild.isPending,
             } : {})}
+
             businessName={org?.name ?? null}
             emptyTitle={firstRun ? "Describe your business" : "What would you like to change?"}
             emptyHint={firstRun ? "Tell me what you do and who you serve. I’ll build the complete website with you." : "Keep talking to me naturally. I’ll keep the context as we work through this website together."}
