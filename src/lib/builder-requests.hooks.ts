@@ -214,6 +214,12 @@ export function useBuilderRequests({
           metadata: { organization_id: organizationId ?? "", reason: "nothing_to_change" },
         });
         toast.error(message);
+        remember([
+          {
+            role: "assistant",
+            content: `${task.reply ? `${task.reply}\n\n` : ""}${message}`,
+          },
+        ]);
         await refresh();
         return;
       }
@@ -247,6 +253,12 @@ export function useBuilderRequests({
         (result.unconfirmed?.length ? ` ${result.unconfirmed.length} could not be confirmed on the site.` : "");
       if (partial || result.unconfirmed?.length) toast.warning(toastMessage);
       else toast.success(toastMessage);
+      remember([
+        {
+          role: "assistant",
+          content: `${task.reply ? `${task.reply}\n\n` : ""}${toastMessage}`,
+        },
+      ]);
       await refresh();
     } catch (error) {
       const message = friendlyError(error as Error, "Couldn't apply those changes.");
@@ -255,6 +267,12 @@ export function useBuilderRequests({
         metadata: { organization_id: organizationId ?? "", reason: "service_unavailable" },
       });
       toast.error(message);
+      remember([
+        {
+          role: "assistant",
+          content: `${task.reply ? `${task.reply}\n\n` : ""}${message}`,
+        },
+      ]);
       await refresh();
     }
   };
@@ -334,9 +352,14 @@ export function useBuilderRequests({
         ...(result.reply ? [{ role: "assistant" as const, content: result.reply }] : []),
       ] satisfies Array<{ role: "user" | "assistant"; content: string }>;
       setConversation(nextConversation.slice(-24));
+      // Persist the request immediately, but keep its final outcome open until
+      // the apply finishes. This restores as one request/result pair rather
+      // than a plan reply followed by a detached completion message.
       remember([
         { role: "user", content: task.instruction },
-        ...(result.reply ? [{ role: "assistant" as const, content: result.reply }] : []),
+        ...(!canAutoApply(planned) && result.reply
+          ? [{ role: "assistant" as const, content: result.reply }]
+          : []),
       ]);
       // Every planned change is applied straight to the site (undo per turn).
       if (!result.unavailable && canAutoApply(planned))

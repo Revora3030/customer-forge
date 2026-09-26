@@ -23,7 +23,11 @@ export function pairTurns(turns: SavedTurn[]): Array<{ instruction: string; repl
   const pairs: Array<{ instruction: string; reply: string; at: string }> = [];
   for (const turn of turns) {
     if (turn.role === "user") pairs.push({ instruction: turn.content, reply: "", at: turn.at });
-    else if (pairs.length && !pairs[pairs.length - 1]!.reply) pairs[pairs.length - 1]!.reply = turn.content;
+    else if (pairs.length) {
+      const pair = pairs[pairs.length - 1];
+      if (!pair) continue;
+      pair.reply = pair.reply ? `${pair.reply}\n\n${turn.content}` : turn.content;
+    }
   }
   return pairs;
 }

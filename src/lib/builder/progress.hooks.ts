@@ -15,7 +15,7 @@ export function useBuildProgress(
   requestId?: string | null,
 ) {
   const query = useQuery({
-    queryKey: ["builder-progress", organizationId],
+    queryKey: ["builder-progress", organizationId, requestId ?? "workspace"],
     enabled: Boolean(organizationId) && active,
     refetchInterval: active ? 900 : false,
     queryFn: async (): Promise<BuildProgressStep[]> => {

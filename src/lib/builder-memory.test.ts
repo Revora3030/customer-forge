@@ -25,4 +25,19 @@ describe("saved builder conversation", () => {
   it("drops empty or unknown rows", () => {
     expect(toTurns([{ role: "system", content: "x", created_at: "1" }, { role: "user", content: " ", created_at: "2" }])).toEqual([]);
   });
+
+  it("keeps every assistant outcome with the request that caused it", () => {
+    const turns = toTurns([
+      { role: "user", content: "Redesign the home page", created_at: "1" },
+      { role: "assistant", content: "I planned the redesign.", created_at: "2" },
+      { role: "assistant", content: "18 changes applied to your draft.", created_at: "3" },
+    ]);
+    expect(pairTurns(turns)).toEqual([
+      {
+        instruction: "Redesign the home page",
+        reply: "I planned the redesign.\n\n18 changes applied to your draft.",
+        at: "1",
+      },
+    ]);
+  });
 });
