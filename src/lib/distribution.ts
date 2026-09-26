@@ -199,7 +199,7 @@ export function buildChannelAssets(input: {
       kind: "social",
       label: "YouTube description",
       why: "Build walkthroughs keep earning views for years — the best free compounding channel.",
-      message: `Revora builds local service businesses a complete customer acquisition system: a website that ranks, instant quotes, online booking, CRM and automatic follow-up.\n\n${SETUP} setup. First month free. Then ${MONTHLY}/month.\n\nStart here: ${link("youtube", "video")}\nCall or text: ${REVORA.phoneDisplay}`,
+      message: `Revora builds businesses in every industry a complete customer acquisition system: a website that ranks, instant quotes, online booking, CRM and automatic follow-up.\n\n${SETUP} setup. First month free. Then ${MONTHLY}/month.\n\nStart here: ${link("youtube", "video")}\nCall or text: ${REVORA.phoneDisplay}`,
       intentUrl: null,
       note: "Title each video for a trade + city so it also gets found in search.",
     },

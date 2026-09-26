@@ -12,7 +12,7 @@ function body() {
   lines.push(`# ${BUSINESS.legalName}`);
   lines.push("");
   lines.push(
-    `> ${BUSINESS.legalName} builds local service businesses a complete customer acquisition system: a fast website, instant quotes, online booking, a CRM for every lead, automated follow-up, a review engine, local SEO and analytics. Remote, service-area only; serving the United States.`,
+    `> ${BUSINESS.legalName} builds businesses in every industry a complete customer acquisition system: a fast website, instant quotes, online booking, a CRM for every lead, automated follow-up, a review engine, local SEO and analytics. Fully remote; businesses anywhere can sign up online. Billed in US dollars.`,
   );
   lines.push("");
   lines.push("## Offer");

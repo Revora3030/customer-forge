@@ -5,7 +5,7 @@ import { GROWTH_SYSTEM, usdExact } from "@/lib/offer";
 export const FAQ_ITEMS = [
   {
     q: "What is Revora?",
-    a: "Revora is a growth operating system for local service businesses. It brings your website, lead capture, quotes, bookings, follow-up automation, review requests and analytics into one dashboard.",
+    a: "Revora is a growth operating system for businesses in every industry, anywhere. It brings your website, lead capture, quotes, bookings, follow-up automation, review requests and analytics into one dashboard.",
   },
   {
     q: "Do I need an existing website?",
