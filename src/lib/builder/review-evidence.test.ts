@@ -30,7 +30,8 @@ describe("review evidence", () => {
 
   it("routes evidence only to the matching reviewers", () => {
     const ev = { industry: "I", search: "S", listing: "L", keywords: "K" };
-    expect(evidenceFor("industry_fit", ev)).toEqual(["I"]);
+    expect(evidenceFor("industry_fit", ev)).toEqual(["I", "K"]);
+    expect(evidenceFor("funnel", ev)).toEqual(["I", "L"]);
     expect(evidenceFor("seo", ev)).toEqual(["S", "K"]);
     expect(evidenceFor("consistency", ev)).toEqual(["L"]);
     expect(evidenceFor("mobile", ev)).toEqual([]);

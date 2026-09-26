@@ -140,12 +140,29 @@ export async function gatherReviewEvidence(input: EvidenceInput, deps?: Deps): P
   return { industry: a, search: b, listing: c, keywords: k };
 }
 
-/** Which evidence each reviewer sees. Unlisted reviewers get none. */
+/**
+ * Which evidence each reviewer sees. Every reviewer whose judgement a source
+ * can sharpen gets it; purely mechanical checks (accessibility, mobile) get none.
+ */
+const EVIDENCE_ACCESS: Record<keyof ReviewEvidence, readonly string[]> = {
+  industry: ["industry_fit", "conversion", "funnel", "deep_conversion", "senior", "whole_site"],
+  search: ["seo", "completeness", "senior", "whole_site"],
+  keywords: ["seo", "industry_fit", "completeness", "whole_site"],
+  listing: ["consistency", "truthfulness", "funnel"],
+};
+
 export function evidenceFor(area: string, evidence: ReviewEvidence): string[] {
-  const out: string[] = [];
-  if (area === "industry_fit" && evidence.industry) out.push(evidence.industry);
-  if (area === "seo" && evidence.search) out.push(evidence.search);
-  if (area === "seo" && evidence.keywords) out.push(evidence.keywords);
-  if ((area === "consistency" || area === "truthfulness") && evidence.listing) out.push(evidence.listing);
-  return out;
+  const order: Array<keyof ReviewEvidence> = ["industry", "search", "keywords", "listing"];
+  return order.flatMap((key) => {
+    const value = evidence[key];
+    return value && EVIDENCE_ACCESS[key].includes(area) ? [value] : [];
+  });
+}
+
+/** Everything gathered, for the lead designer revising from panel notes. */
+export function allEvidence(evidence: ReviewEvidence): string | null {
+  const parts = [evidence.industry, evidence.search, evidence.keywords, evidence.listing].filter(
+    (v): v is string => Boolean(v),
+  );
+  return parts.length ? parts.join("\n\n") : null;
 }
