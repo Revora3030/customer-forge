@@ -19,6 +19,7 @@ import { cn } from "@/lib/utils";
 import { useStepScroll } from "@/lib/use-step-scroll";
 import { useServerFn } from "@tanstack/react-start";
 import { analyzeSiteBrief, runSiteGeneration, saveSiteBrief } from "@/lib/site-engine.functions";
+import { clearStarter, readStarter } from "@/components/marketing/HeroStarter";
 
 import {
   WEBSITE_GOALS,
@@ -127,6 +128,18 @@ function Onboarding() {
     testimonials: [],
     goals: [],
   });
+
+  // Words typed on the homepage starter fill empty fields only, then are cleared.
+  useEffect(() => {
+    const starter = readStarter();
+    if (!starter) return;
+    setDraft((prev) => ({
+      ...prev,
+      businessName: prev.businessName.trim() ? prev.businessName : starter.businessName,
+      about: prev.about.trim() ? prev.about : starter.about,
+    }));
+    clearStarter();
+  }, []);
 
   // Signup answers are saved to the user's account, so signing out (or losing
   // the tab) never loses progress — they sign back in and resume where they were.
