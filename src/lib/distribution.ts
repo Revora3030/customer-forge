@@ -93,7 +93,7 @@ export function buildChannelAssets(input: {
   path?: string;
 }): ChannelAsset[] {
   const campaign = input.campaign || "growth";
-  const audience = (input.audience || "local service business owners").trim();
+  const audience = (input.audience || "business owners in every industry").trim();
   const path = input.path ?? "/";
   const link = (source: string, medium: string, content?: string) =>
     trackedLink(path, { source, medium, campaign, ...(content ? { content } : {}) });
