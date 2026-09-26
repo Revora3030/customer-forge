@@ -394,25 +394,6 @@
 .rv-density-site-airy {
   --rv-section-y: clamp(4.5rem, 9vw, 9rem);
 }
-.rv-shell-boxed-centered main {
-  width: min(94vw, 86rem);
-  margin-inline: auto;
-  border-inline: 1px solid var(--border);
-}
-.rv-shell-framed-canvas main {
-  width: min(96vw, 92rem);
-  margin: 1rem auto 0;
-  border: 1px solid var(--border);
-}
-.rv-shell-narrow-reading .rv-section:not(:has(.rv-hero-grid)) section > div {
-  max-width: 52rem;
-}
-.rv-shell-magazine-columns .rv-variant-section-editorial > section > div {
-  grid-template-columns: minmax(12rem, 0.55fr) minmax(0, 1.45fr);
-}
-.rv-shell-bordered-page {
-  border-inline: 1px solid var(--border);
-}
 
 .rv-site-header {
   transition:
@@ -555,7 +536,6 @@
   );
 }
 
-.rv-site [data-rv-variant^="hero-full-bleed"] > section > div,
 .rv-site .rv-layout-full_bleed .rv-hero-grid {
   min-height: min(78vh, 52rem);
   align-content: center;
@@ -682,49 +662,6 @@
 .rv-template-hero-image .rv-template-hero-copy dd {
   color: var(--site-hero-muted);
 }
-.rv-site [data-rv-variant*="hero-centered"] .rv-hero-grid,
-.rv-site [data-rv-variant*="hero-type-first"] .rv-hero-grid,
-.rv-site [data-rv-variant*="hero-quiet"] .rv-hero-grid {
-  text-align: center;
-  justify-items: center;
-}
-.rv-site [data-rv-variant*="hero-poster"] h1,
-.rv-site [data-rv-variant*="hero-wide-statement"] h1 {
-  font-size: clamp(3rem, 8vw, 7.5rem);
-  max-width: 12ch;
-}
-.rv-site [data-rv-variant*="services-list"] ul,
-.rv-site [data-rv-variant*="services-stacked"] ul {
-  grid-template-columns: 1fr;
-}
-.rv-site [data-rv-variant*="services-media-side"] ul > li,
-.rv-site [data-rv-variant*="services-wide-feature"] ul > li {
-  min-height: 11rem;
-}
-.rv-site [data-rv-variant*="process-horizontal"] ol {
-  grid-auto-flow: column;
-  grid-auto-columns: minmax(15rem, 1fr);
-  overflow-x: auto;
-  scroll-snap-type: x mandatory;
-}
-.rv-site [data-rv-variant*="process-horizontal"] ol > li {
-  scroll-snap-align: start;
-}
-.rv-site [data-rv-variant*="faq-card-grid"] dl {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-.rv-site [data-rv-variant*="faq-card-grid"] dl > div {
-  padding: 1.25rem;
-  border: 1px solid var(--border);
-  border-radius: 0.5rem;
-}
-.rv-site [data-rv-variant*="gallery-filmstrip"] ul {
-  display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: minmax(17rem, 30vw);
-  overflow-x: auto;
-}
 
 .rv-footer-dark-band .rv-site-footer,
 .rv-footer-contrast-band .rv-site-footer {
@@ -757,12 +694,6 @@
   .rv-site {
     --rv-section-y: clamp(3rem, 12vw, 4.5rem);
   }
-  .rv-shell-boxed-centered main,
-  .rv-shell-framed-canvas main {
-    width: 100%;
-    margin: 0;
-    border-inline: 0;
-  }
   .rv-nav-floating-capsule .rv-site-header {
     top: 0;
     width: 100%;
@@ -771,14 +702,6 @@
   }
   .rv-family-creative-expressive .rv-section:nth-child(even) section > div {
     transform: none;
-  }
-  .rv-site [data-rv-variant*="faq-card-grid"] dl {
-    grid-template-columns: 1fr;
-  }
-  .rv-site [data-rv-variant*="hero-poster"] h1,
-  .rv-site [data-rv-variant*="hero-wide-statement"] h1 {
-    font-size: clamp(2.5rem, 13vw, 4.25rem);
-    overflow-wrap: anywhere;
   }
   .rv-site .rv-media-role-background .rv-hero,
   .rv-site .rv-media-role-background .rv-hero-grid,
@@ -1357,14 +1280,6 @@ a[href*="lovable.app"][target="_blank"][class*="fixed"],
     transform: perspective(1200px) translateY(-10px) rotateX(1.2deg);
   }
 }
-@keyframes fx-shine {
-  from {
-    transform: translateX(-120%);
-  }
-  to {
-    transform: translateX(220%);
-  }
-}
 
 /* Backdrop accent hues — support colours around the signature gold.
    Gold stays dominant; these only add depth and richness. */
@@ -1390,7 +1305,7 @@ a[href*="lovable.app"][target="_blank"][class*="fixed"],
   background-image:
     radial-gradient(
       1.5px 1.5px at 20% 30%,
-      color-mix(in oklab, var(--color-gold) 75%, white) 50%,
+      color-mix(in oklab, var(--color-primary) 75%, white) 50%,
       transparent 55%
     ),
     radial-gradient(
@@ -1436,7 +1351,7 @@ a[href*="lovable.app"][target="_blank"][class*="fixed"],
     ),
     radial-gradient(
       45% 35% at 50% 100%,
-      color-mix(in oklab, var(--color-gold) 12%, transparent),
+      color-mix(in oklab, var(--color-primary) 12%, transparent),
       transparent 72%
     );
   background-size: cover;
@@ -1450,7 +1365,7 @@ a[href*="lovable.app"][target="_blank"][class*="fixed"],
   background: linear-gradient(
     100deg,
     transparent 18%,
-    color-mix(in oklab, var(--color-gold) 24%, transparent) 42%,
+    color-mix(in oklab, var(--color-primary) 24%, transparent) 42%,
     color-mix(in oklab, var(--fx-teal) 18%, transparent) 58%,
     transparent 78%
   );
@@ -1462,7 +1377,7 @@ a[href*="lovable.app"][target="_blank"][class*="fixed"],
     80deg,
     transparent 22%,
     color-mix(in oklab, var(--fx-violet) 20%, transparent) 48%,
-    color-mix(in oklab, var(--color-gold) 16%, transparent) 66%,
+    color-mix(in oklab, var(--color-primary) 16%, transparent) 66%,
     transparent 82%
   );
   animation-duration: 38s;
@@ -1483,7 +1398,7 @@ a[href*="lovable.app"][target="_blank"][class*="fixed"],
 .fx-backdrop-nebula .fx-layer {
   background: radial-gradient(
     45% 45% at 30% 30%,
-    color-mix(in oklab, var(--color-gold) 22%, transparent),
+    color-mix(in oklab, var(--color-primary) 22%, transparent),
     transparent 70%
   );
   filter: blur(80px);
@@ -1523,12 +1438,12 @@ a[href*="lovable.app"][target="_blank"][class*="fixed"],
   background-image:
     linear-gradient(
       to right,
-      color-mix(in oklab, var(--color-gold) 13%, transparent) 1px,
+      color-mix(in oklab, var(--color-primary) 13%, transparent) 1px,
       transparent 1px
     ),
     linear-gradient(
       to bottom,
-      color-mix(in oklab, var(--color-gold) 13%, transparent) 1px,
+      color-mix(in oklab, var(--color-primary) 13%, transparent) 1px,
       transparent 1px
     );
   background-size: 64px 64px;
@@ -1558,7 +1473,7 @@ a[href*="lovable.app"][target="_blank"][class*="fixed"],
 .fx-backdrop-spotlight .fx-layer-1 {
   background: radial-gradient(
     60% 40% at 50% 0%,
-    color-mix(in oklab, var(--color-gold) 20%, transparent),
+    color-mix(in oklab, var(--color-primary) 20%, transparent),
     transparent 70%
   );
   animation: fx-pulse 24s ease-in-out infinite;
@@ -1587,7 +1502,7 @@ a[href*="lovable.app"][target="_blank"][class*="fixed"],
   background:
     radial-gradient(
       50% 50% at 15% 20%,
-      color-mix(in oklab, var(--color-gold) 18%, transparent),
+      color-mix(in oklab, var(--color-primary) 18%, transparent),
       transparent 70%
     ),
     radial-gradient(
@@ -1640,12 +1555,6 @@ a[href*="lovable.app"][target="_blank"][class*="fixed"],
   backdrop-filter: blur(14px);
   border-radius: 1rem;
 }
-.fx-sec-gold-glow {
-  box-shadow:
-    0 0 0 1px color-mix(in oklab, var(--color-gold) 30%, transparent),
-    0 24px 70px -30px color-mix(in oklab, var(--color-gold) 55%, transparent);
-  border-radius: 1rem;
-}
 .fx-sec-rise {
   animation: revora-reveal 700ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
@@ -1653,29 +1562,12 @@ a[href*="lovable.app"][target="_blank"][class*="fixed"],
   will-change: transform;
   animation: fx-float 14s ease-in-out infinite;
 }
-.fx-sec-shine {
-  overflow: hidden;
-}
-.fx-sec-shine::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(
-    100deg,
-    transparent 35%,
-    color-mix(in oklab, var(--color-gold) 22%, transparent) 50%,
-    transparent 65%
-  );
-  animation: fx-shine 7s ease-in-out infinite;
-  pointer-events: none;
-}
 
 @media (prefers-reduced-motion: reduce) {
   .fx-backdrop .fx-layer,
   .fx-sec-float-3d,
   .fx-sec-parallax-slow,
-  .fx-sec-rise,
-  .fx-sec-shine::after {
+  .fx-sec-rise {
     animation: none !important;
   }
   .fx-sec-tilt-3d {
@@ -2314,127 +2206,8 @@ a[href*="lovable.app"][target="_blank"][class*="fixed"],
   .rv-cta-band-scrim { background: linear-gradient(0deg, rgb(0 0 0 / 0.92), rgb(0 0 0 / 0.32)); }
 }
 
-.rv-variant-hero-editorial .rv-hero-media {
-  border-radius: 2rem 0.75rem 2rem 0.75rem;
-}
-
-.rv-variant-hero-focus .rv-hero-media {
-  transform: perspective(1200px) rotateY(-2deg);
-}
-
-.rv-variant-gallery-mosaic .rv-generated-media {
-  grid-template-columns: repeat(12, minmax(0, 1fr));
-}
-
-.rv-variant-gallery-mosaic .rv-media-frame:first-child {
-  grid-column: span 7;
-  grid-row: span 2;
-}
-
-.rv-variant-gallery-mosaic .rv-media-frame:nth-child(n + 2) {
-  grid-column: span 5;
-}
-
-.rv-variant-cta-fullbleed {
-  overflow: hidden;
-}
-
-.rv-variant-cards-elevated .panel {
-  box-shadow: 0 22px 55px -34px color-mix(in srgb, var(--foreground) 45%, transparent);
-}
-.rv-variant-cards-clean .panel {
-  background: transparent;
-  box-shadow: none;
-}
-.rv-variant-cards-editorial ul {
-  grid-template-columns: repeat(12, minmax(0, 1fr));
-}
-.rv-variant-cards-editorial ul > li {
-  grid-column: span 4;
-  border-width: 0 0 1px;
-  border-radius: 0;
-  background: transparent;
-}
-.rv-variant-cards-editorial ul > li:first-child {
-  grid-column: span 8;
-}
-.rv-variant-proof-feature ul > li:first-child {
-  grid-column: 1 / -1;
-  padding: clamp(1.5rem, 4vw, 3rem);
-}
-.rv-variant-proof-editorial .panel {
-  border-width: 0 0 1px;
-  border-radius: 0;
-  background: transparent;
-}
-.rv-variant-faq-compact dl {
-  gap: 0;
-}
-.rv-variant-faq-compact dl > div {
-  padding-block: 0.85rem;
-  border-bottom: 1px solid var(--border);
-}
-.rv-variant-faq-spacious dl {
-  gap: 2.25rem;
-}
-.rv-variant-form-premium > section > div,
-.rv-variant-form-glass > section > div {
-  border: 1px solid var(--border);
-  border-radius: 1rem;
-  background: color-mix(in srgb, var(--card) 78%, transparent);
-  box-shadow: var(--shadow-lift);
-}
-.rv-variant-cta-spotlight > section,
-.rv-variant-cta-panel > section {
-  background: color-mix(in srgb, var(--primary) 9%, var(--background));
-}
-.rv-variant-cta-minimal > section > div {
-  text-align: center;
-}
-.rv-variant-section-editorial > section > div {
-  display: grid;
-  gap: 1.25rem;
-  grid-template-columns: minmax(0, 0.7fr) minmax(0, 1.3fr);
-  align-items: start;
-}
-.rv-variant-section-airy > section > div {
-  padding-block: clamp(4rem, 8vw, 7rem);
-}
-.rv-variant-section-soft > section {
-  background: color-mix(in srgb, var(--card) 45%, transparent);
-}
-
 /* Every variant the builder can choose now has a visible, distinct treatment, so
    two businesses given different looks genuinely read differently. */
-.rv-variant-hero-split .rv-hero-media {
-  border-radius: 1.25rem;
-}
-.rv-variant-hero-split .rv-hero-grid {
-  gap: clamp(1.75rem, 5vw, 4.5rem);
-}
-.rv-variant-hero-layered > section {
-  overflow: hidden;
-}
-.rv-variant-hero-layered .rv-hero-media {
-  border-radius: 1.75rem;
-  box-shadow: 0 40px 90px -50px color-mix(in srgb, var(--foreground) 60%, transparent);
-}
-.rv-variant-hero-layered .rv-hero-media::before {
-  content: "";
-  position: absolute;
-  inset: auto -12% -24% -12%;
-  height: 60%;
-  border-radius: 50%;
-  background: radial-gradient(
-    circle,
-    color-mix(in srgb, var(--primary) 26%, transparent),
-    transparent 70%
-  );
-  z-index: -1;
-}
-.rv-variant-hero-focus .rv-hero-grid {
-  align-items: end;
-}
 .rv-creative-editorial h1,
 .rv-creative-editorial h2 {
   font-weight: 500;
@@ -2447,62 +2220,6 @@ a[href*="lovable.app"][target="_blank"][class*="fixed"],
 }
 .rv-rhythm-dramatic > section > div {
   padding-block: clamp(4.5rem, 9vw, 8rem);
-}
-.rv-variant-hero-focus .rv-hero-copy,
-.rv-variant-hero-editorial .rv-hero-copy {
-  align-self: end;
-}
-.rv-variant-hero-focus h1,
-.rv-variant-hero-editorial h1 {
-  font-size: clamp(2.65rem, 7vw, 6.5rem);
-  line-height: 0.94;
-}
-.rv-variant-hero-layered .rv-hero-grid {
-  position: relative;
-}
-.rv-variant-hero-layered .rv-hero-copy {
-  position: relative;
-  z-index: 2;
-  padding-block: clamp(2rem, 6vw, 5rem);
-}
-.rv-variant-pricing-cards .rv-pricing-list,
-.rv-variant-pricing-matrix .rv-pricing-list {
-  display: grid;
-  gap: 1rem;
-  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
-}
-.rv-variant-pricing-cards .rv-pricing-item,
-.rv-variant-pricing-feature .rv-pricing-item {
-  display: grid;
-  min-height: 9rem;
-  align-content: space-between;
-  border: 1px solid var(--border);
-  padding: 1.25rem;
-  background: color-mix(in srgb, var(--card) 72%, transparent);
-}
-.rv-variant-pricing-feature .rv-pricing-item:first-child {
-  border-color: var(--primary);
-  box-shadow: 0 24px 70px -40px color-mix(in srgb, var(--primary) 65%, transparent);
-}
-.rv-variant-stats-statement .rv-stats-list dd {
-  font-size: clamp(2.5rem, 7vw, 6rem);
-  line-height: 0.9;
-}
-.rv-variant-stats-band > section {
-  background: var(--foreground);
-  color: var(--background);
-}
-.rv-variant-process-rail .rv-process-list {
-  position: relative;
-}
-.rv-variant-process-rail .rv-process-list::before {
-  content: "";
-  position: absolute;
-  top: 1.3rem;
-  left: 2rem;
-  right: 2rem;
-  height: 1px;
-  background: var(--primary);
 }
 .rv-step-number {
   position: relative;
@@ -2543,79 +2260,6 @@ a[href*="lovable.app"][target="_blank"][class*="fixed"],
   background: color-mix(in srgb, var(--card) 45%, var(--background));
 }
 
-.rv-variant-cards-floating .panel {
-  box-shadow: 0 30px 60px -40px color-mix(in srgb, var(--foreground) 50%, transparent);
-  transition:
-    transform 260ms cubic-bezier(0.22, 1, 0.36, 1),
-    box-shadow 260ms ease;
-}
-.rv-variant-cards-floating .panel:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 38px 70px -38px color-mix(in srgb, var(--foreground) 55%, transparent);
-}
-
-.rv-variant-gallery-grid .rv-generated-media {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.75rem;
-}
-.rv-variant-gallery-cinematic .rv-generated-media {
-  grid-template-columns: 1fr;
-  gap: 1.25rem;
-}
-.rv-variant-gallery-cinematic .rv-media-frame {
-  border-radius: 1.5rem;
-  aspect-ratio: 21 / 9;
-}
-.rv-variant-gallery-editorial .rv-media-frame:nth-child(odd) {
-  border-radius: 1.5rem 0.5rem 1.5rem 0.5rem;
-}
-.rv-variant-gallery-editorial .rv-media-frame:nth-child(even) {
-  border-radius: 0.5rem 1.5rem 0.5rem 1.5rem;
-}
-
-.rv-variant-proof-cards .panel {
-  border-radius: 1.25rem;
-  box-shadow: 0 24px 50px -38px color-mix(in srgb, var(--foreground) 45%, transparent);
-}
-.rv-variant-proof-grid ul {
-  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
-}
-
-.rv-variant-form-clean > section > div {
-  border: 0;
-  box-shadow: none;
-  background: transparent;
-}
-.rv-variant-form-editorial > section > div {
-  border-inline-start: 3px solid var(--primary);
-  border-radius: 0 1rem 1rem 0;
-  padding-inline-start: clamp(1rem, 3vw, 2rem);
-}
-
-.rv-variant-faq-clean .rv-faq-list details {
-  border-bottom: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
-}
-.rv-variant-faq-editorial .rv-faq-list {
-  gap: 1.5rem;
-}
-.rv-variant-faq-editorial .rv-faq-list details {
-  padding: 1rem 1.25rem;
-  border-radius: 1rem;
-  background: color-mix(in srgb, var(--card) 55%, transparent);
-}
-
-.rv-variant-cta-fullbleed > section {
-  background: linear-gradient(
-    135deg,
-    color-mix(in srgb, var(--primary) 16%, var(--background)),
-    var(--background)
-  );
-}
-.rv-variant-section-balanced > section > div {
-  display: grid;
-  gap: 1.25rem;
-}
-
 /* Entrance motion for generated sites: each section settles into place as it
    scrolls into view. Only applied where the browser supports scroll-driven
    animation, and fully removed under reduced-motion. */
@@ -2652,27 +2296,6 @@ a[href*="lovable.app"][target="_blank"][class*="fixed"],
     min-height: 240px;
     order: 2;
   }
-
-  .rv-variant-gallery-mosaic .rv-generated-media {
-    grid-template-columns: 1fr;
-  }
-
-  .rv-variant-gallery-mosaic .rv-media-frame:first-child,
-  .rv-variant-gallery-mosaic .rv-media-frame:nth-child(n + 2) {
-    grid-column: auto;
-    grid-row: auto;
-  }
-
-  .rv-variant-cards-editorial ul {
-    grid-template-columns: 1fr;
-  }
-  .rv-variant-cards-editorial ul > li,
-  .rv-variant-cards-editorial ul > li:first-child {
-    grid-column: auto;
-  }
-  .rv-variant-section-editorial > section > div {
-    grid-template-columns: 1fr;
-  }
   .rv-cards-pill .panel {
     border-radius: 1rem;
   }
@@ -2682,18 +2305,9 @@ a[href*="lovable.app"][target="_blank"][class*="fixed"],
   .rv-mobile-media-first .rv-hero-media {
     order: 1;
   }
-  .rv-variant-process-rail .rv-process-list::before {
-    top: 2rem;
-    bottom: 2rem;
-    left: 1.25rem;
-    right: auto;
-    width: 1px;
-    height: auto;
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .rv-variant-hero-focus .rv-hero-media,
   .rv-cards-floating .panel {
     transform: none;
   }
