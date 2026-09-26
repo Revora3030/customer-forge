@@ -54,6 +54,7 @@ export type SectionKind =
   | "policy"
   | "post_list"
   | "embed"
+  | "composition"
   | "custom";
 
 export type ContentComponent = {
@@ -189,6 +190,11 @@ export function writeSectionSeo(settings: unknown, patch: SectionSeo): Record<st
 
 /** Section types a business owner can add, in plain language. */
 export const SECTION_LIBRARY: { kind: SectionKind; label: string; help: string }[] = [
+  {
+    kind: "composition",
+    label: "AI-designed section",
+    help: "A layout designed entirely by the AI team.",
+  },
   {
     kind: "hero",
     label: "Headline banner",

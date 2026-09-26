@@ -97,9 +97,13 @@ function SiteSectionBody({ site, section }: { site: Site; section: Section }) {
   const { profile, org } = site;
   const ownAddress = useOwnAddress();
 
-  switch (section.kind) {
+  // Any valid AI composition wins over the legacy kind, so AI designs are never hidden.
+  const storedTree = readComposition(section.settings);
+  const kind = storedTree ? "composition" : section.kind;
+
+  switch (kind) {
     case "composition": {
-      const tree = readComposition(section.settings);
+      const tree = storedTree;
       const media = new Map(components.map((component) => [component.id, {
         url: component.url,
         visual: readComponentVisual(component.settings),
