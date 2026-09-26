@@ -55,6 +55,7 @@ const SECONDARY_NAV = [
   { to: "/admin/payments", label: "Payments", icon: CreditCard, exact: false },
   { to: "/admin/backups", label: "Backups", icon: DatabaseBackup, exact: false },
   { to: "/admin/seo", label: "Search growth", icon: Search, exact: false },
+  { to: "/admin/command", label: "AI Command Center", icon: Sparkles, exact: false },
   { to: "/admin/ai", label: "AI health", icon: Sparkles, exact: false },
 ] satisfies readonly WorkspaceNavItem[];
 

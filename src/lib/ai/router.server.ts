@@ -354,7 +354,10 @@ async function buildChain(
   // Quality decides where the paid chain sits; the operator still decides which
   // paid provider is tried first, so an explicitly configured default/fallback
   // provider order is preserved inside the paid group.
-  const ordered = preserveGroupOrder(ranked, candidates, (entry) => entry.free === null);
+  const grouped = preserveGroupOrder(ranked, candidates, (entry) => entry.free === null);
+  // LIVE ADMIN ROUTING: pins and pauses set in the Command Center.
+  const { loadCommandSettings, applyRoutingOverrides } = await import("@/lib/ai/command-settings.server");
+  const ordered = applyRoutingOverrides(grouped, (entry) => entry.model, await loadCommandSettings());
   // The POOL is unlimited; one single request's FAILOVER depth is not, so a
   // simple call can never turn into a 60-model latency wall. The ensemble
   // orchestrator uses the full pool in parallel instead.

@@ -55,6 +55,7 @@ export function buildExecutionBlueprint(actions: AgentAction[]): ExecutionBluepr
       case "set_theme":
       case "set_component_visual":
       case "set_backdrop":
+      case "set_design_tokens":
       case "set_section_effect":
         return "visual";
       case "set_business_fact":

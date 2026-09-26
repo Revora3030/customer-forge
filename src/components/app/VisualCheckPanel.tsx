@@ -25,6 +25,9 @@ import { friendlyError } from "@/lib/user-error";
 import { useLatestGenerationJob } from "@/lib/site-engine.hooks";
 import { useSelfHeal } from "@/lib/self-heal.hooks";
 import { useServerFn } from "@tanstack/react-start";
+import { getQaGate } from "@/lib/ai/command-center.functions";
+import { useRestoreWebsiteVersion } from "@/lib/site-engine.hooks";
+import { supabase } from "@/integrations/supabase/client";
 import { runWebsiteTask } from "@/lib/site-agent.functions";
 
 /** Safety ceiling on AI repair rounds per check (spend/time), not a quality target. */
@@ -48,6 +51,7 @@ export function VisualCheckPanel({
   publishState,
   canManage,
   changeKey,
+  revertVersion = null,
   compact = false,
 }: {
   organizationId: string | undefined;
@@ -56,6 +60,8 @@ export function VisualCheckPanel({
   canManage: boolean;
   /** Changes whenever a chat request applies edits — re-checks every screen size. */
   changeKey?: string | null;
+  /** Version saved before the latest chat change; restored if the QA gate fails. */
+  revertVersion?: number | null;
   /** Slim status strip for the chat instead of the full panel. */
   compact?: boolean;
 }) {
@@ -74,6 +80,8 @@ export function VisualCheckPanel({
   const repairedRef = useRef<string | null>(null);
   const selfHeal = useSelfHeal(organizationId);
   const runTask = useServerFn(runWebsiteTask);
+  const loadGate = useServerFn(getQaGate);
+  const restoreVersion = useRestoreWebsiteVersion(organizationId);
   const [aiRepairing, setAiRepairing] = useState(false);
 
   /** Sol repairs, Terra's review keeps the stronger version, then the site is measured again. */
@@ -231,11 +239,25 @@ export function VisualCheckPanel({
     const timer = window.setTimeout(() => {
       void (async () => {
         const report = await run(true);
-        if (report && !report.passed) await aiRepairLoop(report, () => run(true));
+        if (!report || report.passed) return;
+        const final = await aiRepairLoop(report, () => run(true));
+        // VISUAL QA GATE: a clearly-worse result after AI repair is rolled back.
+        const gate = await loadGate().catch(() => null);
+        if (!gate?.autoRevert || final.passed || final.score >= gate.minScore || !revertVersion || !organizationId) return;
+        const { data: version } = await supabase
+          .from("website_versions")
+          .select("id")
+          .eq("organization_id", organizationId)
+          .eq("version", revertVersion)
+          .maybeSingle();
+        if (!version) return;
+        await restoreVersion.mutateAsync(version.id);
+        setRepair(`The screen check scored ${final.score}/100 (below ${gate.minScore}), so Revora put your site back to how it was before that change.`);
+        toast.warning("That change made the site look worse on some screens, so it was undone automatically.");
       })();
     }, 2500); // let the draft save and the preview refresh first
     return () => window.clearTimeout(timer);
-  }, [aiRepairLoop, aiRepairing, canManage, changeKey, organizationId, run, running, slug]);
+  }, [aiRepairLoop, aiRepairing, canManage, changeKey, loadGate, organizationId, restoreVersion, revertVersion, run, running, slug]);
 
   if (compact) {
     const text = progress

@@ -1,3 +1,4 @@
+import { designTokenClasses, designTokenVars, readDesignTokens } from "@/lib/builder/design-tokens";
 /**
  * A single structured page of a published business website
  * (`/s/:slug/:page`) — service pages, area pages, pricing, booking, FAQ and
@@ -132,7 +133,7 @@ export function SitePageView({
 
   return (
     <div
-      className="min-h-screen bg-background"
+      className={`min-h-screen bg-background ${designTokenClasses(readDesignTokens(site.settings?.generation ?? null))}`}
       style={{
         ...siteThemeStyle({
           primaryColor: profile?.primary_color ?? null,
@@ -140,6 +141,7 @@ export function SitePageView({
           accentColor: profile?.accent_color ?? null,
         }),
         ...siteFontStyle(profile?.font_preference ?? null),
+        ...designTokenVars(readDesignTokens(site.settings?.generation ?? null)),
       }}
     >
       <SiteBackdrop

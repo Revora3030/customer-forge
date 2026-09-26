@@ -2421,3 +2421,19 @@ a[href*="lovable.app"][target="_blank"][class*="fixed"],
 html, body { max-width: 100%; overflow-x: hidden; }
 @supports (overflow: clip) { html, body { overflow-x: clip; } }
 .product-canvas { max-width: 100vw; overflow-x: clip; }
+
+/* AI-authored site-wide design tokens (only active when the AI sets them). */
+.rv-btn-radius :is(button, [role="button"], a[data-slot="button"], [data-cn] a[href]) {
+  border-radius: var(--site-button-radius);
+}
+.rv-card-shadow :is([data-slot="card"], .rounded-xl.border, .rounded-2xl.border) {
+  box-shadow: var(--site-card-shadow);
+}
+
+/* AI/admin design tokens — only active when the token is set. */
+.rv-btn-radius :is(a, button)[class*="rounded"][class*="px-"] {
+  border-radius: var(--site-button-radius);
+}
+.rv-card-shadow :is(article, [class*="rounded-2xl"], [class*="rounded-xl"])[class*="border"] {
+  box-shadow: var(--site-card-shadow);
+}
