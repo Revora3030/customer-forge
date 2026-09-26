@@ -157,8 +157,10 @@ export function providerChain(): ProviderConfig[] {
   const preferred = [
     readProviderName(env("AI_DEFAULT_PROVIDER")),
     readProviderName(env("AI_FALLBACK_PROVIDER")),
-    "google" as PaidProviderName,
+    // OpenAI is the verified-active lane; Google is tried after it so a stale
+    // Google key never delays a call with a guaranteed first-provider failure.
     "openai" as PaidProviderName,
+    "google" as PaidProviderName,
   ].filter((name): name is PaidProviderName => name !== null);
 
   const chain: ProviderConfig[] = [];

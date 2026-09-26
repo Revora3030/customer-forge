@@ -27,6 +27,7 @@ import {
   type CollectiveTier,
   type TaskComplexity,
 } from "@/lib/ai/collective";
+import { isResponsesOnlyModel } from "@/lib/ai/providers/openai";
 
 /** Microcents: one hundred-millionth of a dollar. $20 => 2_000_000_000. */
 export const MICROCENTS_PER_DOLLAR = 100_000_000;
@@ -364,9 +365,13 @@ export async function callLuna(request: LunaRequest): Promise<LunaResult> {
   }
 
   const base = env("LUNA_BASE_URL") ?? "https://api.openai.com/v1";
+  // Pro-tier models (gpt-5.x-pro, o1-pro) only answer on /v1/responses; sending
+  // them to chat/completions returns 404 and the tier is lost. Everything else
+  // stays on chat/completions.
+  const responsesOnly = isResponsesOnlyModel(model);
   let response: Response;
   try {
-    response = await fetch(`${base}/chat/completions`, {
+    response = await fetch(`${base}/${responsesOnly ? "responses" : "chat/completions"}`, {
       method: "POST",
       headers: {
         "content-type": "application/json",
@@ -375,15 +380,27 @@ export async function callLuna(request: LunaRequest): Promise<LunaResult> {
       // No timer-driven abort: an orchestration run is allowed to take as long
       // as it needs. Only an explicit user cancel signal aborts it.
       ...(request.signal ? { signal: request.signal } : {}),
-      body: JSON.stringify({
-        model,
-        reasoning_effort: "none",
-        max_completion_tokens: maxOutputTokens,
-        messages: [
-          { role: "system", content: request.system },
-          { role: "user", content: request.user },
-        ],
-      }),
+      body: JSON.stringify(
+        responsesOnly
+          ? {
+              model,
+              store: false,
+              max_output_tokens: maxOutputTokens,
+              input: [
+                { role: "developer", content: request.system },
+                { role: "user", content: request.user },
+              ],
+            }
+          : {
+              model,
+              reasoning_effort: "none",
+              max_completion_tokens: maxOutputTokens,
+              messages: [
+                { role: "system", content: request.system },
+                { role: "user", content: request.user },
+              ],
+            },
+      ),
     });
   } catch (error) {
     await settleBudget(organizationId, estimate, 0);
@@ -478,14 +495,20 @@ export function readUsage(payload: unknown): TokenUsage {
   const usage = (payload as { usage?: Record<string, unknown> } | null)?.usage ?? {};
   const details = (usage["prompt_tokens_details"] ?? {}) as Record<string, unknown>;
   const number = (value: unknown) => (typeof value === "number" && value >= 0 ? value : 0);
+  // /v1/responses reports input_tokens/output_tokens; chat/completions reports
+  // prompt_tokens/completion_tokens. Accept both so Pro-tier spend is ledgered.
   return {
-    inputTokens: number(usage["prompt_tokens"]),
+    inputTokens: number(usage["prompt_tokens"]) || number(usage["input_tokens"]),
     cachedInputTokens: number(details["cached_tokens"]),
-    outputTokens: number(usage["completion_tokens"]),
+    outputTokens: number(usage["completion_tokens"]) || number(usage["output_tokens"]),
   };
 }
 
 export function readFinishReason(payload: unknown): string | null {
+  // /v1/responses signals a length cutoff via incomplete_details.
+  const incomplete = (payload as { incomplete_details?: { reason?: unknown } } | null)
+    ?.incomplete_details?.reason;
+  if (incomplete === "max_output_tokens") return "length";
   const choices = (payload as { choices?: unknown } | null)?.choices;
   if (!Array.isArray(choices) || !choices.length) return null;
   const reason = (choices[0] as { finish_reason?: unknown } | null)?.finish_reason;
@@ -493,6 +516,9 @@ export function readFinishReason(payload: unknown): string | null {
 }
 
 export function readText(payload: unknown): string | null {
+  // /v1/responses carries the assembled answer in output_text.
+  const outputText = (payload as { output_text?: unknown } | null)?.output_text;
+  if (typeof outputText === "string" && outputText.trim()) return outputText.trim();
   const choices = (payload as { choices?: unknown } | null)?.choices;
   if (!Array.isArray(choices) || !choices.length) return null;
   const content = (choices[0] as { message?: { content?: unknown } } | null)?.message?.content;
