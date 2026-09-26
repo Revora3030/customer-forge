@@ -103,8 +103,8 @@ function RoutingAndGate({
                     {rate !== null ? ` · ${rate}% succeeded` : ""}
                   </p>
                 </div>
-                {pinIndex >= 0 ? <Pill tone="positive">Pinned #{pinIndex + 1}</Pill> : null}
-                {paused ? <Pill tone="warning">Paused</Pill> : null}
+                {pinIndex >= 0 ? <Pill tone="signal">Pinned #{pinIndex + 1}</Pill> : null}
+                {paused ? <Pill tone="attention">Paused</Pill> : null}
                 <Button size="sm" variant={pinIndex >= 0 ? "default" : "outline"} onClick={() => toggle("pinnedModels", m.model)}>
                   {pinIndex >= 0 ? "Unpin" : "Pin"}
                 </Button>
