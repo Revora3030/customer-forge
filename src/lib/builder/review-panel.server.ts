@@ -163,7 +163,7 @@ export async function runAdvisoryPanel(
 
 
 export async function runReviewPanel(
-  input: { organizationId: string; material: string; mode: "full" | "light"; stage?: string; industry?: string },
+  input: { organizationId: string; material: string; mode: "full" | "light"; stage?: string; industry?: string | null },
   thinker: Thinker = diverseThinker,
 ): Promise<{ notes: ReviewNote[]; models: string[]; costMicrocents: number; failed: ReviewArea[] }> {
   const reviewers = panelFor(input.mode);
