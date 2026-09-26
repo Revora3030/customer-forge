@@ -16,6 +16,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Json } from "@/integrations/supabase/types";
 import { generateImageBase64, decodeBase64 } from "@/lib/image-studio.server";
 import { generatePaidImageBase64, paidImageStatus } from "@/lib/ai/paid-image.server";
+import { inspectPhoto } from "@/lib/ai/photo-direction.server";
 import { gradeFirstBuildImages } from "@/lib/builder/first-build-image-qa";
 import type {
   FirstBuildImageAsset,
@@ -237,6 +238,36 @@ export async function generateFirstBuildImages(
         break;
       }
       continue;
+    }
+
+    // Terra inspects the finished frame before it is saved. One corrected
+    // reshoot only, kept only when the reshoot comes back clean. A reviewer that
+    // cannot answer never costs the business a usable picture.
+    const verdict = await inspectPhoto(
+      { base64: made.base64, mimeType: made.mimeType },
+      { prompt, placement: `${shot.slot} ${shot.placement.join(" ")}`.trim() },
+      { organizationId: input.organizationId, userId: input.userId },
+    );
+    if (!verdict.publishable && verdict.revisedPrompt && paid.allowed) {
+      const reshoot = await generatePaidImageBase64(
+        verdict.revisedPrompt,
+        { organizationId: input.organizationId, userId: input.userId },
+        /hero|masthead|opening|lead/i.test(`${shot.slot} ${shot.placement.join(" ")}`)
+          ? "hero_master"
+          : "editorial_feature",
+      );
+      if (reshoot.ok) {
+        const recheck = await inspectPhoto(
+          { base64: reshoot.base64, mimeType: reshoot.mimeType },
+          { prompt: verdict.revisedPrompt, placement: shot.slot },
+          { organizationId: input.organizationId, userId: input.userId },
+        );
+        if (recheck.publishable) {
+          made = reshoot;
+          paidCostMicrocents += reshoot.costMicrocents;
+          source = "premium";
+        }
+      }
     }
 
     const image = made;
