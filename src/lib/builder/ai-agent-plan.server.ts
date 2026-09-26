@@ -15,7 +15,7 @@
 import { callBestThinker } from "@/lib/ai/hall-of-fame.server";
 import type { AgentContext } from "@/lib/site-agent.server";
 import { MAX_ACTIONS } from "@/lib/site-agent";
-import { COMPOSITION_PRIMITIVES, PRIMITIVE_GUIDE } from "@/lib/builder/composition-tree";
+import { COMPOSITION_PRIMITIVES, MOTION_KINDS, MOTION_EASINGS, PRIMITIVE_GUIDE } from "@/lib/builder/composition-tree";
 
 export type AiPlanFailure = {
   ok: false;
