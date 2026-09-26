@@ -1,5 +1,5 @@
 /**
- * Small, deterministic clean-up helpers for business intake fields.
+ * Small clean-up helpers (spacing, casing) for business intake fields.
  *
  * The owner types quickly on a phone; these helpers tidy the obvious mistakes
  * (spacing, casing, phone punctuation, stray commas) so nothing has to be
