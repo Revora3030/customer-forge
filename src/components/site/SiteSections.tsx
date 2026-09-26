@@ -109,6 +109,14 @@ function SiteSectionBody({ site, section }: { site: Site; section: Section }) {
           scope={`s-${section.id}`}
           resolveMedia={(ref) => media.get(ref) ?? null}
           resolveHref={(href) => resolveSiteHref(href, org.slug, ownAddress)}
+          resolveWidget={(name) => {
+            if (name === "booking_form") return <BookingForm site={site} />;
+            if (name === "quote_calculator") return site.quote ? <QuoteCalculator site={site} /> : null;
+            if (name === "contact_details") return <ContactFacts site={site} />;
+            if (name === "direct_contact")
+              return <DirectContact profile={profile} businessName={site.org.name} label={`Call or email ${site.org.name} directly`} />;
+            return null;
+          }}
         />
       ) : null;
     }
@@ -136,60 +144,10 @@ function SiteSectionBody({ site, section }: { site: Site; section: Section }) {
     case "contact": {
       // Every value here is validated first: an unusable phone number, a broken
       // email address or unreadable hours are hidden rather than rendered.
-      const facts = businessFacts(profile as Record<string, unknown> | null, site.org.name);
-      const addressLine = factsAddressLine(facts);
-      const area = facts.serviceArea ?? facts.city;
       return (
         <Shell id="contact">
           <Heading section={section} />
-          <dl className="mt-7 grid gap-4 sm:grid-cols-3">
-            {facts.phone && facts.phoneHref ? (
-              <div>
-                <dt className="eyebrow flex items-center gap-1.5">
-                  <Phone className="size-3.5" aria-hidden="true" /> Phone
-                </dt>
-                <dd className="mt-1 text-[14px]">
-                  <a href={facts.phoneHref} className="text-foreground underline decoration-primary decoration-2 underline-offset-4">
-                    {facts.phone}
-                  </a>
-                </dd>
-              </div>
-            ) : null}
-            {facts.email && facts.emailHref ? (
-              <div>
-                <dt className="eyebrow flex items-center gap-1.5">
-                  <Mail className="size-3.5" aria-hidden="true" /> Email
-                </dt>
-                <dd className="mt-1 text-[14px]">
-                  <a href={facts.emailHref} className="text-foreground underline decoration-primary decoration-2 underline-offset-4">
-                    {facts.email}
-                  </a>
-                </dd>
-              </div>
-            ) : null}
-            {area ? (
-              <div>
-                <dt className="eyebrow flex items-center gap-1.5">
-                  <MapPin className="size-3.5" aria-hidden="true" /> Area
-                </dt>
-                <dd className="mt-1 text-[14px]">{area}</dd>
-              </div>
-            ) : null}
-            {addressLine ? (
-              <div>
-                <dt className="eyebrow flex items-center gap-1.5">
-                  <MapPin className="size-3.5" aria-hidden="true" /> Address
-                </dt>
-                <dd className="mt-1 text-[14px]">{addressLine}</dd>
-              </div>
-            ) : null}
-            {facts.hours ? (
-              <div>
-                <dt className="eyebrow">Hours</dt>
-                <dd className="mt-1 whitespace-pre-line text-[14px]">{facts.hours}</dd>
-              </div>
-            ) : null}
-          </dl>
+          <div className="mt-7"><ContactFacts site={site} /></div>
           <div className="mt-6">
             <DirectContact
               profile={profile}
@@ -319,3 +277,60 @@ function SiteSectionBody({ site, section }: { site: Site; section: Section }) {
  * "Call" only appears when the saved number is actually callable, and the safe
  * area inset keeps the bar clear of the iPhone home indicator.
  */
+
+/** Verified contact facts only: unusable phone/email/hours are hidden, never rendered. */
+function ContactFacts({ site }: { site: Site }) {
+  const facts = businessFacts(site.profile as Record<string, unknown> | null, site.org.name);
+  const addressLine = factsAddressLine(facts);
+  const area = facts.serviceArea ?? facts.city;
+  return (
+          <dl className="grid gap-4 sm:grid-cols-3">
+            {facts.phone && facts.phoneHref ? (
+              <div>
+                <dt className="eyebrow flex items-center gap-1.5">
+                  <Phone className="size-3.5" aria-hidden="true" /> Phone
+                </dt>
+                <dd className="mt-1 text-[14px]">
+                  <a href={facts.phoneHref} className="text-foreground underline decoration-primary decoration-2 underline-offset-4">
+                    {facts.phone}
+                  </a>
+                </dd>
+              </div>
+            ) : null}
+            {facts.email && facts.emailHref ? (
+              <div>
+                <dt className="eyebrow flex items-center gap-1.5">
+                  <Mail className="size-3.5" aria-hidden="true" /> Email
+                </dt>
+                <dd className="mt-1 text-[14px]">
+                  <a href={facts.emailHref} className="text-foreground underline decoration-primary decoration-2 underline-offset-4">
+                    {facts.email}
+                  </a>
+                </dd>
+              </div>
+            ) : null}
+            {area ? (
+              <div>
+                <dt className="eyebrow flex items-center gap-1.5">
+                  <MapPin className="size-3.5" aria-hidden="true" /> Area
+                </dt>
+                <dd className="mt-1 text-[14px]">{area}</dd>
+              </div>
+            ) : null}
+            {addressLine ? (
+              <div>
+                <dt className="eyebrow flex items-center gap-1.5">
+                  <MapPin className="size-3.5" aria-hidden="true" /> Address
+                </dt>
+                <dd className="mt-1 text-[14px]">{addressLine}</dd>
+              </div>
+            ) : null}
+            {facts.hours ? (
+              <div>
+                <dt className="eyebrow">Hours</dt>
+                <dd className="mt-1 whitespace-pre-line text-[14px]">{facts.hours}</dd>
+              </div>
+            ) : null}
+          </dl>
+  );
+}

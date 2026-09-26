@@ -81,7 +81,7 @@ const MEDIA: Record<Breakpoint, string> = {
 };
 
 type ResolvedMedia = string | { url: string | null; visual?: PersistedComponentVisual };
-type Ctx = { rules: string[]; counter: { n: number }; scope: string; href: (h: string) => string; media: (ref: string) => ResolvedMedia | null };
+type Ctx = { rules: string[]; counter: { n: number }; scope: string; href: (h: string) => string; media: (ref: string) => ResolvedMedia | null; widget: (name: string) => ReactNode };
 
 const mediaUrl = (media: ResolvedMedia | null): string | null =>
   typeof media === "string" ? media : media?.url ?? null;
@@ -140,6 +140,9 @@ function renderNode(node: CompositionNode, ctx: Ctx, key: string): ReactNode {
         const visual = mediaVisual(resolved);
         const source = node.src ?? mediaUrl(resolved);
         return source ? <img key={key} {...props} src={source} alt={node.alt ?? visual?.alt ?? ""} loading="lazy" style={{ width: "100%", ...mediaCss(visual), ...props.style }} /> : null; }
+    case "widget":
+      { const w = node.text ? ctx.widget(node.text) : null;
+        return w ? <div key={key} {...props} data-widget={node.text}>{w}{kids}</div> : null; }
     case "button":
     case "link":
       return <a key={key} {...props} href={node.href ? ctx.href(node.href) : undefined}>{node.text}{kids}</a>;
@@ -289,8 +292,8 @@ export const PHONE_SAFETY_CSS = `[data-composition]{max-width:100%;overflow-x:cl
 
 const MOTION_CSS = `@media (prefers-reduced-motion: no-preference){.rv-cn-motion{animation:rv-cn-in .7s ease both}.rv-cn-motion[data-motion=rise]{animation-name:rv-cn-rise}.rv-cn-motion[data-motion=scale]{animation-name:rv-cn-scale}.rv-cn-motion[data-motion=float]{animation:rv-cn-float 6s ease-in-out infinite}.rv-cn-motion[data-motion=slide-left]{animation-name:rv-cn-sl}.rv-cn-motion[data-motion=slide-right]{animation-name:rv-cn-sr}.rv-cn-motion[data-motion=blur]{animation-name:rv-cn-blur}.rv-cn-motion[data-motion=reveal]{animation-name:rv-cn-reveal}.rv-cn-motion[data-motion=custom]{animation-name:rv-cn-custom}}@keyframes rv-cn-custom{from{opacity:var(--rv-o,1);transform:translate(var(--rv-x,0),var(--rv-y,0)) scale(var(--rv-s,1)) rotate(var(--rv-r,0));filter:blur(var(--rv-b,0))}}@keyframes rv-cn-sl{from{opacity:0;transform:translateX(32px)}to{opacity:1;transform:none}}@keyframes rv-cn-sr{from{opacity:0;transform:translateX(-32px)}to{opacity:1;transform:none}}@keyframes rv-cn-blur{from{opacity:0;filter:blur(12px)}to{opacity:1;filter:none}}@keyframes rv-cn-reveal{from{clip-path:inset(0 0 100% 0)}to{clip-path:inset(0 0 0 0)}}@keyframes rv-cn-in{from{opacity:0}to{opacity:1}}@keyframes rv-cn-rise{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:none}}@keyframes rv-cn-scale{from{opacity:0;transform:scale(.94)}to{opacity:1;transform:none}}@keyframes rv-cn-float{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}`;
 
-export function CompositionRenderer({ tree, scope, as = "section", resolveHref, resolveMedia }: { tree: CompositionTree; scope: string; as?: "section" | "div"; resolveHref?: (href: string) => string; resolveMedia?: (ref: string) => ResolvedMedia | null }) {
-  const ctx: Ctx = { rules: [], counter: { n: 0 }, scope: scope.replace(/[^\w-]/g, "") || "cn", href: resolveHref ?? ((h) => h), media: resolveMedia ?? (() => null) };
+export function CompositionRenderer({ tree, scope, as = "section", resolveHref, resolveMedia, resolveWidget }: { tree: CompositionTree; scope: string; as?: "section" | "div"; resolveHref?: (href: string) => string; resolveMedia?: (ref: string) => ResolvedMedia | null; resolveWidget?: (name: string) => ReactNode }) {
+  const ctx: Ctx = { rules: [], counter: { n: 0 }, scope: scope.replace(/[^\w-]/g, "") || "cn", href: resolveHref ?? ((h) => h), media: resolveMedia ?? (() => null), widget: resolveWidget ?? (() => null) };
   const body = renderNode(tree.root, ctx, "root");
   return (
     as === "div" ? (
