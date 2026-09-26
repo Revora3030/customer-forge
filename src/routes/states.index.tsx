@@ -72,16 +72,16 @@ function StatesIndex() {
       <main>
         <section className="mx-auto max-w-6xl px-4 pt-14 pb-10 sm:px-6 sm:pt-20">
           <p className="text-[13px] font-semibold tracking-wide text-primary uppercase">
-            Nationwide · all 50 states
+            Every city · every industry · worldwide
           </p>
           <h1 className="mt-3 max-w-3xl font-display text-[clamp(1.7rem,4vw,2.6rem)] leading-tight font-semibold">
-            Serving local businesses in <span className="gold-hl">every US state</span>
+            Serving businesses in <span className="gold-hl">every state and beyond</span>
           </h1>
           <p className="mt-4 max-w-2xl text-[15px] leading-relaxed text-muted-foreground">
             Revora is remote by design, so where you operate doesn't limit what you get. Describe
             your business, and Revora builds the website, quote calculator, booking, CRM and
-            follow-up that turn local searches into paying customers. Pick your state to see the
-            trades we build for there.
+            follow-up that turn searches into paying customers — in any industry, in any city,
+            anywhere in the world. Pick your state to see examples of what we build there.
           </p>
           <div className="mt-7 flex flex-wrap gap-3">
             <Button asChild variant="signal" size="lg">
