@@ -24,6 +24,7 @@ import {
 } from "@/lib/builder/composition-tree";
 import type { DnaFacts } from "@/lib/business-dna";
 import { runAdvisoryPanel, runReviewPanel } from "@/lib/builder/review-panel.server";
+import { NO_EVIDENCE, gatherReviewEvidence, type ReviewEvidence } from "@/lib/builder/review-evidence.server";
 import { runImprovementGate, type GateReport } from "@/lib/builder/improvement-gate.server";
 
 const IMPROVEMENT_ROUNDS = 2;
@@ -217,7 +218,19 @@ export async function composeFirstBuildSections(input: {
         { cause: feedback },
       );
     }
-    const best = await improveWithTeam({ organizationId, lookSummary: input.lookSummary, industry: facts.industry ?? null, sections: pageSections, parts, designed, screen, result });
+    const { data: settings } = await db
+      .from("website_settings")
+      .select("custom_domain,domain_verified")
+      .eq("organization_id", organizationId)
+      .maybeSingle();
+    const domain = settings?.domain_verified ? settings.custom_domain : null;
+    const evidence = await gatherReviewEvidence({
+      industry: facts.industry ?? null,
+      businessName: facts.businessName ?? null,
+      city: facts.city ?? null,
+      siteUrl: domain ? `https://${domain}/` : null,
+    }).catch(() => NO_EVIDENCE);
+    const best = await improveWithTeam({ organizationId, lookSummary: input.lookSummary, evidence, sections: pageSections, parts, designed, screen, result });
     for (const section of pageSections) {
       const tree = best.get(section.id);
       if (!tree) continue;
