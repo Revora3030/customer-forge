@@ -21,8 +21,10 @@ export async function decideConversation(input: {
   hasAttachments: boolean;
   business: { name: string; industry: string | null };
   pages: { title: string; slug: string; sectionCount: number }[];
+  /** True while the first website build is running and no page exists yet. */
+  firstBuildActive?: boolean;
 }): Promise<ConversationDecision> {
-  if (input.hasAttachments) return { mode: "change" };
+  if (input.hasAttachments && !input.firstBuildActive) return { mode: "change" };
   const siteMap = input.pages
     .slice(0, 20)
     .map((page) => `- ${page.title} (/${page.slug}, ${page.sectionCount} sections)`)
@@ -32,11 +34,40 @@ export async function decideConversation(input: {
     "You talk with a business owner about their website like a warm, sharp senior designer and growth strategist.",
     `Their business: ${input.business.name}${input.business.industry ? ` (${input.business.industry})` : ""}.`,
     `Their website pages:\n${siteMap || "- none yet"}`,
-    "Decide whether the owner's latest message asks you to CHANGE the website (edit, add, remove, redesign, rewrite, restyle, generate pictures, fix something on the site) or is something to ANSWER (greeting, small talk, a question, asking for advice, ideas, explanations, feedback, how something works).",
+    input.firstBuildActive
+      ? "Their FIRST website is being built by the AI team right now (Sol designs and writes it, Terra reviews it). There are no pages to edit yet. ALWAYS use mode \"answer\": reply naturally to what they said; if they ask for a website or pages, confirm the full site is already being built from their real business details and what it will cover; if they ask for a specific change, say you'll apply it the moment the first pages land and they can send it again then."
+      : "Decide whether the owner's latest message asks you to CHANGE the website (edit, add, remove, redesign, rewrite, restyle, generate pictures, fix something on the site) or is something to ANSWER (greeting, small talk, a question, asking for advice, ideas, explanations, feedback, how something works).",
     "If it is ANSWER, write a helpful, natural, conversational reply in plain language (markdown allowed, keep it concise). Offer a concrete next step you can do on their site when useful.",
     "Never invent facts about their business, prices, reviews, results or integrations. Revora's own offer is: $750 one-time setup, first month free, then $100/month, with a 1-day full-access trial.",
     'Respond with JSON only: {"mode":"answer"|"change","reply":"..."} — reply is required for answer and empty for change.',
   ].join("\n");
+  const turns = [
+    ...input.history.slice(-12).map((turn) => ({ role: turn.role, content: turn.content })),
+    { role: "user" as const, content: input.instruction },
+  ];
+  const decide = (data: Record<string, unknown>): ConversationDecision => {
+    const mode = data["mode"];
+    const reply = typeof data["reply"] === "string" ? data["reply"].trim() : "";
+    if ((mode === "answer" || input.firstBuildActive) && reply)
+      return { mode: "answer", reply: reply.slice(0, 3000) };
+    return { mode: "change" };
+  };
+  // Primary: Revora's main model through the AI gateway (fast, reliable).
+  try {
+    const { gatewayChatText } = await import("@/lib/ai/gateway-chat.server");
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 45_000);
+    try {
+      const text = await gatewayChatText({ system, messages: turns, json: true, signal: controller.signal });
+      const match = text.match(/\{[\s\S]*\}/);
+      return decide(JSON.parse(match ? match[0] : text) as Record<string, unknown>);
+    } finally {
+      clearTimeout(timer);
+    }
+  } catch (error) {
+    console.warn("builder conversation gateway unavailable", (error as Error).message);
+  }
+  // Backup: the provider router (free pool).
   try {
     const result = await generateStructuredOutput(
       { organizationId: input.organizationId, userId: input.userId, task: "builder.converse" },
@@ -44,17 +75,10 @@ export async function decideConversation(input: {
         role: "primary",
         json: true,
         maxOutputTokens: 900,
-        messages: [
-          { role: "system", content: system },
-          ...input.history.slice(-12).map((turn) => ({ role: turn.role, content: turn.content })),
-          { role: "user", content: input.instruction },
-        ],
+        messages: [{ role: "system", content: system }, ...turns],
       },
     );
-    const mode = result.data["mode"];
-    const reply = typeof result.data["reply"] === "string" ? result.data["reply"].trim() : "";
-    if (mode === "answer" && reply) return { mode: "answer", reply: reply.slice(0, 3000) };
-    return { mode: "change" };
+    return decide(result.data);
   } catch (error) {
     console.warn("builder conversation step unavailable", (error as Error).message);
     return { mode: "change" };

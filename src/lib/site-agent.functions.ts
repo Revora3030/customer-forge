@@ -386,6 +386,7 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
         slug: page.slug,
         sectionCount: page.sections.length,
       })),
+      firstBuildActive: agentContext.pages.length === 0,
     });
     if (decision.mode === "answer") {
       return {
