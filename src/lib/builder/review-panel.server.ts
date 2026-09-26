@@ -7,6 +7,7 @@
  */
 import { callBestThinker, callHallOfFame } from "@/lib/ai/hall-of-fame.server";
 import type { CollectivePurpose } from "@/lib/ai/collective";
+import { NO_EVIDENCE, evidenceFor, gatherReviewEvidence, type ReviewEvidence } from "@/lib/builder/review-evidence.server";
 
 export type ReviewArea =
   | "conversion"
@@ -200,9 +201,7 @@ export async function runReviewPanel(
           'Respond with JSON only: {"issues": ["..."], "severity": "low"|"medium"|"high"}. Use an empty list when there is nothing worth changing.',
         ].join(" "),
         user:
-          reviewer.area === "industry_fit" && industryResearch
-            ? [input.material, "", industryResearch].join("\n")
-            : input.material,
+          [input.material, ...evidenceFor(reviewer.area, evidence)].join("\n\n"),
       }).then((call) => ({ reviewer, call })),
     ),
   );
