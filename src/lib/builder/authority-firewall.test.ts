@@ -230,6 +230,11 @@ describe("root-level clean-up (Sep 25)", () => {
     expect(offenders).toEqual([]);
   });
 
+  it("project notes never describe a non-AI site engine", () => {
+    const readme = readFileSync("README.md", "utf8");
+    expect(readme).not.toMatch(/deterministic builder|ZERO_AI_COST|built-in site builder/i);
+  });
+
   it("the unused keyword intent resolver stays deleted", () => {
     expect(() => statSync("src/lib/builder/intent-resolution.ts")).toThrow();
   });

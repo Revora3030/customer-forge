@@ -322,7 +322,7 @@ export function visualEditInstruction(
   return [base, ...guidance].join("\n");
 }
 
-/** Contextual prompts shown beside a selected block; intentionally deterministic and editable. */
+/** Contextual prompts shown beside a selected block; fixed suggestion chips; the AI team does the actual work. */
 export function visualEditSuggestions(
   component: ContentComponent | null,
   section: ContentSection | null,

@@ -1,6 +1,6 @@
 # Revora Growth Systems
 
-An AI growth platform for local service businesses. Each customer gets a workspace with a
+An AI growth platform for businesses of any size, in any industry, worldwide. Each customer gets a workspace with a
 published website, a CRM for leads and quotes, bookings, reviews, analytics and billing —
 built and improved through a natural-language AI builder.
 
@@ -41,11 +41,11 @@ inside a server function or route handler, never at module scope.
 | `SUPABASE_SERVICE_ROLE_KEY`     | server | Privileged server-only access    |
 | `STRIPE_SECRET_KEY`             | server | Live Stripe API access           |
 | `STRIPE_WEBHOOK_SECRET`         | server | Webhook signature verification   |
-| `AI_DEFAULT_PROVIDER`           | server | First AI provider: google/openai |
-| `AI_FALLBACK_PROVIDER`          | server | Provider used if the first fails |
+| `AI_DEFAULT_PROVIDER`           | server | Optional override, normally unset |
+| `AI_FALLBACK_PROVIDER`          | server | Optional override, normally unset |
 | `GOOGLE_AI_API_KEY`             | server | Revora's Google AI account       |
 | `OPENAI_API_KEY`                | server | Revora's OpenAI account          |
-| `LOVABLE_API_KEY`               | server | Transactional email delivery     |
+| `LOVABLE_API_KEY`               | server | AI gateway and email             |
 
 ### Revora AI
 
