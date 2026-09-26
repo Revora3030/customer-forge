@@ -322,7 +322,7 @@ export function BuilderAssistant({
               key={action.label}
               type="button"
               title={action.reason}
-              disabled={!requests.ready || firstBuildBusy}
+              disabled={!requests.ready}
               onClick={() => onFirstBuild ? void onFirstBuild(action.instruction) : requests.queue(action.instruction)}
               className={cn(
                  "builder-suggestion min-h-9 shrink-0 cursor-pointer rounded-full border border-border px-3.5 py-1.5 text-[13px] text-foreground transition-all",
@@ -375,7 +375,7 @@ export function BuilderAssistant({
             ref={inputRef}
             value={value}
             maxLength={INSTRUCTION_LIMIT}
-             disabled={!requests.ready || firstBuildBusy}
+             disabled={!requests.ready}
             placeholder={factQuestion ? "Type your answer…" : "Ask Revora…"}
             aria-label="Tell Revora what to change"
             className="text-base"
@@ -391,7 +391,7 @@ export function BuilderAssistant({
 
             <PromptInputSubmit
                {...(requests.busy || firstBuildBusy ? { status: "submitted" as const } : {})}
-                disabled={!requests.ready || firstBuildBusy || (!value.trim() && attachments.length === 0)}
+                disabled={!requests.ready || (!value.trim() && attachments.length === 0)}
             />
           </PromptInputFooter>
         </PromptInput>
