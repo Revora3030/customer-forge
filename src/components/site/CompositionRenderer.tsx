@@ -1,6 +1,7 @@
 import { useState, type CSSProperties, type ReactNode } from "react";
 import type { Breakpoint, CompositionNode, CompositionTree, MotionEasing, NodeHover, NodeMotion, NodeStyle } from "@/lib/builder/composition-tree";
 import type { PersistedComponentVisual } from "@/lib/site-style";
+import { resolveImageSource } from "@/lib/brand-logos";
 
 /**
  * Draws any validated AI-authored composition tree. It only translates the
@@ -138,7 +139,7 @@ function renderNode(node: CompositionNode, ctx: Ctx, key: string): ReactNode {
     case "media":
       { const resolved = node.mediaRef ? ctx.media(node.mediaRef) : null;
         const visual = mediaVisual(resolved);
-        const source = node.src ?? mediaUrl(resolved);
+        const source = node.src ? resolveImageSource(node.src) : mediaUrl(resolved);
         return source ? <img key={key} {...props} src={source} alt={node.alt ?? visual?.alt ?? ""} loading="lazy" style={{ width: "100%", ...mediaCss(visual), ...props.style }} /> : null; }
     case "widget":
       { const w = node.text ? ctx.widget(node.text) : null;
