@@ -12,7 +12,7 @@ export type CommandSettings = {
 export const DEFAULT_COMMAND_SETTINGS: CommandSettings = {
   pinnedModels: [],
   pausedModels: [],
-  qaAutoRevert: true,
+  qaAutoRevert: false,
   qaMinScore: 70,
 };
 
@@ -25,7 +25,7 @@ export function toCommandSettings(row: Record<string, unknown> | null | undefine
   return {
     pinnedModels: list(row["pinned_models"]),
     pausedModels: list(row["paused_models"]),
-    qaAutoRevert: row["qa_auto_revert"] !== false,
+    qaAutoRevert: row["qa_auto_revert"] === true,
     qaMinScore: typeof row["qa_min_score"] === "number" ? row["qa_min_score"] : 70,
   };
 }

@@ -1071,14 +1071,9 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
           break;
         }
         case "set_composition": {
-          // A redesigned booking/quote/contact section must keep its working
-          // feature: the AI places it with a widget node anywhere it likes.
-          const priorKind = readColumn("website_sections", action.sectionId, "kind");
-          const needs = priorKind === "booking" ? "booking_form" : priorKind === "quote" ? "quote_calculator" : priorKind === "contact" ? "contact_details" : null;
-          if (needs && !JSON.stringify(action.tree).includes(`"${needs}"`)) {
-            failed.push(`${action.type} (kept the working ${priorKind} section: layout had no ${needs} widget)`);
-            break;
-          }
+          // The AI has full freedom over booking/quote/contact sections too:
+          // it may place the working feature with a widget node, or design the
+          // section without one. No layout is rejected for omitting a widget.
           noteColumn("website_sections", action.sectionId, "kind", "composition");
           await run(action.type, () => {
             const tree = resolveCompositionMediaRefs(action.tree, newComponents);
