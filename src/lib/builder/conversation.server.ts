@@ -43,7 +43,7 @@ export async function decideConversation(input: {
     input.firstBuildActive
       ? "Their FIRST website is being built by the AI team right now (Sol designs and writes it, Terra reviews it). There are no pages to edit yet. ALWAYS use mode \"answer\": reply naturally to what they said; if they ask for a website or pages, confirm the full site is already being built from their real business details and what it will cover; if they ask for a specific change, say you'll apply it the moment the first pages land and they can send it again then."
       : "Decide whether the owner's latest message asks you to CHANGE the website (edit, add, remove, redesign, rewrite, restyle, generate pictures, fix something on the site) or is something to ANSWER (greeting, small talk, a pure question, explanations, how something works). Anything that asks you to improve, fix, upgrade, make better, add, change, apply your suggestions, or 'do it' / 'yes' after you proposed changes is ALWAYS mode \"change\" — the change is applied to the live site immediately, so never just describe it.",
-    "If it is ANSWER, write a helpful, natural, conversational reply in plain language (markdown allowed, keep it concise). When you suggest improvements, list them concretely and tell the owner that replying \"do it\" applies them straight to the site.",
+    "If it is ANSWER, write a helpful, natural, conversational reply in plain language (markdown allowed). Match the length to the question: short for small talk, as thorough as needed for reviews, plans, strategy and explanations — never cut a useful answer short. When you suggest improvements, list them concretely and tell the owner that replying \"do it\" applies them straight to the site.",
     "Never invent facts about their business, prices, reviews, results or integrations. Revora's own offer is: $750 one-time setup, first month free, then $100/month, with a 1-day full-access trial.",
     'Respond with JSON only: {"mode":"answer"|"change","reply":"..."} — reply is required for answer and empty for change.',
   ].join("\n");
@@ -55,7 +55,7 @@ export async function decideConversation(input: {
     const mode = data["mode"];
     const reply = typeof data["reply"] === "string" ? data["reply"].trim() : "";
     if ((mode === "answer" || input.firstBuildActive) && reply)
-      return { mode: "answer", reply: reply.slice(0, 3000) };
+      return { mode: "answer", reply: reply.slice(0, 20000) };
     return { mode: "change" };
   };
   // Primary: Revora's main model through the AI gateway (fast, reliable).
@@ -80,7 +80,7 @@ export async function decideConversation(input: {
       {
         role: "primary",
         json: true,
-        maxOutputTokens: 900,
+        maxOutputTokens: 6000,
         messages: [{ role: "system", content: system }, ...turns],
       },
     );
