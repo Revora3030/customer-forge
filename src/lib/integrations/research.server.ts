@@ -120,3 +120,62 @@ export async function researchPage(url: string): Promise<ResearchOutcome> {
         : "That page couldn't be read, so nothing from it was used.",
   };
 }
+
+export type WebSearchResult = {
+  title: string;
+  url: string;
+  snippet: string;
+  date: string | null;
+  source: ResearchSource;
+};
+
+export type WebSearchOutcome =
+  | { ok: true; results: WebSearchResult[] }
+  | { ok: false; reason: string; detail: string };
+
+/**
+ * Live web search through the linked Perplexity connection (Search API only).
+ * Results are third-party research, never business facts about a customer.
+ */
+export async function searchWeb(query: string, maxResults = 5): Promise<WebSearchOutcome> {
+  const lovableKey = process.env["LOVABLE_API_KEY"];
+  const connectionKey = process.env["PERPLEXITY_API_KEY"];
+  const trimmed = query.trim().slice(0, 400);
+  if (!trimmed) return { ok: false, reason: "invalid", detail: "Nothing to search for." };
+  if (!lovableKey || !connectionKey)
+    return { ok: false, reason: "not_configured", detail: "Web search isn't connected." };
+  try {
+    const response = await fetch("https://connector-gateway.lovable.dev/perplexity/search", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${lovableKey}`,
+        "X-Connection-Api-Key": connectionKey,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ query: trimmed, max_results: Math.min(Math.max(maxResults, 1), 10) }),
+      signal: AbortSignal.timeout(15_000),
+    });
+    if (!response.ok) {
+      const body = await response.text();
+      console.error(`[research] search failed [${response.status}]: ${body.slice(0, 500)}`);
+      return { ok: false, reason: `http_${response.status}`, detail: body.slice(0, 300) };
+    }
+    const payload = (await response.json()) as {
+      results?: Array<{ title?: string; url?: string; snippet?: string; date?: string }>;
+    };
+    const fetchedAt = new Date().toISOString();
+    const results = (payload.results ?? [])
+      .filter((r) => typeof r.url === "string" && /^https?:\/\//.test(r.url))
+      .map((r) => ({
+        title: String(r.title ?? "").slice(0, 200),
+        url: r.url!,
+        snippet: String(r.snippet ?? "").slice(0, 1_000),
+        date: r.date ?? null,
+        source: { url: r.url!, fetchedAt, provider: "perplexity", trust: "research" as const },
+      }));
+    return { ok: true, results };
+  } catch (error) {
+    console.error("[research] search error", error);
+    return { ok: false, reason: "network", detail: "Search didn't answer in time." };
+  }
+}
