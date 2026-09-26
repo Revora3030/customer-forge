@@ -38,7 +38,7 @@ import type { AgentStep } from "@/lib/site-agent";
 import type { AgentAttachment } from "@/lib/site-agent";
 import { trackConversion } from "@/lib/conversion";
 import { friendlyError } from "@/lib/user-error";
-import { clearTurns, loadTurns, pairTurns, saveTurns } from "@/lib/builder-memory";
+import { clearTurns, loadTurns, pairTurns, saveTurns, type SavedTaskResult } from "@/lib/builder-memory";
 
 export const INSTRUCTION_LIMIT = 1200;
 
@@ -119,7 +119,13 @@ export function useBuilderRequests({
     };
   }, [organizationId]);
 
-  const remember = (turns: Array<{ role: "user" | "assistant"; content: string }>) => {
+  const remember = (
+    turns: Array<{
+      role: "user" | "assistant";
+      content: string;
+      taskResult?: SavedTaskResult;
+    }>,
+  ) => {
     if (!organizationId || !canManage) return;
     void saveTurns(organizationId, turns).catch(() => {
       // Saving the chat never blocks building; the change itself is already safe.
@@ -385,10 +391,15 @@ export function useBuilderRequests({
       if (!result.unavailable && canAutoApply(planned))
         await runBuild(planned);
     } catch (error) {
+      const message = friendlyError(error as Error, "Revora couldn't read that request yet.");
       patch(task.id, {
         state: "failed",
-        error: friendlyError(error as Error, "Revora couldn't read that request yet."),
+        error: message,
       });
+      remember([
+        { role: "user", content: task.instruction },
+        { role: "assistant", content: message, taskResult: { state: "failed" } },
+      ]);
     }
   };
 
