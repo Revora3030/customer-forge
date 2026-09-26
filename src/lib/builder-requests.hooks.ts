@@ -366,9 +366,18 @@ export function useBuilderRequests({
         composition: result.composition ?? null,
       };
       if (uncovered.length) {
-        planned.state = "failed";
-        planned.error = `Revora couldn't safely cover ${uncovered.map((item) => item.label).join(" and ")}. Nothing was applied.`;
-        planned.retryable = true;
+        const labels = uncovered.map((item) => item.label).join(" and ");
+        if (plannedSteps.length === 0) {
+          planned.state = "failed";
+          planned.error = `Revora couldn't safely cover ${labels}. Nothing was applied.`;
+          planned.retryable = true;
+        } else {
+          // Apply the reviewed, safe changes instead of discarding the whole
+          // request because one part couldn't be covered.
+          planned.summary = [result.summary, `Still to do: ${labels} — ask again to retry just that part.`]
+            .filter(Boolean)
+            .join(" ");
+        }
       }
       // A request that ended in nothing actionable must never sit in a silent
       // hold with no working button.
