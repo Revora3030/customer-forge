@@ -45,7 +45,7 @@ function AboutRoute() {
 const PILLARS = [
   {
     title: "Get discovered",
-    body: "A fast, conversion-first website with local service and city pages, structured data and a health score that says what to fix next.",
+    body: "A fast, conversion-first website with service and location pages tailored to your industry and city, structured data and a health score that says what to fix next.",
   },
   {
     title: "Capture every opportunity",
