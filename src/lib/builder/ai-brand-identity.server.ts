@@ -82,7 +82,7 @@ function schemaPrompt(input: BrandIdentityInput): string {
     ),
     "",
     "backdropSpec is optional: compose your own background from up to 8 gradient layers (any colours, positions and sizes), or omit it or set layers to [] for a plain page.",
-    "Motion ids the renderer can draw safely: none, float_3d, tilt_3d, glass, gold_glow, rise, parallax_slow, shine. Use none wherever you want no motion. Page-level motion beyond these is authored later on each section's own composition.",
+    "Motion ids the renderer can draw safely: none, float_3d, tilt_3d, glass, rise, parallax_slow. Use none wherever you want no motion. Page-level motion beyond these is authored later on each section's own composition.",
   ]
     .filter((line) => line !== null)
     .join("\n");
