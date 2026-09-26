@@ -241,8 +241,9 @@ export function useBuilderRequests({
       trackConversion("build_applied", { metadata: { organization_id: organizationId ?? "" } });
       const toastMessage =
         `${result.applied} change${result.applied === 1 ? "" : "s"} applied to your draft.` +
-        (skipped ? ` ${skipped} skipped.` : "");
-      if (partial) toast.warning(toastMessage);
+        (skipped ? ` ${skipped} skipped.` : "") +
+        (result.unconfirmed?.length ? ` ${result.unconfirmed.length} could not be confirmed on the site.` : "");
+      if (partial || result.unconfirmed?.length) toast.warning(toastMessage);
       else toast.success(toastMessage);
       await refresh();
     } catch (error) {
