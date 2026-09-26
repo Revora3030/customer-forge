@@ -532,7 +532,9 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
       if (!authored.ok) {
         return {
           reply:
-            "I couldn't design this change right now, so I've left your website exactly as it is. Please try again in a moment — I'd rather wait than drop a stock layout onto your site.",
+            authored.reason === "review_rejected"
+              ? `I left your website unchanged because this change would need details you haven't given me yet${authored.detail ? ` (${authored.detail.replace(/^the review removed every proposed change — ?/, "")})` : ""}. Tell me the real details — for example exactly what each service includes — and I'll add them.`
+              : "I couldn't design this change right now, so I've left your website exactly as it is. Please try again in a moment — I'd rather wait than drop a stock layout onto your site.",
           summary: "",
           steps: [] as AgentStep[],
           questions: [] as string[],

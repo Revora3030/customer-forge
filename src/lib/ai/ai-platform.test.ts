@@ -63,6 +63,8 @@ describe("no third-party AI gateway remains", () => {
       // through the connector gateway; it returns research links, never model
       // output, and its results are marked third-party research.
       "integrations/research.server.ts",
+      // Semrush keyword data for SEO reviewers, via the connector gateway; no model.
+      "builder/review-evidence.server.ts",
     ];
     const offenders = APP_FILES.filter((file) => {
       if (!readFileSync(file, "utf8").includes("LOVABLE_API_KEY")) return false;

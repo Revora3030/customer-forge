@@ -349,6 +349,51 @@ export async function planWebsiteChangesWithAi(input: {
     notes = [...notes, ...applied.notes].slice(0, 8);
   }
 
+  if (!actions.length && proposedActions.length) {
+    // Terra blocked everything. Instead of giving up, Sol gets one revision with
+    // Terra's exact objections, then Terra checks the revision again.
+    const revision = await callBestThinker({
+      json: true,
+      purpose: "creative_direction",
+      complexity: "high",
+      system,
+      user: `${user}\n\nTHE SAFETY REVIEWER BLOCKED YOUR PREVIOUS PLAN FOR THESE REASONS:\n${notes.join("\n") || "unstated fact or safety problems"}\n\nRevise it: keep the owner's intent, but use only the supplied facts (omit anything not supplied rather than inventing it). Reply with ONLY the JSON object with a non-empty "actions" array.`,
+      organizationId: input.organizationId,
+      maxOutputTokens: 32000,
+    });
+    if (revision.ok) {
+      costMicrocents += revision.costMicrocents;
+      const revised = readActions(revision.text);
+      if (revised.parsed && revised.list.length) {
+        const recheck = await callBestThinker({
+          json: true,
+          purpose: "adversarial_review",
+          complexity: "high",
+          system: [
+            "You are an independent safety reviewer. Check proposed website changes only against supplied facts, accessibility, renderer support, security, and resource limits.",
+            TRUTH_RULES,
+            'Reply with ONE JSON object: {"reject":number[],"notes":string[]}. `reject` holds only zero-based indexes of actions that invent facts, fabricate claims, violate accessibility or safety, target missing data, or cannot render. Never reject for taste.',
+          ].join("\n\n"),
+          user: [
+            "BUSINESS FACTS:", businessBlock(context), "",
+            "THE OWNER'S REQUEST:", input.instruction, "",
+            "PROPOSED ACTIONS (index: action):",
+            revised.list.map((action, index) => `${index}: ${JSON.stringify(action)}`).join("\n"),
+          ].join("\n"),
+          organizationId: input.organizationId,
+          maxOutputTokens: 4000,
+        });
+        if (recheck.ok) {
+          costMicrocents += recheck.costMicrocents;
+          const applied = applyReview(revised.list, parseJsonObject(recheck.text));
+          actions = applied.actions;
+          notes = [...textList(revised.parsed["notes"], 4), ...applied.notes].slice(0, 8);
+          proposal = revised.parsed;
+        }
+      }
+    }
+  }
+
   if (!actions.length) {
     return {
       ok: false,
