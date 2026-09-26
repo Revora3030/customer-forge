@@ -16,6 +16,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Json } from "@/integrations/supabase/types";
 import { generateImageBase64, decodeBase64 } from "@/lib/image-studio.server";
 import { generatePaidImageBase64, paidImageStatus } from "@/lib/ai/paid-image.server";
+import { inspectPhoto } from "@/lib/ai/photo-direction.server";
 import { gradeFirstBuildImages } from "@/lib/builder/first-build-image-qa";
 import type {
   FirstBuildImageAsset,
