@@ -43,9 +43,23 @@ export function modelQualityWeight(model: string): number {
 
 const SPECIALIST_QUALITY = new Map(SPECIALIST_SIX.map((entry) => [entry.model, entry.quality]));
 
+/**
+ * Image generators carry no size class in their ids, so the generic weight
+ * flattens them all to 50 and input order — not quality — decided routing.
+ * These explicit ratings keep the strongest generator first.
+ */
+const IMAGE_QUALITY = new Map<string, number>([
+  ["gpt-image-2.5-sunburst", 96],
+  ["gpt-image-2", 88],
+  ["gpt-image-2.5-flare", 84],
+  ["gemini-2.5-flash-image", 70],
+  ["@cf/black-forest-labs/flux-1-schnell", 55],
+  ["@cf/bytedance/stable-diffusion-xl-lightning", 45],
+]);
+
 /** Quality for a runtime candidate: the specialist ceiling, or the id's size class. */
 export function candidateQuality(model: string): number {
-  return SPECIALIST_QUALITY.get(model) ?? modelQualityWeight(model);
+  return SPECIALIST_QUALITY.get(model) ?? IMAGE_QUALITY.get(model) ?? modelQualityWeight(model);
 }
 
 export type RuntimeCandidate = {
