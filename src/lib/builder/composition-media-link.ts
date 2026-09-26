@@ -41,7 +41,6 @@ export function linkGeneratedMedia(
     type: "media",
     mediaRef: componentId,
     ...(alt ? { alt } : {}),
-    style: { radius: 16 } as CompositionNode["style"],
   };
   return { ...tree, root: { ...root, children: [...(root.children ?? []), media] } };
 }

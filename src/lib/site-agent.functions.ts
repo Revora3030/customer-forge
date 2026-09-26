@@ -9,7 +9,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
  * keeps one client's website out of another's.
  */
 
-import { writeComposition, type CompositionNode, type CompositionTree } from "@/lib/builder/composition-tree";
+import { linkGeneratedMedia } from "@/lib/builder/composition-media-link";
+import { readComposition, writeComposition, type CompositionNode, type CompositionTree } from "@/lib/builder/composition-tree";
 import { writeBackdrop, writeBackdropSpec, writeSectionEffect } from "@/lib/site-effects";
 import { writeBlockStyle, writeComponentVisual } from "@/lib/site-style";
 import { writeCustomBlock } from "@/lib/builder/custom-block";
@@ -921,6 +922,9 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
     // Components get temporary references too, allowing one plan to create
     // and then refine a button/card/image without another round trip.
     const newComponents = new Map<string, string>();
+    // Pictures generated in this run; after every step lands they are checked
+    // against their section's layout so a generated image is always visible.
+    const generatedImages: { componentId: string; alt?: string }[] = [];
 
     const nextSectionSort = new Map<string, number>();
     for (const section of site.sections) {
@@ -1269,6 +1273,7 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
               .eq("id", action.componentId)
               .eq("organization_id", orgId),
           );
+          if (!fatal) generatedImages.push({ componentId: action.componentId, alt: action.alt });
           break;
         }
         case "add_component":
@@ -1414,6 +1419,85 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
           break;
       }
       void sortOf;
+    }
+
+    if (!fatal && generatedImages.length > 0) {
+      await linkGeneratedImagesIntoLayouts();
+    }
+
+    async function linkGeneratedImagesIntoLayouts() {
+      const generatedIds = new Set(generatedImages.map((image) => image.componentId));
+      const sectionIds = [
+        ...new Set(
+          generatedImages
+            .map((image) => componentSection.get(image.componentId))
+            .filter((id): id is string => Boolean(id)),
+        ),
+      ];
+      if (sectionIds.length === 0) return;
+      const [{ data: sectionRows, error: sectionError }, { data: componentRows, error: componentError }] =
+        await Promise.all([
+          supabase.from("website_sections").select("id, kind, settings").eq("organization_id", orgId).in("id", sectionIds),
+          supabase.from("website_components").select("id, media_url").eq("organization_id", orgId).in("section_id", sectionIds),
+        ]);
+      if (sectionError || componentError) {
+        fatal = sectionError ?? componentError;
+        failed.push("generate_component_image:link_failed");
+        return;
+      }
+      // A ref is dead when its component is gone, has no picture, or its file
+      // no longer exists in storage.
+      const mediaOf = new Map((componentRows ?? []).map((row) => [String(row.id), row.media_url as string | null]));
+      const paths = [...mediaOf.entries()]
+        .filter(([id, url]) => url && isStoragePath(url) && !generatedIds.has(id))
+        .map(([, url]) => url as string);
+      const missingPaths = new Set<string>();
+      if (paths.length > 0) {
+        const signed = await supabase.storage.from(MEDIA_BUCKET).createSignedUrls(paths, 60);
+        for (const entry of signed.data ?? []) if (entry.error || !entry.signedUrl) missingPaths.add(String(entry.path));
+      }
+      const isDead = (ref: string) => {
+        if (generatedIds.has(ref)) return false;
+        const url = mediaOf.get(ref);
+        return !url || missingPaths.has(url);
+      };
+      for (const row of sectionRows ?? []) {
+        if (row.kind !== "composition") continue;
+        const sectionId = String(row.id);
+        const settings = readColumn("website_sections", sectionId, "settings") ?? row.settings;
+        let tree = readComposition(settings);
+        if (!tree) continue;
+        const refsInTree = new Set<string>();
+        const collect = (node: CompositionNode) => {
+          if (node.mediaRef) refsInTree.add(node.mediaRef);
+          node.children?.forEach(collect);
+        };
+        collect(tree.root);
+        const dead = new Set([...refsInTree].filter(isDead));
+        let changed = false;
+        for (const image of generatedImages) {
+          if (componentSection.get(image.componentId) !== sectionId) continue;
+          const next = linkGeneratedMedia(tree, image.componentId, dead, image.alt);
+          if (next) {
+            tree = next;
+            changed = true;
+          }
+        }
+        if (!changed) continue;
+        const previous = row.settings;
+        const nextSettings = writeComposition(settings, tree);
+        noteColumn("website_sections", sectionId, "settings", nextSettings);
+        undoSteps.push({
+          label: "link_generated_image:restore-layout",
+          run: async () => {
+            await supabase.from("website_sections").update({ settings: previous } as never).eq("id", sectionId).eq("organization_id", orgId);
+          },
+        });
+        await run("link_generated_image", () =>
+          supabase.from("website_sections").update({ settings: nextSettings } as never).eq("id", sectionId).eq("organization_id", orgId),
+        );
+        if (fatal) return;
+      }
     }
 
     if (fatal) {
