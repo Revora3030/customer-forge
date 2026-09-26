@@ -2429,3 +2429,11 @@ html, body { max-width: 100%; overflow-x: hidden; }
 .rv-card-shadow :is([data-slot="card"], .rounded-xl.border, .rounded-2xl.border) {
   box-shadow: var(--site-card-shadow);
 }
+
+/* AI/admin design tokens — only active when the token is set. */
+.rv-btn-radius :is(a, button)[class*="rounded"][class*="px-"] {
+  border-radius: var(--site-button-radius);
+}
+.rv-card-shadow :is(article, [class*="rounded-2xl"], [class*="rounded-xl"])[class*="border"] {
+  box-shadow: var(--site-card-shadow);
+}
