@@ -218,12 +218,18 @@ export async function composeFirstBuildSections(input: {
         { cause: feedback },
       );
     }
-    const { data: settings } = await db
-      .from("website_settings")
-      .select("custom_domain,domain_verified")
-      .eq("organization_id", organizationId)
-      .maybeSingle();
-    const domain = settings?.domain_verified ? settings.custom_domain : null;
+    // Search data only exists for a verified domain; a lookup failure never blocks the build.
+    let domain: string | null = null;
+    try {
+      const { data: settings } = await db
+        .from("website_settings")
+        .select("custom_domain,domain_verified")
+        .eq("organization_id", organizationId)
+        .maybeSingle();
+      domain = settings?.domain_verified ? settings.custom_domain : null;
+    } catch {
+      domain = null;
+    }
     const evidence = await gatherReviewEvidence({
       industry: facts.industry ?? null,
       businessName: facts.businessName ?? null,
