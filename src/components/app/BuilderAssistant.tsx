@@ -9,13 +9,30 @@
  * an explicit press before anything is removed.
  */
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowDown, ArrowUp, History, Plus, Trash2 } from "lucide-react";
+import {
+  ArrowDown,
+  ArrowUp,
+  Check,
+  Copy,
+  History,
+  MoreHorizontal,
+  Plus,
+  RotateCcw,
+  ThumbsDown,
+  ThumbsUp,
+  Trash2,
+} from "lucide-react";
 import {
   Conversation,
   ConversationContent,
   ConversationScrollButton,
 } from "@/components/ai-elements/conversation";
-import { Message, MessageContent } from "@/components/ai-elements/message";
+import {
+  Message,
+  MessageAction,
+  MessageActions,
+  MessageContent,
+} from "@/components/ai-elements/message";
 import { ReplyText } from "@/components/app/ReplyText";
 import {
   PromptInput,
@@ -27,6 +44,12 @@ import {
 } from "@/components/ai-elements/prompt-input";
 import { Shimmer } from "@/components/ai-elements/shimmer";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { BrandChoices } from "@/components/app/BrandChoices";
 import { AssistantMedia } from "@/components/app/AssistantMedia";
 import { CompositionPreviewCard } from "@/components/app/CompositionPreviewCard";
@@ -41,6 +64,7 @@ import { selectionPrefix } from "@/lib/builder/preview-bridge";
 import { INSTRUCTION_LIMIT, type BuilderRequests } from "@/lib/builder-requests.hooks";
 import type { AgentAttachment } from "@/lib/site-agent";
 import { cn } from "@/lib/utils";
+import { toast } from "@/lib/ui/notify";
 
 
 export function BuilderAssistant({
@@ -254,6 +278,10 @@ export function BuilderAssistant({
                     onAnswer={setAnswering}
                     {...(onOpenHistory ? { onOpenHistory } : {})}
                     publishState={publishState}
+                    onFollowUp={(prompt) => {
+                      setValue(prompt.slice(0, INSTRUCTION_LIMIT));
+                      window.requestAnimationFrame(() => inputRef.current?.focus());
+                    }}
                   />
                 </MessageContent>
               </Message>
@@ -480,6 +508,7 @@ function TaskBody({
   onAnswer,
   onOpenHistory,
   publishState,
+  onFollowUp,
 }: {
   task: QueueTask;
   requests: BuilderRequests;
@@ -488,6 +517,7 @@ function TaskBody({
   onAnswer: (question: string) => void;
   onOpenHistory?: () => void;
   publishState: string;
+  onFollowUp: (prompt: string) => void;
 }) {
   const working = task.state === "queued" || task.state === "planning" || task.state === "building";
   const timeline = timelineFor(task);
@@ -654,6 +684,16 @@ function TaskBody({
         </details>
       ) : null}
 
+      {!working && task.reply ? (
+        <AssistantMessageActions
+          task={task}
+          organizationId={organizationId}
+          onFollowUp={onFollowUp}
+          {...(onOpenHistory ? { onOpenHistory } : {})}
+          onClear={() => requests.dismiss(task.id)}
+        />
+      ) : null}
+
       <div className="flex flex-wrap gap-2">
         {task.state === "waiting_for_approval" && task.steps.length ? (
           <Button
@@ -687,5 +727,120 @@ function TaskBody({
         )}
       </div>
     </div>
+  );
+}
+
+type MessageFeedback = "helpful" | "not_helpful" | null;
+
+function stableMessageKey(value: string) {
+  let hash = 2166136261;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(36);
+}
+
+function AssistantMessageActions({
+  task,
+  organizationId,
+  onFollowUp,
+  onOpenHistory,
+  onClear,
+}: {
+  task: QueueTask;
+  organizationId: string | null | undefined;
+  onFollowUp: (prompt: string) => void;
+  onOpenHistory?: () => void;
+  onClear: () => void;
+}) {
+  const storageKey = `revora.builder-feedback.${organizationId ?? "unknown"}.${stableMessageKey(`${task.instruction}\n${task.reply ?? ""}`)}`;
+  const [feedback, setFeedback] = useState<MessageFeedback>(null);
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem(storageKey);
+      setFeedback(saved === "helpful" || saved === "not_helpful" ? saved : null);
+    } catch {
+      setFeedback(null);
+    }
+  }, [storageKey]);
+
+  const chooseFeedback = (next: Exclude<MessageFeedback, null>) => {
+    const value = feedback === next ? null : next;
+    setFeedback(value);
+    try {
+      if (value) window.localStorage.setItem(storageKey, value);
+      else window.localStorage.removeItem(storageKey);
+    } catch {
+      // Feedback is optional and must never interfere with website changes.
+    }
+    toast.success(value === "helpful" ? "Marked helpful." : value === "not_helpful" ? "Feedback saved." : "Feedback removed.");
+  };
+
+  const copyReply = async () => {
+    try {
+      await navigator.clipboard.writeText(task.reply ?? "");
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1600);
+      toast.success("Response copied.");
+    } catch {
+      toast.error("Copy failed — press and hold the response to copy it.");
+    }
+  };
+
+  const improvePrompt = `Review what you did for my request: “${task.instruction}”. Inspect the website, fix anything incomplete or lower quality, and apply the improvements without inventing facts.`;
+
+  return (
+    <MessageActions className="pt-1 text-muted-foreground" aria-label="Response actions">
+      <MessageAction tooltip="Review and improve" label="Review and improve" onClick={() => onFollowUp(improvePrompt)}>
+        <RotateCcw className="size-4" aria-hidden />
+      </MessageAction>
+      <MessageAction
+        tooltip="Helpful"
+        label="Helpful"
+        aria-pressed={feedback === "helpful"}
+        className={cn(feedback === "helpful" && "bg-primary/15 text-primary")}
+        onClick={() => chooseFeedback("helpful")}
+      >
+        <ThumbsUp className="size-4" aria-hidden />
+      </MessageAction>
+      <MessageAction
+        tooltip="Not helpful"
+        label="Not helpful"
+        aria-pressed={feedback === "not_helpful"}
+        className={cn(feedback === "not_helpful" && "bg-destructive/15 text-destructive")}
+        onClick={() => chooseFeedback("not_helpful")}
+      >
+        <ThumbsDown className="size-4" aria-hidden />
+      </MessageAction>
+      <MessageAction tooltip="Copy response" label="Copy response" onClick={() => void copyReply()}>
+        {copied ? <Check className="size-4 text-primary" aria-hidden /> : <Copy className="size-4" aria-hidden />}
+      </MessageAction>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <MessageAction tooltip="More actions" label="More actions">
+            <MoreHorizontal className="size-4" aria-hidden />
+          </MessageAction>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start">
+          <DropdownMenuItem onSelect={() => onFollowUp(improvePrompt)}>
+            <RotateCcw /> Review and improve
+          </DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => void copyReply()}>
+            <Copy /> Copy response
+          </DropdownMenuItem>
+          {(task.applied ?? 0) > 0 && onOpenHistory ? (
+            <DropdownMenuItem onSelect={onOpenHistory}>
+              <History /> Undo or restore
+            </DropdownMenuItem>
+          ) : null}
+          <DropdownMenuItem onSelect={onClear}>
+            <Trash2 /> Clear from chat
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </MessageActions>
   );
 }
