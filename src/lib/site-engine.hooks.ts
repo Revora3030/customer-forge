@@ -14,6 +14,21 @@ import {
   saveScreenshotReference,
 } from "@/lib/site-engine.functions";
 
+/**
+ * Queued work gets an immediate nudge. Processing work is nudged only after its
+ * lease expires, which recovers an interrupted worker without running twice.
+ */
+export function queuePumpDelay(job: {
+  status?: string;
+  lease_expires_at?: string | null;
+} | null | undefined, now = Date.now()): number | null {
+  if (job?.status === "queued") return 800;
+  if (job?.status !== "processing") return null;
+  const expiresAt = job.lease_expires_at ? Date.parse(job.lease_expires_at) : Number.NaN;
+  if (!Number.isFinite(expiresAt)) return 800;
+  return Math.max(250, expiresAt - now + 250);
+}
+
 /** Latest build job for the workspace; polls while a build is running. */
 export function useLatestGenerationJob(organizationId: string | undefined) {
   const query = useQuery({
@@ -40,14 +55,17 @@ export function useLatestGenerationJob(organizationId: string | undefined) {
   // server to advance the queue for this workspace. The database lease makes this
   // safe to call repeatedly — it never double-processes a job.
   const pump = useServerFn(pumpSiteEngineQueue);
-  const status = (query.data as { status?: string } | null | undefined)?.status;
+  const job = query.data as { status?: string; lease_expires_at?: string | null } | null | undefined;
+  const status = job?.status;
   useEffect(() => {
-    if (!organizationId || status !== "queued") return;
+    if (!organizationId) return;
+    const delay = queuePumpDelay(job);
+    if (delay === null) return;
     const timer = setTimeout(() => {
       void pump({ data: { organizationId } }).catch(() => undefined);
-    }, 800);
+    }, delay);
     return () => clearTimeout(timer);
-  }, [organizationId, status, pump]);
+  }, [organizationId, job?.status, job?.lease_expires_at, pump]);
 
   // When the background worker finishes, pull the new site copy into the UI.
   const queryClient = useQueryClient();
