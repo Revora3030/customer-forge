@@ -1210,27 +1210,63 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
           }
 
           const caller = { organizationId: orgId, userId };
-          const free = await generateImageBase64(
-            action.prompt,
+          const placement = [current?.kind ?? "", current?.label ?? ""].filter(Boolean).join(" ").trim();
+          const isHero = /hero|masthead|banner|opening|lead/i.test(placement);
+
+          // Sol writes the photography brief first: lens, light, composition and
+          // the negative space the words need. The picture models are never sent
+          // a bare one-line request any more.
+          const directed = await directPhotoPrompt(
+            {
+              request: action.prompt,
+              ...(placement ? { placement } : {}),
+              overlaidText: isHero,
+            },
             caller,
-            source ? { source } : undefined,
           );
-          const paid = !free.ok
-            ? source
-              ? await editPaidImage(action.prompt, source, caller)
-              : await generatePaidImageBase64(action.prompt, caller, "starter_photo")
-            : null;
-          const image = free.ok ? free : paid?.ok ? paid : null;
-          if (!image) {
+
+          // Best picture model first. The free lane is capability failover only.
+          const shoot = async (prompt: string) => {
+            const premium = source
+              ? await editPaidImage(prompt, source, caller)
+              : await generatePaidImageBase64(prompt, caller, isHero ? "hero_master" : "editorial_feature");
+            if (premium.ok) return { image: premium, message: null as string | null };
+            const fallback = await generateImageBase64(prompt, caller, source ? { source } : undefined);
+            return fallback.ok
+              ? { image: fallback, message: null as string | null }
+              : { image: null, message: premium.message || fallback.message || "unknown" };
+          };
+
+          let attempt = await shoot(directed.prompt);
+          if (!attempt.image) {
             // A picture that couldn't be made keeps the current picture; it must
             // not undo every other design change in the same request.
-            console.warn(
-              "[site-agent] picture not generated:",
-              paid && !paid.ok ? paid.message : !free.ok ? free.message : "unknown",
-            );
+            console.warn("[site-agent] picture not generated:", attempt.message);
             failed.push("generate_component_image:generation_failed");
             break;
           }
+
+          // Terra inspects the finished frame. One corrected reshoot only, and a
+          // reshoot is kept only when it actually comes back clean.
+          const verdict = await inspectPhoto(
+            { base64: attempt.image.base64, mimeType: attempt.image.mimeType },
+            { prompt: directed.prompt, ...(placement ? { placement } : {}) },
+            caller,
+          );
+          if (!verdict.publishable && verdict.revisedPrompt) {
+            const reshoot = await shoot(verdict.revisedPrompt);
+            if (reshoot.image) {
+              const recheck = await inspectPhoto(
+                { base64: reshoot.image.base64, mimeType: reshoot.image.mimeType },
+                { prompt: verdict.revisedPrompt, ...(placement ? { placement } : {}) },
+                caller,
+              );
+              if (recheck.publishable) attempt = reshoot;
+            }
+          }
+
+          const image = attempt.image;
+
 
           const bytes = decodeBase64(image.base64);
           const mime = image.mimeType.split(";")[0] || "image/png";
