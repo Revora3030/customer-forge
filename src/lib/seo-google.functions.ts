@@ -56,7 +56,7 @@ async function explain(error: unknown): Promise<GoogleDataFailure> {
 /** Live search performance, turned into a ranked work list by Revora's own engine. */
 export const getSearchConsoleGrowth = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { targetUrl: string; siteUrl?: string | null }) => ({
+  .validator((input: { targetUrl: string; siteUrl?: string | null }) => ({
     targetUrl: String(input.targetUrl ?? "").slice(0, 300),
     siteUrl: input.siteUrl ? String(input.siteUrl).slice(0, 300) : null,
   }))
@@ -97,7 +97,7 @@ export type LocalListingResult =
 /** Public Google listing facts for a business, straight from Maps. */
 export const getLocalListing = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { query: string }) => ({ query: String(input.query ?? "").slice(0, 160) }))
+  .validator((input: { query: string }) => ({ query: String(input.query ?? "").slice(0, 160) }))
   .handler(async ({ data, context }): Promise<LocalListingResult> => {
     await guard(context);
     try {

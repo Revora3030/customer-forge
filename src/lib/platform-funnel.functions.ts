@@ -37,7 +37,7 @@ const clean = (value: unknown, max: number) => {
  */
 export const recordAccountCreated = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator(
+  .validator(
     (
       input?: {
         landingPath?: string | null;
@@ -107,7 +107,7 @@ export const recordAccountCreated = createServerFn({ method: "POST" })
  */
 export const provisionWorkspace = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator(
+  .validator(
     (input: {
       name: string;
       industry?: string | null;
@@ -217,7 +217,7 @@ async function platformStaffIds(admin: {
 
 export const getPlatformFunnel = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input?: { days?: number }) => ({
+  .validator((input?: { days?: number }) => ({
     days: Math.min(365, Math.max(1, Math.round(Number(input?.days ?? 30)))),
   }))
   .handler(async ({ context, data }): Promise<PlatformFunnel> => {
@@ -477,7 +477,7 @@ export interface FunnelDetails {
 /** Drill-down for each funnel stage. Ids and timestamps only — no PII. */
 export const getFunnelDetails = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input?: { days?: number }) => ({
+  .validator((input?: { days?: number }) => ({
     days: Math.min(365, Math.max(1, Math.round(Number(input?.days ?? 30)))),
   }))
   .handler(async ({ context, data }): Promise<FunnelDetails> => {

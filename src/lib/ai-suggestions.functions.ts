@@ -14,7 +14,7 @@ export type AiSuggestion = { label: string; instruction: string; reason: string 
 
 export const getAiSuggestions = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) => z.object({ organizationId: z.string().uuid() }).parse(input))
+  .validator((input) => z.object({ organizationId: z.string().uuid() }).parse(input))
   .handler(async ({ data, context }): Promise<{ suggestions: AiSuggestion[] }> => {
     const { supabase, userId } = context;
     const orgId = data.organizationId;

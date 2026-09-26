@@ -23,7 +23,7 @@ export type TeamTraceRow = {
 
 export const getTeamTrace = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ limit: z.number().int().min(1).max(200).optional() }).parse(input ?? {}))
+  .validator((input: unknown) => z.object({ limit: z.number().int().min(1).max(200).optional() }).parse(input ?? {}))
   .handler(async ({ data, context }) => {
     const [trace, registry] = await Promise.all([
       context.supabase

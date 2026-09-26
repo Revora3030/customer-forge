@@ -96,7 +96,7 @@ type AuditDatabase = Omit<Database, "public"> & {
 
 export const auditExistingWebsite = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { organizationId: string; url: string }) => {
+  .validator((input: { organizationId: string; url: string }) => {
     const organizationId = String(input?.organizationId ?? "").trim();
     const url = String(input?.url ?? "").trim();
     if (!/^[0-9a-f-]{36}$/i.test(organizationId)) throw new Error("Invalid workspace.");

@@ -70,7 +70,7 @@ function humanKind(raw: string) {
 
 export const getBuilderModelLog = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { organizationId: string; limit?: number }) => {
+  .validator((input: { organizationId: string; limit?: number }) => {
     const organizationId = String(input?.organizationId ?? "").trim();
     if (!/^[0-9a-f-]{36}$/i.test(organizationId)) throw new Error("Invalid workspace");
     const limit = Number(input?.limit ?? 60);

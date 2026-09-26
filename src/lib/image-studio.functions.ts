@@ -79,7 +79,7 @@ async function assertCanManage(
 
 export const generateStudioImage = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: unknown) => {
+  .validator((data: unknown) => {
     const input = (data ?? {}) as Record<string, unknown>;
     const organizationId = String(input["organizationId"] ?? "");
     if (!/^[0-9a-f-]{36}$/i.test(organizationId)) throw new Error("Invalid workspace");
@@ -237,7 +237,7 @@ export type StudioCapability = {
  */
 export const studioImageStatus = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: unknown) => {
+  .validator((data: unknown) => {
     const organizationId = String((data as Record<string, unknown>)?.["organizationId"] ?? "");
     if (!/^[0-9a-f-]{36}$/i.test(organizationId)) throw new Error("Invalid workspace");
     return { organizationId };
@@ -305,7 +305,7 @@ export const studioImageStatus = createServerFn({ method: "POST" })
  */
 export const editStudioImage = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: unknown) => {
+  .validator((data: unknown) => {
     const input = (data ?? {}) as Record<string, unknown>;
     const organizationId = String(input["organizationId"] ?? "");
     if (!/^[0-9a-f-]{36}$/i.test(organizationId)) throw new Error("Invalid workspace");

@@ -30,7 +30,7 @@ export interface ContactSubmission {
 }
 
 export const submitContactRequest = createServerFn({ method: "POST" })
-  .inputValidator((input: ContactSubmission) => {
+  .validator((input: ContactSubmission) => {
     const email = text(input?.email, 160).toLowerCase();
     const name = text(input?.name, 120);
     const message = text(input?.message, 4000);

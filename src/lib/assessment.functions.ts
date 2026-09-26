@@ -36,7 +36,7 @@ export interface AssessmentSubmission {
 }
 
 export const submitAssessment = createServerFn({ method: "POST" })
-  .inputValidator((input: AssessmentSubmission) => {
+  .validator((input: AssessmentSubmission) => {
     const a = input?.answers ?? ({} as AssessmentAnswers);
     const email = text(a.email, 160);
     if (!EMAIL_RE.test(email)) throw new Error("Enter a valid email so we can send your results.");

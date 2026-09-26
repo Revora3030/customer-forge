@@ -59,7 +59,7 @@ export const getPublicGaMeasurementId = createServerFn({ method: "GET" }).handle
 
 export const setGaMeasurementId = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { measurementId: string }) => {
+  .validator((input: { measurementId: string }) => {
     const raw = typeof input?.measurementId === "string" ? input.measurementId.trim() : "";
     if (!raw) return { measurementId: null as string | null };
     const value = raw.toUpperCase();

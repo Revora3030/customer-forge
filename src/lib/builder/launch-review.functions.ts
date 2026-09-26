@@ -149,7 +149,7 @@ export function currentPassingVisualScore(
 
 export const getLaunchReview = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator(orgIdValidator)
+  .validator(orgIdValidator)
   .handler(async ({ data, context }): Promise<LaunchReview> => {
     const { supabase } = context;
     const organizationId = data.organizationId;

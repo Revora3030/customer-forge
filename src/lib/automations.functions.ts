@@ -10,7 +10,7 @@ import { processDueRuns } from "@/lib/automation-engine";
  */
 export const runDueAutomations = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { organizationId: string }) => {
+  .validator((input: { organizationId: string }) => {
     const organizationId = String(input?.organizationId ?? "").trim();
     if (!/^[0-9a-f-]{36}$/i.test(organizationId)) throw new Error("Invalid workspace");
     return { organizationId };

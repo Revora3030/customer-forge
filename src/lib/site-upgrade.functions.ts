@@ -200,7 +200,7 @@ export type RedesignResult = {
 
 export const applySiteWideRedesign = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { organizationId: string; instruction: string }) => {
+  .validator((input: { organizationId: string; instruction: string }) => {
     if (!input?.organizationId) throw new Error("organizationId is required");
     if (typeof input.instruction !== "string" || input.instruction.trim().length === 0) {
       throw new Error("Tell Revora how the site should feel.");
@@ -360,7 +360,7 @@ const MAX_SCREENSHOT_BYTES = 4_000_000;
 
 export const reviewPageScreenshot = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator(
+  .validator(
     (input: {
       organizationId: string;
       pageUrl: string;
@@ -499,7 +499,7 @@ export type VisionRepairResult = {
  */
 export const applyVisionRepairs = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { organizationId: string; pageSlug?: string | null; findings: unknown }) => {
+  .validator((input: { organizationId: string; pageSlug?: string | null; findings: unknown }) => {
     if (!input?.organizationId) throw new Error("organizationId is required");
     if (!Array.isArray(input.findings)) throw new Error("Nothing to repair.");
     return {
@@ -609,7 +609,7 @@ export const applyVisionRepairs = createServerFn({ method: "POST" })
  */
 export const undoSiteUpgrade = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { organizationId: string; undo: SiteUpgradeUndo }) => {
+  .validator((input: { organizationId: string; undo: SiteUpgradeUndo }) => {
     if (!input?.organizationId) throw new Error("organizationId is required");
     const effects = Array.isArray(input.undo?.effects) ? input.undo.effects.slice(0, 400) : [];
     return { organizationId: input.organizationId, undo: { effects } };

@@ -8,7 +8,7 @@ import { z } from "zod";
 let cache: { at: number; rates: Record<string, number> } | null = null;
 
 export const getUsdRate = createServerFn({ method: "GET" })
-  .inputValidator((data) => z.object({ currency: z.string().regex(/^[A-Z]{3}$/) }).parse(data))
+  .validator((data) => z.object({ currency: z.string().regex(/^[A-Z]{3}$/) }).parse(data))
   .handler(async ({ data }): Promise<{ rate: number | null; currency: string }> => {
     try {
       if (!cache || Date.now() - cache.at > 6 * 3600_000) {

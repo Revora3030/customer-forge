@@ -176,7 +176,7 @@ export const listClients = createServerFn({ method: "GET" })
 /** Everything the admin needs for one client: profile, launch state, handoff, activity. */
 export const getClientDetail = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { organizationId: string }) => ({
+  .validator((input: { organizationId: string }) => ({
     organizationId: String(input.organizationId),
   }))
   .handler(async ({ data, context }) => {
@@ -323,7 +323,7 @@ export const getClientDetail = createServerFn({ method: "GET" })
 /** Provisions a brand new isolated client tenant. */
 export const createClientOrg = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: NewClientInput) => {
+  .validator((input: NewClientInput) => {
     const name = String(input?.business_name ?? "").trim();
     const email = String(input?.owner_email ?? "").trim();
     if (name.length < 2) throw new Error("Enter the business name.");
@@ -353,7 +353,7 @@ export const createClientOrg = createServerFn({ method: "POST" })
 /** Suspend, reactivate, rename or re-plan a client. */
 export const updateClientOrg = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator(
+  .validator(
     (input: {
       organizationId: string;
       name?: string;
@@ -417,7 +417,7 @@ export const updateClientOrg = createServerFn({ method: "POST" })
 /** Saves a custom domain and immediately reports its verified state. */
 export const setClientDomain = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { organizationId: string; domain: string }) => {
+  .validator((input: { organizationId: string; domain: string }) => {
     if (!input?.organizationId) throw new Error("Missing client.");
     return { organizationId: String(input.organizationId), domain: String(input.domain ?? "") };
   })
@@ -465,7 +465,7 @@ export const setClientDomain = createServerFn({ method: "POST" })
 /** Re-checks DNS for the saved domain. Never optimistic. */
 export const verifyClientDomain = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { organizationId: string }) => ({
+  .validator((input: { organizationId: string }) => ({
     organizationId: String(input.organizationId),
   }))
   .handler(async ({ data, context }) => {
@@ -503,7 +503,7 @@ export const verifyClientDomain = createServerFn({ method: "POST" })
 /** Starts an explicit, audited support session in a client's workspace. */
 export const startSupportSession = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { organizationId: string; reason: string }) => {
+  .validator((input: { organizationId: string; reason: string }) => {
     const reason = String(input?.reason ?? "").trim();
     if (!input?.organizationId) throw new Error("Missing client.");
     if (reason.length < 4) throw new Error("Describe why you need support access.");
@@ -550,7 +550,7 @@ export const startSupportSession = createServerFn({ method: "POST" })
 /** Ends a support session and closes the audit record. */
 export const endSupportSession = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { sessionId: string }) => ({ sessionId: String(input.sessionId) }))
+  .validator((input: { sessionId: string }) => ({ sessionId: String(input.sessionId) }))
   .handler(async ({ data, context }) => {
     const { assertSuperAdmin } = await import("@/lib/admin.server");
     await assertSuperAdmin(context.supabase, context.userId);
@@ -582,7 +582,7 @@ export const endSupportSession = createServerFn({ method: "POST" })
 /** Publishing lifecycle, callable by the platform admin for any client. */
 export const setClientPublishState = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { organizationId: string; state: string }) => {
+  .validator((input: { organizationId: string; state: string }) => {
     const allowed = ["draft", "preview", "published", "unpublished"];
     if (!allowed.includes(String(input?.state))) throw new Error("Unknown publishing state.");
     return { organizationId: String(input.organizationId), state: String(input.state) };
@@ -613,7 +613,7 @@ export const setClientPublishState = createServerFn({ method: "POST" })
  */
 export const getMonthlyBusinessReport = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { months?: number } | undefined) => ({
+  .validator((input: { months?: number } | undefined) => ({
     months: Math.max(1, Math.min(24, Math.trunc(Number(input?.months ?? 6)) || 6)),
   }))
   .handler(async ({ data, context }) => {
@@ -754,7 +754,7 @@ export const getOfferConfig = createServerFn({ method: "GET" })
  */
 export const getPlatformActivity = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { limit?: number } | undefined) => ({
+  .validator((input: { limit?: number } | undefined) => ({
     limit: Math.min(60, Math.max(5, Number(input?.limit ?? 30) || 30)),
   }))
   .handler(async ({ data, context }) => {

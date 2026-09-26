@@ -94,7 +94,7 @@ async function loadState(supabase: Db, orgId: string) {
  */
 export const runSelfHeal = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { organizationId: string; dryRun?: boolean }) => ({
+  .validator((input: { organizationId: string; dryRun?: boolean }) => ({
     organizationId: orgIdOf(input),
     dryRun: input?.dryRun === true,
   }))

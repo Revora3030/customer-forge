@@ -24,7 +24,7 @@ const entryId = (input: { entryId?: unknown }) => {
 
 export const listSiteMemory = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { organizationId: string }) => ({ organizationId: orgId(input) }))
+  .validator((input: { organizationId: string }) => ({ organizationId: orgId(input) }))
   .handler(async ({ data, context }): Promise<MemoryEntry[]> => {
     const { loadMemory } = await import("@/lib/builder/session-memory.server");
     return loadMemory(context.supabase as never, data.organizationId);
@@ -32,7 +32,7 @@ export const listSiteMemory = createServerFn({ method: "POST" })
 
 export const forgetSiteMemory = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { organizationId: string; entryId: string }) => ({
+  .validator((input: { organizationId: string; entryId: string }) => ({
     organizationId: orgId(input),
     entryId: entryId(input),
   }))
@@ -48,7 +48,7 @@ export const forgetSiteMemory = createServerFn({ method: "POST" })
 
 export const pinSiteMemory = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { organizationId: string; entryId: string; pinned: boolean }) => ({
+  .validator((input: { organizationId: string; entryId: string; pinned: boolean }) => ({
     organizationId: orgId(input),
     entryId: entryId(input),
     pinned: input?.pinned === true,

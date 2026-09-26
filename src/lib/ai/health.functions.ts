@@ -251,7 +251,7 @@ export const getAiHealth = createServerFn({ method: "GET" })
  */
 export const setFreeAiProviderOrder = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { order: string[] | null }) => ({
+  .validator((input: { order: string[] | null }) => ({
     order: input.order === null ? null : input.order.slice(0, 8).map((name) => String(name)),
   }))
   .handler(async ({ data, context }) => {

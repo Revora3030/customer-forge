@@ -11,7 +11,7 @@ const reviewInput = z.object({
 /** Review status is a trusted workflow action, not a browser-owned field update. */
 export const setWebsiteReviewState = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => reviewInput.parse(input))
+  .validator((input: unknown) => reviewInput.parse(input))
   .handler(async ({ data, context }) => {
     const organizationId = await requireOrgRole(
       context.supabase,

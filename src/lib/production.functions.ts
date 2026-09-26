@@ -66,7 +66,7 @@ export type ActivationResult = {
 
 export const getProductionStatus = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator(orgIdValidator)
+  .validator(orgIdValidator)
   .handler(async ({ data, context }): Promise<ProductionStatus> => {
     const { supabase } = context;
     // RLS: this read only succeeds for a member of this workspace.
@@ -294,7 +294,7 @@ async function gatherReadiness(
 
 export const checkProductionReadiness = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator(orgIdValidator)
+  .validator(orgIdValidator)
   .handler(({ data, context }) => gatherReadiness(context.supabase, data.organizationId));
 
 /* ------------------------------- activation ------------------------------- */
@@ -307,7 +307,7 @@ export const checkProductionReadiness = createServerFn({ method: "POST" })
  */
 export const activateProduction = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator(orgIdValidator)
+  .validator(orgIdValidator)
   .handler(async ({ data, context }): Promise<ActivationResult> => {
     const { supabase, userId } = context;
     const orgId = data.organizationId;

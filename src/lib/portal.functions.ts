@@ -52,7 +52,7 @@ async function assertCanManage(
 /** Current portal code for a workspace (null when self-serve joining is off). */
 export const getPortalCode = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { organizationId: string }) => ({
+  .validator((input: { organizationId: string }) => ({
     organizationId: parseWorkspaceId(input?.organizationId),
   }))
   .handler(async ({ data, context }): Promise<{ code: string | null } | { error: string }> => {
@@ -72,7 +72,7 @@ export const getPortalCode = createServerFn({ method: "GET" })
 /** Creates a new code (invalidating the previous one) or turns sharing off. */
 export const setPortalCode = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { organizationId: string; enabled: boolean }) => ({
+  .validator((input: { organizationId: string; enabled: boolean }) => ({
     organizationId: parseWorkspaceId(input?.organizationId),
     enabled: input?.enabled !== false,
   }))
@@ -107,7 +107,7 @@ export const setPortalCode = createServerFn({ method: "POST" })
 /** Joins the signed-in user to the workspace that owns this code, as a viewer. */
 export const joinWithPortalCode = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { code: string }) => ({ code: parseCode(input?.code) }))
+  .validator((input: { code: string }) => ({ code: parseCode(input?.code) }))
   .handler(
     async ({
       data,

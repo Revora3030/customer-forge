@@ -34,7 +34,7 @@ export type ActivityFeed = {
 
 export const getActivityFeed = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { organizationId: string }) => ({
+  .validator((input: { organizationId: string }) => ({
     organizationId: orgIdOf(input),
   }))
   .handler(async ({ data, context }): Promise<ActivityFeed> => {

@@ -99,7 +99,7 @@ const inputSchema = z.object({
 
 export const recordVisualCheck = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => inputSchema.parse(input))
+  .validator((input: unknown) => inputSchema.parse(input))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
 
