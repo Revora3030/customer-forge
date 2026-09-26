@@ -18,7 +18,7 @@ export function isLogoDevUrl(src: string): boolean {
 
 /** Build a Logo.dev URL for a company domain, with the publishable token attached. */
 export function logoDevUrl(domain: string, size = 128): string {
-  const token = import.meta.env.VITE_LOVABLE_CONNECTOR_LOGO_DEV_API_KEY as string | undefined;
+  const token = import.meta.env['VITE_LOVABLE_CONNECTOR_LOGO_DEV_API_KEY'] as string | undefined;
   const clean = domain.trim().toLowerCase().replace(/^https?:\/\//, "").replace(/\/.*$/, "");
   const params = new URLSearchParams({ size: String(size) });
   if (token) params.set("token", token);
@@ -34,7 +34,7 @@ export function resolveImageSource(src: string): string {
   try {
     const url = new URL(src);
     if (!url.searchParams.has("token")) {
-      const token = import.meta.env.VITE_LOVABLE_CONNECTOR_LOGO_DEV_API_KEY as string | undefined;
+      const token = import.meta.env['VITE_LOVABLE_CONNECTOR_LOGO_DEV_API_KEY'] as string | undefined;
       if (token) url.searchParams.set("token", token);
     }
     return url.toString();
