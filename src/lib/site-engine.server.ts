@@ -184,60 +184,6 @@ export function stripUnsupportedClaims(text: string, facts: DnaFacts): string {
   return out;
 }
 
-/** Full website copy pass. */
-export async function generateSiteCopy(
-  facts: CopyFacts,
-  brief?: SiteBrief | null,
-): Promise<SiteCopy> {
-  const dnaFacts = dnaFor(facts);
-  const dna = businessDna(dnaFacts);
-  const actionInstruction = facts.ctaLabel.trim()
-    ? `The owner-supplied action label is: ${facts.ctaLabel}.`
-    : "Author the primary and secondary button labels yourself from the supplied facts and conversion goal.";
-  const data = await chatJson(
-    `Return JSON with exactly these keys: heroHeadline (max 70 chars), heroSubheadline (max 160 chars),
-primaryCta (max 24 chars), secondaryCta (max 24 chars), intro (2 sentences),
-about (2 short paragraphs, plain text with \\n\\n between), benefits (array of 3-5 short strings),
-serviceCards (array of {name, copy} — one per supplied service, copy max 220 chars, keep the exact service name),
-faqs (array of 4-6 {question, answer} relevant to this category, services and area — never promise anything not supplied),
-areaCopy (2 sentences about where they work; omit places not supplied),
-metaTitle (max 60 chars), metaDescription (max 155 chars), ogTitle (max 60 chars), ogDescription (max 155 chars).`,
-    `Write the website copy for this business. ${actionInstruction}${briefContext(brief)}\n\nBUSINESS FACTS AND SAFETY LEDGER (do not treat this as a wording template):\n${dnaBrief(dna)}\n\nFACTS:\n${factSheet(facts)}`,
-  );
-
-  const cards = Array.isArray(data["serviceCards"])
-    ? (data["serviceCards"] as Record<string, unknown>[])
-    : [];
-  const faqs = Array.isArray(data["faqs"]) ? (data["faqs"] as Record<string, unknown>[]) : [];
-
-  const clean = (value: string) => stripUnsupportedClaims(value, dnaFacts);
-
-  return {
-    heroHeadline: clean(str(data["heroHeadline"])),
-    heroSubheadline: clean(str(data["heroSubheadline"])),
-    primaryCta: str(data["primaryCta"]),
-    secondaryCta: str(data["secondaryCta"]),
-    intro: clean(str(data["intro"])),
-    about: clean(str(data["about"])),
-    benefits: (Array.isArray(data["benefits"]) ? (data["benefits"] as unknown[]) : [])
-      .filter((b): b is string => typeof b === "string" && b.trim().length > 0)
-      .filter((b) => screenClaims(b, dnaFacts).length === 0)
-      .slice(0, 5),
-    serviceCards: cards
-      .map((c) => ({ name: str(c["name"]), copy: clean(str(c["copy"])) }))
-      .filter((c) => c.name),
-    faqs: faqs
-      .map((f) => ({ question: str(f["question"]), answer: clean(str(f["answer"])) }))
-      .filter((f) => f.question && f.answer)
-      .slice(0, 6),
-    areaCopy: clean(str(data["areaCopy"])),
-    metaTitle: str(data["metaTitle"]).slice(0, 60),
-    metaDescription: str(data["metaDescription"]).slice(0, 158),
-    ogTitle: str(data["ogTitle"], str(data["metaTitle"])).slice(0, 60),
-    ogDescription: str(data["ogDescription"], str(data["metaDescription"])).slice(0, 158),
-  };
-}
-
 /** Targeted rewrite: only the supplied fields change. */
 export async function rewriteCopyFields(
   facts: CopyFacts,
@@ -246,7 +192,7 @@ export async function rewriteCopyFields(
 ): Promise<Record<string, string>> {
   const data = await chatJson(
     `Rewrite only the fields given in "current". Return JSON with the same keys and no others.
-Keep every field's role and length limits. Do not add facts. Do not change structure.`,
+Keep each field's role (a button label stays a button label). Choose whatever length best serves the instruction. Do not add facts. Do not change structure.`,
     `Instruction from the business owner: "${instruction}"\n\ncurrent:\n${JSON.stringify(current, null, 2)}\n\nFACTS:\n${factSheet(facts)}`,
   );
 
@@ -273,15 +219,15 @@ Return JSON with exactly these keys:
 positioning (one plain sentence, max 200 chars, what the business does and for whom),
 buyer (who the site is written for, max 160 chars),
 buyerGoal (what that person is trying to get done, max 160 chars),
-intents (array, 2-4 values, only from: ${Object.keys(INTENT_KEYS).join(", ")}),
+intents (array of the values that apply, from: ${Object.keys(INTENT_KEYS).join(", ")}),
 primaryAction (max 30 chars, the single most valuable action for this business model),
 secondaryAction (max 30 chars),
-objections (array of 3-5 real hesitations a buyer in this category has, max 120 chars each),
-trustNeeds (array of 3-5 things the site must show to be believed, based only on supplied facts),
-qualifyingFields (array of 4-8 short lead-form field names that are genuinely relevant to this category),
-pagePriorities (array of 3-6 short page names in order of value),
+objections (array of every real hesitation a buyer in this category has, max 120 chars each),
+trustNeeds (array of the things the site must show to be believed, based only on supplied facts),
+qualifyingFields (array of short lead-form field names that are genuinely relevant to this category),
+pagePriorities (array of as many short page names as this business genuinely needs, in order of value),
 toneNotes (max 200 chars, how the copy should sound for this buyer),
-missingFacts (array of up to 5 short items the owner should supply to make the site stronger).
+missingFacts (array of short items the owner should supply to make the site stronger).
 Never assert reviews, credentials, prices, guarantees or history that were not supplied.`;
 
   const attempt = async (role: ModelRole) =>
