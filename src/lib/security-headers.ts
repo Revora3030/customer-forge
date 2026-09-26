@@ -37,7 +37,7 @@ export const CONTENT_SECURITY_POLICY = [
   // builder open a customer page in a same-origin frame to photograph what
   // actually rendered for the visual review.
   "frame-ancestors 'self'",
-  "script-src 'self' 'unsafe-inline' https://js.stripe.com https://www.googletagmanager.com https://pagead2.googlesyndication.com https://googleads.g.doubleclick.net",
+  "script-src 'self' 'unsafe-inline' https://js.stripe.com https://maps.googleapis.com https://maps.gstatic.com https://www.googletagmanager.com https://pagead2.googlesyndication.com https://googleads.g.doubleclick.net",
   "script-src-attr 'none'",
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
   "font-src 'self' data: https://fonts.gstatic.com",
@@ -50,6 +50,7 @@ export const CONTENT_SECURITY_POLICY = [
     "https://api.stripe.com",
     "https://m.stripe.network",
     "https://maps.googleapis.com",
+    "https://maps.gstatic.com",
     "https://www.google-analytics.com",
     "https://region1.google-analytics.com",
     "https://www.googletagmanager.com",
@@ -60,7 +61,7 @@ export const CONTENT_SECURITY_POLICY = [
     "https://www.google.com",
     "https://google.com",
   ].join(" "),
-  "frame-src 'self' https://js.stripe.com https://hooks.stripe.com https://googleads.g.doubleclick.net https://td.doubleclick.net",
+  "frame-src 'self' https://www.google.com https://maps.google.com https://js.stripe.com https://hooks.stripe.com https://googleads.g.doubleclick.net https://td.doubleclick.net",
   "worker-src 'self' blob:",
   "manifest-src 'self'",
   "upgrade-insecure-requests",
