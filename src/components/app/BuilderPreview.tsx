@@ -73,7 +73,8 @@ export function BuilderPreview({
   const viewportWidth = BUILDER_VIEWPORTS.find((item) => item.key === viewport)?.width ?? 1280;
   // Fit the chosen device to the space available, so a phone view fills the
   // frame instead of shrinking into a corner; the zoom picker still caps it.
-  const scale = stageWidth > 0 ? Math.min(zoom, stageWidth / viewportWidth, viewportWidth <= 834 ? stageWidth / viewportWidth : zoom) : zoom;
+  const fit = stageWidth > 0 ? (stageWidth - 24) / viewportWidth : zoom;
+  const scale = viewportWidth <= 834 ? Math.min(1, fit) : Math.min(zoom, fit);
   const source = page ? previewPath(slug, page.slug) : previewPath(slug, "home");
 
   useEffect(() => {
