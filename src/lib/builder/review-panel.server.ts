@@ -34,9 +34,12 @@ const FULL_PANEL: Reviewer[] = [
   { area: "mobile", purpose: "specialist_review", complexity: "low", brief: "Flag layouts that will break or crowd on a 320–390px phone: multi-column rows, oversized text, overflow." },
   { area: "senior", purpose: "final_review", complexity: "high", brief: "As an independent senior professional reviewer, challenge the lead designer's work: judge whether it is finished, coherent and genuinely serves this business's visitors. Judge whether it works — never ask it to match a template or house style." },
   { area: "completeness", purpose: "completeness_check", complexity: "low", brief: "Flag unfinished or thin pages, empty sections, missing page metadata or structured-data gaps, and broken or dead-end links." },
+  { area: "funnel", purpose: "funnel_verification", complexity: "medium", brief: "Trace every way a visitor can become a lead: contact forms, quote requests, booking links, phone and email actions. Flag any call-to-action with no working destination, any form missing a field the business needs to follow up, any duplicated or contradictory contact path, and any page that offers a service with no way to act on it. Use only supplied contact details — never invent one." },
+  { area: "consistency", purpose: "site_consistency_audit", complexity: "medium", brief: "Audit the site as a whole: flag navigation that omits or misnames a real page, header/footer differences between pages, contact details or business names that differ page to page, repeated near-identical wording across pages, orphaned pages nothing links to, and links pointing at pages that do not exist." },
+  { area: "industry_fit", purpose: "industry_gap_analysis", complexity: "medium", brief: "Judge this site against what visitors in this specific industry actually need before they act. Flag missing information a buyer would expect (service areas, process, what is included, how to prepare, what happens next) and name only gaps answerable from supplied facts — never propose claims, guarantees, credentials or numbers the business did not supply." },
 ];
 
-const LIGHT_AREAS: ReviewArea[] = ["truthfulness", "seo", "accessibility", "mobile", "completeness"];
+const LIGHT_AREAS: ReviewArea[] = ["truthfulness", "seo", "accessibility", "mobile", "completeness", "funnel", "consistency"];
 
 export function panelFor(mode: "full" | "light"): Reviewer[] {
   return mode === "full" ? FULL_PANEL : FULL_PANEL.filter((r) => LIGHT_AREAS.includes(r.area));
