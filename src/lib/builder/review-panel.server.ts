@@ -15,7 +15,10 @@ export type ReviewArea =
   | "accessibility"
   | "mobile"
   | "senior"
-  | "completeness";
+  | "completeness"
+  | "funnel"
+  | "consistency"
+  | "industry_fit";
 
 export type ReviewNote = { area: ReviewArea; issues: string[]; severity: "low" | "medium" | "high"; model: string | null };
 
