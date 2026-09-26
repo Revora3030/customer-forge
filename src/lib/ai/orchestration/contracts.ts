@@ -228,6 +228,22 @@ const CONTRACTS: Record<TaskKind, TaskContract> = {
     "reasoning",
     "structured_output",
   ]),
+  funnel_verification: text("funnel_verification", "medium", [
+    "text_generation",
+    "reasoning",
+    "structured_output",
+  ]),
+  site_consistency_audit: text(
+    "site_consistency_audit",
+    "medium",
+    ["text_generation", "reasoning", "structured_output"],
+    { minContextTokens: 64_000 },
+  ),
+  industry_gap_analysis: text("industry_gap_analysis", "medium", [
+    "text_generation",
+    "reasoning",
+    "structured_output",
+  ]),
   repair_plan: text("repair_plan", "medium", [
     "text_generation",
     "reasoning",
