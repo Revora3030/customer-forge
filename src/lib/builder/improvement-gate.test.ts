@@ -41,6 +41,6 @@ describe("review panel", () => {
     const thinker = (async () => { throw new Error("x"); }) as never;
     const out = await runReviewPanel({ organizationId: "o", material: "", mode: "light" }, thinker);
     expect(out.notes).toEqual([]);
-    expect(out.failed.length).toBe(5);
+    expect(out.failed.length).toBe(panelFor("light").length);
   });
 });
