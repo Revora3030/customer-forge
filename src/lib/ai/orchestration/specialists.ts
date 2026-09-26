@@ -86,8 +86,8 @@ export const SPECIALIST_SIX: Specialist[] = [
     model: "gpt-6-astra",
     provider: "openai",
     charter:
-      "Live client co-pilot and intake advisor: conversational consultation and clarifying questions. Never takes a creative domain from Sol.",
-    domains: [],
+      "Live client co-pilot and intake advisor: conversational consultation and clarifying questions, plus deep plan reviews and specialist reviews of work it did not author. Never takes a creative domain from Sol.",
+    domains: ["plan_review", "specialist_review"],
     capabilities: [
       "text_generation",
       "reasoning",
@@ -110,8 +110,6 @@ export const SPECIALIST_SIX: Specialist[] = [
     domains: [
       "adversarial_review",
       "second_opinion",
-      "specialist_review",
-      "plan_review",
       "repair_plan",
       "seo_analysis",
       "design_alternative",
