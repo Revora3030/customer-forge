@@ -29,15 +29,24 @@ const BAND = {
  * words. Shared with the free-model registry so one heuristic exists.
  */
 export function modelQualityWeight(model: string): number {
-  const billions = /(\d{2,4})\s*b\b/i.exec(model.replace(/[-_]/g, " "));
+  // Known free-tier flagships whose ids carry no size class.
+  if (/(^|\/)gpt-5\.4$/i.test(model)) return 90;
+  if (/(^|\/)gpt-4o$/i.test(model)) return 72;
+  if (/glm-5|kimi-k2|deepseek-(v3|r1)|qwen3.*(235b|480b)/i.test(model)) return 88;
+  // Active-parameter suffixes (e.g. "120b-a12b") describe routing, not size.
+  const billions = /(\d{1,4}(?:\.\d)?)\s*b\b/i.exec(model.replace(/[-_]/g, " ").replace(/\ba\d+b\b/gi, ""));
   if (billions) {
     const value = Number(billions[1]);
-    if (Number.isFinite(value)) return Math.min(100, 30 + value / 6);
+    if (Number.isFinite(value)) {
+      if (value >= 100) return 92;
+      if (value >= 60) return 80;
+      if (value >= 25) return 66;
+      if (value >= 12) return 55;
+      return 40;
+    }
   }
-  if (/120b|235b|480b|405b/i.test(model)) return 95;
-  if (/70b|72b|large|nemotron|maverick/i.test(model)) return 80;
-  if (/32b|30b|27b/i.test(model)) return 66;
-  if (/flash|lite|mini|small|8b|4b|3b|nano|schnell/i.test(model)) return 40;
+  if (/large|maverick|codestral/i.test(model)) return 70;
+  if (/flash|lite|mini|small|nano|schnell/i.test(model)) return 40;
   return 50;
 }
 
