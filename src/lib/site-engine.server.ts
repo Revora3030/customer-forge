@@ -24,7 +24,7 @@ export const COPY_ROLE: ModelRole = "fast";
  */
 export const ANALYSIS_ROLE: ModelRole = "coding";
 
-const SAFETY = `You write marketing copy for local business websites.
+const SAFETY = `You write marketing copy for business websites in any industry, anywhere.
 ABSOLUTE RULES:
 - Use only the facts given. Never invent reviews, testimonials, ratings, awards,
   certifications, licences, insurance, guarantees, years in business, addresses,
@@ -284,7 +284,7 @@ export async function proposeSectionEdits(
   instruction: string,
 ): Promise<{ edits: ProposedEdit[]; reply: string }> {
   const data = await chatJson(
-    `You edit sections of a local business website on request.
+    `You edit sections of a business website on request.
 Return JSON: { "reply": string (one short sentence describing what you changed),
 "edits": [ { "sectionId": string, "field": "heading" | "subheading" | "body", "after": string } ] }.
 Rules:
@@ -332,7 +332,7 @@ Rules:
  * returned in `missingFacts` for the owner to fill in.
  */
 export async function analyzeBusiness(facts: CopyFacts): Promise<SiteBrief> {
-  const system = `You analyse a local business so a website can be built around how its customers actually buy.
+  const system = `You analyse a business (any industry, any size, local or global) so a website can be built around how its customers actually buy.
 Return JSON with exactly these keys:
 positioning (one plain sentence, max 200 chars, what the business does and for whom),
 buyer (who the site is written for, max 160 chars),

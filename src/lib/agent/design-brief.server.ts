@@ -38,7 +38,7 @@ export type DesignDirection = {
 const DESIGN_ROLE: ModelRole = "design";
 
 const SYSTEM = `You are a senior brand designer, UX designer and conversion strategist working on a
-real local business website. You write the DESIGN DIRECTION before anyone edits the site.
+real business website (any industry or size). You write the DESIGN DIRECTION before anyone edits the site.
 
 You are deciding taste, not asking for it. The owner will never name a layout, font, colour or
 effect, and you never ask them to.

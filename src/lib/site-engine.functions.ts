@@ -858,7 +858,7 @@ export const runSiteEngineCheck = createServerFn({ method: "POST" })
           ok: brief.source !== "rules",
           detail:
             brief.source === "rules"
-              ? "AI analysis returned nothing usable; the deterministic brief would be used."
+              ? "AI analysis returned nothing usable; the build would stop (there is no rule-based fallback)."
               : `${brief.source} answered: “${brief.positioning.slice(0, 120)}”`,
         });
       } catch (error) {
