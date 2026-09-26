@@ -217,7 +217,7 @@ export async function composeFirstBuildSections(input: {
         { cause: feedback },
       );
     }
-    const best = await improveWithTeam({ organizationId, lookSummary: input.lookSummary, industry: facts.industry, sections: pageSections, parts, designed, screen, result });
+    const best = await improveWithTeam({ organizationId, lookSummary: input.lookSummary, industry: facts.industry ?? null, sections: pageSections, parts, designed, screen, result });
     for (const section of pageSections) {
       const tree = best.get(section.id);
       if (!tree) continue;
