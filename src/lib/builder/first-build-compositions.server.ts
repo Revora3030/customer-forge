@@ -217,7 +217,7 @@ export async function composeFirstBuildSections(input: {
         { cause: feedback },
       );
     }
-    const best = await improveWithTeam({ organizationId, lookSummary: input.lookSummary, sections: pageSections, parts, designed, screen, result });
+    const best = await improveWithTeam({ organizationId, lookSummary: input.lookSummary, industry: facts.industry ?? null, sections: pageSections, parts, designed, screen, result });
     for (const section of pageSections) {
       const tree = best.get(section.id);
       if (!tree) continue;
@@ -246,6 +246,7 @@ async function saveTree(db: Db, organizationId: string, section: SectionRow, tre
 async function improveWithTeam(input: {
   organizationId: string;
   lookSummary: string;
+  industry?: string | null;
   sections: SectionRow[];
   parts: ComponentRow[];
   designed: Map<string, CompositionTree>;
@@ -262,6 +263,7 @@ async function improveWithTeam(input: {
       const panel = await runReviewPanel({
         organizationId: input.organizationId,
         mode: "full",
+        industry: input.industry ?? null,
         material: ["SUPPLIED MATERIAL:", material, "", "SOL'S DESIGN:", JSON.stringify(current)].join("\n"),
       });
       input.result.models.push(...panel.models);

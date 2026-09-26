@@ -163,10 +163,32 @@ export async function runAdvisoryPanel(
 
 
 export async function runReviewPanel(
-  input: { organizationId: string; material: string; mode: "full" | "light"; stage?: string },
+  input: { organizationId: string; material: string; mode: "full" | "light"; stage?: string; industry?: string | null },
   thinker: Thinker = diverseThinker,
 ): Promise<{ notes: ReviewNote[]; models: string[]; costMicrocents: number; failed: ReviewArea[] }> {
   const reviewers = panelFor(input.mode);
+  // The industry-fit reviewer gets live web research about what buyers in
+  // this industry expect before they act. Research is evidence, never copy:
+  // it is clearly marked third-party material and only shapes which gaps the
+  // reviewer flags — every suggested fix must still come from supplied facts.
+  let industryResearch: string | null = null;
+  if (input.mode === "full" && input.industry?.trim()) {
+    try {
+      const { searchWeb } = await import("@/lib/integrations/research.server");
+      const found = await searchWeb(
+        `what customers expect from a ${input.industry.trim().slice(0, 80)} business website before contacting or booking`,
+        5,
+      );
+      if (found.ok && found.results.length) {
+        industryResearch = [
+          "LIVE WEB RESEARCH (third-party material, never quote as this business's own facts):",
+          ...found.results.map((r) => `- ${r.title} — ${r.snippet} (${r.url})`),
+        ].join("\n");
+      }
+    } catch (error) {
+      console.warn("industry research skipped", (error as Error).message);
+    }
+  }
   const settled = await Promise.allSettled(
     reviewers.map((reviewer) =>
       thinker({
@@ -183,7 +205,10 @@ export async function runReviewPanel(
           "You do not rewrite anything. Give at most 6 short, specific, actionable notes referencing section ids.",
           'Respond with JSON only: {"issues": ["..."], "severity": "low"|"medium"|"high"}. Use an empty list when there is nothing worth changing.',
         ].join(" "),
-        user: input.material,
+        user:
+          reviewer.area === "industry_fit" && industryResearch
+            ? [input.material, "", industryResearch].join("\n")
+            : input.material,
       }).then((call) => ({ reviewer, call })),
     ),
   );
