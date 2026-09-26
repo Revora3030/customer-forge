@@ -279,8 +279,10 @@ export async function freeModelPool(
     // usable generator. These two endpoints have both been live-verified with
     // the plain `{ prompt }` request shape used by the adapter.
     if (role === "image" && entry.name === "cloudflare") {
-      consider("@cf/bytedance/stable-diffusion-xl-lightning");
+      // Flux-1-schnell first: sharper automotive/product detail, fewer
+      // geometric artifacts than the 4-step SDXL-Lightning endpoint.
       consider("@cf/black-forest-labs/flux-1-schnell");
+      consider("@cf/bytedance/stable-diffusion-xl-lightning");
     }
     // The configured default is the model proven against this account. Put it
     // before name-matched catalogue discoveries: metadata can identify a model
