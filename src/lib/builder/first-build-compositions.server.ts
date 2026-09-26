@@ -24,7 +24,7 @@ import {
 } from "@/lib/builder/composition-tree";
 import type { DnaFacts } from "@/lib/business-dna";
 import { runAdvisoryPanel, runReviewPanel } from "@/lib/builder/review-panel.server";
-import { NO_EVIDENCE, gatherReviewEvidence, type ReviewEvidence } from "@/lib/builder/review-evidence.server";
+import { NO_EVIDENCE, allEvidence, gatherReviewEvidence, type ReviewEvidence } from "@/lib/builder/review-evidence.server";
 import { runImprovementGate, type GateReport } from "@/lib/builder/improvement-gate.server";
 
 const IMPROVEMENT_ROUNDS = 2;
