@@ -33,12 +33,7 @@ export function SiteBackdrop({
   if (composition && composition.layers.length) {
     return <VisualComposition composition={composition} />;
   }
-  if (backdrop === "none") return null;
-  return (
-    <div aria-hidden className={`fx-backdrop fx-backdrop-${backdrop.replace(/_/g, "-")}`}>
-      <span className="fx-layer fx-layer-1" />
-      <span className="fx-layer fx-layer-2" />
-      <span className="fx-layer fx-layer-3" />
-    </div>
-  );
+  // Old named backdrops are no longer drawn; only AI-authored ones render.
+  void backdrop;
+  return null;
 }

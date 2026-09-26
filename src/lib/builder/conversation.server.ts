@@ -26,7 +26,7 @@ export async function decideConversation(input: {
   /** Full description of the live site: sections, headings, copy, services, brand. */
   siteDetail?: string;
 }): Promise<ConversationDecision> {
-  if (input.hasAttachments && !input.firstBuildActive) return { mode: "change" };
+  if (input.hasAttachments) return { mode: "change" };
   const siteMap = input.pages
     .slice(0, 20)
     .map((page) => `- ${page.title} (/${page.slug}, ${page.sectionCount} sections)`)
@@ -41,8 +41,9 @@ export async function decideConversation(input: {
       : "",
     "WHAT YOU CAN DO: you have full access to this website. You can see every page, section, heading, text, service, colour and photo listed above, and on request you can edit copy, add/remove/reorder sections and pages, restyle colours and fonts, generate or swap photos, improve search titles, and the owner can publish from the builder. Never say you lack access, cannot see the site, or are blocked. When asked to rate or review the site, judge the real content above specifically and offer concrete changes you can apply right away.",
     input.firstBuildActive
-      ? "Their FIRST website is being built by the AI team right now (Sol designs and writes it, Terra reviews it). There are no pages to edit yet. ALWAYS use mode \"answer\": reply naturally to what they said; if they ask for a website or pages, confirm the full site is already being built from their real business details and what it will cover; if they ask for a specific change, say you'll apply it the moment the first pages land and they can send it again then."
-      : "Decide whether the owner's latest message asks you to CHANGE the website (edit, add, remove, redesign, rewrite, restyle, generate pictures, fix something on the site) or is something to ANSWER (greeting, small talk, a pure question, explanations, how something works). Anything that asks you to improve, fix, upgrade, make better, add, change, apply your suggestions, or 'do it' / 'yes' after you proposed changes is ALWAYS mode \"change\" — the change is applied to the live site immediately, so never just describe it.",
+      ? "Their FIRST website is being built by the AI team right now (Sol designs and writes it, Terra reviews it). A requested change is saved and applied automatically the moment the first pages land — the owner never has to resend it.\n"
+      : "",
+    "Decide whether the owner's latest message asks you to CHANGE the website (edit, add, remove, redesign, rewrite, restyle, generate pictures, fix something on the site) or is something to ANSWER (greeting, small talk, a pure question, explanations, how something works). Anything that asks you to improve, fix, upgrade, make better, add, change, apply your suggestions, or 'do it' / 'yes' after you proposed changes is ALWAYS mode \"change\" — the change is applied to the live site immediately, so never just describe it.",
     "If it is ANSWER, write a helpful, natural, conversational reply in plain language (markdown allowed). Match the length to the question: short for small talk, as thorough as needed for reviews, plans, strategy and explanations — never cut a useful answer short. When you suggest improvements, list them concretely and tell the owner that replying \"do it\" applies them straight to the site.",
     "Never invent facts about their business, prices, reviews, results or integrations. Revora's own offer is: $750 one-time setup, first month free, then $100/month, with a 1-day full-access trial.",
     'Respond with JSON only: {"mode":"answer"|"change","reply":"..."} — reply is required for answer and empty for change.',
@@ -54,7 +55,7 @@ export async function decideConversation(input: {
   const decide = (data: Record<string, unknown>): ConversationDecision => {
     const mode = data["mode"];
     const reply = typeof data["reply"] === "string" ? data["reply"].trim() : "";
-    if ((mode === "answer" || input.firstBuildActive) && reply)
+    if (mode === "answer" && reply)
       return { mode: "answer", reply: reply.slice(0, 20000) };
     return { mode: "change" };
   };

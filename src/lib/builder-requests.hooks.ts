@@ -67,6 +67,7 @@ export function useBuilderRequests({
   const [refreshing, setRefreshing] = useState(false);
   const [refreshRevision, setRefreshRevision] = useState(0);
   const queryClient = useQueryClient();
+  const deferRef = useRef(new Map<string, number>());
 
   // Honest report of what this device can do. Building never depends on it.
   useEffect(() => {
@@ -318,6 +319,17 @@ export function useBuilderRequests({
           ...(brand && hasBrandChoices(brand) ? { brand } : {}),
         },
       });
+      if ("deferred" in result && result.deferred) {
+        // First build still running: keep the request and try again once pages exist.
+        const attempts = (deferRef.current.get(task.id) ?? 0) + 1;
+        deferRef.current.set(task.id, attempts);
+        if (attempts === 1) remember([{ role: "user", content: task.instruction }, { role: "assistant", content: result.reply }]);
+        if (attempts <= 60) {
+          patch(task.id, { state: "planning", reply: result.reply });
+          await new Promise((resolve) => setTimeout(resolve, 15000));
+          return runPlan(task);
+        }
+      }
       if ("conversational" in result && result.conversational) {
         // A plain answer from the AI: shown as a chat reply, nothing to apply.
         setTasks((current) =>

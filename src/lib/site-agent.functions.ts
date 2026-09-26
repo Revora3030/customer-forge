@@ -422,7 +422,7 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
     // pages arrive.
     if (!agentContext.pages.length) {
       const reply =
-        "I have your request. Your AI team is finishing the first website now; as soon as the pages appear, send this change again and I’ll apply it to the draft.";
+        "Got it — your AI team is finishing the first website now. I’ve saved this change and will apply it automatically as soon as the pages appear.";
       return {
         reply,
         summary: "",
@@ -431,10 +431,11 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
         notes: [] as string[],
         dropped: [] as string[],
         requirements: [] as { label: string; covered: boolean }[],
-        trace: ["First website build is active; no editable page exists yet."],
+        trace: ["First website build is active; change saved and waiting for pages."],
         unavailable: null as { reason: string; retryable: boolean; instruction: string } | null,
         composition: null as import("@/lib/builder/composition-preview").CompositionPreview | null,
         conversational: true,
+        deferred: true,
       };
     }
 

@@ -19,7 +19,6 @@ import { readCustomBlock } from "@/lib/builder/custom-block";
 import { CustomBlock } from "@/components/site/CustomBlock";
 import { safeLinkUrl, sectionLabel } from "@/lib/website-content";
 import { readEmbed } from "@/lib/site-embed";
-import { readSectionEffect, sectionEffectClass } from "@/lib/site-effects";
 import { businessFacts, factsAddressLine } from "@/lib/builder/facts";
 import { safeParagraph, safeText } from "@/lib/builder/presentation";
 
@@ -82,18 +81,15 @@ const Heading = ({ section }: { section: Section }) => {
 /**
  * Public section renderer. Only AI-designed layouts and working features
  * render; no built-in variant, style family or layout class is applied.
- * The owner's own block edits and chosen movement effect still apply.
+ * The owner's own block edits still apply; old named effects are no longer drawn.
  */
 export function SiteSection({ site, section }: { site: Site; section: Section }) {
-  const effect = readSectionEffect(section.settings);
   const css = blockCss(readBlockStyle(section.settings), siteSurface(site));
-  const body = (
+  return (
     <div data-rvb={section.id} data-rvb-kind={section.kind} data-rvb-label={sectionLabel(section.kind)} style={css}>
       <SiteSectionBody site={site} section={section} />
     </div>
   );
-  if (effect === "none") return body;
-  return <div className={sectionEffectClass(effect)}>{body}</div>;
 }
 
 function SiteSectionBody({ site, section }: { site: Site; section: Section }) {
