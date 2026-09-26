@@ -60,8 +60,21 @@ export function BuilderPreview({
   const [fullscreen, setFullscreen] = useState(false);
   const [selectMode, setSelectMode] = useState(false);
   const frameRef = useRef<HTMLIFrameElement>(null);
+  const stageRef = useRef<HTMLDivElement>(null);
+  const [stageWidth, setStageWidth] = useState(0);
+  useEffect(() => {
+    const el = stageRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(([entry]) => setStageWidth(entry?.contentRect.width ?? 0));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
   const page = ordered.find((item) => item.id === pageId) ?? ordered[0];
   const viewportWidth = BUILDER_VIEWPORTS.find((item) => item.key === viewport)?.width ?? 1280;
+  // Fit the chosen device to the space available, so a phone view fills the
+  // frame instead of shrinking into a corner; the zoom picker still caps it.
+  const fit = stageWidth > 0 ? (stageWidth - 24) / viewportWidth : zoom;
+  const scale = viewportWidth <= 834 ? Math.min(1, fit) : Math.min(zoom, fit);
   const source = page ? previewPath(slug, page.slug) : previewPath(slug, "home");
 
   useEffect(() => {
@@ -208,7 +221,7 @@ export function BuilderPreview({
         </div>
       </header>
 
-      <div className="relative min-h-[560px] flex-1 overflow-auto bg-elevated p-3 sm:min-h-[680px]">
+      <div ref={stageRef} className="relative min-h-[560px] flex-1 overflow-auto bg-elevated p-3 sm:min-h-[680px]">
         {refreshing ? (
           <div className="absolute inset-x-3 top-3 z-10 rounded-md border border-border bg-background/90 px-3 py-2 text-center text-[12px] font-medium backdrop-blur" role="status">
             Updating your preview…
@@ -216,7 +229,7 @@ export function BuilderPreview({
         ) : null}
         <div
           className="mx-auto overflow-hidden rounded-md border border-border bg-background shadow-lift transition-[width,height] duration-300"
-          style={{ width: viewportWidth * zoom, height: 760 * zoom }}
+          style={{ width: viewportWidth * scale, height: 760 * scale }}
         >
           <iframe
             ref={frameRef}
@@ -226,7 +239,7 @@ export function BuilderPreview({
             title={`${page?.title ?? "Website"} preview`}
             src={source}
             className="origin-top-left border-0 bg-background"
-            style={{ width: viewportWidth, height: 760, transform: `scale(${zoom})` }}
+            style={{ width: viewportWidth, height: 760, transform: `scale(${scale})` }}
           />
         </div>
       </div>
