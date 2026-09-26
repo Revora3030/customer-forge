@@ -1,5 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
+import { GoogleListingImport } from "@/components/onboarding/GoogleListingImport";
 import { toast } from "@/lib/ui/notify";
 import { ArrowLeft, ArrowRight, Loader2, Plus, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -813,6 +814,14 @@ function Onboarding() {
                   These details power your call, text, email and form buttons.
                 </p>
               </div>
+              <GoogleListingImport
+                query={[draft.businessName, draft.city].filter(Boolean).join(" ")}
+                onUse={(l) => {
+                  if (l.phone) set("phone", l.phone);
+                  if (l.address) set("address", l.address);
+                  if (l.website) set("website", l.website);
+                }}
+              />
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-1.5">
                   <Label htmlFor="o-phone">Business phone</Label>
