@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { coveredRequestDimensions, normalizeBuilderInstruction } from "./request-coverage";
+import * as coverage from "./request-coverage";
+const { normalizeBuilderInstruction } = coverage;
 
 describe("builder request coverage", () => {
   it("treats front as font in a visual styling request", () => {
@@ -12,16 +13,7 @@ describe("builder request coverage", () => {
     expect(normalizeBuilderInstruction("Add our storefront address")).toBe("Add our storefront address");
   });
 
-  it("does not report font coverage for a colour-only theme action", () => {
-    const coverage = coveredRequestDimensions("Change front and background color", [
-      {
-        type: "set_theme",
-        patch: { primary_color: "#111111", secondary_color: "#eeeeee" },
-      },
-    ]);
-    expect(coverage).toEqual([
-      { label: "font change", covered: false },
-      { label: "color change", covered: true },
-    ]);
+  it("never gates AI plans on keywords in the request", () => {
+    expect(Object.keys(coverage)).toEqual(["normalizeBuilderInstruction"]);
   });
 });

@@ -91,6 +91,7 @@ function actionContract(context: AgentContext): string {
     `Allowed component kinds: ${context.componentKinds.join(", ")}, image, hero_image.`,
     "For every existing component marked [has picture], place it visibly in that section's composition using a media node whose mediaRef is that exact component id.",
     "When a section should show new photography, add the image component, add generate_component_image for it, AND place a media node with that same component id or temp ref inside the section's set_composition tree. A generated picture not referenced by the composition is invisible and is a failed plan.",
+    "When the owner asks to improve, replace or rebuild pictures, include generate_component_image actions for the sections whose photography should change, placed in the composition as above.",
     "Image prompts describe a real, specific scene for this business: no text, logos, watermarks, awards, reviews or identifiable customers in the picture.",
   ].join("\n");
 }

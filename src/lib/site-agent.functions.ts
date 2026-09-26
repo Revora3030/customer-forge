@@ -31,10 +31,7 @@ import {
 } from "@/lib/site-agent";
 import type { VerificationReport } from "@/lib/agent/verify";
 import type { QaLoopResult } from "@/lib/builder/qa-loop.server";
-import {
-  coveredRequestDimensions,
-  normalizeBuilderInstruction,
-} from "@/lib/builder/request-coverage";
+import { normalizeBuilderInstruction } from "@/lib/builder/request-coverage";
 
 import { safeLinkUrl } from "@/lib/website-content";
 import { MEDIA_BUCKET, buildObjectPath, isStoragePath } from "@/lib/media";
@@ -591,8 +588,6 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
       droppedReasons,
     );
     const actions = parsedActions;
-    const measuredRequirements = coveredRequestDimensions(instruction, actions);
-    if (measuredRequirements.length) requirements = measuredRequirements;
     const index: SiteIndex = { pages: new Map(), sections: new Map(), components: new Map() };
     const currentText = new Map<string, string>();
     for (const page of agentContext.pages)
