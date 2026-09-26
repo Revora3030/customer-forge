@@ -140,7 +140,7 @@ export function seoInventory(): SeoPage[] {
       "/",
       "ai growth software for local business",
       "Revora — AI Growth Software That Books Local Jobs 24/7",
-      "AI growth software for local service businesses: lead-generating website, instant quotes, online booking, CRM, automated follow-up, review requests, local SEO and analytics in one system.",
+      "AI growth software for businesses in every industry: lead-generating website, instant quotes, online booking, CRM, automated follow-up, review requests, local SEO and analytics in one system.",
       900,
     ),
     page(

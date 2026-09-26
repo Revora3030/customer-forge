@@ -46,7 +46,7 @@ export const ORGANIZATION_SCHEMA = {
   telephone: BUSINESS.tel,
   email: BUSINESS.email,
   description:
-    "Revora builds local service businesses a complete customer acquisition system: website, lead capture, CRM, quotes, booking, follow-up, reviews, local SEO and analytics.",
+    "Revora builds businesses in every industry a complete customer acquisition system: website, lead capture, CRM, quotes, booking, follow-up, reviews, local SEO and analytics.",
   founder: { "@type": "Person", name: REVORA.founder.name },
   areaServed: BUSINESS.areasServed.map((name) => ({ "@type": "AdministrativeArea", name })),
   contactPoint: [
@@ -179,7 +179,7 @@ export const GROWTH_SYSTEM_SCHEMA = {
   "@context": "https://schema.org",
   "@type": "Service",
   name: GROWTH_SYSTEM.name,
-  serviceType: "Customer acquisition system for local service businesses",
+  serviceType: "Customer acquisition system for businesses",
   provider: { "@id": `${SITE_URL}/#organization` },
   areaServed: BUSINESS.areasServed.map((name) => ({ "@type": "AdministrativeArea", name })),
   description:
