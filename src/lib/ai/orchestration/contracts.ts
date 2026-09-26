@@ -74,6 +74,10 @@ export type TaskKind =
   | "second_opinion"
   | "specialist_review"
   | "plan_review"
+  // Astra's verification and advisory lanes
+  | "funnel_verification"
+  | "site_consistency_audit"
+  | "industry_gap_analysis"
   | "repair_plan"
   | "seo_analysis"
   | "design_alternative"
@@ -220,6 +224,22 @@ const CONTRACTS: Record<TaskKind, TaskContract> = {
     "structured_output",
   ]),
   plan_review: text("plan_review", "medium", [
+    "text_generation",
+    "reasoning",
+    "structured_output",
+  ]),
+  funnel_verification: text("funnel_verification", "medium", [
+    "text_generation",
+    "reasoning",
+    "structured_output",
+  ]),
+  site_consistency_audit: text(
+    "site_consistency_audit",
+    "medium",
+    ["text_generation", "reasoning", "structured_output"],
+    { minContextTokens: 64_000 },
+  ),
+  industry_gap_analysis: text("industry_gap_analysis", "medium", [
     "text_generation",
     "reasoning",
     "structured_output",
