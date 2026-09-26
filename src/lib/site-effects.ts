@@ -21,7 +21,7 @@ export type BackdropId =
   "none" | "stars" | "aurora" | "nebula" | "grid" | "spotlight" | "gradient_mesh";
 
 export type SectionEffectId =
-  "none" | "float_3d" | "tilt_3d" | "glass" | "gold_glow" | "rise" | "parallax_slow" | "shine";
+  "none" | "float_3d" | "tilt_3d" | "glass" | "rise" | "parallax_slow";
 
 export type EffectOption<T extends string> = {
   id: T;
@@ -61,10 +61,8 @@ export const SECTION_EFFECTS: EffectOption<SectionEffectId>[] = [
   { id: "float_3d", label: "3D float", help: "The section gently floats in 3D space." },
   { id: "tilt_3d", label: "3D tilt", help: "The section sits on a slight 3D angle with depth." },
   { id: "glass", label: "Frosted glass", help: "Translucent glass panel over the backdrop." },
-  { id: "gold_glow", label: "Gold glow", help: "A gold halo that draws the eye to this block." },
   { id: "rise", label: "Rise in", help: "Fades and rises into view as visitors scroll." },
   { id: "parallax_slow", label: "Parallax", help: "Moves slower than the page for depth." },
-  { id: "shine", label: "Gold shine", help: "A slow gold sheen sweeps across the block." },
 ];
 
 const BACKDROP_IDS = new Set(BACKDROPS.map((b) => b.id));
