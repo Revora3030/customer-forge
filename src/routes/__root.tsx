@@ -4,6 +4,7 @@ import {
   createRootRouteWithContext,
   notFound,
   useRouter,
+  useRouterState,
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
@@ -217,13 +218,19 @@ function RootComponent() {
     void loadGoogleAds(true);
   }, []);
 
+  // The website builder speaks through its AI chat; pop-up banners there were
+  // leftovers from the old engine and covered the builder, so they are off.
+  const builderOpen = useRouterState({
+    select: (s) => s.location.pathname.startsWith("/app/website"),
+  });
+
   return (
     <QueryClientProvider client={queryClient}>
       <PlatformAnalytics />
       {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
       <Outlet />
       <CookieConsent />
-      <Toaster position="top-right" />
+      {!builderOpen && <Toaster position="top-right" />}
     </QueryClientProvider>
   );
 }
