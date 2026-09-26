@@ -56,6 +56,9 @@ describe("no third-party AI gateway remains", () => {
       "integrations/google.server",
       "integrations/capabilities.ts",
       "integrations/live-credentials",
+      // The Astra backup chat lane reads the gateway credential to keep the
+      // builder chat alive when the direct OpenAI route is down.
+      "ai/gateway-chat.server.ts",
     ];
     const offenders = APP_FILES.filter((file) => {
       if (!readFileSync(file, "utf8").includes("LOVABLE_API_KEY")) return false;
