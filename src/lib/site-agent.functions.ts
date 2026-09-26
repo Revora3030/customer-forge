@@ -1060,7 +1060,16 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
           });
           break;
         }
-        case "set_composition":
+        case "set_composition": {
+          // A redesigned booking/quote/contact section must keep its working
+          // feature: the AI places it with a widget node anywhere it likes.
+          const priorKind = readColumn("website_sections", action.sectionId, "kind");
+          const needs = priorKind === "booking" ? "booking_form" : priorKind === "quote" ? "quote_calculator" : priorKind === "contact" ? "contact_details" : null;
+          if (needs && !JSON.stringify(action.tree).includes(`"${needs}"`)) {
+            failed.push(`${action.type} (kept the working ${priorKind} section: layout had no ${needs} widget)`);
+            break;
+          }
+          noteColumn("website_sections", action.sectionId, "kind", "composition");
           await run(action.type, () => {
             const tree = resolveCompositionMediaRefs(action.tree, newComponents);
             const settings = writeComposition(readColumn("website_sections", action.sectionId, "settings"), tree);
@@ -1072,6 +1081,7 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
               .eq("organization_id", orgId);
           });
           break;
+        }
         case "set_custom_block":
           await run(action.type, () => {
             const settings = writeCustomBlock(
@@ -1597,6 +1607,38 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
       }
     }
 
+    // VERIFY BEFORE CLAIMING. Re-read every row this run wrote and confirm the
+    // saved value is the value the AI asked for, so "done" is only reported for
+    // changes that actually landed.
+    const unconfirmed: string[] = [];
+    try {
+      const stable = (value: unknown): string =>
+        JSON.stringify(value, (_k, v) =>
+          v && typeof v === "object" && !Array.isArray(v)
+            ? Object.fromEntries(Object.keys(v as object).sort().map((k) => [k, (v as Record<string, unknown>)[k]]))
+            : v,
+        );
+      for (const [key, columns] of overlay) {
+        const split = key.indexOf(":");
+        const table = key.slice(0, split);
+        const id = key.slice(split + 1);
+        if (id === "org") continue;
+        const names = Object.keys(columns);
+        const { data: row } = await (supabase as unknown as { from: (t: string) => any }) // eslint-disable-line @typescript-eslint/no-explicit-any
+          .from(table)
+          .select(names.join(","))
+          .eq("id", id)
+          .eq("organization_id", orgId)
+          .maybeSingle();
+        if (!row) continue; // removed later in the same run
+        for (const name of names)
+          if (stable((row as Record<string, unknown>)[name] ?? null) !== stable(columns[name] ?? null))
+            unconfirmed.push(`${table.replace(/^website_/, "")} ${name}`);
+      }
+    } catch (error) {
+      console.error("[site-agent] read-back check could not run", error);
+    }
+
     // CHECK, REPAIR, CHECK AGAIN. The writes are in place and the live pages
     // verified, so Revora now runs its own QA pass over the saved rows, applies
     // only the repairs it can prove from the site's own data, and re-runs the
@@ -1653,6 +1695,8 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
     return {
       applied: applied.length,
       failed: failed.length,
+      /** Writes whose saved value did not match on read-back — never reported as done. */
+      unconfirmed,
       /** Steps that could not run because their target no longer exists. */
       stale: preflight.stale.length,
       /** Steps that needed no write because the site already matched them. */
@@ -1663,6 +1707,7 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
       details: [
         ...applied.map((label) => `applied ${label}`),
         ...failed.map((label) => `skipped ${label}`),
+        ...unconfirmed.map((label) => `not confirmed on read-back: ${label}`),
         ...preflight.stale.map((entry) => `stale ${entry.type} (${entry.reason})`),
         ...settled.unchangedLabels,
         ...applyDropped.map((reason) => `left out — ${reason}`),

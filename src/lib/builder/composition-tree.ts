@@ -11,8 +11,12 @@ import { contrastRatio } from "@/lib/readable-color";
 export const COMPOSITION_PRIMITIVES = [
   "stack", "grid", "row", "text", "heading", "media", "button", "link",
   "card", "list", "divider", "spacer", "icon",
-  "tabs", "toggle", "accordion", "compare", "marquee", "gallery", "quote",
+  "tabs", "toggle", "accordion", "compare", "marquee", "gallery", "quote", "widget",
 ] as const;
+
+/** Working features an AI layout may place anywhere. Their data (prices, phone, email, hours) always comes from verified business facts. */
+export const COMPOSITION_WIDGETS = ["booking_form", "quote_calculator", "contact_details", "direct_contact"] as const;
+export type CompositionWidget = (typeof COMPOSITION_WIDGETS)[number];
 
 /** How the interactive building blocks are used. Describes mechanics only — never a layout. */
 export const PRIMITIVE_GUIDE =
@@ -23,6 +27,7 @@ export const PRIMITIVE_GUIDE =
   "marquee (children scroll sideways in a loop; stops for reduced motion), " +
   "gallery (media children in a grid; tap opens full size), " +
   "quote (text is the quoted words; items[0] optional attribution — only real, supplied quotes). " +
+  "widget (text is one of booking_form|quote_calculator|contact_details|direct_contact — drops the site's real working form or verified phone/email/hours/area into your layout; style its wrapper freely, never retype those facts yourself). " +
   "Layering: style.position (relative|sticky|absolute), style.top/left/right/bottom (px), style.zIndex (0-50), style.overlap (px a block pulls up over the one before it), style.blur (frosted-glass backdrop px), style.rotate (deg), style.gridAreas + style.area for named grid regions. " +
   "Motion: motion.kind fade|rise|scale|float|slide-left|slide-right|blur|reveal, motion.delayMs, motion.durationMs, motion.easing (ease|ease-in|ease-out|ease-in-out|linear|spring|snap); presets are optional shortcuts. " +
   "Or design your own: motion.kind custom with motion.from { opacity 0-100, x/y px -240..240, scale 0.5-1.5, rotate deg -45..45, blur px 0-24 } (the block animates from those values to its designed state), " +
@@ -363,6 +368,7 @@ export function validateComposition(input: unknown, options: ValidateOptions = {
     if (node.type === "media" && !node.src && !node.mediaRef) issues.push({ path, problem: "images need a source or website picture reference" });
     if (node.type === "media" && (node.src || node.mediaRef) && !node.alt) issues.push({ path: `${path}.alt`, problem: "images need alt text" });
     if ((node.type === "button" || node.type === "link") && !node.href) issues.push({ path: `${path}.href`, problem: "buttons and links need a destination" });
+    if (node.type === "widget" && !COMPOSITION_WIDGETS.includes(node.text as CompositionWidget)) issues.push({ path: `${path}.text`, problem: `widget must be one of ${COMPOSITION_WIDGETS.join(", ")}` });
     if (node.type === "quote" && !node.text) issues.push({ path: `${path}.text`, problem: "quote needs its words in text" });
     if (row["level"] != null) {
       if (![1, 2, 3, 4].includes(row["level"] as number)) issues.push({ path: `${path}.level`, problem: "level must be 1-4" });
