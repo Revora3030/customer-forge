@@ -301,101 +301,6 @@ export const aiEditSiteCopy = createServerFn({ method: "POST" })
     return result;
   });
 
-/** AI section assistant: proposes edits; the client confirms before anything is written. */
-export const aiEditSiteSections = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
-  .validator((input: { organizationId: string; instruction: string }) => {
-    const organizationId = String(input?.organizationId ?? "");
-    if (!/^[0-9a-f-]{36}$/i.test(organizationId)) throw new Error("Invalid workspace");
-    const instruction = String(input?.instruction ?? "")
-      .trim()
-      .slice(0, 400);
-    if (instruction.length < 4) throw new Error("Tell Revora what to change.");
-    return { organizationId, instruction };
-  })
-  .handler(async ({ data, context }) => {
-    const { supabase, userId } = context;
-    const orgId = data.organizationId;
-    // Server-side paywall: the UI gate is cosmetic, this is authoritative.
-    {
-      const { assertOrgEntitled } = await import("@/lib/entitlement.server");
-      await assertOrgEntitled(supabase, orgId);
-    }
-    const { proposeSectionEdits, COPY_ROLE } = await import("@/lib/site-engine.server");
-
-    const [org, profile, services, sections] = await Promise.all([
-      supabase.from("organizations").select("name, industry").eq("id", orgId).maybeSingle(),
-      supabase.from("business_profiles").select("*").eq("organization_id", orgId).maybeSingle(),
-      supabase
-        .from("services")
-        .select("name, description, price, starting_price")
-        .eq("organization_id", orgId)
-        .eq("is_active", true),
-      supabase
-        .from("website_sections")
-        .select("id, kind, heading, subheading, body, page_id")
-        .eq("organization_id", orgId)
-        .order("sort_order")
-        .limit(40),
-    ]);
-    if (!org.data) throw new Error("Workspace not found.");
-    if (!sections.data?.length)
-      throw new Error("Build your website structure first, then ask for changes.");
-    const p = (profile.data ?? {}) as Record<string, unknown>;
-
-    const result = await proposeSectionEdits(
-      {
-        businessName: org.data.name ?? "",
-        industry: org.data.industry ?? "",
-        description: (p["description"] as string) ?? null,
-        city: (p["city"] as string) ?? null,
-        state: (p["state"] as string) ?? null,
-        serviceArea: (p["service_area"] as string) ?? null,
-        phone: (p["phone"] as string) ?? null,
-        email: (p["email"] as string) ?? null,
-        yearsInBusiness: (p["years_in_business"] as number) ?? null,
-        hasHours: Boolean(p["hours"] && Object.keys(p["hours"] as object).length),
-        style: (p["font_preference"] as string) ?? null,
-        goals: ((p["website_goals"] as string[]) ?? []).slice(0, 6),
-        ctaLabel: "",
-        services: services.data ?? [],
-      },
-      sections.data.map((s) => ({
-        id: s.id,
-        label: s.kind,
-        heading: s.heading,
-        subheading: s.subheading,
-        body: s.body,
-      })),
-      data.instruction,
-    );
-
-    await supabase.from("ai_generations").insert({
-      organization_id: orgId,
-      kind: "section_edit",
-      model: COPY_ROLE,
-      instruction: data.instruction,
-      result: result as unknown as never,
-      created_by: userId,
-    });
-
-    // Send back current values so the client can show a before/after preview.
-    const current = new Map(sections.data.map((s) => [s.id, s]));
-    return {
-      reply: result.reply,
-      edits: result.edits.map((edit) => {
-        const row = current.get(edit.sectionId);
-        return {
-          sectionId: edit.sectionId,
-          sectionLabel: row?.kind ?? "section",
-          field: edit.field,
-          before: String((row as Record<string, unknown> | undefined)?.[edit.field] ?? ""),
-          after: edit.after,
-        };
-      }),
-    };
-  });
-
 /* --------------------- brief review, facts and self-test --------------------- */
 
 const orgIdOf = (input: { organizationId?: unknown }) => {
@@ -858,7 +763,7 @@ export const runSiteEngineCheck = createServerFn({ method: "POST" })
           ok: brief.source !== "rules",
           detail:
             brief.source === "rules"
-              ? "AI analysis returned nothing usable; the deterministic brief would be used."
+              ? "AI analysis returned nothing usable; the build would stop (there is no rule-based fallback)."
               : `${brief.source} answered: “${brief.positioning.slice(0, 120)}”`,
         });
       } catch (error) {

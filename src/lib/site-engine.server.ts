@@ -24,7 +24,7 @@ export const COPY_ROLE: ModelRole = "fast";
  */
 export const ANALYSIS_ROLE: ModelRole = "coding";
 
-const SAFETY = `You write marketing copy for local business websites.
+const SAFETY = `You write marketing copy for business websites in any industry, anywhere.
 ABSOLUTE RULES:
 - Use only the facts given. Never invent reviews, testimonials, ratings, awards,
   certifications, licences, insurance, guarantees, years in business, addresses,
@@ -258,70 +258,6 @@ Keep every field's role and length limits. Do not add facts. Do not change struc
   return out;
 }
 
-/* --------------------------- Section edit assistant ------------------------ */
-
-export type SectionForEdit = {
-  id: string;
-  label: string;
-  heading: string | null;
-  subheading: string | null;
-  body: string | null;
-};
-
-export type ProposedEdit = {
-  sectionId: string;
-  field: "heading" | "subheading" | "body";
-  after: string;
-};
-
-/**
- * Proposes section edits from a plain-language instruction. Returns only the
- * fields it wants to change — nothing is written until the client confirms.
- */
-export async function proposeSectionEdits(
-  facts: CopyFacts,
-  sections: SectionForEdit[],
-  instruction: string,
-): Promise<{ edits: ProposedEdit[]; reply: string }> {
-  const data = await chatJson(
-    `You edit sections of a local business website on request.
-Return JSON: { "reply": string (one short sentence describing what you changed),
-"edits": [ { "sectionId": string, "field": "heading" | "subheading" | "body", "after": string } ] }.
-Rules:
-- Only include sections listed in "sections", using their exact id.
-- Only include fields you actually changed. Never return unchanged text.
-- Headings max 70 characters, subheadings max 160, body max 900.
-- Add no new facts. If the request needs information not supplied, return an
-  empty edits array and explain that in "reply".`,
-    `Instruction: "${instruction}"\n\nsections:\n${JSON.stringify(sections, null, 2)}\n\nFACTS:\n${factSheet(facts)}`,
-  );
-
-  const ids = new Set(sections.map((s) => s.id));
-  const allowed = new Set(["heading", "subheading", "body"]);
-  const raw = Array.isArray(data["edits"]) ? (data["edits"] as Record<string, unknown>[]) : [];
-  const edits: ProposedEdit[] = [];
-  for (const entry of raw.slice(0, 24)) {
-    const sectionId = str(entry["sectionId"]);
-    const field = str(entry["field"]);
-    const after = str(entry["after"]);
-    if (!ids.has(sectionId) || !allowed.has(field) || !after) continue;
-    edits.push({
-      sectionId,
-      field: field as ProposedEdit["field"],
-      after: after.slice(0, field === "body" ? 900 : field === "subheading" ? 200 : 90),
-    });
-  }
-  return {
-    edits,
-    reply: str(
-      data["reply"],
-      edits.length
-        ? "Here are the changes I suggest."
-        : "I couldn't make that change without more information.",
-    ),
-  };
-}
-
 /* ---------------------- Business intelligence orchestrator ---------------------- */
 
 /**
@@ -332,7 +268,7 @@ Rules:
  * returned in `missingFacts` for the owner to fill in.
  */
 export async function analyzeBusiness(facts: CopyFacts): Promise<SiteBrief> {
-  const system = `You analyse a local business so a website can be built around how its customers actually buy.
+  const system = `You analyse a business (any industry, any size, local or global) so a website can be built around how its customers actually buy.
 Return JSON with exactly these keys:
 positioning (one plain sentence, max 200 chars, what the business does and for whom),
 buyer (who the site is written for, max 160 chars),
