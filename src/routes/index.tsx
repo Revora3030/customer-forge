@@ -303,8 +303,8 @@ function Landing() {
                 <Sparkles className="size-3.5" aria-hidden="true" /> REVORA™ — AI growth system
               </Pill>
               <h1 className="mt-5 font-display text-[clamp(2.1rem,5vw,3.5rem)] leading-[1.04] font-semibold tracking-tight">
-                Your business books jobs{" "}
-                <span className="gold-text">while you're on the job, and while you sleep</span>.
+                Your business wins customers{" "}
+                <span className="gold-text">while you work, and while you sleep</span>.
               </h1>
               <p className="mt-4 max-w-xl text-[15px] leading-relaxed text-muted-foreground">
                 Revora's AI runs your{" "}
