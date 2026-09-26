@@ -183,7 +183,7 @@ const FREE_MODEL_DEFAULTS: Record<FreeProviderName, Partial<Record<ModelRole, st
     fast: "gemini-3.5-flash-lite",
     coding: "gemini-3.6-flash",
     vision: "gemini-3.6-flash",
-    transcription: "gemini-3.5-flash",
+    transcription: "gemini-3.5-transcribe",
     conversation: "gemini-3.6-flash",
   },
 };

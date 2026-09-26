@@ -61,7 +61,7 @@ const IMAGE_QUALITY = new Map<string, number>([
   ["gpt-image-2.5-sunburst", 96],
   ["gpt-image-2", 88],
   ["gpt-image-2.5-flare", 84],
-  ["gemini-2.5-flash-image", 70],
+  ["gemini-3.1-flash-image", 70],
   ["@cf/black-forest-labs/flux-1-schnell", 55],
   ["@cf/bytedance/stable-diffusion-xl-lightning", 45],
 ]);
