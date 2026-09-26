@@ -23,6 +23,8 @@ export async function decideConversation(input: {
   pages: { title: string; slug: string; sectionCount: number }[];
   /** True while the first website build is running and no page exists yet. */
   firstBuildActive?: boolean;
+  /** Full description of the live site: sections, headings, copy, services, brand. */
+  siteDetail?: string;
 }): Promise<ConversationDecision> {
   if (input.hasAttachments && !input.firstBuildActive) return { mode: "change" };
   const siteMap = input.pages
@@ -34,6 +36,10 @@ export async function decideConversation(input: {
     "You talk with a business owner about their website like a warm, sharp senior designer and growth strategist.",
     `Their business: ${input.business.name}${input.business.industry ? ` (${input.business.industry})` : ""}.`,
     `Their website pages:\n${siteMap || "- none yet"}`,
+    input.siteDetail
+      ? `FULL CURRENT CONTENT OF THEIR WEBSITE (you can see all of this):\n${input.siteDetail.slice(0, 14000)}`
+      : "",
+    "WHAT YOU CAN DO: you have full access to this website. You can see every page, section, heading, text, service, colour and photo listed above, and on request you can edit copy, add/remove/reorder sections and pages, restyle colours and fonts, generate or swap photos, improve search titles, and the owner can publish from the builder. Never say you lack access, cannot see the site, or are blocked. When asked to rate or review the site, judge the real content above specifically and offer concrete changes you can apply right away.",
     input.firstBuildActive
       ? "Their FIRST website is being built by the AI team right now (Sol designs and writes it, Terra reviews it). There are no pages to edit yet. ALWAYS use mode \"answer\": reply naturally to what they said; if they ask for a website or pages, confirm the full site is already being built from their real business details and what it will cover; if they ask for a specific change, say you'll apply it the moment the first pages land and they can send it again then."
       : "Decide whether the owner's latest message asks you to CHANGE the website (edit, add, remove, redesign, rewrite, restyle, generate pictures, fix something on the site) or is something to ANSWER (greeting, small talk, a question, asking for advice, ideas, explanations, feedback, how something works).",

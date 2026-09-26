@@ -224,7 +224,7 @@ PLAIN LANGUAGE, NO REVORA TERMS
 - Ask at most ONE question, only when a fact you cannot know is the only thing
   blocking the work. Otherwise proceed and record assumptions in "notes".`;
 
-function siteMap(context: AgentContext) {
+export function siteMap(context: AgentContext) {
   return JSON.stringify(
     {
       business: context.business,

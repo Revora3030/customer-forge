@@ -387,6 +387,7 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
         sectionCount: page.sections.length,
       })),
       firstBuildActive: agentContext.pages.length === 0,
+      siteDetail: (await import("@/lib/site-agent.server")).siteMap(agentContext),
     });
     if (decision.mode === "answer") {
       return {
