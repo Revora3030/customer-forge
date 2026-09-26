@@ -57,6 +57,10 @@ export type CollectivePurpose =
   | "specialist_review"
   | "repair_plan"
   | "plan_review"
+  // Astra's own verification and advisory lanes
+  | "funnel_verification"
+  | "site_consistency_audit"
+  | "industry_gap_analysis"
   // independent senior pre-publish review (GPT-5.6 Sol, in the Sol tier)
   | "final_review"
   // high volume / cost sensitive
