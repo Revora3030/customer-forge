@@ -58,10 +58,95 @@ function reasoningEffortFor(model: string): Record<string, string> {
   return {};
 }
 
+
+/** Pro-tier models (gpt-5.x-pro, o1-pro, o3-pro) answer only on `/v1/responses`. */
+export function isResponsesOnlyModel(model: string) {
+  return /(^o\d+-pro$)|(^gpt-5(\.\d+)?-pro$)/i.test(model);
+}
+
+function responsesInput(messages: AiMessage[]) {
+  return messages.map((message) => {
+    const role = message.role === "system" ? "developer" : message.role;
+    if (typeof message.content === "string") return { role, content: message.content };
+    return {
+      role,
+      content: message.content.map((part) => {
+        if (part.type === "text") return { type: message.role === "assistant" ? "output_text" : "input_text", text: part.text };
+        if (part.type === "image") return { type: "input_image", image_url: part.dataUrl };
+        throw new RevoraAiError(400, "This Revora AI model can only read text and images.", {
+          category: "invalid_request",
+          provider: "openai",
+        });
+      }),
+    };
+  });
+}
+
+/** Streams a Responses call and yields text deltas; errors surface honestly. */
+async function* responsesDeltas(input: {
+  apiKey: string; model: string; messages: AiMessage[]; json?: boolean | undefined;
+  maxOutputTokens?: number | undefined; signal?: AbortSignal | undefined;
+}): AsyncGenerator<string, AiUsage> {
+  const response = await fetch(`${BASE}/responses`, {
+    method: "POST",
+    headers: { "content-type": "application/json", authorization: `Bearer ${input.apiKey}` },
+    body: JSON.stringify({
+      model: input.model,
+      stream: true,
+      store: false,
+      input: responsesInput(input.messages),
+      ...(input.maxOutputTokens ? { max_output_tokens: input.maxOutputTokens } : {}),
+      ...(input.json ? { text: { format: { type: "json_object" } } } : {}),
+    }),
+    signal: input.signal ?? null,
+  });
+  if (!response.ok) throw await providerHttpError("openai", response);
+  if (!response.body) throw new RevoraAiError(502, "Revora AI returned an empty stream.");
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let usage: AiUsage = { inputTokens: null, outputTokens: null };
+  for (;;) {
+    const chunk = await reader.read();
+    if (chunk.done) break;
+    buffer += decoder.decode(chunk.value, { stream: true });
+    let index: number;
+    while ((index = buffer.indexOf("\n")) >= 0) {
+      const line = buffer.slice(0, index).trim();
+      buffer = buffer.slice(index + 1);
+      if (!line.startsWith("data:")) continue;
+      const payload = line.slice(5).trim();
+      if (!payload || payload === "[DONE]") continue;
+      let event: { type?: string; delta?: string; response?: { usage?: Record<string, number>; error?: { message?: string } } };
+      try { event = JSON.parse(payload); } catch { continue; }
+      if (event.type === "response.output_text.delta" && typeof event.delta === "string") yield event.delta;
+      else if (event.type === "response.failed" || event.type === "error") {
+        throw new RevoraAiError(502, event.response?.error?.message ?? "Revora AI stream failed.", { provider: "openai" });
+      } else if (event.type === "response.completed") {
+        const u = event.response?.usage;
+        usage = {
+          inputTokens: typeof u?.["input_tokens"] === "number" ? u["input_tokens"] : null,
+          outputTokens: typeof u?.["output_tokens"] === "number" ? u["output_tokens"] : null,
+        };
+      }
+    }
+  }
+  return usage;
+}
+
 export const openAiAdapter: ProviderAdapter = {
   name: "openai",
 
   async chat({ apiKey, model, messages, json, maxOutputTokens, temperature, signal }) {
+    if (isResponsesOnlyModel(model)) {
+      const deltas = responsesDeltas({ apiKey, model, messages, json, maxOutputTokens, signal });
+      let text = "";
+      for (;;) {
+        const next = await deltas.next();
+        if (next.done) return { text: text.trim(), usage: next.value };
+        text += next.value;
+      }
+    }
     const body: Record<string, unknown> = {
       model,
       messages: messages.map((message) => ({
@@ -93,6 +178,30 @@ export const openAiAdapter: ProviderAdapter = {
   },
 
   async stream({ apiKey, model, messages, maxOutputTokens, signal }) {
+    if (isResponsesOnlyModel(model)) {
+      // Re-emit Responses deltas in the chat-completions stream shape callers read.
+      const deltas = responsesDeltas({ apiKey, model, messages, maxOutputTokens, signal });
+      const encoder = new TextEncoder();
+      return new ReadableStream<Uint8Array>({
+        async pull(controller) {
+          try {
+            const next = await deltas.next();
+            if (next.done) {
+              controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+              controller.close();
+              return;
+            }
+            const frame = { choices: [{ delta: { content: next.value } }] };
+            controller.enqueue(encoder.encode(`data: ${JSON.stringify(frame)}\n\n`));
+          } catch (error) {
+            controller.error(error);
+          }
+        },
+        async cancel() {
+          await deltas.return({ inputTokens: null, outputTokens: null });
+        },
+      });
+    }
     const response = await fetch(`${BASE}/chat/completions`, {
       method: "POST",
       headers: { "content-type": "application/json", authorization: `Bearer ${apiKey}` },

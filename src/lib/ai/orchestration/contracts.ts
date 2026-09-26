@@ -83,6 +83,9 @@ export type TaskKind =
   | "design_alternative"
   // independent senior pre-publish review (GPT-5.6 Sol)
   | "final_review"
+  | "whole_site_review"
+  | "markup_review"
+  | "deep_conversion_audit"
   // routine utility
   | "metadata"
   | "rewrite"
@@ -255,6 +258,9 @@ const CONTRACTS: Record<TaskKind, TaskContract> = {
     "structured_output",
   ]),
   final_review: text("final_review", "high", ["text_generation", "reasoning", "structured_output"]),
+  whole_site_review: text("whole_site_review", "high", ["text_generation", "reasoning", "structured_output"], { minContextTokens: 128_000 }),
+  markup_review: text("markup_review", "medium", ["text_generation", "reasoning", "structured_output"]),
+  deep_conversion_audit: text("deep_conversion_audit", "high", ["text_generation", "reasoning"], { minContextTokens: 64_000 }),
   schema_markup: text("schema_markup", "low", ["text_generation", "structured_output"]),
   completeness_check: text("completeness_check", "low", ["text_generation", "structured_output"]),
   design_alternative: text("design_alternative", "medium", [

@@ -158,7 +158,7 @@ export const SPECIALIST_SIX: Specialist[] = [
     provider: "openai",
     charter:
       "Independent senior professional-work reviewer: a second high-intelligence perspective that challenges Sol's architecture and implementation quality before publish. Critiques; never overrides Sol's creative authority.",
-    domains: ["final_review"],
+    domains: ["final_review", "whole_site_review", "markup_review"],
     capabilities: [
       "text_generation",
       "reasoning",

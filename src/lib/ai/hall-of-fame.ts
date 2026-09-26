@@ -88,6 +88,9 @@ export function capabilityForPurpose(purpose: CollectivePurpose): string {
     case "second_opinion":
     case "funnel_verification":
     case "site_consistency_audit":
+    case "whole_site_review":
+    case "markup_review":
+    case "deep_conversion_audit":
       return "critique";
     case "industry_gap_analysis":
       return "planning";

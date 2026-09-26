@@ -63,6 +63,10 @@ export type CollectivePurpose =
   | "industry_gap_analysis"
   // independent senior pre-publish review (GPT-5.6 Sol, in the Sol tier)
   | "final_review"
+  // GPT-5.6 Sol whole-site and markup reviews; GPT-5.4 Pro deep conversion audit
+  | "whole_site_review"
+  | "markup_review"
+  | "deep_conversion_audit"
   // high volume / cost sensitive
   | "intent"
   | "extraction"
@@ -100,6 +104,9 @@ const PURPOSE_TIER: Record<CollectivePurpose, CollectiveTier> = {
   site_consistency_audit: "terra",
   industry_gap_analysis: "terra",
   final_review: "sol",
+  whole_site_review: "sol",
+  markup_review: "sol",
+  deep_conversion_audit: "sol",
 
   intent: "luna",
   extraction: "luna",
@@ -125,6 +132,9 @@ const PURPOSE_TIER: Record<CollectivePurpose, CollectiveTier> = {
  */
 export const PEER_PURPOSE_MODELS: Partial<Record<CollectivePurpose, { model: string; env: string }>> = {
   final_review: { model: "gpt-5.6-sol", env: "SOL_PEER_MODEL" },
+  whole_site_review: { model: "gpt-5.6-sol", env: "SOL_PEER_MODEL" },
+  markup_review: { model: "gpt-5.6-sol", env: "SOL_PEER_MODEL" },
+  deep_conversion_audit: { model: "gpt-5.4-pro", env: "CONVERSION_AUDIT_MODEL" },
   // Astra (GPT-6 Astra) takes the deep plan and specialist reviews plus its own
   // verification and advisory lanes: a strong reasoner that authored none of the
   // work it checks. Terra keeps the adversarial, visual, SEO and repair lanes.
@@ -151,6 +161,9 @@ const INDEPENDENT_REVIEW = new Set<CollectivePurpose>([
   "adversarial_review",
   "visual_review",
   "final_review",
+  "whole_site_review",
+  "markup_review",
+  "deep_conversion_audit",
   "funnel_verification",
   "site_consistency_audit",
 ]);
