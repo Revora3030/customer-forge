@@ -259,7 +259,7 @@ async function saveTree(db: Db, organizationId: string, section: SectionRow, tre
 async function improveWithTeam(input: {
   organizationId: string;
   lookSummary: string;
-  industry?: string | null;
+  evidence: ReviewEvidence;
   sections: SectionRow[];
   parts: ComponentRow[];
   designed: Map<string, CompositionTree>;
@@ -276,7 +276,7 @@ async function improveWithTeam(input: {
       const panel = await runReviewPanel({
         organizationId: input.organizationId,
         mode: "full",
-        industry: input.industry ?? null,
+        evidence: input.evidence,
         material: ["SUPPLIED MATERIAL:", material, "", "SOL'S DESIGN:", JSON.stringify(current)].join("\n"),
       });
       input.result.models.push(...panel.models);
