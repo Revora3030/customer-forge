@@ -47,7 +47,12 @@ const Shell = ({
   id?: string;
 }) => (
   <section id={id} className="scroll-mt-20 border-b border-border">
-    <div className={`mx-auto px-4 py-14 ${wide ? "max-w-6xl" : "max-w-3xl"}`}>{children}</div>
+    <div
+      className={`mx-auto px-4 ${wide ? "max-w-6xl" : "max-w-3xl"}`}
+      style={{ paddingBlock: "calc(3.5rem * var(--site-space, 1))" }}
+    >
+      {children}
+    </div>
   </section>
 );
 

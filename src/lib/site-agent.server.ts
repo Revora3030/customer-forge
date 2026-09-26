@@ -152,6 +152,8 @@ ACTION SHAPES (use exactly these)
 {"type":"set_page","pageId":"<id>","patch":{"title":"...","slug":"...","is_visible":true,"noindex":false,"seo_title":"...","seo_description":"...","og_title":"...","og_description":"..."}}
 {"type":"delete_page","pageId":"<id>"}
 {"type":"set_theme","patch":{"primary_color":"#RRGGBB","secondary_color":"#RRGGBB","accent_color":"#RRGGBB","heading_font":"${SUPPORTED_SITE_FONTS}","body_font":"${SUPPORTED_SITE_FONTS}"}}
+{"type":"set_design_tokens","tokens":{"radius":"0..40 px corners for cards/panels/inputs","buttonRadius":"0..999 px (999 = pill)","space":"0.6..1.6 section spacing rhythm","shadow":"none|subtle|medium|strong card depth"}}
+  (site-wide design tokens; set only the ones you want to change)
 {"type":"set_backdrop","backdrop":"none","spec":{"drift":"none|slow|medium","layers":[{"shape":"radial|linear","colors":["#RRGGBB","#RRGGBB"],"angle":0,"x":50,"y":0,"size":80,"opacity":30}]}}
   (design the site background yourself: up to 4 gradient layers, any colours, x/y 0-100, size 10-200, opacity 0-60)
 {"type":"set_section_effect","sectionId":"<id>","effect":"none|float_3d|tilt_3d|glass|rise|parallax_slow"}

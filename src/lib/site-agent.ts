@@ -1,3 +1,4 @@
+import { safeDesignTokens } from "@/lib/builder/design-tokens";
 import {
   backdropLabel,
   isBackdropId,
@@ -420,6 +421,11 @@ export type AgentAction =
   | {
       type: "set_theme";
       patch: ThemePatch;
+    }
+
+  | {
+      type: "set_design_tokens";
+      tokens: import("@/lib/builder/design-tokens").DesignTokens;
     }
 
   | {
@@ -1787,6 +1793,12 @@ export function readActions(
       /* BACKDROP                                                            */
       /* ------------------------------------------------------------------ */
 
+      case "set_design_tokens": {
+        const tokens = safeDesignTokens(row["tokens"]);
+        if (tokens) out.push({ type, tokens });
+        break;
+      }
+
       case "set_backdrop": {
         const backdrop =
           text(
@@ -2427,6 +2439,15 @@ export function describeActions(
 
             action,
           };
+
+        case "set_design_tokens":
+          return {
+            key,
+            title: "Update the site-wide design tokens (corners, spacing, depth, buttons)",
+            where: "Whole website",
+            destructive: false,
+            action,
+          } as never;
 
         case "set_backdrop":
           return {
