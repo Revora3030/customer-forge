@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { SiteFooter, SiteHeader } from "@/components/marketing/Chrome";
 import { AuthActions, AuthHint } from "@/components/marketing/AuthButtons";
+import { HeroStarter } from "@/components/marketing/HeroStarter";
 import { DashboardPreview } from "@/components/marketing/DashboardPreview";
 import { TRUST_INDUSTRIES, WithoutWith } from "@/components/marketing/Journey";
 import { TrustSection } from "@/components/marketing/TrustSection";
@@ -320,7 +321,8 @@ function Landing() {
                   back into an existing one. Signed-in visitors see their
                   dashboard here instead. One CTA stack only — the repeated
                   banner and price block live further down the page. */}
-              <AuthActions className="mt-7" />
+              <HeroStarter className="mt-7 max-w-xl" />
+              <AuthActions className="mt-5" />
               <AuthHint className="mt-3" />
               <PriceLine className="mt-4" />
 
@@ -338,7 +340,7 @@ function Landing() {
               {/* Fills the hero's lower left and answers "is this for me?" with
                   the industries the system already ships pages and copy for. */}
               <div className="mt-8 border-t border-border pt-5">
-                <p className="eyebrow">Built for trades and local services</p>
+                <p className="eyebrow">Built for businesses in every industry</p>
                 <ul className="mt-3 flex flex-wrap gap-1.5">
                   {TRUST_INDUSTRIES.slice(0, 9).map((trade) => (
                     <li
@@ -378,7 +380,7 @@ function Landing() {
               <span className="gold-text">losing it between the click and the booking</span>.
             </h2>
             <p className="mt-4 max-w-2xl text-[14px] leading-relaxed text-muted-foreground">
-              Five leaks that quietly cost local businesses work every month — and what Revora does
+              Five leaks that quietly cost businesses customers every month — and what Revora does
               about each one.
             </p>
             <div className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
