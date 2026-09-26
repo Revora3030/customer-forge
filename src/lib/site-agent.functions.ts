@@ -33,7 +33,6 @@ import type { VerificationReport } from "@/lib/agent/verify";
 import type { QaLoopResult } from "@/lib/builder/qa-loop.server";
 import {
   coveredRequestDimensions,
-  ensureRequestedCoverage,
   normalizeBuilderInstruction,
 } from "@/lib/builder/request-coverage";
 
@@ -587,7 +586,7 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
       },
       droppedReasons,
     );
-    const actions = ensureRequestedCoverage(instruction, parsedActions, agentContext);
+    const actions = parsedActions;
     const measuredRequirements = coveredRequestDimensions(instruction, actions);
     if (measuredRequirements.length) requirements = measuredRequirements;
     const index: SiteIndex = { pages: new Map(), sections: new Map(), components: new Map() };
