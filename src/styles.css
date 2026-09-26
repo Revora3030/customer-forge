@@ -669,8 +669,8 @@
     padding-block: clamp(3.5rem, 16vw, 6rem);
   }
   .rv-site .rv-media-role-background .rv-hero-copy h1 {
-    font-size: clamp(2.75rem, 13vw, 4.5rem);
-    overflow-wrap: anywhere;
+    font-size: clamp(2.25rem, 11vw, 4.5rem);
+    overflow-wrap: break-word;
   }
 }
 
