@@ -354,7 +354,14 @@ async function buildChain(
   // Quality decides where the paid chain sits; the operator still decides which
   // paid provider is tried first, so an explicitly configured default/fallback
   // provider order is preserved inside the paid group.
-  const grouped = preserveGroupOrder(ranked, candidates, (entry) => entry.free === null);
+  // PAID TEAM FIRST: the free Hall of Fame pool is the backup squad. It takes
+  // over only after every reachable paid candidate has failed, and within each
+  // group the strongest model is still tried first.
+  const paidFirst = [
+    ...ranked.filter((entry) => entry.free === null),
+    ...ranked.filter((entry) => entry.free !== null),
+  ];
+  const grouped = preserveGroupOrder(paidFirst, candidates, (entry) => entry.free === null);
   // LIVE ADMIN ROUTING: pins and pauses set in the Command Center.
   const { loadCommandSettings, applyRoutingOverrides } = await import("@/lib/ai/command-settings.server");
   const ordered = applyRoutingOverrides(grouped, (entry) => entry.model, await loadCommandSettings());
