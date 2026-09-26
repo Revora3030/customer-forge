@@ -38,7 +38,7 @@ import type { AgentStep } from "@/lib/site-agent";
 import type { AgentAttachment } from "@/lib/site-agent";
 import { trackConversion } from "@/lib/conversion";
 import { friendlyError } from "@/lib/user-error";
-import { clearTurns, loadTurns, pairTurns, saveTurns } from "@/lib/builder-memory";
+import { clearTurns, loadTurns, pairTurns, saveTurns, type SavedTaskResult } from "@/lib/builder-memory";
 
 export const INSTRUCTION_LIMIT = 1200;
 
@@ -99,10 +99,17 @@ export function useBuilderRequests({
         setConversation(turns.map(({ role, content }) => ({ role, content })).slice(-24));
         const past = pairTurns(turns).map((pair) => ({
           ...newTask(pair.instruction),
-          state: "complete" as const,
+          state: pair.taskResult?.state ?? ("complete" as const),
           reply: pair.reply || "Done.",
-          answered: true,
+          answered: !pair.taskResult,
           restored: true,
+          ...(pair.taskResult?.applied !== undefined ? { applied: pair.taskResult.applied } : {}),
+          ...(pair.taskResult?.failedCount !== undefined ? { failedCount: pair.taskResult.failedCount } : {}),
+          ...(pair.taskResult?.staleCount !== undefined ? { staleCount: pair.taskResult.staleCount } : {}),
+          ...(pair.taskResult?.snapshotVersion !== undefined
+            ? { snapshotVersion: pair.taskResult.snapshotVersion }
+            : {}),
+          ...(pair.taskResult?.notice ? { notice: pair.taskResult.notice } : {}),
         }));
         setTasks((current) => [...past, ...current]);
         setMemoryLoaded(true);
@@ -114,7 +121,13 @@ export function useBuilderRequests({
     };
   }, [organizationId]);
 
-  const remember = (turns: Array<{ role: "user" | "assistant"; content: string }>) => {
+  const remember = (
+    turns: Array<{
+      role: "user" | "assistant";
+      content: string;
+      taskResult?: SavedTaskResult;
+    }>,
+  ) => {
     if (!organizationId || !canManage) return;
     void saveTurns(organizationId, turns).catch(() => {
       // Saving the chat never blocks building; the change itself is already safe.
@@ -214,6 +227,13 @@ export function useBuilderRequests({
           metadata: { organization_id: organizationId ?? "", reason: "nothing_to_change" },
         });
         toast.error(message);
+        remember([
+          {
+            role: "assistant",
+            content: `${task.reply ? `${task.reply}\n\n` : ""}${message}`,
+            taskResult: { state: "failed" },
+          },
+        ]);
         await refresh();
         return;
       }
@@ -247,6 +267,25 @@ export function useBuilderRequests({
         (result.unconfirmed?.length ? ` ${result.unconfirmed.length} could not be confirmed on the site.` : "");
       if (partial || result.unconfirmed?.length) toast.warning(toastMessage);
       else toast.success(toastMessage);
+      remember([
+        {
+          role: "assistant",
+          content: `${task.reply ? `${task.reply}\n\n` : ""}${toastMessage}`,
+          taskResult: {
+            state: "complete",
+            applied: result.applied,
+            failedCount: result.failed ?? 0,
+            staleCount: result.stale ?? 0,
+            ...(beforeVersion !== undefined ? { snapshotVersion: beforeVersion } : {}),
+            ...(partial ? { notice: applySummary({
+              applied: result.applied,
+              failed: result.failed ?? 0,
+              stale: result.stale ?? 0,
+              details: result.details ?? [],
+            }) } : {}),
+          },
+        },
+      ]);
       await refresh();
     } catch (error) {
       const message = friendlyError(error as Error, "Couldn't apply those changes.");
@@ -255,6 +294,13 @@ export function useBuilderRequests({
         metadata: { organization_id: organizationId ?? "", reason: "service_unavailable" },
       });
       toast.error(message);
+      remember([
+        {
+          role: "assistant",
+          content: `${task.reply ? `${task.reply}\n\n` : ""}${message}`,
+            taskResult: { state: "failed" },
+        },
+      ]);
       await refresh();
     }
   };
@@ -268,6 +314,7 @@ export function useBuilderRequests({
           instruction: task.instruction,
           history: conversation.slice(-24),
           attachments: task.attachments ?? [],
+          requestId: task.id,
           ...(brand && hasBrandChoices(brand) ? { brand } : {}),
         },
       });
@@ -333,18 +380,28 @@ export function useBuilderRequests({
         ...(result.reply ? [{ role: "assistant" as const, content: result.reply }] : []),
       ] satisfies Array<{ role: "user" | "assistant"; content: string }>;
       setConversation(nextConversation.slice(-24));
+      // Persist the request immediately, but keep its final outcome open until
+      // the apply finishes. This restores as one request/result pair rather
+      // than a plan reply followed by a detached completion message.
       remember([
         { role: "user", content: task.instruction },
-        ...(result.reply ? [{ role: "assistant" as const, content: result.reply }] : []),
+        ...(!canAutoApply(planned) && result.reply
+          ? [{ role: "assistant" as const, content: result.reply }]
+          : []),
       ]);
       // Every planned change is applied straight to the site (undo per turn).
       if (!result.unavailable && canAutoApply(planned))
         await runBuild(planned);
     } catch (error) {
+      const message = friendlyError(error as Error, "Revora couldn't read that request yet.");
       patch(task.id, {
         state: "failed",
-        error: friendlyError(error as Error, "Revora couldn't read that request yet."),
+        error: message,
       });
+      remember([
+        { role: "user", content: task.instruction },
+        { role: "assistant", content: message, taskResult: { state: "failed" } },
+      ]);
     }
   };
 

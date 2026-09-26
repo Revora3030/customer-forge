@@ -213,6 +213,7 @@ export const planWebsiteChanges = createServerFn({ method: "POST" })
       history?: { role: string; content: string }[];
       attachments?: unknown;
       brand?: unknown;
+      requestId?: string;
     }) => {
       const organizationId = orgIdOf(input);
       const instruction = str(input?.instruction, PLAN_INSTRUCTION_LIMIT);
@@ -230,7 +231,14 @@ export const planWebsiteChanges = createServerFn({ method: "POST" })
             }))
             .filter((turn) => turn.content.length > 0)
         : [];
-      return { organizationId, instruction, history, attachments, brand: readBrand(input?.brand) };
+      return {
+        organizationId,
+        instruction,
+        history,
+        attachments,
+        brand: readBrand(input?.brand),
+        requestId: str(input?.requestId, 80),
+      };
     },
   )
 
@@ -245,6 +253,7 @@ type PlanInput = {
   history: AgentTurn[];
   attachments: AgentAttachment[];
   brand?: BrandPreference | null;
+  requestId?: string;
 };
 
 
@@ -255,7 +264,7 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
     // Visible progress for the owner. Cosmetic only — a failed write here can
     // never affect the build.
     const { noteStage } = await import("@/lib/builder/progress.server");
-    const runId = crypto.randomUUID();
+    const runId = data.requestId || crypto.randomUUID();
     noteStage(orgId, runId, "reading your business");
 
     const { getWorkspaceContext } = await import("@/lib/agent/workspace-context.server");
@@ -686,7 +695,7 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
   {
     const orgId = data.organizationId;
     const { noteStage: noteApplyStage } = await import("@/lib/builder/progress.server");
-    const applyRunId = crypto.randomUUID();
+    const applyRunId = data.operationKey?.split(":")[0] || crypto.randomUUID();
     noteApplyStage(orgId, applyRunId, "checking the plan is safe");
     // One id for this whole apply. Every row it touches, the restore point it
     // took, and any rollback it had to run are all recorded against this id, so
