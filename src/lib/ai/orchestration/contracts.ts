@@ -74,6 +74,10 @@ export type TaskKind =
   | "second_opinion"
   | "specialist_review"
   | "plan_review"
+  // Astra's verification and advisory lanes
+  | "funnel_verification"
+  | "site_consistency_audit"
+  | "industry_gap_analysis"
   | "repair_plan"
   | "seo_analysis"
   | "design_alternative"
