@@ -25,7 +25,7 @@ export async function gatewayChatText(input: {
   if (!key) throw new GatewayChatError("AI gateway key is not configured", 401);
   const response = await fetch("https://ai.gateway.lovable.dev/v1/responses", {
     method: "POST",
-    signal: input.signal,
+    signal: input.signal ?? null,
     headers: {
       "Content-Type": "application/json",
       "Lovable-API-Key": key,
