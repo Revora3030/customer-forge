@@ -47,11 +47,17 @@ export function VisualCheckPanel({
   slug,
   publishState,
   canManage,
+  changeKey,
+  compact = false,
 }: {
   organizationId: string | undefined;
   slug: string | undefined;
   publishState: string | null | undefined;
   canManage: boolean;
+  /** Changes whenever a chat request applies edits — re-checks every screen size. */
+  changeKey?: string | null;
+  /** Slim status strip for the chat instead of the full panel. */
+  compact?: boolean;
 }) {
   const queryClient = useQueryClient();
   const { data: links } = usePreviewLinks(organizationId);
@@ -214,6 +220,44 @@ export function VisualCheckPanel({
       }
     })();
   }, [aiRepairLoop, canManage, latestJob, organizationId, run, running, selfHeal, slug]);
+
+  // After every chat change: measure all screen sizes, then let the AI team
+  // repair anything that broke. One run per applied change.
+  const changeRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!changeKey || !canManage || !organizationId || !slug || running || aiRepairing) return;
+    if (changeRef.current === changeKey) return;
+    changeRef.current = changeKey;
+    const timer = window.setTimeout(() => {
+      void (async () => {
+        const report = await run(true);
+        if (report && !report.passed) await aiRepairLoop(report, () => run(true));
+      })();
+    }, 2500); // let the draft save and the preview refresh first
+    return () => window.clearTimeout(timer);
+  }, [aiRepairLoop, aiRepairing, canManage, changeKey, organizationId, run, running, slug]);
+
+  if (compact) {
+    const text = progress
+      ? `Checking ${progress.label} — ${progress.done} of ${progress.total}…`
+      : aiRepairing
+        ? repair
+        : result
+          ? result.passed
+            ? `Phone, tablet and desktop check passed — ${result.score}/100.`
+            : repair ?? `Screen check found ${result.findings.length} problem(s).`
+          : null;
+    if (!text) return null;
+    return (
+      <div
+        role="status"
+        className="mx-3 mb-2 flex items-center gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2 text-[12px] text-muted-foreground"
+      >
+        {running || aiRepairing ? <Loader2 className="size-3.5 shrink-0 animate-spin" /> : <MonitorCheck className="size-3.5 shrink-0" />}
+        <span className="min-w-0 break-words">{text}</span>
+      </div>
+    );
+  }
 
   return (
     <Panel className="p-5">
