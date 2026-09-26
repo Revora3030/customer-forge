@@ -19,6 +19,7 @@ import { getPublicOfferRates } from "@/lib/offer.functions";
 import { GROWTH_SYSTEM_SCHEMA, breadcrumbSchema, canonicalLink, ogUrl } from "@/lib/seo";
 import { useExperiment } from "@/lib/experiments.hooks";
 import { trackConversion } from "@/lib/conversion";
+import { LocalPriceEstimate } from "@/components/marketing/LocalPriceEstimate";
 
 export const Route = createFileRoute("/pricing")({
   // On a client's own web address this path is THEIR page, not Revora's.
@@ -149,6 +150,7 @@ function Pricing() {
                   </p>
                 </div>
               </div>
+              <LocalPriceEstimate setup={setupPrice} monthly={monthlyPrice} />
 
               <Button
                 asChild
