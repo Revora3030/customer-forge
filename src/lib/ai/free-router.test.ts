@@ -261,7 +261,7 @@ describe("builder availability", () => {
     const { freeProviderChain, FREE_UNSERVED_ROLES } = await free();
     const chain = freeProviderChain("transcription");
     expect(chain.map((entry) => entry.name)).toEqual(["google"]);
-    expect(chain[0]?.model).toBe("gemini-3.5-flash");
+    expect(chain[0]?.model).toBe("gemini-3.5-transcribe");
     // Every role now has a free provider, so nothing is declared unserved.
     expect(FREE_UNSERVED_ROLES).toEqual([]);
     // Pictures come from Cloudflare's free image model once its token is set.

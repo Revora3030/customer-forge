@@ -65,14 +65,17 @@ export type ProviderConfig = {
  */
 const DEFAULT_MODELS: Record<PaidProviderName, Record<ModelRole, string>> = {
   google: {
-    primary: "gemini-2.5-pro",
-    design: "gemini-2.5-pro",
-    fast: "gemini-2.5-flash",
-    vision: "gemini-2.5-flash",
-    coding: "gemini-2.5-pro",
-    image: "gemini-2.5-flash-image",
-    transcription: "gemini-2.5-flash",
-    conversation: "gemini-2.5-flash",
+    // Verified live against Google on 2026-09-26. The retired gemini-2.5-pro
+    // and gemini-2.5-flash ids now return 404, so every role points at a model
+    // that actually answers.
+    primary: "gemini-3.8-flash",
+    design: "gemini-3.8-flash",
+    fast: "gemini-3.5-flash-lite",
+    vision: "gemini-3.8-flash",
+    coding: "gemini-3.8-flash",
+    image: "gemini-3.1-flash-image",
+    transcription: "gemini-3.5-transcribe",
+    conversation: "gemini-3.8-flash",
   },
   openai: {
     primary: "gpt-5.6-terra",
@@ -228,9 +231,12 @@ export function aiLimits(): AiLimits {
 
 /** Rough per-million-token prices, used only for an estimate in admin reporting. */
 const PRICE_PER_MTOK: Record<string, { input: number; output: number }> = {
-  "gemini-2.5-pro": { input: 1.25, output: 10 },
-  "gemini-2.5-flash": { input: 0.3, output: 2.5 },
-  "gemini-2.5-flash-image": { input: 0.3, output: 2.5 },
+  "gemini-3.8-flash": { input: 0.3, output: 2.5 },
+  "gemini-3.6-flash": { input: 0.3, output: 2.5 },
+  "gemini-3.5-flash-lite": { input: 0.1, output: 0.4 },
+  "gemini-3.1-flash-lite": { input: 0.1, output: 0.4 },
+  "gemini-3.1-flash-image": { input: 0.3, output: 2.5 },
+  "gemini-3.5-transcribe": { input: 0.3, output: 2.5 },
   "gpt-4.1": { input: 2, output: 8 },
   "gpt-4.1-mini": { input: 0.4, output: 1.6 },
   "gpt-image-1": { input: 5, output: 40 },
