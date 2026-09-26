@@ -103,11 +103,13 @@ export function useBuilderRequests({
           reply: pair.reply || "Done.",
           answered: !pair.taskResult,
           restored: true,
-          applied: pair.taskResult?.applied,
-          failedCount: pair.taskResult?.failedCount,
-          staleCount: pair.taskResult?.staleCount,
-          snapshotVersion: pair.taskResult?.snapshotVersion,
-          notice: pair.taskResult?.notice,
+          ...(pair.taskResult?.applied !== undefined ? { applied: pair.taskResult.applied } : {}),
+          ...(pair.taskResult?.failedCount !== undefined ? { failedCount: pair.taskResult.failedCount } : {}),
+          ...(pair.taskResult?.staleCount !== undefined ? { staleCount: pair.taskResult.staleCount } : {}),
+          ...(pair.taskResult?.snapshotVersion !== undefined
+            ? { snapshotVersion: pair.taskResult.snapshotVersion }
+            : {}),
+          ...(pair.taskResult?.notice ? { notice: pair.taskResult.notice } : {}),
         }));
         setTasks((current) => [...past, ...current]);
         setMemoryLoaded(true);
@@ -274,7 +276,7 @@ export function useBuilderRequests({
             applied: result.applied,
             failedCount: result.failed ?? 0,
             staleCount: result.stale ?? 0,
-            snapshotVersion: beforeVersion,
+            ...(beforeVersion !== undefined ? { snapshotVersion: beforeVersion } : {}),
             ...(partial ? { notice: applySummary({
               applied: result.applied,
               failed: result.failed ?? 0,
