@@ -262,6 +262,7 @@ async function improveWithTeam(input: {
       const panel = await runReviewPanel({
         organizationId: input.organizationId,
         mode: "full",
+        industry: input.facts?.industry ?? undefined,
         material: ["SUPPLIED MATERIAL:", material, "", "SOL'S DESIGN:", JSON.stringify(current)].join("\n"),
       });
       input.result.models.push(...panel.models);
