@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { decide, runImprovementGate, type GateBlocker } from "./improvement-gate.server";
-import { parseNote, runReviewPanel } from "./review-panel.server";
+import { panelFor, parseNote, runReviewPanel } from "./review-panel.server";
 
 const validTree = {
   version: 1,
