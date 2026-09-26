@@ -57,7 +57,7 @@ export const saveCommandSettings = createServerFn({ method: "POST" })
     return {
       pinnedModels: ids(input?.pinnedModels),
       pausedModels: ids(input?.pausedModels),
-      qaAutoRevert: input?.qaAutoRevert !== false,
+      qaAutoRevert: input?.qaAutoRevert === true,
       qaMinScore: Number.isFinite(score) ? Math.min(100, Math.max(0, Math.round(score))) : 70,
     };
   })
@@ -90,7 +90,7 @@ export const getQaGate = createServerFn({ method: "GET" })
       .eq("id", 1)
       .maybeSingle();
     const row = (data ?? {}) as { qa_auto_revert?: boolean; qa_min_score?: number };
-    return { autoRevert: row.qa_auto_revert !== false, minScore: row.qa_min_score ?? 70 };
+    return { autoRevert: row.qa_auto_revert === true, minScore: row.qa_min_score ?? 70 };
   });
 
 const uuid = (v: unknown) => {
