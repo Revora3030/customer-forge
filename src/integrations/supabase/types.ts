@@ -14,6 +14,36 @@ export type Database = {
   }
   public: {
     Tables: {
+      ai_command_settings: {
+        Row: {
+          id: number
+          paused_models: string[]
+          pinned_models: string[]
+          qa_auto_revert: boolean
+          qa_min_score: number
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          id?: number
+          paused_models?: string[]
+          pinned_models?: string[]
+          qa_auto_revert?: boolean
+          qa_min_score?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          id?: number
+          paused_models?: string[]
+          pinned_models?: string[]
+          qa_auto_revert?: boolean
+          qa_min_score?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       ai_generations: {
         Row: {
           created_at: string
