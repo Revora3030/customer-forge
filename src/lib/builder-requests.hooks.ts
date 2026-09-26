@@ -99,10 +99,15 @@ export function useBuilderRequests({
         setConversation(turns.map(({ role, content }) => ({ role, content })).slice(-24));
         const past = pairTurns(turns).map((pair) => ({
           ...newTask(pair.instruction),
-          state: "complete" as const,
+          state: pair.taskResult?.state ?? ("complete" as const),
           reply: pair.reply || "Done.",
-          answered: true,
+          answered: !pair.taskResult,
           restored: true,
+          applied: pair.taskResult?.applied,
+          failedCount: pair.taskResult?.failedCount,
+          staleCount: pair.taskResult?.staleCount,
+          snapshotVersion: pair.taskResult?.snapshotVersion,
+          notice: pair.taskResult?.notice,
         }));
         setTasks((current) => [...past, ...current]);
         setMemoryLoaded(true);
@@ -218,6 +223,7 @@ export function useBuilderRequests({
           {
             role: "assistant",
             content: `${task.reply ? `${task.reply}\n\n` : ""}${message}`,
+            taskResult: { state: "failed" },
           },
         ]);
         await refresh();
@@ -257,6 +263,19 @@ export function useBuilderRequests({
         {
           role: "assistant",
           content: `${task.reply ? `${task.reply}\n\n` : ""}${toastMessage}`,
+          taskResult: {
+            state: "complete",
+            applied: result.applied,
+            failedCount: result.failed ?? 0,
+            staleCount: result.stale ?? 0,
+            snapshotVersion: beforeVersion,
+            ...(partial ? { notice: applySummary({
+              applied: result.applied,
+              failed: result.failed ?? 0,
+              stale: result.stale ?? 0,
+              details: result.details ?? [],
+            }) } : {}),
+          },
         },
       ]);
       await refresh();
@@ -271,6 +290,7 @@ export function useBuilderRequests({
         {
           role: "assistant",
           content: `${task.reply ? `${task.reply}\n\n` : ""}${message}`,
+            taskResult: { state: "failed" },
         },
       ]);
       await refresh();

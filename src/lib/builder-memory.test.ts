@@ -40,4 +40,21 @@ describe("saved builder conversation", () => {
       },
     ]);
   });
+
+  it("restores the saved result metadata on the same request", () => {
+    const turns = toTurns([
+      { role: "user", content: "Add a gallery", created_at: "1" },
+      {
+        role: "assistant",
+        content: "6 changes applied to your draft.",
+        created_at: "2",
+        plan: { state: "complete", applied: 6, snapshotVersion: 12 },
+      },
+    ]);
+    expect(pairTurns(turns)[0]?.taskResult).toEqual({
+      state: "complete",
+      applied: 6,
+      snapshotVersion: 12,
+    });
+  });
 });
