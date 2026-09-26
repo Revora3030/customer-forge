@@ -18,7 +18,10 @@ export type ReviewArea =
   | "completeness"
   | "funnel"
   | "consistency"
-  | "industry_fit";
+  | "industry_fit"
+  | "whole_site"
+  | "markup"
+  | "deep_conversion";
 
 export type ReviewNote = { area: ReviewArea; issues: string[]; severity: "low" | "medium" | "high"; model: string | null };
 
@@ -37,6 +40,9 @@ const FULL_PANEL: Reviewer[] = [
   { area: "funnel", purpose: "funnel_verification", complexity: "medium", brief: "Trace every way a visitor can become a lead: contact forms, quote requests, booking links, phone and email actions. Flag any call-to-action with no working destination, any form missing a field the business needs to follow up, any duplicated or contradictory contact path, and any page that offers a service with no way to act on it. Use only supplied contact details — never invent one." },
   { area: "consistency", purpose: "site_consistency_audit", complexity: "medium", brief: "Audit the site as a whole: flag navigation that omits or misnames a real page, header/footer differences between pages, contact details or business names that differ page to page, repeated near-identical wording across pages, orphaned pages nothing links to, and links pointing at pages that do not exist." },
   { area: "industry_fit", purpose: "industry_gap_analysis", complexity: "medium", brief: "Judge this site against what visitors in this specific industry actually need before they act. Flag missing information a buyer would expect (service areas, process, what is included, how to prepare, what happens next) and name only gaps answerable from supplied facts — never propose claims, guarantees, credentials or numbers the business did not supply." },
+  { area: "whole_site", purpose: "whole_site_review", complexity: "high", brief: "Read every page together as one site. Judge whether the story, offer and next step stay coherent from the first page to the last, and flag pages that contradict, repeat or undercut each other. Critique only — the lead designer decides every change." },
+  { area: "markup", purpose: "markup_review", complexity: "medium", brief: "Review the generated page structure as an engineer: flag broken or duplicated heading order, missing labels on form fields, invalid or empty links, images without meaningful alt text, and structure that will render badly or slowly. Report defects only; never restyle." },
+  { area: "deep_conversion", purpose: "deep_conversion_audit", complexity: "high", brief: "Walk the whole journey a real buyer takes, step by step, from arrival to contacting the business. Flag each point where they could hesitate, get lost or leave, and why. Base every point on supplied facts only — never suggest invented offers, prices, guarantees or proof." },
 ];
 
 const LIGHT_AREAS: ReviewArea[] = ["truthfulness", "seo", "accessibility", "mobile", "completeness", "funnel", "consistency"];
