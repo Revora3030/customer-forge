@@ -3,6 +3,7 @@ import { evidenceFor, gatherReviewEvidence } from "./review-evidence.server";
 
 const deps = {
   searchWeb: async () => ({ ok: true as const, results: [{ title: "T", snippet: "S", url: "https://x.test", source: { trust: "research" } }] }),
+  keywordIdeas: async () => [{ phrase: "car detailing near me", volume: 900 }],
   google: {
     resolveProperty: async () => ({ status: "selected" as const, siteUrl: "sc-domain:a.test" }),
     searchPerformance: async () => ({
@@ -24,12 +25,13 @@ describe("review evidence", () => {
     expect(ev.industry).toContain("third-party");
     expect(ev.search).toContain('"car detailing"');
     expect(ev.listing).toBeNull();
+    expect(ev.keywords).toContain("car detailing near me");
   });
 
   it("routes evidence only to the matching reviewers", () => {
-    const ev = { industry: "I", search: "S", listing: "L" };
+    const ev = { industry: "I", search: "S", listing: "L", keywords: "K" };
     expect(evidenceFor("industry_fit", ev)).toEqual(["I"]);
-    expect(evidenceFor("seo", ev)).toEqual(["S"]);
+    expect(evidenceFor("seo", ev)).toEqual(["S", "K"]);
     expect(evidenceFor("consistency", ev)).toEqual(["L"]);
     expect(evidenceFor("mobile", ev)).toEqual([]);
   });

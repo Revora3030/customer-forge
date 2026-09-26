@@ -11,9 +11,11 @@ export type ReviewEvidence = {
   search: string | null;
   /** The business's public Google listing, for consistency checks only. */
   listing: string | null;
+  /** Semrush keyword demand for the industry/city (market estimates). */
+  keywords?: string | null;
 };
 
-export const NO_EVIDENCE: ReviewEvidence = { industry: null, search: null, listing: null };
+export const NO_EVIDENCE: ReviewEvidence = { industry: null, search: null, listing: null, keywords: null };
 
 export type EvidenceInput = {
   industry?: string | null | undefined;
@@ -24,6 +26,7 @@ export type EvidenceInput = {
 
 type Deps = {
   searchWeb: typeof import("@/lib/integrations/research.server").searchWeb;
+  keywordIdeas?: (phrase: string) => Promise<Array<{ phrase: string; volume: number }>>;
   google: Pick<typeof import("@/lib/integrations/google.server"), "resolveProperty" | "searchPerformance" | "localListings">;
 };
 
@@ -32,7 +35,42 @@ async function loadDeps(): Promise<Deps> {
     import("@/lib/integrations/research.server"),
     import("@/lib/integrations/google.server"),
   ]);
-  return { searchWeb: research.searchWeb, google };
+  return { searchWeb: research.searchWeb, google, keywordIdeas: semrushKeywordIdeas };
+}
+
+/** Related keywords from Semrush via the connector gateway; empty when unlinked. */
+async function semrushKeywordIdeas(phrase: string): Promise<Array<{ phrase: string; volume: number }>> {
+  const lovableKey = process.env["LOVABLE_API_KEY"];
+  const semrushKey = process.env["SEMRUSH_API_KEY"];
+  if (!lovableKey || !semrushKey) return [];
+  const url = new URL("https://connector-gateway.lovable.dev/semrush/keywords/phrase_related");
+  url.searchParams.set("phrase", phrase);
+  url.searchParams.set("database", "us");
+  url.searchParams.set("export_columns", "Ph,Nq");
+  url.searchParams.set("display_limit", "12");
+  const res = await fetch(url, {
+    headers: { Authorization: `Bearer ${lovableKey}`, "X-Connection-Api-Key": semrushKey },
+    signal: AbortSignal.timeout(8000),
+  });
+  const text = await res.text();
+  if (!res.ok || text.includes("LIMIT EXCEEDED")) throw new Error(`semrush ${res.status}: ${text.slice(0, 200)}`);
+  const body = JSON.parse(text) as { data?: { columnNames?: string[]; rows?: unknown[][] } };
+  const cols = body.data?.columnNames ?? [];
+  const pi = cols.indexOf("Ph"), vi = cols.indexOf("Nq");
+  return (body.data?.rows ?? [])
+    .map((r) => ({ phrase: String(r[pi >= 0 ? pi : 0] ?? ""), volume: Number(r[vi >= 0 ? vi : 1] ?? 0) }))
+    .filter((k) => k.phrase);
+}
+
+async function keywordEvidence(deps: Deps, industry: string, city: string | null): Promise<string | null> {
+  if (!deps.keywordIdeas) return null;
+  const seed = [industry.trim().slice(0, 60), city].filter(Boolean).join(" ");
+  const ideas = await deps.keywordIdeas(seed);
+  if (!ideas.length) return null;
+  return [
+    `SEMRUSH KEYWORD DEMAND (US estimates for "${seed}"). Use to judge whether headings, titles and service names match how buyers search; never print these numbers on the site:`,
+    ...ideas.slice(0, 12).map((k) => `- "${k.phrase}" — ~${k.volume} searches/month`),
+  ].join("\n");
 }
 
 async function industryEvidence(deps: Deps, industry: string): Promise<string | null> {
@@ -92,12 +130,14 @@ export async function gatherReviewEvidence(input: EvidenceInput, deps?: Deps): P
   const industry = input.industry?.trim();
   const siteUrl = input.siteUrl?.trim();
   const name = input.businessName?.trim();
-  const [a, b, c] = await Promise.all([
+  const city = input.city?.trim() || null;
+  const [a, b, c, k] = await Promise.all([
     industry ? settle(industryEvidence(d, industry), "industry") : Promise.resolve(null),
     siteUrl ? settle(searchEvidence(d, siteUrl), "search") : Promise.resolve(null),
-    name && name.length >= 3 ? settle(listingEvidence(d, name, input.city?.trim() || null), "listing") : Promise.resolve(null),
+    name && name.length >= 3 ? settle(listingEvidence(d, name, city), "listing") : Promise.resolve(null),
+    industry ? settle(keywordEvidence(d, industry, city), "keywords") : Promise.resolve(null),
   ]);
-  return { industry: a, search: b, listing: c };
+  return { industry: a, search: b, listing: c, keywords: k };
 }
 
 /** Which evidence each reviewer sees. Unlisted reviewers get none. */
@@ -105,6 +145,7 @@ export function evidenceFor(area: string, evidence: ReviewEvidence): string[] {
   const out: string[] = [];
   if (area === "industry_fit" && evidence.industry) out.push(evidence.industry);
   if (area === "seo" && evidence.search) out.push(evidence.search);
+  if (area === "seo" && evidence.keywords) out.push(evidence.keywords);
   if ((area === "consistency" || area === "truthfulness") && evidence.listing) out.push(evidence.listing);
   return out;
 }
