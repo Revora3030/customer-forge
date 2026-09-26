@@ -181,14 +181,14 @@ function renderNode(node: CompositionNode, ctx: Ctx, key: string): ReactNode {
       );
     case "compare": {
       const [before, after] = node.children ?? [];
-      const beforeSource = before?.src ?? (before?.mediaRef ? mediaUrl(ctx.media(before.mediaRef)) : null);
-      const afterSource = after?.src ?? (after?.mediaRef ? mediaUrl(ctx.media(after.mediaRef)) : null);
+      const beforeSource = before?.src ? resolveImageSource(before.src) : (before?.mediaRef ? mediaUrl(ctx.media(before.mediaRef)) : null);
+      const afterSource = after?.src ? resolveImageSource(after.src) : (after?.mediaRef ? mediaUrl(ctx.media(after.mediaRef)) : null);
       return before && after && beforeSource && afterSource ? <Compare key={key} props={props} before={before} after={after} beforeSource={beforeSource} afterSource={afterSource} /> : null;
     }
     case "gallery":
       return (
         <div key={key} {...props} style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(220px,1fr))", ...props.style }}>
-          {node.children?.map((c, i) => { const resolved = c.mediaRef ? ctx.media(c.mediaRef) : null; const visual = mediaVisual(resolved); const source = c.src ?? mediaUrl(resolved); return source ? (
+          {node.children?.map((c, i) => { const resolved = c.mediaRef ? ctx.media(c.mediaRef) : null; const visual = mediaVisual(resolved); const source = c.src ? resolveImageSource(c.src) : mediaUrl(resolved); return source ? (
             <a key={i} href={source} target="_blank" rel="noopener noreferrer">
               <img src={source} alt={c.alt ?? visual?.alt ?? ""} loading="lazy" style={{ width: "100%", height: "100%", ...mediaCss(visual), ...styleToCss(c.style, "media") }} />
             </a>
