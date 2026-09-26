@@ -51,6 +51,7 @@ export function VisualCheckPanel({
   publishState,
   canManage,
   changeKey,
+  revertVersion = null,
   compact = false,
 }: {
   organizationId: string | undefined;
@@ -59,6 +60,8 @@ export function VisualCheckPanel({
   canManage: boolean;
   /** Changes whenever a chat request applies edits — re-checks every screen size. */
   changeKey?: string | null;
+  /** Version saved before the latest chat change; restored if the QA gate fails. */
+  revertVersion?: number | null;
   /** Slim status strip for the chat instead of the full panel. */
   compact?: boolean;
 }) {
