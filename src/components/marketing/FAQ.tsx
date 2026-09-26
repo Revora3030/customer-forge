@@ -42,7 +42,7 @@ export const FAQ_ITEMS = [
   },
   {
     q: "What businesses can use Revora?",
-    a: "Local service businesses — detailing, hair and beauty, barbers, cleaning, landscaping, pressure washing, HVAC, plumbing, roofing, contractors and similar trades.",
+    a: "Any business, in any industry, in any city — worldwide. From detailing, hair and beauty, cleaning and landscaping to HVAC, plumbing, roofing, professional services, retail, hospitality and beyond. The AI adapts the website, content and growth system to your industry and location.",
   },
 ] as const;
 

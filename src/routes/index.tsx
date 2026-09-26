@@ -309,9 +309,9 @@ function Landing() {
               <p className="mt-4 max-w-xl text-[15px] leading-relaxed text-muted-foreground">
                 Revora's AI runs your{" "}
                 <span className="text-foreground">
-                  website, quotes, booking, follow-up, reviews and local SEO
+                  website, quotes, booking, follow-up, reviews and SEO
                 </span>{" "}
-                — so the work finds you and books itself while you work.{" "}
+                — for any industry, in any city, anywhere in the world. The work finds you and books itself while you work.{" "}
                 <span className="text-foreground">
                   $750 one-time setup, your first month free, then $100/month.
                 </span>
