@@ -689,7 +689,7 @@ function TaskBody({
           task={task}
           organizationId={organizationId}
           onFollowUp={onFollowUp}
-          onOpenHistory={onOpenHistory}
+          {...(onOpenHistory ? { onOpenHistory } : {})}
           onClear={() => requests.dismiss(task.id)}
         />
       ) : null}
