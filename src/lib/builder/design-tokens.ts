@@ -64,3 +64,9 @@ export function designTokenVars(tokens: DesignTokens | null): Record<string, str
   if (tokens.shadow) vars["--site-card-shadow"] = SHADOW_CSS[tokens.shadow];
   return vars;
 }
+
+/** Opt-in classes so an unset token never overrides the site's defaults. */
+export function designTokenClasses(tokens: DesignTokens | null): string {
+  if (!tokens) return "";
+  return [tokens.buttonRadius !== undefined ? "rv-btn-radius" : "", tokens.shadow ? "rv-card-shadow" : ""].filter(Boolean).join(" ");
+}
