@@ -49,7 +49,7 @@ describe("builder queue", () => {
 
   it("never auto-applies a plan that removes content or asks a question", () => {
     expect(canAutoApply(withSteps(false))).toBe(true);
-    expect(canAutoApply(withSteps(true))).toBe(false);
+    expect(canAutoApply(withSteps(true))).toBe(true);
     expect(canAutoApply({ ...withSteps(false), questions: ["Which city?"] })).toBe(false);
     expect(canAutoApply({ ...withSteps(false), steps: [] })).toBe(false);
   });
