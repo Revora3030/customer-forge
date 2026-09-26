@@ -275,7 +275,23 @@ async function improveWithTeam(input: {
   lookSummary: string;
   evidence: ReviewEvidence;
   memory?: string | null;
-...
+  sections: SectionRow[];
+  parts: ComponentRow[];
+  designed: Map<string, CompositionTree>;
+  screen: (text: string) => string | null;
+  result: CompositionPassResult;
+}): Promise<Map<string, CompositionTree>> {
+  let best = input.designed;
+  const material = JSON.stringify(
+    input.sections.map((s) => materialFor(s, input.parts.filter((p) => p.section_id === s.id))),
+  );
+  for (let round = 0; round < IMPROVEMENT_ROUNDS; round += 1) {
+    try {
+      const current = Object.fromEntries(best);
+      const panel = await runReviewPanel({
+        organizationId: input.organizationId,
+        mode: "full",
+        evidence: input.evidence,
         material: [
           "SUPPLIED MATERIAL:", material, "",
           ...(input.memory ? ["OWNER'S STANDING PREFERENCES:", input.memory, ""] : []),
