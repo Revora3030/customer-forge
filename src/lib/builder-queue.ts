@@ -45,6 +45,8 @@ export type QueueTask = {
   requirements?: { label: string; covered: boolean }[];
   /** Real result of the build, never assumed. */
   applied?: number;
+  /** Version saved just before this change — the QA gate restores it. */
+  snapshotVersion?: number;
   failedCount?: number;
   /** Steps skipped because their target no longer existed. */
   staleCount?: number;

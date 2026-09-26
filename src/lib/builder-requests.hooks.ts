@@ -172,6 +172,7 @@ export function useBuilderRequests({
           operationKey: task.id,
         },
       });
+      const beforeVersion = Number((result as { snapshotVersion?: number }).snapshotVersion ?? 0) || undefined;
       for (let index = 1; index < batches.length; index += 1) {
         // Nothing landed from the previous batch: stop rather than keep pushing
         // changes at a website that has moved on. The owner is told to retry,
@@ -219,6 +220,7 @@ export function useBuilderRequests({
       patch(task.id, {
         state: "complete",
         applied: result.applied,
+        snapshotVersion: beforeVersion,
         failedCount: result.failed,
         staleCount: result.stale ?? 0,
         partial,

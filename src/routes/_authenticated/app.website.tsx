@@ -474,6 +474,10 @@ function WebsitePage() {
               const last = done[done.length - 1];
               return last ? `${last.id}:${done.length}` : null;
             })()}
+            revertVersion={(() => {
+              const done = requests.tasks.filter((t) => t.state === "complete" && (t.applied ?? 0) > 0);
+              return done[done.length - 1]?.snapshotVersion ?? null;
+            })()}
           />
           <BuilderAssistant
             compact
