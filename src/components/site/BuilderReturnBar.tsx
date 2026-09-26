@@ -5,16 +5,22 @@
  * renders for visitors without a session, so shared preview links stay clean.
  */
 import { useEffect, useState } from "react";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
 export function BuilderReturnBar() {
   const [signedIn, setSignedIn] = useState(false);
   const [framed, setFramed] = useState(true);
+  const [hidden, setHidden] = useState(false);
 
   useEffect(() => {
     // Inside the builder's own preview frame the builder is already on screen.
     setFramed(typeof window !== "undefined" && window.self !== window.top);
+    try {
+      setHidden(window.sessionStorage.getItem("rv-return-bar-hidden") === "1");
+    } catch {
+      /* storage unavailable — keep the control visible */
+    }
     let active = true;
     void supabase.auth
       .getSession()
@@ -27,17 +33,34 @@ export function BuilderReturnBar() {
     };
   }, []);
 
-  if (!signedIn || framed) return null;
+  if (!signedIn || framed || hidden) return null;
 
   return (
-    // Explicit foreground/background pairing: the control must stay visible on
-    // pale cream themes as well as dark ones, so it never inherits page ink.
-    <a
-      href="/app/website"
-      className="fixed bottom-24 left-4 z-[60] sm:bottom-4 inline-flex items-center gap-2 rounded-full border border-foreground/15 bg-foreground px-4 min-h-11 py-2.5 font-display text-[14px] font-semibold text-background shadow-lg transition-opacity hover:opacity-90"
-    >
-      <ArrowLeft className="size-4" aria-hidden="true" />
-      Back to builder
-    </a>
+    // Compact and dismissible so it never sits on top of the site's own
+    // headings; explicit ink pairing keeps it legible on any theme.
+    <div className="fixed bottom-24 left-3 z-[60] sm:bottom-4 inline-flex items-center rounded-full border border-foreground/15 bg-foreground text-background shadow-lg">
+      <a
+        href="/app/website"
+        className="inline-flex min-h-11 items-center gap-1.5 pl-3.5 pr-2 font-display text-[13px] font-semibold transition-opacity hover:opacity-90"
+      >
+        <ArrowLeft className="size-4" aria-hidden="true" />
+        Builder
+      </a>
+      <button
+        type="button"
+        aria-label="Hide the builder shortcut"
+        onClick={() => {
+          setHidden(true);
+          try {
+            window.sessionStorage.setItem("rv-return-bar-hidden", "1");
+          } catch {
+            /* ignore */
+          }
+        }}
+        className="inline-flex size-11 items-center justify-center rounded-full opacity-70 hover:opacity-100"
+      >
+        <X className="size-4" aria-hidden="true" />
+      </button>
+    </div>
   );
 }
