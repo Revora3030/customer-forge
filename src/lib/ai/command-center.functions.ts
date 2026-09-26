@@ -79,11 +79,12 @@ export const saveCommandSettings = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
-/** The QA gate values the builder needs. Any signed-in user may read them. */
+/** The QA gate values are read through the trusted server after authentication. */
 export const getQaGate = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
-    const { data } = await (context.supabase as unknown as AnyDb)
+  .handler(async () => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data } = await (supabaseAdmin as unknown as AnyDb)
       .from("ai_command_settings")
       .select("qa_auto_revert,qa_min_score")
       .eq("id", 1)

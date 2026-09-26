@@ -422,8 +422,16 @@ export function BuilderAssistant({
  * Live "what the AI is doing right now" card. Shows only steps the server has
  * genuinely recorded, plus a running timer so the owner sees it's alive.
  */
-function LiveActivity({ organizationId, fallback }: { organizationId: string | null | undefined; fallback: string }) {
-  const { latest, steps } = useBuildProgress(organizationId, true);
+function LiveActivity({
+  organizationId,
+  requestId,
+  fallback,
+}: {
+  organizationId: string | null | undefined;
+  requestId?: string;
+  fallback: string;
+}) {
+  const { latest, steps } = useBuildProgress(organizationId, true, requestId);
   const [startedAt] = useState(() => Date.now());
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
@@ -488,6 +496,7 @@ function TaskBody({
       {working ? (
         <LiveActivity
           organizationId={organizationId}
+          requestId={task.id}
           fallback={
             task.state === "queued"
               ? "Got it — I’m starting now…"

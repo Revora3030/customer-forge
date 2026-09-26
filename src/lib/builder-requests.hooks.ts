@@ -268,6 +268,7 @@ export function useBuilderRequests({
           instruction: task.instruction,
           history: conversation.slice(-24),
           attachments: task.attachments ?? [],
+          requestId: task.id,
           ...(brand && hasBrandChoices(brand) ? { brand } : {}),
         },
       });
