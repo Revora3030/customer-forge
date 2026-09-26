@@ -59,6 +59,10 @@ describe("no third-party AI gateway remains", () => {
       // The Astra backup chat lane reads the gateway credential to keep the
       // builder chat alive when the direct OpenAI route is down.
       "ai/gateway-chat.server.ts",
+      // The Perplexity search connector is a Lovable integration reached
+      // through the connector gateway; it returns research links, never model
+      // output, and its results are marked third-party research.
+      "integrations/research.server.ts",
     ];
     const offenders = APP_FILES.filter((file) => {
       if (!readFileSync(file, "utf8").includes("LOVABLE_API_KEY")) return false;
