@@ -96,6 +96,9 @@ const PURPOSE_TIER: Record<CollectivePurpose, CollectiveTier> = {
   specialist_review: "terra",
   repair_plan: "terra",
   plan_review: "terra",
+  funnel_verification: "terra",
+  site_consistency_audit: "terra",
+  industry_gap_analysis: "terra",
   final_review: "sol",
 
   intent: "luna",
