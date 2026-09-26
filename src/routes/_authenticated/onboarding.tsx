@@ -226,8 +226,8 @@ function Onboarding() {
           ...prev,
           businessName: keep(prev.businessName, text(org?.name)),
           industry:
-            prev.industry === INDUSTRIES[0]!.name && knownIndustry
-              ? knownIndustry.name
+            prev.industry === INDUSTRIES[0]!.name && text(org?.industry).trim()
+              ? knownIndustry?.name ?? text(org?.industry).trim()
               : prev.industry,
           city: keep(prev.city, text(profile?.["city"])),
           state: keep(prev.state, text(profile?.["state"])),
@@ -601,18 +601,19 @@ function Onboarding() {
               <div className="grid gap-4 sm:grid-cols-3">
                 <div className="space-y-1.5 sm:col-span-1">
                   <Label htmlFor="o-industry">Industry</Label>
-                  <select
+                  <Input
                     id="o-industry"
+                    list="o-industry-suggestions"
                     value={draft.industry}
                     onChange={(e) => set("industry", e.target.value)}
-                    className="h-10 w-full cursor-pointer rounded-md border border-input bg-background px-3 text-sm"
-                  >
+                    placeholder="Any industry — type your own"
+                    autoComplete="off"
+                  />
+                  <datalist id="o-industry-suggestions">
                     {INDUSTRIES.map((i) => (
-                      <option key={i.name} value={i.name}>
-                        {i.name}
-                      </option>
+                      <option key={i.name} value={i.name} />
                     ))}
-                  </select>
+                  </datalist>
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="o-city">City</Label>

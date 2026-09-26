@@ -26,7 +26,7 @@ export const Route = createFileRoute("/_authenticated/admin/outreach")({
 });
 
 function AdminOutreach() {
-  const [audience, setAudience] = useState("local service business owners");
+  const [audience, setAudience] = useState("business owners in every industry");
   const [campaign, setCampaign] = useState("nationwide");
   const [done, setDone] = useState<string[]>([]);
   const [copied, setCopied] = useState<string | null>(null);
