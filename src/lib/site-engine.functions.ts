@@ -61,8 +61,6 @@ export const runSiteGeneration = createServerFn({ method: "POST" })
         throw new Error(
           `Revora still needs: ${missing.map((g) => g.label.toLowerCase()).join(", ")}.`,
         );
-      if (!brief) throw new Error("Review Revora's understanding of your business first.");
-      if (!brief.approved) throw new Error("Approve the brief and Revora will build from it.");
     }
 
     // RLS enforces that the caller belongs to this workspace.
