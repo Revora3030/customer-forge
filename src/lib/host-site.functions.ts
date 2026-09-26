@@ -24,7 +24,7 @@ export type HostSiteResult = {
  * Revora's own marketing page.
  */
 export const getHostSite = createServerFn({ method: "GET" })
-  .inputValidator((input?: { pageSlug?: string }) => {
+  .validator((input?: { pageSlug?: string }) => {
     const raw = String(input?.pageSlug ?? "")
       .trim()
       .toLowerCase()

@@ -37,7 +37,7 @@ export function alertRecipient(profile: {
 /** Save (or clear) the inbox that receives booking + lead alerts. */
 export const saveLeadNotifications = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { organizationId: string; email: string; enabled: boolean }) => ({
+  .validator((input: { organizationId: string; email: string; enabled: boolean }) => ({
     organizationId: String(input?.organizationId ?? ""),
     email: String(input?.email ?? "").trim(),
     enabled: input?.enabled !== false,
@@ -61,7 +61,7 @@ export const saveLeadNotifications = createServerFn({ method: "POST" })
 /** Send a real alert email so the owner can confirm it lands in their inbox. */
 export const sendTestLeadAlert = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { organizationId: string }) => ({
+  .validator((input: { organizationId: string }) => ({
     organizationId: String(input?.organizationId ?? ""),
   }))
   .handler(async ({ data, context }) => {

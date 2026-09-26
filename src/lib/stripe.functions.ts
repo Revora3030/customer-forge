@@ -30,7 +30,7 @@ export type GrowthSystemIntake = {
  */
 export const createGrowthSystemCheckout = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator(
+  .validator(
     (input: {
       organizationId: string;
       returnUrl: string;
@@ -265,7 +265,7 @@ export const createGrowthSystemCheckout = createServerFn({ method: "POST" })
 /** Starts an embedded Stripe one-time checkout for a Revora service (cards + wallets). */
 export const createServiceCheckout = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator(
+  .validator(
     (input: {
       organizationId: string;
       productId: string;
@@ -435,7 +435,7 @@ export const createServiceCheckout = createServerFn({ method: "POST" })
 /** Stripe-hosted billing portal for cancelling, switching plan or updating cards. */
 export const createBillingPortalSession = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator(
+  .validator(
     (input: { organizationId: string; returnUrl?: string; environment: StripeEnv }) => ({
       organizationId: parseWorkspaceId(input?.organizationId),
       returnUrl: input?.returnUrl ? parseReturnUrl(input.returnUrl) : undefined,
@@ -513,7 +513,7 @@ export const createBillingPortalSession = createServerFn({ method: "POST" })
 /** Verified subscription state + plan entitlements for the signed-in workspace. */
 export const getBillingState = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { organizationId: string; environment: StripeEnv }) => ({
+  .validator((input: { organizationId: string; environment: StripeEnv }) => ({
     organizationId: parseWorkspaceId(input?.organizationId),
     environment: parseStripeEnvironment(input?.environment),
   }))
@@ -572,7 +572,7 @@ export const getBillingState = createServerFn({ method: "POST" })
  */
 export const configureWalletPayments = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { environment: StripeEnv; domains?: string[] }) => ({
+  .validator((input: { environment: StripeEnv; domains?: string[] }) => ({
     environment: parseStripeEnvironment(input?.environment),
     domains: (input?.domains ?? [])
       .map((d) => String(d).trim().toLowerCase())

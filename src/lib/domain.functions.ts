@@ -4,7 +4,7 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 /** A client saves their own domain and gets an honest, verified status back. */
 export const saveOwnDomain = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { organizationId: string; domain: string }) => ({
+  .validator((input: { organizationId: string; domain: string }) => ({
     organizationId: String(input?.organizationId ?? ""),
     domain: String(input?.domain ?? ""),
   }))
@@ -97,7 +97,7 @@ export const saveOwnDomain = createServerFn({ method: "POST" })
  */
 export const checkDomainAvailability = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { domains: string[] }) => ({
+  .validator((input: { domains: string[] }) => ({
     domains: (Array.isArray(input?.domains) ? input.domains : [])
       .slice(0, 12)
       .map((d) => String(d)),
@@ -169,7 +169,7 @@ export const checkDomainAvailability = createServerFn({ method: "POST" })
  */
 export const recheckDomain = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { organizationId: string }) => ({
+  .validator((input: { organizationId: string }) => ({
     organizationId: String(input?.organizationId ?? ""),
   }))
   .handler(async ({ data, context }) => {

@@ -52,7 +52,7 @@ async function assertCanManage(
 /** Creates a single-use, 14-day invitation and emails the invite link. */
 export const createTeamInvitation = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator(
+  .validator(
     (input: { organizationId: string; email: string; role: string; appUrl: string }) => ({
       organizationId: parseWorkspaceId(input?.organizationId),
       email: parseEmail(input?.email),
@@ -151,7 +151,7 @@ export const createTeamInvitation = createServerFn({ method: "POST" })
 /** Cancels an open invitation. */
 export const revokeTeamInvitation = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { organizationId: string; invitationId: string }) => ({
+  .validator((input: { organizationId: string; invitationId: string }) => ({
     organizationId: parseWorkspaceId(input?.organizationId),
     invitationId: parseWorkspaceId(input?.invitationId),
   }))
@@ -175,7 +175,7 @@ export const revokeTeamInvitation = createServerFn({ method: "POST" })
 /** Accepts an invitation for the signed-in user, joining them to the workspace. */
 export const acceptTeamInvitation = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { token: string }) => ({ token: parseToken(input?.token) }))
+  .validator((input: { token: string }) => ({ token: parseToken(input?.token) }))
   .handler(
     async ({
       data,
@@ -250,7 +250,7 @@ export const acceptTeamInvitation = createServerFn({ method: "POST" })
  */
 export const listTeamMembers = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { organizationId: string }) => ({
+  .validator((input: { organizationId: string }) => ({
     organizationId: parseWorkspaceId(input?.organizationId),
   }))
   .handler(

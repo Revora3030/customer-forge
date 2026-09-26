@@ -50,7 +50,7 @@ export const getCommandCenter = createServerFn({ method: "GET" })
 
 export const saveCommandSettings = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { pinnedModels: string[]; pausedModels: string[]; qaAutoRevert: boolean; qaMinScore: number }) => {
+  .validator((input: { pinnedModels: string[]; pausedModels: string[]; qaAutoRevert: boolean; qaMinScore: number }) => {
     const ids = (list: unknown) =>
       (Array.isArray(list) ? list : []).map(String).filter((m) => MODEL_ID.test(m)).slice(0, 20);
     const score = Number(input?.qaMinScore);
@@ -101,7 +101,7 @@ const uuid = (v: unknown) => {
 
 export const getSiteDesign = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { organizationId: string }) => ({ organizationId: uuid(input?.organizationId) }))
+  .validator((input: { organizationId: string }) => ({ organizationId: uuid(input?.organizationId) }))
   .handler(async ({ data, context }) => {
     await superAdmin(context);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -119,7 +119,7 @@ export const getSiteDesign = createServerFn({ method: "GET" })
 
 export const saveSiteDesign = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { organizationId: string; colors: Record<string, string>; tokens: DesignTokens }) => {
+  .validator((input: { organizationId: string; colors: Record<string, string>; tokens: DesignTokens }) => {
     const colors: Record<string, string> = {};
     for (const key of ["primary_color", "secondary_color", "accent_color"])
       if (HEX.test(String(input?.colors?.[key] ?? ""))) colors[key] = String(input.colors[key]);

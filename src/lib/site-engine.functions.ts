@@ -24,7 +24,7 @@ export type RunResult = {
 
 export const runSiteGeneration = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { organizationId: string; mode?: RunMode; confirmation?: string }) => {
+  .validator((input: { organizationId: string; mode?: RunMode; confirmation?: string }) => {
     const organizationId = String(input?.organizationId ?? "");
     if (!/^[0-9a-f-]{36}$/i.test(organizationId)) throw new Error("Invalid workspace");
     const mode: RunMode = input?.mode === "fresh_replace" ? "fresh_replace" : "safe";
@@ -198,7 +198,7 @@ async function kickWorker(origin: string) {
  */
 export const pumpSiteEngineQueue = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { organizationId: string }) => {
+  .validator((input: { organizationId: string }) => {
     const organizationId = String(input?.organizationId ?? "");
     if (!/^[0-9a-f-]{36}$/i.test(organizationId)) throw new Error("Invalid workspace");
     return { organizationId };
@@ -225,7 +225,7 @@ export const pumpSiteEngineQueue = createServerFn({ method: "POST" })
 /** AI edit assistant: rewrites only the requested fields. */
 export const aiEditSiteCopy = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator(
+  .validator(
     (input: { organizationId: string; instruction: string; fields: Record<string, string> }) => {
       const organizationId = String(input?.organizationId ?? "");
       if (!/^[0-9a-f-]{36}$/i.test(organizationId)) throw new Error("Invalid workspace");
@@ -304,7 +304,7 @@ export const aiEditSiteCopy = createServerFn({ method: "POST" })
 /** AI section assistant: proposes edits; the client confirms before anything is written. */
 export const aiEditSiteSections = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { organizationId: string; instruction: string }) => {
+  .validator((input: { organizationId: string; instruction: string }) => {
     const organizationId = String(input?.organizationId ?? "");
     if (!/^[0-9a-f-]{36}$/i.test(organizationId)) throw new Error("Invalid workspace");
     const instruction = String(input?.instruction ?? "")
@@ -517,7 +517,7 @@ async function persistScreenshotReference(
  */
 export const analyzeSiteBrief = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { organizationId: string }) => ({ organizationId: orgIdOf(input) }))
+  .validator((input: { organizationId: string }) => ({ organizationId: orgIdOf(input) }))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
     const orgId = data.organizationId;
@@ -561,7 +561,7 @@ export const analyzeSiteBrief = createServerFn({ method: "POST" })
 /** Saves the owner's edits to the brief, and their approval to build from it. */
 export const saveSiteBrief = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { organizationId: string; brief: unknown; approved?: boolean }) => ({
+  .validator((input: { organizationId: string; brief: unknown; approved?: boolean }) => ({
     organizationId: orgIdOf(input),
     brief: input?.brief,
     approved: input?.approved === true,
@@ -597,7 +597,7 @@ export const saveSiteBrief = createServerFn({ method: "POST" })
  */
 export const saveMissingFacts = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { organizationId: string; answers: Record<string, string> }) => {
+  .validator((input: { organizationId: string; answers: Record<string, string> }) => {
     const answers: Record<string, string> = {};
     for (const [key, value] of Object.entries(input?.answers ?? {}).slice(0, 20)) {
       if (typeof value === "string" && value.trim())
@@ -686,7 +686,7 @@ export const saveMissingFacts = createServerFn({ method: "POST" })
 /** Saves bounded, anti-cloning design observations from an inspiration screenshot. */
 export const saveScreenshotReference = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { organizationId: string; observations: unknown }) => ({
+  .validator((input: { organizationId: string; observations: unknown }) => ({
     organizationId: orgIdOf(input),
     observations: observationInputOf((input ?? {}) as Record<string, unknown>),
   }))
@@ -704,7 +704,7 @@ export const saveScreenshotReference = createServerFn({ method: "POST" })
 /** Extracts design observations from a screenshot using only free vision models. */
 export const extractScreenshotReference = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { organizationId: string; screenshotDataUrl: string; notes?: string }) => ({
+  .validator((input: { organizationId: string; screenshotDataUrl: string; notes?: string }) => ({
     organizationId: orgIdOf(input),
     screenshotDataUrl: referenceDataUrlOf(input?.screenshotDataUrl),
     notes: String(input?.notes ?? "").trim().slice(0, 600),
@@ -780,7 +780,7 @@ export const extractScreenshotReference = createServerFn({ method: "POST" })
 /** The blanks and QA state for the builder UI, computed from real rows. */
 export const getBuildReadiness = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { organizationId: string }) => ({ organizationId: orgIdOf(input) }))
+  .validator((input: { organizationId: string }) => ({ organizationId: orgIdOf(input) }))
   .handler(async ({ data, context }) => {
     const { readBrief } = await import("@/lib/site-brief");
     const { captureQa, factGaps } = await import("@/lib/launch-qa");
@@ -822,7 +822,7 @@ export const getBuildReadiness = createServerFn({ method: "POST" })
  */
 export const runSiteEngineCheck = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { organizationId: string }) => ({ organizationId: orgIdOf(input) }))
+  .validator((input: { organizationId: string }) => ({ organizationId: orgIdOf(input) }))
   .handler(async ({ data, context }) => {
     const orgId = data.organizationId;
     const steps: { key: string; label: string; ok: boolean; detail: string }[] = [];

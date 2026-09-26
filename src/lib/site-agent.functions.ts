@@ -206,7 +206,7 @@ function hoursText(value: unknown): string | null {
 
 export const planWebsiteChanges = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator(
+  .validator(
     (input: {
       organizationId: string;
       instruction: string;
@@ -661,7 +661,7 @@ export type WebsitePlan = Awaited<ReturnType<typeof planImpl>>;
 
 export const applyWebsiteChanges = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator(
+  .validator(
     (input: {
       organizationId: string;
       actions: unknown;
@@ -1789,7 +1789,7 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
  */
 export const transcribeVoiceCommand = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { organizationId: string; audio?: unknown }) => {
+  .validator((input: { organizationId: string; audio?: unknown }) => {
     const organizationId = orgIdOf(input);
     const [attachment] = readAttachments([input?.audio]);
     if (!attachment || attachment.kind !== "audio")
@@ -1834,7 +1834,7 @@ export const transcribeVoiceCommand = createServerFn({ method: "POST" })
  */
 export const summarizeClipChapters = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { organizationId: string; video?: unknown }) => {
+  .validator((input: { organizationId: string; video?: unknown }) => {
     const organizationId = orgIdOf(input);
     const [attachment] = readAttachments([input?.video]);
     if (!attachment || attachment.kind !== "video")
@@ -1890,7 +1890,7 @@ export const summarizeClipChapters = createServerFn({ method: "POST" })
  */
 export const runWebsiteTask = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator(
+  .validator(
     (input: {
       organizationId: string;
       instruction: string;

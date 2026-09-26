@@ -58,7 +58,7 @@ function toBranch(row: BranchRow): DraftBranch {
 
 export const listSiteBranches = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: { organizationId: string }) => ({
+  .validator((data: { organizationId: string }) => ({
     organizationId: uuid(data?.organizationId),
   }))
   .handler(async ({ data, context }) => {
@@ -100,7 +100,7 @@ export const listSiteBranches = createServerFn({ method: "POST" })
 
 export const startSiteBranch = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: { organizationId: string; label?: string }) => ({
+  .validator((data: { organizationId: string; label?: string }) => ({
     organizationId: uuid(data?.organizationId),
     label: normaliseBranchLabel(data?.label),
   }))
@@ -143,7 +143,7 @@ export const startSiteBranch = createServerFn({ method: "POST" })
 /** Keeps the draft: the working website already holds the changes. */
 export const keepSiteBranch = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: { organizationId: string; branchId: string }) => ({
+  .validator((data: { organizationId: string; branchId: string }) => ({
     organizationId: uuid(data?.organizationId),
     branchId: uuid(data?.branchId),
   }))
@@ -193,7 +193,7 @@ export const keepSiteBranch = createServerFn({ method: "POST" })
 /** Throws the draft away: the website goes back exactly as it was. */
 export const discardSiteBranch = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: { organizationId: string; branchId: string }) => ({
+  .validator((data: { organizationId: string; branchId: string }) => ({
     organizationId: uuid(data?.organizationId),
     branchId: uuid(data?.branchId),
   }))

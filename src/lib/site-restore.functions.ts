@@ -82,7 +82,7 @@ export async function readWebsiteState(
 
 export const captureSiteState = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: { organizationId: string; label?: string }) => ({
+  .validator((data: { organizationId: string; label?: string }) => ({
     organizationId: uuid(data?.organizationId),
     label: String(data?.label ?? "Before this change").slice(0, 120),
   }))
@@ -150,7 +150,7 @@ export async function applyWebsiteRestore(
 
 export const restoreSiteState = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: { organizationId: string; snapshot: unknown }) => {
+  .validator((data: { organizationId: string; snapshot: unknown }) => {
     const snapshot = readFullSnapshot(data?.snapshot);
     if (!snapshot) throw new Error("That saved state can no longer be read.");
     return { organizationId: uuid(data?.organizationId), snapshot };

@@ -36,7 +36,7 @@ export type ErrorFeed = {
 
 /** Records a browser-side crash. Deliberately small, bounded and unauthenticated. */
 export const reportClientError = createServerFn({ method: "POST" })
-  .inputValidator(
+  .validator(
     (input: {
       message: string;
       stack?: string;

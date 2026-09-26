@@ -52,7 +52,7 @@ export type RestyleResult = { composed: number; alreadyAi: number; restyleId: st
 
 export const restyleSiteWithAi = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator(orgInput)
+  .validator(orgInput)
   .handler(async ({ data, context }): Promise<RestyleResult> => {
     const db = context.supabase as unknown as Client;
     const orgId = data.organizationId;
@@ -146,7 +146,7 @@ export const restyleSiteWithAi = createServerFn({ method: "POST" })
 
 export const undoAiRestyle = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { organizationId?: unknown; restyleId?: unknown }) => {
+  .validator((input: { organizationId?: unknown; restyleId?: unknown }) => {
     const base = orgInput(input);
     if (typeof input.restyleId !== "string" || !input.restyleId) throw new Error("restyleId is required");
     return { ...base, restyleId: input.restyleId };

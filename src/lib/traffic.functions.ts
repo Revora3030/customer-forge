@@ -8,7 +8,7 @@ import { fetchAllRows } from "@/lib/paginate";
  */
 export const getTrafficReport = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { organizationId: string; days?: number; notify?: boolean }) => ({
+  .validator((input: { organizationId: string; days?: number; notify?: boolean }) => ({
     organizationId: String(input?.organizationId ?? ""),
     days: Math.min(Math.max(Number(input?.days ?? 30), 1), 365),
     notify: input?.notify !== false,
@@ -116,7 +116,7 @@ export const getTrafficReport = createServerFn({ method: "POST" })
 /** Turns the traffic alert notifications on or off for a workspace. */
 export const setTrafficAlerts = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { organizationId: string; enabled: boolean }) => ({
+  .validator((input: { organizationId: string; enabled: boolean }) => ({
     organizationId: String(input?.organizationId ?? ""),
     enabled: !!input?.enabled,
   }))

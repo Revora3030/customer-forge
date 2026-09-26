@@ -10,7 +10,7 @@ import type { StripeEnv } from "@/lib/stripe.server";
  */
 export const refundPayment = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { paymentId: string; amount?: number; environment?: StripeEnv }) => {
+  .validator((input: { paymentId: string; amount?: number; environment?: StripeEnv }) => {
     const paymentId = String(input?.paymentId ?? "");
     if (!/^[0-9a-f-]{36}$/i.test(paymentId)) throw new Error("Invalid payment");
     const amount = typeof input?.amount === "number" && input.amount > 0 ? input.amount : undefined;

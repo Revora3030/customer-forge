@@ -59,7 +59,7 @@ export type BackupRow = {
 /** Backup history for one workspace, newest first. */
 export const listBackups = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { organizationId: string }) => ({
+  .validator((input: { organizationId: string }) => ({
     organizationId: uuid(input?.organizationId),
   }))
   .handler(async ({ data, context }): Promise<BackupRow[]> => {
@@ -91,7 +91,7 @@ export const listBackups = createServerFn({ method: "GET" })
 /** Takes a snapshot right now. */
 export const runBackup = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { organizationId: string; label?: string }) => ({
+  .validator((input: { organizationId: string; label?: string }) => ({
     organizationId: uuid(input?.organizationId),
     label: (String(input?.label ?? "").slice(0, 120) || undefined) as string | undefined,
   }))
@@ -111,7 +111,7 @@ export const runBackup = createServerFn({ method: "POST" })
 /** Restores a snapshot after taking an automatic safety snapshot first. */
 export const restoreFromBackup = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { backupId: string; confirm: string }) => {
+  .validator((input: { backupId: string; confirm: string }) => {
     if (
       String(input?.confirm ?? "")
         .trim()

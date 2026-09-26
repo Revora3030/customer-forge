@@ -23,7 +23,7 @@ export type LiveSyncResult = SyncResult & { checkedAt: string; slug: string | nu
 
 export const checkLiveSync = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => inputSchema.parse(input))
+  .validator((input: unknown) => inputSchema.parse(input))
   .handler(async ({ data, context }): Promise<LiveSyncResult> => {
     const { supabase, userId } = context;
     const orgId = data.organizationId;

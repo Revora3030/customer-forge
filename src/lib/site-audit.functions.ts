@@ -12,7 +12,7 @@ import type { LivePageResult } from "@/lib/site-audit";
  */
 export const auditLiveSite = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { organizationId: string }) => {
+  .validator((input: { organizationId: string }) => {
     const organizationId = String(input?.organizationId ?? "");
     if (!/^[0-9a-f-]{36}$/i.test(organizationId)) throw new Error("Invalid workspace");
     return { organizationId };

@@ -82,7 +82,7 @@ export const RATE_WINDOW_MS = 60_000;
 
 /** Records a Revora marketing funnel event (landing page -> signup -> paid checkout). */
 export const recordConversion = createServerFn({ method: "POST" })
-  .inputValidator((input: ConversionInput) => {
+  .validator((input: ConversionInput) => {
     const event = clean(input?.event, 40);
     if (!event || !(EVENTS as readonly string[]).includes(event)) {
       throw new Error("Unsupported conversion event");
@@ -194,7 +194,7 @@ const emptyRow = (key: string, label: string): FunnelRow => ({
  */
 export const getConversionReport = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input?: { days?: number }) => ({
+  .validator((input?: { days?: number }) => ({
     days: Math.min(365, Math.max(1, Math.round(Number(input?.days ?? 30)))),
   }))
   .handler(async ({ context, data }) => {
@@ -307,7 +307,7 @@ export interface TrafficSource {
  */
 export const getTrafficReport = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input?: { days?: number }) => ({
+  .validator((input?: { days?: number }) => ({
     days: Math.min(365, Math.max(1, Math.round(Number(input?.days ?? 30)))),
   }))
   .handler(async ({ context, data }) => {
@@ -452,7 +452,7 @@ export const getTrafficReport = createServerFn({ method: "GET" })
  */
 export const getBuilderPublishFunnel = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input?: { days?: number }) => ({
+  .validator((input?: { days?: number }) => ({
     days: Math.min(365, Math.max(1, Math.round(Number(input?.days ?? 30)))),
   }))
   .handler(async ({ context, data }) => {

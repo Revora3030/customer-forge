@@ -43,7 +43,7 @@ export type StockSearchResult = {
 
 export const searchStockPhotos = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: { topic: string; industry?: string | null; page?: number }) => ({
+  .validator((data: { topic: string; industry?: string | null; page?: number }) => ({
     topic: trimmed(data.topic, 120),
     industry: data.industry ? trimmed(data.industry, 60) : null,
     page: Math.min(Math.max(Math.trunc(Number(data.page ?? 1)) || 1, 1), 10),
@@ -84,7 +84,7 @@ export const searchStockPhotos = createServerFn({ method: "POST" })
 
 export const saveStockPhoto = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: { organizationId: string; photo: StockPhoto; altText?: string | null }) => {
+  .validator((data: { organizationId: string; photo: StockPhoto; altText?: string | null }) => {
     const photo = data.photo;
     if (!photo || typeof photo !== "object") throw new Error("Choose a picture first.");
     if (!/^https:\/\//i.test(String(photo.url ?? ""))) throw new Error("That picture address is not usable.");

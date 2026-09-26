@@ -19,7 +19,7 @@ async function authorize(
 /** Saves which address is canonical and whether HTTPS is forced. */
 export const saveDomainRouting = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator(
+  .validator(
     (input: { organizationId: string; primaryHost: "root" | "www"; forceHttps: boolean }) => ({
       organizationId: String(input?.organizationId ?? ""),
       primaryHost: input?.primaryHost === "www" ? ("www" as const) : ("root" as const),
@@ -43,7 +43,7 @@ export const saveDomainRouting = createServerFn({ method: "POST" })
  */
 export const monitorCertificate = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { organizationId: string }) => ({
+  .validator((input: { organizationId: string }) => ({
     organizationId: String(input?.organizationId ?? ""),
   }))
   .handler(async ({ data, context }) => {
@@ -97,7 +97,7 @@ export const monitorCertificate = createServerFn({ method: "POST" })
 /** Prepares a move to a new domain. The current address stays live throughout. */
 export const startDomainTransfer = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { organizationId: string; toDomain: string }) => ({
+  .validator((input: { organizationId: string; toDomain: string }) => ({
     organizationId: String(input?.organizationId ?? ""),
     toDomain: String(input?.toDomain ?? ""),
   }))
@@ -136,7 +136,7 @@ export const startDomainTransfer = createServerFn({ method: "POST" })
  */
 export const completeDomainTransfer = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { organizationId: string }) => ({
+  .validator((input: { organizationId: string }) => ({
     organizationId: String(input?.organizationId ?? ""),
   }))
   .handler(async ({ data, context }) => {
@@ -202,7 +202,7 @@ export const completeDomainTransfer = createServerFn({ method: "POST" })
 /** Puts the previous domain back, exactly as it was before the cutover. */
 export const rollbackDomainTransfer = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { organizationId: string }) => ({
+  .validator((input: { organizationId: string }) => ({
     organizationId: String(input?.organizationId ?? ""),
   }))
   .handler(async ({ data, context }) => {
@@ -245,7 +245,7 @@ export const rollbackDomainTransfer = createServerFn({ method: "POST" })
 /** Saves and verifies branded email forwarding (e.g. contact@yourdomain.com). */
 export const saveEmailForwarding = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator(
+  .validator(
     (input: {
       organizationId: string;
       provider: "improvmx" | "forwardemail";
@@ -300,7 +300,7 @@ export const saveEmailForwarding = createServerFn({ method: "POST" })
 /** Checks DNS to confirm branded email is actually live, then activates it. */
 export const verifyEmailForwarding = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { organizationId: string }) => ({
+  .validator((input: { organizationId: string }) => ({
     organizationId: String(input?.organizationId ?? ""),
   }))
   .handler(async ({ data, context }) => {
@@ -343,7 +343,7 @@ export const verifyEmailForwarding = createServerFn({ method: "POST" })
 /** Search-visibility report for a domain change: redirects, crawl signals, canonical. */
 export const runDomainSeoReport = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { organizationId: string }) => ({
+  .validator((input: { organizationId: string }) => ({
     organizationId: String(input?.organizationId ?? ""),
   }))
   .handler(async ({ data, context }) => {

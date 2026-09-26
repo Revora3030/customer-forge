@@ -66,7 +66,7 @@ function contactFingerprint(input: { email?: string | null; phone?: string | nul
 
 /** Everything a public business website needs, in one SSR-friendly read. */
 export const getPublicSite = createServerFn({ method: "GET" })
-  .inputValidator((input: { slug: string; pageSlug?: string }) => {
+  .validator((input: { slug: string; pageSlug?: string }) => {
     const slug = String(input?.slug ?? "")
       .trim()
       .slice(0, 80);
@@ -92,7 +92,7 @@ export type PublicSite = Awaited<ReturnType<typeof loadSite>>;
  */
 export const getOwnerDraftSite = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { slug: string; pageSlug?: string }) => {
+  .validator((input: { slug: string; pageSlug?: string }) => {
     const slug = String(input?.slug ?? "")
       .trim()
       .slice(0, 80);
@@ -124,7 +124,7 @@ export const getOwnerDraftSite = createServerFn({ method: "GET" })
  * the link is unknown, revoked or expired so the page can say so plainly.
  */
 export const getPreviewSite = createServerFn({ method: "GET" })
-  .inputValidator((input: { token: string; pageSlug?: string }) => {
+  .validator((input: { token: string; pageSlug?: string }) => {
     const token = String(input?.token ?? "")
       .trim()
       .slice(0, 120);
@@ -169,7 +169,7 @@ export const getPreviewSite = createServerFn({ method: "GET" })
 
 /** Anonymous lead / quote / booking submission from a public business site. */
 export const submitPublicLead = createServerFn({ method: "POST" })
-  .inputValidator(
+  .validator(
     (input: {
       slug: string;
       name: string;
@@ -538,7 +538,7 @@ function analyticsText(value: unknown, max: number) {
 }
 
 export const trackPublicEvent = createServerFn({ method: "POST" })
-  .inputValidator(
+  .validator(
     (input: {
       slug: string;
       eventType: string;
@@ -607,7 +607,7 @@ export const trackPublicEvent = createServerFn({ method: "POST" })
  * script cannot inflate or double-count the numbers the owner sees.
  */
 export const recordSiteVitals = createServerFn({ method: "POST" })
-  .inputValidator(
+  .validator(
     (input: {
       slug: string;
       path?: string;
