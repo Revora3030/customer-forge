@@ -11,7 +11,7 @@ import { formatPercent, formatUsd, leadValue, missedCallImpact } from "@/lib/too
 
 const TITLE = "Free Calculators for Local Businesses | Revora";
 const DESCRIPTION =
-  "Free calculators for local service businesses: what missed calls cost you and what every lead is worth. No signup.";
+  "Free calculators for businesses in every industry: what missed calls cost you and what every lead is worth. No signup.";
 
 export const Route = createFileRoute("/tools")({
   head: () => ({

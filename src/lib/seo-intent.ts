@@ -224,7 +224,7 @@ export function seoInventory(): SeoPage[] {
       "/guides",
       "local business marketing guides",
       "Guides for local business owners",
-      "Practical guides on reviews, local SEO, lead follow-up, quoting and booking for local service businesses.",
+      "Practical guides on reviews, local SEO, lead follow-up, quoting and booking for businesses in every industry.",
       340,
     ),
     page(
