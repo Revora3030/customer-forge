@@ -25,15 +25,15 @@ export const getCommandCenter = createServerFn({ method: "GET" })
     const since = new Date(Date.now() - 7 * 86_400_000).toISOString();
     const [{ data: row }, { data: usage }, { data: orgs }] = await Promise.all([
       db.from("ai_command_settings").select("*").eq("id", 1).maybeSingle(),
-      db.from("ai_usage").select("model,provider,success").gte("created_at", since).limit(5000),
+      db.from("ai_usage_events").select("model,provider,ok").gte("created_at", since).limit(5000),
       db.from("organizations").select("id,name,slug").order("created_at", { ascending: false }).limit(200),
     ]);
     const stats = new Map<string, { model: string; provider: string; calls: number; failures: number }>();
-    for (const u of (usage ?? []) as { model: string | null; provider: string | null; success: boolean | null }[]) {
+    for (const u of (usage ?? []) as { model: string | null; provider: string | null; ok: boolean | null }[]) {
       if (!u.model) continue;
       const s = stats.get(u.model) ?? { model: u.model, provider: u.provider ?? "", calls: 0, failures: 0 };
       s.calls += 1;
-      if (u.success === false) s.failures += 1;
+      if (u.ok === false) s.failures += 1;
       stats.set(u.model, s);
     }
     for (const s of SPECIALIST_SIX as readonly { model: string; provider?: string }[])
