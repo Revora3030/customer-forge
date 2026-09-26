@@ -32,7 +32,7 @@ export function safeDesignTokens(input: unknown): DesignTokens | null {
   if (buttonRadius !== undefined) out.buttonRadius = Math.round(buttonRadius);
   const space = clamp(row["space"], 0.6, 1.6);
   if (space !== undefined) out.space = Math.round(space * 100) / 100;
-  if (SHADOWS.includes(row["shadow"] as (typeof SHADOWS)[number])) out.shadow = row["shadow"] as DesignTokens["shadow"];
+  if (SHADOWS.includes(row["shadow"] as (typeof SHADOWS)[number])) out.shadow = row["shadow"] as NonNullable<DesignTokens["shadow"]>;
   return Object.keys(out).length ? out : null;
 }
 
