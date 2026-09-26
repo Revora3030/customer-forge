@@ -123,7 +123,15 @@ function primaryActionTarget(input: {
   if (hasBooking && /\b(book|booking|schedule|appointment|reserve)\b/.test(action)) return "/book";
   if (hasQuote && /\b(quote|estimate|price|pricing|cost|proposal)\b/.test(action)) return "/#quote";
   if (hasContact && /\b(call|contact|email|message|talk|consult)\b/.test(action)) return "/contact";
+  // The wording didn't name a capability, but the AI still asked for an action.
+  // Point it at a capability this business really has rather than discarding
+  // the whole build. Nothing is invented: each target only exists when the
+  // matching real section and capability are present.
+  if (hasBooking) return "/book";
+  if (hasQuote) return "/#quote";
+  if (hasContact) return "/contact";
   throw new Error("The AI-authored primary action destination does not match a real quote, booking or contact capability, so nothing was created. Please try again in a moment.");
+
 }
 
 type Section = {
