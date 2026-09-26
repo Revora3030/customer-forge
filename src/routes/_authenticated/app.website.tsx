@@ -463,6 +463,18 @@ function WebsitePage() {
       </div>
       <div className="grid min-w-0 gap-3 lg:grid-cols-[minmax(340px,430px)_minmax(0,1fr)]">
         <div className={previewOpen ? "hidden lg:block" : "min-w-0 lg:sticky lg:top-20 lg:self-start"}>
+          <VisualCheckPanel
+            compact
+            organizationId={orgId}
+            slug={org?.slug}
+            publishState={publishState}
+            canManage={manage}
+            changeKey={(() => {
+              const done = requests.tasks.filter((t) => t.state === "complete" && (t.applied ?? 0) > 0);
+              const last = done[done.length - 1];
+              return last ? `${last.id}:${done.length}` : null;
+            })()}
+          />
           <BuilderAssistant
             compact
             selection={selected}
