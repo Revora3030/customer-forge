@@ -21,6 +21,10 @@ const ALLOWED = [
   // outside the free worker router (it must never be selectable for a worker
   // role) and carries its own hard spend cap, ledger and fail-open behaviour.
   join("src", "lib", "ai", "luna.server.ts"),
+  // The Astra backup chat lane is its own adapter: it keeps the builder chat
+  // answering when the direct OpenAI route is unavailable, and is never
+  // selectable for a worker role.
+  join("src", "lib", "ai", "gateway-chat.server.ts"),
 ];
 
 
