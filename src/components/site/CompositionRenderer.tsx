@@ -89,6 +89,30 @@ const mediaUrl = (media: ResolvedMedia | null): string | null =>
 const mediaVisual = (media: ResolvedMedia | null): PersistedComponentVisual | undefined =>
   typeof media === "string" ? undefined : media?.visual;
 
+function widgetThemeStyle(theme: WidgetPresentation["theme"] | undefined): CSSProperties {
+  if (!theme) return {};
+  const out: Record<string, string> = {};
+  const set = (name: string, value: string | undefined) => { if (value) out[name] = value; };
+  set("--background", theme.surface);
+  set("--card", theme.surface);
+  set("--elevated", theme.surface);
+  set("--popover", theme.surface);
+  set("--secondary", theme.surface);
+  set("--muted", theme.surface);
+  set("--foreground", theme.text);
+  set("--card-foreground", theme.text);
+  set("--popover-foreground", theme.text);
+  set("--secondary-foreground", theme.text);
+  set("--muted-foreground", theme.muted ?? theme.text);
+  set("--border", theme.border);
+  set("--input", theme.border);
+  set("--primary", theme.action);
+  set("--primary-foreground", theme.actionText);
+  set("--accent", theme.selected ?? theme.action);
+  set("--accent-foreground", theme.selectedText ?? theme.actionText);
+  return out as CSSProperties;
+}
+
 function mediaCss(visual: PersistedComponentVisual | undefined): CSSProperties {
   if (!visual) return {};
   const css: CSSProperties = {};
@@ -159,7 +183,7 @@ function renderNode(node: CompositionNode, ctx: Ctx, key: string): ReactNode {
         return source ? <img key={key} {...props} src={source} alt={node.alt ?? visual?.alt ?? ""} loading="lazy" style={{ width: "100%", ...mediaCss(visual), ...props.style }} /> : null; }
     case "widget":
       { const w = node.text ? ctx.widget(node.text, node.widgetPresentation) : null;
-        return w ? <div key={key} {...props} data-widget={node.text}>{w}{kids}</div> : null; }
+        return w ? <div key={key} {...props} data-widget={node.text} style={{ ...props.style, ...widgetThemeStyle(node.widgetPresentation?.theme) }}>{w}{kids}</div> : null; }
     case "button":
     case "link":
       return <a key={key} {...props} href={node.href ? ctx.href(node.href) : undefined}>{node.text}{kids}</a>;
