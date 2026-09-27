@@ -498,6 +498,7 @@ async function runJob(
     brief,
     copy,
     creative,
+    hardGenericityGate: true,
   });
   if (refined.creativeChanged) creative = refined.creative;
   if (refined.changed) {
