@@ -115,7 +115,7 @@ function SiteSectionBody({ site, section }: { site: Site; section: Section }) {
           resolveMedia={(ref) => media.get(ref) ?? null}
           resolveHref={(href) => resolveSiteHref(href, org.slug, ownAddress)}
           resolveWidget={(name, presentation?: WidgetPresentation) => {
-            if (name === "booking_form") return <BookingForm site={site} presentation={presentation} />;
+            if (name === "booking_form") return <BookingForm site={site} {...(presentation ? { presentation } : {})} />;
             if (name === "quote_calculator") return site.quote ? <QuoteCalculator site={site} presentation={presentation} /> : null;
             if (name === "contact_details") return <ContactFacts site={site} presentation={presentation} />;
             if (name === "direct_contact")
