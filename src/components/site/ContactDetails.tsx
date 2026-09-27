@@ -50,14 +50,14 @@ export function DirectContact({
       <div className="mt-2 flex flex-wrap gap-2">
         {phone && phoneHref ? (
           <Button asChild size="sm" variant="outline">
-            <a href={phoneHref} aria-label={`Call ${businessName} at ${phone}`}>
+            <a href={phoneHref} aria-label={`Call ${businessName} at ${phone}`} className="flex min-w-0 items-center gap-2 overflow-hidden text-ellipsis whitespace-nowrap">
               <Phone className="size-3.5" aria-hidden="true" /> {phone}
             </a>
           </Button>
         ) : null}
         {email && emailHref ? (
           <Button asChild size="sm" variant="outline">
-            <a href={emailHref} aria-label={`Email ${businessName} at ${email}`}>
+            <a href={emailHref} aria-label={`Email ${businessName} at ${email}`} className="flex min-w-0 items-center gap-2 overflow-hidden text-ellipsis whitespace-nowrap">
               <Mail className="size-3.5" aria-hidden="true" /> {email}
             </a>
           </Button>
