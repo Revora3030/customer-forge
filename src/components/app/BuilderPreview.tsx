@@ -55,6 +55,14 @@ export function BuilderPreview({
   const ordered = useMemo(() => [...pages].sort((a, b) => a.sort_order - b.sort_order), [pages]);
   const [pageId, setPageId] = useState<string | null>(null);
   const [viewport, setViewport] = useState<BuilderViewportKey>("laptop");
+  // On a phone, open the preview in phone size: it's what the owner is
+  // holding, and a full desktop render inside a phone is heavy.
+  useEffect(() => {
+    if (typeof window !== "undefined" && window.innerWidth < 768) {
+      const phone = BUILDER_VIEWPORTS.find((v) => v.width <= 430)?.key;
+      if (phone) setViewport(phone);
+    }
+  }, []);
   const [zoom, setZoom] = useState(0.75);
   const [refreshKey, setRefreshKey] = useState(0);
   const [fullscreen, setFullscreen] = useState(false);
@@ -81,7 +89,9 @@ export function BuilderPreview({
   const scale = viewportWidth <= 834 ? Math.min(1, fit) : Math.min(zoom, fit);
   // Fill the visible stage height, like a real browser window, instead of a
   // short fixed box that leaves empty space below the site.
-  const frameHeight = Math.max(640, stageHeight > 0 ? Math.round((stageHeight - 24) / Math.max(scale, 0.1)) : 760);
+  // Capped: an uncapped tall desktop frame shrunk onto a phone uses enough
+  // memory to crash iPhone Safari ("A problem repeatedly occurred").
+  const frameHeight = Math.min(1200, Math.max(640, stageHeight > 0 ? Math.round((stageHeight - 24) / Math.max(scale, 0.25)) : 760));
   const source = page ? previewPath(slug, page.slug) : previewPath(slug, "home");
 
   useEffect(() => {

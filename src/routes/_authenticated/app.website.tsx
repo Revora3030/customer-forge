@@ -215,6 +215,16 @@ function WebsitePage() {
   const [advanced, setAdvanced] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
+  // Phones only load the preview when it's opened, so a hidden website isn't
+  // running in the background of the chat (which can crash iPhone Safari).
+  const [isWide, setIsWide] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 1024px)");
+    const sync = () => setIsWide(mq.matches);
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, []);
   /** The block the owner clicked in the preview, scoping their next message. */
   const [selected, setSelected] = useState<PreviewSelection | null>(null);
 
@@ -543,7 +553,7 @@ function WebsitePage() {
             emptyHint={firstRun ? "Tell me what you do and who you serve. I’ll build the complete website with you." : "Keep talking to me naturally. I’ll keep the context as we work through this website together."}
           />
         </div>
-        {!firstRun && org?.slug ? (
+        {!firstRun && org?.slug && (previewOpen || isWide) ? (
           <div className={!previewOpen ? "hidden min-w-0 lg:block" : "min-w-0"}>
             <BuilderPreview
               slug={org.slug}
