@@ -26,6 +26,7 @@ import type { DnaFacts } from "@/lib/business-dna";
 import { runAdvisoryPanel, runReviewPanel } from "@/lib/builder/review-panel.server";
 import { NO_EVIDENCE, allEvidence, gatherReviewEvidence, type ReviewEvidence } from "@/lib/builder/review-evidence.server";
 import { runImprovementGate, type GateReport } from "@/lib/builder/improvement-gate.server";
+import { detectGenericPhrases } from "@/lib/builder/genericity";
 
 const IMPROVEMENT_ROUNDS = 2;
 
@@ -81,6 +82,7 @@ const RULES = [
   "On mobile, keep functional forms and conversion controls one column and full width while preserving the authored visual hierarchy.",
   "For quote sections, the composition MUST contain one quote_calculator widget; for booking sections, one booking_form widget; for contact sections, one contact_details widget. These widgets are the only application-owned mechanics — you own their entire surrounding layout and their widgetPresentation.",
   "Every working widget in a first build MUST include widgetPresentation with an AI-authored title, actionLabel when actionable, successTitle/successBody when it submits, appropriate fieldLabels, and a local theme using surface, text, muted, border, action and actionText. Choose the palette yourself for this specific site; do not reuse a generic form palette.",
+  'widgetPresentation shape: {"eyebrow":"...","title":"...","description":"...","optionPrompt":"...","estimateLabel":"...","extraLabel":"...","actionLabel":"...","backLabel":"...","successTitle":"...","successBody":"...","contactLabel":"...","fieldLabels":{"service":"...","name":"...","phone":"...","email":"...","location":"...","date":"...","time":"...","details":"..."},"theme":{"surface":"#RRGGBB","text":"#RRGGBB","muted":"#RRGGBB","border":"#RRGGBB","action":"#RRGGBB","actionText":"#RRGGBB","selected":"#RRGGBB","selectedText":"#RRGGBB"}}',
   "Widget presentation copy must be specific to the supplied business and the section's role. Avoid stock phrases and generic filler such as 'choose your options', 'request your appointment', 'lock in this price', 'anything we should know', 'before you request a time', or 'without the guesswork' unless those exact words are genuinely appropriate to the supplied business.",
   "Use any validated composition, depth, hierarchy, spacing, media treatment, and motion the authored brief calls for. On mobile, provide responsive overrides wherever needed so nothing collides at 320px.",
 ].join(" ");
@@ -132,6 +134,9 @@ function widgetPresentationProblem(role: string, widget: CompositionTree["root"]
   const theme = presentation.theme;
   if (!theme?.surface || !theme.text || !theme.muted || !theme.border || !theme.action || !theme.actionText)
     return `the ${role} widget needs a complete AI-authored local theme`;
+  const presentationText = [presentation.eyebrow, presentation.title, presentation.description, presentation.optionPrompt, presentation.estimateLabel, presentation.extraLabel, presentation.actionLabel, presentation.backLabel, presentation.successTitle, presentation.successBody, presentation.contactLabel, ...Object.values(presentation.fieldLabels ?? {})].filter((value): value is string => typeof value === "string");
+  const genericHits = detectGenericPhrases(presentationText);
+  if (genericHits.length) return `the ${role} widget presentation contains stock phrasing: ${genericHits.map((hit) => hit.phrase).join(", ")}`;
   return null;
 }
 
