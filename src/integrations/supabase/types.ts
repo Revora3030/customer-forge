@@ -4454,6 +4454,10 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      call_revora_job: {
+        Args: { path: string; timeout_ms?: number }
+        Returns: number
+      }
       current_site_revision: {
         Args: { _organization_id: string }
         Returns: string
