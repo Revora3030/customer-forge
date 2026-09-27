@@ -290,12 +290,13 @@ export async function refineSectionWordingWithCollective(input: {
     );
     throw new Error(`Terra could not review the section copy: ${terraCall.detail ?? terraCall.reason}`);
   } else {
-    const parsed = parseReview(terraCall.text);
+    const successfulTerra = terraCall;
+    const parsed = parseReview(successfulTerra.text);
     passes.push(
-      record(terraCall.tier ?? "hall_of_fame", "specialist_review", {
-        model: terraCall.model,
+      record(successfulTerra.tier ?? "hall_of_fame", "specialist_review", {
+        model: successfulTerra.model,
         used: parsed !== null,
-        costMicrocents: terraCall.costMicrocents,
+        costMicrocents: successfulTerra.costMicrocents,
         skipped: parsed === null ? "the review was not in the agreed shape" : null,
         acceptedFields: parsed?.approvedFields ?? [],
         rejected: parsed?.notes ?? [],
