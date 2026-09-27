@@ -101,8 +101,14 @@ export function parseAuthoredDirection(raw: unknown): DesignDirection | null {
   const secondary = typeof r["secondary"] === "string" ? r["secondary"] : "";
   const accent = typeof r["accent"] === "string" ? r["accent"] : "";
   if (!HEX.test(primary) || !HEX.test(secondary) || !HEX.test(accent)) return null;
-  const font = siteHeadingFont(typeof r["font"] === "string" ? r["font"] : null);
-  if (!font) return null;
+  const rawFont = typeof r["font"] === "string" ? r["font"] : null;
+  const heading = siteHeadingFont(rawFont);
+  if (!heading) return null;
+  // Keep the AI's full "Heading|Body" pairing. Dropping the body face made
+  // every customer site fall back to the platform's own body font.
+  const bodyFace =
+    siteBodyFont(rawFont) ?? siteHeadingFont(typeof r["bodyFont"] === "string" ? r["bodyFont"] : null);
+  const font = bodyFace && bodyFace !== heading ? `${heading}|${bodyFace}` : heading;
   const name = cleanText(r["name"], 60);
   if (!name) return null;
   return {
