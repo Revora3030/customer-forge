@@ -305,7 +305,7 @@ export function QuoteCalculator({ site, presentation }: { site: Site; presentati
               {pending ? <Loader2 className="size-4 animate-spin" /> : null} {presentation?.actionLabel ?? "Send my quote request"}
             </Button>
             <Button type="button" variant="ghost" onClick={() => setStep("questions")}>
-              Back
+              {presentation?.backLabel ?? "Back"}
             </Button>
           </div>
         </form>
@@ -357,7 +357,8 @@ export function BookingForm({ site, presentation }: { site: Site; presentation?:
 
   return (
     <form
-      className="panel space-y-4 p-5"\n      style={widgetPresentationStyle(presentation)}
+      className="panel space-y-4 p-5"
+      style={widgetPresentationStyle(presentation)}
       onFocus={() => track("booking_start")}
       onSubmit={(e) => {
         e.preventDefault();
