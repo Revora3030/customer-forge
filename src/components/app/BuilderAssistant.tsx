@@ -264,7 +264,13 @@ export function BuilderAssistant({
               </Message>
             </div>
           ) : null}
-          {requests.tasks.map((task) => (
+          {(() => {
+            // Lovable-style flow: only the request being worked on right now
+            // shows the live activity card; waiting requests get a quiet line.
+            const activeTaskId = requests.tasks.find(
+              (t) => t.state === "planning" || t.state === "building",
+            )?.id ?? requests.tasks.find((t) => t.state === "queued")?.id ?? null;
+            return requests.tasks.map((task) => (
             <div key={task.id} className="chat-rise space-y-3">
               <Message from="user">
                 <MessageContent className="bg-primary text-primary-foreground">{task.instruction}</MessageContent>
@@ -274,6 +280,7 @@ export function BuilderAssistant({
                   <TaskBody
                     task={task}
                     requests={requests}
+                    isActive={task.id === activeTaskId}
                     organizationId={organizationId}
                     onAnswer={setAnswering}
                     {...(onOpenHistory ? { onOpenHistory } : {})}
@@ -286,7 +293,8 @@ export function BuilderAssistant({
                 </MessageContent>
               </Message>
             </div>
-          ))}
+            ));
+          })()}
           {factLog.map((entry, i) => (
             <div key={`fact-${i}`} className="chat-rise space-y-3">
               <Message from="assistant">
@@ -505,6 +513,7 @@ function TaskBody({
   task,
   requests,
   organizationId,
+  isActive,
   onAnswer,
   onOpenHistory,
   publishState,
@@ -512,6 +521,8 @@ function TaskBody({
 }: {
   task: QueueTask;
   requests: BuilderRequests;
+  /** True only for the one request currently being worked on. */
+  isActive: boolean;
   organizationId: string | null | undefined;
   /** Picks one of Revora's questions to answer with the next message. */
   onAnswer: (question: string) => void;
@@ -523,7 +534,7 @@ function TaskBody({
   const timeline = timelineFor(task);
   return (
     <div className="space-y-2">
-      {working ? (
+      {working && isActive ? (
         <LiveActivity
           organizationId={organizationId}
           requestId={task.id}
@@ -535,6 +546,11 @@ function TaskBody({
                 : "Applying…"
           }
         />
+      ) : working ? (
+        <p className="flex items-center gap-1.5 text-[12px] text-muted-foreground" role="status">
+          <span className="inline-block size-1.5 animate-pulse rounded-full bg-primary" aria-hidden />
+          Waiting — I’ll start this as soon as the current change is done
+        </p>
       ) : task.answered ? null : (
         <p className="text-[11px] tracking-wide text-muted-foreground uppercase">
           {QUEUE_LABELS[task.state]}
@@ -549,7 +565,7 @@ function TaskBody({
       ) : null}
       {task.error ? <p className="text-[12.5px]">{task.error}</p> : null}
 
-      {working ? (
+      {working && isActive ? (
         <p className="text-[11.5px] text-muted-foreground">
           {timeline.stages[timeline.current]}
         </p>
