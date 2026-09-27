@@ -5,6 +5,7 @@
  * confirmation) reads the same phone and email off the client's own business
  * profile, so a booking never dead-ends without a way to reach the business.
  */
+import type { CSSProperties } from "react";
 import { Mail, Phone } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { emailDisplay, emailLink, phoneDisplay, phoneLink } from "@/lib/builder/presentation";
@@ -28,7 +29,7 @@ export const telHref = (phone: string) => phoneLink(phone) ?? "#";
 export const mailHref = (email: string) => emailLink(email) ?? "#";
 
 /** Local semantic theme for an AI-authored working widget. */
-export function widgetPresentationStyle(presentation?: WidgetPresentation): React.CSSProperties {
+export function widgetPresentationStyle(presentation?: WidgetPresentation): CSSProperties {
   const theme = presentation?.theme;
   if (!theme) return {};
   const vars: Record<string, string> = {};
@@ -50,7 +51,7 @@ export function widgetPresentationStyle(presentation?: WidgetPresentation): Reac
   set("--primary-foreground", theme.actionText);
   set("--accent", theme.selected ?? theme.action);
   set("--accent-foreground", theme.selectedText ?? theme.actionText);
-  return vars as React.CSSProperties;
+  return vars as CSSProperties;
 }
 
 /** Short "prefer to talk?" strip used above forms. */
