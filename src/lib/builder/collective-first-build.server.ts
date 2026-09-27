@@ -30,6 +30,7 @@ import {
 } from "@/lib/builder/collective-copy";
 import { creativeQualityPrompt } from "@/lib/builder/creative-quality-matrix";
 import { normalizeAspect } from "@/lib/builder/composition-tree";
+import { detectGenericPhrases } from "@/lib/builder/genericity";
 
 export type CollectivePassRecord = {
   tier: "sol" | "terra" | "luna" | "hall_of_fame";
@@ -752,11 +753,12 @@ export async function refineFirstBuildWithCollective(input: {
       }),
     );
   } else {
+    const successfulSol = solCall;
     passes.push(
-      record(solCall.tier ?? "hall_of_fame", "content_strategy", {
-        model: solCall.model,
+      record(successfulSol.tier ?? "hall_of_fame", "content_strategy", {
+        model: successfulSol.model,
         used: solProposal !== null,
-        costMicrocents: solCall.costMicrocents,
+        costMicrocents: successfulSol.costMicrocents,
         skipped: solProposal === null ? "the answer was not in the agreed shape" : null,
         acceptedFields: approvableFields(solProposal),
       }),
