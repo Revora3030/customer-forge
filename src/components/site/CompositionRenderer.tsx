@@ -128,6 +128,11 @@ function renderNode(node: CompositionNode, ctx: Ctx, key: string): ReactNode {
     style: motion ? { ...style, ...motionStyle(motion) } : style,
   };
   const kids = node.children?.map((child, i) => renderNode(child, ctx, `${key}.${i}`));
+  // A box whose contents all resolved to nothing (missing facts, unavailable
+  // widget or image) is dropped so visitors never see an empty styled frame.
+  const EMPTY_PRUNE = new Set(["card", "stack", "row", "grid"]);
+  if (EMPTY_PRUNE.has(node.type) && !node.text && node.children?.length && kids?.every((k) => k == null)) return null;
+
 
   switch (node.type) {
     case "heading": {
