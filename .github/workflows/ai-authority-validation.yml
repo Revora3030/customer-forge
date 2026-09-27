@@ -28,10 +28,27 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
-      - name: Typecheck with tsgo
+      - name: Typecheck
         run: bunx tsc --noEmit
 
+      - name: Start E2E server
+        run: |
+          bun run dev -- --host 127.0.0.1 --port 8080 > /tmp/revora-e2e.log 2>&1 &
+          echo $! > /tmp/revora-e2e.pid
+          for i in $(seq 1 60); do
+            if curl --silent --show-error --fail http://127.0.0.1:8080/ >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "E2E server failed to start"
+          cat /tmp/revora-e2e.log
+          exit 1
+
       - name: Full Vitest suite
+        env:
+          E2E_BASE_URL: http://127.0.0.1:8080
+          E2E_REQUIRE_SERVER: "1"
         run: bunx vitest run
 
       - name: Production control audit
