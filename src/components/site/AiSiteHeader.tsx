@@ -66,7 +66,9 @@ export function AiSiteHeader(props: {
               <X className="size-5" />
             </button>
           </div>
-          <CompositionRenderer as="div" scope="site-header" tree={props.tree} resolveHref={props.resolveHref} />
+          <div className="flex min-h-0 flex-1 items-center justify-center overflow-y-auto">
+            <CompositionRenderer as="div" scope="site-header" tree={props.tree} resolveHref={props.resolveHref} />
+          </div>
         </div>
       ) : null}
     </header>
