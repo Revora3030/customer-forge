@@ -16,7 +16,7 @@ import { useRouterState } from "@tanstack/react-router";
 import { useEffect, useRef } from "react";
 
 import { trackConversion } from "@/lib/conversion";
-import { isValidMeasurementId, loadGa4 } from "@/lib/ga4";
+import { ga4PageView, isValidMeasurementId, loadGa4 } from "@/lib/ga4";
 import { isPublicMarketingPath } from "@/lib/marketing-paths";
 import { getPublicGaMeasurementId } from "@/lib/platform-settings.functions";
 
@@ -33,7 +33,12 @@ export function PlatformAnalytics() {
     let cancelled = false;
     void getPublicGaMeasurementId()
       .then((id) => {
-        if (!cancelled && isValidMeasurementId(id)) loadGa4(id);
+        if (cancelled || !isValidMeasurementId(id)) return;
+        loadGa4(id);
+        // The first page_view fires before this async lookup resolves, so GA4
+        // was never loaded yet and the landing page was dropped. Send it now.
+        const current = window.location.pathname;
+        if (isPublicMarketingPath(current)) ga4PageView(current);
       })
       .catch(() => {
         // Analytics is non-critical. The public app must continue rendering.
