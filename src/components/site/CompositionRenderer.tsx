@@ -127,7 +127,17 @@ function renderNode(node: CompositionNode, ctx: Ctx, key: string): ReactNode {
     className: motion ? "rv-cn-motion" : undefined,
     style: motion ? { ...style, ...motionStyle(motion) } : style,
   };
-  const kids = node.children?.map((child, i) => renderNode(child, ctx, `${key}.${i}`));
+  const children = node.children ?? [];
+  const prunedChildren = children.filter((child, index) => {
+    if (child.type !== "icon" || index === children.length - 1) return true;
+    const next = children[index + 1];
+    return !(
+      next.type === "widget" &&
+      (next.text === "direct_contact" || next.text === "contact_details") &&
+      /(?:email|phone|mail|call|tel|@|☎|📞|✉)/i.test(child.text ?? "")
+    );
+  });
+  const kids = prunedChildren.map((child, i) => renderNode(child, ctx, `${key}.${i}`));
   // A box whose contents all resolved to nothing (missing facts, unavailable
   // widget or image) is dropped so visitors never see an empty styled frame.
   const EMPTY_PRUNE = new Set(["card", "stack", "row", "grid"]);
