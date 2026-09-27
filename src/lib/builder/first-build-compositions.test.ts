@@ -4,13 +4,30 @@ const calls: string[] = [];
 vi.mock("@/lib/ai/hall-of-fame.server", () => ({
   callBestThinker: vi.fn(async (req: { user: string }) => {
     calls.push(req.user);
-    const good = { version: 1, root: { type: "stack", children: [{ type: "heading", level: 2, text: "Roof repair" }] } };
+    const widgetPresentation = {
+      title: "Choose a roof repair time",
+      actionLabel: "Request a roof repair",
+      successTitle: "Request received",
+      successBody: "We will confirm the details with you.",
+      theme: {
+        surface: "#f4efe7",
+        text: "#1f2937",
+        muted: "#475569",
+        border: "#64748b",
+        action: "#0f766e",
+        actionText: "#ffffff",
+      },
+    };
+    const good = { version: 1, root: { type: "stack", children: [
+      { type: "heading", level: 2, text: "Roof repair" },
+      { type: "widget", text: "quote_calculator", widgetPresentation },
+    ] } };
     const withPicture = { version: 1, root: { type: "stack", children: [
       { type: "media", mediaRef: "11111111-1111-4111-8111-111111111111", alt: "Roof repair work" },
       { type: "heading", level: 2, text: "Roof repair" },
     ] } };
     const bad = { version: 1, root: { type: "banana" } };
-    return { ok: true, model: "gpt-6-sol", costMicrocents: 1, text: JSON.stringify({ sections: { s1: withPicture, s2: calls.length === 1 ? bad : good } }) };
+    return { ok: true, model: "gpt-6-sol", costMicrocents: 1, text: JSON.stringify({ sections: { s1: withPicture, s2: calls.length === 1 ? bad : good, s3: good } }) };
   }),
 }));
 
@@ -44,6 +61,18 @@ function fakeDb(updates: unknown[]) {
   };
 }
 
+describe("first-build composition authority", () => {
+  it("does not bypass AI composition for working form sections", async () => {
+    const { FUNCTIONAL_SECTION_KINDS } = await import("./first-build-compositions.server");
+    expect(FUNCTIONAL_SECTION_KINDS.has("quote")).toBe(false);
+    expect(FUNCTIONAL_SECTION_KINDS.has("booking")).toBe(false);
+    expect(FUNCTIONAL_SECTION_KINDS.has("contact")).toBe(false);
+    expect(FUNCTIONAL_SECTION_KINDS.has("composition")).toBe(false);
+    expect(FUNCTIONAL_SECTION_KINDS.has("embed")).toBe(true);
+    expect(FUNCTIONAL_SECTION_KINDS.has("post_list")).toBe(true);
+  });
+});
+
 describe("composeFirstBuildSections", () => {
   it("turns every content section into an AI layout and repairs invalid trees", async () => {
     const { composeFirstBuildSections } = await import("./first-build-compositions.server");
@@ -54,7 +83,7 @@ describe("composeFirstBuildSections", () => {
       facts: { businessName: "Northline", services: ["Roof repair"] } as never,
       lookSummary: "{}",
     });
-    expect(result.composed).toBe(2);
+    expect(result.composed).toBe(3);
     expect(updates.every((u) => u.kind === "composition")).toBe(true);
     // Two design calls; the review panel follows (its notes here parse as empty, so no revision).
     expect(calls.filter((c) => c.includes("SECTIONS TO DESIGN"))).toHaveLength(2);

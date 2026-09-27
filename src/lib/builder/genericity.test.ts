@@ -56,6 +56,15 @@ describe("scoreGenericity", () => {
 });
 
 describe("genericityIssues", () => {
+  it("detects generic fixture-style headline phrasing", () => {
+    const hits = detectGenericPhrases([
+      "Choose your detail with clarity.",
+      "Detailing, without the guesswork.",
+      "A straightforward way to choose.",
+    ]);
+    expect(hits.length).toBeGreaterThanOrEqual(2);
+  });
+
   it("returns no issues for specific, non-repeated copy", () => {
     expect(genericityIssues(["We've re-roofed 400+ homes in the Austin metro since 2011."])).toEqual([]);
   });

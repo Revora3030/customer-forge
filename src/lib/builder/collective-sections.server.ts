@@ -13,6 +13,7 @@
 import { callBestThinker } from "@/lib/ai/hall-of-fame.server";
 import type { DnaFacts } from "@/lib/business-dna";
 import { parseRefinement, parseReview, screenText } from "@/lib/builder/collective-copy";
+import { detectGenericPhrases } from "@/lib/builder/genericity";
 import type { CollectivePassRecord } from "@/lib/builder/collective-first-build.server";
 
 /** One section as stored, reduced to the text a model may improve. */
@@ -158,6 +159,8 @@ export async function refineSectionWordingWithCollective(input: {
   sections: SectionWording[];
   /** Presentation guidance, so wording matches the approved art direction. */
   directionSummary?: string;
+  /** New first builds fail rather than preserving known generic stock phrasing. */
+  hardGenericityGate?: boolean;
   signal?: AbortSignal;
 }): Promise<SectionWordingOutcome> {
   const passes: CollectivePassRecord[] = [];
@@ -197,6 +200,17 @@ export async function refineSectionWordingWithCollective(input: {
     throw new Error(`Sol could not author the section copy: ${solCall.detail ?? solCall.reason}`);
   }
   proposal = parseRefinement(solCall.text);
+  const proposedStrings = (value: unknown): string[] => {
+    const out: string[] = [];
+    const walk = (entry: unknown) => {
+      if (typeof entry === "string") { out.push(entry); return; }
+      if (Array.isArray(entry)) { entry.forEach(walk); return; }
+      if (entry && typeof entry === "object") Object.values(entry as Record<string, unknown>).forEach(walk);
+    };
+    walk(value);
+    return out;
+  };
+
   passes.push(
     record(solCall.tier ?? "hall_of_fame", "content_strategy", {
       model: solCall.model,
@@ -206,6 +220,45 @@ export async function refineSectionWordingWithCollective(input: {
     }),
   );
   if (!proposal) throw new Error("Sol returned unreadable section copy, so the build was stopped.");
+
+  let genericHits = detectGenericPhrases(proposedStrings(proposal));
+  if (genericHits.length) {
+    const repairCall = await callBestThinker({
+      json: true,
+      purpose: "content_strategy",
+      complexity: "high",
+      organizationId: input.organizationId,
+      maxOutputTokens: 4000,
+      ...(input.signal ? { signal: input.signal } : {}),
+      system: RULES + " You are the master website copywriter repairing generic stock phrasing. Preserve factual truth and the exact section ids. Do not use the detected stock phrases.",
+      user: [
+        "FACTS (the only truth you may use):",
+        facts,
+        "",
+        "SECTIONS TO REPAIR:",
+        JSON.stringify(proposal, null, 2),
+        "",
+        "DETECTED STOCK PHRASES:",
+        JSON.stringify(genericHits),
+        "",
+        "Rewrite only the affected wording so it is unmistakably specific to this business, its real services, place, and buyer context. Avoid abstract filler. Return the same JSON shape.",
+      ].join("\n"),
+    });
+    const repaired = repairCall.ok ? parseRefinement(repairCall.text) : null;
+    passes.push(
+      record(repairCall.tier ?? "hall_of_fame", "content_strategy_repair", {
+        model: repairCall.model,
+        used: repaired !== null,
+        costMicrocents: repairCall.costMicrocents,
+        skipped: repaired === null ? "generic-copy repair was unavailable or malformed" : null,
+      }),
+    );
+    if (repaired) proposal = repaired;
+    genericHits = detectGenericPhrases(proposedStrings(proposal));
+    if (genericHits.length && input.hardGenericityGate) {
+      throw new Error("The AI team left stock phrasing in the first-build copy (" + genericHits.map((hit) => hit.phrase).join(", ") + "), so the build was stopped for another creative pass.");
+    }
+  }
 
   const terraCall = await callBestThinker({
     json: true,

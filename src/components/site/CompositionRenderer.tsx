@@ -1,5 +1,5 @@
 import { useState, type CSSProperties, type ReactNode } from "react";
-import type { Breakpoint, CompositionNode, CompositionTree, MotionEasing, NodeHover, NodeMotion, NodeStyle } from "@/lib/builder/composition-tree";
+import type { Breakpoint, CompositionNode, CompositionTree, MotionEasing, NodeHover, NodeMotion, NodeStyle, WidgetPresentation } from "@/lib/builder/composition-tree";
 import type { PersistedComponentVisual } from "@/lib/site-style";
 import { resolveImageSource } from "@/lib/brand-logos";
 
@@ -82,12 +82,36 @@ const MEDIA: Record<Breakpoint, string> = {
 };
 
 type ResolvedMedia = string | { url: string | null; visual?: PersistedComponentVisual };
-type Ctx = { rules: string[]; counter: { n: number }; scope: string; href: (h: string) => string; media: (ref: string) => ResolvedMedia | null; widget: (name: string) => ReactNode };
+type Ctx = { rules: string[]; counter: { n: number }; scope: string; href: (h: string) => string; media: (ref: string) => ResolvedMedia | null; widget: (name: string, presentation?: WidgetPresentation) => ReactNode };
 
 const mediaUrl = (media: ResolvedMedia | null): string | null =>
   typeof media === "string" ? media : media?.url ?? null;
 const mediaVisual = (media: ResolvedMedia | null): PersistedComponentVisual | undefined =>
   typeof media === "string" ? undefined : media?.visual;
+
+function widgetThemeStyle(theme: WidgetPresentation["theme"] | undefined): CSSProperties {
+  if (!theme) return {};
+  const out: Record<string, string> = {};
+  const set = (name: string, value: string | undefined) => { if (value) out[name] = value; };
+  set("--background", theme.surface);
+  set("--card", theme.surface);
+  set("--elevated", theme.surface);
+  set("--popover", theme.surface);
+  set("--secondary", theme.surface);
+  set("--muted", theme.surface);
+  set("--foreground", theme.text);
+  set("--card-foreground", theme.text);
+  set("--popover-foreground", theme.text);
+  set("--secondary-foreground", theme.text);
+  set("--muted-foreground", theme.muted ?? theme.text);
+  set("--border", theme.border);
+  set("--input", theme.border);
+  set("--primary", theme.action);
+  set("--primary-foreground", theme.actionText);
+  set("--accent", theme.selected ?? theme.action);
+  set("--accent-foreground", theme.selectedText ?? theme.actionText);
+  return out as CSSProperties;
+}
 
 function mediaCss(visual: PersistedComponentVisual | undefined): CSSProperties {
   if (!visual) return {};
@@ -158,8 +182,8 @@ function renderNode(node: CompositionNode, ctx: Ctx, key: string): ReactNode {
         const source = node.src ? resolveImageSource(node.src) : mediaUrl(resolved);
         return source ? <img key={key} {...props} src={source} alt={node.alt ?? visual?.alt ?? ""} loading="lazy" style={{ width: "100%", ...mediaCss(visual), ...props.style }} /> : null; }
     case "widget":
-      { const w = node.text ? ctx.widget(node.text) : null;
-        return w ? <div key={key} {...props} data-widget={node.text}>{w}{kids}</div> : null; }
+      { const w = node.text ? ctx.widget(node.text, node.widgetPresentation) : null;
+        return w ? <div key={key} {...props} data-widget={node.text} style={{ ...props.style, ...widgetThemeStyle(node.widgetPresentation?.theme) }}>{w}{kids}</div> : null; }
     case "button":
     case "link":
       return <a key={key} {...props} href={node.href ? ctx.href(node.href) : undefined}>{node.text}{kids}</a>;
@@ -309,7 +333,7 @@ export const PHONE_SAFETY_CSS = `[data-composition]{max-width:100%;overflow-x:cl
 
 const MOTION_CSS = `@media (prefers-reduced-motion: no-preference){.rv-cn-motion{animation:rv-cn-in .7s ease both}.rv-cn-motion[data-motion=rise]{animation-name:rv-cn-rise}.rv-cn-motion[data-motion=scale]{animation-name:rv-cn-scale}.rv-cn-motion[data-motion=float]{animation:rv-cn-float 6s ease-in-out infinite}.rv-cn-motion[data-motion=slide-left]{animation-name:rv-cn-sl}.rv-cn-motion[data-motion=slide-right]{animation-name:rv-cn-sr}.rv-cn-motion[data-motion=blur]{animation-name:rv-cn-blur}.rv-cn-motion[data-motion=reveal]{animation-name:rv-cn-reveal}.rv-cn-motion[data-motion=custom]{animation-name:rv-cn-custom}}@keyframes rv-cn-custom{from{opacity:var(--rv-o,1);transform:translate(var(--rv-x,0),var(--rv-y,0)) scale(var(--rv-s,1)) rotate(var(--rv-r,0));filter:blur(var(--rv-b,0))}}@keyframes rv-cn-sl{from{opacity:0;transform:translateX(32px)}to{opacity:1;transform:none}}@keyframes rv-cn-sr{from{opacity:0;transform:translateX(-32px)}to{opacity:1;transform:none}}@keyframes rv-cn-blur{from{opacity:0;filter:blur(12px)}to{opacity:1;filter:none}}@keyframes rv-cn-reveal{from{clip-path:inset(0 0 100% 0)}to{clip-path:inset(0 0 0 0)}}@keyframes rv-cn-in{from{opacity:0}to{opacity:1}}@keyframes rv-cn-rise{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:none}}@keyframes rv-cn-scale{from{opacity:0;transform:scale(.94)}to{opacity:1;transform:none}}@keyframes rv-cn-float{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}`;
 
-export function CompositionRenderer({ tree, scope, as = "section", resolveHref, resolveMedia, resolveWidget }: { tree: CompositionTree; scope: string; as?: "section" | "div"; resolveHref?: (href: string) => string; resolveMedia?: (ref: string) => ResolvedMedia | null; resolveWidget?: (name: string) => ReactNode }) {
+export function CompositionRenderer({ tree, scope, as = "section", resolveHref, resolveMedia, resolveWidget }: { tree: CompositionTree; scope: string; as?: "section" | "div"; resolveHref?: (href: string) => string; resolveMedia?: (ref: string) => ResolvedMedia | null; resolveWidget?: (name: string, presentation?: WidgetPresentation) => ReactNode }) {
   const ctx: Ctx = { rules: [], counter: { n: 0 }, scope: scope.replace(/[^\w-]/g, "") || "cn", href: resolveHref ?? ((h) => h), media: resolveMedia ?? (() => null), widget: resolveWidget ?? (() => null) };
   const body = renderNode(tree.root, ctx, "root");
   return (

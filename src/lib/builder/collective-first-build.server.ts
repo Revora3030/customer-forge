@@ -642,12 +642,25 @@ async function refineCreativeWithCollective(input: {
   };
 }
 
+function firstBuildCopyStrings(value: unknown): string[] {
+  const out: string[] = [];
+  const walk = (entry: unknown) => {
+    if (typeof entry === "string") { out.push(entry); return; }
+    if (Array.isArray(entry)) { entry.forEach(walk); return; }
+    if (entry && typeof entry === "object") Object.values(entry as Record<string, unknown>).forEach(walk);
+  };
+  walk(value);
+  return out;
+}
+
 export async function refineFirstBuildWithCollective(input: {
   organizationId: string;
   facts: DnaFacts;
   brief: SiteBrief;
   copy: SiteCopy;
   creative: FirstBuildCreativeDirection;
+  /** New first builds fail rather than preserving detected stock copy after repair. */
+  hardGenericityGate?: boolean;
   signal?: AbortSignal;
 }): Promise<CollectiveFirstBuild> {
   const passes: CollectivePassRecord[] = [];
@@ -748,6 +761,46 @@ export async function refineFirstBuildWithCollective(input: {
         acceptedFields: approvableFields(solProposal),
       }),
     );
+  }
+
+  const genericHits = detectGenericPhrases(firstBuildCopyStrings(solProposal));
+  if (genericHits.length) {
+    const repairCall = await callBestThinker({
+      json: true,
+      purpose: "content_strategy",
+      complexity: "high",
+      organizationId: input.organizationId,
+      maxOutputTokens: 6000,
+      ...(input.signal ? { signal: input.signal } : {}),
+      system: `${RULES} You are the master content strategist repairing generic stock phrasing. Preserve factual truth and the requested JSON shape. Do not use the detected stock phrases.`,
+      user: [
+        "FACTS (the only truth you may use):",
+        sheet,
+        "",
+        "CURRENT PROPOSAL TO REPAIR:",
+        JSON.stringify(solProposal, null, 2),
+        "",
+        "DETECTED STOCK PHRASES:",
+        JSON.stringify(genericHits),
+        "",
+        "Rewrite only generic wording. Make the site unmistakably specific to this business, its real services, place and buyer context. Do not invent facts or add keys.",
+      ].join("\n"),
+    });
+    const repaired = repairCall.ok ? parseRefinement(repairCall.text) : null;
+    passes.push(
+      record(repairCall.tier ?? "hall_of_fame", "content_strategy", {
+        model: repairCall.model,
+        used: repaired !== null,
+        costMicrocents: repairCall.costMicrocents,
+        skipped: repaired === null ? "generic-copy repair was unavailable or malformed" : null,
+        acceptedFields: approvableFields(repaired),
+      }),
+    );
+    if (repaired) solProposal = repaired;
+    const remainingGenericHits = detectGenericPhrases(firstBuildCopyStrings(solProposal));
+    if (remainingGenericHits.length && input.hardGenericityGate) {
+      throw new Error("The AI team left stock phrasing in the first-build copy (" + remainingGenericHits.map((hit) => hit.phrase).join(", ") + "), so the build was stopped for another creative pass.");
+    }
   }
 
   /* ------------------------------- 2. Terra ------------------------------- */
