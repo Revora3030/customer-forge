@@ -26,15 +26,43 @@ export const telHref = (phone: string) => phoneLink(phone) ?? "#";
  */
 export const mailHref = (email: string) => emailLink(email) ?? "#";
 
+/** Local semantic theme for an AI-authored working widget. */
+export function widgetPresentationStyle(presentation?: WidgetPresentation): React.CSSProperties {
+  const theme = presentation?.theme;
+  if (!theme) return {};
+  const vars: Record<string, string> = {};
+  const set = (name: string, value: string | undefined) => { if (value) vars[name] = value; };
+  set("--background", theme.surface);
+  set("--card", theme.surface);
+  set("--elevated", theme.surface);
+  set("--popover", theme.surface);
+  set("--secondary", theme.surface);
+  set("--muted", theme.surface);
+  set("--foreground", theme.text);
+  set("--card-foreground", theme.text);
+  set("--popover-foreground", theme.text);
+  set("--secondary-foreground", theme.text);
+  set("--muted-foreground", theme.muted ?? theme.text);
+  set("--border", theme.border);
+  set("--input", theme.border);
+  set("--primary", theme.action);
+  set("--primary-foreground", theme.actionText);
+  set("--accent", theme.selected ?? theme.action);
+  set("--accent-foreground", theme.selectedText ?? theme.actionText);
+  return vars as React.CSSProperties;
+}
+
 /** Short "prefer to talk?" strip used above forms. */
 export function DirectContact({
   profile,
   businessName,
   label = "Prefer to talk to a person?",
+  presentation,
 }: {
   profile: ContactInfo | null | undefined;
   businessName: string;
   label?: string;
+  presentation?: WidgetPresentation;
 }) {
   // Validated, formatted values only — an unusable number or a broken address
   // is treated as missing so a visitor never taps a dead link.
@@ -45,8 +73,8 @@ export function DirectContact({
   if (!phoneHref && !emailHref) return null;
 
   return (
-    <div className="rounded-lg border border-border bg-elevated/60 p-3">
-      <p className="text-[14px] text-muted-foreground">{label}</p>
+    <div className="rounded-lg border border-border bg-elevated/60 p-3" style={widgetPresentationStyle(presentation)}>
+      <p className="text-[14px] text-muted-foreground">{presentation?.contactLabel ?? label}</p>
       <div className="mt-2 flex flex-wrap gap-2">
         {phone && phoneHref ? (
           <Button asChild size="sm" variant="outline">
