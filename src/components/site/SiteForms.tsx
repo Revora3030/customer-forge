@@ -12,7 +12,8 @@ import { readAttribution } from "@/lib/attribution";
 import { currency } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { useStepScroll } from "@/lib/use-step-scroll";
-import { DirectContact } from "@/components/site/ContactDetails";
+import { DirectContact, widgetPresentationStyle } from "@/components/site/ContactDetails";
+import type { WidgetPresentation } from "@/lib/builder/composition-tree";
 
 type Site = NonNullable<PublicSite>;
 
@@ -62,7 +63,7 @@ function Honeypot() {
   );
 }
 
-export function QuoteCalculator({ site }: { site: Site }) {
+export function QuoteCalculator({ site, presentation }: { site: Site; presentation?: WidgetPresentation }) {
   const quote = site.quote;
   const submit = useServerFn(submitPublicLead);
   const track = useTracker(site.org.slug);
@@ -78,8 +79,8 @@ export function QuoteCalculator({ site }: { site: Site }) {
     return (
       <div ref={stepRef}>
         <Success
-          title="Your estimate is on its way"
-          body={`${site.org.name} has your details and price range, and will confirm the exact quote shortly.`}
+          title={presentation?.successTitle ?? "Your estimate is on its way"}
+          body={presentation?.successBody ?? `${site.org.name} has your details and price range, and will confirm the exact quote shortly.`}
         />
       </div>
     );
@@ -115,10 +116,11 @@ export function QuoteCalculator({ site }: { site: Site }) {
   const complete = answered === quote.questions.length && quote.questions.length > 0;
 
   return (
-    <div ref={stepRef} className="panel overflow-hidden">
+    <div ref={stepRef} className="panel overflow-hidden" style={widgetPresentationStyle(presentation)}>
       <div className="border-b border-border px-5 py-4">
-        <p className="eyebrow">Instant estimate</p>
-        <h3 className="mt-1 font-display text-[19px] font-semibold">{quote.form.name}</h3>
+        <p className="eyebrow">{presentation?.eyebrow ?? "Instant estimate"}</p>
+        <h3 className="mt-1 font-display text-[19px] font-semibold">{presentation?.title ?? quote.form.name}</h3>
+        {presentation?.description ? <p className="mt-2 text-[14px] text-muted-foreground">{presentation.description}</p> : null}
       </div>
 
       {step === "questions" ? (
@@ -158,7 +160,7 @@ export function QuoteCalculator({ site }: { site: Site }) {
 
           {addons.length ? (
             <fieldset className="border-t border-border pt-4">
-              <legend className="text-[14px] font-medium">Optional extras</legend>
+              <legend className="text-[14px] font-medium">{presentation?.extraLabel ?? "Optional extras"}</legend>
               <div className="mt-3 grid gap-2 sm:grid-cols-2">
                 {addons.map((addon) => {
                   const active = picked.includes(addon.id);
@@ -199,7 +201,7 @@ export function QuoteCalculator({ site }: { site: Site }) {
 
           <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
             <div>
-              <p className="eyebrow">Estimated range</p>
+              <p className="eyebrow">{presentation?.estimateLabel ?? "Estimated range"}</p>
               {/* Before the visitor has chosen, an empty dash reads as broken.
                   Say what is needed instead — never show an invented number. */}
               {complete ? (
@@ -208,7 +210,7 @@ export function QuoteCalculator({ site }: { site: Site }) {
                 </p>
               ) : (
                 <p className="mt-1 text-[14px] text-muted-foreground">
-                  Choose your options to see your price
+                  {presentation?.optionPrompt ?? "Choose your options to see your price"}
                 </p>
               )}
             </div>
@@ -221,7 +223,7 @@ export function QuoteCalculator({ site }: { site: Site }) {
                 setStep("contact");
               }}
             >
-              Lock in this price
+              {presentation?.actionLabel ?? "Lock in this price"}
             </Button>
           </div>
         </div>
@@ -281,26 +283,26 @@ export function QuoteCalculator({ site }: { site: Site }) {
             </span>
           </p>
           <div className="space-y-1.5">
-            <Label htmlFor="q-name">Your name</Label>
+            <Label htmlFor="q-name">{presentation?.fieldLabels?.name ?? "Your name"}</Label>
             <Input id="q-name" name="name" required />
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-1.5">
-              <Label htmlFor="q-phone">Phone</Label>
+              <Label htmlFor="q-phone">{presentation?.fieldLabels?.phone ?? "Phone"}</Label>
               <Input id="q-phone" name="phone" type="tel" />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="q-email">Email</Label>
+              <Label htmlFor="q-email">{presentation?.fieldLabels?.email ?? "Email"}</Label>
               <Input id="q-email" name="email" type="email" />
             </div>
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="q-message">Anything we should know?</Label>
+            <Label htmlFor="q-message">{presentation?.fieldLabels?.details ?? "Anything we should know?"}</Label>
             <Textarea id="q-message" name="message" rows={3} />
           </div>
           <div className="flex gap-2">
             <Button type="submit" variant="signal" disabled={pending}>
-              {pending ? <Loader2 className="size-4 animate-spin" /> : null} Send my quote request
+              {pending ? <Loader2 className="size-4 animate-spin" /> : null} {presentation?.actionLabel ?? "Send my quote request"}
             </Button>
             <Button type="button" variant="ghost" onClick={() => setStep("questions")}>
               Back
@@ -312,7 +314,7 @@ export function QuoteCalculator({ site }: { site: Site }) {
   );
 }
 
-export function BookingForm({ site }: { site: Site }) {
+export function BookingForm({ site, presentation }: { site: Site; presentation?: WidgetPresentation }) {
   const uid = useId();
   const fid = (key: string) => `b-${key}-${uid}`;
   const submit = useServerFn(submitPublicLead);
@@ -336,14 +338,15 @@ export function BookingForm({ site }: { site: Site }) {
     return (
       <div ref={doneRef}>
         <Success
-          title="Booking request received"
-          body={`${site.org.name} will confirm your time slot by phone or email shortly.`}
+          title={presentation?.successTitle ?? "Booking request received"}
+          body={presentation?.successBody ?? `${site.org.name} will confirm your time slot by phone or email shortly.`}
         />
         <div className="mt-4">
           <DirectContact
             profile={site.profile}
             businessName={site.org.name}
-            label={`Need it sooner? Reach ${site.org.name} directly`}
+            label={presentation?.contactLabel ?? `Need it sooner? Reach ${site.org.name} directly`}
+            presentation={presentation}
           />
         </div>
       </div>
@@ -354,7 +357,7 @@ export function BookingForm({ site }: { site: Site }) {
 
   return (
     <form
-      className="panel space-y-4 p-5"
+      className="panel space-y-4 p-5"\n      style={widgetPresentationStyle(presentation)}
       onFocus={() => track("booking_start")}
       onSubmit={(e) => {
         e.preventDefault();
@@ -394,16 +397,17 @@ export function BookingForm({ site }: { site: Site }) {
       }}
     >
       <div>
-        <p className="eyebrow">Appointment request</p>
-        <h3 className="mt-1 font-display text-[19px] font-semibold">Request your appointment</h3>
+        <p className="eyebrow">{presentation?.eyebrow ?? "Appointment request"}</p>
+        <h3 className="mt-1 font-display text-[19px] font-semibold">{presentation?.title ?? "Request your appointment"}</h3>
+        {presentation?.description ? <p className="mt-2 text-[14px] text-muted-foreground">{presentation.description}</p> : null}
       </div>
 
       <Honeypot />
-      <DirectContact profile={site.profile} businessName={site.org.name} />
+      <DirectContact profile={site.profile} businessName={site.org.name} presentation={presentation} />
 
       {bookable.length ? (
         <div className="space-y-1.5">
-          <Label htmlFor={fid("service")}>Service</Label>
+          <Label htmlFor={fid("service")}>{presentation?.fieldLabels?.service ?? "Service"}</Label>
           <select
             id={fid("service")}
             value={serviceId}
@@ -422,29 +426,29 @@ export function BookingForm({ site }: { site: Site }) {
 
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-1.5">
-          <Label htmlFor={fid("name")}>Your name</Label>
+          <Label htmlFor={fid("name")}>{presentation?.fieldLabels?.name ?? "Your name"}</Label>
           <Input id={fid("name")} name="name" required />
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor={fid("phone")}>Phone</Label>
+          <Label htmlFor={fid("phone")}>{presentation?.fieldLabels?.phone ?? "Phone"}</Label>
           <Input id={fid("phone")} name="phone" type="tel" />
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor={fid("email")}>Email</Label>
+          <Label htmlFor={fid("email")}>{presentation?.fieldLabels?.email ?? "Email"}</Label>
           <Input id={fid("email")} name="email" type="email" />
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor={fid("city")}>City / address</Label>
+          <Label htmlFor={fid("city")}>{presentation?.fieldLabels?.location ?? "City / address"}</Label>
           <Input id={fid("city")} name="city" />
         </div>
         {bookable.length ? (
           <>
             <div className="space-y-1.5">
-              <Label htmlFor={fid("date")}>Preferred date</Label>
+              <Label htmlFor={fid("date")}>{presentation?.fieldLabels?.date ?? "Preferred date"}</Label>
               <Input id={fid("date")} name="date" type="date" min={today || undefined} required />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor={fid("time")}>Preferred time (your local time)</Label>
+              <Label htmlFor={fid("time")}>{presentation?.fieldLabels?.time ?? "Preferred time (your local time)"}</Label>
               <Input id={fid("time")} name="time" type="time" defaultValue="09:00" required />
             </div>
           </>
@@ -467,12 +471,12 @@ export function BookingForm({ site }: { site: Site }) {
       ) : null}
 
       <div className="space-y-1.5">
-        <Label htmlFor={fid("message")}>Details</Label>
+        <Label htmlFor={fid("message")}>{presentation?.fieldLabels?.details ?? "Details"}</Label>
         <Textarea id={fid("message")} name="message" rows={3} />
       </div>
 
       <Button type="submit" variant="signal" disabled={pending}>
-        {pending ? <Loader2 className="size-4 animate-spin" /> : null} Request appointment
+        {pending ? <Loader2 className="size-4 animate-spin" /> : null} {presentation?.actionLabel ?? "Request appointment"}
       </Button>
       <p className="text-[14px] text-muted-foreground">
         No payment now — you'll get a confirmation before anything is charged.
