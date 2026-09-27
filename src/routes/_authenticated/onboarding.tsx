@@ -1,6 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { GoogleListingImport } from "@/components/onboarding/GoogleListingImport";
+import { OwnerPhotoUpload } from "@/components/onboarding/OwnerPhotoUpload";
 import { toast } from "@/lib/ui/notify";
 import { ArrowLeft, ArrowRight, Loader2, Plus, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -757,11 +758,11 @@ function Onboarding() {
               <div>
                 <h1 className="font-display text-[20px] font-semibold">Brand and visuals</h1>
                 <p className="mt-1.5 text-[13px] text-muted-foreground">
-                  Optional. Paste image links you already own — we never use stock claims about your
-                  work.
+                  Optional. Upload your own photos or paste links — your photos always go on your site first.
                 </p>
               </div>
               <div className="grid gap-4 sm:grid-cols-2">
+                <OwnerPhotoUpload organizationId={ws?.workspace?.organizationId} />
                 <div className="space-y-1.5">
                   <Label htmlFor="o-logo">Logo URL</Label>
                   <Input

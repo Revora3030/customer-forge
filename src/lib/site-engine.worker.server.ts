@@ -258,7 +258,7 @@ async function runJob(
       .eq("organization_id", orgId)
       .eq("is_active", true)
       .order("sort_order"),
-    db.from("media").select("id, category").eq("organization_id", orgId),
+    db.from("media").select("id, category, url, alt_text, file_name, source").eq("organization_id", orgId).order("created_at"),
     db.from("social_profiles").select("*").eq("organization_id", orgId).maybeSingle(),
     db.from("quote_forms").select("id").eq("organization_id", orgId).eq("is_active", true),
     db.from("services").select("id").eq("organization_id", orgId).eq("bookable", true),
@@ -616,7 +616,38 @@ async function runJob(
     ]),
     creative,
   });
+  // The customer's own photos always go on the site first, in the places
+  // their category suggests; AI pictures only fill whatever is left.
+  type MediaRow = { id: string; category: string | null; url: string | null; alt_text: string | null; file_name: string | null; source: string | null };
+  const heroUrl = (p["hero_image_url"] as string) || "";
+  const ownerRows = ((media.data ?? []) as MediaRow[]).filter(
+    (row) => row.url && row.source !== "generated" && row.source !== "ai" && row.source !== "stock",
+  );
+  const bizName = org.data?.name ?? "Business";
+  const ownerAssets: typeof starterImages.assets = [
+    ...(heroUrl
+      ? [{ slot: "owner-hero", label: `${bizName} photo`, altText: `${bizName}`, path: heroUrl, mediaId: null, provider: "owner", model: "owner", prompt: "", placement: ["hero", "home:hero"], aspectRatio: "3:2" }]
+      : []),
+    ...ownerRows.map((row, i) => {
+      const cat = String(row.category ?? "work").toLowerCase();
+      const label = row.alt_text || row.file_name || `${bizName} photo ${i + 1}`;
+      return {
+        slot: `owner-${row.id}`,
+        label,
+        altText: row.alt_text || label,
+        path: row.url as string,
+        mediaId: row.id,
+        provider: "owner",
+        model: "owner",
+        prompt: "",
+        placement: cat === "hero" && !heroUrl ? ["hero", "home:hero"] : cat === "team" ? ["about", "team"] : ["gallery", "work", "services", "about"],
+        aspectRatio: "3:2",
+      };
+    }),
+  ];
+  // Only AI pictures are ever cleaned up on failure; owner photos are never touched.
   generatedAssets = starterImages.assets;
+  const siteAssets = [...ownerAssets, ...starterImages.assets];
   const architectBusinessName = org.data.name ?? "";
   const architectIndustry = org.data.industry ?? null;
   const architectGoal = goals[0] ?? org.data.conversion_goal ?? null;
@@ -636,7 +667,7 @@ async function runJob(
     hasBooking: (bookable.data ?? []).length > 0,
     direction,
     creativeBrief: creative.brief,
-    generatedAssets: starterImages.assets,
+    generatedAssets: siteAssets,
     directedBy:
       refined.passes.find((pass) => pass.used && pass.model)?.model ?? "revora-collective",
     reviewedBy:
