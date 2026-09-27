@@ -213,10 +213,10 @@ export async function refineSectionWordingWithCollective(input: {
   };
 
   passes.push(
-    record(solCall.tier ?? "hall_of_fame", "content_strategy", {
-      model: solCall.model,
+    record(successfulSol.tier ?? "hall_of_fame", "content_strategy", {
+      model: successfulSol.model,
       used: proposal !== null,
-      costMicrocents: solCall.costMicrocents,
+      costMicrocents: successfulSol.costMicrocents,
       skipped: proposal === null ? "the answer was not in the agreed shape" : null,
     }),
   );
