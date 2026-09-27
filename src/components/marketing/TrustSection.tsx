@@ -128,7 +128,7 @@ export function TrustSection() {
 
       <p className="mt-4 text-[13px] text-muted-foreground">
         Questions before you start?{" "}
-        <a className="text-primary hover:underline" href={revoraMailto(MAIL_SUBJECTS.inquiry)}>
+        <a className="text-primary underline underline-offset-2" href={revoraMailto(MAIL_SUBJECTS.inquiry)}>
           {REVORA.email}
         </a>{" "}
         · {REVORA.phoneDisplay}

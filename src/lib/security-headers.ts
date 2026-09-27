@@ -58,6 +58,10 @@ export const CONTENT_SECURITY_POLICY = [
     "https://pagead2.googlesyndication.com",
     "https://googleads.g.doubleclick.net",
     "https://td.doubleclick.net",
+    // Consent-mode / enhanced conversion pings (blocked before, which broke
+    // Google Ads measurement and logged a CSP error on every page).
+    "https://ad.doubleclick.net",
+    "https://www.googleadservices.com",
     "https://www.google.com",
     "https://google.com",
   ].join(" "),

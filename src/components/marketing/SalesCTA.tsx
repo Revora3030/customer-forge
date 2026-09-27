@@ -42,12 +42,12 @@ export function SupportCard() {
       </p>
       <ul className="mt-4 space-y-1.5 text-[13px]">
         <li>
-          <a className="text-primary hover:underline" href={revoraMailto(MAIL_SUBJECTS.support)}>
+          <a className="text-primary underline underline-offset-2" href={revoraMailto(MAIL_SUBJECTS.support)}>
             {REVORA.email}
           </a>
         </li>
         <li>
-          <a className="text-primary hover:underline" href={revoraTel}>
+          <a className="text-primary underline underline-offset-2" href={revoraTel}>
             {REVORA.phoneDisplay}
           </a>
         </li>

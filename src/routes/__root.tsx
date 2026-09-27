@@ -215,7 +215,19 @@ function RootComponent() {
   useEffect(() => {
     // Google Ads measurement (Advanced Consent Mode): the tag loads after the
     // head's consent defaults, and Google's signals follow the cookie banner.
-    void loadGoogleAds(true);
+    // Deferred until the browser is idle so ~325 KB of Google tag JS no longer
+    // competes with first paint (Lighthouse mobile TBT was ~9 s).
+    const start = () => void loadGoogleAds(true);
+    const w = window as Window & {
+      requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number;
+      cancelIdleCallback?: (id: number) => void;
+    };
+    if (w.requestIdleCallback) {
+      const id = w.requestIdleCallback(start, { timeout: 3000 });
+      return () => w.cancelIdleCallback?.(id);
+    }
+    const t = window.setTimeout(start, 1500);
+    return () => window.clearTimeout(t);
   }, []);
 
   // The website builder speaks through its AI chat; pop-up banners there were
