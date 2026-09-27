@@ -178,8 +178,8 @@ export const SPECIALIST_SIX: Specialist[] = [
     model: "gpt-5.6-luna",
     provider: "openai",
     charter:
-      "High-volume utility partner to Luna: SEO, schema, metadata, page-completeness checks and content normalization on well-defined tasks.",
-    domains: ["schema_markup", "completeness_check"],
+      "High-volume utility partner to Luna: SEO, schema, metadata, page-completeness checks and content normalization on well-defined tasks. Sole owner of customer document extraction (menus, price lists, flyers and uploaded files turned into structured site content) and message moderation (spam/abuse screening on lead and chat messages).",
+    domains: ["schema_markup", "completeness_check", "document_extraction", "moderation"],
     capabilities: ["text_generation", "reasoning", "structured_output", "tool_calling", "streaming", "multilingual"],
     quality: 80,
     contextTokens: 128_000,
