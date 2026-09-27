@@ -623,13 +623,14 @@ async function runJob(
   const ownerRows = ((media.data ?? []) as MediaRow[]).filter(
     (row) => row.url && row.source !== "generated" && row.source !== "ai" && row.source !== "stock",
   );
+  const bizName = org.data?.name ?? "Business";
   const ownerAssets: typeof starterImages.assets = [
     ...(heroUrl
-      ? [{ slot: "owner-hero", label: `${org.data.name ?? "Business"} photo`, altText: `${org.data.name ?? "Business"}`, path: heroUrl, mediaId: null, provider: "owner", model: "owner", prompt: "", placement: ["hero", "home:hero"], aspectRatio: "3:2" }]
+      ? [{ slot: "owner-hero", label: `${bizName} photo`, altText: `${bizName}`, path: heroUrl, mediaId: null, provider: "owner", model: "owner", prompt: "", placement: ["hero", "home:hero"], aspectRatio: "3:2" }]
       : []),
     ...ownerRows.map((row, i) => {
       const cat = String(row.category ?? "work").toLowerCase();
-      const label = row.alt_text || row.file_name || `${org.data.name ?? "Business"} photo ${i + 1}`;
+      const label = row.alt_text || row.file_name || `${bizName} photo ${i + 1}`;
       return {
         slot: `owner-${row.id}`,
         label,
