@@ -136,6 +136,9 @@ describe("tier routing", () => {
 
 describe("credential and opt-in gating", () => {
   it("offers every tier by default when the key is present", () => {
+    enablePaidLane();
+    delete process.env["SOL_ENABLED"];
+    delete process.env["TERRA_ENABLED"];
     delete process.env["LUNA_ENABLED"];
     expect(availableTiers()).toEqual(["sol", "terra", "luna"]);
   });
@@ -173,17 +176,17 @@ describe("credential and opt-in gating", () => {
     expect(result).toMatchObject({ ok: false, tier: null, reason: "no_tier_available" });
   });
 
-  it("refuses a tier its operator switched off instead of silently substituting", async () => {
+  it("refuses a tier its operator switched off instead of silently substituting", () => {
     enablePaidLane();
     process.env["SOL_ENABLED"] = "false";
-    const result = await callCollective({
-      purpose: "creative_direction",
-      system: "s",
-      user: "u",
+    process.env["TERRA_ENABLED"] = "true";
+    process.env["LUNA_ENABLED"] = "true";
+    expect(availableTiers()).toEqual(["terra", "luna"]);
+    expect(selectTier({ purpose: "creative_direction", available: availableTiers() })).toMatchObject({
+      tier: "terra",
+      wanted: "sol",
+      downgraded: true,
     });
-    // Terra takes the work; Sol is never called behind the scenes.
-    if (!result.ok) expect(result.tier).toBe("terra");
-    else expect(result.tier).toBe("terra");
   });
 });
 
