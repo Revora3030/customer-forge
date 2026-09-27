@@ -56,7 +56,6 @@ export function AiSiteHeader(props: {
           }}
         >
           <div className="flex items-center justify-end gap-3 text-foreground">
-            <span className="min-w-0 font-display text-[16px] font-semibold leading-tight [overflow-wrap:anywhere]">{props.name}</span>
             <button
               type="button"
               aria-label="Close menu"
