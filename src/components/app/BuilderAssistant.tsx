@@ -293,7 +293,8 @@ export function BuilderAssistant({
                 </MessageContent>
               </Message>
             </div>
-          ))}
+            ));
+          })()}
           {factLog.map((entry, i) => (
             <div key={`fact-${i}`} className="chat-rise space-y-3">
               <Message from="assistant">
