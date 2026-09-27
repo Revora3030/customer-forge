@@ -281,7 +281,6 @@ export async function materializeSiteContent(
     ...(input.hasQuoteForm ? [{ role: "quote" }] : []),
     ...(input.hasBooking ? [{ role: "booking" }] : []),
     { role: "contact" },
-    { role: "sticky_cta" },
   ];
   const factInventory: PageArchitecture[] = [{
     slug: "home",
