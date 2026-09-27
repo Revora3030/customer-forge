@@ -478,7 +478,7 @@ export function validateComposition(input: unknown, options: ValidateOptions = {
     if (node.type === "widget" && !COMPOSITION_WIDGETS.includes(node.text as CompositionWidget)) issues.push({ path: `${path}.text`, problem: `widget must be one of ${COMPOSITION_WIDGETS.join(", ")}` });
     if (row["widgetPresentation"] != null) {
       if (node.type !== "widget") issues.push({ path: `${path}.widgetPresentation`, problem: "widgetPresentation is only valid on widget nodes" });
-      else node.widgetPresentation = checkWidgetPresentation(row["widgetPresentation"], `${path}.widgetPresentation`, issues, options.screenText);
+      else { const presentation = checkWidgetPresentation(row["widgetPresentation"], `${path}.widgetPresentation`, issues, options.screenText); if (presentation !== undefined) node.widgetPresentation = presentation; }
     }
     if (node.type === "quote" && !node.text) issues.push({ path: `${path}.text`, problem: "quote needs its words in text" });
     if (row["level"] != null) {
