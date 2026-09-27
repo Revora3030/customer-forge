@@ -2394,6 +2394,20 @@ html, body { max-width: 100%; overflow-x: hidden; }
 }
 
 
+/* Mobile AI navigation: center the authored links without changing desktop composition. */
+@media (max-width: 767px) {
+  .rv-ai-header [role="dialog"] [data-composition] { width: min(100%, 36rem); }
+  .rv-ai-header [role="dialog"] [data-composition] a {
+    width: 100% !important;
+    justify-content: center !important;
+    padding-block: 0.75rem !important;
+    border-bottom: 1px solid color-mix(in srgb, var(--border) 40%, transparent) !important;
+    font-family: var(--font-display, ui-sans-serif, system-ui, sans-serif) !important;
+    font-size: 1.5rem !important;
+    font-weight: 500 !important;
+  }
+}
+
 /* Phone safety for AI-authored compositions: keep authored layouts readable without changing their design. */
 @media (max-width: 639px) {
   [data-composition] [style*="grid-template-columns"],
