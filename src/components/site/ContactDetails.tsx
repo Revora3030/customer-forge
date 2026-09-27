@@ -8,6 +8,7 @@
 import { Mail, Phone } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { emailDisplay, emailLink, phoneDisplay, phoneLink } from "@/lib/builder/presentation";
+import type { WidgetPresentation } from "@/lib/builder/composition-tree";
 
 export type ContactInfo = {
   phone?: string | null;
