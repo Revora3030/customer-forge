@@ -8,6 +8,7 @@
 import { callBestThinker, callHallOfFame } from "@/lib/ai/hall-of-fame.server";
 import type { CollectivePurpose } from "@/lib/ai/collective";
 import { NO_EVIDENCE, evidenceFor, gatherReviewEvidence, type ReviewEvidence } from "@/lib/builder/review-evidence.server";
+import { DISTINCTIVENESS_REVIEW_BRIEF, VISUAL_CRAFT_REVIEW_BRIEF } from "@/lib/builder/world-class-craft";
 
 export type ReviewArea =
   | "conversion"
@@ -22,7 +23,9 @@ export type ReviewArea =
   | "industry_fit"
   | "whole_site"
   | "markup"
-  | "deep_conversion";
+  | "deep_conversion"
+  | "visual_craft"
+  | "distinctiveness";
 
 export type ReviewNote = { area: ReviewArea; issues: string[]; severity: "low" | "medium" | "high"; model: string | null };
 
@@ -44,9 +47,13 @@ const FULL_PANEL: Reviewer[] = [
   { area: "whole_site", purpose: "whole_site_review", complexity: "high", brief: "Read every page together as one site. Judge whether the story, offer and next step stay coherent from the first page to the last, and flag pages that contradict, repeat or undercut each other. Critique only — the lead designer decides every change." },
   { area: "markup", purpose: "markup_review", complexity: "medium", brief: "Review the generated page structure as an engineer: flag broken or duplicated heading order, missing labels on form fields, invalid or empty links, images without meaningful alt text, and structure that will render badly or slowly. Report defects only; never restyle." },
   { area: "deep_conversion", purpose: "deep_conversion_audit", complexity: "high", brief: "Walk the whole journey a real buyer takes, step by step, from arrival to contacting the business. Flag each point where they could hesitate, get lost or leave, and why. Base every point on supplied facts only — never suggest invented offers, prices, guarantees or proof." },
+  // Independent craft critics: the reviewer is never the model that authored
+  // the layout (visual_review and design_alternative route to Terra's tier).
+  { area: "visual_craft", purpose: "visual_review", complexity: "high", brief: VISUAL_CRAFT_REVIEW_BRIEF },
+  { area: "distinctiveness", purpose: "design_alternative", complexity: "medium", brief: DISTINCTIVENESS_REVIEW_BRIEF },
 ];
 
-const LIGHT_AREAS: ReviewArea[] = ["truthfulness", "seo", "accessibility", "mobile", "completeness", "funnel", "consistency"];
+const LIGHT_AREAS: ReviewArea[] = ["truthfulness", "seo", "accessibility", "mobile", "completeness", "funnel", "consistency", "visual_craft"];
 
 export function panelFor(mode: "full" | "light"): Reviewer[] {
   return mode === "full" ? FULL_PANEL : FULL_PANEL.filter((r) => LIGHT_AREAS.includes(r.area));

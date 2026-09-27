@@ -145,7 +145,7 @@ export async function gatherReviewEvidence(input: EvidenceInput, deps?: Deps): P
  * can sharpen gets it; purely mechanical checks (accessibility, mobile) get none.
  */
 const EVIDENCE_ACCESS: Record<keyof ReviewEvidence, readonly string[]> = {
-  industry: ["industry_fit", "conversion", "funnel", "deep_conversion", "senior", "whole_site"],
+  industry: ["industry_fit", "conversion", "funnel", "deep_conversion", "senior", "whole_site", "distinctiveness"],
   search: ["seo", "completeness", "senior", "whole_site"],
   keywords: ["seo", "industry_fit", "completeness", "whole_site"],
   listing: ["consistency", "truthfulness", "funnel"],

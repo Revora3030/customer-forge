@@ -11,6 +11,7 @@
  * A missing or unusable model result is a hard failure for a new build.
  */
 import { callBestThinker } from "@/lib/ai/hall-of-fame.server";
+import { craftBarPrompt } from "@/lib/builder/world-class-craft";
 import type { DnaFacts } from "@/lib/business-dna";
 import { parseRefinement, parseReview, screenText } from "@/lib/builder/collective-copy";
 import { detectGenericPhrases } from "@/lib/builder/genericity";
@@ -176,7 +177,7 @@ export async function refineSectionWordingWithCollective(input: {
     organizationId: input.organizationId,
     maxOutputTokens: 4000,
     ...(input.signal ? { signal: input.signal } : {}),
-    system: `${RULES} You are the master website copywriter. Improve the wording of each section so the page reads like a top-tier bespoke agency build.`,
+    system: `${RULES} You are the master website copywriter. Improve the wording of each section so the page reads like a top-tier bespoke agency build. ${craftBarPrompt("copy")}`,
     user: [
       "FACTS (the only truth you may use):",
       facts,
