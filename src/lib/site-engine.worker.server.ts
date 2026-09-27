@@ -644,8 +644,9 @@ async function runJob(
       };
     }),
   ];
-  starterImages.assets = [...ownerAssets, ...starterImages.assets];
+  // Only AI pictures are ever cleaned up on failure; owner photos are never touched.
   generatedAssets = starterImages.assets;
+  const siteAssets = [...ownerAssets, ...starterImages.assets];
   const architectBusinessName = org.data.name ?? "";
   const architectIndustry = org.data.industry ?? null;
   const architectGoal = goals[0] ?? org.data.conversion_goal ?? null;
@@ -665,7 +666,7 @@ async function runJob(
     hasBooking: (bookable.data ?? []).length > 0,
     direction,
     creativeBrief: creative.brief,
-    generatedAssets: starterImages.assets,
+    generatedAssets: siteAssets,
     directedBy:
       refined.passes.find((pass) => pass.used && pass.model)?.model ?? "revora-collective",
     reviewedBy:
