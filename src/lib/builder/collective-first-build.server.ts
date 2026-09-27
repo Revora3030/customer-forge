@@ -29,6 +29,7 @@ import {
   type RefinementRejection,
 } from "@/lib/builder/collective-copy";
 import { creativeQualityPrompt } from "@/lib/builder/creative-quality-matrix";
+import { detectGenericPhrases } from "@/lib/builder/genericity";
 import { normalizeAspect } from "@/lib/builder/composition-tree";
 
 export type CollectivePassRecord = {
@@ -799,7 +800,7 @@ export async function refineFirstBuildWithCollective(input: {
     if (repaired) solProposal = repaired;
     const remainingGenericHits = detectGenericPhrases(firstBuildCopyStrings(solProposal));
     if (remainingGenericHits.length && input.hardGenericityGate) {
-      throw new Error("The AI team left stock phrasing in the first-build copy (" + remainingGenericHits.map((hit) => hit.phrase).join(", ") + "), so the build was stopped for another creative pass.");
+      throw new Error("The AI team left stock phrasing in the first-build copy (" + remainingGenericHits.map((hit: { phrase: string }) => hit.phrase).join(", ") + "), so the build was stopped for another creative pass.");
     }
   }
 
