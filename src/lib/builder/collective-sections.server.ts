@@ -214,9 +214,9 @@ export async function refineSectionWordingWithCollective(input: {
 
   passes.push(
     record(successfulSol.tier ?? "hall_of_fame", "content_strategy", {
-      model: successfulSol.model,
+      model: "model" in successfulSol ? successfulSol.model : null,
       used: proposal !== null,
-      costMicrocents: successfulSol.costMicrocents,
+      costMicrocents: "costMicrocents" in successfulSol ? successfulSol.costMicrocents : 0,
       skipped: proposal === null ? "the answer was not in the agreed shape" : null,
     }),
   );
@@ -295,9 +295,9 @@ export async function refineSectionWordingWithCollective(input: {
     const parsed = parseReview(successfulTerra.text);
     passes.push(
       record(successfulTerra.tier ?? "hall_of_fame", "specialist_review", {
-        model: successfulTerra.model,
+        model: "model" in successfulTerra ? successfulTerra.model : null,
         used: parsed !== null,
-        costMicrocents: successfulTerra.costMicrocents,
+        costMicrocents: "costMicrocents" in successfulTerra ? successfulTerra.costMicrocents : 0,
         skipped: parsed === null ? "the review was not in the agreed shape" : null,
         acceptedFields: parsed?.approvedFields ?? [],
         rejected: parsed?.notes ?? [],
