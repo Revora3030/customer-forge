@@ -793,9 +793,9 @@ export async function refineFirstBuildWithCollective(input: {
     const repaired = repairCall.ok ? parseRefinement(repairCall.text) : null;
     passes.push(
       record(repairCall.tier ?? "hall_of_fame", "content_strategy", {
-        model: repairCall.model,
+        model: repairCall.ok ? repairCall.model : null,
         used: repaired !== null,
-        costMicrocents: repairCall.costMicrocents,
+        costMicrocents: repairCall.ok ? repairCall.costMicrocents : 0,
         skipped: repaired === null ? "generic-copy repair was unavailable or malformed" : null,
         acceptedFields: approvableFields(repaired),
       }),
