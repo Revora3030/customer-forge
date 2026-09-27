@@ -404,7 +404,7 @@ export function BookingForm({ site, presentation }: { site: Site; presentation?:
       </div>
 
       <Honeypot />
-      <DirectContact profile={site.profile} businessName={site.org.name} presentation={presentation} />
+      <DirectContact profile={site.profile} businessName={site.org.name} {...(presentation ? { presentation } : {})} />
 
       {bookable.length ? (
         <div className="space-y-1.5">
