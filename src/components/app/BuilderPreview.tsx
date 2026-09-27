@@ -62,10 +62,14 @@ export function BuilderPreview({
   const frameRef = useRef<HTMLIFrameElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
   const [stageWidth, setStageWidth] = useState(0);
+  const [stageHeight, setStageHeight] = useState(0);
   useEffect(() => {
     const el = stageRef.current;
     if (!el || typeof ResizeObserver === "undefined") return;
-    const ro = new ResizeObserver(([entry]) => setStageWidth(entry?.contentRect.width ?? 0));
+    const ro = new ResizeObserver(([entry]) => {
+      setStageWidth(entry?.contentRect.width ?? 0);
+      setStageHeight(entry?.contentRect.height ?? 0);
+    });
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
@@ -75,6 +79,9 @@ export function BuilderPreview({
   // frame instead of shrinking into a corner; the zoom picker still caps it.
   const fit = stageWidth > 0 ? (stageWidth - 24) / viewportWidth : zoom;
   const scale = viewportWidth <= 834 ? Math.min(1, fit) : Math.min(zoom, fit);
+  // Fill the visible stage height, like a real browser window, instead of a
+  // short fixed box that leaves empty space below the site.
+  const frameHeight = Math.max(640, stageHeight > 0 ? Math.round((stageHeight - 24) / Math.max(scale, 0.1)) : 760);
   const source = page ? previewPath(slug, page.slug) : previewPath(slug, "home");
 
   useEffect(() => {
@@ -221,26 +228,34 @@ export function BuilderPreview({
         </div>
       </header>
 
-      <div ref={stageRef} className="relative min-h-[560px] flex-1 overflow-auto bg-elevated p-3 sm:min-h-[680px]">
+      <div ref={stageRef} className="relative min-h-[560px] flex-1 overflow-auto overscroll-contain bg-elevated p-3 sm:min-h-[680px]">
         {refreshing ? (
           <div className="absolute inset-x-3 top-3 z-10 rounded-md border border-border bg-background/90 px-3 py-2 text-center text-[12px] font-medium backdrop-blur" role="status">
             Updating your preview…
           </div>
         ) : null}
         <div
-          className="mx-auto overflow-hidden rounded-md border border-border bg-background shadow-lift transition-[width,height] duration-300"
-          style={{ width: viewportWidth * scale, height: 760 * scale }}
+          className="mx-auto overflow-hidden rounded-lg border border-border bg-background shadow-lift transition-[width,height] duration-300"
+          style={{ width: Math.round(viewportWidth * scale), height: Math.round(frameHeight * scale) }}
         >
-          <iframe
-            ref={frameRef}
-            key={`${source}-${refreshKey}-${refreshRevision}`}
-            data-testid="builder-preview-frame"
-            data-preview-src={source}
-            title={`${page?.title ?? "Website"} preview`}
-            src={source}
-            className="origin-top-left border-0 bg-background"
-            style={{ width: viewportWidth, height: 760, transform: `scale(${scale})` }}
-          />
+          {/* Scale a fixed-size wrapper rather than the frame itself: iPhone
+              Safari ignores width on a transformed frame and lays the site
+              out at the phone's width, leaving a narrow strip. */}
+          <div
+            className="origin-top-left"
+            style={{ width: viewportWidth, height: frameHeight, transform: `scale(${scale})` }}
+          >
+            <iframe
+              ref={frameRef}
+              key={`${source}-${refreshKey}-${refreshRevision}`}
+              data-testid="builder-preview-frame"
+              data-preview-src={source}
+              title={`${page?.title ?? "Website"} preview`}
+              src={source}
+              className="block border-0 bg-background"
+              style={{ width: viewportWidth, minWidth: viewportWidth, maxWidth: viewportWidth, height: frameHeight }}
+            />
+          </div>
         </div>
       </div>
     </section>
