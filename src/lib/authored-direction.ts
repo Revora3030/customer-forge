@@ -17,7 +17,7 @@ import {
   type SectionEffectId,
 } from "@/lib/site-effects";
 import type { ContentPage } from "@/lib/website-content";
-import { siteHeadingFont, siteTone } from "@/lib/site-theme";
+import { siteBodyFont, siteHeadingFont, siteTone } from "@/lib/site-theme";
 
 export type DesignDirection = {
   id: string;
