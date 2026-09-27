@@ -264,7 +264,13 @@ export function BuilderAssistant({
               </Message>
             </div>
           ) : null}
-          {requests.tasks.map((task) => (
+          {(() => {
+            // Lovable-style flow: only the request being worked on right now
+            // shows the live activity card; waiting requests get a quiet line.
+            const activeTaskId = requests.tasks.find(
+              (t) => t.state === "planning" || t.state === "building",
+            )?.id ?? requests.tasks.find((t) => t.state === "queued")?.id ?? null;
+            return requests.tasks.map((task) => (
             <div key={task.id} className="chat-rise space-y-3">
               <Message from="user">
                 <MessageContent className="bg-primary text-primary-foreground">{task.instruction}</MessageContent>
@@ -274,6 +280,7 @@ export function BuilderAssistant({
                   <TaskBody
                     task={task}
                     requests={requests}
+                    isActive={task.id === activeTaskId}
                     organizationId={organizationId}
                     onAnswer={setAnswering}
                     {...(onOpenHistory ? { onOpenHistory } : {})}
