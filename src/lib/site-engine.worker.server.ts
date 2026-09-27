@@ -258,7 +258,7 @@ async function runJob(
       .eq("organization_id", orgId)
       .eq("is_active", true)
       .order("sort_order"),
-    db.from("media").select("id, category").eq("organization_id", orgId),
+    db.from("media").select("id, category, url, alt_text, file_name, source").eq("organization_id", orgId).order("created_at"),
     db.from("social_profiles").select("*").eq("organization_id", orgId).maybeSingle(),
     db.from("quote_forms").select("id").eq("organization_id", orgId).eq("is_active", true),
     db.from("services").select("id").eq("organization_id", orgId).eq("bookable", true),
@@ -616,6 +616,35 @@ async function runJob(
     ]),
     creative,
   });
+  // The customer's own photos always go on the site first, in the places
+  // their category suggests; AI pictures only fill whatever is left.
+  type MediaRow = { id: string; category: string | null; url: string | null; alt_text: string | null; file_name: string | null; source: string | null };
+  const heroUrl = (p["hero_image_url"] as string) || "";
+  const ownerRows = ((media.data ?? []) as MediaRow[]).filter(
+    (row) => row.url && row.source !== "generated" && row.source !== "ai" && row.source !== "stock",
+  );
+  const ownerAssets: typeof starterImages.assets = [
+    ...(heroUrl
+      ? [{ slot: "owner-hero", label: `${org.data.name ?? "Business"} photo`, altText: `${org.data.name ?? "Business"}`, path: heroUrl, mediaId: null, provider: "owner", model: "owner", prompt: "", placement: ["hero", "home:hero"], aspectRatio: "3:2" }]
+      : []),
+    ...ownerRows.map((row, i) => {
+      const cat = String(row.category ?? "work").toLowerCase();
+      const label = row.alt_text || row.file_name || `${org.data.name ?? "Business"} photo ${i + 1}`;
+      return {
+        slot: `owner-${row.id}`,
+        label,
+        altText: row.alt_text || label,
+        path: row.url as string,
+        mediaId: row.id,
+        provider: "owner",
+        model: "owner",
+        prompt: "",
+        placement: cat === "hero" && !heroUrl ? ["hero", "home:hero"] : cat === "team" ? ["about", "team"] : ["gallery", "work", "services", "about"],
+        aspectRatio: "3:2",
+      };
+    }),
+  ];
+  starterImages.assets = [...ownerAssets, ...starterImages.assets];
   generatedAssets = starterImages.assets;
   const architectBusinessName = org.data.name ?? "";
   const architectIndustry = org.data.industry ?? null;
