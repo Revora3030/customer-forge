@@ -534,7 +534,7 @@ function TaskBody({
   const timeline = timelineFor(task);
   return (
     <div className="space-y-2">
-      {working ? (
+      {working && isActive ? (
         <LiveActivity
           organizationId={organizationId}
           requestId={task.id}
@@ -546,6 +546,11 @@ function TaskBody({
                 : "Applying…"
           }
         />
+      ) : working ? (
+        <p className="flex items-center gap-1.5 text-[12px] text-muted-foreground" role="status">
+          <span className="inline-block size-1.5 animate-pulse rounded-full bg-primary" aria-hidden />
+          Waiting — I’ll start this as soon as the current change is done
+        </p>
       ) : task.answered ? null : (
         <p className="text-[11px] tracking-wide text-muted-foreground uppercase">
           {QUEUE_LABELS[task.state]}
