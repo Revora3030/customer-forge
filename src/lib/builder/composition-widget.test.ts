@@ -54,10 +54,20 @@ describe("composition widgets", () => {
     expect(badContrast.ok).toBe(false);
   });
 
-
-    const ok = validateComposition({ version: 1, root: { type: "stack", children: [{ type: "widget", text: "booking_form" }] } });
+  it("keeps supported widgets valid and rejects unknown widgets", () => {
+    const ok = validateComposition({
+      version: 1,
+      root: {
+        type: "stack",
+        children: [{ type: "widget", text: "booking_form" }],
+      },
+    });
     expect(ok.ok).toBe(true);
-    const bad = validateComposition({ version: 1, root: { type: "widget", text: "fake_form" } });
+
+    const bad = validateComposition({
+      version: 1,
+      root: { type: "widget", text: "fake_form" },
+    });
     expect(bad.ok).toBe(false);
   });
 });
