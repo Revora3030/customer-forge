@@ -776,6 +776,7 @@ async function runJob(
       facts: buildFacts,
       sections: wording,
       directionSummary: [creative.brief.concept, creative.brief.personality].filter(Boolean).join(" · "),
+      hardGenericityGate: true,
     });
     if (!outcome.passes.some((pass) => pass.used))
       throw new Error("The AI team could not complete section-level copy review, so the build stopped without publishing unreviewed wording.");
