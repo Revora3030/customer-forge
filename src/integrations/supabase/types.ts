@@ -1370,6 +1370,21 @@ export type Database = {
           },
         ]
       }
+      internal_job_config: {
+        Row: {
+          key: string
+          value: string
+        }
+        Insert: {
+          key: string
+          value: string
+        }
+        Update: {
+          key?: string
+          value?: string
+        }
+        Relationships: []
+      }
       invoices: {
         Row: {
           amount: number
