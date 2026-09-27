@@ -117,7 +117,7 @@ function SiteSectionBody({ site, section }: { site: Site; section: Section }) {
           resolveWidget={(name, presentation?: WidgetPresentation) => {
             if (name === "booking_form") return <BookingForm site={site} {...(presentation ? { presentation } : {})} />;
             if (name === "quote_calculator") return site.quote ? <QuoteCalculator site={site} {...(presentation ? { presentation } : {})} /> : null;
-            if (name === "contact_details") return <ContactFacts site={site} presentation={presentation} />;
+            if (name === "contact_details") return <ContactFacts site={site} {...(presentation ? { presentation } : {})} />;
             if (name === "direct_contact")
               return <DirectContact profile={profile} businessName={site.org.name} label={presentation?.contactLabel ?? presentation?.title ?? `Call or email ${site.org.name} directly`} presentation={presentation} />;
             return null;
