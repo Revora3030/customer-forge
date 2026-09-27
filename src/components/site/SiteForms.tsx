@@ -346,7 +346,7 @@ export function BookingForm({ site, presentation }: { site: Site; presentation?:
             profile={site.profile}
             businessName={site.org.name}
             label={presentation?.contactLabel ?? `Need it sooner? Reach ${site.org.name} directly`}
-            presentation={presentation}
+            {...(presentation ? { presentation } : {})}
           />
         </div>
       </div>
@@ -404,7 +404,7 @@ export function BookingForm({ site, presentation }: { site: Site; presentation?:
       </div>
 
       <Honeypot />
-      <DirectContact profile={site.profile} businessName={site.org.name} presentation={presentation} />
+      <DirectContact profile={site.profile} businessName={site.org.name} {...(presentation ? { presentation } : {})} />
 
       {bookable.length ? (
         <div className="space-y-1.5">
