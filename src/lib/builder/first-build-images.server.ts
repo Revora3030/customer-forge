@@ -241,32 +241,46 @@ export async function generateFirstBuildImages(
     }
 
     // Terra inspects the finished frame before it is saved. One corrected
-    // reshoot only, kept only when the reshoot comes back clean. A reviewer that
-    // cannot answer never costs the business a usable picture.
+    // reshoot only. A picture Terra rejected is never saved: if the reshoot
+    // fails or is also rejected, the slot is left empty rather than showing a
+    // low-quality or off-brief picture. A reviewer that cannot answer never
+    // costs the business a usable picture.
     const verdict = await inspectPhoto(
       { base64: made.base64, mimeType: made.mimeType },
       { prompt, placement: `${shot.slot} ${shot.placement.join(" ")}`.trim() },
       { organizationId: input.organizationId, userId: input.userId },
     );
-    if (!verdict.publishable && verdict.revisedPrompt && paid.allowed) {
-      const reshoot = await generatePaidImageBase64(
-        verdict.revisedPrompt,
-        { organizationId: input.organizationId, userId: input.userId },
-        /hero|masthead|opening|lead/i.test(`${shot.slot} ${shot.placement.join(" ")}`)
-          ? "hero_master"
-          : "editorial_feature",
-      );
-      if (reshoot.ok) {
-        const recheck = await inspectPhoto(
-          { base64: reshoot.base64, mimeType: reshoot.mimeType },
-          { prompt: verdict.revisedPrompt, placement: shot.slot },
+    if (!verdict.publishable) {
+      let replaced = false;
+      if (paid.allowed) {
+        const reshoot = await generatePaidImageBase64(
+          verdict.revisedPrompt ?? `${prompt} Fix these problems: ${verdict.defects.join("; ")}.`,
           { organizationId: input.organizationId, userId: input.userId },
+          /hero|masthead|opening|lead/i.test(`${shot.slot} ${shot.placement.join(" ")}`)
+            ? "hero_master"
+            : "editorial_feature",
         );
-        if (recheck.publishable) {
-          made = reshoot;
+        if (reshoot.ok) {
           paidCostMicrocents += reshoot.costMicrocents;
-          source = "premium";
+          const recheck = await inspectPhoto(
+            { base64: reshoot.base64, mimeType: reshoot.mimeType },
+            { prompt: verdict.revisedPrompt ?? prompt, placement: shot.slot },
+            { organizationId: input.organizationId, userId: input.userId },
+          );
+          if (recheck.publishable) {
+            made = reshoot;
+            source = "premium";
+            replaced = true;
+          }
         }
+      }
+      if (!replaced) {
+        skipped.push({
+          slot: shot.slot,
+          label: shot.label,
+          reason: `picture failed quality review (${verdict.defects.join("; ") || "off-brief"})`,
+        });
+        continue;
       }
     }
 
