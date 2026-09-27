@@ -63,7 +63,7 @@ function Honeypot() {
   );
 }
 
-export function QuoteCalculator({ site, presentation }: { site: Site; presentation?: WidgetPresentation }) {
+export function QuoteCalculator({ site, presentation }: { site: Site; presentation?: WidgetPresentation | undefined }) {
   const quote = site.quote;
   const submit = useServerFn(submitPublicLead);
   const track = useTracker(site.org.slug);
@@ -314,7 +314,7 @@ export function QuoteCalculator({ site, presentation }: { site: Site; presentati
   );
 }
 
-export function BookingForm({ site, presentation }: { site: Site; presentation?: WidgetPresentation }) {
+export function BookingForm({ site, presentation }: { site: Site; presentation?: WidgetPresentation | undefined }) {
   const uid = useId();
   const fid = (key: string) => `b-${key}-${uid}`;
   const submit = useServerFn(submitPublicLead);
