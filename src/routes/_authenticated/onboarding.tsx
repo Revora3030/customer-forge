@@ -762,7 +762,7 @@ function Onboarding() {
                 </p>
               </div>
               <div className="grid gap-4 sm:grid-cols-2">
-                <OwnerPhotoUpload organizationId={ws?.workspace?.id} />
+                <OwnerPhotoUpload organizationId={ws?.workspace?.organizationId} />
                 <div className="space-y-1.5">
                   <Label htmlFor="o-logo">Logo URL</Label>
                   <Input
