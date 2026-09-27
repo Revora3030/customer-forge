@@ -17,6 +17,12 @@ const STOCK_PHRASES = [
   "we pride ourselves on",
   "customer satisfaction is our",
   "quality you can trust",
+  "choose your details with clarity",
+  "without the guesswork",
+  "a straightforward way to choose",
+  "ready to choose your",
+  "before you request a time",
+
 ];
 
 /** Below this length, a repeated line is a normal CTA/label, not filler. */
