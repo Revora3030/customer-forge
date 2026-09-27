@@ -59,8 +59,8 @@ const FIXTURE_PATTERNS = [
   /\bjohn\s+doe\b/i,
   /\bjane\s+doe\b/i,
   /\bfoo\s*bar\b/i,
-  /\btest[-\\s]?fixture\b/i,
-  /\bqa[-\\s]?fixture\b/i,
+  /\btest[-\s]?fixture\b/i,
+  /\bqa[-\s]?fixture\b/i,
   /\bfictional\s+(?:studio|business|company|shop|service)\b/i,
 ];
 
