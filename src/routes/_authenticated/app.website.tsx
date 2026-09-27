@@ -543,7 +543,7 @@ function WebsitePage() {
             emptyHint={firstRun ? "Tell me what you do and who you serve. I’ll build the complete website with you." : "Keep talking to me naturally. I’ll keep the context as we work through this website together."}
           />
         </div>
-        {!firstRun && org?.slug ? (
+        {!firstRun && org?.slug && (previewOpen || isWide) ? (
           <div className={!previewOpen ? "hidden min-w-0 lg:block" : "min-w-0"}>
             <BuilderPreview
               slug={org.slug}
