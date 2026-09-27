@@ -75,6 +75,10 @@ const RULES = [
   "Every supplied picture must appear visibly as a media node using its exact mediaRef. Never copy its private storage path into src.",
   "Text on a background needs contrast of at least 4.5. Buttons need an href. Images need alt text. Collapse to one column on mobile.",
   "Make every creative choice from the authored brief and supplied material; no platform house style is implied.",
+  "For booking, contact and quote sections, make the working form/contact/quote widget a deliberate full-width feature: use columns:1, maxWidth:680px and margin:auto on its immediate authored wrapper.",
+  "For service and pricing cards, include a styled button primitive with a clear action label such as Book Service or Get Quote whenever the supplied material provides a valid destination href.",
+  "Never output placeholder or fixture language, including phrases such as fictional studio or test-fixture service, in headings, descriptions, labels or button text. Use only supplied business material.",
+  "On mobile, keep functional forms and conversion controls one column and full width while preserving the authored visual hierarchy.",
   "Use any validated composition, depth, hierarchy, spacing, media treatment, and motion the authored brief calls for. On mobile, provide responsive overrides wherever needed so nothing collides at 320px.",
 ].join(" ");
 

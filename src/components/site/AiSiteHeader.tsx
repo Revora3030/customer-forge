@@ -27,11 +27,11 @@ export function AiSiteHeader(props: {
   }, [open]);
 
   return (
-    <header className="rv-site-header rv-ai-header sticky top-0 z-40 pt-[env(safe-area-inset-top)]">
+    <header className="rv-site-header rv-ai-header sticky top-0 z-40 border-b border-border bg-background/95 backdrop-blur-md pt-[env(safe-area-inset-top)]">
       <nav aria-label="Main" className="hidden md:block">
         <CompositionRenderer as="div" scope="site-header" tree={props.tree} resolveHref={props.resolveHref} />
       </nav>
-      <nav aria-label="Main" className="flex items-center justify-between gap-3 border-b border-border bg-background/92 px-4 py-3 text-foreground backdrop-blur-md md:hidden">
+      <nav aria-label="Main" className="flex items-center justify-between gap-3 px-4 py-3 text-foreground md:hidden">
         <a href={props.homeHref} className="flex min-h-11 min-w-0 items-center font-display text-[16px] font-semibold leading-tight tracking-tight [overflow-wrap:anywhere]">
           {props.name}
         </a>
@@ -50,13 +50,12 @@ export function AiSiteHeader(props: {
           role="dialog"
           aria-modal="true"
           aria-label="Menu"
-          className="fixed inset-0 z-50 flex flex-col overflow-y-auto bg-background pt-[env(safe-area-inset-top)] md:hidden"
+          className="fixed inset-0 z-50 flex flex-col bg-background/98 p-6 pt-[calc(1.5rem+env(safe-area-inset-top))] backdrop-blur-lg md:hidden"
           onClick={(event) => {
             if ((event.target as HTMLElement).closest("a")) setOpen(false);
           }}
         >
-          <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3 text-foreground">
-            <span className="min-w-0 font-display text-[16px] font-semibold leading-tight [overflow-wrap:anywhere]">{props.name}</span>
+          <div className="flex items-center justify-end gap-3 text-foreground">
             <button
               type="button"
               aria-label="Close menu"
@@ -66,7 +65,9 @@ export function AiSiteHeader(props: {
               <X className="size-5" />
             </button>
           </div>
-          <CompositionRenderer as="div" scope="site-header" tree={props.tree} resolveHref={props.resolveHref} />
+          <div className="flex min-h-0 flex-1 items-center justify-center overflow-y-auto">
+            <CompositionRenderer as="div" scope="site-header" tree={props.tree} resolveHref={props.resolveHref} />
+          </div>
         </div>
       ) : null}
     </header>
