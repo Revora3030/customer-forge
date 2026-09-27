@@ -33,7 +33,7 @@ type Db = { from: (table: string) => any }; // eslint-disable-line @typescript-e
 
 /** Sections whose job is a working feature, not a layout. */
 export const FUNCTIONAL_SECTION_KINDS = new Set([
-  "quote", "booking", "contact", "sticky_cta", "embed", "post_list", "composition",
+  "embed", "post_list",
 ]);
 
 type SectionRow = {
@@ -79,6 +79,9 @@ const RULES = [
   "For service and pricing cards, include a styled button primitive with a clear action label such as Book Service or Get Quote whenever the supplied material provides a valid destination href.",
   "Never output placeholder or fixture language, including phrases such as fictional studio or test-fixture service, in headings, descriptions, labels or button text. Use only supplied business material.",
   "On mobile, keep functional forms and conversion controls one column and full width while preserving the authored visual hierarchy.",
+  "For quote sections, the composition MUST contain one quote_calculator widget; for booking sections, one booking_form widget; for contact sections, one contact_details widget. These widgets are the only application-owned mechanics — you own their entire surrounding layout and their widgetPresentation.",
+  "Every working widget in a first build MUST include widgetPresentation with an AI-authored title, actionLabel when actionable, successTitle/successBody when it submits, appropriate fieldLabels, and a local theme using surface, text, muted, border, action and actionText. Choose the palette yourself for this specific site; do not reuse a generic form palette.",
+  "Widget presentation copy must be specific to the supplied business and the section's role. Avoid stock phrases and generic filler such as 'choose your options', 'request your appointment', 'lock in this price', 'anything we should know', 'before you request a time', or 'without the guesswork' unless those exact words are genuinely appropriate to the supplied business.",
   "Use any validated composition, depth, hierarchy, spacing, media treatment, and motion the authored brief calls for. On mobile, provide responsive overrides wherever needed so nothing collides at 320px.",
 ].join(" ");
 
@@ -89,6 +92,7 @@ function materialFor(section: SectionRow, parts: ComponentRow[]) {
     heading: section.heading,
     subheading: section.subheading,
     body: section.body,
+    workingWidget: requiredWidgetForRole(section.kind),
     parts: parts.map((part) => ({
       kind: part.kind,
       label: part.label,
@@ -98,6 +102,37 @@ function materialFor(section: SectionRow, parts: ComponentRow[]) {
       linkLabel: part.link_label,
     })),
   };
+}
+
+function requiredWidgetForRole(role: string): "booking_form" | "quote_calculator" | "contact_details" | null {
+  if (role === "booking") return "booking_form";
+  if (role === "quote") return "quote_calculator";
+  if (role === "contact") return "contact_details";
+  return null;
+}
+
+function findWidget(root: CompositionTree["root"], name: string): CompositionTree["root"] | null {
+  if (root.type === "widget" && root.text === name) return root;
+  for (const child of root.children ?? []) {
+    const found = findWidget(child, name);
+    if (found) return found;
+  }
+  return null;
+}
+
+function widgetPresentationProblem(role: string, widget: CompositionTree["root"]): string | null {
+  const presentation = widget.widgetPresentation;
+  if (!presentation) return `the ${role} widget needs AI-authored widgetPresentation`;
+  if (!presentation.title?.trim()) return `the ${role} widget needs an AI-authored title`;
+  if (role === "quote" || role === "booking") {
+    if (!presentation.actionLabel?.trim()) return `the ${role} widget needs an AI-authored actionLabel`;
+    if (!presentation.successTitle?.trim() || !presentation.successBody?.trim())
+      return `the ${role} widget needs AI-authored success copy`;
+  }
+  const theme = presentation.theme;
+  if (!theme?.surface || !theme.text || !theme.muted || !theme.border || !theme.action || !theme.actionText)
+    return `the ${role} widget needs a complete AI-authored local theme`;
+  return null;
 }
 
 function mediaRefsFor(section: SectionRow, parts: ComponentRow[]) {
@@ -210,6 +245,16 @@ export async function composeFirstBuildSections(input: {
           feedback[section.id] = checked.issues.slice(0, 12);
           next.push(section);
           continue;
+        }
+        const widgetName = requiredWidgetForRole(section.kind);
+        if (widgetName) {
+          const widget = findWidget(checked.tree.root, widgetName);
+          const problem = widget ? widgetPresentationProblem(section.kind, widget) : `the ${section.kind} section must contain a ${widgetName} widget`;
+          if (problem) {
+            feedback[section.id] = [{ path: "root", problem }];
+            next.push(section);
+            continue;
+          }
         }
         designed.set(section.id, checked.tree);
       }
