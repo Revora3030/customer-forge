@@ -164,7 +164,7 @@ export function SitePageView({
           surface={profile?.secondary_color ?? null}
         />
 
-        <main>
+        <main className="scroll-mt-20 pt-2 sm:pt-4 pb-24 sm:pb-16">
           {site.content!.sections.map((section) => (
             <SiteSection key={section.id} site={site} section={section} />
           ))}
