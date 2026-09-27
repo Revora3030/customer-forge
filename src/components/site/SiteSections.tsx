@@ -8,7 +8,7 @@ import { useOwnAddress } from "@/components/site/site-links";
  * forms used on the home page, so any page can convert a visitor.
  */
 import { CompositionRenderer } from "@/components/site/CompositionRenderer";
-import { readComposition } from "@/lib/builder/composition-tree";
+import { readComposition, type WidgetPresentation } from "@/lib/builder/composition-tree";
 import { blockCss, readBlockStyle, readComponentVisual } from "@/lib/site-style";
 import { SitePageLink } from "@/components/site/site-links";
 import { Mail, MapPin, Phone } from "lucide-react";
@@ -114,12 +114,12 @@ function SiteSectionBody({ site, section }: { site: Site; section: Section }) {
           scope={`s-${section.id}`}
           resolveMedia={(ref) => media.get(ref) ?? null}
           resolveHref={(href) => resolveSiteHref(href, org.slug, ownAddress)}
-          resolveWidget={(name) => {
-            if (name === "booking_form") return <BookingForm site={site} />;
-            if (name === "quote_calculator") return site.quote ? <QuoteCalculator site={site} /> : null;
-            if (name === "contact_details") return <ContactFacts site={site} />;
+          resolveWidget={(name, presentation?: WidgetPresentation) => {
+            if (name === "booking_form") return <BookingForm site={site} presentation={presentation} />;
+            if (name === "quote_calculator") return site.quote ? <QuoteCalculator site={site} presentation={presentation} /> : null;
+            if (name === "contact_details") return <ContactFacts site={site} presentation={presentation} />;
             if (name === "direct_contact")
-              return <DirectContact profile={profile} businessName={site.org.name} label={`Call or email ${site.org.name} directly`} />;
+              return <DirectContact profile={profile} businessName={site.org.name} label={presentation?.contactLabel ?? presentation?.title ?? `Call or email ${site.org.name} directly`} presentation={presentation} />;
             return null;
           }}
         />
@@ -284,7 +284,7 @@ function SiteSectionBody({ site, section }: { site: Site; section: Section }) {
  */
 
 /** Verified contact facts only: unusable phone/email/hours are hidden, never rendered. */
-function ContactFacts({ site }: { site: Site }) {
+function ContactFacts({ site, presentation }: { site: Site; presentation?: WidgetPresentation }) {
   const facts = businessFacts(site.profile as Record<string, unknown> | null, site.org.name);
   const addressLine = factsAddressLine(facts);
   const area = facts.serviceArea ?? facts.city;
@@ -295,7 +295,7 @@ function ContactFacts({ site }: { site: Site }) {
             {facts.phone && facts.phoneHref ? (
               <div>
                 <dt className="eyebrow flex items-center gap-1.5">
-                  <Phone className="size-3.5" aria-hidden="true" /> Phone
+                  <Phone className="size-3.5" aria-hidden="true" /> {presentation?.fieldLabels?.phone ?? "Phone"}
                 </dt>
                 <dd className="mt-1 text-[14px]">
                   <a href={facts.phoneHref} className="text-foreground underline decoration-primary decoration-2 underline-offset-4">
@@ -307,7 +307,7 @@ function ContactFacts({ site }: { site: Site }) {
             {facts.email && facts.emailHref ? (
               <div>
                 <dt className="eyebrow flex items-center gap-1.5">
-                  <Mail className="size-3.5" aria-hidden="true" /> Email
+                  <Mail className="size-3.5" aria-hidden="true" /> {presentation?.fieldLabels?.email ?? "Email"}
                 </dt>
                 <dd className="mt-1 text-[14px]">
                   <a href={facts.emailHref} className="text-foreground underline decoration-primary decoration-2 underline-offset-4">
@@ -319,7 +319,7 @@ function ContactFacts({ site }: { site: Site }) {
             {area ? (
               <div>
                 <dt className="eyebrow flex items-center gap-1.5">
-                  <MapPin className="size-3.5" aria-hidden="true" /> Area
+                  <MapPin className="size-3.5" aria-hidden="true" /> {presentation?.fieldLabels?.location ?? "Area"}
                 </dt>
                 <dd className="mt-1 text-[14px]">{area}</dd>
               </div>
@@ -327,14 +327,14 @@ function ContactFacts({ site }: { site: Site }) {
             {addressLine ? (
               <div>
                 <dt className="eyebrow flex items-center gap-1.5">
-                  <MapPin className="size-3.5" aria-hidden="true" /> Address
+                  <MapPin className="size-3.5" aria-hidden="true" /> {presentation?.fieldLabels?.location ?? "Address"}
                 </dt>
                 <dd className="mt-1 text-[14px]">{addressLine}</dd>
               </div>
             ) : null}
             {facts.hours ? (
               <div>
-                <dt className="eyebrow">Hours</dt>
+                <dt className="eyebrow">{presentation?.fieldLabels?.time ?? "Hours"}</dt>
                 <dd className="mt-1 whitespace-pre-line text-[14px]">{facts.hours}</dd>
               </div>
             ) : null}
