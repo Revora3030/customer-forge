@@ -199,7 +199,8 @@ export async function refineSectionWordingWithCollective(input: {
     );
     throw new Error(`Sol could not author the section copy: ${solCall.detail ?? solCall.reason}`);
   }
-  proposal = parseRefinement(solCall.text);
+  const successfulSol = solCall;
+  proposal = parseRefinement(successfulSol.text);
   const proposedStrings = (value: unknown): string[] => {
     const out: string[] = [];
     const walk = (entry: unknown) => {
