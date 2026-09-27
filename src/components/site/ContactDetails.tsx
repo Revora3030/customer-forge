@@ -29,7 +29,7 @@ export const telHref = (phone: string) => phoneLink(phone) ?? "#";
 export const mailHref = (email: string) => emailLink(email) ?? "#";
 
 /** Local semantic theme for an AI-authored working widget. */
-export function widgetPresentationStyle(presentation?: WidgetPresentation): CSSProperties {
+export function widgetPresentationStyle(presentation?: WidgetPresentation | undefined): CSSProperties {
   const theme = presentation?.theme;
   if (!theme) return {};
   const vars: Record<string, string> = {};
@@ -64,7 +64,7 @@ export function DirectContact({
   profile: ContactInfo | null | undefined;
   businessName: string;
   label?: string;
-  presentation?: WidgetPresentation;
+  presentation?: WidgetPresentation | undefined;
 }) {
   // Validated, formatted values only — an unusable number or a broken address
   // is treated as missing so a visitor never taps a dead link.
