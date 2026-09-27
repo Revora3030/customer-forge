@@ -1,5 +1,5 @@
 import { useState, type CSSProperties, type ReactNode } from "react";
-import type { Breakpoint, CompositionNode, CompositionTree, MotionEasing, NodeHover, NodeMotion, NodeStyle } from "@/lib/builder/composition-tree";
+import type { Breakpoint, CompositionNode, CompositionTree, MotionEasing, NodeHover, NodeMotion, NodeStyle, WidgetPresentation } from "@/lib/builder/composition-tree";
 import type { PersistedComponentVisual } from "@/lib/site-style";
 import { resolveImageSource } from "@/lib/brand-logos";
 
@@ -82,7 +82,7 @@ const MEDIA: Record<Breakpoint, string> = {
 };
 
 type ResolvedMedia = string | { url: string | null; visual?: PersistedComponentVisual };
-type Ctx = { rules: string[]; counter: { n: number }; scope: string; href: (h: string) => string; media: (ref: string) => ResolvedMedia | null; widget: (name: string) => ReactNode };
+type Ctx = { rules: string[]; counter: { n: number }; scope: string; href: (h: string) => string; media: (ref: string) => ResolvedMedia | null; widget: (name: string, presentation?: WidgetPresentation) => ReactNode };
 
 const mediaUrl = (media: ResolvedMedia | null): string | null =>
   typeof media === "string" ? media : media?.url ?? null;
@@ -158,7 +158,7 @@ function renderNode(node: CompositionNode, ctx: Ctx, key: string): ReactNode {
         const source = node.src ? resolveImageSource(node.src) : mediaUrl(resolved);
         return source ? <img key={key} {...props} src={source} alt={node.alt ?? visual?.alt ?? ""} loading="lazy" style={{ width: "100%", ...mediaCss(visual), ...props.style }} /> : null; }
     case "widget":
-      { const w = node.text ? ctx.widget(node.text) : null;
+      { const w = node.text ? ctx.widget(node.text, node.widgetPresentation) : null;
         return w ? <div key={key} {...props} data-widget={node.text}>{w}{kids}</div> : null; }
     case "button":
     case "link":
