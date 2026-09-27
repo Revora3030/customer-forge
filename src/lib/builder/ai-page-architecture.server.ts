@@ -20,6 +20,7 @@ import {
 } from "@/lib/builder/ai-page-architecture";
 import { parseReview } from "@/lib/builder/collective-copy";
 import { creativeQualityPrompt } from "@/lib/builder/creative-quality-matrix";
+import { craftBarPrompt } from "@/lib/builder/world-class-craft";
 
 export type PageArchitectureOutcome = {
   architecture: PageArchitecture[] | null;
@@ -65,7 +66,7 @@ export async function proposePageArchitecture(input: {
     serviceArea: input.serviceArea?.trim() || null,
   };
 
-  const system = `${RULES} You are Sol, the lead information and conversion architect. Decide the page set, the sections on each page and their order so the whole site converts for this specific business. Every page structure is your decision; nothing about its shape is prescribed. ${creativeQualityPrompt()}`;
+  const system = `${RULES} You are Sol, the lead information and conversion architect. Decide the page set, the sections on each page and their order so the whole site converts for this specific business. Every page structure is your decision; nothing about its shape is prescribed. ${creativeQualityPrompt()} ${craftBarPrompt("page_architecture")}`;
   const prompt = [
       "SUPPLIED BUSINESS FACTS:",
       JSON.stringify(businessFacts, null, 2),

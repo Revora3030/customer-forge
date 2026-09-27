@@ -29,6 +29,7 @@ import {
   type RefinementRejection,
 } from "@/lib/builder/collective-copy";
 import { creativeQualityPrompt } from "@/lib/builder/creative-quality-matrix";
+import { craftBarPrompt } from "@/lib/builder/world-class-craft";
 import { detectGenericPhrases } from "@/lib/builder/genericity";
 import { normalizeAspect } from "@/lib/builder/composition-tree";
 
@@ -547,7 +548,7 @@ async function refineCreativeWithCollective(input: {
     organizationId: input.organizationId,
     maxOutputTokens: 8000,
     ...(input.signal ? { signal: input.signal } : {}),
-    system: `${CREATIVE_RULES} You are Sol, the master creative director. Improve the design strategy so it can materially shape layout, imagery and section composition across every page. ${creativeQualityPrompt(input.creative.brief.qualityMatrix)}`,
+    system: `${CREATIVE_RULES} You are Sol, the master creative director. Improve the design strategy so it can materially shape layout, imagery and section composition across every page. ${creativeQualityPrompt(input.creative.brief.qualityMatrix)} ${craftBarPrompt("creative_direction")}`,
     user: [
       "FACTS (truth source, not copy to invent from):",
       facts,
@@ -724,7 +725,7 @@ export async function refineFirstBuildWithCollective(input: {
     organizationId: input.organizationId,
     maxOutputTokens: 6000,
     ...(input.signal ? { signal: input.signal } : {}),
-    system: `${RULES} You are the master content strategist for a first build. Follow the approved creative direction without adding unsupported facts.`,
+    system: `${RULES} You are the master content strategist for a first build. Follow the approved creative direction without adding unsupported facts. ${craftBarPrompt("copy")}`,
     user: contentPrompt,
   });
 

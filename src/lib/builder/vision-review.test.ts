@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   parseVisionReview,
   visionRepairs,
+  aiDesignInstruction,
   visionReviewPrompt,
   visionSummary,
 } from "@/lib/builder/vision-review";
@@ -87,12 +88,33 @@ describe("vision review", () => {
     const review = parseVisionReview({
       issues: [
         { kind: "low_contrast_text", severity: "blocking", detail: "Pale on pale." },
-        { kind: "inconsistent_style", severity: "major", detail: "Two different button shapes." },
+        { kind: "overlapping_elements", severity: "major", detail: "The badge sits on top of the heading." },
       ],
     });
     const { repairs, unfixable } = visionRepairs(review);
     expect(repairs.map((repair) => repair.action)).toEqual([]);
-    expect(unfixable.map((finding) => finding.kind)).toEqual(["inconsistent_style"]);
+    expect(unfixable.map((finding) => finding.kind)).toEqual(["overlapping_elements"]);
+  });
+
+  it("hands craft-level findings to the AI team instead of a fixed repair", () => {
+    const review = parseVisionReview({
+      issues: [
+        { kind: "generic_look", severity: "major", where: "hero", detail: "Looks like any other generated site." },
+        { kind: "weak_visual_hierarchy", severity: "major", where: "services", detail: "Nothing leads the eye." },
+        { kind: "inconsistent_style", severity: "minor", where: "footer", detail: "Two different button shapes." },
+      ],
+    });
+    expect(review.findings.length).toBe(3);
+    const { repairs, unfixable } = visionRepairs(review);
+    expect(repairs).toEqual([]);
+    expect(unfixable).toEqual([]);
+    expect(aiDesignInstruction(review.findings, "Home", 1280)).toMatch(/Redesign/);
+  });
+
+  it("asks the screenshot reviewer to judge against a studio-grade bar", () => {
+    const prompt = visionReviewPrompt({ pageTitle: "Home", viewportWidth: 1280 });
+    expect(prompt).toContain("generic_look");
+    expect(prompt).toContain("award-winning studio");
   });
 
   it("turns movement complaints into switching movement off", () => {

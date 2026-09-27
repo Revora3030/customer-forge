@@ -8,6 +8,7 @@
  * save the brief for later AI composition or report an honest failure.
  */
 import { callBestThinker } from "@/lib/ai/hall-of-fame.server";
+import { craftBarPrompt } from "@/lib/builder/world-class-craft";
 
 export type RedesignChange = { field: string; from: string; to: string };
 
@@ -31,6 +32,7 @@ const SYSTEM = [
   "Do not choose from a menu, fingerprint, archetype, template, preset, style scale or fixed field list.",
   "Use your own words for any design choices you name. You may invent whatever choice names are useful.",
   "Never change wording, prices, claims or business facts — this is presentation guidance only.",
+  craftBarPrompt("redesign"),
   "Reply with JSON only.",
 ].join(" ");
 

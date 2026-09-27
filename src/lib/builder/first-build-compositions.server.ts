@@ -13,6 +13,7 @@
  * substitute design.
  */
 import { callBestThinker } from "@/lib/ai/hall-of-fame.server";
+import { craftBarPrompt } from "@/lib/builder/world-class-craft";
 import { screenText } from "@/lib/builder/collective-copy";
 import {
   COMPOSITION_PRIMITIVES, PRIMITIVE_GUIDE,
@@ -85,6 +86,7 @@ const RULES = [
   'widgetPresentation shape: {"eyebrow":"...","title":"...","description":"...","optionPrompt":"...","estimateLabel":"...","extraLabel":"...","actionLabel":"...","backLabel":"...","successTitle":"...","successBody":"...","contactLabel":"...","fieldLabels":{"service":"...","name":"...","phone":"...","email":"...","location":"...","date":"...","time":"...","details":"..."},"theme":{"surface":"#RRGGBB","text":"#RRGGBB","muted":"#RRGGBB","border":"#RRGGBB","action":"#RRGGBB","actionText":"#RRGGBB","selected":"#RRGGBB","selectedText":"#RRGGBB"}}',
   "Widget presentation copy must be specific to the supplied business and the section's role. Avoid stock phrases and generic filler such as 'choose your options', 'request your appointment', 'lock in this price', 'anything we should know', 'before you request a time', or 'without the guesswork' unless those exact words are genuinely appropriate to the supplied business.",
   "Use any validated composition, depth, hierarchy, spacing, media treatment, and motion the authored brief calls for. On mobile, provide responsive overrides wherever needed so nothing collides at 320px.",
+  craftBarPrompt("layout"),
 ].join(" ");
 
 function materialFor(section: SectionRow, parts: ComponentRow[]) {

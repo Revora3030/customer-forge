@@ -9,6 +9,7 @@
  * falling back to a stock look.
  */
 import type { DesignDirection } from "@/lib/authored-direction";
+import { craftBarPrompt } from "@/lib/builder/world-class-craft";
 import { readSectionEffects } from "@/lib/authored-direction";
 import { isBackdropId, safeBackdropSpec, type BackdropId } from "@/lib/site-effects";
 import { safeColor } from "@/lib/site-style";
@@ -38,6 +39,7 @@ const SYSTEM = [
   "You invent this brand's visual identity from scratch. There is no template, no preset palette and no house style to respect.",
   "Choose colours that suit this specific business and would look deliberate to a design critic — not a default blue, and not the same scheme you would give any other business.",
   "Choose real typeface families by name (any family available on Google Fonts). Pair a heading face with a body face that genuinely complements it.",
+  craftBarPrompt("brand_identity"),
   "Reply with JSON only.",
 ].join(" ");
 

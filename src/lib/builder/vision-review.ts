@@ -32,6 +32,13 @@ export const VISION_ISSUE_KINDS = [
   "inconsistent_style",
   "empty_space_excess",
   "content_cut_off",
+  // Craft-level findings: what separates a finished studio build from a draft.
+  "weak_visual_hierarchy",
+  "misaligned_elements",
+  "poor_typography",
+  "generic_look",
+  "low_quality_imagery",
+  "unfinished_detail",
 ] as const;
 
 export type VisionIssueKind = (typeof VISION_ISSUE_KINDS)[number];
@@ -84,12 +91,14 @@ export function visionReviewPrompt(context: {
     "You are reviewing a screenshot of a business web page for visual quality only.",
     `The page is titled "${clean(context.pageTitle, 80) || "this page"}" and the screenshot is ${Math.round(context.viewportWidth)} pixels wide.`,
     "Report ONLY problems you can actually see in the image.",
+    "Judge it against the standard of an award-winning studio site: clear focal point and hierarchy, a deliberate type scale, consistent spacing rhythm and alignment, disciplined colour, art-directed imagery and finished details. A page that merely works but looks like any other generated site is generic_look.",
     `Each problem must use one of these exact kinds: ${kinds}.`,
     'Answer with JSON only: {"issues":[{"kind":"...","severity":"blocking|major|minor","where":"short location","detail":"one short sentence"}]}',
     "Do not comment on the wording, the prices, the business itself, or anything you cannot see.",
     "Never state a fact, figure or claim about the business.",
     "If the page looks fine, answer {\"issues\":[]}.",
     "Report at most 8 problems, most serious first.",
+    "Use generic_look only when the layout, type and imagery could belong to any business if the name were swapped.",
   ].join("\n");
 }
 
@@ -169,6 +178,17 @@ export const AI_DESIGN_FINDINGS = new Set<VisionIssueKind>([
   "cramped_spacing",
   "empty_space_excess",
   "cta_not_prominent",
+  // Composition and craft problems have no safe fixed repair, so they go to
+  // the AI team instead of being reported as "needs a human eye".
+  "unbalanced_layout",
+  "heading_too_small",
+  "inconsistent_style",
+  "weak_visual_hierarchy",
+  "misaligned_elements",
+  "poor_typography",
+  "generic_look",
+  "low_quality_imagery",
+  "unfinished_detail",
 ]);
 
 /** The instruction handed to the AI team for design findings. */
