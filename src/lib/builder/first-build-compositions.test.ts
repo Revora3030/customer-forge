@@ -89,7 +89,7 @@ describe("composeFirstBuildSections", () => {
     expect(calls.filter((c) => c.includes("SECTIONS TO DESIGN"))).toHaveLength(2);
     expect(result.gateReports).toEqual([]);
     expect(calls[1]).toContain("FIX THESE PROBLEMS");
-    expect(calls[0]).not.toContain('"s3"');
+    expect(calls[0]).toContain('"s3"');
     // Independent advisers speak before Sol's first design.
     expect(calls[0]).toContain("TEAM ADVICE");
     expect(calls[0]).toContain("Name the service in the heading");

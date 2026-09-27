@@ -29,6 +29,7 @@ import {
   type RefinementRejection,
 } from "@/lib/builder/collective-copy";
 import { creativeQualityPrompt } from "@/lib/builder/creative-quality-matrix";
+import { detectGenericPhrases } from "@/lib/builder/genericity";
 import { normalizeAspect } from "@/lib/builder/composition-tree";
 
 export type CollectivePassRecord = {
@@ -572,9 +573,9 @@ async function refineCreativeWithCollective(input: {
   proposal = parseCreativeProposal(solCall.text);
   passes.push(
     record(solCall.tier ?? "hall_of_fame", "creative_direction", {
-      model: solCall.model,
+      model: solCall.ok ? solCall.model : null,
       used: proposal !== null,
-      costMicrocents: solCall.costMicrocents,
+      costMicrocents: solCall.ok ? solCall.costMicrocents : 0,
       skipped: proposal === null ? "the answer was not in the agreed shape" : null,
       acceptedFields: creativeApprovableFields(proposal),
     }),
@@ -609,9 +610,9 @@ async function refineCreativeWithCollective(input: {
     const parsed = parseReview(terraCall.text);
     passes.push(
       record(terraCall.tier ?? "hall_of_fame", "creative_review", {
-        model: terraCall.model,
+        model: terraCall.ok ? terraCall.model : null,
         used: parsed !== null,
-        costMicrocents: terraCall.costMicrocents,
+        costMicrocents: terraCall.ok ? terraCall.costMicrocents : 0,
         skipped: parsed === null ? "the review was not in the agreed shape" : null,
         acceptedFields: parsed?.approvedFields ?? [],
         rejected: parsed?.notes ?? [],
@@ -754,9 +755,9 @@ export async function refineFirstBuildWithCollective(input: {
   } else {
     passes.push(
       record(solCall.tier ?? "hall_of_fame", "content_strategy", {
-        model: solCall.model,
+        model: solCall.ok ? solCall.model : null,
         used: solProposal !== null,
-        costMicrocents: solCall.costMicrocents,
+        costMicrocents: solCall.ok ? solCall.costMicrocents : 0,
         skipped: solProposal === null ? "the answer was not in the agreed shape" : null,
         acceptedFields: approvableFields(solProposal),
       }),
@@ -789,9 +790,9 @@ export async function refineFirstBuildWithCollective(input: {
     const repaired = repairCall.ok ? parseRefinement(repairCall.text) : null;
     passes.push(
       record(repairCall.tier ?? "hall_of_fame", "content_strategy", {
-        model: repairCall.model,
+        model: repairCall.ok ? repairCall.model : null,
         used: repaired !== null,
-        costMicrocents: repairCall.costMicrocents,
+        costMicrocents: repairCall.ok ? repairCall.costMicrocents : 0,
         skipped: repaired === null ? "generic-copy repair was unavailable or malformed" : null,
         acceptedFields: approvableFields(repaired),
       }),
@@ -799,7 +800,7 @@ export async function refineFirstBuildWithCollective(input: {
     if (repaired) solProposal = repaired;
     const remainingGenericHits = detectGenericPhrases(firstBuildCopyStrings(solProposal));
     if (remainingGenericHits.length && input.hardGenericityGate) {
-      throw new Error("The AI team left stock phrasing in the first-build copy (" + remainingGenericHits.map((hit) => hit.phrase).join(", ") + "), so the build was stopped for another creative pass.");
+      throw new Error("The AI team left stock phrasing in the first-build copy (" + remainingGenericHits.map((hit: { phrase: string }) => hit.phrase).join(", ") + "), so the build was stopped for another creative pass.");
     }
   }
 
@@ -839,9 +840,9 @@ export async function refineFirstBuildWithCollective(input: {
       const parsed = parseReview(terraCall.text);
       passes.push(
         record(terraCall.tier ?? "hall_of_fame", "specialist_review", {
-          model: terraCall.model,
+          model: terraCall.ok ? terraCall.model : null,
           used: parsed !== null,
-          costMicrocents: terraCall.costMicrocents,
+          costMicrocents: terraCall.ok ? terraCall.costMicrocents : 0,
           skipped: parsed === null ? "the review was not in the agreed shape" : null,
           acceptedFields: parsed?.approvedFields ?? [],
           rejected: parsed?.notes ?? [],
@@ -922,9 +923,9 @@ export async function refineFirstBuildWithCollective(input: {
     }
     passes.push(
       record(lunaCall.tier ?? "hall_of_fame", "metadata", {
-        model: lunaCall.model,
+        model: lunaCall.ok ? lunaCall.model : null,
         used: acceptedKeys.length > 0,
-        costMicrocents: lunaCall.costMicrocents,
+        costMicrocents: lunaCall.ok ? lunaCall.costMicrocents : 0,
         skipped: acceptedKeys.length
           ? null
           : proposal === null

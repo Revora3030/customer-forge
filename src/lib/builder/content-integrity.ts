@@ -61,7 +61,7 @@ const FIXTURE_PATTERNS = [
   /\bfoo\s*bar\b/i,
   /\btest[-\s]?fixture\b/i,
   /\bqa[-\s]?fixture\b/i,
-  /\bfictional\s+(?:studio|business|company|shop|service)\b/i,
+  /\bfictional\s+(?:(?:[a-z0-9-]+)\s+){0,3}(?:studio|business|company|shop|service)\b/i,
 ];
 
 const FAKE_ADDRESSES = [/\b123\s+main\s+st/i, /\b1\s+infinite\s+loop/i, /\b123\s+fake\s+st/i];
