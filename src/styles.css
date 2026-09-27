@@ -2392,3 +2392,28 @@ html, body { max-width: 100%; overflow-x: hidden; }
 .rv-card-shadow :is(article, [class*="rounded-2xl"], [class*="rounded-xl"])[class*="border"] {
   box-shadow: var(--site-card-shadow);
 }
+
+
+/* Phone safety for AI-authored compositions: keep authored layouts readable without changing their design. */
+@media (max-width: 639px) {
+  [data-composition] [style*="grid-template-columns"],
+  [data-composition] .grid,
+  [data-composition] [class*="grid-cols-"] {
+    width: 100% !important;
+    max-width: 100% !important;
+    grid-template-columns: 1fr !important;
+  }
+  [data-composition] [style*="display: flex"] {
+    max-width: 100% !important;
+  }
+  [data-composition] :is(h1, h2, h3, h4, p, span, label) {
+    overflow-wrap: break-word;
+    word-break: normal;
+    hyphens: none;
+  }
+  [data-composition] [data-widget],
+  [data-composition] form {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+}
