@@ -17,6 +17,7 @@ import { readBackdrop, readBackdropSpec } from "@/lib/site-effects";
 import { getPublicSite, trackPublicEvent, type PublicSite } from "@/lib/public-site.functions";
 import { SiteVitals } from "@/components/site/SiteVitals";
 import { BuilderReturnBar } from "@/components/site/BuilderReturnBar";
+import { PreviewLinkBridge } from "@/components/site/PreviewLinkBridge";
 import { styleSheet } from "@/lib/site-style";
 import { canonicalSiteUrl } from "@/lib/revora-address";
 import { CompositionRenderer } from "@/components/site/CompositionRenderer";
@@ -180,6 +181,7 @@ export function SitePageView({
             for every ordinary visitor and for any frame from another origin. */}
         <PreviewSelectBridge />
         {preview ? <BuilderReturnBar /> : null}
+        {preview ? <PreviewLinkBridge slug={org.slug} /> : null}
       </div>
     </div>
   );
