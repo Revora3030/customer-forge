@@ -565,7 +565,7 @@ function TaskBody({
       ) : null}
       {task.error ? <p className="text-[12.5px]">{task.error}</p> : null}
 
-      {working ? (
+      {working && isActive ? (
         <p className="text-[11.5px] text-muted-foreground">
           {timeline.stages[timeline.current]}
         </p>
