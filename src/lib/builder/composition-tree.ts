@@ -18,6 +18,36 @@ export const COMPOSITION_PRIMITIVES = [
 export const COMPOSITION_WIDGETS = ["booking_form", "quote_calculator", "contact_details", "direct_contact"] as const;
 export type CompositionWidget = (typeof COMPOSITION_WIDGETS)[number];
 
+export const COMPOSITION_WIDGET_FIELDS = [
+  "service", "name", "phone", "email", "location", "date", "time", "details",
+] as const;
+export type CompositionWidgetField = (typeof COMPOSITION_WIDGET_FIELDS)[number];
+
+/** AI-authored presentation for a working widget. Data and mechanics remain application-owned. */
+export type WidgetPresentation = {
+  eyebrow?: string;
+  title?: string;
+  description?: string;
+  optionPrompt?: string;
+  estimateLabel?: string;
+  extraLabel?: string;
+  actionLabel?: string;
+  backLabel?: string;
+  successTitle?: string;
+  successBody?: string;
+  contactLabel?: string;
+  fieldLabels?: Partial<Record<CompositionWidgetField, string>>;
+  theme?: {
+    surface?: string;
+    text?: string;
+    muted?: string;
+    border?: string;
+    action?: string;
+    actionText?: string;
+    selected?: string;
+    selectedText?: string;
+  };
+};
 /** How the interactive building blocks are used. Describes mechanics only — never a layout. */
 export const PRIMITIVE_GUIDE =
   "Interactive blocks: tabs (each child is one panel; the child's text is its tab label), " +
@@ -111,6 +141,8 @@ export type CompositionNode = {
   responsive?: Partial<Record<Breakpoint, NodeStyle>>;
   motion?: NodeMotion;
   hover?: NodeHover;
+  /** AI-authored labels and visual theme for a working widget; never contains business data. */
+  widgetPresentation?: WidgetPresentation;
   children?: CompositionNode[];
 };
 
@@ -298,6 +330,80 @@ function checkStyle(style: unknown, path: string, issues: CompositionIssue[]): N
   return out as NodeStyle;
 }
 
+function checkWidgetPresentation(value: unknown, path: string, issues: CompositionIssue[], screen?: (text: string) => string | null): WidgetPresentation | undefined {
+  if (value == null) return undefined;
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    issues.push({ path, problem: "widgetPresentation must be an object" });
+    return undefined;
+  }
+  const raw = value as Record<string, unknown>;
+  const out: WidgetPresentation = {};
+  const textKeys = [
+    "eyebrow", "title", "description", "optionPrompt", "estimateLabel", "extraLabel",
+    "actionLabel", "backLabel", "successTitle", "successBody", "contactLabel",
+  ] as const;
+  for (const key of textKeys) {
+    const checked = checkText(raw[key], `${path}.${key}`, issues, screen);
+    if (checked !== undefined) out[key] = checked.slice(0, 240);
+  }
+  if (raw["fieldLabels"] != null) {
+    const labels = raw["fieldLabels"];
+    if (!labels || typeof labels !== "object" || Array.isArray(labels)) {
+      issues.push({ path: `${path}.fieldLabels`, problem: "fieldLabels must be an object" });
+    } else {
+      const checked: Partial<Record<CompositionWidgetField, string>> = {};
+      for (const [key, value_] of Object.entries(labels as Record<string, unknown>)) {
+        if (!(COMPOSITION_WIDGET_FIELDS as readonly string[]).includes(key)) {
+          issues.push({ path: `${path}.fieldLabels.${key}`, problem: "unknown widget field label" });
+          continue;
+        }
+        const text = checkText(value_, `${path}.fieldLabels.${key}`, issues, screen);
+        if (text !== undefined) checked[key as CompositionWidgetField] = text.slice(0, 120);
+      }
+      if (Object.keys(checked).length) out.fieldLabels = checked;
+    }
+  }
+  if (raw["theme"] != null) {
+    const theme = raw["theme"];
+    if (!theme || typeof theme !== "object" || Array.isArray(theme)) {
+      issues.push({ path: `${path}.theme`, problem: "theme must be an object" });
+    } else {
+      const rawTheme = theme as Record<string, unknown>;
+      const themeOut: NonNullable<WidgetPresentation["theme"]> = {};
+      const keys = ["surface", "text", "muted", "border", "action", "actionText", "selected", "selectedText"] as const;
+      for (const key of keys) {
+        const color = rawTheme[key];
+        if (color == null) continue;
+        if (typeof color !== "string" || !HEX.test(color)) {
+          issues.push({ path: `${path}.theme.${key}`, problem: "widget theme colours must be #RGB or #RRGGBB" });
+        } else themeOut[key] = color;
+      }
+      const surface = themeOut.surface;
+      const text = themeOut.text;
+      if (surface && text) {
+        const ratio = contrastRatio(text, surface);
+        if (ratio != null && ratio < 4.5)
+          issues.push({ path: `${path}.theme`, problem: `widget text/surface contrast ${ratio.toFixed(2)} is below 4.5` });
+      }
+      const action = themeOut.action;
+      const actionText = themeOut.actionText;
+      if (action && actionText) {
+        const ratio = contrastRatio(actionText, action);
+        if (ratio != null && ratio < 4.5)
+          issues.push({ path: `${path}.theme`, problem: `widget action contrast ${ratio.toFixed(2)} is below 4.5` });
+      }
+      const selected = themeOut.selected;
+      const selectedText = themeOut.selectedText;
+      if (selected && selectedText) {
+        const ratio = contrastRatio(selectedText, selected);
+        if (ratio != null && ratio < 4.5)
+          issues.push({ path: `${path}.theme`, problem: `widget selected-state contrast ${ratio.toFixed(2)} is below 4.5` });
+      }
+      if (Object.keys(themeOut).length) out.theme = themeOut;
+    }
+  }
+  return Object.keys(out).length ? out : undefined;
+}
 function checkText(value: unknown, path: string, issues: CompositionIssue[], screen?: (text: string) => string | null): string | undefined {
   if (value == null) return undefined;
   if (typeof value !== "string") {
@@ -370,6 +476,10 @@ export function validateComposition(input: unknown, options: ValidateOptions = {
     if (node.type === "media" && (node.src || node.mediaRef) && !node.alt) issues.push({ path: `${path}.alt`, problem: "images need alt text" });
     if ((node.type === "button" || node.type === "link") && !node.href) issues.push({ path: `${path}.href`, problem: "buttons and links need a destination" });
     if (node.type === "widget" && !COMPOSITION_WIDGETS.includes(node.text as CompositionWidget)) issues.push({ path: `${path}.text`, problem: `widget must be one of ${COMPOSITION_WIDGETS.join(", ")}` });
+    if (row["widgetPresentation"] != null) {
+      if (node.type !== "widget") issues.push({ path: `${path}.widgetPresentation`, problem: "widgetPresentation is only valid on widget nodes" });
+      else node.widgetPresentation = checkWidgetPresentation(row["widgetPresentation"], `${path}.widgetPresentation`, issues, options.screenText);
+    }
     if (node.type === "quote" && !node.text) issues.push({ path: `${path}.text`, problem: "quote needs its words in text" });
     if (row["level"] != null) {
       if (![1, 2, 3, 4].includes(row["level"] as number)) issues.push({ path: `${path}.level`, problem: "level must be 1-4" });
