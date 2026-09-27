@@ -570,12 +570,13 @@ async function refineCreativeWithCollective(input: {
   if (!solCall.ok)
     throw new Error(`Sol could not author the creative direction (${solCall.detail ?? solCall.reason}). Nothing was generated.`);
 
-  proposal = parseCreativeProposal(solCall.text);
+  const successfulCreativeSol = solCall;
+  proposal = parseCreativeProposal(successfulCreativeSol.text);
   passes.push(
-    record(solCall.tier ?? "hall_of_fame", "creative_direction", {
-      model: solCall.model,
+    record(successfulCreativeSol.tier ?? "hall_of_fame", "creative_direction", {
+      model: successfulCreativeSol.model,
       used: proposal !== null,
-      costMicrocents: solCall.costMicrocents,
+      costMicrocents: successfulCreativeSol.costMicrocents,
       skipped: proposal === null ? "the answer was not in the agreed shape" : null,
       acceptedFields: creativeApprovableFields(proposal),
     }),
@@ -607,12 +608,13 @@ async function refineCreativeWithCollective(input: {
   if (!terraCall.ok) {
     throw new Error(`Terra could not review the creative direction (${terraCall.detail ?? terraCall.reason}). Nothing was generated.`);
   } else {
-    const parsed = parseReview(terraCall.text);
+    const successfulCreativeTerra = terraCall;
+    const parsed = parseReview(successfulCreativeTerra.text);
     passes.push(
-      record(terraCall.tier ?? "hall_of_fame", "creative_review", {
-        model: terraCall.model,
+      record(successfulCreativeTerra.tier ?? "hall_of_fame", "creative_review", {
+        model: successfulCreativeTerra.model,
         used: parsed !== null,
-        costMicrocents: terraCall.costMicrocents,
+        costMicrocents: successfulCreativeTerra.costMicrocents,
         skipped: parsed === null ? "the review was not in the agreed shape" : null,
         acceptedFields: parsed?.approvedFields ?? [],
         rejected: parsed?.notes ?? [],
@@ -838,12 +840,13 @@ export async function refineFirstBuildWithCollective(input: {
         }),
       );
     } else {
-      const parsed = parseReview(terraCall.text);
+      const successfulCopyTerra = terraCall;
+      const parsed = parseReview(successfulCopyTerra.text);
       passes.push(
-        record(terraCall.tier ?? "hall_of_fame", "specialist_review", {
-          model: terraCall.model,
+        record(successfulCopyTerra.tier ?? "hall_of_fame", "specialist_review", {
+          model: successfulCopyTerra.model,
           used: parsed !== null,
-          costMicrocents: terraCall.costMicrocents,
+          costMicrocents: successfulCopyTerra.costMicrocents,
           skipped: parsed === null ? "the review was not in the agreed shape" : null,
           acceptedFields: parsed?.approvedFields ?? [],
           rejected: parsed?.notes ?? [],
@@ -907,7 +910,8 @@ export async function refineFirstBuildWithCollective(input: {
   if (!lunaCall.ok) {
     passes.push(record(lunaCall.wanted, "metadata", { skipped: lunaCall.detail ?? lunaCall.reason }));
   } else {
-    const proposal = parseRefinement(lunaCall.text);
+    const successfulLuna = lunaCall;
+    const proposal = parseRefinement(successfulLuna.text);
     const gated = reviewRefinement({ proposal, facts: input.facts, baseline: copy });
     const metaOnly = {
       ...(gated.accepted.metaTitle ? { metaTitle: gated.accepted.metaTitle } : {}),
@@ -923,10 +927,10 @@ export async function refineFirstBuildWithCollective(input: {
       copyChanged = true;
     }
     passes.push(
-      record(lunaCall.tier ?? "hall_of_fame", "metadata", {
-        model: lunaCall.model,
+      record(successfulLuna.tier ?? "hall_of_fame", "metadata", {
+        model: successfulLuna.model,
         used: acceptedKeys.length > 0,
-        costMicrocents: lunaCall.costMicrocents,
+        costMicrocents: successfulLuna.costMicrocents,
         skipped: acceptedKeys.length
           ? null
           : proposal === null
