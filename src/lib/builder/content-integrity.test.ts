@@ -19,6 +19,12 @@ describe("content integrity is a hard gate", () => {
     expect(() => assertContentIntegrity(fields({ businessName: "Wieueueu" }))).toThrow(ContentIntegrityError);
   });
 
+  it("rejects explicit QA fixture markers", () => {
+    expect(inspectContentIntegrity(fields({ intro: "Northline Auto Studio — QA Fixture" })).length).toBeGreaterThan(0);
+    expect(inspectContentIntegrity(fields({ intro: "test-fixture service" })).length).toBeGreaterThan(0);
+    expect(inspectContentIntegrity(fields({ intro: "fictional detailing studio" })).length).toBeGreaterThan(0);
+  });
+
   it("rejects lorem ipsum, fixture data and fake contact details", () => {
     expect(inspectContentIntegrity(fields({ intro: "Lorem ipsum dolor sit amet" })).length).toBeGreaterThan(0);
     expect(inspectContentIntegrity(fields({ email: "test@example.com" })).length).toBeGreaterThan(0);
