@@ -513,6 +513,7 @@ function TaskBody({
   task,
   requests,
   organizationId,
+  isActive,
   onAnswer,
   onOpenHistory,
   publishState,
@@ -520,6 +521,8 @@ function TaskBody({
 }: {
   task: QueueTask;
   requests: BuilderRequests;
+  /** True only for the one request currently being worked on. */
+  isActive: boolean;
   organizationId: string | null | undefined;
   /** Picks one of Revora's questions to answer with the next message. */
   onAnswer: (question: string) => void;
