@@ -383,7 +383,7 @@ function AppShell() {
                 </span>
               </Pill>
             ) : org?.subscription_status === "trialing" ? (
-              <Pill tone="attention">Trial</Pill>
+              <Pill tone="attention">{trialExpired ? "Trial ended" : "Trial"}</Pill>
             ) : null}
             {org?.is_demo ? <Pill tone="info">Demo data</Pill> : null}
             <div className="relative">
