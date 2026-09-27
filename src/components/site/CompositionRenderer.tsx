@@ -131,6 +131,7 @@ function renderNode(node: CompositionNode, ctx: Ctx, key: string): ReactNode {
   const prunedChildren = children.filter((child, index) => {
     if (child.type !== "icon" || index === children.length - 1) return true;
     const next = children[index + 1];
+    if (!next) return true;
     return !(
       next.type === "widget" &&
       (next.text === "direct_contact" || next.text === "contact_details") &&
