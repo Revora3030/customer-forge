@@ -291,7 +291,11 @@ function ContactFacts({ site, presentation }: { site: Site; presentation?: Widge
   // Nothing real to show → render nothing, never an empty styled box.
   if (!(facts.phone && facts.phoneHref) && !(facts.email && facts.emailHref) && !area && !addressLine && !facts.hours) return null;
   return (
-          <dl className="grid gap-4 sm:grid-cols-3">
+          <div className="space-y-3">
+            {presentation?.eyebrow ? <p className="eyebrow">{presentation.eyebrow}</p> : null}
+            {presentation?.title ? <h3 className="font-display text-[19px] font-semibold">{presentation.title}</h3> : null}
+            {presentation?.description ? <p className="text-[14px] text-muted-foreground">{presentation.description}</p> : null}
+            <dl className="grid gap-4 sm:grid-cols-3">
             {facts.phone && facts.phoneHref ? (
               <div>
                 <dt className="eyebrow flex items-center gap-1.5">
@@ -338,6 +342,7 @@ function ContactFacts({ site, presentation }: { site: Site; presentation?: Widge
                 <dd className="mt-1 whitespace-pre-line text-[14px]">{facts.hours}</dd>
               </div>
             ) : null}
-          </dl>
+            </dl>
+          </div>
   );
 }
