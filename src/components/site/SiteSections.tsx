@@ -288,6 +288,8 @@ function ContactFacts({ site }: { site: Site }) {
   const facts = businessFacts(site.profile as Record<string, unknown> | null, site.org.name);
   const addressLine = factsAddressLine(facts);
   const area = facts.serviceArea ?? facts.city;
+  // Nothing real to show → render nothing, never an empty styled box.
+  if (!(facts.phone && facts.phoneHref) && !(facts.email && facts.emailHref) && !area && !addressLine && !facts.hours) return null;
   return (
           <dl className="grid gap-4 sm:grid-cols-3">
             {facts.phone && facts.phoneHref ? (

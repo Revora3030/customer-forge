@@ -47,11 +47,25 @@ export function AiSiteHeader(props: {
       </nav>
       {open ? (
         <div
-          className="fixed inset-x-0 top-[4.25rem] bottom-0 overflow-y-auto bg-background md:hidden"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Menu"
+          className="fixed inset-0 z-50 flex flex-col overflow-y-auto bg-background pt-[env(safe-area-inset-top)] md:hidden"
           onClick={(event) => {
             if ((event.target as HTMLElement).closest("a")) setOpen(false);
           }}
         >
+          <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3 text-foreground">
+            <span className="min-w-0 font-display text-[16px] font-semibold leading-tight [overflow-wrap:anywhere]">{props.name}</span>
+            <button
+              type="button"
+              aria-label="Close menu"
+              onClick={() => setOpen(false)}
+              className="inline-flex size-11 shrink-0 items-center justify-center rounded-full border border-border"
+            >
+              <X className="size-5" />
+            </button>
+          </div>
           <CompositionRenderer as="div" scope="site-header" tree={props.tree} resolveHref={props.resolveHref} />
         </div>
       ) : null}
