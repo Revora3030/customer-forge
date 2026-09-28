@@ -159,6 +159,10 @@ export function sitemapUrls(site: HostSite | null, origin: string) {
       loc: `${origin}${path}`,
       // No fabricated lastmod: a build-time date on a static page is noise.
       lastmod: null as string | null,
+      // Google uses changefreq and priority as hints, not commands. The home
+      // page and pricing change most; guides and comparisons are stable.
+      changefreq: path === "" ? "daily" : path === "/pricing" || path === "/get-started" ? "weekly" : "monthly",
+      priority: path === "" ? "1.0" : path === "/pricing" || path === "/get-started" ? "0.9" : path.startsWith("/industries/") ? "0.7" : "0.6",
     }));
   }
   const paths = [{ slug: "home", updatedAt: null as string | null }, ...site.pages].filter(
@@ -167,14 +171,16 @@ export function sitemapUrls(site: HostSite | null, origin: string) {
   return paths.map((page) => ({
     loc: page.slug === "home" ? site.origin : `${site.origin}/${page.slug}`,
     lastmod: page.updatedAt,
+    changefreq: "weekly",
+    priority: page.slug === "home" ? "1.0" : "0.7",
   }));
 }
 
-export function xmlSitemap(urls: { loc: string; lastmod: string | null }[]) {
+export function xmlSitemap(urls: { loc: string; lastmod: string | null; changefreq?: string; priority?: string }[]) {
   const body = urls
     .map(
-      ({ loc, lastmod }) =>
-        `  <url><loc>${loc}</loc>${lastmod ? `<lastmod>${new Date(lastmod).toISOString()}</lastmod>` : ""}</url>`,
+      ({ loc, lastmod, changefreq, priority }) =>
+        `  <url><loc>${loc}</loc>${lastmod ? `<lastmod>${new Date(lastmod).toISOString()}</lastmod>` : ""}${changefreq ? `<changefreq>${changefreq}</changefreq>` : ""}${priority ? `<priority>${priority}</priority>` : ""}</url>`,
     )
     .join("\n");
   return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${body}\n</urlset>\n`;

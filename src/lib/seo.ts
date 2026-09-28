@@ -166,6 +166,14 @@ export const WEBSITE_SCHEMA = {
   name: BUSINESS.displayName,
   inLanguage: "en",
   publisher: { "@id": `${SITE_URL}/#organization` },
+  potentialAction: {
+    "@type": "SearchAction",
+    target: {
+      "@type": "EntryPoint",
+      urlTemplate: `${SITE_URL}/industries?q={search_term_string}`,
+    },
+    "query-input": "required name=search_term_string",
+  },
 };
 
 /**
@@ -238,3 +246,35 @@ export function metaDescription(text: string, max = 155): string {
   const lastSpace = cut.lastIndexOf(" ");
   return `${(lastSpace > max * 0.6 ? cut.slice(0, lastSpace) : cut).replace(/[\s,;:—-]+$/, "")}…`;
 }
+
+/**
+ * SoftwareApplication schema — Revora is a SaaS platform. This helps Google
+ * understand the product and can enable software-type rich results.
+ * No invented reviews, ratings or awards — only factual service information.
+ */
+export const SOFTWARE_SCHEMA = {
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  name: "Revora Growth System",
+  applicationCategory: "BusinessApplication",
+  operatingSystem: "Web",
+  url: SITE_URL,
+  provider: { "@id": `${SITE_URL}/#organization` },
+  offers: {
+    "@type": "Offer",
+    price: GROWTH_SYSTEM.monthlyPrice,
+    priceCurrency: "USD",
+    description: `${GROWTH_SYSTEM.name}: $${GROWTH_SYSTEM.setupPrice} one-time setup, first month free, then $${GROWTH_SYSTEM.monthlyPrice}/month.`,
+    availability: "https://schema.org/InStock",
+  },
+  featureList: [
+    "Lead-generating business website",
+    "Instant quote calculator",
+    "Online booking",
+    "CRM pipeline",
+    "Automated follow-up sequences",
+    "Review generation",
+    "Local SEO content",
+    "Analytics and reporting",
+  ],
+};

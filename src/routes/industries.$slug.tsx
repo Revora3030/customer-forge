@@ -112,6 +112,39 @@ export const Route = createFileRoute("/industries/$slug")({
             },
           }),
         },
+        {
+          type: "application/ld+json",
+          children: JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "FAQPage",
+            mainEntity: [
+              {
+                "@type": "Question",
+                name: `What does a ${name.toLowerCase()} growth system include?`,
+                acceptedAnswer: {
+                  "@type": "Answer",
+                  text: `For a ${name.toLowerCase()} business, Revora builds and runs one connected system: a fast local website, instant quotes, online booking, a CRM holding every lead, automatic follow-up, review requests, local search content and analytics.`,
+                },
+              },
+              {
+                "@type": "Question",
+                name: `How much does the ${name.toLowerCase()} growth system cost?`,
+                acceptedAnswer: {
+                  "@type": "Answer",
+                  text: `The Revora Growth System costs $${GROWTH_SYSTEM.setupPrice} one-time setup, first month free, then $${GROWTH_SYSTEM.monthlyPrice}/month. Cancel anytime.`,
+                },
+              },
+              {
+                "@type": "Question",
+                name: `Does Revora work for ${name.toLowerCase()} businesses in my area?`,
+                acceptedAnswer: {
+                  "@type": "Answer",
+                  text: `Yes. Revora serves ${name.toLowerCase()} businesses in every US state, with local search content built from real geography. Fully remote; you can sign up online.`,
+                },
+              },
+            ],
+          }),
+        },
       ],
     };
   },
