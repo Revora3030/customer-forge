@@ -487,9 +487,14 @@ export const submitPublicLead = createServerFn({ method: "POST" })
         city: data.city || undefined,
         service: data.serviceInterest || undefined,
         estimate: data.quote
-          ? `$${data.quote.min}–$${data.quote.max}`
+          ? `${data.quote.min}–${data.quote.max}`
           : data.estimatedValue
-            ? `$${data.estimatedValue}`
+            ? `${data.estimatedValue}`
+            : undefined,
+        budget: data.quote
+          ? `${data.quote.min}–${data.quote.max}`
+          : data.estimatedValue
+            ? `${data.estimatedValue}`
             : undefined,
         message: data.message || undefined,
         when: data.booking ? new Date(data.booking.startsAt).toLocaleString() : undefined,
@@ -497,7 +502,9 @@ export const submitPublicLead = createServerFn({ method: "POST" })
       const request = getRequest();
       const sourceUrl = (() => {
         try {
-          return new URL(request.url).toString().slice(0, 2000);
+          const url = new URL(request.url);
+          url.search = "";
+          return url.toString().slice(0, 2000);
         } catch {
           return null;
         }
