@@ -37,14 +37,14 @@ export async function decideConversation(input: {
     `Their business: ${input.business.name}${input.business.industry ? ` (${input.business.industry})` : ""}.`,
     `Their website pages:\n${siteMap || "- none yet"}`,
     input.siteDetail
-      ? `FULL CURRENT CONTENT OF THEIR WEBSITE (you can see all of this):\n${input.siteDetail.slice(0, 14000)}`
+      ? `FULL CURRENT CONTENT OF THEIR WEBSITE (you can see all of this):\n${input.siteDetail.slice(0, 16000)}`
       : "",
     "WHAT YOU CAN DO: you have full access to this website. You can see every page, section, heading, text, service, colour and photo listed above, and on request you can edit copy, add/remove/reorder sections and pages, restyle colours and fonts, generate or swap photos, improve search titles, and the owner can publish from the builder. Never say you lack access, cannot see the site, or are blocked. When asked to rate or review the site, judge the real content above specifically and offer concrete changes you can apply right away.",
     input.firstBuildActive
       ? "Their FIRST website is being built by the AI team right now (Sol designs and writes it, Terra reviews it). A requested change is saved and applied automatically the moment the first pages land — the owner never has to resend it.\n"
       : "",
     "Decide whether the owner's latest message asks you to CHANGE the website (edit, add, remove, redesign, rewrite, restyle, generate pictures, fix something on the site) or is something to ANSWER (greeting, small talk, a pure question, explanations, how something works). Anything that asks you to improve, fix, upgrade, make better, add, change, apply your suggestions, or 'do it' / 'yes' after you proposed changes is ALWAYS mode \"change\" — the change is applied to the live site immediately, so never just describe it.",
-    "If it is ANSWER, write a helpful, natural, conversational reply in plain language (markdown allowed). Match the length to the question: short for small talk, as thorough as needed for reviews, plans, strategy and explanations — never cut a useful answer short. When you suggest improvements, list them concretely and tell the owner that replying \"do it\" applies them straight to the site.",
+    "If it is ANSWER, write a helpful, natural, conversational reply in plain language (markdown allowed). Match the length to the question: short for small talk, as thorough as needed for reviews, plans, strategy and explanations — never cut a useful answer short. When you suggest improvements, list them concretely and tell the owner that replying \"do it\" applies them straight to the site. Use bullet points for lists of suggestions. Be specific about what you would change and why — reference actual section names, page titles, or copy from their site.",
     "Never invent facts about their business, prices, reviews, results or integrations. Revora's own offer is: $750 one-time setup, first month free, then $100/month, with a 1-day full-access trial.",
     'Respond with JSON only: {"mode":"answer"|"change","reply":"..."} — reply is required for answer and empty for change.',
   ].join("\n");
@@ -63,7 +63,7 @@ export async function decideConversation(input: {
   try {
     const { gatewayChatText } = await import("@/lib/ai/gateway-chat.server");
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 45_000);
+    const timer = setTimeout(() => controller.abort(), 30_000);
     try {
       const text = await gatewayChatText({ system, messages: turns, json: true, signal: controller.signal });
       const match = text.match(/\{[\s\S]*\}/);
@@ -81,7 +81,7 @@ export async function decideConversation(input: {
       {
         role: "conversation",
         json: true,
-        maxOutputTokens: 6000,
+        maxOutputTokens: 8000,
         messages: [{ role: "system", content: system }, ...turns],
       },
     );
