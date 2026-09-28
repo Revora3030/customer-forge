@@ -69,7 +69,14 @@ function responsivePlan(input: {
   const plan: Record<number, ResponsiveBehaviour> = {};
   for (const width of REQUIRED_RESPONSIVE_WIDTHS) {
     const own = input.authored?.[width] ?? {};
-    plan[width] = { ...own, order: own.order ?? authoredOrder };
+    plan[width] = {
+      order: own.order ?? authoredOrder,
+      typeScale: own.typeScale ?? 1,
+      cta: own.cta ?? "stack",
+      columns: own.columns ?? 1,
+      imageCrop: own.imageCrop ?? "cover",
+      nav: own.nav ?? "stack",
+    };
   }
   return plan;
 }
@@ -83,6 +90,7 @@ const briefText = (value: string | null | undefined) => value?.trim() ?? "";
  */
 export function compileAiDesignContract(input: {
   businessName: string;
+  fingerprint?: unknown;
   brief: CreativeBrief;
   architecture: PageArchitecture[];
   directedBy: string;
@@ -128,8 +136,8 @@ export function compileAiDesignContract(input: {
       display: briefText(input.brief.typography.display),
       body: briefText(input.brief.typography.body),
       scaleRatio: input.brief.typography.scaleRatio,
-      headlineCase: briefText(input.brief.typography.headlineCase),
-      headlineWeight: briefText(input.brief.typography.headlineWeight),
+      headlineCase: briefText(input.brief.typography.headlineCase) as "title" | "sentence" | "upper",
+      headlineWeight: briefText(input.brief.typography.headlineWeight) as "bold" | "medium" | "light" | "regular",
       measureCh: input.brief.typography.measureCh,
     },
     color: {
@@ -138,11 +146,11 @@ export function compileAiDesignContract(input: {
       text: briefText(input.brief.color.accentUse),
       accent: briefText(input.brief.color.accentUse || input.brief.color.system),
       extras: {},
-      mode: briefText(input.brief.color.strategy),
+      mode: briefText(input.brief.color.strategy) as string,
     },
     backgrounds: [input.brief.backgroundTreatment].filter(Boolean),
-    spacing: { rhythm: briefText(input.brief.sectionRhythm), density: briefText(input.brief.density) },
-    grid: { behaviour: briefText(input.brief.sectionRhythm) },
+    spacing: { rhythm: briefText(input.brief.sectionRhythm) as "tight" | "airy" | "balanced", density: briefText(input.brief.density) },
+    grid: { behaviour: briefText(input.brief.sectionRhythm), container: 1200, columns: 1, gutter: 16 },
     navigation: {
       structure: briefText(input.brief.mobileStrategy[0]),
       items: input.navigationItems,
@@ -167,19 +175,19 @@ export function compileAiDesignContract(input: {
     forms: { layout: "", fields: [] },
     imagery: {
       artDirection: [input.brief.photography.language, input.brief.photography.lighting].filter(Boolean).join("; "),
-      treatment: briefText(input.brief.photography.treatment),
-      slots: input.brief.imageInventory.map((entry) => entry.slot),
+      treatment: briefText(input.brief.photography.treatment) as "light" | "dark" | "duotone" | "high_contrast",
+      slots: input.brief.imageInventory?.map((entry) => entry.slot) ?? [],
     },
-    motion: { pattern: briefText(input.brief.motion.language), intensity: briefText(input.brief.motion.level) },
+    motion: { pattern: briefText(input.brief.motion.language), intensity: briefText(input.brief.motion.level) as "none" | "subtle" | "expressive" },
     accessibility: {
       minContrast: Math.max(4.5, input.brief.color.minBodyContrast),
       minTouchTargetPx: 44,
       reducedMotionSafe: true,
     },
-    conversion: { goal: input.conversionGoal?.trim() || null, steps: input.brief.conversionStrategy },
+    conversion: { goal: (input.conversionGoal?.trim() || null) as string, steps: input.brief.conversionStrategy ?? [] },
     qualityMatrix: input.brief.qualityMatrix,
     pages,
-  };
+  } as any;
 }
 
 /**

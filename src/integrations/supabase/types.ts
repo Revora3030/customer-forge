@@ -14,36 +14,6 @@ export type Database = {
   }
   public: {
     Tables: {
-      ai_command_settings: {
-        Row: {
-          id: number
-          paused_models: string[]
-          pinned_models: string[]
-          qa_auto_revert: boolean
-          qa_min_score: number
-          updated_at: string
-          updated_by: string | null
-        }
-        Insert: {
-          id?: number
-          paused_models?: string[]
-          pinned_models?: string[]
-          qa_auto_revert?: boolean
-          qa_min_score?: number
-          updated_at?: string
-          updated_by?: string | null
-        }
-        Update: {
-          id?: number
-          paused_models?: string[]
-          pinned_models?: string[]
-          qa_auto_revert?: boolean
-          qa_min_score?: number
-          updated_at?: string
-          updated_by?: string | null
-        }
-        Relationships: []
-      }
       ai_generations: {
         Row: {
           created_at: string
@@ -109,71 +79,59 @@ export type Database = {
           },
         ]
       }
-      ai_model_registry: {
+      ai_operation_claims: {
         Row: {
-          blocked_reason: string | null
-          capabilities: Json
-          context_tokens: number | null
-          display_name: string | null
-          evidence: string
-          healthy: boolean
-          input_modalities: string[]
-          last_seen_at: string
-          latency_ms: number | null
-          model: string
-          output_modalities: string[]
-          paid: boolean
-          provider: string
-          quality: number
-          reliability: number
-          retired: boolean
-          specialist: boolean
+          completed_at: string | null
+          created_at: string
+          created_by: string | null
+          id: string
+          lease_expires_at: string | null
+          operation_key: string
+          organization_id: string
+          result: Json
+          status: string
           updated_at: string
-          verified_at: string | null
         }
         Insert: {
-          blocked_reason?: string | null
-          capabilities?: Json
-          context_tokens?: number | null
-          display_name?: string | null
-          evidence?: string
-          healthy?: boolean
-          input_modalities?: string[]
-          last_seen_at?: string
-          latency_ms?: number | null
-          model: string
-          output_modalities?: string[]
-          paid?: boolean
-          provider: string
-          quality?: number
-          reliability?: number
-          retired?: boolean
-          specialist?: boolean
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          lease_expires_at?: string | null
+          operation_key: string
+          organization_id: string
+          result?: Json
+          status?: string
           updated_at?: string
-          verified_at?: string | null
         }
         Update: {
-          blocked_reason?: string | null
-          capabilities?: Json
-          context_tokens?: number | null
-          display_name?: string | null
-          evidence?: string
-          healthy?: boolean
-          input_modalities?: string[]
-          last_seen_at?: string
-          latency_ms?: number | null
-          model?: string
-          output_modalities?: string[]
-          paid?: boolean
-          provider?: string
-          quality?: number
-          reliability?: number
-          retired?: boolean
-          specialist?: boolean
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          lease_expires_at?: string | null
+          operation_key?: string
+          organization_id?: string
+          result?: Json
+          status?: string
           updated_at?: string
-          verified_at?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "ai_operation_claims_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_operation_claims_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "public_organizations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       ai_provider_runtime: {
         Row: {
@@ -216,69 +174,6 @@ export type Database = {
           used?: number
         }
         Relationships: []
-      }
-      ai_team_trace: {
-        Row: {
-          contribution: string | null
-          cost_microcents: number
-          created_at: string
-          id: string
-          lane: string
-          latency_ms: number | null
-          model: string | null
-          ok: boolean
-          organization_id: string | null
-          provider: string | null
-          purpose: string
-          reason: string | null
-          stage: string
-        }
-        Insert: {
-          contribution?: string | null
-          cost_microcents?: number
-          created_at?: string
-          id?: string
-          lane: string
-          latency_ms?: number | null
-          model?: string | null
-          ok: boolean
-          organization_id?: string | null
-          provider?: string | null
-          purpose: string
-          reason?: string | null
-          stage: string
-        }
-        Update: {
-          contribution?: string | null
-          cost_microcents?: number
-          created_at?: string
-          id?: string
-          lane?: string
-          latency_ms?: number | null
-          model?: string | null
-          ok?: boolean
-          organization_id?: string | null
-          provider?: string | null
-          purpose?: string
-          reason?: string | null
-          stage?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "ai_team_trace_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "ai_team_trace_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "public_organizations"
-            referencedColumns: ["id"]
-          },
-        ]
       }
       ai_tool_audit: {
         Row: {
@@ -854,54 +749,6 @@ export type Database = {
           },
         ]
       }
-      builder_messages: {
-        Row: {
-          content: string
-          created_at: string
-          id: string
-          organization_id: string
-          plan: Json | null
-          restore_version_id: string | null
-          role: string
-          user_id: string
-        }
-        Insert: {
-          content: string
-          created_at?: string
-          id?: string
-          organization_id: string
-          plan?: Json | null
-          restore_version_id?: string | null
-          role: string
-          user_id?: string
-        }
-        Update: {
-          content?: string
-          created_at?: string
-          id?: string
-          organization_id?: string
-          plan?: Json | null
-          restore_version_id?: string | null
-          role?: string
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "builder_messages_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "builder_messages_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "public_organizations"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       builder_progress: {
         Row: {
           created_at: string
@@ -1369,21 +1216,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
-      }
-      internal_job_config: {
-        Row: {
-          key: string
-          value: string
-        }
-        Insert: {
-          key: string
-          value: string
-        }
-        Update: {
-          key?: string
-          value?: string
-        }
-        Relationships: []
       }
       invoices: {
         Row: {
@@ -2675,51 +2507,6 @@ export type Database = {
         }
         Relationships: []
       }
-      public_submission_attempts: {
-        Row: {
-          contact_hash: string | null
-          created_at: string
-          id: string
-          ip_hash: string
-          organization_id: string | null
-          purpose: string
-          user_agent_hash: string | null
-        }
-        Insert: {
-          contact_hash?: string | null
-          created_at?: string
-          id?: string
-          ip_hash: string
-          organization_id?: string | null
-          purpose: string
-          user_agent_hash?: string | null
-        }
-        Update: {
-          contact_hash?: string | null
-          created_at?: string
-          id?: string
-          ip_hash?: string
-          organization_id?: string | null
-          purpose?: string
-          user_agent_hash?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "public_submission_attempts_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "public_submission_attempts_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "public_organizations"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       quote_addons: {
         Row: {
           created_at: string
@@ -3964,12 +3751,12 @@ export type Database = {
           generation: Json
           id: string
           last_published_at: string | null
-          lead_webhook_url: string | null
           organization_id: string
           pages: Json
           publish_state: Database["public"]["Enums"]["publish_state"]
           published: boolean
           review_state: string
+          lead_webhook_url: string | null
           revora_host_checked_at: string | null
           revora_host_ok: boolean
           seo: Json
@@ -4188,6 +3975,168 @@ export type Database = {
           },
         ]
       }
+      ai_model_registry: {
+        Row: {
+          id: string
+          provider: string
+          model: string
+          display_name: string
+          healthy: boolean
+          evidence: Json
+          purpose: string | null
+          cost_microcents: number | null
+          paid: boolean
+          retired: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          provider: string
+          model: string
+          display_name: string
+          healthy?: boolean
+          evidence?: Json
+          paid?: boolean
+          retired?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          provider?: string
+          model?: string
+          display_name?: string
+          healthy?: boolean
+          evidence?: Json
+          paid?: boolean
+          retired?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      ai_team_trace: {
+        Row: {
+          id: string
+          organization_id: string
+          created_at: string
+          stage: string
+          lane: string
+          provider: string | null
+          model: string | null
+          ok: boolean
+          latency_ms: number | null
+          reason: string | null
+          contribution: string | null
+          evidence: Json
+          purpose: string | null
+          cost_microcents: number | null
+        }
+        Insert: {
+          id?: string
+          organization_id: string
+          created_at?: string
+          stage: string
+          lane: string
+          provider: string | null
+          model: string | null
+          ok?: boolean
+          latency_ms?: number | null
+          reason?: string | null
+          contribution?: string | null
+          evidence?: Json
+        }
+        Update: {
+          id?: string
+          organization_id?: string
+          created_at?: string
+          stage?: string
+          lane?: string
+          provider?: string | null
+          model?: string | null
+          ok?: boolean
+          latency_ms?: number | null
+          reason?: string | null
+          contribution?: string | null
+          evidence?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_team_trace_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_team_trace_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "public_organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      builder_conversations: {
+        Row: {
+          id: string
+          organization_id: string
+          user_id: string
+          created_at: string
+          role: "user" | "assistant"
+          content: string
+          plan: Json
+        }
+        Insert: {
+          id?: string
+          organization_id: string
+          user_id: string
+          created_at?: string
+          role: "user" | "assistant"
+          content: string
+          plan?: Json
+        }
+        Update: {
+          id?: string
+          organization_id?: string
+          user_id?: string
+          created_at?: string
+          role?: "user" | "assistant"
+          content?: string
+          plan?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "builder_conversations_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "builder_conversations_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "public_organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "builder_conversations_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "builder_conversations_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "public_users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       public_business_profiles: {
@@ -4402,6 +4351,10 @@ export type Database = {
       }
     }
     Functions: {
+      current_site_revision: {
+        Args: { _organization_id: string }
+        Returns: string
+      }
       ai_note_free_use: {
         Args: { _cap?: number; _provider: string }
         Returns: number
@@ -4456,14 +4409,6 @@ export type Database = {
           isOneToOne: false
           isSetofReturn: true
         }
-      }
-      call_revora_job: {
-        Args: { path: string; timeout_ms?: number }
-        Returns: number
-      }
-      current_site_revision: {
-        Args: { _organization_id: string }
-        Returns: string
       }
       is_safe_link_url: { Args: { value: string }; Returns: boolean }
       luna_budget_reserve: {
@@ -4534,16 +4479,15 @@ export type Database = {
         }
         Returns: string
       }
-      prune_old_operational_records: { Args: never; Returns: Json }
       register_public_submission_attempt: {
         Args: {
-          _contact_hash?: string
-          _ip_hash: string
           _organization_id: string
           _purpose: string
+          _ip_hash: string
+          _contact_hash?: string
           _user_agent_hash?: string
         }
-        Returns: Json
+        Returns: boolean
       }
       restore_website_state: {
         Args: { _organization_id: string; _snapshot: Json }

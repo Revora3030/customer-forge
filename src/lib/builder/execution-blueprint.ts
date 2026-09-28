@@ -53,9 +53,14 @@ export function buildExecutionBlueprint(actions: AgentAction[]): ExecutionBluepr
       case "delete_component":
         return "content";
       case "set_theme":
+      case "set_section_variant":
+      case "set_section_visual":
+      case "set_ai_visual":
+      case "set_ai_responsive":
+      case "set_ai_component_visual":
+      case "set_ai_component_responsive":
       case "set_component_visual":
       case "set_backdrop":
-      case "set_design_tokens":
       case "set_section_effect":
         return "visual";
       case "set_business_fact":
@@ -137,9 +142,7 @@ export function buildExecutionBlueprint(actions: AgentAction[]): ExecutionBluepr
       actionCount: items.length,
       risk,
       impact: impactOf(phase),
-      // Safety gate only: destructive/fact changes need a human; creative
-      // adds, reorders and restructures execute autonomously.
-      approvalRequired: risk === "high",
+      approvalRequired: risk !== "low",
     });
   }
 

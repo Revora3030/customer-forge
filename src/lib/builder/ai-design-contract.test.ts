@@ -37,8 +37,8 @@ function contract(overrides: Partial<AiDesignContract> = {}): AiDesignContract {
     typography: { display: "Canela", body: "Inter", scaleRatio: 1.25, headlineCase: "title", headlineWeight: "medium", measureCh: 66 },
     color: { background: "#050505", surface: "#101010", text: "#f5f5f5", accent: "#c8a24a", extras: {}, mode: "dark" },
     backgrounds: ["layered"],
-    spacing: { rhythm: "wide breaths between chapters", density: "balanced" },
-    grid: { behaviour: "edge-to-edge" },
+    spacing: { baseline: 8, sectionRhythm: [72, 96, 128], density: "balanced" },
+    grid: { container: 1200, columns: 12, gutter: 24, behaviour: "edge-to-edge" },
     navigation: { structure: "overlay-to-solid", items: ["Home"], behaviour: "drawer on phones" },
     hero: { composition: "full-bleed", mediaTreatment: "cinematic", intent: "book a detail" },
     cta: { system: "gold pill", primary: "Book now", secondary: null, placement: ["hero"] },
@@ -84,12 +84,6 @@ describe("AI design contract is the only creative authority", () => {
     const bad = contract({ authority: "deterministic_template" as never });
     expect(validateAiDesignContract(bad).valid).toBe(false);
     expect(validateAiDesignContract(contract()).valid).toBe(true);
-  });
-
-  it("allows an unstated conversion goal without inventing one", () => {
-    const result = contract({ conversion: { goal: null, steps: [] } });
-    expect(validateAiDesignContract(result).valid).toBe(true);
-    expect(result.conversion.goal).toBeNull();
   });
 
   it("rejects any contract that smuggles in a template or preset id", () => {
@@ -154,11 +148,14 @@ describe("AI design contract is the only creative authority", () => {
     expect(validateAiDesignContract(contract({ accessibility: { minContrast: 3, minTouchTargetPx: 44, reducedMotionSafe: true } })).valid).toBe(false);
     expect(validateAiDesignContract(contract({ accessibility: { minContrast: 4.5, minTouchTargetPx: 30, reducedMotionSafe: true } })).valid).toBe(false);
   });
-  it("never imposes a page anatomy (opening, closing action or required visual)", () => {
-    const authored = contract();
-    authored.pages[0]!.sections = [{ id: "home-copy-0", role: "copy", layout: "plain", intent: "manifesto", media: "none", emphasis: 1 }];
-    const details = validateAiDesignContract(authored).violations.map((item) => item.detail).join(" ");
-    expect(details).not.toMatch(/deliberate opening|conversion close|required visual/i);
+  it("rejects pages without a designed opening, closing action or required visual", () => {
+    const weak = contract();
+    weak.pages[0]!.sections = [{ id: "home-copy-0", role: "copy", layout: "plain", intent: "filler", media: "none", emphasis: 1 }];
+    const result = validateAiDesignContract(weak);
+    expect(result.valid).toBe(false);
+    const details = result.violations.map((item) => item.detail).join(" ");
+    expect(details).toMatch(/required visual/i);
+    expect(details).not.toMatch(/opening|conversion close/i);
   });
 });
 

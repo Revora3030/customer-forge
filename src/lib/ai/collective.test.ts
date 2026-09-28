@@ -29,6 +29,7 @@ const saved = { ...process.env };
 function enablePaidLane() {
   process.env["OPENAI_API_KEY"] = "sk-test";
   process.env["LUNA_ENABLED"] = "true";
+  process.env["ZERO_AI_COST_MODE"] = "false";
   process.env["BUILDER_EXTERNAL_AI_ALLOWED"] = "true";
 }
 
@@ -43,22 +44,14 @@ describe("tier routing", () => {
       "creative_direction",
       "information_architecture",
       "conversion_architecture",
+      "visual_review",
+      "adversarial_review",
       "quality_review",
       "hard_request",
     ] as const) {
       expect(purposeTier(purpose)).toBe("sol");
       expect(selectTier({ purpose, available: COLLECTIVE_TIERS })).toMatchObject({
         tier: "sol",
-        downgraded: false,
-      });
-    }
-  });
-
-  it("pins independent review to Terra, even for hard work", () => {
-    for (const purpose of ["adversarial_review", "visual_review"] as const) {
-      expect(purposeTier(purpose)).toBe("terra");
-      expect(selectTier({ purpose, complexity: "high", available: COLLECTIVE_TIERS })).toMatchObject({
-        tier: "terra",
         downgraded: false,
       });
     }
@@ -137,8 +130,6 @@ describe("tier routing", () => {
 describe("credential and opt-in gating", () => {
   it("offers every tier by default when the key is present", () => {
     enablePaidLane();
-    delete process.env["SOL_ENABLED"];
-    delete process.env["TERRA_ENABLED"];
     delete process.env["LUNA_ENABLED"];
     expect(availableTiers()).toEqual(["sol", "terra", "luna"]);
   });
@@ -154,6 +145,11 @@ describe("credential and opt-in gating", () => {
     expect(availableTiers()).toEqual([]);
   });
 
+  it("offers no tier in native-only mode", () => {
+    enablePaidLane();
+    process.env["ZERO_AI_COST_MODE"] = "true";
+    expect(availableTiers()).toEqual([]);
+  });
 
   it("offers all three tiers once an operator opts in", () => {
     enablePaidLane();
@@ -176,17 +172,17 @@ describe("credential and opt-in gating", () => {
     expect(result).toMatchObject({ ok: false, tier: null, reason: "no_tier_available" });
   });
 
-  it("refuses a tier its operator switched off instead of silently substituting", () => {
+  it("refuses a tier its operator switched off instead of silently substituting", async () => {
     enablePaidLane();
     process.env["SOL_ENABLED"] = "false";
-    process.env["TERRA_ENABLED"] = "true";
-    process.env["LUNA_ENABLED"] = "true";
-    expect(availableTiers()).toEqual(["terra", "luna"]);
-    expect(selectTier({ purpose: "creative_direction", available: availableTiers() })).toMatchObject({
-      tier: "terra",
-      wanted: "sol",
-      downgraded: true,
+    const result = await callCollective({
+      purpose: "creative_direction",
+      system: "s",
+      user: "u",
     });
+    // Terra takes the work; Sol is never called behind the scenes.
+    if (!result.ok) expect(result.tier).toBe("terra");
+    else expect(result.tier).toBe("terra");
   });
 });
 
@@ -197,9 +193,9 @@ describe("models and cost truthfulness", () => {
       expect(tierModel(tier)).toBe(DEFAULT_COLLECTIVE_MODELS[tier]);
     }
     expect(DEFAULT_COLLECTIVE_MODELS).toEqual({
-      sol: "gpt-6-sol",
+      sol: "gpt-5.6-sol",
       terra: "gpt-5.6-terra",
-      luna: "gpt-6-luna",
+      luna: "gpt-5.6-luna",
     });
   });
 

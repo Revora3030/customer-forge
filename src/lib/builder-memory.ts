@@ -55,7 +55,7 @@ export function pairTurns(turns: SavedTurn[]): Array<{ instruction: string; repl
 
 export async function loadTurns(organizationId: string): Promise<SavedTurn[]> {
   const { data, error } = await supabase
-    .from("builder_messages")
+    .from("builder_conversations")
     .select("role, content, created_at, plan")
     .eq("organization_id", organizationId)
     .order("created_at", { ascending: false })
@@ -69,7 +69,7 @@ export async function saveTurns(organizationId: string, turns: Array<Omit<SavedT
   if (!auth.user || !turns.length) return;
   // Turns saved together get distinct times so they always read back in order.
   const base = Date.now();
-  const { error } = await supabase.from("builder_messages").insert(
+  const { error } = await supabase.from("builder_conversations").insert(
     turns.map((turn, index) => ({
       created_at: new Date(base + index).toISOString(),
       organization_id: organizationId,
@@ -89,6 +89,6 @@ function isSavedTaskResult(value: unknown): value is SavedTaskResult {
 }
 
 export async function clearTurns(organizationId: string): Promise<void> {
-  const { error } = await supabase.from("builder_messages").delete().eq("organization_id", organizationId);
+  const { error } = await supabase.from("builder_conversations").delete().eq("organization_id", organizationId);
   if (error) throw error;
 }

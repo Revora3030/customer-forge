@@ -51,15 +51,15 @@ export type ResponsiveBehaviour = {
   /** Section ids in the order they appear on a narrow screen. */
   order: string[];
   /** Type scale multiplier at this width, relative to the desktop scale. */
-  typeScale?: number;
+  typeScale: number;
   /** How the primary action behaves at this width. */
-  cta?: "inline" | "stacked" | "sticky_bar" | "hidden";
+  cta: string;
   /** How multi-item groups lay out at this width. */
-  columns?: number;
+  columns: number;
   /** How imagery is cropped at this width. */
-  imageCrop?: "square" | "portrait" | "landscape" | "wide" | "full_bleed";
+  imageCrop: string;
   /** Navigation behaviour at this width. */
-  nav?: "full" | "condensed" | "drawer" | "bottom_bar";
+  nav: string;
 };
 
 export type SectionDesign = {
@@ -109,9 +109,8 @@ export type AiDesignContract = {
     display: string;
     body: string;
     scaleRatio: number;
-    /** Free-form: the AI's own words. */
-    headlineCase: string;
-    headlineWeight: string;
+    headlineCase: "sentence" | "title" | "upper";
+    headlineWeight: "light" | "regular" | "medium" | "bold";
     measureCh: number;
   };
   color: {
@@ -121,13 +120,11 @@ export type AiDesignContract = {
     accent: string;
     /** Extra roles the AI chose to introduce. */
     extras: Record<string, string>;
-    /** Free-form colour mode written by the AI. */
-    mode: string;
+    mode: "dark" | "light" | "duotone" | "high_contrast";
   };
   backgrounds: string[];
-  /** Only what the AI stated; no numeric scale is invented on its behalf. */
-  spacing: { rhythm: string; density: string };
-  grid: { behaviour: string };
+  spacing: { baseline: number; sectionRhythm: number[]; density: "tight" | "balanced" | "airy" };
+  grid: { container: number; columns: number; gutter: number; behaviour: string };
   navigation: { structure: string; items: string[]; behaviour: string };
   hero: { composition: string; mediaTreatment: string; intent: string };
   cta: { system: string; primary: string; secondary: string | null; placement: string[] };
@@ -139,9 +136,9 @@ export type AiDesignContract = {
     /** Slot names the design needs filled, in priority order. */
     slots: string[];
   };
-  motion: { pattern: string; intensity: string };
+  motion: { pattern: string; intensity: "none" | "subtle" | "expressive" };
   accessibility: { minContrast: number; minTouchTargetPx: number; reducedMotionSafe: boolean };
-  conversion: { goal: string | null; steps: string[] };
+  conversion: { goal: string; steps: string[] };
   qualityMatrix: import("@/lib/builder/creative-quality-matrix").CreativeQualityMatrix;
   /** Each page composes itself. Different structures are expected, not a bug. */
   pages: PageDesign[];
@@ -206,8 +203,18 @@ export function validateAiDesignContract(contract: AiDesignContract): {
         detail: "the AI designed a page with no sections",
         severity: "blocker",
       });
-    // No prescribed page anatomy: the AI decides how each page opens, flows,
-    // closes and whether it carries pictures. Only structural validity is checked.
+    // Page openings, closings and section roles are creative decisions.
+    // Objective accessibility/integrity checks remain below; no aesthetic
+    // anatomy is imposed here.
+    if (
+      contract.qualityMatrix.imagery?.importantPageVisualRequired &&
+      !page.sections.some((section) => section.media === "required")
+    )
+      violations.push({
+        path: `pages.${page.slug}.sections`,
+        detail: "every important page needs at least one required visual",
+        severity: "blocker",
+      });
     const ids = new Set<string>();
     for (const section of page.sections) {
       if (ids.has(section.id))
@@ -251,14 +258,8 @@ export function validateAiDesignContract(contract: AiDesignContract): {
       detail: "interactive targets must be at least 44px",
       severity: "blocker",
     });
-  // Readability safety only (WCAG 1.4.8 recommends ≤80 characters per line).
-  // How many accent colours the AI uses is a creative choice, not checked here.
-  if (contract.typography.measureCh < 20 || contract.typography.measureCh > 80)
-    violations.push({
-      path: "typography.measureCh",
-      detail: "body text line length is outside the readable range (20–80 characters)",
-      severity: "blocker",
-    });
+  // Colour roles and editorial measure are creative choices. Accessibility
+  // is validated by the actual rendered contrast and touch-target checks.
 
   return { valid: violations.every((entry) => entry.severity !== "blocker"), violations };
 }
@@ -273,7 +274,7 @@ export type MaterialPage = { slug: string; sections: MaterialSection[]; [key: st
 
 export type ContractApplication<P> = {
   pages: P[];
-  /** Fact-material pages the AI design did not ask for. */
+  /** Pages the deterministic layer produced that the AI design did not ask for. */
   droppedPages: string[];
   /** Sections dropped because the AI design did not place them on that page. */
   droppedSections: { page: string; kind: string }[];

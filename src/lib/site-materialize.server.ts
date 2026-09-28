@@ -11,12 +11,21 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { safeLinkUrl } from "@/lib/website-content";
-import { effectForKind, type DesignDirection } from "@/lib/authored-direction";
+import type { DesignDirection } from "@/lib/design-directions";
 import { writeSectionEffect } from "@/lib/site-effects";
-import { writeComponentVisual } from "@/lib/site-style";
+import { writeComponentVisual, writeSectionVisual } from "@/lib/site-style";
+import {
+  sectionDesignFromFingerprint,
+  type DesignFingerprint,
+} from "@/lib/builder/design-fingerprint";
 import type { FirstBuildImageAsset } from "@/lib/builder/first-build-images.server";
-import type { CreativeBrief } from "@/lib/builder/first-build-contract";
+import type { CreativeBrief } from "@/lib/builder/creative-brief";
+import {
+  compileExecutableCreativeSection,
+  writeExecutableCreativeSection,
+} from "@/lib/builder/executable-creative";
 import { slugify } from "@/lib/format";
+import { compileSiteCampaign, type SiteCampaign } from "@/lib/builder/site-campaign";
 import {
   applyDesignContract,
   type AiDesignContract,
@@ -27,7 +36,9 @@ import {
   requireAiDesignContract,
   type PageArchitecture,
 } from "@/lib/builder/creative-authority";
-import { assertMediaIntegrity } from "@/lib/builder/media-integrity";
+import { deriveCandidateArchitecture } from "@/lib/builder/ai-page-architecture";
+import type { CreativeSiteContract } from "@/lib/builder/creative-site-contract";
+import { assertCreativeSiteMediaIntegrity, assertMediaIntegrity } from "@/lib/builder/media-integrity";
 
 type Db = SupabaseClient;
 
@@ -71,12 +82,19 @@ export type MaterializeInput = {
   /** The industry-specific visual identity selected for this first build. */
   direction?: DesignDirection | null;
   /** The kind of website this business needs (restaurant, clinic, shop …). */
-  /** Approved Sol/Terra presentation brief, compiled into a renderer contract. */
+  /** Complete composition identity resolved before first materialization. */
+  fingerprint?: DesignFingerprint | null;
+  /** Approved Sol/Terra presentation brief, compiled into a finite renderer contract. */
   creativeBrief?: CreativeBrief | null;
   /** Safe generated starter pictures saved in tenant media for this first build. */
   generatedAssets?: FirstBuildImageAsset[];
   /** Explicit, guarded replacement mode. Default rebuilds remain non-destructive. */
   replaceExisting?: boolean;
+  /**
+   * Legacy rendering is opt-in only. New builds must supply the canonical
+   * Sol/Terra CreativeSiteContract instead of silently falling back to rules.
+   */
+  legacyCompatibility?: boolean;
   /** Model that directed the design, recorded on the contract for observability. */
   directedBy?: string | null;
   /** Model that independently reviewed the design, when one did. */
@@ -90,9 +108,11 @@ export type MaterializeInput = {
    * container fails the build instead of shipping a blank box.
    */
   designContract?: AiDesignContract | null;
+  creativeSiteContract?: CreativeSiteContract | null;
   /**
-   * Lets the AI author page architecture from a facts-only capability inventory.
-   * Returning null is a hard failure.
+   * Lets the AI author the page architecture. It receives the architecture the
+   * renderer can fill and returns its own page set, section selection and
+   * order. Returning null keeps the renderer's candidate — nothing is invented.
    */
   architect?: (candidate: PageArchitecture[]) => Promise<PageArchitecture[] | null>;
 };
@@ -107,33 +127,6 @@ type Component = {
   settings?: Record<string, unknown> | null;
 };
 
-function primaryActionTarget(input: {
-  authoredTarget: string;
-  architecture: PageArchitecture[];
-  hasQuoteForm: boolean;
-  hasBooking: boolean;
-}): string {
-  const action = input.authoredTarget.toLowerCase();
-  const roles = new Set(
-    input.architecture.flatMap((page) => page.sections.map((section) => section.role)),
-  );
-  const hasQuote = input.hasQuoteForm && roles.has("quote");
-  const hasBooking = input.hasBooking && roles.has("booking");
-  const hasContact = roles.has("contact");
-  if (hasBooking && /\b(book|booking|schedule|appointment|reserve)\b/.test(action)) return "/book";
-  if (hasQuote && /\b(quote|estimate|price|pricing|cost|proposal)\b/.test(action)) return "/#quote";
-  if (hasContact && /\b(call|contact|email|message|talk|consult)\b/.test(action)) return "/contact";
-  // The wording didn't name a capability, but the AI still asked for an action.
-  // Point it at a capability this business really has rather than discarding
-  // the whole build. Nothing is invented: each target only exists when the
-  // matching real section and capability are present.
-  if (hasBooking) return "/book";
-  if (hasQuote) return "/#quote";
-  if (hasContact) return "/contact";
-  throw new Error("The AI-authored primary action destination does not match a real quote, booking or contact capability, so nothing was created. Please try again in a moment.");
-
-}
-
 type Section = {
   kind: string;
   variant?: string;
@@ -141,6 +134,7 @@ type Section = {
   subheading?: string | null;
   body?: string | null;
   components?: Component[];
+  settings?: Record<string, unknown> | null;
 };
 
 type Page = {
@@ -155,6 +149,72 @@ type Page = {
   sections: Section[];
 };
 
+export function materializeCreativeSiteContract(
+  contract: CreativeSiteContract,
+  assets: FirstBuildImageAsset[] = [],
+): Page[] {
+  const assetByPath = new Map(assets.map((asset) => [asset.path, asset]));
+  const assetByMediaId = new Map(assets.filter((asset) => asset.mediaId).map((asset) => [asset.mediaId as string, asset]));
+  return contract.pages.map((page) => ({
+    slug: page.slug,
+    title: page.title,
+    kind: page.slug === "home" ? "home" : "ai-authored",
+    seo_title: page.seo?.title ?? null,
+    seo_description: page.seo?.description ?? null,
+    og_image_url: page.seo?.imageUrl ?? null,
+    sections: page.sections.map((section) => {
+      const components: Component[] = (section.content?.components ?? []).map((component) => ({
+        ...component,
+
+        kind: component.kind,
+        label: component.label ?? null,
+        body: component.body ?? null,
+        link_label: component.linkLabel ?? null,
+        link_url: safeLinkUrl(component.linkUrl ?? null),
+        media_url: component.mediaUrl
+          ? (assetByPath.get(component.mediaUrl)?.path ??
+            assetByMediaId.get(component.mediaUrl)?.path ??
+            component.mediaUrl)
+          : null,
+        settings: { ...(component.settings ?? {}), ai_authored: true },
+      }));
+      if (section.media?.assetId) {
+        const asset =
+          assetByPath.get(section.media.assetId) ??
+          assetByMediaId.get(section.media.assetId) ??
+          assets.find((candidate) => candidate.label === section.media?.assetId);
+        const resolvedMediaPath = asset?.path ?? section.media.assetId;
+        if (asset && !components.some((component) => component.media_url === resolvedMediaPath)) {
+          components.push(
+            imageComponent(
+              asset,
+              "ai_media",
+              section.media?.presentation,
+            ),
+          );
+        }
+      }
+      return {
+        kind: section.role,
+        variant: "ai-authored",
+        heading: section.content?.heading ?? null,
+        subheading: section.content?.subheading ?? null,
+        body: section.content?.body ?? null,
+        components,
+        settings: {
+          ai_authored: true,
+          ai_section_id: section.id,
+          ai_intent: section.intent,
+          ai_visual: section.visual ?? {},
+          ai_responsive: section.responsive ?? {},
+          ai_interactions: section.interactions ?? {},
+          ...(section.media?.presentation ? { ai_media: section.media.presentation } : {}),
+        },
+      } as Section;
+    }),
+  }));
+}
+
 const clean = (value: string | null | undefined) => {
   const text = (value ?? "").trim();
   return text.length ? text : null;
@@ -167,7 +227,12 @@ function mediaSettings(asset: FirstBuildImageAsset): Record<string, unknown> {
     {},
     {
       alt: asset.altText,
-      aspect_ratio: asset.aspectRatio,
+      object_fit: "cover",
+      object_position: "center",
+      overlay: asset.slot === "hero" || asset.slot === "cta" ? "gradient" : "none",
+      radius: asset.slot === "hero" ? "large" : "medium",
+      shadow: asset.slot === "hero" ? "strong" : "soft",
+      aspect_ratio: asset.aspectRatio as "1:1" | "4:3" | "3:2" | "16:9" | "21:9",
       source: "generated",
       credit: GENERATED_IMAGE_CREDIT,
       license: "Revora starter image",
@@ -175,44 +240,412 @@ function mediaSettings(asset: FirstBuildImageAsset): Record<string, unknown> {
   );
 }
 
-function imageComponent(asset: FirstBuildImageAsset, kind = "image"): Component {
+function firstAsset(input: MaterializeInput, slot: FirstBuildImageAsset["slot"]) {
+  return (input.generatedAssets ?? []).find((asset) => asset.slot === slot) ?? null;
+}
+
+function serviceAsset(
+  input: MaterializeInput,
+  serviceName: string,
+  index: number,
+): FirstBuildImageAsset | null {
+  const serviceAssets = (input.generatedAssets ?? []).filter((asset) => asset.slot === "service");
+  const exact = serviceAssets.find((asset) =>
+    asset.label.toLowerCase().includes(serviceName.toLowerCase()),
+  );
+  return exact ?? (serviceAssets.length ? serviceAssets[index % serviceAssets.length] ?? null : null);
+}
+
+function imageComponent(
+  asset: FirstBuildImageAsset,
+  kind = "image",
+  presentation?: Record<string, unknown>,
+): Component {
   return {
     kind,
     label: asset.label,
     media_url: asset.path,
-    settings: mediaSettings(asset),
+    settings: presentation
+      ? {
+          ...presentation,
+          source: "generated",
+          credit: GENERATED_IMAGE_CREDIT,
+          license: "Revora starter image",
+          ai_authored: true,
+        }
+      : mediaSettings(asset),
   };
 }
 
 
 
-/**
- * Section headings are the AI's words. Every section except a page's opening
- * takes the heading the AI wrote for it — or none — so no built-in heading
- * ("What we do", "Common questions" …) ever reaches a first build.
- */
-export function applyAuthoredHeadings(pages: Page[], architecture: PageArchitecture[]): Page[] {
-  const bySlug = new Map(architecture.map((page) => [page.slug, page]));
-  return pages.map((page) => {
-    const plan = bySlug.get(page.slug);
-    if (!plan) return page;
-    const used = new Map<string, number>();
-    return {
-      ...page,
-      sections: page.sections.map((section) => {
-        if (section.kind === "sticky_cta") return section;
-        const n = used.get(section.kind) ?? 0;
-        used.set(section.kind, n + 1);
-        const authored = plan.sections.filter((entry) => entry.role === section.kind)[n];
-        if (page.slug === "home" && section.kind === "hero") return section;
-        // Page openings already carry AI-written copy or the real service name;
-        // the AI may still retitle them.
-        if (section.kind === "hero")
-          return authored?.heading ? { ...section, heading: authored.heading, subheading: authored.subheading ?? section.subheading ?? null } : section;
-        return { ...section, heading: authored?.heading ?? null, subheading: authored?.subheading ?? null };
-      }),
-    };
+/** Legacy compatibility adapter. New builds never call this path. */
+export function planSiteContent(input: MaterializeInput): Page[] {
+  const { copy, services } = input;
+  const place =
+    clean([input.city, input.state].filter(Boolean).join(", ")) ?? clean(input.serviceArea);
+  const primaryTarget = input.hasQuoteForm ? "/#quote" : input.hasBooking ? "/book" : "/contact";
+  const primaryCta = clean(copy.primaryCta) ?? "Get in touch";
+  const secondaryCta = clean(copy.secondaryCta) ?? "See services";
+  const heroAsset = firstAsset(input, "hero");
+  const aboutAsset = firstAsset(input, "about");
+  const ctaAsset = firstAsset(input, "cta");
+  const backgroundAsset = firstAsset(input, "background");
+  const ogAsset = firstAsset(input, "social") ?? heroAsset;
+
+  const serviceCards: Component[] = (
+    services.length
+      ? services.map((service, index) => ({
+          name: service.name,
+          body:
+            clean(copy.serviceCards.find((card) => card.name === service.name)?.copy) ??
+            clean(service.description),
+          asset: serviceAsset(input, service.name, index),
+        }))
+      : copy.serviceCards.map((card, index) => ({
+          name: card.name,
+          body: clean(card.copy),
+          asset: serviceAsset(input, card.name, index),
+        }))
+  ).map((card) => ({
+    kind: "card",
+    label: card.name,
+    body: card.body ?? null,
+    link_url: `/services/${slugify(card.name)}`,
+    media_url: card.asset?.path ?? null,
+    settings: card.asset ? mediaSettings(card.asset) : null,
+  }));
+
+  const trustItems: Component[] = [
+    input.yearsInBusiness
+      ? { kind: "feature", label: `${input.yearsInBusiness} years in business` }
+      : null,
+    place ? { kind: "feature", label: `Serving ${place}` } : null,
+    input.phone ? { kind: "feature", label: "Call or text for a fast answer" } : null,
+  ].filter(Boolean) as Component[];
+
+  const home: Page = {
+    slug: "home",
+    title: "Home",
+    kind: "home",
+    seo_title: clean(copy.metaTitle),
+    seo_description: clean(copy.metaDescription),
+    og_title: clean(copy.ogTitle),
+    og_description: clean(copy.ogDescription),
+    og_image_url: ogAsset?.path ?? null,
+    sections: [
+      {
+        kind: "hero",
+        heading: clean(copy.heroHeadline) ?? input.businessName,
+        subheading: clean(copy.heroSubheadline),
+        components: [
+          { kind: "button", label: primaryCta, link_label: primaryCta, link_url: primaryTarget },
+          { kind: "button", label: secondaryCta, link_label: secondaryCta, link_url: "/services" },
+          ...(heroAsset ? [imageComponent(heroAsset, "hero_image")] : []),
+        ],
+      },
+      ...(trustItems.length ? [{ kind: "trust_bar", components: trustItems }] : []),
+      ...(clean(copy.intro)
+        ? [{
+            kind: "intro",
+            heading: `About ${input.businessName}`,
+            body: clean(copy.intro),
+            components: backgroundAsset ? [imageComponent(backgroundAsset)] : [],
+          }]
+        : []),
+      ...(serviceCards.length
+        ? [
+            {
+              kind: "services",
+              heading: "What we do",
+              subheading: place ? `Services available across ${place}.` : null,
+              components: serviceCards,
+            },
+          ]
+        : []),
+      ...(copy.benefits.length
+        ? [
+            {
+              kind: "benefits",
+              heading: "Why customers choose us",
+              components: copy.benefits.map((benefit) => ({ kind: "feature", label: benefit })),
+            },
+          ]
+        : []),
+      ...(input.hasQuoteForm
+        ? [
+            {
+              kind: "quote",
+              heading: "Get a price",
+              subheading: "Answer a few questions and we'll come back to you.",
+            },
+          ]
+        : []),
+      ...(input.hasBooking
+        ? [{ kind: "booking", heading: "Book a time", subheading: "Pick a slot that suits you." }]
+        : []),
+      ...(copy.faqs.length
+        ? [
+            {
+              kind: "faq",
+              heading: "Common questions",
+              components: copy.faqs.map((faq) => ({
+                kind: "faq",
+                label: faq.question,
+                body: faq.answer,
+              })),
+            },
+          ]
+        : []),
+      {
+        kind: "cta",
+        heading: `Ready to get started with ${input.businessName}?`,
+        body: clean(copy.areaCopy),
+        components: [
+          { kind: "button", label: primaryCta, link_label: primaryCta, link_url: primaryTarget },
+          ...(ctaAsset ? [imageComponent(ctaAsset, "image")] : []),
+        ],
+      },
+      { kind: "sticky_cta" },
+    ],
+  };
+
+
+  const pages: Page[] = [home];
+
+  if (serviceCards.length)
+    pages.push({
+      slug: "services",
+      title: "Services",
+      kind: "services",
+      seo_title: clean(`Services — ${input.businessName}`),
+      seo_description: clean(copy.metaDescription),
+        og_image_url: ogAsset?.path ?? null,
+      sections: [
+        {
+          kind: "hero",
+          heading: `Services from ${input.businessName}`,
+          subheading: place ? `Explore services available across ${place}.` : clean(copy.intro),
+          components: [
+            { kind: "button", label: primaryCta, link_label: primaryCta, link_url: primaryTarget },
+            ...((serviceAsset(input, services[0]?.name ?? copy.serviceCards[0]?.name ?? "", 0) ?? heroAsset)
+              ? [imageComponent((serviceAsset(input, services[0]?.name ?? copy.serviceCards[0]?.name ?? "", 0) ?? heroAsset)!, "hero_image")]
+              : []),
+          ],
+        },
+        {
+          kind: "services",
+          heading: "Our services",
+          subheading: clean(copy.intro),
+          components: serviceCards,
+        },
+        {
+          kind: "cta",
+          heading: "Not sure which one you need?",
+          body: "Tell us what you're dealing with and we'll point you the right way.",
+          components: [
+            { kind: "button", label: primaryCta, link_label: primaryCta, link_url: primaryTarget },
+            ...(ctaAsset ? [imageComponent(ctaAsset)] : []),
+          ],
+        },
+      ],
+    });
+
+  // Every supplied service receives a real, image-led landing page. Copy stays
+  // strictly source-derived: no invented inclusions, outcomes or guarantees.
+  for (const [index, service] of services.slice(0, 12).entries()) {
+    const asset = serviceAsset(input, service.name, index);
+    const description =
+      clean(copy.serviceCards.find((card) => card.name === service.name)?.copy) ??
+      clean(service.description);
+    const price = service.starting_price ?? service.price;
+    pages.push({
+      slug: `services/${slugify(service.name)}`,
+      title: service.name,
+      kind: "service",
+      seo_title: clean(`${service.name} — ${input.businessName}`),
+      seo_description: clean(description ?? copy.metaDescription),
+      og_image_url: asset?.path ?? ogAsset?.path ?? null,
+      sections: [
+        {
+          kind: "hero",
+          heading: service.name,
+          subheading: description,
+          components: [
+            { kind: "button", label: primaryCta, link_label: primaryCta, link_url: primaryTarget },
+            ...(asset ? [imageComponent(asset, "hero_image")] : []),
+          ],
+        },
+        {
+          kind: "service_detail",
+          heading: `About ${service.name}`,
+          body: description,
+          components: [
+            ...(price !== null && price !== undefined
+              ? [{
+                  kind: "price_row",
+                  label: service.name,
+                  body: `${service.starting_price ? "From " : ""}$${Number(price).toLocaleString()}`,
+                }]
+              : []),
+            { kind: "button", label: primaryCta, link_label: primaryCta, link_url: primaryTarget },
+            ...(asset ? [imageComponent(asset)] : []),
+          ],
+        },
+        ...(copy.faqs.length
+          ? [{
+              kind: "faq",
+              heading: `${service.name} questions`,
+              components: copy.faqs.slice(0, 4).map((faq) => ({ kind: "faq", label: faq.question, body: faq.answer })),
+            }]
+          : []),
+        {
+          kind: "cta",
+          heading: `Ask about ${service.name}`,
+          components: [{ kind: "button", label: primaryCta, link_label: primaryCta, link_url: primaryTarget }],
+        },
+      ],
+    });
+  }
+
+  const priced = services.filter(
+    (service) => service.price !== null || service.starting_price !== null,
+  );
+  if (priced.length)
+    pages.push({
+      slug: "pricing",
+      title: "Pricing",
+      kind: "pricing",
+      seo_title: clean(`Pricing — ${input.businessName}`),
+      seo_description: clean(copy.metaDescription),
+      sections: [
+        {
+          kind: "hero",
+          heading: `Pricing from ${input.businessName}`,
+          subheading: "Review the prices supplied for available services.",
+          components: [
+            { kind: "button", label: primaryCta, link_label: primaryCta, link_url: primaryTarget },
+            ...((backgroundAsset ?? ctaAsset ?? heroAsset) ? [imageComponent((backgroundAsset ?? ctaAsset ?? heroAsset)!, "hero_image")] : []),
+          ],
+        },
+        {
+          kind: "pricing",
+          heading: "Pricing",
+          subheading: "Straight answers on what things cost.",
+          components: priced.map((service) => ({
+            kind: "price_row",
+            label: service.name,
+            body: `${service.starting_price ? "From " : ""}$${Number(
+              service.starting_price ?? service.price,
+            ).toLocaleString()}`,
+          })),
+        },
+        {
+          kind: "cta",
+          heading: "Ready to discuss what you need?",
+          components: [{ kind: "button", label: primaryCta, link_label: primaryCta, link_url: primaryTarget }],
+        },
+      ],
+    });
+
+  pages.push({
+    slug: "about",
+    title: "About",
+    kind: "about",
+    seo_title: clean(`About ${input.businessName}`),
+    seo_description: clean(copy.metaDescription),
+    sections: [
+      {
+        kind: "hero",
+        heading: `About ${input.businessName}`,
+        subheading: clean(copy.about) ?? clean(copy.intro),
+        components: [
+          { kind: "button", label: primaryCta, link_label: primaryCta, link_url: primaryTarget },
+          ...((aboutAsset ?? backgroundAsset ?? heroAsset) ? [imageComponent((aboutAsset ?? backgroundAsset ?? heroAsset)!, "hero_image")] : []),
+        ],
+      },
+      {
+        kind: "intro",
+        heading: "Our approach",
+        body: clean(copy.about) ?? clean(copy.intro),
+        components: (aboutAsset ?? ctaAsset) ? [imageComponent((aboutAsset ?? ctaAsset)!)] : [],
+      },
+      ...(place
+        ? [
+            {
+              kind: "area",
+              heading: `Where we work`,
+              body: clean(copy.areaCopy) ?? `${input.businessName} serves ${place}.`,
+            },
+          ]
+        : []),
+      ...(copy.benefits.length
+        ? [{
+            kind: "benefits",
+            heading: "What matters in the work",
+            components: copy.benefits.map((benefit) => ({ kind: "feature", label: benefit })),
+          }]
+        : []),
+      {
+        kind: "cta",
+        heading: `Talk with ${input.businessName}`,
+        components: [{ kind: "button", label: primaryCta, link_label: primaryCta, link_url: primaryTarget }],
+      },
+    ],
   });
+
+  if (input.hasBooking)
+    pages.push({
+      slug: "book",
+      title: "Book",
+      kind: "book",
+      seo_title: clean(`Book ${input.businessName}`),
+      seo_description: clean(copy.metaDescription),
+      sections: [
+        {
+          kind: "hero",
+          heading: `Book with ${input.businessName}`,
+          subheading: "Choose an available service and request a suitable time.",
+          components: (ctaAsset ?? backgroundAsset ?? heroAsset) ? [imageComponent((ctaAsset ?? backgroundAsset ?? heroAsset)!, "hero_image")] : [],
+        },
+        { kind: "booking", heading: "Book a time", subheading: "Pick a slot that suits you." },
+        {
+          kind: "cta",
+          heading: "Need help before booking?",
+          components: [{ kind: "button", label: "Contact us", link_label: "Contact us", link_url: "/contact" }],
+        },
+      ],
+    });
+
+
+  pages.push({
+    slug: "contact",
+    title: "Contact",
+    kind: "contact",
+    seo_title: clean(`Contact ${input.businessName}`),
+    seo_description: clean(copy.metaDescription),
+    sections: [
+      {
+        kind: "hero",
+        heading: `Contact ${input.businessName}`,
+        subheading: place ? `Speak with the team serving ${place}.` : "Speak with the team directly.",
+        components: (ctaAsset ?? heroAsset) ? [imageComponent((ctaAsset ?? heroAsset)!, "hero_image")] : [],
+      },
+      {
+        kind: "contact",
+        heading: "Contact us",
+        subheading: input.phone || input.email ? null : "Send a message and we'll reply.",
+      },
+      ...(place
+        ? [{ kind: "area", heading: "Service area", body: clean(copy.areaCopy) ?? `${input.businessName} serves ${place}.` }]
+        : []),
+      ...(input.hasQuoteForm
+        ? [{ kind: "quote", heading: "Request a price", subheading: "Share what you need and the team can respond." }]
+        : []),
+    ],
+  });
+
+  return pages;
 }
 
 /**
@@ -223,16 +656,44 @@ export function applyAuthoredHeadings(pages: Page[], architecture: PageArchitect
 export function materializedSectionDesign(
   kind: string,
   direction: DesignDirection | null | undefined,
-  _index = 0,
-  _creativeBrief?: CreativeBrief | null,
+  fingerprint?: DesignFingerprint | null,
+  index = 0,
+  creativeBrief?: CreativeBrief | null,
 ): { variant: string; settings: Record<string, unknown> } {
-  // No stamped defaults: layout, card style, image treatment and width are
-  // written only by the AI (its design contract and later compositions). The
-  // only thing carried here is the motion effect the AI's own brand identity
-  // authored.
-  if (!direction) return { variant: "default", settings: {} };
-  const effect = effectForKind(direction, kind);
-  return { variant: "default", settings: effect ? writeSectionEffect({}, effect) : {} };
+  if (!direction && !fingerprint) return { variant: "default", settings: {} };
+  const effect = direction
+    ? kind === "hero"
+      ? direction.heroEffect
+      : kind === "cta" || kind === "offer" || kind === "sticky_cta"
+        ? direction.ctaEffect
+        : kind === "quote" || kind === "booking" || kind === "contact"
+          ? direction.formEffect
+          : direction.bodyEffect
+    : null;
+  const identity = fingerprint ? sectionDesignFromFingerprint(kind, fingerprint, index) : null;
+  // Composition comes from the site's authored identity. There is no per-kind
+  // house layout behind this: when there is no identity to read, the section is
+  // left unstyled for the design team to style directly.
+  const visual = identity
+    ? writeSectionVisual({} as any, {
+          layout: identity["layout"] as any,
+          card_style: identity["cardStyle"] as any,
+          image_treatment: identity["imageTreatment"] as any,
+          max_width: identity["maxWidth"] as any,
+          density: (fingerprint?.density === "compact" ? "dense" : fingerprint?.density ?? "balanced") as any,
+        },
+      )
+    : {};
+  const settings = effect ? writeSectionEffect(visual, effect as any) : visual;
+  return ({
+    variant: ((identity?.["variant"] ?? "default") as string),
+    settings: fingerprint
+      ? writeExecutableCreativeSection(
+          settings,
+          compileExecutableCreativeSection(kind, fingerprint, creativeBrief),
+        )
+      : settings,
+  } as any);
 }
 
 /**
@@ -249,6 +710,7 @@ export async function materializeSiteContent(
   sections: number;
   components: number;
   skipped: boolean;
+  campaign: SiteCampaign | null;
   /** The AI design this site was built from, when one governed the build. */
   designContract: AiDesignContract | null;
 }> {
@@ -258,7 +720,7 @@ export async function materializeSiteContent(
     .eq("organization_id", orgId);
   if ((count ?? 0) > 0) {
     if (!input.replaceExisting)
-      return { pages: 0, sections: 0, components: 0, skipped: true, designContract: null };
+      return { pages: 0, sections: 0, components: 0, skipped: true, campaign: null, designContract: null };
     const { error: componentDeleteError } = await db.from("website_components").delete().eq("organization_id", orgId);
     if (componentDeleteError)
       throw new Error(`Couldn't clear old components before rebuilding: ${componentDeleteError.message}`);
@@ -274,184 +736,28 @@ export async function materializeSiteContent(
   // The contract OVERRIDES the renderer's page set and section order, and any
   // visual container the design requires must resolve to a real picture —
   // otherwise the build fails rather than publishing a blank box.
-  const primaryAction = clean(input.copy.primaryCta);
-  if (!primaryAction)
-    throw new Error("The design team did not author a primary action for this website, so nothing was created. Please try again in a moment.");
-  const functionalSections = [
-    ...(input.hasQuoteForm ? [{ role: "quote" }] : []),
-    ...(input.hasBooking ? [{ role: "booking" }] : []),
-    { role: "contact" },
-  ];
-  // Pillar 4 — Multi-page commercial depth.
-  // The candidate inventory seeds a complete commercial site, not a single
-  // home page, so the AI architect starts from real multi-page material it can
-  // reorder, expand or invent on top of. Every page is built only from verified
-  // business DNA facts: services come from the real service rows, contact comes
-  // from the enquiry capability, and the about page never invents credentials.
-  const hasServices = input.services.length > 0;
-  const factInventory: PageArchitecture[] = [
-    {
-      slug: "home",
-      title: input.businessName,
-      purpose: "primary website entry",
-      primaryAction,
-      sections: [
-        { role: "hero" },
-        ...(hasServices ? [{ role: "services" }] : []),
-        { role: "process" },
-        { role: "social_proof" },
-        { role: "faq" },
-        ...functionalSections,
-      ],
-    },
-    // Dedicated services page: a full breakdown of real offerings with scope,
-    // deliverables and direct booking. Only seeded when the business has real
-    // service rows; the AI can still invent a services page without them.
-    ...(hasServices
-      ? [{
-          slug: "services",
-          title: `Services — ${input.businessName}`,
-          purpose: "detailed service breakdown and booking",
-          primaryAction,
-          sections: [
-            { role: "services" },
-            ...(input.hasBooking ? [{ role: "booking" }] : []),
-            { role: "contact" },
-          ],
-        }]
-      : []),
-    // About / story page: commercial backstory and values, sourced only from
-    // verified business DNA facts. Never invents awards, team credentials or
-    // certifications the business has not supplied.
-    {
-      slug: "about",
-      title: `About — ${input.businessName}`,
-      purpose: "business story, values and service territory",
-      primaryAction,
-      sections: [
-        { role: "story" },
-        { role: "values" },
-        { role: "service_area" },
-        { role: "contact" },
-      ],
-    },
-    // Contact & booking page: high-converting lead intake with operating hours,
-    // direct phone/address and the booking widget when available.
-    {
-      slug: input.hasBooking ? "book" : "contact",
-      title: input.hasBooking ? `Book — ${input.businessName}` : `Contact — ${input.businessName}`,
-      purpose: "lead intake, booking and direct contact",
-      primaryAction,
-      sections: [
-        ...(input.hasQuoteForm ? [{ role: "quote" }] : []),
-        ...(input.hasBooking ? [{ role: "booking" }] : []),
-        { role: "contact" },
-      ],
-    },
-  ];
+  let tree: Page[];
   let designContract: AiDesignContract | null = input.designContract ?? null;
-  const authored = designContract
-    ? null
-    : input.architect
-      ? await input.architect(factInventory)
-      : null;
-  if (!designContract && !authored?.length)
-    throw new Error("The design team could not author this website's page plan, so nothing was created. Please try again in a moment.");
-  const architecture: PageArchitecture[] = authored ?? designContract!.pages.map((page) => ({
-    slug: page.slug,
-    title: page.title,
-    purpose: page.purpose,
-    primaryAction: page.primaryAction,
-    sections: page.sections.map((section) => ({ role: section.role, layout: section.layout, intent: section.intent, media: section.media })),
-  }));
-  // Functional safeguard (not a creative choice): every site must give visitors
-  // a working way to send an enquiry, so leads reach the owner's lead inbox.
-  // If the AI plan left out every enquiry section, add the strongest real
-  // capability this business has to the home page instead of discarding the build.
-  const enquiryRoles = new Set(["booking", "quote", "contact"]);
-  if (!architecture.some((page) => page.sections.some((section) => enquiryRoles.has(section.role)))) {
-    const home = architecture.find((page) => page.slug === "home") ?? architecture[0];
-    if (home) {
-      const role = input.hasBooking ? "booking" : input.hasQuoteForm ? "quote" : "contact";
-      home.sections = [...home.sections, { role } as (typeof home.sections)[number]];
-    }
-  }
-  const authoredPrimaryAction = architecture.find((page) => page.slug === "home")?.primaryAction ?? architecture[0]?.primaryAction ?? "";
-  const primaryTarget = primaryActionTarget({
-    authoredTarget: authoredPrimaryAction,
-    architecture,
-    hasQuoteForm: input.hasQuoteForm,
-    hasBooking: input.hasBooking,
-  });
-  const generatedByLabel = new Map((input.generatedAssets ?? []).map((asset) => [asset.label.toLowerCase(), asset]));
-  const contentSlots = architecture.flatMap((page) =>
-    page.sections
-      .filter((section) => !["quote", "booking", "contact", "sticky_cta"].includes(section.role))
-      .map((section, index) => ({ page: page.slug, role: section.role, index, media: section.media })),
-  );
-  const allocatedAssets = new Map<string, FirstBuildImageAsset[]>();
-  const slotKey = (page: string, role: string, index: number) => `${page}:${role}:${index}`;
-  const claim = (slot: (typeof contentSlots)[number], asset: FirstBuildImageAsset) => {
-    const key = slotKey(slot.page, slot.role, slot.index);
-    allocatedAssets.set(key, [...(allocatedAssets.get(key) ?? []), asset]);
-  };
-  const unassigned = [...(input.generatedAssets ?? [])];
-  for (const slot of contentSlots) {
-    const exact = unassigned.findIndex((asset) =>
-      asset.placement.some((placement) => placement === slot.role || placement === `${slot.page}:${slot.role}`),
+  if (input.creativeSiteContract) {
+    tree = materializeCreativeSiteContract(input.creativeSiteContract, input.generatedAssets ?? []);
+    assertCreativeSiteMediaIntegrity(tree, input.creativeSiteContract);
+  } else if (input.legacyCompatibility === true) {
+    // Explicit migration/compatibility adapter for already-created legacy data.
+    tree = planSiteContent(input);
+  } else {
+    throw new Error(
+      "The canonical AI website contract was missing. Revora stopped before creating any pages instead of using a deterministic fallback.",
     );
-    if (exact >= 0) {
-      const [asset] = unassigned.splice(exact, 1);
-      if (asset) claim(slot, asset);
-    }
   }
-  for (const slot of contentSlots.filter((entry) => entry.media === "required")) {
-    const key = slotKey(slot.page, slot.role, slot.index);
-    if (!(allocatedAssets.get(key)?.length) && unassigned.length) {
-      const asset = unassigned.shift();
-      if (asset) claim(slot, asset);
-    }
+  if (input.legacyCompatibility !== true && !input.creativeSiteContract) {
+    throw new Error("A fresh website requires a complete Sol/Terra creative contract.");
   }
-  if (contentSlots.length)
-    for (const [index, asset] of unassigned.entries()) claim(contentSlots[index % contentSlots.length]!, asset);
-  let tree: Page[] = architecture.map((page) => ({
-    slug: page.slug,
-    title: page.title,
-    kind: page.slug === "home" ? "home" : "page",
-    seo_title: page.slug === "home" ? clean(input.copy.metaTitle) : clean(`${page.title} — ${input.businessName}`),
-    seo_description: clean(input.copy.metaDescription),
-    og_title: page.slug === "home" ? clean(input.copy.ogTitle) : clean(page.title),
-    og_description: clean(input.copy.ogDescription),
-    sections: page.sections.map((section, index) => {
-      const role = section.role;
-      if (["quote", "booking", "contact", "sticky_cta"].includes(role))
-        return { kind: role, heading: section.heading ?? null, subheading: section.subheading ?? null, body: section.body ?? null };
-      const matching = allocatedAssets.get(slotKey(page.slug, role, index)) ?? [];
-      const components: Component[] = [];
-      for (const asset of matching)
-        components.push(imageComponent(asset, index === 0 ? "hero_image" : "image"));
-      // Structure comes only from the AI's plan: material is attached only when
-      // the section explicitly asked for it, never because of its name.
-      const includes = section.includes ?? [];
-      if (includes.includes("primary_action"))
-        components.push({ kind: "button", label: primaryAction, link_label: primaryAction, link_url: primaryTarget });
-      if (includes.includes("service_cards"))
-        for (const service of input.services) {
-          const asset = generatedByLabel.get(service.name.toLowerCase()) ?? null;
-          components.push({
-            kind: "card",
-            label: service.name,
-            body: clean(input.copy.serviceCards.find((card) => card.name === service.name)?.copy) ?? clean(service.description),
-            link_url: `/services/${slugify(service.name)}`,
-            media_url: asset?.path ?? null,
-            settings: asset ? mediaSettings(asset) : null,
-          });
-        }
-      return { kind: role, heading: section.heading ?? null, subheading: section.subheading ?? null, body: section.body ?? null, components };
-    }),
-  }));
-  let authoredArchitecture: PageArchitecture[] | null = null;
-  if (!designContract && input.creativeBrief) {
+  if (!designContract && input.fingerprint && input.creativeBrief && input.legacyCompatibility === true) {
+    const primaryAction = clean(input.copy.primaryCta) ?? "Get in touch";
+    // The AI authors the page set, the section selection and the order. The
+    // renderer's own layout is only the inventory of fillable material.
+    const candidate = deriveCandidateArchitecture(tree, primaryAction);
+    const authored = input.architect ? await input.architect(candidate) : null;
     // No template fallback: the page set, section selection and order come from
     // the design team's own plan. When it could not author one, the build stops
     // and says so rather than shipping the renderer's inventory as a design.
@@ -460,14 +766,15 @@ export async function materializeSiteContent(
         "The design team could not author this website's page plan, so nothing was created. Please try again in a moment.",
       );
     }
-    authoredArchitecture = architecture;
+    const architecture = authored;
     designContract = requireAiDesignContract({
       attempt: compileAiDesignContract({
         businessName: input.businessName,
+        fingerprint: input.fingerprint,
         brief: input.creativeBrief,
-        directedBy: input.directedBy ?? "gpt-6-sol",
+        directedBy: input.directedBy ?? "gpt-5.6-sol",
         reviewedBy: input.reviewedBy ?? null,
-        conversionGoal: input.conversionGoal?.trim() || null,
+        conversionGoal: input.conversionGoal ?? "enquiries",
         navigationItems: architecture.map((page) => page.title),
         primaryAction,
         secondaryAction: clean(input.copy.secondaryCta),
@@ -481,7 +788,25 @@ export async function materializeSiteContent(
     assertMediaIntegrity(applied.pages, designContract);
     tree = applied.pages as unknown as typeof tree;
   }
-  if (authoredArchitecture) tree = applyAuthoredHeadings(tree, authoredArchitecture);
+  const campaign = input.fingerprint && input.creativeBrief
+    ? compileSiteCampaign({
+        businessName: input.businessName,
+        primaryCta: clean(input.copy.primaryCta) ?? "Get in touch",
+        city: clean(input.city) ?? null,
+        services: input.services.map((s) => s.name),
+        fingerprint: input.fingerprint,
+        brief: input.creativeBrief,
+        pages: tree.map((page) => ({
+          slug: page.slug,
+          kind: page.kind,
+          sectionKinds: page.sections.map((section) => section.kind),
+        })),
+        primaryAction: clean(input.copy.primaryCta) ?? "Get in touch",
+        primaryTarget: input.hasQuoteForm ? "/#quote" : input.hasBooking ? "/book" : "/contact",
+        hasPhone: Boolean(clean(input.phone)),
+        hasPlace: Boolean(clean(input.city) || clean(input.state) || clean(input.serviceArea)),
+      })
+    : null;
   let sections = 0;
   let components = 0;
 
@@ -510,6 +835,7 @@ export async function materializeSiteContent(
       const design = materializedSectionDesign(
         section.kind,
         input.direction,
+        input.fingerprint,
         pageIndex * 37 + sectionIndex,
         input.creativeBrief,
       );
@@ -525,7 +851,9 @@ export async function materializeSiteContent(
           body: section.body ?? null,
           is_visible: true,
           sort_order: sectionIndex,
-          settings: design.settings,
+          // Preserve the canonical AI contract's visual/responsive/interaction data.
+          // Legacy design synthesis is used only by the compatibility path.
+          settings: { ...design.settings, ...(section.settings ?? {}) },
         } as never)
         .select("id")
         .single();
@@ -553,5 +881,5 @@ export async function materializeSiteContent(
     }
   }
 
-  return { pages: tree.length, sections, components, skipped: false, designContract };
+  return { pages: tree.length, sections, components, skipped: false, campaign, designContract };
 }

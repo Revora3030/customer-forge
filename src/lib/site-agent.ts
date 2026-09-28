@@ -1,16 +1,11 @@
-import { safeDesignTokens } from "@/lib/builder/design-tokens";
 import {
   backdropLabel,
   isBackdropId,
   isSectionEffectId,
-  safeBackdropSpec,
   sectionEffectLabel,
   type BackdropId,
-  type BackdropSpec,
   type SectionEffectId,
 } from "@/lib/site-effects";
-import { validateComposition, type CompositionTree } from "@/lib/builder/composition-tree";
-import { normalizeAspect } from "@/lib/builder/composition-tree";
 import { safeLinkUrl } from "@/lib/website-content";
 import { siteBodyFont, siteHeadingFont } from "@/lib/site-theme";
 import { describeCustomBlock, parseCustomBlock, type CustomBlockSpec } from "@/lib/builder/custom-block";
@@ -64,7 +59,8 @@ import {
  * This keeps visual intent from being hidden inside arbitrary JSON.
  */
 
-export const PLAN_INSTRUCTION_LIMIT = 24_000;
+/** Compatibility ceiling only; provider/context continuation handles larger instructions. */
+export const PLAN_INSTRUCTION_LIMIT = 100_000;
 
 /**
  * One-tap starting points for the most common edits. Used for the quick voice
@@ -150,7 +146,8 @@ export const MULTIMODAL_TEMPLATES: {
  * read and installed in full; the installer batches them so each batch stays
  * reversible in one atomic rollback. No design work is truncated in practice.
  */
-export const MAX_ACTIONS = 5000;
+/** Legacy compatibility symbol. New plans are processed in full; batching/continuation is handled by the executor. */
+export const MAX_ACTIONS = 100_000;
 
 
 export type AgentField = "heading" | "subheading" | "body";
@@ -182,8 +179,8 @@ export type ComponentPatch = {
 /**
  * Visual properties for a single media-bearing component.
  *
- * Values are validated CSS data, never raw CSS. Numeric treatments remain open
- * inside renderer-safe bounds rather than forcing the AI through style tokens.
+ * These are deliberately finite values rather than arbitrary CSS.
+ * This prevents the AI from injecting unsafe or unsupported styles.
  */
 export type VisualComponentPatch = {
   media_url?: string | null;
@@ -196,7 +193,7 @@ export type VisualComponentPatch = {
   /**
    * CSS object-fit strategy.
    */
-  object_fit?: "cover" | "contain" | "fill" | "scale-down" | "none";
+  object_fit?: "cover" | "contain";
 
   /**
    * Safe human-readable focal positioning.
@@ -212,22 +209,22 @@ export type VisualComponentPatch = {
   /**
    * Visual overlay treatment.
    */
-  overlay?: number;
+  overlay?: "none" | "soft" | "dark" | "brand" | "gradient";
 
   /**
    * Border-radius design token.
    */
-  radius?: number;
+  radius?: "none" | "small" | "medium" | "large" | "pill";
 
   /**
    * Shadow design token.
    */
-  shadow?: number;
+  shadow?: "none" | "soft" | "medium" | "strong";
 
   /**
    * Preferred image composition ratio.
    */
-  aspect_ratio?: string;
+  aspect_ratio?: "1:1" | "4:3" | "3:2" | "16:9" | "21:9";
 
   /**
    * Optional normalized focal point.
@@ -239,6 +236,73 @@ export type VisualComponentPatch = {
   focal_point?: string;
 };
 
+/**
+ * Visual composition for an entire section.
+ *
+ * This is intentionally independent from copy.
+ *
+ * Copy says WHAT the section says.
+ * Visual composition says HOW the section looks.
+ */
+export type SectionVisualPatch = {
+  layout?:
+    | "split"
+    | "centered"
+    | "image_left"
+    | "image_right"
+    | "full_bleed"
+    | "editorial"
+    | "layered"
+    | "stacked";
+
+  density?:
+    | "airy"
+    | "balanced"
+    | "dense";
+
+  image_position?:
+    | "left"
+    | "right"
+    | "center"
+    | "background";
+
+  image_treatment?:
+    | "natural"
+    | "rounded"
+    | "soft_shadow"
+    | "glass_frame"
+    | "duotone"
+    | "gradient_overlay"
+    | "cinematic"
+    | "cutout"
+    | "full_bleed";
+
+  spacing?:
+    | "tight"
+    | "standard"
+    | "generous";
+
+  max_width?:
+    | "narrow"
+    | "standard"
+    | "wide"
+    | "edge";
+
+  card_style?:
+    | "soft"
+    | "sharp"
+    | "pill"
+    | "glass"
+    | "editorial"
+    | "floating";
+
+  image_ratio?:
+    | "1:1"
+    | "4:3"
+    | "3:2"
+    | "16:9"
+    | "21:9";
+};
 
 export type { BackdropId, SectionEffectId };
 
@@ -253,6 +317,9 @@ export type ThemePatch = {
 
 /** Safe block styling shared by the AI planner, visual editor and renderer. */
 export type BlockStylePatch = Partial<Record<StyleKey, BlockStyle[StyleKey] | null>>;
+
+export type AiVisualPatch = Record<string, string | number>;
+
 
 export const BUSINESS_FACT_FIELDS = [
   "tagline",
@@ -288,7 +355,43 @@ export type AgentAction =
       visible: boolean;
     }
 
+  | {
+      type: "set_section_variant";
+      sectionId: string;
+      variant: string;
+    }
 
+  | {
+      type: "set_ai_visual";
+      sectionId: string;
+      patch: AiVisualPatch;
+    }
+
+  | {
+      type: "set_ai_responsive";
+      sectionId: string;
+      width: number;
+      patch: AiVisualPatch;
+    }
+
+  | {
+      type: "set_ai_component_visual";
+      componentId: string;
+      patch: AiVisualPatch;
+    }
+
+  | {
+      type: "set_ai_component_responsive";
+      componentId: string;
+      width: number;
+      patch: AiVisualPatch;
+    }
+
+  | {
+      type: "set_section_visual";
+      sectionId: string;
+      patch: SectionVisualPatch;
+    }
 
   | {
       type: "set_block_style";
@@ -307,13 +410,6 @@ export type AgentAction =
       type: "set_custom_block";
       sectionId: string;
       spec: CustomBlockSpec;
-    }
-
-  /** An AI-authored composition tree: any structure the AI invents. */
-  | {
-      type: "set_composition";
-      sectionId: string;
-      tree: CompositionTree;
     }
 
 
@@ -424,15 +520,8 @@ export type AgentAction =
     }
 
   | {
-      type: "set_design_tokens";
-      tokens: import("@/lib/builder/design-tokens").DesignTokens;
-    }
-
-  | {
       type: "set_backdrop";
       backdrop: BackdropId;
-      /** A background the AI wrote itself; wins over the legacy named backdrop. */
-      spec?: BackdropSpec | null;
     }
 
   | {
@@ -544,6 +633,116 @@ const CSS_POSITION =
  */
 const SAFE_FOCAL_POINT =
   /^(?:0|0\.[0-9]+|1)(?:\s+(?:0|0\.[0-9]+|1))?$/;
+
+/**
+ * Finite visual vocabularies.
+ *
+ * The planner can be creative about WHICH value it chooses,
+ * but it cannot invent arbitrary CSS.
+ */
+const VISUAL_VALUES = {
+  object_fit: new Set([
+    "cover",
+    "contain",
+  ]),
+
+  overlay: new Set([
+    "none",
+    "soft",
+    "dark",
+    "brand",
+    "gradient",
+  ]),
+
+  radius: new Set([
+    "none",
+    "small",
+    "medium",
+    "large",
+    "pill",
+  ]),
+
+  shadow: new Set([
+    "none",
+    "soft",
+    "medium",
+    "strong",
+  ]),
+
+  aspect_ratio: new Set([
+    "1:1",
+    "4:3",
+    "3:2",
+    "16:9",
+    "21:9",
+  ]),
+
+  layout: new Set([
+    "split",
+    "centered",
+    "image_left",
+    "image_right",
+    "full_bleed",
+    "editorial",
+    "layered",
+    "stacked",
+  ]),
+
+  density: new Set([
+    "airy",
+    "balanced",
+    "dense",
+  ]),
+
+  image_position: new Set([
+    "left",
+    "right",
+    "center",
+    "background",
+  ]),
+
+  image_treatment: new Set([
+    "natural",
+    "rounded",
+    "soft_shadow",
+    "glass_frame",
+    "duotone",
+    "gradient_overlay",
+    "cinematic",
+    "cutout",
+    "full_bleed",
+  ]),
+
+  spacing: new Set([
+    "tight",
+    "standard",
+    "generous",
+  ]),
+
+  max_width: new Set([
+    "narrow",
+    "standard",
+    "wide",
+    "edge",
+  ]),
+
+  card_style: new Set([
+    "soft",
+    "sharp",
+    "pill",
+    "glass",
+    "editorial",
+    "floating",
+  ]),
+
+  image_ratio: new Set([
+    "1:1",
+    "4:3",
+    "3:2",
+    "16:9",
+    "21:9",
+  ]),
+} as const;
 
 /* -------------------------------------------------------------------------- */
 /* BASIC HELPERS                                                              */
@@ -707,8 +906,11 @@ const readVisualPatch = (
   }
 
   if (
-    typeof raw["object_fit"] === "string" &&
-    ["cover", "contain", "fill", "scale-down", "none"].includes(raw["object_fit"])
+    typeof raw["object_fit"] ===
+    "string" &&
+    VISUAL_VALUES.object_fit.has(
+      raw["object_fit"] as never,
+    )
   ) {
     patch.object_fit =
       raw["object_fit"] as NonNullable<VisualComponentPatch["object_fit"]>;
@@ -733,31 +935,48 @@ const readVisualPatch = (
   }
 
   if (
-    typeof raw["overlay"] === "number" && Number.isFinite(raw["overlay"]) &&
-    raw["overlay"] >= 0 && raw["overlay"] <= 100
+    typeof raw["overlay"] ===
+    "string" &&
+    VISUAL_VALUES.overlay.has(
+      raw["overlay"] as never,
+    )
   ) {
     patch.overlay =
-      raw["overlay"];
+      raw["overlay"] as NonNullable<VisualComponentPatch["overlay"]>;
   }
 
   if (
-    typeof raw["radius"] === "number" && Number.isFinite(raw["radius"]) &&
-    raw["radius"] >= 0 && raw["radius"] <= 9999
+    typeof raw["radius"] ===
+    "string" &&
+    VISUAL_VALUES.radius.has(
+      raw["radius"] as never,
+    )
   ) {
     patch.radius =
-      raw["radius"];
+      raw["radius"] as NonNullable<VisualComponentPatch["radius"]>;
   }
 
   if (
-    typeof raw["shadow"] === "number" && Number.isFinite(raw["shadow"]) &&
-    raw["shadow"] >= 0 && raw["shadow"] <= 200
+    typeof raw["shadow"] ===
+    "string" &&
+    VISUAL_VALUES.shadow.has(
+      raw["shadow"] as never,
+    )
   ) {
     patch.shadow =
-      raw["shadow"];
+      raw["shadow"] as NonNullable<VisualComponentPatch["shadow"]>;
   }
 
-  const aspectRatio = normalizeAspect(raw["aspect_ratio"]);
-  if (aspectRatio) patch.aspect_ratio = aspectRatio;
+  if (
+    typeof raw["aspect_ratio"] ===
+    "string" &&
+    VISUAL_VALUES.aspect_ratio.has(
+      raw["aspect_ratio"] as never,
+    )
+  ) {
+    patch.aspect_ratio =
+      raw["aspect_ratio"] as NonNullable<VisualComponentPatch["aspect_ratio"]>;
+  }
 
   if (
     typeof raw["focal_point"] ===
@@ -779,7 +998,53 @@ const readVisualPatch = (
   return patch;
 };
 
+const readSectionVisualPatch = (
+  value: unknown,
+): SectionVisualPatch => {
+  if (
+    !value ||
+    typeof value !== "object"
+  ) {
+    return {};
+  }
 
+  const raw =
+    value as Record<string, unknown>;
+
+  const patch:
+    Partial<SectionVisualPatch> = {};
+
+  const values = [
+    "layout",
+    "density",
+    "image_position",
+    "image_treatment",
+    "spacing",
+    "max_width",
+    "card_style",
+    "image_ratio",
+  ] as const;
+
+  for (const key of values) {
+    const candidate =
+      text(
+        raw[key],
+        40,
+      );
+
+    if (
+      candidate &&
+      VISUAL_VALUES[key].has(
+        candidate as never,
+      )
+    ) {
+      patch[key] =
+        candidate as never;
+    }
+  }
+
+  return patch as SectionVisualPatch;
+};
 
 const readBlockStylePatch = (value: unknown): BlockStylePatch => {
   if (!value || typeof value !== "object" || Array.isArray(value)) return {};
@@ -833,10 +1098,7 @@ export function readActions(
     return [];
   }
 
-  if (value.length > MAX_ACTIONS)
-    note(
-      `The design team proposed ${value.length} steps, which is past the ${MAX_ACTIONS}-step safety ceiling; the first ${MAX_ACTIONS} were read. Ask again to continue with the rest.`,
-    );
+  // No arbitrary creative truncation. The executor applies reversible batches.
 
   const out: AgentAction[] = [];
 
@@ -888,6 +1150,8 @@ export function readActions(
 
     const row =
       raw as Record<string, unknown>;
+    const outBefore = out.length;
+    const droppedBefore = dropped?.length ?? 0;
 
     const type =
       text(
@@ -977,6 +1241,96 @@ export function readActions(
         break;
       }
 
+      /* ------------------------------------------------------------------ */
+      /* SECTION VARIANT                                                    */
+      /* ------------------------------------------------------------------ */
+
+      case "set_ai_visual":
+      case "set_ai_responsive": {
+        if (!knownSection(sectionId)) break;
+        const patchRaw = row["patch"];
+        if (!patchRaw || typeof patchRaw !== "object" || Array.isArray(patchRaw)) break;
+        const patch: Record<string, string | number> = {};
+        for (const [key, value] of Object.entries(patchRaw as Record<string, unknown>)) {
+          if (
+            (typeof value === "string" && value.length <= 500) ||
+            (typeof value === "number" && Number.isFinite(value))
+          ) {
+            patch[key] = value;
+          }
+        }
+        if (!Object.keys(patch).length) break;
+        if (type === "set_ai_responsive") {
+          const width = Number(row["width"]);
+          if (!Number.isInteger(width) || width < 320 || width > 4096) break;
+          out.push({ type, sectionId, width, patch });
+        } else {
+          out.push({ type, sectionId, patch });
+        }
+        break;
+      }
+
+      case "set_section_variant": {
+        const variant =
+          text(
+            row["variant"],
+            40,
+          );
+
+        if (
+          !knownSection(
+            sectionId,
+          ) ||
+          !KIND.test(variant)
+        ) {
+          break;
+        }
+
+        out.push({
+          type,
+          sectionId,
+          variant,
+        });
+
+        break;
+      }
+
+      /* ------------------------------------------------------------------ */
+      /* SECTION VISUAL                                                     */
+      /* ------------------------------------------------------------------ */
+
+      case "set_section_visual": {
+        if (
+          !knownSection(
+            sectionId,
+          )
+        ) {
+          break;
+        }
+
+        const patch =
+          readSectionVisualPatch(
+            row["patch"],
+          );
+
+        if (
+          Object.keys(patch)
+            .length === 0
+        ) {
+          note(
+            "A styling step carried no readable settings, so it was left out. Nothing else in the plan was affected.",
+          );
+          break;
+        }
+
+        out.push({
+          type,
+          sectionId,
+          patch,
+        });
+
+        break;
+      }
 
       case "set_block_style": {
         const target = row["target"] === "component" ? "component" : row["target"] === "section" ? "section" : null;
@@ -1001,20 +1355,6 @@ export function readActions(
       /* ------------------------------------------------------------------ */
       /* CUSTOM INTERACTIVE BLOCK                                           */
       /* ------------------------------------------------------------------ */
-
-      case "set_composition": {
-        if (!knownSection(sectionId)) {
-          note("A layout step pointed at a section that isn't on this website, so it was left out.");
-          break;
-        }
-        const checked = validateComposition(row["tree"]);
-        if (!checked.ok) {
-          note(`A layout needs repair: ${checked.issues.slice(0, 5).map((i) => `${i.path} ${i.problem}`).join("; ")}.`);
-          break;
-        }
-        out.push({ type, sectionId, tree: checked.tree });
-        break;
-      }
 
       case "set_custom_block": {
         if (
@@ -1214,6 +1554,39 @@ export function readActions(
       /* ------------------------------------------------------------------ */
       /* SET COMPONENT                                                      */
       /* ------------------------------------------------------------------ */
+
+      case "set_ai_component_visual":
+      case "set_ai_component_responsive": {
+        if (!knownComponent(componentId)) {
+          note("A visual step targeted a component that no longer exists, so it was left out.");
+          break;
+        }
+        const patchRaw = row["patch"];
+        if (!patchRaw || typeof patchRaw !== "object" || Array.isArray(patchRaw)) {
+          note("A component visual step had no readable visual patch, so it was left out.");
+          break;
+        }
+        const patch: Record<string, string | number> = {};
+        for (const [key, value] of Object.entries(patchRaw as Record<string, unknown>)) {
+          if ((typeof value === "string" && value.length <= 500) || (typeof value === "number" && Number.isFinite(value))) {
+            patch[key] = value;
+          } else {
+            note("A component visual property was unsafe or invalid and was removed from that step.");
+          }
+        }
+        if (!Object.keys(patch).length) break;
+        if (type === "set_ai_component_responsive") {
+          const width = Number(row["width"]);
+          if (!Number.isInteger(width) || width < 320 || width > 4096) {
+            note("A component responsive step used an invalid viewport width, so it was left out.");
+            break;
+          }
+          out.push({ type, componentId, width, patch });
+        } else {
+          out.push({ type, componentId, patch });
+        }
+        break;
+      }
 
       case "set_component": {
         const patchRaw =
@@ -1793,12 +2166,6 @@ export function readActions(
       /* BACKDROP                                                            */
       /* ------------------------------------------------------------------ */
 
-      case "set_design_tokens": {
-        const tokens = safeDesignTokens(row["tokens"]);
-        if (tokens) out.push({ type, tokens });
-        break;
-      }
-
       case "set_backdrop": {
         const backdrop =
           text(
@@ -1806,15 +2173,17 @@ export function readActions(
             30,
           );
 
-        const spec = safeBackdropSpec(row["spec"]);
-        if (!isBackdropId(backdrop) && !spec) {
+        if (
+          !isBackdropId(
+            backdrop,
+          )
+        ) {
           break;
         }
 
         out.push({
           type,
-          backdrop: isBackdropId(backdrop) ? backdrop : "none",
-          ...(spec ? { spec } : {}),
+          backdrop,
         });
 
         break;
@@ -1895,6 +2264,12 @@ export function readActions(
           `"${type || "unnamed step"}" isn't something Revora can do to a website yet, so it was left out.`,
         );
         break;
+    }
+
+    if (out.length === outBefore && (dropped?.length ?? 0) === droppedBefore) {
+      note(
+        `"${type || "unnamed step"}" could not be applied to this website, so it was left out.`,
+      );
     }
 
   }
@@ -2074,6 +2449,80 @@ export function describeActions(
             action,
           };
 
+        case "set_section_variant":
+          return {
+            key,
+
+            title:
+              `Change the layout style to "${action.variant}"`,
+
+            where:
+              locate(
+                index,
+                {
+                  sectionId:
+                    action.sectionId,
+                },
+              ),
+
+            destructive:
+              false,
+
+            action,
+          };
+
+        case "set_ai_visual":
+          return {
+            key,
+            title: "Author an AI-defined visual treatment",
+            where: locate(index, { sectionId: action.sectionId }),
+            after: Object.entries(action.patch)
+              .map(([name, value]) => `${name}: ${String(value)}`)
+              .join(" · "),
+            destructive: false,
+            action,
+          };
+
+        case "set_ai_responsive":
+          return {
+            key,
+            title: `Author AI-defined responsive styling at ${action.width}px`,
+            where: locate(index, { sectionId: action.sectionId }),
+            after: Object.entries(action.patch)
+              .map(([name, value]) => `${name}: ${String(value)}`)
+              .join(" · "),
+            destructive: false,
+            action,
+          };
+
+        case "set_section_visual":
+          return {
+            key,
+
+            title:
+              "Refine this section's visual composition",
+
+            where:
+              locate(
+                index,
+                {
+                  sectionId:
+                    action.sectionId,
+                },
+              ),
+
+            after:
+              Object.values(
+                action.patch,
+              )
+                .filter(Boolean)
+                .join(" · "),
+
+            destructive:
+              false,
+
+            action,
+          };
 
         case "set_block_style":
           return {
@@ -2081,16 +2530,6 @@ export function describeActions(
             title: `Style this ${action.target} for ${action.device}`,
             where: locate(index, action.target === "section" ? { sectionId: action.targetId } : { componentId: action.targetId }),
             after: Object.entries(action.patch).map(([name, value]) => `${name}: ${String(value)}`).join(" · "),
-            destructive: false,
-            action,
-          };
-
-        case "set_composition":
-          return {
-            key,
-            title: `Compose a new layout${action.tree.label ? `: ${action.tree.label}` : ""}`,
-            where: locate(index, { sectionId: action.sectionId }),
-            after: "AI-authored layout",
             destructive: false,
             action,
           };
@@ -2235,6 +2674,26 @@ export function describeActions(
                 .is_visible ===
               false,
 
+            action,
+          };
+
+        case "set_ai_component_visual":
+          return {
+            key,
+            title: "Author an AI-defined component visual treatment",
+            where: locate(index, { componentId: action.componentId }),
+            after: Object.entries(action.patch).map(([name, value]) => name + ": " + String(value)).join(" · "),
+            destructive: false,
+            action,
+          };
+
+        case "set_ai_component_responsive":
+          return {
+            key,
+            title: "Author AI-defined component responsive styling at " + action.width + "px",
+            where: locate(index, { componentId: action.componentId }),
+            after: Object.entries(action.patch).map(([name, value]) => name + ": " + String(value)).join(" · "),
+            destructive: false,
             action,
           };
 
@@ -2440,23 +2899,14 @@ export function describeActions(
             action,
           };
 
-        case "set_design_tokens":
-          return {
-            key,
-            title: "Update the site-wide design tokens (corners, spacing, depth, buttons)",
-            where: "Whole website",
-            destructive: false,
-            action,
-          } as never;
-
         case "set_backdrop":
           return {
             key,
 
             title:
-              action.spec
-                ? "Install the AI-designed background"
-                : `Install the "${backdropLabel(action.backdrop)}" animated background`,
+              `Install the "${backdropLabel(
+                action.backdrop,
+              )}" animated background`,
 
             where:
               "Whole website",

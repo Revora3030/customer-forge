@@ -63,8 +63,11 @@ export function targetOf(action: AgentAction): Target | null {
   switch (action.type) {
     case "set_section_text":
     case "set_section_visibility":
+    case "set_section_variant":
+    case "set_section_visual":
+    case "set_ai_visual":
+    case "set_ai_responsive":
     case "set_custom_block":
-    case "set_composition":
     case "set_section_effect":
       return { kind: "update", table: "website_sections", id: action.sectionId };
     case "set_block_style":
@@ -99,7 +102,6 @@ export function targetOf(action: AgentAction): Target | null {
     case "set_business_fact":
       return { kind: "org", table: "business_profiles" };
     case "set_backdrop":
-    case "set_design_tokens":
       return { kind: "org", table: "website_settings" };
     default:
       return null;

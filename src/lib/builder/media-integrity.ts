@@ -13,6 +13,7 @@
  */
 
 import type { AiDesignContract, MaterialPage } from "@/lib/builder/ai-design-contract";
+import type { CreativeSiteContract } from "@/lib/builder/creative-site-contract";
 
 export type MediaViolation = {
   page: string;
@@ -106,4 +107,42 @@ export class MediaIntegrityError extends Error {
 export function assertMediaIntegrity(pages: MaterialPage[], contract: AiDesignContract): void {
   const violations = inspectMediaIntegrity(pages, contract);
   if (violations.length > 0) throw new MediaIntegrityError(violations);
+}
+
+export function assertCreativeSiteMediaIntegrity(
+  pages: Array<{ slug: string; sections: Array<{ kind: string; components?: Array<{ kind?: string; media_url?: string | null }> }> }>,
+  contract: CreativeSiteContract,
+): void {
+  const required = new Map<string, Set<string>>();
+  for (const page of contract.pages) {
+    required.set(
+      page.slug,
+      new Set(
+        page.sections
+          .filter((section) => section.media?.required)
+          .map((section) => section.role),
+      ),
+    );
+  }
+  const violations: MediaViolation[] = [];
+  for (const page of pages) {
+    const roles = required.get(page.slug) ?? new Set<string>();
+    for (const section of page.sections) {
+      if (!roles.has(section.kind)) continue;
+      const hasMedia = (section.components ?? []).some(
+        (component) =>
+          typeof component.media_url === "string" &&
+          component.media_url.trim().length > 0,
+      );
+      if (!hasMedia)
+        violations.push({
+          page: page.slug,
+          section: section.kind,
+          kind: "empty_required_media",
+          detail: "the AI contract requires media but no resolved asset was materialized",
+          remedy: "generate_image",
+        });
+    }
+  }
+  if (violations.length) throw new MediaIntegrityError(violations);
 }

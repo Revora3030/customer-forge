@@ -1,13 +1,34 @@
 /**
- * Screenshot reference signals.
+ * Screenshot reference fingerprinting.
  *
  * A reference screenshot can influence layout, hierarchy, spacing, type feel,
  * colour mood and interaction language, but it must never copy brand assets,
  * wording, logos, exact colours or claims. This module accepts only bounded
- * structured observations and passes those signals to the AI design team; it
- * never maps them into a finite design vocabulary.
+ * structured observations and maps them into Revora's finite design vocabulary.
  */
-import type { CreativeBrief } from "@/lib/builder/first-build-contract";
+import {
+  BACKGROUND_SYSTEMS,
+  CARD_SYSTEMS,
+  COLOR_SYSTEMS,
+  CTA_SYSTEMS,
+  DESIGN_FAMILIES,
+  FOOTER_SYSTEMS,
+  GALLERY_LAYOUTS,
+  HERO_COMPOSITIONS,
+  IMAGE_TREATMENTS,
+  MOTION_PATTERNS,
+  NAV_SYSTEMS,
+  PAGE_SHELLS,
+  PROOF_LAYOUTS,
+  SECTION_COMPOSITIONS,
+  SECTION_TRANSITIONS,
+  STATS_LAYOUTS,
+  TIMELINE_LAYOUTS,
+  TYPE_SYSTEMS,
+  type DesignFingerprint,
+  blankDesignFingerprint,
+} from "@/lib/builder/design-fingerprint";
+import type { CreativeBrief } from "@/lib/builder/creative-brief";
 
 export type ScreenshotReferenceObservation = {
   layout?: unknown;
@@ -32,6 +53,7 @@ export type NormalizedScreenshotReferenceObservation = {
 export type ScreenshotReferenceBrief = {
   version: 1;
   applied: boolean;
+  fingerprint: DesignFingerprint;
   signals: {
     layout: string[];
     hierarchy: string[];
@@ -50,6 +72,33 @@ export type ScreenshotReferenceBrief = {
 };
 
 type SignalKey = keyof ScreenshotReferenceBrief["signals"];
+
+type Patch = Partial<
+  Pick<
+    DesignFingerprint,
+    | "family"
+    | "heroComposition"
+    | "backgroundSystem"
+    | "sectionRhythm"
+    | "navSystem"
+    | "ctaSystem"
+    | "cardSystem"
+    | "proofLayout"
+    | "galleryLayout"
+    | "statsLayout"
+    | "timelineLayout"
+    | "footerSystem"
+    | "decorativeSystem"
+    | "typeSystem"
+    | "colorSystem"
+    | "sectionTransition"
+    | "pageShell"
+    | "imageTreatment"
+    | "motionPattern"
+    | "motionLevel"
+    | "density"
+  >
+>;
 
 const SIGNAL_KEYS: SignalKey[] = [
   "layout",
@@ -83,6 +132,8 @@ const cleanSignal = (value: string, blocked: string[]): string | null => {
   return text.slice(0, 80);
 };
 
+const includes = (text: string, words: string[]) => words.some((word) => text.includes(word));
+
 function addSignal(
   signals: ScreenshotReferenceBrief["signals"],
   key: SignalKey,
@@ -90,6 +141,85 @@ function addSignal(
 ) {
   const list = signals[key];
   if (!list.includes(value)) list.push(value);
+}
+
+function pickReferencePatch(text: string): Patch {
+  const patch: Patch = {};
+
+  if (includes(text, ["split", "two column", "side by side"])) {
+    patch.heroComposition = "split-left";
+    patch.pageShell = "split-screen";
+    patch.sectionRhythm = "two-column";
+  } else if (includes(text, ["editorial", "magazine", "serif", "publication"])) {
+    patch.family = "luxury-editorial";
+    patch.heroComposition = "editorial-columns";
+    patch.pageShell = "magazine-columns";
+    patch.sectionRhythm = "alternating";
+  } else if (includes(text, ["bento", "grid", "tile", "dashboard"])) {
+    patch.heroComposition = "grid-inset";
+    patch.pageShell = "grid-shell";
+    patch.sectionRhythm = "feature-grid";
+    patch.cardSystem = "outlined";
+  } else if (includes(text, ["full bleed", "immersive", "cinematic", "poster"])) {
+    patch.family = "cinematic";
+    patch.heroComposition = "full-bleed-overlay";
+    patch.pageShell = "full-width";
+    patch.imageTreatment = "gradient-overlay";
+  } else if (includes(text, ["minimal", "quiet", "simple", "white space"])) {
+    patch.family = "premium-minimal";
+    patch.heroComposition = "quiet-minimal";
+    patch.backgroundSystem = "quiet-canvas";
+    patch.cardSystem = "minimal-rule";
+  }
+
+  if (includes(text, ["large headline", "oversized", "bold type", "statement"])) {
+    patch.heroComposition = patch.heroComposition ?? "wide-statement";
+    patch.typeSystem = "wide-display";
+  }
+  if (includes(text, ["condensed", "compressed type"])) patch.typeSystem = "condensed-impact";
+  else if (includes(text, ["mono", "technical", "code"])) patch.typeSystem = "technical-mono-accent";
+  else if (includes(text, ["serif", "editorial"])) patch.typeSystem = "editorial-serif";
+  else if (includes(text, ["geometric", "modern sans"])) patch.typeSystem = "geometric-sans";
+
+  if (includes(text, ["dark", "black", "charcoal"])) patch.colorSystem = "dark-ink";
+  if (includes(text, ["gold", "brass", "luxury"])) patch.colorSystem = "ivory-gold";
+  if (includes(text, ["teal", "aqua", "cyan"])) patch.colorSystem = "midnight-teal";
+  if (includes(text, ["lime", "green accent"])) patch.colorSystem = "graphite-lime";
+  if (includes(text, ["light", "white", "clean", "paper"])) patch.colorSystem = "light-neutral";
+
+  if (includes(text, ["airy", "spacious", "wide spacing", "breathing"])) patch.density = "airy";
+  else if (includes(text, ["compact", "dense", "tight"])) patch.density = "compact";
+
+  if (includes(text, ["pill", "rounded"])) {
+    patch.cardSystem = "pill";
+    patch.ctaSystem = "inline-pair";
+  } else if (includes(text, ["glass", "frosted", "translucent"])) {
+    patch.cardSystem = "glass";
+    patch.backgroundSystem = "glass-panels";
+  } else if (includes(text, ["sharp", "square", "hard edge"])) {
+    patch.cardSystem = "sharp";
+    patch.sectionTransition = "hard-edge";
+  }
+
+  if (includes(text, ["sticky", "floating nav", "fixed nav"])) patch.navSystem = "sticky-condensed";
+  if (includes(text, ["mobile bottom", "bottom bar"])) patch.ctaSystem = "sticky-bar";
+  if (includes(text, ["form", "lead", "quote"])) patch.ctaSystem = "split-form";
+
+  if (includes(text, ["fade"])) patch.motionPattern = "fade-in-sections";
+  else if (includes(text, ["parallax"])) patch.motionPattern = "soft-parallax";
+  else if (includes(text, ["hover", "lift"])) patch.motionPattern = "hover-lift";
+  if (includes(text, ["animation", "motion", "parallax", "hover"])) patch.motionLevel = "subtle";
+  if (includes(text, ["no animation", "static"])) {
+    patch.motionPattern = "none";
+    patch.motionLevel = "none";
+  }
+
+  if (includes(text, ["masonry", "collage"])) patch.galleryLayout = "masonry";
+  if (includes(text, ["testimonial", "quote"])) patch.proofLayout = "single-spotlight";
+  if (includes(text, ["timeline", "steps", "process"])) patch.timelineLayout = "numbered-steps";
+  if (includes(text, ["footer", "sitemap"])) patch.footerSystem = "sitemap-wide";
+
+  return patch;
 }
 
 function boundedObservations(
@@ -106,7 +236,7 @@ function boundedObservations(
   };
   const warnings: string[] = [];
   if (!observations || typeof observations !== "object" || Array.isArray(observations)) {
-    warnings.push("No structured screenshot observations were available, so nothing was passed to the design team.");
+    warnings.push("No structured screenshot observations were available, so the original design fingerprint was kept.");
     return { signals, warnings, text: "" };
   }
 
@@ -157,8 +287,108 @@ export function normalizeScreenshotReferenceObservations(
   return normal;
 }
 
-export function deriveScreenshotReferenceBrief(input: {
+function allowedPatch(patch: Patch): Patch {
+  const out: Patch = {};
+  const allow = <K extends keyof Patch>(key: K, pool: readonly string[]) => {
+    const value = patch[key];
+    if (typeof value === "string" && pool.includes(value)) out[key] = value as Patch[K];
+  };
+  allow("family", DESIGN_FAMILIES);
+  allow("heroComposition", HERO_COMPOSITIONS);
+  allow("backgroundSystem", BACKGROUND_SYSTEMS);
+  allow("sectionRhythm", SECTION_COMPOSITIONS);
+  allow("navSystem", NAV_SYSTEMS);
+  allow("ctaSystem", CTA_SYSTEMS);
+  allow("cardSystem", CARD_SYSTEMS);
+  allow("proofLayout", PROOF_LAYOUTS);
+  allow("galleryLayout", GALLERY_LAYOUTS);
+  allow("statsLayout", STATS_LAYOUTS);
+  allow("timelineLayout", TIMELINE_LAYOUTS);
+  allow("footerSystem", FOOTER_SYSTEMS);
+  allow("typeSystem", TYPE_SYSTEMS);
+  allow("colorSystem", COLOR_SYSTEMS);
+  allow("sectionTransition", SECTION_TRANSITIONS);
+  allow("pageShell", PAGE_SHELLS);
+  allow("imageTreatment", IMAGE_TREATMENTS);
+  allow("motionPattern", MOTION_PATTERNS);
+  if (patch.motionLevel === "none" || patch.motionLevel === "subtle" || patch.motionLevel === "expressive")
+    out.motionLevel = patch.motionLevel;
+  if (patch.density === "compact" || patch.density === "balanced" || patch.density === "airy")
+    out.density = patch.density;
+  return out;
+}
+
+export function alignCreativeBriefToFingerprint(
+  brief: CreativeBrief,
+  fingerprint: DesignFingerprint,
+): CreativeBrief {
+  return {
+    ...brief,
+
+    density: (fingerprint.density ?? "") as string,
+    heroComposition: fingerprint.heroComposition,
+    sectionRhythm: fingerprint.sectionRhythm ?? "",
+    cardLanguage: `${fingerprint.cardSystem} card system`,
+    ctaLanguage: `${fingerprint.ctaSystem} call-to-action system`,
+    backgroundTreatment: `${fingerprint.backgroundSystem} background system`,
+    color: { ...(brief.color as Record<string, unknown>), system: fingerprint.colorSystem } as any,
+    motion: {
+      ...(brief.motion as Record<string, unknown>),
+      level: fingerprint.motionLevel ?? "",
+      language: fingerprint.motionPattern === "none" ? "no entrance motion, hover depth only" : `${fingerprint.motionPattern} motion`,
+    },
+    imageInventory: (brief.imageInventory ?? []).map((item) => ({
+      ...item,
+      palette: fingerprint.colorSystem,
+      mood: fingerprint.family,
+      framing: `${item.aspectRatio} frame aligned to the ${fingerprint.heroComposition} composition`,
+    })),
+  };
+}
+
+
+/**
+ * Stores screenshot inspiration as neutral observations only. It deliberately
+ * does not synthesize a deterministic design fingerprint; the live AI builder
+ * can interpret these signals as context without surrendering creative authority.
+ */
+export function deriveScreenshotReferenceSignals(input: {
   observations: unknown;
+  businessName?: string | null;
+  blockedNames?: string[];
+}): Omit<ScreenshotReferenceBrief, "fingerprint"> & { fingerprint?: null } {
+  const blocked = [input.businessName ?? "", ...(input.blockedNames ?? [])]
+    .map((value) => value.trim().toLowerCase())
+    .filter(Boolean);
+  const { signals, warnings } = boundedObservations(input.observations, blocked);
+  const applied = Object.values(signals).some((list) => list.length > 0);
+  return {
+    version: 1,
+    applied,
+    fingerprint: null,
+    signals,
+    antiCloning: {
+      copiedTextAllowed: false,
+      copiedAssetsAllowed: false,
+      copiedBrandAllowed: false,
+      excluded: [
+        "logos",
+        "brand names",
+        "exact copy",
+        "exact colours",
+        "exact coordinates",
+        "watermarks",
+        "recognisable proprietary assets",
+        "business claims from the reference",
+      ],
+    },
+    warnings: warnings.slice(0, 8),
+  };
+}
+
+export function deriveScreenshotReferenceFingerprint(input: {
+  observations: unknown;
+  base: DesignFingerprint;
   businessName?: string | null;
   blockedNames?: string[];
 }): ScreenshotReferenceBrief {
@@ -166,11 +396,13 @@ export function deriveScreenshotReferenceBrief(input: {
     .map((value) => value.trim().toLowerCase())
     .filter(Boolean);
   const { signals, warnings, text } = boundedObservations(input.observations, blocked);
-  // No keyword → style mapping: the cleaned signals go to Sol as inspiration.
-  const applied = text.length > 0;
+  const patch = allowedPatch(pickReferencePatch(text));
+  const applied = Object.keys(patch).length > 0;
+  const fingerprint = applied ? { ...input.base, ...patch } : input.base;
   return {
     version: 1,
     applied,
+    fingerprint,
     signals,
     antiCloning: {
       copiedTextAllowed: false,
@@ -192,21 +424,103 @@ export function deriveScreenshotReferenceBrief(input: {
 }
 
 export function applyScreenshotReferenceToCreative<
-  T extends { brief: CreativeBrief; referenceSignals?: Record<string, string[]> | null },
+  T extends { brief: CreativeBrief; fingerprint?: DesignFingerprint | null; referenceSignals?: Record<string, string[]> | null },
 >(input: {
   creative: T;
   observations: unknown;
   businessName?: string | null;
   blockedNames?: string[];
-}): { creative: T; reference: ScreenshotReferenceBrief } {
-  const reference = deriveScreenshotReferenceBrief({
+}): { creative: T & { referenceSignals?: Record<string, string[]> | null }; reference: ScreenshotReferenceBrief } {
+  const baseFingerprint = (input.creative.fingerprint ?? blankDesignFingerprint()) as DesignFingerprint;
+  const reference = deriveScreenshotReferenceFingerprint({
     observations: input.observations,
+    base: baseFingerprint,
     ...(input.businessName === undefined ? {} : { businessName: input.businessName }),
     ...(input.blockedNames === undefined ? {} : { blockedNames: input.blockedNames }),
   });
   if (!reference.applied) return { creative: input.creative, reference };
+  const signals: Record<string, string[]> = {
+    layout: reference.signals.layout,
+    hierarchy: reference.signals.hierarchy,
+    typography: reference.signals.typography,
+    spacing: reference.signals.spacing,
+    color: reference.signals.color,
+    interactions: reference.signals.interactions,
+  };
   return {
-    creative: { ...input.creative, referenceSignals: reference.signals } as T,
+    creative: {
+      ...input.creative,
+      fingerprint: reference.fingerprint,
+      brief: alignCreativeBriefToFingerprint(input.creative.brief, reference.fingerprint),
+      referenceSignals: signals,
+    } as T & { referenceSignals?: Record<string, string[]> | null },
     reference,
+  };
+}
+
+
+/**
+ * Derives a screenshot reference brief from raw observations.
+ * This is the top-level entry point that normalizes observations into signals,
+ * applies anti-cloning rules, and returns a brief the AI team can use.
+ */
+export function deriveScreenshotReferenceBrief(input: {
+  observations: unknown;
+  businessName?: string | null;
+  blockedNames?: string[];
+}): ScreenshotReferenceBrief {
+  const normalized = normalizeScreenshotReferenceObservations(input.observations);
+  const hasStructured = Object.values(normalized).some((values) => values.length > 0);
+  if (!hasStructured) {
+    return {
+      version: 1,
+      applied: false,
+      fingerprint: blankDesignFingerprint() as DesignFingerprint,
+      signals: { layout: [], hierarchy: [], typography: [], spacing: [], color: [], interactions: [] },
+      antiCloning: {
+        copiedTextAllowed: false,
+        copiedAssetsAllowed: false,
+        copiedBrandAllowed: false,
+        excluded: [],
+      },
+      warnings: ["No structured observations were provided, so no reference was applied."],
+    };
+  }
+  const blocked = new Set<string>();
+  if (input.businessName) blocked.add(input.businessName.toLowerCase());
+  const excluded: string[] = [];
+  const sanitize = (values: string[]) =>
+    values.filter((value) => {
+      const lower = value.toLowerCase();
+      if (input.businessName && lower.includes(input.businessName.toLowerCase())) {
+        excluded.push(value);
+        return false;
+      }
+      if (/#[0-9a-f]{6}|https?:\/\//i.test(value)) {
+        excluded.push(value);
+        return false;
+      }
+      return true;
+    });
+  const signals = {
+    layout: sanitize(normalized.layout).slice(0, 6),
+    hierarchy: sanitize(normalized.hierarchy).slice(0, 6),
+    typography: sanitize(normalized.typography).slice(0, 6),
+    spacing: sanitize(normalized.spacing).slice(0, 6),
+    color: sanitize(normalized.color).slice(0, 6),
+    interactions: sanitize(normalized.interactions).slice(0, 6),
+  };
+  return {
+    version: 1,
+    applied: true,
+    fingerprint: blankDesignFingerprint() as DesignFingerprint,
+    signals,
+    antiCloning: {
+      copiedTextAllowed: false,
+      copiedAssetsAllowed: false,
+      copiedBrandAllowed: false,
+      excluded,
+    },
+    warnings: excluded.length > 0 ? [`Removed ${excluded.length} item(s) containing brand names, exact colours, or URLs.`] : [],
   };
 }

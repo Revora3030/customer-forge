@@ -23,7 +23,6 @@
 import type * as React from "react";
 import { readableOn } from "@/lib/readable-color";
 import { safeLinkUrl } from "@/lib/website-content";
-import { normalizeAspect } from "@/lib/builder/composition-tree";
 
 /* ------------------------------- device tiers ------------------------------ */
 
@@ -47,15 +46,10 @@ export const DEVICE_META: Record<
  * to these: any real family name is accepted too (see `safeFontFamily`), and
  * these slots simply follow whatever typefaces the site's identity chose.
  */
-/*
- * The step lists below are the owner's picker buttons in the builder panel
- * only. AI-authored values are NOT snapped to them: readLayer accepts any
- * number inside a wide safety range, exactly as the AI wrote it.
- */
 export const FONT_FAMILIES = ["display", "body", "serif", "mono"] as const;
 export const FONT_WEIGHTS = [100, 200, 300, 400, 500, 600, 700, 800, 900] as const;
 export const ALIGNMENTS = ["left", "center", "right"] as const;
-export const TEXT_TRANSFORMS = ["none", "uppercase", "capitalize", "lowercase"] as const;
+export const TEXT_TRANSFORMS = ["none", "uppercase", "capitalize"] as const;
 export const TEXT_SIZES = [10, 12, 14, 16, 18, 20, 24, 28, 32, 40, 48, 56, 64, 72, 80, 96, 120, 144, 160] as const;
 export const LINE_HEIGHTS = [1, 1.15, 1.3, 1.5, 1.7, 2] as const;
 export const LETTER_SPACINGS = [-0.03, -0.01, 0, 0.02, 0.06, 0.12] as const;
@@ -71,7 +65,7 @@ export const BORDER_WIDTHS = [0, 1, 2, 3, 4, 6, 8, 12] as const;
 export const SHADOWS = ["none", "subtle", "medium", "strong"] as const;
 export const OPACITIES = [100, 90, 80, 70, 60, 50, 40, 30] as const;
 export const OVERLAYS = [0, 10, 20, 30, 40, 50, 60, 70, 80] as const;
-export const OBJECT_FITS = ["cover", "contain", "fill", "scale-down", "none"] as const;
+export const OBJECT_FITS = ["cover", "contain", "fill"] as const;
 export const BUTTON_STYLES = ["solid", "outline", "ghost", "link"] as const;
 export const BUTTON_SIZES = ["sm", "md", "lg"] as const;
 
@@ -593,30 +587,213 @@ export function clearDeviceLayer(settings: unknown, device: Device): Record<stri
 }
 
 
-/* -------------------------- persisted media metadata ------------------------- */
+/* -------------------------- persisted visual tokens ------------------------- */
+
+/**
+ * Section-level composition is stored separately from free-form block styling.
+ * Keeping it in a finite vocabulary lets the AI make expressive layouts while
+ * guaranteeing the public renderer has a consumer for every value.
+ */
+export type PersistedSectionVisual = {
+  layout?: "split" | "centered" | "image_left" | "image_right" | "full_bleed" | "editorial" | "layered" | "stacked";
+  density?: "airy" | "balanced" | "dense";
+  image_position?: "left" | "right" | "center" | "background";
+  image_treatment?: "natural" | "rounded" | "soft_shadow" | "glass_frame" | "duotone" | "gradient_overlay" | "cinematic" | "cutout" | "full_bleed";
+  spacing?: "tight" | "standard" | "generous";
+  max_width?: "narrow" | "standard" | "wide" | "edge";
+  card_style?: "soft" | "sharp" | "pill" | "glass" | "editorial" | "floating";
+  image_ratio?: "1:1" | "4:3" | "3:2" | "16:9" | "21:9";
+};
+
+const SECTION_VISUAL_VALUES = {
+  layout: new Set(["split", "centered", "image_left", "image_right", "full_bleed", "editorial", "layered", "stacked"]),
+  density: new Set(["airy", "balanced", "dense"]),
+  image_position: new Set(["left", "right", "center", "background"]),
+  image_treatment: new Set(["natural", "rounded", "soft_shadow", "glass_frame", "duotone", "gradient_overlay", "cinematic", "cutout", "full_bleed"]),
+  spacing: new Set(["tight", "standard", "generous"]),
+  max_width: new Set(["narrow", "standard", "wide", "edge"]),
+  card_style: new Set(["soft", "sharp", "pill", "glass", "editorial", "floating"]),
+  image_ratio: new Set(["1:1", "4:3", "3:2", "16:9", "21:9"]),
+} as const;
+
+const VISUAL_KEYS = [
+  "layout",
+  "density",
+  "image_position",
+  "image_treatment",
+  "spacing",
+  "max_width",
+  "card_style",
+  "image_ratio",
+] as const;
+
+const UNSAFE_AI_CSS_PROPERTIES = new Set([
+  "cssText",
+  "style",
+  "content",
+  "behavior",
+  "-moz-binding",
+  "binding",
+  "animation",
+  "transition",
+]);
+
+function safeAiCssProperty(rawKey: string): string | null {
+  const key = rawKey.trim();
+  if (!key || key.length > 80 || UNSAFE_AI_CSS_PROPERTIES.has(key.toLowerCase())) return null;
+  if (!/^[a-zA-Z][a-zA-Z0-9_-]*$/.test(key) && !/^--[a-zA-Z0-9_-]+$/.test(key)) return null;
+  return key;
+}
+
+function safeAiCssValue(value: unknown): string | number | null {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  if (!trimmed || trimmed.length > 500) return null;
+  if (/[<>;{}]|javascript:|expression\s*\(|url\s*\(\s*data:/i.test(trimmed)) return null;
+  return trimmed;
+}
+
+export function writeAiAuthoredVisual(
+  settings: unknown,
+  visual: Record<string, unknown>,
+): Record<string, unknown> {
+  const base =
+    settings && typeof settings === "object" && !Array.isArray(settings)
+      ? { ...(settings as Record<string, unknown>) }
+      : {};
+  const existing =
+    base["ai_visual"] && typeof base["ai_visual"] === "object" && !Array.isArray(base["ai_visual"])
+      ? { ...(base["ai_visual"] as Record<string, unknown>) }
+      : {};
+  const safe = aiAuthoredCss({ ai_visual: { ...existing, ...visual } }) as Record<string, unknown>;
+  base["ai_visual"] = safe;
+  return base;
+}
+
+export function writeAiResponsiveVisual(
+  settings: unknown,
+  width: number,
+  visual: Record<string, unknown>,
+): Record<string, unknown> {
+  const base =
+    settings && typeof settings === "object" && !Array.isArray(settings)
+      ? { ...(settings as Record<string, unknown>) }
+      : {};
+  const existing =
+    base["ai_responsive"] && typeof base["ai_responsive"] === "object" && !Array.isArray(base["ai_responsive"])
+      ? { ...(base["ai_responsive"] as Record<string, unknown>) }
+      : {};
+  const previous =
+    existing[String(width)] && typeof existing[String(width)] === "object" && !Array.isArray(existing[String(width)])
+      ? existing[String(width)] as Record<string, unknown>
+      : {};
+  const previousVisual =
+    previous["visual"] && typeof previous["visual"] === "object" && !Array.isArray(previous["visual"])
+      ? previous["visual"] as Record<string, unknown>
+      : {};
+  const safe = aiAuthoredCss({ ai_visual: { ...previousVisual, ...visual } }) as Record<string, unknown>;
+  existing[String(width)] = { ...previous, visual: safe };
+  base["ai_responsive"] = existing;
+  return base;
+}
+
+/** Reads open-ended AI visual capabilities without converting them into a preset vocabulary. */
+export function aiAuthoredCss(settings: unknown): React.CSSProperties {
+  if (!settings || typeof settings !== "object" || Array.isArray(settings)) return {};
+  const raw = (settings as Record<string, unknown>)["ai_visual"];
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+  const out: Record<string, string | number> = {};
+  for (const [rawKey, rawValue] of Object.entries(raw as Record<string, unknown>)) {
+    const key = safeAiCssProperty(rawKey);
+    if (!key) continue;
+    const value = safeAiCssValue(rawValue);
+    if (value !== null) out[key] = value;
+  }
+  return out as React.CSSProperties;
+}
+
+/**
+ * Converts AI-authored responsive capability data into safe media-query CSS.
+ * Unknown properties are ignored rather than replaced with a canned layout.
+ */
+export function aiAuthoredResponsiveCss(settings: unknown, selector: string): string {
+  if (!settings || typeof settings !== "object" || Array.isArray(settings)) return "";
+  const raw = (settings as Record<string, unknown>)["ai_responsive"];
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return "";
+  const rules: string[] = [];
+  for (const [width, state] of Object.entries(raw as Record<string, unknown>)) {
+    if (!/^\d{3,4}$/.test(width) || !state || typeof state !== "object" || Array.isArray(state)) continue;
+    const visual = (state as Record<string, unknown>)["visual"];
+    if (!visual || typeof visual !== "object" || Array.isArray(visual)) continue;
+    const declarations: string[] = [];
+    for (const [rawKey, rawValue] of Object.entries(visual as Record<string, unknown>)) {
+      const key = safeAiCssProperty(rawKey);
+      if (!key) continue;
+      const value = safeAiCssValue(rawValue);
+      if (value === null) continue;
+      const cssKey = key.replace(/[A-Z]/g, (letter) => "-" + letter.toLowerCase());
+      declarations.push(`${cssKey}:${String(value)}`);
+    }
+    if (declarations.length)
+      rules.push(`@media (max-width:${width}px){${selector}{${declarations.join(";")}}}`);
+  }
+  return rules.join("");
+}
+
+export function readSectionVisual(settings: unknown): PersistedSectionVisual {
+  if (!settings || typeof settings !== "object" || Array.isArray(settings)) return {};
+  const raw = (settings as Record<string, unknown>)["visual"];
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+  const out: Record<string, string> = {};
+  for (const key of VISUAL_KEYS) {
+    const value = (raw as Record<string, unknown>)[key];
+    if (
+      typeof value === "string" &&
+      value.length <= 32 &&
+      SECTION_VISUAL_VALUES[key].has(value as never)
+    ) {
+      out[key] = value;
+    }
+  }
+  return out as PersistedSectionVisual;
+}
+
+export function writeSectionVisual(
+  settings: unknown,
+  patch: PersistedSectionVisual,
+): Record<string, unknown> {
+  const base =
+    settings && typeof settings === "object" && !Array.isArray(settings)
+      ? { ...(settings as Record<string, unknown>) }
+      : {};
+  const current = readSectionVisual(settings);
+  const next: Record<string, string> = { ...current };
+  for (const key of VISUAL_KEYS) {
+    const value = patch[key];
+    if (typeof value === "string" && value.length <= 32) next[key] = value;
+  }
+  base["visual"] = next;
+  return base;
+}
 
 export type PersistedComponentVisual = {
   alt?: string;
-  object_fit?: "cover" | "contain" | "fill" | "scale-down" | "none";
+  object_fit?: "cover" | "contain";
   object_position?: string;
-  /** Exact opacity/depth/radius authored by AI, bounded for safe rendering. */
-  overlay?: number;
-  radius?: number;
-  shadow?: number;
-  aspect_ratio?: string;
+  overlay?: "none" | "soft" | "dark" | "brand" | "gradient";
+  radius?: "none" | "small" | "medium" | "large" | "pill";
+  shadow?: "none" | "soft" | "medium" | "strong";
+  aspect_ratio?: "1:1" | "4:3" | "3:2" | "16:9" | "21:9";
   focal_point?: string;
-  /**
-   * What the stored media actually is. A "video" plays silently on a loop in
-   * the same frame a picture would fill; anything else renders as a picture.
-   */
-  media_kind?: "image" | "video";
   /** Where the picture came from, so credits and licences stay honest. */
   source?: "customer" | "stock" | "generated" | "unknown";
   credit?: string;
   license?: string;
   source_url?: string;
+  /** Whether this visual is a video or image, for media rendering. */
+  media_kind?: "image" | "video";
 };
-
 
 /** The nine focal points an owner can choose, as CSS object-position values. */
 export const FOCAL_POINTS = [
@@ -638,24 +815,26 @@ export function readComponentVisual(settings: unknown): PersistedComponentVisual
   const value = raw as Record<string, unknown>;
   const out: PersistedComponentVisual = {};
   if (typeof value["alt"] === "string") out.alt = value["alt"].slice(0, 160);
-  if (typeof value["object_fit"] === "string" && OBJECT_FITS.includes(value["object_fit"] as never))
-    out.object_fit = value["object_fit"] as NonNullable<PersistedComponentVisual["object_fit"]>;
-  if (typeof value["object_position"] === "string" && /^((left|center|right|top|bottom)(\s+(left|center|right|top|bottom))?|\d{1,3}(?:\.\d+)?%\s+\d{1,3}(?:\.\d+)?%)$/i.test(value["object_position"]))
-    out.object_position = value["object_position"].slice(0, 40);
-  const overlay = boundedNumber(value["overlay"], 0, 100);
-  if (overlay !== null) out.overlay = overlay;
-  const radius = boundedNumber(value["radius"], 0, 9999);
-  if (radius !== null) out.radius = radius;
-  const shadow = boundedNumber(value["shadow"], 0, 200);
-  if (shadow !== null) out.shadow = shadow;
-  const aspectRatio = normalizeAspect(value["aspect_ratio"]);
-  if (aspectRatio) out.aspect_ratio = aspectRatio;
-  if (typeof value["focal_point"] === "string" && /^\d{1,3}(?:\.\d+)?%?\s+\d{1,3}(?:\.\d+)?%?$/.test(value["focal_point"]))
-    out.focal_point = value["focal_point"].slice(0, 40);
-  if (value["media_kind"] === "video" || value["media_kind"] === "image")
-    out.media_kind = value["media_kind"];
+  if (value["object_fit"] === "cover" || value["object_fit"] === "contain") out.object_fit = value["object_fit"];
+  if (typeof value["object_position"] === "string") out.object_position = value["object_position"];
+  const overlay = value["overlay"];
+  if (overlay === "none" || overlay === "soft" || overlay === "dark" || overlay === "brand" || overlay === "gradient") {
+    out.overlay = overlay;
+  }
+  const radius = value["radius"];
+  if (radius === "none" || radius === "small" || radius === "medium" || radius === "large" || radius === "pill") {
+    out.radius = radius;
+  }
+  const shadow = value["shadow"];
+  if (shadow === "none" || shadow === "soft" || shadow === "medium" || shadow === "strong") {
+    out.shadow = shadow;
+  }
+  const aspectRatio = value["aspect_ratio"];
+  if (aspectRatio === "1:1" || aspectRatio === "4:3" || aspectRatio === "3:2" || aspectRatio === "16:9" || aspectRatio === "21:9") {
+    out.aspect_ratio = aspectRatio;
+  }
+  if (typeof value["focal_point"] === "string") out.focal_point = value["focal_point"];
   const source = value["source"];
-
   if (source === "customer" || source === "stock" || source === "generated" || source === "unknown") {
     out.source = source;
   }
@@ -673,7 +852,7 @@ export function writeComponentVisual(
     settings && typeof settings === "object" && !Array.isArray(settings)
       ? { ...(settings as Record<string, unknown>) }
       : {};
-  base["visual"] = readComponentVisual({ visual: { ...readComponentVisual(settings), ...patch } });
+  base["visual"] = { ...readComponentVisual(settings), ...patch };
   return base;
 }
 

@@ -1,10 +1,9 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { GoogleListingImport } from "@/components/onboarding/GoogleListingImport";
-import { OwnerPhotoUpload } from "@/components/onboarding/OwnerPhotoUpload";
 import { toast } from "@/lib/ui/notify";
 import { ArrowLeft, ArrowRight, Loader2, Plus, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { seedQuoteCalculator } from "@/lib/quote-seed";
 import { newTrialEndsAt } from "@/lib/trial";
 import { assertNoError, supabaseErrorMessage } from "@/lib/supabase-error";
 
@@ -20,8 +19,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 import { useStepScroll } from "@/lib/use-step-scroll";
 import { useServerFn } from "@tanstack/react-start";
-import { analyzeSiteBrief, runSiteGeneration, saveSiteBrief } from "@/lib/site-engine.functions";
-import { clearStarter, readStarter } from "@/components/marketing/HeroStarter";
+import { runSiteGeneration } from "@/lib/site-engine.functions";
 
 import {
   WEBSITE_GOALS,
@@ -77,27 +75,13 @@ type Draft = {
 
 const STEPS = ["Business", "Services", "Brand", "Contact", "Proof", "Goals"] as const;
 
-const STORED_GOAL: Partial<
-  Record<GoalKey, "calls" | "quotes" | "bookings" | "consultations" | "purchases">
-> = {
-  call: "calls",
-  quote: "quotes",
-  book: "bookings",
-  consult: "consultations",
-  purchase: "purchases",
-};
-
 const emptyService = (): ServiceDraft => ({ name: "", description: "", price: "" });
 
 function Onboarding() {
   const navigate = useNavigate();
   const { data: ws } = useWorkspace();
   const queryClient = useQueryClient();
-  // The last onboarding step promises Revora assembles the website, so it must
-  // really run the build pipeline: analyse the business, approve that brief,
-  // then queue the generation job the builder then reports progress for.
-  const analyzeBrief = useServerFn(analyzeSiteBrief);
-  const approveBrief = useServerFn(saveSiteBrief);
+  // The final onboarding step queues the canonical Sol → Terra website build.
   const queueBuild = useServerFn(runSiteGeneration);
 
   const [step, setStep] = useState(0);
@@ -112,8 +96,8 @@ function Onboarding() {
     serviceArea: "",
     about: "",
     services: [emptyService()],
-    primaryColor: "",
-    accentColor: "",
+    primaryColor: "#0B0B0C",
+    accentColor: "#C9A227",
     logoUrl: "",
     heroImageUrl: "",
     phone: "",
@@ -128,20 +112,8 @@ function Onboarding() {
     certifications: "",
     awards: "",
     testimonials: [],
-    goals: [],
+    goals: ["quote"],
   });
-
-  // Words typed on the homepage starter fill empty fields only, then are cleared.
-  useEffect(() => {
-    const starter = readStarter();
-    if (!starter) return;
-    setDraft((prev) => ({
-      ...prev,
-      businessName: prev.businessName.trim() ? prev.businessName : starter.businessName,
-      about: prev.about.trim() ? prev.about : starter.about,
-    }));
-    clearStarter();
-  }, []);
 
   // Signup answers are saved to the user's account, so signing out (or losing
   // the tab) never loses progress — they sign back in and resume where they were.
@@ -188,7 +160,7 @@ function Onboarding() {
         supabase
           .from("business_profiles")
           .select(
-            "phone, email, address, city, state, service_area, description, hours, website, logo_url, hero_image_url, primary_color, accent_color, years_in_business, certifications, awards, website_goals",
+            "phone, email, address, city, state, service_area, description, hours, website, logo_url, hero_image_url, primary_color, accent_color, years_in_business, certifications, awards",
           )
           .eq("organization_id", orgId)
           .maybeSingle(),
@@ -228,8 +200,8 @@ function Onboarding() {
           ...prev,
           businessName: keep(prev.businessName, text(org?.name)),
           industry:
-            prev.industry === INDUSTRIES[0]!.name && text(org?.industry).trim()
-              ? knownIndustry?.name ?? text(org?.industry).trim()
+            prev.industry === INDUSTRIES[0]!.name && knownIndustry
+              ? knownIndustry.name
               : prev.industry,
           city: keep(prev.city, text(profile?.["city"])),
           state: keep(prev.state, text(profile?.["state"])),
@@ -253,13 +225,6 @@ function Onboarding() {
           instagram: keep(prev.instagram, text(social?.instagram)),
           facebook: keep(prev.facebook, text(social?.facebook)),
           google: keep(prev.google, text(social?.google_business)),
-          goals:
-            prev.goals.length || !Array.isArray(profile?.["website_goals"])
-              ? prev.goals
-              : (profile["website_goals"] as unknown[]).filter(
-                  (goal): goal is GoalKey =>
-                    typeof goal === "string" && WEBSITE_GOALS.some((option) => option.value === goal),
-                ),
           services:
             prev.services.some((s) => s.name.trim()) || !savedServices.length
               ? prev.services
@@ -325,14 +290,18 @@ function Onboarding() {
 
       const services = draft.services.filter((s) => s.name.trim());
       const testimonials = draft.testimonials.filter((t) => t.text.trim());
-      const goals: GoalKey[] = draft.goals;
-      if (!goals.length) throw new Error("Choose at least one website goal before Revora builds your site.");
+      const goals: GoalKey[] = draft.goals.length ? draft.goals : ["quote"];
 
       const legacyGoal =
-        goals
-          .map((goal) => STORED_GOAL[goal])
-          .find((goal): goal is NonNullable<(typeof STORED_GOAL)[GoalKey]> => Boolean(goal)) ??
-        null;
+        goals[0] === "book"
+          ? "bookings"
+          : goals[0] === "call"
+            ? "calls"
+            : goals[0] === "consult"
+              ? "consultations"
+              : goals[0] === "purchase"
+                ? "purchases"
+                : "quotes";
 
       const orgFields = {
         name: draft.businessName.trim(),
@@ -403,8 +372,8 @@ function Onboarding() {
           website: draft.website || null,
           logo_url: draft.logoUrl || null,
           hero_image_url: draft.heroImageUrl || null,
-          primary_color: draft.primaryColor || null,
-          accent_color: draft.accentColor || null,
+          primary_color: draft.primaryColor,
+          accent_color: draft.accentColor,
           years_in_business: draft.yearsInBusiness ? Number(draft.yearsInBusiness) : null,
           certifications: draft.certifications || null,
           awards: draft.awards || null,
@@ -446,15 +415,31 @@ function Onboarding() {
         assertNoError(servicesError, "Could not save your services");
       }
 
+      // Give the workspace a working quote calculator so the public site's
+      // primary "Get my quote" CTA has a real destination from day one.
+      // A calculator hiccup must never block the build — log and continue.
+      try {
+        await seedQuoteCalculator(
+          supabase,
+          org.id,
+          services.map((s) => s.name.trim()),
+        );
+      } catch (seedError) {
+        console.error("[onboarding] quote calculator seed failed", supabaseErrorMessage(seedError));
+      }
+
+      // Never write a deterministic website plan during onboarding. Save only
+      // factual workspace state and let the canonical Sol → Terra build own every
+      // page, section, copy, visual and responsive decision.
       const { error: settingsError } = await supabase.from("website_settings").upsert(
         {
           organization_id: org.id,
           template: "ai-authored",
           publish_state: "preview",
-          review_state: "generating",
-          generation: {} as never,
-          generated_at: null,
-          seo: {} as never,
+          generation: {
+            source: "canonical-ai",
+            businessName: draft.businessName,
+          },
         } as never,
         { onConflict: "organization_id" },
       );
@@ -462,35 +447,27 @@ function Onboarding() {
 
       await supabase.from("onboarding_drafts").delete().eq("user_id", user.id);
 
-      // Actually build the website the button promises. Each stage is real:
-      // the brief is analysed from the owner's own answers, approved on their
-      // behalf (they review and can rebuild in the builder), then the build is
-      // queued. The builder polls the job and shows live progress.
+      // Actually start the canonical AI build the button promises. The worker
+      // reads the saved workspace facts and requires a complete Sol → Terra
+      // contract before writing any site pages.
       let queued = false;
       try {
-        // Mobile connections drop long requests ("Load failed"); retry each step.
-        const retry = async <T,>(fn: () => Promise<T>): Promise<T> => {
-          let last: unknown;
-          for (let i = 0; i < 3; i++) {
-            try {
-              return await fn();
-            } catch (e) {
-              last = e;
-              await new Promise((r) => setTimeout(r, 1500 * (i + 1)));
-            }
-          }
-          throw last;
-        };
-        const analysis = await retry(() => analyzeBrief({ data: { organizationId: org.id } }));
-        await retry(() =>
-          approveBrief({ data: { organizationId: org.id, brief: analysis.brief, approved: true } }),
-        );
-        await retry(() => queueBuild({ data: { organizationId: org.id } }));
+        await queueBuild({ data: { organizationId: org.id, mode: "safe" } });
         queued = true;
       } catch (buildError) {
-        // Never trap the owner in onboarding: their answers are saved, and the
-        // builder's own Build button lets them start the build with one click.
+        // Never leave a phantom queued state behind when no generation job exists.
+        // The workspace remains retryable through the normal Build action.
         console.error("[onboarding] build queue failed", supabaseErrorMessage(buildError));
+        await supabase
+          .from("website_settings")
+          .update({
+            generation: {
+              source: "canonical-ai",
+              businessName: draft.businessName,
+              builderState: "ready",
+            },
+          } as never)
+          .eq("organization_id", org.id);
       }
 
       await queryClient.invalidateQueries();
@@ -527,12 +504,7 @@ function Onboarding() {
     step === 0
       ? draft.businessName.trim().length > 1 && draft.city.trim().length > 1
       : step === 1
-        ? draft.services.some((s) => s.name.trim().length >= 2) &&
-          draft.services.every(
-            (s) =>
-              !s.name.trim() ||
-              (s.name.trim().length >= 2 && (!String(s.price ?? "").trim() || Number(s.price) >= 0)),
-          )
+        ? draft.services.some((s) => s.name.trim().length > 1)
         : step === 3
           ? draft.phone.trim().length > 5 || draft.email.trim().length > 4
           : step === 5
@@ -607,19 +579,18 @@ function Onboarding() {
               <div className="grid gap-4 sm:grid-cols-3">
                 <div className="space-y-1.5 sm:col-span-1">
                   <Label htmlFor="o-industry">Industry</Label>
-                  <Input
+                  <select
                     id="o-industry"
-                    list="o-industry-suggestions"
                     value={draft.industry}
                     onChange={(e) => set("industry", e.target.value)}
-                    placeholder="Any industry — type your own"
-                    autoComplete="off"
-                  />
-                  <datalist id="o-industry-suggestions">
+                    className="h-10 w-full cursor-pointer rounded-md border border-input bg-background px-3 text-sm"
+                  >
                     {INDUSTRIES.map((i) => (
-                      <option key={i.name} value={i.name} />
+                      <option key={i.name} value={i.name}>
+                        {i.name}
+                      </option>
                     ))}
-                  </datalist>
+                  </select>
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="o-city">City</Label>
@@ -758,11 +729,11 @@ function Onboarding() {
               <div>
                 <h1 className="font-display text-[20px] font-semibold">Brand and visuals</h1>
                 <p className="mt-1.5 text-[13px] text-muted-foreground">
-                  Optional. Upload your own photos or paste links — your photos always go on your site first.
+                  Optional. Paste image links you already own — we never use stock claims about your
+                  work.
                 </p>
               </div>
               <div className="grid gap-4 sm:grid-cols-2">
-                <OwnerPhotoUpload organizationId={ws?.workspace?.organizationId} />
                 <div className="space-y-1.5">
                   <Label htmlFor="o-logo">Logo URL</Label>
                   <Input
@@ -782,11 +753,11 @@ function Onboarding() {
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="o-primary">Primary colour (optional, the AI picks if left)</Label>
+                  <Label htmlFor="o-primary">Primary colour</Label>
                   <Input
                     id="o-primary"
                     type="color"
-                    value={draft.primaryColor || "#000000"}
+                    value={draft.primaryColor}
                     onChange={(e) => set("primaryColor", e.target.value)}
                     className="h-10 p-1"
                   />
@@ -796,7 +767,7 @@ function Onboarding() {
                   <Input
                     id="o-accent"
                     type="color"
-                    value={draft.accentColor || "#000000"}
+                    value={draft.accentColor}
                     onChange={(e) => set("accentColor", e.target.value)}
                     className="h-10 p-1"
                   />
@@ -815,14 +786,6 @@ function Onboarding() {
                   These details power your call, text, email and form buttons.
                 </p>
               </div>
-              <GoogleListingImport
-                query={[draft.businessName, draft.city].filter(Boolean).join(" ")}
-                onUse={(l) => {
-                  if (l.phone) set("phone", l.phone);
-                  if (l.address) set("address", l.address);
-                  if (l.website) set("website", l.website);
-                }}
-              />
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-1.5">
                   <Label htmlFor="o-phone">Business phone</Label>
@@ -1014,6 +977,7 @@ function Onboarding() {
                       aria-pressed={active}
                     >
                       <p className="text-[14px] font-medium">{goal.label}</p>
+                      <p className="mt-1 text-[12px] text-muted-foreground">Button: {goal.label}</p>
                     </button>
                   );
                 })}
@@ -1026,11 +990,6 @@ function Onboarding() {
           ) : null}
 
           {error ? <div className="mt-5">{<ErrorNote message={error} />}</div> : null}
-          {step === 1 && !canContinue ? (
-            <p className="mt-4 text-sm text-muted-foreground">
-              Add at least one service name (for example "Full interior detail"). Price is optional. Your AI team builds your site from these.
-            </p>
-          ) : null}
 
           <div className="mt-7 flex items-center justify-between">
             <Button

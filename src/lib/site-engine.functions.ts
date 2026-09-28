@@ -24,7 +24,7 @@ export type RunResult = {
 
 export const runSiteGeneration = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .validator((input: { organizationId: string; mode?: RunMode; confirmation?: string }) => {
+  .inputValidator((input: { organizationId: string; mode?: RunMode; confirmation?: string }) => {
     const organizationId = String(input?.organizationId ?? "");
     if (!/^[0-9a-f-]{36}$/i.test(organizationId)) throw new Error("Invalid workspace");
     const mode: RunMode = input?.mode === "fresh_replace" ? "fresh_replace" : "safe";
@@ -40,22 +40,14 @@ export const runSiteGeneration = createServerFn({ method: "POST" })
       await assertOrgEntitled(supabase, orgId);
     }
 
-    // Generation is gated on real readiness: the blanks Revora asked about must
-    // be filled, and the owner must have approved the brief the build reads from.
+    // Generation is gated on real factual readiness only. The canonical builder
+    // reads the saved workspace facts directly and does not consume a deterministic
+    // brief as a source of page, copy, or layout authority.
     {
-      const { readBrief } = await import("@/lib/site-brief");
       const { requiredFactGaps } = await import("@/lib/launch-qa");
       const { gatherBriefFacts } = await import("@/lib/site-brief.server");
 
-      const settings = await supabase
-        .from("website_settings")
-        .select("generation")
-        .eq("organization_id", orgId)
-        .maybeSingle();
-      const brief = readBrief(
-        (settings.data?.generation as Record<string, unknown> | null)?.["brief"],
-      );
-      const facts = await gatherBriefFacts(supabase, orgId, brief?.missingFacts ?? []);
+      const facts = await gatherBriefFacts(supabase, orgId, []);
       const missing = requiredFactGaps(facts.factInput);
       if (missing.length)
         throw new Error(
@@ -198,7 +190,7 @@ async function kickWorker(origin: string) {
  */
 export const pumpSiteEngineQueue = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .validator((input: { organizationId: string }) => {
+  .inputValidator((input: { organizationId: string }) => {
     const organizationId = String(input?.organizationId ?? "");
     if (!/^[0-9a-f-]{36}$/i.test(organizationId)) throw new Error("Invalid workspace");
     return { organizationId };
@@ -225,7 +217,7 @@ export const pumpSiteEngineQueue = createServerFn({ method: "POST" })
 /** AI edit assistant: rewrites only the requested fields. */
 export const aiEditSiteCopy = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .validator(
+  .inputValidator(
     (input: { organizationId: string; instruction: string; fields: Record<string, string> }) => {
       const organizationId = String(input?.organizationId ?? "");
       if (!/^[0-9a-f-]{36}$/i.test(organizationId)) throw new Error("Invalid workspace");
@@ -282,7 +274,7 @@ export const aiEditSiteCopy = createServerFn({ method: "POST" })
         hasHours: Boolean(p["hours"] && Object.keys(p["hours"] as object).length),
         style: (p["font_preference"] as string) ?? null,
         goals: ((p["website_goals"] as string[]) ?? []).slice(0, 6),
-        ctaLabel: "",
+        ctaLabel: "Get in touch",
         services: services.data ?? [],
       },
       data.fields,
@@ -299,6 +291,101 @@ export const aiEditSiteCopy = createServerFn({ method: "POST" })
     });
 
     return result;
+  });
+
+/** AI section assistant: proposes edits; the client confirms before anything is written. */
+export const aiEditSiteSections = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { organizationId: string; instruction: string }) => {
+    const organizationId = String(input?.organizationId ?? "");
+    if (!/^[0-9a-f-]{36}$/i.test(organizationId)) throw new Error("Invalid workspace");
+    const instruction = String(input?.instruction ?? "")
+      .trim()
+      .slice(0, 400);
+    if (instruction.length < 4) throw new Error("Tell Revora what to change.");
+    return { organizationId, instruction };
+  })
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    const orgId = data.organizationId;
+    // Server-side paywall: the UI gate is cosmetic, this is authoritative.
+    {
+      const { assertOrgEntitled } = await import("@/lib/entitlement.server");
+      await assertOrgEntitled(supabase, orgId);
+    }
+    const { proposeSectionEdits, COPY_ROLE } = await import("@/lib/site-engine.server");
+
+    const [org, profile, services, sections] = await Promise.all([
+      supabase.from("organizations").select("name, industry").eq("id", orgId).maybeSingle(),
+      supabase.from("business_profiles").select("*").eq("organization_id", orgId).maybeSingle(),
+      supabase
+        .from("services")
+        .select("name, description, price, starting_price")
+        .eq("organization_id", orgId)
+        .eq("is_active", true),
+      supabase
+        .from("website_sections")
+        .select("id, kind, heading, subheading, body, page_id")
+        .eq("organization_id", orgId)
+        .order("sort_order")
+        .limit(40),
+    ]);
+    if (!org.data) throw new Error("Workspace not found.");
+    if (!sections.data?.length)
+      throw new Error("Build your website structure first, then ask for changes.");
+    const p = (profile.data ?? {}) as Record<string, unknown>;
+
+    const result = await proposeSectionEdits(
+      {
+        businessName: org.data.name ?? "",
+        industry: org.data.industry ?? "",
+        description: (p["description"] as string) ?? null,
+        city: (p["city"] as string) ?? null,
+        state: (p["state"] as string) ?? null,
+        serviceArea: (p["service_area"] as string) ?? null,
+        phone: (p["phone"] as string) ?? null,
+        email: (p["email"] as string) ?? null,
+        yearsInBusiness: (p["years_in_business"] as number) ?? null,
+        hasHours: Boolean(p["hours"] && Object.keys(p["hours"] as object).length),
+        style: (p["font_preference"] as string) ?? null,
+        goals: ((p["website_goals"] as string[]) ?? []).slice(0, 6),
+        ctaLabel: "Get in touch",
+        services: services.data ?? [],
+      },
+      sections.data.map((s) => ({
+        id: s.id,
+        label: s.kind,
+        heading: s.heading,
+        subheading: s.subheading,
+        body: s.body,
+      })),
+      data.instruction,
+    );
+
+    await supabase.from("ai_generations").insert({
+      organization_id: orgId,
+      kind: "section_edit",
+      model: COPY_ROLE,
+      instruction: data.instruction,
+      result: result as unknown as never,
+      created_by: userId,
+    });
+
+    // Send back current values so the client can show a before/after preview.
+    const current = new Map(sections.data.map((s) => [s.id, s]));
+    return {
+      reply: result.reply,
+      edits: result.edits.map((edit) => {
+        const row = current.get(edit.sectionId);
+        return {
+          sectionId: edit.sectionId,
+          sectionLabel: row?.kind ?? "section",
+          field: edit.field,
+          before: String((row as Record<string, unknown> | undefined)?.[edit.field ?? ""] ?? "" ),
+          after: edit.after,
+        };
+      }),
+    };
   });
 
 /* --------------------- brief review, facts and self-test --------------------- */
@@ -347,20 +434,6 @@ function observationInputOf(input: Record<string, unknown>) {
   };
 }
 
-async function referenceBaseDesignContext(
-  supabase: SupabaseClient<Database>,
-  organizationId: string,
-) {
-  const [{ data: settings }, { data: org }] = await Promise.all([
-    supabase.from("website_settings").select("generation").eq("organization_id", organizationId).maybeSingle(),
-    supabase.from("organizations").select("name").eq("id", organizationId).maybeSingle(),
-  ]);
-  return {
-    generation: (settings?.generation ?? {}) as Record<string, unknown>,
-    businessName: org?.name ?? null,
-  };
-}
-
 async function persistScreenshotReference(
   supabase: SupabaseClient<Database>,
   input: {
@@ -372,24 +445,34 @@ async function persistScreenshotReference(
     model?: string;
   },
 ) {
-  const { normalizeScreenshotReferenceObservations, deriveScreenshotReferenceBrief } = await import(
+  const { data: org } = await supabase
+    .from("organizations")
+    .select("name")
+    .eq("id", input.organizationId)
+    .maybeSingle();
+  const { normalizeScreenshotReferenceObservations, deriveScreenshotReferenceSignals } = await import(
     "@/lib/builder/screenshot-reference"
   );
-  const base = await referenceBaseDesignContext(supabase, input.organizationId);
+  const businessName = org?.name ?? null;
   const observations = normalizeScreenshotReferenceObservations(input.observations, {
-    businessName: base.businessName,
-    blockedNames: [base.businessName ?? ""],
+    businessName,
+    blockedNames: [businessName ?? ""],
     maxPerField: 8,
   });
   const hasAny = Object.values(observations).some((list) => list.length > 0);
   if (!hasAny) throw new Error("No reusable design patterns were found. Add layout, spacing, type or colour notes.");
-  const reference = deriveScreenshotReferenceBrief({
+  const reference = deriveScreenshotReferenceSignals({
     observations,
-    businessName: base.businessName,
-    blockedNames: [base.businessName ?? ""],
+    businessName,
+    blockedNames: [businessName ?? ""],
   });
+  const { data: settings } = await supabase
+    .from("website_settings")
+    .select("generation")
+    .eq("organization_id", input.organizationId)
+    .maybeSingle();
   const generation = {
-    ...base.generation,
+    ...((settings?.generation ?? {}) as Record<string, unknown>),
     screenshotReferenceObservations: observations,
     screenshotReference: {
       ...reference,
@@ -422,7 +505,7 @@ async function persistScreenshotReference(
  */
 export const analyzeSiteBrief = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .validator((input: { organizationId: string }) => ({ organizationId: orgIdOf(input) }))
+  .inputValidator((input: { organizationId: string }) => ({ organizationId: orgIdOf(input) }))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
     const orgId = data.organizationId;
@@ -439,7 +522,15 @@ export const analyzeSiteBrief = createServerFn({ method: "POST" })
     const generation = (settings.data?.generation ?? {}) as Record<string, unknown>;
     const previous = readBrief(generation["brief"]);
 
-    let brief = await analyzeBusiness(facts.copyFacts);
+    let brief;
+    try {
+      brief = await analyzeBusiness(facts.copyFacts);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Analysis unavailable";
+      throw new Error(
+        `Revora couldn't complete the AI business analysis, so the site was not built from a deterministic fallback. ${message}`,
+      );
+    }
 
     // A new analysis always needs re-approval, but the owner's answers stay.
     brief = { ...brief, approved: false, factAnswers: previous?.factAnswers ?? {} };
@@ -460,13 +551,13 @@ export const analyzeSiteBrief = createServerFn({ method: "POST" })
       created_by: userId,
     });
 
-    return { brief, aiError: null };
+    return { brief, aiError: null as string | null };
   });
 
 /** Saves the owner's edits to the brief, and their approval to build from it. */
 export const saveSiteBrief = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .validator((input: { organizationId: string; brief: unknown; approved?: boolean }) => ({
+  .inputValidator((input: { organizationId: string; brief: unknown; approved?: boolean }) => ({
     organizationId: orgIdOf(input),
     brief: input?.brief,
     approved: input?.approved === true,
@@ -502,7 +593,7 @@ export const saveSiteBrief = createServerFn({ method: "POST" })
  */
 export const saveMissingFacts = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .validator((input: { organizationId: string; answers: Record<string, string> }) => {
+  .inputValidator((input: { organizationId: string; answers: Record<string, string> }) => {
     const answers: Record<string, string> = {};
     for (const [key, value] of Object.entries(input?.answers ?? {}).slice(0, 20)) {
       if (typeof value === "string" && value.trim())
@@ -591,7 +682,7 @@ export const saveMissingFacts = createServerFn({ method: "POST" })
 /** Saves bounded, anti-cloning design observations from an inspiration screenshot. */
 export const saveScreenshotReference = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .validator((input: { organizationId: string; observations: unknown }) => ({
+  .inputValidator((input: { organizationId: string; observations: unknown }) => ({
     organizationId: orgIdOf(input),
     observations: observationInputOf((input ?? {}) as Record<string, unknown>),
   }))
@@ -609,7 +700,7 @@ export const saveScreenshotReference = createServerFn({ method: "POST" })
 /** Extracts design observations from a screenshot using only free vision models. */
 export const extractScreenshotReference = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .validator((input: { organizationId: string; screenshotDataUrl: string; notes?: string }) => ({
+  .inputValidator((input: { organizationId: string; screenshotDataUrl: string; notes?: string }) => ({
     organizationId: orgIdOf(input),
     screenshotDataUrl: referenceDataUrlOf(input?.screenshotDataUrl),
     notes: String(input?.notes ?? "").trim().slice(0, 600),
@@ -648,7 +739,7 @@ export const extractScreenshotReference = createServerFn({ method: "POST" })
                 {
                   type: "text",
                   text: [
-                    "Extract reusable website design signals from this screenshot for inspiration only.",
+                    "Extract a website design fingerprint from this screenshot for inspiration only.",
                     "Do NOT copy logos, brand names, exact wording, exact colours, URLs, people, claims, coordinates or proprietary assets.",
                     "Return JSON only with arrays named layout, hierarchy, typography, spacing, color, interactions, components.",
                     "Each array should contain short reusable patterns, not facts from the screenshot.",
@@ -685,7 +776,7 @@ export const extractScreenshotReference = createServerFn({ method: "POST" })
 /** The blanks and QA state for the builder UI, computed from real rows. */
 export const getBuildReadiness = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .validator((input: { organizationId: string }) => ({ organizationId: orgIdOf(input) }))
+  .inputValidator((input: { organizationId: string }) => ({ organizationId: orgIdOf(input) }))
   .handler(async ({ data, context }) => {
     const { readBrief } = await import("@/lib/site-brief");
     const { captureQa, factGaps } = await import("@/lib/launch-qa");
@@ -727,7 +818,7 @@ export const getBuildReadiness = createServerFn({ method: "POST" })
  */
 export const runSiteEngineCheck = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .validator((input: { organizationId: string }) => ({ organizationId: orgIdOf(input) }))
+  .inputValidator((input: { organizationId: string }) => ({ organizationId: orgIdOf(input) }))
   .handler(async ({ data, context }) => {
     const orgId = data.organizationId;
     const steps: { key: string; label: string; ok: boolean; detail: string }[] = [];
@@ -763,7 +854,7 @@ export const runSiteEngineCheck = createServerFn({ method: "POST" })
           ok: brief.source !== "rules",
           detail:
             brief.source === "rules"
-              ? "AI analysis returned nothing usable; the build would stop (there is no rule-based fallback)."
+              ? "AI analysis returned nothing usable; no deterministic brief is used."
               : `${brief.source} answered: “${brief.positioning.slice(0, 120)}”`,
         });
       } catch (error) {

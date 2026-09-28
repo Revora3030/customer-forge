@@ -86,14 +86,14 @@ export async function recordTeamStep(step: TeamStep) {
       stage: step.stage.slice(0, 60),
       purpose: step.purpose.slice(0, 60),
       lane: step.lane,
-      provider: provider ?? null,
+      provider: (provider as string | null) ?? null,
       model: model ?? null,
       ok: step.ok,
       latency_ms: Math.round(step.latencyMs),
       reason: step.reason?.slice(0, 300) ?? null,
       contribution: step.contribution?.slice(0, 200) ?? null,
       cost_microcents: Math.max(0, Math.round(step.costMicrocents)),
-    });
+    } as any);
   } catch (error) {
     console.error("[revora-ai] team trace write failed", (error as Error).message);
   }

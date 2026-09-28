@@ -132,8 +132,14 @@ function mediaCss(visual: PersistedComponentVisual | undefined): CSSProperties {
   if (visual.object_position ?? visual.focal_point) css.objectPosition = visual.object_position ?? visual.focal_point;
   if (visual.aspect_ratio) css.aspectRatio = visual.aspect_ratio.replace(":", " / ");
   if (visual.radius != null) css.borderRadius = visual.radius;
-  if (visual.shadow != null) css.boxShadow = visual.shadow <= 0 ? "none" : `0 ${Math.round(visual.shadow * .55)}px ${Math.round(visual.shadow * 1.4)}px -${Math.round(visual.shadow * .35)}px rgba(0,0,0,.45)`;
-  if (visual.overlay != null) css.opacity = 1 - visual.overlay / 200;
+  if (visual.shadow != null) {
+    const shadowVal = typeof visual.shadow === "number" ? visual.shadow : 0;
+    css.boxShadow = shadowVal <= 0 ? "none" : `0 ${Math.round(shadowVal * .55)}px ${Math.round(shadowVal * 1.4)}px -${Math.round(shadowVal * .35)}px rgba(0,0,0,.45)`;
+  }
+  if (visual.overlay != null) {
+    const overlayVal = typeof visual.overlay === "number" ? visual.overlay : 0;
+    css.opacity = 1 - overlayVal / 200;
+  }
   return css;
 }
 

@@ -304,3 +304,70 @@ export const REQUIRED_AI_COPY_FIELDS = ["heroHeadline", "heroSubheadline", "prim
 export function missingAiCopy(copy: SiteCopy): string[] {
   return REQUIRED_AI_COPY_FIELDS.filter((key) => !copy[key]?.trim());
 }
+
+/**
+ * Proposes section-level edits for a site based on business facts and existing sections.
+ * Used by the AI copy assistant to suggest improvements to section headings,
+ * subheadings, and body copy. Returns proposed edits that the owner must approve.
+ */
+/**
+ * Proposes section-level edits for a site based on business facts and existing sections.
+ * Used by the AI copy assistant to suggest improvements to section headings,
+ * subheadings, and body copy. Returns proposed edits that the owner must approve.
+ */
+export async function proposeSectionEdits(
+  facts: {
+    businessName: string;
+    industry: string;
+    description: string | null;
+    city: string | null;
+    state: string | null;
+    serviceArea: string | null;
+    phone: string | null;
+    email: string | null;
+    yearsInBusiness: number | null;
+    hasHours: boolean;
+    style: string | null;
+    goals?: string[];
+    ctaLabel?: string;
+    services: { name: string; description: string | null; price: number | null; starting_price: number | null }[];
+  },
+  sections: { id: string; label: string; kind?: string; heading: string | null; subheading: string | null; body: string | null }[],
+  instruction: string,
+): Promise<{ edits: { sectionId: string; heading: string; subheading: string; body: string; field?: string; after?: string }[]; reply?: string | undefined }> {
+  const sectionList = sections.slice(0, 40);
+  if (!sectionList.length) return { edits: [] };
+  const system = [
+    "You are Revora's copy editor. You propose clear, specific edits to existing website section copy.",
+    `Business: ${facts.businessName} (${facts.industry})`,
+    facts.city ? `Location: ${facts.city}, ${facts.state ?? ""}`.trim() : "",
+    facts.serviceArea ? `Service area: ${facts.serviceArea}` : "",
+    "Rules: never invent prices, reviews, or results. Keep the owner's existing facts. Return JSON only.",
+  ].filter(Boolean).join("\n");
+  const userContent = JSON.stringify({
+    sections: sectionList.map((s) => ({ id: s.id, kind: s.kind, heading: s.heading, subheading: s.subheading, body: s.body })),
+    services: facts.services.slice(0, 12),
+  });
+  try {
+    const { gatewayChatText } = await import("@/lib/ai/gateway-chat.server");
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 30_000);
+    try {
+      const text = await gatewayChatText({ system, messages: [{ role: "user", content: userContent }], json: true, signal: controller.signal });
+      const match = text.match(/\{[\s\S]*\}/);
+      if (!match) return { edits: [] };
+      const parsed = JSON.parse(match[0]) as { edits?: unknown[]; reply?: string };
+      if (!Array.isArray(parsed.edits)) return { edits: [], reply: parsed.reply as string | undefined };
+      return {
+        edits: parsed.edits.filter((e): e is { sectionId: string; heading: string; subheading: string; body: string; field?: string; after?: string } =>
+          e != null && typeof e === "object" && typeof (e as Record<string, unknown>)["sectionId"] === "string",
+        ),
+        reply: parsed.reply,
+      };
+    } finally {
+      clearTimeout(timer);
+    }
+  } catch {
+    return { edits: [] };
+  }
+}

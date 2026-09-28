@@ -9,11 +9,14 @@ import type { SupabaseClient } from "@supabase/supabase-js";
  * keeps one client's website out of another's.
  */
 
-import { linkGeneratedMedia } from "@/lib/builder/composition-media-link";
-import { readComposition, writeComposition, type CompositionNode, type CompositionTree } from "@/lib/builder/composition-tree";
-import { writeBackdrop, writeBackdropSpec, writeSectionEffect } from "@/lib/site-effects";
-import { writeDesignTokens } from "@/lib/builder/design-tokens";
-import { writeBlockStyle, writeComponentVisual } from "@/lib/site-style";
+import { writeBackdrop, writeSectionEffect } from "@/lib/site-effects";
+import {
+  writeAiAuthoredVisual,
+  writeAiResponsiveVisual,
+  writeBlockStyle,
+  writeComponentVisual,
+  writeSectionVisual,
+} from "@/lib/site-style";
 import { writeCustomBlock } from "@/lib/builder/custom-block";
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
@@ -30,14 +33,19 @@ import {
   type SiteIndex,
 } from "@/lib/site-agent";
 import type { VerificationReport } from "@/lib/agent/verify";
+import type { AgentContext } from "@/lib/site-agent.server";
+import { planWebsiteChangesWithAi } from "@/lib/builder/ai-agent-plan.server";
 import type { QaLoopResult } from "@/lib/builder/qa-loop.server";
-import { normalizeBuilderInstruction } from "@/lib/builder/request-coverage";
+import {
+  coveredRequestDimensions,
+  ensureRequestedCoverage,
+  normalizeBuilderInstruction,
+} from "@/lib/builder/request-coverage";
 
 import { safeLinkUrl } from "@/lib/website-content";
 import { MEDIA_BUCKET, buildObjectPath, isStoragePath } from "@/lib/media";
 import { decodeBase64, encodeBase64, generateImageBase64 } from "@/lib/image-studio.server";
 import { editPaidImage, generatePaidImageBase64 } from "@/lib/ai/paid-image.server";
-import { directPhotoPrompt, inspectPhoto } from "@/lib/ai/photo-direction.server";
 import {
   dropUnchangedActions,
   preflightActions,
@@ -102,18 +110,6 @@ type LoadedSite = {
   }[];
 };
 
-function resolveCompositionMediaRefs(tree: CompositionTree, refs: ReadonlyMap<string, string>): CompositionTree {
-  const visit = (node: CompositionNode): CompositionNode => {
-    const mappedRef = node.mediaRef ? refs.get(node.mediaRef) : undefined;
-    return {
-      ...node,
-      ...(mappedRef ? { mediaRef: mappedRef } : {}),
-      ...(node.children ? { children: node.children.map(visit) } : {}),
-    };
-  };
-  return { ...tree, root: visit(tree.root) };
-}
-
 async function loadSite(supabase: SupabaseLike, orgId: string): Promise<LoadedSite> {
   const [pages, sections, components] = await Promise.all([
     supabase
@@ -150,12 +146,135 @@ async function loadSite(supabase: SupabaseLike, orgId: string): Promise<LoadedSi
 }
 
 /** Minimal shape we use from the request-scoped Supabase client. */
-type SupabaseLike = {
+export type SupabaseLike = {
   from: SupabaseClient["from"];
   storage: SupabaseClient["storage"];
 };
 
+export async function runAiWebsiteUpgrade(input: {
+  supabase: SupabaseLike;
+  organizationId: string;
+  userId: string;
+  instruction: string;
+  label: string;
+  operationKey?: string | undefined;
+}) {
+  const context = await loadAgentContext(input.supabase, input.organizationId);
+  const plan = await planWebsiteChangesWithAi({
+    organizationId: input.organizationId,
+    instruction: input.instruction,
+    history: [],
+    context,
+    attachments: [],
+  });
+  if (!plan.ok) {
+    throw new Error(
+      "The AI design team could not complete this website change (" +
+        plan.reason +
+        (plan.detail ? ": " + plan.detail : "") +
+        "). Nothing was changed.",
+    );
+  }
+  const applied = await applyWebsiteActions(input.supabase, input.userId, {
+    organizationId: input.organizationId,
+    actions: plan.actions,
+    label: input.label,
+    verify: true,
+    operationKey: input.operationKey ?? crypto.randomUUID(),
+  });
+  return { plan, applied };
+}
+
 /* --------------------------------- planning -------------------------------- */
+
+/** Build the planner's live workspace context for server-side AI tools. */
+export async function loadAgentContext(
+  supabase: SupabaseLike,
+  organizationId: string,
+): Promise<AgentContext> {
+  const [site, org, profile, services, reviews, media] = await Promise.all([
+    loadSite(supabase, organizationId),
+    supabase.from("organizations").select("name, industry").eq("id", organizationId).maybeSingle(),
+    supabase.from("business_profiles").select("*").eq("organization_id", organizationId).maybeSingle(),
+    supabase
+      .from("services")
+      .select("name, price, starting_price")
+      .eq("organization_id", organizationId)
+      .eq("is_active", true)
+      .order("sort_order"),
+    supabase.from("reviews").select("id", { count: "exact", head: true }).eq("organization_id", organizationId).eq("is_published", true),
+    supabase.from("media").select("id", { count: "exact", head: true }).eq("organization_id", organizationId),
+  ]);
+  if (!org.data) throw new Error("Workspace not found.");
+  const p = (profile.data ?? {}) as Record<string, unknown>;
+  const componentsBySection = new Map<string, LoadedSite["components"]>();
+  for (const component of site.components) {
+    const list = componentsBySection.get(component.section_id) ?? [];
+    list.push(component);
+    componentsBySection.set(component.section_id, list);
+  }
+  return {
+    business: {
+      name: org.data.name ?? "",
+      industry: org.data.industry ?? null,
+      tagline: (p["tagline"] as string) ?? null,
+      description: (p["description"] as string) ?? null,
+      city: (p["city"] as string) ?? null,
+      state: (p["state"] as string) ?? null,
+      serviceArea: (p["service_area"] as string) ?? null,
+      phone: (p["phone"] as string) ?? null,
+      email: (p["email"] as string) ?? null,
+      yearsInBusiness: (p["years_in_business"] as number) ?? null,
+      primaryColor: (p["primary_color"] as string) ?? null,
+      secondaryColor: (p["secondary_color"] as string) ?? null,
+      accentColor: (p["accent_color"] as string) ?? null,
+      fontPreference: (p["font_preference"] as string) ?? null,
+      services: (services.data ?? []).map((s) => ({ name: s.name, price: s.price ?? null, startingPrice: s.starting_price ?? null })),
+      publishedReviewCount: reviews.count ?? 0,
+      photoCount: media.count ?? 0,
+    },
+    pages: site.pages.map((page) => ({
+      id: page.id,
+      slug: page.slug,
+      title: page.title,
+      kind: page.kind,
+      is_visible: page.is_visible,
+      noindex: page.noindex,
+      seo_title: page.seo_title,
+      seo_description: page.seo_description,
+      sections: site.sections
+        .filter((section) => section.page_id === page.id)
+        .map((section) => ({
+          id: section.id,
+          kind: section.kind,
+          variant: section.variant,
+          is_visible: section.is_visible,
+          heading: section.heading,
+          subheading: section.subheading,
+          body: section.body,
+          sort_order: section.sort_order,
+          settings: section.settings,
+          components: (componentsBySection.get(section.id) ?? []).map((component) => ({
+            id: component.id,
+            kind: component.kind,
+            label: component.label,
+            body: component.body,
+            link_label: component.link_label,
+            link_url: component.link_url,
+            media_url: component.media_url,
+            settings: component.settings,
+            sort_order: component.sort_order,
+          })),
+        })),
+    })),
+    // The canonical AI planner does not receive a closed creative vocabulary.
+    sectionKinds: [],
+    pageKinds: [],
+    componentKinds: [],
+  };
+}
+
+
 
 /** The owner's brand choices, read off the request before anything is composed. */
 type BrandPreference = {
@@ -189,21 +308,9 @@ function readBrand(
   return Object.values(brand).some(Boolean) ? brand : null;
 }
 
-/** Owner-saved opening hours as plain text (string or simple day map), else null. */
-function hoursText(value: unknown): string | null {
-  if (typeof value === "string") return value.trim() || null;
-  if (value && typeof value === "object" && !Array.isArray(value)) {
-    const parts = Object.entries(value as Record<string, unknown>)
-      .filter(([, v]) => typeof v === "string" && v.trim())
-      .map(([day, v]) => `${day}: ${String(v).trim()}`);
-    return parts.length ? parts.join("; ") : null;
-  }
-  return null;
-}
-
 export const planWebsiteChanges = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .validator(
+  .inputValidator(
     (input: {
       organizationId: string;
       instruction: string;
@@ -215,7 +322,7 @@ export const planWebsiteChanges = createServerFn({ method: "POST" })
       const organizationId = orgIdOf(input);
       const instruction = str(input?.instruction, PLAN_INSTRUCTION_LIMIT);
       const attachments = readAttachments(input?.attachments);
-      if (instruction.length < 1 && !attachments.length)
+      if (instruction.length < 3 && !attachments.length)
         throw new Error(
           "Tell Revora what you'd like changed — type it, say it, or attach a photo or clip.",
         );
@@ -228,14 +335,7 @@ export const planWebsiteChanges = createServerFn({ method: "POST" })
             }))
             .filter((turn) => turn.content.length > 0)
         : [];
-      return {
-        organizationId,
-        instruction,
-        history,
-        attachments,
-        brand: readBrand(input?.brand),
-        requestId: str(input?.requestId, 80),
-      };
+      return { organizationId, instruction, history, attachments, brand: readBrand(input?.brand) };
     },
   )
 
@@ -250,7 +350,6 @@ type PlanInput = {
   history: AgentTurn[];
   attachments: AgentAttachment[];
   brand?: BrandPreference | null;
-  requestId?: string;
 };
 
 
@@ -261,7 +360,7 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
     // Visible progress for the owner. Cosmetic only — a failed write here can
     // never affect the build.
     const { noteStage } = await import("@/lib/builder/progress.server");
-    const runId = data.requestId || crypto.randomUUID();
+    const runId = crypto.randomUUID();
     noteStage(orgId, runId, "reading your business");
 
     const { getWorkspaceContext } = await import("@/lib/agent/workspace-context.server");
@@ -269,173 +368,15 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
     // The workspace picture is assembled once and reused for a short window, so
     // a follow-up message does not re-read the whole website to say the same
     // thing. Every write path clears it, so the agent never plans off stale data.
-    const { context: agentContext } = await getWorkspaceContext(orgId, async () => {
-      const { SECTION_LIBRARY, PAGE_LIBRARY } = await import("@/lib/website-content");
-      const [site, org, profile, services, reviews, media] = await Promise.all([
-        loadSite(supabase as unknown as SupabaseLike, orgId),
-        supabase.from("organizations").select("name, industry").eq("id", orgId).maybeSingle(),
-        supabase.from("business_profiles").select("*").eq("organization_id", orgId).maybeSingle(),
-        supabase
-          .from("services")
-          .select("name, price, starting_price")
-          .eq("organization_id", orgId)
-          .eq("is_active", true)
-          .order("sort_order"),
-        supabase
-          .from("reviews")
-          .select("id", { count: "exact", head: true })
-          .eq("organization_id", orgId)
-          .eq("is_published", true),
-        supabase
-          .from("media")
-          .select("id", { count: "exact", head: true })
-          .eq("organization_id", orgId),
-      ]);
-      if (!org.data) throw new Error("Workspace not found.");
+    const { context: agentContext } = await getWorkspaceContext(
+      orgId,
+      () => loadAgentContext(supabase, orgId),
+    );
 
-      const p = (profile.data ?? {}) as Record<string, unknown>;
-      const componentsBySection = new Map<string, LoadedSite["components"]>();
-      for (const component of site.components) {
-        const list = componentsBySection.get(component.section_id) ?? [];
-        list.push(component);
-        componentsBySection.set(component.section_id, list);
-      }
-
-      return {
-        business: {
-          name: org.data.name ?? "",
-          industry: org.data.industry ?? null,
-          tagline: (p["tagline"] as string) ?? null,
-          description: (p["description"] as string) ?? null,
-          city: (p["city"] as string) ?? null,
-          state: (p["state"] as string) ?? null,
-          serviceArea: (p["service_area"] as string) ?? null,
-          phone: (p["phone"] as string) ?? null,
-          email: (p["email"] as string) ?? null,
-          yearsInBusiness: (p["years_in_business"] as number) ?? null,
-          hours: hoursText(p["hours"]),
-          primaryColor: (p["primary_color"] as string) ?? null,
-          secondaryColor: (p["secondary_color"] as string) ?? null,
-          accentColor: (p["accent_color"] as string) ?? null,
-          fontPreference: (p["font_preference"] as string) ?? null,
-          services: (services.data ?? []).map((s) => ({
-            name: s.name,
-            price: s.price ?? null,
-            startingPrice: s.starting_price ?? null,
-          })),
-          publishedReviewCount: reviews.count ?? 0,
-          photoCount: media.count ?? 0,
-        },
-        pages: site.pages.map((page) => ({
-          id: page.id,
-          slug: page.slug,
-          title: page.title,
-          kind: page.kind,
-          is_visible: page.is_visible,
-          noindex: page.noindex,
-          seo_title: page.seo_title,
-          seo_description: page.seo_description,
-          sections: site.sections
-            .filter((section) => section.page_id === page.id)
-            .map((section) => ({
-              id: section.id,
-              kind: section.kind,
-              variant: section.variant,
-              is_visible: section.is_visible,
-              heading: section.heading,
-              subheading: section.subheading,
-              body: section.body,
-              sort_order: section.sort_order,
-              settings: section.settings,
-              components: (componentsBySection.get(section.id) ?? []).map((component) => ({
-                id: component.id,
-                kind: component.kind,
-                label: component.label,
-                body: component.body,
-                link_label: component.link_label,
-                link_url: component.link_url,
-                media_url: component.media_url,
-                settings: component.settings,
-                sort_order: component.sort_order,
-              })),
-            })),
-        })),
-        sectionKinds: SECTION_LIBRARY.map((s) => s.kind),
-        pageKinds: PAGE_LIBRARY.map((p2) => p2.kind),
-        componentKinds: [
-          "feature",
-          "faq",
-          "step",
-          "stat",
-          "card",
-          "link",
-          "button",
-          "quote",
-          "list_item",
-          "image",
-        ],
-      };
-    });
-
-    // CONVERSATION FIRST: greetings, questions and requests for advice are
-    // answered by the AI directly, like a real chat, instead of being forced
-    // through the design pipeline. Nothing on the website is touched.
-    noteStage(orgId, runId, "reading your message");
-    const { decideConversation } = await import("@/lib/builder/conversation.server");
-    const decision = await decideConversation({
-      organizationId: orgId,
-      userId,
-      instruction: data.instruction,
-      history: data.history,
-      hasAttachments: data.attachments.length > 0,
-      business: { name: agentContext.business.name, industry: agentContext.business.industry },
-      pages: agentContext.pages.map((page) => ({
-        title: page.title,
-        slug: page.slug,
-        sectionCount: page.sections.length,
-      })),
-      firstBuildActive: agentContext.pages.length === 0,
-      siteDetail: (await import("@/lib/site-agent.server")).siteMap(agentContext),
-    });
-    if (decision.mode === "answer") {
-      return {
-        reply: decision.reply,
-        summary: "",
-        steps: [] as AgentStep[],
-        questions: [] as string[],
-        notes: [] as string[],
-        dropped: [] as string[],
-        requirements: [] as { label: string; covered: boolean }[],
-        trace: ["Answered in chat. Nothing on your website changed."],
-        unavailable: null as { reason: string; retryable: boolean; instruction: string } | null,
-        composition: null as import("@/lib/builder/composition-preview").CompositionPreview | null,
-        conversational: true,
-      };
-    }
-
-    // A first build and chat can run at the same time. There is no page to edit
-    // until materialization finishes, so keep the request in the conversation
-    // instead of turning it into a failed task. The first-build worker remains
-    // the only writer and the owner can retry the requested change once its
-    // pages arrive.
-    if (!agentContext.pages.length) {
-      const reply =
-        "Got it — your AI team is finishing the first website now. I’ve saved this change and will apply it automatically as soon as the pages appear.";
-      return {
-        reply,
-        summary: "",
-        steps: [] as AgentStep[],
-        questions: [] as string[],
-        notes: [] as string[],
-        dropped: [] as string[],
-        requirements: [] as { label: string; covered: boolean }[],
-        trace: ["First website build is active; change saved and waiting for pages."],
-        unavailable: null as { reason: string; retryable: boolean; instruction: string } | null,
-        composition: null as import("@/lib/builder/composition-preview").CompositionPreview | null,
-        conversational: true,
-        deferred: true,
-      };
-    }
+    if (!agentContext.pages.length)
+      throw new Error(
+        "Build your website structure first — then the assistant can change anything on it.",
+      );
 
     const instruction =
       data.instruction || "(see the attached file(s) — follow what they show or say)";
@@ -470,101 +411,83 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
     if (recall) data.history = [{ role: "user" as const, content: recall }, ...data.history];
     const nextMemory = mergeDesignMemory(priorMemory, data.instruction);
 
+    // DESIGN IDENTITY. Worked out once from what the business actually is, then
+    // reused on every later request so unrelated edits cannot quietly redesign
+    // the site. Design choices only — never a business fact and never copy.
     const storedGeneration = ((settingsRow.data as { generation?: unknown } | null)?.generation ??
       {}) as Record<string, unknown>;
-    const priorCreativeBrief = storedGeneration["aiCreativeBrief"];
-    if (priorCreativeBrief && typeof priorCreativeBrief === "object") {
-      data.history = [
-        {
-          role: "user" as const,
-          content: `Previously saved AI creative brief: ${JSON.stringify(priorCreativeBrief).slice(0, 1600)}`,
-        },
-        ...data.history,
-      ];
-    }
-
+    noteStage(orgId, runId, "recalling your design identity");
     const memoryChanged = nextMemory !== priorMemory;
     if (memoryChanged && settingsRow.data) {
-      const generation: Record<string, unknown> = { ...storedGeneration };
-      generation["designMemory"] = nextMemory;
+      const generation: Record<string, unknown> = { ...storedGeneration, designMemory: nextMemory };
       const saved = await supabase
         .from("website_settings")
         .update({ generation: generation as never })
         .eq("organization_id", orgId);
-      // A memory write must never block the build; it is only ever a preference.
       if (saved.error) console.warn("design memory not saved", saved.error.message);
     }
 
     // AI-AUTHORED CUSTOMER PATH. Every creative decision — layout, section
     // choice, wording, colour, typography, imagery and conversion structure —
-    // is authored by the model team and reviewed adversarially. There is no
-    // template or preset design to fall back on: when the models cannot answer,
-    // the owner is told plainly and nothing is changed.
+    // is authored by the model team and reviewed adversarially. Specialized
+    // request types do not bypass the same creative authority.
     const { planWebsiteChangesWithAi } = await import("@/lib/builder/ai-agent-plan.server");
 
-    let raw: Record<string, unknown>;
+    const raw: Record<string, unknown> = {};
     let requirements: { label: string; covered: boolean }[] = [];
     let trace: string[] = [];
-    let planModel = "";
+    let planModel = "revora-ai";
 
-    // Picture requests go through the same AI planner as everything else: it
-    // decides which areas get pictures, where they sit in the composition and
-    // the art direction. No keyword routing or fixed target sections.
     noteStage(orgId, runId, "planning the change");
-    {
-      const authored = await planWebsiteChangesWithAi({
-        organizationId: orgId,
-        instruction: normalizeBuilderInstruction(instruction),
-        history: data.history
-          .filter((turn) => turn.role === "user")
-          .map((turn) => turn.content)
-          .slice(-6),
-        context: agentContext,
-        attachments: data.attachments.map((attachment) => ({
-          kind: attachment.kind,
-          name: attachment.name,
-        })),
-      });
+    const authored = await planWebsiteChangesWithAi({
+      organizationId: orgId,
+      instruction: normalizeBuilderInstruction(instruction),
+      history: data.history
+        .filter((turn) => turn.role === "user")
+        .map((turn) => turn.content)
+        .slice(-6),
+      context: agentContext,
+      attachments: data.attachments.map((attachment) => ({
+        kind: attachment.kind,
+        name: attachment.name,
+      })),
+    });
 
-      if (!authored.ok) {
-        return {
-          reply:
-            authored.reason === "review_rejected"
-              ? `I left your website unchanged because this change would need details you haven't given me yet${authored.detail ? ` (${authored.detail.replace(/^the review removed every proposed change — ?/, "")})` : ""}. Tell me the real details — for example exactly what each service includes — and I'll add them.`
-              : "I couldn't design this change right now, so I've left your website exactly as it is. Please try again in a moment — I'd rather wait than drop a stock layout onto your site.",
-          summary: "",
-          steps: [] as AgentStep[],
-          questions: [] as string[],
-          notes: [] as string[],
-          requirements: [] as { label: string; covered: boolean }[],
-          trace: [
-            "Nothing changed.",
-            `The design team was unavailable (${authored.reason}${authored.detail ? `: ${authored.detail}` : ""}).`,
-          ],
-          unavailable: {
-            reason: authored.reason,
-            retryable: true,
-            instruction,
-          } as { reason: string; retryable: boolean; instruction: string } | null,
-          composition:
-            null as import("@/lib/builder/composition-preview").CompositionPreview | null,
-        };
-      }
-
-      requirements = authored.requirements;
-      trace = authored.trace;
-      planModel = authored.reviewModel
-        ? `${authored.model}+${authored.reviewModel}`
-        : authored.model;
-      raw = {
-
-        reply: authored.reply,
-        summary: authored.summary,
-        actions: authored.actions,
-        questions: authored.questions,
-        notes: authored.notes,
+    if (!authored.ok) {
+      return {
+        reply:
+          "I couldn't design this change right now, so I've left your website exactly as it is. Please try again in a moment — I'd rather wait than drop a stock layout onto your site.",
+        summary: "",
+        steps: [] as AgentStep[],
+        questions: [] as string[],
+        notes: [] as string[],
+        requirements: [] as { label: string; covered: boolean }[],
+        trace: [
+          "Nothing changed.",
+          `The design team was unavailable (${authored.reason}${authored.detail ? `: ${authored.detail}` : ""}).`,
+        ],
+        unavailable: {
+          reason: authored.reason,
+          retryable: true,
+          instruction,
+        } as { reason: string; retryable: boolean; instruction: string } | null,
+        composition:
+          null as import("@/lib/builder/composition-preview").CompositionPreview | null,
       };
     }
+
+    requirements = authored.requirements;
+    trace = authored.trace;
+    planModel = authored.reviewModel
+      ? authored.model + "+" + authored.reviewModel
+      : authored.model;
+    Object.assign(raw, {
+      reply: authored.reply,
+      summary: authored.summary,
+      actions: authored.actions,
+      questions: authored.questions,
+      notes: authored.notes,
+    });
 
 
     const allSections = agentContext.pages.flatMap((page) =>
@@ -573,11 +496,8 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
     // Every step Revora refuses to carry out records its reason here, and the
     // reasons are shown with the plan instead of disappearing.
     const droppedReasons: string[] = [];
-    const { polishEditCompositions } = await import("@/lib/builder/edit-polish.server");
-    const polished = await polishEditCompositions({ organizationId: orgId, instruction, actions: raw["actions"] });
-    if (polished.report) trace.push(polished.report.accepted ? "The review team improved this change before showing it to you." : "The review team checked this change; the original design scored best.");
     const parsedActions = readActions(
-      polished.actions,
+      raw["actions"],
       {
         pageIds: new Set(agentContext.pages.map((page) => page.id)),
         sectionIds: new Set(allSections.map((section) => section.id)),
@@ -587,7 +507,9 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
       },
       droppedReasons,
     );
-    const actions = parsedActions;
+    const actions = ensureRequestedCoverage(instruction, parsedActions, agentContext);
+    const measuredRequirements = coveredRequestDimensions(instruction, actions);
+    if (measuredRequirements.length) requirements = measuredRequirements;
     const index: SiteIndex = { pages: new Map(), sections: new Map(), components: new Map() };
     const currentText = new Map<string, string>();
     for (const page of agentContext.pages)
@@ -658,7 +580,7 @@ export type WebsitePlan = Awaited<ReturnType<typeof planImpl>>;
 
 export const applyWebsiteChanges = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .validator(
+  .inputValidator(
     (input: {
       organizationId: string;
       actions: unknown;
@@ -674,7 +596,7 @@ export const applyWebsiteChanges = createServerFn({ method: "POST" })
     }),
   )
   .handler(async ({ data, context }) =>
-    applyImpl(context.supabase as unknown as SupabaseLike, String(context.userId), data),
+    applyWebsiteActions(context.supabase as unknown as SupabaseLike, String(context.userId), data),
   );
 
 type ApplyInput = {
@@ -686,14 +608,65 @@ type ApplyInput = {
   operationKey?: string | undefined;
 };
 
+const OPERATION_CLAIM_LEASE_MS = 5 * 60 * 1000;
+
+type StoredApplyResult = {
+  applied: number;
+  failed: number;
+  stale: number;
+  unchanged: number;
+  staleNotice: string;
+  duplicates: number;
+  details: string[];
+  dropped: string[];
+  snapshotLabel: string;
+  snapshotVersion: number;
+  snapshotId: string | null;
+  operationId: string;
+  alreadyApplied: boolean;
+  verification: VerificationReport | null;
+  qa: QaLoopResult | null;
+  appliedActions: AgentAction[];
+  unconfirmed?: string[];
+};
+
+function readStoredApplyResult(value: unknown): StoredApplyResult {
+  const raw = value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+  const list = (key: string) =>
+    Array.isArray(raw[key]) ? (raw[key] as unknown[]).map((item) => String(item)) : [];
+  return {
+    applied: Number(raw["applied"] ?? 0) || 0,
+    failed: Number(raw["failed"] ?? 0) || 0,
+    stale: Number(raw["stale"] ?? 0) || 0,
+    unchanged: Number(raw["unchanged"] ?? 0) || 0,
+    staleNotice: String(raw["staleNotice"] ?? ""),
+    duplicates: Number(raw["duplicates"] ?? 0) || 0,
+    details: list("details"),
+    dropped: list("dropped"),
+    snapshotLabel: String(raw["snapshotLabel"] ?? ""),
+    snapshotVersion: Number(raw["snapshotVersion"] ?? 0) || 0,
+    snapshotId: String(raw["snapshotId"] ?? "") || null,
+    operationId: String(raw["operationId"] ?? ""),
+    alreadyApplied: true,
+    verification: (raw["verification"] as VerificationReport | null) ?? null,
+    qa: (raw["qa"] as QaLoopResult | null) ?? null,
+    appliedActions: Array.isArray(raw["appliedActions"])
+      ? (raw["appliedActions"] as AgentAction[])
+      : [],
+  };
+}
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
 /** Accepts any id, so a batch can be read exactly as it was planned. */
 const ANY_ID = { has: () => true } as unknown as Set<string>;
 
-async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInput) {
-  {
-    const orgId = data.organizationId;
+export async function applyWebsiteActions(supabase: SupabaseLike, userId: string, data: ApplyInput) {
+  const orgId = data.organizationId;
     const { noteStage: noteApplyStage } = await import("@/lib/builder/progress.server");
-    const applyRunId = data.operationKey?.split(":")[0] || crypto.randomUUID();
+    const applyRunId = crypto.randomUUID();
     noteApplyStage(orgId, applyRunId, "checking the plan is safe");
     // One id for this whole apply. Every row it touches, the restore point it
     // took, and any rollback it had to run are all recorded against this id, so
@@ -706,47 +679,147 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
     const { invalidateWorkspaceContext } = await import("@/lib/agent/workspace-context.server");
     invalidateWorkspaceContext(orgId);
 
-    // Idempotency: the same request key applied moments ago is answered with the
-    // result of that run instead of writing everything a second time. This is
-    // what stops a double press, an impatient retry or a reconnect from
-    // duplicating sections.
+    let operationClaimId: string | null = null;
+    let operationClaimHeartbeat: ReturnType<typeof setInterval> | null = null;
+
     if (data.operationKey) {
-      const { data: recent } = await supabase
-        .from("ai_generations")
-        .select("result, created_at")
-        .eq("organization_id", orgId)
-        .eq("kind", "agent_apply")
-        .order("created_at", { ascending: false })
-        .limit(20);
-      const cutoff = Date.now() - 15 * 60 * 1000;
-      const previous = (recent ?? []).find((row) => {
-        const result = row?.["result"] as { operationKey?: unknown } | null;
-        const at = Date.parse(String(row?.["created_at"] ?? ""));
-        return result?.operationKey === data.operationKey && Number.isFinite(at) && at >= cutoff;
-      });
-      if (previous) {
-        const result = previous["result"] as Record<string, unknown>;
-        const labels = (key: string) =>
-          Array.isArray(result[key]) ? (result[key] as unknown[]).map((item) => String(item)) : [];
-        return {
-          applied: Number(result["applied"] ?? 0) || 0,
-          failed: Number(result["failed"] ?? 0) || 0,
-          stale: Number(result["stale"] ?? 0) || 0,
-          staleNotice: String(result["staleNotice"] ?? ""),
-          duplicates: Number(result["duplicates"] ?? 0) || 0,
-          details: [
-            ...labels("appliedLabels").map((label) => `applied ${label}`),
-            ...labels("skippedLabels").map((label) => `skipped ${label}`),
-          ],
-          snapshotLabel: String(result["snapshotLabel"] ?? ""),
-          snapshotVersion: Number(result["snapshotVersion"] ?? 0) || 0,
-          operationId: String(result["operationId"] ?? ""),
-          alreadyApplied: true,
-          verification: null as VerificationReport | null,
-        };
+      const leaseUntil = () => new Date(Date.now() + OPERATION_CLAIM_LEASE_MS).toISOString();
+      const claim = await supabase
+        .from("ai_operation_claims")
+        .insert({
+          organization_id: orgId,
+          operation_key: data.operationKey,
+          status: "pending",
+          result: {},
+          created_by: userId,
+          lease_expires_at: leaseUntil(),
+        } as never)
+        .select("id")
+        .maybeSingle();
+
+      if (claim.data?.id) {
+        operationClaimId = String(claim.data.id);
+      } else if (claim.error?.code === "23505") {
+        const { data: existing } = await supabase
+          .from("ai_operation_claims")
+          .select("id, status, result, lease_expires_at")
+          .eq("organization_id", orgId)
+          .eq("operation_key", data.operationKey)
+          .maybeSingle();
+
+        if (existing?.status === "completed") return readStoredApplyResult(existing.result);
+
+        if (existing?.status === "failed") {
+          const { data: reclaimed } = await supabase
+            .from("ai_operation_claims")
+            .update({
+              status: "pending",
+              result: {},
+              lease_expires_at: leaseUntil(),
+              completed_at: null,
+              updated_at: new Date().toISOString(),
+            } as never)
+            .eq("id", existing.id)
+            .eq("status", "failed")
+            .select("id")
+            .maybeSingle();
+          if (reclaimed?.id) operationClaimId = String(reclaimed.id);
+        } else if (
+          existing?.status === "pending" &&
+          existing.lease_expires_at &&
+          new Date(existing.lease_expires_at).getTime() <= Date.now()
+        ) {
+          const { data: reclaimed } = await supabase
+            .from("ai_operation_claims")
+            .update({
+              lease_expires_at: leaseUntil(),
+              updated_at: new Date().toISOString(),
+            } as never)
+            .eq("id", existing.id)
+            .eq("status", "pending")
+            .lte("lease_expires_at", new Date().toISOString())
+            .select("id")
+            .maybeSingle();
+          if (reclaimed?.id) operationClaimId = String(reclaimed.id);
+        }
+
+        if (!operationClaimId) {
+          for (let attempt = 0; attempt < 30; attempt += 1) {
+            await sleep(500);
+            const { data: current } = await supabase
+              .from("ai_operation_claims")
+              .select("status, result, lease_expires_at")
+              .eq("organization_id", orgId)
+              .eq("operation_key", data.operationKey)
+              .maybeSingle();
+            if (current?.status === "completed") return readStoredApplyResult(current.result);
+            if (current?.status === "failed") {
+              const { data: reclaimed } = await supabase
+                .from("ai_operation_claims")
+                .update({
+                  status: "pending",
+                  result: {},
+                  lease_expires_at: leaseUntil(),
+                  completed_at: null,
+                  updated_at: new Date().toISOString(),
+                } as never)
+                .eq("organization_id", orgId)
+                .eq("operation_key", data.operationKey)
+                .eq("status", "failed")
+                .select("id")
+                .maybeSingle();
+              if (reclaimed?.id) {
+                operationClaimId = String(reclaimed.id);
+                break;
+              }
+            }
+            if (
+              current?.status === "pending" &&
+              current.lease_expires_at &&
+              new Date(current.lease_expires_at).getTime() <= Date.now()
+            ) {
+              const { data: reclaimed } = await supabase
+                .from("ai_operation_claims")
+                .update({
+                  lease_expires_at: leaseUntil(),
+                  updated_at: new Date().toISOString(),
+                } as never)
+                .eq("organization_id", orgId)
+                .eq("operation_key", data.operationKey)
+                .eq("status", "pending")
+                .lte("lease_expires_at", new Date().toISOString())
+                .select("id")
+                .maybeSingle();
+              if (reclaimed?.id) {
+                operationClaimId = String(reclaimed.id);
+                break;
+              }
+            }
+          }
+        }
+
+        if (!operationClaimId) {
+          throw new Error("Another Revora change with this request is still running. Please wait a moment and retry; nothing was duplicated.");
+        }
+      } else if (claim.error) {
+        throw new Error("Revora could not reserve this change safely: " + claim.error.message);
+      }
+
+      if (operationClaimId) {
+        operationClaimHeartbeat = setInterval(() => {
+          void supabase
+            .from("ai_operation_claims")
+            .update({
+              lease_expires_at: leaseUntil(),
+              updated_at: new Date().toISOString(),
+            } as never)
+            .eq("id", operationClaimId)
+            .eq("status", "pending");
+        }, 30_000);
       }
     }
 
+    try {
     const site = await loadSite(supabase as unknown as SupabaseLike, orgId);
     // Read the batch exactly as planned, then check it against the site as it is
     // right now. A step whose target was deleted or renamed after planning is
@@ -799,21 +872,6 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
         );
       }
       plannedSlugs.add(slug);
-    }
-
-    // Baseline: problems the site already had before this change. A change is
-    // only reversed for problems IT introduced — otherwise one pre-existing
-    // issue (e.g. a page with no main headline) would block every edit,
-    // including the edit that fixes it.
-    let baselineCritical = new Set<string>();
-    if (data.verify !== false) {
-      try {
-        const { verifyWorkspaceSite } = await import("@/lib/agent/verify.server");
-        const before = await verifyWorkspaceSite(supabase, orgId);
-        baselineCritical = criticalKeys(before);
-      } catch (error) {
-        console.error("[site-agent] baseline verification could not run", error);
-      }
     }
 
     noteApplyStage(orgId, applyRunId, "saving a restore point");
@@ -869,6 +927,7 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
     noteApplyStage(orgId, applyRunId, "writing the pages");
     const sortOf = new Map(site.sections.map((section) => [section.id, section.sort_order]));
     const applied: string[] = [];
+    const appliedActions: AgentAction[] = [];
     const failed: string[] = [];
 
     // Every write records how to reverse itself first. The first failure stops
@@ -876,6 +935,7 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
     // either fully in place or the site is exactly as it was.
     const undoSteps: UndoStep[] = [];
     let fatal: unknown = null;
+    let currentAction: AgentAction | null = null;
 
     // SPEED: the pre-write state of everything this batch touches is read once,
     // here, instead of once per step. The writes themselves stay strictly in
@@ -913,6 +973,7 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
         const result = (await work()) as { error?: unknown } | null;
         if (result && result.error) throw result.error;
         applied.push(label);
+        if (currentAction) appliedActions.push(currentAction);
       } catch (error) {
         console.error("[site-agent] action failed", label, error);
         failed.push(label);
@@ -930,9 +991,6 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
     // Components get temporary references too, allowing one plan to create
     // and then refine a button/card/image without another round trip.
     const newComponents = new Map<string, string>();
-    // Pictures generated in this run; after every step lands they are checked
-    // against their section's layout so a generated image is always visible.
-    const generatedImages: { componentId: string; alt?: string }[] = [];
 
     const nextSectionSort = new Map<string, number>();
     for (const section of site.sections) {
@@ -989,6 +1047,7 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
           componentId: newComponents.get(resolved.componentId)!,
         } as AgentAction;
       const action = resolved;
+      currentAction = action;
 
       if (action.type === "reorder_sections") {
         const wrongPage = action.sectionIds.find((id) => sectionPage.get(id) !== action.pageId);
@@ -1050,7 +1109,58 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
               .eq("organization_id", orgId),
           );
           break;
-
+        case "set_section_variant":
+          await run(action.type, () =>
+            supabase
+              .from("website_sections")
+              .update({ variant: action.variant })
+              .eq("id", action.sectionId)
+              .eq("organization_id", orgId),
+          );
+          break;
+        case "set_section_visual":
+          await run(action.type, () => {
+            const settings = writeSectionVisual(
+              readColumn("website_sections", action.sectionId, "settings"),
+              action.patch,
+            );
+            noteColumn("website_sections", action.sectionId, "settings", settings);
+            return supabase
+              .from("website_sections")
+              .update({ settings } as never)
+              .eq("id", action.sectionId)
+              .eq("organization_id", orgId);
+          });
+          break;
+        case "set_ai_visual":
+          await run(action.type, () => {
+            const settings = writeAiAuthoredVisual(
+              readColumn("website_sections", action.sectionId, "settings"),
+              action.patch,
+            );
+            noteColumn("website_sections", action.sectionId, "settings", settings);
+            return supabase
+              .from("website_sections")
+              .update({ settings } as never)
+              .eq("id", action.sectionId)
+              .eq("organization_id", orgId);
+          });
+          break;
+        case "set_ai_responsive":
+          await run(action.type, () => {
+            const settings = writeAiResponsiveVisual(
+              readColumn("website_sections", action.sectionId, "settings"),
+              action.width,
+              action.patch,
+            );
+            noteColumn("website_sections", action.sectionId, "settings", settings);
+            return supabase
+              .from("website_sections")
+              .update({ settings } as never)
+              .eq("id", action.sectionId)
+              .eq("organization_id", orgId);
+          });
+          break;
         case "set_block_style": {
           const table = action.target === "section" ? "website_sections" : "website_components";
           await run(action.type, () => {
@@ -1064,23 +1174,6 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
               .from(table)
               .update({ settings } as never)
               .eq("id", action.targetId)
-              .eq("organization_id", orgId);
-          });
-          break;
-        }
-        case "set_composition": {
-          // The AI has full freedom over booking/quote/contact sections too:
-          // it may place the working feature with a widget node, or design the
-          // section without one. No layout is rejected for omitting a widget.
-          noteColumn("website_sections", action.sectionId, "kind", "composition");
-          await run(action.type, () => {
-            const tree = resolveCompositionMediaRefs(action.tree, newComponents);
-            const settings = writeComposition(readColumn("website_sections", action.sectionId, "settings"), tree);
-            noteColumn("website_sections", action.sectionId, "settings", settings);
-            return supabase
-              .from("website_sections")
-              .update({ kind: "composition", settings } as never)
-              .eq("id", action.sectionId)
               .eq("organization_id", orgId);
           });
           break;
@@ -1176,6 +1269,35 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
           );
           break;
         }
+        case "set_ai_component_visual":
+          await run(action.type, () => {
+            const settings = writeAiAuthoredVisual(
+              readColumn("website_components", action.componentId, "settings"),
+              action.patch,
+            );
+            noteColumn("website_components", action.componentId, "settings", settings);
+            return supabase
+              .from("website_components")
+              .update({ settings } as never)
+              .eq("id", action.componentId)
+              .eq("organization_id", orgId);
+          });
+          break;
+        case "set_ai_component_responsive":
+          await run(action.type, () => {
+            const settings = writeAiResponsiveVisual(
+              readColumn("website_components", action.componentId, "settings"),
+              action.width,
+              action.patch,
+            );
+            noteColumn("website_components", action.componentId, "settings", settings);
+            return supabase
+              .from("website_components")
+              .update({ settings } as never)
+              .eq("id", action.componentId)
+              .eq("organization_id", orgId);
+          });
+          break;
         case "set_component_visual":
           await run(action.type, () => {
             const settings = writeComponentVisual(
@@ -1208,63 +1330,28 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
           }
 
           const caller = { organizationId: orgId, userId };
-          const placement = [current?.kind ?? "", current?.label ?? ""].filter(Boolean).join(" ").trim();
-          const isHero = /hero|masthead|banner|opening|lead/i.test(placement);
-
-          // Sol writes the photography brief first: lens, light, composition and
-          // the negative space the words need. The picture models are never sent
-          // a bare one-line request any more.
-          const directed = await directPhotoPrompt(
-            {
-              request: action.prompt,
-              ...(placement ? { placement } : {}),
-              overlaidText: isHero,
-            },
+          const free = await generateImageBase64(
+            action.prompt,
             caller,
+            source ? { source } : undefined,
           );
-
-          // Best picture model first. The free lane is capability failover only.
-          const shoot = async (prompt: string) => {
-            const premium = source
-              ? await editPaidImage(prompt, source, caller)
-              : await generatePaidImageBase64(prompt, caller, isHero ? "hero_master" : "editorial_feature");
-            if (premium.ok) return { image: premium, message: null as string | null };
-            const fallback = await generateImageBase64(prompt, caller, source ? { source } : undefined);
-            return fallback.ok
-              ? { image: fallback, message: null as string | null }
-              : { image: null, message: premium.message || fallback.message || "unknown" };
-          };
-
-          let attempt = await shoot(directed.prompt);
-          if (!attempt.image) {
-            // A picture that couldn't be made keeps the current picture; it must
-            // not undo every other design change in the same request.
-            console.warn("[site-agent] picture not generated:", attempt.message);
+          const paid = !free.ok
+            ? source
+              ? await editPaidImage(action.prompt, source, caller)
+              : await generatePaidImageBase64(action.prompt, caller, "starter_photo")
+            : null;
+          const image = free.ok ? free : paid?.ok ? paid : null;
+          if (!image) {
+            fatal = new Error(
+              paid && !paid.ok
+                ? paid.message
+                : !free.ok
+                  ? free.message
+                  : "The picture could not be generated.",
+            );
             failed.push("generate_component_image:generation_failed");
             break;
           }
-
-          // Terra inspects the finished frame. One corrected reshoot only, and a
-          // reshoot is kept only when it actually comes back clean.
-          const verdict = await inspectPhoto(
-            { base64: attempt.image.base64, mimeType: attempt.image.mimeType },
-            { prompt: directed.prompt, ...(placement ? { placement } : {}) },
-            caller,
-          );
-          if (!verdict.publishable && verdict.revisedPrompt) {
-            const reshoot = await shoot(verdict.revisedPrompt);
-            if (reshoot.image) {
-              const recheck = await inspectPhoto(
-                { base64: reshoot.image.base64, mimeType: reshoot.image.mimeType },
-                { prompt: verdict.revisedPrompt, ...(placement ? { placement } : {}) },
-                caller,
-              );
-              if (recheck.publishable) attempt = reshoot;
-            }
-          }
-
-          const image = attempt.image;
-
 
           const bytes = decodeBase64(image.base64);
           const mime = image.mimeType.split(";")[0] || "image/png";
@@ -1317,12 +1404,11 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
               .from("website_components")
               .update({ media_url: path, settings: writeComponentVisual(
                 readColumn("website_components", action.componentId, "settings"),
-                { alt: action.alt, source: "generated" },
+                { alt: action.alt, object_fit: "cover", source: "generated" },
               ) } as never)
               .eq("id", action.componentId)
               .eq("organization_id", orgId),
           );
-          if (!fatal) generatedImages.push({ componentId: action.componentId, alt: action.alt });
           break;
         }
         case "add_component":
@@ -1430,20 +1516,11 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
               .eq("organization_id", orgId),
           );
           break;
-        case "set_design_tokens":
-          await run(action.type, () => {
-            const generation = writeDesignTokens(readColumn("website_settings", null, "generation"), action.tokens);
-            noteColumn("website_settings", null, "generation", generation);
-            return supabase
-              .from("website_settings")
-              .upsert({ organization_id: orgId, generation } as never, { onConflict: "organization_id" });
-          });
-          break;
         case "set_backdrop":
           await run(action.type, () => {
-            const generation = writeBackdropSpec(
-              writeBackdrop(readColumn("website_settings", null, "generation"), action.backdrop),
-              action.spec ?? null,
+            const generation = writeBackdrop(
+              readColumn("website_settings", null, "generation"),
+              action.backdrop,
             );
             noteColumn("website_settings", null, "generation", generation);
             return supabase
@@ -1477,85 +1554,6 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
           break;
       }
       void sortOf;
-    }
-
-    if (!fatal && generatedImages.length > 0) {
-      await linkGeneratedImagesIntoLayouts();
-    }
-
-    async function linkGeneratedImagesIntoLayouts() {
-      const generatedIds = new Set(generatedImages.map((image) => image.componentId));
-      const sectionIds = [
-        ...new Set(
-          generatedImages
-            .map((image) => componentSection.get(image.componentId))
-            .filter((id): id is string => Boolean(id)),
-        ),
-      ];
-      if (sectionIds.length === 0) return;
-      const [{ data: sectionRows, error: sectionError }, { data: componentRows, error: componentError }] =
-        await Promise.all([
-          supabase.from("website_sections").select("id, kind, settings").eq("organization_id", orgId).in("id", sectionIds),
-          supabase.from("website_components").select("id, media_url").eq("organization_id", orgId).in("section_id", sectionIds),
-        ]);
-      if (sectionError || componentError) {
-        fatal = sectionError ?? componentError;
-        failed.push("generate_component_image:link_failed");
-        return;
-      }
-      // A ref is dead when its component is gone, has no picture, or its file
-      // no longer exists in storage.
-      const mediaOf = new Map((componentRows ?? []).map((row) => [String(row.id), row.media_url as string | null]));
-      const paths = [...mediaOf.entries()]
-        .filter(([id, url]) => url && isStoragePath(url) && !generatedIds.has(id))
-        .map(([, url]) => url as string);
-      const missingPaths = new Set<string>();
-      if (paths.length > 0) {
-        const signed = await supabase.storage.from(MEDIA_BUCKET).createSignedUrls(paths, 60);
-        for (const entry of signed.data ?? []) if (entry.error || !entry.signedUrl) missingPaths.add(String(entry.path));
-      }
-      const isDead = (ref: string) => {
-        if (generatedIds.has(ref)) return false;
-        const url = mediaOf.get(ref);
-        return !url || missingPaths.has(url);
-      };
-      for (const row of sectionRows ?? []) {
-        if (row.kind !== "composition") continue;
-        const sectionId = String(row.id);
-        const settings = readColumn("website_sections", sectionId, "settings") ?? row.settings;
-        let tree = readComposition(settings);
-        if (!tree) continue;
-        const refsInTree = new Set<string>();
-        const collect = (node: CompositionNode) => {
-          if (node.mediaRef) refsInTree.add(node.mediaRef);
-          node.children?.forEach(collect);
-        };
-        collect(tree.root);
-        const dead = new Set([...refsInTree].filter(isDead));
-        let changed = false;
-        for (const image of generatedImages) {
-          if (componentSection.get(image.componentId) !== sectionId) continue;
-          const next = linkGeneratedMedia(tree, image.componentId, dead, image.alt);
-          if (next) {
-            tree = next;
-            changed = true;
-          }
-        }
-        if (!changed) continue;
-        const previous = row.settings;
-        const nextSettings = writeComposition(settings, tree);
-        noteColumn("website_sections", sectionId, "settings", nextSettings);
-        undoSteps.push({
-          label: "link_generated_image:restore-layout",
-          run: async () => {
-            await supabase.from("website_sections").update({ settings: previous } as never).eq("id", sectionId).eq("organization_id", orgId);
-          },
-        });
-        await run("link_generated_image", () =>
-          supabase.from("website_sections").update({ settings: nextSettings } as never).eq("id", sectionId).eq("organization_id", orgId),
-        );
-        if (fatal) return;
-      }
     }
 
     if (fatal) {
@@ -1600,6 +1598,7 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
         skippedLabels: failed,
         snapshotLabel,
         snapshotVersion,
+        snapshotId,
         mutations: undoSteps.length,
       } as unknown as never,
 
@@ -1620,13 +1619,7 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
       } catch (error) {
         console.error("[site-agent] verification could not run", error);
       }
-      const introduced = verification
-        ? verification.checks.filter(
-            (check) =>
-              !check.ok && check.severity === "critical" && !baselineCritical.has(checkKey(check)),
-          )
-        : [];
-      if (verification && introduced.length > 0) {
+      if (verification && verification.critical > 0) {
         const reversal = await rollback(undoSteps);
         await supabase.from("ai_generations").insert({
           organization_id: orgId,
@@ -1643,7 +1636,8 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
           created_by: userId,
         });
         invalidateWorkspaceContext(orgId);
-        const worst = introduced
+        const worst = verification.checks
+          .filter((check) => !check.ok && check.severity === "critical")
           .slice(0, 3)
           .map((check) => `${check.where}: ${check.label.toLowerCase()}`)
           .join("; ");
@@ -1653,38 +1647,6 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
             : `Revora found a problem after saving (${worst}) and undid what it could. Open Version history and return to "${snapshotLabel}".`,
         );
       }
-    }
-
-    // VERIFY BEFORE CLAIMING. Re-read every row this run wrote and confirm the
-    // saved value is the value the AI asked for, so "done" is only reported for
-    // changes that actually landed.
-    const unconfirmed: string[] = [];
-    try {
-      const stable = (value: unknown): string =>
-        JSON.stringify(value, (_k, v) =>
-          v && typeof v === "object" && !Array.isArray(v)
-            ? Object.fromEntries(Object.keys(v as object).sort().map((k) => [k, (v as Record<string, unknown>)[k]]))
-            : v,
-        );
-      for (const [key, columns] of overlay) {
-        const split = key.indexOf(":");
-        const table = key.slice(0, split);
-        const id = key.slice(split + 1);
-        if (id === "org") continue;
-        const names = Object.keys(columns);
-        const { data: row } = await (supabase as unknown as { from: (t: string) => any }) // eslint-disable-line @typescript-eslint/no-explicit-any
-          .from(table)
-          .select(names.join(","))
-          .eq("id", id)
-          .eq("organization_id", orgId)
-          .maybeSingle();
-        if (!row) continue; // removed later in the same run
-        for (const name of names)
-          if (stable((row as Record<string, unknown>)[name] ?? null) !== stable(columns[name] ?? null))
-            unconfirmed.push(`${table.replace(/^website_/, "")} ${name}`);
-      }
-    } catch (error) {
-      console.error("[site-agent] read-back check could not run", error);
     }
 
     // CHECK, REPAIR, CHECK AGAIN. The writes are in place and the live pages
@@ -1740,11 +1702,9 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
       console.warn("[site-agent] memory not recorded", error);
     }
 
-    return {
+    const finalResult: StoredApplyResult = {
       applied: applied.length,
       failed: failed.length,
-      /** Writes whose saved value did not match on read-back — never reported as done. */
-      unconfirmed,
       /** Steps that could not run because their target no longer exists. */
       stale: preflight.stale.length,
       /** Steps that needed no write because the site already matched them. */
@@ -1755,7 +1715,6 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
       details: [
         ...applied.map((label) => `applied ${label}`),
         ...failed.map((label) => `skipped ${label}`),
-        ...unconfirmed.map((label) => `not confirmed on read-back: ${label}`),
         ...preflight.stale.map((entry) => `stale ${entry.type} (${entry.reason})`),
         ...settled.unchangedLabels,
         ...applyDropped.map((reason) => `left out — ${reason}`),
@@ -1769,12 +1728,46 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
       dropped: applyDropped,
       snapshotLabel,
       snapshotVersion,
+      snapshotId,
       operationId,
       alreadyApplied: false,
       verification,
       /** Checked → repaired → checked again, measured on the saved rows. */
       qa,
+      appliedActions,
     };
+
+    if (operationClaimId) {
+      await supabase
+        .from("ai_operation_claims")
+        .update({
+          status: "completed",
+          result: finalResult as unknown as never,
+          lease_expires_at: null,
+          completed_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        } as never)
+        .eq("id", operationClaimId)
+        .eq("status", "pending");
+    }
+    return finalResult;
+  } catch (error) {
+    if (operationClaimId) {
+      await supabase
+        .from("ai_operation_claims")
+        .update({
+          status: "failed",
+          result: { error: String(error instanceof Error ? error.message : error) },
+          lease_expires_at: null,
+          completed_at: null,
+          updated_at: new Date().toISOString(),
+        } as never)
+        .eq("id", operationClaimId)
+        .eq("status", "pending");
+    }
+    throw error;
+  } finally {
+    if (operationClaimHeartbeat) clearInterval(operationClaimHeartbeat);
   }
 }
 
@@ -1786,7 +1779,7 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
  */
 export const transcribeVoiceCommand = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .validator((input: { organizationId: string; audio?: unknown }) => {
+  .inputValidator((input: { organizationId: string; audio?: unknown }) => {
     const organizationId = orgIdOf(input);
     const [attachment] = readAttachments([input?.audio]);
     if (!attachment || attachment.kind !== "audio")
@@ -1831,7 +1824,7 @@ export const transcribeVoiceCommand = createServerFn({ method: "POST" })
  */
 export const summarizeClipChapters = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .validator((input: { organizationId: string; video?: unknown }) => {
+  .inputValidator((input: { organizationId: string; video?: unknown }) => {
     const organizationId = orgIdOf(input);
     const [attachment] = readAttachments([input?.video]);
     if (!attachment || attachment.kind !== "video")
@@ -1887,7 +1880,7 @@ export const summarizeClipChapters = createServerFn({ method: "POST" })
  */
 export const runWebsiteTask = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .validator(
+  .inputValidator(
     (input: {
       organizationId: string;
       instruction: string;
@@ -1929,9 +1922,9 @@ export const runWebsiteTask = createServerFn({ method: "POST" })
         return {
           plan,
           needsApproval,
-          applied: null as null | Awaited<ReturnType<typeof applyImpl>>,
+          applied: null as null | Awaited<ReturnType<typeof applyWebsiteActions>>,
         };
-      const applied = await applyImpl(supabase, userId, {
+      const applied = await applyWebsiteActions(supabase, userId, {
         organizationId: data.organizationId,
         actions: safe.map((step: AgentStep) => step.action),
         label,
@@ -2024,16 +2017,3 @@ export const builderMediaCapabilities = createServerFn({ method: "GET" }).handle
       : "Type your request — photos stay attached for you to place.",
   };
 });
-
-
-function checkKey(check: { where?: string; label: string }) {
-  return `${check.where ?? ""}|${check.label}`;
-}
-
-function criticalKeys(report: VerificationReport | null) {
-  return new Set(
-    (report?.checks ?? [])
-      .filter((check) => !check.ok && check.severity === "critical")
-      .map(checkKey),
-  );
-}

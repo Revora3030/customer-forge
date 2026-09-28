@@ -292,7 +292,7 @@ export const submitPublicLead = createServerFn({ method: "POST" })
       console.error("public submission attempt gate failed", attemptError.message);
       throw new Error("We couldn't save your request. Please try again.");
     }
-    if (!((attempt as { allowed?: boolean } | null)?.allowed ?? false)) {
+    if (!((attempt as unknown as { allowed?: boolean } | null)?.allowed ?? false)) {
       throw new Error(
         "We've already received your details. Please wait a few minutes before sending again.",
       );

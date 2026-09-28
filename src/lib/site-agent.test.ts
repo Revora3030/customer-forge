@@ -49,7 +49,7 @@ describe("building a page and filling it in one plan", () => {
         { type: "set_section_text", sectionId: "temp_section", field: "heading", value: "Our services" },
         { type: "add_component", sectionId: "temp_section", kind: "button", ref: "temp_component", label: "Book" },
         { type: "set_component", componentId: "temp_component", patch: { label: "Book now" } },
-        { type: "set_component_visual", componentId: "temp_component", patch: { radius: 9999, shadow: 28 } },
+        { type: "set_component_visual", componentId: "temp_component", patch: { radius: "pill", shadow: "medium" } },
       ],
       known,
     );
@@ -71,6 +71,36 @@ describe("building a page and filling it in one plan", () => {
       { ...known, componentIds: new Set(["component-1"]) },
     );
     expect(actions).toEqual([expect.objectContaining({ type: "generate_component_image", mode: "replace" })]);
+  });
+
+  it("accepts AI-authored section and component visual actions", () => {
+    const dropped: string[] = [];
+    const actions = readActions(
+      [
+        { type: "set_ai_visual", sectionId: "section-1", patch: { transform: "scale(1.02)", background: "linear-gradient(#111,#333)" } },
+        { type: "set_ai_responsive", sectionId: "section-1", width: 390, patch: { gridTemplateColumns: "1fr" } },
+        { type: "set_ai_component_visual", componentId: "component-1", patch: { borderRadius: "28px", boxShadow: "0 20px 60px rgba(0,0,0,.2)" } },
+        { type: "set_ai_component_responsive", componentId: "component-1", width: 390, patch: { transform: "none" } },
+      ],
+      { pageIds: new Set(), sectionIds: new Set(["section-1"]), componentIds: new Set(["component-1"]) },
+      dropped,
+    );
+    expect(actions).toHaveLength(4);
+    expect(dropped).toHaveLength(0);
+  });
+
+  it("reports unknown or malformed actions instead of silently dropping them", () => {
+    const dropped: string[] = [];
+    const actions = readActions(
+      [
+        { type: "not-a-real-action" },
+        { type: "set_ai_responsive", sectionId: "missing", width: 390, patch: { transform: "none" } },
+      ],
+      { pageIds: new Set(), sectionIds: new Set(), componentIds: new Set() },
+      dropped,
+    );
+    expect(actions).toHaveLength(0);
+    expect(dropped.length).toBeGreaterThanOrEqual(2);
   });
 
   it("accepts safe section and responsive component style actions", () => {
@@ -159,6 +189,8 @@ describe("building a page and filling it in one plan", () => {
       componentId: "temp_picture_1",
     });
   });
+
+
 
   it("drops references used before they are declared", () => {
     const actions = readActions(

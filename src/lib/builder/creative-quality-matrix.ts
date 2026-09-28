@@ -28,6 +28,12 @@ export type CreativeQualityMatrix = {
   };
   /** Widths the visual QA renders and inspects; not a layout instruction. */
   responsiveWidths: readonly number[];
+  imagery?: {
+    importantPageVisualRequired?: boolean;
+    artDirection?: string;
+    treatment?: string;
+    slots?: string[];
+  };
 };
 
 export const SITE_WIDE_CREATIVE_QUALITY_MATRIX: CreativeQualityMatrix = {

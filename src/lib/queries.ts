@@ -1,13 +1,15 @@
 import { useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 import { nextPublishState } from "@/lib/publish-state";
 import { toast } from "@/lib/ui/notify";
 import { friendlyError } from "@/lib/user-error";
 import { supabase } from "@/integrations/supabase/client";
 import type { AppointmentStatus, LeadStatus } from "@/lib/domain";
+import type { GoalKey } from "@/lib/website-plan";
+import { runSiteGeneration } from "@/lib/site-engine.functions";
 import { AUTOMATION_RECIPES, enqueueAutomations } from "@/lib/automation-engine";
 import { runDueAutomations } from "@/lib/automations.functions";
-import { setWebsiteReviewState } from "@/lib/website-review.functions";
 
 /**
  * Client code can only queue automation steps — actual email/SMS delivery runs
@@ -160,52 +162,6 @@ export function useNotifications(organizationId: string | undefined) {
       return data;
     },
   });
-}
-
-/** Keeps lead/review/notification counts fresh while the workspace is open. */
-export function useWorkspaceRealtime(organizationId: string | undefined) {
-  const queryClient = useQueryClient();
-
-  useEffect(() => {
-    if (!organizationId) return;
-
-    const channel = supabase
-      .channel(`workspace-live-${organizationId}`)
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "leads", filter: `organization_id=eq.${organizationId}` },
-        () => {
-          void queryClient.invalidateQueries({ queryKey: ["leads", organizationId] });
-          void queryClient.invalidateQueries({ queryKey: ["score_facts", organizationId] });
-          void queryClient.invalidateQueries({ queryKey: ["notifications", organizationId] });
-        },
-      )
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "reviews", filter: `organization_id=eq.${organizationId}` },
-        () => {
-          void queryClient.invalidateQueries({ queryKey: ["reviews", organizationId] });
-          void queryClient.invalidateQueries({ queryKey: ["score_facts", organizationId] });
-        },
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "notifications",
-          filter: `organization_id=eq.${organizationId}`,
-        },
-        () => {
-          void queryClient.invalidateQueries({ queryKey: ["notifications", organizationId] });
-        },
-      )
-      .subscribe();
-
-    return () => {
-      void supabase.removeChannel(channel);
-    };
-  }, [organizationId, queryClient]);
 }
 
 export function useCustomers(organizationId: string | undefined) {
@@ -1252,14 +1208,41 @@ export function useUpdateWebsiteRequest() {
   });
 }
 
+/** Starts a canonical AI website build/rebuild from the client's saved facts. */
+export function useGenerateWebsite(organizationId: string | undefined) {
+  const queryClient = useQueryClient();
+  const run = useServerFn(runSiteGeneration);
+  return useMutation({
+    mutationFn: async () => {
+      if (!organizationId) throw new Error("Choose a workspace before generating your website.");
+      return run({ data: { organizationId, mode: "safe" } });
+    },
+    onSuccess: () => {
+      toast.success("Sol is building your website. Review it before launch.");
+      void queryClient.invalidateQueries({ queryKey: ["website_settings"] });
+      void queryClient.invalidateQueries({ queryKey: ["generation_job", organizationId] });
+      void queryClient.invalidateQueries({ queryKey: ["notifications"] });
+    },
+    onError: (error: Error) => toast.error(friendlyError(error, "Couldn't start the website build.")),
+  });
+}
+
 export function useSetWebsiteReviewState(organizationId: string | undefined) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({ state, message }: { state: string; message?: string }) => {
-      if (state !== "approved" && state !== "changes_requested") {
-        throw new Error("That review status is not supported.");
+      const patch: Record<string, unknown> = {
+        organization_id: organizationId!,
+        review_state: state,
+      };
+      if (state === "approved") {
+        patch["approved_at"] = new Date().toISOString();
+        patch["approved_by"] = (await supabase.auth.getUser()).data.user?.id ?? null;
       }
-      await setWebsiteReviewState({ data: { organizationId: organizationId!, state } });
+      const { error } = await supabase
+        .from("website_settings")
+        .upsert(patch as never, { onConflict: "organization_id" });
+      if (error) throw error;
       return message;
     },
     onSuccess: (message) => {
@@ -1270,3 +1253,28 @@ export function useSetWebsiteReviewState(organizationId: string | undefined) {
       toast.error(friendlyError(error, "Couldn't update the website status.")),
   });
 }
+
+/**
+ * Subscribes to workspace realtime updates (leads, appointments, notifications).
+ * No-op when no organization is provided or Supabase realtime is unavailable.
+ */
+export function useWorkspaceRealtime(organizationId: string | undefined) {
+  const queryClient = useQueryClient();
+  useEffect(() => {
+    if (!organizationId) return;
+    const channel = supabase
+      .channel(`workspace-${organizationId}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "leads", filter: `organization_id=eq.${organizationId}` }, () => {
+        queryClient.invalidateQueries({ queryKey: ["leads", organizationId] });
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "appointments", filter: `organization_id=eq.${organizationId}` }, () => {
+        queryClient.invalidateQueries({ queryKey: ["appointments", organizationId] });
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "notifications", filter: `organization_id=eq.${organizationId}` }, () => {
+        queryClient.invalidateQueries({ queryKey: ["notifications", organizationId] });
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [organizationId]);
+}
+
