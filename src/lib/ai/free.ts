@@ -1,19 +1,13 @@
 /**
- * FREE-AI-FIRST configuration.
+ * Free-provider eligibility and budgeting.
  *
- * Revora's builder must never need a paid AI plan. The deterministic native
- * engine answers everything it can safely answer; when a request genuinely
- * needs a generative model, it runs on a provider whose configured usage is
- * actually free. This file is the single place that decides:
+ * This module defines which provider/model combinations are eligible for a
+ * provider's free allowance and how that lane is budgeted. It is NOT a website
+ * builder, creative planner, or design fallback. The main model router remains
+ * responsible for quality-first selection and the AI collective remains the
+ * creative authority.
  *
- * - which providers count as free,
- * - which of their models Revora is allowed to pick,
- * - what the provider's published free allowance is,
- * - the order they are tried in,
- * - and the hard rule that a paid model can never be selected here.
- *
- * Every value is read from the server environment at call time, so a provider
- * or model change is configuration, not a deploy of new code. Server-only:
+ * Every value is read from the server environment at call time. Server-only:
  * never import this from a component.
  */
 
@@ -189,8 +183,9 @@ const FREE_MODEL_DEFAULTS: Record<FreeProviderName, Partial<Record<ModelRole, st
 };
 
 /**
- * Roles no free provider serves: Revora falls back to its native engine and
- * reports the capability as unavailable rather than pretending otherwise.
+ * Roles with no eligible free provider are reported as unavailable by the free
+ * lane. The main router may still use a configured paid specialist; this module
+ * never chooses a creative substitute.
  *
  * Image generation is no longer here: Cloudflare Workers AI serves
  * `@cf/black-forest-labs/flux-1-schnell` inside the free Neuron allowance, and
