@@ -45,6 +45,33 @@ export async function sha256Hex(value: string) {
   return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
+/** Row shape of `public.lead_delivery_logs` (migration 20260928052000). */
+type LeadDeliveryLogInsert = {
+  organization_id: string;
+  lead_id: string;
+  delivery_status: "delivered" | "failed" | "skipped";
+  http_status: number | null;
+  reason: string | null;
+  retryable: boolean;
+  attempted_at: string;
+};
+
+type LeadDeliveryLogTable = {
+  insert(row: LeadDeliveryLogInsert): PromiseLike<{ error: { message: string } | null }>;
+};
+
+/**
+ * Typed access to the lead delivery telemetry table that does not depend on
+ * the generated Database types. The service-role client is still used, so RLS
+ * and tenant boundaries are unchanged; only the compile-time table lookup is
+ * narrowed to this one table and row shape.
+ */
+function leadDeliveryLogs(client: unknown): LeadDeliveryLogTable {
+  return (client as { from(table: "lead_delivery_logs"): LeadDeliveryLogTable }).from(
+    "lead_delivery_logs",
+  );
+}
+
 function publicSubmissionSource() {
   const request = getRequest();
   const headers = request.headers;
@@ -525,7 +552,11 @@ export const submitPublicLead = createServerFn({ method: "POST" })
           : "failed";
         // Supabase reports insert failures in the result instead of throwing, so
         // the error has to be read explicitly or a missing table fails silently.
-        const { error: telemetryInsertError } = await supabase.from("lead_delivery_logs").insert({
+        // `lead_delivery_logs` is written through a narrow local contract rather
+        // than the generated schema types: Lovable regenerates `types.ts` from the
+        // live database, and until the migration is applied there, a typed
+        // `.from("lead_delivery_logs")` call breaks the build gate.
+        const { error: telemetryInsertError } = await leadDeliveryLogs(supabase).insert({
           organization_id: orgId,
           lead_id: lead.id,
           delivery_status: deliveryStatus,
