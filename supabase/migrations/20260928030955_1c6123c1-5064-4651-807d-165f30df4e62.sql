@@ -1,0 +1,1 @@
+alter table public.website_settings add column if not exists lead_webhook_url text;
