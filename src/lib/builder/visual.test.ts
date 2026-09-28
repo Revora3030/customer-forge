@@ -94,13 +94,21 @@ describe("rendered visual quality", () => {
     expect(findings.some((finding) => finding.key === "layout_shift" && finding.severity === "p0")).toBe(true);
   });
 
-  it("treats small taps and tiny text as advice, not a blocker", () => {
+  it("blocks sub-44px visitor controls through the 768px breakpoint", () => {
     const findings = gradeViewport({
       ...clean(375),
       smallTargets: [{ selector: "a.link", width: 30, height: 20 }],
-      tinyText: [{ selector: "p.note", fontSize: 11 }],
     });
-    expect(findings.every((f) => f.severity === "advice")).toBe(true);
+    expect(findings.some((f) => f.key === "small_tap_target" && f.severity === "p0")).toBe(true);
+  });
+
+  it("blocks rendered placeholder leakage", () => {
+    const findings = gradeViewport({
+      ...clean(390),
+      placeholderLeakage: ["[TODO]", "fictional studio"],
+    });
+    expect(findings.filter((f) => f.key === "placeholder_leakage")).toHaveLength(2);
+    expect(findings.every((f) => f.severity === "p0")).toBe(true);
   });
 
   it("never calls an unmeasured site checked", () => {

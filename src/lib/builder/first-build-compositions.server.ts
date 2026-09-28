@@ -377,7 +377,16 @@ async function improveWithTeam(input: {
           ...(input.memory ? ["OWNER'S STANDING PREFERENCES (from past conversations; honour them):", input.memory, ""] : []),
           ...(allEvidence(input.evidence) ? ["OUTSIDE EVIDENCE (context only — never copy onto the site as this business's facts):", allEvidence(input.evidence)!, ""] : []),
           "YOUR CURRENT DESIGN:", JSON.stringify(current), "",
+          "NODE-LEVEL DIRECTIVES (prioritize these exact Terra/reviewer issues):", JSON.stringify(
+            notes.map((note) => ({
+              area: note.area,
+              directives: note.issues.map((issue) => issue.trim()),
+            })),
+          ), "",
           "REVIEW PANEL NOTES (use your judgement; improve, never downgrade):", JSON.stringify(notes), "",
+          "Revision strategy: preserve strong existing nodes, media references, working widgets and successful hierarchy. Do NOT wipe and regenerate an entire page because one node is flagged. Refactor or replace only the affected node(s), and keep every unaffected section intact unless a reviewer directive proves it must change.",
+          "Prioritize concrete directives such as cta_buried, contrast_below_4.5, mobile_wrapping_risk, monotonous_rhythm, overflow, inaccessible controls, broken media or widget failures before aesthetic refinements.",
+          "The revision is provisional until every changed tree is validated against COMPOSITION_PRIMITIVES, its supplied media references and fact screen, then accepted by runImprovementGate. Never commit a tree that fails those checks.",
           'Return JSON: {"sections": {"<sectionId>": {"version": 1, "label": "...", "root": {...}}}} with one improved tree per section.',
         ].join("\n"),
       });
@@ -407,6 +416,29 @@ async function improveWithTeam(input: {
       const { costMicrocents: _cost, ...report } = gate;
       input.result.gateReports.push(report);
       if (!gate.accepted) break;
+
+      // Re-run the renderer/primitive validator after the improvement gate as
+      // the final commit boundary. The gate can assess quality, but it must
+      // never become a path around the composition safety contract.
+      let commitSafe = true;
+      for (const [id, tree] of proposed) {
+        const section = input.sections.find((candidate) => candidate.id === id);
+        const mediaRefs = section ? mediaRefsFor(section, input.parts) : new Set<string>();
+        const finalCheck = validateComposition(tree, {
+          screenText: input.screen,
+          allowedMediaRefs: mediaRefs,
+          requiredMediaRefs: mediaRefs,
+        });
+        if (!finalCheck.ok) {
+          commitSafe = false;
+          console.warn("team improvement rejected after final primitive validation", {
+            sectionId: id,
+            issues: finalCheck.issues,
+          });
+          break;
+        }
+      }
+      if (!commitSafe) break;
       best = proposed;
     } catch (error) {
       console.warn("team improvement round skipped", (error as Error).message);

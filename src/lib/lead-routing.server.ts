@@ -21,12 +21,39 @@ export type LeadWebhookPayload = {
   };
 };
 
+export type LeadWebhookFailure = {
+  statusCode: number | null;
+  retryable: boolean;
+  kind: "timeout" | "network" | "http";
+};
+
 export type LeadWebhookResult =
-  | { ok: true; skipped?: false }
-  | { ok: true; skipped: true; reason: "not_configured" }
-  | { ok: false; skipped: false; reason: string };
+  | { ok: true; skipped?: false; attemptedAt: string }
+  | { ok: true; skipped: true; reason: "not_configured"; attemptedAt: string }
+  | {
+      ok: false;
+      skipped: false;
+      reason: string;
+      attemptedAt: string;
+      statusCode: number | null;
+      retryable: boolean;
+      kind: LeadWebhookFailure["kind"];
+    };
 
 const WEBHOOK_TIMEOUT_MS = 5_000;
+
+export function classifyLeadWebhookFailure(
+  statusCode: number | null,
+  kind: LeadWebhookFailure["kind"],
+): LeadWebhookFailure {
+  if (kind === "timeout") return { statusCode, retryable: true, kind };
+  if (kind === "network") return { statusCode, retryable: true, kind };
+  return {
+    statusCode,
+    retryable: statusCode === null || statusCode === 408 || statusCode === 425 || statusCode === 429 || statusCode >= 500,
+    kind,
+  };
+}
 
 function isPrivateHostname(hostname: string) {
   const host = hostname.toLowerCase().replace(/^\[|\]$/g, "");
@@ -64,8 +91,9 @@ export async function dispatchLeadWebhook(
   webhookUrl: string | null | undefined,
   payload: LeadWebhookPayload,
 ): Promise<LeadWebhookResult> {
+  const attemptedAt = new Date().toISOString();
   const url = validateLeadWebhookUrl(webhookUrl);
-  if (!url) return { ok: true, skipped: true, reason: "not_configured" };
+  if (!url) return { ok: true, skipped: true, reason: "not_configured", attemptedAt };
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), WEBHOOK_TIMEOUT_MS);
@@ -83,23 +111,42 @@ export async function dispatchLeadWebhook(
     });
 
     if (!response.ok) {
+      const failure = classifyLeadWebhookFailure(response.status, "http");
       return {
         ok: false,
         skipped: false,
         reason: "http_" + response.status,
+        attemptedAt,
+        statusCode: failure.statusCode,
+        retryable: failure.retryable,
+        kind: failure.kind,
       };
     }
 
-    return { ok: true };
+    return { ok: true, attemptedAt };
   } catch (error) {
-    const reason =
-      error instanceof DOMException && error.name === "AbortError"
-        ? "timeout"
-        : error instanceof Error
-          ? error.message.slice(0, 160)
-          : "webhook_transport_error";
-    console.warn("[lead-routing] webhook delivery failed", { reason });
-    return { ok: false, skipped: false, reason };
+    const timeout = error instanceof DOMException && error.name === "AbortError";
+    const reason = timeout
+      ? "timeout"
+      : error instanceof Error
+        ? error.message.slice(0, 160)
+        : "webhook_transport_error";
+    const failure = classifyLeadWebhookFailure(null, timeout ? "timeout" : "network");
+    console.warn("[lead-routing] webhook delivery failed", {
+      reason,
+      attemptedAt,
+      retryable: failure.retryable,
+      kind: failure.kind,
+    });
+    return {
+      ok: false,
+      skipped: false,
+      reason,
+      attemptedAt,
+      statusCode: null,
+      retryable: failure.retryable,
+      kind: failure.kind,
+    };
   } finally {
     clearTimeout(timer);
   }
