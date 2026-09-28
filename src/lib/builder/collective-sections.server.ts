@@ -311,6 +311,81 @@ export async function refineSectionWordingWithCollective(input: {
     facts: input.facts,
     baseline: input.sections,
   });
+
+  // Terra's rejection reasons are actionable input, not a dead-end scorecard.
+  // Give Sol exactly one targeted revision pass over the rejected section/fields,
+  // then run the same factual + genericity gate before merging the patch.
+  const terraPass = passes.find((pass) => pass.purpose === "specialist_review");
+  const terraRejections = terraPass?.rejected ?? [];
+  const targetedFields = terraRejections
+    .map((item) => item.field)
+    .filter((field) => field && field !== "*");
+  const targetedSectionIds = [...new Set(
+    targetedFields
+      .map((field) => field.split(".")[0])
+      .filter((id) => input.sections.some((section) => section.id === id)),
+  )];
+
+  if (targetedSectionIds.length && terraRejections.length) {
+    const targetedBaseline = input.sections.filter((section) => targetedSectionIds.includes(section.id));
+    const targetedCall = await callBestThinker({
+      json: true,
+      purpose: "content_strategy_targeted_revision",
+      complexity: "high",
+      organizationId: input.organizationId,
+      maxOutputTokens: 2200,
+      ...(input.signal ? { signal: input.signal } : {}),
+      system: RULES + " You are Sol performing one targeted revision pass. Fix only the rejected fields named by Terra. Preserve every non-rejected field and every section id. Do not invent facts.",
+      user: [
+        "FACTS (the only truth you may use):",
+        facts,
+        "",
+        "REJECTED SECTIONS — BASELINE WORDING:",
+        sectionSheet(targetedBaseline),
+        "",
+        "TERRA'S EXACT CRITIQUES:",
+        JSON.stringify(terraRejections),
+        "",
+        'Return JSON: {"sections":[{"id":"...","heading":"...","subheading":"...","body":"..."}]}.',
+        "Return only the rejected sections and only the fields Terra rejected. Keep wording concise and fact-grounded.",
+      ].join("\n"),
+    });
+    const targetedProposal = targetedCall.ok ? parseRefinement(targetedCall.text) : null;
+    const targetedGate = reviewSectionWording({
+      proposal: targetedProposal,
+      facts: input.facts,
+      baseline: targetedBaseline,
+    });
+    const targetedStrings = proposedStrings(targetedProposal);
+    const targetedGenericHits = detectGenericPhrases(targetedStrings);
+    const validTargeted = targetedGenericHits.length === 0 ? targetedGate.accepted : [];
+    const targetedPass = record(targetedCall.tier ?? "hall_of_fame", "content_strategy_targeted_revision", {
+      model: targetedCall.ok ? targetedCall.model : null,
+      used: validTargeted.length > 0,
+      costMicrocents: targetedCall.ok ? targetedCall.costMicrocents : 0,
+      skipped: !targetedCall.ok
+        ? targetedCall.detail ?? targetedCall.reason
+        : !targetedProposal
+          ? "the targeted revision was not in the agreed shape"
+          : targetedGenericHits.length
+            ? "the targeted revision retained generic stock phrasing"
+            : !validTargeted.length
+              ? "the targeted revision did not pass the factual safety gate"
+              : null,
+      acceptedFields: validTargeted.map((patch) => patch.id),
+      rejected: targetedGate.rejected,
+    });
+    passes.push(targetedPass);
+
+    if (validTargeted.length) {
+      const acceptedById = new Map(gated.accepted.map((patch) => [patch.id, patch]));
+      for (const patch of validTargeted) {
+        const existing = acceptedById.get(patch.id);
+        acceptedById.set(patch.id, { ...existing, ...patch });
+      }
+      gated.accepted = [...acceptedById.values()];
+    }
+  }
   const solPass = passes.find((pass) => pass.purpose === "content_strategy");
   if (solPass) {
     solPass.acceptedFields = gated.accepted.map((patch) => patch.id);

@@ -516,8 +516,36 @@ export const submitPublicLead = createServerFn({ method: "POST" })
       if (!confirmation.ok && !("skipped" in confirmation && confirmation.skipped)) {
         console.warn("lead confirmation not delivered", confirmation.reason);
       }
+      // Persist the outbound webhook outcome separately from the lead itself.
+      // This is deliberately best-effort: telemetry can never turn a durable lead
+      // into a failed visitor submission.
+      try {
+        const deliveryStatus = webhookResult.ok
+          ? ("skipped" in webhookResult && webhookResult.skipped ? "skipped" : "delivered")
+          : "failed";
+        await supabase.from("lead_delivery_logs").insert({
+          organization_id: orgId,
+          lead_id: lead.id,
+          delivery_status: deliveryStatus,
+          http_status: webhookResult.ok ? null : webhookResult.statusCode,
+          reason: webhookResult.ok ? null : webhookResult.reason,
+          retryable: webhookResult.ok ? false : webhookResult.retryable,
+          attempted_at: webhookResult.attemptedAt,
+        } as never);
+      } catch (telemetryError) {
+        console.warn(
+          "lead webhook telemetry could not be persisted",
+          telemetryError instanceof Error ? telemetryError.message : telemetryError,
+        );
+      }
+
       if (!webhookResult.ok) {
-        console.warn("lead webhook not delivered", webhookResult.reason);
+        console.warn("lead webhook not delivered", {
+          reason: webhookResult.reason,
+          statusCode: webhookResult.statusCode,
+          attemptedAt: webhookResult.attemptedAt,
+          retryable: webhookResult.retryable,
+        });
       }
       if (
         (alertEmail && !alert.ok) ||

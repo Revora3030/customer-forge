@@ -142,6 +142,55 @@ const REVIEWER_SYSTEM = [
  * Any failure to review returns `publishable: true` so a good picture is never
  * thrown away because the reviewer was unreachable.
  */
+const TARGETED_REVISION_SYSTEM = [
+  "You are Sol performing one targeted commercial-photography revision after Terra rejected a generated frame.",
+  "Rewrite only the photography brief details needed to correct Terra's defects. Preserve the real business/service context, documentary realism, physically plausible lighting and commercial editorial intent.",
+  "Never add text, logos, awards, reviews, ratings, guarantees, customer proof, prices, addresses, staff identities or invented business facts.",
+  "Keep a 35mm or 50mm prime baseline, natural directional light, realistic material texture, off-center composition and useful negative space for copy where the placement requires it.",
+  "Do not introduce CGI gloss, illustration, plastic skin, impossible geometry, fake cinematic effects or other uncanny AI tropes.",
+  'Answer JSON only: {"prompt":"..."} with one concise paragraph under 1600 characters.',
+].join(" ");
+
+async function reviseRejectedPhotoPrompt(
+  currentPrompt: string,
+  placement: string | undefined,
+  defects: string[],
+  terraPrompt: string | null,
+  caller: { organizationId: string; userId?: string | null },
+): Promise<string | null> {
+  try {
+    const result = await generateStructuredOutput(
+      { organizationId: caller.organizationId, userId: caller.userId ?? null, task: "image.art_direction_revision" },
+      {
+        role: "design",
+        json: true,
+        maxOutputTokens: 900,
+        messages: [
+          { role: "system", content: TARGETED_REVISION_SYSTEM },
+          {
+            role: "user",
+            content: [
+              `CURRENT BRIEF: ${currentPrompt}`,
+              placement ? `PLACEMENT: ${placement}` : "",
+              `TERRA DEFECTS: ${defects.join("; ") || "unspecified visible defect"}`,
+              terraPrompt ? `TERRA'S SUGGESTED CORRECTION: ${terraPrompt}` : "",
+              "Return a corrected brief, not commentary.",
+            ].filter(Boolean).join("\n"),
+          },
+        ],
+      },
+    );
+    const revised = result.data["prompt"];
+    if (typeof revised !== "string") return null;
+    const normalized = revised.replace(/\\s+/g, " ").trim();
+    if (normalized.length < 80) return null;
+    return normalized.includes("No text") ? normalized.slice(0, 1800) : `${normalized} ${EXCLUSIONS}`.slice(0, 1800);
+  } catch (error) {
+    console.warn("[photo-direction] targeted revision unavailable:", error);
+    return null;
+  }
+}
+
 export async function inspectPhoto(
   picture: { base64: string; mimeType: string },
   brief: { prompt: string; placement?: string },
@@ -176,7 +225,24 @@ export async function inspectPhoto(
         ],
       },
     );
-    return readVerdict(result.data);
+    const verdict = readVerdict(result.data);
+    if (!verdict.publishable) {
+      // Terra's defects become one targeted Sol revision before the caller can
+      // fall back to any other image source. This keeps the retry a true art-
+      // direction correction rather than an unconstrained second generation.
+      const targeted = await reviseRejectedPhotoPrompt(
+        brief.prompt,
+        brief.placement,
+        verdict.defects,
+        verdict.revisedPrompt,
+        caller,
+      );
+      return {
+        ...verdict,
+        revisedPrompt: targeted ?? verdict.revisedPrompt,
+      };
+    }
+    return verdict;
   } catch (error) {
     console.warn("[photo-direction] visual review unavailable:", error);
     return { publishable: true, defects: [], revisedPrompt: null, reviewed: false };

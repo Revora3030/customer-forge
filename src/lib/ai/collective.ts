@@ -43,6 +43,7 @@ export type CollectivePurpose =
   | "information_architecture"
   | "conversion_architecture"
   | "content_strategy"
+  | "content_strategy_targeted_revision"
   | "visual_review"
   | "repair_priority"
   | "quality_review"
@@ -84,6 +85,7 @@ const PURPOSE_TIER: Record<CollectivePurpose, CollectiveTier> = {
   information_architecture: "sol",
   conversion_architecture: "sol",
   content_strategy: "sol",
+  content_strategy_targeted_revision: "sol",
   // Independent review belongs to Terra: the reviewer must never be the same
   // model that authored the work it is attacking.
   visual_review: "terra",

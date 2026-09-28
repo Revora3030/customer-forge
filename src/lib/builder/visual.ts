@@ -94,6 +94,9 @@ export type ViewportMeasurement = {
     height: number;
   }[];
 
+  /** Raw fixture/placeholder strings must never reach visitor-visible copy. */
+  placeholderLeakage?: string[] | undefined;
+
   tinyText: {
     selector: string;
     fontSize: number;
@@ -141,7 +144,7 @@ export type VisualReport = {
 /* CONSTANTS                                                                  */
 /* -------------------------------------------------------------------------- */
 
-const PHONE_MAX = 500;
+const PHONE_MAX = 768;
 
 const SCORE_P0_PENALTY = 20;
 const SCORE_ADVICE_PENALTY = 3;
@@ -299,6 +302,19 @@ export function gradeViewport(
     );
   }
 
+  for (
+    const item of (
+      measurement.placeholderLeakage ?? []
+    ).slice(0, MAX_FINDINGS_PER_CATEGORY)
+  ) {
+    add(
+      "placeholder_leakage",
+      "p0",
+      `At ${width}px visitor-visible copy contains placeholder/fixture text: “${item}”.`,
+      "Remove the placeholder and regenerate from supplied business facts before publishing.",
+    );
+  }
+
   /* ---------------------------------------------------------------------- */
   /* IMAGES                                                                  */
   /* ---------------------------------------------------------------------- */
@@ -393,11 +409,11 @@ export function gradeViewport(
     ) {
       add(
         "small_tap_target",
-        "advice",
+        "p0",
         `“${target.selector}” is approximately ${Math.round(
           target.width,
-        )}×${Math.round(target.height)}px.`,
-        "Give important mobile controls a comfortable touch target of roughly 44px or larger.",
+        )}×${Math.round(target.height)}px at a mobile/tablet breakpoint.`,
+        "Every visitor-facing button, link, accordion header, tab and slider handle must be at least 44×44px on viewports at or below 768px.",
       );
     }
   }
@@ -1266,6 +1282,20 @@ export const MEASURE_SCRIPT = `(() => {
     );
 
   /* ---------------------------------------------------------------------- */
+  /* PLACEHOLDER LEAKAGE                                                     */
+  /* ---------------------------------------------------------------------- */
+
+  const placeholderLeakage = [
+    ...new Set(
+      (
+        document.body?.innerText || ""
+      )
+        .match(/\\[[^\\]]+\\]|\\bTODO\\b|\\bundefined\\b|\\bnull\\b|\\bfictional studio\\b|\\btest[- ]fixture service\\b/gi) ||
+        []
+    )
+  ].slice(0, 12);
+
+  /* ---------------------------------------------------------------------- */
   /* TOUCH TARGETS                                                           */
   /* ---------------------------------------------------------------------- */
 
@@ -1274,13 +1304,10 @@ export const MEASURE_SCRIPT = `(() => {
       const style =
         getComputedStyle(el);
 
-      /*
-       * Inline text links are allowed to be smaller than button controls.
-       */
-      return (
-        style.display !== "inline" &&
-        style.visibility !== "hidden"
-      );
+      // Benchmark invariant: every visitor-facing interactive control is
+      // measured, including inline links. The mobile contract requires a
+      // minimum 44×44px hit area through 768px.
+      return style.visibility !== "hidden";
     })
     .map((el) => ({
       el,
@@ -2087,19 +2114,12 @@ export const MEASURE_SCRIPT = `(() => {
         const size =
           parseFloat(style.fontSize) || 16;
 
-        const bold =
-          Number(style.fontWeight) >= 700;
-
-        const large =
-          size >= 24 ||
-          (
-            bold &&
-            size >= 18.66
-          );
+        const heading =
+          /^H[1-6]$/.test(el.tagName);
 
         return ratio <
           (
-            large
+            heading
               ? 3
               : 4.5
           )
@@ -2376,6 +2396,7 @@ export const MEASURE_SCRIPT = `(() => {
     brokenImages,
     clipped,
     smallTargets,
+    placeholderLeakage,
     tinyText,
     unreachable,
     navigable,
