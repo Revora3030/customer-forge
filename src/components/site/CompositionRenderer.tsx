@@ -250,12 +250,12 @@ function renderNode(node: CompositionNode, ctx: Ctx, key: string): ReactNode {
           primary={{
             label: node.primaryCta.label,
             href: ctx.href(node.primaryCta.href),
-            ...(node.primaryCta.ariaLabel !== undefined ? { ariaLabel: node.primaryCta.ariaLabel } : {}),
+            ariaLabel: node.primaryCta.ariaLabel ?? node.primaryCta.label,
           }}
           secondary={node.secondaryCta ? {
             label: node.secondaryCta.label,
             href: ctx.href(node.secondaryCta.href),
-            ...(node.secondaryCta.ariaLabel !== undefined ? { ariaLabel: node.secondaryCta.ariaLabel } : {}),
+            ariaLabel: node.secondaryCta.ariaLabel ?? node.secondaryCta.label,
           } : undefined}
         />
       ) : null;
@@ -433,8 +433,8 @@ function TabGroup({ props, tabs, renderPanel }: {
 
 function MobileStickyBar({ props, primary, secondary }: {
   props: NodeProps;
-  primary: { label: string; href: string; ariaLabel?: string };
-  secondary?: { label: string; href: string; ariaLabel?: string };
+  primary: { label: string; href: string; ariaLabel: string };
+  secondary?: { label: string; href: string; ariaLabel: string };
 }) {
   return (
     <div {...props} className={`${props.className ?? ""} rv-cn-mobile-sticky-bar`.trim()} style={{
