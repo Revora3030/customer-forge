@@ -468,7 +468,7 @@ const INTERACTIVE_CSS = `
 .rv-cn-tab.is-active{opacity:1}.rv-cn-tab.is-active::after{transform:scaleX(1)}
 .rv-cn-tab:focus-visible,.rv-cn-faq summary:focus-visible,.rv-cn-mobile-sticky-bar a:focus-visible{outline:3px solid currentColor;outline-offset:3px}
 .rv-cn-mobile-sticky-bar{display:none}
-@media (max-width:639px){.rv-cn-mobile-sticky-bar{display:flex}}
+@media (max-width:639px){.rv-cn-mobile-sticky-bar{display:flex!important;position:fixed!important;left:0!important;right:0!important;bottom:0!important}}
 @media (min-width:640px){.rv-cn-mobile-sticky-bar{display:none!important}}
 @media (prefers-reduced-motion: reduce){.rv-cn-faq-chevron,.rv-cn-faq-panel,.rv-cn-tab::after{transition:none!important}}
 `;
