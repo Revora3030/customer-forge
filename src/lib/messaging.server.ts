@@ -99,7 +99,6 @@ export async function deliverRun(
 }
 
 
-/** Owner-facing alert when a new lead / quote / booking lands. */
 /** Visitor-facing confirmation after a public lead is durably saved. */
 export async function sendLeadConfirmation(
   to: string,
