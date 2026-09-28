@@ -252,11 +252,13 @@ function renderNode(node: CompositionNode, ctx: Ctx, key: string): ReactNode {
             href: ctx.href(node.primaryCta.href),
             ariaLabel: node.primaryCta.ariaLabel ?? node.primaryCta.label,
           }}
-          secondary={node.secondaryCta ? {
-            label: node.secondaryCta.label,
-            href: ctx.href(node.secondaryCta.href),
-            ariaLabel: node.secondaryCta.ariaLabel ?? node.secondaryCta.label,
-          } : undefined}
+          {...(node.secondaryCta ? {
+            secondary: {
+              label: node.secondaryCta.label,
+              href: ctx.href(node.secondaryCta.href),
+              ariaLabel: node.secondaryCta.ariaLabel ?? node.secondaryCta.label,
+            },
+          } : {})}
         />
       ) : null;
         case "gallery":
