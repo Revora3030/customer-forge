@@ -5,8 +5,8 @@
  * URL and a name.
  *
  * Image generation and transcription are not offered here: the factory refuses
- * them with a non-retryable error so the router moves straight on to a provider
- * (or Revora's native engine) that can do the work.
+ * them with a non-retryable error so the router moves on to another compatible
+ * provider or reports the capability as unavailable.
  */
 
 import type { ProviderName } from "@/lib/ai/config";
