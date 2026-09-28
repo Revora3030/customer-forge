@@ -18,6 +18,7 @@ import {
   writeSectionVisual,
 } from "@/lib/site-style";
 import { writeCustomBlock } from "@/lib/builder/custom-block";
+import { writeComposition } from "@/lib/builder/composition-tree";
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import {
@@ -1312,6 +1313,20 @@ export async function applyWebsiteActions(supabase: SupabaseLike, userId: string
               .from("website_components")
               .update(patch as never)
               .eq("id", action.componentId)
+              .eq("organization_id", orgId);
+          });
+          break;
+        case "set_composition":
+          await run(action.type, () => {
+            const settings = writeComposition(
+              readColumn("website_components", action.sectionId, "settings"),
+              action.tree,
+            );
+            noteColumn("website_components", action.sectionId, "settings", settings);
+            return supabase
+              .from("website_components")
+              .update({ settings } as never)
+              .eq("id", action.sectionId)
               .eq("organization_id", orgId);
           });
           break;

@@ -31,6 +31,8 @@ import { currency, dateShort } from "@/lib/format";
 import { safeLinkUrl, sectionLabel } from "@/lib/website-content";
 import { readEmbed } from "@/lib/site-embed";
 import { readSectionEffect, sectionEffectClass } from "@/lib/site-effects";
+import { readComposition } from "@/lib/builder/composition-tree";
+import { CompositionRenderer } from "@/components/site/CompositionRenderer";
 import { businessFacts, factsAddressLine } from "@/lib/builder/facts";
 import { phoneDisplay, phoneLink, safeParagraph, safeText } from "@/lib/builder/presentation";
 import {
@@ -327,8 +329,8 @@ export function SiteSection({ site, section }: { site: Site; section: Section })
 
   const visualClass = [
     "rv-section",
-    `rv-variant-${variant}`,
-    rendererVariant !== variant ? `rv-variant-${rendererVariant}` : "",
+
+
     visual.layout ? `rv-layout-${visual.layout}` : "",
     visual.density ? `rv-density-${visual.density}` : "",
     visual.spacing ? `rv-spacing-${visual.spacing}` : "",

@@ -34,6 +34,7 @@ function key(action: AgentAction): string {
     case "set_custom_block":
     case "set_section_effect":
     case "delete_section":
+    case "set_composition":
       return `${action.type}:${action.sectionId}`;
     case "set_block_style":
       return `${action.type}:${action.target}:${action.targetId}:${action.device}`;
@@ -63,6 +64,8 @@ function key(action: AgentAction): string {
       return action.type;
     case "set_business_fact":
       return `${action.type}:${action.field}`;
+    default:
+      return (action as { type: string }).type;
   }
 }
 
@@ -81,6 +84,7 @@ function safeAction(
     case "set_custom_block":
     case "delete_section":
     case "set_section_effect":
+    case "set_composition":
       return known.sections.has(action.sectionId) || refs.sections.has(action.sectionId);
 
     case "set_block_style":

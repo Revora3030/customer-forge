@@ -7,6 +7,7 @@ import {
   type SectionEffectId,
 } from "@/lib/site-effects";
 import { safeLinkUrl } from "@/lib/website-content";
+import type { CompositionTree } from "@/lib/builder/composition-tree";
 import { siteBodyFont, siteHeadingFont } from "@/lib/site-theme";
 import { describeCustomBlock, parseCustomBlock, type CustomBlockSpec } from "@/lib/builder/custom-block";
 import {
@@ -457,6 +458,12 @@ export type AgentAction =
       type: "set_component_visual";
       componentId: string;
       patch: VisualComponentPatch;
+    }
+
+  | {
+      type: "set_composition";
+      sectionId: string;
+      tree: CompositionTree;
     }
 
   | {
@@ -2962,6 +2969,8 @@ export function describeActions(
 
             action,
           };
+        default:
+          return { key, title: action.type, where: "", before: "", after: "", destructive: false, action };
       }
     },
   );
