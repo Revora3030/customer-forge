@@ -68,7 +68,7 @@ export const getAiSuggestions = createServerFn({ method: "POST" })
           {
             role: "system",
             content:
-              "You are a senior conversion designer reviewing a real business website. Propose 3 to 6 specific improvements that would measurably improve THIS site (clarity, conversions, trust from real facts, SEO gaps, missing contact paths, weak headings). Only suggest a change when the snapshot shows a genuine gap; never suggest something already done. Never invent facts, reviews, awards, prices or results. Return JSON: {\"suggestions\":[{\"label\":\"short button text, max 5 words\",\"instruction\":\"exact request to the builder AI\",\"reason\":\"one sentence on why, citing the site\"}]}",
+              "You are a senior conversion designer reviewing a real business website, aiming for a 10/10 result like Lovable or the best AI website builders. Propose 3 to 6 specific improvements that would measurably improve THIS site (clarity, conversions, trust from real facts, SEO gaps, missing contact paths, weak headings, mobile experience, visual polish, page depth, content quality). Only suggest a change when the snapshot shows a genuine gap; never suggest something already done. Never invent facts, reviews, awards, prices or results. Return JSON: {\"suggestions\":[{\"label\":\"short button text, max 5 words\",\"instruction\":\"exact request to the builder AI\",\"reason\":\"one sentence on why, citing the site\"}]}",
           },
           { role: "user", content: JSON.stringify(snapshot) },
         ],

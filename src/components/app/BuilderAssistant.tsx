@@ -260,6 +260,18 @@ export function BuilderAssistant({
                     for anything else I need, then write and design every page with you — no
                     made-up details, ever.
                   </p>
+                  <div className="mt-3 flex flex-wrap gap-1.5">
+                    <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/5 px-2.5 py-1 text-[11px] font-medium text-primary">
+                      <span className="size-1.5 animate-pulse rounded-full bg-primary" aria-hidden />
+                      AI team online
+                    </span>
+                    <span className="inline-flex items-center gap-1 rounded-full border border-border bg-card px-2.5 py-1 text-[11px] text-muted-foreground">
+                      Multi-model collective
+                    </span>
+                    <span className="inline-flex items-center gap-1 rounded-full border border-border bg-card px-2.5 py-1 text-[11px] text-muted-foreground">
+                      Full creative control
+                    </span>
+                  </div>
                 </MessageContent>
               </Message>
             </div>
@@ -345,9 +357,9 @@ export function BuilderAssistant({
         <ConversationScrollButton />
       </Conversation>
 
-      <div className="max-h-[55%] shrink-0 overflow-y-auto overscroll-contain px-3 pt-1 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+      <div className="max-h-[55%] shrink-0 overflow-y-auto overscroll-contain px-3 pt-2 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
         {/* Everything the old separate AI panels offered, as one tap each. */}
-         <div className="-mx-3 mb-2 flex gap-2 overflow-x-auto px-3 pb-1 [scrollbar-width:none]">
+         <div className="-mx-3 mb-2 flex gap-2 overflow-x-auto px-3 pb-2 pt-1 [scrollbar-width:none]">
           {suggestionsQuery.isFetching && SUGGESTIONS.length === 0 ? (
             <span className="builder-suggestion min-h-9 shrink-0 rounded-full border border-border px-3.5 py-1.5 text-[13px] text-muted-foreground">
               <Shimmer>AI team is reviewing your site…</Shimmer>
