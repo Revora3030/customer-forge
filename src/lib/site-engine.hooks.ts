@@ -58,17 +58,16 @@ export function useLatestGenerationJob(organizationId: string | undefined) {
   const job = query.data as { status?: string; lease_expires_at?: string | null } | null | undefined;
   const status = job?.status;
   const leaseExpiresAt = job?.lease_expires_at ?? null;
+  const hasJob = job != null;
   useEffect(() => {
     if (!organizationId) return;
-    const delay = queuePumpDelay(status === undefined ? job : { status, lease_expires_at: leaseExpiresAt });
+    const delay = queuePumpDelay(hasJob ? { status, lease_expires_at: leaseExpiresAt } : null);
     if (delay === null) return;
     const timer = setTimeout(() => {
       void pump({ data: { organizationId } }).catch(() => undefined);
     }, delay);
     return () => clearTimeout(timer);
-    // `job` is only read for the undefined/null case, which status already tracks.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [organizationId, status, leaseExpiresAt, pump]);
+  }, [organizationId, hasJob, status, leaseExpiresAt, pump]);
 
   // When the background worker finishes, pull the new site copy into the UI.
   const queryClient = useQueryClient();
