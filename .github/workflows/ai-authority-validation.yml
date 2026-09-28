@@ -31,6 +31,9 @@ jobs:
       - name: Typecheck
         run: bunx tsc --noEmit
 
+      - name: Security audit
+        run: bun run security:audit
+
       - name: Start E2E server
         run: |
           bun run dev -- --host 127.0.0.1 --port 8080 > /tmp/revora-e2e.log 2>&1 &
