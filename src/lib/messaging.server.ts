@@ -99,6 +99,35 @@ export async function deliverRun(
 }
 
 
+/** Visitor-facing confirmation after a public lead is durably saved. */
+export async function sendLeadConfirmation(
+  to: string,
+  data: Record<string, unknown>,
+  idempotencyKey: string,
+  replyTo?: string | null,
+): Promise<DeliveryResult> {
+  if (!to) return { ok: false, retry: false, reason: "no_email_address" };
+  try {
+    const result = await sendTemplateEmail("lead-confirmation", to, {
+      idempotencyKey,
+      templateData: data,
+      ...(replyTo ? { replyTo } : {}),
+    });
+    return result.sent ? { ok: true } : { ok: false, retry: false, reason: result.reason };
+  } catch (error) {
+    if (error instanceof EmailAPIError) {
+      return {
+        ok: false,
+        retry: error.status === 429,
+        reason: error.code ?? "email_error",
+      };
+    }
+    console.error("lead confirmation failed", error);
+    return { ok: false, retry: true, reason: "email_transport_error" };
+  }
+}
+
+
 /** Owner-facing alert when a new lead / quote / booking lands. */
 export async function sendLeadAlert(
   to: string,
