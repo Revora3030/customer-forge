@@ -29,7 +29,7 @@ import { Logo, LogoMark } from "@/components/brand/Logo";
 import { Button } from "@/components/ui/button";
 import { Pill } from "@/components/app/Bits";
 import { WorkspaceNav, type WorkspaceNavItem } from "@/components/app/WorkspaceNav";
-import { useNotifications } from "@/lib/queries";
+import { useNotifications, useWorkspaceRealtime } from "@/lib/queries";
 import { useSignOut, useWorkspace } from "@/lib/use-tenant";
 import { endSupportSession } from "@/lib/admin.functions";
 import { GROWTH_SYSTEM, usd } from "@/lib/offer";
@@ -167,6 +167,7 @@ function AppShell() {
   const [bellOpen, setBellOpen] = useState(false);
   const org = data?.workspace?.organization;
   const { data: notifications } = useNotifications(org?.id);
+  useWorkspaceRealtime(org?.id);
   const unread = (notifications ?? []).filter((n) => !n.is_read).length;
   const { mode: supportMode } = useSupportMode();
   const endSupport = useServerFn(endSupportSession);

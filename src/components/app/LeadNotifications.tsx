@@ -17,7 +17,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { supabase } from "@/integrations/supabase/client";
-import { saveLeadNotifications, sendTestLeadAlert } from "@/lib/notifications.functions";
+import {
+  saveLeadNotifications,
+  saveLeadWebhook,
+  sendTestLeadAlert,
+} from "@/lib/notifications.functions";
 import { dateShort } from "@/lib/format";
 
 type Profile = {
@@ -37,6 +41,7 @@ export function LeadNotifications({
   const queryClient = useQueryClient();
   const saveFn = useServerFn(saveLeadNotifications);
   const testFn = useServerFn(sendTestLeadAlert);
+  const saveWebhookFn = useServerFn(saveLeadWebhook);
 
   const profile = useQuery({
     queryKey: ["notify_profile", organizationId],
@@ -70,6 +75,7 @@ export function LeadNotifications({
   const fallback = profile.data?.email || profile.data?.owner_email || "";
   const [email, setEmail] = React.useState("");
   const [enabled, setEnabled] = React.useState(true);
+  const [webhookUrl, setWebhookUrl] = React.useState("");
   const loadedFor = React.useRef<string | null>(null);
 
   React.useEffect(() => {
@@ -86,6 +92,15 @@ export function LeadNotifications({
       void queryClient.invalidateQueries({ queryKey: ["notify_profile", organizationId] });
     },
     onError: (error: Error) => toast.error(friendlyError(error)),
+  });
+
+  const webhook = useMutation({
+    mutationFn: () =>
+      saveWebhookFn({ data: { organizationId: organizationId!, webhookUrl } }),
+    onSuccess: (result: { configured: boolean }) => {
+      toast.success(result.configured ? "Lead webhook saved" : "Lead webhook cleared");
+    },
+    onError: (error: Error) => toast.error(friendlyError(error, "Couldn't save the lead webhook.")),
   });
 
   const test = useMutation({
@@ -183,6 +198,36 @@ export function LeadNotifications({
           }}
           aria-label="Email me every new booking and lead"
         />
+      </div>
+
+      <div className="border-t border-border/60 pt-4">
+        <Label htmlFor="lead-webhook" className="mb-1.5 block text-[12px]">
+          Lead webhook (optional)
+        </Label>
+        <div className="flex flex-wrap items-end gap-2">
+          <Input
+            id="lead-webhook"
+            type="url"
+            value={webhookUrl}
+            onChange={(event) => setWebhookUrl(event.target.value)}
+            placeholder="https://hooks.zapier.com/..."
+            autoComplete="off"
+            disabled={!canManage || webhook.isPending}
+            className="min-w-64 flex-1"
+          />
+          <Button
+            variant="outline"
+            disabled={!canManage || webhook.isPending}
+            onClick={() => webhook.mutate()}
+          >
+            {webhook.isPending ? <Loader2 className="size-4 animate-spin" /> : null}
+            Save webhook
+          </Button>
+        </div>
+        <p className="mt-1.5 text-[11px] text-muted-foreground">
+          After a lead is saved, Revora sends a standard POST event to this URL. A slow or failed
+          webhook never blocks the visitor's submission.
+        </p>
       </div>
 
       <div>

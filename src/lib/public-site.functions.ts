@@ -54,7 +54,11 @@ function publicSubmissionSource() {
   // not used here because public visitors can spoof it before Cloudflare.
   const ip = cfIp || trueClientIp || `edge:${new URL(request.url).host}`;
   const userAgent = headers.get("user-agent")?.trim().slice(0, 500) || null;
-  return { ip, userAgent };
+  const requestUrl = new URL(request.url);
+  // Never forward query strings because they can contain attribution tokens or
+  // other visitor-controlled data that does not belong in an external CRM.
+  const sourceUrl = requestUrl.origin + requestUrl.pathname;
+  return { ip, userAgent, sourceUrl };
 }
 
 function contactFingerprint(input: { email?: string | null; phone?: string | null }) {
@@ -411,11 +415,18 @@ export const submitPublicLead = createServerFn({ method: "POST" })
     try {
       // Owner alert + customer follow-ups. Delivery happens here (server side) so
       // "sent" always means a provider accepted the message.
-      const { data: profile } = await supabase
-        .from("business_profiles")
-        .select("email, owner_email, notification_email, notify_on_lead")
-        .eq("organization_id", orgId)
-        .maybeSingle();
+      const [{ data: profile }, { data: routingSettings }] = await Promise.all([
+        supabase
+          .from("business_profiles")
+          .select("email, owner_email, notification_email, notify_on_lead, phone")
+          .eq("organization_id", orgId)
+          .maybeSingle(),
+        supabase
+          .from("website_settings")
+          .select("lead_webhook_url")
+          .eq("organization_id", orgId)
+          .maybeSingle(),
+      ]);
       const { alertRecipient } = await import("@/lib/notifications.functions");
       const ownerEmail = profile?.email || profile?.owner_email || null;
       const alertEmail = alertRecipient((profile ?? {}) as Record<string, never>);
@@ -438,15 +449,61 @@ export const submitPublicLead = createServerFn({ method: "POST" })
             : undefined,
         message: data.message || undefined,
         when: data.booking ? new Date(data.booking.startsAt).toLocaleString() : undefined,
+        requestedWhen: data.booking ? new Date(data.booking.startsAt).toLocaleString() : undefined,
+        budget: data.quote
+          ? `${data.quote.min}–${data.quote.max}`
+          : data.estimatedValue
+            ? `${data.estimatedValue}`
+            : undefined,
       };
 
+      const { sendLeadConfirmation } = await import("@/lib/messaging.server");
+      const { dispatchLeadWebhook } = await import("@/lib/lead-routing.server");
+      const webhookUrl =
+        typeof routingSettings?.lead_webhook_url === "string"
+          ? routingSettings.lead_webhook_url
+          : null;
+      const confirmationEmail = data.email
+        ? sendLeadConfirmation(
+            data.email,
+            {
+              businessName: org.name,
+              leadName: data.name,
+              replyToEmail: ownerEmail || profile?.email || undefined,
+              businessPhone: profile?.phone || undefined,
+            },
+            `lead-confirmation-${lead.id}`,
+            ownerEmail || profile?.email || null,
+          )
+        : Promise.resolve({ ok: true as const, skipped: true as const, reason: "no_email_address" as const });
+      const webhook = dispatchLeadWebhook(webhookUrl, {
+        event: "lead.created",
+        timestamp: new Date().toISOString(),
+        workspace_id: orgId,
+        lead: {
+          name: data.name,
+          email: data.email || null,
+          phone: data.phone || null,
+          service: data.serviceInterest || null,
+          message: data.message || null,
+          source_url: source.sourceUrl,
+        },
+      });
+
+      const [alert, confirmation, webhookResult] = await Promise.all([
+        alertEmail
+          ? sendLeadAlert(
+              alertEmail,
+              alertData,
+              // One alert per lead, even if the submit is retried.
+              `lead-alert-${lead.id}`,
+            )
+          : Promise.resolve({ ok: true as const, skipped: true as const, reason: "no_email_address" as const }),
+        confirmationEmail,
+        webhook,
+      ]);
+
       if (alertEmail) {
-        const alert = await sendLeadAlert(
-          alertEmail,
-          alertData,
-          // One alert per lead, even if the submit is retried.
-          `lead-alert-${lead.id}`,
-        );
         await logAlertDelivery(null, {
           organizationId: orgId,
           leadId: lead.id,
@@ -456,7 +513,19 @@ export const submitPublicLead = createServerFn({ method: "POST" })
         });
         if (!alert.ok) console.warn("lead alert not delivered", alert.reason);
       }
-
+      if (!confirmation.ok && !("skipped" in confirmation && confirmation.skipped)) {
+        console.warn("lead confirmation not delivered", confirmation.reason);
+      }
+      if (!webhookResult.ok) {
+        console.warn("lead webhook not delivered", webhookResult.reason);
+      }
+      if (
+        (alertEmail && !alert.ok) ||
+        (data.email && !confirmation.ok) ||
+        !webhookResult.ok
+      ) {
+        deliveryOk = false;
+      }
 
       const { enqueueAutomations } = await import("@/lib/automation-engine");
       await enqueueAutomations(

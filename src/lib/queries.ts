@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { nextPublishState } from "@/lib/publish-state";
 import { toast } from "@/lib/ui/notify";
@@ -159,6 +160,52 @@ export function useNotifications(organizationId: string | undefined) {
       return data;
     },
   });
+}
+
+/** Keeps lead/review/notification counts fresh while the workspace is open. */
+export function useWorkspaceRealtime(organizationId: string | undefined) {
+  const queryClient = useQueryClient();
+
+  useEffect(() => {
+    if (!organizationId) return;
+
+    const channel = supabase
+      .channel(`workspace-live-${organizationId}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "leads", filter: `organization_id=eq.${organizationId}` },
+        () => {
+          void queryClient.invalidateQueries({ queryKey: ["leads", organizationId] });
+          void queryClient.invalidateQueries({ queryKey: ["score_facts", organizationId] });
+          void queryClient.invalidateQueries({ queryKey: ["notifications", organizationId] });
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "reviews", filter: `organization_id=eq.${organizationId}` },
+        () => {
+          void queryClient.invalidateQueries({ queryKey: ["reviews", organizationId] });
+          void queryClient.invalidateQueries({ queryKey: ["score_facts", organizationId] });
+        },
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "notifications",
+          filter: `organization_id=eq.${organizationId}`,
+        },
+        () => {
+          void queryClient.invalidateQueries({ queryKey: ["notifications", organizationId] });
+        },
+      )
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [organizationId, queryClient]);
 }
 
 export function useCustomers(organizationId: string | undefined) {
