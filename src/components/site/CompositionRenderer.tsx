@@ -1,5 +1,5 @@
 import { useState, type CSSProperties, type ReactNode } from "react";
-import type { Breakpoint, CompositionNode, CompositionTree, MotionEasing, NodeHover, NodeMotion, NodeStyle, WidgetPresentation } from "@/lib/builder/composition-tree";
+import type { Breakpoint, CompositionFaqItem, CompositionNode, CompositionTab, CompositionTree, MotionEasing, NodeHover, NodeMotion, NodeStyle, WidgetPresentation } from "@/lib/builder/composition-tree";
 import type { PersistedComponentVisual } from "@/lib/site-style";
 import { resolveImageSource } from "@/lib/brand-logos";
 
@@ -225,7 +225,33 @@ function renderNode(node: CompositionNode, ctx: Ctx, key: string): ReactNode {
       const afterSource = after?.src ? resolveImageSource(after.src) : (after?.mediaRef ? mediaUrl(ctx.media(after.mediaRef)) : null);
       return before && after && beforeSource && afterSource ? <Compare key={key} props={props} before={before} after={after} beforeSource={beforeSource} afterSource={afterSource} /> : null;
     }
-    case "gallery":
+    case "before_after_slider":
+      return node.beforeImage && node.afterImage ? (
+        <BeforeAfterSlider key={key} props={props} before={node.beforeImage} after={node.afterImage} initialSplit={node.initialSplit ?? 50} />
+      ) : null;
+    case "faq_accordion":
+      return node.faqItems?.length ? <FaqAccordion key={key} props={props} items={node.faqItems} /> : null;
+    case "tab_group":
+      return node.tabs?.length ? (
+        <TabGroup
+          key={key}
+          props={props}
+          tabs={node.tabs}
+          renderPanel={(tab, tabIndex) => tab.children.map((child, childIndex) =>
+            renderNode(child, ctx, `${key}.tab.${tabIndex}.${childIndex}`)
+          )}
+        />
+      ) : null;
+    case "mobile_sticky_bar":
+      return node.primaryCta ? (
+        <MobileStickyBar
+          key={key}
+          props={props}
+          primary={{ ...node.primaryCta, href: ctx.href(node.primaryCta.href) }}
+          secondary={node.secondaryCta ? { ...node.secondaryCta, href: ctx.href(node.secondaryCta.href) } : undefined}
+        />
+      ) : null;
+        case "gallery":
       return (
         <div key={key} {...props} style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(220px,1fr))", ...props.style }}>
           {node.children?.map((c, i) => { const resolved = c.mediaRef ? ctx.media(c.mediaRef) : null; const visual = mediaVisual(resolved); const source = c.src ? resolveImageSource(c.src) : mediaUrl(resolved); return source ? (
@@ -322,7 +348,129 @@ function Compare({ props, before, after, beforeSource, afterSource }: { props: N
   );
 }
 
+function BeforeAfterSlider({ props, before, after, initialSplit }: {
+  props: NodeProps;
+  before: { src: string; alt: string; label: string };
+  after: { src: string; alt: string; label: string };
+  initialSplit: number;
+}) {
+  const [pos, setPos] = useState(Math.min(100, Math.max(0, initialSplit)));
+  return (
+    <figure {...props} style={{ position: "relative", overflow: "hidden", aspectRatio: props.style.aspectRatio ?? "16 / 10", width: "100%", touchAction: "none", ...props.style }}>
+      <img src={after.src} alt={after.alt} loading="lazy" draggable={false} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", userSelect: "none" }} />
+      <div aria-hidden="true" style={{ position: "absolute", inset: 0, overflow: "hidden", width: `${pos}%` }}>
+        <img src={before.src} alt="" loading="lazy" draggable={false} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", userSelect: "none" }} />
+      </div>
+      <div aria-hidden="true" className="rv-cn-compare-divider" style={{ left: `${pos}%` }}><span className="rv-cn-compare-handle" /></div>
+      <div className="rv-cn-compare-label rv-cn-compare-label-before">{before.label}</div>
+      <div className="rv-cn-compare-label rv-cn-compare-label-after">{after.label}</div>
+      <input type="range" min={0} max={100} step={1} value={pos}
+        onChange={(event) => setPos(Number(event.currentTarget.value))}
+        aria-label={`${before.label} versus ${after.label}`}
+        aria-valuetext={`${Math.round(pos)}% ${before.label}`}
+        className="rv-cn-compare-input"
+      />
+    </figure>
+  );
+}
+
+function FaqAccordion({ props, items }: { props: NodeProps; items: CompositionFaqItem[] }) {
+  return (
+    <div {...props} className={`${props.className ?? ""} rv-cn-faq`.trim()}>
+      {items.map((item, index) => (
+        <details key={index} open={item.defaultOpen}>
+          <summary><span>{item.question}</span><span aria-hidden="true" className="rv-cn-faq-chevron">⌄</span></summary>
+          <div className="rv-cn-faq-panel"><div className="rv-cn-faq-panel-inner">{item.answer}</div></div>
+        </details>
+      ))}
+    </div>
+  );
+}
+
+function TabGroup({ props, tabs, renderPanel }: {
+  props: NodeProps;
+  tabs: CompositionTab[];
+  renderPanel: (tab: CompositionTab, index: number) => ReactNode;
+}) {
+  const [active, setActive] = useState(0);
+  const id = props["data-cn"];
+  const activate = (index: number) => setActive(Math.max(0, Math.min(tabs.length - 1, index)));
+  const focusTab = (index: number) => {
+    const next = Math.max(0, Math.min(tabs.length - 1, index));
+    document.getElementById(`${id}-tab-${next}`)?.focus();
+  };
+  return (
+    <div {...props} className={`${props.className ?? ""} rv-cn-tab-group`.trim()}>
+      <div role="tablist" aria-label="Options" className="rv-cn-tab-list">
+        {tabs.map((tab, index) => (
+          <button key={index} type="button" role="tab" id={`${id}-tab-${index}`} aria-selected={active === index} aria-controls={`${id}-panel-${index}`}
+            tabIndex={active === index ? 0 : -1} onClick={() => activate(index)}
+            onKeyDown={(event) => {
+              if (event.key === "ArrowRight") { event.preventDefault(); const next = (index + 1) % tabs.length; activate(next); focusTab(next); }
+              else if (event.key === "ArrowLeft") { event.preventDefault(); const next = (index - 1 + tabs.length) % tabs.length; activate(next); focusTab(next); }
+              else if (event.key === "Home") { event.preventDefault(); activate(0); focusTab(0); }
+              else if (event.key === "End") { event.preventDefault(); activate(tabs.length - 1); focusTab(tabs.length - 1); }
+            }}
+            className={`rv-cn-tab ${active === index ? "is-active" : ""}`}>
+            <span>{tab.label}</span>
+          </button>
+        ))}
+      </div>
+      <div role="tabpanel" id={`${id}-panel-${active}`} aria-labelledby={`${id}-tab-${active}`} className="rv-cn-tab-panel">
+        {renderPanel(tabs[active]!, active)}
+      </div>
+    </div>
+  );
+}
+
+function MobileStickyBar({ props, primary, secondary }: {
+  props: NodeProps;
+  primary: { label: string; href: string; ariaLabel?: string };
+  secondary?: { label: string; href: string; ariaLabel?: string };
+}) {
+  return (
+    <div {...props} className={`${props.className ?? ""} rv-cn-mobile-sticky-bar`.trim()} style={{
+      position: "fixed", left: 0, right: 0, bottom: 0, zIndex: 40, display: "flex", gap: 8, alignItems: "stretch",
+      padding: "10px 12px", paddingBottom: "max(10px, env(safe-area-inset-bottom, 0px))",
+      background: props.style.background ?? "Canvas", color: props.style.color ?? "CanvasText", ...props.style,
+    }}>
+      <a href={primary.href} aria-label={primary.ariaLabel ?? primary.label} style={{ flex: secondary ? 1 : "0 1 100%", minWidth: 0, minHeight: 44, display: "inline-flex", alignItems: "center", justifyContent: "center", padding: "0 14px", textDecoration: "none", touchAction: "manipulation", ...mobileCtaStyle(true) }}>{primary.label}</a>
+      {secondary ? <a href={secondary.href} aria-label={secondary.ariaLabel ?? secondary.label} style={{ flex: 1, minWidth: 0, minHeight: 44, display: "inline-flex", alignItems: "center", justifyContent: "center", padding: "0 14px", textDecoration: "none", touchAction: "manipulation", ...mobileCtaStyle(false) }}>{secondary.label}</a> : null}
+    </div>
+  );
+}
+
+function mobileCtaStyle(primary: boolean): CSSProperties {
+  return { borderRadius: 10, border: "1px solid currentColor", font: "inherit", fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", background: primary ? "currentColor" : "transparent", color: primary ? "Canvas" : "inherit" };
+}
+
 const MARQUEE_CSS = `@media (prefers-reduced-motion: no-preference){.rv-cn-marquee{animation:rv-cn-marquee 30s linear infinite}}@keyframes rv-cn-marquee{to{transform:translateX(-50%)}}`;
+const INTERACTIVE_CSS = `
+.rv-cn-compare-input{position:absolute;inset:0;width:100%;height:100%;margin:0;opacity:0;cursor:ew-resize;touch-action:none;z-index:3}
+.rv-cn-compare-divider{position:absolute;top:0;bottom:0;width:2px;background:currentColor;transform:translateX(-1px);pointer-events:none;z-index:2}
+.rv-cn-compare-handle{position:absolute;top:50%;left:50%;width:44px;height:44px;border-radius:999px;border:2px solid currentColor;background:Canvas;box-shadow:0 3px 16px rgb(0 0 0 / .22);transform:translate(-50%,-50%);display:grid;place-items:center}
+.rv-cn-compare-handle::before,.rv-cn-compare-handle::after{content:"";position:absolute;width:7px;height:7px;border-top:2px solid currentColor;border-right:2px solid currentColor}
+.rv-cn-compare-handle::before{transform:translateX(-6px) rotate(-135deg)} .rv-cn-compare-handle::after{transform:translateX(6px) rotate(45deg)}
+.rv-cn-compare-label{position:absolute;top:12px;z-index:4;padding:5px 9px;border-radius:999px;background:rgb(0 0 0 / .55);color:white;font-size:12px;line-height:1.2;pointer-events:none;max-width:42%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rv-cn-compare-label-before{left:12px}.rv-cn-compare-label-after{right:12px}
+.rv-cn-faq details{border-bottom:1px solid currentColor}
+.rv-cn-faq summary{min-height:44px;display:flex;align-items:center;justify-content:space-between;gap:16px;cursor:pointer;list-style:none;padding:14px 0}
+.rv-cn-faq summary::-webkit-details-marker{display:none}
+.rv-cn-faq-chevron{display:inline-grid;place-items:center;width:28px;height:28px;flex:0 0 28px;transition:transform .22s ease}
+.rv-cn-faq details[open] .rv-cn-faq-chevron{transform:rotate(180deg)}
+.rv-cn-faq-panel{display:grid;grid-template-rows:0fr;transition:grid-template-rows .24s ease}
+.rv-cn-faq details[open] .rv-cn-faq-panel{grid-template-rows:1fr}
+.rv-cn-faq-panel-inner{min-height:0;overflow:hidden;padding:0 0 14px;white-space:pre-wrap}
+.rv-cn-tab-list{display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;border-bottom:1px solid currentColor}
+.rv-cn-tab{position:relative;min-height:44px;padding:0 16px;border:0;border-radius:0;background:transparent;color:inherit;font:inherit;font-weight:650;cursor:pointer;opacity:.65}
+.rv-cn-tab::after{content:"";position:absolute;left:12px;right:12px;bottom:-1px;height:3px;background:currentColor;transform:scaleX(0);transform-origin:center;transition:transform .22s ease}
+.rv-cn-tab.is-active{opacity:1}.rv-cn-tab.is-active::after{transform:scaleX(1)}
+.rv-cn-tab:focus-visible,.rv-cn-faq summary:focus-visible,.rv-cn-mobile-sticky-bar a:focus-visible{outline:3px solid currentColor;outline-offset:3px}
+.rv-cn-mobile-sticky-bar{display:none}
+@media (max-width:639px){.rv-cn-mobile-sticky-bar{display:flex}}
+@media (min-width:640px){.rv-cn-mobile-sticky-bar{display:none!important}}
+@media (prefers-reduced-motion: reduce){.rv-cn-faq-chevron,.rv-cn-faq-panel,.rv-cn-tab::after{transition:none!important}}
+`;
 
 /**
  * Objective phone safeguards (WCAG tap size / readable text / no horizontal
@@ -339,12 +487,12 @@ export function CompositionRenderer({ tree, scope, as = "section", resolveHref, 
   return (
     as === "div" ? (
       <div data-composition={tree.label ?? "composition"}>
-        <style>{MOTION_CSS + MARQUEE_CSS + ctx.rules.join("") + PHONE_SAFETY_CSS}</style>
+        <style>{MOTION_CSS + MARQUEE_CSS + INTERACTIVE_CSS + ctx.rules.join("") + PHONE_SAFETY_CSS}</style>
         {body}
       </div>
     ) : (
       <section data-composition={tree.label ?? "composition"}>
-        <style>{MOTION_CSS + MARQUEE_CSS + ctx.rules.join("") + PHONE_SAFETY_CSS}</style>
+        <style>{MOTION_CSS + MARQUEE_CSS + INTERACTIVE_CSS + ctx.rules.join("") + PHONE_SAFETY_CSS}</style>
         {body}
       </section>
     )
