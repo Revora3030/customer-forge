@@ -242,7 +242,7 @@ export function BuilderAssistant({
               <Message from="assistant">
                 <MessageContent className="w-full space-y-3">
                   <div className="flex items-center gap-2">
-                    <img src="/revora-mark-144.png" alt="" className="size-8 rounded-lg shadow-signal" />
+                    <img src="/revora-mark-144.png" alt="Revora" className="size-8 rounded-lg shadow-signal" />
                     <div className="min-w-0">
                       <p className="text-[13px] font-semibold">Revora</p>
                       <p className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
@@ -310,7 +310,7 @@ export function BuilderAssistant({
               <Message from="assistant">
                 <MessageContent className="w-full space-y-2 text-[14px]">
                   <div className="flex items-center gap-2">
-                    <img src="/revora-mark-144.png" alt="" className="size-6 rounded-md" />
+                    <img src="/revora-mark-144.png" alt="Revora" className="size-6 rounded-md" />
                     <span className="text-[12px] font-semibold">Revora</span>
                   </div>
                   <p className="font-medium text-foreground">{factQuestion.label}</p>
@@ -388,6 +388,42 @@ export function BuilderAssistant({
               >
                 Editing: {selection.label ?? selection.kind ?? "the block you picked"} ✕
               </button>
+            ) : null}
+            {selection ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => send("Rewrite the copy on this block to be clearer and more compelling.")}
+                  disabled={!requests.ready}
+                  className="cursor-pointer rounded-full border border-border bg-card px-3 py-1 text-[12px] text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground disabled:opacity-50"
+                >
+                  Rewrite Copy
+                </button>
+                <button
+                  type="button"
+                  onClick={() => send("Replace the image on this block with a better-fitting one.")}
+                  disabled={!requests.ready}
+                  className="cursor-pointer rounded-full border border-border bg-card px-3 py-1 text-[12px] text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground disabled:opacity-50"
+                >
+                  Replace Image
+                </button>
+                <button
+                  type="button"
+                  onClick={() => send("Change the layout of this block to something more visually interesting.")}
+                  disabled={!requests.ready}
+                  className="cursor-pointer rounded-full border border-border bg-card px-3 py-1 text-[12px] text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground disabled:opacity-50"
+                >
+                  Change Layout
+                </button>
+                <button
+                  type="button"
+                  onClick={() => send("Make this block shorter and more concise.")}
+                  disabled={!requests.ready}
+                  className="cursor-pointer rounded-full border border-border bg-card px-3 py-1 text-[12px] text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground disabled:opacity-50"
+                >
+                  Make Shorter
+                </button>
+              </>
             ) : null}
             {answering ? (
               <button
@@ -481,7 +517,7 @@ function LiveActivity({
       <div className="flex items-center gap-2">
         <span className="relative inline-flex size-7 items-center justify-center">
           <span className="absolute inset-0 animate-ping rounded-lg bg-primary/25" aria-hidden />
-          <img src="/revora-mark-144.png" alt="" className="relative size-7 rounded-lg" />
+          <img src="/revora-mark-144.png" alt="Revora" className="relative size-7 rounded-lg" />
         </span>
         <div className="min-w-0 flex-1">
           <p className="text-[12.5px] font-semibold">Revora is working</p>

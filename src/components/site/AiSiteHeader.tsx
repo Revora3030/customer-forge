@@ -29,7 +29,9 @@ export function AiSiteHeader(props: {
   return (
     <header className="rv-site-header rv-ai-header sticky top-0 z-40 border-b border-border bg-background/95 backdrop-blur-md pt-[env(safe-area-inset-top)]">
       <nav aria-label="Main" className="hidden md:block">
-        <CompositionRenderer as="div" scope="site-header" tree={props.tree} resolveHref={props.resolveHref} />
+        <div className="rv-site-header-nav mx-auto flex max-w-6xl items-center gap-4 px-4 py-3">
+          <CompositionRenderer as="div" scope="site-header" tree={props.tree} resolveHref={props.resolveHref} />
+        </div>
       </nav>
       <nav aria-label="Main" className="flex items-center justify-between gap-3 px-4 py-3 text-foreground md:hidden">
         <a href={props.homeHref} className="flex min-h-11 min-w-0 items-center font-display text-[16px] font-semibold leading-tight tracking-tight [overflow-wrap:anywhere]">

@@ -277,11 +277,13 @@ function PriceLine({ className = "" }: { className?: string }) {
   return (
     <p className={`text-[12.5px] text-muted-foreground ${className}`}>
       <span className="gold-hl">{GROWTH_SYSTEM.fullAccessWindow} free full access</span> ·{" "}
-      <span className="font-medium text-foreground">
+      <span className="font-medium text-foreground whitespace-nowrap">
         {usd(GROWTH_SYSTEM.setupPrice)} one-time setup
       </span>{" "}
       · <span className="gold-hl">first month free</span> · then{" "}
-      <span className="font-medium text-foreground">{usd(GROWTH_SYSTEM.monthlyPrice)}/month</span> ·
+      <span className="font-medium text-foreground whitespace-nowrap">
+        {usd(GROWTH_SYSTEM.monthlyPrice)}/month
+      </span> ·
       Cancel anytime
     </p>
   );
@@ -387,7 +389,7 @@ function Landing() {
             </p>
             <div className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {PROBLEMS.map((p) => (
-                <Panel key={p.title} className="card-lift flex flex-col p-5">
+                <Panel key={p.title} className="card-lift flex flex-col overflow-hidden p-5">
                   <h3 className="font-display text-[13px] font-bold tracking-[0.12em] uppercase">
                     {p.title}
                   </h3>
@@ -469,12 +471,12 @@ function Landing() {
         {/* FREE ASSESSMENT FUNNEL */}
         <section className="border-b border-border bg-card">
           <div className="mx-auto max-w-6xl px-4 py-14">
-            <Panel className="gold-glow grid gap-6 border-primary/35 p-6 sm:p-8 lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
-              <div>
+            <Panel className="gold-glow grid gap-6 overflow-hidden border-primary/35 p-6 sm:p-8 lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
+              <div className="min-w-0">
                 <Pill tone="signal">
                   <TrendingDown className="size-3.5" aria-hidden="true" /> Free growth assessment
                 </Pill>
-                <h2 className="mt-4 font-display text-[clamp(1.35rem,2.8vw,2rem)] leading-tight font-semibold">
+                <h2 className="mt-4 font-display text-[clamp(1.2rem,2.5vw,2rem)] leading-tight font-semibold">
                   See how many customers you're losing — <span className="gold-text">free</span>, in
                   2 minutes.
                 </h2>
@@ -729,6 +731,9 @@ function Landing() {
 
         <BusinessDetails />
       </main>
+
+      {/* Spacer so the fixed free-access bar never covers the footer */}
+      <div className="h-16" aria-hidden="true" />
 
       <SiteFooter />
     </div>
