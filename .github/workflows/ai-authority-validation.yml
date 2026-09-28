@@ -31,9 +31,6 @@ jobs:
       - name: Typecheck
         run: bunx tsc --noEmit
 
-      - name: Native TypeScript Go typecheck
-        run: bunx tsgo --noEmit
-
       - name: Security audit
         run: bun run security:audit
 
