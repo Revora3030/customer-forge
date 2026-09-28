@@ -12,6 +12,7 @@ export const COMPOSITION_PRIMITIVES = [
   "stack", "grid", "row", "text", "heading", "media", "button", "link",
   "card", "list", "divider", "spacer", "icon",
   "tabs", "toggle", "accordion", "compare", "marquee", "gallery", "quote", "widget",
+  "before_after_slider", "faq_accordion", "tab_group", "mobile_sticky_bar",
 ] as const;
 
 /** Working features an AI layout may place anywhere. Their data (prices, phone, email, hours) always comes from verified business facts. */
@@ -57,6 +58,10 @@ export const PRIMITIVE_GUIDE =
   "marquee (children scroll sideways in a loop; stops for reduced motion), " +
   "gallery (media children in a grid; tap opens full size), " +
   "quote (text is the quoted words; items[0] optional attribution — only real, supplied quotes). " +
+  "before_after_slider (beforeImage + afterImage with a 0-100 split; use for genuine transformation work such as renovation, roofing or detailing). " +
+  "faq_accordion (items are question/answer pairs; defaultOpen is optional and at most the supplied FAQ content may be used). " +
+  "tab_group (tabs are labelled panels; each tab owns child nodes and only the active panel is rendered). " +
+  "mobile_sticky_bar (primaryCta and optional secondaryCta; conversion actions only, hidden above the mobile breakpoint). " +
   "widget (text is one of booking_form|quote_calculator|contact_details|direct_contact — drops the site's real working form or verified phone/email/hours/area into your layout; style its wrapper freely, never retype those facts yourself). For working widgets, widgetPresentation may author visible labels, helper/success copy and a bounded local theme (surface, text, muted, border, action, actionText, selected, selectedText); never put business data or pricing into widgetPresentation — the application supplies those facts. " +
   "Real company logos: a media src of https://img.logo.dev/<domain> (e.g. img.logo.dev/stripe.com) renders that company's real logo — use ONLY for companies the customer actually named as partners, clients or platforms they use; never invent an affiliation. " +
   "Layering: style.position (relative|sticky|absolute), style.top/left/right/bottom (px), style.zIndex (0-50), style.overlap (px a block pulls up over the one before it), style.blur (frosted-glass backdrop px), style.rotate (deg), style.gridAreas + style.area for named grid regions. " +
@@ -128,6 +133,29 @@ export type NodeStyle = {
   area?: string;
 };
 
+export type CompositionImage = {
+  src: string;
+  alt: string;
+  label: string;
+};
+
+export type CompositionFaqItem = {
+  question: string;
+  answer: string;
+  defaultOpen?: boolean;
+};
+
+export type CompositionTab = {
+  label: string;
+  children: CompositionNode[];
+};
+
+export type CompositionCta = {
+  label: string;
+  href: string;
+  ariaLabel?: string;
+};
+
 export type CompositionNode = {
   type: CompositionPrimitive;
   text?: string;
@@ -137,6 +165,13 @@ export type CompositionNode = {
   alt?: string;
   level?: 1 | 2 | 3 | 4;
   items?: string[];
+  beforeImage?: CompositionImage;
+  afterImage?: CompositionImage;
+  initialSplit?: number;
+  faqItems?: CompositionFaqItem[];
+  tabs?: CompositionTab[];
+  primaryCta?: CompositionCta;
+  secondaryCta?: CompositionCta;
   style?: NodeStyle;
   responsive?: Partial<Record<Breakpoint, NodeStyle>>;
   motion?: NodeMotion;
@@ -481,6 +516,122 @@ export function validateComposition(input: unknown, options: ValidateOptions = {
       else { const presentation = checkWidgetPresentation(row["widgetPresentation"], `${path}.widgetPresentation`, issues, options.screenText); if (presentation !== undefined) node.widgetPresentation = presentation; }
     }
     if (node.type === "quote" && !node.text) issues.push({ path: `${path}.text`, problem: "quote needs its words in text" });
+
+    const checkImageObject = (value: unknown, imagePath: string): CompositionImage | undefined => {
+      if (!value || typeof value !== "object" || Array.isArray(value)) {
+        issues.push({ path: imagePath, problem: "image must be an object with src, alt and label" });
+        return undefined;
+      }
+      const image = value as Record<string, unknown>;
+      const src = image["src"];
+      const alt = checkText(image["alt"], `${imagePath}.alt`, issues, options.screenText);
+      const label = checkText(image["label"], `${imagePath}.label`, issues, options.screenText);
+      if (typeof src !== "string" || !isSafeHref(src)) {
+        issues.push({ path: `${imagePath}.src`, problem: "image source must be a safe https address" });
+        return undefined;
+      }
+      if (!alt || !label) {
+        issues.push({ path: imagePath, problem: "image needs alt text and a visible label" });
+        return undefined;
+      }
+      return { src, alt, label };
+    };
+
+    if (row["beforeImage"] != null) {
+      const image = checkImageObject(row["beforeImage"], `${path}.beforeImage`);
+      if (image) node.beforeImage = image;
+    }
+    if (row["afterImage"] != null) {
+      const image = checkImageObject(row["afterImage"], `${path}.afterImage`);
+      if (image) node.afterImage = image;
+    }
+    if (row["initialSplit"] != null) {
+      const split = row["initialSplit"];
+      if (typeof split !== "number" || !Number.isFinite(split) || split < 0 || split > 100)
+        issues.push({ path: `${path}.initialSplit`, problem: "initialSplit must be a number from 0 to 100" });
+      else node.initialSplit = split;
+    }
+
+    if (row["faqItems"] != null) {
+      const value = row["faqItems"];
+      if (!Array.isArray(value) || value.length < 1) {
+        issues.push({ path: `${path}.faqItems`, problem: "faqItems must contain at least one item" });
+      } else {
+        node.faqItems = value.map((item, i) => {
+          const itemPath = `${path}.faqItems[${i}]`;
+          if (!item || typeof item !== "object" || Array.isArray(item)) {
+            issues.push({ path: itemPath, problem: "FAQ item must be an object" });
+            return null;
+          }
+          const rawItem = item as Record<string, unknown>;
+          const question = checkText(rawItem["question"], `${itemPath}.question`, issues, options.screenText);
+          const answer = checkText(rawItem["answer"], `${itemPath}.answer`, issues, options.screenText);
+          const defaultOpen = rawItem["defaultOpen"];
+          if (defaultOpen != null && typeof defaultOpen !== "boolean")
+            issues.push({ path: `${itemPath}.defaultOpen`, problem: "defaultOpen must be true or false" });
+          return question && answer ? { question, answer, ...(defaultOpen === true ? { defaultOpen: true } : {}) } : null;
+        }).filter((item): item is CompositionFaqItem => item != null);
+      }
+    }
+
+    if (row["tabs"] != null) {
+      const value = row["tabs"];
+      if (!Array.isArray(value) || value.length < 1) {
+        issues.push({ path: `${path}.tabs`, problem: "tabs must contain at least one panel" });
+      } else {
+        node.tabs = value.map((tab, i) => {
+          const tabPath = `${path}.tabs[${i}]`;
+          if (!tab || typeof tab !== "object" || Array.isArray(tab)) {
+            issues.push({ path: tabPath, problem: "tab must be an object" });
+            return null;
+          }
+          const rawTab = tab as Record<string, unknown>;
+          const label = checkText(rawTab["label"], `${tabPath}.label`, issues, options.screenText);
+          if (!Array.isArray(rawTab["children"])) {
+            issues.push({ path: `${tabPath}.children`, problem: "tab children must be a list" });
+            return null;
+          }
+          const children = rawTab["children"].map((child, j) => walk(child, `${tabPath}.children[${j}]`, depth + 1)).filter((child): child is CompositionNode => child != null);
+          return label ? { label, children } : null;
+        }).filter((tab): tab is CompositionTab => tab != null);
+      }
+    }
+
+    const checkCta = (value: unknown, ctaPath: string): CompositionCta | undefined => {
+      if (!value || typeof value !== "object" || Array.isArray(value)) {
+        issues.push({ path: ctaPath, problem: "CTA must be an object with label and href" });
+        return undefined;
+      }
+      const cta = value as Record<string, unknown>;
+      const label = checkText(cta["label"], `${ctaPath}.label`, issues, options.screenText);
+      const href = cta["href"];
+      if (typeof href !== "string" || !isSafeHref(href)) {
+        issues.push({ path: `${ctaPath}.href`, problem: "CTA href must be a safe address" });
+        return undefined;
+      }
+      const ariaLabel = cta["ariaLabel"];
+      if (ariaLabel != null && typeof ariaLabel !== "string") issues.push({ path: `${ctaPath}.ariaLabel`, problem: "ariaLabel must be text" });
+      return label ? { label, href, ...(typeof ariaLabel === "string" ? { ariaLabel: ariaLabel.slice(0, 240) } : {}) } : undefined;
+    };
+
+    if (row["primaryCta"] != null) {
+      const cta = checkCta(row["primaryCta"], `${path}.primaryCta`);
+      if (cta) node.primaryCta = cta;
+    }
+    if (row["secondaryCta"] != null) {
+      const cta = checkCta(row["secondaryCta"], `${path}.secondaryCta`);
+      if (cta) node.secondaryCta = cta;
+    }
+
+    if (node.type === "before_after_slider" && (!node.beforeImage || !node.afterImage))
+      issues.push({ path, problem: "before_after_slider needs beforeImage and afterImage" });
+    if (node.type === "faq_accordion" && !node.faqItems?.length)
+      issues.push({ path, problem: "faq_accordion needs at least one FAQ item" });
+    if (node.type === "tab_group" && !node.tabs?.length)
+      issues.push({ path, problem: "tab_group needs at least one tab" });
+    if (node.type === "mobile_sticky_bar" && !node.primaryCta)
+      issues.push({ path: `${path}.primaryCta`, problem: "mobile_sticky_bar needs a primary CTA" });
+
     if (row["level"] != null) {
       if (![1, 2, 3, 4].includes(row["level"] as number)) issues.push({ path: `${path}.level`, problem: "level must be 1-4" });
       else node.level = row["level"] as 1 | 2 | 3 | 4;
@@ -572,6 +723,10 @@ export function validateComposition(input: unknown, options: ValidateOptions = {
     if ((node.type === "tabs" || node.type === "accordion") && (kids.length < 1 || kids.some((c) => !c.text))) {
       issues.push({ path: `${path}.children`, problem: `${node.type} needs at least one child and every child needs a text label` });
     }
+    if (node.type === "mobile_sticky_bar" && kids.length)
+      issues.push({ path: `${path}.children`, problem: "mobile_sticky_bar uses primaryCta/secondaryCta instead of child nodes" });
+    if ((node.type === "before_after_slider" || node.type === "faq_accordion" || node.type === "tab_group") && kids.length)
+      issues.push({ path: `${path}.children`, problem: `${node.type} uses its dedicated data fields instead of child nodes` });
     if (node.type === "compare" && (kids.length !== 2 || kids.some((c) => c.type !== "media" || (!c.src && !c.mediaRef)))) {
       issues.push({ path: `${path}.children`, problem: "compare needs exactly two media children with a picture source (before, after)" });
     }

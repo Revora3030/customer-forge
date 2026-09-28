@@ -44,6 +44,8 @@ const CORE_BAR = [
 
 /** Principles of execution that separate finished work from a first draft. */
 const EXECUTION = [
+  "Interactive composition: when interaction earns its place, it should feel native to the visual concept — comparison handles have obvious affordance, accordions reveal information without jank, tabs have a clear selected state, and mobile conversion bars stay thumb-friendly without obscuring content.",
+  "Interaction accessibility: every control has a meaningful accessible name, visible focus state, keyboard operation, touch operation and a reduced-motion path. Never make motion the only way a state change can be understood.",
   "Hierarchy: every view has one unmistakable focal point, a clear second read and quiet supporting detail. Size, weight, colour and space all agree on what matters most.",
   "Typography: a deliberate scale with real contrast between levels, comfortable body measure (roughly 45–75 characters), tuned line-height and letter-spacing per size, and headings that break into good-looking lines on phones.",
   "Space and rhythm: spacing follows a consistent system and varies with intent — generous where the page should breathe, tight where items belong together. Uniform padding on every section reads as unfinished.",
