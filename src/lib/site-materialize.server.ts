@@ -282,17 +282,73 @@ export async function materializeSiteContent(
     ...(input.hasBooking ? [{ role: "booking" }] : []),
     { role: "contact" },
   ];
-  const factInventory: PageArchitecture[] = [{
-    slug: "home",
-    title: input.businessName,
-    purpose: "primary website entry",
-    primaryAction,
-    sections: [
-      { role: "hero" },
-      ...(input.services.length ? [{ role: "services" }] : []),
-      ...functionalSections,
-    ],
-  }];
+  // Pillar 4 — Multi-page commercial depth.
+  // The candidate inventory seeds a complete commercial site, not a single
+  // home page, so the AI architect starts from real multi-page material it can
+  // reorder, expand or invent on top of. Every page is built only from verified
+  // business DNA facts: services come from the real service rows, contact comes
+  // from the enquiry capability, and the about page never invents credentials.
+  const hasServices = input.services.length > 0;
+  const factInventory: PageArchitecture[] = [
+    {
+      slug: "home",
+      title: input.businessName,
+      purpose: "primary website entry",
+      primaryAction,
+      sections: [
+        { role: "hero" },
+        ...(hasServices ? [{ role: "services" }] : []),
+        { role: "process" },
+        { role: "social_proof" },
+        { role: "faq" },
+        ...functionalSections,
+      ],
+    },
+    // Dedicated services page: a full breakdown of real offerings with scope,
+    // deliverables and direct booking. Only seeded when the business has real
+    // service rows; the AI can still invent a services page without them.
+    ...(hasServices
+      ? [{
+          slug: "services",
+          title: `Services — ${input.businessName}`,
+          purpose: "detailed service breakdown and booking",
+          primaryAction,
+          sections: [
+            { role: "services" },
+            ...(input.hasBooking ? [{ role: "booking" }] : []),
+            { role: "contact" },
+          ],
+        }]
+      : []),
+    // About / story page: commercial backstory and values, sourced only from
+    // verified business DNA facts. Never invents awards, team credentials or
+    // certifications the business has not supplied.
+    {
+      slug: "about",
+      title: `About — ${input.businessName}`,
+      purpose: "business story, values and service territory",
+      primaryAction,
+      sections: [
+        { role: "story" },
+        { role: "values" },
+        { role: "service_area" },
+        { role: "contact" },
+      ],
+    },
+    // Contact & booking page: high-converting lead intake with operating hours,
+    // direct phone/address and the booking widget when available.
+    {
+      slug: input.hasBooking ? "book" : "contact",
+      title: input.hasBooking ? `Book — ${input.businessName}` : `Contact — ${input.businessName}`,
+      purpose: "lead intake, booking and direct contact",
+      primaryAction,
+      sections: [
+        ...(input.hasQuoteForm ? [{ role: "quote" }] : []),
+        ...(input.hasBooking ? [{ role: "booking" }] : []),
+        { role: "contact" },
+      ],
+    },
+  ];
   let designContract: AiDesignContract | null = input.designContract ?? null;
   const authored = designContract
     ? null

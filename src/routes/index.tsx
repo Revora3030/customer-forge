@@ -24,6 +24,8 @@ import { AfterYouStart } from "@/components/marketing/OfferSections";
 import { FAQ, FAQ_ITEMS } from "@/components/marketing/FAQ";
 import { LongTermValue } from "@/components/marketing/ConversionKit";
 import { AiClarity, AutomationFlow, SleepEngine } from "@/components/marketing/AiClarity";
+import { LiveSystemDemo } from "@/components/marketing/LiveSystemDemo";
+import { LeadEngineSimulator } from "@/components/marketing/LeadEngineSimulator";
 import { ProductTour } from "@/components/marketing/ProductTour";
 import { ValueStack } from "@/components/marketing/ValueStack";
 import { FreeAccessButton, FreeAccessSection } from "@/components/marketing/FreeAccess";
@@ -441,6 +443,26 @@ function Landing() {
             <div className="mt-8">
               <AutomationFlow />
             </div>
+          </div>
+        </section>
+
+        {/* PILLAR 2: Interactive Live Lead Engine Simulator */}
+        <section className="border-b border-border bg-card/40">
+          <div className="mx-auto max-w-6xl px-4 py-16">
+            <SectionHeading
+              eyebrow="Try it yourself"
+              title="Watch a lead become a booking — in real time"
+            />
+            <div className="mt-8">
+              <LeadEngineSimulator />
+            </div>
+          </div>
+        </section>
+
+        {/* PILLAR 2: The Revora loop — Visitor to Repeat Customer */}
+        <section className="border-b border-border">
+          <div className="mx-auto max-w-6xl px-4 py-16">
+            <LiveSystemDemo />
           </div>
         </section>
 

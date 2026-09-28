@@ -84,6 +84,9 @@ export async function proposePageArchitecture(input: {
       "Headings may only use the business name, its real services and its real place — never an unsupported claim.",
       input.revisionNotes ? `REVIEWER REFUSED YOUR LAST PLAN — address this: ${input.revisionNotes.slice(0, 1500)}` : null,
       "COMPLETENESS: plan a whole website, not a stub. A visitor must be able to understand what the business does, see each real service explained, understand how working together goes, and act — using only the facts above. A plan that is just an opening and a form is incomplete and will be refused. The shape, count and order of pages and sections are still entirely yours.",
+      "MULTI-PAGE DEPTH: a real commercial site is more than a single page. Plan at least three dedicated pages — a home page, a services page (or pages, one per major offering when the catalogue justifies it), and an about/story page — plus a contact or booking page. Every page must carry its own purpose and earn its place; never repeat the same card grid across pages.",
+      "BESPOKE LAYOUTS: give each section its own composition rather than reusing one layout. Vary asymmetric two-column blocks, sticky side-by-side process steps, interactive bento grids, full-bleed media and centered single-column narratives so the site reads as designed, not templated. A layout name is your own composition name, not a preset.",
+      "FACT FIDELITY: every word must come from the supplied business facts, services and place. Never invent reviews, awards, stats, certifications, team credentials, prices, guarantees or results. The about page tells the real commercial backstory and values only — never fabricated milestones.",
     ].filter((line) => line !== null).join("\n");
   let sol = await callBestThinker({
     json: true,
