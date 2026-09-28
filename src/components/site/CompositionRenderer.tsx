@@ -31,7 +31,16 @@ export function styleToCss(style: NodeStyle | undefined, type: CompositionNode["
   if (style.align) css.textAlign = style.align;
   if (style.justify) css.justifyContent = JUSTIFY[style.justify];
   if (style.items) css.alignItems = ITEMS[style.items];
-  if (style.size != null) css.fontSize = style.size;
+  if (style.size != null) {
+    if (type === "heading") {
+      const max = Math.round(style.size);
+      const min = Math.max(18, Math.round(max * 0.72));
+      const vw = Math.max(2.5, Math.min(8, Math.round((max / 16) * 10) / 10));
+      css.fontSize = `clamp(${min}px, ${vw}vw, ${max}px)`;
+    } else {
+      css.fontSize = style.size;
+    }
+  }
   if (style.weight != null) css.fontWeight = style.weight;
   if (style.lineHeight != null) css.lineHeight = style.lineHeight;
   if (style.letterSpacing != null) css.letterSpacing = `${Math.max(-0.05, Math.min(0.5, style.letterSpacing))}em`;
@@ -45,6 +54,9 @@ export function styleToCss(style: NodeStyle | undefined, type: CompositionNode["
   if (style.radius != null) css.borderRadius = style.radius;
   if (style.borderWidth != null) { css.borderWidth = style.borderWidth; css.borderStyle = "solid"; }
   if (style.borderColor) css.borderColor = style.borderColor;
+  if (type === "card" && style.borderWidth == null && style.borderColor == null) {
+    css.border = "1px solid color-mix(in srgb, currentColor 10%, transparent)";
+  }
   if (style.shadow) css.boxShadow = SHADOWS[style.shadow];
   if (style.opacity != null) css.opacity = style.opacity / 100;
   if (style.aspect) css.aspectRatio = style.aspect.replace(":", " / ");
@@ -145,10 +157,16 @@ function renderNode(node: CompositionNode, ctx: Ctx, key: string): ReactNode {
   if (node.hover) ctx.rules.push(hoverCss(id, node.hover));
   const style: CSSProperties = { ...baseLayout(node.type), ...styleToCss(node.style, node.type) };
   const motion = node.motion && node.motion.kind !== "none" ? node.motion : null;
+  const interactive = node.type === "button" || node.type === "link" || node.type === "card" || node.type === "widget";
+  const classNames = [
+    motion ? "rv-cn-motion" : "",
+    interactive ? "rv-cn-interactive" : "",
+    node.type === "heading" || node.type === "text" ? "rv-cn-copy" : "",
+  ].filter(Boolean).join(" ") || undefined;
   const props = {
     "data-cn": id,
     "data-motion": motion?.kind,
-    className: motion ? "rv-cn-motion" : undefined,
+    className: classNames,
     style: motion ? { ...style, ...motionStyle(motion) } : style,
   };
   const children = node.children ?? [];
@@ -457,6 +475,11 @@ function mobileCtaStyle(primary: boolean): CSSProperties {
 
 const MARQUEE_CSS = `@media (prefers-reduced-motion: no-preference){.rv-cn-marquee{animation:rv-cn-marquee 30s linear infinite}}@keyframes rv-cn-marquee{to{transform:translateX(-50%)}}`;
 const INTERACTIVE_CSS = `
+.rv-cn-interactive{transition:transform .2s cubic-bezier(.16,1,.3,1),box-shadow .2s cubic-bezier(.16,1,.3,1),opacity .2s ease}
+.rv-cn-interactive:hover{transform:translateY(-2px)}
+.rv-cn-interactive:focus-visible{outline:3px solid currentColor;outline-offset:3px}
+.rv-cn-interactive a:focus-visible,.rv-cn-interactive button:focus-visible{outline:3px solid currentColor;outline-offset:3px}
+@media (prefers-reduced-motion: reduce){.rv-cn-interactive{transition:none!important}.rv-cn-interactive:hover{transform:none}}
 .rv-cn-compare-input{position:absolute;inset:0;width:100%;height:100%;margin:0;opacity:0;cursor:ew-resize;touch-action:none;z-index:3}
 .rv-cn-compare-divider{position:absolute;top:0;bottom:0;width:2px;background:currentColor;transform:translateX(-1px);pointer-events:none;z-index:2}
 .rv-cn-compare-handle{position:absolute;top:50%;left:50%;width:44px;height:44px;border-radius:999px;border:2px solid currentColor;background:Canvas;box-shadow:0 3px 16px rgb(0 0 0 / .22);transform:translate(-50%,-50%);display:grid;place-items:center}
@@ -488,7 +511,7 @@ const INTERACTIVE_CSS = `
  * clipping). These never choose colours, fonts, order or layout — they only
  * stop AI-authored layers from becoming unusable on narrow screens.
  */
-export const PHONE_SAFETY_CSS = `[data-composition]{max-width:100%;overflow-x:clip}[data-composition] *{min-width:0;overflow-wrap:break-word}[data-composition] :is(h1,h2,h3,h4){text-wrap:balance;hyphens:manual}[data-composition] img,[data-composition] video,[data-composition] iframe{max-width:100%;height:auto}@media (max-width:639px){[data-composition] [style*="grid-template-columns"],[data-composition] .grid{width:100%!important;max-width:100%!important;grid-template-columns:1fr!important}[data-composition] :is(h1,h2,h3,h4,p,span,label){overflow-wrap:break-word;word-break:normal;hyphens:none}[data-composition] [data-widget],[data-composition] form{width:100%!important;max-width:100%!important}[data-composition] h1{font-size:min(2.75rem,11vw)!important;line-height:1.05!important}[data-composition] h2{font-size:min(2.25rem,9.5vw)!important;line-height:1.1!important}[data-composition] h3{font-size:min(1.6rem,7vw)!important}[data-composition] p,[data-composition] li,[data-composition] span,[data-composition] a,[data-composition] small,[data-composition] label{font-size:max(14px,1em)!important}[data-composition] a,[data-composition] button{min-height:44px!important}[data-composition] a{display:inline-flex!important;align-items:center}[data-composition] [style*="position: absolute"],[data-composition] [style*="position:absolute"]{position:relative!important;inset:auto!important}[data-composition] [style*="margin-top: -"]{margin-top:0!important}[data-composition] [style*="rotate("]{transform:none!important}[data-composition] [style*="grid-template-columns"]{grid-template-columns:minmax(0,1fr)!important}[data-composition] [style*="grid-template-areas"]{grid-template-areas:none!important}[data-composition] [style*="grid-area"]{grid-area:auto!important}}`;
+export const PHONE_SAFETY_CSS = `[data-composition]{box-sizing:border-box;max-width:100%;min-width:0;overflow-x:clip;padding-inline-start:max(0px,env(safe-area-inset-left,0px));padding-inline-end:max(0px,env(safe-area-inset-right,0px))}[data-composition] *{box-sizing:border-box;min-width:0;max-width:100%;overflow-wrap:break-word}[data-composition] :is(h1,h2,h3,h4){text-wrap:balance;overflow-wrap:break-word;word-break:normal;hyphens:manual}[data-composition] :is(p,span,li,label){overflow-wrap:break-word;word-break:normal}[data-composition] img,[data-composition] video,[data-composition] iframe{max-width:100%;height:auto}@media (max-width:639px){[data-composition] [style*="grid-template-columns"],[data-composition] .grid{width:100%!important;max-width:100%!important;grid-template-columns:minmax(0,1fr)!important}[data-composition] [data-widget],[data-composition] form{width:100%!important;max-width:100%!important}[data-composition] h1{font-size:min(2.75rem,11vw)!important;line-height:1.05!important}[data-composition] h2{font-size:min(2.25rem,9.5vw)!important;line-height:1.1!important}[data-composition] h3{font-size:min(1.6rem,7vw)!important;line-height:1.12!important}[data-composition] p,[data-composition] li,[data-composition] span,[data-composition] a,[data-composition] small,[data-composition] label{font-size:max(14px,1em)!important;line-height:1.45}[data-composition] a,[data-composition] button{min-height:44px!important}[data-composition] a{align-items:center}[data-composition] [style*="grid-template-areas"]{grid-template-areas:none!important}[data-composition] [style*="grid-area"]{grid-area:auto!important}]`;
 
 const MOTION_CSS = `@media (prefers-reduced-motion: no-preference){.rv-cn-motion{animation:rv-cn-in .7s ease both}.rv-cn-motion[data-motion=rise]{animation-name:rv-cn-rise}.rv-cn-motion[data-motion=scale]{animation-name:rv-cn-scale}.rv-cn-motion[data-motion=float]{animation:rv-cn-float 6s ease-in-out infinite}.rv-cn-motion[data-motion=slide-left]{animation-name:rv-cn-sl}.rv-cn-motion[data-motion=slide-right]{animation-name:rv-cn-sr}.rv-cn-motion[data-motion=blur]{animation-name:rv-cn-blur}.rv-cn-motion[data-motion=reveal]{animation-name:rv-cn-reveal}.rv-cn-motion[data-motion=custom]{animation-name:rv-cn-custom}}@keyframes rv-cn-custom{from{opacity:var(--rv-o,1);transform:translate(var(--rv-x,0),var(--rv-y,0)) scale(var(--rv-s,1)) rotate(var(--rv-r,0));filter:blur(var(--rv-b,0))}}@keyframes rv-cn-sl{from{opacity:0;transform:translateX(32px)}to{opacity:1;transform:none}}@keyframes rv-cn-sr{from{opacity:0;transform:translateX(-32px)}to{opacity:1;transform:none}}@keyframes rv-cn-blur{from{opacity:0;filter:blur(12px)}to{opacity:1;filter:none}}@keyframes rv-cn-reveal{from{clip-path:inset(0 0 100% 0)}to{clip-path:inset(0 0 0 0)}}@keyframes rv-cn-in{from{opacity:0}to{opacity:1}}@keyframes rv-cn-rise{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:none}}@keyframes rv-cn-scale{from{opacity:0;transform:scale(.94)}to{opacity:1;transform:none}}@keyframes rv-cn-float{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}`;
 

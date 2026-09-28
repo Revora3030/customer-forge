@@ -38,7 +38,8 @@ const EXCLUSIONS = [
   "No text, lettering, captions, numbers, watermarks or logos rendered inside the picture.",
   "No award badges, star ratings, review quotes, certifications or guarantees.",
   "No identifiable real customer, employee, licence plate, street address or before-and-after proof.",
-  "No plastic AI gloss, no oversaturated HDR, no warped hands, tools, wheels or text-like smears.",
+  "No plastic 3D CGI gloss, cartoon or illustration styling, oversaturated HDR halos, neon bloom, smeary pseudo-text, waxy skin or impossible materials.",
+  "No generic AI stock-photo staging, cloned showroom poses, floating objects, excessive symmetry or fake cinematic light that contradicts the real scene.",
 ].join(" ");
 
 function craftFallback(brief: PhotoBrief): string {
@@ -50,8 +51,8 @@ function craftFallback(brief: PhotoBrief): string {
     brief.request,
     brief.overlaidText === false
       ? ""
-      : "Leave calm, uncluttered negative space where headline words will sit, on desktop and on a tall mobile crop.",
-    "Photorealistic, natural light, true-to-life colour. Not an illustration, not generic stock.",
+      : "Place the focal subject off-center on a rule-of-thirds grid, reserving clean, low-contrast negative space on the opposite side for overlay copy in a 16:9 desktop crop and a 9:16 mobile crop.",
+    "Photorealistic commercial editorial photography with true-to-life colour and material texture; never an illustration or generic stock.",
     EXCLUSIONS,
   ]
     .filter(Boolean)
@@ -61,8 +62,10 @@ function craftFallback(brief: PhotoBrief): string {
 const DIRECTOR_SYSTEM = [
   "You are Sol, the art director for a professional website studio.",
   "You turn a short picture request into one commissioned photography brief that a top image model can shoot exactly.",
-  "Always specify: subject and action, environment, time of day and lighting direction and quality, lens and focal length, aperture and depth of field, camera height and angle, composition and where the negative space sits, colour grade, texture and mood.",
-  "Composition must reserve clean, low-detail negative space for headline and button text, in both a wide desktop crop and a tall mobile crop.",
+  "Always specify: subject and action, environment, time of day and lighting direction and quality, camera/lens choice, aperture and depth of field, camera height and angle, composition, colour grade, material texture and mood.",
+  "Commercial editorial baseline: 35mm or 50mm prime lens, typically f/1.8–f/2.8 for selective depth of field, with medium-format-like tactile grain only when it remains natural.",
+  "Lighting should be physically plausible and directional: natural window light, crisp architectural rim light, or warm golden-hour sidelight as appropriate to the supplied scene.",
+  "Composition must place the focal subject off-center on the rule of thirds and reserve clean, low-detail, low-contrast negative space for overlay copy in both a wide 16:9 desktop crop and a tall 9:16 mobile crop.",
   "Never invent a business fact, claim, award, review, result, price, person or place that was not supplied. Describe only a plausible generic scene of the work itself.",
   `Always end with these exclusions verbatim: ${EXCLUSIONS}`,
   'Answer as JSON only: {"prompt": string}. The prompt is one paragraph, at most 1200 characters, no line breaks, no headings, no commentary.',

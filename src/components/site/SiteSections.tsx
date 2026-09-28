@@ -45,10 +45,14 @@ const Shell = ({
   wide?: boolean;
   id?: string;
 }) => (
-  <section id={id} className="scroll-mt-20 border-b border-border">
+  <section id={id} className="scroll-mt-20 border-b border-border" style={{ minWidth: 0, maxWidth: "100%", overflowX: "clip" }}>
     <div
-      className={`mx-auto px-4 ${wide ? "max-w-6xl" : "max-w-3xl"}`}
-      style={{ paddingBlock: "calc(3.5rem * var(--site-space, 1))" }}
+      className={`mx-auto w-full min-w-0 px-4 ${wide ? "max-w-6xl" : "max-w-3xl"}`}
+      style={{
+        paddingBlock: "calc(3.5rem * var(--site-space, 1))",
+        paddingInlineStart: "max(1rem, env(safe-area-inset-left, 0px))",
+        paddingInlineEnd: "max(1rem, env(safe-area-inset-right, 0px))",
+      }}
     >
       {children}
     </div>
@@ -86,7 +90,13 @@ const Heading = ({ section }: { section: Section }) => {
 export function SiteSection({ site, section }: { site: Site; section: Section }) {
   const css = blockCss(readBlockStyle(section.settings), siteSurface(site));
   return (
-    <div data-rvb={section.id} data-rvb-kind={section.kind} data-rvb-label={sectionLabel(section.kind)} style={css}>
+    <div
+      data-rvb={section.id}
+      data-rvb-kind={section.kind}
+      data-rvb-label={sectionLabel(section.kind)}
+      className="rv-site-section"
+      style={{ ...css, minWidth: 0, maxWidth: "100%" }}
+    >
       <SiteSectionBody site={site} section={section} />
     </div>
   );

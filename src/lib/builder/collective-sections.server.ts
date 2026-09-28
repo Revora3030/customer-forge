@@ -122,6 +122,8 @@ const RULES = [
   "Never rename or reorder a section, and never change its role.",
   "Write like a senior brand copywriter: specific, confident, human, no filler, no placeholder text,",
   "no repeated phrases across sections, no truncated or half-finished sentences.",
+  "Avoid generic AI marketing clichés including 'elevate your', 'unlock', 'seamless', 'cutting-edge', and 'your trusted partner' unless those exact words are already supplied customer copy.",
+  "Prefer concrete verbs, real services, real locations and observable details already present in the supplied facts; if specificity is unavailable, say less rather than inventing it.",
 ].join(" ");
 
 export type SectionWordingOutcome = {
