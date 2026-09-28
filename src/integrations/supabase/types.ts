@@ -1708,57 +1708,6 @@ export type Database = {
           },
         ]
       }
-      lead_delivery_logs: {
-        Row: {
-          attempted_at: string
-          created_at: string
-          delivery_status: string
-          http_status: number | null
-          id: string
-          lead_id: string
-          organization_id: string
-          reason: string | null
-          retryable: boolean
-        }
-        Insert: {
-          attempted_at: string
-          created_at?: string
-          delivery_status: string
-          http_status?: number | null
-          id?: string
-          lead_id: string
-          organization_id: string
-          reason?: string | null
-          retryable?: boolean
-        }
-        Update: {
-          attempted_at?: string
-          created_at?: string
-          delivery_status?: string
-          http_status?: number | null
-          id?: string
-          lead_id?: string
-          organization_id?: string
-          reason?: string | null
-          retryable?: boolean
-        }
-        Relationships: [
-          {
-            foreignKeyName: "lead_delivery_logs_lead_id_fkey"
-            columns: ["lead_id"]
-            isOneToOne: false
-            referencedRelation: "leads"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "lead_delivery_logs_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       lifecycle_email_log: {
         Row: {
           created_at: string
