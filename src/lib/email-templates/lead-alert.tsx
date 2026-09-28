@@ -22,6 +22,7 @@ interface Props {
   city?: string;
   service?: string;
   estimate?: string;
+  budget?: string;
   message?: string;
   when?: string;
 }
@@ -34,6 +35,7 @@ const rowsOf = (p: Props) =>
     ["City", p.city],
     ["Service", p.service],
     ["Estimate", p.estimate],
+    ["Budget", p.budget],
     ["Requested time", p.when],
   ].filter(([, v]) => Boolean(v)) as [string, string][];
 
@@ -80,6 +82,7 @@ export const template = {
     city: "Raleigh",
     service: "Full interior detail",
     estimate: "$240–$320",
+    budget: "$240–$320",
   },
 } satisfies TemplateEntry;
 
