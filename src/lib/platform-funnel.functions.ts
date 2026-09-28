@@ -207,9 +207,9 @@ function isCustomerOrg(org: { id: string; is_demo: boolean | null }) {
 }
 
 /** User ids of Revora staff (super admins); excluded from customer counts. */
-async function platformStaffIds(admin: {
-  from: (t: "user_roles") => any;
-}): Promise<string[]> {
+async function platformStaffIds(
+  admin: import("@supabase/supabase-js").SupabaseClient<import("@/integrations/supabase/types").Database>,
+): Promise<string[]> {
   const { data, error } = await admin.from("user_roles").select("user_id").eq("role", "super_admin");
   if (error) return [];
   return ((data ?? []) as { user_id: string }[]).map((r) => r.user_id);
