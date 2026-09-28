@@ -29,7 +29,7 @@ export type LeadWebhookResult =
 const WEBHOOK_TIMEOUT_MS = 5_000;
 
 function isPrivateHostname(hostname: string) {
-  const host = hostname.toLowerCase().replace(/^\\[|\\]$/g, "");
+  const host = hostname.toLowerCase().replace(/^\[|\]$/g, "");
   return (
     host === "localhost" ||
     host === "localhost.localdomain" ||
@@ -38,11 +38,11 @@ function isPrivateHostname(hostname: string) {
     host === "0.0.0.0" ||
     host === "::" ||
     host === "::1" ||
-    /^127\\./.test(host) ||
-    /^10\\./.test(host) ||
-    /^192\\.168\\./.test(host) ||
-    /^169\\.254\\./.test(host) ||
-    /^172\\.(?:1[6-9]|2\\d|3[0-1])\\./.test(host)
+    /^127\./.test(host) ||
+    /^10\./.test(host) ||
+    /^192\.168\./.test(host) ||
+    /^169\.254\./.test(host) ||
+    /^172\.(?:1[6-9]|2\d|3[0-1])\./.test(host)
   );
 }
 
