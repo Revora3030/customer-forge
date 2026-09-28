@@ -519,6 +519,13 @@ export const submitPublicLead = createServerFn({ method: "POST" })
       if (!webhookResult.ok) {
         console.warn("lead webhook not delivered", webhookResult.reason);
       }
+      if (
+        (alertEmail && !alert.ok) ||
+        (data.email && !confirmation.ok) ||
+        !webhookResult.ok
+      ) {
+        deliveryOk = false;
+      }
 
       const { enqueueAutomations } = await import("@/lib/automation-engine");
       await enqueueAutomations(
