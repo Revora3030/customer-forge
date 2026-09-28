@@ -50,6 +50,9 @@ jobs:
           E2E_REQUIRE_SERVER: "1"
         run: bunx vitest run
 
+      - name: Security audit
+        run: bun run security:audit
+
       - name: Production control audit
         run: node scripts/production-control-audit.mjs
 
