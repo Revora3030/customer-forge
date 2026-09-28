@@ -25,9 +25,9 @@ export function freeAiAvailable(role: ModelRole = "primary") {
 }
 
 /**
- * Paid provider accounts are only reachable when an operator has explicitly
- * opted out of zero-cost mode AND switched builder-external AI on. Nothing in
- * the builder can turn this on by itself.
+ * Paid provider accounts are reachable when Revora has a configured provider
+ * key and the model router permits that lane. Creative work is authored by the
+ * AI team; availability never selects or substitutes a design.
  */
 export function paidAiAllowedForBuilder() {
   return builderExternalAiAllowed() && providerChain().length > 0;
