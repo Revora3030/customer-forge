@@ -19,7 +19,7 @@ import {
  * lease expires, which recovers an interrupted worker without running twice.
  */
 export function queuePumpDelay(job: {
-  status?: string;
+  status?: string | undefined;
   lease_expires_at?: string | null;
 } | null | undefined, now = Date.now()): number | null {
   if (job?.status === "queued") return 800;
@@ -57,15 +57,17 @@ export function useLatestGenerationJob(organizationId: string | undefined) {
   const pump = useServerFn(pumpSiteEngineQueue);
   const job = query.data as { status?: string; lease_expires_at?: string | null } | null | undefined;
   const status = job?.status;
+  const leaseExpiresAt = job?.lease_expires_at ?? null;
+  const hasJob = job != null;
   useEffect(() => {
     if (!organizationId) return;
-    const delay = queuePumpDelay(job);
+    const delay = queuePumpDelay(hasJob ? { status, lease_expires_at: leaseExpiresAt } : null);
     if (delay === null) return;
     const timer = setTimeout(() => {
       void pump({ data: { organizationId } }).catch(() => undefined);
     }, delay);
     return () => clearTimeout(timer);
-  }, [organizationId, job?.status, job?.lease_expires_at, pump]);
+  }, [organizationId, hasJob, status, leaseExpiresAt, pump]);
 
   // When the background worker finishes, pull the new site copy into the UI.
   const queryClient = useQueryClient();
