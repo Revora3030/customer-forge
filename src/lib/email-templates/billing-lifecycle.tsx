@@ -21,6 +21,10 @@ interface BillingProps {
   previousPlan?: string;
   newPlan?: string;
   billingUrl?: string;
+  /** Formatted date of the next charge (trial ending) or next retry (payment failed). */
+  chargeDate?: string;
+  /** Short, customer-safe reason the card was declined, when Stripe provides one. */
+  declineReason?: string;
 }
 
 const Shell = (props: { preview: string; heading: string; children: React.ReactNode }) => (
@@ -105,6 +109,51 @@ const CanceledEmail = (p: BillingProps) => (
   </Shell>
 );
 
+const TrialEndingEmail = (p: BillingProps) => (
+  <Shell
+    preview={`Your free month ends ${p.chargeDate || "soon"} — ${p.amount || "$100.00"}/month starts then`}
+    heading={`Your free month ends ${p.chargeDate || "in a few days"}`}
+  >
+    <Text style={text}>
+      Heads up for {p.businessName || "your workspace"}: your first free month of the{" "}
+      {p.planName || "Revora Growth System"} ends on{" "}
+      <strong>{p.chargeDate || "the date shown in billing"}</strong>. Your first monthly payment of{" "}
+      <strong>{p.amount || "$100.00"}</strong> will be charged to the card on file that day, and it
+      renews monthly after that.
+    </Text>
+    <Text style={text}>
+      Nothing to do if you're staying. If you need to update your card or cancel, you can do it from
+      billing any time before that date — no penalties, no hidden fees.
+    </Text>
+    {cta(p.billingUrl || "https://revoragrowthsystems.com/app/billing", "Review billing")}
+  </Shell>
+);
+
+const PaymentFailedEmail = (p: BillingProps) => (
+  <Shell
+    preview={`Action needed: your ${p.amount || "Revora"} payment didn't go through`}
+    heading="Your payment didn't go through"
+  >
+    <Text style={text}>
+      We couldn't charge the card on file for {p.businessName || "your workspace"}
+      {p.amount ? ` (${p.amount})` : ""}.
+      {p.declineReason ? ` Your bank said: "${p.declineReason}"` : ""}
+    </Text>
+    <Text style={text}>
+      Your website, leads and CRM keep running for now.{" "}
+      {p.chargeDate
+        ? `We'll try again on ${p.chargeDate}.`
+        : "We'll retry automatically over the next few days."}{" "}
+      Updating your card takes under a minute and stops any interruption.
+    </Text>
+    <Text style={text}>
+      Tip: prepaid and some debit cards block recurring charges. A regular credit or debit card, or
+      a bank account, usually fixes it.
+    </Text>
+    {cta(p.billingUrl || "https://revoragrowthsystems.com/app/billing", "Update payment method")}
+  </Shell>
+);
+
 const PlanChangedEmail = (p: BillingProps) => (
   <Shell
     preview={`Plan updated: ${p.previousPlan || ""} → ${p.newPlan || ""}`}
@@ -125,6 +174,8 @@ const data = {
   interval: "monthly",
   amount: "$100.00",
   accessUntil: "September 28, 2026",
+  chargeDate: "October 28, 2026",
+  declineReason: "Your card does not support this type of purchase.",
   previousPlan: "Revora Growth System",
   newPlan: "Revora Growth System",
   billingUrl: "https://revoragrowthsystems.com/app/billing",
@@ -151,6 +202,21 @@ export const canceledTemplate = {
   component: CanceledEmail,
   subject: () => "Your Revora subscription is set to cancel — access continues for now",
   displayName: "Billing: cancellation (win-back)",
+  previewData: data,
+} satisfies TemplateEntry;
+
+export const trialEndingTemplate = {
+  component: TrialEndingEmail,
+  subject: (d: Record<string, unknown>) =>
+    `Your free month ends ${(d?.["chargeDate"] as string) || "soon"} — here's what happens next`,
+  displayName: "Billing: trial ending reminder",
+  previewData: data,
+} satisfies TemplateEntry;
+
+export const paymentFailedTemplate = {
+  component: PaymentFailedEmail,
+  subject: () => "Action needed: your Revora payment didn't go through",
+  displayName: "Billing: payment failed",
   previewData: data,
 } satisfies TemplateEntry;
 

@@ -225,3 +225,16 @@ export function breadcrumbSchema(trail: { name: string; path: string }[]) {
     })),
   };
 }
+
+/**
+ * Search results truncate descriptions at roughly 155–160 characters. Trim
+ * long copy at a word boundary so the snippet ends cleanly instead of being
+ * cut mid-word by Google. Open Graph descriptions can stay full-length.
+ */
+export function metaDescription(text: string, max = 155): string {
+  const clean = text.replace(/\s+/g, " ").trim();
+  if (clean.length <= max) return clean;
+  const cut = clean.slice(0, max - 1);
+  const lastSpace = cut.lastIndexOf(" ");
+  return `${(lastSpace > max * 0.6 ? cut.slice(0, lastSpace) : cut).replace(/[\s,;:—-]+$/, "")}…`;
+}

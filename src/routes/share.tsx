@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { GROWTH_SYSTEM, usdExact } from "@/lib/offer";
-import { breadcrumbSchema, canonicalLink, ogUrl } from "@/lib/seo";
+import { breadcrumbSchema, canonicalLink, ogUrl, metaDescription } from "@/lib/seo";
 import { trackConversion } from "@/lib/conversion";
 import { buildChannelAssets, qrImageUrl, trackedLink } from "@/lib/distribution";
 
@@ -20,7 +20,7 @@ export const Route = createFileRoute("/share")({
   head: () => ({
     meta: [
       { title: TITLE },
-      { name: "description", content: DESCRIPTION },
+      { name: "description", content: metaDescription(DESCRIPTION) },
       { property: "og:title", content: TITLE },
       { property: "og:description", content: DESCRIPTION },
       { property: "og:type", content: "website" },

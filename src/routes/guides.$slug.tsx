@@ -5,7 +5,7 @@ import { RelatedLinks } from "@/components/marketing/SeoLinks";
 import { Button } from "@/components/ui/button";
 import { findGuide, type Guide } from "@/lib/guides";
 import { BUSINESS } from "@/lib/business-identity";
-import { breadcrumbSchema, canonicalLink, ogUrl, SITE_URL } from "@/lib/seo";
+import { breadcrumbSchema, canonicalLink, ogUrl, SITE_URL, metaDescription } from "@/lib/seo";
 
 export const Route = createFileRoute("/guides/$slug")({
   beforeLoad: ({ params }) => {
@@ -24,7 +24,7 @@ export const Route = createFileRoute("/guides/$slug")({
     return {
       meta: [
         { title: guide.metaTitle },
-        { name: "description", content: guide.description },
+        { name: "description", content: metaDescription(guide.description) },
         { property: "og:title", content: guide.metaTitle },
         { property: "og:description", content: guide.description },
         { property: "og:type", content: "article" },

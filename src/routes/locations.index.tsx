@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { BusinessDetails } from "@/components/marketing/BusinessDetails";
 import { BUSINESS, NC_LOCATIONS } from "@/lib/business-identity";
 import { GROWTH_SYSTEM } from "@/lib/offer";
-import { breadcrumbSchema, canonicalLink, ogUrl } from "@/lib/seo";
+import { breadcrumbSchema, canonicalLink, ogUrl, metaDescription } from "@/lib/seo";
 import { trackConversion } from "@/lib/conversion";
 
 const TITLE = "Website & Lead Gen for NC Businesses | Revora";
@@ -18,7 +18,7 @@ export const Route = createFileRoute("/locations/")({
   head: () => ({
     meta: [
       { title: TITLE },
-      { name: "description", content: DESCRIPTION },
+      { name: "description", content: metaDescription(DESCRIPTION) },
       { property: "og:title", content: TITLE },
       { property: "og:description", content: DESCRIPTION },
       { property: "og:type", content: "website" },

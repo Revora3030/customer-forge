@@ -3,7 +3,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { SiteFooter, SiteHeader } from "@/components/marketing/Chrome";
 import { Button } from "@/components/ui/button";
 import { GROWTH_SYSTEM, usdExact } from "@/lib/offer";
-import { breadcrumbSchema, canonicalLink, ogUrl } from "@/lib/seo";
+import { breadcrumbSchema, canonicalLink, ogUrl, metaDescription } from "@/lib/seo";
 import { LOCAL_INDUSTRIES } from "@/lib/local-pages";
 import { US_STATES } from "@/lib/us-states";
 
@@ -14,7 +14,7 @@ export const Route = createFileRoute("/local/")({
   head: () => ({
     meta: [
       { title: TITLE },
-      { name: "description", content: DESCRIPTION },
+      { name: "description", content: metaDescription(DESCRIPTION) },
       { property: "og:title", content: TITLE },
       { property: "og:description", content: DESCRIPTION },
       { property: "og:type", content: "website" },

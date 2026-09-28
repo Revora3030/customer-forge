@@ -5,7 +5,7 @@ import { AnswerFirst, RelatedLinks } from "@/components/marketing/SeoLinks";
 import { Button } from "@/components/ui/button";
 import { CRM_SOLUTIONS, findCrmSolution, type CrmSolution } from "@/lib/crm-solutions";
 import { GROWTH_SYSTEM } from "@/lib/offer";
-import { breadcrumbSchema, canonicalLink, ogUrl, SITE_URL } from "@/lib/seo";
+import { breadcrumbSchema, canonicalLink, ogUrl, SITE_URL, metaDescription } from "@/lib/seo";
 
 export const Route = createFileRoute("/crm/$trade")({
   beforeLoad: ({ params }) => {
@@ -24,7 +24,7 @@ export const Route = createFileRoute("/crm/$trade")({
     return {
       meta: [
         { title: solution.metaTitle },
-        { name: "description", content: solution.description },
+        { name: "description", content: metaDescription(solution.description) },
         { property: "og:title", content: solution.metaTitle },
         { property: "og:description", content: solution.description },
         { property: "og:type", content: "website" },

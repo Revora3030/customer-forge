@@ -3,6 +3,8 @@
  *  - activation: welcome email, owner sale alert, workspace auto-provisioning
  *  - cancellation: grace-period messaging, win-back email, data-retention notice
  *  - plan change: proration/confirmation email
+ *  - trial ending: reminder before the first monthly charge
+ *  - payment failed: card-update email + in-app alert (dunning)
  * Every function is idempotent per Stripe object id via `audit_logs` markers so
  * Stripe's at-least-once webhook delivery never double-emails a customer.
  */
@@ -255,6 +257,112 @@ export async function handlePlanChanged(
     previous_plan_id: input.previousPlanId ?? null,
     new_plan_id: input.newPlanId,
     environment: input.environment,
+  });
+  return { ran: true as const };
+}
+
+/**
+ * Reminder before the free month converts into the first paid month. Stripe
+ * sends `customer.subscription.trial_will_end` three days ahead by default.
+ * Surprise renewals are a leading cause of refunds, disputes and cancellations.
+ */
+export async function handleTrialWillEnd(
+  admin: Admin,
+  input: {
+    organizationId: string;
+    stripeSubscriptionId: string;
+    trialEnd?: string | null;
+    amountCents?: number | null;
+    currency?: string;
+    planId?: string | null;
+    environment: string;
+  },
+) {
+  const marker = `trial-ending:${input.stripeSubscriptionId}:${input.trialEnd ?? "unknown"}`;
+  if (await alreadyRan(admin, marker)) return { ran: false as const };
+
+  const businessName = await orgName(admin, input.organizationId);
+  const chargeDate = fmtDate(input.trialEnd);
+  const amount = money(input.amountCents, input.currency);
+  const { email } = await ownerContact(admin, input.organizationId);
+
+  if (email && input.environment === "live") {
+    await sendTemplateEmail("billing-trial-ending", email, {
+      templateData: {
+        businessName,
+        planName: planLabel(input.planId),
+        amount,
+        chargeDate,
+        billingUrl: `${APP_URL}/app/billing`,
+      },
+      idempotencyKey: marker,
+    }).catch((e) => console.error("[billing] trial-ending email failed", (e as Error).message));
+  }
+
+  await admin.from("notifications").insert({
+    organization_id: input.organizationId,
+    title: "Your free month is ending soon",
+    body: `Your first ${amount ?? "monthly"} payment is charged ${chargeDate ? `on ${chargeDate}` : "when the free month ends"}. Update your card or plan in billing any time before then.`,
+    kind: "info",
+    link: "/app/billing",
+  });
+
+  await markRan(admin, input.organizationId, marker, { environment: input.environment });
+  return { ran: true as const };
+}
+
+/**
+ * Dunning for failed renewals. Subscription invoices do not carry workspace
+ * metadata on their payment intents, so this — not `payment_intent.payment_failed`
+ * — is the only reliable place to warn the customer. One email per invoice
+ * attempt; Stripe's own retries each produce a new attempt count.
+ */
+export async function handleInvoicePaymentFailed(
+  admin: Admin,
+  input: {
+    organizationId: string;
+    invoiceId: string;
+    attemptCount?: number | null;
+    amountCents?: number | null;
+    currency?: string;
+    nextAttemptAt?: string | null;
+    declineReason?: string | null;
+    environment: string;
+  },
+) {
+  const marker = `payment-failed:${input.invoiceId}:${input.attemptCount ?? 1}`;
+  if (await alreadyRan(admin, marker)) return { ran: false as const };
+
+  const businessName = await orgName(admin, input.organizationId);
+  const amount = money(input.amountCents, input.currency);
+  const chargeDate = fmtDate(input.nextAttemptAt);
+  const declineReason = input.declineReason ? input.declineReason.slice(0, 200) : undefined;
+  const { email } = await ownerContact(admin, input.organizationId);
+
+  if (email && input.environment === "live") {
+    await sendTemplateEmail("billing-payment-failed", email, {
+      templateData: {
+        businessName,
+        amount,
+        chargeDate,
+        declineReason,
+        billingUrl: `${APP_URL}/app/billing`,
+      },
+      idempotencyKey: marker,
+    }).catch((e) => console.error("[billing] payment-failed email failed", (e as Error).message));
+  }
+
+  await admin.from("notifications").insert({
+    organization_id: input.organizationId,
+    title: "Payment failed — update your card",
+    body: `We couldn't charge ${amount ?? "your subscription"}.${chargeDate ? ` We'll retry on ${chargeDate}.` : ""} Update your payment method to avoid any interruption.`,
+    kind: "warning",
+    link: "/app/billing",
+  });
+
+  await markRan(admin, input.organizationId, marker, {
+    environment: input.environment,
+    attempt: input.attemptCount ?? 1,
   });
   return { ran: true as const };
 }

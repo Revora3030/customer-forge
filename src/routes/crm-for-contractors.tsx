@@ -12,6 +12,7 @@ import { SiteFooter, SiteHeader } from "@/components/marketing/Chrome";
 import { Button } from "@/components/ui/button";
 import { CRM_SOLUTIONS } from "@/lib/crm-solutions";
 import { GROWTH_SYSTEM } from "@/lib/offer";
+import { metaDescription } from "@/lib/seo";
 
 const TITLE = "CRM for Contractors — Leads, Quotes & Follow-Up | Revora";
 const DESCRIPTION =
@@ -22,7 +23,7 @@ export const Route = createFileRoute("/crm-for-contractors")({
   head: () => ({
     meta: [
       { title: TITLE },
-      { name: "description", content: DESCRIPTION },
+      { name: "description", content: metaDescription(DESCRIPTION) },
       { property: "og:title", content: TITLE },
       { property: "og:description", content: DESCRIPTION },
       { property: "og:type", content: "product" },
@@ -105,7 +106,7 @@ function ContractorCrmPage() {
         <div className="mt-8 flex flex-wrap items-center gap-3">
           <Button asChild variant="signal" size="lg">
             <Link to="/auth" search={{ mode: "signup", redirect: "/get-started" }}>
-              Start 1 day free <ArrowRight className="size-4" aria-hidden="true" />
+              Start {GROWTH_SYSTEM.fullAccessWindow} free <ArrowRight className="size-4" aria-hidden="true" />
             </Link>
           </Button>
           <Button asChild variant="outline" size="lg">

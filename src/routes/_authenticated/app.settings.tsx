@@ -14,12 +14,13 @@ import { supabase } from "@/integrations/supabase/client";
 import { MemberControls, TeamInvites } from "@/components/app/TeamInvites";
 import { PortalAccess } from "@/components/app/PortalAccess";
 import { LeadNotifications } from "@/components/app/LeadNotifications";
+import { metaDescription } from "@/lib/seo";
 
 export const Route = createFileRoute("/_authenticated/app/settings")({
   head: () => ({
     meta: [
       { title: "Settings — Revora" },
-      { name: "description", content: "Manage your account, business workspace and team." },
+      { name: "description", content: metaDescription("Manage your account, business workspace and team.") },
       { name: "robots", content: "noindex" },
     ],
   }),

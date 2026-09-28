@@ -9,13 +9,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ErrorNote } from "@/components/app/Bits";
 import { resolvePostLoginPath, setRememberPreference } from "@/lib/auth-session";
+import { metaDescription } from "@/lib/seo";
 
 export const Route = createFileRoute("/reset-password")({
   ssr: false,
   head: () => ({
     meta: [
       { title: "Set a new password — Revora" },
-      { name: "description", content: "Choose a new password for your Revora account." },
+      { name: "description", content: metaDescription("Choose a new password for your Revora account.") },
       { property: "og:title", content: "Set a new password — Revora" },
       { property: "og:description", content: "Choose a new password for your Revora account." },
       { name: "robots", content: "noindex" },

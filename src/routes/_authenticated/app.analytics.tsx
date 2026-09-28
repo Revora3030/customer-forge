@@ -11,12 +11,13 @@ import { TrafficMonitor } from "@/components/app/TrafficMonitor";
 import { SitePerformance } from "@/components/app/SitePerformance";
 import { canManage } from "@/lib/domain";
 import { useWebsiteSettings } from "@/lib/queries";
+import { metaDescription } from "@/lib/seo";
 
 export const Route = createFileRoute("/_authenticated/app/analytics")({
   head: () => ({
     meta: [
       { title: "Analytics — Revora" },
-      { name: "description", content: "Traffic, leads, bookings and conversion by source." },
+      { name: "description", content: metaDescription("Traffic, leads, bookings and conversion by source.") },
       { name: "robots", content: "noindex" },
     ],
   }),

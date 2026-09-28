@@ -9,7 +9,7 @@ import { BusinessDetails } from "@/components/marketing/BusinessDetails";
 import { statesAlphabetical } from "@/lib/us-states";
 import { INDUSTRIES, industrySlug } from "@/lib/domain";
 import { GROWTH_SYSTEM, usdExact } from "@/lib/offer";
-import { breadcrumbSchema, canonicalLink, ogUrl } from "@/lib/seo";
+import { breadcrumbSchema, canonicalLink, ogUrl, metaDescription } from "@/lib/seo";
 import { trackConversion } from "@/lib/conversion";
 
 const TITLE = "Websites, CRM & Lead Generation for Service Businesses in All 50 States | Revora";
@@ -21,7 +21,7 @@ export const Route = createFileRoute("/states/")({
     return {
       meta: [
         { title: TITLE },
-        { name: "description", content: DESCRIPTION },
+        { name: "description", content: metaDescription(DESCRIPTION) },
         { property: "og:title", content: TITLE },
         { property: "og:description", content: DESCRIPTION },
         { property: "og:type", content: "website" },

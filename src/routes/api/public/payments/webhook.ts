@@ -127,6 +127,48 @@ async function handleEvent(event: { type: string; data: { object: any } }, env: 
         periodStart: line?.period?.start ? new Date(line.period.start * 1000).toISOString() : null,
         periodEnd: line?.period?.end ? new Date(line.period.end * 1000).toISOString() : null,
       });
+      // Dunning: renewal payment intents carry no workspace metadata, so the
+      // invoice event is the only reliable place to tell the customer.
+      if (!paid) {
+        const lifecycle = await import("@/lib/billing-lifecycle.server");
+        const nextAttempt = object?.next_payment_attempt;
+        await lifecycle.handleInvoicePaymentFailed(admin, {
+          organizationId,
+          invoiceId: String(object?.id ?? ""),
+          attemptCount: typeof object?.attempt_count === "number" ? object.attempt_count : null,
+          amountCents: typeof object?.amount_due === "number" ? object.amount_due : null,
+          currency: String(object?.currency ?? "usd"),
+          nextAttemptAt:
+            typeof nextAttempt === "number" ? new Date(nextAttempt * 1000).toISOString() : null,
+          // Invoices don't carry the bank's decline text; the email falls back
+          // to generic guidance rather than an extra Stripe round-trip here.
+          declineReason: null,
+          environment: env,
+        });
+      }
+      break;
+    }
+    case "customer.subscription.trial_will_end": {
+      const organizationId = object?.metadata?.organizationId as string | undefined;
+      if (!organizationId) {
+        console.error("[payments:webhook] trial_will_end without organization metadata", object?.id);
+        break;
+      }
+      const lifecycle = await import("@/lib/billing-lifecycle.server");
+      const item = object?.items?.data?.[0];
+      const trialEnd = object?.trial_end;
+      await lifecycle.handleTrialWillEnd(admin, {
+        organizationId,
+        stripeSubscriptionId: String(object?.id ?? ""),
+        trialEnd: typeof trialEnd === "number" ? new Date(trialEnd * 1000).toISOString() : null,
+        amountCents:
+          typeof item?.price?.unit_amount === "number"
+            ? item.price.unit_amount * Number(item?.quantity ?? 1)
+            : null,
+        currency: String(item?.price?.currency ?? object?.currency ?? "usd"),
+        planId: (object?.metadata?.planId as string | undefined) ?? null,
+        environment: env,
+      });
       break;
     }
     case "checkout.session.completed": {

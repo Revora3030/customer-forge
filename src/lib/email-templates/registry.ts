@@ -14,8 +14,10 @@ import {
 
 import {
   canceledTemplate,
+  paymentFailedTemplate,
   planChangedTemplate,
   saleAlertTemplate,
+  trialEndingTemplate,
   welcomeTemplate,
 } from "./billing-lifecycle";
 
@@ -48,6 +50,8 @@ export const TEMPLATES: Record<string, TemplateEntry> = {
   "billing-sale-alert": saleAlertTemplate,
   "billing-canceled": canceledTemplate,
   "billing-plan-changed": planChangedTemplate,
+  "billing-trial-ending": trialEndingTemplate,
+  "billing-payment-failed": paymentFailedTemplate,
   "lifecycle-welcome": lifecycleWelcomeTemplate,
   "lifecycle-setup-reminder": lifecycleSetupReminderTemplate,
   "lifecycle-booking-followup": lifecycleBookingFollowUpTemplate,

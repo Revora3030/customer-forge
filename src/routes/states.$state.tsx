@@ -10,7 +10,7 @@ import { BUSINESS } from "@/lib/business-identity";
 import { findState, type UsState } from "@/lib/us-states";
 import { INDUSTRIES, industrySlug } from "@/lib/domain";
 import { GROWTH_SYSTEM, usdExact } from "@/lib/offer";
-import { breadcrumbSchema, canonicalLink, ogUrl } from "@/lib/seo";
+import { breadcrumbSchema, canonicalLink, ogUrl, metaDescription } from "@/lib/seo";
 import { trackConversion } from "@/lib/conversion";
 
 const PILLARS = [
@@ -66,7 +66,7 @@ export const Route = createFileRoute("/states/$state")({
     return {
       meta: [
         { title },
-        { name: "description", content: description },
+        { name: "description", content: metaDescription(description) },
         { property: "og:title", content: title },
         { property: "og:description", content: description },
         { property: "og:type", content: "website" },

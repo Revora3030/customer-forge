@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
+import { getRequest } from "@tanstack/react-start/server";
 import { scoreAssessment, type AssessmentAnswers } from "@/lib/assessment";
 
 /**
@@ -23,6 +24,25 @@ const num = (value: unknown, min: number, max: number, fallback: number) => {
 const bool = (value: unknown) => value === true;
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[a-z]{2,}$/i;
+
+/** Abuse limits: this endpoint sends email to whatever address is entered. */
+const EMAIL_LIMIT_PER_DAY = 3;
+const IP_LIMIT_PER_HOUR = 10;
+
+async function sha256Hex(value: string) {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
+  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+/** Edge-controlled client IP only; spoofable forwarding headers are ignored. */
+function clientIp(): string | null {
+  try {
+    const headers = getRequest().headers;
+    return headers.get("cf-connecting-ip")?.trim() || headers.get("true-client-ip")?.trim() || null;
+  } catch {
+    return null;
+  }
+}
 
 const SPEEDS: AssessmentAnswers["replySpeed"][] = ["minutes", "hours", "same_day", "days"];
 
@@ -69,6 +89,36 @@ export const submitAssessment = createServerFn({ method: "POST" })
     const result = scoreAssessment(data.answers);
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+    // Abuse guard. The visitor always gets their on-screen results, but a
+    // single address or connection cannot be used to mass-send report emails
+    // from Revora's domain (which would damage sender reputation).
+    const ip = clientIp();
+    const ipHash = ip ? await sha256Hex(`assessment|${ip}`) : null;
+    const events = ["assessment_submitted", "audit_requested"];
+    const [byEmail, byIp] = await Promise.all([
+      supabaseAdmin
+        .from("marketing_conversions")
+        .select("id", { count: "exact", head: true })
+        .in("event_name", events)
+        .eq("email", data.answers.email)
+        .gte("created_at", new Date(Date.now() - 24 * 3_600_000).toISOString()),
+      ipHash
+        ? supabaseAdmin
+            .from("marketing_conversions")
+            .select("id", { count: "exact", head: true })
+            .in("event_name", events)
+            .contains("metadata", { ip_hash: ipHash })
+            .gte("created_at", new Date(Date.now() - 3_600_000).toISOString())
+        : Promise.resolve({ count: 0, error: null }),
+    ]);
+    if (byEmail.error || byIp.error) {
+      console.error("submitAssessment rate check failed", (byEmail.error ?? byIp.error)?.message);
+    }
+    if ((byEmail.count ?? 0) >= EMAIL_LIMIT_PER_DAY || (byIp.count ?? 0) >= IP_LIMIT_PER_HOUR) {
+      return { ok: true, emailed: false, throttled: true, result };
+    }
+
     const { error } = await supabaseAdmin.from("marketing_conversions").insert({
       event_name: data.source === "website_audit" ? "audit_requested" : "assessment_submitted",
       landing_path: data.landingPath,
@@ -86,6 +136,7 @@ export const submitAssessment = createServerFn({ method: "POST" })
         band: result.band,
         gaps: result.gaps.length,
         leakage_percent: result.leakagePercent,
+        ...(ipHash ? { ip_hash: ipHash } : {}),
       } as never,
     });
     if (error) console.error("submitAssessment insert failed", error.message);

@@ -20,6 +20,7 @@ import {
   normalizePortalCode,
 } from "@/lib/portal.functions";
 import { canonicalLink, ogUrl } from "@/lib/seo";
+import { GROWTH_SYSTEM } from "@/lib/offer";
 
 type Search = { code?: string };
 
@@ -228,7 +229,7 @@ function PortalPage() {
                 </Link>{" "}
                 or{" "}
                 <Link to="/get-started" className="text-primary underline">
-                  start your 1-day access
+                  start your free {GROWTH_SYSTEM.fullAccessWindow} of access
                 </Link>
                 .
               </p>

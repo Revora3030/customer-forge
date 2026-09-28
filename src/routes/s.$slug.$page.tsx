@@ -24,6 +24,7 @@ import { CompositionRenderer } from "@/components/site/CompositionRenderer";
 import { readSiteChrome, resolveSiteHref } from "@/lib/builder/site-chrome";
 import { AiSiteHeader } from "@/components/site/AiSiteHeader";
 import { useOwnAddress } from "@/components/site/site-links";
+import { metaDescription } from "@/lib/seo";
 
 export const Route = createFileRoute("/s/$slug/$page")({
   loader: async ({ params }) => {
@@ -53,7 +54,7 @@ export const Route = createFileRoute("/s/$slug/$page")({
     return {
       meta: [
         { title },
-        { name: "description", content: description },
+        { name: "description", content: metaDescription(description) },
         { property: "og:title", content: page.og_title || title },
         { property: "og:description", content: page.og_description || description },
         { property: "og:type", content: "website" },

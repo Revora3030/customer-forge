@@ -3,7 +3,7 @@ import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { SiteFooter, SiteHeader } from "@/components/marketing/Chrome";
 import { Button } from "@/components/ui/button";
 import { GROWTH_SYSTEM, usdExact } from "@/lib/offer";
-import { breadcrumbSchema, canonicalLink, ogUrl } from "@/lib/seo";
+import { breadcrumbSchema, canonicalLink, ogUrl, metaDescription } from "@/lib/seo";
 import { findLocalIndustry, localPath, type LocalIndustry } from "@/lib/local-pages";
 import { US_STATES } from "@/lib/us-states";
 
@@ -26,7 +26,7 @@ export const Route = createFileRoute("/local/$industry/")({
     return {
       meta: [
         { title },
-        { name: "description", content: description },
+        { name: "description", content: metaDescription(description) },
         { property: "og:title", content: title },
         { property: "og:description", content: description },
         { property: "og:type", content: "website" },

@@ -26,6 +26,7 @@ import {
   type AssessmentAnswers,
 } from "@/lib/assessment";
 import { submitAssessment } from "@/lib/assessment.functions";
+import { GROWTH_SYSTEM } from "@/lib/offer";
 
 const SPEEDS: { value: AssessmentAnswers["replySpeed"]; label: string }[] = [
   { value: "minutes", label: "Within minutes" },
@@ -370,7 +371,7 @@ export function GrowthAssessment({ mode = "assessment" }: { mode?: "assessment" 
             Want Revora to close these gaps for you?
           </p>
           <p className="mt-2 text-[13px] leading-relaxed text-muted-foreground">
-            Start with 3 free days of full access — build your site, capture leads and see the
+            Start with {GROWTH_SYSTEM.fullAccessWindow} of free full access — build your site, capture leads and see the
             system running before you pay anything.
           </p>
           <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center">

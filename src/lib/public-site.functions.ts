@@ -523,7 +523,9 @@ export const submitPublicLead = createServerFn({ method: "POST" })
         const deliveryStatus = webhookResult.ok
           ? ("skipped" in webhookResult && webhookResult.skipped ? "skipped" : "delivered")
           : "failed";
-        await supabase.from("lead_delivery_logs").insert({
+        // Supabase reports insert failures in the result instead of throwing, so
+        // the error has to be read explicitly or a missing table fails silently.
+        const { error: telemetryInsertError } = await supabase.from("lead_delivery_logs").insert({
           organization_id: orgId,
           lead_id: lead.id,
           delivery_status: deliveryStatus,
@@ -531,7 +533,17 @@ export const submitPublicLead = createServerFn({ method: "POST" })
           reason: webhookResult.ok ? null : webhookResult.reason,
           retryable: webhookResult.ok ? false : webhookResult.retryable,
           attempted_at: webhookResult.attemptedAt,
-        } as never);
+        });
+        if (telemetryInsertError) {
+          const { captureError } = await import("@/lib/monitoring.server");
+          await captureError({
+            message: `Lead delivery telemetry not saved: ${telemetryInsertError.message}`,
+            source: "server",
+            level: "warning",
+            route: "submitPublicLead",
+            organizationId: orgId,
+          });
+        }
       } catch (telemetryError) {
         console.warn(
           "lead webhook telemetry could not be persisted",

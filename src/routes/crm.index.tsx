@@ -5,7 +5,7 @@ import { SiteFooter, SiteHeader } from "@/components/marketing/Chrome";
 import { Button } from "@/components/ui/button";
 import { CRM_SOLUTIONS } from "@/lib/crm-solutions";
 import { GROWTH_SYSTEM } from "@/lib/offer";
-import { breadcrumbSchema, canonicalLink, ogUrl } from "@/lib/seo";
+import { breadcrumbSchema, canonicalLink, ogUrl, metaDescription } from "@/lib/seo";
 
 const TITLE = `CRM Software for Contractors & Trades | Revora`;
 const DESCRIPTION = `CRM software for contractors and trades: capture leads, send quotes, book jobs, follow up automatically and collect reviews.`;
@@ -14,7 +14,7 @@ export const Route = createFileRoute("/crm/")({
   head: () => ({
     meta: [
       { title: TITLE },
-      { name: "description", content: DESCRIPTION },
+      { name: "description", content: metaDescription(DESCRIPTION) },
       { property: "og:title", content: TITLE },
       { property: "og:description", content: DESCRIPTION },
       { property: "og:type", content: "website" },

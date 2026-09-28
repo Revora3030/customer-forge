@@ -144,7 +144,7 @@ const STEPS = [
   {
     n: "05",
     title: "We manage & grow",
-    body: `Your ${GROWTH_SYSTEM.trialDays}-day platform trial begins. After the trial, continue at ${usdExact(GROWTH_SYSTEM.monthlyPrice)}/month.`,
+    body: `Your first ${GROWTH_SYSTEM.trialDays} days of the monthly plan are free. After that, it continues at ${usdExact(GROWTH_SYSTEM.monthlyPrice)}/month unless you cancel.`,
   },
 ] as const;
 

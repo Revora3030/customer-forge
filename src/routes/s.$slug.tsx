@@ -6,6 +6,7 @@ import { canonicalSiteUrl } from "@/lib/revora-address";
 import { SitePageView } from "@/routes/s.$slug.$page";
 import { placeDisplay } from "@/lib/builder/presentation";
 import { siteFontHref, siteFontStyle, siteThemeStyle } from "@/lib/site-theme";
+import { metaDescription } from "@/lib/seo";
 
 export const Route = createFileRoute("/s/$slug")({
   loader: async ({ params }) => {
@@ -46,7 +47,7 @@ export const Route = createFileRoute("/s/$slug")({
     return {
       meta: [
         { title },
-        { name: "description", content: description },
+        { name: "description", content: metaDescription(description) },
         { property: "og:title", content: page?.og_title || title },
         { property: "og:description", content: page?.og_description || description },
         { property: "og:type", content: "website" },

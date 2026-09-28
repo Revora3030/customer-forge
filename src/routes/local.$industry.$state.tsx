@@ -7,7 +7,7 @@ import { RelatedLinks } from "@/components/marketing/SeoLinks";
 import { Button } from "@/components/ui/button";
 import { BUSINESS } from "@/lib/business-identity";
 import { GROWTH_SYSTEM, usdExact } from "@/lib/offer";
-import { breadcrumbSchema, canonicalLink, ogUrl, SITE_URL } from "@/lib/seo";
+import { breadcrumbSchema, canonicalLink, ogUrl, SITE_URL, metaDescription } from "@/lib/seo";
 import { localPageContent, localPath, type LocalPageContent } from "@/lib/local-pages";
 import { trackConversion } from "@/lib/conversion";
 
@@ -31,7 +31,7 @@ export const Route = createFileRoute("/local/$industry/$state")({
     return {
       meta: [
         { title: content.title },
-        { name: "description", content: content.description },
+        { name: "description", content: metaDescription(content.description) },
         { property: "og:title", content: content.title },
         { property: "og:description", content: content.description },
         { property: "og:type", content: "website" },
@@ -226,7 +226,7 @@ function LocalIndustryStatePage() {
               Ready to stop losing {state.name} jobs to whoever answers first?
             </h2>
             <p className="mx-auto mt-2 max-w-xl text-[14px] text-muted-foreground">
-              Get 1 day of full access, then {usdExact(GROWTH_SYSTEM.setupPrice)} to launch and
+              Get {GROWTH_SYSTEM.fullAccessWindow} of free full access, then {usdExact(GROWTH_SYSTEM.setupPrice)} to launch and
               your first month of the {usdExact(GROWTH_SYSTEM.monthlyPrice)}/month platform fee
               free.
             </p>

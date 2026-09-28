@@ -5,6 +5,7 @@ import { GrowthAssessment } from "@/components/marketing/GrowthAssessment";
 import { Panel, Pill } from "@/components/app/Bits";
 import { Button } from "@/components/ui/button";
 import { canonicalLink, ogUrl } from "@/lib/seo";
+import { GROWTH_SYSTEM } from "@/lib/offer";
 
 export const Route = createFileRoute("/website-audit")({
   head: () => ({
@@ -90,7 +91,7 @@ function WebsiteAuditPage() {
               className="mt-7 h-auto py-3 leading-snug whitespace-normal"
             >
               <Link to="/get-started">
-                Start 3 free days of full access{" "}
+                Start {GROWTH_SYSTEM.fullAccessWindow} of free full access{" "}
                 <ArrowRight className="size-4" aria-hidden="true" />
               </Link>
             </Button>

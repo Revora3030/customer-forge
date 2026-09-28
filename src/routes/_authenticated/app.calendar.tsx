@@ -33,12 +33,13 @@ import { useWorkspace } from "@/lib/use-tenant";
 import { appointmentStatusMeta, type AppointmentStatus } from "@/lib/domain";
 import { currency, dateLong, timeShort } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { metaDescription } from "@/lib/seo";
 
 export const Route = createFileRoute("/_authenticated/app/calendar")({
   head: () => ({
     meta: [
       { title: "Calendar — Revora" },
-      { name: "description", content: "Confirm, reschedule and complete every booking." },
+      { name: "description", content: metaDescription("Confirm, reschedule and complete every booking.") },
       { name: "robots", content: "noindex" },
     ],
   }),

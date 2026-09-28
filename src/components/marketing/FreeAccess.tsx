@@ -63,12 +63,12 @@ export function FreeAccessBanner({ className = "" }: { className?: string }) {
       <div className="min-w-0">
         <p className="text-[13px] leading-snug">
           <span className="gold-hl">
-            Full system access. Zero risk. {GROWTH_SYSTEM.fullAccessWindow}.
+            {GROWTH_SYSTEM.fullAccessWindow} of full system access, free.
           </span>{" "}
-          If it doesn't pay for itself, walk away — no card, no charge, no hard feelings.
+          No card needed to try it. If it isn't for you, walk away — nothing is charged.
         </p>
         <p className="mt-1 text-[13px] text-muted-foreground">
-          After your free days:{" "}
+          When you're ready to launch:{" "}
           <span className="gold-hl">{usd(GROWTH_SYSTEM.setupPrice)} one-time setup</span>, then your{" "}
           <span className="gold-hl">first month is free</span> before{" "}
           {usd(GROWTH_SYSTEM.monthlyPrice)}/month. Cancel anytime.

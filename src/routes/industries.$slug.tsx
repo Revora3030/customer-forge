@@ -8,7 +8,7 @@ import { SectionHeading } from "@/components/app/Bits";
 import { Button } from "@/components/ui/button";
 import { INDUSTRIES, industrySlug } from "@/lib/domain";
 import { GROWTH_SYSTEM, usdExact } from "@/lib/offer";
-import { breadcrumbSchema, canonicalLink, ogUrl } from "@/lib/seo";
+import { breadcrumbSchema, canonicalLink, ogUrl, metaDescription } from "@/lib/seo";
 
 const BENEFITS = [
   {
@@ -64,7 +64,7 @@ export const Route = createFileRoute("/industries/$slug")({
     return {
       meta: [
         { title },
-        { name: "description", content: description },
+        { name: "description", content: metaDescription(description) },
         { property: "og:title", content: title },
         { property: "og:description", content: description },
         { property: "og:type", content: "website" },

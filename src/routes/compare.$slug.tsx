@@ -5,7 +5,7 @@ import { RelatedLinks } from "@/components/marketing/SeoLinks";
 import { Button } from "@/components/ui/button";
 import { findComparison, type Comparison } from "@/lib/compare";
 import { GROWTH_SYSTEM, usdExact } from "@/lib/offer";
-import { breadcrumbSchema, canonicalLink, ogUrl } from "@/lib/seo";
+import { breadcrumbSchema, canonicalLink, ogUrl, metaDescription } from "@/lib/seo";
 
 export const Route = createFileRoute("/compare/$slug")({
   beforeLoad: ({ params }) => {
@@ -24,7 +24,7 @@ export const Route = createFileRoute("/compare/$slug")({
     return {
       meta: [
         { title: comparison.title },
-        { name: "description", content: comparison.description },
+        { name: "description", content: metaDescription(comparison.description) },
         { property: "og:title", content: comparison.title },
         { property: "og:description", content: comparison.description },
         { property: "og:type", content: "article" },

@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { getPreviewSite } from "@/lib/public-site.functions";
 import { PublicSiteView } from "@/routes/s.$slug";
 import { PreviewMessage } from "@/components/PreviewMessage";
+import { metaDescription } from "@/lib/seo";
 
 /** Sub-pages of a private draft preview link, checked on the server like the home page. */
 export const Route = createFileRoute("/p/$token_/$page")({
@@ -10,7 +11,7 @@ export const Route = createFileRoute("/p/$token_/$page")({
   head: () => ({
     meta: [
       { title: "Website draft page preview — Revora" },
-      { name: "description", content: "A private, time-limited preview of a website draft page." },
+      { name: "description", content: metaDescription("A private, time-limited preview of a website draft page.") },
       { name: "robots", content: "noindex, nofollow" },
       { property: "og:title", content: "Website draft page preview — Revora" },
       { property: "og:description", content: "A private preview link for reviewing a draft page." },

@@ -59,7 +59,7 @@ const AssessmentEmail = (p: AssessmentEmailProps) => (
           automated follow-up, reviews, local SEO and analytics.
         </Text>
         <Link href="https://revoragrowthsystems.com/get-started" style={button}>
-          Start 3 free days of full access
+          Start 1 day of free full access
         </Link>
         <Text style={footer}>
           $750 one-time setup, first month free, then $100/month. Cancel anytime. Questions? Reply

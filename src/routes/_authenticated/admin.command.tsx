@@ -16,12 +16,13 @@ import {
   saveSiteDesign,
 } from "@/lib/ai/command-center.functions";
 import type { DesignTokens } from "@/lib/builder/design-tokens";
+import { metaDescription } from "@/lib/seo";
 
 export const Route = createFileRoute("/_authenticated/admin/command")({
   head: () => ({
     meta: [
       { title: "AI Command Center — Revora admin" },
-      { name: "description", content: "Live model routing, site design tokens and the visual QA gate for every Revora website." },
+      { name: "description", content: metaDescription("Live model routing, site design tokens and the visual QA gate for every Revora website.") },
       { name: "robots", content: "noindex" },
     ],
   }),
