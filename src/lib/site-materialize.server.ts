@@ -12,7 +12,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { safeLinkUrl } from "@/lib/website-content";
 import type { DesignDirection } from "@/lib/design-directions";
-import { writeSectionEffect } from "@/lib/site-effects";
+import { writeSectionEffect, type SectionEffectId } from "@/lib/site-effects";
 import { writeComponentVisual, writeSectionVisual } from "@/lib/site-style";
 import {
   sectionDesignFromFingerprint,
@@ -675,16 +675,16 @@ export function materializedSectionDesign(
   // house layout behind this: when there is no identity to read, the section is
   // left unstyled for the design team to style directly.
   const visual = identity
-    ? writeSectionVisual({} as any, {
-          layout: identity["layout"] as any,
-          card_style: identity["cardStyle"] as any,
-          image_treatment: identity["imageTreatment"] as any,
-          max_width: identity["maxWidth"] as any,
-          density: (fingerprint?.density === "compact" ? "dense" : fingerprint?.density ?? "balanced") as any,
-        },
+    ? writeSectionVisual({} as Record<string, unknown>, {
+          layout: identity["layout"] as unknown as "split" | "stacked" | "editorial" | "centered" | "image_left" | "image_right" | "full_bleed" | "layered" | undefined,
+          card_style: identity["cardStyle"] as unknown as "editorial" | "soft" | "sharp" | "pill" | "glass" | "floating" | undefined,
+          image_treatment: identity["imageTreatment"] as unknown as "rounded" | "full_bleed" | "natural" | "soft_shadow" | "glass_frame" | "duotone" | "gradient_overlay" | "cinematic" | "cutout" | undefined,
+          max_width: identity["maxWidth"] as unknown as "standard" | "narrow" | "wide" | "edge" | undefined,
+          density: (fingerprint?.density === "compact" ? "dense" : fingerprint?.density ?? "balanced") as unknown as "airy" | "balanced" | "dense",
+        } as unknown as Record<string, unknown>,
       )
     : {};
-  const settings = effect ? writeSectionEffect(visual, effect as any) : visual;
+  const settings = effect ? writeSectionEffect(visual, effect as unknown as SectionEffectId) : visual;
   return ({
     variant: ((identity?.["variant"] ?? "default") as string),
     settings: fingerprint
@@ -693,7 +693,7 @@ export function materializedSectionDesign(
           compileExecutableCreativeSection(kind, fingerprint, creativeBrief),
         )
       : settings,
-  } as any);
+  } as unknown as { variant: string; settings: Record<string, unknown> });
 }
 
 /**

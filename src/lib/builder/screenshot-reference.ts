@@ -29,6 +29,7 @@ import {
   blankDesignFingerprint,
 } from "@/lib/builder/design-fingerprint";
 import type { CreativeBrief } from "@/lib/builder/creative-brief";
+import type { ColorSpec } from "@/lib/builder/first-build-contract";
 
 export type ScreenshotReferenceObservation = {
   layout?: unknown;
@@ -331,7 +332,7 @@ export function alignCreativeBriefToFingerprint(
     cardLanguage: `${fingerprint.cardSystem} card system`,
     ctaLanguage: `${fingerprint.ctaSystem} call-to-action system`,
     backgroundTreatment: `${fingerprint.backgroundSystem} background system`,
-    color: { ...(brief.color as Record<string, unknown>), system: fingerprint.colorSystem } as any,
+    color: { ...(brief.color as object), system: fingerprint.colorSystem } as unknown as ColorSpec,
     motion: {
       ...(brief.motion as Record<string, unknown>),
       level: fingerprint.motionLevel ?? "",

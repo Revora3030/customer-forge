@@ -93,7 +93,7 @@ export async function recordTeamStep(step: TeamStep) {
       reason: step.reason?.slice(0, 300) ?? null,
       contribution: step.contribution?.slice(0, 200) ?? null,
       cost_microcents: Math.max(0, Math.round(step.costMicrocents)),
-    } as any);
+    } as unknown as never);
   } catch (error) {
     console.error("[revora-ai] team trace write failed", (error as Error).message);
   }

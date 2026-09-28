@@ -214,12 +214,12 @@ export type VisualComponentPatch = {
   /**
    * Border-radius design token.
    */
-  radius?: "none" | "small" | "medium" | "large" | "pill";
+  radius?: "none" | "small" | "medium" | "large" | "pill" | number;
 
   /**
    * Shadow design token.
    */
-  shadow?: "none" | "soft" | "medium" | "strong";
+  shadow?: "none" | "soft" | "medium" | "strong" | number;
 
   /**
    * Preferred image composition ratio.

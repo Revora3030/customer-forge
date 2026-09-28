@@ -13,7 +13,7 @@ describe("site-agent atomic journal coverage", () => {
     const action: AgentAction = {
       type: "set_component_visual",
       componentId: "component-1",
-      patch: { radius: 32 as any, shadow: "soft" as any },
+      patch: { radius: 32, shadow: "soft" },
     };
     expect(targetOf(action)).toEqual({
       kind: "update",

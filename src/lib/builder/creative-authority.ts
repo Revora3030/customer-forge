@@ -187,7 +187,7 @@ export function compileAiDesignContract(input: {
     conversion: { goal: (input.conversionGoal?.trim() || null) as string, steps: input.brief.conversionStrategy ?? [] },
     qualityMatrix: input.brief.qualityMatrix,
     pages,
-  } as any;
+  } as unknown as AiDesignContract;
 }
 
 /**

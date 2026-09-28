@@ -782,9 +782,9 @@ export type PersistedComponentVisual = {
   object_fit?: "cover" | "contain";
   object_position?: string;
   overlay?: "none" | "soft" | "dark" | "brand" | "gradient";
-  radius?: "none" | "small" | "medium" | "large" | "pill";
-  shadow?: "none" | "soft" | "medium" | "strong";
-  aspect_ratio?: "1:1" | "4:3" | "3:2" | "16:9" | "21:9";
+  radius?: "none" | "small" | "medium" | "large" | "pill" | number;
+  shadow?: "none" | "soft" | "medium" | "strong" | number;
+  aspect_ratio?: "1:1" | "4:3" | "3:2" | "16:9" | "21:9" | "7:5";
   focal_point?: string;
   /** Where the picture came from, so credits and licences stay honest. */
   source?: "customer" | "stock" | "generated" | "unknown";

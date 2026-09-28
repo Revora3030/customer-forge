@@ -11,9 +11,9 @@ describe("persisted visual output contract", () => {
     const settings = writeComponentVisual({}, {
       alt: "Finished roof replacement",
       object_fit: "cover",
-      radius: 37 as any,
-      shadow: 24 as any,
-      aspect_ratio: "7:5" as any,
+      radius: 37,
+      shadow: 24,
+      aspect_ratio: "7:5",
       focal_point: "50% 50%",
     });
     const visual = readComponentVisual(settings);
