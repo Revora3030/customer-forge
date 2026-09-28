@@ -204,6 +204,7 @@ export async function orchestrate(options: {
   // a fixed template or deterministic layout chooser.
   const industry = context.business.industry;
   let design: DesignDirection;
+  let designRetried = false;
   try {
     design = await (options.design ?? designDirection)(
       instruction,
@@ -212,11 +213,23 @@ export async function orchestrate(options: {
       industry,
     );
   } catch {
-    design = designWithoutModel(industry);
+    // Retry once with the primary model class instead of falling back to
+    // the empty no-model direction — the AI team keeps creative authority.
+    try {
+      design = await designDirection(
+        instruction,
+        understanding.goal,
+        options.workspaceSummary,
+        industry,
+      );
+      designRetried = true;
+    } catch {
+      design = designWithoutModel(industry);
+    }
   }
   trace.push(
     design.source === "model"
-      ? `Set the AI-authored design direction${design.layout ? `: ${design.layout}` : ""}`
+      ? `Set the AI-authored design direction${design.layout ? `: ${design.layout}` : ""}${designRetried ? " (after retry)" : ""}`
       : "No design direction was available; the planning AI decides the design itself",
   );
 

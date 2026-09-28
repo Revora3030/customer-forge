@@ -69,7 +69,7 @@ const WITH = [
 export function WithoutWith() {
   return (
     <div className="mt-8 grid gap-3 md:grid-cols-2">
-      <Panel className="p-5">
+      <Panel className="overflow-hidden p-5">
         <h3 className="font-display text-[15px] font-semibold text-muted-foreground">
           Without Revora
         </h3>
@@ -82,7 +82,7 @@ export function WithoutWith() {
           ))}
         </ul>
       </Panel>
-      <Panel className="border-primary/40 p-5">
+      <Panel className="overflow-hidden border-primary/40 p-5">
         <h3 className="font-display text-[15px] font-semibold">With Revora</h3>
         <ul className="mt-4 space-y-2.5">
           {WITH.map((item) => (

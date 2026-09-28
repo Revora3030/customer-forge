@@ -2374,6 +2374,13 @@ a[href*="lovable.app"][target="_blank"][class*="fixed"],
 
 /* ---- Keep every page inside the screen: no sideways drift ---- */
 html, body { max-width: 100%; overflow-x: hidden; }
+
+/* Account for the fixed free-access bar at the bottom of marketing pages. */
+body { padding-bottom: env(safe-area-inset-bottom); }
+/* The fixed free-access bar is ~56px tall; ensure the last section's content isn't hidden behind it. */
+@media (max-width: 768px) {
+  main > section:last-of-type { padding-bottom: 5rem; }
+}
 @supports (overflow: clip) { html, body { overflow-x: clip; } }
 .product-canvas { max-width: 100vw; overflow-x: clip; }
 
@@ -2408,6 +2415,23 @@ html, body { max-width: 100%; overflow-x: hidden; }
   }
 }
 
+/* AI header desktop nav: constrain Sol's composition to a horizontal bar, not a sitemap grid. */
+@media (min-width: 768px) {
+  .rv-ai-header .rv-site-header-nav [data-composition] {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    align-items: center !important;
+    gap: 0.5rem 1rem !important;
+    grid-template-columns: initial !important;
+  }
+  .rv-ai-header .rv-site-header-nav [data-composition] > * {
+    grid-column: auto !important;
+  }
+  .rv-ai-header .rv-site-header-nav a {
+    white-space: nowrap;
+  }
+}
+
 /* Phone safety for AI-authored compositions: keep authored layouts readable without changing their design. */
 @media (max-width: 639px) {
   [data-composition] [style*="grid-template-columns"],
@@ -2430,4 +2454,26 @@ html, body { max-width: 100%; overflow-x: hidden; }
     width: 100% !important;
     max-width: 100% !important;
   }
+}
+
+/* AI-authored section headings: prevent overlap with following containers. */
+[data-composition] :is(h1, h2, h3, h4) {
+  margin-bottom: 0.5em;
+}
+[data-composition] :is(h1, h2, h3, h4) + :is(div, section, form, [data-widget]) {
+  margin-top: 0;
+}
+
+/* AI-authored site sections: prevent the stark white divider line. */
+.rv-site :is(section, [data-composition]) {
+  border-color: var(--border, oklch(0.9 0 0));
+}
+.rv-site hr {
+  border-color: var(--border, oklch(0.9 0 0));
+  background: transparent;
+}
+
+/* AI-authored body content: ensure adequate section spacing. */
+.rv-site main > :is(section, [data-composition]) {
+  scroll-margin-top: 5rem;
 }

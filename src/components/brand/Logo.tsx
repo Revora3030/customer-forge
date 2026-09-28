@@ -25,8 +25,7 @@ export function LogoMark({ className }: { className?: string }) {
       />
       <img
         src={MARK_SRC}
-        alt=""
-        aria-hidden="true"
+        alt="Revora"
         width={158}
         height={144}
         className="relative size-full object-contain drop-shadow-[0_2px_6px_color-mix(in_oklab,var(--color-gold)_35%,transparent)]"

@@ -242,7 +242,7 @@ export function BuilderAssistant({
               <Message from="assistant">
                 <MessageContent className="w-full space-y-3">
                   <div className="flex items-center gap-2">
-                    <img src="/revora-mark-144.png" alt="" className="size-8 rounded-lg shadow-signal" />
+                    <img src="/revora-mark-144.png" alt="Revora" className="size-8 rounded-lg shadow-signal" />
                     <div className="min-w-0">
                       <p className="text-[13px] font-semibold">Revora</p>
                       <p className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
@@ -260,6 +260,18 @@ export function BuilderAssistant({
                     for anything else I need, then write and design every page with you — no
                     made-up details, ever.
                   </p>
+                  <div className="mt-3 flex flex-wrap gap-1.5">
+                    <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/5 px-2.5 py-1 text-[11px] font-medium text-primary">
+                      <span className="size-1.5 animate-pulse rounded-full bg-primary" aria-hidden />
+                      AI team online
+                    </span>
+                    <span className="inline-flex items-center gap-1 rounded-full border border-border bg-card px-2.5 py-1 text-[11px] text-muted-foreground">
+                      Multi-model collective
+                    </span>
+                    <span className="inline-flex items-center gap-1 rounded-full border border-border bg-card px-2.5 py-1 text-[11px] text-muted-foreground">
+                      Full creative control
+                    </span>
+                  </div>
                 </MessageContent>
               </Message>
             </div>
@@ -310,7 +322,7 @@ export function BuilderAssistant({
               <Message from="assistant">
                 <MessageContent className="w-full space-y-2 text-[14px]">
                   <div className="flex items-center gap-2">
-                    <img src="/revora-mark-144.png" alt="" className="size-6 rounded-md" />
+                    <img src="/revora-mark-144.png" alt="Revora" className="size-6 rounded-md" />
                     <span className="text-[12px] font-semibold">Revora</span>
                   </div>
                   <p className="font-medium text-foreground">{factQuestion.label}</p>
@@ -345,9 +357,9 @@ export function BuilderAssistant({
         <ConversationScrollButton />
       </Conversation>
 
-      <div className="max-h-[55%] shrink-0 overflow-y-auto overscroll-contain px-3 pt-1 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+      <div className="max-h-[55%] shrink-0 overflow-y-auto overscroll-contain px-3 pt-2 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
         {/* Everything the old separate AI panels offered, as one tap each. */}
-         <div className="-mx-3 mb-2 flex gap-2 overflow-x-auto px-3 pb-1 [scrollbar-width:none]">
+         <div className="-mx-3 mb-2 flex gap-2 overflow-x-auto px-3 pb-2 pt-1 [scrollbar-width:none]">
           {suggestionsQuery.isFetching && SUGGESTIONS.length === 0 ? (
             <span className="builder-suggestion min-h-9 shrink-0 rounded-full border border-border px-3.5 py-1.5 text-[13px] text-muted-foreground">
               <Shimmer>AI team is reviewing your site…</Shimmer>
@@ -388,6 +400,42 @@ export function BuilderAssistant({
               >
                 Editing: {selection.label ?? selection.kind ?? "the block you picked"} ✕
               </button>
+            ) : null}
+            {selection ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => send("Rewrite the copy on this block to be clearer and more compelling.")}
+                  disabled={!requests.ready}
+                  className="cursor-pointer rounded-full border border-border bg-card px-3 py-1 text-[12px] text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground disabled:opacity-50"
+                >
+                  Rewrite Copy
+                </button>
+                <button
+                  type="button"
+                  onClick={() => send("Replace the image on this block with a better-fitting one.")}
+                  disabled={!requests.ready}
+                  className="cursor-pointer rounded-full border border-border bg-card px-3 py-1 text-[12px] text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground disabled:opacity-50"
+                >
+                  Replace Image
+                </button>
+                <button
+                  type="button"
+                  onClick={() => send("Change the layout of this block to something more visually interesting.")}
+                  disabled={!requests.ready}
+                  className="cursor-pointer rounded-full border border-border bg-card px-3 py-1 text-[12px] text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground disabled:opacity-50"
+                >
+                  Change Layout
+                </button>
+                <button
+                  type="button"
+                  onClick={() => send("Make this block shorter and more concise.")}
+                  disabled={!requests.ready}
+                  className="cursor-pointer rounded-full border border-border bg-card px-3 py-1 text-[12px] text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground disabled:opacity-50"
+                >
+                  Make Shorter
+                </button>
+              </>
             ) : null}
             {answering ? (
               <button
@@ -481,7 +529,7 @@ function LiveActivity({
       <div className="flex items-center gap-2">
         <span className="relative inline-flex size-7 items-center justify-center">
           <span className="absolute inset-0 animate-ping rounded-lg bg-primary/25" aria-hidden />
-          <img src="/revora-mark-144.png" alt="" className="relative size-7 rounded-lg" />
+          <img src="/revora-mark-144.png" alt="Revora" className="relative size-7 rounded-lg" />
         </span>
         <div className="min-w-0 flex-1">
           <p className="text-[12.5px] font-semibold">Revora is working</p>

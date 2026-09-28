@@ -77,7 +77,14 @@ export type CollectivePurpose =
   | "metadata"
   // structured completeness utility (GPT-5.6 Luna, in the Luna tier)
   | "schema_markup"
-  | "completeness_check";
+  | "completeness_check"
+  // Mobile and performance QA: the AI team checks mobile layouts, Core Web Vitals,
+  // and conversion friction that deterministic checks cannot see.
+  | "mobile_responsiveness_audit"
+  | "performance_audit"
+  | "conversion_friction_audit"
+  | "accessibility_audit"
+  | "content_quality_review";
 
 /** The tier a purpose is worth on its own merits. */
 const PURPOSE_TIER: Record<CollectivePurpose, CollectiveTier> = {
@@ -118,6 +125,14 @@ const PURPOSE_TIER: Record<CollectivePurpose, CollectiveTier> = {
   metadata: "luna",
   schema_markup: "luna",
   completeness_check: "luna",
+  // New QA purposes: mobile, performance, conversion friction and accessibility
+  // are senior specialist work — they need a reasoning model, not a fast one.
+  mobile_responsiveness_audit: "terra",
+  performance_audit: "terra",
+  conversion_friction_audit: "terra",
+  accessibility_audit: "terra",
+  // Content quality is master work: it judges voice, tone and persuasion.
+  content_quality_review: "sol",
 };
 
 /**
@@ -168,6 +183,9 @@ const INDEPENDENT_REVIEW = new Set<CollectivePurpose>([
   "deep_conversion_audit",
   "funnel_verification",
   "site_consistency_audit",
+  "mobile_responsiveness_audit",
+  "accessibility_audit",
+  "content_quality_review",
 ]);
 
 

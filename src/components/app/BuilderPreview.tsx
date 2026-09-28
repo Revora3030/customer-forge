@@ -91,7 +91,10 @@ export function BuilderPreview({
   // short fixed box that leaves empty space below the site.
   // Capped: an uncapped tall desktop frame shrunk onto a phone uses enough
   // memory to crash iPhone Safari ("A problem repeatedly occurred").
-  const frameHeight = Math.min(1200, Math.max(640, stageHeight > 0 ? Math.round((stageHeight - 24) / Math.max(scale, 0.25)) : 760));
+  // Mobile gets an even tighter cap: iPhone Safari crashes above ~900px of
+  // rendered content inside a transformed iframe at scale < 0.5.
+  const mobileCap = typeof window !== "undefined" && window.innerWidth < 768 ? 900 : 1200;
+  const frameHeight = Math.min(mobileCap, Math.max(640, stageHeight > 0 ? Math.round((stageHeight - 24) / Math.max(scale, 0.25)) : 760));
   const source = page ? previewPath(slug, page.slug) : previewPath(slug, "home");
 
   useEffect(() => {
@@ -262,6 +265,8 @@ export function BuilderPreview({
               data-preview-src={source}
               title={`${page?.title ?? "Website"} preview`}
               src={source}
+              loading="lazy"
+              sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox"
               className="block border-0 bg-background"
               style={{ width: viewportWidth, minWidth: viewportWidth, maxWidth: viewportWidth, height: frameHeight }}
             />
