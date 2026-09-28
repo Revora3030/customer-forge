@@ -58,6 +58,29 @@ export const saveLeadNotifications = createServerFn({ method: "POST" })
     return { ok: true as const, email: data.email || null, enabled: data.enabled };
   });
 
+/** Save or clear the tenant's outbound lead webhook without returning the URL to the browser. */
+export const saveLeadWebhook = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((input: { organizationId: string; webhookUrl: string }) => ({
+    organizationId: String(input?.organizationId ?? ""),
+    webhookUrl: String(input?.webhookUrl ?? "").trim(),
+  }))
+  .handler(async ({ data, context }) => {
+    const { validateLeadWebhookUrl } = await import("@/lib/lead-routing.server");
+    const normalized = data.webhookUrl ? validateLeadWebhookUrl(data.webhookUrl) : null;
+    if (data.webhookUrl && !normalized) {
+      throw new Error("Use a valid public HTTP(S) webhook URL.");
+    }
+
+    const { error } = await context.supabase
+      .from("website_settings")
+      .update({ lead_webhook_url: normalized })
+      .eq("organization_id", data.organizationId);
+    if (error) throw new Error("Couldn't save the lead webhook.");
+
+    return { ok: true as const, configured: Boolean(normalized) };
+  });
+
 /** Send a real alert email so the owner can confirm it lands in their inbox. */
 export const sendTestLeadAlert = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
