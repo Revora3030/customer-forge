@@ -73,14 +73,20 @@ export function QuoteCalculator({ site, presentation }: { site: Site; presentati
   const stepRef = useStepScroll<HTMLDivElement>(step);
   const [pending, setPending] = useState(false);
   const [done, setDone] = useState(false);
+  const [confirmationEmail, setConfirmationEmail] = useState("");
 
   if (!quote) return null;
   if (done) {
     return (
       <div ref={stepRef}>
         <Success
-          title={presentation?.successTitle ?? "Your estimate is on its way"}
-          body={presentation?.successBody ?? `${site.org.name} has your details and price range, and will confirm the exact quote shortly.`}
+          title={presentation?.successTitle ?? "Request received"}
+          body={
+            presentation?.successBody ??
+            (confirmationEmail
+              ? "Thank you! Your request has been received. Check your email for confirmation."
+              : "Thank you! Your request has been received. We'll get back to you shortly.")
+          }
         />
       </div>
     );
@@ -233,13 +239,15 @@ export function QuoteCalculator({ site, presentation }: { site: Site; presentati
           onSubmit={(e) => {
             e.preventDefault();
             const form = new FormData(e.currentTarget);
+            const email = String(form.get("email") ?? "").trim();
+            setConfirmationEmail(email);
             setPending(true);
             submit({
               data: {
                 slug: site.org.slug,
                 kind: "quote",
                 name: String(form.get("name") ?? ""),
-                email: String(form.get("email") ?? ""),
+                email,
                 phone: String(form.get("phone") ?? ""),
                 message: String(form.get("message") ?? ""),
                 companyWebsite: String(form.get("company_website") ?? ""),
@@ -322,6 +330,7 @@ export function BookingForm({ site, presentation }: { site: Site; presentation?:
   const bookable = site.services.filter((s) => s.bookable);
   const [pending, setPending] = useState(false);
   const [done, setDone] = useState(false);
+  const [confirmationEmail, setConfirmationEmail] = useState("");
   const [serviceId, setServiceId] = useState(bookable[0]?.id ?? "");
   const doneRef = useStepScroll<HTMLDivElement>(done);
   // "Today" is the visitor's own date, so it is only known in the browser.
@@ -338,8 +347,13 @@ export function BookingForm({ site, presentation }: { site: Site; presentation?:
     return (
       <div ref={doneRef}>
         <Success
-          title={presentation?.successTitle ?? "Booking request received"}
-          body={presentation?.successBody ?? `${site.org.name} will confirm your time slot by phone or email shortly.`}
+          title={presentation?.successTitle ?? "Request received"}
+          body={
+            presentation?.successBody ??
+            (confirmationEmail
+              ? "Thank you! Your request has been received. Check your email for confirmation."
+              : "Thank you! Your request has been received. We'll get back to you shortly.")
+          }
         />
         <div className="mt-4">
           <DirectContact
@@ -365,13 +379,15 @@ export function BookingForm({ site, presentation }: { site: Site; presentation?:
         const form = new FormData(e.currentTarget);
         const date = String(form.get("date") ?? "");
         const time = String(form.get("time") ?? "");
+        const email = String(form.get("email") ?? "").trim();
+        setConfirmationEmail(email);
         setPending(true);
         submit({
           data: {
             slug: site.org.slug,
             kind: bookable.length ? "booking" : "contact",
             name: String(form.get("name") ?? ""),
-            email: String(form.get("email") ?? ""),
+            email,
             phone: String(form.get("phone") ?? ""),
             message: String(form.get("message") ?? ""),
             city: String(form.get("city") ?? ""),
