@@ -247,8 +247,16 @@ function renderNode(node: CompositionNode, ctx: Ctx, key: string): ReactNode {
         <MobileStickyBar
           key={key}
           props={props}
-          primary={{ ...node.primaryCta, href: ctx.href(node.primaryCta.href) }}
-          secondary={node.secondaryCta ? { ...node.secondaryCta, href: ctx.href(node.secondaryCta.href) } : undefined}
+          primary={{
+            label: node.primaryCta.label,
+            href: ctx.href(node.primaryCta.href),
+            ...(node.primaryCta.ariaLabel !== undefined ? { ariaLabel: node.primaryCta.ariaLabel } : {}),
+          }}
+          secondary={node.secondaryCta ? {
+            label: node.secondaryCta.label,
+            href: ctx.href(node.secondaryCta.href),
+            ...(node.secondaryCta.ariaLabel !== undefined ? { ariaLabel: node.secondaryCta.ariaLabel } : {}),
+          } : undefined}
         />
       ) : null;
         case "gallery":
