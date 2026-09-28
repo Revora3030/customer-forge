@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { nextPublishState } from "@/lib/publish-state";
 import { toast } from "@/lib/ui/notify";
@@ -28,7 +29,8 @@ async function flushAutomations(organizationId: string) {
 const DAY = 86_400_000;
 
 export function useLeads(organizationId: string | undefined) {
-  return useQuery({
+  const queryClient = useQueryClient();
+  const query = useQuery({
     queryKey: ["leads", organizationId],
     enabled: !!organizationId,
     queryFn: async () => {
@@ -43,6 +45,26 @@ export function useLeads(organizationId: string | undefined) {
       return data;
     },
   });
+
+  useEffect(() => {
+    if (!organizationId) return;
+    const channel = supabase
+      .channel(`revora-leads-${organizationId}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "leads", filter: `organization_id=eq.${organizationId}` },
+        () => {
+          void queryClient.invalidateQueries({ queryKey: ["leads", organizationId] });
+        },
+      )
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [organizationId, queryClient]);
+
+  return query;
 }
 
 export function useAppointments(organizationId: string | undefined) {
@@ -145,7 +167,8 @@ export function useReviews(organizationId: string | undefined) {
 }
 
 export function useNotifications(organizationId: string | undefined) {
-  return useQuery({
+  const queryClient = useQueryClient();
+  const query = useQuery({
     queryKey: ["notifications", organizationId],
     enabled: !!organizationId,
     queryFn: async () => {
@@ -159,6 +182,26 @@ export function useNotifications(organizationId: string | undefined) {
       return data;
     },
   });
+
+  useEffect(() => {
+    if (!organizationId) return;
+    const channel = supabase
+      .channel(`revora-notifications-${organizationId}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "notifications", filter: `organization_id=eq.${organizationId}` },
+        () => {
+          void queryClient.invalidateQueries({ queryKey: ["notifications", organizationId] });
+        },
+      )
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [organizationId, queryClient]);
+
+  return query;
 }
 
 export function useCustomers(organizationId: string | undefined) {
