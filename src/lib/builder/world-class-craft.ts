@@ -22,7 +22,7 @@
  * Pure module: no environment, network, provider or template dependency.
  */
 
-export const WORLD_CLASS_CRAFT_VERSION = 1 as const;
+export const WORLD_CLASS_CRAFT_VERSION = 2 as const;
 
 /** Which teammate is being briefed. Each gets the part of the bar it owns. */
 export type CraftRole =
@@ -71,8 +71,16 @@ export const COMMON_AI_DEFAULTS = [
 ] as const;
 
 const DEFAULTS_QUESTION = [
-  "Common generated-site defaults to question before you use them (use one only when you can say why it is right for this business):",
+  "Common generated-site defaults to question before you use them (use one only when you can say why it is right for this business); do not use them merely because they are familiar.",
   COMMON_AI_DEFAULTS.join("; ") + ".",
+  "Hard anti-genericity rule: never use the exact cliché phrases 'elevate your', 'unlock', 'seamless', 'cutting-edge', or 'your trusted partner' unless they are literal supplied customer copy that must be preserved; generated copy must avoid them.",
+  "Do not repeat the same card anatomy, radius, border, shadow, alignment or vertical padding across every section. Repetition must have a clear information-architecture reason.",
+].join(" ");
+
+const SECTION_RHYTHM = [
+  "Section rhythm is authored, not uniform: let hero and ethos moments breathe; make pricing/specification areas tighter and more structured; give booking, quote and contact mechanics a dedicated full-width premium container; vary density, alignment, media scale and whitespace so the page has visual tempo.",
+  "For editorial layouts, actively consider asymmetric two-column splits, bento feature grids, offset/overlapping media frames, proof banners, staggered service showcases and intentional full-bleed moments when the supplied material supports them.",
+  "Mobile is a deliberate composition from 320px through 390px, not a desktop stack: author responsive overrides for typography, columns:1, spacing, media crops and touch targets; keep actionable targets at least 44px high and prevent collisions, clipping and awkward wraps.",
 ].join(" ");
 
 const SELF_CRITIQUE = [
@@ -80,7 +88,8 @@ const SELF_CRITIQUE = [
   "(1) Could this be mistaken for another business's site if the name were swapped? If yes, make it more specific.",
   "(2) Is there one moment on each page a visitor would remember? If not, create one from the supplied material.",
   "(3) Does every section earn its place and move the visitor toward acting?",
-  "(4) Does it hold up at 320px and at 1440px?",
+  "(4) Does the page have deliberate visual tempo rather than one repeated section recipe?",
+  "(5) Does it hold up at 320px, 390px, 1440px and 4K without collisions or brittle wrapping?",
   "Return only the revised result.",
 ].join(" ");
 
@@ -110,6 +119,7 @@ export function craftBarPrompt(role: CraftRole): string {
   const parts = [CORE_BAR, ROLE_FOCUS[role]];
   if (role !== "copy" && role !== "page_architecture") parts.push(EXECUTION);
   if (role !== "page_architecture") parts.push(DEFAULTS_QUESTION);
+  if (role !== "copy") parts.push(SECTION_RHYTHM);
   parts.push(SELF_CRITIQUE);
   return parts.join(" ");
 }

@@ -38,7 +38,9 @@ const SYSTEM = [
   "You are the sole creative authority for a new business website.",
   "You invent this brand's visual identity from scratch. There is no template, no preset palette and no house style to respect.",
   "Choose colours that suit this specific business and would look deliberate to a design critic — not a default blue, and not the same scheme you would give any other business.",
-  "Choose real typeface families by name (any family available on Google Fonts). Pair a heading face with a body face that genuinely complements it.",
+  "Choose real typeface families by name (any family available on Google Fonts). Pair a heading face with a body face that genuinely complements it; avoid default system sans pairings unless the business identity truly calls for them.",
+  "Industry pairing intelligence: luxury/hospitality should consider an elegant display serif with an understated grotesque body; trades/automotive/engineering should consider a confident geometric or industrial headline with an ultra-legible functional sans; modern tech/SaaS should consider a crisp neo-grotesque headline with a humanist body. Treat these as intelligent starting points, not presets, and adapt them to the actual business.",
+  "Palette architecture: design a 60/30/10 balance — roughly 60% dominant neutral surface, 30% structural grounding tone, and 10% high-intent action accent. Never wash the entire page in a uniform neon or purple-blue gradient. The three supplied colours must work as roles, not as three equally dominant colours.",
   craftBarPrompt("brand_identity"),
   "Reply with JSON only.",
 ].join(" ");
@@ -64,9 +66,9 @@ function schemaPrompt(input: BrandIdentityInput): string {
         name: "short name for the look",
         mood: "one sentence the owner would understand",
         bestFor: "who this look suits",
-        primary: "#hex — the brand colour used for buttons and emphasis",
-        secondary: "#hex — the dominant page background",
-        accent: "#hex — a supporting highlight",
+        primary: "#hex — the high-intent action accent used sparingly (~10%)",
+        secondary: "#hex — the dominant neutral page surface (~60%)",
+        accent: "#hex — the structural grounding tone (~30%)",
         headingFont: "Family Name",
         bodyFont: "Family Name",
         fontNote: "one line on why this pairing",
@@ -84,6 +86,7 @@ function schemaPrompt(input: BrandIdentityInput): string {
     ),
     "",
     "backdropSpec is optional: compose your own background from up to 8 gradient layers (any colours, positions and sizes), or omit it or set layers to [] for a plain page.",
+    "Palette rule: secondary is the dominant surface, accent is the structural grounding tone, primary is the action accent. Do not treat all three as equal-weight fills.",
     "Motion ids the renderer can draw safely: none, float_3d, tilt_3d, glass, rise, parallax_slow. Use none wherever you want no motion. Page-level motion beyond these is authored later on each section's own composition.",
   ]
     .filter((line) => line !== null)
