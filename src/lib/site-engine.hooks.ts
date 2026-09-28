@@ -19,7 +19,7 @@ import {
  * lease expires, which recovers an interrupted worker without running twice.
  */
 export function queuePumpDelay(job: {
-  status?: string;
+  status?: string | undefined;
   lease_expires_at?: string | null;
 } | null | undefined, now = Date.now()): number | null {
   if (job?.status === "queued") return 800;
