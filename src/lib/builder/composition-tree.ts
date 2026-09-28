@@ -725,6 +725,8 @@ export function validateComposition(input: unknown, options: ValidateOptions = {
     }
     if (node.type === "mobile_sticky_bar" && kids.length)
       issues.push({ path: `${path}.children`, problem: "mobile_sticky_bar uses primaryCta/secondaryCta instead of child nodes" });
+    if ((node.type === "before_after_slider" || node.type === "faq_accordion" || node.type === "tab_group") && kids.length)
+      issues.push({ path: `${path}.children`, problem: `${node.type} uses its dedicated data fields instead of child nodes` });
     if (node.type === "compare" && (kids.length !== 2 || kids.some((c) => c.type !== "media" || (!c.src && !c.mediaRef)))) {
       issues.push({ path: `${path}.children`, problem: "compare needs exactly two media children with a picture source (before, after)" });
     }
