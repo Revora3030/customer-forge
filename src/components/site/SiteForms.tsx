@@ -33,7 +33,11 @@ function useTracker(slug: string) {
 
 function Success({ title, body }: { title: string; body: string }) {
   return (
-    <div className="panel flex flex-col items-center px-6 py-10 text-center">
+    <div
+      className="panel flex flex-col items-center px-6 py-10 text-center"
+      role="status"
+      aria-live="polite"
+    >
       <span className="grid size-10 place-items-center rounded-full bg-primary/15 text-primary">
         <Check className="size-5" aria-hidden="true" />
       </span>
@@ -80,7 +84,7 @@ export function QuoteCalculator({ site, presentation }: { site: Site; presentati
       <div ref={stepRef}>
         <Success
           title={presentation?.successTitle ?? "Your estimate is on its way"}
-          body={presentation?.successBody ?? `${site.org.name} has your details and price range, and will confirm the exact quote shortly.`}
+          body={presentation?.successBody ?? "Thank you! Your request has been received. Check your email for confirmation."}
         />
       </div>
     );
@@ -339,7 +343,7 @@ export function BookingForm({ site, presentation }: { site: Site; presentation?:
       <div ref={doneRef}>
         <Success
           title={presentation?.successTitle ?? "Booking request received"}
-          body={presentation?.successBody ?? `${site.org.name} will confirm your time slot by phone or email shortly.`}
+          body={presentation?.successBody ?? "Thank you! Your request has been received. Check your email for confirmation."}
         />
         <div className="mt-4">
           <DirectContact
