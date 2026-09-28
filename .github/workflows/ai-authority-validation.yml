@@ -31,6 +31,9 @@ jobs:
       - name: Typecheck
         run: bunx tsc --noEmit
 
+      - name: Multi-industry visual benchmark contract
+        run: bun run visual:benchmark
+
       - name: Security audit
         run: bun run security:audit
 
