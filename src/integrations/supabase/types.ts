@@ -3965,6 +3965,7 @@ export type Database = {
           id: string
           last_published_at: string | null
           organization_id: string
+          lead_webhook_url: string | null
           pages: Json
           publish_state: Database["public"]["Enums"]["publish_state"]
           published: boolean
@@ -4005,6 +4006,7 @@ export type Database = {
           id?: string
           last_published_at?: string | null
           organization_id: string
+          lead_webhook_url?: string | null
           pages?: Json
           publish_state?: Database["public"]["Enums"]["publish_state"]
           published?: boolean
@@ -4045,6 +4047,7 @@ export type Database = {
           id?: string
           last_published_at?: string | null
           organization_id?: string
+          lead_webhook_url?: string | null
           pages?: Json
           publish_state?: Database["public"]["Enums"]["publish_state"]
           published?: boolean
