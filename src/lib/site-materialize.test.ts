@@ -7,7 +7,6 @@ import {
 import type { CreativeSiteContract } from "@/lib/builder/creative-site-contract";
 import { materializedSectionDesign } from "@/lib/site-materialize.server";
 import { DESIGN_DIRECTIONS } from "@/lib/design-directions";
-import { classifyArchetype } from "@/lib/site-archetypes";
 import { createDesignFingerprint } from "@/lib/builder/design-fingerprint";
 import { playbookFor } from "@/lib/builder/industry";
 
