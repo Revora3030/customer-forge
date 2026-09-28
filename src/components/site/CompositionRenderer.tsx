@@ -358,7 +358,7 @@ function BeforeAfterSlider({ props, before, after, initialSplit }: {
   return (
     <figure {...props} style={{ position: "relative", overflow: "hidden", aspectRatio: props.style.aspectRatio ?? "16 / 10", width: "100%", touchAction: "none", ...props.style }}>
       <img src={after.src} alt={after.alt} loading="lazy" draggable={false} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", userSelect: "none" }} />
-      <div aria-hidden="true" style={{ position: "absolute", inset: 0, overflow: "hidden", width: `${pos}%` }}>
+      <div aria-hidden="true" style={{ position: "absolute", inset: 0, overflow: "hidden", clipPath: `inset(0 ${100 - pos}% 0 0)` }}>
         <img src={before.src} alt="" loading="lazy" draggable={false} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", userSelect: "none" }} />
       </div>
       <div aria-hidden="true" className="rv-cn-compare-divider" style={{ left: `${pos}%` }}><span className="rv-cn-compare-handle" /></div>
@@ -430,9 +430,10 @@ function MobileStickyBar({ props, primary, secondary }: {
 }) {
   return (
     <div {...props} className={`${props.className ?? ""} rv-cn-mobile-sticky-bar`.trim()} style={{
+      ...props.style,
       position: "fixed", left: 0, right: 0, bottom: 0, zIndex: 40, display: "flex", gap: 8, alignItems: "stretch",
       padding: "10px 12px", paddingBottom: "max(10px, env(safe-area-inset-bottom, 0px))",
-      background: props.style.background ?? "Canvas", color: props.style.color ?? "CanvasText", ...props.style,
+      background: props.style.background ?? "Canvas", color: props.style.color ?? "CanvasText",
     }}>
       <a href={primary.href} aria-label={primary.ariaLabel ?? primary.label} style={{ flex: secondary ? 1 : "0 1 100%", minWidth: 0, minHeight: 44, display: "inline-flex", alignItems: "center", justifyContent: "center", padding: "0 14px", textDecoration: "none", touchAction: "manipulation", ...mobileCtaStyle(true) }}>{primary.label}</a>
       {secondary ? <a href={secondary.href} aria-label={secondary.ariaLabel ?? secondary.label} style={{ flex: 1, minWidth: 0, minHeight: 44, display: "inline-flex", alignItems: "center", justifyContent: "center", padding: "0 14px", textDecoration: "none", touchAction: "manipulation", ...mobileCtaStyle(false) }}>{secondary.label}</a> : null}
