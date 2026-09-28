@@ -475,7 +475,8 @@ export const submitPublicLead = createServerFn({ method: "POST" })
       const ownerEmail = profile?.email || profile?.owner_email || null;
       const alertEmail = alertRecipient((profile ?? {}) as Record<string, never>);
 
-      const { deliverRun, sendLeadAlert, sendLeadConfirmation } = await import("@/lib/messaging.server");
+      const { deliverRun, sendLeadAlert, sendLeadConfirmation } =
+        await import("@/lib/messaging.server");
       const { logAlertDelivery } = await import("@/lib/notifications.server");
 
       const alertData = {
@@ -563,7 +564,10 @@ export const submitPublicLead = createServerFn({ method: "POST" })
       }
 
       if (webhookSettings?.data?.lead_webhook_url) {
-        const webhookOk = await dispatchLeadWebhook(webhookSettings.data.lead_webhook_url, webhookPayload);
+        const webhookOk = await dispatchLeadWebhook(
+          webhookSettings.data.lead_webhook_url,
+          webhookPayload,
+        );
         if (!webhookOk) console.warn("lead webhook was not delivered");
       }
 
