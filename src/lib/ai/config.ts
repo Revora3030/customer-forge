@@ -131,12 +131,11 @@ function modelsFor(provider: PaidProviderName): Record<ModelRole, string> {
 }
 
 /**
- * The website builder's lane. Building the best possible website comes first,
- * so every connected model is reachable by default. An operator can shut the
- * builder's external lane with `BUILDER_EXTERNAL_AI_ALLOWED=false`.
+ * The website builder's model lane is open by default. Creative authority stays
+ * with the AI team; this helper exists only as a compatibility seam for callers
+ * that need to report whether the external model lane is reachable.
  */
 export function builderExternalAiAllowed(): boolean {
-  // The AI team always builds; there is no switch that turns it off.
   return true;
 }
 

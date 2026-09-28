@@ -34,8 +34,9 @@
  *   ↓
  * PUBLISH
  *
- * No external AI provider is required.
- * No paid AI credits are required.
+ * This module is a deterministic validator, not a creative author. It never
+ * chooses composition, copy, imagery, typography, layout, section order or
+ * brand direction. It only measures and gates output authored by the AI team.
  *
  * This module is intentionally pure.
  * It does not write to the database.

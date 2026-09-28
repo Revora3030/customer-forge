@@ -309,12 +309,9 @@ async function buildChain(
   capable?: (model: string) => boolean,
   forceFreeOnly = false,
 ): Promise<Candidate[]> {
-  // Native-only is the production default. This guard sits before free-model
-  // discovery as well as paid providers, so no customer content or attachment
-  // can leave Revora merely because a provider happens to have a free tier.
-  // External calls are reserved for explicit operator diagnostics and require
-  // both switches to be deliberately opened on the server.
-  if (!builderExternalAiAllowed()) return [];
+  // The AI model lane is the builder's creative execution path. Keep the
+  // reachability seam here, but never substitute deterministic creative work
+  // when models are unavailable: callers must fail closed or retry with AI.
 
   // First choice per provider (breadth), then each provider's remaining free
   // models (depth). Breadth first means a provider outage costs one attempt,
@@ -332,7 +329,8 @@ async function buildChain(
 
   const candidates = [...first, ...deeper];
 
-  // Paid providers stay unreachable unless BOTH guards are explicitly off.
+  // Paid providers remain available when the request is not explicitly forced
+  // into free-only mode. Free routing is a cost lane, never creative authority.
   if (!forceFreeOnly && !freeAiOnly())
     for (const config of providerChain()) {
       const model = config.models[role];
@@ -341,10 +339,8 @@ async function buildChain(
     }
 
   // QUALITY-FIRST ORDER. Candidates are ranked by capability fit, then quality,
-  // then recent health — and cost LAST, so a free model is never tried ahead of
-  // a stronger compatible one merely because Revora does not pay for it. The
-  // free-only and zero-cost switches above still decide what is *reachable*;
-  // they no longer decide what is *best*.
+  // then recent health, with cost considered only after quality. Free routing is
+  // a provider lane; it never becomes a deterministic creative substitute.
   const ranked = qualityFirstOrder(candidates, (entry) => ({
     model: entry.model,
     provider: entry.config.name,

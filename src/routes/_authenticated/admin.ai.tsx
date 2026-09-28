@@ -65,7 +65,7 @@ function AdminAi() {
           <EmptyState
             icon={<ShieldAlert className="size-5" />}
             title="No AI provider is configured"
-            description={`Every AI feature currently answers with: “${data.unconfiguredMessage}” Add a Revora provider key to switch AI back on. The built-in website builder and request reader keep working without it.`}
+            description={`Every AI feature currently answers with: “${data.unconfiguredMessage}” Add a Revora provider key to restore AI-authored website generation and editing.`}
           />
         </Panel>
       ) : null}
@@ -160,11 +160,11 @@ function AdminAi() {
         {data ? (
           <p className="mt-3 text-[13px] text-muted-foreground">
             {data.builderAiAvailable
-              ? "Free AI is reachable, so the builder can use it. "
-              : "No free AI is reachable, so the builder runs on Revora's own engine — nothing is blocked. "}
+              ? "AI is reachable, so the builder can use the configured model team. "
+              : "No eligible free AI is reachable right now; the builder does not substitute a stock or deterministic design. "}
             {data.free.paidFallbackReachable
-              ? "A paid provider has been explicitly switched on as a backup."
-              : "Paid providers are switched off and cannot be reached."}
+              ? "A configured paid provider is available as another model lane."
+              : "No configured paid provider is currently available."}
           </p>
         ) : null}
 
@@ -173,7 +173,7 @@ function AdminAi() {
       <Panel>
         <SectionHeading
           title="Paid providers"
-          description="Only reachable when an operator explicitly turns off free-only mode. Nothing here is required to run the builder."
+          description="Configured paid providers are available as an additional model lane when credentials are present; the AI team remains the creative authority."
         />
         {health.isLoading ? <LoadingRows /> : null}
         {health.error ? <ErrorNote message={(health.error as Error).message} /> : null}

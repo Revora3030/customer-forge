@@ -17,10 +17,11 @@ describe("customer website planning is AI-authored", () => {
     expect(customerPlanner).toContain("planWebsiteChangesWithAi");
   });
 
-  it("no longer uses the deterministic template engine for creative decisions", () => {
+  it("never uses a deterministic website engine for creative decisions", () => {
     expect(customerPlanner).not.toContain("buildAutonomousPlan");
     expect(customerPlanner).not.toContain("Built with Revora's own engine — no outside AI involved.");
     expect(customerPlanner).toContain("model: planModel,");
+    expect(customerPlanner).not.toMatch(/ZERO_AI_COST_MODE|zeroAiCostMode|zeroCostBlocked/i);
   });
 
   it("fails loudly instead of falling back to a stock layout", () => {
