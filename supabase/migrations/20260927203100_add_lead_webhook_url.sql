@@ -7,3 +7,27 @@ ALTER TABLE public.website_settings
 ALTER TABLE public.website_settings
   ADD CONSTRAINT website_settings_lead_webhook_url_length
   CHECK (lead_webhook_url IS NULL OR char_length(lead_webhook_url) <= 2048);
+
+-- Keep the authenticated workspace shell live when public submissions create
+-- leads/notifications or an owner changes review state. RLS remains the data
+-- boundary for Realtime subscribers.
+DO $$
+BEGIN
+  ALTER PUBLICATION supabase_realtime ADD TABLE public.leads;
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$
+BEGIN
+  ALTER PUBLICATION supabase_realtime ADD TABLE public.notifications;
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$
+BEGIN
+  ALTER PUBLICATION supabase_realtime ADD TABLE public.reviews;
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $$;
