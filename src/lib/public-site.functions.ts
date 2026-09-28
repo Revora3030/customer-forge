@@ -469,8 +469,8 @@ export const submitPublicLead = createServerFn({ method: "POST" })
         .select("lead_webhook_url" as never)
         .eq("organization_id", orgId)
         .maybeSingle() as unknown as {
-          data: { lead_webhook_url?: string | null } | null;
-        };
+          lead_webhook_url?: string | null;
+        } | null;
       const { alertRecipient } = await import("@/lib/notifications.functions");
       const ownerEmail = profile?.email || profile?.owner_email || null;
       const alertEmail = alertRecipient((profile ?? {}) as Record<string, never>);
@@ -563,9 +563,9 @@ export const submitPublicLead = createServerFn({ method: "POST" })
         if (!confirmation.ok) console.warn("lead confirmation not delivered", confirmation.reason);
       }
 
-      if (webhookSettings?.data?.lead_webhook_url) {
+      if (webhookSettings?.lead_webhook_url) {
         const webhookOk = await dispatchLeadWebhook(
-          webhookSettings.data.lead_webhook_url,
+          webhookSettings.lead_webhook_url,
           webhookPayload,
         );
         if (!webhookOk) console.warn("lead webhook was not delivered");
