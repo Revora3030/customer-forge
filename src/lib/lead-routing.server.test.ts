@@ -60,7 +60,9 @@ describe("lead webhook routing", () => {
 
     expect(result).toEqual({ ok: true });
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    const [url, init] = fetchMock.mock.calls[0];
+    const call = fetchMock.mock.calls[0];
+    expect(call).toBeDefined();
+    const [url, init] = call!;
     expect(url).toBe("https://hooks.example.com/lead");
     expect(init?.method).toBe("POST");
     expect(init?.headers).toMatchObject({
