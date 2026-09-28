@@ -1,0 +1,297 @@
+{
+  "status": "FAILED",
+  "baseUrl": "http://localhost:8080",
+  "browser": "chromium",
+  "mutationsAllowed": false,
+  "buildAllowed": false,
+  "mobileWidths": [
+    320,
+    375,
+    390,
+    414
+  ],
+  "desktopWidths": [
+    1280,
+    1440
+  ],
+  "passed": 3,
+  "failed": 7,
+  "notTested": 15,
+  "durationMs": 6176,
+  "steps": [
+    {
+      "id": "01_app_loads",
+      "title": "The application loads",
+      "status": "PASS",
+      "httpStatus": 200,
+      "heading": "Your business wins customers while you work, and while you sleep.",
+      "screenshot": "browser-qa-artifacts/journey-home.png",
+      "durationMs": 3425,
+      "url": "http://localhost:8080/",
+      "viewport": "1440x1800",
+      "consoleErrors": [
+        "Failed to load resource: the server responded with a status of 404 ()"
+      ],
+      "failedRequests": []
+    },
+    {
+      "id": "02_no_error_screen",
+      "title": "No global error screen",
+      "status": "PASS",
+      "note": "No global error screen and no page errors.",
+      "durationMs": 13,
+      "url": "http://localhost:8080/",
+      "viewport": "1440x1800",
+      "consoleErrors": [],
+      "failedRequests": []
+    },
+    {
+      "id": "03_auth_session",
+      "title": "Signed-out gate holds and a session signs in",
+      "status": "NOT_TESTED",
+      "reason": "No Supabase test session available. Provide JOURNEY_SESSION_FILE or run `lovable auth-session --json --self` first.",
+      "durationMs": 1973,
+      "url": "http://localhost:8080/auth",
+      "viewport": "1440x1800",
+      "consoleErrors": [],
+      "failedRequests": []
+    },
+    {
+      "id": "04_fixture_workspace",
+      "title": "A test workspace is entered",
+      "status": "FAIL",
+      "error": "Locator.inner_text: Target page, context or browser has been closed",
+      "retried": false,
+      "durationMs": 5,
+      "url": "http://localhost:8080/auth",
+      "viewport": "1440x1800",
+      "consoleErrors": [],
+      "failedRequests": []
+    },
+    {
+      "id": "05_builder_opens",
+      "title": "The builder opens",
+      "status": "FAIL",
+      "error": "Page.goto: Target page, context or browser has been closed",
+      "retried": false,
+      "durationMs": 3,
+      "url": "http://localhost:8080/auth",
+      "viewport": "1440x1800",
+      "consoleErrors": [],
+      "failedRequests": []
+    },
+    {
+      "id": "06_builder_console_clean",
+      "title": "The builder loads without console errors",
+      "status": "PASS",
+      "note": "Builder loaded with no console errors and no failed requests.",
+      "durationMs": 0,
+      "url": "http://localhost:8080/auth",
+      "viewport": "1440x1800",
+      "consoleErrors": [],
+      "failedRequests": []
+    },
+    {
+      "id": "07_build_request",
+      "title": "An AI-authored build request is submitted",
+      "status": "NOT_TESTED",
+      "reason": "Set JOURNEY_ALLOW_BUILD=1 to submit a real build request. It writes website content to the fixture workspace, so it is off by default.",
+      "durationMs": 0,
+      "url": "http://localhost:8080/auth",
+      "viewport": "1440x1800",
+      "consoleErrors": [],
+      "failedRequests": []
+    },
+    {
+      "id": "08_build_stages",
+      "title": "Build progresses through the user-facing stages",
+      "status": "FAIL",
+      "error": "Page.inner_text: Target page, context or browser has been closed",
+      "retried": false,
+      "durationMs": 2,
+      "url": "http://localhost:8080/auth",
+      "viewport": "1440x1800",
+      "consoleErrors": [],
+      "failedRequests": []
+    },
+    {
+      "id": "09_preview_renders",
+      "title": "The generated site renders",
+      "status": "FAIL",
+      "error": "Locator.wait_for: Target page, context or browser has been closed",
+      "retried": false,
+      "durationMs": 4,
+      "url": "http://localhost:8080/auth",
+      "viewport": "1440x1800",
+      "consoleErrors": [],
+      "failedRequests": []
+    },
+    {
+      "id": "10_page_navigation",
+      "title": "Navigation between generated pages works",
+      "status": "FAIL",
+      "error": "Locator.count: Target page, context or browser has been closed",
+      "retried": false,
+      "durationMs": 3,
+      "url": "http://localhost:8080/auth",
+      "viewport": "1440x1800",
+      "consoleErrors": [],
+      "failedRequests": []
+    },
+    {
+      "id": "11_mobile_widths",
+      "title": "Mobile layout at 320/375/390/414px",
+      "status": "NOT_TESTED",
+      "reason": "No published preview path was resolved, so layouts cannot be measured.",
+      "durationMs": 0,
+      "url": "http://localhost:8080/auth",
+      "viewport": "1440x1800",
+      "consoleErrors": [],
+      "failedRequests": []
+    },
+    {
+      "id": "12_desktop_widths",
+      "title": "Desktop layout at 1280/1440px",
+      "status": "NOT_TESTED",
+      "reason": "No published preview path was resolved, so layouts cannot be measured.",
+      "durationMs": 0,
+      "url": "http://localhost:8080/auth",
+      "viewport": "1440x1800",
+      "consoleErrors": [],
+      "failedRequests": []
+    },
+    {
+      "id": "13_no_overflow",
+      "title": "No horizontal overflow at any width",
+      "status": "NOT_TESTED",
+      "reason": "No widths were measured, so overflow cannot be reported.",
+      "durationMs": 0,
+      "url": "http://localhost:8080/auth",
+      "viewport": "1440x1800",
+      "consoleErrors": [],
+      "failedRequests": []
+    },
+    {
+      "id": "14_actionable",
+      "title": "Important buttons and links are actionable",
+      "status": "NOT_TESTED",
+      "reason": "No preview path resolved.",
+      "durationMs": 0,
+      "url": "http://localhost:8080/auth",
+      "viewport": "1440x1800",
+      "consoleErrors": [],
+      "failedRequests": []
+    },
+    {
+      "id": "15_real_content",
+      "title": "The page carries real content",
+      "status": "NOT_TESTED",
+      "reason": "No preview path resolved.",
+      "durationMs": 0,
+      "url": "http://localhost:8080/auth",
+      "viewport": "1440x1800",
+      "consoleErrors": [],
+      "failedRequests": []
+    },
+    {
+      "id": "16_builder_edit",
+      "title": "One builder edit is applied",
+      "status": "NOT_TESTED",
+      "reason": "Set JOURNEY_ALLOW_MUTATE=1 to run the edit, persistence and rollback steps. They write to the fixture workspace, so they are off by default.",
+      "durationMs": 0,
+      "url": "http://localhost:8080/auth",
+      "viewport": "1440x1800",
+      "consoleErrors": [],
+      "failedRequests": []
+    },
+    {
+      "id": "17_edit_visible",
+      "title": "The edit appears in the rendered preview",
+      "status": "NOT_TESTED",
+      "reason": "No edit was made, so the rendered result cannot be checked.",
+      "durationMs": 0,
+      "url": "http://localhost:8080/auth",
+      "viewport": "1440x1800",
+      "consoleErrors": [],
+      "failedRequests": []
+    },
+    {
+      "id": "18_edit_persists",
+      "title": "The edit survives a refresh",
+      "status": "NOT_TESTED",
+      "reason": "No edit was made, so persistence cannot be checked.",
+      "durationMs": 0,
+      "url": "http://localhost:8080/auth",
+      "viewport": "1440x1800",
+      "consoleErrors": [],
+      "failedRequests": []
+    },
+    {
+      "id": "19_rollback",
+      "title": "Undo / rollback is available and used",
+      "status": "NOT_TESTED",
+      "reason": "No edit was made, so rollback cannot be exercised.",
+      "durationMs": 0,
+      "url": "http://localhost:8080/auth",
+      "viewport": "1440x1800",
+      "consoleErrors": [],
+      "failedRequests": []
+    },
+    {
+      "id": "20_rollback_restores",
+      "title": "Rollback restores the previous state",
+      "status": "NOT_TESTED",
+      "reason": "No edit was made, so there is nothing to restore.",
+      "durationMs": 0,
+      "url": "http://localhost:8080/auth",
+      "viewport": "1440x1800",
+      "consoleErrors": [],
+      "failedRequests": []
+    },
+    {
+      "id": "21_publish_gated",
+      "title": "Publishing stays gated and nothing is published",
+      "status": "FAIL",
+      "error": "Locator.count: Target page, context or browser has been closed",
+      "retried": false,
+      "durationMs": 6,
+      "url": "http://localhost:8080/auth",
+      "viewport": "1440x1800",
+      "consoleErrors": [],
+      "failedRequests": []
+    },
+    {
+      "id": "22_dashboard_return",
+      "title": "The app returns to the dashboard cleanly",
+      "status": "FAIL",
+      "error": "Locator.click: Target page, context or browser has been closed",
+      "retried": false,
+      "durationMs": 3,
+      "url": "http://localhost:8080/auth",
+      "viewport": "1440x1800",
+      "consoleErrors": [],
+      "failedRequests": []
+    },
+    {
+      "id": "ext_stripe",
+      "title": "Live Stripe checkout and webhooks",
+      "status": "NOT_TESTED",
+      "reason": "External payment credentials are not part of this CI-safe suite. Covered by `bun run test:integrations` when STRIPE_SANDBOX_API_KEY is configured.",
+      "durationMs": 0
+    },
+    {
+      "id": "ext_email",
+      "title": "Live transactional email delivery",
+      "status": "NOT_TESTED",
+      "reason": "External email credentials are not part of this CI-safe suite. Covered by `bun run test:integrations` when LOVABLE_API_KEY and INTEGRATION_TEST_EMAIL_TO are set.",
+      "durationMs": 0
+    },
+    {
+      "id": "ext_crm",
+      "title": "Live CRM hand-off",
+      "status": "NOT_TESTED",
+      "reason": "External CRM credentials are not part of this CI-safe suite. Covered by `bun run test:integrations` when INTEGRATION_TEST_CRM_WEBHOOK_URL is set.",
+      "durationMs": 0
+    }
+  ]
+}
