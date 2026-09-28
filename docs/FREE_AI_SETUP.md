@@ -1,8 +1,8 @@
 # Free AI setup (no Enterprise plan required)
 
-Revora's builder never needs a paid AI plan. The deterministic native engine
-answers everything it safely can; free external providers are an optional
-enhancement on top.
+Revora's website builder is AI-authored. This document describes the optional
+free-provider lane and its budgets; it is not a creative fallback or website
+generation engine.
 
 ## Where credentials live
 
@@ -54,14 +54,12 @@ in-flight de-duplication so identical requests are never spent twice.
 
 ## Guarantees
 
-- Free-only mode is the default: a paid model id is rejected by pattern, and a
-  paid provider account is reachable when an operator turns off `FREE_AI_ONLY`.
-  There is no zero-cost switch; spend is bounded by the monthly AI cap.
-- Failover order is free provider → next free provider → next AI specialist,
-  triggered by missing credentials, rate limits, quota exhaustion, timeouts,
-  provider 5xx, malformed structured output, an open circuit, or a spent budget.
-- When nothing free can answer, the call fails with a clear, non-retryable
-  explanation and the build stops honestly — no built-in design is substituted.
+- Free-provider eligibility is enforced per provider/model, and `FREE_AI_ONLY`
+  is an explicit cost-control lane rather than the builder's creative authority.
+- The quality-first router can use configured paid specialists and free providers
+  according to capability, health, routing and request policy.
+- When no eligible model can answer, the creative path fails clearly or retries
+  through the AI routing chain; no built-in design is substituted.
 
 ## Where to watch it
 
