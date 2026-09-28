@@ -64,6 +64,52 @@ function contactFingerprint(input: { email?: string | null; phone?: string | nul
   return phone ? `phone:${phone}` : null;
 }
 
+async function dispatchLeadWebhook(
+  webhookUrl: string | null | undefined,
+  payload: Record<string, unknown>,
+): Promise<boolean> {
+  const url = String(webhookUrl ?? "").trim();
+  if (!url) return true;
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    console.warn("lead webhook skipped: invalid URL");
+    return false;
+  }
+  if (parsed.protocol !== "https:" || parsed.username || parsed.password) {
+    console.warn("lead webhook skipped: only credential-free HTTPS URLs are allowed");
+    return false;
+  }
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 5_000);
+  try {
+    const response = await fetch(parsed, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "user-agent": "RevoraGrowth-Leads/1.0",
+        "x-revora-event": "lead.created",
+      },
+      body: JSON.stringify(payload),
+      signal: controller.signal,
+    });
+    if (!response.ok) {
+      console.warn("lead webhook rejected", { status: response.status });
+      return false;
+    }
+    return true;
+  } catch (error) {
+    console.warn("lead webhook delivery failed", {
+      reason: error instanceof Error ? error.name : "unknown",
+    });
+    return false;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 /** Everything a public business website needs, in one SSR-friendly read. */
 export const getPublicSite = createServerFn({ method: "GET" })
   .validator((input: { slug: string; pageSlug?: string }) => {
@@ -404,23 +450,32 @@ export const submitPublicLead = createServerFn({ method: "POST" })
       await recordMilestone("first_quote_request", Math.round((data.quote.min ?? 0) * 100));
     if (data.booking) await recordMilestone("first_booking");
 
-    // Everything below is a post-commit side effect (owner alert, follow-up
-    // automations). The customer's request is already durably saved, so a
-    // provider outage here must never delete it or fail the submission.
+    // Everything below is a post-commit side effect (owner alert, visitor
+    // confirmation, webhook and follow-up automations). The customer's request
+    // is already durably saved, so a provider outage must never delete it or
+    // fail the submission.
     let deliveryOk = true;
     try {
-      // Owner alert + customer follow-ups. Delivery happens here (server side) so
-      // "sent" always means a provider accepted the message.
+      // Owner alert + visitor confirmation + customer follow-ups. Delivery
+      // happens here (server side), never in client code.
       const { data: profile } = await supabase
         .from("business_profiles")
-        .select("email, owner_email, notification_email, notify_on_lead")
+        .select("email, owner_email, notification_email, notify_on_lead, phone")
         .eq("organization_id", orgId)
         .maybeSingle();
+
+      const { data: webhookSettings } = await supabase
+        .from("website_settings")
+        .select("lead_webhook_url" as never)
+        .eq("organization_id", orgId)
+        .maybeSingle() as unknown as {
+          data: { lead_webhook_url?: string | null } | null;
+        };
       const { alertRecipient } = await import("@/lib/notifications.functions");
       const ownerEmail = profile?.email || profile?.owner_email || null;
       const alertEmail = alertRecipient((profile ?? {}) as Record<string, never>);
 
-      const { deliverRun, sendLeadAlert } = await import("@/lib/messaging.server");
+      const { deliverRun, sendLeadAlert, sendLeadConfirmation } = await import("@/lib/messaging.server");
       const { logAlertDelivery } = await import("@/lib/notifications.server");
 
       const alertData = {
@@ -438,6 +493,34 @@ export const submitPublicLead = createServerFn({ method: "POST" })
             : undefined,
         message: data.message || undefined,
         when: data.booking ? new Date(data.booking.startsAt).toLocaleString() : undefined,
+      };
+      const request = getRequest();
+      const sourceUrl = (() => {
+        try {
+          return new URL(request.url).toString().slice(0, 2000);
+        } catch {
+          return null;
+        }
+      })();
+      const budget = data.quote
+        ? { min: Number(data.quote.min ?? 0), max: Number(data.quote.max ?? 0) }
+        : data.estimatedValue
+          ? { min: Number(data.estimatedValue), max: Number(data.estimatedValue) }
+          : null;
+      const webhookPayload = {
+        event: "lead.created",
+        timestamp: new Date().toISOString(),
+        workspace_id: orgId,
+        lead: {
+          name: data.name,
+          email: data.email || null,
+          phone: data.phone || null,
+          service: data.serviceInterest || null,
+          message: data.message || null,
+          source_url: sourceUrl,
+          preferred_date_time: data.booking?.startsAt ?? null,
+          budget,
+        },
       };
 
       if (alertEmail) {
@@ -457,6 +540,25 @@ export const submitPublicLead = createServerFn({ method: "POST" })
         if (!alert.ok) console.warn("lead alert not delivered", alert.reason);
       }
 
+      if (data.email) {
+        const confirmation = await sendLeadConfirmation(
+          data.email,
+          {
+            businessName: org.name,
+            leadName: data.name,
+            replyEmail: profile?.email || profile?.owner_email || null,
+            phone: profile?.phone || null,
+          },
+          `lead-confirmation-${lead.id}`,
+          profile?.email || profile?.owner_email || null,
+        );
+        if (!confirmation.ok) console.warn("lead confirmation not delivered", confirmation.reason);
+      }
+
+      if (webhookSettings?.data?.lead_webhook_url) {
+        const webhookOk = await dispatchLeadWebhook(webhookSettings.data.lead_webhook_url, webhookPayload);
+        if (!webhookOk) console.warn("lead webhook was not delivered");
+      }
 
       const { enqueueAutomations } = await import("@/lib/automation-engine");
       await enqueueAutomations(
