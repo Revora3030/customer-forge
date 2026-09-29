@@ -75,3 +75,30 @@ const ShimmerComponent = ({
 };
 
 export const Shimmer = memo(ShimmerComponent);
+
+/** Three animated dots shown while the AI is thinking. */
+export function TypingDots({ className }: { className?: string }) {
+  return (
+    <div className={cn("flex items-center gap-1.5 py-1", className)} aria-label="Revora is typing" role="status">
+      {[0, 1, 2].map((i) => (
+        <span
+          key={i}
+          className="size-2 animate-bounce rounded-full bg-muted-foreground"
+          style={{ animationDelay: `${i * 0.15}s`, animationDuration: "0.8s" }}
+        />
+      ))}
+    </div>
+  );
+}
+
+/** A subtle pulsing indicator for background processing. */
+export function PulseBar({ className }: { className?: string }) {
+  return (
+    <div className={cn("h-1 w-full overflow-hidden rounded-full bg-muted", className)}>
+      <div
+        className="h-full w-1/3 animate-pulse rounded-full bg-primary"
+        style={{ animation: "rv-pulse-bar 1.8s ease-in-out infinite" }}
+      />
+    </div>
+  );
+}

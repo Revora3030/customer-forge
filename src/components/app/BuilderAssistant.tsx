@@ -42,7 +42,7 @@ import {
   PromptInputTextarea,
   PromptInputTools,
 } from "@/components/ai-elements/prompt-input";
-import { Shimmer } from "@/components/ai-elements/shimmer";
+import { Shimmer, TypingDots } from "@/components/ai-elements/shimmer";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -235,14 +235,14 @@ export function BuilderAssistant({
         </div>
       ) : null}
       <Conversation className="min-h-0 flex-1 overscroll-contain" onPointerDown={dismissKeyboard}>
-        <ConversationContent className="gap-8 px-4 py-5 text-[15px] leading-relaxed sm:px-6 lg:px-7">
+        <ConversationContent className="gap-6 px-4 py-5 text-[15px] leading-relaxed sm:px-6 lg:px-7">
 
           {requests.tasks.length === 0 && !factQuestion && factLog.length === 0 ? (
             <div className="chat-rise">
               <Message from="assistant">
-                <MessageContent className="w-full space-y-3">
-                  <div className="flex items-center gap-2">
-                    <img src="/revora-mark-144.png" alt="Revora" className="size-8 rounded-lg shadow-signal" />
+                <MessageContent className="w-full space-y-4">
+                  <div className="flex items-center gap-2.5">
+                    <img src="/revora-mark-144.png" alt="Revora" className="size-9 rounded-xl shadow-signal" />
                     <div className="min-w-0">
                       <p className="text-[13px] font-semibold">Revora</p>
                       <p className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
@@ -251,16 +251,18 @@ export function BuilderAssistant({
                       </p>
                     </div>
                   </div>
-                  <h2 className="gold-text text-lg font-semibold">
-                    {businessName ? `Hi — let's build ${businessName}` : emptyTitle}
-                  </h2>
-                  <p className="text-[13.5px] leading-relaxed text-muted-foreground">{emptyHint}</p>
-                  <p className="text-[12.5px] leading-relaxed text-muted-foreground">
-                    Tell me in your own words what you do, who you help and where you work. I'll ask
-                    for anything else I need, then write and design every page with you — no
-                    made-up details, ever.
-                  </p>
-                  <div className="mt-3 flex flex-wrap gap-1.5">
+                  <div className="space-y-2">
+                    <h2 className="gold-text text-lg font-semibold leading-tight">
+                      {businessName ? `Hi — let's build ${businessName}` : emptyTitle}
+                    </h2>
+                    <p className="text-[13.5px] leading-relaxed text-muted-foreground">{emptyHint}</p>
+                    <p className="text-[12.5px] leading-relaxed text-muted-foreground">
+                      Tell me in your own words what you do, who you help and where you work. I'll ask
+                      for anything else I need, then write and design every page with you — no
+                      made-up details, ever.
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
                     <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/5 px-2.5 py-1 text-[11px] font-medium text-primary">
                       <span className="size-1.5 animate-pulse rounded-full bg-primary" aria-hidden />
                       AI team online
@@ -283,12 +285,14 @@ export function BuilderAssistant({
               (t) => t.state === "planning" || t.state === "building",
             )?.id ?? requests.tasks.find((t) => t.state === "queued")?.id ?? null;
             return requests.tasks.map((task) => (
-            <div key={task.id} className="chat-rise space-y-3">
+            <div key={task.id} className="chat-rise space-y-2">
               <Message from="user">
                 <MessageContent className="bg-primary text-primary-foreground">{task.instruction}</MessageContent>
               </Message>
               <Message from="assistant">
-                <MessageContent className="w-full">
+                <div className="flex items-start gap-2.5">
+                  <img src="/revora-mark-144.png" alt="Revora" className="mt-0.5 size-7 shrink-0 rounded-lg shadow-sm" />
+                  <MessageContent className="w-full border border-border/60 bg-card/50 p-3.5 shadow-sm">
                   <TaskBody
                     task={task}
                     requests={requests}
@@ -302,15 +306,19 @@ export function BuilderAssistant({
                       window.requestAnimationFrame(() => inputRef.current?.focus());
                     }}
                   />
-                </MessageContent>
+                  </MessageContent>
+                </div>
               </Message>
             </div>
             ));
           })()}
           {factLog.map((entry, i) => (
-            <div key={`fact-${i}`} className="chat-rise space-y-3">
+            <div key={`fact-${i}`} className="chat-rise space-y-2">
               <Message from="assistant">
-                <MessageContent className="w-full text-[14px]">{entry.question}</MessageContent>
+                <div className="flex items-start gap-2.5">
+                  <img src="/revora-mark-144.png" alt="Revora" className="mt-0.5 size-6 shrink-0 rounded-md" />
+                  <MessageContent className="w-full border border-border/60 bg-card/50 p-3 text-[14px] shadow-sm">{entry.question}</MessageContent>
+                </div>
               </Message>
               <Message from="user">
                 <MessageContent className="bg-primary text-primary-foreground whitespace-pre-wrap">{entry.answer}</MessageContent>
@@ -320,9 +328,10 @@ export function BuilderAssistant({
           {factQuestion ? (
             <div className="chat-rise">
               <Message from="assistant">
-                <MessageContent className="w-full space-y-2 text-[14px]">
+                <div className="flex items-start gap-2.5">
+                  <img src="/revora-mark-144.png" alt="Revora" className="mt-0.5 size-6 rounded-md shrink-0" />
+                  <MessageContent className="w-full space-y-2 border border-border/60 bg-card/50 p-3 text-[14px] shadow-sm">
                   <div className="flex items-center gap-2">
-                    <img src="/revora-mark-144.png" alt="Revora" className="size-6 rounded-md" />
                     <span className="text-[12px] font-semibold">Revora</span>
                   </div>
                   <p className="font-medium text-foreground">{factQuestion.label}</p>
@@ -338,18 +347,22 @@ export function BuilderAssistant({
                     </button>
                   ) : null}
                 </MessageContent>
+                </div>
               </Message>
             </div>
           ) : null}
           {(firstBuildBusy || factBusy) && !requests.busy ? (
             <div className="chat-rise">
               <Message from="assistant">
-                <MessageContent className="w-full">
+                <div className="flex items-start gap-2.5">
+                  <img src="/revora-mark-144.png" alt="Revora" className="mt-0.5 size-7 shrink-0 rounded-lg shadow-sm" />
+                  <MessageContent className="w-full border border-border/60 bg-card/50 p-3.5 shadow-sm">
                   <LiveActivity
                     organizationId={organizationId}
                     fallback={firstBuildBusy ? "Starting your website build…" : "Saving your answer…"}
                   />
-                </MessageContent>
+                  </MessageContent>
+                </div>
               </Message>
             </div>
           ) : null}
@@ -365,7 +378,7 @@ export function BuilderAssistant({
               <Shimmer>AI team is reviewing your site…</Shimmer>
             </span>
           ) : null}
-          {(moreOpen ? SUGGESTIONS : SUGGESTIONS.slice(0, 3)).map((action) => (
+          {(moreOpen ? SUGGESTIONS : SUGGESTIONS.slice(0, 4)).map((action) => (
             <button
               key={action.label}
               type="button"
@@ -373,20 +386,20 @@ export function BuilderAssistant({
               disabled={!requests.ready}
               onClick={() => onFirstBuild ? void onFirstBuild(action.instruction) : requests.queue(action.instruction)}
               className={cn(
-                 "builder-suggestion min-h-9 shrink-0 cursor-pointer rounded-full border border-border px-3.5 py-1.5 text-[13px] text-foreground transition-all",
-                 "hover:-translate-y-px hover:border-primary/55 hover:bg-elevated focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none disabled:opacity-50",
+                 "builder-suggestion min-h-9 shrink-0 cursor-pointer rounded-full border border-border bg-card/60 px-3.5 py-1.5 text-[13px] text-foreground transition-all",
+                 "hover:-translate-y-0.5 hover:border-primary/55 hover:bg-elevated hover:shadow-sm focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none disabled:opacity-50",
               )}
             >
               {action.label}
             </button>
           ))}
-          {SUGGESTIONS.length > 3 ? <button
+          {SUGGESTIONS.length > 4 ? <button
             type="button"
             aria-expanded={moreOpen}
             onClick={() => setMoreOpen((open) => !open)}
             className="gold-hl min-h-9 shrink-0 cursor-pointer rounded-full px-2.5 py-1 text-[13px] transition-colors hover:bg-primary/10 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
           >
-            {moreOpen ? "Fewer ideas" : "More ideas"}
+            {moreOpen ? "Fewer ideas" : `+${SUGGESTIONS.length - 4} more`}
           </button> : null}
         </div>
 
@@ -449,7 +462,7 @@ export function BuilderAssistant({
           </div>
         ) : null}
          <PromptInput
-           className={cn("builder-prompt rounded-3xl", (requests.busy || firstBuildBusy) && "is-thinking")}
+           className={cn("builder-prompt rounded-3xl border border-border/80 bg-card/60 shadow-sm backdrop-blur transition-all", (requests.busy || firstBuildBusy) && "is-thinking border-primary/30 shadow-signal")}
           onSubmit={(_message, event) => {
             event.preventDefault();
             send(value);
@@ -532,10 +545,10 @@ function LiveActivity({
     .filter((step, index, all) => index === 0 || all[index - 1]!.stage !== step.stage);
   return (
     <div className="space-y-2.5 rounded-2xl border border-primary/30 bg-card/60 p-3.5 shadow-signal" aria-live="polite">
-      <div className="flex items-center gap-2">
-        <span className="relative inline-flex size-7 items-center justify-center">
-          <span className="absolute inset-0 animate-ping rounded-lg bg-primary/25" aria-hidden />
-          <img src="/revora-mark-144.png" alt="Revora" className="relative size-7 rounded-lg" />
+      <div className="flex items-center gap-2.5">
+        <span className="relative inline-flex size-8 items-center justify-center">
+          <span className="absolute inset-0 animate-ping rounded-xl bg-primary/20" aria-hidden />
+          <img src="/revora-mark-144.png" alt="Revora" className="relative size-8 rounded-xl" />
         </span>
         <div className="min-w-0 flex-1">
           <p className="text-[12.5px] font-semibold">Revora is working</p>
@@ -558,6 +571,7 @@ function LiveActivity({
         <Shimmer>{latest ? `${latest.stage}…` : fallback}</Shimmer>
         {latest?.detail ? <p className="mt-1 text-[11.5px] text-muted-foreground break-words">{latest.detail}</p> : null}
       </div>
+      {!latest ? <TypingDots className="mt-1" /> : null}
     </div>
   );
 }
