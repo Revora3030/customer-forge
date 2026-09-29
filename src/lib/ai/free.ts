@@ -530,23 +530,23 @@ export function freeProviderCredentials(
     return apiKey ? { apiKey } : null;
   }
   if (provider === "mistral") {
-    const apiKey = env("MISTRAL_API_KEY");
+    const apiKey = env("MISTRAL_API_KEY") ?? env("Mistral");
     return apiKey ? { apiKey } : null;
   }
   if (provider === "huggingface") {
-    const apiKey = env("HUGGINGFACE_API_KEY") ?? env("HF_TOKEN");
+    const apiKey = env("HUGGINGFACE_API_KEY") ?? env("Huggingface") ?? env("HF_TOKEN");
     return apiKey ? { apiKey } : null;
   }
   if (provider === "deepseek") {
-    const apiKey = env("DEEPSEEK_API_KEY");
+    const apiKey = env("DEEPSEEK_API_KEY") ?? env("Deepseek");
     return apiKey ? { apiKey } : null;
   }
   if (provider === "cerebras") {
-    const apiKey = env("CEREBRAS_API_KEY");
+    const apiKey = env("CEREBRAS_API_KEY") ?? env("Cerebras");
     return apiKey ? { apiKey } : null;
   }
   if (provider === "cohere") {
-    const apiKey = env("COHERE_API_KEY");
+    const apiKey = env("COHERE_API_KEY") ?? env("Cohere");
     return apiKey ? { apiKey } : null;
   }
   // Gemini needs its OWN free-tier key. A general Google key may sit on a

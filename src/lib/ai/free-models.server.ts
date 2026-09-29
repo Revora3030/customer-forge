@@ -168,10 +168,26 @@ async function googleFreeModels(credentials: FreeProviderCredentials) {
 
 
 /**
- * LLM7: the catalogue flags each model's billing mode and whether it supports
- * JSON mode. Only models that are NOT usage-based are free, so those ids are recorded as free-eligible and the
- * paid-balance models on the same endpoint stay unreachable.
+ * Cohere: the catalogue uses `{ models: [{ name }] }` rather than the OpenAI
+ * `{ data: [{ id }] }` shape, so it needs its own parser. Every id still passes
+ * `isFreeEligibleModel`, which admits the Command, North, Embed, and Aya families.
  */
+async function cohereFreeModels(credentials: FreeProviderCredentials) {
+  const payload = await fetchJson("https://api.cohere.com/v1/models", {
+    authorization: `Bearer ${credentials.apiKey}`,
+  });
+  const models = (payload as { models?: unknown[] } | null)?.models;
+  if (!Array.isArray(models)) return [];
+  const free: string[] = [];
+  for (const raw of models) {
+    const entry = raw as { name?: unknown };
+    if (typeof entry.name !== "string") continue;
+    if (isFreeEligibleModel("cohere", entry.name)) free.push(entry.name);
+  }
+  return free;
+}
+
+
 async function llm7FreeModels(credentials: FreeProviderCredentials) {
   const payload = await fetchJson("https://api.llm7.io/v1/models", {
     authorization: `Bearer ${credentials.apiKey}`,
@@ -304,11 +320,7 @@ export async function refreshFreeModels(
                             credentials,
                           )
                         : provider === "cohere"
-                          ? await openAiCompatibleFreeModels(
-                              "cohere",
-                              "https://api.cohere.ai/v1/models",
-                              credentials,
-                            )
+                          ? await cohereFreeModels(credentials)
                           : [];
   // Cache even an empty answer so a failing discovery endpoint isn't polled on
   // every builder request.
