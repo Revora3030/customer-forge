@@ -226,31 +226,31 @@ const FREE_MODEL_DEFAULTS: Record<FreeProviderName, Partial<Record<ModelRole, st
   huggingface: {
     primary: "meta-llama/Llama-3.3-70B-Instruct",
     design: "meta-llama/Llama-3.3-70B-Instruct",
-    fast: "meta-llama/Llama-3.2-3B-Instruct",
+    fast: "meta-llama/Llama-3.1-8B-Instruct",
     coding: "Qwen/Qwen2.5-Coder-32B-Instruct",
-    vision: "meta-llama/Llama-3.2-11B-Vision-Instruct",
-    conversation: "meta-llama/Llama-3.2-3B-Instruct",
+    vision: "Qwen/Qwen2.5-VL-72B-Instruct",
+    conversation: "meta-llama/Llama-3.1-8B-Instruct",
   },
   deepseek: {
-    primary: "deepseek-chat",
-    design: "deepseek-chat",
-    fast: "deepseek-chat",
-    coding: "deepseek-coder",
-    conversation: "deepseek-chat",
+    primary: "deepseek-flash",
+    design: "deepseek-flash",
+    fast: "deepseek-flash",
+    coding: "deepseek-v4-pro",
+    conversation: "deepseek-flash",
   },
   cerebras: {
-    primary: "llama3.1-8b",
-    design: "llama3.1-8b",
-    fast: "llama3.1-8b",
-    coding: "qwen2.5-coder-32b",
-    conversation: "llama3.1-8b",
+    primary: "gpt-oss-120b",
+    design: "gpt-oss-120b",
+    fast: "gpt-oss-120b",
+    coding: "qwen-3.8-27b",
+    conversation: "gpt-oss-120b",
   },
   cohere: {
-    primary: "command-a-plus",
-    design: "command-a-plus",
-    fast: "command-a-plus",
+    primary: "command-a-plus-05-2026",
+    design: "command-a-plus-05-2026",
+    fast: "command-r7b-12-2024",
     coding: "north-mini-code",
-    conversation: "command-a-plus",
+    conversation: "command-a-plus-05-2026",
   },
 };
 
@@ -460,7 +460,7 @@ export function isFreeEligibleModel(provider: FreeProviderName, model: string): 
     // Both would otherwise be rejected by the paid-name patterns above.
     const groqException = provider === "groq" && /^gpt-oss/i.test(unprefixed);
     const deepseekException =
-      provider === "deepseek" && /^(deepseek-chat|deepseek-coder|deepseek-reasoner)/i.test(unprefixed);
+      provider === "deepseek" && /^(deepseek-flash|deepseek-v4-pro|deepseek-chat|deepseek-coder|deepseek-reasoner)/i.test(unprefixed);
     if (!groqException && !deepseekException) return false;
   }
 
@@ -470,15 +470,15 @@ export function isFreeEligibleModel(provider: FreeProviderName, model: string): 
   if (provider === "nvidia") return nvidiaFreeEligible(name);
   if (provider === "llm7") return llm7FreeEligible(name);
   if (provider === "mistral")
-    return /^(mistral-small|mistral-nemo|codestral|ministral-3b)/i.test(name);
+    return /^(mistral-small|mistral-nemo|codestral|ministral-3b|open-mistral|open-mixtral)/i.test(name);
   if (provider === "huggingface")
     return true;
   if (provider === "deepseek")
-    return /^(deepseek-chat|deepseek-coder|deepseek-reasoner)/i.test(name);
+    return /^(deepseek-flash|deepseek-v4-pro|deepseek-chat|deepseek-reasoner|deepseek-coder)/i.test(name);
   if (provider === "cerebras")
-    return /^(llama|qwen|deepseek)/i.test(name);
+    return /^(gpt-oss|qwen|llama|deepseek)/i.test(name);
   if (provider === "cohere")
-    return /^(command|north|embed)/i.test(name);
+    return /^(command|north|embed|c4ai-aya)/i.test(name);
   // Cloudflare's catalogue also carries partner image models that are billed
   // per tile/step (Leonardo) or carry partner pricing Revora has not verified as
   // free (the flux-2 line). Those are rejected by name so neither a default nor
