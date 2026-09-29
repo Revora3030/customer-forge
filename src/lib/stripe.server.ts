@@ -65,7 +65,7 @@ export async function verifyWebhook(
   req: Request,
   env: StripeEnv,
   // Stripe delivers arbitrary JSON per event type; the shape is narrowed by
-  // the individual handlers, so the raw envelope stays untyped here.
+  // the individual handlers, so the raw envelope stays permissive here.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
 ): Promise<{ type: string; id?: string; data: { object: any } }> {
   const signature = req.headers.get("stripe-signature");
