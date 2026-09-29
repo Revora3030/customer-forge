@@ -21,6 +21,11 @@ const PROVIDER_LABEL: Record<string, string> = {
   llm7: "LLM7",
   openrouter: "OpenRouter",
   google: "Google",
+  mistral: "Mistral",
+  huggingface: "Hugging Face",
+  deepseek: "DeepSeek",
+  cerebras: "Cerebras",
+  cohere: "Cohere",
 };
 
 const label = (name: string) => PROVIDER_LABEL[name] ?? name;
