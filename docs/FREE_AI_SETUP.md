@@ -37,6 +37,11 @@ Tests enforce the boundary (`src/lib/ai/free-runtime.test.ts`).
 | `NVIDIA_NIM_API_KEY` | NVIDIA NIM free developer allowance | Chat models only; embedders, guards, parsers and translators are never selected |
 | `LLM7_API_KEY` | LLM7.io free tier | Only its non usage-based models are ever selected |
 | `GOOGLE_AI_FREE_API_KEY` | Gemini API free tier | Use a key from a project with **no billing** attached |
+| `MISTRAL_API_KEY` | Mistral AI Experiment plan | Free Experiment plan: mistral-small, ministral-3b, codestral (non-commercial) |
+| `HUGGINGFACE_API_KEY` | Hugging Face Serverless Inference | Also accepts `HF_TOKEN`; small monthly credit for signed-in users |
+| `DEEPSEEK_API_KEY` | DeepSeek API free developer tier | Rate-limited access to deepseek-chat and deepseek-coder |
+| `CEREBRAS_API_KEY` | Cerebras free inference | Ultra-fast inference on Llama and Qwen models |
+| `COHERE_API_KEY` | Cohere trial API | Free until rate limits reached for Command A+, North, Embed |
 
 Half a provider's credentials simply marks that provider unavailable — it never
 throws and never blocks the builder.
@@ -47,6 +52,11 @@ throws and never blocks the builder.
 - OpenRouter Free plan: free-tier models only, 50 requests per day.
 - Groq free developer tier: per-minute and per-day request limits per model.
 - Gemini API free tier: per-minute and per-day limits per model.
+- Mistral AI Experiment plan: limited tokens/month for Mistral Small, Ministral 3B, NeMo, and Codestral.
+- Hugging Face Serverless Inference: small monthly credit for signed-in users.
+- DeepSeek API free developer tier: rate-limited access to deepseek-chat and deepseek-coder.
+- Cerebras free inference: ultra-fast inference with rate limits.
+- Cohere trial API: free until rate limits reached for Command A+, North, and Embed models.
 
 Each provider has a per-day request budget (`FREE_AI_<PROVIDER>_DAILY_CAP`), a
 3-strike circuit breaker with cooldown, and a 10-minute analysis cache with
