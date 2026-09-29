@@ -76,11 +76,24 @@ const iso = (seconds: unknown) =>
  * Writes a verified Stripe subscription into `subscriptions` + `organizations`.
  * Safe to call repeatedly for the same event (upsert on organization_id).
  */
+/** Minimal Stripe subscription shape — fields read defensively. */
+type StripeSubscription = {
+  metadata?: { organizationId?: string; userId?: string; planId?: string };
+  items?: { data?: Array<{ price?: unknown; current_period_start?: number; current_period_end?: number }> };
+  status?: string;
+  current_period_start?: number;
+  current_period_end?: number;
+  customer?: string | { id?: string };
+  id?: string;
+  cancel_at_period_end?: boolean;
+  trial_start?: number;
+  trial_end?: number;
+};
+
 export async function syncStripeSubscription(
   admin: Admin,
   // Raw Stripe subscription payload (webhook JSON); fields are read defensively.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  subscription: any,
+  subscription: StripeSubscription,
   env: StripeEnv,
 ): Promise<{ ok: boolean; organizationId?: string; reason?: string; canonical?: boolean }> {
   const organizationId = subscription?.metadata?.organizationId as string | undefined;

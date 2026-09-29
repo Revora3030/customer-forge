@@ -3,10 +3,9 @@ name: Revora Quality Gate
 on:
   push:
     branches:
-      - main
-      - fix/revora-master-audit-ci
+      - lovable-sync
   pull_request:
-    branches: [main]
+    branches: [lovable-sync]
 
 permissions:
   contents: read
