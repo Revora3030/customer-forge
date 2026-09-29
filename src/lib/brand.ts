@@ -14,7 +14,7 @@ export const REVORA = {
   tagline: "The Business Growth Operating System",
   primaryMessage: "Turn More Opportunities Into Customers.",
   founder: { name: "Adam Dancy", role: "Founder, Revora" },
-  email: "Revorabusiness0@gmail.com",
+  email: "hello@revoragrowthsystems.com",
   phone: "9196226620",
   phoneDisplay: "(919) 622-6620",
 } as const;
