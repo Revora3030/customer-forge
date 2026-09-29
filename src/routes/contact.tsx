@@ -38,7 +38,7 @@ export const Route = createFileRoute("/contact")({
         {
           name: "description",
           content:
-            "Questions about Revora, want to see the platform in action, or ready to build a customer acquisition system? Email Revorabusiness0@gmail.com or call (919) 622-6620.",
+            "Questions about Revora, want to see the platform in action, or ready to build your customer acquisition system? Email hello@revoragrowthsystems.com or call (919) 622-6620.",
         },
         { property: "og:title", content: "Contact Revora" },
         {

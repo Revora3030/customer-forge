@@ -456,7 +456,7 @@ function AppShell() {
 
               <p className="mt-4 text-[12px] text-muted-foreground">
                 Questions?{" "}
-                <a href="mailto:Revorabusiness0@gmail.com" className="text-primary hover:underline">
+                <a href="mailto:hello@revoragrowthsystems.com" className="text-primary hover:underline">
                   Email support
                 </a>{" "}
                 or{" "}

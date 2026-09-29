@@ -21,11 +21,11 @@ export const GROWTH_SYSTEM = {
   /** Length of the free platform trial, in days. Mirrors the Stripe trial. */
   trialDays: 30,
   /** Length of the full-system free access window at signup, in days. */
-  fullAccessTrialDays: 1,
-  /** Human-readable full-access window, e.g. "1 day". */
-  fullAccessWindow: "1 day",
-  /** Uppercase variant for badges/CTAs, e.g. "1 DAY". */
-  fullAccessWindowUpper: "1 DAY",
+  fullAccessTrialDays: 7,
+  /** Human-readable full-access window, e.g. "7 days". */
+  fullAccessWindow: "7 days",
+  /** Uppercase variant for badges/CTAs, e.g. "7 DAYS". */
+  fullAccessWindowUpper: "7 DAYS",
   trialBadge: "FIRST MONTH FREE",
   ctaPrimary: "START MY REVORA SYSTEM — $750 SETUP",
   ctaSecondary:

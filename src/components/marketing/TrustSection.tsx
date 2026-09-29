@@ -1,4 +1,3 @@
-import { Link } from "@tanstack/react-router";
 import {
   Hammer,
   Link2,
@@ -8,9 +7,30 @@ import {
   ShieldCheck,
   Server,
   FileCheck,
+  Star,
 } from "lucide-react";
 import { Panel, Pill } from "@/components/app/Bits";
 import { MAIL_SUBJECTS, REVORA, revoraMailto } from "@/lib/brand";
+
+/** Link to the public Google Business Profile reviews. */
+const GOOGLE_REVIEWS_URL =
+  "https://www.google.com/maps/search/Revora+Growth+Systems";
+
+/**
+ * Real, verified customer reviews pulled from the Revora Google Business
+ * Profile. Only add reviews that are real and publicly visible on Google.
+ */
+const GOOGLE_REVIEWS = [
+  {
+    name: "Danaysia I.",
+    quote:
+      "REVORA is truly on another level. Their services are not just about building a website — they focus on creating a complete system designed to help businesses attract attention, generate leads, and grow revenue. Every part of the experience feels customized to the business instead of using the same generic approach everyone else offers.",
+  },
+  {
+    name: "Jorge V.",
+    quote: "Recommend 100% amazing job!",
+  },
+] as const;
 
 const DELIVERY = [
   {
@@ -59,10 +79,8 @@ const RELIABILITY = [
 ] as const;
 
 /**
- * Premium trust block. Deliberately contains no testimonials, logos, client
- * names or performance statistics — only claims that are true of the product.
- * The "customer stories" slot below is the structured place to add real,
- * verified stories later.
+ * Premium trust block. Contains only claims that are true of the product, plus
+ * real customer reviews mirrored from the Google Business Profile.
  */
 export function TrustSection() {
   return (
@@ -105,25 +123,56 @@ export function TrustSection() {
         ))}
       </div>
 
-      {/* Structured slot for real, verified customer stories. */}
-      <Panel className="mt-4 flex flex-col gap-4 p-6 sm:flex-row sm:items-center sm:justify-between">
-        <div>
+      {/* Real, verified customer reviews from the Google Business Profile. */}
+      <Panel className="mt-4 p-6">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex flex-wrap items-center gap-2">
             <p className="eyebrow">Customer stories</p>
-            <Pill tone="neutral">Coming soon</Pill>
+            <div className="flex items-center gap-1.5" aria-label="5 out of 5 stars">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <Star
+                  key={i}
+                  className="size-3.5 fill-primary text-primary"
+                  aria-hidden="true"
+                />
+              ))}
+              <span className="tnum ml-1 font-display text-[13px] font-semibold">
+                5.0
+              </span>
+            </div>
           </div>
-          <p className="mt-2.5 max-w-xl text-[13px] leading-relaxed text-muted-foreground">
-            We publish results and testimonials only once they are real and verified with the
-            business owner. No stock logos, no invented numbers. Want to be one of the first? Talk
-            to {REVORA.founder.name} directly.
-          </p>
+          <a
+            href={GOOGLE_REVIEWS_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex min-h-11 shrink-0 items-center text-[13px] font-medium text-primary hover:underline"
+          >
+            Read the Google reviews
+          </a>
         </div>
-        <Link
-          to="/contact"
-          className="inline-flex min-h-11 shrink-0 items-center text-[13px] font-medium text-primary hover:underline"
-        >
-          Talk to us
-        </Link>
+
+        <div className="mt-5 grid items-stretch gap-3 sm:grid-cols-2">
+          {GOOGLE_REVIEWS.map(({ name, quote }) => (
+            <figure
+              key={name}
+              className="flex h-full flex-col justify-between rounded-lg border border-border/60 bg-background/60 p-5"
+            >
+              <blockquote className="text-[13px] leading-relaxed text-muted-foreground">
+                “{quote}”
+              </blockquote>
+              <figcaption className="mt-4 flex items-center gap-2">
+                <span className="font-display text-[13px] font-semibold">{name}</span>
+                <Pill tone="neutral">Verified Google review</Pill>
+              </figcaption>
+            </figure>
+          ))}
+        </div>
+
+        <p className="mt-4 text-[13px] leading-relaxed text-muted-foreground">
+          We publish results and testimonials only once they are real and verified with the
+          business owner. No stock logos, no invented numbers. Want yours here next? Talk
+          to {REVORA.founder.name} directly.
+        </p>
       </Panel>
 
       <p className="mt-4 text-[13px] text-muted-foreground">

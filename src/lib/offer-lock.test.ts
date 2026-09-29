@@ -31,7 +31,7 @@ describe("canonical Revora offer", () => {
     expect(GROWTH_SYSTEM.setupPrice).toBe(750);
     expect(GROWTH_SYSTEM.monthlyPrice).toBe(100);
     expect(GROWTH_SYSTEM.trialDays).toBe(30);
-    expect(GROWTH_SYSTEM.fullAccessTrialDays).toBe(1);
+    expect(GROWTH_SYSTEM.fullAccessTrialDays).toBe(7);
     expect(CANONICAL_OFFER_RATES).toEqual({ setupPrice: 750, monthlyPrice: 100 });
   });
 

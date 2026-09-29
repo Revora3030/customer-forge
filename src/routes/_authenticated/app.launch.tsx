@@ -393,7 +393,7 @@ function Launch() {
             label="Plan"
             value={`${org?.plan_id ?? "No plan"} · ${org?.subscription_status ?? ""}`}
           />
-          <Row label="Support" value={profile?.support_email ?? "Revorabusiness0@gmail.com"} />
+          <Row label="Support" value={profile?.support_email ?? "hello@revoragrowthsystems.com"} />
           <Row label="Team members" value={number((team ?? []).length)} />
           <Row label="Setup complete" value={`${score.score}%`} />
         </dl>

@@ -28,7 +28,7 @@ export function EnvironmentBanner({ status }: { status: ProductionStatus | undef
             {live
               ? "Your website is live and taking real enquiries."
               : status.accountStatus === "expired"
-                ? "Your 1-day access has ended — your work is saved."
+                ? "Your 7-day access has ended — your work is saved."
                 : "You have the full Revora builder. Launch unlocks after setup."}
           </p>
           <p className="mt-1 max-w-2xl text-[12px] text-muted-foreground">
@@ -234,7 +234,7 @@ export function ProductionSummaryCard({ status }: { status: ProductionStatus | u
   return (
     <section className="panel p-4">
       <p className="eyebrow">
-        {status.accountStatus === "expired" ? "Access ended — work saved" : "1-day free access"}
+        {status.accountStatus === "expired" ? "Access ended — work saved" : "7-day free access"}
       </p>
       <h3 className="mt-1 font-display text-[17px] font-semibold">Build your system</h3>
       <div className="mt-2 flex flex-wrap gap-1.5">
