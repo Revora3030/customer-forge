@@ -18,7 +18,13 @@ const MAX_DETAIL = 160;
 export const BUILD_STAGES = [
   "reading your business",
   "recalling your design identity",
+  "reading your message",
   "planning the change",
+  "designing your change",
+  "repairing the plan",
+  "reviewing for safety",
+  "revising after review",
+  "polishing the design",
   "checking the plan is safe",
   "saving a restore point",
   "writing the pages",

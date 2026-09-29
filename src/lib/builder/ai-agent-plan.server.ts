@@ -237,6 +237,10 @@ export async function planWebsiteChangesWithAi(input: {
   history: string[];
   context: AgentContext;
   attachments: { kind: string; name: string }[];
+  /** Live progress hook: fired as the plan moves between real stages. */
+  onStage?: (stage: string, detail?: string) => void;
+  /** Live progress hook: fired as each free model is tried. */
+  onAttempt?: (provider: string, model: string) => void;
 }): Promise<AiPlanOutcome> {
   const { context } = input;
   const system = [
@@ -266,6 +270,7 @@ export async function planWebsiteChangesWithAi(input: {
     .filter(Boolean)
     .join("\n");
 
+  input.onStage?.("designing your change", "the AI team is composing your layout, copy and styling");
   const direction = await callBestThinker({
     json: true,
     purpose: "creative_direction",
@@ -275,6 +280,7 @@ export async function planWebsiteChangesWithAi(input: {
     organizationId: input.organizationId,
     // A full-site redesign is a long JSON plan; 6000 tokens cut it off mid-way.
     maxOutputTokens: 32000,
+    ...(input.onAttempt ? { onAttempt: input.onAttempt } : {}),
   });
   if (!direction.ok) {
     return { ok: false, reason: direction.reason, detail: direction.detail };
@@ -292,6 +298,7 @@ export async function planWebsiteChangesWithAi(input: {
   if (!proposal || !proposedActions.length) {
     // One repair attempt: the AI is asked to restate its OWN change as the
     // required JSON. Nothing is invented for it if this also fails.
+    input.onStage?.("repairing the plan", "the first answer could not be read — asking again");
     const retry = await callBestThinker({
       json: true,
       purpose: "creative_direction",
@@ -300,6 +307,7 @@ export async function planWebsiteChangesWithAi(input: {
       user: `${user}\n\nYOUR PREVIOUS ANSWER could not be used: it was not a single JSON object with a non-empty "actions" array. Reply again with ONLY that JSON object, carrying out the owner's request with the actions listed above.`,
       organizationId: input.organizationId,
       maxOutputTokens: 32000,
+      ...(input.onAttempt ? { onAttempt: input.onAttempt } : {}),
     });
     if (retry.ok) {
       retryCost = retry.costMicrocents;
@@ -318,6 +326,7 @@ export async function planWebsiteChangesWithAi(input: {
   let reviewModel: string | null = null;
   let notes = textList(proposal["notes"], 6);
 
+  input.onStage?.("reviewing for safety", "an independent reviewer checks every change");
   const review = await callBestThinker({
     json: true,
     purpose: "adversarial_review",
@@ -339,6 +348,7 @@ export async function planWebsiteChangesWithAi(input: {
     ].join("\n"),
     organizationId: input.organizationId,
     maxOutputTokens: 4000,
+    ...(input.onAttempt ? { onAttempt: input.onAttempt } : {}),
   });
 
   let actions = proposedActions;
@@ -353,6 +363,7 @@ export async function planWebsiteChangesWithAi(input: {
   if (!actions.length && proposedActions.length) {
     // Terra blocked everything. Instead of giving up, Sol gets one revision with
     // Terra's exact objections, then Terra checks the revision again.
+    input.onStage?.("revising after review", "reworking the changes the reviewer removed");
     const revision = await callBestThinker({
       json: true,
       purpose: "creative_direction",
@@ -361,11 +372,13 @@ export async function planWebsiteChangesWithAi(input: {
       user: `${user}\n\nTHE SAFETY REVIEWER BLOCKED YOUR PREVIOUS PLAN FOR THESE REASONS:\n${notes.join("\n") || "unstated fact or safety problems"}\n\nRevise it: keep the owner's intent, but use only the supplied facts (omit anything not supplied rather than inventing it). Reply with ONLY the JSON object with a non-empty "actions" array.`,
       organizationId: input.organizationId,
       maxOutputTokens: 32000,
+      ...(input.onAttempt ? { onAttempt: input.onAttempt } : {}),
     });
     if (revision.ok) {
       costMicrocents += revision.costMicrocents;
       const revised = readActions(revision.text);
       if (revised.parsed && revised.list.length) {
+        input.onStage?.("reviewing for safety", "re-checking the revised plan");
         const recheck = await callBestThinker({
           json: true,
           purpose: "adversarial_review",
@@ -383,6 +396,7 @@ export async function planWebsiteChangesWithAi(input: {
           ].join("\n"),
           organizationId: input.organizationId,
           maxOutputTokens: 4000,
+          ...(input.onAttempt ? { onAttempt: input.onAttempt } : {}),
         });
         if (recheck.ok) {
           costMicrocents += recheck.costMicrocents;

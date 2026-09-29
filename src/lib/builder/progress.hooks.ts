@@ -26,7 +26,7 @@ export function useBuildProgress(
         .eq("organization_id", organizationId as string)
         .gte("created_at", since)
         .order("created_at", { ascending: false })
-        .limit(12);
+        .limit(30);
       if (requestId) request = request.eq("run_id", requestId);
       const { data, error } = await request;
       if (error) throw error;
