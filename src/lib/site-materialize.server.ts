@@ -684,7 +684,7 @@ export function materializedSectionDesign(
         } as unknown as Record<string, unknown>,
       )
     : {};
-  const settings = effect ? writeSectionEffect(visual, effect as unknown as SectionEffectId) : visual;
+  const settings = writeSectionEffect(visual, effect as unknown as SectionEffectId);
   return ({
     variant: ((identity?.["variant"] ?? "default") as string),
     settings: fingerprint

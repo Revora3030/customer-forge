@@ -144,7 +144,10 @@ export function sectionDesignFromFingerprint(
 ): Record<string, unknown> | null {
   const fp = typeof kindOrFingerprint === "string" ? fingerprint : kindOrFingerprint;
   if (!fp) return null;
+  const kind = typeof kindOrFingerprint === "string" ? kindOrFingerprint : "section";
+  const variant = `${fp.family}-${kind}-${index ?? 0}`;
   return {
+    variant,
     layout: fp.sectionComposition ?? fp.heroComposition,
     cardStyle: fp.cardSystem,
     imageTreatment: fp.imageTreatment,

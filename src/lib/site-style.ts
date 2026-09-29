@@ -782,9 +782,9 @@ export type PersistedComponentVisual = {
   object_fit?: "cover" | "contain";
   object_position?: string;
   overlay?: "none" | "soft" | "dark" | "brand" | "gradient";
-  radius?: "none" | "small" | "medium" | "large" | "pill" | number;
-  shadow?: "none" | "soft" | "medium" | "strong" | number;
-  aspect_ratio?: "1:1" | "4:3" | "3:2" | "16:9" | "21:9" | "7:5";
+  radius?: "none" | "small" | "medium" | "large" | "pill" | number | undefined;
+  shadow?: "none" | "soft" | "medium" | "strong" | number | undefined;
+  aspect_ratio?: "1:1" | "4:3" | "3:2" | "16:9" | "21:9" | "7:5" | undefined;
   focal_point?: string;
   /** Where the picture came from, so credits and licences stay honest. */
   source?: "customer" | "stock" | "generated" | "unknown";
@@ -822,16 +822,16 @@ export function readComponentVisual(settings: unknown): PersistedComponentVisual
     out.overlay = overlay;
   }
   const radius = value["radius"];
-  if (radius === "none" || radius === "small" || radius === "medium" || radius === "large" || radius === "pill") {
-    out.radius = radius;
+  if (radius === "none" || radius === "small" || radius === "medium" || radius === "large" || radius === "pill" || typeof radius === "number") {
+    out.radius = radius as PersistedComponentVisual["radius"];
   }
   const shadow = value["shadow"];
-  if (shadow === "none" || shadow === "soft" || shadow === "medium" || shadow === "strong") {
-    out.shadow = shadow;
+  if (shadow === "none" || shadow === "soft" || shadow === "medium" || shadow === "strong" || typeof shadow === "number") {
+    out.shadow = shadow as PersistedComponentVisual["shadow"];
   }
   const aspectRatio = value["aspect_ratio"];
-  if (aspectRatio === "1:1" || aspectRatio === "4:3" || aspectRatio === "3:2" || aspectRatio === "16:9" || aspectRatio === "21:9") {
-    out.aspect_ratio = aspectRatio;
+  if (aspectRatio === "1:1" || aspectRatio === "4:3" || aspectRatio === "3:2" || aspectRatio === "16:9" || aspectRatio === "21:9" || aspectRatio === "7:5") {
+    out.aspect_ratio = aspectRatio as PersistedComponentVisual["aspect_ratio"];
   }
   if (typeof value["focal_point"] === "string") out.focal_point = value["focal_point"];
   const source = value["source"];
