@@ -39,3 +39,6 @@ dist-ssr
 .dev.vars.local
 *.pem
 *.key
+
+# Lockfile — project uses bun.lock as the single source of truth
+package-lock.json
