@@ -20,7 +20,12 @@ export type FreeProviderName =
   | "nvidia"
   | "llm7"
   | "openrouter"
-  | "google";
+  | "google"
+  | "mistral"
+  | "huggingface"
+  | "deepseek"
+  | "cerebras"
+  | "cohere";
 
 export const FREE_PROVIDERS: FreeProviderName[] = [
   "openai",
@@ -30,6 +35,11 @@ export const FREE_PROVIDERS: FreeProviderName[] = [
   "llm7",
   "openrouter",
   "google",
+  "mistral",
+  "huggingface",
+  "deepseek",
+  "cerebras",
+  "cohere",
 ];
 
 
@@ -84,6 +94,31 @@ export const FREE_ALLOWANCE: Record<
   google: {
     label: "Google Gemini API free tier",
     allowance: "Gemini API free tier: per-minute and per-day request limits per model.",
+    dailyRequestCap: null,
+  },
+  mistral: {
+    label: "Mistral AI Experiment plan",
+    allowance: "Free Experiment plan: limited tokens/month for Mistral Small, Ministral 3B, NeMo, and Codestral (non-commercial).",
+    dailyRequestCap: null,
+  },
+  huggingface: {
+    label: "Hugging Face Serverless Inference",
+    allowance: "Free tier: small monthly credit for signed-in users to test thousands of models.",
+    dailyRequestCap: null,
+  },
+  deepseek: {
+    label: "DeepSeek API free tier",
+    allowance: "Free developer tier: rate-limited access to DeepSeek V4 Flash and R1 reasoning models.",
+    dailyRequestCap: null,
+  },
+  cerebras: {
+    label: "Cerebras free inference",
+    allowance: "Free tier: ultra-fast inference on Llama and Qwen models with rate limits.",
+    dailyRequestCap: null,
+  },
+  cohere: {
+    label: "Cohere trial API",
+    allowance: "Trial keys: free until rate limits reached for Command A+, North, and Embed models.",
     dailyRequestCap: null,
   },
 };
@@ -149,12 +184,13 @@ const FREE_MODEL_DEFAULTS: Record<FreeProviderName, Partial<Record<ModelRole, st
   // Verified live against LLM7's catalogue: only its non usage-based (free)
   // chat models. LLM7 serves no free multimodal model, so `vision` is absent
   // and the router moves on to a provider that can read pictures.
+  // Expanded with GLM-5.3-Flash and minimax-m2.7 from the verified free list.
   llm7: {
     primary: "codestral-latest",
     design: "mistral-Nemo-Instruct-2407",
     fast: "mistral-Nemo-Instruct-2407",
     coding: "codestral-latest",
-    conversation: "mistral-Nemo-Instruct-2407",
+    conversation: "GLM-5.3-Flash",
   },
   // Verified live against OpenRouter's zero-price pool. `openrouter/free` is
   // its free auto-router, so it survives individual models being retired.
@@ -179,6 +215,42 @@ const FREE_MODEL_DEFAULTS: Record<FreeProviderName, Partial<Record<ModelRole, st
     vision: "gemini-3.8-flash",
     transcription: "gemini-3.5-transcribe",
     conversation: "gemini-3.8-flash",
+  },
+  mistral: {
+    primary: "mistral-small-latest",
+    design: "mistral-small-latest",
+    fast: "ministral-3b-latest",
+    coding: "codestral-latest",
+    conversation: "ministral-3b-latest",
+  },
+  huggingface: {
+    primary: "meta-llama/Llama-3.3-70B-Instruct",
+    design: "meta-llama/Llama-3.3-70B-Instruct",
+    fast: "meta-llama/Llama-3.2-3B-Instruct",
+    coding: "Qwen/Qwen2.5-Coder-32B-Instruct",
+    vision: "meta-llama/Llama-3.2-11B-Vision-Instruct",
+    conversation: "meta-llama/Llama-3.2-3B-Instruct",
+  },
+  deepseek: {
+    primary: "deepseek-chat",
+    design: "deepseek-chat",
+    fast: "deepseek-chat",
+    coding: "deepseek-coder",
+    conversation: "deepseek-chat",
+  },
+  cerebras: {
+    primary: "llama3.1-8b",
+    design: "llama3.1-8b",
+    fast: "llama3.1-8b",
+    coding: "qwen2.5-coder-32b",
+    conversation: "llama3.1-8b",
+  },
+  cohere: {
+    primary: "command-a-plus",
+    design: "command-a-plus",
+    fast: "command-a-plus",
+    coding: "north-mini-code",
+    conversation: "command-a-plus",
   },
 };
 
@@ -383,7 +455,13 @@ export function isFreeEligibleModel(provider: FreeProviderName, model: string): 
   if (provider === "openai") return openAiSharedTrafficFree(name);
   const unprefixed = provider === "groq" ? name.replace(/^openai\/(?=gpt-oss)/i, "") : name;
   if (PAID_MODEL_PATTERNS.some((pattern) => pattern.test(unprefixed))) {
-    if (!(provider === "groq" && /^gpt-oss/i.test(unprefixed))) return false;
+    // Groq's free tier serves gpt-oss models under the openai/ namespace.
+    // DeepSeek's free tier serves deepseek-chat and deepseek-coder directly.
+    // Both would otherwise be rejected by the paid-name patterns above.
+    const groqException = provider === "groq" && /^gpt-oss/i.test(unprefixed);
+    const deepseekException =
+      provider === "deepseek" && /^(deepseek-chat|deepseek-coder|deepseek-reasoner)/i.test(unprefixed);
+    if (!groqException && !deepseekException) return false;
   }
 
   if (provider === "openrouter") return openRouterFree(name) && !NON_CHAT_MODEL.test(name);
@@ -391,6 +469,16 @@ export function isFreeEligibleModel(provider: FreeProviderName, model: string): 
   if (provider === "groq") return groqFreeEligible(name);
   if (provider === "nvidia") return nvidiaFreeEligible(name);
   if (provider === "llm7") return llm7FreeEligible(name);
+  if (provider === "mistral")
+    return /^(mistral-small|mistral-nemo|codestral|ministral-3b)/i.test(name);
+  if (provider === "huggingface")
+    return true;
+  if (provider === "deepseek")
+    return /^(deepseek-chat|deepseek-coder|deepseek-reasoner)/i.test(name);
+  if (provider === "cerebras")
+    return /^(llama|qwen|deepseek)/i.test(name);
+  if (provider === "cohere")
+    return /^(command|north|embed)/i.test(name);
   // Cloudflare's catalogue also carries partner image models that are billed
   // per tile/step (Leonardo) or carry partner pricing Revora has not verified as
   // free (the flux-2 line). Those are rejected by name so neither a default nor
@@ -441,6 +529,26 @@ export function freeProviderCredentials(
     const apiKey = env("LLM7_API_KEY");
     return apiKey ? { apiKey } : null;
   }
+  if (provider === "mistral") {
+    const apiKey = env("MISTRAL_API_KEY");
+    return apiKey ? { apiKey } : null;
+  }
+  if (provider === "huggingface") {
+    const apiKey = env("HUGGINGFACE_API_KEY") ?? env("HF_TOKEN");
+    return apiKey ? { apiKey } : null;
+  }
+  if (provider === "deepseek") {
+    const apiKey = env("DEEPSEEK_API_KEY");
+    return apiKey ? { apiKey } : null;
+  }
+  if (provider === "cerebras") {
+    const apiKey = env("CEREBRAS_API_KEY");
+    return apiKey ? { apiKey } : null;
+  }
+  if (provider === "cohere") {
+    const apiKey = env("COHERE_API_KEY");
+    return apiKey ? { apiKey } : null;
+  }
   // Gemini needs its OWN free-tier key. A general Google key may sit on a
   // billing-enabled project, where the same models are charged — so it is only
   // treated as free when an operator opts in explicitly.
@@ -470,6 +578,11 @@ const DEFAULT_ORDER: FreeProviderName[] = [
   "llm7",
   "openrouter",
   "google",
+  "mistral",
+  "huggingface",
+  "deepseek",
+  "cerebras",
+  "cohere",
 ];
 
 

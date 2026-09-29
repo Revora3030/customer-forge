@@ -279,7 +279,37 @@ export async function refreshFreeModels(
                     "https://integrate.api.nvidia.com/v1/models",
                     credentials,
                   )
-                : [];
+                : provider === "mistral"
+                  ? await openAiCompatibleFreeModels(
+                      "mistral",
+                      "https://api.mistral.ai/v1/models",
+                      credentials,
+                    )
+                  : provider === "huggingface"
+                    ? await openAiCompatibleFreeModels(
+                        "huggingface",
+                        "https://router.huggingface.co/v1/models",
+                        credentials,
+                      )
+                    : provider === "deepseek"
+                      ? await openAiCompatibleFreeModels(
+                          "deepseek",
+                          "https://api.deepseek.com/v1/models",
+                          credentials,
+                        )
+                      : provider === "cerebras"
+                        ? await openAiCompatibleFreeModels(
+                            "cerebras",
+                            "https://api.cerebras.ai/v1/models",
+                            credentials,
+                          )
+                        : provider === "cohere"
+                          ? await openAiCompatibleFreeModels(
+                              "cohere",
+                              "https://api.cohere.ai/v1/models",
+                              credentials,
+                            )
+                          : [];
   // Cache even an empty answer so a failing discovery endpoint isn't polled on
   // every builder request.
   cache.set(key, { at: Date.now(), models });
@@ -287,19 +317,19 @@ export async function refreshFreeModels(
 }
 
 const ROLE_HINTS: Record<ModelRole, RegExp[]> = {
-  fast: [/flash|lite|mini|small|8b|4b|3b|1b|instruct|nano|haiku/i],
-  primary: [/120b|70b|72b|32b|large|nemotron|glm|qwen|llama|deepseek|mistral|mixtral|gemma-2|command/i],
+  fast: [/flash|lite|mini|small|8b|4b|3b|1b|instruct|nano|haiku|cerebras/i],
+  primary: [/120b|70b|72b|32b|large|nemotron|glm|qwen|llama|deepseek|mistral|mixtral|gemma-2|command|inkling|kimi/i],
   // Creative judgement: the biggest reasoning-class models first, then the
   // strong mid-size ones. A tiny model picks bland, repetitive palettes.
-  design: [/235b|480b|120b|70b|72b|maverick|scout|nemotron|glm|qwen3|deepseek|llama-3|mistral-large|command-r-plus/i, /32b|27b|30b|24b/i],
-  coding: [/cod(?:e|er)|qwen.*coder|glm.*coder|nemotron|deepseek.*coder|codestral|command-r/i],
-  vision: [/vision|vl|gemma|multimodal|image|llava|moondream|internvl/i],
+  design: [/235b|480b|120b|70b|72b|maverick|scout|nemotron|glm|qwen3|deepseek|llama-3|mistral-large|command-r-plus|inkling|kimi/i, /32b|27b|30b|24b/i],
+  coding: [/cod(?:e|er)|qwen.*coder|glm.*coder|nemotron|deepseek.*coder|codestral|command-r|north-mini/i],
+  vision: [/vision|vl|gemma|multimodal|image|llava|moondream|internvl|inkling|omni/i],
   // Text-to-image families Revora has verified as free on Workers AI. Fastest
   // and cleanest first (flux schnell), then the diffusion family as backup.
   image: [/flux-1|schnell/i, /stable-diffusion|sdxl|dreamshaper/i],
   transcription: [],
   // Client-facing conversation: instruction-following mid-size chat models.
-  conversation: [/flash|instruct|chat|70b|72b|32b|27b|nemotron|glm|qwen|llama|mistral|gemma|command/i],
+  conversation: [/flash|instruct|chat|70b|72b|32b|27b|nemotron|glm|qwen|llama|mistral|gemma|command|codestral|ministral/i],
 };
 
 /** Roles where a name-based guess is unsafe, so only an explicit match counts. */

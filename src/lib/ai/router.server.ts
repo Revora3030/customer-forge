@@ -63,6 +63,11 @@ import { cloudflareAdapter } from "@/lib/ai/providers/cloudflare";
 import { googleAdapter } from "@/lib/ai/providers/google";
 import { groqAdapter } from "@/lib/ai/providers/groq";
 import { llm7Adapter } from "@/lib/ai/providers/llm7";
+import { mistralAdapter } from "@/lib/ai/providers/mistral";
+import { huggingfaceAdapter } from "@/lib/ai/providers/huggingface";
+import { deepseekAdapter } from "@/lib/ai/providers/deepseek";
+import { cerebrasAdapter } from "@/lib/ai/providers/cerebras";
+import { cohereAdapter } from "@/lib/ai/providers/cohere";
 import { nvidiaAdapter } from "@/lib/ai/providers/nvidia";
 import { openRouterAdapter } from "@/lib/ai/providers/openrouter";
 import {
@@ -94,6 +99,11 @@ const ADAPTERS: Record<ProviderName, ProviderAdapter> = {
   groq: groqAdapter,
   nvidia: nvidiaAdapter,
   llm7: llm7Adapter,
+  mistral: mistralAdapter,
+  huggingface: huggingfaceAdapter,
+  deepseek: deepseekAdapter,
+  cerebras: cerebrasAdapter,
+  cohere: cohereAdapter,
 };
 
 /* ----------------------------- circuit breaker ----------------------------- */

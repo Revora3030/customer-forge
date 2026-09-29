@@ -25,7 +25,12 @@ export type ProviderName =
   | "openrouter"
   | "groq"
   | "nvidia"
-  | "llm7";
+  | "llm7"
+  | "mistral"
+  | "huggingface"
+  | "deepseek"
+  | "cerebras"
+  | "cohere";
 
 /** Providers that bill Revora per call. */
 export type PaidProviderName = "google" | "openai";
