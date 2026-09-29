@@ -10,7 +10,7 @@ import {
 const DAY = 86_400_000;
 
 /**
- * The free 1-day pass must survive logout/login. Trial state lives entirely on
+ * The free full-access pass must survive logout/login. Trial state lives entirely on
  * the organization row (trial_ends_at / created_at) and is re-resolved from
  * the database on every sign-in — nothing is stored in the browser session.
  * These tests pin that contract.
@@ -43,12 +43,13 @@ describe("cross-session free-access trial", () => {
 
   it("uses the explicit trial_ends_at when it is later than the created_at window", () => {
     const createdAt = new Date(Date.now() - 2 * DAY).toISOString();
-    const explicitEnd = new Date(Date.now() + 2 * DAY).toISOString();
+    // Explicit end must beat created_at + TRIAL_DAYS for this contract to apply.
+    const explicitEnd = new Date(Date.now() + (TRIAL_DAYS + 3) * DAY).toISOString();
     const end = trialEndsAtMs({ trial_ends_at: explicitEnd, created_at: createdAt });
     expect(end).toBe(new Date(explicitEnd).getTime());
   });
 
-  it("denies access after the 1-day window has expired", () => {
+  it("denies access after the free-access window has expired", () => {
     const createdAt = new Date(Date.now() - (TRIAL_DAYS + 1) * DAY).toISOString();
     expect(
       isTrialActive({
@@ -59,7 +60,7 @@ describe("cross-session free-access trial", () => {
     ).toBe(false);
   });
 
-  it("stamps new workspaces with a full 1-day window", () => {
+  it("stamps new workspaces with a full free-access window", () => {
     const from = new Date();
     const end = newTrialEndsAt(from);
     expect(new Date(end).getTime() - from.getTime()).toBe(TRIAL_DAYS * DAY);
