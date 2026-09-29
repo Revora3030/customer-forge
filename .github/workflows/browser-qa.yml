@@ -2,7 +2,7 @@ name: Revora Browser QA
 
 on:
   pull_request:
-    branches: [main]
+    branches: [lovable-sync]
   workflow_dispatch:
     inputs:
       base_url:

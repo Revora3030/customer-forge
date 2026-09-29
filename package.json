@@ -1,5 +1,7 @@
 {
-  "name": "tanstack_start_ts",
+  "name": "customer-forge",
+  "version": "1.0.0",
+  "description": "Revora Growth Systems — AI-powered website builder platform with 12-provider free AI orchestration, multi-tenant architecture, and production-grade quality gates.",
   "private": true,
   "sideEffects": false,
   "type": "module",
@@ -25,6 +27,7 @@
     "production:readiness:max": "node scripts/production-readiness-max-audit.mjs",
     "production:readiness:max:test": "node scripts/production-readiness-max-audit.contract.mjs",
     "repo:visual-output": "node scripts/whole-repo-visual-output-audit.mjs",
+    "builder:ultimate-audit": "node scripts/builder-ultimate-audit.mjs",
     "visual:benchmark": "bun scripts/run-visual-benchmark.ts",
     "visual:benchmark:browser": "python3 scripts/visual-qa.py --benchmark",
     "browser:journey": "node scripts/browser-journey.mjs",

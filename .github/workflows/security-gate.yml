@@ -2,9 +2,9 @@ name: Revora Security Gate
 
 on:
   pull_request:
-    branches: [main]
+    branches: [lovable-sync]
   push:
-    branches: [main]
+    branches: [lovable-sync]
 
 permissions:
   contents: read

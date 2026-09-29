@@ -2,9 +2,17 @@ import { createFileRoute } from "@tanstack/react-router";
 import { DEFAULT_OFFER_RATES } from "@/lib/offer";
 import { type StripeEnv, verifyWebhook } from "@/lib/stripe.server";
 
-// Raw Stripe event JSON; each case narrows the fields it needs.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function handleEvent(event: { type: string; data: { object: any } }, env: StripeEnv) {
+/** Minimal Stripe webhook event envelope — narrowed per-handler. */
+type StripeWebhookEvent = {
+  id?: string;
+  type: string;
+  // Stripe delivers arbitrary JSON per event type; the shape is narrowed by
+  // the individual handlers, so the raw envelope stays permissive here.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  data: { object: any };
+};
+
+async function handleEvent(event: StripeWebhookEvent, env: StripeEnv) {
   const { adminClient } = await import("@/lib/payments.server");
   const {
     syncStripeSubscription,
@@ -390,8 +398,7 @@ async function handleEvent(event: { type: string; data: { object: any } }, env: 
  * database failure is reported as retryable and never treated as a duplicate.
  */
 async function claimEvent(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  event: { id?: string; type: string; data: { object: any } },
+  event: StripeWebhookEvent,
   env: StripeEnv,
 ) {
   const { adminClient } = await import("@/lib/payments.server");
@@ -427,8 +434,7 @@ async function claimEvent(
  * any policy being weakened.
  */
 async function associateEvent(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  admin: any,
+  admin: Awaited<ReturnType<typeof import("@/lib/payments.server")["adminClient"]>>,
   eventId: string,
   organizationId: string | null,
   resourceId: string,
@@ -479,12 +485,7 @@ export const Route = createFileRoute("/api/public/payments/webhook")({
           return new Response("Invalid or missing env query parameter", { status: 400 });
         }
         try {
-          const event = (await verifyWebhook(request, rawEnv)) as {
-            id?: string;
-            type: string;
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            data: { object: any };
-          };
+          const event = (await verifyWebhook(request, rawEnv)) as StripeWebhookEvent;
           const claim = await claimEvent(event, rawEnv);
           if (claim.outcome === "duplicate")
             return Response.json({ received: true, duplicate: true });
