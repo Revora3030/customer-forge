@@ -1066,7 +1066,20 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
             if (action.target === "section") {
               const tree = readComposition(settings);
               if (tree) {
-                const restyled = restyleCompositionTree(tree, action.patch);
+                const colorPatch: {
+                  bgColor?: string | null;
+                  textColor?: string | null;
+                  buttonBgColor?: string | null;
+                  buttonTextColor?: string | null;
+                  borderColor?: string | null;
+                } = {};
+                const colorKeys = ["bgColor", "textColor", "buttonBgColor", "buttonTextColor", "borderColor"] as const;
+                for (const key of colorKeys) {
+                  const value = (action.patch as Record<string, unknown>)[key];
+                  if (typeof value === "string") colorPatch[key] = value;
+                  else if (value === null) colorPatch[key] = null;
+                }
+                const restyled = restyleCompositionTree(tree, colorPatch);
                 const withTree = writeComposition(settings, restyled);
                 noteColumn(table, action.targetId, "settings", withTree);
                 return supabase

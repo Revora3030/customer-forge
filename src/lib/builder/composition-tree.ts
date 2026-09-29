@@ -795,7 +795,7 @@ export function restyleCompositionTree(
     const style: NodeStyle = { ...(node.style ?? {}) };
     const isButton = node.type === "button" || node.type === "link";
     const isContainer = node.type === "grid" || node.type === "stack" ||
-      node.type === "row" || node.type === "card" || node.type === "div";
+      node.type === "row" || node.type === "card";
     const isText = node.type === "heading" || node.type === "text" ||
       node.type === "list" || node.type === "quote";
 
