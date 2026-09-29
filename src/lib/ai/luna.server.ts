@@ -369,6 +369,23 @@ export async function callLuna(request: LunaRequest): Promise<LunaResult> {
   // them to chat/completions returns 404 and the tier is lost. Everything else
   // stays on chat/completions.
   const responsesOnly = isResponsesOnlyModel(model);
+  // A slow or stalled provider must never freeze a build forever. The paid
+  // lane gets a generous, configurable ceiling (default 4 minutes — long
+  // enough for a 32k-token site plan) and then hands the job to the free
+  // squad instead of hanging on "planning the change" indefinitely. An
+  // explicit user cancel still aborts immediately.
+  const timeoutMs = (() => {
+    const parsed = Number(env("LUNA_TIMEOUT_MS") ?? "");
+    return Number.isFinite(parsed) && parsed >= 1_000 ? parsed : 240_000;
+  })();
+  const controller = new AbortController();
+  const onUserCancel = () => controller.abort(request.signal?.reason);
+  if (request.signal?.aborted) controller.abort(request.signal.reason);
+  request.signal?.addEventListener("abort", onUserCancel, { once: true });
+  const timer = setTimeout(
+    () => controller.abort(new Error(`paid model did not answer within ${Math.round(timeoutMs / 1000)}s`)),
+    timeoutMs,
+  );
   let response: Response;
   try {
     response = await fetch(`${base}/${responsesOnly ? "responses" : "chat/completions"}`, {
@@ -377,9 +394,7 @@ export async function callLuna(request: LunaRequest): Promise<LunaResult> {
         "content-type": "application/json",
         authorization: `Bearer ${key}`,
       },
-      // No timer-driven abort: an orchestration run is allowed to take as long
-      // as it needs. Only an explicit user cancel signal aborts it.
-      ...(request.signal ? { signal: request.signal } : {}),
+      signal: controller.signal,
       body: JSON.stringify(
         responsesOnly
           ? {
@@ -403,6 +418,8 @@ export async function callLuna(request: LunaRequest): Promise<LunaResult> {
       ),
     });
   } catch (error) {
+    clearTimeout(timer);
+    request.signal?.removeEventListener("abort", onUserCancel);
     await settleBudget(organizationId, estimate, 0);
     const detail = error instanceof Error ? error.message : "network error";
     await recordUsage({
@@ -416,6 +433,8 @@ export async function callLuna(request: LunaRequest): Promise<LunaResult> {
     });
     return skip("provider_unavailable", detail);
   }
+  clearTimeout(timer);
+  request.signal?.removeEventListener("abort", onUserCancel);
 
   if (!response.ok) {
     await settleBudget(organizationId, estimate, 0);

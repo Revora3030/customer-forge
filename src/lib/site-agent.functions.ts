@@ -448,6 +448,7 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
     const { designMemoryBrief, mergeDesignMemory, readDesignMemory } = await import(
       "@/lib/builder/design-memory"
     );
+    noteStage(orgId, runId, "recalling your design identity");
     const settingsRow = await supabase
       .from("website_settings")
       .select("generation")
@@ -511,6 +512,10 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
     // decides which areas get pictures, where they sit in the composition and
     // the art direction. No keyword routing or fixed target sections.
     noteStage(orgId, runId, "planning the change");
+    // Live progress: the current stage follows the plan pipeline, and every free
+    // model attempt updates the stage detail so the owner sees movement instead
+    // of a frozen "planning the change" while providers are tried in sequence.
+    let planStage = "planning the change";
     {
       const authored = await planWebsiteChangesWithAi({
         organizationId: orgId,
@@ -524,6 +529,11 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
           kind: attachment.kind,
           name: attachment.name,
         })),
+        onStage: (stage, detail) => {
+          planStage = stage;
+          noteStage(orgId, runId, stage, detail);
+        },
+        onAttempt: (provider, model) => noteStage(orgId, runId, planStage, `asking ${provider} · ${model}`),
       });
 
       if (!authored.ok) {
@@ -573,6 +583,7 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
     // Every step Revora refuses to carry out records its reason here, and the
     // reasons are shown with the plan instead of disappearing.
     const droppedReasons: string[] = [];
+    noteStage(orgId, runId, "polishing the design", "the review team refines the composition");
     const { polishEditCompositions } = await import("@/lib/builder/edit-polish.server");
     const polished = await polishEditCompositions({ organizationId: orgId, instruction, actions: raw["actions"] });
     if (polished.report) trace.push(polished.report.accepted ? "The review team improved this change before showing it to you." : "The review team checked this change; the original design scored best.");

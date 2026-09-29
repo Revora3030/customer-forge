@@ -523,7 +523,13 @@ function LiveActivity({
     return () => window.clearInterval(id);
   }, []);
   const seconds = Math.max(0, Math.round((now - startedAt) / 1000));
-  const done = steps.slice(1).reverse();
+  // Consecutive repeats of the same stage (one per free-model attempt) collapse
+  // into a single line: the live detail under the shimmer already shows which
+  // model is being asked right now.
+  const done = steps
+    .slice(1)
+    .reverse()
+    .filter((step, index, all) => index === 0 || all[index - 1]!.stage !== step.stage);
   return (
     <div className="space-y-2.5 rounded-2xl border border-primary/30 bg-card/60 p-3.5 shadow-signal" aria-live="polite">
       <div className="flex items-center gap-2">

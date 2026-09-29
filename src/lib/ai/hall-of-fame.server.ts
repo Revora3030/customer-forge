@@ -131,6 +131,8 @@ export type HallOfFameRequest = {
   squadSize?: number;
   /** Recorded on the run so the admin can see why the paid lane handed over. */
   paidReason?: string | null;
+  /** Live progress: fired just before each free model is tried. */
+  onAttempt?: (provider: string, model: string) => void;
 };
 
 /**
@@ -166,6 +168,7 @@ export async function callHallOfFame(request: HallOfFameRequest): Promise<HallOf
   for (const member of squad) {
     const started = Date.now();
     try {
+      request.onAttempt?.(member.provider, member.model);
       const result = await callPinnedFreeModel(
         {
           task: `hall-of-fame.${request.purpose}`,
@@ -294,6 +297,7 @@ async function callBestThinkerInner(request: {
   maxOutputTokens?: number;
   json?: boolean;
   signal?: AbortSignal;
+  onAttempt?: (provider: string, model: string) => void;
 }): Promise<ThinkerOutcome> {
   const paid = await callCollective({
     purpose: request.purpose,
@@ -329,6 +333,7 @@ async function callBestThinkerInner(request: {
     ...(request.maxOutputTokens === undefined ? {} : { maxOutputTokens: request.maxOutputTokens }),
     ...(request.organizationId === undefined ? {} : { organizationId: request.organizationId }),
     ...(request.userId === undefined ? {} : { userId: request.userId }),
+    ...(request.onAttempt === undefined ? {} : { onAttempt: request.onAttempt }),
     paidReason: handoverReason,
   });
 
