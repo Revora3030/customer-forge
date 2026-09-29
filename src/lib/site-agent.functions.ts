@@ -1560,20 +1560,24 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
 
     if (fatal) {
       const reversal = await rollback(undoSteps);
-      await supabase.from("ai_generations").insert({
-        organization_id: orgId,
-        kind: "agent_apply_rolled_back",
-        model: "applied",
-        instruction: snapshotLabel,
-        result: {
-          operationId,
-          applied,
-          failed,
-          reversal,
-          mutations: undoSteps.length,
-        } as unknown as never,
-        created_by: userId,
-      });
+      try {
+        await supabase.from("ai_generations").insert({
+          organization_id: orgId,
+          kind: "agent_apply_rolled_back",
+          model: "applied",
+          instruction: snapshotLabel,
+          result: {
+            operationId,
+            applied,
+            failed,
+            reversal,
+            mutations: undoSteps.length,
+          } as unknown as never,
+          created_by: userId,
+        });
+      } catch (error) {
+        console.error("[site-agent] could not record rollback", error);
+      }
       invalidateWorkspaceContext(orgId);
       throw new Error(
         reversal.failed === 0
@@ -1582,29 +1586,36 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
       );
     }
 
-    await supabase.from("ai_generations").insert({
-      organization_id: orgId,
-      kind: "agent_apply",
-      model: "applied",
-      instruction: snapshotLabel,
-      result: {
-        operationId,
-        operationKey: data.operationKey || null,
-        applied: applied.length,
-        failed: failed.length,
-        stale: preflight.stale.length,
-        unchanged: settled.unchanged,
-        duplicates: preflight.duplicates,
-        staleNotice,
-        appliedLabels: applied,
-        skippedLabels: failed,
-        snapshotLabel,
-        snapshotVersion,
-        mutations: undoSteps.length,
-      } as unknown as never,
+    // Recording the apply is observability, never a gate: the changes are
+    // already written, so a failed insert here must not undo them or report
+    // the apply as failed.
+    try {
+      await supabase.from("ai_generations").insert({
+        organization_id: orgId,
+        kind: "agent_apply",
+        model: "applied",
+        instruction: snapshotLabel,
+        result: {
+          operationId,
+          operationKey: data.operationKey || null,
+          applied: applied.length,
+          failed: failed.length,
+          stale: preflight.stale.length,
+          unchanged: settled.unchanged,
+          duplicates: preflight.duplicates,
+          staleNotice,
+          appliedLabels: applied,
+          skippedLabels: failed,
+          snapshotLabel,
+          snapshotVersion,
+          mutations: undoSteps.length,
+        } as unknown as never,
 
-      created_by: userId,
-    });
+        created_by: userId,
+      });
+    } catch (error) {
+      console.error("[site-agent] could not record apply result", error);
+    }
 
     invalidateWorkspaceContext(orgId);
 
@@ -1628,20 +1639,24 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
         : [];
       if (verification && introduced.length > 0) {
         const reversal = await rollback(undoSteps);
-        await supabase.from("ai_generations").insert({
-          organization_id: orgId,
-          kind: "agent_apply_failed_verification",
-          model: "applied",
-          instruction: snapshotLabel,
-          result: {
-            operationId,
-            applied,
-            verification,
-            reversal,
-            mutations: undoSteps.length,
-          } as unknown as never,
-          created_by: userId,
-        });
+        try {
+          await supabase.from("ai_generations").insert({
+            organization_id: orgId,
+            kind: "agent_apply_failed_verification",
+            model: "applied",
+            instruction: snapshotLabel,
+            result: {
+              operationId,
+              applied,
+              verification,
+              reversal,
+              mutations: undoSteps.length,
+            } as unknown as never,
+            created_by: userId,
+          });
+        } catch (error) {
+          console.error("[site-agent] could not record verification failure", error);
+        }
         invalidateWorkspaceContext(orgId);
         const worst = introduced
           .slice(0, 3)
@@ -1701,21 +1716,25 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
         qa = await runQaRepairLoop(supabase as unknown as never, orgId, data.label);
         if (qa.repaired.length) {
           invalidateWorkspaceContext(orgId);
-          await supabase.from("ai_generations").insert({
-            organization_id: orgId,
-            kind: "agent_qa_repair",
-            model: "applied",
-            instruction: snapshotLabel,
-            result: {
-              operationId,
-              before: qa.before,
-              after: qa.after,
-              repaired: qa.repaired,
-              failed: qa.failed,
-              reported: qa.reported,
-            } as unknown as never,
-            created_by: userId,
-          });
+          try {
+            await supabase.from("ai_generations").insert({
+              organization_id: orgId,
+              kind: "agent_qa_repair",
+              model: "applied",
+              instruction: snapshotLabel,
+              result: {
+                operationId,
+                before: qa.before,
+                after: qa.after,
+                repaired: qa.repaired,
+                failed: qa.failed,
+                reported: qa.reported,
+              } as unknown as never,
+              created_by: userId,
+            });
+          } catch (error) {
+            console.error("[site-agent] could not record QA repair", error);
+          }
         }
       } catch (error) {
         console.error("[site-agent] post-apply QA loop could not run", error);
