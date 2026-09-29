@@ -357,7 +357,7 @@ function Tabs({ props, labels, panels }: { props: NodeProps; labels: string[]; p
         ))}
       </div>
       {panels.map((panel, i) => (
-        <div key={i} role="tabpanel" id={`${id}-p${i}`} aria-labelledby={`${id}-t${i}`} hidden={active !== i}>{panel}</div>
+        <div key={i} role="tabpanel" id={`${id}-p${i}`} aria-labelledby={`${id}-t${i}`} style={active !== i ? { display: "none" } : { display: "block" }}>{panel}</div>
       ))}
     </div>
   );

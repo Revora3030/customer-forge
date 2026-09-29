@@ -86,7 +86,11 @@ export function BuilderPreview({
   // Fit the chosen device to the space available, so a phone view fills the
   // frame instead of shrinking into a corner; the zoom picker still caps it.
   const fit = stageWidth > 0 ? (stageWidth - 24) / viewportWidth : zoom;
-  const scale = viewportWidth <= 834 ? Math.min(1, fit) : Math.min(zoom, fit);
+  // On mobile, use scale 1 when the viewport is phone-sized and the stage
+  // is wide enough — avoids the half-screen black box from transform scaling.
+  const scale = viewportWidth <= 834
+    ? (stageWidth > 0 ? Math.min(1, fit) : Math.min(1, zoom))
+    : Math.min(zoom, fit);
   // Fill the visible stage height, like a real browser window, instead of a
   // short fixed box that leaves empty space below the site.
   // Capped: an uncapped tall desktop frame shrunk onto a phone uses enough
@@ -267,8 +271,8 @@ export function BuilderPreview({
               src={source}
               loading="lazy"
               sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox"
-              className="block border-0 bg-background"
-              style={{ width: viewportWidth, minWidth: viewportWidth, maxWidth: viewportWidth, height: frameHeight }}
+              className="block border-0"
+              style={{ width: viewportWidth, minWidth: viewportWidth, maxWidth: viewportWidth, height: frameHeight, backgroundColor: "#fff" }}
             />
           </div>
         </div>

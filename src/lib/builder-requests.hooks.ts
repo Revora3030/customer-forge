@@ -231,7 +231,7 @@ export function useBuilderRequests({
         remember([
           {
             role: "assistant",
-            content: `${task.reply ? `${task.reply}\n\n` : ""}${message}`,
+            content: message,
             taskResult: { state: "failed" },
           },
         ]);
@@ -271,7 +271,7 @@ export function useBuilderRequests({
       remember([
         {
           role: "assistant",
-          content: `${task.reply ? `${task.reply}\n\n` : ""}${toastMessage}`,
+          content: toastMessage,
           taskResult: {
             state: "complete",
             applied: result.applied,
@@ -298,7 +298,7 @@ export function useBuilderRequests({
       remember([
         {
           role: "assistant",
-          content: `${task.reply ? `${task.reply}\n\n` : ""}${message}`,
+          content: message,
             taskResult: { state: "failed" },
         },
       ]);

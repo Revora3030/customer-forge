@@ -625,7 +625,7 @@ function TaskBody({
         </p>
       ) : null}
 
-      {task.state === "complete" && !task.answered ? (
+      {task.state === "complete" && !task.answered && !/\d+\s+changes?\s+applied/i.test(task.reply ?? "") ? (
         <div className="space-y-1 text-[12px] text-muted-foreground">
           <p>
           {task.applied ?? 0} change{(task.applied ?? 0) === 1 ? "" : "s"} applied

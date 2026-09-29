@@ -658,7 +658,6 @@ function WebsitePage() {
         onClose={() => setAdvanced(null)}
       >
         <GroupTabs
-          key={resolveGroup(advanced)}
           label="Settings groups"
           initialKey={resolveGroup(advanced)}
           groups={orderGroups([

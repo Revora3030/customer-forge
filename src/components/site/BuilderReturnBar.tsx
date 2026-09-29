@@ -36,14 +36,14 @@ export function BuilderReturnBar() {
   if (!signedIn || framed || hidden) return null;
 
   return (
-    // Compact and dismissible so it never sits on top of the site's own
-    // headings; explicit ink pairing keeps it legible on any theme.
-    <div className="fixed bottom-24 left-3 z-[60] sm:bottom-4 inline-flex items-center rounded-full border border-foreground/15 bg-foreground text-background shadow-lg">
+    // Compact, dismissible, and positioned to never overlap site content.
+    // On mobile it sits in the safe area at the top-right; on desktop bottom-left.
+    <div className="fixed top-3 right-3 z-[60] sm:top-auto sm:bottom-4 sm:left-3 inline-flex items-center rounded-full border border-foreground/15 bg-foreground text-background shadow-lg">
       <a
         href="/app/website"
-        className="inline-flex min-h-11 items-center gap-1.5 pl-3.5 pr-2 font-display text-[13px] font-semibold transition-opacity hover:opacity-90"
+        className="inline-flex min-h-9 items-center gap-1.5 pl-3 pr-1.5 font-display text-[12px] font-semibold transition-opacity hover:opacity-90"
       >
-        <ArrowLeft className="size-4" aria-hidden="true" />
+        <ArrowLeft className="size-3.5" aria-hidden="true" />
         Builder
       </a>
       <button
@@ -57,9 +57,9 @@ export function BuilderReturnBar() {
             /* ignore */
           }
         }}
-        className="inline-flex size-11 items-center justify-center rounded-full opacity-70 hover:opacity-100"
+        className="inline-flex size-9 items-center justify-center rounded-full opacity-70 hover:opacity-100"
       >
-        <X className="size-4" aria-hidden="true" />
+        <X className="size-3.5" aria-hidden="true" />
       </button>
     </div>
   );

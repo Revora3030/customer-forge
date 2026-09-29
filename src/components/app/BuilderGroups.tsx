@@ -6,7 +6,7 @@
  * and `EmptyHint` gives every workspace a useful empty state. Both are
  * presentation only — no builder logic lives here.
  */
-import { useState, type KeyboardEvent, type ReactNode } from "react";
+import { useEffect, useState, type KeyboardEvent, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -23,6 +23,14 @@ export function GroupTabs({
   initialKey?: string;
 }) {
   const [active, setActive] = useState(initialKey ?? groups[0]?.key ?? "");
+  // Sync with external initialKey changes (e.g. deep links to a specific tab)
+  // without losing the ability to switch tabs manually.
+  useEffect(() => {
+    if (initialKey && initialKey !== active && groups.some((g) => g.key === initialKey)) {
+      setActive(initialKey);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialKey]);
   const current = groups.find((group) => group.key === active) ?? groups[0];
   const activeIndex = Math.max(
     0,
