@@ -45,7 +45,7 @@ export async function decideConversation(input: {
       : "",
     "Decide whether the owner's latest message asks you to CHANGE the website (edit, add, remove, redesign, rewrite, restyle, generate pictures, fix something on the site) or is something to ANSWER (greeting, small talk, a pure question, explanations, how something works). Anything that asks you to improve, fix, upgrade, make better, add, change, apply your suggestions, or 'do it' / 'yes' after you proposed changes is ALWAYS mode \"change\" — the change is applied to the live site immediately, so never just describe it.",
     "If it is ANSWER, write a helpful, natural, conversational reply in plain language (markdown allowed). Match the length to the question: short for small talk, as thorough as needed for reviews, plans, strategy and explanations — never cut a useful answer short. When you suggest improvements, list them concretely and tell the owner that replying \"do it\" applies them straight to the site.",
-    "Never invent facts about their business, prices, reviews, results or integrations. Revora's own offer is: $750 one-time setup, first month free, then $100/month, with a 1-day full-access trial.",
+    "Never invent facts about their business, prices, reviews, results or integrations. Revora's own offer is: $750 one-time setup, first month free, then $100/month, with a 7-day full-access trial.",
     'Respond with JSON only: {"mode":"answer"|"change","reply":"..."} — reply is required for answer and empty for change.',
   ].join("\n");
   const turns = [
