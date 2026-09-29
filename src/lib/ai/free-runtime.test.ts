@@ -32,6 +32,18 @@ const ENV_KEYS = [
   "GOOGLE_AI_API_KEY",
   "OPENAI_API_KEY",
   "AI_MAX_ATTEMPTS_PER_PROVIDER",
+  // New free providers — must be cleared so "no providers configured" tests pass
+  "MISTRAL_API_KEY",
+  "Mistral",
+  "HUGGINGFACE_API_KEY",
+  "Huggingface",
+  "HF_TOKEN",
+  "DEEPSEEK_API_KEY",
+  "Deepseek",
+  "CEREBRAS_API_KEY",
+  "Cerebras",
+  "COHERE_API_KEY",
+  "Cohere",
 ];
 
 const saved: Record<string, string | undefined> = {};

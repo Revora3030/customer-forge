@@ -118,6 +118,18 @@ describe("provider configuration", () => {
     delete process.env["LLM7_API_KEY"];
     delete process.env["GOOGLE_AI_FREE_API_KEY"];
     delete process.env["GOOGLE_AI_FREE_TIER"];
+    // New free providers — must be cleared so "no providers configured" tests pass
+    delete process.env["MISTRAL_API_KEY"];
+    delete process.env["Mistral"];
+    delete process.env["HUGGINGFACE_API_KEY"];
+    delete process.env["Huggingface"];
+    delete process.env["HF_TOKEN"];
+    delete process.env["DEEPSEEK_API_KEY"];
+    delete process.env["Deepseek"];
+    delete process.env["CEREBRAS_API_KEY"];
+    delete process.env["Cerebras"];
+    delete process.env["COHERE_API_KEY"];
+    delete process.env["Cohere"];
   });
 
   afterEach(() => {
