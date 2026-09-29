@@ -763,3 +763,77 @@ export function writeComposition(settings: unknown, tree: CompositionTree): Reco
   base["composition"] = tree;
   return base;
 }
+
+/**
+ * Applies a block-style colour patch to every node in a composition tree so
+ * that `set_block_style` changes are visible inside AI-authored layouts.
+ *
+ * The wrapper div gets the new colours, but the composition's inner nodes
+ * carry their own hardcoded hex styles that paint over it. This walk remaps
+ * those inner styles so the AI's colour change reaches every element.
+ *
+ * Only colour properties are touched — layout, spacing, typography size and
+ * motion are left exactly as the AI authored them.
+ */
+export function restyleCompositionTree(
+  tree: CompositionTree,
+  patch: {
+    bgColor?: string | null;
+    textColor?: string | null;
+    buttonBgColor?: string | null;
+    buttonTextColor?: string | null;
+    borderColor?: string | null;
+  },
+): CompositionTree {
+  const hasColors = Boolean(
+    patch.bgColor || patch.textColor || patch.buttonBgColor ||
+    patch.buttonTextColor || patch.borderColor,
+  );
+  if (!hasColors) return tree;
+
+  const walk = (node: CompositionNode): CompositionNode => {
+    const style: NodeStyle = { ...(node.style ?? {}) };
+    const isButton = node.type === "button" || node.type === "link";
+    const isContainer = node.type === "grid" || node.type === "stack" ||
+      node.type === "row" || node.type === "card" || node.type === "div";
+    const isText = node.type === "heading" || node.type === "text" ||
+      node.type === "list" || node.type === "quote";
+
+    if (isButton) {
+      if (patch.buttonBgColor) style.background = patch.buttonBgColor;
+      if (patch.buttonTextColor) style.color = patch.buttonTextColor;
+    } else if (isContainer) {
+      if (patch.bgColor) style.background = patch.bgColor;
+      if (patch.borderColor) style.borderColor = patch.borderColor;
+    } else if (isText) {
+      if (patch.textColor) style.color = patch.textColor;
+    }
+
+    // Responsive overrides get the same colour remap so the change holds
+    // at every breakpoint the AI authored.
+    const responsive = node.responsive
+      ? Object.fromEntries(
+          Object.entries(node.responsive).map(([bp, rs]) => {
+            if (!rs) return [bp, rs];
+            const rStyle: NodeStyle = { ...rs };
+            if (isButton) {
+              if (patch.buttonBgColor) rStyle.background = patch.buttonBgColor;
+              if (patch.buttonTextColor) rStyle.color = patch.buttonTextColor;
+            } else if (isContainer) {
+              if (patch.bgColor) rStyle.background = patch.bgColor;
+              if (patch.borderColor) rStyle.borderColor = patch.borderColor;
+            } else if (isText) {
+              if (patch.textColor) rStyle.color = patch.textColor;
+            }
+            return [bp, rStyle];
+          }),
+        )
+      : node.responsive;
+
+    const children = node.children?.map(walk);
+
+    return { ...node, style, ...(responsive ? { responsive } : {}), ...(children ? { children } : {}) };
+  };
+
+  return { ...tree, root: walk(tree.root) };
+}

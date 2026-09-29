@@ -10,7 +10,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
  */
 
 import { linkGeneratedMedia } from "@/lib/builder/composition-media-link";
-import { readComposition, writeComposition, type CompositionNode, type CompositionTree } from "@/lib/builder/composition-tree";
+import { readComposition, restyleCompositionTree, writeComposition, type CompositionNode, type CompositionTree } from "@/lib/builder/composition-tree";
 import { writeBackdrop, writeBackdropSpec, writeSectionEffect } from "@/lib/site-effects";
 import { writeDesignTokens } from "@/lib/builder/design-tokens";
 import { writeBlockStyle, writeComponentVisual } from "@/lib/site-style";
@@ -1054,11 +1054,28 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
         case "set_block_style": {
           const table = action.target === "section" ? "website_sections" : "website_components";
           await run(action.type, () => {
+            const priorSettings = readColumn(table, action.targetId, "settings");
             const settings = writeBlockStyle(
-              readColumn(table, action.targetId, "settings"),
+              priorSettings,
               action.patch,
               action.device,
             );
+            // When the section is an AI composition, also remap the colours
+            // inside the composition tree so the change reaches the inner
+            // nodes that paint over the wrapper with their own inline styles.
+            if (action.target === "section") {
+              const tree = readComposition(settings);
+              if (tree) {
+                const restyled = restyleCompositionTree(tree, action.patch);
+                const withTree = writeComposition(settings, restyled);
+                noteColumn(table, action.targetId, "settings", withTree);
+                return supabase
+                  .from(table)
+                  .update({ settings: withTree } as never)
+                  .eq("id", action.targetId)
+                  .eq("organization_id", orgId);
+              }
+            }
             noteColumn(table, action.targetId, "settings", settings);
             return supabase
               .from(table)
