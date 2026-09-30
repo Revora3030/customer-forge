@@ -60,8 +60,9 @@ export function OrchestrationCenter() {
             <MetricCard
               label="Lead models"
               value={`${count(data.totals.specialistsHealthy)}/${count(data.totals.specialists)}`}
-              hint="The six that own their jobs"
+              hint="The specialists that lead creative, review and media"
             />
+
             <MetricCard
               label="Actually used"
               value={count(data.totals.participated)}
