@@ -243,7 +243,7 @@ export function HeroStarter({ className = "" }: { className?: string }) {
       {/* Live instant preview canvas */}
       <div className="mt-3">{preview}</div>
       <Button type="submit" variant="signal" size="lg" className="mt-3 w-full" disabled={!ready}>
-        Claim this site & start 7-day free trial <ArrowRight className="size-4" aria-hidden="true" />
+        Claim this site & start 3-day free trial <ArrowRight className="size-4" aria-hidden="true" />
       </Button>
       <p className="mt-2 text-center text-[11.5px] text-muted-foreground">
         No card to start · you review everything before it goes live
