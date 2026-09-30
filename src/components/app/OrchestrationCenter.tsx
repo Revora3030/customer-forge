@@ -257,9 +257,10 @@ export function OrchestrationCenter() {
           </div>
 
           <p className="mt-3 text-[12px] text-muted-foreground">
-            A model outside the six is only ever brought in when a real check proves it can do
-            something for the exact job that the six cannot.
+            A model outside the lead specialists is only ever brought in when a real check proves it
+            can do something for the exact job that the leads cannot.
           </p>
+
         </>
       ) : null}
     </Panel>
