@@ -60,8 +60,9 @@ export function OrchestrationCenter() {
             <MetricCard
               label="Lead models"
               value={`${count(data.totals.specialistsHealthy)}/${count(data.totals.specialists)}`}
-              hint="The six that own their jobs"
+              hint="The specialists that lead creative, review and media"
             />
+
             <MetricCard
               label="Actually used"
               value={count(data.totals.participated)}
@@ -256,9 +257,10 @@ export function OrchestrationCenter() {
           </div>
 
           <p className="mt-3 text-[12px] text-muted-foreground">
-            A model outside the six is only ever brought in when a real check proves it can do
-            something for the exact job that the six cannot.
+            A model outside the lead specialists is only ever brought in when a real check proves it
+            can do something for the exact job that the leads cannot.
           </p>
+
         </>
       ) : null}
     </Panel>
