@@ -105,7 +105,7 @@ export function FreeModelCollective() {
                           <Pill tone={row.healthy ? "signal" : "attention"} dot>
                             {row.healthy ? "Answering" : "Resting"}
                           </Pill>
-                          <span className="text-muted-foreground">{row.models} free models</span>
+                          <span className="text-muted-foreground">{modelCountLabel(row.models)}</span>
                         </span>
                       </button>
                       {open ? (
