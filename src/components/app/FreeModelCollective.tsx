@@ -15,6 +15,7 @@ import { EmptyState, ErrorNote, LoadingRows, MetricCard, Panel, Pill, SectionHea
 import { getAiModelInventory } from "@/lib/ai/health.functions";
 
 const PROVIDER_LABEL: Record<string, string> = {
+  openai: "OpenAI",
   cloudflare: "Cloudflare",
   groq: "Groq",
   nvidia: "NVIDIA",
@@ -29,6 +30,11 @@ const PROVIDER_LABEL: Record<string, string> = {
 };
 
 const label = (name: string) => PROVIDER_LABEL[name] ?? name;
+
+/** "1 free model" / "20 free models" — never a mismatched plural. */
+const modelCountLabel = (total: number) =>
+  `${total.toLocaleString("en-US")} free model${total === 1 ? "" : "s"}`;
+
 
 const verdictTone = (verdict: string) =>
   verdict === "PASS" ? "signal" : verdict === "BLOCKED" ? "attention" : "danger";
