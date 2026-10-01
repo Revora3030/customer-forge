@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { DEFAULT_OFFER_RATES } from "@/lib/offer";
-import { type StripeEnv, verifyWebhook } from "@/lib/stripe.server";
+import { resolveStripeWebhookEnv, verifyWebhook } from "@/lib/stripe.server";
 
 /** Minimal Stripe webhook event envelope — narrowed per-handler. */
 type StripeWebhookEvent = {
@@ -479,20 +479,24 @@ export const Route = createFileRoute("/api/public/payments/webhook")({
     handlers: {
       POST: async ({ request }) => {
         const rawEnv = new URL(request.url).searchParams.get("env");
-        if (rawEnv !== "sandbox" && rawEnv !== "live") {
-          // A misconfigured endpoint must fail loudly — never a fake success.
+        let env;
+        try {
+          env = resolveStripeWebhookEnv(rawEnv);
+        } catch {
+          // A malformed environment selector must fail loudly — never process
+          // an event against an unintended billing environment.
           console.error("[payments:webhook] invalid env", rawEnv);
-          return new Response("Invalid or missing env query parameter", { status: 400 });
+          return new Response("Invalid webhook environment", { status: 400 });
         }
         try {
-          const event = (await verifyWebhook(request, rawEnv)) as StripeWebhookEvent;
-          const claim = await claimEvent(event, rawEnv);
+          const event = (await verifyWebhook(request, env)) as StripeWebhookEvent;
+          const claim = await claimEvent(event, env);
           if (claim.outcome === "duplicate")
             return Response.json({ received: true, duplicate: true });
           if (claim.outcome === "transient")
             return new Response("Temporarily unable to record webhook", { status: 503 });
           try {
-            await handleEvent(event, rawEnv);
+            await handleEvent(event, env);
           } catch (failure) {
             // The claim exists but processing failed. Release it so Stripe's
             // retry is not silently deduplicated into a lost payment event,
