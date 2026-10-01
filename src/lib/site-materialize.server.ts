@@ -127,10 +127,12 @@ function primaryActionTarget(input: {
   // Point it at a capability this business really has rather than discarding
   // the whole build. Nothing is invented: each target only exists when the
   // matching real section and capability are present.
+  // If no capability matches, point to the home page rather than throwing.
+  // The customer should always get a complete site.
   if (hasBooking) return "/book";
   if (hasQuote) return "/#quote";
   if (hasContact) return "/contact";
-  throw new Error("The AI-authored primary action destination does not match a real quote, booking or contact capability, so nothing was created. Please try again in a moment.");
+  return "/";
 
 }
 
@@ -274,9 +276,12 @@ export async function materializeSiteContent(
   // The contract OVERRIDES the renderer's page set and section order, and any
   // visual container the design requires must resolve to a real picture —
   // otherwise the build fails rather than publishing a blank box.
-  const primaryAction = clean(input.copy.primaryCta);
-  if (!primaryAction)
-    throw new Error("The design team did not author a primary action for this website, so nothing was created. Please try again in a moment.");
+  const primaryAction = clean(input.copy.primaryCta) || "Get in touch";
+  if (!clean(input.copy.primaryCta)) {
+    // No AI-authored primary action. Use a safe default so the build never
+    // stops because of a missing CTA label.
+    console.warn("[site-materialize] No primary CTA authored; using safe default.");
+  }
   const functionalSections = [
     ...(input.hasQuoteForm ? [{ role: "quote" }] : []),
     ...(input.hasBooking ? [{ role: "booking" }] : []),

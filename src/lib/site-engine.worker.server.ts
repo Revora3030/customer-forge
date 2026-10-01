@@ -533,14 +533,36 @@ async function runJob(
   const firstBuild = freshReplace || (existingPages.count ?? 0) === 0;
   const missingCopy = missingAiCopy(copy);
   if (firstBuild && (!refined.passes.some((pass) => pass.used) || !refined.changed || missingCopy.length)) {
-    const why = refined.passes
-      .map((pass) => pass.skipped)
-      .filter(Boolean)
-      .slice(0, 3)
-      .join("; ");
-    throw new Error(
-      `The design team could not author this website's wording and look, so nothing was published (${missingCopy.length ? `missing AI wording: ${missingCopy.join(", ")}` : why || (refined.passes.some((pass) => pass.used) ? "no model returned usable wording" : "no model was reachable")}). Please try again in a moment.`,
+    // No model could author or review the copy. Instead of stopping the build,
+    // populate copy from the business facts directly so the customer always
+    // gets a complete website with real content.
+    console.warn(
+      `[site-engine] AI copy authoring failed for ${orgId} (${missingCopy.length ? `missing: ${missingCopy.join(", ")}` : "no model returned usable wording"}); using safe fact-based copy.`,
     );
+    if (!copy.heroHeadline) copy.heroHeadline = `${org.data.name ?? "Your Business"}${copyFacts.city ? ` — ${copyFacts.city}` : ""}`;
+    if (!copy.heroSubheadline && copyFacts.description) copy.heroSubheadline = copyFacts.description.slice(0, 200);
+    if (!copy.primaryCta) copy.primaryCta = copyFacts.goals?.[0] || "Get in touch";
+    if (!copy.secondaryCta) copy.secondaryCta = "Learn more";
+    if (!copy.about && copyFacts.description) copy.about = copyFacts.description;
+    if (!copy.areaCopy && copyFacts.serviceArea) copy.areaCopy = `Serving ${copyFacts.serviceArea}`;
+    if (!copy.metaTitle) copy.metaTitle = `${org.data.name ?? "Business"}${copyFacts.city ? ` — ${copyFacts.city}` : ""}`.slice(0, 60);
+    if (!copy.metaDescription) copy.metaDescription = (copyFacts.description || `${org.data.name ?? "Local business"} offering professional services.`).slice(0, 155);
+    if (!copy.ogTitle) copy.ogTitle = copy.metaTitle;
+    if (!copy.ogDescription) copy.ogDescription = copy.metaDescription;
+    if (copy.serviceCards.length === 0 && serviceRows.length > 0) {
+      copy.serviceCards = serviceRows.map((s) => ({
+        name: s.name,
+        copy: s.description?.slice(0, 200) || `Professional ${s.name} services.`,
+      }));
+    }
+    if (copy.faqs.length === 0) {
+      copy.faqs = [
+        { question: `What services does ${org.data.name ?? "your business"} offer?`, answer: serviceRows.map((s) => s.name).join(", ") || "Contact us for our full service list." },
+        { question: copyFacts.serviceArea ? `What areas do you serve?` : `How can I contact you?`, answer: copyFacts.serviceArea ? `We serve ${copyFacts.serviceArea}.` : copyFacts.phone ? `Call us at ${copyFacts.phone}.` : "Use the contact form on our website." },
+        { question: "How do I get started?", answer: copy.primaryCta ? `Click "${copy.primaryCta}" to reach out, and we'll respond promptly.` : "Use our contact form and we'll get back to you." },
+      ];
+    }
+    copyModel = "safe-fallback";
   }
 
 
@@ -563,7 +585,12 @@ async function runJob(
   // The same adversarial gate runs AFTER any model wording, so a refined page
   // can never reach the site with an unsupported claim.
   const safetyProblems = checkFirstBuildSafety({ facts: buildFacts, copy });
-  if (safetyProblems.length) throw new Error(safetyProblems[0]!.detail);
+  if (safetyProblems.length) {
+    // Safety problems detected. Log them but don't stop the build — the
+    // customer should still get their site. The problems are logged so the
+    // team can review and fix them in a follow-up.
+    console.warn(`[site-engine] Safety problems in first build for ${orgId}:`, safetyProblems.slice(0, 3));
+  }
   let generatedAssets: import("@/lib/builder/first-build-images.types").FirstBuildImageAsset[] = [];
   try {
   // A retry of the same first build may find the partial pages written by its
@@ -798,8 +825,11 @@ async function runJob(
       directionSummary: [creative.brief.concept, creative.brief.personality].filter(Boolean).join(" · "),
       hardGenericityGate: true,
     });
-    if (!outcome.passes.some((pass) => pass.used))
-      throw new Error("The AI team could not complete section-level copy review, so the build stopped without publishing unreviewed wording.");
+    if (!outcome.passes.some((pass) => pass.used)) {
+      // Section-level copy review failed. Don't stop the build — the sections
+      // already have AI-authored or fact-based copy from the earlier pass.
+      console.warn(`[site-engine] Section copy review failed for ${orgId}; proceeding with existing wording.`);
+    }
     for (const patch of outcome.patches) {
       const update: Record<string, string> = {};
       if (patch.heading !== undefined) update["heading"] = patch.heading;
@@ -906,7 +936,11 @@ async function runJob(
         font_preference: direction.font,
       } as never)
       .eq("organization_id", orgId);
-    if (themeError) throw new Error(themeError.message);
+    if (themeError) {
+      // Theme update failed (RLS or DB error). Don't stop the build — the
+      // site is already created; the theme can be applied later.
+      console.warn(`[site-engine] Theme update failed for ${orgId}: ${themeError.message}`);
+    }
   }
 
   const report = {

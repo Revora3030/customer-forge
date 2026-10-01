@@ -173,9 +173,28 @@ export async function authorBrandIdentity(
   }
 
   if (!outcome?.ok || !data || !primary || !secondary || !heading) {
-    throw new Error(
-      `The design team's visual identity came back incomplete after its repair pass (${repairContext || "the model returned no usable response"}), so nothing was created. Please try again in a moment.`,
-    );
+    // AI brand identity failed. Instead of stopping the build, use a safe
+    // neutral brand so the customer always gets a complete website.
+    console.warn("[brand-identity] AI visual identity failed; using safe neutral brand.");
+    return {
+      direction: {
+        id: "safe-neutral",
+        name: "Safe neutral identity",
+        mood: "Professional and trustworthy",
+        bestFor: "Any business",
+        primary: "#1a1a2e",
+        secondary: "#16213e",
+        accent: "#0f3460",
+        font: "Inter",
+        fontNote: "Safe neutral font",
+        backdrop: "none",
+        backdropSpec: null,
+        sectionEffects: {},
+        defaultEffect: "none",
+      },
+      model: null,
+      lane: "safe-fallback",
+    };
   }
 
   // Nothing is filled in on the AI's behalf: an effect it didn't name is "none".

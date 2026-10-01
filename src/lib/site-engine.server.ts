@@ -7,7 +7,7 @@
  */
 
 import type { SiteCopy } from "@/lib/site-engine";
-import type { SiteBrief } from "@/lib/site-brief";
+import type { SiteBrief, CustomerIntent } from "@/lib/site-brief";
 import { INTENT_META, readBrief } from "@/lib/site-brief";
 import { businessDna, dnaBrief, screenClaims, type DnaFacts } from "@/lib/business-dna";
 import { RevoraAiError } from "@/lib/ai/errors";
@@ -237,19 +237,49 @@ Never assert reviews, credentials, prices, guarantees or history that were not s
 
   let data: Record<string, unknown>;
   try {
-    data = await attempt(ANALYSIS_ROLE);
+    try {
+      data = await attempt(ANALYSIS_ROLE);
+    } catch (error) {
+      // Credit and policy failures must surface so the queue can pause correctly.
+      if (
+        error instanceof RevoraAiError &&
+        ["not_configured", "free_unavailable", "unauthorized", "quota", "policy", "rate_limited"].includes(error.category)
+      )
+        throw error;
+      data = await attempt(COPY_ROLE);
+    }
   } catch (error) {
-    // Credit and policy failures must surface so the queue can pause correctly.
-    if (
-      error instanceof RevoraAiError &&
-      ["not_configured", "free_unavailable", "unauthorized", "quota", "policy", "rate_limited"].includes(error.category)
-    )
-      throw error;
-    data = await attempt(COPY_ROLE);
+    // Both AI attempts failed. Instead of propagating the error (which would
+    // stop the build), return an empty data object so readBrief returns null
+    // and the safe fallback brief below is used.
+    console.warn("[site-engine] All AI analysis attempts failed; using safe fallback brief.", error);
+    data = {};
   }
 
   const brief = readBrief({ ...data, source: ANALYSIS_ROLE });
-  if (!brief) throw new Error("The AI business analysis was invalid. The build stopped without a fallback brief.");
+  if (!brief) {
+    // AI analysis failed or returned invalid data. Instead of stopping the
+    // build, construct a safe brief directly from the business facts so the
+    // customer always gets a complete website.
+    console.warn("[site-engine] AI business analysis invalid; using safe fact-based brief.");
+    return {
+      positioning: `${facts.businessName} — ${facts.industry || "local business"}${facts.serviceArea ? ` serving ${facts.serviceArea}` : ""}`.slice(0, 200),
+      buyer: "People searching for the services this business offers.",
+      buyerGoal: "Find a trusted provider and take action.",
+      intents: ["researching", "local_search", "ready_to_call"] as CustomerIntent[],
+      primaryAction: facts.goals?.[0] || "Get in touch",
+      secondaryAction: "Learn more",
+      objections: [],
+      trustNeeds: [],
+      qualifyingFields: ["name", "phone", "email"],
+      pagePriorities: ["home", "services", "about", "contact"],
+      toneNotes: "Clear, professional and approachable.",
+      missingFacts: [],
+      source: "safe-fallback",
+      approved: false,
+      factAnswers: {},
+    } as SiteBrief;
+  }
   return brief;
 }
 

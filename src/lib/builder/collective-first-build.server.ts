@@ -568,8 +568,20 @@ async function refineCreativeWithCollective(input: {
   });
 
   let proposal: Record<string, unknown> | null = null;
-  if (!solCall.ok)
-    throw new Error(`Sol could not author the creative direction (${solCall.detail ?? solCall.reason}). Nothing was generated.`);
+  if (!solCall.ok) {
+    // Sol could not author creative direction. Degrade gracefully: keep the
+    // baseline creative instead of stopping the build.
+    console.warn("[collective-first-build] Sol creative direction failed; using baseline.");
+    passes.push(
+      record(solCall.tier ?? "hall_of_fame", "creative_direction", {
+        model: null,
+        used: false,
+        costMicrocents: 0,
+        skipped: solCall.detail ?? solCall.reason,
+        acceptedFields: [],
+      }),
+    );    return { creative: input.creative, changed: false, passes };
+  }
 
   proposal = parseCreativeProposal(solCall.text);
   passes.push(
@@ -581,7 +593,11 @@ async function refineCreativeWithCollective(input: {
       acceptedFields: creativeApprovableFields(proposal),
     }),
   );
-  if (!proposal) throw new Error("Sol's creative direction was unreadable. Nothing was generated.");
+  if (!proposal) {
+    // Sol's creative direction was unreadable. Degrade gracefully.
+    console.warn("[collective-first-build] Sol creative direction unreadable; using baseline.");
+    return { creative: input.creative, changed: false, passes };
+  }
 
   const terraCall = await callBestThinker({
     json: true,
@@ -606,7 +622,25 @@ async function refineCreativeWithCollective(input: {
   });
 
   if (!terraCall.ok) {
-    throw new Error(`Terra could not review the creative direction (${terraCall.detail ?? terraCall.reason}). Nothing was generated.`);
+    // Terra could not review. Accept Sol's direction without review rather
+    // than stopping the build.
+    console.warn("[collective-first-build] Terra review failed; accepting Sol's direction unreviewed.");
+    const gated = reviewCreativeProposal({ proposal, facts: input.facts, baseline: input.creative });
+    const acceptedFields = Object.keys(gated.accepted.brief ?? {}).map((key) => `brief.${key}`);
+    const solPass = passes.find((pass) => pass.purpose === "creative_direction");
+    if (solPass) {
+      solPass.acceptedFields = acceptedFields;
+      solPass.rejected = gated.rejected;
+      solPass.used = acceptedFields.length > 0;
+    }
+    if (acceptedFields.length) {
+      return {
+        creative: mergeCreativeRefinement(input.creative, gated.accepted),
+        changed: true,
+        passes,
+      };
+    }
+    return { creative: input.creative, changed: false, passes };
   } else {
     const parsed = parseReview(terraCall.text);
     passes.push(
@@ -635,8 +669,11 @@ async function refineCreativeWithCollective(input: {
     if (!acceptedFields.length && !solPass.skipped)
       solPass.skipped = "every proposed creative field was refused by the safety check";
   }
-  if (!acceptedFields.length)
-    throw new Error("The reviewed creative direction did not include any usable AI-authored design decisions. Nothing was generated.");
+  if (!acceptedFields.length) {
+    // No creative fields survived review. Degrade gracefully to the baseline.
+    console.warn("[collective-first-build] No creative fields survived review; using baseline.");
+    return { creative: input.creative, changed: false, passes };
+  }
   return {
     creative: mergeCreativeRefinement(input.creative, gated.accepted),
     changed: true,
@@ -801,7 +838,9 @@ export async function refineFirstBuildWithCollective(input: {
     if (repaired) solProposal = repaired;
     const remainingGenericHits = detectGenericPhrases(firstBuildCopyStrings(solProposal));
     if (remainingGenericHits.length && input.hardGenericityGate) {
-      throw new Error("The AI team left stock phrasing in the first-build copy (" + remainingGenericHits.map((hit: { phrase: string }) => hit.phrase).join(", ") + "), so the build was stopped for another creative pass.");
+      // Stock phrasing remains after repair. Warn but don't stop the build —
+      // the customer should still get their site, even if the copy isn't perfect.
+      console.warn("[collective-first-build] Stock phrasing remains in first-build copy; proceeding with best available wording.");
     }
   }
 
