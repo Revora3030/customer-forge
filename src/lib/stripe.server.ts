@@ -9,6 +9,17 @@ const getEnv = (key: string): string => {
 export type StripeEnv = "sandbox" | "live";
 
 /**
+ * Resolve the public webhook environment. Production is the default because
+ * Stripe dashboard webhook URLs are concrete HTTPS endpoints and should not
+ * require a query string. Sandbox must remain explicit.
+ */
+export function resolveStripeWebhookEnv(rawEnv: string | null): StripeEnv {
+  if (rawEnv === null || rawEnv === "" || rawEnv === "live") return "live";
+  if (rawEnv === "sandbox") return "sandbox";
+  throw new Error("Invalid webhook environment");
+}
+
+/**
  * The app is bound to ONE connected Stripe account (bring-your-own key). Both
  * environment names are kept for database/subscription compatibility, but every
  * Stripe call goes to the same connected account via STRIPE_SECRET_KEY.
@@ -86,7 +97,9 @@ export async function verifyWebhook(
   }
   if (!timestamp || v1Signatures.length === 0) throw new Error("Invalid signature format");
 
-  const age = Math.abs(Date.now() / 1000 - Number(timestamp));
+  const timestampSeconds = Number(timestamp);
+  if (!Number.isFinite(timestampSeconds)) throw new Error("Invalid signature timestamp");
+  const age = Math.abs(Date.now() / 1000 - timestampSeconds);
   if (age > 300) throw new Error("Webhook timestamp too old");
 
   const key = await crypto.subtle.importKey(
@@ -94,15 +107,23 @@ export async function verifyWebhook(
     new TextEncoder().encode(secret),
     { name: "HMAC", hash: "SHA-256" },
     false,
-    ["sign"],
+    ["verify"],
   );
-  const signed = await crypto.subtle.sign(
-    "HMAC",
-    key,
-    new TextEncoder().encode(`${timestamp}.${body}`),
+  const signed = new TextEncoder().encode(`${timestamp}.${body}`);
+  const matches = await Promise.all(
+    v1Signatures.map((candidate) => {
+      try {
+        const expected = Uint8Array.from(
+          candidate.match(/.{1,2}/g)?.map((byte) => Number.parseInt(byte, 16)) ?? [],
+        );
+        if (expected.length !== 32) return false;
+        return crypto.subtle.verify("HMAC", key, expected, signed);
+      } catch {
+        return false;
+      }
+    }),
   );
-  const expected = Buffer.from(new Uint8Array(signed)).toString("hex");
-  if (!v1Signatures.includes(expected)) throw new Error("Invalid webhook signature");
+  if (!matches.some(Boolean)) throw new Error("Invalid webhook signature");
 
   return JSON.parse(body);
 }
