@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { DEFAULT_OFFER_RATES } from "@/lib/offer";
 import { resolveStripeWebhookEnv, verifyWebhook } from "@/lib/stripe.server";
+import type { StripeEnv } from "@/lib/stripe.server";
 
 /** Minimal Stripe webhook event envelope — narrowed per-handler. */
 type StripeWebhookEvent = {
@@ -243,16 +244,28 @@ async function handleEvent(event: StripeWebhookEvent, env: StripeEnv) {
         // Only verified LIVE money unlocks production access. A sandbox setup
         // session is bookkept as a sandbox payment row and nothing more.
         if (env === "live") {
-          const { error: orgError } = await admin
+          const { data: activatedOrganization, error: orgError } = await admin
             .from("organizations")
             .update({
               setup_paid_at: new Date().toISOString(),
               setup_checkout_session_id: String(session.id),
               plan_id: GROWTH_PLAN_ID,
+              subscription_status: "active",
             })
-            .eq("id", organizationId);
+            .eq("id", organizationId)
+            .select("plan_id, subscription_status, setup_paid_at, setup_checkout_session_id")
+            .single();
           if (orgError)
-            throw new Error(`setup_activation_failed:${orgError.code ?? orgError.message}`);
+            throw new Error("setup_activation_failed:" + (orgError.code ?? orgError.message));
+
+          if (
+            activatedOrganization?.plan_id !== GROWTH_PLAN_ID ||
+            activatedOrganization?.subscription_status !== "active" ||
+            activatedOrganization?.setup_checkout_session_id !== String(session.id) ||
+            !activatedOrganization?.setup_paid_at
+          ) {
+            throw new Error("setup_activation_verification_failed");
+          }
         }
         await recordStripeTransaction(admin, {
           organizationId,
@@ -479,28 +492,51 @@ export const Route = createFileRoute("/api/public/payments/webhook")({
     handlers: {
       POST: async ({ request }) => {
         const rawEnv = new URL(request.url).searchParams.get("env");
-        let env;
-        try {
-          env = resolveStripeWebhookEnv(rawEnv);
-        } catch {
-          // A malformed environment selector must fail loudly — never process
-          // an event against an unintended billing environment.
-          console.error("[payments:webhook] invalid env", rawEnv);
-          return new Response("Invalid webhook environment", { status: 400 });
+        let bodyLivemode: boolean | undefined;
+
+        // Stripe includes livemode on the signed event envelope. Use a cloned
+        // request only to select the verification secret when the URL does not
+        // explicitly identify an environment; the original request body remains
+        // untouched for signature verification.
+        if (rawEnv !== "live" && rawEnv !== "sandbox") {
+          try {
+            const preview = (await request.clone().json()) as { livemode?: unknown };
+            if (typeof preview.livemode === "boolean") bodyLivemode = preview.livemode;
+          } catch {
+            // Signature verification will produce the canonical 400 response.
+          }
         }
+
+        const targetEnv = resolveStripeWebhookEnv(rawEnv, bodyLivemode);
+
         try {
-          const event = (await verifyWebhook(request, env)) as StripeWebhookEvent;
-          const claim = await claimEvent(event, env);
+          const event = (await verifyWebhook(request, targetEnv)) as StripeWebhookEvent & {
+            livemode?: boolean;
+          };
+
+          // Never allow a verified event to cross the live/sandbox billing
+          // boundary. This also protects explicit environment URLs from a
+          // mismatched Stripe event.
+          if (typeof event.livemode === "boolean") {
+            const eventEnv: StripeEnv = event.livemode ? "live" : "sandbox";
+            if (eventEnv !== targetEnv) {
+              console.error("[payments:webhook] environment mismatch", {
+                targetEnv,
+                eventLivemode: event.livemode,
+              });
+              return new Response("Webhook environment mismatch", { status: 400 });
+            }
+          }
+
+          const claim = await claimEvent(event, targetEnv);
           if (claim.outcome === "duplicate")
             return Response.json({ received: true, duplicate: true });
           if (claim.outcome === "transient")
             return new Response("Temporarily unable to record webhook", { status: 503 });
+
           try {
-            await handleEvent(event, env);
+            await handleEvent(event, targetEnv);
           } catch (failure) {
-            // The claim exists but processing failed. Release it so Stripe's
-            // retry is not silently deduplicated into a lost payment event,
-            // and answer 500 so Stripe actually retries.
             console.error("[payments:webhook] processing failed", (failure as Error).message);
             if (claim.eventId) {
               await claim.admin
@@ -512,6 +548,7 @@ export const Route = createFileRoute("/api/public/payments/webhook")({
             }
             return new Response("Webhook processing failed", { status: 500 });
           }
+
           if (claim.eventId) {
             await associateEvent(
               claim.admin,
@@ -520,9 +557,9 @@ export const Route = createFileRoute("/api/public/payments/webhook")({
               String(event.data?.object?.id ?? ""),
             );
           }
+
           return Response.json({ received: true });
         } catch (error) {
-          // Signature/parse failures: never retryable, never processed.
           console.error("[payments:webhook] error", (error as Error).message);
           return new Response("Webhook error", { status: 400 });
         }
