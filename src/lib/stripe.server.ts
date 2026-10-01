@@ -11,7 +11,8 @@ export type StripeEnv = "sandbox" | "live";
 /**
  * Resolve the public webhook environment. Production is the default because
  * Stripe dashboard webhook URLs are concrete HTTPS endpoints and should not
- * require a query string. Sandbox must remain explicit.
+ * require a query string. When the URL is absent or unrecognized, Stripe
+ * livemode is authoritative; if the payload does not expose it, live is safest.
  */
 export function resolveStripeWebhookEnv(
   rawEnv: string | null,
