@@ -13,10 +13,14 @@ export type StripeEnv = "sandbox" | "live";
  * Stripe dashboard webhook URLs are concrete HTTPS endpoints and should not
  * require a query string. Sandbox must remain explicit.
  */
-export function resolveStripeWebhookEnv(rawEnv: string | null): StripeEnv {
-  if (rawEnv === null || rawEnv === "" || rawEnv === "live") return "live";
+export function resolveStripeWebhookEnv(
+  rawEnv: string | null,
+  livemode?: boolean,
+): StripeEnv {
+  if (rawEnv === "live") return "live";
   if (rawEnv === "sandbox") return "sandbox";
-  throw new Error("Invalid webhook environment");
+  if (typeof livemode === "boolean") return livemode ? "live" : "sandbox";
+  return "live";
 }
 
 /**
