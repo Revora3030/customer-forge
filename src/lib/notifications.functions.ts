@@ -72,11 +72,14 @@ export const saveLeadWebhook = createServerFn({ method: "POST" })
       throw new Error("Use a valid public HTTP(S) webhook URL.");
     }
 
-    const { error } = await context.supabase
+    const { data: rows, error } = await context.supabase
       .from("website_settings")
       .update({ lead_webhook_url: normalized })
-      .eq("organization_id", data.organizationId);
+      .eq("organization_id", data.organizationId)
+      .select("organization_id");
     if (error) throw new Error("Couldn't save the lead webhook.");
+    if (!rows?.length)
+      throw new Error("Set up your website first — there's no site settings to attach the webhook to.");
 
     return { ok: true as const, configured: Boolean(normalized) };
   });
@@ -135,4 +138,27 @@ export const sendTestLeadAlert = createServerFn({ method: "POST" })
 
     if (!result.ok) throw new Error(`Couldn't deliver the test alert (${result.reason}).`);
     return { ok: true as const, recipient: to };
+  });
+
+/** Whether a lead webhook is saved, exposing only its host (never the full URL). */
+export const getLeadWebhookStatus = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((input: { organizationId: string }) => ({
+    organizationId: String(input?.organizationId ?? ""),
+  }))
+  .handler(async ({ data, context }) => {
+    const { data: row, error } = await context.supabase
+      .from("website_settings")
+      .select("lead_webhook_url")
+      .eq("organization_id", data.organizationId)
+      .maybeSingle();
+    if (error) throw new Error("Couldn't load the lead webhook.");
+    const url = typeof row?.lead_webhook_url === "string" ? row.lead_webhook_url : "";
+    let host: string | null = null;
+    try {
+      host = url ? new URL(url).host : null;
+    } catch {
+      host = null;
+    }
+    return { configured: Boolean(url), host };
   });
