@@ -103,7 +103,7 @@ describe("live payments", () => {
     const timestamp = Math.floor(Date.now() / 1000);
     const signature = createHmac("sha256", secret).update(`${timestamp}.${body}`).digest("hex");
     const request = (sig: string) =>
-      new Request("https://revoragrowthsystems.com/api/public/stripe-webhook", {
+      new Request("https://revoragrowthsystems.com/api/public/payments/webhook?env=sandbox", {
         method: "POST",
         headers: { "stripe-signature": sig, "content-type": "application/json" },
         body,
