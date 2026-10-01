@@ -1,5 +1,6 @@
 import { ArrowDown, Check, X } from "lucide-react";
 import { Panel } from "@/components/app/Bits";
+import { TRUST_INDUSTRIES } from "@/components/marketing/journey-constants";
 
 const JOURNEY = [
   { step: "Local search", body: "Someone nearby searches for what you do." },
@@ -96,20 +97,3 @@ export function WithoutWith() {
     </div>
   );
 }
-
-export const TRUST_INDUSTRIES = [
-  "Detailing",
-  "Hair",
-  "Barber",
-  "Cleaning",
-  "Landscaping",
-  "Pressure Washing",
-  "HVAC",
-  "Plumbing",
-  "Roofing",
-  "Contractors",
-  "Beauty",
-  "Photography",
-  "Fitness",
-  "Real Estate",
-];

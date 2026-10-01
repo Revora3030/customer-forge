@@ -1,5 +1,5 @@
 import { resolveSiteHref } from "@/lib/builder/site-chrome";
-import { useOwnAddress } from "@/components/site/site-links";
+import { useOwnAddress } from "@/components/site/use-own-address";
 /**
  * Renders the builder's structured sections on a public business website.
  *
@@ -21,20 +21,10 @@ import { safeLinkUrl, sectionLabel } from "@/lib/website-content";
 import { readEmbed } from "@/lib/site-embed";
 import { businessFacts, factsAddressLine } from "@/lib/builder/facts";
 import { safeParagraph, safeText } from "@/lib/builder/presentation";
+import { siteSurface } from "@/components/site/site-sections-utils";
 
 type Site = NonNullable<PublicSite>;
 type Section = NonNullable<Site["content"]>["sections"][number];
-
-/**
- * The colour a block sits on when it sets no background of its own — the
- * client's chosen surface colour. Passed to the style layer so AI text colours
- * are measured against the page they actually land on.
- */
-export function siteSurface(site: Site): string | null {
-  const profile = (site.profile ?? null) as { secondary_color?: string | null } | null;
-  const surface = profile?.secondary_color;
-  return typeof surface === "string" && surface.trim() ? surface.trim() : null;
-}
 
 const Shell = ({
   children,

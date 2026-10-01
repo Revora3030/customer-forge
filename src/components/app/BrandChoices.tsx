@@ -11,39 +11,12 @@ import { useEffect, useState } from "react";
 import { ChevronDown } from "lucide-react";
 import type { BrandPreference } from "@/lib/builder/composition-preview";
 import { cn } from "@/lib/utils";
-
-const EMPTY: BrandPreference = {
-  tone: "any",
-  primaryColor: null,
-  secondaryColor: null,
-  accentColor: null,
-  font: null,
-  directionId: null,
-};
-
-const keyFor = (organizationId: string | null) => `revora:brand:${organizationId ?? "none"}`;
-
-export function readBrandChoices(organizationId: string | null): BrandPreference {
-  if (typeof window === "undefined") return EMPTY;
-  try {
-    const raw = window.localStorage.getItem(keyFor(organizationId));
-    if (!raw) return EMPTY;
-    return { ...EMPTY, ...(JSON.parse(raw) as BrandPreference) };
-  } catch {
-    return EMPTY;
-  }
-}
-
-/** True when the owner actually chose something the composer must honour. */
-export function hasBrandChoices(brand: BrandPreference): boolean {
-  return Boolean(
-    (brand.tone && brand.tone !== "any") ||
-      brand.primaryColor ||
-      brand.secondaryColor ||
-      brand.accentColor ||
-      brand.font,
-  );
-}
+import {
+  EMPTY_BRAND_CHOICES,
+  hasBrandChoices,
+  readBrandChoices,
+  saveBrandChoices,
+} from "@/components/app/brand-choices-utils";
 
 export function BrandChoices({
   organizationId,
@@ -55,7 +28,7 @@ export function BrandChoices({
   onChange?: (brand: BrandPreference) => void;
 }) {
   const [open, setOpen] = useState(false);
-  const [brand, setBrand] = useState<BrandPreference>(EMPTY);
+  const [brand, setBrand] = useState<BrandPreference>(EMPTY_BRAND_CHOICES);
 
   // Read once on the client, so the server render and the first paint agree.
   useEffect(() => {
@@ -69,12 +42,7 @@ export function BrandChoices({
     const next = { ...brand, ...patch };
     setBrand(next);
     onChange?.(next);
-    try {
-      window.localStorage.setItem(keyFor(organizationId), JSON.stringify(next));
-    } catch {
-      // A browser with storage switched off still builds — the choice simply
-      // applies to this request instead of being remembered.
-    }
+    saveBrandChoices(organizationId, next);
   };
 
   const summary = hasBrandChoices(brand)
@@ -177,7 +145,7 @@ export function BrandChoices({
           {hasBrandChoices(brand) ? (
             <button
               type="button"
-              onClick={() => update(EMPTY)}
+              onClick={() => update(EMPTY_BRAND_CHOICES)}
               className="cursor-pointer text-[12px] font-medium text-primary hover:underline"
             >
               Clear my choices

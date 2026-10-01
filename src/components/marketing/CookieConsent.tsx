@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { X } from "lucide-react";
 import {
-  canTrackAds,
   isConsentRequiredRegion,
   updateConsent,
 } from "@/lib/consent";
@@ -101,11 +100,4 @@ export function CookieConsent() {
       </div>
     </div>
   );
-}
-
-/** Re-opens the banner from anywhere (footer "Cookie settings"). */
-export function openCookieSettings() {
-  if (typeof window === "undefined") return;
-  void canTrackAds(); // warm the region lookup for the reopened dialog
-  window.dispatchEvent(new Event("revora:cookie-settings"));
 }

@@ -58,7 +58,7 @@ export function SitePerformance({
     },
   });
 
-  const rows = query.data ?? [];
+  const rows = React.useMemo(() => query.data ?? [], [query.data]);
   const summary = React.useMemo(() => summariseVitals(rows), [rows]);
   const visits = rows.filter((row) => row.metric === "lcp").length;
 

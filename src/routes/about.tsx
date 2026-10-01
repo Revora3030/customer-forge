@@ -1,4 +1,5 @@
-import { loadTenantPage, tenantPageHead, TenantOrMarketing } from "@/lib/tenant-page";
+import { TenantOrMarketing } from "@/lib/tenant-page";
+import { loadTenantPage, tenantPageHead } from "@/lib/tenant-page-utils";
 import { createFileRoute } from "@tanstack/react-router";
 import { SiteFooter, SiteHeader } from "@/components/marketing/Chrome";
 import { SalesCTA } from "@/components/marketing/SalesCTA";

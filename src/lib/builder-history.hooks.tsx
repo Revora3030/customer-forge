@@ -234,6 +234,7 @@ export function BuilderHistoryProvider({
  * Reads the builder history. Outside the provider this returns inert no-ops, so
  * shared mutation hooks can capture unconditionally.
  */
+// eslint-disable-next-line react-refresh/only-export-components -- the hook consumes the provider context defined in this module.
 export function useBuilderHistory() {
   return useContext(BuilderHistoryContext);
 }

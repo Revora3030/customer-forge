@@ -1,4 +1,5 @@
-import { loadTenantPage, tenantPageHead, TenantOrMarketing } from "@/lib/tenant-page";
+import { TenantOrMarketing } from "@/lib/tenant-page";
+import { loadTenantPage, tenantPageHead } from "@/lib/tenant-page-utils";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Check, ShieldCheck } from "lucide-react";
 import { FreeAccessBanner } from "@/components/marketing/FreeAccess";

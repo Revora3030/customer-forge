@@ -1,0 +1,16 @@
+export const TRUST_INDUSTRIES = [
+  "Detailing",
+  "Hair",
+  "Barber",
+  "Cleaning",
+  "Landscaping",
+  "Pressure Washing",
+  "HVAC",
+  "Plumbing",
+  "Roofing",
+  "Contractors",
+  "Beauty",
+  "Photography",
+  "Fitness",
+  "Real Estate",
+];

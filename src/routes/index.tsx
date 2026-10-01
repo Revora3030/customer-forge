@@ -16,7 +16,8 @@ import { SiteFooter, SiteHeader } from "@/components/marketing/Chrome";
 import { AuthActions, AuthHint } from "@/components/marketing/AuthButtons";
 import { HeroStarter } from "@/components/marketing/HeroStarter";
 import { DashboardPreview } from "@/components/marketing/DashboardPreview";
-import { TRUST_INDUSTRIES, WithoutWith } from "@/components/marketing/Journey";
+import { WithoutWith } from "@/components/marketing/Journey";
+import { TRUST_INDUSTRIES } from "@/components/marketing/journey-constants";
 import { TrustSection } from "@/components/marketing/TrustSection";
 import { FounderNote } from "@/components/marketing/SalesCTA";
 import { ROICalculator } from "@/components/marketing/ROICalculator";
@@ -37,7 +38,7 @@ import { GROWTH_SYSTEM_SCHEMA, LOCAL_BUSINESS_SCHEMA, canonicalLink, ogUrl } fro
 import { BusinessDetails } from "@/components/marketing/BusinessDetails";
 import { VisualComposition } from "@/components/site/VisualComposition";
 import { HOMEPAGE_COMPOSITION } from "@/lib/homepage-concept";
-import { SiteAddressProvider } from "@/components/site/site-links";
+import { SiteAddressProvider } from "@/components/site/site-links-context";
 import { getHostSite } from "@/lib/host-site.functions";
 import { isPossibleTenantHost } from "@/lib/revora-address";
 import { PublicSiteView } from "@/routes/s.$slug";

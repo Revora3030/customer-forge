@@ -18,7 +18,7 @@ import { toast } from "@/lib/ui/notify";
 import { detectCapabilities, type BuilderCapabilities } from "@/lib/builder/capabilities";
 import { applySummary } from "@/lib/builder/apply-report";
 import type { BrandPreference } from "@/lib/builder/composition-preview";
-import { hasBrandChoices } from "@/components/app/BrandChoices";
+import { hasBrandChoices } from "@/components/app/brand-choices-utils";
 import {
   approvedSteps,
   canAutoApply,

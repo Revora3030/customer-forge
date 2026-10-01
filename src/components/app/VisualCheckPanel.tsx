@@ -29,21 +29,10 @@ import { getQaGate } from "@/lib/ai/command-center.functions";
 import { useRestoreWebsiteVersion } from "@/lib/site-engine.hooks";
 import { supabase } from "@/integrations/supabase/client";
 import { runWebsiteTask } from "@/lib/site-agent.functions";
+import { repairBriefFrom } from "@/components/app/visual-check-utils";
 
 /** Safety ceiling on AI repair rounds per check (spend/time), not a quality target. */
 const MAX_AI_REPAIR_ROUNDS = 3;
-
-/** Turns measured browser failures into a repair brief for the AI team. */
-export function repairBriefFrom(report: VisualReport): string {
-  const lines = report.findings
-    .map((f) => `- ${f.page ? `[${f.page}] ` : ""}${f.detail} ${f.fix}`.trim())
-    .join("\n");
-  return [
-    "The real-browser quality check measured these problems on the rendered site.",
-    "Repair every one through the site's composition, keeping the design direction, all owner words, facts, pictures, forms and links. Do not remove anything.",
-    lines,
-  ].join("\n");
-}
 
 export function VisualCheckPanel({
   organizationId,

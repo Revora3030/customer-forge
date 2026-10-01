@@ -8,7 +8,7 @@
  */
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
-import { SiteAddressProvider } from "@/components/site/site-links";
+import { SiteAddressProvider } from "@/components/site/site-links-context";
 import { getHostSite } from "@/lib/host-site.functions";
 import { isPossibleTenantHost } from "@/lib/revora-address";
 import { SitePageView } from "@/routes/s.$slug.$page";

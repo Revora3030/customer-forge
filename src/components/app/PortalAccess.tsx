@@ -13,11 +13,7 @@ import { toast } from "@/lib/ui/notify";
 import { friendlyError } from "@/lib/user-error";
 import { Button } from "@/components/ui/button";
 import { getPortalCode, setPortalCode } from "@/lib/portal.functions";
-
-export function portalJoinUrl(code: string, origin?: string) {
-  const base = origin ?? (typeof window === "undefined" ? "" : window.location.origin);
-  return `${base}/portal?code=${encodeURIComponent(code)}`;
-}
+import { portalJoinUrl } from "@/components/app/portal-access-utils";
 
 export function PortalAccess({
   organizationId,

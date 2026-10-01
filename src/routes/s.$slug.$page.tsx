@@ -23,7 +23,7 @@ import { canonicalSiteUrl } from "@/lib/revora-address";
 import { CompositionRenderer } from "@/components/site/CompositionRenderer";
 import { readSiteChrome, resolveSiteHref } from "@/lib/builder/site-chrome";
 import { AiSiteHeader } from "@/components/site/AiSiteHeader";
-import { useOwnAddress } from "@/components/site/site-links";
+import { useOwnAddress } from "@/components/site/use-own-address";
 import { metaDescription } from "@/lib/seo";
 
 export const Route = createFileRoute("/s/$slug/$page")({

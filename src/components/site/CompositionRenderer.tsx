@@ -18,6 +18,7 @@ const SHADOWS: Record<string, string> = {
 const JUSTIFY = { start: "flex-start", center: "center", end: "flex-end", between: "space-between" } as const;
 const ITEMS = { start: "flex-start", center: "center", end: "flex-end", stretch: "stretch" } as const;
 
+// eslint-disable-next-line react-refresh/only-export-components -- renderer helpers are intentionally co-located with their composition types.
 export function styleToCss(style: NodeStyle | undefined, type: CompositionNode["type"]): CSSProperties {
   if (!style) return {};
   const css: CSSProperties = {};
@@ -308,6 +309,7 @@ const EASING_CSS: Record<MotionEasing, string> = {
   spring: "cubic-bezier(.34,1.56,.64,1)", snap: "cubic-bezier(.2,.9,.1,1)",
 };
 /** Turns the AI's validated motion description into CSS variables/animation settings. */
+// eslint-disable-next-line react-refresh/only-export-components -- renderer helpers are intentionally co-located with their composition types.
 export function motionStyle(motion: NodeMotion): CSSProperties {
   const out: Record<string, string> = {};
   if (motion.delayMs) out["animationDelay"] = `${motion.delayMs}ms`;
@@ -331,6 +333,7 @@ export function motionStyle(motion: NodeMotion): CSSProperties {
 
 const HOVER_SHADOW = { none: "none", subtle: "0 4px 14px rgb(0 0 0 / .08)", medium: "0 10px 30px rgb(0 0 0 / .14)", strong: "0 20px 50px rgb(0 0 0 / .22)" } as const;
 /** CSS for the AI's validated pointer/touch response; off for reduced-motion visitors. */
+// eslint-disable-next-line react-refresh/only-export-components -- renderer helpers are intentionally co-located with their composition types.
 export function hoverCss(id: string, h: NodeHover): string {
   const t: string[] = [];
   if (h.x || h.y) t.push(`translate(${h.x ?? 0}px,${h.y ?? 0}px)`);

@@ -8,24 +8,8 @@
  * picks the right shape for the address being served.
  */
 import { Link } from "@tanstack/react-router";
-import { createContext, useContext, type CSSProperties, type ReactNode } from "react";
-
-const OwnAddressContext = createContext(false);
-
-/** Wrap the rendered website when it is served on the client's own address. */
-export function SiteAddressProvider({
-  ownAddress,
-  children,
-}: {
-  ownAddress: boolean;
-  children: ReactNode;
-}) {
-  return <OwnAddressContext.Provider value={ownAddress}>{children}</OwnAddressContext.Provider>;
-}
-
-export function useOwnAddress() {
-  return useContext(OwnAddressContext);
-}
+import { type CSSProperties, type ReactNode } from "react";
+import { useOwnAddress } from "@/components/site/use-own-address";
 
 /** Link to a page of the same website. `page` empty/null means the home page. */
 export function SitePageLink({

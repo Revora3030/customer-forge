@@ -5,54 +5,16 @@
  * confirmation) reads the same phone and email off the client's own business
  * profile, so a booking never dead-ends without a way to reach the business.
  */
-import type { CSSProperties } from "react";
 import { Mail, Phone } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { emailDisplay, emailLink, phoneDisplay, phoneLink } from "@/lib/builder/presentation";
 import type { WidgetPresentation } from "@/lib/builder/composition-tree";
+import { widgetPresentationStyle } from "@/components/site/contact-details-utils";
 
 export type ContactInfo = {
   phone?: string | null;
   email?: string | null;
 };
-
-/**
- * `tel:` target for a validated number. A value that isn't a usable phone
- * number returns `#`, and callers hide the button instead of showing it.
- */
-export const telHref = (phone: string) => phoneLink(phone) ?? "#";
-
-/**
- * Only a real address ever reaches a `mailto:` href, so a saved business
- * "email" can never smuggle another scheme or markup into a public page.
- */
-export const mailHref = (email: string) => emailLink(email) ?? "#";
-
-/** Local semantic theme for an AI-authored working widget. */
-export function widgetPresentationStyle(presentation?: WidgetPresentation): CSSProperties {
-  const theme = presentation?.theme;
-  if (!theme) return {};
-  const vars: Record<string, string> = {};
-  const set = (name: string, value: string | undefined) => { if (value) vars[name] = value; };
-  set("--background", theme.surface);
-  set("--card", theme.surface);
-  set("--elevated", theme.surface);
-  set("--popover", theme.surface);
-  set("--secondary", theme.surface);
-  set("--muted", theme.surface);
-  set("--foreground", theme.text);
-  set("--card-foreground", theme.text);
-  set("--popover-foreground", theme.text);
-  set("--secondary-foreground", theme.text);
-  set("--muted-foreground", theme.muted ?? theme.text);
-  set("--border", theme.border);
-  set("--input", theme.border);
-  set("--primary", theme.action);
-  set("--primary-foreground", theme.actionText);
-  set("--accent", theme.selected ?? theme.action);
-  set("--accent-foreground", theme.selectedText ?? theme.actionText);
-  return vars as CSSProperties;
-}
 
 /** Short "prefer to talk?" strip used above forms. */
 export function DirectContact({

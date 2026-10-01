@@ -21,7 +21,7 @@ import { cn } from "@/lib/utils";
 import { useStepScroll } from "@/lib/use-step-scroll";
 import { useServerFn } from "@tanstack/react-start";
 import { analyzeSiteBrief, runSiteGeneration, saveSiteBrief } from "@/lib/site-engine.functions";
-import { clearStarter, readStarter } from "@/components/marketing/HeroStarter";
+import { clearStarter, readStarter } from "@/components/marketing/hero-starter-utils";
 
 import {
   WEBSITE_GOALS,

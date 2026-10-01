@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { validateComposition } from "@/lib/builder/composition-tree";
-import { repairBriefFrom } from "@/components/app/VisualCheckPanel";
+import { repairBriefFrom } from "@/components/app/visual-check-utils";
 
 describe("root blocker regressions", () => {
   it("rejects an over-long composition label instead of silently trimming it", () => {

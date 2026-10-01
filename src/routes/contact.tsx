@@ -1,4 +1,5 @@
-import { loadTenantPage, tenantPageHead, TenantOrMarketing } from "@/lib/tenant-page";
+import { TenantOrMarketing } from "@/lib/tenant-page";
+import { loadTenantPage, tenantPageHead } from "@/lib/tenant-page-utils";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { submitContactRequest } from "@/lib/contact.functions";

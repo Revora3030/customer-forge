@@ -12,7 +12,8 @@ import { readAttribution } from "@/lib/attribution";
 import { currency } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { useStepScroll } from "@/lib/use-step-scroll";
-import { DirectContact, widgetPresentationStyle } from "@/components/site/ContactDetails";
+import { DirectContact } from "@/components/site/ContactDetails";
+import { widgetPresentationStyle } from "@/components/site/contact-details-utils";
 import type { WidgetPresentation } from "@/lib/builder/composition-tree";
 
 type Site = NonNullable<PublicSite>;

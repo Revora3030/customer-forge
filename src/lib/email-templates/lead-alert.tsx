@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components -- email registry descriptors intentionally reference local React Email components. */
 import React from "react";
 import {
   Body,
