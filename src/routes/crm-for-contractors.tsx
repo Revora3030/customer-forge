@@ -16,7 +16,7 @@ import { metaDescription } from "@/lib/seo";
 
 const TITLE = "CRM for Contractors — Leads, Quotes & Follow-Up | Revora";
 const DESCRIPTION =
-  "A contractor CRM built into your website: capture leads, send quotes, chase follow-ups, book jobs and collect reviews in one system. 3 days free full access.";
+  `A contractor CRM built into your website: capture leads, send quotes, chase follow-ups, book jobs and collect reviews in one system. ${GROWTH_SYSTEM.fullAccessWindow} free full access.`;
 const URL = "https://revoragrowthsystems.com/crm-for-contractors";
 
 export const Route = createFileRoute("/crm-for-contractors")({
@@ -195,7 +195,7 @@ function ContractorCrmPage() {
         <section className="panel mt-16 flex flex-col items-start gap-4 p-6 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 className="font-display text-[18px] font-semibold">
-              Try the whole system free for 3 days
+              Try the whole system free for {GROWTH_SYSTEM.fullAccessWindow}
             </h2>
             <p className="mt-1.5 text-[13px] text-muted-foreground">
               No card needed to start. Add your business details and your site, CRM and quoting are

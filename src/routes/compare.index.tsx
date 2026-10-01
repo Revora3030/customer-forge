@@ -64,7 +64,7 @@ function CompareHub() {
         </div>
         <div className="mt-10">
           <Button asChild size="lg">
-            <Link to="/get-started">Start your system free for 3 days</Link>
+            <Link to="/get-started">Start your system free for {GROWTH_SYSTEM.fullAccessWindow}</Link>
           </Button>
         </div>
       </main>
