@@ -7,7 +7,7 @@
  * a forged, tampered, replayed or wrongly-signed event is rejected.
  */
 import { beforeEach, describe, expect, it } from "vitest";
-import { verifyWebhook } from "@/lib/stripe.server";
+import { resolveStripeWebhookEnv, verifyWebhook } from "@/lib/stripe.server";
 
 const SANDBOX_SECRET = "whsec_test_sandbox_secret";
 const LIVE_SECRET = "whsec_test_live_secret";
@@ -50,6 +50,22 @@ const eventBody = (overrides: Record<string, unknown> = {}) =>
     data: { object: { id: "cs_test_1", payment_status: "paid", amount_total: 75000 } },
     ...overrides,
   });
+
+describe("payment webhook environment resolution", () => {
+  it("defaults the canonical production endpoint to live", () => {
+    expect(resolveStripeWebhookEnv(null)).toBe("live");
+    expect(resolveStripeWebhookEnv("")).toBe("live");
+    expect(resolveStripeWebhookEnv("live")).toBe("live");
+  });
+
+  it("requires an explicit sandbox marker", () => {
+    expect(resolveStripeWebhookEnv("sandbox")).toBe("sandbox");
+  });
+
+  it("rejects unknown environment markers", () => {
+    expect(() => resolveStripeWebhookEnv("production")).toThrow(/Invalid webhook environment/);
+  });
+});
 
 describe("payment webhook signature verification", () => {
   beforeEach(() => {
@@ -94,6 +110,16 @@ describe("payment webhook signature verification", () => {
     await expect(
       verifyWebhook(await request(eventBody(), { secret: "whsec_attacker" }), "sandbox"),
     ).rejects.toThrow(/Invalid webhook signature/);
+  });
+
+  it("rejects a non-numeric signature timestamp", async () => {
+    const body = eventBody();
+    await expect(
+      verifyWebhook(
+        await request(body, { header: `t=not-a-number,v1=${"0".repeat(64)}` }),
+        "sandbox",
+      ),
+    ).rejects.toThrow(/Invalid signature timestamp/);
   });
 
   it("rejects a replayed event outside the timestamp window", async () => {
