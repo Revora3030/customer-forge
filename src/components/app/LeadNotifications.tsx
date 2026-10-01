@@ -18,6 +18,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { supabase } from "@/integrations/supabase/client";
 import {
+  getLeadWebhookStatus,
   saveLeadNotifications,
   saveLeadWebhook,
   sendTestLeadAlert,
@@ -42,6 +43,13 @@ export function LeadNotifications({
   const saveFn = useServerFn(saveLeadNotifications);
   const testFn = useServerFn(sendTestLeadAlert);
   const saveWebhookFn = useServerFn(saveLeadWebhook);
+  const webhookStatusFn = useServerFn(getLeadWebhookStatus);
+
+  const webhookStatus = useQuery({
+    queryKey: ["lead_webhook_status", organizationId],
+    enabled: !!organizationId,
+    queryFn: () => webhookStatusFn({ data: { organizationId: organizationId! } }),
+  });
 
   const profile = useQuery({
     queryKey: ["notify_profile", organizationId],
@@ -95,10 +103,12 @@ export function LeadNotifications({
   });
 
   const webhook = useMutation({
-    mutationFn: () =>
-      saveWebhookFn({ data: { organizationId: organizationId!, webhookUrl } }),
+    mutationFn: (url: string) =>
+      saveWebhookFn({ data: { organizationId: organizationId!, webhookUrl: url } }),
     onSuccess: (result: { configured: boolean }) => {
-      toast.success(result.configured ? "Lead webhook saved" : "Lead webhook cleared");
+      toast.success(result.configured ? "Lead webhook saved" : "Lead webhook removed");
+      setWebhookUrl("");
+      void queryClient.invalidateQueries({ queryKey: ["lead_webhook_status", organizationId] });
     },
     onError: (error: Error) => toast.error(friendlyError(error, "Couldn't save the lead webhook.")),
   });
@@ -217,13 +227,28 @@ export function LeadNotifications({
           />
           <Button
             variant="outline"
-            disabled={!canManage || webhook.isPending}
-            onClick={() => webhook.mutate()}
+            disabled={!canManage || webhook.isPending || !webhookUrl.trim()}
+            onClick={() => webhook.mutate(webhookUrl)}
           >
             {webhook.isPending ? <Loader2 className="size-4 animate-spin" /> : null}
-            Save webhook
+            {webhookStatus.data?.configured ? "Replace webhook" : "Save webhook"}
           </Button>
+          {webhookStatus.data?.configured ? (
+            <Button
+              variant="ghost"
+              disabled={!canManage || webhook.isPending}
+              onClick={() => webhook.mutate("")}
+            >
+              Remove
+            </Button>
+          ) : null}
         </div>
+        {webhookStatus.data?.configured ? (
+          <p className="mt-1.5 text-[11px] text-muted-foreground">
+            Connected to{" "}
+            <span className="font-mono">{webhookStatus.data.host ?? "your saved URL"}</span>.
+          </p>
+        ) : null}
         <p className="mt-1.5 text-[11px] text-muted-foreground">
           After a lead is saved, Revora sends a standard POST event to this URL. A slow or failed
           webhook never blocks the visitor's submission.
