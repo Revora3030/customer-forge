@@ -6,7 +6,7 @@
  */
 import { callBestThinker } from "@/lib/ai/hall-of-fame.server";
 import { screenText } from "@/lib/builder/collective-copy";
-import { COMPOSITION_PRIMITIVES, PRIMITIVE_GUIDE, validateComposition, type CompositionIssue, type CompositionTree } from "@/lib/builder/composition-tree";
+import { COMPOSITION_PRIMITIVES, PRIMITIVE_GUIDE, validateComposition, type CompositionIssue, type CompositionNode, type CompositionTree } from "@/lib/builder/composition-tree";
 import { collectHrefs, requiredChromeLinks, writeSiteChrome } from "@/lib/builder/site-chrome";
 import type { DnaFacts } from "@/lib/business-dna";
 
@@ -80,9 +80,10 @@ export async function composeSiteChrome(input: {
       ].join("\n"),
     });
     if (!call.ok) {
-      // The design team could not design chrome. Degrade gracefully: the site
-      // already has a default header/footer from materialization.
+      // The design team could not design chrome. Write a safe fallback so the
+      // site always has navigation, then return.
       console.warn(`[first-build-chrome] AI chrome design failed: ${call.detail ?? call.reason}`);
+      await writeSafeChromeFallback(db, organizationId, nav, input.businessName, facts);
       return { models, costMicrocents: cost };
     }
     if (call.model) models.push(call.model);
@@ -116,9 +117,68 @@ export async function composeSiteChrome(input: {
     .map(([part, issues]) => `${part}: ${issues.slice(0, 3).map((i) => `${i.path} ${i.problem}`).join("; ")}`)
     .join(" | ");
   console.warn("[first-build-chrome] repair attempts exhausted", why);
-  // Chrome design failed after all retries. Degrade gracefully: the site
-  // already has a default header/footer from materialization.
+  // Chrome design failed after all retries. Write a safe fallback header/footer
+  // so the site always has navigation — never leave visitors stranded without
+  // a menu or footer.
+  await writeSafeChromeFallback(db, organizationId, nav, input.businessName, facts);
   return { models, costMicrocents: cost };
+}
+
+/**
+ * Writes a minimal but complete header (nav links to every page) and footer
+ * (business name + contact) when the AI chrome designer could not produce a
+ * safe result. This guarantees every published site has working navigation.
+ */
+async function writeSafeChromeFallback(
+  db: Db,
+  organizationId: string,
+  nav: { slug: string; title: string; kind: string | null }[],
+  businessName: string,
+  facts: DnaFacts,
+): Promise<void> {
+  try {
+    const headerLinks = nav
+      .filter((p) => p.slug !== "home" && p.kind !== "thanks" && p.kind !== "post")
+      .map((p) => ({
+        type: "link" as const,
+        text: p.title,
+        href: p.slug === "home" ? "/" : `/${p.slug}`,
+      }));
+    const header: CompositionTree = {
+      version: 1,
+      label: "safe-header",
+      root: {
+        type: "row",
+        style: { align: "center", justify: "between", paddingX: 16, paddingY: 12, maxWidth: 1152 },
+        children: [
+          { type: "link", text: businessName, href: "/", style: { weight: 600, size: 16 } },
+          { type: "row", style: { gap: 16, align: "center" }, children: headerLinks },
+        ],
+      },
+    };
+    const footerChildren: unknown[] = [
+      { type: "text", text: businessName, style: { weight: 600, size: 14 } },
+    ];
+    if (facts.phone) footerChildren.push({ type: "link", text: facts.phone, href: `tel:${facts.phone}`, style: { size: 13 } });
+    if (facts.email) footerChildren.push({ type: "link", text: facts.email, href: `mailto:${facts.email}`, style: { size: 13 } });
+    if (facts.serviceArea) footerChildren.push({ type: "text", text: `Serving ${facts.serviceArea}`, style: { size: 13 } });
+    footerChildren.push({ type: "row", style: { gap: 12, align: "center" }, children: headerLinks });
+    const footer: CompositionTree = {
+      version: 1,
+      label: "safe-footer",
+      root: {
+        type: "stack",
+        style: { align: "center", gap: 8, paddingX: 16, paddingY: 24, maxWidth: 1152 },
+        children: footerChildren as CompositionNode[],
+      },
+    };
+    const { data: settings } = await db.from("website_settings").select("generation").eq("organization_id", organizationId).maybeSingle();
+    const generation = writeSiteChrome(settings?.generation ?? {}, { header, footer });
+    await db.from("website_settings")
+      .upsert({ organization_id: organizationId, generation } as never, { onConflict: "organization_id" });
+  } catch (error) {
+    console.warn("[first-build-chrome] Safe fallback chrome write failed:", error);
+  }
 }
 
 /** Keeps Sol's hero-video idea only when it is safe, plain text with no unsupported claims. */

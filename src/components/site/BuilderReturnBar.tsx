@@ -37,8 +37,11 @@ export function BuilderReturnBar() {
 
   return (
     // Compact, dismissible, and positioned to never overlap site content.
-    // On mobile it sits in the safe area at the top-right; on desktop bottom-left.
-    <div className="fixed top-3 right-3 z-[60] sm:top-auto sm:bottom-4 sm:left-3 inline-flex items-center rounded-full border border-foreground/15 bg-foreground text-background shadow-lg">
+    // On mobile it sits below the status bar safe area at the top-right;
+    // on desktop bottom-left.
+    <div className="fixed right-3 z-[60] sm:top-auto sm:bottom-4 sm:left-3 inline-flex items-center rounded-full border border-foreground/15 bg-foreground text-background shadow-lg"
+         style={{ top: "calc(env(safe-area-inset-top, 0px) + 0.75rem)" }}
+    >
       <a
         href="/app/website"
         className="inline-flex min-h-9 items-center gap-1.5 pl-3 pr-1.5 font-display text-[12px] font-semibold transition-opacity hover:opacity-90"

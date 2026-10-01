@@ -33,7 +33,7 @@ const Shell = ({
 }: {
   children: React.ReactNode;
   wide?: boolean;
-  id?: string;
+  id?: string | undefined;
 }) => (
   <section id={id} className="scroll-mt-20 border-b border-border" style={{ minWidth: 0, maxWidth: "100%", overflowX: "clip" }}>
     <div
@@ -266,6 +266,50 @@ function SiteSectionBody({ site, section }: { site: Site; section: Section }) {
           <div className="mt-2">
             <CustomBlock spec={spec} />
           </div>
+        </Shell>
+      );
+    }
+
+    // Fallback layouts for common section kinds when no AI composition tree
+    // exists. These render the section's heading, body, and components in a
+    // clean, simple layout so the site is never blank.
+    case "hero":
+    case "services":
+    case "process":
+    case "social_proof":
+    case "faq":
+    case "home":
+    case "page": {
+      const cards = components.filter((c) => c.kind === "card" || c.kind === "button" || c.kind === "image");
+      const hasContent = safeText(section.heading) || safeText(section.subheading) || safeParagraph(section.body) || cards.length > 0;
+      if (!hasContent) return null;
+      return (
+        <Shell wide id={section.kind === "hero" ? undefined : `section-${section.id}`}>
+          <Heading section={section} />
+          {cards.length > 0 ? (
+            <div className={`mt-8 grid gap-4 ${cards.length > 2 ? "sm:grid-cols-2 lg:grid-cols-3" : "sm:grid-cols-2"}`}>
+              {cards.map((card) => {
+                const label = safeText(card.label);
+                const body = safeText(card.body);
+                const linkUrl = safeLinkUrl(card.link_url);
+                const mediaUrl = card.url;
+                return (
+                  <div key={card.id} className="flex flex-col rounded-lg border border-border bg-card/50 p-5">
+                    {mediaUrl ? (
+                      <img src={mediaUrl} alt={label ?? ""} loading="lazy" className="mb-3 aspect-video w-full rounded-md object-cover" />
+                    ) : null}
+                    {label ? <h3 className="font-display text-[16px] font-semibold">{label}</h3> : null}
+                    {body ? <p className="mt-1 text-[14px] text-muted-foreground">{body}</p> : null}
+                    {linkUrl ? (
+                      <a href={linkUrl} className="mt-3 inline-flex min-h-9 items-center text-[13px] font-medium text-primary hover:underline">
+                        {safeText(card.link_label) || "Learn more"}
+                      </a>
+                    ) : null}
+                  </div>
+                );
+              })}
+            </div>
+          ) : null}
         </Shell>
       );
     }

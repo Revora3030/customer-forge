@@ -1,7 +1,5 @@
 /**
- * Section kinds the public renderer can draw. Anything else is not shown, and
- * is never swapped for a built-in design — so the site check reports it and
- * the AI must turn it into a composition (or remove it) before publishing.
+ * Section kinds the public renderer can draw. Anything else is not shown.
  *
  * Kept in step with the `switch` in src/components/site/SiteSections.tsx
  * (a test locks the two together).
@@ -15,6 +13,15 @@ export const RENDERABLE_SECTION_KINDS = [
   "post_list",
   "embed",
   "custom",
+  // Fallback layouts: these render the section's heading, body and components
+  // in a simple clean layout when no AI composition tree exists.
+  "hero",
+  "services",
+  "process",
+  "social_proof",
+  "faq",
+  "home",
+  "page",
 ] as const;
 
 const KINDS = new Set<string>(RENDERABLE_SECTION_KINDS);
