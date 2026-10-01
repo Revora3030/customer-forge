@@ -16,6 +16,7 @@ import { callBestThinker } from "@/lib/ai/hall-of-fame.server";
 import type { AgentContext } from "@/lib/site-agent.server";
 import { MAX_ACTIONS } from "@/lib/site-agent";
 import { COMPOSITION_PRIMITIVES, MOTION_KINDS, MOTION_EASINGS, PRIMITIVE_GUIDE } from "@/lib/builder/composition-tree";
+import { designGuidancePrompt, mobileFirstChecklist } from "@/lib/builder/design-guidance";
 
 export type AiPlanFailure = {
   ok: false;
@@ -243,9 +244,15 @@ export async function planWebsiteChangesWithAi(input: {
   onAttempt?: (provider: string, model: string) => void;
 }): Promise<AiPlanOutcome> {
   const { context } = input;
+  const designGuidance = designGuidancePrompt(
+    context.business.industry,
+    context.business.name,
+  );
   const system = [
     DESIGN_RULES,
     TRUTH_RULES,
+    designGuidance,
+    mobileFirstChecklist(),
     "You work only through the action contract you are given. You never return prose outside the JSON object.",
   ].join("\n\n");
 
