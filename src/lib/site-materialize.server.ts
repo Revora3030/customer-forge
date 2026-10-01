@@ -289,6 +289,15 @@ export async function materializeSiteContent(
   // business DNA facts: services come from the real service rows, contact comes
   // from the enquiry capability, and the about page never invents credentials.
   const hasServices = input.services.length > 0;
+  // Pillar 4 — Multi-page commercial depth.
+  // The candidate inventory seeds a complete commercial site, not a single
+  // home page, so the AI architect starts from real multi-page material it can
+  // reorder, expand or invent on top of. Every page is built only from verified
+  // business DNA facts: services come from the real service rows, contact comes
+  // from the enquiry capability, and the about page never invents credentials.
+  // When the AI architect fails and this inventory becomes the fallback, the
+  // sections carry real headings and includes so the site is complete, not a
+  // skeleton of empty role-only sections.
   const factInventory: PageArchitecture[] = [
     {
       slug: "home",
@@ -296,11 +305,11 @@ export async function materializeSiteContent(
       purpose: "primary website entry",
       primaryAction,
       sections: [
-        { role: "hero" },
-        ...(hasServices ? [{ role: "services" }] : []),
-        { role: "process" },
-        { role: "social_proof" },
-        { role: "faq" },
+        { role: "hero", heading: input.copy.heroHeadline || input.businessName, subheading: input.copy.heroSubheadline || null, media: "required", includes: ["primary_action"] },
+        ...(hasServices ? [{ role: "services", heading: "Our Services", subheading: null, includes: ["service_cards"] as ("primary_action" | "service_cards")[] }] : []),
+        { role: "process", heading: "How It Works", subheading: null },
+        { role: "social_proof", heading: null, subheading: null },
+        { role: "faq", heading: "Common Questions", subheading: null },
         ...functionalSections,
       ],
     },
@@ -314,7 +323,7 @@ export async function materializeSiteContent(
           purpose: "detailed service breakdown and booking",
           primaryAction,
           sections: [
-            { role: "services" },
+            { role: "services", heading: `${input.businessName} Services`, subheading: null, includes: ["service_cards"] as ("primary_action" | "service_cards")[] },
             ...(input.hasBooking ? [{ role: "booking" }] : []),
             { role: "contact" },
           ],
@@ -329,9 +338,9 @@ export async function materializeSiteContent(
       purpose: "business story, values and service territory",
       primaryAction,
       sections: [
-        { role: "story" },
-        { role: "values" },
-        { role: "service_area" },
+        { role: "story", heading: `About ${input.businessName}`, subheading: null, body: input.copy.about || null },
+        { role: "values", heading: "Our Values", subheading: null },
+        { role: "service_area", heading: input.copy.areaCopy ? "Where We Serve" : null, subheading: null, body: input.copy.areaCopy || null },
         { role: "contact" },
       ],
     },
@@ -367,9 +376,25 @@ export async function materializeSiteContent(
         `using the safe multi-page fact inventory as a baseline.`,
     );
   }
-  // When the AI architect succeeded, use its plan. When it failed, the fact
-  // inventory (which is already a complete multi-page site) is the fallback.
-  const architecture: PageArchitecture[] = authored ?? factInventory;
+  // When the AI architect succeeded, use its plan. When a design contract
+  // was supplied, use its pages. When both are absent, the fact inventory
+  // (which is already a complete multi-page site) is the fallback.
+  const architecture: PageArchitecture[] =
+    authored ??
+    (designContract
+      ? designContract.pages.map((page) => ({
+          slug: page.slug,
+          title: page.title,
+          purpose: page.purpose,
+          primaryAction: page.primaryAction,
+          sections: page.sections.map((section) => ({
+            role: section.role,
+            layout: section.layout,
+            intent: section.intent,
+            media: section.media,
+          })),
+        }))
+      : factInventory);
   // Functional safeguard (not a creative choice): every site must give visitors
   // a working way to send an enquiry, so leads reach the owner's lead inbox.
   // If the AI plan left out every enquiry section, add the strongest real

@@ -324,7 +324,7 @@ export function useBuilderRequests({
         // First build still running: wait for pages to appear WITHOUT calling
         // planWebsiteChanges again. Each call to planWebsiteChanges writes
         // "reading your business" and "reading your message" progress stages,
-        // and retrying it 60 times floods the live progress card with duplicates.
+        // and retrying it floods the live progress card with duplicates.
         // Instead, poll website_pages directly — a cheap read that creates no
         // progress noise — and only re-plan once pages exist.
         const attempts = (deferRef.current.get(task.id) ?? 0) + 1;
@@ -348,8 +348,28 @@ export function useBuilderRequests({
             // Pages exist now — re-plan the actual change request once.
             return runPlan(task);
           }
+          // Pages not ready: wait and poll again (does NOT call planWebsiteChanges).
           await new Promise((resolve) => setTimeout(resolve, 10000));
-          return runPlan(task);
+          // Re-check pages without calling runPlan (which calls planWebsiteChanges).
+          // We loop here polling page count until pages appear or we time out.
+          let pollAttempts = 0;
+          while (!pagesReady && pollAttempts < 90) {
+            pollAttempts++;
+            try {
+              const { count } = await supabase
+                .from("website_pages")
+                .select("id", { count: "exact", head: true })
+                .eq("organization_id", organizationId!);
+              pagesReady = (count ?? 0) > 0;
+            } catch {
+              // If the read fails, continue to delay.
+            }
+            if (pagesReady) break;
+            await new Promise((resolve) => setTimeout(resolve, 10000));
+          }
+          if (pagesReady) {
+            return runPlan(task);
+          }
         }
         // Exhausted: tell the owner the first build is taking longer than expected.
         patch(task.id, {
