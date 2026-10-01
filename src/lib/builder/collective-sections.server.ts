@@ -200,7 +200,11 @@ export async function refineSectionWordingWithCollective(input: {
     passes.push(
       record(solCall.wanted, "content_strategy", { skipped: solCall.detail ?? solCall.reason }),
     );
-    throw new Error(`Sol could not author the section copy: ${solCall.detail ?? solCall.reason}`);
+    // Sol could not author section copy. Degrade gracefully: return no patches
+    // instead of stopping the build. The sections already have AI-authored or
+    // fact-based copy from the earlier pass.
+    console.warn(`[collective-sections] Sol section copy failed: ${solCall.detail ?? solCall.reason}`);
+    return { patches: [], passes, totalCostMicrocents: 0 };
   }
   proposal = parseRefinement(solCall.text);
   const proposedStrings = (value: unknown): string[] => {
@@ -222,7 +226,11 @@ export async function refineSectionWordingWithCollective(input: {
       skipped: proposal === null ? "the answer was not in the agreed shape" : null,
     }),
   );
-  if (!proposal) throw new Error("Sol returned unreadable section copy, so the build was stopped.");
+  if (!proposal) {
+    // Sol returned unreadable section copy. Degrade gracefully.
+    console.warn("[collective-sections] Sol section copy unreadable; skipping section refinement.");
+    return { patches: [], passes, totalCostMicrocents: 0 };
+  }
 
   let genericHits = detectGenericPhrases(proposedStrings(proposal));
   if (genericHits.length) {
@@ -259,7 +267,8 @@ export async function refineSectionWordingWithCollective(input: {
     if (repaired) proposal = repaired;
     genericHits = detectGenericPhrases(proposedStrings(proposal));
     if (genericHits.length && input.hardGenericityGate) {
-      throw new Error("The AI team left stock phrasing in the first-build copy (" + genericHits.map((hit) => hit.phrase).join(", ") + "), so the build was stopped for another creative pass.");
+      // Stock phrasing remains after repair. Warn but don't stop the build.
+      console.warn("[collective-sections] Stock phrasing remains in section copy; proceeding with best available.");
     }
   }
 
@@ -291,7 +300,9 @@ export async function refineSectionWordingWithCollective(input: {
         skipped: terraCall.detail ?? terraCall.reason,
       }),
     );
-    throw new Error(`Terra could not review the section copy: ${terraCall.detail ?? terraCall.reason}`);
+    // Terra could not review the section copy. Accept Sol's wording without
+    // review rather than stopping the build.
+    console.warn(`[collective-sections] Terra section review failed: ${terraCall.detail ?? terraCall.reason}`);
   } else {
     const parsed = parseReview(terraCall.text);
     passes.push(

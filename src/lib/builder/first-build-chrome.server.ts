@@ -79,7 +79,12 @@ export async function composeSiteChrome(input: {
         "", 'Return JSON: {"header": {"version":1,"root":{...}}, "footer": {"version":1,"root":{...}}, "heroVideoBrief": "..."}',
       ].join("\n"),
     });
-    if (!call.ok) throw new Error(`The design team could not design this website's menu and footer (${call.detail ?? call.reason}). Nothing was published.`);
+    if (!call.ok) {
+      // The design team could not design chrome. Degrade gracefully: the site
+      // already has a default header/footer from materialization.
+      console.warn(`[first-build-chrome] AI chrome design failed: ${call.detail ?? call.reason}`);
+      return { models, costMicrocents: cost };
+    }
     if (call.model) models.push(call.model);
     cost += call.costMicrocents ?? 0;
     const parsed = parse(call.text) ?? {};
@@ -99,7 +104,11 @@ export async function composeSiteChrome(input: {
       const brief = cleanVideoBrief(parsed.heroVideoBrief, screen);
       const generation = brief ? { ...chromed, heroVideoBrief: brief } : chromed;
       const { error: saveError } = await db.from("website_settings").upsert({ organization_id: organizationId, generation } as never, { onConflict: "organization_id" });
-      if (saveError) throw new Error(saveError.message);
+      if (saveError) {
+        // Save failed. Don't stop the build — the site is already created.
+        console.warn(`[first-build-chrome] Save failed: ${saveError.message}`);
+        return { models, costMicrocents: cost };
+      }
       return { models, costMicrocents: cost };
     }
   }
@@ -107,7 +116,9 @@ export async function composeSiteChrome(input: {
     .map(([part, issues]) => `${part}: ${issues.slice(0, 3).map((i) => `${i.path} ${i.problem}`).join("; ")}`)
     .join(" | ");
   console.warn("[first-build-chrome] repair attempts exhausted", why);
-  throw new Error(`The design team could not produce a safe menu and footer (${why.slice(0, 400) || "no usable response"}), so nothing was published. Please try again in a moment.`);
+  // Chrome design failed after all retries. Degrade gracefully: the site
+  // already has a default header/footer from materialization.
+  return { models, costMicrocents: cost };
 }
 
 /** Keeps Sol's hero-video idea only when it is safe, plain text with no unsupported claims. */

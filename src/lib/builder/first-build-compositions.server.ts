@@ -241,7 +241,12 @@ export async function composeFirstBuildSections(input: {
           'Return JSON: {"sections": {"<sectionId>": {"version": 1, "label": "...", "root": {...}}}} with one tree per section.',
         ].join("\n"),
       });
-      if (!call.ok) throw new Error(`The design team could not lay out this website's sections (${call.detail ?? call.reason}). Nothing was published.`);
+      if (!call.ok) {
+        // The design team could not lay out sections. Degrade gracefully:
+        // sections already have their default layout from materialization.
+        console.warn(`[first-build-compositions] AI layout failed: ${call.detail ?? call.reason}`);
+        return result;
+      }
       if (call.model) result.models.push(call.model);
       result.costMicrocents += call.costMicrocents ?? 0;
       const trees = parseTrees(call.text) ?? {};
@@ -274,10 +279,12 @@ export async function composeFirstBuildSections(input: {
       pending = next;
     }
     if (pending.length) {
+      // Some sections could not get a safe AI layout after retries. Degrade
+      // gracefully: they already have their default layout from materialization.
       const first = Object.values(feedback).flat()[0];
-      throw new Error(
-        `The design team could not produce a safe layout for ${pending.length} section(s)${first ? ` (${first.path}: ${first.problem})` : ""}, so nothing was published. Please try again in a moment.`,
-        { cause: feedback },
+      console.warn(
+        `[first-build-compositions] ${pending.length} section(s) could not get an AI layout` +
+          (first ? ` (${first.path}: ${first.problem})` : "") + "; using default layouts.",
       );
     }
     // Search data only exists for a verified domain; a lookup failure never blocks the build.
