@@ -78,16 +78,6 @@ function breakerOpen(providerId: string, now = Date.now()) {
   return state.rateLimitedUntil !== null && state.rateLimitedUntil > now;
 }
 
-/** Free-only mode is the platform default and is read from the AI config. */
-async function freeOnlyMode(): Promise<boolean> {
-  try {
-    const { freeAiOnly } = await import("@/lib/ai/free");
-    return freeAiOnly();
-  } catch {
-    return true;
-  }
-}
-
 export function recordProviderSuccess(providerId: string) {
   const state = health(providerId);
   state.lastSuccessAt = Date.now();
@@ -122,21 +112,15 @@ export type CapabilityResolution = {
 
 /** Which provider (if any) may serve this capability right now. */
 export async function resolveCapability(capability: Capability): Promise<CapabilityResolution> {
-  const freeOnly = await freeOnlyMode();
   const eligible = providersFor(capability).filter(
     (provider) =>
       provider.implemented &&
-      (!freeOnly || provider.cost !== "paid") &&
       missingCredentials(provider).length === 0 &&
       !breakerOpen(provider.id),
   );
   const provider = eligible[0] ?? null;
   const anyImplemented = providersFor(capability).some((entry) => entry.implemented);
   const status = capabilityStatus({ capability, selected: provider, anyImplemented });
-  const paidBlocked =
-    !provider &&
-    freeOnly &&
-    providersFor(capability).some((entry) => entry.implemented && entry.cost === "paid");
   return {
     capability,
     provider,
@@ -144,9 +128,7 @@ export async function resolveCapability(capability: Capability): Promise<Capabil
     fallbacks: eligible.slice(1),
     reason: provider
       ? null
-      : paidBlocked
-        ? "paid_provider_blocked_by_free_only"
-        : status === "needs_connection"
+      : status === "needs_connection"
             ? "needs_connection"
             : "no_provider_implemented",
   };
@@ -261,7 +243,6 @@ const DETAIL: Record<string, string> = {
 
 /** One honest snapshot of every capability, for the admin surface. */
 export async function capabilitySnapshot(): Promise<CapabilitySnapshot[]> {
-  const freeOnly = await freeOnlyMode();
   const snapshots: CapabilitySnapshot[] = [];
   for (const capability of ALL_CAPABILITIES) {
     const resolution = await resolveCapability(capability);
@@ -276,7 +257,7 @@ export async function capabilitySnapshot(): Promise<CapabilitySnapshot[]> {
       detail: resolution.provider
         ? `${resolution.provider.label} is serving this${resolution.fallbacks.length ? `, with ${resolution.fallbacks[0]!.label} as backup` : ""}.`
         : (DETAIL[resolution.reason ?? ""] ??
-          (freeOnly ? "Not available while free-only mode is on." : "Not available.")),
+          "Not available."),
     });
   }
   return snapshots;

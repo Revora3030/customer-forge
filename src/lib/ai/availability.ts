@@ -10,7 +10,6 @@
  */
 
 import {
-  builderExternalAiAllowed,
   providerChain,
   type ModelRole,
 } from "@/lib/ai/config";
@@ -18,10 +17,7 @@ import { freeProviderChain } from "@/lib/ai/free";
 
 /** Free AI for one role: configured credentials plus a free-eligible model. */
 export function freeAiAvailable(role: ModelRole = "primary") {
-  return (
-    builderExternalAiAllowed() &&
-    freeProviderChain(role).length > 0
-  );
+  return freeProviderChain(role).length > 0;
 }
 
 /**
@@ -30,7 +26,7 @@ export function freeAiAvailable(role: ModelRole = "primary") {
  * AI team; availability never selects or substitutes a design.
  */
 export function paidAiAllowedForBuilder() {
-  return builderExternalAiAllowed() && providerChain().length > 0;
+  return providerChain().length > 0;
 }
 
 /** Can the builder call a model for this role at all (free first)? */

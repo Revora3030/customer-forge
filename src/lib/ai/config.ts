@@ -135,15 +135,6 @@ function modelsFor(provider: PaidProviderName): Record<ModelRole, string> {
   return models;
 }
 
-/**
- * The website builder's model lane is open by default. Creative authority stays
- * with the AI team; this helper exists only as a compatibility seam for callers
- * that need to report whether the external model lane is reachable.
- */
-export function builderExternalAiAllowed(): boolean {
-  return true;
-}
-
 /** A provider is available only when Revora's own key for it is present. */
 export function providerConfig(provider: PaidProviderName): ProviderConfig | null {
   const apiKey = env(KEY_ENV[provider]);

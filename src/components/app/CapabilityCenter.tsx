@@ -54,7 +54,6 @@ export function CapabilityCenter() {
           <p className="mt-3 text-sm text-muted-foreground">
             {query.data.summary.ready} ready · {query.data.summary.needsConnection} awaiting connection ·{" "}
             {query.data.summary.unavailable} not available
-            {query.data.freeOnly ? " · free-only mode is on, so paid services stay blocked" : ""}
           </p>
 
           <ul className="mt-4 space-y-2">

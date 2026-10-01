@@ -1,6 +1,6 @@
 # Massive builder upgrade — Lovable-grade planning and premium site output
 
-Full creative control, one big pass. Stays $0-AI (native engine only), preserves the current apply/verify/publish pipeline, adds no new external dependencies.
+Full creative control, one big pass. Stays AI-powered (full model team), preserves the current apply/verify/publish pipeline, adds no new external dependencies.
 
 ## What changes for the owner
 
@@ -19,7 +19,7 @@ Full creative control, one big pass. Stays $0-AI (native engine only), preserves
 
 ## Guardrails (unchanged, re-verified)
 
-- $0 external AI — no Lovable AI, no Gemini, no OpenAI calls added; native engine only.
+- Full AI team — all configured providers available.
 - No fabricated facts, reviews, awards, prices, credentials, results.
 - Uses only existing `AgentAction` kinds — the existing apply/verify/rollback path guards everything.
 - Preserves owner-authored content: rewrites a headline only when it is empty or a template default, never overwrites a headline the owner wrote.

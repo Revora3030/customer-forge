@@ -2,9 +2,9 @@
  * Capability / Connection Center data, for the platform admin only.
  *
  * Reports what each capability can genuinely do right now: which provider would
- * serve it, what is missing, provider health, whether a real call has ever
- * succeeded in this process, and whether free-only mode is blocking a paid
- * provider. Credential *names* are shown; values never leave the server.
+ * serve it, what is missing, provider health, and whether a real call has ever
+ * succeeded in this process. Credential *names* are shown; values never leave
+ * the server.
  */
 
 import { createServerFn } from "@tanstack/react-start";
@@ -12,7 +12,6 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { CapabilitySnapshot, ProviderSnapshot } from "@/lib/integrations/capabilities";
 
 export type IntegrationCenterData = {
-  freeOnly: boolean;
   capabilities: CapabilitySnapshot[];
   providers: ProviderSnapshot[];
   summary: { ready: number; needsConnection: number; unavailable: number };
@@ -30,7 +29,6 @@ export const getIntegrationCenter = createServerFn({ method: "GET" })
     const { capabilitySnapshot, providerSnapshots } = await import(
       "@/lib/integrations/registry.server"
     );
-    const { freeAiOnly } = await import("@/lib/ai/free");
 
     const capabilities = await capabilitySnapshot();
     const summary = {
@@ -40,7 +38,6 @@ export const getIntegrationCenter = createServerFn({ method: "GET" })
     };
 
     return {
-      freeOnly: freeAiOnly(),
       capabilities,
       providers: providerSnapshots(),
       summary,

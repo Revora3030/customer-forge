@@ -25,7 +25,6 @@
 
 import {
   aiLimits,
-  builderExternalAiAllowed,
   providerChain,
   providerConfig,
   type ModelRole,
@@ -42,7 +41,6 @@ import {
 } from "@/lib/ai/durable-health.server";
 import {
   freeAiEnabled,
-  freeAiOnly,
   freeBudgetAllows,
   freeBudgetCap,
   freeBudgetRemaining,
@@ -341,7 +339,7 @@ async function buildChain(
 
   // Paid providers remain available when the request is not explicitly forced
   // into free-only mode. Free routing is a cost lane, never creative authority.
-  if (!forceFreeOnly && !freeAiOnly())
+  if (!forceFreeOnly)
     for (const config of providerChain()) {
       const model = config.models[role];
       if (capable && !capable(model)) continue;
@@ -388,9 +386,6 @@ async function buildChain(
 export function freeAiStatus() {
   return {
     freeAiEnabled: freeAiEnabled(),
-    freeOnly: freeAiOnly(),
-    paidFallbackReachable:
-      builderExternalAiAllowed() && !freeAiOnly(),
     /** The most recent model call: who served it and how it ended. */
     last: lastAiOutcome(),
     providers: freeProviderReadiness().map((entry) => {

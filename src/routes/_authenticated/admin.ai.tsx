@@ -161,8 +161,8 @@ function AdminAi() {
           <p className="mt-3 text-[13px] text-muted-foreground">
             {data.builderAiAvailable
               ? "AI is reachable, so the builder can use the configured model team. "
-              : "No eligible free AI is reachable right now; the builder does not substitute a stock or deterministic design. "}
-            {data.free.paidFallbackReachable
+              : "No AI is reachable right now; the builder does not substitute a stock or deterministic design. "}
+            {data.providers.length > 0
               ? "A configured paid provider is available as another model lane."
               : "No configured paid provider is currently available."}
           </p>

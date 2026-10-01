@@ -282,17 +282,6 @@ export function freeAiEnabled() {
   return flag("FREE_AI_ENABLED", true);
 }
 
-/**
- * Quality-first: every connected model, paid or free, may answer a call. Free
- * models are never preferred for their price — they are chosen only when they
- * fit the task. An operator can still force the free-only lane explicitly with
- * `FREE_AI_ONLY=true` as a cost-safety switch.
- */
-export function freeAiOnly() {
-  // The paid team is never switched off; free models are backup only.
-  return false;
-}
-
 /* -------------------------- free-eligibility rules -------------------------- */
 
 /**
@@ -630,7 +619,7 @@ export type FreeProviderResolution = {
 /**
  * The free chain for one role: every configured free provider that has a
  * free-eligible model for that role, in priority order. Empty means "no free
- * AI is available right now" — the caller then uses the native engine.
+ * AI is available right now" — the caller then falls back to paid providers.
  */
 export function freeProviderChain(role: ModelRole): FreeProviderResolution[] {
   if (!freeAiEnabled()) return [];

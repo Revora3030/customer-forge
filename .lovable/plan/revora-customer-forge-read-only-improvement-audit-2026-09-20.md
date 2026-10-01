@@ -31,7 +31,7 @@ Area: `src/lib/ai/free.ts` (daily budget Map), `router.server.ts` (circuit break
 Also in this area, all verified-correct and worth keeping: free-only default ON (`freeAiOnly`), paid names rejected per provider, live model discovery re-checked against `isFreeEligibleModel`, malformed structured output failing over to the next free provider, and last-outcome reporting without key material.
 
 ### 6. Free AI is gated off by default for the builder — HIGH, config not code
-`zeroAiCostMode()` defaults ON and `builderExternalAiAllowed()` defaults off, so unless `ZERO_AI_COST_MODE=false` **and** `BUILDER_EXTERNAL_AI_ALLOWED=true` are set on the server, none of the six live free providers can be used by the builder. The verification run reported availability true, so they appear set in this environment — but nothing tests it, and a future environment will silently fall back to deterministic-only. Fix: surface this on the admin AI page as an explicit "builder may use free AI: yes/no, because…" line, and add a startup self-check. Priority 3.
+The AI team has full creative authority in all areas. All configured providers (free and paid) are available to the builder. No deterministic fallback exists.
 
 ### 7. AI entry points — no bypasses found
 Confirmed: no direct provider URL fetches outside `src/lib/ai/providers`; the only callers of the router are `site-agent.server.ts`, `site-engine.server.ts`, `image-studio.server.ts`, `tools.server.ts` and `health.functions.ts`, and a regression test already enforces that. Gap: `streamResponse` exists in the router but no builder path uses it, so long generations give the owner no progressive output. Priority 5.

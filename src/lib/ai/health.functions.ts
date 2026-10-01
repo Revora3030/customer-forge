@@ -51,8 +51,6 @@ export type AiLastOutcome = {
 
 export type AiFreeStatus = {
   freeAiEnabled: boolean;
-  freeOnly: boolean;
-  paidFallbackReachable: boolean;
   /** Who served the most recent request, and how it ended. */
   last: AiLastOutcome | null;
   providers: AiFreeProviderStatus[];

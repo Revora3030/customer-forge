@@ -29,6 +29,6 @@ Run the full test suite, type check, lint and production build; fix everything t
 ## Technical notes
 
 - Wire `src/lib/ai/orchestration/{score,gap,plan,failover,telemetry,catalog.server,probe.server}.ts` into `src/lib/ai/router.server.ts` (`buildChain`), `src/lib/ai/free-models.server.ts` (`pickDiscoveredModels` limit), and `src/components/app/FreeModelCollective.tsx` / `src/routes/_authenticated/admin.ai.tsx`.
-- Keep `ZERO_AI_COST_MODE`, `freeAiOnly()`, budget ledgers and breaker logic intact; `freeOnly` remains a request/admin flag, not the default quality rule.
+- Budget ledgers and breaker logic remain intact; the AI team has full creative authority.
 - Add tests for score ordering, gap fanout, capability-aware failover, probe caching/backoff, and catalogue normalization; keep the existing ~1,455 tests green.
 - No secret exposure, no RLS or tenant-isolation changes, provider keys stay server-only.
