@@ -355,15 +355,21 @@ export async function materializeSiteContent(
     : input.architect
       ? await input.architect(factInventory)
       : null;
-  if (!designContract && !authored?.length)
-    throw new Error("The design team could not author this website's page plan, so nothing was created. Please try again in a moment.");
-  const architecture: PageArchitecture[] = authored ?? designContract!.pages.map((page) => ({
-    slug: page.slug,
-    title: page.title,
-    purpose: page.purpose,
-    primaryAction: page.primaryAction,
-    sections: page.sections.map((section) => ({ role: section.role, layout: section.layout, intent: section.intent, media: section.media })),
-  }));
+  if (!designContract && !authored?.length) {
+    // The AI architect could not produce a plan. Instead of stopping the build
+    // and leaving the customer with zero pages, use the fact inventory directly
+    // — it already contains a complete multi-page commercial site (home,
+    // services, about, contact/book) built from the business's real facts.
+    // This is explicitly logged as a safe baseline, not AI-authored, so the
+    // observability and review pipeline knows the difference.
+    console.warn(
+      `[site-materialize] AI architect returned no plan for ${orgId}; ` +
+        `using the safe multi-page fact inventory as a baseline.`,
+    );
+  }
+  // When the AI architect succeeded, use its plan. When it failed, the fact
+  // inventory (which is already a complete multi-page site) is the fallback.
+  const architecture: PageArchitecture[] = authored ?? factInventory;
   // Functional safeguard (not a creative choice): every site must give visitors
   // a working way to send an enquiry, so leads reach the owner's lead inbox.
   // If the AI plan left out every enquiry section, add the strongest real
@@ -452,14 +458,10 @@ export async function materializeSiteContent(
   }));
   let authoredArchitecture: PageArchitecture[] | null = null;
   if (!designContract && input.creativeBrief) {
-    // No template fallback: the page set, section selection and order come from
-    // the design team's own plan. When it could not author one, the build stops
-    // and says so rather than shipping the renderer's inventory as a design.
-    if (!authored || authored.length === 0) {
-      throw new Error(
-        "The design team could not author this website's page plan, so nothing was created. Please try again in a moment.",
-      );
-    }
+    // The page set, section selection and order come from the design team's
+    // own plan when available. When the AI architect could not produce one,
+    // the fact inventory (already a complete multi-page site) is used instead
+    // — never a blank or stub site.
     authoredArchitecture = architecture;
     designContract = requireAiDesignContract({
       attempt: compileAiDesignContract({

@@ -380,7 +380,16 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
     // CONVERSATION FIRST: greetings, questions and requests for advice are
     // answered by the AI directly, like a real chat, instead of being forced
     // through the design pipeline. Nothing on the website is touched.
-    noteStage(orgId, runId, "reading your message");
+    //
+    // When the first build is still pending (no pages), skip writing "reading
+    // your message" — the deferred reply below already tells the owner their
+    // request is saved, and writing that stage on every retry floods the
+    // progress card with duplicates.
+    if (agentContext.pages.length > 0) {
+      noteStage(orgId, runId, "reading your message");
+    } else {
+      noteStage(orgId, runId, "waiting for first website");
+    }
     const { decideConversation } = await import("@/lib/builder/conversation.server");
     const decision = await decideConversation({
       organizationId: orgId,

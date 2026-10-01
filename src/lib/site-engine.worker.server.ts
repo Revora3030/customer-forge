@@ -225,9 +225,24 @@ async function runJob(
   } = await import("@/lib/site-engine.server");
 
   const done: string[] = [];
+  // Import progress recorder so the owner's live progress card shows the
+  // real worker stages ("reading your business", "writing the pages", …)
+  // instead of only seeing stages from chat retries.
+  const { noteStage } = await import("@/lib/builder/progress.server");
+  const WORKER_STAGE_LABELS: Record<string, string> = {
+    business: "reading your business",
+    services: "reading your services",
+    brand: "designing your brand identity",
+    analysis: "planning the change",
+    structure: "planning the page layout",
+    copy: "writing the pages",
+    conversion: "checking conversion paths",
+  };
   const step = async (key: string) => {
     done.push(key);
     const meta = GENERATION_STEPS.find((s) => s.key === key);
+    const friendly = WORKER_STAGE_LABELS[key];
+    if (friendly) noteStage(orgId, job.id, friendly);
     const { data: fenced } = await db
       .from("generation_jobs")
       .update({
@@ -604,6 +619,7 @@ async function runJob(
       }
     }
   }
+  noteStage(orgId, job.id, "generating your pictures");
   const starterImages = await generateFirstBuildImages(db, {
     organizationId: orgId,
     userId: job.created_by,
@@ -653,6 +669,7 @@ async function runJob(
   const architectIndustry = org.data.industry ?? null;
   const architectGoal = goals[0] ?? org.data.conversion_goal ?? null;
   const architectureRef: { current: PageArchitectureOutcome | null } = { current: null };
+  noteStage(orgId, job.id, "writing the pages");
   const built = await materializeSiteContent(db, orgId, {
     businessName: org.data.name ?? "",
     copy,
@@ -710,17 +727,19 @@ async function runJob(
       : { authored: false, skipped: "the page plan was not requested for this build" }) as unknown as never,
     created_by: job.created_by,
   } as never);
-  // The AI page plan is the only source of pages and sections. There is no
-  // rule-based layout to fall back on, so an unavailable or rejected plan stops
-  // the build with an honest message instead of a generic website.
+  // The AI page plan is the preferred source of pages and sections. When the
+  // AI architect is unavailable or rejected, materializeSiteContent falls back
+  // to the safe multi-page fact inventory rather than stopping the build — so
+  // the customer always gets a complete site, not an error.
   if (!built.skipped) {
     const outcome = architectureRef.current;
     if (!outcome || !outcome.architecture) {
       const detail = outcome?.rejected.length
         ? outcome.rejected.map((rejection) => JSON.stringify(rejection)).join("; ")
         : outcome?.skipped ?? "the design team was unavailable";
-      throw new Error(
-        `The design team could not author a page plan for this website, so nothing was created (${detail}). Please try again in a moment.`,
+      console.warn(
+        `[site-engine] AI architect unavailable for ${orgId} (${detail}); ` +
+          `materializeSiteContent will use the safe multi-page fact inventory.`,
       );
     }
   }
@@ -1004,6 +1023,7 @@ async function runJob(
     { onConflict: "organization_id" },
   );
   if (saveError) throw new Error(saveError.message);
+  noteStage(orgId, job.id, "finishing up");
   await step("leads");
   await step("mobile");
 

@@ -39,6 +39,7 @@ import type { AgentAttachment } from "@/lib/site-agent";
 import { trackConversion } from "@/lib/conversion";
 import { friendlyError } from "@/lib/user-error";
 import { clearTurns, loadTurns, pairTurns, saveTurns, type SavedTaskResult } from "@/lib/builder-memory";
+import { supabase } from "@/integrations/supabase/client";
 
 export const INSTRUCTION_LIMIT = 1200;
 
@@ -320,15 +321,43 @@ export function useBuilderRequests({
         },
       });
       if ("deferred" in result && result.deferred) {
-        // First build still running: keep the request and try again once pages exist.
+        // First build still running: wait for pages to appear WITHOUT calling
+        // planWebsiteChanges again. Each call to planWebsiteChanges writes
+        // "reading your business" and "reading your message" progress stages,
+        // and retrying it 60 times floods the live progress card with duplicates.
+        // Instead, poll website_pages directly — a cheap read that creates no
+        // progress noise — and only re-plan once pages exist.
         const attempts = (deferRef.current.get(task.id) ?? 0) + 1;
         deferRef.current.set(task.id, attempts);
         if (attempts === 1) remember([{ role: "user", content: task.instruction }, { role: "assistant", content: result.reply }]);
-        if (attempts <= 60) {
+        // Poll for up to ~15 minutes (90 attempts × 10s), but do it by checking
+        // page count — NOT by re-calling the planner.
+        if (attempts <= 90) {
           patch(task.id, { state: "planning", reply: result.reply });
-          await new Promise((resolve) => setTimeout(resolve, 15000));
+          let pagesReady = false;
+          try {
+            const { count } = await supabase
+              .from("website_pages")
+              .select("id", { count: "exact", head: true })
+              .eq("organization_id", organizationId!);
+            pagesReady = (count ?? 0) > 0;
+          } catch {
+            // If the read fails, fall back to a simple delay and retry.
+          }
+          if (pagesReady) {
+            // Pages exist now — re-plan the actual change request once.
+            return runPlan(task);
+          }
+          await new Promise((resolve) => setTimeout(resolve, 10000));
           return runPlan(task);
         }
+        // Exhausted: tell the owner the first build is taking longer than expected.
+        patch(task.id, {
+          state: "failed",
+          error: "Revora's first website build is taking longer than expected. Your request is saved — try again in a moment, or check the build status.",
+          retryable: true,
+        });
+        return;
       }
       if ("conversational" in result && result.conversational) {
         // A plain answer from the AI: shown as a chat reply, nothing to apply.

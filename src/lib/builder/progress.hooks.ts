@@ -20,6 +20,11 @@ export function useBuildProgress(
     refetchInterval: active ? 900 : false,
     queryFn: async (): Promise<BuildProgressStep[]> => {
       const since = new Date(Date.now() - 5 * 60_000).toISOString();
+
+      // Read progress stages from builder_progress (written by both the chat
+      // planner and the first-build worker) AND the latest generation job's
+      // current_step (written by the worker at each stage). Merging both gives
+      // the owner a complete picture of what's happening right now.
       let request = supabase
         .from("builder_progress")
         .select("stage, detail, created_at")
@@ -30,11 +35,35 @@ export function useBuildProgress(
       if (requestId) request = request.eq("run_id", requestId);
       const { data, error } = await request;
       if (error) throw error;
-      return (data ?? []).map((row) => ({
+
+      const steps = (data ?? []).map((row) => ({
         stage: row.stage,
         detail: row.detail ?? null,
         at: row.created_at,
       }));
+
+      // Also check the latest generation job for real-time worker status.
+      // The worker writes current_step to generation_jobs at each stage, and
+      // this may carry progress the builder_progress table doesn't have yet.
+      if (!requestId) {
+        const { data: job } = await supabase
+          .from("generation_jobs")
+          .select("status, current_step, progress")
+          .eq("organization_id", organizationId as string)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (job?.status === "processing" && job.current_step) {
+          // The worker is actively running — surface its current step too.
+          steps.unshift({
+            stage: String(job.current_step).replace(/_/g, " "),
+            detail: `Build progress: ${job.progress ?? 0}%`,
+            at: new Date().toISOString(),
+          });
+        }
+      }
+
+      return steps;
     },
   });
 

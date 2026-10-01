@@ -19,6 +19,7 @@ export const BUILD_STAGES = [
   "reading your business",
   "recalling your design identity",
   "reading your message",
+  "waiting for first website",
   "planning the change",
   "designing your change",
   "repairing the plan",
@@ -28,6 +29,11 @@ export const BUILD_STAGES = [
   "checking the plan is safe",
   "saving a restore point",
   "writing the pages",
+  "generating your pictures",
+  "designing your brand identity",
+  "reading your services",
+  "planning the page layout",
+  "checking conversion paths",
   "checking the result",
   "finishing up",
 ] as const;
@@ -58,6 +64,23 @@ export async function recordStage(
   if (!organizationId || !cleanRun || !cleanStage) return;
   try {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+    // Server-side dedupe: when the same stage is recorded for the same run
+    // without additional detail, skip it. This prevents the progress card
+    // from filling with dozens of identical "reading your message" rows when
+    // a deferred request retries or a build step fires repeatedly.
+    if (!detail) {
+      const { data: existing } = await supabaseAdmin
+        .from("builder_progress")
+        .select("id")
+        .eq("organization_id", organizationId)
+        .eq("run_id", cleanRun)
+        .eq("stage", cleanStage)
+        .is("detail", null)
+        .limit(1);
+      if (existing && existing.length > 0) return;
+    }
+
     await supabaseAdmin.from("builder_progress").insert({
       organization_id: organizationId,
       run_id: cleanRun,

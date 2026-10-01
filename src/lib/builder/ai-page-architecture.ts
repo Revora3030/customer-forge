@@ -266,5 +266,11 @@ export function normalizePageArchitecture(input: {
   if (!architecture.some((page) => page.slug === home)) return null;
   if (architecture.length === 0) return null;
 
+  // Minimum site depth: a real commercial site is more than one page. When the
+  // candidate offered multiple pages (home, services, about, contact) but the AI
+  // returned only one, the plan is too thin — refuse it so the caller retries or
+  // falls back to the full fact inventory rather than shipping a stub site.
+  if (input.candidate.length >= 3 && architecture.length < 2) return null;
+
   return { architecture, rejected, changed: !sameShape(architecture, input.candidate) };
 }
