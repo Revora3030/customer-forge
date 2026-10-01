@@ -58,17 +58,30 @@ describe("payment webhook environment resolution", () => {
     expect(resolveStripeWebhookEnv("live")).toBe("live");
   });
 
-  it("requires an explicit sandbox marker", () => {
+  it("honors an explicit sandbox marker", () => {
     expect(resolveStripeWebhookEnv("sandbox")).toBe("sandbox");
   });
 
-  it("rejects unknown environment markers", () => {
-    expect(() => resolveStripeWebhookEnv("production")).toThrow(/Invalid webhook environment/);
+  it("uses Stripe livemode when the URL marker is missing or unrecognized", () => {
+    expect(resolveStripeWebhookEnv(null, true)).toBe("live");
+    expect(resolveStripeWebhookEnv(null, false)).toBe("sandbox");
+    expect(resolveStripeWebhookEnv("production", true)).toBe("live");
+    expect(resolveStripeWebhookEnv("production", false)).toBe("sandbox");
+  });
+
+  it("defaults to live when neither URL nor payload identifies an environment", () => {
+    expect(resolveStripeWebhookEnv(null)).toBe("live");
+    expect(resolveStripeWebhookEnv("")).toBe("live");
+    expect(resolveStripeWebhookEnv("production")).toBe("live");
   });
 });
 
 describe("payment webhook signature verification", () => {
   beforeEach(() => {
+    delete process.env["Stripelivewebhook"];
+    delete process.env["STRIPE_WEBHOOK_SECRET"];
+    delete process.env["STRIPE_LIVE_WEBHOOK_SECRET"];
+    delete process.env["STRIPE_SANDBOX_WEBHOOK_SECRET"];
     process.env["PAYMENTS_SANDBOX_WEBHOOK_SECRET"] = SANDBOX_SECRET;
     process.env["PAYMENTS_LIVE_WEBHOOK_SECRET"] = LIVE_SECRET;
   });
@@ -135,6 +148,63 @@ describe("payment webhook signature verification", () => {
     ).rejects.toThrow(/Invalid webhook signature/);
   });
 
+  it("accepts a live event signed with the Stripelivewebhook fallback secret", async () => {
+    delete process.env["PAYMENTS_LIVE_WEBHOOK_SECRET"];
+    process.env["Stripelivewebhook"] = "whsec_fallback_live";
+
+    const body = JSON.stringify({
+      ...JSON.parse(eventBody()),
+      livemode: true,
+    });
+    const timestamp = Math.floor(Date.now() / 1000);
+    const header = `t=${timestamp},v1=${await sign(body, "whsec_fallback_live", timestamp)}`;
+    const req = new Request("https://revora.test/api/public/payments/webhook", {
+      method: "POST",
+      headers: { "stripe-signature": header, "content-type": "application/json" },
+      body,
+    });
+
+    const event = await verifyWebhook(req, "live");
+    expect(event.type).toBe("checkout.session.completed");
+    expect(event.livemode).toBe(true);
+  });
+
+  it("accepts a live event signed with the STRIPE_WEBHOOK_SECRET fallback", async () => {
+    delete process.env["PAYMENTS_LIVE_WEBHOOK_SECRET"];
+    process.env["STRIPE_WEBHOOK_SECRET"] = "whsec_fallback_live_2";
+
+    const body = eventBody({ livemode: true });
+    const timestamp = Math.floor(Date.now() / 1000);
+    const header = `t=${timestamp},v1=${await sign(body, "whsec_fallback_live_2", timestamp)}`;
+    const req = new Request("https://revora.test/api/public/payments/webhook", {
+      method: "POST",
+      headers: { "stripe-signature": header, "content-type": "application/json" },
+      body,
+    });
+
+    await expect(verifyWebhook(req, "live")).resolves.toMatchObject({
+      type: "checkout.session.completed",
+      livemode: true,
+    });
+  });
+
+  it("accepts a sandbox event signed with the sandbox fallback secret", async () => {
+    delete process.env["PAYMENTS_SANDBOX_WEBHOOK_SECRET"];
+    process.env["STRIPE_SANDBOX_WEBHOOK_SECRET"] = "whsec_fallback_sandbox";
+
+    const body = eventBody({ livemode: false });
+    const timestamp = Math.floor(Date.now() / 1000);
+    const header = `t=${timestamp},v1=${await sign(body, "whsec_fallback_sandbox", timestamp)}`;
+    const req = new Request("https://revora.test/api/public/payments/webhook", {
+      method: "POST",
+      headers: { "stripe-signature": header, "content-type": "application/json" },
+      body,
+    });
+
+    const event = await verifyWebhook(req, "sandbox");
+    expect(event.livemode).toBe(false);
+  });
+
   it("accepts a live-signed event on the live endpoint", async () => {
     const event = await verifyWebhook(await request(eventBody(), { secret: LIVE_SECRET }), "live");
     expect(event.type).toBe("checkout.session.completed");
@@ -143,7 +213,7 @@ describe("payment webhook signature verification", () => {
   it("fails closed when the signing secret is not configured", async () => {
     delete process.env["PAYMENTS_SANDBOX_WEBHOOK_SECRET"];
     await expect(verifyWebhook(await request(eventBody()), "sandbox")).rejects.toThrow(
-      /PAYMENTS_SANDBOX_WEBHOOK_SECRET is not configured/,
+      /Webhook secret is not configured for environment: sandbox/,
     );
   });
 });
