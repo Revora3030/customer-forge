@@ -78,13 +78,9 @@ export async function verifyWebhook(
   // Stripe delivers arbitrary JSON per event type; the shape is narrowed by
   // the individual handlers, so the raw envelope stays permissive here.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-): Promise<{ type: string; id?: string; data: { object: any } }> {
+): Promise<{ type: string; id?: string; livemode?: boolean; data: { object: any } }> {
   const signature = req.headers.get("stripe-signature");
   const body = await req.text();
-  const secret =
-    env === "sandbox"
-      ? getEnv("PAYMENTS_SANDBOX_WEBHOOK_SECRET")
-      : getEnv("PAYMENTS_LIVE_WEBHOOK_SECRET");
 
   if (!signature || !body) throw new Error("Missing signature or body");
 
@@ -102,28 +98,52 @@ export async function verifyWebhook(
   const age = Math.abs(Date.now() / 1000 - timestampSeconds);
   if (age > 300) throw new Error("Webhook timestamp too old");
 
-  const key = await crypto.subtle.importKey(
-    "raw",
-    new TextEncoder().encode(secret),
-    { name: "HMAC", hash: "SHA-256" },
-    false,
-    ["verify"],
-  );
-  const signed = new TextEncoder().encode(`${timestamp}.${body}`);
-  const matches = await Promise.all(
-    v1Signatures.map((candidate) => {
-      try {
-        const expected = Uint8Array.from(
-          candidate.match(/.{1,2}/g)?.map((byte) => Number.parseInt(byte, 16)) ?? [],
-        );
-        if (expected.length !== 32) return false;
-        return crypto.subtle.verify("HMAC", key, expected, signed);
-      } catch {
-        return false;
-      }
-    }),
-  );
-  if (!matches.some(Boolean)) throw new Error("Invalid webhook signature");
+  const candidateSecrets =
+    env === "sandbox"
+      ? [
+          process.env["PAYMENTS_SANDBOX_WEBHOOK_SECRET"],
+          process.env["STRIPE_SANDBOX_WEBHOOK_SECRET"],
+        ].filter(Boolean) as string[]
+      : [
+          process.env["PAYMENTS_LIVE_WEBHOOK_SECRET"],
+          process.env["Stripelivewebhook"],
+          process.env["STRIPE_WEBHOOK_SECRET"],
+          process.env["STRIPE_LIVE_WEBHOOK_SECRET"],
+        ].filter(Boolean) as string[];
 
-  return JSON.parse(body);
+  if (candidateSecrets.length === 0) {
+    throw new Error("Webhook secret is not configured for environment: " + env);
+  }
+
+  const payloadToSign = new TextEncoder().encode(timestamp + "." + body);
+
+  for (const secret of candidateSecrets) {
+    try {
+      const key = await crypto.subtle.importKey(
+        "raw",
+        new TextEncoder().encode(secret),
+        { name: "HMAC", hash: "SHA-256" },
+        false,
+        ["verify"],
+      );
+
+      for (const candidate of v1Signatures) {
+        try {
+          const expected = Uint8Array.from(
+            candidate.match(/.{1,2}/g)?.map((byte) => Number.parseInt(byte, 16)) ?? [],
+          );
+          if (expected.length !== 32) continue;
+          if (await crypto.subtle.verify("HMAC", key, expected, payloadToSign)) {
+            return JSON.parse(body);
+          }
+        } catch {
+          // Continue through every signature and candidate secret.
+        }
+      }
+    } catch {
+      // Continue to the next candidate secret.
+    }
+  }
+
+  throw new Error("Invalid webhook signature");
 }
