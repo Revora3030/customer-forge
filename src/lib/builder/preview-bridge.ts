@@ -91,7 +91,7 @@ export function selectionPrefix(selection: {
   pageSlug?: string;
 }): string {
   const name = selection.label ?? selection.kind ?? "block";
-  const location = selection.pageSlug ? ` on / ${selection.pageSlug}` : "";
+  const location = selection.pageSlug ? ` on /${selection.pageSlug}` : "";
   const viewport = selection.viewport ? ` at ${selection.viewport} viewport` : "";
   return `On the "${name}" block (id ${selection.id})${location}${viewport}:`;
 }
