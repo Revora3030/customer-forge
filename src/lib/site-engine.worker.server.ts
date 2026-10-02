@@ -727,8 +727,7 @@ async function runJob(
   );
   if (buildMarkerError) throw new Error(buildMarkerError.message);
 
-  let built: Awaited<ReturnType<typeof materializeSiteContent>>;
-  built = await materializeSiteContent(db, orgId, {
+  const built: Awaited<ReturnType<typeof materializeSiteContent>> = await materializeSiteContent(db, orgId, {
     businessName: org.data.name ?? "",
     copy,
     services: serviceRows,
