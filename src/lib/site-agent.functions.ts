@@ -721,7 +721,7 @@ type ApplyInput = {
 /** Accepts any id, so a batch can be read exactly as it was planned. */
 const ANY_ID = { has: () => true } as unknown as Set<string>;
 
-function resolveActionWithIdMap(
+export function resolveActionWithIdMap(
   action: AgentAction,
   idMap: ReadonlyMap<string, string>,
 ): AgentAction {
