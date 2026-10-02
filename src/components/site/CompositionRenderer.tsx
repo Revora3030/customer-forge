@@ -127,9 +127,8 @@ function widgetThemeStyle(theme: WidgetPresentation["theme"] | undefined): CSSPr
 }
 
 function mediaCss(visual: PersistedComponentVisual | undefined): CSSProperties {
-  if (!visual) return {};
   const css: CSSProperties = {};
-  if (visual.object_fit) css.objectFit = visual.object_fit;
+  css.objectFit = visual?.object_fit ?? "cover";
   if (visual.object_position ?? visual.focal_point) css.objectPosition = visual.object_position ?? visual.focal_point;
   if (visual.aspect_ratio) css.aspectRatio = visual.aspect_ratio.replace(":", " / ");
   if (visual.radius != null) css.borderRadius = visual.radius;
