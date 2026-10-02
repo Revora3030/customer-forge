@@ -69,6 +69,12 @@ export const Route = createFileRoute("/s/$slug/$page")({
           : []),
         ...(page.noindex ? [{ name: "robots", content: "noindex" }] : []),
       ],
+      scripts: [
+        {
+          type: "application/ld+json",
+          children: JSON.stringify(loaderData.structuredData),
+        },
+      ],
       links: [
         { rel: "canonical", href: url },
         // Same as the home page: the chosen heading font has to be requested
