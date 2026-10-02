@@ -4,6 +4,9 @@
  * never invents business facts.
  */
 
+export type JsonValue = string | number | boolean | null | JsonObject | JsonValue[];
+export type JsonObject = { [key: string]: JsonValue };
+
 export type CustomerSchemaInput = {
   businessName: string;
   siteUrl: string;
@@ -37,11 +40,11 @@ function safeHttpsUrl(value: string): string | null {
   }
 }
 
-export function buildCustomerJsonLd(input: CustomerSchemaInput): Record<string, unknown> {
+export function buildCustomerJsonLd(input: CustomerSchemaInput): JsonObject {
   const siteUrl = safeHttpsUrl(input.siteUrl);
   const businessName = clean(input.businessName, 200) ?? "Business";
 
-  const business: Record<string, unknown> = {
+  const business: JsonObject = {
     "@type": ["LocalBusiness", "ProfessionalService"],
     name: businessName,
     ...(siteUrl ? { "@id": `${siteUrl}/#business`, url: siteUrl } : {}),
@@ -108,7 +111,7 @@ export function buildCustomerJsonLd(input: CustomerSchemaInput): Record<string, 
     })
     .filter((faq): faq is Exclude<typeof faq, null> => faq !== null);
 
-  const graph: Record<string, unknown>[] = [business, ...services];
+  const graph: JsonObject[] = [business, ...services];
   if (faqItems.length) {
     graph.push({
       "@type": "FAQPage",
