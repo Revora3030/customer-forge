@@ -16,7 +16,7 @@ import { nextPublishState } from "@/lib/publish-state";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 const QUEUE_ID = "site_engine";
-const LEASE_SECONDS = 180;
+const LEASE_SECONDS = 300; // 5 minutes — AI builds need time for multiple model calls
 const MAX_ATTEMPTS = 3;
 const RATE_LIMIT_TRIP = 3;
 
@@ -1166,6 +1166,40 @@ export async function drainSiteEngineQueue(
 ): Promise<DrainResult> {
   const max = Math.min(Math.max(options.max ?? 2, 1), 5);
   const state = await readQueueState(db);
+
+  // Stale job cleanup: fail processing jobs whose lease has expired. This
+  // prevents a job that died mid-build (e.g. server timeout) from blocking
+  // new builds. Jobs with attempts >= MAX_ATTEMPTS are failed permanently;
+  // jobs with remaining attempts are requeued for another try.
+  {
+    const now = new Date();
+    let staleQuery = db
+      .from("generation_jobs")
+      .update({
+        status: "failed",
+        error_message: "Processing lease expired",
+        completed_at: now.toISOString(),
+        lease_expires_at: null,
+      } as never)
+      .eq("status", "processing")
+      .lt("lease_expires_at", now.toISOString())
+      .gte("attempts", MAX_ATTEMPTS);
+    if (options.organizationId) staleQuery = staleQuery.eq("organization_id", options.organizationId);
+    await staleQuery;
+
+    let requeueQuery = db
+      .from("generation_jobs")
+      .update({
+        status: "queued",
+        lease_expires_at: null,
+        error_message: "Processing lease expired — retrying",
+      } as never)
+      .eq("status", "processing")
+      .lt("lease_expires_at", now.toISOString())
+      .lt("attempts", MAX_ATTEMPTS);
+    if (options.organizationId) requeueQuery = requeueQuery.eq("organization_id", options.organizationId);
+    await requeueQuery;
+  }
 
   // Paused-state guard. Rate limits may recover on a later run. Credit and
   // policy blocks require an owner/admin action and stay paused.

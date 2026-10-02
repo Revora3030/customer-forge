@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { nextPublishState } from "@/lib/publish-state";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -55,6 +55,8 @@ export function useLatestGenerationJob(organizationId: string | undefined) {
   // server to advance the queue for this workspace. The database lease makes this
   // safe to call repeatedly — it never double-processes a job.
   const pump = useServerFn(pumpSiteEngineQueue);
+  const pumpRef = useRef(pump);
+  pumpRef.current = pump;
   const job = query.data as { status?: string; lease_expires_at?: string | null } | null | undefined;
   const status = job?.status;
   const leaseExpiresAt = job?.lease_expires_at ?? null;
@@ -64,10 +66,10 @@ export function useLatestGenerationJob(organizationId: string | undefined) {
     const delay = queuePumpDelay(hasJob ? { status, lease_expires_at: leaseExpiresAt } : null);
     if (delay === null) return;
     const timer = setTimeout(() => {
-      void pump({ data: { organizationId } }).catch(() => undefined);
+      void pumpRef.current({ data: { organizationId } }).catch(() => undefined);
     }, delay);
     return () => clearTimeout(timer);
-  }, [organizationId, hasJob, status, leaseExpiresAt, pump]);
+  }, [organizationId, hasJob, status, leaseExpiresAt]);
 
   // When the background worker finishes, pull the new site copy into the UI.
   const queryClient = useQueryClient();
