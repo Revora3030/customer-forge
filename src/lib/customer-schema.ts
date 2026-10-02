@@ -7,12 +7,12 @@
 export type CustomerSchemaInput = {
   businessName: string;
   siteUrl: string;
-  phone?: string | null;
-  email?: string | null;
-  city?: string | null;
-  state?: string | null;
-  country?: string | null;
-  serviceArea?: string | null;
+  phone?: string | null | undefined;
+  email?: string | null | undefined;
+  city?: string | null | undefined;
+  state?: string | null | undefined;
+  country?: string | null | undefined;
+  serviceArea?: string | null | undefined;
   services: Array<{
     name: string;
     description?: string | null;
@@ -53,7 +53,7 @@ export function buildCustomerJsonLd(input: CustomerSchemaInput): Record<string, 
   const addressRegion = clean(input.state, 100);
   const addressCountry = clean(input.country, 100);
   if (addressLocality || addressRegion || addressCountry) {
-    business.address = {
+    business["address"] = {
       "@type": "PostalAddress",
       ...(addressLocality ? { addressLocality } : {}),
       ...(addressRegion ? { addressRegion } : {}),
@@ -61,7 +61,7 @@ export function buildCustomerJsonLd(input: CustomerSchemaInput): Record<string, 
     };
   }
   const serviceArea = clean(input.serviceArea, 200);
-  if (serviceArea) business.areaServed = { "@type": "Place", name: serviceArea };
+  if (serviceArea) business["areaServed"] = { "@type": "Place", name: serviceArea };
 
   const services = input.services
     .map((service) => {
@@ -92,7 +92,7 @@ export function buildCustomerJsonLd(input: CustomerSchemaInput): Record<string, 
           : {}),
       };
     })
-    .filter((service): service is Record<string, unknown> => Boolean(service));
+    .filter((service): service is Exclude<typeof service, null> => service !== null);
 
   const faqItems = (input.faqs ?? [])
     .map((faq) => {
@@ -106,7 +106,7 @@ export function buildCustomerJsonLd(input: CustomerSchemaInput): Record<string, 
           }
         : null;
     })
-    .filter((faq): faq is Record<string, unknown> => Boolean(faq));
+    .filter((faq): faq is Exclude<typeof faq, null> => faq !== null);
 
   const graph: Record<string, unknown>[] = [business, ...services];
   if (faqItems.length) {
