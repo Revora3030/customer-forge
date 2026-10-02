@@ -1385,6 +1385,11 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
             // not undo every other design change in the same request.
             console.warn("[site-agent] picture not generated:", attempt.message);
             failed.push("generate_component_image:generation_failed");
+            warnings.push({
+              code: "image-generation-failed",
+              label: "generate_component_image:generation_failed",
+              detail: attempt.message || "The image provider did not return an image.",
+            });
             break;
           }
 
@@ -1419,6 +1424,11 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
             .upload(path, bytes, { contentType: mime, upsert: false });
           if (uploaded.error) {
             failed.push("generate_component_image:upload_failed");
+            warnings.push({
+              code: "image-upload-failed",
+              label: "generate_component_image:upload_failed",
+              detail: uploaded.error?.message ?? "The generated image could not be uploaded.",
+            });
             break;
           }
           undoSteps.push({
@@ -1443,6 +1453,11 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
           if (media.error) {
             await supabase.storage.from(MEDIA_BUCKET).remove([path]);
             failed.push("generate_component_image:media_failed");
+            warnings.push({
+              code: "image-record-failed",
+              label: "generate_component_image:media_failed",
+              detail: media.error?.message ?? "The generated image record could not be saved.",
+            });
             break;
           }
           const mediaId = media.data?.id ? String(media.data.id) : null;
@@ -1642,6 +1657,14 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
         ]);
       if (sectionError || componentError) {
         failed.push("generate_component_image:link_failed");
+        warnings.push({
+          code: "image-link-failed",
+          label: "generate_component_image:link_failed",
+          detail:
+            sectionError?.message ??
+            componentError?.message ??
+            "Generated media could not be linked into the composition.",
+        });
         return;
       }
       // A ref is dead when its component is gone, has no picture, or its file
@@ -1745,6 +1768,13 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
         result: {
           operationId,
           operationKey: data.operationKey || null,
+          idMap: Object.fromEntries([
+            ...persistedIdMap.entries(),
+            ...newPages.entries(),
+            ...newSections.entries(),
+            ...newComponents.entries(),
+          ]),
+          warnings,
           applied: applied.length,
           failed: failed.length,
           stale: preflight.stale.length,
@@ -1936,6 +1966,13 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
       snapshotLabel,
       snapshotVersion,
       operationId,
+      idMap: Object.fromEntries([
+        ...persistedIdMap.entries(),
+        ...newPages.entries(),
+        ...newSections.entries(),
+        ...newComponents.entries(),
+      ]),
+      warnings,
       alreadyApplied: false,
       verification,
       /** Checked → repaired → checked again, measured on the saved rows. */
