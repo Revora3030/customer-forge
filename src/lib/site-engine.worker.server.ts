@@ -1027,6 +1027,42 @@ async function runJobPipeline(
     }
   }
 
+  const { buildVerifiedCustomerSchema } = await import("@/lib/customer-schema");
+  const verifiedCustomerSchema = buildVerifiedCustomerSchema({
+    businessName: org.data.name ?? "",
+    phone: (p["phone"] as string) ?? null,
+    email: (p["email"] as string) ?? null,
+    city: (p["city"] as string) ?? null,
+    region: (p["state"] as string) ?? null,
+    serviceArea: (p["service_area"] as string) ?? null,
+    siteUrl: `https://revoragrowthsystems.com/s/${String((org.data as { slug?: unknown }).slug ?? "").trim()}`,
+    services: serviceRows,
+    faqs: copy.faqs,
+  });
+  let customerSchemaReview: { model: string; text: string } | null = null;
+  try {
+    const { callLuna } = await import("@/lib/ai/luna.server");
+    const luna = await callLuna({
+      purpose: "schema_markup",
+      organizationId: orgId,
+      system:
+        "Review a customer website JSON-LD graph for schema completeness. Return concise JSON with an array 'supportedTypes' containing only LocalBusiness, Service, FAQPage. Never invent facts, addresses, prices, ratings, awards, credentials, hours, or URLs.",
+      user: JSON.stringify({
+        verifiedFacts: buildFacts,
+        services: serviceRows.map((service) => ({
+          name: service.name,
+          hasPrice: service.price != null || service.starting_price != null,
+        })),
+        hasFaqs: copy.faqs.length > 0,
+      }),
+      maxOutputTokens: 300,
+      tier: "luna",
+    });
+    if (luna.ok) customerSchemaReview = { model: luna.model, text: luna.text.slice(0, 2000) };
+  } catch (error) {
+    console.warn("[site-engine] Luna schema review unavailable", error);
+  }
+
   const report = {
     jobId: job.id,
     builtAt: new Date().toISOString(),
@@ -1122,6 +1158,8 @@ async function runJobPipeline(
             (screenshotReference as { applied?: unknown }).applied === true,
         },
         firstBuildCreative: creative,
+        customerSchema: verifiedCustomerSchema,
+        ...(customerSchemaReview ? { customerSchemaReview } : {}),
         screenshotReference,
         screenshotReferenceObservations: storedReferenceObservations ?? null,
         ...(!built.skipped && direction ? { effects: { backdrop: direction.backdrop, ...(direction.backdropSpec ? { spec: direction.backdropSpec } : {}) } } : {}),
