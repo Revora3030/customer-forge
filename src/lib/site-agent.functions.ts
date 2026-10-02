@@ -685,12 +685,22 @@ export const applyWebsiteChanges = createServerFn({ method: "POST" })
       label?: string;
       verify?: boolean;
       operationKey?: string;
+      idMap?: Record<string, string>;
     }) => ({
       organizationId: orgIdOf(input),
       actions: input?.actions,
       label: str(input?.label, 120),
       verify: input?.verify !== false,
       operationKey: str(input?.operationKey, 80),
+      ...(input?.idMap && typeof input.idMap === "object" && !Array.isArray(input.idMap)
+        ? {
+            idMap: Object.fromEntries(
+              Object.entries(input.idMap)
+                .filter(([key, value]) => Boolean(key) && UUID_ID.test(value))
+                .slice(0, 500),
+            ),
+          }
+        : {}),
     }),
   )
   .handler(async ({ data, context }) =>
@@ -704,10 +714,58 @@ type ApplyInput = {
   verify?: boolean | undefined;
   /** Stable per-request key so a double press cannot write the batch twice. */
   operationKey?: string | undefined;
+  /** Temporary id translations carried into a later batch of the same plan. */
+  idMap?: Record<string, string> | undefined;
 };
 
 /** Accepts any id, so a batch can be read exactly as it was planned. */
 const ANY_ID = { has: () => true } as unknown as Set<string>;
+
+function resolveActionWithIdMap(
+  action: AgentAction,
+  idMap: ReadonlyMap<string, string>,
+): AgentAction {
+  const resolve = (id: string) => idMap.get(id) ?? id;
+  switch (action.type) {
+    case "set_section_text":
+    case "set_section_visibility":
+    case "set_custom_block":
+    case "set_composition":
+    case "set_section_effect":
+      return { ...action, sectionId: resolve(action.sectionId) };
+    case "set_block_style":
+      return { ...action, targetId: resolve(action.targetId) };
+    case "reorder_sections":
+      return {
+        ...action,
+        pageId: resolve(action.pageId),
+        sectionIds: action.sectionIds.map(resolve),
+      };
+    case "reorder_components":
+      return {
+        ...action,
+        sectionId: resolve(action.sectionId),
+        componentIds: action.componentIds.map(resolve),
+      };
+    case "set_component":
+    case "set_component_visual":
+    case "generate_component_image":
+      return { ...action, componentId: resolve(action.componentId) };
+    case "add_section":
+      return { ...action, pageId: resolve(action.pageId) };
+    case "add_component":
+      return { ...action, sectionId: resolve(action.sectionId) };
+    case "delete_section":
+      return { ...action, sectionId: resolve(action.sectionId) };
+    case "delete_component":
+      return { ...action, componentId: resolve(action.componentId) };
+    case "set_page":
+    case "delete_page":
+      return { ...action, pageId: resolve(action.pageId) };
+    default:
+      return action;
+  }
+}
 
 async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInput) {
   {
@@ -761,6 +819,11 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
           snapshotLabel: String(result["snapshotLabel"] ?? ""),
           snapshotVersion: Number(result["snapshotVersion"] ?? 0) || 0,
           operationId: String(result["operationId"] ?? ""),
+          idMap:
+            result["idMap"] && typeof result["idMap"] === "object" && !Array.isArray(result["idMap"])
+              ? (result["idMap"] as Record<string, string>)
+              : {},
+          warnings: Array.isArray(result["warnings"]) ? result["warnings"] : [],
           alreadyApplied: true,
           verification: null as VerificationReport | null,
         };
@@ -772,6 +835,11 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
     // right now. A step whose target was deleted or renamed after planning is
     // reported with a reason rather than being dropped in silence.
     const applyDropped: string[] = [];
+    const persistedIdMap = new Map<string, string>(
+      Object.entries(data.idMap ?? {}).filter(
+        ([key, value]) => Boolean(key) && UUID_ID.test(value),
+      ),
+    );
     const planned = readActions(
       data.actions,
       {
@@ -780,7 +848,7 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
         componentIds: ANY_ID,
       },
       applyDropped,
-    );
+    ).map((action) => resolveActionWithIdMap(action, persistedIdMap));
     const preflight = preflightActions(planned, {
       pageIds: new Set(site.pages.map((page) => page.id)),
       sectionIds: new Set(site.sections.map((section) => section.id)),
@@ -890,6 +958,7 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
     const sortOf = new Map(site.sections.map((section) => [section.id, section.sort_order]));
     const applied: string[] = [];
     const failed: string[] = [];
+    const warnings: Array<{ code: string; label: string; detail: string }> = [];
 
     // Every write records how to reverse itself first. The first failure stops
     // the run and reverses everything already applied, so an approved plan is
@@ -951,7 +1020,12 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
       } catch (error) {
         console.error("[site-agent] action failed", label, error);
         failed.push(label);
-        if (options.fatalOnError ?? !OPTIONAL_ACTIONS.has(label)) fatal = error;
+        const message = error instanceof Error ? error.message : String(error);
+        if (options.fatalOnError ?? !OPTIONAL_ACTIONS.has(label)) {
+          fatal = error;
+        } else {
+          warnings.push({ code: "optional-action-failed", label, detail: message });
+        }
       }
     };
 
@@ -965,6 +1039,11 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
     // Components get temporary references too, allowing one plan to create
     // and then refine a button/card/image without another round trip.
     const newComponents = new Map<string, string>();
+    for (const [ref, id] of persistedIdMap) {
+      newPages.set(ref, id);
+      newSections.set(ref, id);
+      newComponents.set(ref, id);
+    }
     // Pictures generated in this run; after every step lands they are checked
     // against their section's layout so a generated image is always visible.
     const generatedImages: { componentId: string; alt?: string }[] = [];
