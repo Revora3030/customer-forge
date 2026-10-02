@@ -344,7 +344,7 @@ function checkVisualBalance(
     if (section.componentCount > 8) {
       findings.push({
         kind: "section_density",
-        severity: "medium" as "medium",
+        severity: "medium",
         page: section.pageSlug,
         section: section.sectionId,
         message: `Section has ${section.componentCount} components — consider splitting for readability`,
