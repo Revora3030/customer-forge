@@ -5,7 +5,7 @@ import { createClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 // Type-only import: erased at build time, so nothing server-only ships to the client.
 import type { loadSite } from "@/lib/public-site.server";
-import { leadWebhookNextAttemptAt, sha256Hex } from "@/lib/lead-routing.server";
+import { leadWebhookNextAttemptAt } from "@/lib/lead-routing.server";
 
 /**
  * Public-safe organization lookup. Organization rows carry billing and
