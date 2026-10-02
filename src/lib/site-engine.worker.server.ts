@@ -171,6 +171,23 @@ export class StaleAttemptError extends Error {
   }
 }
 
+export function isLeaseExpired(
+  leaseExpiresAt: string | null | undefined,
+  now = new Date(),
+): boolean {
+  if (!leaseExpiresAt) return true;
+  const expires = Date.parse(leaseExpiresAt);
+  return !Number.isFinite(expires) || expires < now.getTime();
+}
+
+export function shouldRecoverStaleProcessingJob(
+  status: string,
+  leaseExpiresAt: string | null | undefined,
+  now = new Date(),
+): boolean {
+  return status === "processing" && Boolean(leaseExpiresAt) && isLeaseExpired(leaseExpiresAt, now);
+}
+
 /** Claims one runnable job with a lease. Returns null when there is nothing to do. */
 async function claimJob(db: Db, organizationId?: string) {
   const now = new Date();
@@ -185,7 +202,7 @@ async function claimJob(db: Db, organizationId?: string) {
 
   const { data: candidates } = await query;
   for (const job of candidates ?? []) {
-    const leaseFree = !job.lease_expires_at || new Date(job.lease_expires_at as string) < now;
+    const leaseFree = isLeaseExpired(job.lease_expires_at as string | null | undefined, now);
     if (!leaseFree) continue;
 
     // Conditional update = single-flight lock: only one worker wins the row.
