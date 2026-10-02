@@ -2,6 +2,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   classifyLeadWebhookFailure,
   dispatchLeadWebhook,
+  leadWebhookNextAttemptAt,
+  leadWebhookRetryDelayMs,
   validateLeadWebhookUrl,
 } from "@/lib/lead-routing.server";
 
@@ -77,6 +79,16 @@ describe("lead webhook routing", () => {
     });
     expect(JSON.parse(String(init?.body))).toEqual(payload);
   });
+  it("uses exponential backoff metadata for durable retries", () => {
+    expect(leadWebhookRetryDelayMs(1)).toBe(1_000);
+    expect(leadWebhookRetryDelayMs(2)).toBe(2_000);
+    expect(leadWebhookRetryDelayMs(3)).toBe(4_000);
+    expect(leadWebhookRetryDelayMs(10)).toBe(5 * 60_000);
+    expect(leadWebhookNextAttemptAt("2026-09-28T00:00:00.000Z", 1)).toBe(
+      "2026-09-28T00:00:01.000Z",
+    );
+  });
+
   it("classifies transient webhook failures for retry without retrying automatically", () => {
     expect(classifyLeadWebhookFailure(500, "http").retryable).toBe(true);
     expect(classifyLeadWebhookFailure(503, "http").retryable).toBe(true);
