@@ -710,6 +710,23 @@ async function runJob(
   const architectGoal = goals[0] ?? org.data.conversion_goal ?? null;
   const architectureRef: { current: PageArchitectureOutcome | null } = { current: null };
   noteStage(orgId, job.id, "writing the pages");
+  // Persist ownership before materialization so a failed attempt leaves a
+  // verifiable job marker for safe retry cleanup. The marker is metadata only;
+  // it does not publish or replace customer content.
+  const { error: buildMarkerError } = await db.from("website_settings").upsert(
+    {
+      organization_id: orgId,
+      generation: {
+        ...withoutPendingBuild(priorGeneration),
+        jobId: job.id,
+        buildState: "materializing",
+        buildStartedAt: new Date().toISOString(),
+      },
+    } as never,
+    { onConflict: "organization_id" },
+  );
+  if (buildMarkerError) throw new Error(buildMarkerError.message);
+
   let built: Awaited<ReturnType<typeof materializeSiteContent>>;
   built = await materializeSiteContent(db, orgId, {
     businessName: org.data.name ?? "",
@@ -976,23 +993,6 @@ async function runJob(
       console.warn(`[site-engine] Theme update failed for ${orgId}: ${themeError.message}`);
     }
   }
-
-  // Persist ownership before materialization so a failed attempt leaves a
-  // verifiable job marker for safe retry cleanup. The marker is metadata only;
-  // it does not publish or replace customer content.
-  const { error: buildMarkerError } = await db.from("website_settings").upsert(
-    {
-      organization_id: orgId,
-      generation: {
-        ...withoutPendingBuild(priorGeneration),
-        jobId: job.id,
-        buildState: "materializing",
-        buildStartedAt: new Date().toISOString(),
-      },
-    } as never,
-    { onConflict: "organization_id" },
-  );
-  if (buildMarkerError) throw new Error(buildMarkerError.message);
 
   const report = {
     jobId: job.id,
