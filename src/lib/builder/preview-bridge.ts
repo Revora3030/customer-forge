@@ -87,7 +87,11 @@ export function selectionPrefix(selection: {
   id: string;
   label: string | null;
   kind: string | null;
+  viewport?: string;
+  pageSlug?: string;
 }): string {
   const name = selection.label ?? selection.kind ?? "block";
-  return `On the "${name}" block (id ${selection.id}):`;
+  const page = selection.pageSlug ? ` on /${selection.pageSlug}` : "";
+  const viewport = selection.viewport ? ` at ${selection.viewport} viewport` : "";
+  return `On the "${name}" block (id ${selection.id})${page}${viewport}:`;
 }
