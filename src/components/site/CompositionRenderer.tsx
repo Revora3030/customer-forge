@@ -127,9 +127,10 @@ function widgetThemeStyle(theme: WidgetPresentation["theme"] | undefined): CSSPr
 }
 
 function mediaCss(visual: PersistedComponentVisual | undefined): CSSProperties {
-  if (!visual) return {};
   const css: CSSProperties = {};
-  if (visual.object_fit) css.objectFit = visual.object_fit;
+  // Cover is a renderer safety fallback for media whose authored object-fit is
+  // absent. Sol can still choose another validated fit per image.
+  css.objectFit = visual?.object_fit ?? "cover";
   if (visual.object_position ?? visual.focal_point) css.objectPosition = visual.object_position ?? visual.focal_point;
   if (visual.aspect_ratio) css.aspectRatio = visual.aspect_ratio.replace(":", " / ");
   if (visual.radius != null) css.borderRadius = visual.radius;
