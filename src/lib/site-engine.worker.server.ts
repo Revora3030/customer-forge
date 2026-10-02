@@ -171,12 +171,29 @@ export class StaleAttemptError extends Error {
   }
 }
 
+export function isLeaseExpired(
+  leaseExpiresAt: string | null | undefined,
+  now = new Date(),
+): boolean {
+  if (!leaseExpiresAt) return true;
+  const expires = Date.parse(leaseExpiresAt);
+  return !Number.isFinite(expires) || expires < now.getTime();
+}
+
+export function shouldRecoverStaleProcessingJob(
+  status: string,
+  leaseExpiresAt: string | null | undefined,
+  now = new Date(),
+): boolean {
+  return status === "processing" && Boolean(leaseExpiresAt) && isLeaseExpired(leaseExpiresAt, now);
+}
+
 /** Claims one runnable job with a lease. Returns null when there is nothing to do. */
 async function claimJob(db: Db, organizationId?: string) {
   const now = new Date();
   let query = db
     .from("generation_jobs")
-    .select("id, organization_id, attempts, created_by, status, lease_expires_at")
+    .select("id, organization_id, attempts, created_by, status, lease_expires_at, request_id")
     .in("status", ["queued", "processing"])
     .lt("attempts", MAX_ATTEMPTS)
     .order("created_at", { ascending: true })
@@ -185,7 +202,7 @@ async function claimJob(db: Db, organizationId?: string) {
 
   const { data: candidates } = await query;
   for (const job of candidates ?? []) {
-    const leaseFree = !job.lease_expires_at || new Date(job.lease_expires_at as string) < now;
+    const leaseFree = isLeaseExpired(job.lease_expires_at as string | null | undefined, now);
     if (!leaseFree) continue;
 
     // Conditional update = single-flight lock: only one worker wins the row.
@@ -194,24 +211,37 @@ async function claimJob(db: Db, organizationId?: string) {
       .update({
         status: "processing",
         attempts: (job.attempts as number) + 1,
-        started_at: job.status === "queued" ? now.toISOString() : undefined,
+        ...(job.status === "queued" ? { started_at: now.toISOString() } : {}),
         lease_expires_at: new Date(now.getTime() + LEASE_SECONDS * 1000).toISOString(),
+        locked_at: now.toISOString(),
         updated_at: now.toISOString(),
       } as never)
       .eq("id", job.id)
       .eq("attempts", job.attempts as number)
-      .select("id, organization_id, created_by, attempts")
+      .select("id, organization_id, created_by, attempts, request_id")
       .maybeSingle();
     if (claimed)
-      return claimed as { id: string; organization_id: string; created_by: string | null; attempts: number };
+      return claimed as {
+        id: string;
+        organization_id: string;
+        created_by: string | null;
+        attempts: number;
+        request_id: string | null;
+      };
   }
   return null;
 }
 
 /** Runs the nine generation stages for one claimed job using the privileged client. */
-async function runJob(
+async function runJobPipeline(
   db: Db,
-  job: { id: string; organization_id: string; created_by: string | null; attempts: number },
+  job: {
+    id: string;
+    organization_id: string;
+    created_by: string | null;
+    attempts: number;
+    request_id: string | null;
+  },
 ) {
   const orgId = job.organization_id;
   const { GENERATION_STEPS } = await import("@/lib/site-engine");
@@ -229,6 +259,7 @@ async function runJob(
   // real worker stages ("reading your business", "writing the pages", …)
   // instead of only seeing stages from chat retries.
   const { noteStage } = await import("@/lib/builder/progress.server");
+  const requestId = job.request_id ?? job.id;
   const WORKER_STAGE_LABELS: Record<string, string> = {
     business: "reading your business",
     services: "reading your services",
@@ -250,6 +281,8 @@ async function runJob(
         progress: meta?.progress ?? 0,
         steps: done,
         lease_expires_at: new Date(Date.now() + LEASE_SECONDS * 1000).toISOString(),
+        locked_at: new Date().toISOString(),
+        request_id: requestId,
         updated_at: new Date().toISOString(),
       } as never)
       .eq("id", job.id)
@@ -263,7 +296,7 @@ async function runJob(
   const [org, profile, services, media, socials, forms, bookable] = await Promise.all([
     db
       .from("organizations")
-      .select("name, industry, conversion_goal")
+      .select("name, industry, conversion_goal, slug")
       .eq("id", orgId)
       .maybeSingle(),
     db.from("business_profiles").select("*").eq("organization_id", orgId).maybeSingle(),
@@ -546,37 +579,16 @@ async function runJob(
     .eq("organization_id", orgId);
   const firstBuild = freshReplace || (existingPages.count ?? 0) === 0;
   const missingCopy = missingAiCopy(copy);
-  if (firstBuild && (!refined.passes.some((pass) => pass.used) || !refined.changed || missingCopy.length)) {
-    // No model could author or review the copy. Instead of stopping the build,
-    // populate copy from the business facts directly so the customer always
-    // gets a complete website with real content.
-    console.warn(
-      `[site-engine] AI copy authoring failed for ${orgId} (${missingCopy.length ? `missing: ${missingCopy.join(", ")}` : "no model returned usable wording"}); using safe fact-based copy.`,
+  if (
+    firstBuild &&
+    (!refined.passes.some((pass) => pass.used) || !refined.changed || missingCopy.length)
+  ) {
+    const reason = missingCopy.length
+      ? `missing required AI-authored copy: ${missingCopy.join(", ")}`
+      : "the AI team did not return a usable authored copy pass";
+    throw new Error(
+      `First build stopped: ${reason}. Revora will not replace AI authorship with deterministic fallback copy.`,
     );
-    if (!copy.heroHeadline) copy.heroHeadline = `${org.data.name ?? "Your Business"}${copyFacts.city ? ` — ${copyFacts.city}` : ""}`;
-    if (!copy.heroSubheadline && copyFacts.description) copy.heroSubheadline = copyFacts.description.slice(0, 200);
-    if (!copy.primaryCta) copy.primaryCta = copyFacts.goals?.[0] || "Get in touch";
-    if (!copy.secondaryCta) copy.secondaryCta = "Learn more";
-    if (!copy.about && copyFacts.description) copy.about = copyFacts.description;
-    if (!copy.areaCopy && copyFacts.serviceArea) copy.areaCopy = `Serving ${copyFacts.serviceArea}`;
-    if (!copy.metaTitle) copy.metaTitle = `${org.data.name ?? "Business"}${copyFacts.city ? ` — ${copyFacts.city}` : ""}`.slice(0, 60);
-    if (!copy.metaDescription) copy.metaDescription = (copyFacts.description || `${org.data.name ?? "Local business"} offering professional services.`).slice(0, 155);
-    if (!copy.ogTitle) copy.ogTitle = copy.metaTitle;
-    if (!copy.ogDescription) copy.ogDescription = copy.metaDescription;
-    if (copy.serviceCards.length === 0 && serviceRows.length > 0) {
-      copy.serviceCards = serviceRows.map((s) => ({
-        name: s.name,
-        copy: s.description?.slice(0, 200) || `Professional ${s.name} services.`,
-      }));
-    }
-    if (copy.faqs.length === 0) {
-      copy.faqs = [
-        { question: `What services does ${org.data.name ?? "your business"} offer?`, answer: serviceRows.map((s) => s.name).join(", ") || "Contact us for our full service list." },
-        { question: copyFacts.serviceArea ? `What areas do you serve?` : `How can I contact you?`, answer: copyFacts.serviceArea ? `We serve ${copyFacts.serviceArea}.` : copyFacts.phone ? `Call us at ${copyFacts.phone}.` : "Use the contact form on our website." },
-        { question: "How do I get started?", answer: copy.primaryCta ? `Click "${copy.primaryCta}" to reach out, and we'll respond promptly.` : "Use our contact form and we'll get back to you." },
-      ];
-    }
-    copyModel = "safe-fallback";
   }
 
 
@@ -602,6 +614,59 @@ async function runJob(
   if (safetyProblems.length) {
     throw new Error(safetyProblems[0]!.detail);
   }
+
+  // Build customer JSON-LD strictly from verified intake/database facts. Luna
+  // reviews completeness; it never gets authority to invent or rewrite facts.
+  const { buildCustomerJsonLd } = await import("@/lib/customer-schema");
+  const customerJsonLd = buildCustomerJsonLd({
+    businessName: org.data.name ?? "",
+    siteUrl: `https://revoragrowthsystems.com/s/${String((org.data as { slug?: unknown }).slug ?? "").trim()}`,
+    phone: (p["phone"] as string) ?? null,
+    email: (p["email"] as string) ?? null,
+    city: (p["city"] as string) ?? null,
+    state: (p["state"] as string) ?? null,
+    country: (p["country"] as string) ?? "US",
+    serviceArea: (p["service_area"] as string) ?? null,
+    services: serviceRows,
+    faqs: copy.faqs,
+  });
+
+  let lunaSchemaReview: { model: string; text: string } | null = null;
+  try {
+    const { callLuna } = await import("@/lib/ai/luna.server");
+    const review = await callLuna({
+      purpose: "schema_markup",
+      organizationId: orgId,
+      tier: "luna",
+      maxOutputTokens: 500,
+      system:
+        "Return JSON only with supportedTypes, metadataTitleOk, metadataDescriptionOk, and findings. Use only supplied facts. Never invent business data, addresses, prices, ratings, awards, credentials, hours, or URLs.",
+      user: JSON.stringify({
+        schema: customerJsonLd,
+        metadata: { title: copy.metaTitle, description: copy.metaDescription },
+      }),
+    });
+    if (review.ok) lunaSchemaReview = { model: review.model, text: review.text.slice(0, 2500) };
+  } catch (error) {
+    console.warn("[site-engine] Luna schema review unavailable", error);
+  }
+
+  await db.from("ai_generations").insert({
+    organization_id: orgId,
+    job_id: job.id,
+    kind: "seo_schema_review",
+    model: lunaSchemaReview?.model ?? "luna-unavailable",
+    instruction: requestId,
+    result: {
+      customerJsonLd,
+      ...(lunaSchemaReview ? { lunaSchemaReview } : {}),
+      metadata: {
+        title: copy.metaTitle,
+        description: copy.metaDescription,
+      },
+    } as unknown as never,
+    created_by: job.created_by,
+  } as never);
   let generatedAssets: import("@/lib/builder/first-build-images.types").FirstBuildImageAsset[] = [];
   try {
   // A retry of the same first build may find the partial pages written by its
@@ -1122,9 +1187,12 @@ async function runJob(
       error_message: null,
       completed_at: new Date().toISOString(),
       lease_expires_at: null,
+      locked_at: null,
+      request_id: requestId,
       updated_at: new Date().toISOString(),
     } as never)
     .eq("id", job.id)
+    .eq("organization_id", job.organization_id)
     .eq("attempts", job.attempts);
 
   const leadCapture = (forms.data ?? []).length > 0 || (bookable.data ?? []).length > 0;
@@ -1158,6 +1226,65 @@ async function runJob(
       );
     }
     throw error;
+  }
+}
+
+/**
+ * Refreshes the DB lease while the Sol → Terra → Luna pipeline is running.
+ * The attempt fence makes an expired/taken-over job fail closed.
+ */
+async function runJob(
+  db: Db,
+  job: {
+    id: string;
+    organization_id: string;
+    created_by: string | null;
+    attempts: number;
+    request_id: string | null;
+  },
+) {
+  const heartbeatMs = Math.max(30_000, Math.floor((LEASE_SECONDS * 1000) / 4));
+  let leaseLost = false;
+  let failures = 0;
+  let timer: ReturnType<typeof setInterval> | null = null;
+
+  const heartbeat = async () => {
+    if (leaseLost) return;
+    const now = new Date();
+    const { data, error } = await db
+      .from("generation_jobs")
+      .update({
+        locked_at: now.toISOString(),
+        lease_expires_at: new Date(now.getTime() + LEASE_SECONDS * 1000).toISOString(),
+        request_id: job.request_id ?? job.id,
+        updated_at: now.toISOString(),
+      } as never)
+      .eq("id", job.id)
+      .eq("organization_id", job.organization_id)
+      .eq("attempts", job.attempts)
+      .eq("status", "processing")
+      .select("id")
+      .maybeSingle();
+
+    if (error || !data?.id) {
+      failures += 1;
+      if (failures >= 2) leaseLost = true;
+      return;
+    }
+    failures = 0;
+  };
+
+  await heartbeat();
+  timer = setInterval(() => {
+    void heartbeat();
+  }, heartbeatMs);
+
+  try {
+    const result = await runJobPipeline(db, job);
+    if (leaseLost) throw new StaleAttemptError(job.id);
+    return result;
+  } finally {
+    if (timer) clearInterval(timer);
   }
 }
 
@@ -1231,8 +1358,13 @@ export async function drainSiteEngineQueue(
             error_message: message,
             completed_at: new Date().toISOString(),
             lease_expires_at: null,
+            locked_at: null,
+            request_id: job.request_id ?? job.id,
+            updated_at: new Date().toISOString(),
           } as never)
-          .eq("id", job.id);
+          .eq("id", job.id)
+          .eq("organization_id", job.organization_id)
+          .eq("attempts", job.attempts);
         await writeQueueState(db, { last_error: message });
         continue;
       }
@@ -1244,8 +1376,17 @@ export async function drainSiteEngineQueue(
         await pauseQueue(db, "credits", message);
         await db
           .from("generation_jobs")
-          .update({ status: "queued", error_message: message, lease_expires_at: null } as never)
-          .eq("id", job.id);
+          .update({
+            status: "queued",
+            error_message: message,
+            lease_expires_at: null,
+            locked_at: null,
+            request_id: job.request_id ?? job.id,
+            updated_at: new Date().toISOString(),
+          } as never)
+          .eq("id", job.id)
+          .eq("organization_id", job.organization_id)
+          .eq("attempts", job.attempts);
         return { processed, failed, paused: true, pauseReason: message, idle: false };
       }
 
@@ -1285,8 +1426,18 @@ export async function drainSiteEngineQueue(
                 error_message: message,
                 completed_at: new Date().toISOString(),
                 lease_expires_at: null,
+                locked_at: null,
+                request_id: job.request_id ?? job.id,
+                updated_at: new Date().toISOString(),
               }
-            : { status: "queued", error_message: message, lease_expires_at: null },
+            : {
+                status: "queued",
+                error_message: message,
+                lease_expires_at: null,
+                locked_at: null,
+                request_id: job.request_id ?? job.id,
+                updated_at: new Date().toISOString(),
+              },
         )
         .eq("id", job.id)
         // Only the attempt that failed may requeue/fail the job.

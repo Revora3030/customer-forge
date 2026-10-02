@@ -5,6 +5,7 @@
  * renders for visitors without a session, so shared preview links stay clean.
  */
 import { useEffect, useState } from "react";
+import { useNavigate } from "@tanstack/react-router";
 import { ArrowLeft, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -12,6 +13,7 @@ export function BuilderReturnBar() {
   const [signedIn, setSignedIn] = useState(false);
   const [framed, setFramed] = useState(true);
   const [hidden, setHidden] = useState(false);
+  const navigate = useNavigate();
 
   useEffect(() => {
     // Inside the builder's own preview frame the builder is already on screen.
@@ -42,13 +44,14 @@ export function BuilderReturnBar() {
     <div className="fixed right-3 z-[60] sm:top-auto sm:bottom-4 sm:left-3 inline-flex items-center rounded-full border border-foreground/15 bg-foreground text-background shadow-lg"
          style={{ top: "calc(env(safe-area-inset-top, 0px) + 0.75rem)" }}
     >
-      <a
-        href="/app/website"
+      <button
+        type="button"
+        onClick={() => void navigate({ to: "/app/website" })}
         className="inline-flex min-h-9 items-center gap-1.5 pl-3 pr-1.5 font-display text-[12px] font-semibold transition-opacity hover:opacity-90"
       >
         <ArrowLeft className="size-3.5" aria-hidden="true" />
         Builder
-      </a>
+      </button>
       <button
         type="button"
         aria-label="Hide the builder shortcut"

@@ -237,7 +237,10 @@ export function BuilderAssistant({
       <Conversation className="min-h-0 flex-1 overscroll-contain" onPointerDown={dismissKeyboard}>
         <ConversationContent className="gap-6 px-4 py-5 text-[15px] leading-relaxed sm:px-6 lg:px-7">
 
-          {requests.tasks.length === 0 && !factQuestion && factLog.length === 0 ? (
+          {requests.memoryLoaded &&
+            requests.tasks.length === 0 &&
+            !factQuestion &&
+            factLog.length === 0 ? (
             <div className="chat-rise">
               <Message from="assistant">
                 <MessageContent className="w-full space-y-4">

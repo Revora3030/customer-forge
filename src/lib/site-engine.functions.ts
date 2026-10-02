@@ -19,6 +19,7 @@ export type RunResult = {
   progress: number;
   queued: boolean;
   mode: RunMode;
+  requestId: string;
   backupId?: string;
 };
 
@@ -34,6 +35,11 @@ export const runSiteGeneration = createServerFn({ method: "POST" })
   .handler(async ({ data, context }): Promise<RunResult> => {
     const { supabase, userId } = context;
     const orgId = data.organizationId;
+    const incomingRequestId = getRequest().headers.get("x-request-id")?.trim();
+    const requestId =
+      incomingRequestId && /^[A-Za-z0-9._:-]{1,128}$/.test(incomingRequestId)
+        ? incomingRequestId
+        : crypto.randomUUID();
     // Server-side paywall: the UI gate is cosmetic, this is authoritative.
     {
       const { assertOrgEntitled } = await import("@/lib/entitlement.server");
@@ -64,25 +70,27 @@ export const runSiteGeneration = createServerFn({ method: "POST" })
     }
 
     // RLS enforces that the caller belongs to this workspace.
-    // Clear stale queued jobs whose leases have expired before checking for
-    // active builds. A job stuck in "queued" with no lease or an expired lease
-    // is from a previous failed attempt and blocks new builds.
+    // Recover only genuinely stale processing work. A queued job has not been
+    // claimed and must never be failed just because its lease is empty.
     const now = new Date();
     await supabase
       .from("generation_jobs")
-      .update({ status: "failed", error_message: "Stale job cleared for new build request", completed_at: now.toISOString(), lease_expires_at: null })
-      .eq("organization_id", orgId)
-      .eq("status", "queued")
-      .or(`lease_expires_at.is.null,lease_expires_at.lt.${now.toISOString()}`);
-    await supabase
-      .from("generation_jobs")
-      .update({ status: "failed", error_message: "Stale processing job cleared for new build request", completed_at: now.toISOString(), lease_expires_at: null })
+      .update({
+        status: "failed",
+        error_message: "Stale processing job cleared for new build request",
+        completed_at: now.toISOString(),
+        lease_expires_at: null,
+        locked_at: null,
+        request_id: requestId,
+        updated_at: now.toISOString(),
+      } as never)
       .eq("organization_id", orgId)
       .eq("status", "processing")
+      .not("lease_expires_at", "is", null)
       .lt("lease_expires_at", now.toISOString());
     const { data: existing } = await supabase
       .from("generation_jobs")
-      .select("id, status, progress")
+      .select("id, status, progress, request_id")
       .eq("organization_id", orgId)
       .in("status", ["queued", "processing"])
       .order("created_at", { ascending: false })
@@ -97,6 +105,7 @@ export const runSiteGeneration = createServerFn({ method: "POST" })
         progress: existing.progress,
         queued: true,
         mode: "safe",
+        requestId: String(existing.request_id ?? requestId),
       };
 
     let backupId: string | undefined;
@@ -171,7 +180,9 @@ export const runSiteGeneration = createServerFn({ method: "POST" })
         current_step: null,
         created_by: userId,
         steps: [],
-      })
+        request_id: requestId,
+        locked_at: null,
+      } as never)
       .select("id")
       .single();
     if (error || !job) {
@@ -189,6 +200,7 @@ export const runSiteGeneration = createServerFn({ method: "POST" })
       progress: 0,
       queued: true,
       mode: data.mode,
+      requestId,
       ...(backupId ? { backupId } : {}),
     };
   });

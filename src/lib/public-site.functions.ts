@@ -5,6 +5,7 @@ import { createClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 // Type-only import: erased at build time, so nothing server-only ships to the client.
 import type { loadSite } from "@/lib/public-site.server";
+import { leadWebhookNextAttemptAt } from "@/lib/lead-routing.server";
 
 /**
  * Public-safe organization lookup. Organization rows carry billing and
@@ -53,6 +54,9 @@ type LeadDeliveryLogInsert = {
   http_status: number | null;
   reason: string | null;
   retryable: boolean;
+  attempt_number: number;
+  next_attempt_at: string | null;
+  idempotency_key: string;
   attempted_at: string;
 };
 
@@ -563,6 +567,12 @@ export const submitPublicLead = createServerFn({ method: "POST" })
           http_status: webhookResult.ok ? null : webhookResult.statusCode,
           reason: webhookResult.ok ? null : webhookResult.reason,
           retryable: webhookResult.ok ? false : webhookResult.retryable,
+          attempt_number: 1,
+          next_attempt_at:
+            !webhookResult.ok && webhookResult.retryable
+              ? leadWebhookNextAttemptAt(webhookResult.attemptedAt, 1)
+              : null,
+          idempotency_key: await sha256Hex(`${orgId}:lead.created:${lead.id}`),
           attempted_at: webhookResult.attemptedAt,
         });
         if (telemetryInsertError) {

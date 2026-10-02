@@ -31,12 +31,55 @@ const VIEWPORT_ICONS = {
   wide: Monitor,
 } satisfies Record<BuilderViewportKey, typeof Monitor>;
 
+type PreviewSessionState = {
+  pageId: string | null;
+  viewport: BuilderViewportKey;
+  zoom: number;
+};
+
+const previewSessionKey = (organizationId: string) => `revora.builder.preview.${organizationId}`;
+
+export function readPreviewSession(organizationId: string | null): PreviewSessionState | null {
+  if (!organizationId || typeof window === "undefined") return null;
+  try {
+    const raw = window.sessionStorage.getItem(previewSessionKey(organizationId));
+    if (!raw) return null;
+    const value = JSON.parse(raw) as Record<string, unknown>;
+    const viewport =
+      typeof value["viewport"] === "string" &&
+      ["phone", "tablet", "laptop", "wide"].includes(value["viewport"])
+        ? (value["viewport"] as BuilderViewportKey)
+        : null;
+    const zoom =
+      typeof value["zoom"] === "number" && Number.isFinite(value["zoom"])
+        ? Math.max(0.35, Math.min(1, value["zoom"]))
+        : null;
+    const pageId = typeof value["pageId"] === "string" ? value["pageId"] : null;
+    return viewport && zoom !== null ? { pageId, viewport, zoom } : null;
+  } catch {
+    return null;
+  }
+}
+
+function writePreviewSession(organizationId: string | null, state: PreviewSessionState): void {
+  if (!organizationId || typeof window === "undefined") return;
+  try {
+    window.sessionStorage.setItem(previewSessionKey(organizationId), JSON.stringify(state));
+  } catch {
+    /* session storage may be unavailable */
+  }
+}
+
 /** A block the owner clicked in the preview, handed to the assistant. */
-export type PreviewSelection = Extract<PreviewToBuilderMessage, { type: "select" }>;
+export type PreviewSelection = Extract<PreviewToBuilderMessage, { type: "select" }> & {
+  viewport: BuilderViewportKey;
+  pageSlug: string;
+};
 
 export function BuilderPreview({
   slug,
   pages,
+  organizationId = null,
   refreshing = false,
   refreshRevision = 0,
   onSelect,
@@ -44,6 +87,7 @@ export function BuilderPreview({
 }: {
   slug: string;
   pages: ContentPage[];
+  organizationId?: string | null | undefined;
   refreshing?: boolean;
   /** Increments only after saved website data has been invalidated and reloaded. */
   refreshRevision?: number;
@@ -53,17 +97,32 @@ export function BuilderPreview({
   selectedId?: string | null;
 }) {
   const ordered = useMemo(() => [...pages].sort((a, b) => a.sort_order - b.sort_order), [pages]);
-  const [pageId, setPageId] = useState<string | null>(null);
-  const [viewport, setViewport] = useState<BuilderViewportKey>("laptop");
+  const cachedPreview = readPreviewSession(organizationId);
+  const [pageId, setPageId] = useState<string | null>(cachedPreview?.pageId ?? null);
+  const [viewport, setViewport] = useState<BuilderViewportKey>(cachedPreview?.viewport ?? "laptop");
   // On a phone, open the preview in phone size: it's what the owner is
   // holding, and a full desktop render inside a phone is heavy.
   useEffect(() => {
+    if (cachedPreview?.viewport) return;
     if (typeof window !== "undefined" && window.innerWidth < 768) {
       const phone = BUILDER_VIEWPORTS.find((v) => v.width <= 430)?.key;
       if (phone) setViewport(phone);
     }
-  }, []);
-  const [zoom, setZoom] = useState(0.75);
+  }, [organizationId]);
+  const [zoom, setZoom] = useState(cachedPreview?.zoom ?? 0.75);
+  useEffect(() => {
+    if (!organizationId) return;
+    writePreviewSession(organizationId, { pageId, viewport, zoom });
+  }, [organizationId, pageId, viewport, zoom]);
+  useEffect(() => {
+    if (!ordered.length) {
+      setPageId(null);
+      return;
+    }
+    if (!pageId || !ordered.some((item) => item.id === pageId)) {
+      setPageId(ordered[0]?.id ?? null);
+    }
+  }, [ordered, pageId]);
   const [refreshKey, setRefreshKey] = useState(0);
   const [fullscreen, setFullscreen] = useState(false);
   const [selectMode, setSelectMode] = useState(false);
@@ -139,7 +198,11 @@ export function BuilderPreview({
         syncSelectMode(selectMode);
         return;
       }
-      onSelect?.(message);
+      onSelect?.({
+        ...message,
+        viewport,
+        pageSlug: page?.slug ?? "home",
+      });
     };
     window.addEventListener("message", onMessage);
     return () => window.removeEventListener("message", onMessage);

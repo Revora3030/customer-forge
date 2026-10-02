@@ -8,6 +8,7 @@
 import { createClient } from "@supabase/supabase-js";
 import type { Database, Json } from "@/integrations/supabase/types";
 import { safeLinkUrl } from "@/lib/website-content";
+import { buildCustomerJsonLd } from "@/lib/customer-schema";
 
 export function publicClient() {
   const key = process.env["SUPABASE_PUBLISHABLE_KEY"]!;
@@ -356,8 +357,53 @@ export async function loadSite(
     components: components.filter((component) => component.section_id === section.id),
   }));
 
+  const faqSections = sections
+    .filter((section) => section.kind === "faq")
+    .flatMap((section) => {
+      const settings = section.settings && typeof section.settings === "object" && !Array.isArray(section.settings)
+        ? (section.settings as Record<string, unknown>)
+        : {};
+      const items = settings["items"] ?? settings["faqs"] ?? settings["questions"];
+      return Array.isArray(items)
+        ? items
+            .map((item) =>
+              item && typeof item === "object" && !Array.isArray(item)
+                ? {
+                    question: typeof (item as Record<string, unknown>)["question"] === "string"
+                      ? String((item as Record<string, unknown>)["question"])
+                      : "",
+                    answer: typeof (item as Record<string, unknown>)["answer"] === "string"
+                      ? String((item as Record<string, unknown>)["answer"])
+                      : "",
+                  }
+                : null,
+            )
+            .filter((item): item is { question: string; answer: string } => Boolean(item?.question && item.answer))
+        : [];
+    });
+
+  const siteUrl = `https://revoragrowthsystems.com/s/${org.slug}`;
+  const structuredData = buildCustomerJsonLd({
+    businessName: org.name ?? "",
+    siteUrl,
+    phone: profileRow?.phone,
+    email: profileRow?.email,
+    city: profileRow?.city,
+    state: profileRow?.state,
+    country: "US",
+    serviceArea: profileRow?.service_area,
+    services: (services.data ?? []).map((service) => ({
+      name: service.name,
+      description: service.description,
+      price: service.price,
+      starting_price: service.starting_price,
+    })),
+    faqs: faqSections,
+  });
+
   return {
     org: { ...org, id: orgId, name: org.name ?? "", slug: org.slug ?? "" },
+
     profile: profileRow
       ? {
           ...profileRow,
@@ -380,6 +426,7 @@ export async function loadSite(
     content: currentPage
       ? { page: { ...currentPage, og_image_url: resolve(currentPage.og_image_url) }, sections: sectionsWithComponents }
       : null,
+    structuredData,
     nav: (navRows ?? [])
       .filter((row) => !row.noindex || row.kind !== "thanks")
       .filter((row) => populatedPages.has(row.id as string) || row.kind === "home"),

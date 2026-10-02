@@ -20,6 +20,7 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import {
   MAX_ACTIONS,
   PLAN_INSTRUCTION_LIMIT,
+  TEMP_REF,
   describeActions,
   readActions,
   readAttachments,
@@ -685,12 +686,22 @@ export const applyWebsiteChanges = createServerFn({ method: "POST" })
       label?: string;
       verify?: boolean;
       operationKey?: string;
+      idMap?: Record<string, string>;
     }) => ({
       organizationId: orgIdOf(input),
       actions: input?.actions,
       label: str(input?.label, 120),
       verify: input?.verify !== false,
       operationKey: str(input?.operationKey, 80),
+      ...(input?.idMap && typeof input.idMap === "object" && !Array.isArray(input.idMap)
+        ? {
+            idMap: Object.fromEntries(
+              Object.entries(input.idMap)
+                .filter(([key, value]) => TEMP_REF.test(key) && UUID_ID.test(value))
+                .slice(0, 500),
+            ),
+          }
+        : {}),
     }),
   )
   .handler(async ({ data, context }) =>
@@ -704,6 +715,7 @@ type ApplyInput = {
   verify?: boolean | undefined;
   /** Stable per-request key so a double press cannot write the batch twice. */
   operationKey?: string | undefined;
+  idMap?: Record<string, string> | undefined;
 };
 
 /** Accepts any id, so a batch can be read exactly as it was planned. */
@@ -761,6 +773,11 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
           snapshotLabel: String(result["snapshotLabel"] ?? ""),
           snapshotVersion: Number(result["snapshotVersion"] ?? 0) || 0,
           operationId: String(result["operationId"] ?? ""),
+          idMap:
+            result["idMap"] && typeof result["idMap"] === "object" && !Array.isArray(result["idMap"])
+              ? (result["idMap"] as Record<string, string>)
+              : {},
+          warnings: Array.isArray(result["warnings"]) ? result["warnings"] : [],
           alreadyApplied: true,
           verification: null as VerificationReport | null,
         };
@@ -772,8 +789,26 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
     // right now. A step whose target was deleted or renamed after planning is
     // reported with a reason rather than being dropped in silence.
     const applyDropped: string[] = [];
+    const crossBatchIdMap = new Map<string, string>(
+      Object.entries(data.idMap ?? {}).filter(
+        ([ref, id]) => TEMP_REF.test(ref) && UUID_ID.test(id),
+      ),
+    );
+    const resolveCrossBatchIds = (value: unknown): unknown => {
+      if (typeof value === "string") return crossBatchIdMap.get(value) ?? value;
+      if (Array.isArray(value)) return value.map(resolveCrossBatchIds);
+      if (value && typeof value === "object") {
+        return Object.fromEntries(
+          Object.entries(value as Record<string, unknown>).map(([key, child]) => [
+            key,
+            resolveCrossBatchIds(child),
+          ]),
+        );
+      }
+      return value;
+    };
     const planned = readActions(
-      data.actions,
+      resolveCrossBatchIds(data.actions),
       {
         pageIds: ANY_ID,
         sectionIds: ANY_ID,
@@ -890,6 +925,7 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
     const sortOf = new Map(site.sections.map((section) => [section.id, section.sort_order]));
     const applied: string[] = [];
     const failed: string[] = [];
+    const warnings: Array<{ code: string; label: string; detail: string }> = [];
 
     // Every write records how to reverse itself first. The first failure stops
     // the run and reverses everything already applied, so an approved plan is
@@ -951,7 +987,15 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
       } catch (error) {
         console.error("[site-agent] action failed", label, error);
         failed.push(label);
-        if (options.fatalOnError ?? !OPTIONAL_ACTIONS.has(label)) fatal = error;
+        if (options.fatalOnError ?? !OPTIONAL_ACTIONS.has(label)) {
+          fatal = error;
+        } else {
+          warnings.push({
+            code: "optional-action-failed",
+            label,
+            detail: error instanceof Error ? error.message : String(error),
+          });
+        }
       }
     };
 
@@ -965,6 +1009,11 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
     // Components get temporary references too, allowing one plan to create
     // and then refine a button/card/image without another round trip.
     const newComponents = new Map<string, string>();
+    for (const [ref, id] of crossBatchIdMap) {
+      newPages.set(ref, id);
+      newSections.set(ref, id);
+      newComponents.set(ref, id);
+    }
     // Pictures generated in this run; after every step lands they are checked
     // against their section's layout so a generated image is always visible.
     const generatedImages: { componentId: string; alt?: string }[] = [];
@@ -1676,6 +1725,13 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
           skippedLabels: failed,
           snapshotLabel,
           snapshotVersion,
+          idMap: Object.fromEntries([
+            ...crossBatchIdMap.entries(),
+            ...newPages.entries(),
+            ...newSections.entries(),
+            ...newComponents.entries(),
+          ]),
+          warnings,
           mutations: undoSteps.length,
         } as unknown as never,
 
@@ -1857,6 +1913,13 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
       snapshotLabel,
       snapshotVersion,
       operationId,
+      idMap: Object.fromEntries([
+        ...crossBatchIdMap.entries(),
+        ...newPages.entries(),
+        ...newSections.entries(),
+        ...newComponents.entries(),
+      ]),
+      warnings,
       alreadyApplied: false,
       verification,
       /** Checked → repaired → checked again, measured on the saved rows. */
