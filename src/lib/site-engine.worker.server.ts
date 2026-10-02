@@ -650,6 +650,23 @@ async function runJobPipeline(
   } catch (error) {
     console.warn("[site-engine] Luna schema review unavailable", error);
   }
+
+  await db.from("ai_generations").insert({
+    organization_id: orgId,
+    job_id: job.id,
+    kind: "seo_schema_review",
+    model: lunaSchemaReview?.model ?? "luna-unavailable",
+    instruction: requestId,
+    result: {
+      customerJsonLd,
+      ...(lunaSchemaReview ? { lunaSchemaReview } : {}),
+      metadata: {
+        title: copy.metaTitle,
+        description: copy.metaDescription,
+      },
+    } as unknown as never,
+    created_by: job.created_by,
+  } as never);
   let generatedAssets: import("@/lib/builder/first-build-images.types").FirstBuildImageAsset[] = [];
   try {
   // A retry of the same first build may find the partial pages written by its
