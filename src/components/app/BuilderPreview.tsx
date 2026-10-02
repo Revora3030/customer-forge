@@ -108,7 +108,7 @@ export function BuilderPreview({
       const phone = BUILDER_VIEWPORTS.find((v) => v.width <= 430)?.key;
       if (phone) setViewport(phone);
     }
-  }, []);
+  }, [organizationId]);
   const [zoom, setZoom] = useState(cachedPreview?.zoom ?? 0.75);
   useEffect(() => {
     if (!organizationId) return;
