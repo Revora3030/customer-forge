@@ -25,6 +25,7 @@ import { readSiteChrome, resolveSiteHref } from "@/lib/builder/site-chrome";
 import { AiSiteHeader } from "@/components/site/AiSiteHeader";
 import { useOwnAddress } from "@/components/site/use-own-address";
 import { metaDescription } from "@/lib/seo";
+import { buildVerifiedCustomerSchema } from "@/lib/customer-schema";
 
 export const Route = createFileRoute("/s/$slug/$page")({
   loader: async ({ params }) => {
@@ -117,6 +118,36 @@ export function SitePageView({
   const { org, profile } = site;
   const page = site.content!.page;
   const ownAddress = useOwnAddress();
+  const pageUrl =
+    canonicalSiteUrl(site.settings, site.org.slug, page.slug, page.seo_canonical) ??
+    `https://revoragrowthsystems.com/s/${site.org.slug}/${page.slug}`;
+  const customerSchema = buildVerifiedCustomerSchema({
+    businessName: site.org.name,
+    phone: profile?.phone ?? null,
+    email: profile?.email ?? null,
+    city: profile?.city ?? null,
+    region: profile?.state ?? null,
+    serviceArea: profile?.service_area ?? null,
+    siteUrl: pageUrl,
+    services: (site.services ?? []).map((service) => ({
+      name: String(service.name ?? ""),
+      description: service.description ?? null,
+      price: service.price ?? null,
+      starting_price: service.starting_price ?? null,
+    })),
+    faqs: (() => {
+      const raw = (site.settings?.generation as { copy?: { faqs?: unknown } } | null)?.copy?.faqs;
+      return Array.isArray(raw)
+        ? raw.filter(
+            (faq): faq is { question: string; answer: string } =>
+              Boolean(faq) &&
+              typeof faq === "object" &&
+              typeof (faq as Record<string, unknown>)["question"] === "string" &&
+              typeof (faq as Record<string, unknown>)["answer"] === "string",
+          )
+        : [];
+    })(),
+  });
   const chrome = readSiteChrome(site.settings?.generation ?? null);
   const chromeHref = (href: string) => resolveSiteHref(href, org.slug, ownAddress);
 
@@ -134,8 +165,13 @@ export function SitePageView({
   }, [org.slug, track, preview]);
 
   return (
-    <div
-      className={`min-h-screen bg-background ${designTokenClasses(readDesignTokens(site.settings?.generation ?? null))}`}
+    <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(customerSchema) }}
+      />
+      <div
+        className={`min-h-screen bg-background ${designTokenClasses(readDesignTokens(site.settings?.generation ?? null))}`}
       style={{
         ...siteThemeStyle({
           primaryColor: profile?.primary_color ?? null,
@@ -185,6 +221,7 @@ export function SitePageView({
         {preview ? <PreviewLinkBridge slug={org.slug} /> : null}
       </div>
     </div>
+    </>
   );
 }
 
