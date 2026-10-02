@@ -356,7 +356,7 @@ function checkVisualBalance(
     if (section.componentCount === 0 && section.textLength < 50 && section.heading) {
       findings.push({
         kind: "visual_balance",
-        severity: "medium" as "medium",
+        severity: "medium",
         page: section.pageSlug,
         section: section.sectionId,
         message: "Section has a heading but almost no content — add body copy or remove it",
