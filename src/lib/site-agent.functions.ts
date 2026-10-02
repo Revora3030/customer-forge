@@ -20,6 +20,7 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import {
   MAX_ACTIONS,
   PLAN_INSTRUCTION_LIMIT,
+  TEMP_REF,
   describeActions,
   readActions,
   readAttachments,
@@ -696,7 +697,7 @@ export const applyWebsiteChanges = createServerFn({ method: "POST" })
         ? {
             idMap: Object.fromEntries(
               Object.entries(input.idMap)
-                .filter(([key, value]) => TEMP_REF.test(key) && UUID.test(value))
+                .filter(([key, value]) => TEMP_REF.test(key) && UUID_ID.test(value))
                 .slice(0, 500),
             ),
           }
@@ -790,7 +791,7 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
     const applyDropped: string[] = [];
     const crossBatchIdMap = new Map<string, string>(
       Object.entries(data.idMap ?? {}).filter(
-        ([ref, id]) => TEMP_REF.test(ref) && UUID.test(id),
+        ([ref, id]) => TEMP_REF.test(ref) && UUID_ID.test(id),
       ),
     );
     const resolveCrossBatchIds = (value: unknown): unknown => {
