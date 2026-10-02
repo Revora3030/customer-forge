@@ -296,7 +296,7 @@ async function runJobPipeline(
   const [org, profile, services, media, socials, forms, bookable] = await Promise.all([
     db
       .from("organizations")
-      .select("name, industry, conversion_goal")
+      .select("name, industry, conversion_goal, slug")
       .eq("id", orgId)
       .maybeSingle(),
     db.from("business_profiles").select("*").eq("organization_id", orgId).maybeSingle(),
@@ -613,6 +613,42 @@ async function runJobPipeline(
   const safetyProblems = checkFirstBuildSafety({ facts: buildFacts, copy });
   if (safetyProblems.length) {
     throw new Error(safetyProblems[0]!.detail);
+  }
+
+  // Build customer JSON-LD strictly from verified intake/database facts. Luna
+  // reviews completeness; it never gets authority to invent or rewrite facts.
+  const { buildCustomerJsonLd } = await import("@/lib/customer-schema");
+  const customerJsonLd = buildCustomerJsonLd({
+    businessName: org.data.name ?? "",
+    siteUrl: `https://revoragrowthsystems.com/s/${String((org.data as { slug?: unknown }).slug ?? "").trim()}`,
+    phone: (p["phone"] as string) ?? null,
+    email: (p["email"] as string) ?? null,
+    city: (p["city"] as string) ?? null,
+    state: (p["state"] as string) ?? null,
+    country: (p["country"] as string) ?? "US",
+    serviceArea: (p["service_area"] as string) ?? null,
+    services: serviceRows,
+    faqs: copy.faqs,
+  });
+
+  let lunaSchemaReview: { model: string; text: string } | null = null;
+  try {
+    const { callLuna } = await import("@/lib/ai/luna.server");
+    const review = await callLuna({
+      purpose: "schema_markup",
+      organizationId: orgId,
+      tier: "luna",
+      maxOutputTokens: 500,
+      system:
+        "Return JSON only with supportedTypes, metadataTitleOk, metadataDescriptionOk, and findings. Use only supplied facts. Never invent business data, addresses, prices, ratings, awards, credentials, hours, or URLs.",
+      user: JSON.stringify({
+        schema: customerJsonLd,
+        metadata: { title: copy.metaTitle, description: copy.metaDescription },
+      }),
+    });
+    if (review.ok) lunaSchemaReview = { model: review.model, text: review.text.slice(0, 2500) };
+  } catch (error) {
+    console.warn("[site-engine] Luna schema review unavailable", error);
   }
   let generatedAssets: import("@/lib/builder/first-build-images.types").FirstBuildImageAsset[] = [];
   try {
