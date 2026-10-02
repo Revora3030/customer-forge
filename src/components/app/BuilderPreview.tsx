@@ -46,15 +46,15 @@ export function readPreviewSession(organizationId: string | null): PreviewSessio
     if (!raw) return null;
     const value = JSON.parse(raw) as Record<string, unknown>;
     const viewport =
-      typeof value.viewport === "string" &&
+      typeof value["viewport"] === "string" &&
       ["phone", "tablet", "laptop", "wide"].includes(value.viewport)
         ? (value.viewport as BuilderViewportKey)
         : null;
     const zoom =
-      typeof value.zoom === "number" && Number.isFinite(value.zoom)
+      typeof value["zoom"] === "number" && Number.isFinite(value.zoom)
         ? Math.max(0.35, Math.min(1, value.zoom))
         : null;
-    const pageId = typeof value.pageId === "string" ? value.pageId : null;
+    const pageId = typeof value["pageId"] === "string" ? value.pageId : null;
     return viewport && zoom !== null ? { pageId, viewport, zoom } : null;
   } catch {
     return null;
@@ -87,7 +87,7 @@ export function BuilderPreview({
 }: {
   slug: string;
   pages: ContentPage[];
-  organizationId?: string | null;
+  organizationId?: string | null | undefined;
   refreshing?: boolean;
   /** Increments only after saved website data has been invalidated and reloaded. */
   refreshRevision?: number;
