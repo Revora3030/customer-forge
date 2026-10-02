@@ -559,6 +559,7 @@ function WebsitePage() {
             <BuilderPreview
               slug={org.slug}
               pages={pages ?? []}
+              organizationId={orgId}
               refreshing={requests.refreshing}
               refreshRevision={requests.refreshRevision}
               selectedId={selected?.id ?? null}
