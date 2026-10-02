@@ -25,6 +25,46 @@ export type SavedTurn = {
 /** How many earlier turns are brought back when the builder opens. */
 export const MEMORY_TURNS = 40;
 
+const cacheKey = (organizationId: string) => `revora.builder.memory.${organizationId}`;
+
+export function loadCachedTurns(organizationId: string): SavedTurn[] {
+  if (typeof window === "undefined" || !organizationId) return [];
+  try {
+    const raw = window.sessionStorage.getItem(cacheKey(organizationId));
+    if (!raw) return [];
+    const value = JSON.parse(raw);
+    if (!Array.isArray(value)) return [];
+    return value.filter(
+      (item): item is SavedTurn =>
+        Boolean(item) &&
+        typeof item === "object" &&
+        (item.role === "user" || item.role === "assistant") &&
+        typeof item.content === "string" &&
+        typeof item.at === "string",
+    ).slice(-MEMORY_TURNS);
+  } catch {
+    return [];
+  }
+}
+
+export function cacheTurns(organizationId: string, turns: SavedTurn[]): void {
+  if (typeof window === "undefined" || !organizationId) return;
+  try {
+    window.sessionStorage.setItem(cacheKey(organizationId), JSON.stringify(turns.slice(-MEMORY_TURNS)));
+  } catch {
+    /* storage is optional */
+  }
+}
+
+export function clearCachedTurns(organizationId: string): void {
+  if (typeof window === "undefined" || !organizationId) return;
+  try {
+    window.sessionStorage.removeItem(cacheKey(organizationId));
+  } catch {
+    /* ignore storage failures */
+  }
+}
+
 export function toTurns(rows: Array<{ role: string; content: string; created_at: string; plan?: unknown }>): SavedTurn[] {
   return [...rows]
     // Same moment: a request always comes before its reply.
@@ -61,7 +101,9 @@ export async function loadTurns(organizationId: string): Promise<SavedTurn[]> {
     .order("created_at", { ascending: false })
     .limit(MEMORY_TURNS);
   if (error) throw error;
-  return toTurns([...(data ?? [])].reverse());
+  const turns = toTurns([...(data ?? [])].reverse());
+  cacheTurns(organizationId, turns);
+  return turns;
 }
 
 export async function saveTurns(organizationId: string, turns: Array<Omit<SavedTurn, "at">>): Promise<void> {
@@ -69,6 +111,13 @@ export async function saveTurns(organizationId: string, turns: Array<Omit<SavedT
   if (!auth.user || !turns.length) return;
   // Turns saved together get distinct times so they always read back in order.
   const base = Date.now();
+  cacheTurns(
+    organizationId,
+    [
+      ...loadCachedTurns(organizationId),
+      ...turns.map((turn, index) => ({ ...turn, at: new Date(base + index).toISOString() })),
+    ],
+  );
   const { error } = await supabase.from("builder_messages").insert(
     turns.map((turn, index) => ({
       created_at: new Date(base + index).toISOString(),
@@ -91,4 +140,5 @@ function isSavedTaskResult(value: unknown): value is SavedTaskResult {
 export async function clearTurns(organizationId: string): Promise<void> {
   const { error } = await supabase.from("builder_messages").delete().eq("organization_id", organizationId);
   if (error) throw error;
+  clearCachedTurns(organizationId);
 }
