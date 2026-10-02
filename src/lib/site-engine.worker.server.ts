@@ -176,7 +176,7 @@ async function claimJob(db: Db, organizationId?: string) {
   const now = new Date();
   let query = db
     .from("generation_jobs")
-    .select("id, organization_id, attempts, created_by, status, lease_expires_at")
+    .select("id, organization_id, attempts, created_by, status, lease_expires_at, locked_at, request_id")
     .in("status", ["queued", "processing"])
     .lt("attempts", MAX_ATTEMPTS)
     .order("created_at", { ascending: true })
@@ -196,14 +196,21 @@ async function claimJob(db: Db, organizationId?: string) {
         attempts: (job.attempts as number) + 1,
         started_at: job.status === "queued" ? now.toISOString() : undefined,
         lease_expires_at: new Date(now.getTime() + LEASE_SECONDS * 1000).toISOString(),
+        locked_at: now.toISOString(),
         updated_at: now.toISOString(),
       } as never)
       .eq("id", job.id)
       .eq("attempts", job.attempts as number)
-      .select("id, organization_id, created_by, attempts")
+      .select("id, organization_id, created_by, attempts, request_id")
       .maybeSingle();
     if (claimed)
-      return claimed as { id: string; organization_id: string; created_by: string | null; attempts: number };
+      return claimed as {
+        id: string;
+        organization_id: string;
+        created_by: string | null;
+        attempts: number;
+        request_id: string | null;
+      };
   }
   return null;
 }
@@ -211,7 +218,13 @@ async function claimJob(db: Db, organizationId?: string) {
 /** Runs the nine generation stages for one claimed job using the privileged client. */
 async function runJob(
   db: Db,
-  job: { id: string; organization_id: string; created_by: string | null; attempts: number },
+  job: {
+    id: string;
+    organization_id: string;
+    created_by: string | null;
+    attempts: number;
+    request_id: string | null;
+  },
 ) {
   const orgId = job.organization_id;
   const { GENERATION_STEPS } = await import("@/lib/site-engine");
@@ -229,6 +242,7 @@ async function runJob(
   // real worker stages ("reading your business", "writing the pages", …)
   // instead of only seeing stages from chat retries.
   const { noteStage } = await import("@/lib/builder/progress.server");
+  const requestId = job.request_id ?? job.id;
   const WORKER_STAGE_LABELS: Record<string, string> = {
     business: "reading your business",
     services: "reading your services",
@@ -250,6 +264,7 @@ async function runJob(
         progress: meta?.progress ?? 0,
         steps: done,
         lease_expires_at: new Date(Date.now() + LEASE_SECONDS * 1000).toISOString(),
+        locked_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       } as never)
       .eq("id", job.id)
@@ -587,6 +602,8 @@ async function runJob(
     model: copyModel,
     instruction: null,
     result: {
+      requestId,
+      jobId: job.id,
       changed: refined.changed,
       creativeChanged: refined.creativeChanged,
       copyChanged: refined.copyChanged,
