@@ -61,14 +61,18 @@ type LeadDeliveryLogInsert = {
 };
 
 type LeadDeliveryLogTable = {
-  insert(row: LeadDeliveryLogInsert): PromiseLike<{ error: { message: string } | null }>;
+  upsert(
+    row: LeadDeliveryLogInsert,
+    options?: { onConflict?: string; ignoreDuplicates?: boolean },
+  ): PromiseLike<{ error: { message: string } | null }>;
 };
 
 /**
  * Typed access to the lead delivery telemetry table that does not depend on
- * the generated Database types. The service-role client is still used, so RLS
- * and tenant boundaries are unchanged; only the compile-time table lookup is
- * narrowed to this one table and row shape.
+ * the generated Database types. This is invoked with the server-only admin
+ * client because anonymous public submissions have no insert policy on logs.
+ * The organization and lead ids are resolved server-side from the same tenant
+ * request.
  */
 function leadDeliveryLogs(client: unknown): LeadDeliveryLogTable {
   return (client as { from(table: "lead_delivery_logs"): LeadDeliveryLogTable }).from(
@@ -560,7 +564,8 @@ export const submitPublicLead = createServerFn({ method: "POST" })
         // than the generated schema types: Lovable regenerates `types.ts` from the
         // live database, and until the migration is applied there, a typed
         // `.from("lead_delivery_logs")` call breaks the build gate.
-        const { error: telemetryInsertError } = await leadDeliveryLogs(supabase).insert({
+        const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+        const { error: telemetryInsertError } = await leadDeliveryLogs(supabaseAdmin).upsert({
           organization_id: orgId,
           lead_id: lead.id,
           delivery_status: deliveryStatus,
@@ -574,7 +579,7 @@ export const submitPublicLead = createServerFn({ method: "POST" })
               : null,
           idempotency_key: await sha256Hex(`${orgId}:lead.created:${lead.id}`),
           attempted_at: webhookResult.attemptedAt,
-        });
+        }, { onConflict: "organization_id,idempotency_key" });
         if (telemetryInsertError) {
           const { captureError } = await import("@/lib/monitoring.server");
           await captureError({
