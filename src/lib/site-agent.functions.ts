@@ -927,7 +927,22 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
       overlay.set(key, { ...(overlay.get(key) ?? {}), [column]: value });
     };
 
-    const run = async (label: string, work: () => PromiseLike<unknown>) => {
+    const OPTIONAL_ACTIONS = new Set([
+      "set_block_style",
+      "set_component_visual",
+      "set_theme",
+      "set_design_tokens",
+      "set_backdrop",
+      "set_section_effect",
+      "generate_component_image",
+      "link_generated_image",
+    ]);
+
+    const run = async (
+      label: string,
+      work: () => PromiseLike<unknown>,
+      options: { fatalOnError?: boolean } = {},
+    ) => {
       if (fatal) return;
       try {
         const result = (await work()) as { error?: unknown } | null;
@@ -936,7 +951,7 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
       } catch (error) {
         console.error("[site-agent] action failed", label, error);
         failed.push(label);
-        fatal = error;
+        if (options.fatalOnError ?? !OPTIONAL_ACTIONS.has(label)) fatal = error;
       }
     };
 
@@ -1324,7 +1339,6 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
             .from(MEDIA_BUCKET)
             .upload(path, bytes, { contentType: mime, upsert: false });
           if (uploaded.error) {
-            fatal = uploaded.error;
             failed.push("generate_component_image:upload_failed");
             break;
           }
@@ -1349,7 +1363,6 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
             .maybeSingle();
           if (media.error) {
             await supabase.storage.from(MEDIA_BUCKET).remove([path]);
-            fatal = media.error;
             failed.push("generate_component_image:media_failed");
             break;
           }
@@ -1529,7 +1542,7 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
       void sortOf;
     }
 
-    if (!fatal && generatedImages.length > 0) {
+    if (generatedImages.length > 0) {
       await linkGeneratedImagesIntoLayouts();
     }
 
@@ -1549,7 +1562,6 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
           supabase.from("website_components").select("id, media_url").eq("organization_id", orgId).in("section_id", sectionIds),
         ]);
       if (sectionError || componentError) {
-        fatal = sectionError ?? componentError;
         failed.push("generate_component_image:link_failed");
         return;
       }
@@ -1601,10 +1613,16 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
             await supabase.from("website_sections").update({ settings: previous } as never).eq("id", sectionId).eq("organization_id", orgId);
           },
         });
-        await run("link_generated_image", () =>
-          supabase.from("website_sections").update({ settings: nextSettings } as never).eq("id", sectionId).eq("organization_id", orgId),
+        await run(
+          "link_generated_image",
+          () =>
+            supabase
+              .from("website_sections")
+              .update({ settings: nextSettings } as never)
+              .eq("id", sectionId)
+              .eq("organization_id", orgId),
+          { fatalOnError: false },
         );
-        if (fatal) return;
       }
     }
 
