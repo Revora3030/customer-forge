@@ -139,7 +139,10 @@ export function useBuilderRequests({
             : {}),
           ...(pair.taskResult?.notice ? { notice: pair.taskResult.notice } : {}),
         }));
-        setTasks((current) => [...past, ...current]);
+        setTasks((current) => [
+          ...past,
+          ...current.filter((task) => !task.restored),
+        ]);
         setMemoryLoaded(true);
       },
       () => live && setMemoryLoaded(true),
@@ -157,12 +160,6 @@ export function useBuilderRequests({
     }>,
   ) => {
     if (!organizationId || !canManage) return;
-    const cached = loadCachedTurns(organizationId);
-    const base = Date.now();
-    cacheTurns(organizationId, [
-      ...cached,
-      ...turns.map((turn, index) => ({ ...turn, at: new Date(base + index).toISOString() })),
-    ]);
     void saveTurns(organizationId, turns).catch(() => {
       // Saving the chat never blocks building; the change itself is already safe.
     });
