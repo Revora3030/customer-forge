@@ -54,7 +54,7 @@ const PLACEHOLDER_TOKENS = [
 
 const FIXTURE_PATTERNS = [
   /\bexample\.(com|org|net)\b/i,
-  /\btest@(test|example)\.[a-z]+\b/i,
+  /\btest@(test|example)\.(com|org|net)\b/i,
   /\bacme\s+(inc|corp|co)\b/i,
   /\bjohn\s+doe\b/i,
   /\bjane\s+doe\b/i,

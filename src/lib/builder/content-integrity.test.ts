@@ -54,6 +54,11 @@ describe("content integrity is a hard gate", () => {
     expect(inspectContentIntegrity(fields({ businessName: "Bäckerei Höfler" }))).toEqual([]);
   });
 
+  it("does not flag real emails that happen to start with 'test'", () => {
+    expect(inspectContentIntegrity(fields({ email: "test@testbusinessco.com" }))).toEqual([]);
+    expect(inspectContentIntegrity(fields({ email: "test@testingco.com" }))).toEqual([]);
+  });
+
   it("explains the problem without inventing a replacement", () => {
     try {
       assertContentIntegrity(fields({ businessName: "Wieueueu" }));
