@@ -1314,7 +1314,9 @@ export type Database = {
           error_message: string | null
           id: string
           lease_expires_at: string | null
+          locked_at: string | null
           organization_id: string
+          request_id: string | null
           progress: number
           started_at: string | null
           status: string
@@ -1330,7 +1332,9 @@ export type Database = {
           error_message?: string | null
           id?: string
           lease_expires_at?: string | null
+          locked_at?: string | null
           organization_id: string
+          request_id?: string | null
           progress?: number
           started_at?: string | null
           status?: string
@@ -1346,7 +1350,9 @@ export type Database = {
           error_message?: string | null
           id?: string
           lease_expires_at?: string | null
+          locked_at?: string | null
           organization_id?: string
+          request_id?: string | null
           progress?: number
           started_at?: string | null
           status?: string
