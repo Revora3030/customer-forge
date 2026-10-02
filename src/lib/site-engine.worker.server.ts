@@ -600,10 +600,7 @@ async function runJob(
   // can never reach the site with an unsupported claim.
   const safetyProblems = checkFirstBuildSafety({ facts: buildFacts, copy });
   if (safetyProblems.length) {
-    // Safety problems detected. Log them but don't stop the build — the
-    // customer should still get their site. The problems are logged so the
-    // team can review and fix them in a follow-up.
-    console.warn(`[site-engine] Safety problems in first build for ${orgId}:`, safetyProblems.slice(0, 3));
+    throw new Error(safetyProblems[0]!.detail);
   }
   let generatedAssets: import("@/lib/builder/first-build-images.types").FirstBuildImageAsset[] = [];
   try {
@@ -621,7 +618,9 @@ async function runJob(
       .maybeSingle();
     const partialGeneration = (partial.data?.generation ?? {}) as Record<string, unknown>;
     const report = partialGeneration["report"] as Record<string, unknown> | undefined;
-    if (report?.["jobId"] === job.id) {
+    const ownsPartialBuild =
+      report?.["jobId"] === job.id || partialGeneration["jobId"] === job.id;
+    if (ownsPartialBuild) {
       // Fence by job: only rows written since this job was created are its own
       // partial output. Anything older belongs to the customer and is kept.
       const jobRow = await db
@@ -712,7 +711,6 @@ async function runJob(
   const architectureRef: { current: PageArchitectureOutcome | null } = { current: null };
   noteStage(orgId, job.id, "writing the pages");
   let built: Awaited<ReturnType<typeof materializeSiteContent>>;
-  try {
   built = await materializeSiteContent(db, orgId, {
     businessName: org.data.name ?? "",
     copy,
@@ -753,10 +751,6 @@ async function runJob(
       return outcome.architecture;
     },
   });
-  } catch (err) {
-    console.warn(`[site-engine] Materialization failed for ${orgId}: ${(err as Error).message}; attempting safe fallback.`);
-    built = { skipped: true } as never;
-  }
   await db.from("ai_generations").insert({
     organization_id: orgId,
     job_id: job.id,
@@ -983,7 +977,25 @@ async function runJob(
     }
   }
 
+  // Persist ownership before materialization so a failed attempt leaves a
+  // verifiable job marker for safe retry cleanup. The marker is metadata only;
+  // it does not publish or replace customer content.
+  const { error: buildMarkerError } = await db.from("website_settings").upsert(
+    {
+      organization_id: orgId,
+      generation: {
+        ...withoutPendingBuild(priorGeneration),
+        jobId: job.id,
+        buildState: "materializing",
+        buildStartedAt: new Date().toISOString(),
+      },
+    } as never,
+    { onConflict: "organization_id" },
+  );
+  if (buildMarkerError) throw new Error(buildMarkerError.message);
+
   const report = {
+    jobId: job.id,
     builtAt: new Date().toISOString(),
     pages: built.pages,
     sections: built.sections,
