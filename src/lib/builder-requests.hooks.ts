@@ -187,6 +187,7 @@ export function useBuilderRequests({
           operationKey: task.id,
         },
       });
+      let idMap: Record<string, string> = result.idMap ?? {};
       const beforeVersion = Number((result as { snapshotVersion?: number }).snapshotVersion ?? 0) || undefined;
       for (let index = 1; index < batches.length; index += 1) {
         // Nothing landed from the previous batch: stop rather than keep pushing
@@ -200,14 +201,18 @@ export function useBuilderRequests({
             actions: batches[index]!,
             label,
             operationKey: `${task.id}:${index + 1}`,
+            idMap,
           },
         });
+        idMap = { ...idMap, ...(next.idMap ?? {}) };
         result = {
           ...next,
           applied: result.applied + next.applied,
           failed: (result.failed ?? 0) + (next.failed ?? 0),
           stale: (result.stale ?? 0) + (next.stale ?? 0),
           details: [...(result.details ?? []), ...(next.details ?? [])],
+          idMap: { ...idMap, ...(next.idMap ?? {}) },
+          warnings: [...(result.warnings ?? []), ...(next.warnings ?? [])],
           staleNotice: next.staleNotice || result.staleNotice,
         };
       }
