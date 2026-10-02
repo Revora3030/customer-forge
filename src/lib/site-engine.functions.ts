@@ -69,7 +69,6 @@ export const runSiteGeneration = createServerFn({ method: "POST" })
     // processing jobs whose lease has expired. A fresh queued job with no
     // lease is normal (it hasn't been claimed yet) and must not be cleared.
     const now = new Date();
-    const staleThreshold = new Date(now.getTime() - 10 * 60 * 1000); // 10 min
     await supabase
       .from("generation_jobs")
       .update({ status: "failed", error_message: "Exhausted all retry attempts", completed_at: now.toISOString(), lease_expires_at: null })

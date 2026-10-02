@@ -260,6 +260,23 @@ async function runJob(
     if (!fenced || fenced.length === 0) throw new StaleAttemptError(job.id);
   };
 
+  // Heartbeat: renews the lease without changing the step. Called before/after
+  // long AI operations (brand identity, collective refinement, image generation,
+  // materialization, section wording, section composition, chrome composition)
+  // so the client pump doesn't mark a live but slow build as stale.
+  const heartbeat = async () => {
+    const { data: fenced } = await db
+      .from("generation_jobs")
+      .update({
+        lease_expires_at: new Date(Date.now() + LEASE_SECONDS * 1000).toISOString(),
+        updated_at: new Date().toISOString(),
+      } as never)
+      .eq("id", job.id)
+      .eq("attempts", job.attempts)
+      .select("id");
+    if (!fenced || fenced.length === 0) throw new StaleAttemptError(job.id);
+  };
+
   const [org, profile, services, media, socials, forms, bookable] = await Promise.all([
     db
       .from("organizations")
@@ -431,6 +448,7 @@ async function runJob(
   // back to a safe direction based on the business facts so the build continues.
   let identity: Awaited<ReturnType<typeof authorBrandIdentity>>;
   try {
+    await heartbeat();
     identity = await authorBrandIdentity({
       organizationId: orgId,
       businessName: org.data.name ?? "",
@@ -517,6 +535,7 @@ async function runJob(
   );
   let refined: Awaited<ReturnType<typeof refineFirstBuildWithCollective>>;
   try {
+    await heartbeat();
     refined = await refineFirstBuildWithCollective({
     organizationId: orgId,
     facts: buildFacts,
@@ -660,6 +679,7 @@ async function runJob(
       }
     }
   }
+  await heartbeat();
   noteStage(orgId, job.id, "generating your pictures");
   const starterImages = await generateFirstBuildImages(db, {
     organizationId: orgId,
@@ -710,6 +730,7 @@ async function runJob(
   const architectIndustry = org.data.industry ?? null;
   const architectGoal = goals[0] ?? org.data.conversion_goal ?? null;
   const architectureRef: { current: PageArchitectureOutcome | null } = { current: null };
+  await heartbeat();
   noteStage(orgId, job.id, "writing the pages");
   const built = await materializeSiteContent(db, orgId, {
     businessName: org.data.name ?? "",
@@ -838,6 +859,7 @@ async function runJob(
     }));
     let outcome: Awaited<ReturnType<typeof refineSectionWordingWithCollective>>;
     try {
+    await heartbeat();
     outcome = await refineSectionWordingWithCollective({
       organizationId: orgId,
       facts: buildFacts,
@@ -894,6 +916,7 @@ async function runJob(
     const { composeFirstBuildSections } = await import("@/lib/builder/first-build-compositions.server");
     let composed: Awaited<ReturnType<typeof composeFirstBuildSections>>;
     try {
+    await heartbeat();
     composed = await composeFirstBuildSections({
       db: db as never,
       organizationId: orgId,
@@ -933,6 +956,7 @@ async function runJob(
     const { composeSiteChrome } = await import("@/lib/builder/first-build-chrome.server");
     let chrome: Awaited<ReturnType<typeof composeSiteChrome>>;
     try {
+    await heartbeat();
     chrome = await composeSiteChrome({
       db: db as never,
       organizationId: orgId,
