@@ -1315,8 +1315,13 @@ export async function drainSiteEngineQueue(
             error_message: message,
             completed_at: new Date().toISOString(),
             lease_expires_at: null,
+            locked_at: null,
+            request_id: job.request_id ?? job.id,
+            updated_at: new Date().toISOString(),
           } as never)
-          .eq("id", job.id);
+          .eq("id", job.id)
+          .eq("organization_id", job.organization_id)
+          .eq("attempts", job.attempts);
         await writeQueueState(db, { last_error: message });
         continue;
       }
@@ -1328,8 +1333,17 @@ export async function drainSiteEngineQueue(
         await pauseQueue(db, "credits", message);
         await db
           .from("generation_jobs")
-          .update({ status: "queued", error_message: message, lease_expires_at: null } as never)
-          .eq("id", job.id);
+          .update({
+            status: "queued",
+            error_message: message,
+            lease_expires_at: null,
+            locked_at: null,
+            request_id: job.request_id ?? job.id,
+            updated_at: new Date().toISOString(),
+          } as never)
+          .eq("id", job.id)
+          .eq("organization_id", job.organization_id)
+          .eq("attempts", job.attempts);
         return { processed, failed, paused: true, pauseReason: message, idle: false };
       }
 
@@ -1341,8 +1355,17 @@ export async function drainSiteEngineQueue(
         // leave the job retryable — the lease expires and a later run picks it up
         await db
           .from("generation_jobs")
-          .update({ status: "queued", error_message: message, lease_expires_at: null } as never)
-          .eq("id", job.id);
+          .update({
+            status: "queued",
+            error_message: message,
+            lease_expires_at: null,
+            locked_at: null,
+            request_id: job.request_id ?? job.id,
+            updated_at: new Date().toISOString(),
+          } as never)
+          .eq("id", job.id)
+          .eq("organization_id", job.organization_id)
+          .eq("attempts", job.attempts);
         return {
           processed,
           failed,
@@ -1369,8 +1392,18 @@ export async function drainSiteEngineQueue(
                 error_message: message,
                 completed_at: new Date().toISOString(),
                 lease_expires_at: null,
+                locked_at: null,
+                request_id: job.request_id ?? job.id,
+                updated_at: new Date().toISOString(),
               }
-            : { status: "queued", error_message: message, lease_expires_at: null },
+            : {
+                status: "queued",
+                error_message: message,
+                lease_expires_at: null,
+                locked_at: null,
+                request_id: job.request_id ?? job.id,
+                updated_at: new Date().toISOString(),
+              },
         )
         .eq("id", job.id)
         // Only the attempt that failed may requeue/fail the job.
