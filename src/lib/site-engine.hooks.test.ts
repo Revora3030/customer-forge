@@ -3,7 +3,7 @@ import { queuePumpDelay } from "@/lib/site-engine.hooks";
 
 describe("queuePumpDelay", () => {
   it("nudges queued work promptly", () => {
-    expect(queuePumpDelay({ status: "queued" }, 1_000)).toBe(800);
+    expect(queuePumpDelay({ status: "queued" }, 1_000)).toBe(500);
   });
 
   it("waits for an active processing lease before recovery", () => {
@@ -22,11 +22,11 @@ describe("queuePumpDelay", () => {
         1_000,
       ),
     ).toBe(250);
-    expect(queuePumpDelay({ status: "processing", lease_expires_at: null }, 1_000)).toBe(800);
+    expect(queuePumpDelay({ status: "processing", lease_expires_at: null }, 1_000)).toBe(500);
   });
 
-  it("does not pump terminal jobs", () => {
+  it("does not pump completed jobs but retries failed ones", () => {
     expect(queuePumpDelay({ status: "completed" }, 1_000)).toBeNull();
-    expect(queuePumpDelay({ status: "failed" }, 1_000)).toBeNull();
+    expect(queuePumpDelay({ status: "failed" }, 1_000)).toBe(2_000);
   });
 });

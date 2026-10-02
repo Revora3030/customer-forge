@@ -64,6 +64,22 @@ export const runSiteGeneration = createServerFn({ method: "POST" })
     }
 
     // RLS enforces that the caller belongs to this workspace.
+    // Clear stale queued jobs whose leases have expired before checking for
+    // active builds. A job stuck in "queued" with no lease or an expired lease
+    // is from a previous failed attempt and blocks new builds.
+    const now = new Date();
+    await supabase
+      .from("generation_jobs")
+      .update({ status: "failed", error_message: "Stale job cleared for new build request", completed_at: now.toISOString(), lease_expires_at: null })
+      .eq("organization_id", orgId)
+      .eq("status", "queued")
+      .or(`lease_expires_at.is.null,lease_expires_at.lt.${now.toISOString()}`);
+    await supabase
+      .from("generation_jobs")
+      .update({ status: "failed", error_message: "Stale processing job cleared for new build request", completed_at: now.toISOString(), lease_expires_at: null })
+      .eq("organization_id", orgId)
+      .eq("status", "processing")
+      .lt("lease_expires_at", now.toISOString());
     const { data: existing } = await supabase
       .from("generation_jobs")
       .select("id, status, progress")
@@ -180,14 +196,27 @@ export const runSiteGeneration = createServerFn({ method: "POST" })
 async function kickWorker(origin: string) {
   const secret = process.env["LOVABLE_CRON_SECRET"];
   const base = process.env["APP_URL"] ?? origin;
-  if (!secret || !base) return;
+  // Try the HTTP kick first (fastest path when the scheduler is running).
+  if (secret && base) {
+    try {
+      await fetch(`${base.replace(/\/$/, "")}/api/public/jobs/site-engine`, {
+        method: "POST",
+        headers: { authorization: `Bearer ${secret}` },
+      });
+    } catch {
+      // Fall through to the direct drain below.
+    }
+  }
+  // Direct fallback: drain the queue in-process when the HTTP kick is
+  // unavailable (missing LOVABLE_CRON_SECRET, no scheduler, or network
+  // failure). This ensures the build always progresses even without a
+  // separate worker process. The database lease guarantees single-flight.
   try {
-    await fetch(`${base.replace(/\/$/, "")}/api/public/jobs/site-engine`, {
-      method: "POST",
-      headers: { authorization: `Bearer ${secret}` },
-    });
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { drainSiteEngineQueue } = await import("@/lib/site-engine.worker.server");
+    void drainSiteEngineQueue(supabaseAdmin as never, { max: 1, probeWhilePaused: true });
   } catch {
-    // The scheduled worker run and the client pump still pick the job up.
+    // The client pump and the scheduled run still pick the job up.
   }
 }
 
