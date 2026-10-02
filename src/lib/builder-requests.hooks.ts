@@ -139,7 +139,10 @@ export function useBuilderRequests({
             : {}),
           ...(pair.taskResult?.notice ? { notice: pair.taskResult.notice } : {}),
         }));
-        setTasks((current) => [...past, ...current]);
+        setTasks((current) => [
+          ...past,
+          ...current.filter((task) => !task.restored),
+        ]);
         setMemoryLoaded(true);
       },
       () => live && setMemoryLoaded(true),
