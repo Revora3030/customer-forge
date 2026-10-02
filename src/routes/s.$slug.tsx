@@ -62,6 +62,12 @@ export const Route = createFileRoute("/s/$slug")({
           : []),
         ...(page?.noindex ? [{ name: "robots", content: "noindex" }] : []),
       ],
+      scripts: [
+        {
+          type: "application/ld+json",
+          children: JSON.stringify(loaderData.structuredData),
+        },
+      ],
       links: [
         { rel: "canonical", href: url },
         // The owner's chosen heading font has to be requested here or their
