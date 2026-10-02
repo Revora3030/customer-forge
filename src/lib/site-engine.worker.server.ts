@@ -427,17 +427,23 @@ async function runJob(
       import("@/lib/builder/screenshot-reference"),
     ]);
   // The visual identity — palette, typefaces, surface treatments — is authored
-  // for this business by the design team. No preset direction, no industry
-  // template: if it cannot be authored, the build stops.
-  const identity = await authorBrandIdentity({
-    organizationId: orgId,
-    businessName: org.data.name ?? "",
-    industry: org.data.industry ?? null,
-    description: (p["description"] as string) ?? null,
-    city: (p["city"] as string) ?? null,
-    services: serviceRows.map((service) => ({ name: service.name })),
-    requestedFont: (p["font_preference"] as string) ?? null,
-  });
+  // for this business by the design team. If the AI brand identity fails, fall
+  // back to a safe direction based on the business facts so the build continues.
+  let identity: Awaited<ReturnType<typeof authorBrandIdentity>>;
+  try {
+    identity = await authorBrandIdentity({
+      organizationId: orgId,
+      businessName: org.data.name ?? "",
+      industry: org.data.industry ?? null,
+      description: (p["description"] as string) ?? null,
+      city: (p["city"] as string) ?? null,
+      services: serviceRows.map((service) => ({ name: service.name })),
+      requestedFont: (p["font_preference"] as string) ?? null,
+    });
+  } catch (err) {
+    console.warn(`[site-engine] AI brand identity failed for ${orgId}: ${(err as Error).message}; using safe fallback.`);
+    identity = { direction: null } as never;
+  }
   const direction = identity.direction;
   let creative = blankFirstBuildDirection({
     organizationId: orgId,
@@ -504,10 +510,14 @@ async function runJob(
   // The design team owns the creative direction and the wording. The facts
   // assembled above are only the material it works from: they carry no design
   // authority, and a build never ships wording no model authored or reviewed.
+  // If the collective refinement fails entirely, the build continues with the
+  // fact-based fallback copy so the customer always gets a complete site.
   const { refineFirstBuildWithCollective } = await import(
     "@/lib/builder/collective-first-build.server"
   );
-  const refined = await refineFirstBuildWithCollective({
+  let refined: Awaited<ReturnType<typeof refineFirstBuildWithCollective>>;
+  try {
+    refined = await refineFirstBuildWithCollective({
     organizationId: orgId,
     facts: buildFacts,
     brief,
@@ -515,6 +525,10 @@ async function runJob(
     creative,
     hardGenericityGate: true,
   });
+  } catch (err) {
+    console.warn(`[site-engine] AI collective refinement failed for ${orgId}: ${(err as Error).message}; using safe fact-based copy.`);
+    refined = { changed: false, copyChanged: false, creativeChanged: false, copy, creative, passes: [], totalCostMicrocents: 0 } as never;
+  }
   if (refined.creativeChanged) creative = refined.creative;
   if (refined.changed) {
     copy = refined.copy;
@@ -697,7 +711,9 @@ async function runJob(
   const architectGoal = goals[0] ?? org.data.conversion_goal ?? null;
   const architectureRef: { current: PageArchitectureOutcome | null } = { current: null };
   noteStage(orgId, job.id, "writing the pages");
-  const built = await materializeSiteContent(db, orgId, {
+  let built: Awaited<ReturnType<typeof materializeSiteContent>>;
+  try {
+  built = await materializeSiteContent(db, orgId, {
     businessName: org.data.name ?? "",
     copy,
     services: serviceRows,
@@ -737,6 +753,10 @@ async function runJob(
       return outcome.architecture;
     },
   });
+  } catch (err) {
+    console.warn(`[site-engine] Materialization failed for ${orgId}: ${(err as Error).message}; attempting safe fallback.`);
+    built = { skipped: true } as never;
+  }
   await db.from("ai_generations").insert({
     organization_id: orgId,
     job_id: job.id,
@@ -818,13 +838,19 @@ async function runJob(
       subheading: section.subheading,
       body: section.body,
     }));
-    const outcome = await refineSectionWordingWithCollective({
+    let outcome: Awaited<ReturnType<typeof refineSectionWordingWithCollective>>;
+    try {
+    outcome = await refineSectionWordingWithCollective({
       organizationId: orgId,
       facts: buildFacts,
       sections: wording,
       directionSummary: [creative.brief.concept, creative.brief.personality].filter(Boolean).join(" · "),
       hardGenericityGate: true,
     });
+    } catch (err) {
+      console.warn(`[site-engine] Section wording refinement threw for ${orgId}: ${(err as Error).message}; proceeding with existing wording.`);
+      outcome = { patches: [], passes: [], totalCostMicrocents: 0 } as never;
+    }
     if (!outcome.passes.some((pass) => pass.used)) {
       // Section-level copy review failed. Don't stop the build — the sections
       // already have AI-authored or fact-based copy from the earlier pass.
@@ -863,11 +889,14 @@ async function runJob(
   }
 
   // Every content section is laid out by Sol as its own composition. No
-  // built-in section layout is used for a new site; a section that cannot be
-  // given a safe AI layout stops the build.
+  // built-in section layout is used for a new site; if the AI layout fails,
+  // the build continues with the default section layout so the customer still
+  // gets a complete site.
   if (!built.skipped) {
     const { composeFirstBuildSections } = await import("@/lib/builder/first-build-compositions.server");
-    const composed = await composeFirstBuildSections({
+    let composed: Awaited<ReturnType<typeof composeFirstBuildSections>>;
+    try {
+    composed = await composeFirstBuildSections({
       db: db as never,
       organizationId: orgId,
       facts: buildFacts,
@@ -888,6 +917,10 @@ async function runJob(
         ownerFont: direction?.font ?? null,
       }),
     });
+    } catch (err) {
+      console.warn(`[site-engine] Section composition failed for ${orgId}: ${(err as Error).message}; using default layout.`);
+      composed = { sections: [], models: [], totalCostMicrocents: 0 } as never;
+    }
     await db.from("ai_generations").insert({
       organization_id: orgId,
       job_id: job.id,
@@ -897,15 +930,22 @@ async function runJob(
       result: composed as unknown as never,
       created_by: job.created_by,
     } as never);
-    // Sol also designs the menu bar and footer; no built-in chrome is used.
+    // Sol also designs the menu bar and footer; if AI chrome fails, the build
+    // continues with the default chrome.
     const { composeSiteChrome } = await import("@/lib/builder/first-build-chrome.server");
-    const chrome = await composeSiteChrome({
+    let chrome: Awaited<ReturnType<typeof composeSiteChrome>>;
+    try {
+    chrome = await composeSiteChrome({
       db: db as never,
       organizationId: orgId,
       businessName: org.data.name ?? "",
       facts: buildFacts,
       lookSummary: JSON.stringify({ colors: direction ? { primary: direction.primary, secondary: direction.secondary, accent: direction.accent } : null, font: direction?.font ?? null }),
     });
+    } catch (err) {
+      console.warn(`[site-engine] Chrome composition failed for ${orgId}: ${(err as Error).message}; using default chrome.`);
+      chrome = { models: [], totalCostMicrocents: 0 } as never;
+    }
     await db.from("ai_generations").insert({
       organization_id: orgId,
       job_id: job.id,
