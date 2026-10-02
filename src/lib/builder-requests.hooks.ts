@@ -38,7 +38,15 @@ import type { AgentStep } from "@/lib/site-agent";
 import type { AgentAttachment } from "@/lib/site-agent";
 import { trackConversion } from "@/lib/conversion";
 import { friendlyError } from "@/lib/user-error";
-import { clearTurns, loadTurns, pairTurns, saveTurns, type SavedTaskResult } from "@/lib/builder-memory";
+import {
+  cacheTurns,
+  clearTurns,
+  loadCachedTurns,
+  loadTurns,
+  pairTurns,
+  saveTurns,
+  type SavedTaskResult,
+} from "@/lib/builder-memory";
 import { supabase } from "@/integrations/supabase/client";
 
 export const INSTRUCTION_LIMIT = 1200;
@@ -95,6 +103,24 @@ export function useBuilderRequests({
   useEffect(() => {
     if (!organizationId) return;
     let live = true;
+    const cached = loadCachedTurns(organizationId);
+    if (cached.length) {
+      setConversation(cached.map(({ role, content }) => ({ role, content })).slice(-24));
+      const cachedTasks = pairTurns(cached).map((pair) => ({
+        ...newTask(pair.instruction),
+        state: pair.taskResult?.state ?? ("complete" as const),
+        reply: pair.reply || "Done.",
+        answered: !pair.taskResult,
+        restored: true,
+        ...(pair.taskResult?.applied !== undefined ? { applied: pair.taskResult.applied } : {}),
+        ...(pair.taskResult?.failedCount !== undefined ? { failedCount: pair.taskResult.failedCount } : {}),
+        ...(pair.taskResult?.staleCount !== undefined ? { staleCount: pair.taskResult.staleCount } : {}),
+        ...(pair.taskResult?.snapshotVersion !== undefined ? { snapshotVersion: pair.taskResult.snapshotVersion } : {}),
+        ...(pair.taskResult?.notice ? { notice: pair.taskResult.notice } : {}),
+      }));
+      setTasks(cachedTasks);
+      setMemoryLoaded(true);
+    }
     loadTurns(organizationId).then(
       (turns) => {
         if (!live) return;
@@ -131,6 +157,12 @@ export function useBuilderRequests({
     }>,
   ) => {
     if (!organizationId || !canManage) return;
+    const cached = loadCachedTurns(organizationId);
+    const base = Date.now();
+    cacheTurns(organizationId, [
+      ...cached,
+      ...turns.map((turn, index) => ({ ...turn, at: new Date(base + index).toISOString() })),
+    ]);
     void saveTurns(organizationId, turns).catch(() => {
       // Saving the chat never blocks building; the change itself is already safe.
     });
