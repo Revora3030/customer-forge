@@ -39,7 +39,6 @@ import type { AgentAttachment } from "@/lib/site-agent";
 import { trackConversion } from "@/lib/conversion";
 import { friendlyError } from "@/lib/user-error";
 import {
-  cacheTurns,
   clearTurns,
   loadCachedTurns,
   loadTurns,
