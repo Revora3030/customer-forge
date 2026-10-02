@@ -579,37 +579,16 @@ async function runJobPipeline(
     .eq("organization_id", orgId);
   const firstBuild = freshReplace || (existingPages.count ?? 0) === 0;
   const missingCopy = missingAiCopy(copy);
-  if (firstBuild && (!refined.passes.some((pass) => pass.used) || !refined.changed || missingCopy.length)) {
-    // No model could author or review the copy. Instead of stopping the build,
-    // populate copy from the business facts directly so the customer always
-    // gets a complete website with real content.
-    console.warn(
-      `[site-engine] AI copy authoring failed for ${orgId} (${missingCopy.length ? `missing: ${missingCopy.join(", ")}` : "no model returned usable wording"}); using safe fact-based copy.`,
+  if (
+    firstBuild &&
+    (!refined.passes.some((pass) => pass.used) || !refined.changed || missingCopy.length)
+  ) {
+    const reason = missingCopy.length
+      ? `missing required AI-authored copy: ${missingCopy.join(", ")}`
+      : "the AI team did not return a usable authored copy pass";
+    throw new Error(
+      `First build stopped: ${reason}. Revora will not replace AI authorship with deterministic fallback copy.`,
     );
-    if (!copy.heroHeadline) copy.heroHeadline = `${org.data.name ?? "Your Business"}${copyFacts.city ? ` — ${copyFacts.city}` : ""}`;
-    if (!copy.heroSubheadline && copyFacts.description) copy.heroSubheadline = copyFacts.description.slice(0, 200);
-    if (!copy.primaryCta) copy.primaryCta = copyFacts.goals?.[0] || "Get in touch";
-    if (!copy.secondaryCta) copy.secondaryCta = "Learn more";
-    if (!copy.about && copyFacts.description) copy.about = copyFacts.description;
-    if (!copy.areaCopy && copyFacts.serviceArea) copy.areaCopy = `Serving ${copyFacts.serviceArea}`;
-    if (!copy.metaTitle) copy.metaTitle = `${org.data.name ?? "Business"}${copyFacts.city ? ` — ${copyFacts.city}` : ""}`.slice(0, 60);
-    if (!copy.metaDescription) copy.metaDescription = (copyFacts.description || `${org.data.name ?? "Local business"} offering professional services.`).slice(0, 155);
-    if (!copy.ogTitle) copy.ogTitle = copy.metaTitle;
-    if (!copy.ogDescription) copy.ogDescription = copy.metaDescription;
-    if (copy.serviceCards.length === 0 && serviceRows.length > 0) {
-      copy.serviceCards = serviceRows.map((s) => ({
-        name: s.name,
-        copy: s.description?.slice(0, 200) || `Professional ${s.name} services.`,
-      }));
-    }
-    if (copy.faqs.length === 0) {
-      copy.faqs = [
-        { question: `What services does ${org.data.name ?? "your business"} offer?`, answer: serviceRows.map((s) => s.name).join(", ") || "Contact us for our full service list." },
-        { question: copyFacts.serviceArea ? `What areas do you serve?` : `How can I contact you?`, answer: copyFacts.serviceArea ? `We serve ${copyFacts.serviceArea}.` : copyFacts.phone ? `Call us at ${copyFacts.phone}.` : "Use the contact form on our website." },
-        { question: "How do I get started?", answer: copy.primaryCta ? `Click "${copy.primaryCta}" to reach out, and we'll respond promptly.` : "Use our contact form and we'll get back to you." },
-      ];
-    }
-    copyModel = "safe-fallback";
   }
 
 
