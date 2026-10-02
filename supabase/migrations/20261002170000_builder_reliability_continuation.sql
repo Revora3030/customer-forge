@@ -15,6 +15,6 @@ alter table public.lead_delivery_logs
   add column if not exists next_attempt_at timestamptz,
   add column if not exists idempotency_key text;
 
-create unique index if not exists lead_delivery_logs_idempotency_idx
-  on public.lead_delivery_logs (organization_id, idempotency_key)
+create unique index if not exists lead_delivery_logs_idempotency_attempt_idx
+  on public.lead_delivery_logs (organization_id, idempotency_key, attempt_number)
   where idempotency_key is not null;
