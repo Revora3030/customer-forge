@@ -171,12 +171,29 @@ export class StaleAttemptError extends Error {
   }
 }
 
+export function isLeaseExpired(
+  leaseExpiresAt: string | null | undefined,
+  now = new Date(),
+): boolean {
+  if (!leaseExpiresAt) return true;
+  const expires = Date.parse(leaseExpiresAt);
+  return !Number.isFinite(expires) || expires < now.getTime();
+}
+
+export function shouldRecoverStaleProcessingJob(
+  status: string,
+  leaseExpiresAt: string | null | undefined,
+  now = new Date(),
+): boolean {
+  return status === "processing" && Boolean(leaseExpiresAt) && isLeaseExpired(leaseExpiresAt, now);
+}
+
 /** Claims one runnable job with a lease. Returns null when there is nothing to do. */
 async function claimJob(db: Db, organizationId?: string) {
   const now = new Date();
   let query = db
     .from("generation_jobs")
-    .select("id, organization_id, attempts, created_by, status, lease_expires_at")
+    .select("id, organization_id, attempts, created_by, status, lease_expires_at, request_id")
     .in("status", ["queued", "processing"])
     .lt("attempts", MAX_ATTEMPTS)
     .order("created_at", { ascending: true })
@@ -185,7 +202,7 @@ async function claimJob(db: Db, organizationId?: string) {
 
   const { data: candidates } = await query;
   for (const job of candidates ?? []) {
-    const leaseFree = !job.lease_expires_at || new Date(job.lease_expires_at as string) < now;
+    const leaseFree = isLeaseExpired(job.lease_expires_at as string | null | undefined, now);
     if (!leaseFree) continue;
 
     // Conditional update = single-flight lock: only one worker wins the row.
@@ -194,24 +211,37 @@ async function claimJob(db: Db, organizationId?: string) {
       .update({
         status: "processing",
         attempts: (job.attempts as number) + 1,
-        started_at: job.status === "queued" ? now.toISOString() : undefined,
+        ...(job.status === "queued" ? { started_at: now.toISOString() } : {}),
         lease_expires_at: new Date(now.getTime() + LEASE_SECONDS * 1000).toISOString(),
+        locked_at: now.toISOString(),
         updated_at: now.toISOString(),
       } as never)
       .eq("id", job.id)
       .eq("attempts", job.attempts as number)
-      .select("id, organization_id, created_by, attempts")
+      .select("id, organization_id, created_by, attempts, request_id")
       .maybeSingle();
     if (claimed)
-      return claimed as { id: string; organization_id: string; created_by: string | null; attempts: number };
+      return claimed as {
+        id: string;
+        organization_id: string;
+        created_by: string | null;
+        attempts: number;
+        request_id: string | null;
+      };
   }
   return null;
 }
 
 /** Runs the nine generation stages for one claimed job using the privileged client. */
-async function runJob(
+async function runJobPipeline(
   db: Db,
-  job: { id: string; organization_id: string; created_by: string | null; attempts: number },
+  job: {
+    id: string;
+    organization_id: string;
+    created_by: string | null;
+    attempts: number;
+    request_id: string | null;
+  },
 ) {
   const orgId = job.organization_id;
   const { GENERATION_STEPS } = await import("@/lib/site-engine");
@@ -229,6 +259,7 @@ async function runJob(
   // real worker stages ("reading your business", "writing the pages", …)
   // instead of only seeing stages from chat retries.
   const { noteStage } = await import("@/lib/builder/progress.server");
+  const requestId = job.request_id ?? job.id;
   const WORKER_STAGE_LABELS: Record<string, string> = {
     business: "reading your business",
     services: "reading your services",
@@ -250,6 +281,8 @@ async function runJob(
         progress: meta?.progress ?? 0,
         steps: done,
         lease_expires_at: new Date(Date.now() + LEASE_SECONDS * 1000).toISOString(),
+        locked_at: new Date().toISOString(),
+        request_id: requestId,
         updated_at: new Date().toISOString(),
       } as never)
       .eq("id", job.id)
@@ -1122,9 +1155,12 @@ async function runJob(
       error_message: null,
       completed_at: new Date().toISOString(),
       lease_expires_at: null,
+      locked_at: null,
+      request_id: requestId,
       updated_at: new Date().toISOString(),
     } as never)
     .eq("id", job.id)
+    .eq("organization_id", job.organization_id)
     .eq("attempts", job.attempts);
 
   const leadCapture = (forms.data ?? []).length > 0 || (bookable.data ?? []).length > 0;
@@ -1158,6 +1194,65 @@ async function runJob(
       );
     }
     throw error;
+  }
+}
+
+/**
+ * Refreshes the DB lease while the Sol → Terra → Luna pipeline is running.
+ * The attempt fence makes an expired/taken-over job fail closed.
+ */
+async function runJob(
+  db: Db,
+  job: {
+    id: string;
+    organization_id: string;
+    created_by: string | null;
+    attempts: number;
+    request_id: string | null;
+  },
+) {
+  const heartbeatMs = Math.max(30_000, Math.floor((LEASE_SECONDS * 1000) / 4));
+  let leaseLost = false;
+  let failures = 0;
+  let timer: ReturnType<typeof setInterval> | null = null;
+
+  const heartbeat = async () => {
+    if (leaseLost) return;
+    const now = new Date();
+    const { data, error } = await db
+      .from("generation_jobs")
+      .update({
+        locked_at: now.toISOString(),
+        lease_expires_at: new Date(now.getTime() + LEASE_SECONDS * 1000).toISOString(),
+        request_id: job.request_id ?? job.id,
+        updated_at: now.toISOString(),
+      } as never)
+      .eq("id", job.id)
+      .eq("organization_id", job.organization_id)
+      .eq("attempts", job.attempts)
+      .eq("status", "processing")
+      .select("id")
+      .maybeSingle();
+
+    if (error || !data?.id) {
+      failures += 1;
+      if (failures >= 2) leaseLost = true;
+      return;
+    }
+    failures = 0;
+  };
+
+  await heartbeat();
+  timer = setInterval(() => {
+    void heartbeat();
+  }, heartbeatMs);
+
+  try {
+    const result = await runJobPipeline(db, job);
+    if (leaseLost) throw new StaleAttemptError(job.id);
+    return result;
+  } finally {
+    if (timer) clearInterval(timer);
   }
 }
 
@@ -1231,8 +1326,13 @@ export async function drainSiteEngineQueue(
             error_message: message,
             completed_at: new Date().toISOString(),
             lease_expires_at: null,
+            locked_at: null,
+            request_id: job.request_id ?? job.id,
+            updated_at: new Date().toISOString(),
           } as never)
-          .eq("id", job.id);
+          .eq("id", job.id)
+          .eq("organization_id", job.organization_id)
+          .eq("attempts", job.attempts);
         await writeQueueState(db, { last_error: message });
         continue;
       }
@@ -1244,8 +1344,17 @@ export async function drainSiteEngineQueue(
         await pauseQueue(db, "credits", message);
         await db
           .from("generation_jobs")
-          .update({ status: "queued", error_message: message, lease_expires_at: null } as never)
-          .eq("id", job.id);
+          .update({
+            status: "queued",
+            error_message: message,
+            lease_expires_at: null,
+            locked_at: null,
+            request_id: job.request_id ?? job.id,
+            updated_at: new Date().toISOString(),
+          } as never)
+          .eq("id", job.id)
+          .eq("organization_id", job.organization_id)
+          .eq("attempts", job.attempts);
         return { processed, failed, paused: true, pauseReason: message, idle: false };
       }
 
@@ -1285,8 +1394,18 @@ export async function drainSiteEngineQueue(
                 error_message: message,
                 completed_at: new Date().toISOString(),
                 lease_expires_at: null,
+                locked_at: null,
+                request_id: job.request_id ?? job.id,
+                updated_at: new Date().toISOString(),
               }
-            : { status: "queued", error_message: message, lease_expires_at: null },
+            : {
+                status: "queued",
+                error_message: message,
+                lease_expires_at: null,
+                locked_at: null,
+                request_id: job.request_id ?? job.id,
+                updated_at: new Date().toISOString(),
+              },
         )
         .eq("id", job.id)
         // Only the attempt that failed may requeue/fail the job.
