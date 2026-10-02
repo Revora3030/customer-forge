@@ -101,19 +101,24 @@ export function BuilderPreview({
   selectedId?: string | null;
 }) {
   const ordered = useMemo(() => [...pages].sort((a, b) => a.sort_order - b.sort_order), [pages]);
-  const cachedPreview = readPreviewSession(organizationId);
-  const [pageId, setPageId] = useState<string | null>(cachedPreview?.pageId ?? null);
-  const [viewport, setViewport] = useState<BuilderViewportKey>(cachedPreview?.viewport ?? "laptop");
+  const [pageId, setPageId] = useState<string | null>(null);
+  const [viewport, setViewport] = useState<BuilderViewportKey>("laptop");
   // On a phone, open the preview in phone size: it's what the owner is
   // holding, and a full desktop render inside a phone is heavy.
   useEffect(() => {
-    if (cachedPreview?.viewport) return;
-    if (typeof window !== "undefined" && window.innerWidth < 768) {
+    if (typeof window !== "undefined" && window.innerWidth < 768 && !readPreviewSession(organizationId)?.viewport) {
       const phone = BUILDER_VIEWPORTS.find((v) => v.width <= 430)?.key;
       if (phone) setViewport(phone);
     }
   }, []);
-  const [zoom, setZoom] = useState(cachedPreview?.zoom ?? 0.75);
+  const [zoom, setZoom] = useState(0.75);
+  useEffect(() => {
+    if (!organizationId) return;
+    const cached = readPreviewSession(organizationId);
+    if (cached?.pageId) setPageId(cached.pageId);
+    if (cached?.viewport) setViewport(cached.viewport);
+    if (cached?.zoom !== undefined) setZoom(cached.zoom);
+  }, [organizationId]);
   useEffect(() => {
     if (!organizationId) return;
     writePreviewSession(organizationId, { pageId, viewport, zoom });
