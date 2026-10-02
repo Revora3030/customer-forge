@@ -42,6 +42,21 @@ export type LeadWebhookResult =
 
 const WEBHOOK_TIMEOUT_MS = 5_000;
 
+/** Exponential retry schedule used by durable delivery telemetry. */
+export function leadWebhookRetryDelayMs(attemptNumber: number): number {
+  const attempt = Math.max(1, Math.min(Math.floor(attemptNumber), 10));
+  return Math.min(5 * 60_000, 1_000 * 2 ** (attempt - 1));
+}
+
+export function leadWebhookNextAttemptAt(
+  attemptedAt: string,
+  attemptNumber: number,
+): string {
+  const base = Date.parse(attemptedAt);
+  const timestamp = Number.isFinite(base) ? base : Date.now();
+  return new Date(timestamp + leadWebhookRetryDelayMs(attemptNumber)).toISOString();
+}
+
 export function classifyLeadWebhookFailure(
   statusCode: number | null,
   kind: LeadWebhookFailure["kind"],
