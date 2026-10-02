@@ -17,16 +17,36 @@ import type { AiDesignContract, MaterialPage } from "@/lib/builder/ai-design-con
 export type MediaViolation = {
   page: string;
   section: string;
-  kind: "empty_required_media" | "broken_asset_reference" | "image_component_without_source";
+  kind:
+    | "empty_required_media"
+    | "broken_asset_reference"
+    | "invalid_media_reference"
+    | "image_component_without_source"
+    | "missing_image_alt";
   detail: string;
   remedy: "generate_image" | "attach_verified_asset" | "redesign_section";
 };
 
-type ComponentLike = { kind?: unknown; media_url?: unknown };
+type ComponentLike = { kind?: unknown; media_url?: unknown; settings?: unknown };
 
 function componentsOf(section: Record<string, unknown>): ComponentLike[] {
   const raw = section["components"];
   return Array.isArray(raw) ? (raw as ComponentLike[]) : [];
+}
+
+function mediaSettings(component: ComponentLike): Record<string, unknown> {
+  if (!component.settings || typeof component.settings !== "object" || Array.isArray(component.settings)) return {};
+  const visual = (component.settings as Record<string, unknown>)["visual"];
+  if (!visual || typeof visual !== "object" || Array.isArray(visual)) return {};
+  return visual as Record<string, unknown>;
+}
+
+function validMediaReference(source: string): boolean {
+  if (!source || /[\s"'<>]/.test(source) || /^(?:javascript|data|blob):/i.test(source)) return false;
+  if (/^https:\/\/[^\s"'<>]+$/i.test(source)) return true;
+  if (/^\/(?!\/)[^\s"'<>]+$/.test(source)) return true;
+  // Supabase object paths are tenant-scoped strings such as org/media/file.webp.
+  return /^[A-Za-z0-9][A-Za-z0-9._~:/-]{1,499}$/.test(source) && !source.includes("..");
 }
 
 function hasResolvedMedia(section: Record<string, unknown>): boolean {
@@ -86,6 +106,27 @@ export function inspectMediaIntegrity(
             detail: `an image block points at "${source}", which cannot load`,
             remedy: "attach_verified_asset",
           });
+        else if (isImage && !validMediaReference(source))
+          violations.push({
+            page: page.slug,
+            section: section.kind,
+            kind: "invalid_media_reference",
+            detail: "the image source is not a safe absolute HTTPS URL, root-relative URL, or storage path",
+            remedy: "attach_verified_asset",
+          });
+        if (isImage) {
+          const visual = mediaSettings(component);
+          const alt = typeof visual["alt"] === "string" ? visual["alt"].trim() : "";
+          if (!alt) {
+            violations.push({
+              page: page.slug,
+              section: section.kind,
+              kind: "missing_image_alt",
+              detail: "the image has no authored accessibility description",
+              remedy: "redesign_section",
+            });
+          }
+        }
       }
     }
   }
