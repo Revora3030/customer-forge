@@ -282,9 +282,11 @@ async function runJobPipeline(
         steps: done,
         lease_expires_at: new Date(Date.now() + LEASE_SECONDS * 1000).toISOString(),
         locked_at: new Date().toISOString(),
+        request_id: requestId,
         updated_at: new Date().toISOString(),
       } as never)
       .eq("id", job.id)
+      .eq("organization_id", orgId)
       // Attempt fence: a stale worker whose lease was taken over stops here
       // instead of writing over the newer attempt.
       .eq("attempts", job.attempts)
@@ -1184,7 +1186,7 @@ async function runJobPipeline(
   await step("leads");
   await step("mobile");
 
-  await db
+  const { data: completedJob, error: completionError } = await db
     .from("generation_jobs")
     .update({
       status: "completed",
@@ -1199,7 +1201,19 @@ async function runJobPipeline(
       updated_at: new Date().toISOString(),
     } as never)
     .eq("id", job.id)
-    .eq("attempts", job.attempts);
+    .eq("organization_id", orgId)
+    .eq("attempts", job.attempts)
+    .select("id, status, progress, request_id")
+    .maybeSingle();
+  if (completionError) throw new Error(completionError.message);
+  if (
+    !completedJob ||
+    completedJob.status !== "completed" ||
+    Number(completedJob.progress) !== 100 ||
+    String(completedJob.request_id ?? "") !== requestId
+  ) {
+    throw new StaleAttemptError(job.id);
+  }
 
   const leadCapture = (forms.data ?? []).length > 0 || (bookable.data ?? []).length > 0;
   await db.from("notifications").insert({
