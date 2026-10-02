@@ -32,6 +32,8 @@ export function isConsentRequiredRegion(): Promise<boolean> {
 }
 
 async function lookupConsentRegion(): Promise<boolean> {
+  // The trace endpoint only exists behind Cloudflare; local hosts use the safe default.
+  if (/^(localhost|127\.|0\.0\.0\.0|\[::1\])/.test(window.location.hostname)) return true;
   try {
     const res = await fetch("/cdn-cgi/trace", { signal: AbortSignal.timeout(2000) });
     if (!res.ok) return true;
