@@ -36,7 +36,7 @@ describe("verified customer JSON-LD", () => {
       services: [{ name: "Consulting" }],
     });
     const nodes = graph["@graph"] as Array<Record<string, unknown>>;
-    expect(nodes[0]?.address).toBeUndefined();
+    expect(nodes[0]?.["address"]).toBeUndefined();
     expect(nodes[1]).toBeUndefined();
   });
 });
