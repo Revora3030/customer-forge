@@ -64,19 +64,21 @@ export const runSiteGeneration = createServerFn({ method: "POST" })
     }
 
     // RLS enforces that the caller belongs to this workspace.
-    // Clear stale queued jobs whose leases have expired before checking for
-    // active builds. A job stuck in "queued" with no lease or an expired lease
-    // is from a previous failed attempt and blocks new builds.
+    // Clear stale jobs before checking for active builds. Only jobs that are
+    // truly stuck are cleared: jobs with attempts >= MAX_ATTEMPTS (3), or
+    // processing jobs whose lease has expired. A fresh queued job with no
+    // lease is normal (it hasn't been claimed yet) and must not be cleared.
     const now = new Date();
+    const staleThreshold = new Date(now.getTime() - 10 * 60 * 1000); // 10 min
     await supabase
       .from("generation_jobs")
-      .update({ status: "failed", error_message: "Stale job cleared for new build request", completed_at: now.toISOString(), lease_expires_at: null })
+      .update({ status: "failed", error_message: "Exhausted all retry attempts", completed_at: now.toISOString(), lease_expires_at: null })
       .eq("organization_id", orgId)
-      .eq("status", "queued")
-      .or(`lease_expires_at.is.null,lease_expires_at.lt.${now.toISOString()}`);
+      .in("status", ["queued", "processing"])
+      .gte("attempts", 3);
     await supabase
       .from("generation_jobs")
-      .update({ status: "failed", error_message: "Stale processing job cleared for new build request", completed_at: now.toISOString(), lease_expires_at: null })
+      .update({ status: "failed", error_message: "Processing lease expired", completed_at: now.toISOString(), lease_expires_at: null })
       .eq("organization_id", orgId)
       .eq("status", "processing")
       .lt("lease_expires_at", now.toISOString());

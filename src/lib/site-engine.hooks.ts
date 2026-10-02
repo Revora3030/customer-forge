@@ -23,7 +23,6 @@ export function queuePumpDelay(job: {
   lease_expires_at?: string | null;
 } | null | undefined, now = Date.now()): number | null {
   if (job?.status === "queued") return 500;
-  if (job?.status === "failed") return 2000;
   if (job?.status !== "processing") return null;
   const expiresAt = job.lease_expires_at ? Date.parse(job.lease_expires_at) : Number.NaN;
   if (!Number.isFinite(expiresAt)) return 500;
@@ -37,7 +36,7 @@ export function useLatestGenerationJob(organizationId: string | undefined) {
     enabled: !!organizationId,
     refetchInterval: (q) => {
       const status = (q.state.data as { status?: string } | undefined)?.status;
-      return status === "processing" || status === "queued" ? 1500 : status === "failed" ? 3000 : false;
+      return status === "processing" || status === "queued" ? 1500 : false;
     },
     queryFn: async () => {
       const { data, error } = await supabase

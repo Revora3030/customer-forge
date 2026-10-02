@@ -711,9 +711,7 @@ async function runJob(
   const architectGoal = goals[0] ?? org.data.conversion_goal ?? null;
   const architectureRef: { current: PageArchitectureOutcome | null } = { current: null };
   noteStage(orgId, job.id, "writing the pages");
-  let built: Awaited<ReturnType<typeof materializeSiteContent>>;
-  try {
-  built = await materializeSiteContent(db, orgId, {
+  const built = await materializeSiteContent(db, orgId, {
     businessName: org.data.name ?? "",
     copy,
     services: serviceRows,
@@ -753,10 +751,10 @@ async function runJob(
       return outcome.architecture;
     },
   });
-  } catch (err) {
-    console.warn(`[site-engine] Materialization failed for ${orgId}: ${(err as Error).message}; attempting safe fallback.`);
-    built = { skipped: true } as never;
-  }
+  // Do NOT swallow materialization failures. If materializeSiteContent throws,
+  // the build must fail visibly so it can be retried — marking a failed
+  // materialization as "skipped" would produce a build with zero pages,
+  // which is exactly the bug we are fixing.
   await db.from("ai_generations").insert({
     organization_id: orgId,
     job_id: job.id,

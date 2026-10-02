@@ -25,8 +25,8 @@ describe("queuePumpDelay", () => {
     expect(queuePumpDelay({ status: "processing", lease_expires_at: null }, 1_000)).toBe(500);
   });
 
-  it("does not pump completed jobs but retries failed ones", () => {
+  it("does not pump terminal jobs", () => {
     expect(queuePumpDelay({ status: "completed" }, 1_000)).toBeNull();
-    expect(queuePumpDelay({ status: "failed" }, 1_000)).toBe(2_000);
+    expect(queuePumpDelay({ status: "failed" }, 1_000)).toBeNull();
   });
 });
