@@ -216,7 +216,7 @@ async function claimJob(db: Db, organizationId?: string) {
 }
 
 /** Runs the nine generation stages for one claimed job using the privileged client. */
-async function runJob(
+async function runJobPipeline(
   db: Db,
   job: {
     id: string;
@@ -1139,6 +1139,8 @@ async function runJob(
       error_message: null,
       completed_at: new Date().toISOString(),
       lease_expires_at: null,
+      locked_at: null,
+      request_id: requestId,
       updated_at: new Date().toISOString(),
     } as never)
     .eq("id", job.id)
@@ -1175,6 +1177,71 @@ async function runJob(
       );
     }
     throw error;
+  }
+}
+
+/**
+ * Keeps a claimed generation lease alive through long AI/model stages.
+ * The attempt fence remains authoritative: if another worker owns the row,
+ * the next heartbeat records lease loss and the pipeline's stage fence stops it.
+ */
+async function runJob(
+  db: Db,
+  job: {
+    id: string;
+    organization_id: string;
+    created_by: string | null;
+    attempts: number;
+    request_id: string | null;
+  },
+) {
+  const intervalMs = Math.max(30_000, Math.floor((LEASE_SECONDS * 1000) / 4));
+  let consecutiveFailures = 0;
+  let leaseLost = false;
+  let inFlight = false;
+
+  const heartbeat = async () => {
+    if (inFlight || leaseLost) return;
+    inFlight = true;
+    try {
+      const now = new Date();
+      const { data, error } = await db
+        .from("generation_jobs")
+        .update({
+          locked_at: now.toISOString(),
+          lease_expires_at: new Date(now.getTime() + LEASE_SECONDS * 1000).toISOString(),
+          updated_at: now.toISOString(),
+          request_id: job.request_id ?? job.id,
+        } as never)
+        .eq("id", job.id)
+        .eq("organization_id", job.organization_id)
+        .eq("attempts", job.attempts)
+        .eq("status", "processing")
+        .select("id")
+        .maybeSingle();
+
+      if (error || !data?.id) {
+        consecutiveFailures += 1;
+        if (consecutiveFailures >= 2) leaseLost = true;
+      } else {
+        consecutiveFailures = 0;
+      }
+    } finally {
+      inFlight = false;
+    }
+  };
+
+  await heartbeat();
+  const timer = setInterval(() => {
+    void heartbeat();
+  }, intervalMs);
+
+  try {
+    const result = await runJobPipeline(db, job);
+    if (leaseLost) throw new StaleAttemptError(job.id);
+    return result;
+  } finally {
+    clearInterval(timer);
   }
 }
 
