@@ -30,6 +30,14 @@ import {
 } from "./browser-qa-intelligence";
 import { safeLinkUrl } from "@/lib/website-content";
 import { compileQaAutoRepairs } from "./qa-auto-repair";
+import {
+  runDesignConsistencyAudit,
+  designConsistencySummary,
+  type SectionDesignData,
+  type DesignTokenSnapshot,
+  type DesignConsistencyReport,
+} from "./design-consistency";
+import { runVisualPolish, prioritiseImprovements } from "./visual-polish";
 
 type Db = SupabaseClient<never>;
 
@@ -49,6 +57,10 @@ export type QaLoopResult = {
   failed: string[];
   /** Findings that are real but not safe to fix automatically. */
   reported: string[];
+  /** Design consistency report from the post-build visual audit. */
+  designConsistency: DesignConsistencyReport | null;
+  /** Priority improvements for the AI team to act on next. */
+  priorityImprovements: { priority: "critical" | "high" | "medium"; action: string }[];
   summary: string;
 };
 
@@ -235,6 +247,71 @@ async function writeRepair(
 }
 
 /**
+ * Extracts design-relevant data from the site context for the design
+ * consistency audit. Reads section settings (colours, fonts, spacing) and
+ * component data to build the SectionDesignData the checker expects.
+ */
+function extractDesignData(context: AgentContext): {
+  sections: SectionDesignData[];
+  tokens: DesignTokenSnapshot;
+} {
+  const sections: SectionDesignData[] = [];
+  const tokens: DesignTokenSnapshot = {
+    primaryColor: context.business.primaryColor ?? null,
+    secondaryColor: context.business.secondaryColor ?? null,
+    accentColor: context.business.accentColor ?? null,
+    headingFont: context.business.fontPreference ?? null,
+    bodyFont: context.business.fontPreference ?? null,
+  };
+
+  for (const page of context.pages) {
+    for (const section of page.sections) {
+      const settings = (section.settings ?? {}) as Record<string, unknown>;
+      const blockStyle = (settings["blockStyle"] ?? settings["style"] ?? {}) as Record<string, unknown>;
+      const desktopStyle = (blockStyle["desktop"] ?? blockStyle) as Record<string, unknown>;
+      const components = section.components ?? [];
+      const hasCta = components.some(
+        (c) =>
+          c.kind === "button" ||
+          c.kind === "link" ||
+          (c.link_label && c.link_url),
+      );
+      const textLength =
+        (section.heading?.length ?? 0) +
+        (section.subheading?.length ?? 0) +
+        (section.body?.length ?? 0);
+
+      sections.push({
+        pageSlug: page.slug,
+        sectionId: section.id,
+        sectionKind: section.kind,
+        heading: section.heading ?? null,
+        headingLevel: null,
+        textColor: typeof desktopStyle["textColor"] === "string" ? (desktopStyle["textColor"] as string) : null,
+        bgColor: typeof desktopStyle["bgColor"] === "string" ? (desktopStyle["bgColor"] as string) : null,
+        fontFamily: typeof desktopStyle["font"] === "string" ? (desktopStyle["font"] as string) : null,
+        fontSize: typeof desktopStyle["size"] === "number" ? (desktopStyle["size"] as number) : null,
+        fontWeight: typeof desktopStyle["weight"] === "number" ? (desktopStyle["weight"] as number) : null,
+        padding: {
+          top: typeof desktopStyle["padTop"] === "number" ? (desktopStyle["padTop"] as number) : 0,
+          right: typeof desktopStyle["padRight"] === "number" ? (desktopStyle["padRight"] as number) : 0,
+          bottom: typeof desktopStyle["padBottom"] === "number" ? (desktopStyle["padBottom"] as number) : 0,
+          left: typeof desktopStyle["padLeft"] === "number" ? (desktopStyle["padLeft"] as number) : 0,
+        },
+        gap: typeof desktopStyle["gap"] === "number" ? (desktopStyle["gap"] as number) : null,
+        hasCta,
+        ctaLabel: components.find((c) => c.kind === "button")?.link_label ?? null,
+        componentCount: components.length,
+        textLength,
+        isVisible: section.is_visible,
+      });
+    }
+  }
+
+  return { sections, tokens };
+}
+
+/**
  * Runs the whole loop. Never throws: a QA problem must not undo a good apply,
  * so a failure here is reported as "not checked" rather than surfaced as an
  * apply failure.
@@ -274,16 +351,40 @@ export async function runQaRepairLoop(
     .filter((entry) => !repairedKeys.has(entry))
     .slice(0, 6);
 
+  // DESIGN CONSISTENCY AUDIT. Runs after the browser QA, on the same
+  // re-loaded context. Checks colour palette, typography hierarchy, font
+  // consistency, spacing, CTA prominence, and visual balance across every
+  // page — not just the homepage.
+  const designContext = await loadQaContext(db, orgId);
+  const { sections: designSections, tokens } = extractDesignData(designContext);
+  const designReport = runDesignConsistencyAudit(designSections, tokens);
+  const hasContactPage = designContext.pages.some(
+    (p) => p.slug === "contact" || p.kind === "contact",
+  );
+  const polish = runVisualPolish(designReport, hasContactPage);
+  const priorityImprovements = prioritiseImprovements(designReport, polish);
+
+  // Merge design consistency findings into the reported list
+  const designFindings = designReport.findings
+    .map((f) => `${f.kind}: ${f.message}`)
+    .slice(0, 6);
+  const allReported = [...reported, ...designFindings].slice(0, 12);
+
+  const qaSummary = repaired.length
+    ? `Checked your website after saving, fixed ${repaired.length} thing${
+        repaired.length === 1 ? "" : "s"
+      } automatically, then checked again (${first.score} → ${second.score} out of 100).`
+    : `${browserQaSummary(second)} Nothing needed an automatic repair.`;
+  const designSummary = designConsistencySummary(designReport);
+
   return {
     before: toPass(first),
     after: toPass(second),
     repaired,
     failed,
-    reported,
-    summary: repaired.length
-      ? `Checked your website after saving, fixed ${repaired.length} thing${
-          repaired.length === 1 ? "" : "s"
-        } automatically, then checked again (${first.score} → ${second.score} out of 100).`
-      : `${browserQaSummary(second)} Nothing needed an automatic repair.`,
+    reported: allReported,
+    designConsistency: designReport,
+    priorityImprovements,
+    summary: `${qaSummary} ${designSummary}`,
   };
 }
