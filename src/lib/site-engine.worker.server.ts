@@ -295,7 +295,7 @@ async function runJobPipeline(
   const [org, profile, services, media, socials, forms, bookable] = await Promise.all([
     db
       .from("organizations")
-      .select("name, industry, conversion_goal")
+      .select("name, slug, industry, conversion_goal")
       .eq("id", orgId)
       .maybeSingle(),
     db.from("business_profiles").select("*").eq("organization_id", orgId).maybeSingle(),
