@@ -12,7 +12,7 @@ import { SiteSection } from "@/components/site/SiteSections";
 import { leadSectionIndex } from "@/components/site/site-sections-utils";
 import { PreviewSelectBridge } from "@/components/site/PreviewSelectBridge";
 import { SiteBackdrop } from "@/components/site/SiteBackdrop";
-import { siteFontHref, siteFontStyle, siteThemeStyle } from "@/lib/site-theme";
+import { compositionFonts, siteFontStyle, siteFontsHref, siteThemeStyle } from "@/lib/site-theme";
 import { readComposition } from "@/lib/visual-composition";
 import { readBackdrop, readBackdropSpec } from "@/lib/site-effects";
 import { getPublicSite, trackPublicEvent, type PublicSite } from "@/lib/public-site.functions";
@@ -26,6 +26,7 @@ import { readSiteChrome, resolveSiteHref } from "@/lib/builder/site-chrome";
 import { AiSiteHeader } from "@/components/site/AiSiteHeader";
 import { useOwnAddress } from "@/components/site/use-own-address";
 import { metaDescription } from "@/lib/seo";
+import { clientHeadExtrasSync } from "@/lib/site-head";
 
 export const Route = createFileRoute("/s/$slug/$page")({
   loader: async ({ params }) => {
@@ -52,6 +53,13 @@ export const Route = createFileRoute("/s/$slug/$page")({
       canonicalSiteUrl(loaderData.settings, params.slug, params.page, page.seo_canonical) ??
       `https://revoragrowthsystems.com/s/${params.slug}/${params.page}`;
     const shareImage = page.og_image_url || loaderData.profile?.hero_image_url || null;
+    const extras = clientHeadExtrasSync(
+      loaderData as never,
+      canonicalSiteUrl(loaderData.settings, params.slug) ?? url,
+      compositionFonts,
+      siteFontsHref,
+      readSiteChrome,
+    );
     return {
       meta: [
         { title },
@@ -69,19 +77,14 @@ export const Route = createFileRoute("/s/$slug/$page")({
             ]
           : []),
         ...(page.noindex ? [{ name: "robots", content: "noindex" }] : []),
+        ...extras.meta,
       ],
+      scripts: extras.scripts,
       links: [
         { rel: "canonical", href: url },
         // Same as the home page: the chosen heading font has to be requested
         // here or it is stored but never seen.
-        ...(siteFontHref(loaderData.profile?.font_preference)
-          ? [
-              {
-                rel: "stylesheet",
-                href: siteFontHref(loaderData.profile?.font_preference) as string,
-              },
-            ]
-          : []),
+        ...extras.links,
       ],
     };
   },
@@ -170,7 +173,7 @@ export function SitePageView({
           {(() => {
             const lead = leadSectionIndex(site.content!.sections as never);
             return site.content!.sections.map((section, index) => (
-              <SiteSection key={section.id} site={site} section={section} lead={index === lead} />
+              <SiteSection key={section.id} site={site} section={section} lead={index === lead} first={index === 0} />
             ));
           })()}
         </main>
