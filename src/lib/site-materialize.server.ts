@@ -279,11 +279,12 @@ export async function materializeSiteContent(
   // The contract OVERRIDES the renderer's page set and section order, and any
   // visual container the design requires must resolve to a real picture —
   // otherwise the build fails rather than publishing a blank box.
-  const primaryAction = clean(input.copy.primaryCta) || "Get in touch";
-  if (!clean(input.copy.primaryCta)) {
-    // No AI-authored primary action. Use a safe default so the build never
-    // stops because of a missing CTA label.
-    console.warn("[site-materialize] No primary CTA authored; using safe default.");
+  // The main call to action is the AI team's wording; a build without one
+  // stops instead of shipping a stock label.
+  const primaryAction = clean(input.copy.primaryCta);
+  if (!primaryAction) {
+    const { AiStepUnavailableError } = await import("@/lib/builder/ai-step-error");
+    throw new AiStepUnavailableError("main call to action", "no label was authored");
   }
   const functionalSections = [
     ...(input.hasQuoteForm ? [{ role: "quote" }] : []),
@@ -372,21 +373,13 @@ export async function materializeSiteContent(
     : input.architect
       ? await input.architect(factInventory)
       : null;
-  if (!designContract && !authored?.length) {
-    // The AI architect could not produce a plan. Instead of stopping the build
-    // and leaving the customer with zero pages, use the fact inventory directly
-    // — it already contains a complete multi-page commercial site (home,
-    // services, about, contact/book) built from the business's real facts.
-    // This is explicitly logged as a safe baseline, not AI-authored, so the
-    // observability and review pipeline knows the difference.
-    console.warn(
-      `[site-materialize] AI architect returned no plan for ${orgId}; ` +
-        `using the safe multi-page fact inventory as a baseline.`,
-    );
+  if (!designContract && input.architect && !authored?.length) {
+    // The AI architect could not produce a plan. The fact inventory is only
+    // material for the architect — it is never shipped as the site.
+    const { AiStepUnavailableError } = await import("@/lib/builder/ai-step-error");
+    throw new AiStepUnavailableError("page plan", "the architect returned no usable plan");
   }
-  // When the AI architect succeeded, use its plan. When a design contract
-  // was supplied, use its pages. When both are absent, the fact inventory
-  // (which is already a complete multi-page site) is the fallback.
+  // The AI architect's plan, or the AI design contract's pages.
   const architecture: PageArchitecture[] =
     authored ??
     (designContract
@@ -497,9 +490,7 @@ export async function materializeSiteContent(
   let authoredArchitecture: PageArchitecture[] | null = null;
   if (!designContract && input.creativeBrief) {
     // The page set, section selection and order come from the design team's
-    // own plan when available. When the AI architect could not produce one,
-    // the fact inventory (already a complete multi-page site) is used instead
-    // — never a blank or stub site.
+    // own plan.
     authoredArchitecture = architecture;
     designContract = requireAiDesignContract({
       attempt: compileAiDesignContract({

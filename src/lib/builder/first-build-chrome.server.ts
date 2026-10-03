@@ -80,11 +80,13 @@ export async function composeSiteChrome(input: {
       ].join("\n"),
     });
     if (!call.ok) {
-      // The design team could not design chrome. Write a safe fallback so the
-      // site always has navigation, then return.
-      console.warn(`[first-build-chrome] AI chrome design failed: ${call.detail ?? call.reason}`);
-      await writeSafeChromeFallback(db, organizationId, nav, input.businessName, facts);
-      return { models, costMicrocents: cost };
+      // A single failed call is often transient: try again before giving up.
+      if (attempt < 2) {
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+        continue;
+      }
+      const { AiStepUnavailableError } = await import("@/lib/builder/ai-step-error");
+      throw new AiStepUnavailableError("menu and footer design", call.detail ?? call.reason);
     }
     if (call.model) models.push(call.model);
     cost += call.costMicrocents ?? 0;
@@ -105,134 +107,18 @@ export async function composeSiteChrome(input: {
       const brief = cleanVideoBrief(parsed.heroVideoBrief, screen);
       const generation = brief ? { ...chromed, heroVideoBrief: brief } : chromed;
       const { error: saveError } = await db.from("website_settings").upsert({ organization_id: organizationId, generation } as never, { onConflict: "organization_id" });
-      if (saveError) {
-        // Save failed. Don't stop the build — the site is already created.
-        console.warn(`[first-build-chrome] Save failed: ${saveError.message}`);
-        return { models, costMicrocents: cost };
-      }
+      if (saveError) throw new Error(`The menu and footer couldn't be saved: ${saveError.message}`);
       return { models, costMicrocents: cost };
     }
   }
   const why = Object.entries(feedback)
     .map(([part, issues]) => `${part}: ${issues.slice(0, 3).map((i) => `${i.path} ${i.problem}`).join("; ")}`)
     .join(" | ");
-  console.warn("[first-build-chrome] repair attempts exhausted", why);
-  // Chrome design failed after all retries. Write a safe fallback header/footer
-  // so the site always has navigation — never leave visitors stranded without
-  // a menu or footer.
-  await writeSafeChromeFallback(db, organizationId, nav, input.businessName, facts);
-  return { models, costMicrocents: cost };
+  // No generic menu or footer is substituted for the design team's.
+  const { AiStepUnavailableError } = await import("@/lib/builder/ai-step-error");
+  throw new AiStepUnavailableError("menu and footer design", why || null);
 }
 
-/**
- * Writes a minimal but complete header (nav links to every page) and footer
- * (business name + contact) when the AI chrome designer could not produce a
- * safe result. This guarantees every published site has working navigation.
- */
-async function writeSafeChromeFallback(
-  db: Db,
-  organizationId: string,
-  nav: { slug: string; title: string; kind: string | null }[],
-  businessName: string,
-  facts: DnaFacts,
-): Promise<void> {
-  try {
-    const pages = nav.filter((p) => p.kind !== "thanks" && p.kind !== "post");
-    const headerLinks = pages
-      .filter((p) => p.slug !== "home")
-      .map((p) => ({
-        type: "link" as const,
-        text: p.title,
-        href: `/${p.slug}`,
-        style: { size: 15, weight: 500, paddingX: 6, paddingY: 10 },
-      }));
-    // The enquiry page the visitor should reach from every screen.
-    const enquiry =
-      pages.find((p) => /^(book|booking|contact|quote|get-a-quote|estimate)$/.test(p.slug)) ??
-      pages.find((p) => /book|contact|quote/i.test(p.slug));
-    const cta = enquiry
-      ? {
-          type: "button" as const,
-          text: (facts as { ctaLabel?: string | null }).ctaLabel?.trim() || enquiry.title,
-          href: `/${enquiry.slug}`,
-          style: { size: 15, weight: 600, paddingX: 20, paddingY: 12, radius: 999, borderWidth: 1 },
-        }
-      : facts.phone
-        ? {
-            type: "button" as const,
-            text: `Call ${facts.phone}`,
-            href: `tel:${facts.phone.replace(/[^\d+]/g, "")}`,
-            style: { size: 15, weight: 600, paddingX: 20, paddingY: 12, radius: 999, borderWidth: 1 },
-          }
-        : null;
-    const header: CompositionTree = {
-      version: 1,
-      label: "safe-header",
-      root: {
-        type: "row",
-        style: { items: "center", justify: "between", gap: 24, maxWidth: 1152 },
-        responsive: { mobile: { justify: "start", gap: 8 } },
-        children: [
-          { type: "link", text: businessName, href: "/", style: { weight: 700, size: 18, letterSpacing: -0.01 } },
-          {
-            type: "row",
-            style: { gap: 20, items: "center", justify: "end" },
-            responsive: { mobile: { gap: 4 } },
-            children: [...headerLinks, ...(cta ? [cta] : [])],
-          },
-        ],
-      },
-    };
-    const contactLines: CompositionNode[] = [];
-    if (facts.phone) contactLines.push({ type: "link", text: facts.phone, href: `tel:${facts.phone.replace(/[^\d+]/g, "")}`, style: { size: 15 } });
-    if (facts.email) contactLines.push({ type: "link", text: facts.email, href: `mailto:${facts.email}`, style: { size: 15 } });
-    if (facts.serviceArea || facts.city) contactLines.push({ type: "text", text: `Serving ${facts.serviceArea ?? facts.city}`, style: { size: 15, opacity: 80 } });
-    const footer: CompositionTree = {
-      version: 1,
-      label: "safe-footer",
-      root: {
-        type: "stack",
-        style: { gap: 32, paddingX: 24, paddingY: 56, maxWidth: 1152 },
-        children: [
-          {
-            type: "grid",
-            style: { columns: 3, gap: 32 },
-            responsive: { mobile: { columns: 1 }, tablet: { columns: 2 } },
-            children: [
-              {
-                type: "stack",
-                style: { gap: 8 },
-                children: [
-                  { type: "heading", level: 2, text: businessName, style: { size: 22, weight: 700 } },
-                  ...(cta ? [{ ...cta, style: { ...cta.style, size: 14 } }] : []),
-                ],
-              },
-              {
-                type: "stack",
-                style: { gap: 6 },
-                children: pages.map((p) => ({
-                  type: "link" as const,
-                  text: p.title,
-                  href: p.slug === "home" ? "/" : `/${p.slug}`,
-                  style: { size: 15 },
-                })),
-              },
-              ...(contactLines.length ? [{ type: "stack" as const, style: { gap: 6 }, children: contactLines }] : []),
-            ],
-          },
-          { type: "divider", style: { opacity: 20 } },
-          { type: "text", text: `© ${new Date().getFullYear()} ${businessName}`, style: { size: 13, opacity: 70 } },
-        ],
-      },
-    };
-    const { data: settings } = await db.from("website_settings").select("generation").eq("organization_id", organizationId).maybeSingle();
-    const generation = writeSiteChrome(settings?.generation ?? {}, { header, footer });
-    await db.from("website_settings")
-      .upsert({ organization_id: organizationId, generation } as never, { onConflict: "organization_id" });
-  } catch (error) {
-    console.warn("[first-build-chrome] Safe fallback chrome write failed:", error);
-  }
-}
 
 /** Keeps Sol's hero-video idea only when it is safe, plain text with no unsupported claims. */
 export function cleanVideoBrief(raw: unknown, screen?: (text: string) => string | null): string | null {

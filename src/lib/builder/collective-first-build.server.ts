@@ -569,9 +569,9 @@ async function refineCreativeWithCollective(input: {
 
   let proposal: Record<string, unknown> | null = null;
   if (!solCall.ok) {
-    // Sol could not author creative direction. Degrade gracefully: keep the
-    // baseline creative instead of stopping the build.
-    console.warn("[collective-first-build] Sol creative direction failed; using baseline.");
+    // Sol could not author creative direction. Recorded as unused; the caller
+    // stops a first build rather than ship the baseline.
+    console.warn("[collective-first-build] Sol creative direction failed.");
     passes.push(
       record(solCall.tier ?? "hall_of_fame", "creative_direction", {
         model: null,
@@ -594,8 +594,8 @@ async function refineCreativeWithCollective(input: {
     }),
   );
   if (!proposal) {
-    // Sol's creative direction was unreadable. Degrade gracefully.
-    console.warn("[collective-first-build] Sol creative direction unreadable; using baseline.");
+    // Sol's creative direction was unreadable; recorded as unused.
+    console.warn("[collective-first-build] Sol creative direction unreadable.");
     return { creative: input.creative, changed: false, passes };
   }
 
@@ -670,8 +670,8 @@ async function refineCreativeWithCollective(input: {
       solPass.skipped = "every proposed creative field was refused by the safety check";
   }
   if (!acceptedFields.length) {
-    // No creative fields survived review. Degrade gracefully to the baseline.
-    console.warn("[collective-first-build] No creative fields survived review; using baseline.");
+    // No creative fields survived review; recorded as unused.
+    console.warn("[collective-first-build] No creative fields survived review.");
     return { creative: input.creative, changed: false, passes };
   }
   return {

@@ -173,31 +173,13 @@ export async function authorBrandIdentity(
   }
 
   if (!outcome?.ok || !data || !primary || !secondary || !heading) {
-    // AI brand identity failed. Instead of stopping the build, use a safe
-    // neutral brand so the customer always gets a complete website.
-    console.warn("[brand-identity] AI visual identity failed; using safe neutral brand.");
-    return {
-      direction: {
-        id: "safe-neutral",
-        name: "Safe neutral identity",
-        mood: "Professional and trustworthy",
-        bestFor: "Any business",
-        // The secondary colour is the page surface. The old fallback used a
-        // near-black navy surface with near-black navy buttons (contrast
-        // about 1.1:1), so every action on the site was invisible.
-        primary: "#1a1a2e",
-        secondary: "#f7f7f5",
-        accent: "#0f3460",
-        font: "Inter",
-        fontNote: "Safe neutral font",
-        backdrop: "none",
-        backdropSpec: null,
-        sectionEffects: {},
-        defaultEffect: "none",
-      },
-      model: null,
-      lane: "safe-fallback",
-    };
+    // No stock "safe neutral" look is substituted: the identity is the AI
+    // team's, or the build stops and is retried.
+    const { AiStepUnavailableError } = await import("@/lib/builder/ai-step-error");
+    throw new AiStepUnavailableError(
+      "brand colours and fonts",
+      outcome && !outcome.ok ? (outcome.detail ?? outcome.reason ?? null) : repairContext || null,
+    );
   }
 
   // Nothing is filled in on the AI's behalf: an effect it didn't name is "none".

@@ -274,12 +274,9 @@ function SiteSectionBody({ site, section, lead = false, first = false }: { site:
       );
     }
 
-    // Fallback layouts for common section kinds when no AI composition tree
-    // exists. These render the section's heading, body, and components in a
-    // clean, simple layout so the site is never blank. story / values /
-    // service_area come from the fact-inventory fallback plan (used when the
-    // AI architect is unavailable); without a layout the About page rendered
-    // nearly empty.
+    // Display safety only, for sites built before every section was required
+    // to carry an AI layout. New builds and redesigns stop rather than ship a
+    // section without its AI composition, so these are never a design source.
     case "hero":
     case "services":
     case "process":
@@ -290,9 +287,8 @@ function SiteSectionBody({ site, section, lead = false, first = false }: { site:
     case "story":
     case "values":
     case "service_area": {
-      // Shown only when the AI layout step could not design this section. It
-      // must still look like a finished, professional site — not a bare list —
-      // so it uses the site's own theme tokens, a real hero and real buttons.
+      // Older sites only: keeps a pre-existing section readable with the
+      // site's own theme tokens until the owner asks the AI team to redesign.
       const images = components.filter((c) => (c.kind === "image" || c.kind === "hero_image") && c.url);
       const buttons = components.filter((c) => c.kind === "button" && safeLinkUrl(c.link_url));
       const cards = components.filter((c) => c.kind === "card");

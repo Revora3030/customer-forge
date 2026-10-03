@@ -318,6 +318,10 @@ export const applySiteWideRedesign = createServerFn({ method: "POST" })
         facts,
         lookSummary,
       });
+      if ((composed.fallback ?? 0) > 0) {
+        const { AiStepUnavailableError } = await import("@/lib/builder/ai-step-error");
+        throw new AiStepUnavailableError("redesign", `${composed.fallback} section(s) could not be designed`);
+      }
       const { composeSiteChrome } = await import("@/lib/builder/first-build-chrome.server");
       await composeSiteChrome({
         db: supabase as never,

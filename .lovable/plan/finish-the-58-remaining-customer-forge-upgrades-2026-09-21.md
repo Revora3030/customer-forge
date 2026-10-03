@@ -1,3 +1,5 @@
+> **Superseded (Oct 3, 2026):** every customer website is built by the AI team. There is no native/deterministic engine, no zero-cost mode and no non-AI fallback; a failed AI step stops the build with a retry message.
+
 # Finish the 58 remaining Customer Forge upgrades
 
 ## Goal
@@ -7,7 +9,7 @@ Complete the remaining builder work as one controlled program: improve first-bui
 
 ## Workstream A — Model team and orchestration
 
-1. Keep every customer website build on Revora’s native deterministic engine, with no Google, OpenAI, Lovable AI, or other external model call in the build path.
+1. Every customer website build is authored by the AI team (Sol, Terra and the specialist models); no non-AI engine is used.
 2. Keep literal edits deterministic and immediate, preserving exact wording and the existing rollback boundary.
 3. Maintain external-model capability, health, eligibility, language, context-size, and quota diagnostics for operator visibility without dispatching customer website work to them.
 4. Add a native synthesis stage that combines compatible specialist findings into one validated composition instead of selecting a proposal only by vote count.

@@ -461,23 +461,17 @@ async function runJob(
       import("@/lib/builder/screenshot-reference"),
     ]);
   // The visual identity — palette, typefaces, surface treatments — is authored
-  // for this business by the design team. If the AI brand identity fails, fall
-  // back to a safe direction based on the business facts so the build continues.
-  let identity: Awaited<ReturnType<typeof authorBrandIdentity>>;
-  try {
-    identity = await authorBrandIdentity({
-      organizationId: orgId,
-      businessName: org.data.name ?? "",
-      industry: org.data.industry ?? null,
-      description: (p["description"] as string) ?? null,
-      city: (p["city"] as string) ?? null,
-      services: serviceRows.map((service) => ({ name: service.name })),
-      requestedFont: (p["font_preference"] as string) ?? null,
-    });
-  } catch (err) {
-    console.warn(`[site-engine] AI brand identity failed for ${orgId}: ${(err as Error).message}; using safe fallback.`);
-    identity = { direction: null } as never;
-  }
+  // for this business by the design team. A failure stops the build (it is
+  // retried); no stock identity is ever substituted.
+  const identity = await authorBrandIdentity({
+    organizationId: orgId,
+    businessName: org.data.name ?? "",
+    industry: org.data.industry ?? null,
+    description: (p["description"] as string) ?? null,
+    city: (p["city"] as string) ?? null,
+    services: serviceRows.map((service) => ({ name: service.name })),
+    requestedFont: (p["font_preference"] as string) ?? null,
+  });
   const direction = identity.direction;
   const ownerColour = (key: string) => {
     const value = p[key];
@@ -561,14 +555,10 @@ async function runJob(
   // The design team owns the creative direction and the wording. The facts
   // assembled above are only the material it works from: they carry no design
   // authority, and a build never ships wording no model authored or reviewed.
-  // If the collective refinement fails entirely, the build continues with the
-  // fact-based fallback copy so the customer always gets a complete site.
   const { refineFirstBuildWithCollective } = await import(
     "@/lib/builder/collective-first-build.server"
   );
-  let refined: Awaited<ReturnType<typeof refineFirstBuildWithCollective>>;
-  try {
-    refined = await refineFirstBuildWithCollective({
+  const refined = await refineFirstBuildWithCollective({
     organizationId: orgId,
     facts: buildFacts,
     brief,
@@ -576,10 +566,6 @@ async function runJob(
     creative,
     hardGenericityGate: true,
   });
-  } catch (err) {
-    console.warn(`[site-engine] AI collective refinement failed for ${orgId}: ${(err as Error).message}; using safe fact-based copy.`);
-    refined = { changed: false, copyChanged: false, creativeChanged: false, copy, creative, passes: [], totalCostMicrocents: 0 } as never;
-  }
   if (refined.creativeChanged) creative = refined.creative;
   if (refined.changed) {
     copy = refined.copy;
@@ -588,48 +574,27 @@ async function runJob(
       .map((pass) => pass.model)
       .join("+") || copyModel;
   }
-  // No stale-template fallback: when not one model — paid lead or free stand-in —
-  // could author or review this build, the build stops and says so instead of
-  // quietly shipping the fact scaffold as if it were a designed website.
+  // No fact-scaffold fallback: when not one model could author or review this
+  // build's wording, the build stops (and is retried) instead of shipping a
+  // generic site.
   const existingPages = await db
     .from("website_pages")
     .select("id", { count: "exact", head: true })
     .eq("organization_id", orgId);
   const firstBuild = freshReplace || (existingPages.count ?? 0) === 0;
   const missingCopy = missingAiCopy(copy);
-  if (firstBuild && (!refined.passes.some((pass) => pass.used) || !refined.changed || missingCopy.length)) {
-    // No model could author or review the copy. Instead of stopping the build,
-    // populate copy from the business facts directly so the customer always
-    // gets a complete website with real content.
-    console.warn(
-      `[site-engine] AI copy authoring failed for ${orgId} (${missingCopy.length ? `missing: ${missingCopy.join(", ")}` : "no model returned usable wording"}); using safe fact-based copy.`,
-    );
-    if (!copy.heroHeadline) copy.heroHeadline = `${org.data.name ?? "Your Business"}${copyFacts.city ? ` — ${copyFacts.city}` : ""}`;
-    if (!copy.heroSubheadline && copyFacts.description) copy.heroSubheadline = copyFacts.description.slice(0, 200);
-    if (!copy.primaryCta) copy.primaryCta = copyFacts.goals?.[0] || "Get in touch";
-    if (!copy.secondaryCta) copy.secondaryCta = "Learn more";
-    if (!copy.about && copyFacts.description) copy.about = copyFacts.description;
-    if (!copy.areaCopy && copyFacts.serviceArea) copy.areaCopy = `Serving ${copyFacts.serviceArea}`;
-    if (!copy.metaTitle) copy.metaTitle = `${org.data.name ?? "Business"}${copyFacts.city ? ` — ${copyFacts.city}` : ""}`.slice(0, 60);
-    if (!copy.metaDescription) copy.metaDescription = (copyFacts.description || `${org.data.name ?? "Local business"} offering professional services.`).slice(0, 155);
-    if (!copy.ogTitle) copy.ogTitle = copy.metaTitle;
-    if (!copy.ogDescription) copy.ogDescription = copy.metaDescription;
-    if (copy.serviceCards.length === 0 && serviceRows.length > 0) {
-      copy.serviceCards = serviceRows.map((s) => ({
-        name: s.name,
-        copy: s.description?.slice(0, 200) || `Professional ${s.name} services.`,
-      }));
-    }
-    if (copy.faqs.length === 0) {
-      copy.faqs = [
-        { question: `What services does ${org.data.name ?? "your business"} offer?`, answer: serviceRows.map((s) => s.name).join(", ") || "Contact us for our full service list." },
-        { question: copyFacts.serviceArea ? `What areas do you serve?` : `How can I contact you?`, answer: copyFacts.serviceArea ? `We serve ${copyFacts.serviceArea}.` : copyFacts.phone ? `Call us at ${copyFacts.phone}.` : "Use the contact form on our website." },
-        { question: "How do I get started?", answer: copy.primaryCta ? `Click "${copy.primaryCta}" to reach out, and we'll respond promptly.` : "Use our contact form and we'll get back to you." },
-      ];
-    }
-    copyModel = "safe-fallback";
+  if (firstBuild && !refined.creativeChanged) {
+    const { AiStepUnavailableError } = await import("@/lib/builder/ai-step-error");
+    const solPass = refined.passes.find((pass) => pass.purpose === "creative_direction");
+    throw new AiStepUnavailableError("creative direction", solPass?.skipped ?? null);
   }
-
+  if (firstBuild && (!refined.passes.some((pass) => pass.used) || !refined.changed || missingCopy.length)) {
+    const { AiStepUnavailableError } = await import("@/lib/builder/ai-step-error");
+    throw new AiStepUnavailableError(
+      "website wording",
+      missingCopy.length ? `missing: ${missingCopy.join(", ")}` : "no model returned usable wording",
+    );
+  }
 
   await db.from("ai_generations").insert({
     organization_id: orgId,
@@ -760,9 +725,6 @@ async function runJob(
   const architectIndustry = org.data.industry ?? null;
   const architectGoal = goals[0] ?? org.data.conversion_goal ?? null;
   const architectureRef: { current: PageArchitectureOutcome | null } = { current: null };
-  // Parts of the build where the AI could not do its job and a simpler
-  // baseline was used instead. Reported to the owner, never only logged.
-  const degraded: string[] = [];
   noteStage(orgId, job.id, "writing the pages");
   // Persist ownership before materialization so a failed attempt leaves a
   // verifiable job marker for safe retry cleanup. The marker is metadata only;
@@ -838,21 +800,16 @@ async function runJob(
       : { authored: false, skipped: "the page plan was not requested for this build" }) as unknown as never,
     created_by: job.created_by,
   } as never);
-  // The AI page plan is the preferred source of pages and sections. When the
-  // AI architect is unavailable or rejected, materializeSiteContent falls back
-  // to the safe multi-page fact inventory rather than stopping the build — so
-  // the customer always gets a complete site, not an error.
+  // The page set and section order are the AI architect's. Without its plan
+  // the build stops (and is retried); a fact inventory is never shipped.
   if (!built.skipped) {
     const outcome = architectureRef.current;
     if (!outcome || !outcome.architecture) {
       const detail = outcome?.rejected.length
         ? outcome.rejected.map((rejection) => JSON.stringify(rejection)).join("; ")
         : outcome?.skipped ?? "the design team was unavailable";
-      console.warn(
-        `[site-engine] AI architect unavailable for ${orgId} (${detail}); ` +
-          `materializeSiteContent will use the safe multi-page fact inventory.`,
-      );
-      degraded.push("page plan");
+      const { AiStepUnavailableError } = await import("@/lib/builder/ai-step-error");
+      throw new AiStepUnavailableError("page plan", detail);
     }
   }
   const attachedPaths = new Set<string>();
@@ -903,24 +860,13 @@ async function runJob(
       subheading: section.subheading,
       body: section.body,
     }));
-    let outcome: Awaited<ReturnType<typeof refineSectionWordingWithCollective>>;
-    try {
-    outcome = await refineSectionWordingWithCollective({
+    const outcome = await refineSectionWordingWithCollective({
       organizationId: orgId,
       facts: buildFacts,
       sections: wording,
       directionSummary: [creative.brief.concept, creative.brief.personality].filter(Boolean).join(" · "),
       hardGenericityGate: true,
     });
-    } catch (err) {
-      console.warn(`[site-engine] Section wording refinement threw for ${orgId}: ${(err as Error).message}; proceeding with existing wording.`);
-      outcome = { patches: [], passes: [], totalCostMicrocents: 0 } as never;
-    }
-    if (!outcome.passes.some((pass) => pass.used)) {
-      // Section-level copy review failed. Don't stop the build — the sections
-      // already have AI-authored or fact-based copy from the earlier pass.
-      console.warn(`[site-engine] Section copy review failed for ${orgId}; proceeding with existing wording.`);
-    }
     for (const patch of outcome.patches) {
       const update: Record<string, string> = {};
       if (patch.heading !== undefined) update["heading"] = patch.heading;
@@ -959,9 +905,7 @@ async function runJob(
   // gets a complete site.
   if (!built.skipped) {
     const { composeFirstBuildSections } = await import("@/lib/builder/first-build-compositions.server");
-    let composed: Awaited<ReturnType<typeof composeFirstBuildSections>>;
-    try {
-    composed = await composeFirstBuildSections({
+    const composed = await composeFirstBuildSections({
       db: db as never,
       organizationId: orgId,
       facts: buildFacts,
@@ -986,15 +930,14 @@ async function runJob(
         surfaceIs: effectivePalette?.secondary ? (isLightSurface(effectivePalette.secondary) ? "light" : "dark") : null,
       }),
     });
-    } catch (err) {
-      console.warn(`[site-engine] Section composition failed for ${orgId}: ${(err as Error).message}; using default layout.`);
-      composed = { sections: [], models: [], totalCostMicrocents: 0 } as never;
-      degraded.push("section layouts");
-    }
-    // Sections that quietly kept their default layout were never reported, so
-    // the owner saw a plain site with no hint that a redesign would help.
-    if (!degraded.includes("section layouts") && ((composed as { fallback?: number }).fallback ?? 0) > 0) {
-      degraded.push("section layouts");
+    // Every section is designed by the AI team. A section left without its
+    // layout stops the build (it is retried) instead of shipping a default.
+    if ((composed.fallback ?? 0) > 0) {
+      const { AiStepUnavailableError } = await import("@/lib/builder/ai-step-error");
+      throw new AiStepUnavailableError(
+        "section layouts",
+        `${composed.fallback} section${composed.fallback === 1 ? "" : "s"} could not be designed`,
+      );
     }
     await db.from("ai_generations").insert({
       organization_id: orgId,
@@ -1005,23 +948,16 @@ async function runJob(
       result: composed as unknown as never,
       created_by: job.created_by,
     } as never);
-    // Sol also designs the menu bar and footer; if AI chrome fails, the build
-    // continues with the default chrome.
+    // Sol also designs the menu bar and footer. Its failure stops the build
+    // (it is retried); no generic menu is substituted.
     const { composeSiteChrome } = await import("@/lib/builder/first-build-chrome.server");
-    let chrome: Awaited<ReturnType<typeof composeSiteChrome>>;
-    try {
-    chrome = await composeSiteChrome({
+    const chrome = await composeSiteChrome({
       db: db as never,
       organizationId: orgId,
       businessName: org.data.name ?? "",
       facts: buildFacts,
       lookSummary: JSON.stringify({ colors: effectivePalette, font: effectiveFont }),
     });
-    } catch (err) {
-      console.warn(`[site-engine] Chrome composition failed for ${orgId}: ${(err as Error).message}; using default chrome.`);
-      chrome = { models: [], totalCostMicrocents: 0 } as never;
-      degraded.push("menu and footer design");
-    }
     await db.from("ai_generations").insert({
       organization_id: orgId,
       job_id: job.id,
@@ -1192,11 +1128,6 @@ async function runJob(
   await step("leads");
   await step("mobile");
 
-  // Not an error, but the owner must know which parts used a basic baseline
-  // because the AI was unavailable, so they can ask for a redesign.
-  const degradedNote = degraded.length
-    ? `Built with a basic ${degraded.join(", ")} because the AI design step was unavailable. Ask the builder to redesign it.`
-    : null;
   await db
     .from("generation_jobs")
     .update({
@@ -1204,7 +1135,7 @@ async function runJob(
       progress: 100,
       current_step: "ready",
       steps: [...done, "ready"],
-      error_message: degradedNote,
+      error_message: null,
       completed_at: new Date().toISOString(),
       lease_expires_at: null,
       updated_at: new Date().toISOString(),
@@ -1219,10 +1150,7 @@ async function runJob(
     body:
       (leadCapture
         ? "Revora built your site from your information and connected lead capture."
-        : "Revora built your site. Turn on the quote calculator or online booking to capture leads.") +
-      (degraded.length
-        ? ` Note: the AI design step was unavailable, so a basic ${degraded.join(", ")} was used — ask the builder to redesign ${degraded.length === 1 ? "it" : "them"}.`
-        : ""),
+        : "Revora built your site. Turn on the quote calculator or online booking to capture leads."),
     kind: "website",
     link: "/app/website",
   } as never);

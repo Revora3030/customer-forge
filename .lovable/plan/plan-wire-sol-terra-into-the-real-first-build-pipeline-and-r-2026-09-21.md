@@ -1,3 +1,5 @@
+> **Superseded (Oct 3, 2026):** every customer website is built by the AI team. There is no native/deterministic engine, no zero-cost mode and no non-AI fallback; a failed AI step stops the build with a retry message.
+
 # Plan: Wire Sol/Terra into the real first-build pipeline and run a fresh visual build
 
 ## Goal

@@ -5,7 +5,7 @@ vi.mock("@/lib/ai/hall-of-fame.server", () => ({
 }));
 
 import { composeSiteChrome } from "./first-build-chrome.server";
-import { readSiteChrome, collectHrefs, requiredChromeLinks } from "./site-chrome";
+import { readSiteChrome } from "./site-chrome";
 
 function fakeDb() {
   const saved: { generation?: unknown } = {};
@@ -34,24 +34,19 @@ function fakeDb() {
   };
 }
 
-describe("fallback site chrome", () => {
-  it("is valid, renderable and links to every page plus the enquiry page", async () => {
+describe("site chrome without the AI team", () => {
+  it("never writes a generic menu or footer: the build stops with a retry message", async () => {
     const db = fakeDb();
-    await composeSiteChrome({
-      db: db as never,
-      organizationId: "org",
-      businessName: "Acme Roofing",
-      facts: { phone: "(555) 010-0199", email: "hi@acme.test", serviceArea: "Raleigh" } as never,
-      lookSummary: "{}",
-    });
-    const chrome = readSiteChrome(db.saved.generation);
-    expect(chrome.header).not.toBeNull();
-    expect(chrome.footer).not.toBeNull();
-    const required = requiredChromeLinks(db.pages);
-    for (const tree of [chrome.header!, chrome.footer!]) {
-      const hrefs = collectHrefs(tree);
-      for (const href of required) expect(hrefs.has(href)).toBe(true);
-    }
-    expect(collectHrefs(chrome.header!).has("/book")).toBe(true);
+    await expect(
+      composeSiteChrome({
+        db: db as never,
+        organizationId: "org",
+        businessName: "Acme Roofing",
+        facts: { phone: "(555) 010-0199", email: "hi@acme.test", serviceArea: "Raleigh" } as never,
+        lookSummary: "{}",
+      }),
+    ).rejects.toThrow(/menu and footer design.*try the build again/i);
+    expect(db.saved.generation).toBeUndefined();
+    expect(readSiteChrome(db.saved.generation).header).toBeNull();
   });
 });
