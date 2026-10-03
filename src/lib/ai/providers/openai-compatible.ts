@@ -39,6 +39,21 @@ function usageOf(payload: unknown): AiUsage {
   };
 }
 
+/**
+ * Reasoning models on the free pool (DeepSeek R1, Qwen3, Nemotron, gpt-oss on
+ * some hosts) put their private thinking inside the answer as <think> blocks.
+ * That text must never reach a customer's site or a JSON parser.
+ */
+export function stripReasoning(raw: string): string {
+  let text = raw.replace(/<(think|thinking|reasoning)>[\s\S]*?<\/\1>/gi, "");
+  // An answer that opens a thinking block and never closes it was cut off
+  // mid-thought; one that only closes it had the opening tag stripped upstream.
+  const close = text.search(/<\/(think|thinking|reasoning)>/i);
+  if (close >= 0) text = text.slice(text.indexOf(">", close) + 1);
+  text = text.replace(/^\s*<(think|thinking|reasoning)>[\s\S]*$/i, "");
+  return text.trim();
+}
+
 export type CompatAdapterOptions = {
   name: ProviderName;
   /** Resolved at call time so an account id can come from the environment. */
@@ -83,6 +98,7 @@ export function createOpenAiCompatibleAdapter(options: CompatAdapterOptions): Pr
     name,
 
     async chat({ apiKey, model, messages, json, maxOutputTokens, temperature, signal }) {
+      let jsonMode = json === true;
       const send = (maxTokens: number | undefined) =>
         fetch(endpoint(), {
           method: "POST",
@@ -94,12 +110,22 @@ export function createOpenAiCompatibleAdapter(options: CompatAdapterOptions): Pr
               content: partsOf(name, message.content),
             })),
             ...(maxTokens ? { max_tokens: maxTokens } : {}),
-            ...(json ? { response_format: { type: "json_object" } } : {}),
+            ...(jsonMode ? { response_format: { type: "json_object" } } : {}),
             ...(typeof temperature === "number" ? { temperature } : {}),
           }),
           signal,
         });
       let response = await send(maxOutputTokens);
+      // Several free models refuse `response_format` outright. The prompt still
+      // asks for JSON and the router parses it, so retry once without the flag
+      // instead of losing this model for every structured call.
+      if (!response.ok && response.status === 400 && jsonMode) {
+        const detail = await response.clone().text().catch(() => "");
+        if (/response_format|json_object|json mode|json_schema|structured output/i.test(detail)) {
+          jsonMode = false;
+          response = await send(maxOutputTokens);
+        }
+      }
       // Free models have smaller output ceilings and refuse a large max_tokens
       // with a 400. Retry once at a ceiling they all accept, then once with no
       // explicit cap, instead of failing the call outright.
@@ -120,7 +146,7 @@ export function createOpenAiCompatibleAdapter(options: CompatAdapterOptions): Pr
           provider: name,
           detail: payload.error.message.slice(0, 200),
         });
-      const text = (payload.choices?.[0]?.message?.content ?? "").trim();
+      const text = stripReasoning(payload.choices?.[0]?.message?.content ?? "");
       if (text.length === 0)
         throw new RevoraAiError(502, `Revora's ${name} free model returned nothing.`, {
           category: "bad_response",
