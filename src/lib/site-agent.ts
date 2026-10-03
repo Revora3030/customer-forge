@@ -659,6 +659,15 @@ const safeVisualUrl = (
     return candidate;
   }
 
+  /**
+   * A photo in the workspace library is referenced by its storage path
+   * ("<workspace-id>/<file>.jpg"). The apply step only accepts paths inside the
+   * current workspace's own folder.
+   */
+  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/[\w.-]+$/i.test(candidate) && !candidate.includes("..")) {
+    return candidate;
+  }
+
   const safe =
     safeLinkUrl(candidate);
 
