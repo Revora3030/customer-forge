@@ -15,7 +15,8 @@
 import { callBestThinker } from "@/lib/ai/hall-of-fame.server";
 import type { AgentContext } from "@/lib/site-agent.server";
 import { MAX_ACTIONS } from "@/lib/site-agent";
-import { COMPOSITION_PRIMITIVES, MOTION_KINDS, MOTION_EASINGS, PRIMITIVE_GUIDE } from "@/lib/builder/composition-tree";
+import { COMPOSITION_PRIMITIVES, MOTION_KINDS, MOTION_EASINGS, PRIMITIVE_GUIDE, validateComposition, type CompositionTree } from "@/lib/builder/composition-tree";
+import { auditSectionDesign, needsDesignRepair } from "@/lib/builder/design-quality";
 import { designGuidancePrompt, mobileFirstChecklist } from "@/lib/builder/design-guidance";
 
 export type AiPlanFailure = {
@@ -428,6 +429,55 @@ export async function planWebsiteChangesWithAi(input: {
       reason: "review_rejected",
       detail: `the review removed every proposed change${notes.length ? ` — ${notes.slice(0, 2).join(" ")}` : ""}`,
     };
+  }
+
+  // CRAFT POLISH. Layouts Sol authored for this edit are measured against the
+  // same design bar as a first build (headline scale, readable copy, phone
+  // grids, breathing room). Misses get one targeted revision; a revised tree is
+  // used only when it still validates and measures better, so an edit can
+  // never get worse here and the owner's request is never dropped.
+  const compositionIndexes = actions
+    .map((action, index) => ({ action: action as Record<string, unknown>, index }))
+    .filter(({ action }) => action["type"] === "set_composition" && action["tree"] && typeof action["sectionId"] === "string");
+  const failing = compositionIndexes
+    .map(({ action, index }) => {
+      const checked = validateComposition(action["tree"]);
+      if (!checked.ok) return null;
+      const sectionId = String(action["sectionId"]);
+      const firstSection = context.pages.some((page) => page.sections[0]?.id === sectionId);
+      const findings = auditSectionDesign(checked.tree, { lead: firstSection });
+      return needsDesignRepair(findings) ? { index, sectionId, tree: checked.tree, findings } : null;
+    })
+    .filter((entry): entry is { index: number; sectionId: string; tree: CompositionTree; findings: ReturnType<typeof auditSectionDesign> } => entry !== null);
+  if (failing.length) {
+    input.onStage?.("polishing the design", "a senior design check is tightening the layout");
+    const polish = await callBestThinker({
+      json: true,
+      purpose: "creative_direction",
+      complexity: "high",
+      system,
+      user: [
+        "THESE LAYOUTS FROM YOUR PLAN MISS THE DESIGN BAR. Fix every listed problem; keep all content, media nodes, links and widgets:",
+        JSON.stringify(
+          failing.map((entry) => ({ sectionId: entry.sectionId, tree: entry.tree, fix: entry.findings.map((f) => f.fix) })),
+        ),
+        'Reply with ONE JSON object: {"trees": {"<sectionId>": {"version":1,"label":string,"root":Node}}}',
+      ].join("\n\n"),
+      organizationId: input.organizationId,
+      maxOutputTokens: 16000,
+      ...(input.onAttempt ? { onAttempt: input.onAttempt } : {}),
+    });
+    if (polish.ok) {
+      costMicrocents += polish.costMicrocents;
+      const trees = (parseJsonObject(polish.text)?.["trees"] ?? {}) as Record<string, unknown>;
+      for (const entry of failing) {
+        const checked = validateComposition(trees[entry.sectionId]);
+        if (!checked.ok) continue;
+        const firstSection = context.pages.some((page) => page.sections[0]?.id === entry.sectionId);
+        if (auditSectionDesign(checked.tree, { lead: firstSection }).length < entry.findings.length)
+          actions[entry.index] = { ...(actions[entry.index] as Record<string, unknown>), tree: checked.tree } as (typeof actions)[number];
+      }
+    }
   }
 
   const requirements = textList(proposal["requirements"], 8, 120).map((label) => ({
