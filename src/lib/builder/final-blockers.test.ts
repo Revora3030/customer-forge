@@ -70,8 +70,12 @@ describe("visual check false positives", () => {
   it("does not count its own resize reflow as visitor layout shift", () => {
     expect(measure).toMatch(/index > 0[\s\S]*__revoraCls = 0/);
   });
-  it("renders phone safeguards after AI breakpoint rules so they win", () => {
-    expect(read("src/components/site/CompositionRenderer.tsx")).toContain('ctx.rules.join("") + PHONE_SAFETY_CSS');
+  it("phone safeguards outrank AI breakpoint rules regardless of stylesheet order", () => {
+    // The shared sheet is hoisted to <head>; specificity (doubled attribute)
+    // now guarantees the safeguards win over per-block [data-cn] rules.
+    const src = read("src/components/site/CompositionRenderer.tsx");
+    expect(src).toContain("[data-composition][data-composition] h1{font-size:min(2.75rem,11vw)!important");
+    expect(src).toContain('precedence="rv-cn"');
   });
 });
 
