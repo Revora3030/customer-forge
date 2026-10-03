@@ -1379,10 +1379,20 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
               break;
             }
           }
+          const priorKind = readColumn("website_sections", action.sectionId, "kind");
           noteColumn("website_sections", action.sectionId, "kind", "composition");
           await run(action.type, () => {
             const tree = resolveCompositionMediaRefs(action.tree, newComponents);
-            const settings = writeComposition(readColumn("website_sections", action.sectionId, "settings"), tree);
+            const priorSettings = readColumn("website_sections", action.sectionId, "settings") as Record<string, unknown> | null;
+            // Keep the section's job (contact, services…) as its anchor name so
+            // "#contact"-style buttons still reach it after it becomes an AI layout.
+            const role =
+              typeof priorSettings?.["role"] === "string"
+                ? priorSettings["role"]
+                : typeof priorKind === "string" && priorKind !== "composition"
+                  ? priorKind
+                  : undefined;
+            const settings = { ...writeComposition(priorSettings, tree), ...(role ? { role } : {}) };
             noteColumn("website_sections", action.sectionId, "settings", settings);
             return supabase
               .from("website_sections")
@@ -1983,6 +1993,18 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
     // ambiguous stays a reported finding — it is never guessed at. A failure in
     // this stage is reported, never fatal: it must not undo a good apply.
     let qa: QaLoopResult | null = null;
+    // Every button and menu link stays connected: a page added, renamed or
+    // removed by this change is reflected in the menu and footer, and any
+    // button pointing at a page that no longer exists is repointed to the
+    // closest real page. Links only — never design or wording.
+    try {
+      const { ensureLinkIntegrity } = await import("@/lib/builder/link-integrity.server");
+      const links = await ensureLinkIntegrity(supabase as unknown as never, orgId);
+      if (links.sectionsFixed || links.componentsFixed || links.menuLinksAdded.length || links.chromeLinksFixed)
+        invalidateWorkspaceContext(orgId);
+    } catch (error) {
+      console.warn("[site-agent] link check skipped", (error as Error)?.message);
+    }
     if (data.verify !== false) {
       noteApplyStage(orgId, applyRunId, "checking the result");
       try {
