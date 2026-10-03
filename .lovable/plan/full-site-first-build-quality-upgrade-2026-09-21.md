@@ -1,9 +1,11 @@
+> **Superseded (Oct 3, 2026):** every customer website is built by the AI team. There is no native/deterministic engine, no zero-cost mode and no non-AI fallback; a failed AI step stops the build with a retry message.
+
 # Full-site first-build quality upgrade
 
 ## Goal
 Make every new Customer Forge website feel deliberately designed from the first screen through the footer, across every generated page—not just the home page or hero image. The recording is a quality and interaction reference, not a template to copy: each industry keeps its own visual language, content hierarchy, imagery, and conversion path.
 
-The builder will continue to use Revora’s native deterministic engine for website building, preserve tenant and publishing safety, and never invent reviews, results, prices, certifications, offers, staff, business photos, or before/after proof.
+The AI team builds every website, preserve tenant and publishing safety, and never invent reviews, results, prices, certifications, offers, staff, business photos, or before/after proof.
 
 ## What will change
 
