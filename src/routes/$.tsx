@@ -13,6 +13,9 @@ import { getHostSite } from "@/lib/host-site.functions";
 import { isPossibleTenantHost } from "@/lib/revora-address";
 import { SitePageView } from "@/routes/s.$slug.$page";
 import { metaDescription } from "@/lib/seo";
+import { clientHeadExtrasSync } from "@/lib/site-head";
+import { compositionFonts, siteFontsHref } from "@/lib/site-theme";
+import { readSiteChrome } from "@/lib/builder/site-chrome";
 
 export const Route = createFileRoute("/$")({
   loader: async ({ params }) => {
@@ -43,6 +46,13 @@ export const Route = createFileRoute("/$")({
     ).slice(0, 158);
     const url = page.seo_canonical || `https://${loaderData.host}/${page.slug}`;
     const shareImage = page.og_image_url || loaderData.site.profile?.hero_image_url || null;
+    const extras = clientHeadExtrasSync(
+      loaderData.site as never,
+      `https://${loaderData.host}/`,
+      compositionFonts,
+      siteFontsHref,
+      readSiteChrome,
+    );
     return {
       meta: [
         { title },
@@ -60,8 +70,10 @@ export const Route = createFileRoute("/$")({
             ]
           : []),
         ...(page.noindex ? [{ name: "robots", content: "noindex" }] : []),
+        ...extras.meta,
       ],
-      links: [{ rel: "canonical", href: url }],
+      scripts: extras.scripts,
+      links: [{ rel: "canonical", href: url }, ...extras.links],
     };
   },
   component: HostPageRoute,
