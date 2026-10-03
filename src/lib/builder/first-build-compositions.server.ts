@@ -262,9 +262,8 @@ export async function composeFirstBuildSections(input: {
         ].join("\n"),
       });
       if (!call.ok) {
-        // This page's design call failed. Keep what was already designed and
-        // move on to the next page instead of abandoning the whole site; the
-        // remaining sections keep their materialized layout.
+        // This page's design call failed. It is retried once; sections still
+        // without a layout are counted in `fallback` and stop a first build.
         console.warn(`[first-build-compositions] AI layout failed: ${call.detail ?? call.reason}`);
         failedCalls += 1;
         if (failedCalls >= 2) pageFailed = true;
@@ -304,12 +303,12 @@ export async function composeFirstBuildSections(input: {
       pending = next;
     }
     if (pending.length) {
-      // Some sections could not get a safe AI layout after retries. Degrade
-      // gracefully: they already have their default layout from materialization.
+      // Some sections could not get a safe AI layout after retries. The count
+      // is reported so callers stop rather than ship a default layout.
       const first = Object.values(feedback).flat()[0];
       console.warn(
         `[first-build-compositions] ${pending.length} section(s) could not get an AI layout` +
-          (first ? ` (${first.path}: ${first.problem})` : "") + "; using default layouts.",
+          (first ? ` (${first.path}: ${first.problem})` : "") + ".",
       );
       result.fallback = (result.fallback ?? 0) + pending.length;
     }
