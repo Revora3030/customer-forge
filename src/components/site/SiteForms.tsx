@@ -65,6 +65,18 @@ function Honeypot() {
   );
 }
 
+/**
+ * The business can only reply through an email or a phone number. Checked in
+ * the browser before sending so the visitor is told what to fix right away
+ * (the server enforces the same rule).
+ */
+function contactProblem(email: string, phone: string): string | null {
+  if (!email && !phone) return "Add an email or phone number so the business can reach you.";
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return "That email address doesn't look right.";
+  if (phone && phone.replace(/\D/g, "").length < 7) return "That phone number looks too short.";
+  return null;
+}
+
 export function QuoteCalculator({ site, presentation }: { site: Site; presentation?: WidgetPresentation }) {
   const quote = site.quote;
   const submit = useServerFn(submitPublicLead);
@@ -241,6 +253,11 @@ export function QuoteCalculator({ site, presentation }: { site: Site; presentati
             e.preventDefault();
             const form = new FormData(e.currentTarget);
             const email = String(form.get("email") ?? "").trim();
+            const problem = contactProblem(email, String(form.get("phone") ?? "").trim());
+            if (problem) {
+              toast.error(problem);
+              return;
+            }
             setConfirmationEmail(email);
             setPending(true);
             submit({
@@ -293,16 +310,16 @@ export function QuoteCalculator({ site, presentation }: { site: Site; presentati
           </p>
           <div className="space-y-1.5">
             <Label htmlFor="q-name">{presentation?.fieldLabels?.name ?? "Your name"}</Label>
-            <Input id="q-name" name="name" required />
+            <Input id="q-name" name="name" required autoComplete="name" />
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-1.5">
               <Label htmlFor="q-phone">{presentation?.fieldLabels?.phone ?? "Phone"}</Label>
-              <Input id="q-phone" name="phone" type="tel" />
+              <Input id="q-phone" name="phone" type="tel" autoComplete="tel" inputMode="tel" />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="q-email">{presentation?.fieldLabels?.email ?? "Email"}</Label>
-              <Input id="q-email" name="email" type="email" />
+              <Input id="q-email" name="email" type="email" autoComplete="email" inputMode="email" />
             </div>
           </div>
           <div className="space-y-1.5">
@@ -401,6 +418,11 @@ export function BookingForm({ site, presentation }: { site: Site; presentation?:
         const date = String(form.get("date") ?? "");
         const time = String(form.get("time") ?? "");
         const email = String(form.get("email") ?? "").trim();
+        const problem = contactProblem(email, String(form.get("phone") ?? "").trim());
+        if (problem) {
+          toast.error(problem);
+          return;
+        }
         setConfirmationEmail(email);
         setPending(true);
         submit({
@@ -467,15 +489,15 @@ export function BookingForm({ site, presentation }: { site: Site; presentation?:
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-1.5">
           <Label htmlFor={fid("name")}>{presentation?.fieldLabels?.name ?? "Your name"}</Label>
-          <Input id={fid("name")} name="name" required />
+          <Input id={fid("name")} name="name" required autoComplete="name" />
         </div>
         <div className="space-y-1.5">
           <Label htmlFor={fid("phone")}>{presentation?.fieldLabels?.phone ?? "Phone"}</Label>
-          <Input id={fid("phone")} name="phone" type="tel" />
+          <Input id={fid("phone")} name="phone" type="tel" autoComplete="tel" inputMode="tel" />
         </div>
         <div className="space-y-1.5">
           <Label htmlFor={fid("email")}>{presentation?.fieldLabels?.email ?? "Email"}</Label>
-          <Input id={fid("email")} name="email" type="email" />
+          <Input id={fid("email")} name="email" type="email" autoComplete="email" inputMode="email" />
         </div>
         <div className="space-y-1.5">
           <Label htmlFor={fid("city")}>{presentation?.fieldLabels?.location ?? "City / address"}</Label>
