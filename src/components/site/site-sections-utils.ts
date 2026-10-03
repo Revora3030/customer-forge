@@ -26,3 +26,15 @@ export function leadSectionIndex(sections: Section[]): number {
   if (sections.some(compositionHasH1)) return -1;
   return sections.findIndex((section) => !readComposition(section.settings) && Boolean(safeText(section.heading)));
 }
+
+/** True when any section's AI layout already places the named live widget. */
+export function pageHasWidget(sections: Section[], name: string): boolean {
+  const walk = (node: { type?: string; text?: string; children?: unknown[]; tabs?: { children?: unknown[] }[] }): boolean =>
+    (node.type === "widget" && node.text === name) ||
+    (node.children ?? []).some((child) => walk(child as never)) ||
+    (node.tabs ?? []).some((tab) => (tab.children ?? []).some((child) => walk(child as never)));
+  return sections.some((section) => {
+    const tree = readComposition(section.settings);
+    return tree ? walk(tree.root as never) : false;
+  });
+}
