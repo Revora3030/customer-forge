@@ -83,21 +83,32 @@ export function createOpenAiCompatibleAdapter(options: CompatAdapterOptions): Pr
     name,
 
     async chat({ apiKey, model, messages, json, maxOutputTokens, temperature, signal }) {
-      const response = await fetch(endpoint(), {
-        method: "POST",
-        headers: headers(apiKey),
-        body: JSON.stringify({
-          model,
-          messages: messages.map((message) => ({
-            role: message.role,
-            content: partsOf(name, message.content),
-          })),
-          max_tokens: maxOutputTokens,
-          ...(json ? { response_format: { type: "json_object" } } : {}),
-          ...(typeof temperature === "number" ? { temperature } : {}),
-        }),
-        signal,
-      });
+      const send = (maxTokens: number | undefined) =>
+        fetch(endpoint(), {
+          method: "POST",
+          headers: headers(apiKey),
+          body: JSON.stringify({
+            model,
+            messages: messages.map((message) => ({
+              role: message.role,
+              content: partsOf(name, message.content),
+            })),
+            ...(maxTokens ? { max_tokens: maxTokens } : {}),
+            ...(json ? { response_format: { type: "json_object" } } : {}),
+            ...(typeof temperature === "number" ? { temperature } : {}),
+          }),
+          signal,
+        });
+      let response = await send(maxOutputTokens);
+      // Free models have smaller output ceilings and refuse a large max_tokens
+      // with a 400. Retry once at a ceiling they all accept, then once with no
+      // explicit cap, instead of failing the call outright.
+      for (const fallback of [8192, undefined]) {
+        if (response.ok || response.status !== 400 || !maxOutputTokens || (fallback && fallback >= maxOutputTokens)) break;
+        const detail = await response.clone().text().catch(() => "");
+        if (!/max_tokens|max_completion_tokens|maximum|context|too large|exceed/i.test(detail)) break;
+        response = await send(fallback);
+      }
       if (!response.ok) throw await providerHttpError(name, response);
       const payload = (await response.json()) as {
         choices?: { message?: { content?: string } }[];

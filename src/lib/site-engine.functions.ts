@@ -67,19 +67,27 @@ export const runSiteGeneration = createServerFn({ method: "POST" })
     // Clear stale queued jobs whose leases have expired before checking for
     // active builds. A job stuck in "queued" with no lease or an expired lease
     // is from a previous failed attempt and blocks new builds.
+    // A freshly queued job (and one waiting for its retry) always has an empty
+    // lease, so "no lease" is not evidence of a stale job. Only queued jobs
+    // that have sat untouched for a long time are cleared; anything recent is
+    // a real build that is waiting for the worker and must not be cancelled.
     const now = new Date();
+    const staleQueuedBefore = new Date(now.getTime() - 30 * 60 * 1000).toISOString();
     await supabase
       .from("generation_jobs")
       .update({ status: "failed", error_message: "Stale job cleared for new build request", completed_at: now.toISOString(), lease_expires_at: null })
       .eq("organization_id", orgId)
       .eq("status", "queued")
-      .or(`lease_expires_at.is.null,lease_expires_at.lt.${now.toISOString()}`);
+      .lt("updated_at", staleQueuedBefore);
+    // A processing job whose lease lapsed is retried by the worker (claimJob
+    // picks up expired leases). Only clear one that has been dead for a long
+    // time; a short lapse is a running build between heartbeats.
     await supabase
       .from("generation_jobs")
       .update({ status: "failed", error_message: "Stale processing job cleared for new build request", completed_at: now.toISOString(), lease_expires_at: null })
       .eq("organization_id", orgId)
       .eq("status", "processing")
-      .lt("lease_expires_at", now.toISOString());
+      .lt("lease_expires_at", staleQueuedBefore);
     const { data: existing } = await supabase
       .from("generation_jobs")
       .select("id, status, progress")
@@ -181,7 +189,11 @@ export const runSiteGeneration = createServerFn({ method: "POST" })
 
     // Non-blocking kick so the worker usually starts immediately; the scheduled
     // run and the client's pump call are the fallbacks.
-    void kickWorker(new URL(getRequest().url).origin);
+    {
+      const origin = new URL(getRequest().url).origin;
+      const { runInBackground } = await import("@/lib/background");
+      runInBackground(() => kickWorker(origin));
+    }
 
     return {
       jobId: job.id,
@@ -195,6 +207,14 @@ export const runSiteGeneration = createServerFn({ method: "POST" })
 
 async function kickWorker(origin: string) {
   const secret = process.env["LOVABLE_CRON_SECRET"];
+  if (!secret) {
+    // Without it every scheduled worker run is refused (HTTP 500) and builds
+    // only advance while the customer keeps the builder open. Say so loudly.
+    console.error(
+      "[site-engine] LOVABLE_CRON_SECRET is not set: the scheduled build worker cannot run. " +
+        "Builds will only progress while the owner's browser is open. Set the secret in Lovable Cloud.",
+    );
+  }
   const base = process.env["APP_URL"] ?? origin;
   // Try the HTTP kick first (fastest path when the scheduler is running).
   if (secret && base) {
@@ -214,7 +234,7 @@ async function kickWorker(origin: string) {
   try {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { drainSiteEngineQueue } = await import("@/lib/site-engine.worker.server");
-    void drainSiteEngineQueue(supabaseAdmin as never, { max: 1, probeWhilePaused: true });
+    await drainSiteEngineQueue(supabaseAdmin as never, { max: 1, probeWhilePaused: true });
   } catch {
     // The client pump and the scheduled run still pick the job up.
   }

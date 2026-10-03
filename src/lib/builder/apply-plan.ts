@@ -152,6 +152,18 @@ export function auditActionTargets(actions: AgentAction[], known: KnownTargets):
       continue;
     }
 
+    if (action.type === "set_block_style") {
+      const pool = action.target === "section" ? sections : components;
+      if (!pool.has(action.targetId)) {
+        stale.push({
+          type: action.type,
+          target: action.targetId,
+          reason: action.target === "section" ? "missing_section" : "missing_component",
+        });
+        continue;
+      }
+    }
+
     if (action.type === "reorder_sections") {
       const gone = action.sectionIds.find((id) => !sections.has(id));
       if (gone) {

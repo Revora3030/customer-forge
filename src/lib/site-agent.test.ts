@@ -188,7 +188,7 @@ describe("building a page and filling it in one plan", () => {
   it("keeps newly-created section refs inside a reorder action", () => {
     const actions = readActions(
       [
-        { type: "add_section", pageId: "page-1", kind: "cta", ref: "temp_section", heading: "Ready?" },
+        { type: "add_section", pageId: "page-1", kind: "hero", ref: "temp_section", heading: "Ready?" },
         {
           type: "reorder_sections",
           pageId: "page-1",
@@ -202,6 +202,45 @@ describe("building a page and filling it in one plan", () => {
       type: "reorder_sections",
       sectionIds: ["section-1", "temp_section"],
     });
+  });
+
+  it("leaves out a new section the site cannot draw, and every step that targets it", () => {
+    const dropped: string[] = [];
+    const actions = readActions(
+      [
+        { type: "add_section", pageId: "page-1", kind: "pricing_wall", ref: "temp_wall", heading: "Prices" },
+        { type: "set_section_text", sectionId: "temp_wall", field: "body", value: "From $10" },
+        { type: "reorder_sections", pageId: "page-1", sectionIds: ["section-1", "temp_wall"] },
+      ],
+      { ...known, pageIds: new Set(["page-1"]), sectionIds: new Set(["section-1"]) },
+      dropped,
+    );
+    expect(actions).toEqual([]);
+    expect(dropped.some((reason) => reason.includes("had no layout"))).toBe(true);
+  });
+
+  it("keeps a new invented section when the same plan gives it a layout", () => {
+    const actions = readActions(
+      [
+        { type: "add_section", pageId: "page-1", kind: "pricing_wall", ref: "temp_wall", heading: "Prices" },
+        {
+          type: "set_composition",
+          sectionId: "temp_wall",
+          tree: { version: 1, label: "Prices", root: { type: "stack", children: [{ type: "heading", text: "Prices", level: 2 }] } },
+        },
+      ],
+      { ...known, pageIds: new Set(["page-1"]), sectionIds: new Set(["section-1"]) },
+    );
+    expect(actions.map((action) => action.type)).toEqual(["add_section", "set_composition"]);
+  });
+
+  it("does not move a new section to the top when position is null", () => {
+    const actions = readActions(
+      [{ type: "add_section", pageId: "page-1", kind: "hero", heading: "Hi", position: null }],
+      { ...known, pageIds: new Set(["page-1"]) },
+    );
+    expect(actions[0]).toMatchObject({ type: "add_section" });
+    expect((actions[0] as { position?: number }).position).toBeUndefined();
   });
 
   it("supports component reordering with the same-plan component refs", () => {

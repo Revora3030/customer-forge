@@ -79,7 +79,17 @@ export type ContentComponent = {
 export function safeLinkUrl(value: string | null | undefined): string | null {
   const raw = (value ?? "").trim();
   if (!raw) return null;
-  if (/^[#/]/.test(raw)) return raw.replace(/^\/\//, "/"); // relative path or anchor only
+  if (raw.startsWith("#")) return /^#[\w-]*$/.test(raw) ? raw : null;
+  if (raw.startsWith("/")) {
+    // Site-relative path only. Browsers read "//host", "///host" and "/\\host"
+    // as another website, and backslashes/control characters are normalised
+    // unpredictably, so collapse leading slashes and refuse those characters.
+    // eslint-disable-next-line no-control-regex -- control characters are deliberately refused in links
+    if (/[\\\u0000-\u001f\u007f\s]/.test(raw)) return null;
+    const path = "/" + raw.replace(/^\/+/, "");
+    if (/(^|\/)\.\.?(\/|$)/.test(path.split(/[?#]/)[0] ?? "")) return null;
+    return path;
+  }
   if (/^(https?:|mailto:|tel:|sms:)/i.test(raw)) {
     if (/^https?:/i.test(raw)) {
       try {

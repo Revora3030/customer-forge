@@ -398,7 +398,10 @@ export const activateProduction = createServerFn({ method: "POST" })
     const nextVersion = Number(latest?.version ?? 0) + 1;
     const publishedAt = new Date().toISOString();
 
-    await supabase.from("website_versions").insert({
+    // The production version must exist before the site is marked live, and
+    // a failed snapshot must stop the launch rather than publish with no
+    // matching version to return to.
+    const { error: versionError } = await supabase.from("website_versions").insert({
       organization_id: orgId,
       version: nextVersion,
       label: `Production v${nextVersion}`,
@@ -411,6 +414,10 @@ export const activateProduction = createServerFn({ method: "POST" })
       published_at: publishedAt,
       created_by: userId,
     });
+    if (versionError) {
+      await audit("DEPLOYMENT_FAILED", { message: versionError.message, stage: "snapshot" });
+      throw new Error("We couldn't save this version of your website, so it was not published. Try again in a moment.");
+    }
 
     // The database trigger independently re-checks the setup payment here.
     const { error: publishError } = await supabase
@@ -436,7 +443,7 @@ export const activateProduction = createServerFn({ method: "POST" })
 
     return {
       activated: true,
-      reason: "Your website is live. Future edits stay in draft until you publish them.",
+      reason: "Your website is live. Edits you make from now on appear on the live site straight away — use Version history to go back.",
       version: nextVersion,
       publishState: "published",
       readiness,

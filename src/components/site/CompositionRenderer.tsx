@@ -246,7 +246,10 @@ function renderNode(node: CompositionNode, ctx: Ctx, key: string): ReactNode {
     }
     case "before_after_slider":
       return node.beforeImage && node.afterImage ? (
-        <BeforeAfterSlider key={key} props={props} before={node.beforeImage} after={node.afterImage} initialSplit={node.initialSplit ?? 50} />
+        <BeforeAfterSlider key={key} props={props}
+          before={{ ...node.beforeImage, src: resolveImageSource(node.beforeImage.src) }}
+          after={{ ...node.afterImage, src: resolveImageSource(node.afterImage.src) }}
+          initialSplit={node.initialSplit ?? 50} />
       ) : null;
     case "faq_accordion":
       return node.faqItems?.length ? <FaqAccordion key={key} props={props} items={node.faqItems} /> : null;

@@ -181,6 +181,16 @@ export const getPreviewSite = createServerFn({ method: "GET" })
       allowUnpublished: true,
       ...(data.pageSlug ? { pageSlug: data.pageSlug } : {}),
     });
+    // The link belongs to one workspace; never render another one's draft.
+    const siteOrgId = (site as { org?: { id?: string } } | null)?.org?.id;
+    if (site && siteOrgId && siteOrgId !== link.organizationId)
+      return {
+        ok: false as const,
+        reason: "unknown" as const,
+        site: null,
+        expiresAt: null as string | null,
+        label: null as string | null,
+      };
     if (!site)
       return {
         ok: false as const,
@@ -296,6 +306,60 @@ export const submitPublicLead = createServerFn({ method: "POST" })
       throw new Error(
         "We've already received your details. Please wait a few minutes before sending again.",
       );
+    }
+
+    // Never trust browser-supplied money. A quote's range and the lead's
+    // estimated value are recomputed from the owner's own quote form; a
+    // booking must name a service the owner made bookable.
+    if (data.quote) {
+      if (!data.quote.formId) throw new Error("That quote form is no longer available.");
+      const formId = data.quote.formId;
+      const [form, questions, options, addons] = await Promise.all([
+        supabase
+          .from("quote_forms")
+          .select("base_price, min_price, max_price")
+          .eq("id", formId)
+          .eq("organization_id", orgId)
+          .eq("is_active", true)
+          .maybeSingle(),
+        supabase.from("quote_questions").select("id, label").eq("form_id", formId).eq("organization_id", orgId),
+        supabase
+          .from("quote_options")
+          .select("question_id, label, price_modifier, modifier_type")
+          .eq("organization_id", orgId),
+        supabase.from("quote_addons").select("label, price").eq("form_id", formId),
+      ]);
+      if (!form.data) throw new Error("That quote form is no longer available.");
+      const { recomputeQuote } = await import("@/lib/quote-estimate");
+      const questionIds = new Set((questions.data ?? []).map((row) => row.id as string));
+      const verified = recomputeQuote({
+        form: form.data as never,
+        questions: (questions.data ?? []) as never,
+        options: ((options.data ?? []) as { question_id: string }[]).filter((row) => questionIds.has(row.question_id)) as never,
+        addons: (addons.data ?? []) as never,
+        answers: (data.quote.answers ?? []).map((answer) => ({
+          question: String(answer.question ?? ""),
+          answer: String(answer.answer ?? ""),
+        })),
+      });
+      data.quote = { formId, answers: verified.answers, min: verified.min, max: verified.max };
+      data.estimatedValue = Math.round((verified.min + verified.max) / 2);
+    } else if (data.kind !== "booking") {
+      // Only a server-computed quote may carry a value into the CRM.
+      data.estimatedValue = 0;
+    }
+    if (data.booking) {
+      if (!data.serviceId) throw new Error("Choose a service to book.");
+      const { data: service } = await supabase
+        .from("services")
+        .select("id, price, starting_price")
+        .eq("id", data.serviceId)
+        .eq("organization_id", orgId)
+        .eq("is_active", true)
+        .eq("bookable", true)
+        .maybeSingle();
+      if (!service) throw new Error("That service can't be booked online. Please contact the business.");
+      data.estimatedValue = Number(service.price ?? service.starting_price ?? 0) || 0;
     }
 
     // Origin event for the CRM timeline: every public submission is visible as

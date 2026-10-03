@@ -229,18 +229,56 @@ PLAIN LANGUAGE, NO REVORA TERMS
 - Ask at most ONE question, only when a fact you cannot know is the only thing
   blocking the work. Otherwise proceed and record assumptions in "notes".`;
 
+/** Planner context budget, kept well under the router's request ceiling. */
+export const SITE_MAP_BUDGET = 240_000;
+
+/**
+ * The site as the planner sees it. Every section's full layout tree used to be
+ * sent on every request, which pushed well-developed sites past the request
+ * size limit ("request too long") so planning failed on exactly the most built
+ * out websites. When the map is over budget, the largest layout trees are
+ * replaced by a short outline (label + text) — ids, kinds and wording stay
+ * intact, so the planner can still target and rewrite every section.
+ */
 export function siteMap(context: AgentContext) {
-  return JSON.stringify(
-    {
-      business: context.business,
-      allowedSectionKinds: context.sectionKinds,
-      allowedPageKinds: context.pageKinds,
-      allowedComponentKinds: context.componentKinds,
-      pages: context.pages,
-    },
-    null,
-    1,
-  );
+  const render = (pages: unknown) =>
+    JSON.stringify(
+      {
+        business: context.business,
+        allowedSectionKinds: context.sectionKinds,
+        allowedPageKinds: context.pageKinds,
+        allowedComponentKinds: context.componentKinds,
+        pages,
+      },
+      null,
+      1,
+    );
+  const full = render(context.pages);
+  if (full.length <= SITE_MAP_BUDGET) return full;
+
+  const outline = (settings: unknown): unknown => {
+    if (!settings || typeof settings !== "object") return settings;
+    const record = settings as Record<string, unknown>;
+    const tree = record["composition"] as { label?: unknown; root?: unknown } | undefined;
+    if (!tree || typeof tree !== "object") return settings;
+    const texts: string[] = [];
+    const walk = (node: unknown) => {
+      if (!node || typeof node !== "object" || texts.length >= 12) return;
+      const n = node as { text?: unknown; children?: unknown[] };
+      if (typeof n.text === "string" && n.text.trim()) texts.push(n.text.trim().slice(0, 140));
+      (n.children ?? []).forEach(walk);
+    };
+    walk(tree.root);
+    return {
+      ...record,
+      composition: { outlineOnly: true, label: tree.label ?? null, text: texts },
+    };
+  };
+  const slim = (context.pages as unknown as { sections?: { settings?: unknown }[] }[]).map((page) => ({
+    ...page,
+    sections: (page.sections ?? []).map((section) => ({ ...section, settings: outline(section.settings) })),
+  }));
+  return render(slim);
 }
 
 type ContentPart = AiPart;

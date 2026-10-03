@@ -16,7 +16,6 @@ import { writeSectionEffect } from "@/lib/site-effects";
 import { writeComponentVisual } from "@/lib/site-style";
 import type { FirstBuildImageAsset } from "@/lib/builder/first-build-images.server";
 import type { CreativeBrief } from "@/lib/builder/first-build-contract";
-import { slugify } from "@/lib/format";
 import {
   applyDesignContract,
   type AiDesignContract,
@@ -27,7 +26,7 @@ import {
   requireAiDesignContract,
   type PageArchitecture,
 } from "@/lib/builder/creative-authority";
-import { assertMediaIntegrity } from "@/lib/builder/media-integrity";
+import { adaptMissingMedia, assertMediaIntegrity } from "@/lib/builder/media-integrity";
 
 type Db = SupabaseClient;
 
@@ -258,9 +257,13 @@ export async function materializeSiteContent(
     .from("website_pages")
     .select("id", { count: "exact", head: true })
     .eq("organization_id", orgId);
-  if ((count ?? 0) > 0) {
-    if (!input.replaceExisting)
-      return { pages: 0, sections: 0, components: 0, skipped: true, designContract: null };
+  if ((count ?? 0) > 0 && !input.replaceExisting)
+    return { pages: 0, sections: 0, components: 0, skipped: true, designContract: null };
+  // A fresh rebuild clears the old site only AFTER the AI architect, design
+  // contract and media checks below have all succeeded (see clearExisting),
+  // so a failure in any of them leaves the customer's current site untouched.
+  const clearExisting = async () => {
+    if (!((count ?? 0) > 0 && input.replaceExisting)) return;
     const { error: componentDeleteError } = await db.from("website_components").delete().eq("organization_id", orgId);
     if (componentDeleteError)
       throw new Error(`Couldn't clear old components before rebuilding: ${componentDeleteError.message}`);
@@ -270,7 +273,7 @@ export async function materializeSiteContent(
     const { error: pageDeleteError } = await db.from("website_pages").delete().eq("organization_id", orgId);
     if (pageDeleteError)
       throw new Error(`Couldn't clear old pages before rebuilding: ${pageDeleteError.message}`);
-  }
+  };
 
   // The renderer produces safe building blocks; the AI design decides the site.
   // The contract OVERRIDES the renderer's page set and section order, and any
@@ -478,7 +481,12 @@ export async function materializeSiteContent(
             kind: "card",
             label: service.name,
             body: clean(input.copy.serviceCards.find((card) => card.name === service.name)?.copy) ?? clean(service.description),
-            link_url: `/services/${slugify(service.name)}`,
+            // No per-service page is ever created, so a /services/<name> link
+            // was a dead end. Point at the real services page when the plan
+            // has one, otherwise at the enquiry path.
+            link_url: architecture.some((candidate) => candidate.slug === "services")
+              ? "/services"
+              : primaryTarget,
             media_url: asset?.path ?? null,
             settings: asset ? mediaSettings(asset) : null,
           });
@@ -510,10 +518,21 @@ export async function materializeSiteContent(
   }
   if (designContract) {
     const applied = applyDesignContract(tree as unknown as MaterialPage[], designContract);
-    assertMediaIntegrity(applied.pages, designContract);
-    tree = applied.pages as unknown as typeof tree;
+    // A blocked or rejected picture used to fail the entire first build with
+    // "empty picture box". The affected sections are now redesigned text-led
+    // (no placeholder is ever written), and only broken references still stop.
+    const adapted = adaptMissingMedia(applied.pages, designContract);
+    if (adapted.adapted.length)
+      console.warn(
+        `[site-materialize] ${adapted.adapted.length} section(s) built without a picture for ${orgId}: ` +
+          adapted.adapted.map((entry) => `${entry.page}/${entry.section}`).join(", "),
+      );
+    designContract = adapted.contract;
+    assertMediaIntegrity(adapted.pages, designContract);
+    tree = adapted.pages as unknown as typeof tree;
   }
   if (authoredArchitecture) tree = applyAuthoredHeadings(tree, authoredArchitecture);
+  await clearExisting();
   let sections = 0;
   let components = 0;
 

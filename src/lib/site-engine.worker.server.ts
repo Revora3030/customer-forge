@@ -171,6 +171,40 @@ export class StaleAttemptError extends Error {
   }
 }
 
+/**
+ * Keeps a claimed job's lease alive while it runs. Renews every third of the
+ * lease, fenced on the attempt number so a superseded attempt never extends a
+ * lease it no longer owns.
+ */
+export function startLeaseHeartbeat(
+  db: Db,
+  job: { id: string; attempts: number },
+  intervalMs = Math.floor((LEASE_SECONDS * 1000) / 3),
+): { stop: () => void } {
+  let stopped = false;
+  const timer = setInterval(() => {
+    if (stopped) return;
+    void Promise.resolve(
+      db
+        .from("generation_jobs")
+        .update({
+          lease_expires_at: new Date(Date.now() + LEASE_SECONDS * 1000).toISOString(),
+          updated_at: new Date().toISOString(),
+        } as never)
+        .eq("id", job.id)
+        .eq("attempts", job.attempts)
+        .eq("status", "processing"),
+    ).catch(() => undefined);
+  }, intervalMs);
+  (timer as { unref?: () => void }).unref?.();
+  return {
+    stop: () => {
+      stopped = true;
+      clearInterval(timer);
+    },
+  };
+}
+
 /** Claims one runnable job with a lease. Returns null when there is nothing to do. */
 async function claimJob(db: Db, organizationId?: string) {
   const now = new Date();
@@ -1068,6 +1102,20 @@ async function runJob(
 
   const keepState = await nextPublishState(db, orgId);
 
+  // Re-read generation right before the final save. Stages above (the AI
+  // header/footer, the build marker) wrote into it after `priorGeneration`
+  // was read; merging from the stale copy erased the authored menu and footer.
+  const latestSettings = await db
+    .from("website_settings")
+    .select("generation")
+    .eq("organization_id", orgId)
+    .maybeSingle();
+  const latestGeneration = (latestSettings.data?.generation ?? priorGeneration) as Record<string, unknown>;
+  const { buildState: _buildState, buildStartedAt: _buildStartedAt, ...settledGeneration } =
+    withoutPendingBuild(latestGeneration);
+  void _buildState;
+  void _buildStartedAt;
+
   const { error: saveError } = await db.from("website_settings").upsert(
     {
       organization_id: orgId,
@@ -1075,7 +1123,7 @@ async function runJob(
       // creative path reads this value; the authored composition is above.
       template: "ai-authored",
       generation: {
-        ...withoutPendingBuild(priorGeneration),
+        ...settledGeneration,
         copy,
         brief,
         report: {
@@ -1209,11 +1257,19 @@ export async function drainSiteEngineQueue(
         idle: processed + failed === 0,
       };
 
+    // Lease heartbeat: a build spends minutes inside single stages (pictures,
+    // page writing, AI layout). Renewing only between stages let the lease
+    // expire mid-stage, so the client pump claimed the same job again and two
+    // attempts wrote the site at once. The heartbeat keeps the lease alive for
+    // the whole run and stops renewing once the attempt fence no longer holds.
+    const heartbeat = startLeaseHeartbeat(db, job);
     try {
       await runJob(db, job);
+      heartbeat.stop();
       processed += 1;
       if (state.paused || state.consecutive_rate_limits > 0) await resumeQueue(db);
     } catch (error) {
+      heartbeat.stop();
       // A superseded attempt must not requeue, fail or restore anything —
       // the newer attempt owns the job and the site now.
       if (error instanceof StaleAttemptError) continue;
@@ -1251,7 +1307,11 @@ export async function drainSiteEngineQueue(
 
       if (status === 429) {
         failed += 1;
-        const rl = state.consecutive_rate_limits + 1;
+        // A workspace's own concurrency ceiling ("already working on this
+        // workspace's requests") is local busy-ness, not a provider rate limit.
+        // It must not count towards pausing the queue for every customer.
+        const localBusy = /already working on this workspace/i.test(message);
+        const rl = localBusy ? state.consecutive_rate_limits : state.consecutive_rate_limits + 1;
         await writeQueueState(db, { consecutive_rate_limits: rl, last_error: message });
         if (rl >= RATE_LIMIT_TRIP) await pauseQueue(db, "rate_limit", message);
         // leave the job retryable — the lease expires and a later run picks it up

@@ -115,22 +115,34 @@ function resolveCompositionMediaRefs(tree: CompositionTree, refs: ReadonlyMap<st
 }
 
 async function loadSite(supabase: SupabaseLike, orgId: string): Promise<LoadedSite> {
+  // Paged: a large site has more than the 1,000 rows one request returns.
+  const { readAll } = await import("@/lib/db/read-all");
+  const db = supabase as unknown as { from: (t: string) => any }; // eslint-disable-line @typescript-eslint/no-explicit-any
   const [pages, sections, components] = await Promise.all([
-    supabase
-      .from("website_pages")
-      .select("id, slug, title, kind, sort_order, is_visible, noindex, seo_title, seo_description")
-      .eq("organization_id", orgId)
-      .order("sort_order"),
-    supabase
-      .from("website_sections")
-      .select("id, page_id, kind, variant, heading, subheading, body, settings, sort_order, is_visible")
-      .eq("organization_id", orgId)
-      .order("sort_order"),
-    supabase
-      .from("website_components")
-      .select("id, section_id, kind, label, body, link_label, link_url, media_url, settings, sort_order, is_visible")
-      .eq("organization_id", orgId)
-      .order("sort_order"),
+    readAll(() =>
+      db
+        .from("website_pages")
+        .select("id, slug, title, kind, sort_order, is_visible, noindex, seo_title, seo_description")
+        .eq("organization_id", orgId)
+        .order("sort_order")
+        .order("id"),
+    ),
+    readAll(() =>
+      db
+        .from("website_sections")
+        .select("id, page_id, kind, variant, heading, subheading, body, settings, sort_order, is_visible")
+        .eq("organization_id", orgId)
+        .order("sort_order")
+        .order("id"),
+    ),
+    readAll(() =>
+      db
+        .from("website_components")
+        .select("id, section_id, kind, label, body, link_label, link_url, media_url, settings, sort_order, is_visible")
+        .eq("organization_id", orgId)
+        .order("sort_order")
+        .order("id"),
+    ),
   ]);
   if (pages.error) throw new Error("You don't have access to that workspace.");
   if (sections.error || components.error) {
@@ -254,9 +266,31 @@ type PlanInput = {
 };
 
 
+/**
+ * Server-side gates for the AI builder. The first build already checked the
+ * paywall; edits did not, so an expired or unpaid workspace could keep using
+ * paid AI planning, picture generation and writes. Edits also need manager:
+ * the database only lets a manager or above add or remove sections, buttons
+ * and pages, so a staff plan that added anything failed half-way and rolled
+ * back the whole change.
+ */
+async function assertBuilderAccess(supabase: SupabaseLike, userId: string, orgId: string) {
+  const { assertOrgEntitled } = await import("@/lib/entitlement.server");
+  await assertOrgEntitled(supabase as never, orgId);
+  const { orgRole, roleAtLeast } = await import("@/lib/org-authz.server");
+  const role = await orgRole(supabase as never, orgId, userId);
+  if (!roleAtLeast(role, "manager"))
+    throw new Error(
+      role === "staff"
+        ? "Website changes need a manager, admin or owner. Ask one of them to make this change."
+        : "You don't have permission to do that in this workspace.",
+    );
+}
+
 async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput) {
   {
     const orgId = data.organizationId;
+    await assertBuilderAccess(supabase, userId, orgId);
 
     // Visible progress for the owner. Cosmetic only — a failed write here can
     // never affect the build.
@@ -427,7 +461,18 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
     // instead of turning it into a failed task. The first-build worker remains
     // the only writer and the owner can retry the requested change once its
     // pages arrive.
-    if (!agentContext.pages.length) {
+    // Pages are written early in a first build, before section wording, AI
+    // layouts and the header/footer finish. An edit planned in that window was
+    // overwritten by the later stages, so wait for the whole build, not just
+    // for the first pages to appear.
+    const { data: activeBuild } = await supabase
+      .from("generation_jobs")
+      .select("id")
+      .eq("organization_id", orgId)
+      .in("status", ["queued", "processing"])
+      .limit(1)
+      .maybeSingle();
+    if (!agentContext.pages.length || activeBuild) {
       const reply =
         "Got it — your AI team is finishing the first website now. I’ve saved this change and will apply it automatically as soon as the pages appear.";
       return {
@@ -712,6 +757,7 @@ const ANY_ID = { has: () => true } as unknown as Set<string>;
 async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInput) {
   {
     const orgId = data.organizationId;
+    await assertBuilderAccess(supabase, userId, orgId);
     const { noteStage: noteApplyStage } = await import("@/lib/builder/progress.server");
     const applyRunId = data.operationKey?.split(":")[0] || crypto.randomUUID();
     noteApplyStage(orgId, applyRunId, "checking the plan is safe");
@@ -1023,6 +1069,19 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
           ...resolved,
           componentId: newComponents.get(resolved.componentId)!,
         } as AgentAction;
+      // Styling steps address their block through `targetId`, not
+      // `sectionId`/`componentId`. A plan that creates a section or button and
+      // then styles it in the same run must have that temporary reference
+      // swapped for the real id too — otherwise the update is sent with
+      // "temp_*" as the id, the database rejects it, and the whole batch is
+      // rolled back.
+      if (resolved.type === "set_block_style") {
+        const real =
+          resolved.target === "section"
+            ? newSections.get(resolved.targetId)
+            : newComponents.get(resolved.targetId);
+        if (real) resolved = { ...resolved, targetId: real };
+      }
       const action = resolved;
 
       if (action.type === "reorder_sections") {
@@ -1055,6 +1114,16 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
       // rather than written against a made-up id.
       if ("pageId" in action && !UUID_ID.test(action.pageId)) {
         failed.push(`${action.type}:unresolved_page`);
+        continue;
+      }
+      // Same for components and styling targets: never write against a
+      // made-up id, because one rejected write reverses the entire batch.
+      if ("componentId" in action && !UUID_ID.test(action.componentId)) {
+        failed.push(`${action.type}:unresolved_component`);
+        continue;
+      }
+      if (action.type === "set_block_style" && !UUID_ID.test(action.targetId)) {
+        failed.push(`${action.type}:unresolved_${action.target}`);
         continue;
       }
       try {
@@ -1194,11 +1263,12 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
               undoSteps.push({
                 label: "add_section:remove",
                 run: async () => {
-                  await supabase
+                  const { error } = await supabase
                     .from("website_sections")
                     .delete()
                     .eq("id", id)
                     .eq("organization_id", orgId);
+                  if (error) throw error;
                 },
               });
             }
@@ -1385,7 +1455,15 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
               .eq("id", action.componentId)
               .eq("organization_id", orgId),
           );
-          if (!fatal) generatedImages.push({ componentId: action.componentId, alt: action.alt });
+          if (failed.at(-1) === action.type) {
+            // Picture saved but never attached: remove the orphaned file and
+            // media row now instead of leaving them in storage.
+            await supabase.storage.from(MEDIA_BUCKET).remove([path]).catch(() => undefined);
+            if (mediaId)
+              await Promise.resolve(
+                supabase.from("media").delete().eq("id", mediaId).eq("organization_id", orgId),
+              ).catch(() => undefined);
+          } else if (!fatal) generatedImages.push({ componentId: action.componentId, alt: action.alt });
           break;
         }
         case "add_component":
@@ -1416,11 +1494,12 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
             undoSteps.push({
               label: "add_component:remove",
               run: async () => {
-                await supabase
+                const { error } = await supabase
                   .from("website_components")
                   .delete()
                   .eq("id", id)
                   .eq("organization_id", orgId);
+                if (error) throw error;
               },
             });
             return null;
@@ -1456,11 +1535,12 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
               undoSteps.push({
                 label: "add_page:remove",
                 run: async () => {
-                  await supabase
+                  const { error } = await supabase
                     .from("website_pages")
                     .delete()
                     .eq("id", id)
                     .eq("organization_id", orgId);
+                  if (error) throw error;
                 },
               });
             }

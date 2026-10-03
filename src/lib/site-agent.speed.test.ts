@@ -45,6 +45,8 @@ function fakeClient(tables: Record<string, Row[]>) {
           return chain;
         },
         gte: () => chain,
+        order: () => chain,
+        range: () => result(),
         maybeSingle: async () => {
           const { data } = await result();
           return { data: data[0] ?? null, error: null };
@@ -154,6 +156,14 @@ describe("large build speed: undo capture round trips", () => {
       const actual = captureUndoFrom(batched.client, ORG, action, snapshot);
       expect(actual.map((step) => step.label)).toEqual(expected.map((step) => step.label));
     }
+  });
+
+  it("never records a broad 'delete everything created since' step for inserts", async () => {
+    const { client } = fakeClient({ website_sections: [] });
+    const action: AgentAction = { type: "add_section", pageId: "page-1", kind: "features" };
+    const snapshot = await loadUndoSnapshot(client, ORG, [action]);
+    // The writer records a targeted undo for the exact new row instead.
+    expect(captureUndoFrom(client, ORG, action, snapshot)).toEqual([]);
   });
 
   it("records nothing for a row created earlier in the same batch", async () => {
