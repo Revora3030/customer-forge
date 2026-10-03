@@ -51,12 +51,13 @@ export const monitorCertificate = createServerFn({ method: "POST" })
     const { checkDomain } = await import("@/lib/admin.server");
     const { data: settings, error } = await context.supabase
       .from("website_settings")
-      .select("custom_domain, ssl_last_ok_at, ssl_issued_at")
+      .select("custom_domain, ssl_last_ok_at, ssl_issued_at, ssl_ok")
       .eq("organization_id", data.organizationId)
       .maybeSingle();
     if (error || !settings) throw new Error("You don't have access to that workspace.");
     if (!settings.custom_domain)
       return { domain: null, sslOk: false, detail: "No custom domain connected yet." };
+    const wasOk = (settings as { ssl_ok?: boolean | null }).ssl_ok === true;
 
     const check = await checkDomain(settings.custom_domain);
     const now = new Date().toISOString();
@@ -75,13 +76,15 @@ export const monitorCertificate = createServerFn({ method: "POST" })
       patch["ssl_last_ok_at"] = now;
       if (!settings.ssl_issued_at) patch["ssl_issued_at"] = now;
     }
-    await context.supabase
+    const { error: saveError } = await context.supabase
       .from("website_settings")
       .update(patch as never)
       .eq("organization_id", data.organizationId);
+    if (saveError) console.error("[domain] certificate check could not be saved", saveError.message);
 
-    // A certificate that used to answer and now doesn't is worth interrupting for.
-    if (!check.sslOk && settings.ssl_last_ok_at) {
+    // A certificate that used to answer and now doesn't is worth interrupting
+    // for — once, when it changes, not again on every later check.
+    if (!check.sslOk && settings.ssl_last_ok_at && wasOk) {
       await context.supabase.from("notifications").insert({
         organization_id: data.organizationId,
         title: "Secure connection stopped answering",
