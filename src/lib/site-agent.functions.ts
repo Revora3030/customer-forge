@@ -1504,6 +1504,8 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
               file_name: `ai-${action.componentId}.${extension}`,
               size_bytes: bytes.byteLength,
               alt_text: action.alt,
+              // Marked as AI so a rebuild never mistakes it for an owner photo.
+              source: "generated",
             } as never)
             .select("id")
             .maybeSingle();
