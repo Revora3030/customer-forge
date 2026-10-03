@@ -162,7 +162,7 @@ export function SitePageView({
             business name stays readable on pale and dark themes alike rather
             than inheriting whatever colour the section below it chose. */}
         {chrome.header ? (
-          <AiSiteHeader tree={chrome.header} name={org.name} homeHref={chromeHref("/")} resolveHref={chromeHref} surface={profile?.secondary_color ?? null} />
+          <AiSiteHeader tree={chrome.header} name={org.name} homeHref={chromeHref("/")} resolveHref={chromeHref} surface={profile?.secondary_color ?? null} logoUrl={profile?.logo_url ?? null} />
         ) : null}
 
         {/* Tablet and phone overrides the client set in the visual builder. */}
