@@ -12,6 +12,7 @@ import {
 import { validateComposition, type CompositionTree } from "@/lib/builder/composition-tree";
 import { normalizeAspect } from "@/lib/builder/composition-tree";
 import { safeLinkUrl } from "@/lib/website-content";
+import { isRenderableSectionKind } from "@/lib/builder/renderable-sections";
 import { siteBodyFont, siteHeadingFont } from "@/lib/site-theme";
 import { describeCustomBlock, parseCustomBlock, type CustomBlockSpec } from "@/lib/builder/custom-block";
 import {
@@ -150,7 +151,9 @@ export const MULTIMODAL_TEMPLATES: {
  * read and installed in full; the installer batches them so each batch stays
  * reversible in one atomic rollback. No design work is truncated in practice.
  */
-export const MAX_ACTIONS = 5000;
+// 400 covers a full multi-page redesign; 5,000 let a runaway answer produce a
+// plan so large it timed out and was very likely to fail and roll back.
+export const MAX_ACTIONS = 400;
 
 
 export type AgentField = "heading" | "subheading" | "body";
@@ -269,6 +272,27 @@ export const BUSINESS_FACT_FIELDS = [
 
 export type BusinessFactField =
   (typeof BUSINESS_FACT_FIELDS)[number];
+
+/** Validates a business fact before it can overwrite the owner's profile. */
+export function cleanBusinessFact(field: BusinessFactField, value: string): string | null {
+  const v = value.trim();
+  if (!v) return null;
+  if (field === "email") return /^[^\s@<>"]+@[^\s@<>"]+\.[a-z]{2,}$/i.test(v) ? v : null;
+  if (field === "phone") {
+    const digits = v.replace(/\D/g, "");
+    return /^[+\d\s().-]{7,25}$/.test(v) && digits.length >= 7 && digits.length <= 15 ? v : null;
+  }
+  if (field === "website" || field === "review_link") {
+    try {
+      const url = new URL(/^https?:\/\//i.test(v) ? v : `https://${v}`);
+      return url.protocol === "https:" || url.protocol === "http:" ? url.toString() : null;
+    } catch {
+      return null;
+    }
+  }
+  return v;
+}
+
 
 /* -------------------------------------------------------------------------- */
 /* ACTION CONTRACT                                                            */
@@ -1062,10 +1086,14 @@ export function readActions(
           break;
         }
 
+        // Number(null) and Number("") are 0, which silently put a new section
+        // above the hero. Only a real number is a requested position.
+        const rawPosition = row["position"];
         const position =
-          Number(
-            row["position"],
-          );
+          typeof rawPosition === "number" ||
+          (typeof rawPosition === "string" && rawPosition.trim() !== "")
+            ? Number(rawPosition)
+            : Number.NaN;
 
         const sectionRef =
           text(
@@ -1877,10 +1905,18 @@ export function readActions(
           break;
         }
 
+        // Contact details and links are written to the owner's real profile;
+        // a planning mistake must not replace them with junk.
+        const factValue = cleanBusinessFact(field, value2);
+        if (factValue === null) {
+          note(`The new ${field.replace(/_/g, " ")} didn't look valid, so it was left unchanged.`);
+          break;
+        }
+
         out.push({
           type,
           field,
-          value: value2,
+          value: factValue,
         });
 
         break;
@@ -1899,7 +1935,42 @@ export function readActions(
 
   }
 
-  return out;
+  // A new section whose kind the public renderer cannot draw is invisible
+  // unless this same plan gives it a layout (composition or custom block).
+  // Such a section used to be written, then the live check reported it as
+  // critical and reversed the whole change. Keep it only when it will show.
+  const laidOut = new Set(
+    out
+      .filter((action) => action.type === "set_composition" || action.type === "set_custom_block")
+      .map((action) => (action as { sectionId: string }).sectionId),
+  );
+  const drawable = out.filter((action) => {
+    if (action.type !== "add_section") return true;
+    if (isRenderableSectionKind(action.kind)) return true;
+    if (action.ref && laidOut.has(action.ref)) return true;
+    note(
+      `A new "${action.kind.replace(/_/g, " ")}" section had no layout, so visitors would not have seen it; it was left out.`,
+    );
+    return false;
+  });
+  // Steps that depended on a left-out section cannot run either.
+  const keptRefs = new Set(
+    drawable.filter((action) => action.type === "add_section").map((action) => (action as { ref?: string }).ref),
+  );
+  const removedRefs = new Set(
+    out
+      .filter((action) => action.type === "add_section" && !drawable.includes(action))
+      .map((action) => (action as { ref?: string }).ref)
+      .filter((ref): ref is string => Boolean(ref) && !keptRefs.has(ref)),
+  );
+  if (!removedRefs.size) return drawable;
+  return drawable.filter((action) => {
+    const row = action as unknown as Record<string, unknown>;
+    const target = typeof row["sectionId"] === "string" ? row["sectionId"] : action.type === "set_block_style" && action.target === "section" ? action.targetId : "";
+    if (removedRefs.has(target)) return false;
+    if (action.type === "reorder_sections" && action.sectionIds.some((id) => removedRefs.has(id))) return false;
+    return true;
+  });
 }
 
 /* -------------------------------------------------------------------------- */
