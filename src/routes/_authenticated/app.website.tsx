@@ -52,7 +52,7 @@ import { ImageStudio } from "@/components/app/ImageStudio";
 import { readBackdrop } from "@/lib/site-effects";
 import { BuilderAudit } from "@/components/app/BuilderAudit";
 import { BuilderPreview, type PreviewSelection } from "@/components/app/BuilderPreview";
-import { Eye, History, Menu, Settings2 } from "lucide-react";
+import { Eye, History, Menu, MessageSquare, Settings2 } from "lucide-react";
 import { PreFlightPanel } from "@/components/app/PreFlight";
 import { preflight } from "@/lib/preflight";
 import { usePreflightFacts } from "@/lib/preflight.hooks";
@@ -462,36 +462,52 @@ function WebsitePage() {
   /** Chat is the workspace. Preview stays beside it on desktop and one tap away on mobile. */
   const workspace = (
     <div className="min-w-0">
-      <div className="mb-1 flex items-center justify-center gap-1 lg:hidden" role="tablist" aria-label="Builder view">
-        <Button size="sm" variant={!previewOpen ? "secondary" : "ghost"} role="tab" aria-selected={!previewOpen} onClick={() => setPreviewOpen(false)}>
-          Chat
-        </Button>
-        {!firstRun ? (
-          <Button size="sm" variant={previewOpen ? "secondary" : "ghost"} role="tab" aria-selected={previewOpen} onClick={() => setPreviewOpen(true)}>
-            <Eye className="size-4" aria-hidden /> Preview
-          </Button>
-        ) : null}
-      </div>
+      {!firstRun ? (
+        <div className="mb-2 flex justify-center lg:hidden">
+          <div className="inline-flex rounded-full border border-border/70 bg-muted/40 p-0.5" role="tablist" aria-label="Builder view">
+            {([
+              [false, "Chat", MessageSquare],
+              [true, "Preview", Eye],
+            ] as const).map(([isPreview, label, Icon]) => (
+              <button
+                key={label}
+                type="button"
+                role="tab"
+                aria-selected={previewOpen === isPreview}
+                onClick={() => setPreviewOpen(isPreview)}
+                className={
+                  "inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-full px-4 text-[13px] font-medium transition-all focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none " +
+                  (previewOpen === isPreview ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground")
+                }
+              >
+                <Icon className="size-3.5" aria-hidden /> {label}
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : null}
       <div className="grid min-w-0 gap-3 lg:grid-cols-[minmax(340px,430px)_minmax(0,1fr)]">
         <div className={previewOpen ? "hidden lg:block" : "min-w-0 lg:sticky lg:top-20 lg:self-start"}>
-          <VisualCheckPanel
-            compact
-            organizationId={orgId}
-            slug={org?.slug}
-            publishState={publishState}
-            canManage={manage}
-            changeKey={(() => {
-              const done = requests.tasks.filter((t) => t.state === "complete" && (t.applied ?? 0) > 0);
-              const last = done[done.length - 1];
-              return last ? `${last.id}:${done.length}` : null;
-            })()}
-            revertVersion={(() => {
-              const done = requests.tasks.filter((t) => t.state === "complete" && (t.applied ?? 0) > 0);
-              return done[done.length - 1]?.snapshotVersion ?? null;
-            })()}
-          />
           <BuilderAssistant
             compact
+            banner={
+              <VisualCheckPanel
+              compact
+              organizationId={orgId}
+              slug={org?.slug}
+              publishState={publishState}
+              canManage={manage}
+              changeKey={(() => {
+                const done = requests.tasks.filter((t) => t.state === "complete" && (t.applied ?? 0) > 0);
+                const last = done[done.length - 1];
+                return last ? `${last.id}:${done.length}` : null;
+              })()}
+              revertVersion={(() => {
+                const done = requests.tasks.filter((t) => t.state === "complete" && (t.applied ?? 0) > 0);
+                return done[done.length - 1]?.snapshotVersion ?? null;
+              })()}
+            />
+            }
             selection={selected}
             onClearSelection={() => setSelected(null)}
             onOpenHistory={() => setHistoryOpen(true)}
@@ -551,7 +567,7 @@ function WebsitePage() {
 
             businessName={org?.name ?? null}
             emptyTitle={firstRun ? "Describe your business" : "What would you like to change?"}
-            emptyHint={firstRun ? "Tell me what you do and who you serve. I’ll build the complete website with you." : "Keep talking to me naturally. I’ll keep the context as we work through this website together."}
+            emptyHint={firstRun ? "Tell me what you do, who you help and where you work. I’ll ask for anything I need, then design every page — no made-up details." : "Ask for any change in plain words — a new section, different photos, a fresh look. I keep the context of everything we’ve done."}
           />
         </div>
         {!firstRun && org?.slug && (previewOpen || isWide) ? (
@@ -577,7 +593,7 @@ function WebsitePage() {
     <>
       <BuilderHistoryProvider organizationId={orgId}>
         <BuilderShell
-          projectName={org?.name ? `${org.name} · website` : "Your website"}
+          projectName={org?.name ?? "Your website"}
           statusLabel={
             publishState === "published"
               ? "Live"
