@@ -87,6 +87,63 @@ export type SiteSection = {
   components?: SiteComponent[];
 };
 
+/** Marker on production snapshots that can be served to visitors as-is. */
+export const LIVE_SNAPSHOT_FORMAT = 1;
+
+type LiveRow = Record<string, unknown>;
+export type LiveSnapshot = {
+  versionId: string;
+  version: number;
+  publishedAt: string | null;
+  settingsPages: unknown;
+  seo: unknown;
+  generation: unknown;
+  pages: (LiveRow & { sections: (LiveRow & { components: LiveRow[] })[] })[];
+};
+
+/**
+ * The last version the owner actually published. Visitors are served this
+ * copy, so builder and AI edits stay in the draft until the owner presses
+ * Publish. Sites published before live snapshots existed have none and keep
+ * the previous behaviour (served from the working tree) until their next
+ * publish, so no live site is ever rolled back to an old copy.
+ */
+export async function loadLiveSnapshot(orgId: string): Promise<LiveSnapshot | null> {
+  try {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data, error } = await supabaseAdmin
+      .from("website_versions")
+      .select("id, version, pages, seo, generation, published_at")
+      .eq("organization_id", orgId)
+      .eq("pages->>live_format", String(LIVE_SNAPSHOT_FORMAT))
+      .not("published_at", "is", null)
+      .order("version", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (error || !data) return null;
+    const body = (data.pages ?? {}) as Record<string, unknown>;
+    if (body["live_format"] !== LIVE_SNAPSHOT_FORMAT || !Array.isArray(body["pages"])) return null;
+    return {
+      versionId: String(data.id),
+      version: Number(data.version),
+      publishedAt: (data.published_at as string | null) ?? null,
+      settingsPages: body["settings_pages"] ?? null,
+      seo: data.seo,
+      generation: data.generation,
+      pages: body["pages"] as LiveSnapshot["pages"],
+    };
+  } catch (error) {
+    console.error("[public-site] live snapshot could not be read", {
+      organizationId: orgId,
+      message: error instanceof Error ? error.message : String(error),
+    });
+    return null;
+  }
+}
+
+const bySortOrder = (a: LiveRow, b: LiveRow) => Number(a["sort_order"] ?? 0) - Number(b["sort_order"] ?? 0);
+const visible = (row: LiveRow) => row["is_visible"] !== false;
+
 /**
  * Reads everything a business website renders. `allowUnpublished` is only ever
  * true behind an authorised, unexpired preview token.
@@ -129,6 +186,8 @@ export async function loadSite(
   if (!allowUnpublished) {
     if (!gate || gate.publish_state !== "published") return null;
   }
+  // Visitors see the last published version, never in-progress edits.
+  const live = allowUnpublished ? null : await loadLiveSnapshot(orgId);
 
   const [profile, services, settings, social, reviews, galleryRows, quoteForm] = await Promise.all([
     supabase
@@ -248,62 +307,144 @@ export async function loadSite(
   // Structured content: the builder's page/section tree. Loads the requested
   // page when one is asked for, otherwise the home page, plus the navigation
   // list of every page that is allowed to be shown.
-  const pageColumns =
-    "id, slug, title, kind, seo_title, seo_description, seo_canonical, og_title, og_description, og_image_url, noindex";
-  const pageQuery = supabase.from("website_pages").select(pageColumns).eq("organization_id", orgId);
-  const scopedPage = options?.pageSlug
-    ? pageQuery.eq("slug", options.pageSlug)
-    : pageQuery.eq("kind", "home");
-  const { data: currentPage } = await (allowUnpublished
-    ? scopedPage.maybeSingle()
-    : scopedPage.eq("is_visible", true).maybeSingle());
-
-  const navQuery = supabase
-    .from("website_pages")
-    .select("id, slug, title, kind, noindex, sort_order")
-    .eq("organization_id", orgId);
-  const { data: navRows } = await (allowUnpublished
-    ? navQuery.order("sort_order")
-    : navQuery.eq("is_visible", true).order("sort_order"));
-
-  // Never link the menu to a page that has no visible sections — it would open
-  // a blank page for a visitor.
-  const sectionCountQuery = supabase
-    .from("website_sections")
-    .select("page_id")
-    .eq("organization_id", orgId);
-  const { data: navSectionRows } = await (allowUnpublished
-    ? sectionCountQuery
-    : sectionCountQuery.eq("is_visible", true));
-  const populatedPages = new Set((navSectionRows ?? []).map((row) => row.page_id as string));
-
+  type CurrentPage = {
+    id: string;
+    slug: string;
+    title: string;
+    kind: string;
+    seo_title: string | null;
+    seo_description: string | null;
+    seo_canonical: string | null;
+    og_title: string | null;
+    og_description: string | null;
+    og_image_url: string | null;
+    noindex: boolean;
+  };
+  type NavRow = { id: string; slug: string; title: string; kind: string; noindex: boolean; sort_order: number };
+  let currentPage: CurrentPage | null = null;
+  let navRows: NavRow[] | null = null;
+  let populatedPages = new Set<string>();
   let sections: SiteSection[] = [];
-  if (currentPage?.id) {
-    const query = supabase
-      .from("website_sections")
-      .select("id, kind, variant, heading, subheading, body, settings, sort_order")
-      .eq("organization_id", orgId)
-      .eq("page_id", currentPage.id);
-    const { data: rows } = await (allowUnpublished
-      ? query.order("sort_order")
-      : query.eq("is_visible", true).order("sort_order"));
-    sections = (rows ?? []) as SiteSection[];
-  }
-
   let componentRows: (Omit<SiteComponent, "url"> & { url?: string | null })[] = [];
-  if (sections.length) {
-    const componentQuery = supabase
-      .from("website_components")
-      .select("id, section_id, kind, label, body, media_url, link_url, link_label, settings, sort_order")
-      .eq("organization_id", orgId)
-      .in(
-        "section_id",
-        sections.map((section) => section.id),
-      );
-    const { data: rows } = await (allowUnpublished
-      ? componentQuery.order("sort_order")
-      : componentQuery.eq("is_visible", true).order("sort_order"));
-    componentRows = (rows ?? []) as typeof componentRows;
+
+  if (live) {
+    const livePages = live.pages.filter(visible).sort(bySortOrder);
+    const target = options?.pageSlug
+      ? livePages.find((page) => page["slug"] === options.pageSlug)
+      : livePages.find((page) => page["kind"] === "home");
+    const text = (value: unknown) => (typeof value === "string" ? value : null);
+    const pick = (page: LiveRow): CurrentPage => ({
+      id: String(page["id"]),
+      slug: String(page["slug"] ?? ""),
+      title: String(page["title"] ?? ""),
+      kind: String(page["kind"] ?? "page"),
+      seo_title: text(page["seo_title"]),
+      seo_description: text(page["seo_description"]),
+      seo_canonical: text(page["seo_canonical"]),
+      og_title: text(page["og_title"]),
+      og_description: text(page["og_description"]),
+      og_image_url: text(page["og_image_url"]),
+      noindex: page["noindex"] === true,
+    });
+    currentPage = target ? pick(target) : null;
+    navRows = livePages.map((page) => ({
+      id: String(page["id"]),
+      slug: String(page["slug"] ?? ""),
+      title: String(page["title"] ?? ""),
+      kind: String(page["kind"] ?? "page"),
+      noindex: page["noindex"] === true,
+      sort_order: Number(page["sort_order"] ?? 0),
+    }));
+    populatedPages = new Set(
+      livePages.filter((page) => (page.sections ?? []).some(visible)).map((page) => String(page["id"])),
+    );
+    const liveSections = (target?.sections ?? []).filter(visible).sort(bySortOrder);
+    sections = liveSections.map((section) => ({
+      id: section["id"],
+      kind: section["kind"],
+      variant: section["variant"],
+      heading: section["heading"] ?? null,
+      subheading: section["subheading"] ?? null,
+      body: section["body"] ?? null,
+      settings: section["settings"] ?? {},
+      sort_order: section["sort_order"] ?? 0,
+    })) as unknown as SiteSection[];
+    componentRows = liveSections.flatMap((section) =>
+      (section.components ?? [])
+        .filter(visible)
+        .sort(bySortOrder)
+        .map((component) => ({
+          id: component["id"],
+          section_id: component["section_id"] ?? section["id"],
+          kind: component["kind"],
+          label: component["label"] ?? null,
+          body: component["body"] ?? null,
+          media_url: component["media_url"] ?? null,
+          link_url: component["link_url"] ?? null,
+          link_label: component["link_label"] ?? null,
+          settings: component["settings"] ?? {},
+          sort_order: component["sort_order"] ?? 0,
+        })),
+    ) as unknown as typeof componentRows;
+  } else {
+    const pageColumns =
+      "id, slug, title, kind, seo_title, seo_description, seo_canonical, og_title, og_description, og_image_url, noindex";
+    const pageQuery = supabase.from("website_pages").select(pageColumns).eq("organization_id", orgId);
+    const scopedPage = options?.pageSlug
+      ? pageQuery.eq("slug", options.pageSlug)
+      : pageQuery.eq("kind", "home");
+    const { data: currentPageRow } = await (allowUnpublished
+      ? scopedPage.maybeSingle()
+      : scopedPage.eq("is_visible", true).maybeSingle());
+
+    const navQuery = supabase
+      .from("website_pages")
+      .select("id, slug, title, kind, noindex, sort_order")
+      .eq("organization_id", orgId);
+    const { data: navRowsData } = await (allowUnpublished
+      ? navQuery.order("sort_order")
+      : navQuery.eq("is_visible", true).order("sort_order"));
+
+    // Never link the menu to a page that has no visible sections — it would open
+    // a blank page for a visitor.
+    const sectionCountQuery = supabase
+      .from("website_sections")
+      .select("page_id")
+      .eq("organization_id", orgId);
+    const { data: navSectionRows } = await (allowUnpublished
+      ? sectionCountQuery
+      : sectionCountQuery.eq("is_visible", true));
+    populatedPages = new Set((navSectionRows ?? []).map((row) => row.page_id as string));
+
+    currentPage = (currentPageRow as CurrentPage | null) ?? null;
+    navRows = (navRowsData as NavRow[] | null) ?? null;
+    if (currentPage?.id) {
+      const query = supabase
+        .from("website_sections")
+        .select("id, kind, variant, heading, subheading, body, settings, sort_order")
+        .eq("organization_id", orgId)
+        .eq("page_id", currentPage.id);
+      const { data: rows } = await (allowUnpublished
+        ? query.order("sort_order")
+        : query.eq("is_visible", true).order("sort_order"));
+      sections = (rows ?? []) as SiteSection[];
+    }
+
+    if (sections.length) {
+      const componentQuery = supabase
+        .from("website_components")
+        .select("id, section_id, kind, label, body, media_url, link_url, link_label, settings, sort_order")
+        .eq("organization_id", orgId)
+        .in(
+          "section_id",
+          sections.map((section) => section.id),
+        );
+      const { data: rows } = await (allowUnpublished
+        ? componentQuery.order("sort_order")
+        : componentQuery.eq("is_visible", true).order("sort_order"));
+      componentRows = (rows ?? []) as typeof componentRows;
+    }
+
   }
 
   const toSign = [
@@ -366,7 +507,17 @@ export async function loadSite(
         }
       : null,
     services: services.data ?? [],
-    settings: settings.data,
+    // Site-wide SEO and page settings also come from the published copy, so
+    // a draft edit to them never reaches visitors before Publish.
+    settings:
+      live && settings.data
+        ? {
+            ...settings.data,
+            seo: (live.seo ?? settings.data.seo) as typeof settings.data.seo,
+            generation: (live.generation ?? settings.data.generation) as typeof settings.data.generation,
+            pages: (live.settingsPages ?? settings.data.pages) as typeof settings.data.pages,
+          }
+        : settings.data,
     social: social.data,
     reviews: (reviews.data ?? []).map((r) => ({
       id: r.id as string,
