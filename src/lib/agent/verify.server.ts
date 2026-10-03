@@ -44,7 +44,29 @@ type Client = {
 function origin() {
   const explicit = process.env["REVORA_VERIFY_ORIGIN"];
   if (explicit) return explicit.replace(/\/$/, "");
+  // Check the deployment that is actually running this code. Fetching the
+  // marketing domain from a preview/staging build, or mid-rollout, inspected a
+  // different copy of the site and reversed changes on false failures.
+  try {
+    const { getRequest } = requestModule ?? {};
+    const current = getRequest?.();
+    if (current?.url) return new URL(current.url).origin;
+  } catch {
+    // No active request (background job) — fall through.
+  }
+  const app = process.env["APP_URL"];
+  if (app) return app.replace(/\/$/, "");
   return process.env["NODE_ENV"] === "production" ? PLATFORM_ORIGIN : "http://localhost:8080";
+}
+
+let requestModule: { getRequest?: () => Request } | null = null;
+async function loadRequestModule() {
+  if (requestModule) return;
+  try {
+    requestModule = (await import("@tanstack/react-start/server")) as unknown as { getRequest?: () => Request };
+  } catch {
+    requestModule = {};
+  }
 }
 
 async function load(url: string, timeoutMs = 8000) {
@@ -107,6 +129,7 @@ export async function verifyWorkspaceSite(
   organizationId: string,
 ): Promise<VerificationReport | null> {
   const client = supabase as Client;
+  await loadRequestModule();
   const [org, pages, gate] = await Promise.all([
     client.from("organizations").select("slug, name").eq("id", organizationId).maybeSingle(),
     client
@@ -189,7 +212,13 @@ export async function verifyWorkspaceSite(
     ];
 
     for (const target of targets) {
-      const { status, html } = await load(`${base}${target.path}`);
+      let { status, html } = await load(`${base}${target.path}`);
+      // One slow or dropped response is not a broken page. Retry before a
+      // failure can reverse the owner's change.
+      for (let retry = 0; retry < 2 && (status !== 200 || !html) && status < 400; retry += 1) {
+        await new Promise((resolve) => setTimeout(resolve, 1500 * (retry + 1)));
+        ({ status, html } = await load(`${base}${target.path}`, 12000));
+      }
       if (status !== 200 || !html) {
         checks.push({
           label: "The page loads for visitors",
@@ -216,11 +245,14 @@ export async function verifyWorkspaceSite(
     const known = new Set(targets.map((target) => target.path));
     const followable = [...linkTargets].filter((link) => !known.has(link)).slice(0, 16);
     for (const link of followable) {
-      const { status } = await load(`${base}${link}`, 6000);
+      let { status } = await load(`${base}${link}`, 6000);
+      if (status === 0) ({ status } = await load(`${base}${link}`, 12000));
       checks.push({
         label: "Every link on the site goes somewhere real",
         ok: status === 200,
-        severity: status === 200 ? "warning" : "critical",
+        // Only a definite 404/410 is a dead end worth reversing a change for;
+        // a timeout or server hiccup is reported, not fatal.
+        severity: status === 404 || status === 410 ? "critical" : "warning",
         where: link,
         ...(status === 200 ? {} : { detail: status ? `answered ${status}` : "did not answer" }),
       });
