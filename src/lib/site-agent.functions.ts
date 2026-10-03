@@ -122,7 +122,7 @@ async function loadSite(supabase: SupabaseLike, orgId: string): Promise<LoadedSi
     readAll(() =>
       db
         .from("website_pages")
-        .select("id, slug, title, kind, sort_order, is_visible, noindex, seo_title, seo_description")
+        .select("id, slug, title, kind, sort_order, is_visible, noindex, seo_title, seo_description, seo_canonical, og_title, og_description, og_image_url")
         .eq("organization_id", orgId)
         .order("sort_order")
         .order("id"),
