@@ -84,6 +84,7 @@ const RULES = [
   "Use ONLY the words, pictures and links supplied for the section — you may restructure, never invent facts, prices, reviews, awards or results.",
   "Every supplied picture must appear visibly as a media node using its exact mediaRef. Never copy its private storage path into src.",
   "Text on a background needs contrast of at least 4.5. Buttons need an href. Images need alt text. Collapse to one column on mobile.",
+  "Buttons and links only use supplied hrefs: the section's own part hrefs, \"/\" and \"/<page-slug>\" for this site's pages, the business's tel:/mailto:, or an anchor of a real section role such as \"#contact\". Never \"#\", empty or invented URLs. Every services, offer, process and closing section ends in one clear action button.",
   "Make every creative choice from the authored brief and supplied material; no platform house style is implied.",
   "Reject generic AI layout recipes. Do not default to a center-stacked hero with a generic two-button row over a soft gradient, a repetitive three-card icon grid directly below the hero, or identical card/padding treatment repeated across the page.",
   "Mandate editorial variation when the material supports it: asymmetric two-column editorial splits, bento-style feature grids, overlapping hero frames with offset media cards, dynamic proof banners, staggered service showcases, full-bleed image moments and purposeful alignment breaks. These are composition options, not a template; choose only what serves this business.",
@@ -441,7 +442,10 @@ async function repairDesignQuality(input: {
 }
 
 async function saveTree(db: Db, organizationId: string, section: SectionRow, tree: CompositionTree) {
-  const settings = writeComposition(section.settings, tree);
+  // The section's original job (contact, services, booking…) is kept so the
+  // renderer can give it a matching anchor: "#contact" buttons then scroll to
+  // the real contact section instead of doing nothing.
+  const settings = { ...writeComposition(section.settings, tree), role: section.kind };
   const { error } = await db
     .from("website_sections")
     .update({ kind: "composition", settings } as never)

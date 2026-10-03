@@ -1191,6 +1191,13 @@ async function runJob(
   // already has, never the design, and a failure here never blocks the build.
   if (!built.skipped) {
     try {
+      // Every button and menu link must lead to a real page of this site.
+      const { ensureLinkIntegrity } = await import("@/lib/builder/link-integrity.server");
+      await ensureLinkIntegrity(db as never, orgId);
+    } catch (error) {
+      console.warn("[site-engine] first-build link check skipped", (error as Error)?.message);
+    }
+    try {
       const { runQaRepairLoop } = await import("@/lib/builder/qa-loop.server");
       await runQaRepairLoop(db as never, orgId, "first build", 12);
     } catch (error) {
