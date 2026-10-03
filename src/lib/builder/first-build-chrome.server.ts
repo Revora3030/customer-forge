@@ -22,7 +22,9 @@ const RULES = [
   "The header and footer must each link to every listed page. You choose their composition, hierarchy, arrangement, typography, colour, spacing, and responsive behaviour.",
   "Every interactive target must remain usable by keyboard and touch, with a minimum 44px target. Do not hide required navigation at any supported width.",
   "The footer must link to every listed page. Use only the supplied business facts — never invent addresses, hours, awards or claims.",
-  "Text contrast at least 4.5. Match the site's look.",
+  "Text contrast at least 4.5. Match the site's look — the same typography, button shape and colour language as the page sections.",
+  "Header craft: one row on desktop with the business name/wordmark on the left, page links in the middle or right, and ONE primary call-to-action button (using the supplied ctaLabel and a real page, tel: or mailto: href) styled as the strongest element; 15-16px link text; a quiet background that keeps the bar readable over any hero.",
+  "Footer craft: a deliberate multi-column layout on desktop (brand + short line from supplied facts, page links, contact details) collapsing to one column on mobile via responsive.mobile.columns:1, generous padding (48-80px), muted-but-readable text, and a final row with the business name.",
   "Also write heroVideoBrief: one vivid 1-3 sentence art-direction brief (max 600 chars) for an optional silent, looping hero background video that fits this business and look. Show only real, generic scenes of the work — no text, logos, people's faces or invented claims.",
 ].join(" ");
 

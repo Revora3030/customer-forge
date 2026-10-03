@@ -37,7 +37,8 @@ describe("Cloudflare Workers AI picture request", () => {
       const request = init as { method: string; headers: Record<string, string>; body: string };
       expect(request.method).toBe("POST");
       expect(request.headers["authorization"]).toBe("Bearer cf-token");
-      expect(JSON.parse(request.body)).toEqual({ prompt: "A calm workshop interior" });
+      // Flux runs at its maximum 8 quality steps (schema: steps ≤ 8).
+      expect(JSON.parse(request.body)).toEqual({ prompt: "A calm workshop interior", steps: 8 });
       return new Response(JSON.stringify({ result: { image: jpegBase64() } }), {
         headers: { "content-type": "application/json" },
       });

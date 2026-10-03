@@ -76,7 +76,7 @@ export const cloudflareAdapter: ProviderAdapter = {
           "user-agent": "RevoraGrowthSystems/1.0 (+https://revoragrowthsystems.com)",
           accept: "application/json, image/*",
         },
-        body: JSON.stringify(buildCloudflareImageBody(prompt, source)),
+        body: JSON.stringify(buildCloudflareImageBody(prompt, source, model)),
         signal,
       },
     );
