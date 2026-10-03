@@ -479,6 +479,23 @@ async function runJob(
     identity = { direction: null } as never;
   }
   const direction = identity.direction;
+  const ownerColour = (key: string) => {
+    const value = p[key];
+    return typeof value === "string" && /^#[0-9a-f]{6}$/i.test(value.trim()) ? value.trim() : null;
+  };
+  const effectivePalette =
+    ownerColour("primary_color") || ownerColour("secondary_color") || ownerColour("accent_color")
+      ? {
+          primary: ownerColour("primary_color") ?? direction?.primary ?? null,
+          secondary: ownerColour("secondary_color") ?? direction?.secondary ?? null,
+          accent: ownerColour("accent_color") ?? ownerColour("primary_color") ?? direction?.accent ?? null,
+        }
+      : direction
+        ? { primary: direction.primary, secondary: direction.secondary, accent: direction.accent }
+        : null;
+  const effectiveFont =
+    (typeof p["font_preference"] === "string" && (p["font_preference"] as string).trim()) || direction?.font || null;
+  const { isLight: isLightSurface } = await import("@/lib/site-theme");
   let creative = blankFirstBuildDirection({
     organizationId: orgId,
     businessName: org.data.name ?? "",
@@ -961,8 +978,12 @@ async function runJob(
         shapeLanguage: creative.brief.shapeLanguage,
         motion: creative.brief.motion,
         photography: creative.brief.photography,
-        ownerPalette: direction ? { primary: direction.primary, secondary: direction.secondary, accent: direction.accent } : null,
-        ownerFont: direction?.font ?? null,
+        // The palette the site will actually wear: the owner's own colours
+        // when set (they are never overwritten), else the AI identity. Sections
+        // composed against a different palette than the theme clashed with it.
+        ownerPalette: effectivePalette,
+        ownerFont: effectiveFont,
+        surfaceIs: effectivePalette?.secondary ? (isLightSurface(effectivePalette.secondary) ? "light" : "dark") : null,
       }),
     });
     } catch (err) {
@@ -989,7 +1010,7 @@ async function runJob(
       organizationId: orgId,
       businessName: org.data.name ?? "",
       facts: buildFacts,
-      lookSummary: JSON.stringify({ colors: direction ? { primary: direction.primary, secondary: direction.secondary, accent: direction.accent } : null, font: direction?.font ?? null }),
+      lookSummary: JSON.stringify({ colors: effectivePalette, font: effectiveFont }),
     });
     } catch (err) {
       console.warn(`[site-engine] Chrome composition failed for ${orgId}: ${(err as Error).message}; using default chrome.`);

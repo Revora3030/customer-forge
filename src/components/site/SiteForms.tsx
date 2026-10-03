@@ -1,3 +1,4 @@
+import { checkBookingTime } from "@/lib/booking-hours";
 import { useEffect, useId, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "@/lib/ui/notify";
@@ -337,6 +338,8 @@ export function BookingForm({ site, presentation }: { site: Site; presentation?:
   // Reading it during the server render made the first paint disagree with the
   // browser whenever the two were on different calendar days.
   const [today, setToday] = useState("");
+  const [pickedDate, setPickedDate] = useState("");
+  const [pickedTime, setPickedTime] = useState("09:00");
   useEffect(() => {
     const local = new Date();
     local.setMinutes(local.getMinutes() - local.getTimezoneOffset());
@@ -368,6 +371,20 @@ export function BookingForm({ site, presentation }: { site: Site; presentation?:
   }
 
   const service = bookable.find((s) => s.id === serviceId);
+  // The same opening-hours rule the server enforces, shown while choosing, so
+  // a customer is told before they press send rather than after.
+  const hoursProblem =
+    bookable.length && pickedDate && pickedTime
+      ? (() => {
+          const verdict = checkBookingTime({
+            hours: (site.profile as { hours?: unknown } | null)?.hours ?? null,
+            localDate: pickedDate,
+            localTime: pickedTime,
+            durationMinutes: service?.duration_minutes ?? 60,
+          });
+          return verdict.ok ? null : verdict.reason;
+        })()
+      : null;
 
   return (
     <form
@@ -376,6 +393,10 @@ export function BookingForm({ site, presentation }: { site: Site; presentation?:
       onFocus={() => track("booking_start")}
       onSubmit={(e) => {
         e.preventDefault();
+        if (hoursProblem) {
+          toast.error(hoursProblem);
+          return;
+        }
         const form = new FormData(e.currentTarget);
         const date = String(form.get("date") ?? "");
         const time = String(form.get("time") ?? "");
@@ -464,12 +485,34 @@ export function BookingForm({ site, presentation }: { site: Site; presentation?:
           <>
             <div className="space-y-1.5">
               <Label htmlFor={fid("date")}>{presentation?.fieldLabels?.date ?? "Preferred date"}</Label>
-              <Input id={fid("date")} name="date" type="date" min={today || undefined} required />
+              <Input
+                id={fid("date")}
+                name="date"
+                type="date"
+                min={today || undefined}
+                required
+                value={pickedDate}
+                onChange={(event) => setPickedDate(event.target.value)}
+                aria-describedby={hoursProblem ? fid("hours-note") : undefined}
+              />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor={fid("time")}>{presentation?.fieldLabels?.time ?? "Preferred time (your local time)"}</Label>
-              <Input id={fid("time")} name="time" type="time" defaultValue="09:00" required />
+              <Input
+                id={fid("time")}
+                name="time"
+                type="time"
+                required
+                value={pickedTime}
+                onChange={(event) => setPickedTime(event.target.value)}
+                aria-describedby={hoursProblem ? fid("hours-note") : undefined}
+              />
             </div>
+            {hoursProblem ? (
+              <p id={fid("hours-note")} role="alert" className="text-[14px] font-medium text-destructive sm:col-span-2">
+                {hoursProblem}
+              </p>
+            ) : null}
           </>
         ) : null}
       </div>

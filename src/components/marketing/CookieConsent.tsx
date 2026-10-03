@@ -24,6 +24,9 @@ export function CookieConsent() {
       // client's published website, where none of this applies.
       const { isRevoraOwnHost } = await import("@/lib/revora-address");
       if (!isRevoraOwnHost(window.location.hostname)) return;
+      // Client sites shared on Revora's own address (/s/…, /p/…) are the
+      // business's website too.
+      if (/^\/(s|p)\//.test(window.location.pathname)) return;
       const decided = window.localStorage.getItem("cookie_consent");
       if (decided !== null) return;
       const required = await isConsentRequiredRegion();

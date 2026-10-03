@@ -48,7 +48,34 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     }
   },
 
-  head: () => ({
+  head: ({ matches }) => {
+    // A client's published website (or its private preview) is served from
+    // this same app. Revora's own description, share image, Organization
+    // schema, favicon and Google Ads consent script must never be stamped
+    // onto a client's site: search engines and link previews showed Revora
+    // instead of the business, and crawlers saw two conflicting Organization
+    // records. Those routes set their own title, description, image and icon.
+    const clientSite = matches.some((match) => {
+      const routeId = String((match as { routeId?: string }).routeId ?? "");
+      if (/^\/(s|p)\/\$/.test(routeId)) return true;
+      // A client's own custom domain serves its site from "/" and "/$".
+      const data = (match as { loaderData?: unknown }).loaderData as
+        | { site?: unknown; pending?: boolean }
+        | null
+        | undefined;
+      return (routeId === "/" || routeId === "/$") && Boolean(data && (data.site || data.pending));
+    });
+    if (clientSite) {
+      return {
+        meta: [
+          { charSet: "utf-8" },
+          { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content" },
+          { name: "robots", content: "max-image-preview:large, max-snippet:-1" },
+        ],
+        links: [{ rel: "stylesheet", href: appCss }],
+      };
+    }
+    return {
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content" },
@@ -106,7 +133,8 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { rel: "apple-touch-icon", sizes: "180x180", href: "/apple-touch-icon.png" },
       { rel: "manifest", href: "/manifest.webmanifest" },
     ],
-  }),
+    };
+  },
   shellComponent: RootShell,
   component: RootComponent,
   notFoundComponent: RouteNotFound,
@@ -217,6 +245,8 @@ function RootComponent() {
     // head's consent defaults, and Google's signals follow the cookie banner.
     // Deferred until the browser is idle so ~325 KB of Google tag JS no longer
     // competes with first paint (Lighthouse mobile TBT was ~9 s).
+    // Never on a client's website or preview, even on Revora's own host.
+    if (/^\/(s|p)\//.test(window.location.pathname)) return;
     const start = () => void loadGoogleAds(true);
     const w = window as Window & {
       requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number;

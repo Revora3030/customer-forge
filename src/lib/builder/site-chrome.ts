@@ -15,7 +15,7 @@ export function readSiteChrome(generation: unknown): SiteChrome {
   const raw = (generation as Record<string, unknown> | null)?.["chrome"] as Record<string, unknown> | undefined;
   const read = (value: unknown) => {
     if (!value) return null;
-    const result = validateComposition(value);
+    const result = validateComposition(value, { lenient: true });
     return result.ok ? result.tree : null;
   };
   return { header: read(raw?.["header"]), footer: read(raw?.["footer"]) };

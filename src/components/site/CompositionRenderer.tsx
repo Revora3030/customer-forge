@@ -35,7 +35,9 @@ export function styleToCss(style: NodeStyle | undefined, type: CompositionNode["
   if (style.size != null) {
     if (type === "heading") {
       const max = Math.round(style.size);
-      const min = Math.max(18, Math.round(max * 0.72));
+      // Never let the floor exceed the authored size (clamp() with min > max
+      // is invalid and the browser dropped the size entirely).
+      const min = Math.min(max, Math.max(18, Math.round(max * 0.72)));
       const vw = Math.max(2.5, Math.min(8, Math.round((max / 16) * 10) / 10));
       css.fontSize = `clamp(${min}px, ${vw}vw, ${max}px)`;
     } else {
@@ -72,7 +74,9 @@ export function styleToCss(style: NodeStyle | undefined, type: CompositionNode["
   if (style.zIndex != null) css.zIndex = style.zIndex;
   if (style.overlap != null) { css.marginTop = -style.overlap; css.position = css.position ?? "relative"; }
   if (style.blur != null) { css.backdropFilter = `blur(${style.blur}px)`; css.WebkitBackdropFilter = `blur(${style.blur}px)`; }
-  if (style.rotate != null) css.transform = `rotate(${style.rotate}deg)`;
+  // The independent `rotate` property, so hover lift and entrance motion
+  // (which animate \`transform\`) no longer wipe out an authored rotation.
+  if (style.rotate != null) css.rotate = `${style.rotate}deg`;
   if (style.gridAreas && type === "grid") css.gridTemplateAreas = style.gridAreas;
   if (style.area) css.gridArea = style.area;
   return css;
@@ -95,7 +99,7 @@ const MEDIA: Record<Breakpoint, string> = {
 };
 
 type ResolvedMedia = string | { url: string | null; visual?: PersistedComponentVisual };
-type Ctx = { rules: string[]; counter: { n: number }; scope: string; href: (h: string) => string; media: (ref: string) => ResolvedMedia | null; widget: (name: string, presentation?: WidgetPresentation) => ReactNode };
+type Ctx = { rules: string[]; counter: { n: number; sawMedia?: boolean }; eagerFirstMedia?: boolean; scope: string; href: (h: string) => string; media: (ref: string) => ResolvedMedia | null; widget: (name: string, presentation?: WidgetPresentation) => ReactNode };
 
 const mediaUrl = (media: ResolvedMedia | null): string | null =>
   typeof media === "string" ? media : media?.url ?? null;
@@ -164,9 +168,11 @@ function renderNode(node: CompositionNode, ctx: Ctx, key: string): ReactNode {
     interactive ? "rv-cn-interactive" : "",
     node.type === "heading" || node.type === "text" ? "rv-cn-copy" : "",
   ].filter(Boolean).join(" ") || undefined;
+  const mobileCols = node.type === "grid" && node.responsive?.mobile?.columns != null ? "" : undefined;
   const props = {
     "data-cn": id,
     "data-motion": motion?.kind,
+    ...(mobileCols !== undefined ? { "data-mobile-cols": mobileCols } : {}),
     className: classNames,
     style: motion ? { ...style, ...motionStyle(motion) } : style,
   };
@@ -199,15 +205,27 @@ function renderNode(node: CompositionNode, ctx: Ctx, key: string): ReactNode {
       { const resolved = node.mediaRef ? ctx.media(node.mediaRef) : null;
         const visual = mediaVisual(resolved);
         const source = node.src ? resolveImageSource(node.src) : mediaUrl(resolved);
-        return source ? <img key={key} {...props} src={source} alt={node.alt ?? visual?.alt ?? ""} loading="lazy" style={{ width: "100%", ...mediaCss(visual), ...props.style }} /> : null; }
+        // The first picture of a section is usually the hero: load it eagerly
+        // so the largest paint is not delayed by lazy loading.
+        const first = !ctx.counter.sawMedia;
+        ctx.counter.sawMedia = true;
+        return source ? <img key={key} {...props} src={source} alt={node.alt ?? visual?.alt ?? ""} loading={first && ctx.eagerFirstMedia ? "eager" : "lazy"} decoding="async" {...(first && ctx.eagerFirstMedia ? { fetchPriority: "high" as const } : {})} style={{ width: "100%", height: style.aspectRatio || visual?.aspect_ratio ? "100%" : undefined, objectFit: style.objectFit ?? visual?.object_fit ?? (style.aspectRatio ? "cover" : undefined), ...mediaCss(visual), ...props.style }} /> : null; }
     case "widget":
       { const w = node.text ? ctx.widget(node.text, node.widgetPresentation) : null;
         return w ? <div key={key} {...props} data-widget={node.text} style={{ ...props.style, ...widgetThemeStyle(node.widgetPresentation?.theme) }}>{w}{kids}</div> : null; }
     case "button":
-    case "link":
-      return <a key={key} {...props} href={node.href ? ctx.href(node.href) : undefined}>{node.text}{kids}</a>;
+    case "link": {
+      const href = node.href ? ctx.href(node.href) : undefined;
+      const external = Boolean(href && /^https:\/\//i.test(href));
+      return (
+        <a key={key} {...props} href={href} {...(external ? { target: "_blank", rel: "noopener noreferrer" } : {})}>
+          {node.text}{kids}
+        </a>
+      );
+    }
     case "list":
-      return <ul key={key} {...props}>{node.items?.map((item, i) => <li key={i}>{item}</li>)}</ul>;
+      { const items = (node.items ?? []).filter((item) => item.trim());
+        return items.length ? <ul key={key} {...props}>{items.map((item, i) => <li key={i}>{item}</li>)}</ul> : null; }
     case "divider":
       return <hr key={key} {...props} />;
     case "icon":
@@ -283,7 +301,8 @@ function renderNode(node: CompositionNode, ctx: Ctx, key: string): ReactNode {
           } : {})}
         />
       ) : null;
-        case "gallery":
+    case "gallery":
+      if (!node.children?.some((c) => c.src || (c.mediaRef && mediaUrl(ctx.media(c.mediaRef))))) return null;
       return (
         <div key={key} {...props} style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(220px,1fr))", ...props.style }}>
           {node.children?.map((c, i) => { const resolved = c.mediaRef ? ctx.media(c.mediaRef) : null; const visual = mediaVisual(resolved); const source = c.src ? resolveImageSource(c.src) : mediaUrl(resolved); return source ? (
@@ -298,7 +317,7 @@ function renderNode(node: CompositionNode, ctx: Ctx, key: string): ReactNode {
         <div key={key} {...props} style={{ overflow: "hidden", ...props.style }}>
           <div className="rv-cn-marquee" style={{ display: "flex", width: "max-content", gap: props.style.gap }}>
             {kids}
-            <div aria-hidden="true" style={{ display: "flex", gap: props.style.gap }}>{node.children?.map((c, i) => renderNode(c, ctx, `${key}.dup.${i}`))}</div>
+            <div aria-hidden="true" inert style={{ display: "flex", gap: props.style.gap }}>{node.children?.map((c, i) => renderNode(c, ctx, `${key}.dup.${i}`))}</div>
           </div>
         </div>
       );
@@ -513,26 +532,42 @@ const INTERACTIVE_CSS = `
 `;
 
 /**
+ * Selectors are written with a doubled attribute so they outrank any
+ * per-block [data-cn] rule by specificity, whatever order the stylesheets end
+ * up in (the shared sheet is hoisted into <head>, before section rules).
+ *
  * Objective phone safeguards (WCAG tap size / readable text / no horizontal
  * clipping). These never choose colours, fonts, order or layout — they only
  * stop AI-authored layers from becoming unusable on narrow screens.
  */
-export const PHONE_SAFETY_CSS = `[data-composition]{box-sizing:border-box;max-width:100%;min-width:0;overflow-x:clip;padding-inline-start:max(0px,env(safe-area-inset-left,0px));padding-inline-end:max(0px,env(safe-area-inset-right,0px))}[data-composition] *{box-sizing:border-box;min-width:0;max-width:100%;overflow-wrap:break-word}[data-composition] :is(h1,h2,h3,h4){text-wrap:balance;overflow-wrap:break-word;word-break:normal;hyphens:manual}[data-composition] :is(p,span,li,label){overflow-wrap:break-word;word-break:normal}[data-composition] img,[data-composition] video,[data-composition] iframe{max-width:100%;height:auto}@media (max-width:639px){[data-composition] [style*="grid-template-columns"],[data-composition] .grid{width:100%!important;max-width:100%!important;grid-template-columns:minmax(0,1fr)!important}[data-composition] [data-widget],[data-composition] form{width:100%!important;max-width:100%!important}[data-composition] h1{font-size:min(2.75rem,11vw)!important;line-height:1.05!important}[data-composition] h2{font-size:min(2.25rem,9.5vw)!important;line-height:1.1!important}[data-composition] h3{font-size:min(1.6rem,7vw)!important;line-height:1.12!important}[data-composition] p,[data-composition] li,[data-composition] span,[data-composition] a,[data-composition] small,[data-composition] label{font-size:max(14px,1em)!important;line-height:1.45}[data-composition] a,[data-composition] button{min-height:44px!important}[data-composition] a{align-items:center}[data-composition] [style*="grid-template-areas"]{grid-template-areas:none!important}[data-composition] [style*="grid-area"]{grid-area:auto!important}]`;
+export const PHONE_SAFETY_CSS = `[data-composition]{box-sizing:border-box;max-width:100%;min-width:0;overflow-x:clip;padding-inline-start:max(0px,env(safe-area-inset-left,0px));padding-inline-end:max(0px,env(safe-area-inset-right,0px))}[data-composition][data-composition] *{box-sizing:border-box;min-width:0;max-width:100%;overflow-wrap:break-word}[data-composition][data-composition] :is(h1,h2,h3,h4){text-wrap:balance;overflow-wrap:break-word;word-break:normal;hyphens:manual}[data-composition][data-composition] :is(p,span,li,label){overflow-wrap:break-word;word-break:normal}[data-composition][data-composition] img,[data-composition][data-composition] video,[data-composition][data-composition] iframe{max-width:100%;height:auto}@media (max-width:639px){[data-composition][data-composition] [style*="grid-template-columns"]:not([data-mobile-cols]),[data-composition][data-composition] .grid:not([data-mobile-cols]){width:100%!important;max-width:100%!important;grid-template-columns:minmax(0,1fr)!important}[data-composition][data-composition] [data-widget],[data-composition][data-composition] form{width:100%!important;max-width:100%!important}[data-composition][data-composition] h1{font-size:min(2.75rem,11vw)!important;line-height:1.05!important}[data-composition][data-composition] h2{font-size:min(2.25rem,9.5vw)!important;line-height:1.1!important}[data-composition][data-composition] h3{font-size:min(1.6rem,7vw)!important;line-height:1.12!important}[data-composition][data-composition] p,[data-composition][data-composition] li,[data-composition][data-composition] span,[data-composition][data-composition] a,[data-composition][data-composition] small,[data-composition][data-composition] label{font-size:max(14px,1em)!important;line-height:1.45}[data-composition][data-composition] a,[data-composition][data-composition] button{min-height:44px!important}[data-composition][data-composition] a{align-items:center}[data-composition][data-composition] [style*="grid-template-areas"]{grid-template-areas:none!important}[data-composition][data-composition] [style*="grid-area"]{grid-area:auto!important}}`;
 
 const MOTION_CSS = `@media (prefers-reduced-motion: no-preference){.rv-cn-motion{animation:rv-cn-in .7s ease both}.rv-cn-motion[data-motion=rise]{animation-name:rv-cn-rise}.rv-cn-motion[data-motion=scale]{animation-name:rv-cn-scale}.rv-cn-motion[data-motion=float]{animation:rv-cn-float 6s ease-in-out infinite}.rv-cn-motion[data-motion=slide-left]{animation-name:rv-cn-sl}.rv-cn-motion[data-motion=slide-right]{animation-name:rv-cn-sr}.rv-cn-motion[data-motion=blur]{animation-name:rv-cn-blur}.rv-cn-motion[data-motion=reveal]{animation-name:rv-cn-reveal}.rv-cn-motion[data-motion=custom]{animation-name:rv-cn-custom}}@keyframes rv-cn-custom{from{opacity:var(--rv-o,1);transform:translate(var(--rv-x,0),var(--rv-y,0)) scale(var(--rv-s,1)) rotate(var(--rv-r,0));filter:blur(var(--rv-b,0))}}@keyframes rv-cn-sl{from{opacity:0;transform:translateX(32px)}to{opacity:1;transform:none}}@keyframes rv-cn-sr{from{opacity:0;transform:translateX(-32px)}to{opacity:1;transform:none}}@keyframes rv-cn-blur{from{opacity:0;filter:blur(12px)}to{opacity:1;filter:none}}@keyframes rv-cn-reveal{from{clip-path:inset(0 0 100% 0)}to{clip-path:inset(0 0 0 0)}}@keyframes rv-cn-in{from{opacity:0}to{opacity:1}}@keyframes rv-cn-rise{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:none}}@keyframes rv-cn-scale{from{opacity:0;transform:scale(.94)}to{opacity:1;transform:none}}@keyframes rv-cn-float{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}`;
 
-export function CompositionRenderer({ tree, scope, as = "section", resolveHref, resolveMedia, resolveWidget }: { tree: CompositionTree; scope: string; as?: "section" | "div"; resolveHref?: (href: string) => string; resolveMedia?: (ref: string) => ResolvedMedia | null; resolveWidget?: (name: string, presentation?: WidgetPresentation) => ReactNode }) {
-  const ctx: Ctx = { rules: [], counter: { n: 0 }, scope: scope.replace(/[^\w-]/g, "") || "cn", href: resolveHref ?? ((h) => h), media: resolveMedia ?? (() => null), widget: resolveWidget ?? (() => null) };
+export function CompositionRenderer({ tree, scope, as = "section", resolveHref, resolveMedia, resolveWidget, eagerFirstMedia = false }: { tree: CompositionTree; scope: string; as?: "section" | "div"; resolveHref?: (href: string) => string; resolveMedia?: (ref: string) => ResolvedMedia | null; resolveWidget?: (name: string, presentation?: WidgetPresentation) => ReactNode; eagerFirstMedia?: boolean }) {
+  const ctx: Ctx = { rules: [], counter: { n: 0 }, eagerFirstMedia, scope: scope.replace(/[^\w-]/g, "") || "cn", href: resolveHref ?? ((h) => h), media: resolveMedia ?? (() => null), widget: resolveWidget ?? (() => null) };
   const body = renderNode(tree.root, ctx, "root");
+  // The shared rules are identical for every section. They used to be
+  // repeated inline in each one (several KB per section, re-parsed by the
+  // browser every time); React now hoists one copy into <head>. Only the
+  // section's own responsive/hover rules stay inline, after the shared ones.
+  const shared = (
+    <style href="rv-cn-shared" precedence="rv-cn">
+      {MOTION_CSS + MARQUEE_CSS + INTERACTIVE_CSS + PHONE_SAFETY_CSS}
+    </style>
+  );
+  const own = ctx.rules.length ? <style>{ctx.rules.join("")}</style> : null;
   return (
     as === "div" ? (
       <div data-composition={tree.label ?? "composition"}>
-        <style>{MOTION_CSS + MARQUEE_CSS + INTERACTIVE_CSS + ctx.rules.join("") + PHONE_SAFETY_CSS}</style>
+        {shared}
+        {own}
         {body}
       </div>
     ) : (
       <section data-composition={tree.label ?? "composition"}>
-        <style>{MOTION_CSS + MARQUEE_CSS + INTERACTIVE_CSS + ctx.rules.join("") + PHONE_SAFETY_CSS}</style>
+        {shared}
+        {own}
         {body}
       </section>
     )

@@ -219,40 +219,55 @@ export async function composeFirstBuildSections(input: {
 
   for (const pageSections of byPage.values()) {
     let pending = pageSections;
+    // Smaller batches: a page with many sections asked for one huge JSON
+    // answer that was regularly cut off at the output limit, so every section
+    // on that page failed together. Sections are designed a few at a time.
+    const BATCH = 4;
     let feedback: Record<string, CompositionIssue[]> = {};
     const designed = new Map<string, CompositionTree>();
-    for (let attempt = 0; attempt < 3 && pending.length; attempt += 1) {
+    let pageFailed = false;
+    for (let attempt = 0; attempt < 3 && pending.length && !pageFailed; attempt += 1) {
+     const batches: SectionRow[][] = [];
+     for (let i = 0; i < pending.length; i += BATCH) batches.push(pending.slice(i, i + BATCH));
+     const next: SectionRow[] = [];
+     const nextFeedback: Record<string, CompositionIssue[]> = {};
+     for (const batch of batches) {
+      const batchFeedback = Object.fromEntries(Object.entries(feedback).filter(([id]) => batch.some((s) => s.id === id)));
       const call = await callBestThinker({
         json: true,
         purpose: "creative_direction",
         complexity: "high",
         organizationId,
-        maxOutputTokens: 16000,
+        maxOutputTokens: 24000,
         system: RULES,
         user: [
           "SITE LOOK (follow it):",
           input.lookSummary,
           "",
           "SECTIONS TO DESIGN (material only):",
-          JSON.stringify(pending.map((s) => materialFor(s, parts.filter((p) => p.section_id === s.id))), null, 2),
+          JSON.stringify(batch.map((s) => materialFor(s, parts.filter((p) => p.section_id === s.id))), null, 2),
+          ...(designed.size
+            ? ["", "SECTIONS ALREADY DESIGNED ON THIS PAGE (match their visual language; vary rhythm, do not repeat their structure):", JSON.stringify([...designed.values()].map((t) => t.label ?? "section").slice(0, 8))]
+            : []),
           ...(advice.length ? ["", "TEAM ADVICE (independent reviewers; use your judgement, never invent facts):", JSON.stringify(advice)] : []),
-          ...(Object.keys(feedback).length ? ["", "FIX THESE PROBLEMS FROM YOUR LAST ATTEMPT:", JSON.stringify(feedback, null, 2)] : []),
+          ...(Object.keys(batchFeedback).length ? ["", "FIX THESE PROBLEMS FROM YOUR LAST ATTEMPT:", JSON.stringify(batchFeedback, null, 2)] : []),
           "",
           'Return JSON: {"sections": {"<sectionId>": {"version": 1, "label": "...", "root": {...}}}} with one tree per section.',
         ].join("\n"),
       });
       if (!call.ok) {
-        // The design team could not lay out sections. Degrade gracefully:
-        // sections already have their default layout from materialization.
+        // This page's design call failed. Keep what was already designed and
+        // move on to the next page instead of abandoning the whole site; the
+        // remaining sections keep their materialized layout.
         console.warn(`[first-build-compositions] AI layout failed: ${call.detail ?? call.reason}`);
-        return result;
+        pageFailed = true;
+        next.push(...batch);
+        continue;
       }
       if (call.model) result.models.push(call.model);
       result.costMicrocents += call.costMicrocents ?? 0;
       const trees = parseTrees(call.text) ?? {};
-      const next: SectionRow[] = [];
-      feedback = {};
-      for (const section of pending) {
+      for (const section of batch) {
         const mediaRefs = mediaRefsFor(section, parts);
         const checked = validateComposition(trees[section.id], {
           screenText: screen,
@@ -260,7 +275,7 @@ export async function composeFirstBuildSections(input: {
           requiredMediaRefs: mediaRefs,
         });
         if (!checked.ok) {
-          feedback[section.id] = checked.issues.slice(0, 12);
+          nextFeedback[section.id] = checked.issues.slice(0, 12);
           next.push(section);
           continue;
         }
@@ -269,13 +284,15 @@ export async function composeFirstBuildSections(input: {
           const widget = findWidget(checked.tree.root, widgetName);
           const problem = widget ? widgetPresentationProblem(section.kind, widget) : `the ${section.kind} section must contain a ${widgetName} widget`;
           if (problem) {
-            feedback[section.id] = [{ path: "root", problem }];
+            nextFeedback[section.id] = [{ path: "root", problem }];
             next.push(section);
             continue;
           }
         }
         designed.set(section.id, checked.tree);
       }
+     }
+      feedback = nextFeedback;
       pending = next;
     }
     if (pending.length) {
@@ -410,7 +427,17 @@ async function improveWithTeam(input: {
           allowedMediaRefs: mediaRefs,
           requiredMediaRefs: mediaRefs,
         });
-        proposed.set(id, checked.ok ? checked.tree : tree);
+        // A revision must keep the section's working form/contact widget; a
+        // reviewer note must never be able to remove the booking form.
+        let keep = checked.ok;
+        if (checked.ok && section) {
+          const widgetName = requiredWidgetForRole(section.kind);
+          if (widgetName) {
+            const widget = findWidget(checked.tree.root, widgetName);
+            if (!widget || widgetPresentationProblem(section.kind, widget)) keep = false;
+          }
+        }
+        proposed.set(id, keep && checked.ok ? checked.tree : tree);
       }
       const gate = await runImprovementGate({
         organizationId: input.organizationId,

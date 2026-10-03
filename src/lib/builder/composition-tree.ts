@@ -316,7 +316,7 @@ function cssSpellings(style: Record<string, unknown>): [string, unknown][] {
   return out;
 }
 
-function checkStyle(style: unknown, path: string, issues: CompositionIssue[]): NodeStyle {
+function checkStyle(style: unknown, path: string, issues: CompositionIssue[], nodeType?: CompositionPrimitive): NodeStyle {
   if (style == null) return {};
   if (typeof style !== "object" || Array.isArray(style)) {
     issues.push({ path, problem: "style must be an object" });
@@ -364,7 +364,14 @@ function checkStyle(style: unknown, path: string, issues: CompositionIssue[]): N
   const bg = out["background"] as string | undefined;
   if (fg && bg) {
     const ratio = contrastRatio(fg, bg);
-    if (ratio != null && ratio < 4.5) issues.push({ path, problem: `text/background contrast ${ratio.toFixed(2)} is below 4.5` });
+    // WCAG AA: 3:1 is the requirement for large text (24px+, or 18.66px+
+    // bold). Holding big headings to 4.5:1 rejected many sound designs and
+    // pushed whole sections onto the basic fallback layout.
+    const size = typeof out["size"] === "number" ? (out["size"] as number) : null;
+    const weight = typeof out["weight"] === "number" ? (out["weight"] as number) : null;
+    const large = nodeType === "heading" ? size == null || size >= 24 || (size >= 18.66 && (weight ?? 700) >= 700) : size != null && (size >= 24 || (size >= 18.66 && (weight ?? 400) >= 700));
+    const required = large ? 3 : 4.5;
+    if (ratio != null && ratio < required) issues.push({ path, problem: `text/background contrast ${ratio.toFixed(2)} is below ${required}` });
   }
   return out as NodeStyle;
 }
@@ -463,7 +470,17 @@ export type ValidateOptions = {
   allowedMediaRefs?: ReadonlySet<string>;
   /** Supplied pictures that must remain visible in the composition. */
   requiredMediaRefs?: ReadonlySet<string>;
+  /**
+   * Rendering a saved tree: quality findings (contrast, an unknown style
+   * key, a small button label, long text) are not safety problems and must
+   * not make a whole live section disappear. Only unsafe or structurally
+   * broken trees are refused. Generation keeps the strict default so the AI
+   * still repairs those findings before anything is saved.
+   */
+  lenient?: boolean;
 };
+
+const SOFT_PROBLEM = /contrast|unknown style property|button text below 14px|text is too long|label must be 120|must be one of|must be a number between|must be true or false|font name contains|aspect must look like|area must be a simple name|gridAreas must look like|must be 0-3000|must be 150-4000|unknown motion|unknown hover property|must be none, subtle|from is only used|custom motion needs|ariaLabel must be text/;
 
 export function validateComposition(input: unknown, options: ValidateOptions = {}): CompositionResult {
   const issues: CompositionIssue[] = [];
@@ -644,7 +661,7 @@ export function validateComposition(input: unknown, options: ValidateOptions = {
       if (!Array.isArray(row["items"])) issues.push({ path: `${path}.items`, problem: "items must be a list of text" });
       else node.items = row["items"].map((item, i) => checkText(item, `${path}.items[${i}]`, issues, options.screenText) ?? "");
     }
-    node.style = checkStyle(row["style"], `${path}.style`, issues);
+    node.style = checkStyle(row["style"], `${path}.style`, issues, node.type);
     if (node.type === "button" && node.style.size != null && node.style.size < 14) {
       issues.push({ path: `${path}.style.size`, problem: "button text below 14px makes the tap target too small" });
     }
@@ -660,7 +677,7 @@ export function validateComposition(input: unknown, options: ValidateOptions = {
             const inner = style && typeof style === "object" && !Array.isArray(style) && Object.keys(style).length === 1 && "style" in style
               ? (style as { style: unknown }).style
               : style;
-            node.responsive[bp] = checkStyle(inner, `${path}.responsive.${bp}`, issues);
+            node.responsive[bp] = checkStyle(inner, `${path}.responsive.${bp}`, issues, node.type);
           }
         }
       }
@@ -751,14 +768,15 @@ export function validateComposition(input: unknown, options: ValidateOptions = {
   for (const mediaRef of options.requiredMediaRefs ?? [])
     if (!usedMediaRefs.has(mediaRef))
       issues.push({ path: "root", problem: `supplied website picture ${mediaRef} is missing from the composition` });
-  if (issues.length || !root) return { ok: false, issues: issues.length ? issues : [{ path: "root", problem: "missing root" }] };
-  return { ok: true, tree: { version: 1, ...(label ? { label } : {}), root } };
+  const blocking = options.lenient ? issues.filter((issue) => !SOFT_PROBLEM.test(issue.problem)) : issues;
+  if (blocking.length || !root) return { ok: false, issues: blocking.length ? blocking : [{ path: "root", problem: "missing root" }] };
+  return { ok: true, tree: { version: 1, ...(label && label.length <= 120 ? { label } : {}), root } };
 }
 
 /** Reads a stored tree for rendering. Invalid data renders nothing — never a substitute design. */
 export function readComposition(settings: unknown): CompositionTree | null {
   const raw = (settings as Record<string, unknown> | null)?.["composition"];
-  const result = validateComposition(raw);
+  const result = validateComposition(raw, { lenient: true });
   return result.ok ? result.tree : null;
 }
 

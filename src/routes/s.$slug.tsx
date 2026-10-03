@@ -5,8 +5,10 @@ import { readCopy } from "@/lib/site-engine";
 import { canonicalSiteUrl } from "@/lib/revora-address";
 import { SitePageView } from "@/routes/s.$slug.$page";
 import { placeDisplay } from "@/lib/builder/presentation";
-import { siteFontHref, siteFontStyle, siteThemeStyle } from "@/lib/site-theme";
+import { compositionFonts, siteFontsHref } from "@/lib/site-theme";
+import { readSiteChrome } from "@/lib/builder/site-chrome";
 import { metaDescription } from "@/lib/seo";
+import { clientHeadExtrasSync } from "@/lib/site-head";
 
 export const Route = createFileRoute("/s/$slug")({
   loader: async ({ params }) => {
@@ -44,6 +46,13 @@ export const Route = createFileRoute("/s/$slug")({
       canonicalSiteUrl(loaderData.settings, params.slug, page?.slug, page?.seo_canonical) ??
       `https://revoragrowthsystems.com/s/${params.slug}`;
     const shareImage = page?.og_image_url || loaderData.profile?.hero_image_url || null;
+    const extras = clientHeadExtrasSync(
+      loaderData as never,
+      canonicalSiteUrl(loaderData.settings, params.slug) ?? url,
+      compositionFonts,
+      siteFontsHref,
+      readSiteChrome,
+    );
     return {
       meta: [
         { title },
@@ -61,19 +70,14 @@ export const Route = createFileRoute("/s/$slug")({
             ]
           : []),
         ...(page?.noindex ? [{ name: "robots", content: "noindex" }] : []),
+        ...extras.meta,
       ],
+      scripts: extras.scripts,
       links: [
         { rel: "canonical", href: url },
         // The owner's chosen heading font has to be requested here or their
         // look-and-feel choice would be stored but never seen.
-        ...(siteFontHref(loaderData.profile?.font_preference)
-          ? [
-              {
-                rel: "stylesheet",
-                href: siteFontHref(loaderData.profile?.font_preference) as string,
-              },
-            ]
-          : []),
+        ...extras.links,
       ],
     };
   },
