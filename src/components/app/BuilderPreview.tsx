@@ -21,7 +21,7 @@ import {
   readPreviewMessage,
   type PreviewToBuilderMessage,
 } from "@/lib/builder/preview-bridge";
-import type { ContentPage } from "@/lib/website-content";
+import { pageNavLabel, type ContentPage } from "@/lib/website-content";
 import { cn } from "@/lib/utils";
 
 const VIEWPORT_ICONS = {
@@ -37,6 +37,7 @@ export type PreviewSelection = Extract<PreviewToBuilderMessage, { type: "select"
 export function BuilderPreview({
   slug,
   pages,
+  businessName = null,
   refreshing = false,
   refreshRevision = 0,
   onSelect,
@@ -44,6 +45,8 @@ export function BuilderPreview({
 }: {
   slug: string;
   pages: ContentPage[];
+  /** Used to shorten older page titles ("Services — Acme") to "Services". */
+  businessName?: string | null;
   refreshing?: boolean;
   /** Increments only after saved website data has been invalidated and reloaded. */
   refreshRevision?: number;
@@ -169,7 +172,7 @@ export function BuilderPreview({
                 onClick={() => setPageId(item.id)}
                 className="shrink-0"
               >
-                {item.title}
+                {item.kind === "home" || item.slug === "home" ? "Home" : pageNavLabel(item.title, businessName, item.slug)}
               </Button>
             ))}
           </nav>
