@@ -114,8 +114,8 @@ export function compareLiveSync(input: {
         scope: "page",
         page: pageName,
         label: "Page not reaching visitors",
-        why: "This page is switched on and saved, but the live site did not return it.",
-        fix: "Check the page has at least one switched-on section, then run this check again.",
+        why: "This page is saved in your draft but is not on the live site yet.",
+        fix: "Publish to put your latest draft live. If it is already published, check the page has at least one switched-on section.",
       });
       continue;
     }
@@ -143,8 +143,8 @@ export function compareLiveSync(input: {
           scope: "section",
           page: pageName,
           label: `${sectionName} not reaching visitors`,
-          why: "This section is saved and switched on, but the live site did not return it.",
-          fix: "Re-save the section, then run this check again.",
+          why: "This section is saved in your draft but is not on the live site yet.",
+          fix: "Publish to put your latest draft live, then run this check again.",
         });
         continue;
       }
@@ -169,8 +169,8 @@ export function compareLiveSync(input: {
             scope: "item",
             page: pageName,
             label: `${itemName} not reaching visitors`,
-            why: "This item is saved and switched on, but the live site did not return it.",
-            fix: "Re-save the item, then run this check again.",
+            why: "This item is saved in your draft but is not on the live site yet.",
+            fix: "Publish to put your latest draft live, then run this check again.",
           });
           continue;
         }
@@ -194,7 +194,7 @@ export function compareLiveSync(input: {
 export function syncSummary(result: SyncResult): string {
   if (!result.published) return "Saved, but not live yet — nothing is visible to visitors.";
   if (result.missing > 0) {
-    return `${result.missing} saved ${result.missing === 1 ? "change is" : "changes are"} not reaching your live site.`;
+    return `${result.missing} saved ${result.missing === 1 ? "change is" : "changes are"} waiting to be published.`;
   }
   return `Every saved change is live — ${result.live} ${result.live === 1 ? "piece" : "pieces"} checked on your real site.`;
 }
