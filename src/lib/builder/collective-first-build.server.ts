@@ -256,7 +256,13 @@ function imageInventoryAt(value: unknown, facts: DnaFacts): CreativeBrief["image
   for (const raw of value.slice(0, 28)) {
     if (!raw || typeof raw !== "object") continue;
     const item = raw as Record<string, unknown>;
-    const slot = textAt(item["slot"], 20);
+    // Slot names are the AI's own semantic labels ("service-detail-interior");
+    // the 60-character limit matches the picture lane's own slot check. A 20
+    // character cap silently dropped most descriptive slots.
+    const rawSlot = textAt(item["slot"], 80);
+    const slot = rawSlot
+      ? rawSlot.toLowerCase().replace(/[^a-z0-9-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60) || null
+      : null;
     const label = textAt(item["label"], 100);
     const purpose = textAt(item["purpose"], 240);
     const subject = textAt(item["subject"], 300);
@@ -269,8 +275,10 @@ function imageInventoryAt(value: unknown, facts: DnaFacts): CreativeBrief["image
     if (!aspectRatio) continue;
     const creativeText = [label, purpose, subject, altText].join(" ");
     if (visualTextProblem(creativeText, facts)) continue;
-    const section = listAt(item["section"], 8, 60);
-    if (!section.length) continue;
+    // A picture with no named section still has a job: it fills the strongest
+    // open picture spot instead of being thrown away.
+    const listed = listAt(item["section"], 8, 60);
+    const section = listed.length ? listed : [slot];
     images.push({
       slot,
       label,
@@ -562,7 +570,8 @@ async function refineCreativeWithCollective(input: {
       "Return JSON with one key: brief. Include only decisions you authored for this site.",
       "Describe every creative decision in your own words; no platform style vocabulary is supplied.",
       "brief.concept is required. Author typography, color, heroComposition, sectionRhythm, density, cardLanguage, ctaLanguage, backgroundTreatment, shapeLanguage, motion, mobileStrategy, conversionStrategy, industryConventions and photography as your own words.",
-      "brief.imageInventory must be a page-aware picture campaign of as many pictures as your design needs (none is fine; at most 28 for generation cost). Invent a short lowercase-hyphenated semantic slot for each image; there is no slot catalogue. Each item: slot, label, purpose, subject, environment, action, lighting, camera, framing, focalPoint and negativeSpace (your own words), aspectRatio (any positive ratio written like width:height), palette, mood, section (array of exact intended section roles), mobileCrop, altText.",
+      `brief.imageInventory must be a page-aware picture campaign that gives EVERY page of the site real photography on the first build: one hero picture for the home page, one picture for each real service (${(input.facts.services ?? []).length || "each"} service${(input.facts.services ?? []).length === 1 ? "" : "s"}), one for the about/story page, and one for each other page you plan — at least 5 pictures, at most 28 for generation cost. An empty or thin campaign is refused.`,
+      "Each picture's section array names the exact section roles it belongs to (for example [\"hero\"], [\"services\"], [\"story\"], [\"process\"]). Invent a short lowercase-hyphenated semantic slot for each image; there is no slot catalogue. Each item: slot, label, purpose, subject, environment, action, lighting, camera, framing, focalPoint and negativeSpace (your own words), aspectRatio (any positive ratio written like width:height), palette, mood, section (array of exact intended section roles), mobileCrop, altText.",
       "Every picture must have a distinct job in the final site. Generated images are marketing visuals, never staff, customer proof, completed-work evidence, reviews, awards or results.",
     ].join("\n"),
   });
