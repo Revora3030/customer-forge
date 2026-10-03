@@ -31,7 +31,8 @@ export type DesignFinding = {
     | "low_padding"
     | "long_line_length"
     | "wall_of_text"
-    | "stock_phrasing";
+    | "stock_phrasing"
+    | "missing_action";
   severity: "critical" | "major";
   path: string;
   /** Plain repair instruction for the art director. */
@@ -206,7 +207,18 @@ export function auditSectionDesign(
       fix: "This section is a single bare element. Give it real structure from the supplied material — heading plus supporting copy, an image, a list or an action.",
     });
 
-  // 7. No stock AI phrasing in anything the visitor reads.
+  // 7. Selling sections end in a working action. A services list, offer, or
+  // closing call-to-action with no button is a dead end for the visitor.
+  const sellingRole = /^(services?|pricing|packages?|offer|cta|call_to_action|closing|final_cta|benefits|process|how_it_works|service_area|about|story)$/i;
+  if (!options.lead && !functional && !actions.length && options.role && sellingRole.test(options.role))
+    findings.push({
+      code: "missing_action",
+      severity: "major",
+      path: "root",
+      fix: "This section has no button, so the visitor reaches a dead end. Add one clear action button (Book, Get a quote, Call or Contact) linking to a supplied page, tel: or mailto: address.",
+    });
+
+  // 8. No stock AI phrasing in anything the visitor reads.
   const visible = nodes.flatMap((v) => [v.node.text, ...(v.node.items ?? [])]).filter(Boolean);
   const stock = detectGenericPhrases(visible);
   if (stock.length)
@@ -217,7 +229,7 @@ export function auditSectionDesign(
       fix: `Replace stock AI phrasing (${stock.map((hit) => `"${hit.phrase}"`).join(", ")}) with plain, specific wording from the supplied material.`,
     });
 
-  // 8. Breathing room.
+  // 9. Breathing room.
   const rootStyle = tree.root.style ?? {};
   const vertical = rootStyle.paddingY ?? rootStyle.padding;
   if (typeof vertical === "number" && vertical < 24 && !functional)
