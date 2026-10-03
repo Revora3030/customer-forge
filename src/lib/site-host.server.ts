@@ -126,6 +126,7 @@ export async function resolveHostSite(
           (p) =>
             p["is_visible"] !== false &&
             p["noindex"] !== true &&
+            p["kind"] !== "thanks" &&
             (p.sections ?? []).some((section) => section["is_visible"] !== false),
         )
         .sort((a, b) => Number(a["sort_order"] ?? 0) - Number(b["sort_order"] ?? 0))
@@ -137,7 +138,7 @@ export async function resolveHostSite(
   const [{ data: pages }, { data: sections }] = await Promise.all([
     supabase
       .from("website_pages")
-      .select("id, slug, updated_at, noindex")
+      .select("id, slug, kind, updated_at, noindex, is_visible")
       .eq("organization_id", tenant.organizationId)
       .order("sort_order", { ascending: true }),
     supabase
@@ -161,7 +162,14 @@ export async function resolveHostSite(
     noindex: false,
 
     pages: (pages ?? [])
-      .filter((p) => !p.noindex && populated.has(p.id as string))
+      // Hidden pages and the after-form thank-you page are never advertised.
+      .filter(
+        (p) =>
+          !p.noindex &&
+          p.is_visible !== false &&
+          p.kind !== "thanks" &&
+          populated.has(p.id as string),
+      )
       .map((p) => ({ slug: p.slug, updatedAt: p.updated_at ?? null })),
   };
 }
