@@ -103,6 +103,54 @@ export class MediaIntegrityError extends Error {
   }
 }
 
+/**
+ * When picture making could not fill a slot, the section is redesigned as a
+ * text-led section instead of failing the whole build: image blocks with no
+ * picture are removed and the design's "required" picture need is relaxed to
+ * "optional" for exactly those sections. Nothing is faked — no placeholder is
+ * written — and broken references ("undefined", "about:blank") still fail.
+ * Returns the adapted pages, contract and the list of sections it adapted.
+ */
+export function adaptMissingMedia<P extends MaterialPage>(
+  pages: P[],
+  contract: AiDesignContract,
+): { pages: P[]; contract: AiDesignContract; adapted: { page: string; section: string }[] } {
+  const violations = inspectMediaIntegrity(pages, contract);
+  const adapted: { page: string; section: string }[] = [];
+  const relax = new Set<string>();
+  for (const violation of violations) {
+    if (violation.kind === "broken_asset_reference") continue;
+    relax.add(`${violation.page}::${violation.section}`);
+  }
+  if (!relax.size) return { pages, contract, adapted };
+  const nextPages = pages.map((page) => ({
+    ...page,
+    sections: page.sections.map((section) => {
+      if (!relax.has(`${page.slug}::${section.kind}`)) return section;
+      adapted.push({ page: page.slug, section: section.kind });
+      const record = section as unknown as Record<string, unknown>;
+      const kept = componentsOf(record).filter((component) => {
+        const isImage = component.kind === "image" || component.kind === "hero_image";
+        const source = typeof component.media_url === "string" ? component.media_url.trim() : "";
+        return !isImage || source.length > 0;
+      });
+      return { ...section, components: kept };
+    }),
+  })) as P[];
+  const nextContract: AiDesignContract = {
+    ...contract,
+    pages: contract.pages.map((page) => ({
+      ...page,
+      sections: page.sections.map((section) =>
+        relax.has(`${page.slug}::${section.role}`) && section.media === "required"
+          ? { ...section, media: "optional" as const }
+          : section,
+      ),
+    })),
+  };
+  return { pages: nextPages, contract: nextContract, adapted };
+}
+
 export function assertMediaIntegrity(pages: MaterialPage[], contract: AiDesignContract): void {
   const violations = inspectMediaIntegrity(pages, contract);
   if (violations.length > 0) throw new MediaIntegrityError(violations);
