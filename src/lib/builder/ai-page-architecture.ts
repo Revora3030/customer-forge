@@ -272,5 +272,32 @@ export function normalizePageArchitecture(input: {
   // falls back to the full fact inventory rather than shipping a stub site.
   if (input.candidate.length >= 3 && architecture.length < 2) return null;
 
+  // Completeness safeguard (structure only, never creative content): every
+  // page the business has real material for must exist after the first build.
+  // When the AI's plan dropped a candidate page (services, about, contact),
+  // keep the AI's pages and add the missing candidate page with its real
+  // material, so a customer never gets a site missing its services or contact.
+  for (const page of input.candidate) {
+    if (architecture.some((entry) => entry.slug === page.slug)) continue;
+    architecture.push({ ...page, sections: page.sections.map((section) => ({ ...section })) });
+    rejected.push({ field: `page.${page.slug}`, reason: "restored: the plan left out a page the business needs" });
+  }
+  // Every real service must be shown somewhere: if no section lists service
+  // cards, the services page (or home) lists them.
+  const listsServices = architecture.some((page) =>
+    page.sections.some((section) => (section.includes ?? []).includes("service_cards")),
+  );
+  if (!listsServices) {
+    const target =
+      architecture.find((page) => page.slug === "services") ??
+      architecture.find((page) => page.slug === home);
+    const servicesSection = target?.sections.find((section) => section.role === "services");
+    const candidateServices = input.candidate.some((page) =>
+      page.sections.some((section) => (section.includes ?? []).includes("service_cards")),
+    );
+    if (target && servicesSection && candidateServices)
+      servicesSection.includes = [...(servicesSection.includes ?? []), "service_cards"];
+  }
+
   return { architecture, rejected, changed: !sameShape(architecture, input.candidate) };
 }
