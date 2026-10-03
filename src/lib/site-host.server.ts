@@ -112,6 +112,27 @@ export async function resolveHostSite(
   const tenant = await resolveTenantHost(rawHost);
   if (!tenant) return null;
 
+  // The sitemap advertises the published copy, not unpublished draft pages.
+  const { loadLiveSnapshot } = await import("@/lib/public-site.server");
+  const live = await loadLiveSnapshot(tenant.organizationId);
+  const scheme0 = /^(localhost|127\.0\.0\.1)(:|$)/.test(tenant.host) ? protocol : "https";
+  if (live) {
+    return {
+      slug: tenant.slug,
+      origin: `${scheme0}://${tenant.host}`,
+      noindex: false,
+      pages: live.pages
+        .filter(
+          (p) =>
+            p["is_visible"] !== false &&
+            p["noindex"] !== true &&
+            (p.sections ?? []).some((section) => section["is_visible"] !== false),
+        )
+        .sort((a, b) => Number(a["sort_order"] ?? 0) - Number(b["sort_order"] ?? 0))
+        .map((p) => ({ slug: String(p["slug"] ?? ""), updatedAt: live.publishedAt })),
+    };
+  }
+
   const supabase = publicClient();
   const [{ data: pages }, { data: sections }] = await Promise.all([
     supabase
