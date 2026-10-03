@@ -9,6 +9,7 @@ import { createFileRoute, notFound } from "@tanstack/react-router";
 import { useEffect } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { SiteSection } from "@/components/site/SiteSections";
+import { leadSectionIndex } from "@/components/site/site-sections-utils";
 import { PreviewSelectBridge } from "@/components/site/PreviewSelectBridge";
 import { SiteBackdrop } from "@/components/site/SiteBackdrop";
 import { siteFontHref, siteFontStyle, siteThemeStyle } from "@/lib/site-theme";
@@ -166,9 +167,12 @@ export function SitePageView({
         />
 
         <main className="scroll-mt-20 pt-2 sm:pt-4 pb-24 sm:pb-16">
-          {site.content!.sections.map((section) => (
-            <SiteSection key={section.id} site={site} section={section} />
-          ))}
+          {(() => {
+            const lead = leadSectionIndex(site.content!.sections as never);
+            return site.content!.sections.map((section, index) => (
+              <SiteSection key={section.id} site={site} section={section} lead={index === lead} />
+            ));
+          })()}
         </main>
 
         {chrome.footer ? (
