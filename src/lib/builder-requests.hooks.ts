@@ -47,8 +47,29 @@ export const INSTRUCTION_LIMIT = 1200;
  * How many changes are installed in one pass. Kept below the server's own safety
  * limit so a large plan is applied in ordered batches rather than refused.
  */
-const APPLY_BATCH_SIZE = 5000;
+const APPLY_BATCH_SIZE = 400;
 
+
+/**
+ * True once the first website exists AND no build job is still running. Pages
+ * appear partway through a build; planning against them early lost the edit.
+ */
+async function firstBuildSettled(organizationId: string): Promise<boolean> {
+  const [{ count }, { data: active }] = await Promise.all([
+    supabase
+      .from("website_pages")
+      .select("id", { count: "exact", head: true })
+      .eq("organization_id", organizationId),
+    supabase
+      .from("generation_jobs")
+      .select("id")
+      .eq("organization_id", organizationId)
+      .in("status", ["queued", "processing"])
+      .limit(1)
+      .maybeSingle(),
+  ]);
+  return (count ?? 0) > 0 && !active;
+}
 
 export type BuilderRequests = ReturnType<typeof useBuilderRequests>;
 
@@ -336,11 +357,7 @@ export function useBuilderRequests({
           patch(task.id, { state: "planning", reply: result.reply });
           let pagesReady = false;
           try {
-            const { count } = await supabase
-              .from("website_pages")
-              .select("id", { count: "exact", head: true })
-              .eq("organization_id", organizationId!);
-            pagesReady = (count ?? 0) > 0;
+            pagesReady = await firstBuildSettled(organizationId!);
           } catch {
             // If the read fails, fall back to a simple delay and retry.
           }
@@ -356,11 +373,7 @@ export function useBuilderRequests({
           while (!pagesReady && pollAttempts < 90) {
             pollAttempts++;
             try {
-              const { count } = await supabase
-                .from("website_pages")
-                .select("id", { count: "exact", head: true })
-                .eq("organization_id", organizationId!);
-              pagesReady = (count ?? 0) > 0;
+              pagesReady = await firstBuildSettled(organizationId!);
             } catch {
               // If the read fails, continue to delay.
             }
@@ -514,7 +527,17 @@ export function useBuilderRequests({
     setBrand,
     queue,
     apply: (task: QueueTask) => void runBuild(task),
-    retry: (id: string) => patch(id, { state: "queued", error: "" }),
+    // A retry is a new attempt: give it a fresh request key, otherwise the
+    // server's idempotency check replays the previous result ("already
+    // applied") instead of planning and applying again.
+    retry: (id: string) =>
+      setTasks((current) =>
+        current.map((task) =>
+          task.id === id
+            ? { ...task, id: `${task.id.split("~")[0]}~r${Date.now().toString(36)}`, state: "queued" as const, error: "" }
+            : task,
+        ),
+      ),
     dismiss: (id: string) => setTasks((current) => current.filter((task) => task.id !== id)),
     memoryLoaded,
     /** Saves chat turns from flows outside the queue (first build, fact answers). */
