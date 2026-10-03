@@ -249,36 +249,17 @@ Never assert reviews, credentials, prices, guarantees or history that were not s
       data = await attempt(COPY_ROLE);
     }
   } catch (error) {
-    // Both AI attempts failed. Instead of propagating the error (which would
-    // stop the build), return an empty data object so readBrief returns null
-    // and the safe fallback brief below is used.
-    console.warn("[site-engine] All AI analysis attempts failed; using safe fallback brief.", error);
-    data = {};
+    // Both AI attempts failed. No fact-scaffold brief is substituted: the build
+    // stops and is retried, so every site is planned by the AI team.
+    if (error instanceof RevoraAiError) throw error;
+    const { AiStepUnavailableError } = await import("@/lib/builder/ai-step-error");
+    throw new AiStepUnavailableError("business analysis", error instanceof Error ? error.message : null);
   }
 
   const brief = readBrief({ ...data, source: ANALYSIS_ROLE });
   if (!brief) {
-    // AI analysis failed or returned invalid data. Instead of stopping the
-    // build, construct a safe brief directly from the business facts so the
-    // customer always gets a complete website.
-    console.warn("[site-engine] AI business analysis invalid; using safe fact-based brief.");
-    return {
-      positioning: `${facts.businessName} — ${facts.industry || "local business"}${facts.serviceArea ? ` serving ${facts.serviceArea}` : ""}`.slice(0, 200),
-      buyer: "People searching for the services this business offers.",
-      buyerGoal: "Find a trusted provider and take action.",
-      intents: ["researching", "local_search", "ready_to_call"] as CustomerIntent[],
-      primaryAction: facts.goals?.[0] || "Get in touch",
-      secondaryAction: "Learn more",
-      objections: [],
-      trustNeeds: [],
-      qualifyingFields: ["name", "phone", "email"],
-      pagePriorities: ["home", "services", "about", "contact"],
-      toneNotes: "Clear, professional and approachable.",
-      missingFacts: [],
-      source: "safe-fallback",
-      approved: false,
-      factAnswers: {},
-    } as SiteBrief;
+    const { AiStepUnavailableError } = await import("@/lib/builder/ai-step-error");
+    throw new AiStepUnavailableError("business analysis", "the answer was not in the agreed shape");
   }
   return brief;
 }
