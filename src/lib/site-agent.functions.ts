@@ -1766,7 +1766,8 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
         undoSteps.push({
           label: "link_generated_image:restore-layout",
           run: async () => {
-            await supabase.from("website_sections").update({ settings: previous } as never).eq("id", sectionId).eq("organization_id", orgId);
+            const { error } = await supabase.from("website_sections").update({ settings: previous } as never).eq("id", sectionId).eq("organization_id", orgId);
+            if (error) throw new Error(error.message);
           },
         });
         await run(
