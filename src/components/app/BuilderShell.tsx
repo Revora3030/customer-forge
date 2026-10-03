@@ -116,7 +116,7 @@ export function BuilderShell({
   return (
     <div className="-mt-1">
       {/* ---------------------------- Top bar ---------------------------- */}
-       <div className="sticky top-0 z-30 -mx-4 mb-3 border-b border-border bg-background/95 px-4 pt-[max(0.625rem,env(safe-area-inset-top))] pb-2.5 backdrop-blur">
+       <div className="sticky top-0 z-30 -mx-4 mb-2 border-b border-border/60 bg-background/90 px-4 pt-[max(0.5rem,env(safe-area-inset-top))] pb-2 backdrop-blur-xl">
          <div className="flex items-center gap-2">
           {sections.length > 1 ? (
           <button
@@ -129,22 +129,26 @@ export function BuilderShell({
           </button>
           ) : null}
 
-           <div className="min-w-0 flex-1 text-center sm:text-left">
-             <p className="truncate text-[14px] font-medium">{projectName}</p>
-            <div className="mt-0.5 flex items-center gap-1.5">
+          <div className="min-w-0 flex-1 text-left">
+            <div className="flex min-w-0 items-center gap-2">
+              <p className="truncate text-[15px] font-semibold tracking-tight">{projectName}</p>
               <span
                 data-testid="builder-status"
                 className={cn(
-                  "rounded-full border px-1.5 py-px text-[10px] tracking-wide uppercase",
+                  "inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-px text-[10.5px] font-medium",
                   toneClass[statusTone],
                 )}
               >
+                <span
+                  aria-hidden
+                  className={cn("size-1.5 rounded-full", statusTone === "live" ? "bg-emerald-400" : statusTone === "warn" ? "bg-accent" : "bg-muted-foreground/60")}
+                />
                 {statusLabel}
               </span>
-              {saveLabel ? (
-                 <span className="hidden truncate text-[11px] text-muted-foreground sm:inline">{saveLabel}</span>
-              ) : null}
             </div>
+            {saveLabel ? (
+              <p className="mt-0.5 hidden truncate text-[11px] text-muted-foreground sm:block">{saveLabel}</p>
+            ) : null}
           </div>
 
           {/* On a phone the actions form an even two-column block instead of
