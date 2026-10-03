@@ -19,7 +19,9 @@ export function useBuildProgress(
     enabled: Boolean(organizationId) && active,
     refetchInterval: active ? 900 : false,
     queryFn: async (): Promise<BuildProgressStep[]> => {
-      const since = new Date(Date.now() - 5 * 60_000).toISOString();
+      // A single build stage (pictures, layouts) can run well past five minutes;
+      // a short window made the card go blank mid-build.
+      const since = new Date(Date.now() - 45 * 60_000).toISOString();
 
       // Read progress stages from builder_progress (written by both the chat
       // planner and the first-build worker) AND the latest generation job's
