@@ -463,9 +463,12 @@ export function useBuilderRequests({
         await runBuild(planned);
     } catch (error) {
       const message = friendlyError(error as Error, "Revora couldn't read that request yet.");
+      // A dropped connection or a busy AI team is temporary: offer Retry so the
+      // owner doesn't have to retype the whole request.
       patch(task.id, {
         state: "failed",
         error: message,
+        retryable: true,
       });
       remember([
         { role: "user", content: task.instruction },
