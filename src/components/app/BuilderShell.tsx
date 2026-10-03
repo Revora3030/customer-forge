@@ -116,7 +116,10 @@ export function BuilderShell({
   return (
     <div className="-mt-1">
       {/* ---------------------------- Top bar ---------------------------- */}
-       <div className="sticky top-0 z-30 -mx-4 mb-2 border-b border-border/60 bg-background/90 px-4 pt-[max(0.5rem,env(safe-area-inset-top))] pb-2 backdrop-blur-xl">
+       {/* Sticks directly under the workspace header (which already pads for the
+           phone's notch). Sticking at top-0 slid this bar over that header and
+           cut off the logo, trial badge and notification bell. */}
+       <div data-testid="builder-topbar" className="sticky top-[calc(3.5rem+env(safe-area-inset-top))] z-20 -mx-4 mb-2 border-b border-border/60 bg-background/90 px-4 pt-2 pb-2 backdrop-blur-xl sm:-mx-6 sm:px-6">
          <div className="flex items-center gap-2">
           {sections.length > 1 ? (
           <button
