@@ -28,6 +28,10 @@ const RULES = [
   "Also write heroVideoBrief: one vivid 1-3 sentence art-direction brief (max 600 chars) for an optional silent, looping hero background video that fits this business and look. Show only real, generic scenes of the work — no text, logos, people's faces or invented claims.",
 ].join(" ");
 
+function hasButton(node: CompositionNode): boolean {
+  return (node.type === "button" && Boolean(node.href)) || (node.children ?? []).some(hasButton);
+}
+
 function parse(text: string): { header?: unknown; footer?: unknown; heroVideoBrief?: unknown } | null {
   const start = text.indexOf("{");
   const end = text.lastIndexOf("}");
@@ -102,6 +106,11 @@ export async function composeSiteChrome(input: {
       const hrefs = collectHrefs(checked.tree);
       const missing = required.filter((href) => !hrefs.has(href));
       if (missing.length) { feedback[part] = [{ path: "root", problem: `missing links to ${missing.join(", ")}` }]; continue; }
+      // The menu bar must carry one clear call-to-action button, not only text links.
+      if (part === "header" && !hasButton(checked.tree.root)) {
+        feedback[part] = [{ path: "root", problem: "the header needs one primary call-to-action button (type \"button\") linking to a real page, tel: or mailto:" }];
+        continue;
+      }
       trees[part] = checked.tree;
     }
     if (trees.header && trees.footer) {
