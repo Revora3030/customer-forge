@@ -259,13 +259,23 @@ export function VisualCheckPanel({
             : repair ?? `Screen check found ${result.findings.length} problem(s).`
           : null;
     if (!text) return null;
+    const active = running || aiRepairing;
+    const pct = progress && progress.total > 0 ? Math.round((progress.done / progress.total) * 100) : null;
     return (
       <div
         role="status"
-        className="mx-3 mb-2 flex items-center gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2 text-[12px] text-muted-foreground"
+        className="relative flex items-center gap-2 overflow-hidden rounded-full border border-border/60 bg-muted/30 px-3 py-1.5 text-[12px] text-muted-foreground"
       >
-        {running || aiRepairing ? <Loader2 className="size-3.5 shrink-0 animate-spin" /> : <MonitorCheck className="size-3.5 shrink-0" />}
-        <span className="min-w-0 break-words">{text}</span>
+        {active ? <Loader2 className="size-3.5 shrink-0 animate-spin text-primary" /> : <MonitorCheck className={result?.passed ? "size-3.5 shrink-0 text-emerald-400" : "size-3.5 shrink-0"} />}
+        <span className="min-w-0 flex-1 truncate">
+          {progress ? `Screen check · ${progress.label}` : text}
+        </span>
+        {pct !== null ? <span className="tnum shrink-0">{pct}%</span> : null}
+        {pct !== null ? (
+          <span aria-hidden className="absolute inset-x-0 bottom-0 h-0.5 bg-primary/15">
+            <span className="block h-full bg-primary transition-[width] duration-500" style={{ width: `${pct}%` }} />
+          </span>
+        ) : null}
       </div>
     );
   }
