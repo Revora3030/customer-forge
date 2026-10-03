@@ -419,5 +419,11 @@ export async function resolvePreviewToken(token: string) {
     .update({ views: Number(link.views ?? 0) + 1, last_viewed_at: new Date().toISOString() })
     .eq("id", link.id);
 
-  return { ok: true as const, slug: org.slug, expiresAt: link.expires_at, label: link.label };
+  return {
+    ok: true as const,
+    slug: org.slug,
+    organizationId: link.organization_id as string,
+    expiresAt: link.expires_at,
+    label: link.label,
+  };
 }
