@@ -132,6 +132,12 @@ export const restyleSiteWithAi = createServerFn({ method: "POST" })
     try {
       const { composeFirstBuildSections } = await import("@/lib/builder/first-build-compositions.server");
       const composed = await composeFirstBuildSections({ db: db as never, organizationId: orgId, facts, lookSummary: JSON.stringify(look) });
+      // A half-redesigned site (some sections on old layouts) is never kept:
+      // the earlier layout is put back and the owner is asked to try again.
+      if ((composed.fallback ?? 0) > 0) {
+        const { AiStepUnavailableError } = await import("@/lib/builder/ai-step-error");
+        throw new AiStepUnavailableError("redesign", `${composed.fallback} section(s) could not be designed`);
+      }
       const { recordTeamReview } = await import("@/lib/builder/edit-polish.server");
       await recordTeamReview({ organizationId: orgId, kind: "redesign_team_review", instruction: null, models: composed.models, reports: composed.gateReports });
       try {
