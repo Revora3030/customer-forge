@@ -420,6 +420,21 @@ function acquire(key: string, max: number) {
   return true;
 }
 
+/**
+ * Waits a short while for a free slot instead of refusing at once. A first
+ * build designs several sections in parallel while the specialist team runs
+ * alongside it, so a momentary full house is normal; turning it into an error
+ * dropped team members and failed sections for no reason.
+ */
+async function acquireWaiting(key: string, max: number, waitMs = 20_000) {
+  const until = Date.now() + waitMs;
+  while (!acquire(key, max)) {
+    if (Date.now() >= until) return false;
+    await wait(150 + Math.floor(Math.random() * 200));
+  }
+  return true;
+}
+
 function release(key: string) {
   const current = inFlight.get(key) ?? 0;
   if (current <= 1) inFlight.delete(key);
@@ -507,7 +522,7 @@ async function run<T>(
   if (!verdict.allowed) throw new RevoraAiError(429, verdict.reason, { category: "rate_limited" });
 
   const concurrencyKey = caller.organizationId ?? caller.userId ?? "platform";
-  if (!acquire(concurrencyKey, limits.maxConcurrentPerWorkspace))
+  if (!(await acquireWaiting(concurrencyKey, limits.maxConcurrentPerWorkspace)))
     throw new RevoraAiError(429, "Revora AI is already working on this workspace's requests.", {
       category: "rate_limited",
     });
@@ -515,16 +530,29 @@ async function run<T>(
   try {
     const ordered = chain;
     let lastError: unknown = null;
+    // TEAM FAILOVER. One model failing says nothing about the rest of the pool,
+    // so the chain keeps going until somebody answers — bounded by a wall-clock
+    // deadline so a bad day can never hold a customer's build for an hour.
+    const chainDeadline = Date.now() + chainDeadlineMs();
+    // A provider whose key was rejected or whose account is out of quota will
+    // refuse every one of its models, so the rest of them are skipped.
+    const deadProviders = new Set<string>();
+    // A request the pool keeps calling malformed really is malformed; stop
+    // after a few different providers agree instead of walking all of them.
+    const invalidBy = new Set<string>();
 
     for (let index = 0; index < ordered.length; index += 1) {
       const candidate = ordered[index]!;
       const config = candidate.config;
+      if (deadProviders.has(config.name)) continue;
+      if (index > 0 && Date.now() >= chainDeadline) break;
       const adapter = ADAPTERS[config.name];
       const model = candidate.model;
       const breakerScope = { caller, provider: config.name, model };
       const fallbackUsed = index > 0;
 
       for (let attempt = 1; attempt <= limits.maxAttemptsPerProvider; attempt += 1) {
+        if (attempt > 1 && Date.now() >= chainDeadline) break;
         const started = Date.now();
         const controller = new AbortController();
         const timer = setTimeout(() => controller.abort(), limits.requestTimeoutMs);
@@ -590,7 +618,10 @@ async function run<T>(
                 : providerUnavailable(config.name, (rawError as Error)?.message?.slice(0, 120));
           lastError = error;
           if (error.retryable) noteFailure(breakerScope);
-          if (candidate.free)
+          // The shared (cross-worker) health record is per PROVIDER, so only
+          // provider-wide trouble goes into it. A retired model id or one bad
+          // answer must not bench every other model that provider serves.
+          if (candidate.free && providerWideFailure(error))
             void noteDurableProviderResult({
               provider: candidate.free,
               ok: false,
@@ -629,9 +660,23 @@ async function run<T>(
           // calls. The exception is a request carrying an attachment: providers
           // differ in what they accept, so one refusing a picture says nothing
           // about the next free provider. Move on instead of giving up.
+          if (error.category === "unauthorized" || error.category === "quota") deadProviders.add(config.name);
           if (error.category === "invalid_request" && options?.nextProviderOnInvalidRequest) break;
-          if (error.category === "invalid_request" || error.category === "too_large") throw error;
+          if (error.category === "too_large") throw error;
+          if (error.category === "invalid_request") {
+            // Free models differ in what they accept (parameters, message
+            // shapes, context size), so one refusal moves on to the next model.
+            // Paid-only chains and a request three providers reject still stop.
+            if (!candidate.free) throw error;
+            invalidBy.add(config.name);
+            if (invalidBy.size >= 3) throw error;
+            break;
+          }
           if (!error.retryable) break;
+          // In the free pool the next model is usually faster than waiting out
+          // a rate limit or a slow model: only a transient 5xx is worth a retry
+          // of the same model.
+          if (candidate.free && error.category !== "provider_unavailable") break;
           if (attempt < limits.maxAttemptsPerProvider) {
             const backoff = error.retryAfterSeconds
               ? Math.min(error.retryAfterSeconds * 1000, 10_000)
@@ -650,6 +695,23 @@ async function run<T>(
   } finally {
     release(concurrencyKey);
   }
+}
+
+/** Total time one logical call may spend walking the failover chain. */
+function chainDeadlineMs() {
+  const raw = Number(process.env["AI_CHAIN_DEADLINE_MS"] ?? "");
+  return Number.isFinite(raw) && raw > 0 ? Math.floor(raw) : 6 * 60_000;
+}
+
+/** Failures that describe the whole provider, not one model or one answer. */
+function providerWideFailure(error: RevoraAiError) {
+  return (
+    error.category === "rate_limited" ||
+    error.category === "timeout" ||
+    error.category === "provider_unavailable" ||
+    error.category === "unauthorized" ||
+    error.category === "quota"
+  );
 }
 
 /** True when any message carries a picture, video or recording. */
@@ -748,21 +810,62 @@ export async function generateStructuredOutput(
 }
 
 /** Parses a model's JSON answer, tolerating a fenced code block. */
-function parseJsonObject(text: string): Record<string, unknown> {
-  const cleaned = text
-    .replace(/^```(?:json)?/i, "")
-    .replace(/```$/, "")
-    .trim();
-  try {
-    const parsed = JSON.parse(cleaned) as unknown;
-    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("shape");
-    return parsed as Record<string, unknown>;
-  } catch {
-    throw new RevoraAiError(502, "Revora AI returned an unexpected response. Try rewording.", {
-      category: "bad_response",
-    });
-  }
+export function parseJsonObject(text: string): Record<string, unknown> {
+  const parsed = extractJsonObject(text);
+  if (parsed) return parsed;
+  throw new RevoraAiError(502, "Revora AI returned an unexpected response. Try rewording.", {
+    category: "bad_response",
+  });
+}
 
+/**
+ * Free models wrap JSON in all sorts of packaging: a sentence before it, a
+ * fenced block in the middle, thinking tags, a trailing comma, a list holding
+ * one object. Every good answer in that packaging is recovered here so a model
+ * that did the work is not thrown out over formatting.
+ */
+export function extractJsonObject(raw: string): Record<string, unknown> | null {
+  const text = raw.replace(/<(think|thinking|reasoning)>[\s\S]*?<\/\1>/gi, "").trim();
+  const attempts: string[] = [];
+  const fenced = [...text.matchAll(/```(?:json|JSON)?\s*([\s\S]*?)```/g)].map((m) => m[1]!.trim());
+  attempts.push(text, ...fenced);
+  const start = text.indexOf("{");
+  if (start >= 0) {
+    // First balanced {...}, honouring strings, so prose around it is ignored.
+    let depth = 0;
+    let inString = false;
+    let escaped = false;
+    for (let i = start; i < text.length; i += 1) {
+      const ch = text[i]!;
+      if (inString) {
+        if (escaped) escaped = false;
+        else if (ch === "\\") escaped = true;
+        else if (ch === '"') inString = false;
+        continue;
+      }
+      if (ch === '"') inString = true;
+      else if (ch === "{") depth += 1;
+      else if (ch === "}") {
+        depth -= 1;
+        if (depth === 0) {
+          attempts.push(text.slice(start, i + 1));
+          break;
+        }
+      }
+    }
+  }
+  for (const candidate of attempts) {
+    for (const body of [candidate, candidate.replace(/,\s*([}\]])/g, "$1")]) {
+      try {
+        let parsed = JSON.parse(body) as unknown;
+        if (Array.isArray(parsed) && parsed.length === 1) parsed = parsed[0];
+        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) return parsed as Record<string, unknown>;
+      } catch {
+        // try the next shape
+      }
+    }
+  }
+  return null;
 }
 
 /** Code and structured reasoning work; routes to the coding model. */
@@ -942,7 +1045,7 @@ export async function callPinnedPaidImage(
   if (!config?.apiKey) throw freeAiUnavailable("openai has no credentials configured");
 
   const concurrencyKey = caller.organizationId ?? caller.userId ?? "platform";
-  if (!acquire(concurrencyKey, limits.maxConcurrentPerWorkspace))
+  if (!(await acquireWaiting(concurrencyKey, limits.maxConcurrentPerWorkspace)))
     throw new RevoraAiError(429, "Revora AI is already working on this workspace's requests.", {
       category: "rate_limited",
     });
@@ -1008,7 +1111,7 @@ export async function callPinnedPaidVideo(
   if (!config?.apiKey) throw freeAiUnavailable("openai has no credentials configured");
 
   const concurrencyKey = caller.organizationId ?? caller.userId ?? "platform";
-  if (!acquire(concurrencyKey, limits.maxConcurrentPerWorkspace))
+  if (!(await acquireWaiting(concurrencyKey, limits.maxConcurrentPerWorkspace)))
     throw new RevoraAiError(429, "Revora AI is already working on this workspace's requests.", {
       category: "rate_limited",
     });
@@ -1095,18 +1198,17 @@ export async function callPinnedFreeModel(
   guardRequest(call.messages);
   const limits = aiLimits();
   const adapter = ADAPTERS[call.provider as ProviderName];
+  const requestId = caller.requestId ?? newRequestId();
+  const concurrencyKey = caller.organizationId ?? caller.userId ?? "platform";
+  if (!(await acquireWaiting(concurrencyKey, limits.maxConcurrentPerWorkspace, 5_000)))
+    throw new RevoraAiError(429, "Revora AI is already working on this workspace's requests.", {
+      category: "rate_limited",
+    });
+  // The clock starts once the call actually goes out, not while it queued.
   const controller = new AbortController();
   const timeout = Math.min(call.timeoutMs ?? limits.requestTimeoutMs, limits.requestTimeoutMs);
   const timer = setTimeout(() => controller.abort(), timeout);
   const started = Date.now();
-  const requestId = caller.requestId ?? newRequestId();
-  const concurrencyKey = caller.organizationId ?? caller.userId ?? "platform";
-  if (!acquire(concurrencyKey, limits.maxConcurrentPerWorkspace)) {
-    clearTimeout(timer);
-    throw new RevoraAiError(429, "Revora AI is already working on this workspace's requests.", {
-      category: "rate_limited",
-    });
-  }
   try {
     noteFreeUse(call.provider);
     void noteDurableFreeUse(call.provider, cap);
@@ -1162,12 +1264,13 @@ export async function callPinnedFreeModel(
             })
           : providerUnavailable(call.provider, (rawError as Error)?.message?.slice(0, 120));
     if (error.retryable) noteFailure(breakerScope);
-    void noteDurableProviderResult({
-      provider: call.provider,
-      ok: false,
-      latencyMs: Date.now() - started,
-      rateLimited: error.category === "rate_limited",
-    });
+    if (providerWideFailure(error))
+      void noteDurableProviderResult({
+        provider: call.provider,
+        ok: false,
+        latencyMs: Date.now() - started,
+        rateLimited: error.category === "rate_limited",
+      });
     void recordAiEvent({
       requestId,
       provider: call.provider as ProviderName,
