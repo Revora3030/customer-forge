@@ -22,6 +22,9 @@ export const RENDERABLE_SECTION_KINDS = [
   "faq",
   "home",
   "page",
+  "story",
+  "values",
+  "service_area",
 ] as const;
 
 const KINDS = new Set<string>(RENDERABLE_SECTION_KINDS);
