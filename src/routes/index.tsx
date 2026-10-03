@@ -42,6 +42,9 @@ import { SiteAddressProvider } from "@/components/site/site-links-context";
 import { getHostSite } from "@/lib/host-site.functions";
 import { isPossibleTenantHost } from "@/lib/revora-address";
 import { PublicSiteView } from "@/routes/s.$slug";
+import { clientHeadExtrasSync } from "@/lib/site-head";
+import { compositionFonts, siteFontsHref } from "@/lib/site-theme";
+import { readSiteChrome } from "@/lib/builder/site-chrome";
 
 export const Route = createFileRoute("/")({
   /**
@@ -84,30 +87,46 @@ export const Route = createFileRoute("/")({
           ],
         }
       : loaderData
-        ? {
+        ? (() => {
+            const extras = clientHeadExtrasSync(
+              loaderData.site as never,
+              `https://${loaderData.host}/`,
+              compositionFonts,
+              siteFontsHref,
+              readSiteChrome,
+            );
+            const homePage = loaderData.site.content?.page ?? null;
+            const generated = (loaderData.site.settings?.generation as { copy?: { metaTitle?: string; metaDescription?: string } } | null)?.copy;
+            const title = (homePage?.seo_title || generated?.metaTitle || loaderData.site.org.name).slice(0, 60);
+            const description = (
+              homePage?.seo_description ||
+              generated?.metaDescription ||
+              loaderData.site.profile?.tagline ||
+              `${loaderData.site.org.name}.`
+            ).slice(0, 158);
+            const shareImage = homePage?.og_image_url || loaderData.site.profile?.hero_image_url || null;
+            return {
             meta: [
-              { title: `${loaderData.site.org.name}`.slice(0, 60) },
-              {
-                name: "description",
-                content: (
-                  loaderData.site.profile?.tagline ||
-                  `${loaderData.site.org.name}.`
-                ).slice(0, 158),
-              },
-              { property: "og:title", content: loaderData.site.org.name },
-              {
-                property: "og:description",
-                content: (
-                  loaderData.site.profile?.tagline ||
-                  `${loaderData.site.org.name}.`
-                ).slice(0, 158),
-              },
+              { title },
+              { name: "description", content: description },
+              { property: "og:title", content: homePage?.og_title || title },
+              { property: "og:description", content: homePage?.og_description || description },
               { property: "og:type", content: "website" },
               { property: "og:url", content: `https://${loaderData.host}/` },
+              { property: "og:site_name", content: loaderData.site.org.name },
               { name: "twitter:card", content: "summary_large_image" },
+              ...(shareImage && shareImage.startsWith("https://")
+                ? [
+                    { property: "og:image", content: shareImage },
+                    { name: "twitter:image", content: shareImage },
+                  ]
+                : []),
+              ...extras.meta,
             ],
-            links: [{ rel: "canonical", href: `https://${loaderData.host}/` }],
-          }
+            scripts: extras.scripts,
+            links: [{ rel: "canonical", href: `https://${loaderData.host}/` }, ...extras.links],
+          };
+          })()
         : ({
             meta: [
               { title: "AI Website + CRM for Any Business | Revora Growth Systems" },
