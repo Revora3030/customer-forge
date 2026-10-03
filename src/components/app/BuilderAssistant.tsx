@@ -8,11 +8,16 @@
  * (`useBuilderRequests`), which still saves a version first and still waits for
  * an explicit press before anything is removed.
  */
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   ArrowDown,
   ArrowUp,
   Check,
+  ChevronDown,
+  ImagePlus,
+  Sparkles,
+  SquarePen,
+  X,
   Copy,
   History,
   MoreHorizontal,
@@ -27,12 +32,7 @@ import {
   ConversationContent,
   ConversationScrollButton,
 } from "@/components/ai-elements/conversation";
-import {
-  Message,
-  MessageAction,
-  MessageActions,
-  MessageContent,
-} from "@/components/ai-elements/message";
+import { MessageAction, MessageActions } from "@/components/ai-elements/message";
 import { ReplyText } from "@/components/app/ReplyText";
 import {
   PromptInput,
@@ -50,7 +50,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { BrandChoices } from "@/components/app/BrandChoices";
 import { AssistantMedia } from "@/components/app/AssistantMedia";
 import { CompositionPreviewCard } from "@/components/app/CompositionPreviewCard";
 import { attachmentNotice } from "@/lib/builder/capabilities";
@@ -83,7 +82,10 @@ export function BuilderAssistant({
   factQuestion = null,
   onFactAnswer,
   onFactSkip,
+  banner = null,
 }: {
+  /** Slim live status line (e.g. the screen check) shown at the top of the chat. */
+  banner?: ReactNode;
   organizationId: string | null;
   requests: BuilderRequests;
   emptyTitle: string;
@@ -219,80 +221,113 @@ export function BuilderAssistant({
   };
 
 
+  const busy = requests.busy || firstBuildBusy || factBusy;
+  const empty = requests.tasks.length === 0 && !factQuestion && factLog.length === 0;
+  const canSend = requests.ready && (value.trim().length > 0 || attachments.length > 0);
+  const runSuggestion = (instruction: string) =>
+    onFirstBuild ? void onFirstBuild(instruction) : requests.queue(instruction);
+
   return (
     <section
       id="website-assistant"
       className={cn(
-        "builder-conversation flex w-full max-w-full min-w-0 flex-col overflow-hidden rounded-none border-0 bg-transparent p-0 shadow-none sm:mx-0 lg:rounded-2xl lg:border lg:border-border/80 lg:bg-card/72 lg:shadow-lift",
-        compact ? "h-[calc(100dvh-9.75rem)] min-h-[360px] lg:h-[calc(100vh-8rem)]" : "h-[calc(100dvh-9rem)] min-h-[360px]",
+        "builder-conversation relative flex w-full max-w-full min-w-0 flex-col overflow-hidden rounded-none border-0 bg-transparent p-0 shadow-none lg:rounded-2xl lg:border lg:border-border/70 lg:bg-card/40",
+        compact ? "h-[calc(100dvh-8.75rem)] min-h-[420px] lg:h-[calc(100vh-7.5rem)]" : "h-[calc(100dvh-8rem)] min-h-[420px]",
       )}
     >
-      {requests.tasks.length > 0 && !requests.busy ? (
-        <div className="flex justify-end px-4 pt-2 sm:px-6">
-          <Button size="sm" variant="ghost" onClick={() => void requests.newChat()}>
-            New chat
-          </Button>
+      {/* ------------------------------ Chat header ----------------------------- */}
+      <header className="flex shrink-0 items-center gap-2.5 border-b border-border/60 px-4 py-2.5 sm:px-5">
+        <span className="relative inline-flex size-7 shrink-0">
+          <img src="/revora-mark-144.png" alt="" className="size-7 rounded-lg" />
+          <span
+            className={cn(
+              "absolute -right-0.5 -bottom-0.5 size-2.5 rounded-full border-2 border-background",
+              busy ? "animate-pulse bg-primary" : "bg-emerald-400",
+            )}
+            aria-hidden
+          />
+        </span>
+        <div className="min-w-0 flex-1 leading-tight">
+          <p className="text-[13.5px] font-semibold">Revora</p>
+          <p className="truncate text-[11.5px] text-muted-foreground" aria-live="polite">
+            {busy ? "Working on your website…" : "AI website team · ready"}
+          </p>
         </div>
-      ) : null}
-      <Conversation className="min-h-0 flex-1 overscroll-contain" onPointerDown={dismissKeyboard}>
-        <ConversationContent className="gap-6 px-4 py-5 text-[15px] leading-relaxed sm:px-6 lg:px-7">
+        {requests.tasks.length > 0 && !requests.busy ? (
+          <button
+            type="button"
+            onClick={() => void requests.newChat()}
+            className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-full px-3 text-[12.5px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+            title="Start a new conversation"
+          >
+            <SquarePen className="size-3.5" aria-hidden /> New chat
+          </button>
+        ) : null}
+      </header>
+      {banner ? <div className="shrink-0 px-3 pt-2 empty:hidden sm:px-4">{banner}</div> : null}
 
-          {requests.tasks.length === 0 && !factQuestion && factLog.length === 0 ? (
-            <div className="chat-rise">
-              <Message from="assistant">
-                <MessageContent className="w-full space-y-4">
-                  <div className="flex items-center gap-2.5">
-                    <img src="/revora-mark-144.png" alt="Revora" className="size-9 rounded-xl shadow-signal" />
-                    <div className="min-w-0">
-                      <p className="text-[13px] font-semibold">Revora</p>
-                      <p className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                        <span className="inline-block size-1.5 animate-pulse rounded-full bg-emerald-400" aria-hidden />
-                        Your AI team is here and ready
-                      </p>
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <h2 className="gold-text text-lg font-semibold leading-tight">
-                      {businessName ? `Hi — let's build ${businessName}` : emptyTitle}
-                    </h2>
-                    <p className="text-[13.5px] leading-relaxed text-muted-foreground">{emptyHint}</p>
-                    <p className="text-[12.5px] leading-relaxed text-muted-foreground">
-                      Tell me in your own words what you do, who you help and where you work. I'll ask
-                      for anything else I need, then write and design every page with you — no
-                      made-up details, ever.
-                    </p>
-                  </div>
-                  <div className="flex flex-wrap gap-1.5">
-                    <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/5 px-2.5 py-1 text-[11px] font-medium text-primary">
-                      <span className="size-1.5 animate-pulse rounded-full bg-primary" aria-hidden />
-                      AI team online
-                    </span>
-                    <span className="inline-flex items-center gap-1 rounded-full border border-border bg-card px-2.5 py-1 text-[11px] text-muted-foreground">
-                      Multi-model collective
-                    </span>
-                    <span className="inline-flex items-center gap-1 rounded-full border border-border bg-card px-2.5 py-1 text-[11px] text-muted-foreground">
-                      Full creative control
-                    </span>
-                  </div>
-                </MessageContent>
-              </Message>
+      <Conversation className="min-h-0 flex-1 overscroll-contain" onPointerDown={dismissKeyboard}>
+        <ConversationContent className="mx-auto w-full max-w-3xl gap-7 px-4 py-6 text-[15px] leading-relaxed sm:px-6">
+          {empty ? (
+            <div className="chat-rise flex min-h-[46vh] flex-col justify-center gap-6 py-4">
+              <div className="space-y-3 text-center">
+                <img
+                  src="/revora-mark-144.png"
+                  alt="Revora"
+                  className="mx-auto size-12 rounded-2xl shadow-signal"
+                />
+                <h2 className="font-display text-[22px] leading-tight font-semibold tracking-tight sm:text-2xl">
+                  {businessName
+                    ? onFirstBuild
+                      ? `Let's build ${businessName}`
+                      : `What should we improve on ${businessName}?`
+                    : emptyTitle}
+                </h2>
+                <p className="mx-auto max-w-md text-[14px] leading-relaxed text-muted-foreground">
+                  {emptyHint}
+                </p>
+              </div>
+              {SUGGESTIONS.length || suggestionsQuery.isFetching ? (
+                <div className="mx-auto w-full max-w-xl space-y-2">
+                  <p className="flex items-center gap-1.5 px-1 text-[11.5px] font-medium tracking-wide text-muted-foreground uppercase">
+                    <Sparkles className="size-3.5 text-primary" aria-hidden /> Suggested for your site
+                  </p>
+                  {suggestionsQuery.isFetching && SUGGESTIONS.length === 0
+                    ? [0, 1, 2].map((key) => (
+                        <div key={key} className="h-[52px] animate-pulse rounded-xl border border-border/60 bg-muted/40" />
+                      ))
+                    : SUGGESTIONS.slice(0, 4).map((action) => (
+                        <button
+                          key={action.label}
+                          type="button"
+                          disabled={!requests.ready}
+                          onClick={() => runSuggestion(action.instruction)}
+                          className="group flex w-full cursor-pointer items-center gap-3 rounded-xl border border-border/70 bg-card/50 px-3.5 py-3 text-left transition-all hover:border-primary/45 hover:bg-card focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none disabled:opacity-50"
+                        >
+                          <span className="min-w-0 flex-1">
+                            <span className="block text-[14px] font-medium text-foreground">{action.label}</span>
+                            {action.reason ? (
+                              <span className="mt-0.5 block truncate text-[12px] text-muted-foreground">{action.reason}</span>
+                            ) : null}
+                          </span>
+                          <ArrowUp className="size-4 shrink-0 rotate-45 text-muted-foreground transition-colors group-hover:text-primary" aria-hidden />
+                        </button>
+                      ))}
+                </div>
+              ) : null}
             </div>
           ) : null}
+
           {(() => {
-            // Lovable-style flow: only the request being worked on right now
-            // shows the live activity card; waiting requests get a quiet line.
+            // Only the request being worked on right now shows the live
+            // activity card; waiting requests get a quiet line.
             const activeTaskId = requests.tasks.find(
               (t) => t.state === "planning" || t.state === "building",
             )?.id ?? requests.tasks.find((t) => t.state === "queued")?.id ?? null;
             return requests.tasks.map((task) => (
-            <div key={task.id} className="chat-rise space-y-2">
-              <Message from="user">
-                <MessageContent className="bg-primary text-primary-foreground">{task.instruction}</MessageContent>
-              </Message>
-              <Message from="assistant">
-                <div className="flex items-start gap-2.5">
-                  <img src="/revora-mark-144.png" alt="Revora" className="mt-0.5 size-7 shrink-0 rounded-lg shadow-sm" />
-                  <MessageContent className="w-full border border-border/60 bg-card/50 p-3.5 shadow-sm">
+              <div key={task.id} className="chat-rise space-y-4">
+                <UserTurn text={task.instruction} attachments={task.attachments?.length ?? 0} />
+                <AssistantTurn>
                   <TaskBody
                     task={task}
                     requests={requests}
@@ -306,212 +341,257 @@ export function BuilderAssistant({
                       window.requestAnimationFrame(() => inputRef.current?.focus());
                     }}
                   />
-                  </MessageContent>
-                </div>
-              </Message>
-            </div>
+                </AssistantTurn>
+              </div>
             ));
           })()}
+
           {factLog.map((entry, i) => (
-            <div key={`fact-${i}`} className="chat-rise space-y-2">
-              <Message from="assistant">
-                <div className="flex items-start gap-2.5">
-                  <img src="/revora-mark-144.png" alt="Revora" className="mt-0.5 size-6 shrink-0 rounded-md" />
-                  <MessageContent className="w-full border border-border/60 bg-card/50 p-3 text-[14px] shadow-sm">{entry.question}</MessageContent>
-                </div>
-              </Message>
-              <Message from="user">
-                <MessageContent className="bg-primary text-primary-foreground whitespace-pre-wrap">{entry.answer}</MessageContent>
-              </Message>
+            <div key={`fact-${i}`} className="chat-rise space-y-4">
+              <AssistantTurn>
+                <p className="text-[15px]">{entry.question}</p>
+              </AssistantTurn>
+              <UserTurn text={entry.answer} />
             </div>
           ))}
+
           {factQuestion ? (
             <div className="chat-rise">
-              <Message from="assistant">
-                <div className="flex items-start gap-2.5">
-                  <img src="/revora-mark-144.png" alt="Revora" className="mt-0.5 size-6 rounded-md shrink-0" />
-                  <MessageContent className="w-full space-y-2 border border-border/60 bg-card/50 p-3 text-[14px] shadow-sm">
-                  <div className="flex items-center gap-2">
-                    <span className="text-[12px] font-semibold">Revora</span>
-                  </div>
-                  <p className="font-medium text-foreground">{factQuestion.label}</p>
-                  <p className="text-muted-foreground">{factQuestion.prompt}</p>
+              <AssistantTurn>
+                <div className="space-y-2">
+                  <p className="text-[15px] font-medium text-foreground">{factQuestion.label}</p>
+                  <p className="text-[14px] text-muted-foreground">{factQuestion.prompt}</p>
                   {factBusy ? <Shimmer>Saving and updating your site…</Shimmer> : null}
                   {!factQuestion.required && onFactSkip && !factBusy ? (
                     <button
                       type="button"
                       onClick={() => onFactSkip(factQuestion.key)}
-                      className="cursor-pointer rounded-full border border-border px-3 py-1 text-[12px] text-muted-foreground hover:border-primary/55"
+                      className="cursor-pointer rounded-full border border-border px-3 py-1 text-[12.5px] text-muted-foreground transition-colors hover:border-primary/50 hover:text-foreground"
                     >
                       Skip for now
                     </button>
                   ) : null}
-                </MessageContent>
                 </div>
-              </Message>
+              </AssistantTurn>
             </div>
           ) : null}
+
           {(firstBuildBusy || factBusy) && !requests.busy ? (
             <div className="chat-rise">
-              <Message from="assistant">
-                <div className="flex items-start gap-2.5">
-                  <img src="/revora-mark-144.png" alt="Revora" className="mt-0.5 size-7 shrink-0 rounded-lg shadow-sm" />
-                  <MessageContent className="w-full border border-border/60 bg-card/50 p-3.5 shadow-sm">
-                  <LiveActivity
-                    organizationId={organizationId}
-                    fallback={firstBuildBusy ? "Starting your website build…" : "Saving your answer…"}
-                  />
-                  </MessageContent>
-                </div>
-              </Message>
+              <AssistantTurn>
+                <LiveActivity
+                  organizationId={organizationId}
+                  fallback={firstBuildBusy ? "Starting your website build…" : "Saving your answer…"}
+                />
+              </AssistantTurn>
             </div>
           ) : null}
         </ConversationContent>
-        <ConversationScrollButton />
+        <ConversationScrollButton className="bottom-3 shadow-lift" />
       </Conversation>
 
-      <div className="max-h-[55%] shrink-0 overflow-y-auto overscroll-contain px-3 pt-2 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
-        {/* Everything the old separate AI panels offered, as one tap each. */}
-         <div className="-mx-3 mb-2 flex gap-2 overflow-x-auto px-3 pb-2 pt-1 [scrollbar-width:none]">
-          {suggestionsQuery.isFetching && SUGGESTIONS.length === 0 ? (
-            <span className="builder-suggestion min-h-9 shrink-0 rounded-full border border-border px-3.5 py-1.5 text-[13px] text-muted-foreground">
-              <Shimmer>AI team is reviewing your site…</Shimmer>
-            </span>
+      {/* -------------------------------- Composer ------------------------------- */}
+      <div className="relative shrink-0 px-3 pt-1 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-4">
+        <div aria-hidden className="pointer-events-none absolute inset-x-0 -top-6 h-6 bg-gradient-to-t from-background to-transparent lg:hidden" />
+        <div className="mx-auto w-full max-w-3xl">
+          {!empty && (SUGGESTIONS.length > 0 || (suggestionsQuery.isFetching && !busy)) ? (
+            <div className="-mx-3 mb-2 flex gap-1.5 overflow-x-auto px-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              {suggestionsQuery.isFetching && SUGGESTIONS.length === 0 ? (
+                <span className="inline-flex h-8 shrink-0 items-center rounded-full border border-border/70 px-3 text-[12.5px] text-muted-foreground">
+                  <Shimmer>Finding ideas for your site…</Shimmer>
+                </span>
+              ) : null}
+              {(moreOpen ? SUGGESTIONS : SUGGESTIONS.slice(0, 4)).map((action) => (
+                <button
+                  key={action.label}
+                  type="button"
+                  title={action.reason}
+                  disabled={!requests.ready}
+                  onClick={() => runSuggestion(action.instruction)}
+                  className="builder-suggestion inline-flex h-8 shrink-0 cursor-pointer items-center gap-1.5 rounded-full border border-border/70 bg-card/50 px-3 text-[12.5px] text-foreground transition-colors hover:border-primary/50 hover:bg-card focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none disabled:opacity-50"
+                >
+                  <Sparkles className="size-3 text-primary" aria-hidden />
+                  {action.label}
+                </button>
+              ))}
+              {SUGGESTIONS.length > 4 ? (
+                <button
+                  type="button"
+                  aria-expanded={moreOpen}
+                  onClick={() => setMoreOpen((open) => !open)}
+                  className="inline-flex h-8 shrink-0 cursor-pointer items-center rounded-full px-2.5 text-[12.5px] text-muted-foreground transition-colors hover:text-foreground"
+                >
+                  {moreOpen ? "Fewer" : `+${SUGGESTIONS.length - 4} more`}
+                </button>
+              ) : null}
+            </div>
           ) : null}
-          {(moreOpen ? SUGGESTIONS : SUGGESTIONS.slice(0, 4)).map((action) => (
-            <button
-              key={action.label}
-              type="button"
-              title={action.reason}
-              disabled={!requests.ready}
-              onClick={() => onFirstBuild ? void onFirstBuild(action.instruction) : requests.queue(action.instruction)}
-              className={cn(
-                 "builder-suggestion min-h-9 shrink-0 cursor-pointer rounded-full border border-border bg-card/60 px-3.5 py-1.5 text-[13px] text-foreground transition-all",
-                 "hover:-translate-y-0.5 hover:border-primary/55 hover:bg-elevated hover:shadow-sm focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none disabled:opacity-50",
-              )}
-            >
-              {action.label}
-            </button>
-          ))}
-          {SUGGESTIONS.length > 4 ? <button
-            type="button"
-            aria-expanded={moreOpen}
-            onClick={() => setMoreOpen((open) => !open)}
-            className="gold-hl min-h-9 shrink-0 cursor-pointer rounded-full px-2.5 py-1 text-[13px] transition-colors hover:bg-primary/10 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+
+          <PromptInput
+            className={cn(
+              "builder-prompt rounded-[22px] border border-border bg-card shadow-lift transition-all",
+              busy && "is-thinking border-primary/35",
+            )}
+            onSubmit={(_message, event) => {
+              event.preventDefault();
+              send(value);
+            }}
           >
-            {moreOpen ? "Fewer ideas" : `+${SUGGESTIONS.length - 4} more`}
-          </button> : null}
-        </div>
-
-        {selection || answering ? (
-          <div className="mb-2 flex flex-wrap gap-1.5">
-            {selection ? (
-              <button
-                type="button"
-                onClick={() => onClearSelection?.()}
-                className="cursor-pointer rounded-full border border-primary/50 bg-primary/10 px-3 py-1 text-[12px] text-foreground"
-              >
-                Editing: {selection.label ?? selection.kind ?? "the block you picked"} ✕
-              </button>
+            {selection || answering ? (
+              <div className="order-first flex w-full flex-wrap gap-1.5 px-3 pt-3">
+                {selection ? (
+                  <span className="inline-flex max-w-full items-center gap-1.5 rounded-lg border border-primary/40 bg-primary/10 py-1 pr-1 pl-2.5 text-[12px] text-foreground">
+                    <span className="truncate">Editing: {selection.label ?? selection.kind ?? "the block you picked"}</span>
+                    <button
+                      type="button"
+                      onClick={() => onClearSelection?.()}
+                      aria-label="Stop editing this block"
+                      className="grid size-5 cursor-pointer place-items-center rounded-md text-muted-foreground hover:bg-primary/15 hover:text-foreground"
+                    >
+                      <X className="size-3" aria-hidden />
+                    </button>
+                  </span>
+                ) : null}
+                {answering ? (
+                  <span className="inline-flex max-w-full items-center gap-1.5 rounded-lg border border-border bg-muted/60 py-1 pr-1 pl-2.5 text-[12px] text-foreground">
+                    <span className="truncate">Answering: {answering}</span>
+                    <button
+                      type="button"
+                      onClick={() => setAnswering(null)}
+                      aria-label="Stop answering this question"
+                      className="grid size-5 cursor-pointer place-items-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
+                    >
+                      <X className="size-3" aria-hidden />
+                    </button>
+                  </span>
+                ) : null}
+                {selection
+                  ? (
+                      [
+                        ["Rewrite copy", "Rewrite the copy on this block to be clearer and more compelling."],
+                        ["Replace image", "Replace the image on this block with a better-fitting one."],
+                        ["New layout", "Change the layout of this block to something more visually interesting."],
+                        ["Shorter", "Make this block shorter and more concise."],
+                      ] as const
+                    ).map(([label, prompt]) => (
+                      <button
+                        key={label}
+                        type="button"
+                        onClick={() => send(prompt)}
+                        disabled={!requests.ready}
+                        className="inline-flex cursor-pointer items-center rounded-lg border border-border/70 px-2.5 py-1 text-[12px] text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground disabled:opacity-50"
+                      >
+                        {label}
+                      </button>
+                    ))
+                  : null}
+              </div>
             ) : null}
-            {selection ? (
-              <>
-                <button
-                  type="button"
-                  onClick={() => send("Rewrite the copy on this block to be clearer and more compelling.")}
-                  disabled={!requests.ready}
-                  className="cursor-pointer rounded-full border border-border bg-card px-3 py-1 text-[12px] text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground disabled:opacity-50"
-                >
-                  Rewrite Copy
-                </button>
-                <button
-                  type="button"
-                  onClick={() => send("Replace the image on this block with a better-fitting one.")}
-                  disabled={!requests.ready}
-                  className="cursor-pointer rounded-full border border-border bg-card px-3 py-1 text-[12px] text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground disabled:opacity-50"
-                >
-                  Replace Image
-                </button>
-                <button
-                  type="button"
-                  onClick={() => send("Change the layout of this block to something more visually interesting.")}
-                  disabled={!requests.ready}
-                  className="cursor-pointer rounded-full border border-border bg-card px-3 py-1 text-[12px] text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground disabled:opacity-50"
-                >
-                  Change Layout
-                </button>
-                <button
-                  type="button"
-                  onClick={() => send("Make this block shorter and more concise.")}
-                  disabled={!requests.ready}
-                  className="cursor-pointer rounded-full border border-border bg-card px-3 py-1 text-[12px] text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground disabled:opacity-50"
-                >
-                  Make Shorter
-                </button>
-              </>
-            ) : null}
-            {answering ? (
-              <button
-                type="button"
-                onClick={() => setAnswering(null)}
-                className="cursor-pointer rounded-full border border-border px-3 py-1 text-[12px] text-muted-foreground"
-              >
-                Answering: {answering} ✕
-              </button>
-            ) : null}
-          </div>
-        ) : null}
-         <PromptInput
-           className={cn("builder-prompt rounded-3xl border border-border/80 bg-card/60 shadow-sm backdrop-blur transition-all", (requests.busy || firstBuildBusy) && "is-thinking border-primary/30 shadow-signal")}
-          onSubmit={(_message, event) => {
-            event.preventDefault();
-            send(value);
-          }}
-        >
-          <PromptInputTextarea
-            ref={inputRef}
-            value={value}
-            maxLength={INSTRUCTION_LIMIT}
-             disabled={!requests.ready}
-            placeholder={factQuestion ? "Type your answer…" : "Ask Revora…"}
-            aria-label="Tell Revora what to change"
-            className="text-base"
-            enterKeyHint="send"
-            onChange={(event) => setValue(event.target.value)}
-          />
-           <PromptInputFooter className="items-center justify-between gap-2">
-            <PromptInputTools>
-               <PromptInputButton className="size-9 rounded-full border border-border p-0" onClick={() => setMediaOpen((open) => !open)} disabled={!requests.ready} aria-label="Add photo, video or voice" title={requests.capabilities ? (attachmentNotice(requests.capabilities, "image") ?? "Add photo, video or voice") : "Add photo, video or voice"}>
-                 <Plus className="size-4 shrink-0" aria-hidden />
-               </PromptInputButton>
-            </PromptInputTools>
-
-            <PromptInputSubmit
-               {...(requests.busy || firstBuildBusy ? { status: "submitted" as const } : {})}
-                disabled={!requests.ready || (!value.trim() && attachments.length === 0)}
+            <PromptInputTextarea
+              ref={inputRef}
+              value={value}
+              maxLength={INSTRUCTION_LIMIT}
+              disabled={!requests.ready}
+              placeholder={
+                factQuestion
+                  ? "Type your answer…"
+                  : selection
+                    ? "Describe the change to this block…"
+                    : onFirstBuild
+                      ? "Describe your business, or say “build my website”…"
+                      : "Ask Revora to change anything…"
+              }
+              aria-label="Tell Revora what to change"
+              className="max-h-48 min-h-[52px] px-4 pt-3.5 text-[16px] leading-relaxed"
+              enterKeyHint="send"
+              onChange={(event) => setValue(event.target.value)}
             />
-          </PromptInputFooter>
-        </PromptInput>
+            <PromptInputFooter className="items-center justify-between gap-2 px-2.5 pb-2.5">
+              <PromptInputTools className="gap-1">
+                <PromptInputButton
+                  className={cn(
+                    "size-9 rounded-full p-0 text-muted-foreground hover:text-foreground",
+                    (mediaOpen || attachments.length > 0) && "bg-muted text-foreground",
+                  )}
+                  onClick={() => setMediaOpen((open) => !open)}
+                  disabled={!requests.ready}
+                  aria-label="Add photo, video or voice"
+                  aria-expanded={mediaOpen}
+                  title={requests.capabilities ? (attachmentNotice(requests.capabilities, "image") ?? "Add photo, video or voice") : "Add photo, video or voice"}
+                >
+                  {mediaOpen ? <X className="size-4" aria-hidden /> : <Plus className="size-[18px]" aria-hidden />}
+                </PromptInputButton>
+                {attachments.length ? (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[11.5px] text-muted-foreground">
+                    <ImagePlus className="size-3" aria-hidden /> {attachments.length}
+                  </span>
+                ) : null}
+              </PromptInputTools>
+              <div className="flex items-center gap-2">
+                {value.length > INSTRUCTION_LIMIT * 0.8 ? (
+                  <span className="tnum text-[11px] text-muted-foreground">
+                    {value.length}/{INSTRUCTION_LIMIT}
+                  </span>
+                ) : null}
+                <PromptInputSubmit
+                  {...(busy ? { status: "submitted" as const } : {})}
+                  disabled={!canSend}
+                  aria-label={busy ? "Revora is working — your message will queue" : "Send"}
+                  className={cn(
+                    "size-9 rounded-full transition-all",
+                    canSend ? "bg-primary text-primary-foreground hover:bg-primary/90" : "bg-muted text-muted-foreground",
+                  )}
+                >
+                  {busy && !canSend ? undefined : <ArrowUp className="size-[18px]" aria-hidden />}
+                </PromptInputSubmit>
+              </div>
+            </PromptInputFooter>
+          </PromptInput>
 
-         {mediaOpen || attachments.length ? (
-           <div className="mt-3 border-t border-border/70 pt-3">
-             <AssistantMedia
-               organizationId={organizationId ?? undefined}
-               attachments={attachments}
-               onChange={setAttachments}
-               onTranscript={(text) => setValue((prior) => (prior ? `${prior.trim()} ${text}` : text).slice(0, INSTRUCTION_LIMIT))}
-               onInsert={(text) => setValue((prior) => (prior ? `${prior.trim()} ${text}` : text).slice(0, INSTRUCTION_LIMIT))}
-               disabled={!requests.ready}
-             />
-           </div>
-         ) : null}
-        {requests.summary ? (
-          <p className="mt-2 text-[11.5px] text-muted-foreground" role="status">
-            {requests.summary}
+          {mediaOpen || attachments.length ? (
+            <div className="mt-2 rounded-2xl border border-border/70 bg-card/60 p-3">
+              <AssistantMedia
+                organizationId={organizationId ?? undefined}
+                attachments={attachments}
+                onChange={setAttachments}
+                onTranscript={(text) => setValue((prior) => (prior ? `${prior.trim()} ${text}` : text).slice(0, INSTRUCTION_LIMIT))}
+                onInsert={(text) => setValue((prior) => (prior ? `${prior.trim()} ${text}` : text).slice(0, INSTRUCTION_LIMIT))}
+                disabled={!requests.ready}
+              />
+            </div>
+          ) : null}
+          <p className="mt-1.5 px-1 text-center text-[11px] text-muted-foreground" role="status">
+            {requests.summary ?? "Every change saves a restore point first. Nothing goes live until you publish."}
           </p>
-        ) : null}
+        </div>
       </div>
     </section>
+  );
+}
+
+/** The owner's message: a quiet bubble on the right, like Lovable and ChatGPT. */
+function UserTurn({ text, attachments = 0 }: { text: string; attachments?: number }) {
+  return (
+    <div className="flex justify-end">
+      <div className="max-w-[85%] rounded-[20px] rounded-br-md bg-muted px-4 py-2.5 text-[15px] leading-relaxed whitespace-pre-wrap text-foreground [overflow-wrap:anywhere]">
+        {text}
+        {attachments ? (
+          <span className="mt-1 flex items-center gap-1 text-[11.5px] text-muted-foreground">
+            <ImagePlus className="size-3" aria-hidden /> {attachments} attachment{attachments === 1 ? "" : "s"}
+          </span>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+/** Revora's turn: open, document-style text with a small avatar — no heavy card. */
+function AssistantTurn({ children }: { children: ReactNode }) {
+  return (
+    <div className="group/turn flex items-start gap-3">
+      <img src="/revora-mark-144.png" alt="Revora" className="mt-0.5 size-6 shrink-0 rounded-md" />
+      <div className="min-w-0 flex-1 space-y-2 pt-px">{children}</div>
+    </div>
   );
 }
 
@@ -550,35 +630,47 @@ function LiveActivity({
       index === all.findIndex((s) => s.stage === step.stage),
     )
     .slice(0, 12);
+  const [open, setOpen] = useState(true);
+  const elapsed = seconds < 60 ? `${seconds}s` : `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
   return (
-    <div className="space-y-2.5 rounded-2xl border border-primary/30 bg-card/60 p-3.5 shadow-signal" aria-live="polite">
-      <div className="flex items-center gap-2.5">
-        <span className="relative inline-flex size-8 items-center justify-center">
-          <span className="absolute inset-0 animate-ping rounded-xl bg-primary/20" aria-hidden />
-          <img src="/revora-mark-144.png" alt="Revora" className="relative size-8 rounded-xl" />
+    <div className="overflow-hidden rounded-xl border border-border/70 bg-card/40" aria-live="polite">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className="flex w-full cursor-pointer items-center gap-2.5 px-3.5 py-2.5 text-left transition-colors hover:bg-muted/40"
+      >
+        <span className="relative grid size-5 shrink-0 place-items-center">
+          <span className="absolute inset-0 animate-ping rounded-full bg-primary/25" aria-hidden />
+          <span className="relative size-2 rounded-full bg-primary" aria-hidden />
         </span>
-        <div className="min-w-0 flex-1">
-          <p className="text-[12.5px] font-semibold">Revora is working</p>
-          <p className="text-[11px] text-muted-foreground">
-            {seconds < 60 ? `${seconds}s` : `${Math.floor(seconds / 60)}m ${seconds % 60}s`} · live
-          </p>
+        <span className="min-w-0 flex-1 truncate text-[13.5px]">
+          <Shimmer as="span">{latest ? `${latest.stage}…` : fallback}</Shimmer>
+        </span>
+        <span className="tnum shrink-0 text-[11.5px] text-muted-foreground">{elapsed}</span>
+        <ChevronDown
+          className={cn("size-4 shrink-0 text-muted-foreground transition-transform", open && "rotate-180")}
+          aria-hidden
+        />
+      </button>
+      {open ? (
+        <div className="space-y-1.5 border-t border-border/60 px-3.5 py-2.5">
+          {done.length ? (
+            <ol className="space-y-1.5">
+              {done.map((step) => (
+                <li key={`${step.stage}-${step.at}`} className="chat-rise flex items-start gap-2 text-[12.5px] text-muted-foreground">
+                  <Check className="mt-0.5 size-3.5 shrink-0 text-emerald-400" aria-hidden />
+                  <span className="min-w-0 break-words">{step.stage}</span>
+                </li>
+              ))}
+            </ol>
+          ) : null}
+          {latest?.detail ? (
+            <p className="text-[12px] break-words text-muted-foreground">{latest.detail}</p>
+          ) : null}
+          {!latest && !done.length ? <TypingDots /> : null}
         </div>
-      </div>
-      {done.length ? (
-        <ul className="space-y-1">
-          {done.map((step) => (
-            <li key={`${step.stage}-${step.at}`} className="chat-rise flex items-start gap-1.5 text-[12px] text-muted-foreground">
-              <span aria-hidden className="text-primary">✓</span>
-              <span className="min-w-0 break-words">{step.stage}</span>
-            </li>
-          ))}
-        </ul>
       ) : null}
-      <div className="text-[13px]">
-        <Shimmer>{latest ? `${latest.stage}…` : fallback}</Shimmer>
-        {latest?.detail ? <p className="mt-1 text-[11.5px] text-muted-foreground break-words">{latest.detail}</p> : null}
-      </div>
-      {!latest ? <TypingDots className="mt-1" /> : null}
     </div>
   );
 }
@@ -627,7 +719,13 @@ function TaskBody({
           Waiting — I’ll start this as soon as the current change is done
         </p>
       ) : task.answered ? null : (
-        <p className="text-[11px] tracking-wide text-muted-foreground uppercase">
+        <p
+          className={cn(
+            "inline-flex items-center gap-1.5 text-[12px] font-medium",
+            task.state === "complete" ? "text-emerald-400" : task.state === "failed" ? "text-destructive" : "text-muted-foreground",
+          )}
+        >
+          {task.state === "complete" ? <Check className="size-3.5" aria-hidden /> : null}
           {QUEUE_LABELS[task.state]}
         </p>
       )}
@@ -635,7 +733,7 @@ function TaskBody({
       {task.reply ? (
         <ReplyText
           text={task.reply}
-          className={task.answered ? "text-[15px] leading-relaxed" : "text-[13px]"}
+          className="text-[15px] leading-relaxed"
         />
       ) : null}
       {task.error ? <p className="text-[12.5px]">{task.error}</p> : null}
@@ -682,19 +780,20 @@ function TaskBody({
       ) : null}
 
       {task.questions.length ? (
-        <ul className="space-y-1 text-[12px]">
+        <div className="space-y-1.5">
           {task.questions.map((question) => (
-            <li key={question}>
-              <button
-                type="button"
-                onClick={() => onAnswer(question)}
-                className="cursor-pointer text-left underline decoration-dotted underline-offset-2 hover:text-primary"
-              >
-                {question}
-              </button>
-            </li>
+            <button
+              key={question}
+              type="button"
+              onClick={() => onAnswer(question)}
+              className="flex w-full cursor-pointer items-start gap-2 rounded-xl border border-border/70 bg-card/40 px-3 py-2 text-left text-[13.5px] transition-colors hover:border-primary/45 hover:bg-card"
+            >
+              <span className="mt-0.5 text-primary" aria-hidden>?</span>
+              <span className="min-w-0 flex-1">{question}</span>
+              <span className="shrink-0 text-[11.5px] text-muted-foreground">Answer</span>
+            </button>
           ))}
-        </ul>
+        </div>
       ) : null}
 
       {task.composition ? <CompositionPreviewCard composition={task.composition} /> : null}
@@ -811,11 +910,7 @@ function TaskBody({
             Try again
           </Button>
         ) : null}
-        {working ? null : (
-          <Button size="sm" variant="ghost" onClick={() => requests.dismiss(task.id)}>
-            Clear
-          </Button>
-        )}
+
       </div>
     </div>
   );
@@ -884,7 +979,10 @@ function AssistantMessageActions({
   const improvePrompt = `Review what you did for my request: “${task.instruction}”. Inspect the website, fix anything incomplete or lower quality, and apply the improvements without inventing facts.`;
 
   return (
-    <MessageActions className="pt-1 text-muted-foreground" aria-label="Response actions">
+    <MessageActions
+      className="-ml-1.5 pt-0.5 text-muted-foreground transition-opacity [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover/turn:opacity-100 [@media(hover:hover)]:focus-within:opacity-100"
+      aria-label="Response actions"
+    >
       <MessageAction tooltip="Review and improve" label="Review and improve" onClick={() => onFollowUp(improvePrompt)}>
         <RotateCcw className="size-4" aria-hidden />
       </MessageAction>
