@@ -2434,9 +2434,11 @@ body { padding-bottom: env(safe-area-inset-bottom); }
 
 /* Phone safety for AI-authored compositions: keep authored layouts readable without changing their design. */
 @media (max-width: 639px) {
-  [data-composition] [style*="grid-template-columns"],
-  [data-composition] .grid,
-  [data-composition] [class*="grid-cols-"] {
+  /* An AI-authored phone column count (data-mobile-cols) is a deliberate
+     design (e.g. a 2-up gallery or stat strip) and wins over this guard. */
+  [data-composition] [style*="grid-template-columns"]:not([data-mobile-cols]),
+  [data-composition] .grid:not([data-mobile-cols]),
+  [data-composition] [class*="grid-cols-"]:not([data-mobile-cols]) {
     width: 100% !important;
     max-width: 100% !important;
     grid-template-columns: 1fr !important;
@@ -2456,8 +2458,10 @@ body { padding-bottom: env(safe-area-inset-bottom); }
   }
 }
 
-/* AI-authored section headings: prevent overlap with following containers. */
-[data-composition] :is(h1, h2, h3, h4) {
+/* AI-authored section headings: prevent overlap with following containers.
+   Zero-specificity :where() so a heading's own authored spacing (gap,
+   padding) is never overridden by this default. */
+:where([data-composition]) :where(h1, h2, h3, h4) {
   margin-bottom: 0.5em;
 }
 [data-composition] :is(h1, h2, h3, h4) + :is(div, section, form, [data-widget]) {
