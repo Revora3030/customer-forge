@@ -26,6 +26,21 @@ async function flushAutomations(organizationId: string) {
   }
 }
 
+/**
+ * The record itself is already saved when follow-ups are queued, so a queueing
+ * failure is reported as a warning rather than failing the whole save.
+ */
+async function queueFollowUps(run: () => Promise<unknown>, organizationId: string) {
+  try {
+    await run();
+  } catch (error) {
+    console.warn("automation queueing failed", error);
+    toast.warning("Saved — but the automatic follow-ups for this couldn't be queued.");
+    return;
+  }
+  await flushAutomations(organizationId);
+}
+
 const DAY = 86_400_000;
 
 export function useLeads(organizationId: string | undefined) {
@@ -539,13 +554,16 @@ export function useLeadAction(organizationId: string | undefined, businessName?:
         } as never);
       }
       if (trigger) {
-        await enqueueAutomations(supabase, {
-          organizationId: organizationId!,
-          trigger,
-          businessName: businessName ?? null,
-          lead,
-        });
-        await flushAutomations(organizationId!);
+        await queueFollowUps(
+          () =>
+            enqueueAutomations(supabase, {
+              organizationId: organizationId!,
+              trigger,
+              businessName: businessName ?? null,
+              lead,
+            }),
+          organizationId!,
+        );
       }
     },
     onSuccess: () => {
@@ -684,19 +702,22 @@ export function useCreateAppointment(
         body: `Appointment set for ${starts.toLocaleString()}.`,
       } as never);
 
-      await enqueueAutomations(supabase, {
-        organizationId: organizationId!,
-        trigger: "booking_created",
-        businessName: businessName ?? null,
-        lead: {
-          id: leadId,
-          name: input.name,
-          email: input.email ?? null,
-          phone: input.phone ?? null,
-        },
-        appointment: appt,
-      });
-      await flushAutomations(organizationId!);
+      await queueFollowUps(
+        () =>
+          enqueueAutomations(supabase, {
+            organizationId: organizationId!,
+            trigger: "booking_created",
+            businessName: businessName ?? null,
+            lead: {
+              id: leadId,
+              name: input.name,
+              email: input.email ?? null,
+              phone: input.phone ?? null,
+            },
+            appointment: appt,
+          }),
+        organizationId!,
+      );
 
       return appt.id;
     },
@@ -764,21 +785,24 @@ export function useSaveAppointment(
       }
 
       if (patch.status === "completed") {
-        await enqueueAutomations(supabase, {
-          organizationId: organizationId!,
-          trigger: "appointment_completed",
-          businessName: businessName ?? null,
-          lead: appointment.lead_id
-            ? {
-                id: appointment.lead_id,
-                name: appointment.name,
-                email: appointment.email ?? null,
-                phone: appointment.phone ?? null,
-              }
-            : null,
-          appointment,
-        });
-        await flushAutomations(organizationId!);
+        await queueFollowUps(
+          () =>
+            enqueueAutomations(supabase, {
+              organizationId: organizationId!,
+              trigger: "appointment_completed",
+              businessName: businessName ?? null,
+              lead: appointment.lead_id
+                ? {
+                    id: appointment.lead_id,
+                    name: appointment.name,
+                    email: appointment.email ?? null,
+                    phone: appointment.phone ?? null,
+                  }
+                : null,
+              appointment,
+            }),
+          organizationId!,
+        );
       }
     },
     onSuccess: () => {
