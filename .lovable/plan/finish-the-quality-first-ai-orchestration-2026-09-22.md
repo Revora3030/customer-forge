@@ -5,7 +5,7 @@ The new orchestration layer (specialist six, capability contracts, quality-first
 ## 1. Connect it to the real model selection
 
 - Order candidates by the quality-first score (capability, compatibility, quality, reliability, context, modality, safety, speed — cost last) instead of trying free options first.
-- Keep every safety control exactly as it is: the zero-cost switch, spend caps, per-tenant cooldowns, the "free only" administrative mode, and the deterministic engine that takes over when no model is reachable.
+- Keep the safety controls (spend caps, per-tenant cooldowns). There is no zero-cost switch, no free-only mode and no non-AI engine: when no model is reachable the build stops with a clear retry message.
 - Remove the arbitrary limit of 4 candidate models per provider so the full discovered pool can be considered, while keeping a sensible retry depth for a single request so one call never turns into a long stall.
 
 ## 2. Scan the whole live catalogue
