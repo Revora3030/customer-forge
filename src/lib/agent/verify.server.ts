@@ -188,7 +188,9 @@ export async function verifyWorkspaceSite(
     (row) => row["kind"] === "composition",
   )) {
     const raw = (section["settings"] as Record<string, unknown> | null)?.["composition"];
-    const result = validateComposition(raw);
+    // Same rule the public renderer uses: only a tree it would refuse to draw
+    // is a "can't be shown" failure. Quality findings never reverse an edit.
+    const result = validateComposition(raw, { lenient: true });
     checks.push({
       label: "Every section's layout can be shown",
       ok: result.ok,
