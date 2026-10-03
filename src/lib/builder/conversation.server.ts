@@ -88,6 +88,26 @@ export async function decideConversation(input: {
     return decide(result.data);
   } catch (error) {
     console.warn("builder conversation step unavailable", (error as Error).message);
-    return { mode: "change" };
+    return fallbackDecision(input.instruction);
   }
+}
+
+/**
+ * When no model can decide, guess from the words. A greeting or a question used
+ * to be treated as a site edit, sending "hi" or "how much is it?" into the full
+ * redesign planner. Only a message that clearly asks for a change goes there;
+ * anything else gets an honest short answer.
+ */
+export function fallbackDecision(instruction: string): ConversationDecision {
+  const text = instruction.trim().toLowerCase();
+  const asksForChange =
+    /\b(add|change|edit|update|replace|remove|delete|make|redesign|rewrite|restyle|fix|improve|move|swap|put|use|set|turn|apply|do it|go ahead|yes|generate|create|build)\b/.test(text);
+  const smallTalk = /^(hi|hey|hello|yo|thanks|thank you|ok|okay|cool|great|good (morning|afternoon|evening))[!. ]*$/.test(text);
+  if (asksForChange && !smallTalk) return { mode: "change" };
+  return {
+    mode: "answer",
+    reply: smallTalk
+      ? "Hi! I'm here. Tell me what you'd like to change on your website — a section, the wording, photos or colours — and I'll do it."
+      : "I couldn't reach the AI team to answer that just now. Please ask again in a moment — or tell me exactly what to change on the site and I'll start on it.",
+  };
 }
