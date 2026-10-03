@@ -137,39 +137,92 @@ async function writeSafeChromeFallback(
   facts: DnaFacts,
 ): Promise<void> {
   try {
-    const headerLinks = nav
-      .filter((p) => p.slug !== "home" && p.kind !== "thanks" && p.kind !== "post")
+    const pages = nav.filter((p) => p.kind !== "thanks" && p.kind !== "post");
+    const headerLinks = pages
+      .filter((p) => p.slug !== "home")
       .map((p) => ({
         type: "link" as const,
         text: p.title,
-        href: p.slug === "home" ? "/" : `/${p.slug}`,
+        href: `/${p.slug}`,
+        style: { size: 15, weight: 500, paddingX: 6, paddingY: 10 },
       }));
+    // The enquiry page the visitor should reach from every screen.
+    const enquiry =
+      pages.find((p) => /^(book|booking|contact|quote|get-a-quote|estimate)$/.test(p.slug)) ??
+      pages.find((p) => /book|contact|quote/i.test(p.slug));
+    const cta = enquiry
+      ? {
+          type: "button" as const,
+          text: (facts as { ctaLabel?: string | null }).ctaLabel?.trim() || enquiry.title,
+          href: `/${enquiry.slug}`,
+          style: { size: 15, weight: 600, paddingX: 20, paddingY: 12, radius: 999, borderWidth: 1 },
+        }
+      : facts.phone
+        ? {
+            type: "button" as const,
+            text: `Call ${facts.phone}`,
+            href: `tel:${facts.phone.replace(/[^\d+]/g, "")}`,
+            style: { size: 15, weight: 600, paddingX: 20, paddingY: 12, radius: 999, borderWidth: 1 },
+          }
+        : null;
     const header: CompositionTree = {
       version: 1,
       label: "safe-header",
       root: {
         type: "row",
-        style: { align: "center", justify: "between", paddingX: 16, paddingY: 12, maxWidth: 1152 },
+        style: { items: "center", justify: "between", gap: 24, maxWidth: 1152 },
+        responsive: { mobile: { justify: "start", gap: 8 } },
         children: [
-          { type: "link", text: businessName, href: "/", style: { weight: 600, size: 16 } },
-          { type: "row", style: { gap: 16, align: "center" }, children: headerLinks },
+          { type: "link", text: businessName, href: "/", style: { weight: 700, size: 18, letterSpacing: -0.01 } },
+          {
+            type: "row",
+            style: { gap: 20, items: "center", justify: "end" },
+            responsive: { mobile: { gap: 4 } },
+            children: [...headerLinks, ...(cta ? [cta] : [])],
+          },
         ],
       },
     };
-    const footerChildren: unknown[] = [
-      { type: "text", text: businessName, style: { weight: 600, size: 14 } },
-    ];
-    if (facts.phone) footerChildren.push({ type: "link", text: facts.phone, href: `tel:${facts.phone}`, style: { size: 13 } });
-    if (facts.email) footerChildren.push({ type: "link", text: facts.email, href: `mailto:${facts.email}`, style: { size: 13 } });
-    if (facts.serviceArea) footerChildren.push({ type: "text", text: `Serving ${facts.serviceArea}`, style: { size: 13 } });
-    footerChildren.push({ type: "row", style: { gap: 12, align: "center" }, children: headerLinks });
+    const contactLines: CompositionNode[] = [];
+    if (facts.phone) contactLines.push({ type: "link", text: facts.phone, href: `tel:${facts.phone.replace(/[^\d+]/g, "")}`, style: { size: 15 } });
+    if (facts.email) contactLines.push({ type: "link", text: facts.email, href: `mailto:${facts.email}`, style: { size: 15 } });
+    if (facts.serviceArea || facts.city) contactLines.push({ type: "text", text: `Serving ${facts.serviceArea ?? facts.city}`, style: { size: 15, opacity: 80 } });
     const footer: CompositionTree = {
       version: 1,
       label: "safe-footer",
       root: {
         type: "stack",
-        style: { align: "center", gap: 8, paddingX: 16, paddingY: 24, maxWidth: 1152 },
-        children: footerChildren as CompositionNode[],
+        style: { gap: 32, paddingX: 24, paddingY: 56, maxWidth: 1152 },
+        children: [
+          {
+            type: "grid",
+            style: { columns: 3, gap: 32 },
+            responsive: { mobile: { columns: 1 }, tablet: { columns: 2 } },
+            children: [
+              {
+                type: "stack",
+                style: { gap: 8 },
+                children: [
+                  { type: "heading", level: 2, text: businessName, style: { size: 22, weight: 700 } },
+                  ...(cta ? [{ ...cta, style: { ...cta.style, size: 14 } }] : []),
+                ],
+              },
+              {
+                type: "stack",
+                style: { gap: 6 },
+                children: pages.map((p) => ({
+                  type: "link" as const,
+                  text: p.title,
+                  href: p.slug === "home" ? "/" : `/${p.slug}`,
+                  style: { size: 15 },
+                })),
+              },
+              ...(contactLines.length ? [{ type: "stack" as const, style: { gap: 6 }, children: contactLines }] : []),
+            ],
+          },
+          { type: "divider", style: { opacity: 20 } },
+          { type: "text", text: `© ${new Date().getFullYear()} ${businessName}`, style: { size: 13, opacity: 70 } },
+        ],
       },
     };
     const { data: settings } = await db.from("website_settings").select("generation").eq("organization_id", organizationId).maybeSingle();
