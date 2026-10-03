@@ -1,3 +1,4 @@
+import { pageNavLabel } from "@/lib/website-content";
 import { Mail, MapPin, Phone } from "lucide-react";
 import { SitePageLink } from "@/components/site/site-links";
 import { businessFacts } from "@/lib/builder/facts";
@@ -35,7 +36,7 @@ export function SiteFooter({ site }: { site: Site }) {
           <div className="mt-4 grid gap-3 text-[14px] text-muted-foreground">
             <SitePageLink slug={site.org.slug}>Home</SitePageLink>
             {site.nav.filter((item) => item.slug !== "home" && item.kind !== "thanks").slice(0, 8).map((item) => (
-              <SitePageLink key={item.slug} slug={site.org.slug} page={item.slug}>{item.title}</SitePageLink>
+              <SitePageLink key={item.slug} slug={site.org.slug} page={item.slug}>{pageNavLabel(item.title, site.org.name, item.slug)}</SitePageLink>
             ))}
           </div>
         </nav>
