@@ -82,10 +82,13 @@ export const setPortalCode = createServerFn({ method: "POST" })
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
       if (!data.enabled) {
-        await supabaseAdmin
+        const { error } = await supabaseAdmin
           .from("organizations")
           .update({ portal_code: null })
           .eq("id", data.organizationId);
+        // Reporting "off" while the old code still works would leave the
+        // customer portal open.
+        if (error) throw new Error("Couldn't turn the customer portal off. Try again.");
         return { code: null };
       }
 
