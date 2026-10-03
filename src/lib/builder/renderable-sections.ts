@@ -13,8 +13,8 @@ export const RENDERABLE_SECTION_KINDS = [
   "post_list",
   "embed",
   "custom",
-  // Fallback layouts: these render the section's heading, body and components
-  // in a simple clean layout when no AI composition tree exists.
+  // Legacy display kinds: kept readable for sites built before every section
+  // required an AI layout. New builds never ship a section without one.
   "hero",
   "services",
   "process",
