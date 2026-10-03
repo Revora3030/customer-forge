@@ -53,14 +53,17 @@ const Shell = ({
  * Section copy, render-safe. Anything unfinished — stored data instead of
  * words, a template instruction, an empty value — is dropped rather than shown.
  */
-const Heading = ({ section }: { section: Section }) => {
+const Heading = ({ section, lead = false }: { section: Section; lead?: boolean }) => {
   const heading = safeText(section.heading);
   const subheading = safeText(section.subheading);
   const body = safeParagraph(section.body);
+  // The first drawn section on a page carries the page's main headline (h1)
+  // unless an AI layout already provides one; every page needs exactly one.
+  const Tag = lead ? "h1" : "h2";
   return (
     <>
       {heading ? (
-        <h2 className="font-display text-[28px] leading-tight font-semibold">{heading}</h2>
+        <Tag className="font-display text-[28px] leading-tight font-semibold">{heading}</Tag>
       ) : null}
       {subheading ? <p className="mt-2 text-[15px] text-muted-foreground">{subheading}</p> : null}
       {body ? (
@@ -77,7 +80,7 @@ const Heading = ({ section }: { section: Section }) => {
  * render; no built-in variant, style family or layout class is applied.
  * The owner's own block edits still apply; old named effects are no longer drawn.
  */
-export function SiteSection({ site, section }: { site: Site; section: Section }) {
+export function SiteSection({ site, section, lead = false }: { site: Site; section: Section; lead?: boolean }) {
   const css = blockCss(readBlockStyle(section.settings), siteSurface(site));
   return (
     <div
@@ -87,12 +90,12 @@ export function SiteSection({ site, section }: { site: Site; section: Section })
       className="rv-site-section"
       style={{ ...css, minWidth: 0, maxWidth: "100%" }}
     >
-      <SiteSectionBody site={site} section={section} />
+      <SiteSectionBody site={site} section={section} lead={lead} />
     </div>
   );
 }
 
-function SiteSectionBody({ site, section }: { site: Site; section: Section }) {
+function SiteSectionBody({ site, section, lead = false }: { site: Site; section: Section; lead?: boolean }) {
   const components = section.components ?? [];
   const { profile, org } = site;
   const ownAddress = useOwnAddress();
@@ -129,7 +132,7 @@ function SiteSectionBody({ site, section }: { site: Site; section: Section }) {
       if (!site.quote) return null;
       return (
         <Shell wide id="quote">
-          <Heading section={section} />
+          <Heading section={section} lead={lead} />
           <div className="mt-8">
             <QuoteCalculator site={site} />
           </div>
@@ -139,7 +142,7 @@ function SiteSectionBody({ site, section }: { site: Site; section: Section }) {
     case "booking":
       return (
         <Shell wide id="book">
-          <Heading section={section} />
+          <Heading section={section} lead={lead} />
           <div className="mt-8">
             <BookingForm site={site} />
           </div>
@@ -151,7 +154,7 @@ function SiteSectionBody({ site, section }: { site: Site; section: Section }) {
       // email address or unreadable hours are hidden rather than rendered.
       return (
         <Shell id="contact">
-          <Heading section={section} />
+          <Heading section={section} lead={lead} />
           <div className="mt-7"><ContactFacts site={site} /></div>
           <div className="mt-6">
             <DirectContact
@@ -178,7 +181,7 @@ function SiteSectionBody({ site, section }: { site: Site; section: Section }) {
       if (!posts.length && !manual.length) return null;
       return (
         <Shell wide>
-          <Heading section={section} />
+          <Heading section={section} lead={lead} />
           <ul className="rv-post-list mt-8 grid gap-3 sm:grid-cols-2">
             {posts.map((post) => (
               <li key={post.slug}>
@@ -223,7 +226,7 @@ function SiteSectionBody({ site, section }: { site: Site; section: Section }) {
       return (
         <Shell wide>
           {safeText(section.heading) || safeText(section.subheading) ? (
-            <Heading section={section} />
+            <Heading section={section} lead={lead} />
           ) : null}
           <div
             className="rv-embed-frame mt-6 overflow-hidden rounded-lg border border-border bg-background"
@@ -262,7 +265,7 @@ function SiteSectionBody({ site, section }: { site: Site; section: Section }) {
       }
       return (
         <Shell wide>
-          {section.heading || section.subheading || section.body ? <Heading section={section} /> : null}
+          {section.heading || section.subheading || section.body ? <Heading section={section} lead={lead} /> : null}
           <div className="mt-2">
             <CustomBlock spec={spec} />
           </div>
@@ -272,20 +275,26 @@ function SiteSectionBody({ site, section }: { site: Site; section: Section }) {
 
     // Fallback layouts for common section kinds when no AI composition tree
     // exists. These render the section's heading, body, and components in a
-    // clean, simple layout so the site is never blank.
+    // clean, simple layout so the site is never blank. story / values /
+    // service_area come from the fact-inventory fallback plan (used when the
+    // AI architect is unavailable); without a layout the About page rendered
+    // nearly empty.
     case "hero":
     case "services":
     case "process":
     case "social_proof":
     case "faq":
     case "home":
-    case "page": {
+    case "page":
+    case "story":
+    case "values":
+    case "service_area": {
       const cards = components.filter((c) => c.kind === "card" || c.kind === "button" || c.kind === "image");
       const hasContent = safeText(section.heading) || safeText(section.subheading) || safeParagraph(section.body) || cards.length > 0;
       if (!hasContent) return null;
       return (
         <Shell wide id={section.kind === "hero" ? undefined : `section-${section.id}`}>
-          <Heading section={section} />
+          <Heading section={section} lead={lead} />
           {cards.length > 0 ? (
             <div className={`mt-8 grid gap-4 ${cards.length > 2 ? "sm:grid-cols-2 lg:grid-cols-3" : "sm:grid-cols-2"}`}>
               {cards.map((card) => {
