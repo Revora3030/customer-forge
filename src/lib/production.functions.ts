@@ -407,8 +407,11 @@ export const activateProduction = createServerFn({ method: "POST" })
       label: `Production v${nextVersion}`,
       generation: settings?.generation ?? {},
       seo: settings?.seo ?? {},
+      // `live_format` marks this copy as the one visitors are served until
+      // the next publish (see loadLiveSnapshot).
       pages: {
         ...contentSnapshot,
+        live_format: 1,
         settings_pages: settings?.pages ?? null,
       } as never,
       published_at: publishedAt,
@@ -443,7 +446,7 @@ export const activateProduction = createServerFn({ method: "POST" })
 
     return {
       activated: true,
-      reason: "Your website is live. Edits you make from now on appear on the live site straight away — use Version history to go back.",
+      reason: "Your website is live. Edits you make from now on stay in your draft until you press Publish again — visitors keep seeing this version.",
       version: nextVersion,
       publishState: "published",
       readiness,
