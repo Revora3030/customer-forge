@@ -15,7 +15,10 @@ export function AiSiteHeader(props: {
   homeHref: string;
   resolveHref: (href: string) => string;
   surface?: string | null;
+  /** The owner's uploaded logo (already a usable URL), shown beside the menu. */
+  logoUrl?: string | null;
 }) {
+  const logo = props.logoUrl && /^(https:\/\/|\/)/i.test(props.logoUrl) ? props.logoUrl : null;
   const linkLabel = (text: string) => stripBusinessSuffix(text, props.name);
   const [open, setOpen] = useState(false);
   const closeRef = useRef<HTMLButtonElement>(null);
@@ -45,12 +48,18 @@ export function AiSiteHeader(props: {
     <header className="rv-site-header rv-ai-header sticky top-0 z-40 border-b border-border bg-background/95 backdrop-blur-md pt-[env(safe-area-inset-top)]">
       <nav aria-label="Main" className="hidden md:block">
         <div className="rv-site-header-nav mx-auto flex max-w-6xl items-center gap-4 px-4 py-3">
+          {logo ? (
+            <a href={props.homeHref} className="flex shrink-0 items-center" aria-label={`${props.name} home`}>
+              <img src={logo} alt={`${props.name} logo`} className="h-10 w-auto max-w-[180px] object-contain" />
+            </a>
+          ) : null}
           <CompositionRenderer as="div" scope="site-header" tree={props.tree} resolveHref={props.resolveHref} surface={props.surface ?? null} linkLabel={linkLabel} />
         </div>
       </nav>
       <nav aria-label="Main" className="flex items-center justify-between gap-3 px-4 py-3 text-foreground md:hidden">
-        <a href={props.homeHref} className="flex min-h-11 min-w-0 items-center font-display text-[16px] font-semibold leading-tight tracking-tight [overflow-wrap:anywhere]">
-          {props.name}
+        <a href={props.homeHref} className="flex min-h-11 min-w-0 items-center gap-2 font-display text-[16px] font-semibold leading-tight tracking-tight [overflow-wrap:anywhere]">
+          {logo ? <img src={logo} alt="" className="h-8 w-auto max-w-[120px] shrink-0 object-contain" /> : null}
+          <span>{props.name}</span>
         </a>
         <button
           ref={toggleRef}
