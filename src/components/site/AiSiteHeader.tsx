@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Menu, X } from "lucide-react";
 import { CompositionRenderer } from "@/components/site/CompositionRenderer";
 import type { CompositionTree } from "@/lib/builder/composition-tree";
@@ -15,14 +15,26 @@ export function AiSiteHeader(props: {
   resolveHref: (href: string) => string;
 }) {
   const [open, setOpen] = useState(false);
+  const closeRef = useRef<HTMLButtonElement>(null);
+  const toggleRef = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     if (!open) return;
     const close = (event: KeyboardEvent) => event.key === "Escape" && setOpen(false);
     window.addEventListener("keydown", close);
+    // Turning the phone sideways (or widening the window) hides the phone
+    // menu; it must also close, or the page stays unable to scroll.
+    const wide = window.matchMedia("(min-width: 768px)");
+    const onWide = () => wide.matches && setOpen(false);
+    wide.addEventListener?.("change", onWide);
+    const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
+    closeRef.current?.focus();
+    const toggle = toggleRef.current;
     return () => {
       window.removeEventListener("keydown", close);
-      document.body.style.overflow = "";
+      wide.removeEventListener?.("change", onWide);
+      document.body.style.overflow = previousOverflow;
+      toggle?.focus({ preventScroll: true });
     };
   }, [open]);
 
@@ -38,6 +50,7 @@ export function AiSiteHeader(props: {
           {props.name}
         </a>
         <button
+          ref={toggleRef}
           type="button"
           aria-expanded={open}
           aria-label={open ? "Close menu" : "Open menu"}
@@ -59,6 +72,7 @@ export function AiSiteHeader(props: {
         >
           <div className="flex items-center justify-end gap-3 text-foreground">
             <button
+              ref={closeRef}
               type="button"
               aria-label="Close menu"
               onClick={() => setOpen(false)}
