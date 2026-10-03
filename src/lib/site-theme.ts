@@ -44,8 +44,20 @@ export function luminance(hex: string): number {
   return 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b);
 }
 
-/** Whether text on this colour should be dark. */
-export const isLight = (hex: string) => luminance(hex) > 0.45;
+/**
+ * Whether text on this colour should be dark.
+ *
+ * Decided by which of near-black or near-white actually contrasts more, not a
+ * fixed brightness cut-off. The old 0.45 threshold put white text on
+ * mid-tone brand colours (amber, sky blue, mid green, grey) where it measured
+ * as low as 2:1 — unreadable buttons and headers on many generated sites.
+ */
+export const isLight = (hex: string) => {
+  const l = luminance(hex);
+  const onDark = (l + 0.05) / (luminance("#101114") + 0.05);
+  const onLight = (luminance("#ffffff") + 0.05) / (l + 0.05);
+  return onDark >= onLight;
+};
 
 /** "light" when the site's surface colour is pale — used for copy and UI tone. */
 export function siteTone(secondaryColor: string | null | undefined): "light" | "dark" {
@@ -282,4 +294,51 @@ export function siteFontStyle(value: string | null | undefined): CSSProperties |
     "--font-heading": `"${font}", ${fallback}`,
     ...(body ? { "--font-body": `"${body}", ${bodyFallback}` } : {}),
   } as CSSProperties;
+}
+
+/**
+ * Every font family an AI layout names inside its composition trees.
+ *
+ * Layout nodes may set `style.font` per heading or paragraph. Those families
+ * were never requested from the font service, so a design calling for, say,
+ * "Fraunces" headlines silently rendered in the system font — one of the main
+ * reasons generated sites looked generic. They are collected here and loaded
+ * with the site's own font in one request.
+ */
+export function compositionFonts(trees: unknown[]): string[] {
+  const found = new Set<string>();
+  const walk = (node: unknown, depth: number) => {
+    if (!node || typeof node !== "object" || depth > 14) return;
+    const record = node as Record<string, unknown>;
+    const style = record["style"] as Record<string, unknown> | undefined;
+    const font = typeof style?.["font"] === "string" ? readFontName(style["font"] as string) : null;
+    if (font) found.add(font);
+    const responsive = record["responsive"] as Record<string, Record<string, unknown> | undefined> | undefined;
+    for (const bp of Object.values(responsive ?? {})) {
+      const f = typeof bp?.["font"] === "string" ? readFontName(bp["font"] as string) : null;
+      if (f) found.add(f);
+    }
+    for (const child of (record["children"] as unknown[] | undefined) ?? []) walk(child, depth + 1);
+    for (const tab of (record["tabs"] as { children?: unknown[] }[] | undefined) ?? [])
+      for (const child of tab?.children ?? []) walk(child, depth + 1);
+  };
+  for (const tree of trees) walk((tree as { root?: unknown } | null)?.root, 0);
+  // System and generic names need no download.
+  for (const generic of ["system ui", "sans serif", "serif", "monospace", "Arial", "Helvetica", "Georgia", "Times New Roman"])
+    found.delete(generic);
+  return [...found].slice(0, 6);
+}
+
+/** One stylesheet URL for the site font plus any fonts its layouts use. */
+export function siteFontsHref(preference: string | null | undefined, extra: string[]): string | null {
+  const families = [siteHeadingFont(preference), siteBodyFont(preference), ...extra]
+    .filter((name): name is string => Boolean(name))
+    .filter((name, index, all) => all.indexOf(name) === index)
+    .slice(0, 8)
+    .map(
+      (name) =>
+        SITE_ITALIC_FONTS[name] ?? SITE_HEADING_FONTS[name] ?? `${name.replace(/ /g, "+")}:wght@400;500;600;700`,
+    );
+  if (!families.length) return null;
+  return `https://fonts.googleapis.com/css2?${families.map((family) => `family=${family}`).join("&")}&display=swap`;
 }
