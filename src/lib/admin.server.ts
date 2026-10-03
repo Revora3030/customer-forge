@@ -336,95 +336,126 @@ export async function provisionClient(admin: SupabaseClient, input: NewClientInp
 
   const organizationId = (org as { id: string }).id;
 
-  await admin
-    .from("memberships")
-    .insert({ organization_id: organizationId, user_id: ownerId, role: "owner" });
+  // Every setup row is checked: a workspace that silently lost its owner
+  // membership or profile could never be opened. On failure the half-created
+  // workspace is removed (its rows cascade) so the admin can simply retry.
+  const must = async (step: string, run: PromiseLike<{ error: { message: string } | null }>) => {
+    const { error } = await run;
+    if (!error) return;
+    await admin.from("organizations").delete().eq("id", organizationId);
+    throw new Error(`Couldn't finish creating the workspace (${step}): ${error.message}`);
+  };
 
-  await admin.from("business_profiles").insert({
-    organization_id: organizationId,
-    tagline: input.tagline ?? null,
-    description: input.description ?? null,
-    phone: input.phone ?? null,
-    email,
-    address: input.address ?? null,
-    city: input.city ?? null,
-    state: input.state ?? null,
-    zip: input.zip ?? null,
-    service_area: input.service_area ?? null,
-    hours: input.hours ?? {},
-    logo_url: input.logo_url ?? null,
-    hero_image_url: input.hero_image_url ?? null,
-    primary_color: input.primary_color || null,
-    secondary_color: input.secondary_color || null,
-    accent_color: input.accent_color || null,
-    owner_name: input.owner_name,
-    owner_email: email,
-    review_link: input.review_link ?? null,
-    support_email: input.support_email ?? null,
-  });
+  await must(
+    "owner",
+    admin
+      .from("memberships")
+      .insert({ organization_id: organizationId, user_id: ownerId, role: "owner" }),
+  );
+
+  await must(
+    "business_profiles",
+    admin.from("business_profiles").insert({
+      organization_id: organizationId,
+      tagline: input.tagline ?? null,
+      description: input.description ?? null,
+      phone: input.phone ?? null,
+      email,
+      address: input.address ?? null,
+      city: input.city ?? null,
+      state: input.state ?? null,
+      zip: input.zip ?? null,
+      service_area: input.service_area ?? null,
+      hours: input.hours ?? {},
+      logo_url: input.logo_url ?? null,
+      hero_image_url: input.hero_image_url ?? null,
+      primary_color: input.primary_color || null,
+      secondary_color: input.secondary_color || null,
+      accent_color: input.accent_color || null,
+      owner_name: input.owner_name,
+      owner_email: email,
+      review_link: input.review_link ?? null,
+      support_email: input.support_email ?? null,
+    }),
+  );
 
   const domain = input.desired_domain ? normalizeDomain(input.desired_domain) : "";
-  await admin.from("website_settings").insert({
-    organization_id: organizationId,
-    template: "ai-authored",
-    pages: {},
-    seo: {
-      headline: input.tagline ?? `${input.business_name}`,
-      subheadline: input.description ?? null,
-      meta_description: input.tagline ?? null,
-    },
-    custom_domain: domain && isValidDomain(domain) ? domain : null,
-    domain_status: domain && isValidDomain(domain) ? "dns_pending" : "not_connected",
-    domain_target: DOMAIN_TARGET,
-    publish_state: "draft",
-    published: false,
-  });
+  await must(
+    "website_settings",
+    admin.from("website_settings").insert({
+      organization_id: organizationId,
+      template: "ai-authored",
+      pages: {},
+      seo: {
+        headline: input.tagline ?? `${input.business_name}`,
+        subheadline: input.description ?? null,
+        meta_description: input.tagline ?? null,
+      },
+      custom_domain: domain && isValidDomain(domain) ? domain : null,
+      domain_status: domain && isValidDomain(domain) ? "dns_pending" : "not_connected",
+      domain_target: DOMAIN_TARGET,
+      publish_state: "draft",
+      published: false,
+    }),
+  );
 
-  await admin.from("social_profiles").insert({
-    organization_id: organizationId,
-    instagram: input.instagram ?? null,
-    facebook: input.facebook ?? null,
-    tiktok: input.tiktok ?? null,
-    youtube: input.youtube ?? null,
-    linkedin: input.linkedin ?? null,
-    google_business: input.google_business ?? null,
-  });
+  await must(
+    "social_profiles",
+    admin.from("social_profiles").insert({
+      organization_id: organizationId,
+      instagram: input.instagram ?? null,
+      facebook: input.facebook ?? null,
+      tiktok: input.tiktok ?? null,
+      youtube: input.youtube ?? null,
+      linkedin: input.linkedin ?? null,
+      google_business: input.google_business ?? null,
+    }),
+  );
 
   const services = (input.services ?? []).filter((s) => s.name?.trim());
   if (services.length) {
-    await admin.from("services").insert(
-      services.map((service, index) => ({
-        organization_id: organizationId,
-        name: service.name.trim(),
-        description: service.description ?? null,
-        price: service.price ?? null,
-        duration_minutes: service.duration_minutes ?? 60,
-        bookable: service.bookable ?? true,
-        featured: index === 0,
-        is_active: true,
-        sort_order: index,
-      })),
+    await must(
+      "services",
+      admin.from("services").insert(
+        services.map((service, index) => ({
+          organization_id: organizationId,
+          name: service.name.trim(),
+          description: service.description ?? null,
+          price: service.price ?? null,
+          duration_minutes: service.duration_minutes ?? 60,
+          bookable: service.bookable ?? true,
+          featured: index === 0,
+          is_active: true,
+          sort_order: index,
+        })),
+      ),
     );
   }
 
   const images = (input.images ?? []).filter((url) => url?.trim());
   if (images.length) {
-    await admin.from("media").insert(
-      images.map((url) => ({
-        organization_id: organizationId,
-        url: url.trim(),
-        category: "gallery",
-      })),
+    await must(
+      "media",
+      admin.from("media").insert(
+        images.map((url) => ({
+          organization_id: organizationId,
+          url: url.trim(),
+          category: "gallery",
+        })),
+      ),
     );
   }
 
-  await admin.from("subscriptions").insert({
-    organization_id: organizationId,
-    plan_id: input.plan_id ?? null,
-    status: "trialing",
-    billing_interval: "monthly",
-    trial_ends_at: newTrialEndsAt(),
-  });
+  await must(
+    "subscriptions",
+    admin.from("subscriptions").insert({
+      organization_id: organizationId,
+      plan_id: input.plan_id ?? null,
+      status: "trialing",
+      billing_interval: "monthly",
+      trial_ends_at: newTrialEndsAt(),
+    }),
+  );
 
   await admin.from("notifications").insert({
     organization_id: organizationId,
