@@ -22,7 +22,37 @@ const STOCK_PHRASES = [
   "a straightforward way to choose",
   "ready to choose your",
   "before you request a time",
-
+  // Common AI-generated website clichés. Each one makes a site read as
+  // machine-written and interchangeable; a top studio would never ship them.
+  "elevate your",
+  "unlock the power",
+  "unleash your",
+  "in today's fast-paced world",
+  "in today's digital age",
+  "take it to the next level",
+  "seamless experience",
+  "cutting-edge solutions",
+  "state-of-the-art",
+  "second to none",
+  "we've got you covered",
+  "your satisfaction is our",
+  "tailored solutions",
+  "solutions tailored to your",
+  "passionate about what we do",
+  "dedicated team of professionals",
+  "a team of experts",
+  "nestled in the heart of",
+  "embark on a journey",
+  "experience the difference",
+  "where quality meets",
+  "transform your space",
+  "your trusted partner",
+  "excellence in every",
+  "go above and beyond",
+  "best-in-class",
+  "world-class service",
+  "top-notch",
+  "lorem ipsum",
 ];
 
 /** Below this length, a repeated line is a normal CTA/label, not filler. */
