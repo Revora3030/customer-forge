@@ -205,6 +205,32 @@ export function startLeaseHeartbeat(
   };
 }
 
+/**
+ * A job whose LAST allowed attempt died mid-run (the worker was cut off, the
+ * platform recycled it) keeps status "processing" with an expired lease. The
+ * claimer skips it because its attempts are used up, so without this sweep the
+ * owner would watch "building your website" forever and could never start a
+ * new build. It is closed as failed with a plain message so they can retry.
+ */
+async function closeAbandonedJobs(db: Db, organizationId?: string) {
+  const now = new Date().toISOString();
+  let query = db
+    .from("generation_jobs")
+    .update({
+      status: "failed",
+      error_message: "The build was interrupted and could not finish. Press Build to try again.",
+      completed_at: now,
+      lease_expires_at: null,
+      updated_at: now,
+    } as never)
+    .eq("status", "processing")
+    .gte("attempts", MAX_ATTEMPTS)
+    .lt("lease_expires_at", now);
+  if (organizationId) query = query.eq("organization_id", organizationId);
+  const { error } = await query;
+  if (error) console.warn("[site-engine] abandoned job sweep failed", error.message);
+}
+
 /** Claims one runnable job with a lease. Returns null when there is nothing to do. */
 async function claimJob(db: Db, organizationId?: string) {
   const now = new Date();
@@ -1233,6 +1259,7 @@ export async function drainSiteEngineQueue(
   }
 
   await writeQueueState(db, { last_run_at: new Date().toISOString() });
+  await closeAbandonedJobs(db, options.organizationId);
 
   let processed = 0;
   let failed = 0;

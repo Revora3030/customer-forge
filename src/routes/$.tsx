@@ -13,7 +13,7 @@ import { getHostSite } from "@/lib/host-site.functions";
 import { isPossibleTenantHost } from "@/lib/revora-address";
 import { SitePageView } from "@/routes/s.$slug.$page";
 import { metaDescription } from "@/lib/seo";
-import { clientHeadExtrasSync } from "@/lib/site-head";
+import { clientHeadExtrasSync, shareImageFor } from "@/lib/site-head";
 import { compositionFonts, siteFontsHref } from "@/lib/site-theme";
 import { readSiteChrome } from "@/lib/builder/site-chrome";
 
@@ -50,7 +50,11 @@ export const Route = createFileRoute("/$")({
     const url = explicit.startsWith("https://")
       ? explicit
       : `https://${loaderData.host}/${page.slug}`;
-    const shareImage = page.og_image_url || loaderData.site.profile?.hero_image_url || null;
+    const shareImage = shareImageFor({
+      ogImage: page.og_image_url,
+      heroImage: loaderData.site.profile?.hero_image_url ?? null,
+      sections: loaderData.site.content?.sections ?? null,
+    });
     const extras = clientHeadExtrasSync(
       loaderData.site as never,
       `https://${loaderData.host}/`,

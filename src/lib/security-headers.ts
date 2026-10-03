@@ -24,7 +24,19 @@
  * remote code is still restricted to the hosts above.
  */
 
+import { EMBED_PROVIDERS } from "@/lib/site-embed";
+
 const SUPABASE_ORIGIN = "https://*.supabase.co";
+
+/**
+ * Every tool a business may embed on its site (maps, booking widgets, video,
+ * forms). The frame allowlist is built from the same list the embed reader
+ * accepts, so an embed the builder allows is never blocked by the browser and
+ * shown as a blank box on a live site.
+ */
+const EMBED_FRAME_SOURCES = [
+  ...new Set(EMBED_PROVIDERS.flatMap((provider) => provider.hosts).map((host) => `https://${host}`)),
+].join(" ");
 const SUPABASE_WS = "wss://*.supabase.co";
 
 export const CONTENT_SECURITY_POLICY = [
@@ -65,7 +77,7 @@ export const CONTENT_SECURITY_POLICY = [
     "https://www.google.com",
     "https://google.com",
   ].join(" "),
-  "frame-src 'self' https://www.google.com https://maps.google.com https://js.stripe.com https://hooks.stripe.com https://googleads.g.doubleclick.net https://td.doubleclick.net",
+  `frame-src 'self' https://www.google.com https://maps.google.com https://js.stripe.com https://hooks.stripe.com https://googleads.g.doubleclick.net https://td.doubleclick.net ${EMBED_FRAME_SOURCES}`,
   "worker-src 'self' blob:",
   "manifest-src 'self'",
   "upgrade-insecure-requests",
@@ -78,7 +90,8 @@ export const PERMISSIONS_POLICY = [
   "geolocation=(self)",
   "gyroscope=()",
   "magnetometer=()",
-  "microphone=()",
+  // The builder chat records voice notes; only this site may ask for the mic.
+  "microphone=(self)",
   'payment=(self "https://js.stripe.com")',
   "usb=()",
 ].join(", ");
@@ -92,7 +105,10 @@ export function baseSecurityHeaders(options: { https: boolean }): Record<string,
   return {
     "x-content-type-options": "nosniff",
     "referrer-policy": "strict-origin-when-cross-origin",
-    "x-frame-options": "DENY",
+    // Must agree with CSP `frame-ancestors 'self'`: DENY would stop the
+    // builder previewing a customer page in its own same-site frame on any
+    // browser that still honours X-Frame-Options over CSP.
+    "x-frame-options": "SAMEORIGIN",
     "cross-origin-opener-policy": "same-origin",
     "cross-origin-resource-policy": "same-origin",
     "x-dns-prefetch-control": "off",
