@@ -966,3 +966,41 @@ export function readVersionContent(pagesValue: unknown): ContentSnapshot | null 
   const content = (pagesValue as { content?: unknown }).content;
   return readContentSnapshot(content);
 }
+
+
+/**
+ * The short name of a page for menus, tabs and footers. Older builds saved
+ * titles like "Services — Acme Co." (a search-title shape), which then showed
+ * the business name twice in every menu. The business-name suffix or prefix
+ * is dropped; a title that is only the business name means the home page.
+ */
+export function pageNavLabel(title: string | null | undefined, businessName?: string | null, slug?: string | null): string {
+  const raw = String(title ?? "").replace(/\s+/g, " ").trim();
+  const name = String(businessName ?? "").replace(/\s+/g, " ").trim();
+  const fallback = slug && slug !== "home" ? slug.replace(/[-_]+/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()) : "Home";
+  if (!raw) return fallback;
+  if (!name) return raw;
+  const lower = raw.toLowerCase();
+  const n = name.toLowerCase();
+  if (lower === n) return slug && slug !== "home" ? fallback : "Home";
+  const seps = [" — ", " – ", " - ", " | ", " · ", ": "];
+  for (const sep of seps) {
+    if (lower.endsWith(`${sep}${n}`.toLowerCase())) {
+      const head = raw.slice(0, raw.length - sep.length - name.length).trim();
+      if (head) return head;
+    }
+    if (lower.startsWith(`${n}${sep}`.toLowerCase())) {
+      const tail = raw.slice(name.length + sep.length).trim();
+      if (tail) return tail;
+    }
+  }
+  return raw;
+}
+
+/** Menu link text cleanup: "Services — Acme" becomes "Services"; the bare business name is kept (it is usually the logo link). */
+export function stripBusinessSuffix(text: string, businessName: string | null | undefined): string {
+  const name = String(businessName ?? "").trim();
+  if (!name || text.trim().toLowerCase() === name.toLowerCase()) return text;
+  const cleaned = pageNavLabel(text, name, "page");
+  return cleaned || text;
+}

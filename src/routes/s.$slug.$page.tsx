@@ -1,3 +1,4 @@
+import { pageNavLabel, stripBusinessSuffix } from "@/lib/website-content";
 import { designTokenClasses, designTokenVars, readDesignTokens } from "@/lib/builder/design-tokens";
 /**
  * A single structured page of a published business website
@@ -9,7 +10,8 @@ import { createFileRoute, notFound } from "@tanstack/react-router";
 import { useEffect } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { SiteSection } from "@/components/site/SiteSections";
-import { leadSectionIndex } from "@/components/site/site-sections-utils";
+import { leadSectionIndex, pageHasWidget } from "@/components/site/site-sections-utils";
+import { ReviewWall } from "@/components/site/LiveBlocks";
 import { PreviewSelectBridge } from "@/components/site/PreviewSelectBridge";
 import { SiteBackdrop } from "@/components/site/SiteBackdrop";
 import { compositionFonts, siteFontStyle, siteFontsHref, siteThemeStyle } from "@/lib/site-theme";
@@ -43,11 +45,11 @@ export const Route = createFileRoute("/s/$slug/$page")({
     }
     const page = loaderData.content.page;
     const name = loaderData.org.name;
-    const title = (page.seo_title || `${page.title} — ${name}`).slice(0, 60);
+    const title = (page.seo_title || `${pageNavLabel(page.title, name, page.slug)} — ${name}`).slice(0, 60);
     const description = (
       page.seo_description ||
       loaderData.profile?.tagline ||
-      `${page.title} from ${name}.`
+      `${pageNavLabel(page.title, name, page.slug)} from ${name}.`
     ).slice(0, 158);
     const url =
       canonicalSiteUrl(loaderData.settings, params.slug, params.page, page.seo_canonical) ??
@@ -160,7 +162,7 @@ export function SitePageView({
             business name stays readable on pale and dark themes alike rather
             than inheriting whatever colour the section below it chose. */}
         {chrome.header ? (
-          <AiSiteHeader tree={chrome.header} name={org.name} homeHref={chromeHref("/")} resolveHref={chromeHref} />
+          <AiSiteHeader tree={chrome.header} name={org.name} homeHref={chromeHref("/")} resolveHref={chromeHref} surface={profile?.secondary_color ?? null} />
         ) : null}
 
         {/* Tablet and phone overrides the client set in the visual builder. */}
@@ -176,11 +178,22 @@ export function SitePageView({
               <SiteSection key={section.id} site={site} section={section} lead={index === lead} first={index === 0} />
             ));
           })()}
+          {/* Published reviews from the Reviews tool always reach the home
+              page, even on sites designed before reviews existed. Skipped when
+              the AI layout already places the live review wall itself. */}
+          {site.content!.page.kind === "home" && (site.reviews?.length ?? 0) > 0 && !pageHasWidget(site.content!.sections as never, "review_wall") ? (
+            <section id="reviews" className="scroll-mt-20" style={{ minWidth: 0 }}>
+              <div className="mx-auto w-full max-w-6xl px-4 sm:px-6" style={{ paddingBlock: "calc(4rem * var(--site-space, 1))" }}>
+                <h2 className="mb-2 font-display text-[clamp(1.75rem,4vw,2.5rem)] font-semibold leading-tight">What customers say</h2>
+                <ReviewWall site={site} />
+              </div>
+            </section>
+          ) : null}
         </main>
 
         {chrome.footer ? (
           <footer className="rv-site-footer rv-ai-footer">
-            <CompositionRenderer as="div" scope="site-footer" tree={chrome.footer} resolveHref={chromeHref} />
+            <CompositionRenderer as="div" scope="site-footer" tree={chrome.footer} resolveHref={chromeHref} surface={profile?.secondary_color ?? null} linkLabel={(text) => stripBusinessSuffix(text, org.name)} />
           </footer>
         ) : null}
 

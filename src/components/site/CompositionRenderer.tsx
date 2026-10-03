@@ -2,6 +2,7 @@ import { useState, type CSSProperties, type ReactNode } from "react";
 import type { Breakpoint, CompositionFaqItem, CompositionNode, CompositionTab, CompositionTree, MotionEasing, NodeHover, NodeMotion, NodeStyle, WidgetPresentation } from "@/lib/builder/composition-tree";
 import type { PersistedComponentVisual } from "@/lib/site-style";
 import { resolveImageSource } from "@/lib/brand-logos";
+import { contrastRatio, readableOn, toRgb } from "@/lib/readable-color";
 
 /**
  * Draws any validated AI-authored composition tree. It only translates the
@@ -99,7 +100,7 @@ const MEDIA: Record<Breakpoint, string> = {
 };
 
 type ResolvedMedia = string | { url: string | null; visual?: PersistedComponentVisual };
-type Ctx = { rules: string[]; counter: { n: number; sawMedia?: boolean }; eagerFirstMedia?: boolean; scope: string; href: (h: string) => string; media: (ref: string) => ResolvedMedia | null; widget: (name: string, presentation?: WidgetPresentation) => ReactNode };
+type Ctx = { label?: (text: string) => string; bg?: string | undefined; bg2?: string | undefined; fg?: string | undefined; rules: string[]; counter: { n: number; sawMedia?: boolean }; eagerFirstMedia?: boolean; scope: string; href: (h: string) => string; media: (ref: string) => ResolvedMedia | null; widget: (name: string, presentation?: WidgetPresentation) => ReactNode };
 
 const mediaUrl = (media: ResolvedMedia | null): string | null =>
   typeof media === "string" ? media : media?.url ?? null;
@@ -154,6 +155,60 @@ function baseLayout(type: CompositionNode["type"]): CSSProperties {
 }
 
 function renderNode(node: CompositionNode, ctx: Ctx, key: string): ReactNode {
+  const saved = { bg: ctx.bg, bg2: ctx.bg2, fg: ctx.fg };
+  try {
+    return renderNodeInner(node, ctx, key);
+  } finally {
+    ctx.bg = saved.bg; ctx.bg2 = saved.bg2; ctx.fg = saved.fg;
+  }
+}
+
+const TEXTUAL = new Set<CompositionNode["type"]>(["heading", "text", "link", "button", "list", "quote", "icon", "accordion", "faq_accordion", "tabs", "toggle", "tab_group"]);
+const BRIGHT = "#ffffff";
+const INK = "#101114";
+const isReadablePair = (fg: string, bg: string, bg2: string | undefined, large: boolean) => {
+  const need = large ? 3 : 4.5;
+  return (contrastRatio(fg, bg) ?? 21) >= need && (!bg2 || (contrastRatio(fg, bg2) ?? 21) >= need);
+};
+const bestInk = (bg: string, bg2?: string) => {
+  const worst = (c: string) => Math.min(contrastRatio(c, bg) ?? 21, bg2 ? (contrastRatio(c, bg2) ?? 21) : 21);
+  return worst(INK) >= worst(BRIGHT) ? INK : BRIGHT;
+};
+
+/**
+ * Works out the text colour a node must use to stay readable on the surface
+ * it is drawn over (its own background, else the nearest painted ancestor).
+ * Returns the corrected colour (if any) plus the paint context for children.
+ */
+// eslint-disable-next-line react-refresh/only-export-components -- renderer helper, exported for tests.
+export function readablePaint(node: Pick<CompositionNode, "type" | "style">, ctx: { bg?: string | undefined; bg2?: string | undefined; fg?: string | undefined }): { color?: string; bg?: string | undefined; bg2?: string | undefined; fg?: string | undefined } {
+  const own = node.style?.background;
+  const bg = own ?? ctx.bg;
+  const bg2 = own ? node.style?.gradientTo : ctx.bg2;
+  const authored = node.style?.color;
+  const large = node.type === "heading" || (node.style?.size ?? 0) >= 24;
+  let color: string | undefined;
+  if (authored && bg) {
+    const rgb = toRgb(authored);
+    const neutral = rgb ? Math.max(rgb.r, rgb.g, rgb.b) - Math.min(rgb.r, rgb.g, rgb.b) < 28 : false;
+    // White/grey/black text has no hue to keep: flip to the readable ink
+    // instead of walking it into a muddy mid-grey.
+    let fixed = neutral && !isReadablePair(authored, bg, bg2, large) ? bestInk(bg, bg2) : readableOn(authored, bg, { large });
+    if (bg2) fixed = readableOn(fixed, bg2, { large });
+    if (bg2 && (contrastRatio(fixed, bg) ?? 21) < (large ? 3 : 4.5)) fixed = bestInk(bg, bg2);
+    if (fixed.toLowerCase() !== authored.toLowerCase()) color = fixed;
+  } else if (!authored && own) {
+    // A new surface with no authored text colour: the inherited colour may be
+    // unreadable on it (white page text over a pale card). Pick the readable ink.
+    const inherited = ctx.fg;
+    if (!inherited || (contrastRatio(inherited, own) ?? 21) < (large ? 3 : 4.5)) color = bestInk(own, bg2);
+  } else if (!authored && bg && ctx.fg && TEXTUAL.has(node.type)) {
+    if ((contrastRatio(ctx.fg, bg) ?? 21) < (large ? 3 : 4.5)) color = readableOn(ctx.fg, bg, { large });
+  }
+  return { ...(color ? { color } : {}), bg, bg2, fg: color ?? authored ?? ctx.fg };
+}
+
+function renderNodeInner(node: CompositionNode, ctx: Ctx, key: string): ReactNode {
   const id = `${ctx.scope}-${ctx.counter.n++}`;
   for (const [bp, style] of Object.entries(node.responsive ?? {}) as [Breakpoint, NodeStyle][]) {
     const text = cssText(styleToCss(style, node.type));
@@ -161,6 +216,12 @@ function renderNode(node: CompositionNode, ctx: Ctx, key: string): ReactNode {
   }
   if (node.hover) ctx.rules.push(hoverCss(id, node.hover));
   const style: CSSProperties = { ...baseLayout(node.type), ...styleToCss(node.style, node.type) };
+  // Readability guard: saved layouts render even when a quality check failed,
+  // so a heading could be painted white on a pale grey panel (unreadable).
+  // Text is re-paired with the surface it actually sits on, keeping its hue.
+  const paint = readablePaint(node, ctx);
+  if (paint.color) style.color = paint.color;
+  ctx.bg = paint.bg; ctx.bg2 = paint.bg2; ctx.fg = paint.fg;
   const motion = node.motion && node.motion.kind !== "none" ? node.motion : null;
   const interactive = node.type === "button" || node.type === "link" || node.type === "card" || node.type === "widget";
   const classNames = [
@@ -219,7 +280,7 @@ function renderNode(node: CompositionNode, ctx: Ctx, key: string): ReactNode {
       const external = Boolean(href && /^https:\/\//i.test(href));
       return (
         <a key={key} {...props} href={href} {...(external ? { target: "_blank", rel: "noopener noreferrer" } : {})}>
-          {node.text}{kids}
+          {node.text && ctx.label ? ctx.label(node.text) : node.text}{kids}
         </a>
       );
     }
@@ -544,8 +605,9 @@ export const PHONE_SAFETY_CSS = `[data-composition]{box-sizing:border-box;max-wi
 
 const MOTION_CSS = `@media (prefers-reduced-motion: no-preference){.rv-cn-motion{animation:rv-cn-in .7s ease both}.rv-cn-motion[data-motion=rise]{animation-name:rv-cn-rise}.rv-cn-motion[data-motion=scale]{animation-name:rv-cn-scale}.rv-cn-motion[data-motion=float]{animation:rv-cn-float 6s ease-in-out infinite}.rv-cn-motion[data-motion=slide-left]{animation-name:rv-cn-sl}.rv-cn-motion[data-motion=slide-right]{animation-name:rv-cn-sr}.rv-cn-motion[data-motion=blur]{animation-name:rv-cn-blur}.rv-cn-motion[data-motion=reveal]{animation-name:rv-cn-reveal}.rv-cn-motion[data-motion=custom]{animation-name:rv-cn-custom}}@keyframes rv-cn-custom{from{opacity:var(--rv-o,1);transform:translate(var(--rv-x,0),var(--rv-y,0)) scale(var(--rv-s,1)) rotate(var(--rv-r,0));filter:blur(var(--rv-b,0))}}@keyframes rv-cn-sl{from{opacity:0;transform:translateX(32px)}to{opacity:1;transform:none}}@keyframes rv-cn-sr{from{opacity:0;transform:translateX(-32px)}to{opacity:1;transform:none}}@keyframes rv-cn-blur{from{opacity:0;filter:blur(12px)}to{opacity:1;filter:none}}@keyframes rv-cn-reveal{from{clip-path:inset(0 0 100% 0)}to{clip-path:inset(0 0 0 0)}}@keyframes rv-cn-in{from{opacity:0}to{opacity:1}}@keyframes rv-cn-rise{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:none}}@keyframes rv-cn-scale{from{opacity:0;transform:scale(.94)}to{opacity:1;transform:none}}@keyframes rv-cn-float{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}`;
 
-export function CompositionRenderer({ tree, scope, as = "section", resolveHref, resolveMedia, resolveWidget, eagerFirstMedia = false }: { tree: CompositionTree; scope: string; as?: "section" | "div"; resolveHref?: (href: string) => string; resolveMedia?: (ref: string) => ResolvedMedia | null; resolveWidget?: (name: string, presentation?: WidgetPresentation) => ReactNode; eagerFirstMedia?: boolean }) {
-  const ctx: Ctx = { rules: [], counter: { n: 0 }, eagerFirstMedia, scope: scope.replace(/[^\w-]/g, "") || "cn", href: resolveHref ?? ((h) => h), media: resolveMedia ?? (() => null), widget: resolveWidget ?? (() => null) };
+export function CompositionRenderer({ tree, scope, as = "section", resolveHref, resolveMedia, resolveWidget, eagerFirstMedia = false, surface = null, linkLabel }: { tree: CompositionTree; scope: string; surface?: string | null; linkLabel?: (text: string) => string; as?: "section" | "div"; resolveHref?: (href: string) => string; resolveMedia?: (ref: string) => ResolvedMedia | null; resolveWidget?: (name: string, presentation?: WidgetPresentation) => ReactNode; eagerFirstMedia?: boolean }) {
+  const page = surface && /^#[0-9a-f]{6}$/i.test(surface) ? surface : undefined;
+  const ctx: Ctx = { ...(linkLabel ? { label: linkLabel } : {}), ...(page ? { bg: page, fg: bestInk(page) } : {}), rules: [], counter: { n: 0 }, eagerFirstMedia, scope: scope.replace(/[^\w-]/g, "") || "cn", href: resolveHref ?? ((h) => h), media: resolveMedia ?? (() => null), widget: resolveWidget ?? (() => null) };
   const body = renderNode(tree.root, ctx, "root");
   // The shared rules are identical for every section. They used to be
   // repeated inline in each one (several KB per section, re-parsed by the

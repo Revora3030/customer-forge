@@ -574,6 +574,7 @@ function WebsitePage() {
           <div className={!previewOpen ? "hidden min-w-0 lg:block" : "min-w-0"}>
             <BuilderPreview
               slug={org.slug}
+              businessName={org.name ?? null}
               pages={pages ?? []}
               refreshing={requests.refreshing}
               refreshRevision={requests.refreshRevision}

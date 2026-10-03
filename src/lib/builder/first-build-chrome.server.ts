@@ -1,3 +1,4 @@
+import { pageNavLabel } from "@/lib/website-content";
 /**
  * FIRST-BUILD CHROME. Sol designs the menu bar and footer from scratch as
  * composition trees. Every tree passes the safety validator and fact check, and
@@ -54,7 +55,7 @@ export async function composeSiteChrome(input: {
   };
   const material = {
     businessName: input.businessName,
-    pages: nav.filter((p) => p.kind !== "thanks" && p.kind !== "post").map((p) => ({ href: p.slug === "home" ? "/" : `/${p.slug}`, title: p.title })),
+    pages: nav.filter((p) => p.kind !== "thanks" && p.kind !== "post").map((p) => ({ href: p.slug === "home" ? "/" : `/${p.slug}`, title: p.slug === "home" ? "Home" : pageNavLabel(p.title, input.businessName, p.slug) })),
     phone: facts.phone?.trim() || null,
     email: facts.email?.trim() || null,
     area: facts.serviceArea ?? facts.city ?? null,
