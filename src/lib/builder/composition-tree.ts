@@ -263,7 +263,11 @@ const UNSAFE_TEXT = /<\s*\/?\s*(script|iframe|object|embed|style)|javascript:|on
 
 export function isSafeHref(href: string): boolean {
   const value = href.trim();
-  if (/^\/(?!\/)[\w\-./#?=&%]*$/.test(value)) return true;
+  if (/^\/(?!\/)[\w\-./#?=&%]*$/.test(value)) {
+    // No "." or ".." path segments: they can climb out of the site's own pages.
+    const path = value.split(/[?#]/)[0] ?? "";
+    return !/(^|\/)\.\.?(\/|$)/.test(path);
+  }
   if (/^#[\w-]*$/.test(value)) return true;
   if (/^(tel:\+?[\d\s\-()]{3,30}|mailto:[^\s<>"]{3,200})$/i.test(value)) return true;
   try {
