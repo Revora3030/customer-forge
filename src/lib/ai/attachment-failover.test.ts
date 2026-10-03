@@ -22,10 +22,13 @@ describe("attachment failover", () => {
     );
   });
 
-  it("still stops straight away for a plain text bad request", () => {
-    expect(source).toContain(
-      'if (error.category === "invalid_request" || error.category === "too_large") throw error;',
-    );
+  it("stops at once for an oversized request and for a paid-only bad request", () => {
+    expect(source).toContain('if (error.category === "too_large") throw error;');
+    expect(source).toContain("if (!candidate.free) throw error;");
+  });
+
+  it("stops a plain text bad request once three free providers agree it is malformed", () => {
+    expect(source).toContain("if (invalidBy.size >= 3) throw error;");
   });
 
   it("only sets the flag from the request's own attachment parts", () => {
