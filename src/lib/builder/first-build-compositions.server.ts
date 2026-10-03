@@ -28,6 +28,7 @@ import { runAdvisoryPanel, runReviewPanel } from "@/lib/builder/review-panel.ser
 import { NO_EVIDENCE, allEvidence, gatherReviewEvidence, type ReviewEvidence } from "@/lib/builder/review-evidence.server";
 import { runImprovementGate, type GateReport } from "@/lib/builder/improvement-gate.server";
 import { detectGenericPhrases } from "@/lib/builder/genericity";
+import { auditPageDesign, needsDesignRepair, type DesignFinding } from "@/lib/builder/design-quality";
 
 const IMPROVEMENT_ROUNDS = 2;
 
@@ -67,6 +68,9 @@ export type CompositionPassResult = {
   gateReports: GateReport[];
   /** Content sections that never got an AI layout and kept the default one. */
   fallback?: number;
+  /** Craft findings sent back to Sol for revision, and how many remained. */
+  designRepairs?: number;
+  designFindings?: number;
 };
 
 const RULES = [
@@ -95,6 +99,8 @@ const RULES = [
   'widgetPresentation shape: {"eyebrow":"...","title":"...","description":"...","optionPrompt":"...","estimateLabel":"...","extraLabel":"...","actionLabel":"...","backLabel":"...","successTitle":"...","successBody":"...","contactLabel":"...","fieldLabels":{"service":"...","name":"...","phone":"...","email":"...","location":"...","date":"...","time":"...","details":"..."},"theme":{"surface":"#RRGGBB","text":"#RRGGBB","muted":"#RRGGBB","border":"#RRGGBB","action":"#RRGGBB","actionText":"#RRGGBB","selected":"#RRGGBB","selectedText":"#RRGGBB"}}',
   "Widget presentation copy must be specific to the supplied business and the section's role. Avoid stock phrases and generic filler such as 'choose your options', 'request your appointment', 'lock in this price', 'anything we should know', 'before you request a time', or 'without the guesswork' unless those exact words are genuinely appropriate to the supplied business.",
   "Use any validated composition, depth, hierarchy, spacing, media treatment, and motion the authored brief calls for. On mobile, provide responsive overrides wherever needed so nothing collides at 320px.",
+  // MEASURABLE CRAFT BAR (checked automatically after you answer; misses come back to you):
+  "Measurable craft bar, checked automatically: the first section of every page leads with ONE level-1 heading of at least 40px desktop / 30px+ mobile and one clear primary button using a supplied href; paragraph copy is 16-18px with lineHeight 1.5-1.7 and a text column of maxWidth 640-760px; heading sizes step down clearly by level (about 1.25-1.5x per level); every grid of 3+ columns has responsive.mobile.columns (1, or 2 for small tiles); never more than 4 columns of paragraph copy; sections get generous vertical padding (64-128px desktop, 48-72px mobile); no section is a single bare element; never repeat the previous section's exact structure.",
   craftBarPrompt("layout"),
 ].join(" ");
 
@@ -339,7 +345,20 @@ export async function composeFirstBuildSections(input: {
     } catch {
       memory = null;
     }
+    // DESIGN QUALITY BAR: measurable craft (headline scale, readable copy,
+    // phone layouts, rhythm, an action in the opening section). Sections that
+    // fall short go back to Sol with exact repair notes before anything is saved.
+    await repairDesignQuality({ organizationId, lookSummary: input.lookSummary, sections: pageSections, parts, designed, screen, result });
     const best = await improveWithTeam({ organizationId, lookSummary: input.lookSummary, evidence, memory, sections: pageSections, parts, designed, screen, result });
+    // The team round can only replace a tree with a validated one; if it made
+    // the craft worse, the pre-team design is kept for that section.
+    const before = auditPageDesign(pageSections.filter((s) => designed.has(s.id)).map((s) => ({ id: s.id, role: s.kind, tree: designed.get(s.id)! })));
+    const after = auditPageDesign(pageSections.filter((s) => best.has(s.id)).map((s) => ({ id: s.id, role: s.kind, tree: best.get(s.id)! })));
+    for (const section of pageSections) {
+      const worse = (after[section.id]?.length ?? 0) > (before[section.id]?.length ?? 0);
+      if (worse && designed.has(section.id)) best.set(section.id, designed.get(section.id)!);
+    }
+    result.designFindings = (result.designFindings ?? 0) + Object.values(after).reduce((n, list) => n + list.length, 0);
     for (const section of pageSections) {
       const tree = best.get(section.id);
       if (!tree) continue;
@@ -349,6 +368,76 @@ export async function composeFirstBuildSections(input: {
     }
   }
   return result;
+}
+
+/**
+ * Sends sections that miss the design quality bar back to Sol with exact,
+ * measurable repair notes (up to two rounds). A revision is only accepted when
+ * it passes every safety check AND has fewer craft findings than before, so
+ * this pass can never make a section worse.
+ */
+async function repairDesignQuality(input: {
+  organizationId: string;
+  lookSummary: string;
+  sections: SectionRow[];
+  parts: ComponentRow[];
+  designed: Map<string, CompositionTree>;
+  screen: (text: string) => string | null;
+  result: CompositionPassResult;
+}) {
+  for (let round = 0; round < 2; round += 1) {
+    const ordered = input.sections.filter((s) => input.designed.has(s.id));
+    const audit = auditPageDesign(ordered.map((s) => ({ id: s.id, role: s.kind, tree: input.designed.get(s.id)! })));
+    const failing = ordered.filter((s) => audit[s.id] && needsDesignRepair(audit[s.id]!));
+    if (!failing.length) return;
+    const notes: Record<string, { path: string; fix: string }[]> = {};
+    for (const s of failing) notes[s.id] = (audit[s.id] as DesignFinding[]).map(({ path, fix }) => ({ path, fix }));
+    const call = await callBestThinker({
+      json: true,
+      purpose: "creative_direction",
+      complexity: "high",
+      organizationId: input.organizationId,
+      maxOutputTokens: 24000,
+      system: RULES,
+      user: [
+        "SITE LOOK (follow it):", input.lookSummary, "",
+        "SECTION MATERIAL:",
+        JSON.stringify(failing.map((s) => materialFor(s, input.parts.filter((p) => p.section_id === s.id)))), "",
+        "YOUR CURRENT DESIGN:", JSON.stringify(Object.fromEntries(failing.map((s) => [s.id, input.designed.get(s.id)]))), "",
+        "SENIOR DESIGNER REVIEW — these are measurable craft problems a top studio would never ship. Fix every one, keep everything that already works (media refs, widgets, copy):",
+        JSON.stringify(notes, null, 2), "",
+        'Return JSON: {"sections": {"<sectionId>": {"version": 1, "label": "...", "root": {...}}}} with one improved tree per listed section.',
+      ].join("\n"),
+    });
+    if (!call.ok) return;
+    if (call.model) input.result.models.push(call.model);
+    input.result.costMicrocents += call.costMicrocents ?? 0;
+    const trees = parseTrees(call.text) ?? {};
+    let improved = 0;
+    for (const section of failing) {
+      const mediaRefs = mediaRefsFor(section, input.parts);
+      const checked = validateComposition(trees[section.id], {
+        screenText: input.screen,
+        allowedMediaRefs: mediaRefs,
+        requiredMediaRefs: mediaRefs,
+      });
+      if (!checked.ok) continue;
+      const widgetName = requiredWidgetForRole(section.kind);
+      if (widgetName) {
+        const widget = findWidget(checked.tree.root, widgetName);
+        if (!widget || widgetPresentationProblem(section.kind, widget)) continue;
+      }
+      const index = ordered.findIndex((s) => s.id === section.id);
+      const trial = ordered.map((s) => ({ id: s.id, role: s.kind, tree: s.id === section.id ? checked.tree : input.designed.get(s.id)! }));
+      const nextFindings = auditPageDesign(trial)[section.id] ?? [];
+      if (index >= 0 && nextFindings.length < (audit[section.id]?.length ?? 0)) {
+        input.designed.set(section.id, checked.tree);
+        improved += 1;
+      }
+    }
+    input.result.designRepairs = (input.result.designRepairs ?? 0) + improved;
+    if (!improved) return;
+  }
 }
 
 async function saveTree(db: Db, organizationId: string, section: SectionRow, tree: CompositionTree) {
