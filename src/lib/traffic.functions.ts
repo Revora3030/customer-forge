@@ -8,8 +8,10 @@ import { fetchAllRows } from "@/lib/paginate";
  */
 export const getTrafficReport = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .validator((input: { organizationId: string; days?: number; notify?: boolean }) => ({
+  .validator((input: { organizationId: string; days?: number; notify?: boolean; tzOffset?: number }) => ({
     organizationId: String(input?.organizationId ?? ""),
+    // Browser getTimezoneOffset(); real offsets are within ±14 hours.
+    tzOffset: Number.isFinite(Number(input?.tzOffset)) ? Math.min(Math.max(Math.round(Number(input?.tzOffset)), -840), 840) : 0,
     days: Math.min(Math.max(Number(input?.days ?? 30), 1), 365),
     notify: input?.notify !== false,
   }))
@@ -64,7 +66,7 @@ export const getTrafficReport = createServerFn({ method: "POST" })
 
     if (settings.error) throw new Error("You don't have access to that workspace.");
 
-    const summary = summarizeTraffic(events.rows, data.days);
+    const summary = summarizeTraffic(events.rows, data.days, data.tzOffset);
     const issues = detectTrafficIssues({
       summary,
       published: settings.data?.publish_state === "published",

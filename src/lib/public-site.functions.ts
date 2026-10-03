@@ -279,9 +279,21 @@ export const submitPublicLead = createServerFn({ method: "POST" })
       if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
         throw new Error("That email address doesn't look right.");
       }
-      if (!/^[a-z0-9-]+$/.test(input.slug)) throw new Error("Invalid business address");
+      if (!/^[a-z0-9-]+$/.test(String(input.slug ?? ""))) throw new Error("Invalid business address");
+      const KINDS = ["inquiry", "quote", "booking", "consultation", "contact"] as const;
+      const kind = (KINDS as readonly string[]).includes(String(input.kind)) ? input.kind : "inquiry";
+      // A booking label and booking details must travel together: a "booking"
+      // with no time skipped every booking check yet was saved as booked.
+      if (kind === "booking" && !input.booking) throw new Error("Choose a date and time to book.");
+      const booking = kind === "booking" ? input.booking : null;
+      const serviceId = typeof input.serviceId === "string" && /^[0-9a-f-]{36}$/i.test(input.serviceId) ? input.serviceId : null;
       return {
         ...input,
+        kind,
+        booking,
+        serviceId,
+        source: clean(input.source, 80) || "website",
+        campaign: clean(input.campaign, 120) || null,
         name,
         email,
         phone,

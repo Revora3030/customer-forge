@@ -430,7 +430,8 @@ function Onboarding() {
 
       if (services.length) {
         // Re-running onboarding must not duplicate the service list.
-        await supabase.from("services").delete().eq("organization_id", org.id);
+        const { error: clearError } = await supabase.from("services").delete().eq("organization_id", org.id);
+        assertNoError(clearError, "Could not update your services");
         const { error: servicesError } = await supabase.from("services").insert(
           services.map((s, index) => ({
             organization_id: org.id,

@@ -92,7 +92,10 @@ async function provisionWorkspace(admin: Admin, organizationId: string) {
     .eq("organization_id", organizationId)
     .maybeSingle();
   if (!profile) {
-    await admin.from("business_profiles").insert({ organization_id: organizationId });
+    const { error } = await admin.from("business_profiles").insert({ organization_id: organizationId });
+    // A concurrent webhook may have created it first (unique violation); any
+    // other failure would leave the paying customer with an empty workspace.
+    if (error && error.code !== "23505") throw new Error(`Could not provision business profile: ${error.message}`);
   }
 
   const { data: request } = await admin
@@ -103,7 +106,7 @@ async function provisionWorkspace(admin: Admin, organizationId: string) {
     .maybeSingle();
   if (!request) {
     const name = await orgName(admin, organizationId);
-    await admin.from("website_requests").insert({
+    const { error } = await admin.from("website_requests").insert({
       organization_id: organizationId,
       title: `Build the ${name} website`,
       details: "Created automatically when the subscription activated.",
@@ -111,6 +114,7 @@ async function provisionWorkspace(admin: Admin, organizationId: string) {
       priority: "normal",
       status: "requested",
     });
+    if (error && error.code !== "23505") throw new Error(`Could not provision website request: ${error.message}`);
   }
 }
 

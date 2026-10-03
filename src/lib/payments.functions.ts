@@ -75,7 +75,10 @@ export const refundPayment = createServerFn({ method: "POST" })
         };
       }
 
-      const refunded = Number(payment.refunded_amount) + (data.amount ?? Number(payment.amount));
+      // A refund with no amount returns only what is still unrefunded at
+      // Stripe, so record exactly that — adding the full original amount
+      // overstated refunds on payments that were already partly refunded.
+      const refunded = Number(payment.refunded_amount ?? 0) + (data.amount ?? remaining);
       const full = refunded >= Number(payment.amount) - 0.005;
       const { data: updated, error: refundWriteError } = await admin
         .from("payments")

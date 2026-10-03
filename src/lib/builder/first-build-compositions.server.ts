@@ -65,6 +65,8 @@ export type CompositionPassResult = {
   costMicrocents: number;
   /** One entry per improvement round: whether the team's revision beat the prior version. */
   gateReports: GateReport[];
+  /** Content sections that never got an AI layout and kept the default one. */
+  fallback?: number;
 };
 
 const RULES = [
@@ -201,7 +203,7 @@ export async function composeFirstBuildSections(input: {
     byPage.set(row.page_id, [...(byPage.get(row.page_id) ?? []), row]);
   }
 
-  const result: CompositionPassResult = { composed: 0, kept: rows.length, models: [], costMicrocents: 0, gateReports: [] };
+  const result: CompositionPassResult = { composed: 0, kept: rows.length, models: [], costMicrocents: 0, gateReports: [], fallback: 0 };
   // The wider team advises Sol before the first design, from supplied material
   // only. A failed adviser is skipped; advice never blocks a build.
   let advice: { area: string; issues: string[] }[] = [];
@@ -226,6 +228,10 @@ export async function composeFirstBuildSections(input: {
     let feedback: Record<string, CompositionIssue[]> = {};
     const designed = new Map<string, CompositionTree>();
     let pageFailed = false;
+    // A single failed call is often a transient rate limit or timeout. The
+    // page is only abandoned after two failed calls, so one hiccup no longer
+    // leaves every section on that page with a plain default layout.
+    let failedCalls = 0;
     for (let attempt = 0; attempt < 3 && pending.length && !pageFailed; attempt += 1) {
      const batches: SectionRow[][] = [];
      for (let i = 0; i < pending.length; i += BATCH) batches.push(pending.slice(i, i + BATCH));
@@ -260,7 +266,9 @@ export async function composeFirstBuildSections(input: {
         // move on to the next page instead of abandoning the whole site; the
         // remaining sections keep their materialized layout.
         console.warn(`[first-build-compositions] AI layout failed: ${call.detail ?? call.reason}`);
-        pageFailed = true;
+        failedCalls += 1;
+        if (failedCalls >= 2) pageFailed = true;
+        else await new Promise((resolve) => setTimeout(resolve, 1500));
         next.push(...batch);
         continue;
       }
@@ -303,6 +311,7 @@ export async function composeFirstBuildSections(input: {
         `[first-build-compositions] ${pending.length} section(s) could not get an AI layout` +
           (first ? ` (${first.path}: ${first.problem})` : "") + "; using default layouts.",
       );
+      result.fallback = (result.fallback ?? 0) + pending.length;
     }
     // Search data only exists for a verified domain; a lookup failure never blocks the build.
     let domain: string | null = null;

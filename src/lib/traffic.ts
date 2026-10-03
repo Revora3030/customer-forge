@@ -30,11 +30,17 @@ const CONVERSION_EVENTS = new Set([
   "form_submit",
 ]);
 
-const dayKey = (iso: string) => iso.slice(0, 10);
+/**
+ * Calendar day of a timestamp in the owner's own timezone. `offsetMinutes` is
+ * the browser's getTimezoneOffset() (minutes behind UTC). Slicing the UTC ISO
+ * string put an evening visit in New York on the next day's bar.
+ */
+const dayKey = (iso: string, offsetMinutes = 0) =>
+  new Date(new Date(iso).getTime() - offsetMinutes * 60_000).toISOString().slice(0, 10);
 
 export type TrafficSummary = ReturnType<typeof summarizeTraffic>;
 
-export function summarizeTraffic(events: TrafficEvent[], days: number) {
+export function summarizeTraffic(events: TrafficEvent[], days: number, offsetMinutes = 0) {
   const now = Date.now();
   const windowStart = now - days * 86_400_000;
   const previousStart = windowStart - days * 86_400_000;
@@ -67,11 +73,11 @@ export function summarizeTraffic(events: TrafficEvent[], days: number) {
 
   const daily: { day: string; views: number; conversions: number }[] = [];
   for (let i = days - 1; i >= 0; i -= 1) {
-    const day = new Date(now - i * 86_400_000).toISOString().slice(0, 10);
+    const day = dayKey(new Date(now - i * 86_400_000).toISOString(), offsetMinutes);
     daily.push({
       day,
-      views: currentViews.filter((e) => dayKey(e.created_at) === day).length,
-      conversions: currentConversions.filter((e) => dayKey(e.created_at) === day).length,
+      views: currentViews.filter((e) => dayKey(e.created_at, offsetMinutes) === day).length,
+      conversions: currentConversions.filter((e) => dayKey(e.created_at, offsetMinutes) === day).length,
     });
   }
 
