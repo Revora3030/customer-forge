@@ -285,3 +285,24 @@ export function clientHeadExtrasSync(
     ],
   };
 }
+
+/**
+ * The picture a shared link shows: the page's own share image, else the owner's
+ * main photo, else the first real https picture on the page. Most sites only
+ * have section photos, so without the last fallback shared links showed none.
+ */
+export function shareImageFor(input: {
+  ogImage?: string | null;
+  heroImage?: string | null;
+  sections?: { components?: unknown[] | null }[] | null;
+}): string | null {
+  const https = (value: unknown): value is string => typeof value === "string" && value.startsWith("https://");
+  if (https(input.ogImage)) return input.ogImage;
+  if (https(input.heroImage)) return input.heroImage;
+  for (const section of input.sections ?? [])
+    for (const component of section.components ?? []) {
+      const url = (component as { url?: unknown } | null)?.url;
+      if (https(url)) return url;
+    }
+  return null;
+}
