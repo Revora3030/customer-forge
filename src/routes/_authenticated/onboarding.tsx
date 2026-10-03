@@ -2,6 +2,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { GoogleListingImport } from "@/components/onboarding/GoogleListingImport";
 import { OwnerPhotoUpload } from "@/components/onboarding/OwnerPhotoUpload";
+import { saveOwnerLogo, saveOwnerPhotos, type PendingPhoto } from "@/components/onboarding/owner-photos";
 import { toast } from "@/lib/ui/notify";
 import { ArrowLeft, ArrowRight, Loader2, Plus, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -104,6 +105,12 @@ function Onboarding() {
   const stepRef = useStepScroll<HTMLDivElement>(step);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Photos and logo picked during onboarding. Held in the page (files can't be
+  // saved in the draft) and uploaded the moment the workspace exists.
+  const [photos, setPhotos] = useState<PendingPhoto[]>([]);
+  const [logoFile, setLogoFile] = useState<PendingPhoto | null>(null);
+  const [savedPhotoCount, setSavedPhotoCount] = useState(0);
+  const [finishStage, setFinishStage] = useState<string | null>(null);
   const [draft, setDraft] = useState<Draft>({
     businessName: "",
     industry: INDUSTRIES[0]!.name,
@@ -183,6 +190,15 @@ function Onboarding() {
         if (!cancelled) setRestored(true);
         return;
       }
+      // Photos already saved on an earlier visit count toward the main photo.
+      void supabase
+        .from("media")
+        .select("id", { count: "exact", head: true })
+        .eq("organization_id", orgId)
+        .eq("source", "owner")
+        .then(({ count }) => {
+          if (!cancelled && count) setSavedPhotoCount(count);
+        });
       const [orgRes, profileRes, servicesRes, socialRes] = await Promise.all([
         supabase.from("organizations").select("name, industry").eq("id", orgId).maybeSingle(),
         supabase
@@ -387,6 +403,18 @@ function Onboarding() {
         assertNoError(membershipError, "Could not link your account to the new workspace");
       }
 
+      // The owner's own pictures go in before anything else, so the first build
+      // can place them. A failed upload never blocks the site being built.
+      let logoPath: string | null = null;
+      if (logoFile || photos.length) setFinishStage("Saving your photos…");
+      if (logoFile) logoPath = await saveOwnerLogo(org.id, logoFile.file);
+      if (photos.length) {
+        const saved = await saveOwnerPhotos(org.id, photos);
+        if (saved) setSavedPhotoCount((n) => n + saved);
+        setPhotos([]);
+      }
+      setFinishStage("Saving your business details…");
+
       const { error: profileError } = await supabase.from("business_profiles").upsert(
         {
           organization_id: org.id,
@@ -401,7 +429,7 @@ function Onboarding() {
           // hours is NOT NULL in the database — always send an object.
           hours: (draft.hours ? { summary: draft.hours } : {}) as never,
           website: draft.website || null,
-          logo_url: draft.logoUrl || null,
+          logo_url: logoPath || draft.logoUrl.trim() || null,
           hero_image_url: draft.heroImageUrl || null,
           primary_color: draft.primaryColor || null,
           accent_color: draft.accentColor || null,
@@ -468,6 +496,7 @@ function Onboarding() {
       // behalf (they review and can rebuild in the builder), then the build is
       // queued. The builder polls the job and shows live progress.
       let queued = false;
+      setFinishStage("Starting your website build…");
       try {
         // Mobile connections drop long requests ("Load failed"); retry each step.
         const retry = async <T,>(fn: () => Promise<T>): Promise<T> => {
@@ -510,6 +539,7 @@ function Onboarding() {
       setError(supabaseErrorMessage(err));
     } finally {
       setBusy(false);
+      setFinishStage(null);
     }
   }
 
@@ -763,9 +793,15 @@ function Onboarding() {
                 </p>
               </div>
               <div className="grid gap-4 sm:grid-cols-2">
-                <OwnerPhotoUpload organizationId={ws?.workspace?.organizationId} />
+                <OwnerPhotoUpload
+                  photos={photos}
+                  onPhotosChange={setPhotos}
+                  logo={logoFile}
+                  onLogoChange={setLogoFile}
+                  savedCount={savedPhotoCount}
+                />
                 <div className="space-y-1.5">
-                  <Label htmlFor="o-logo">Logo URL</Label>
+                  <Label htmlFor="o-logo">Logo link (if you don't upload one)</Label>
                   <Input
                     id="o-logo"
                     value={draft.logoUrl}
@@ -774,7 +810,7 @@ function Onboarding() {
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="o-hero">Main photo URL</Label>
+                  <Label htmlFor="o-hero">Main photo link (optional)</Label>
                   <Input
                     id="o-hero"
                     value={draft.heroImageUrl}
@@ -1051,10 +1087,17 @@ function Onboarding() {
               </Button>
             ) : (
               <Button variant="signal" onClick={finish} disabled={busy || !canContinue}>
-                {busy ? <Loader2 className="size-4 animate-spin" /> : null} Build my website
+                {busy ? <Loader2 className="size-4 animate-spin" /> : null} {busy && finishStage ? finishStage : "Build my website"}
               </Button>
             )}
           </div>
+          {step === STEPS.length - 1 && photos.length + (logoFile ? 1 : 0) > 0 && !busy ? (
+            <p className="mt-3 text-right text-[12px] text-muted-foreground">
+              Your {photos.length ? `${photos.length} photo${photos.length > 1 ? "s" : ""}` : ""}
+              {photos.length && logoFile ? " and " : ""}
+              {logoFile ? "logo" : ""} will be saved and placed on your site.
+            </p>
+          ) : null}
         </div>
       </main>
     </div>
