@@ -14,6 +14,7 @@ import { SitePageLink } from "@/components/site/site-links";
 import { Mail, MapPin, Phone } from "lucide-react";
 import { BookingForm, QuoteCalculator } from "@/components/site/SiteForms";
 import { DirectContact } from "@/components/site/ContactDetails";
+import { ReviewWall, ServiceMenu } from "@/components/site/LiveBlocks";
 import type { PublicSite } from "@/lib/public-site.functions";
 import { readCustomBlock } from "@/lib/builder/custom-block";
 import { CustomBlock } from "@/components/site/CustomBlock";
@@ -115,6 +116,7 @@ function SiteSectionBody({ site, section, lead = false, first = false }: { site:
         <CompositionRenderer
           tree={tree}
           scope={`s-${section.id}`}
+          surface={siteSurface(site)}
           eagerFirstMedia={first}
           resolveMedia={(ref) => media.get(ref) ?? null}
           resolveHref={(href) => resolveSiteHref(href, org.slug, ownAddress)}
@@ -122,6 +124,8 @@ function SiteSectionBody({ site, section, lead = false, first = false }: { site:
             if (name === "booking_form") return <BookingForm site={site} {...(presentation ? { presentation } : {})} />;
             if (name === "quote_calculator") return site.quote ? <QuoteCalculator site={site} {...(presentation ? { presentation } : {})} /> : null;
             if (name === "contact_details") return <ContactFacts site={site} {...(presentation ? { presentation } : {})} />;
+            if (name === "service_menu") return <ServiceMenu site={site} {...(presentation ? { presentation } : {})} />;
+            if (name === "review_wall") return <ReviewWall site={site} {...(presentation ? { presentation } : {})} />;
             if (name === "direct_contact")
               return <DirectContact profile={profile} businessName={site.org.name} label={presentation?.contactLabel ?? presentation?.title ?? `Call or email ${site.org.name} directly`} {...(presentation ? { presentation } : {})} />;
             return null;
