@@ -743,6 +743,9 @@ async function runJob(
   const architectIndustry = org.data.industry ?? null;
   const architectGoal = goals[0] ?? org.data.conversion_goal ?? null;
   const architectureRef: { current: PageArchitectureOutcome | null } = { current: null };
+  // Parts of the build where the AI could not do its job and a simpler
+  // baseline was used instead. Reported to the owner, never only logged.
+  const degraded: string[] = [];
   noteStage(orgId, job.id, "writing the pages");
   // Persist ownership before materialization so a failed attempt leaves a
   // verifiable job marker for safe retry cleanup. The marker is metadata only;
@@ -832,6 +835,7 @@ async function runJob(
         `[site-engine] AI architect unavailable for ${orgId} (${detail}); ` +
           `materializeSiteContent will use the safe multi-page fact inventory.`,
       );
+      degraded.push("page plan");
     }
   }
   const attachedPaths = new Set<string>();
@@ -964,6 +968,7 @@ async function runJob(
     } catch (err) {
       console.warn(`[site-engine] Section composition failed for ${orgId}: ${(err as Error).message}; using default layout.`);
       composed = { sections: [], models: [], totalCostMicrocents: 0 } as never;
+      degraded.push("section layouts");
     }
     await db.from("ai_generations").insert({
       organization_id: orgId,
@@ -989,6 +994,7 @@ async function runJob(
     } catch (err) {
       console.warn(`[site-engine] Chrome composition failed for ${orgId}: ${(err as Error).message}; using default chrome.`);
       chrome = { models: [], totalCostMicrocents: 0 } as never;
+      degraded.push("menu and footer design");
     }
     await db.from("ai_generations").insert({
       organization_id: orgId,
@@ -1160,6 +1166,11 @@ async function runJob(
   await step("leads");
   await step("mobile");
 
+  // Not an error, but the owner must know which parts used a basic baseline
+  // because the AI was unavailable, so they can ask for a redesign.
+  const degradedNote = degraded.length
+    ? `Built with a basic ${degraded.join(", ")} because the AI design step was unavailable. Ask the builder to redesign it.`
+    : null;
   await db
     .from("generation_jobs")
     .update({
@@ -1167,7 +1178,7 @@ async function runJob(
       progress: 100,
       current_step: "ready",
       steps: [...done, "ready"],
-      error_message: null,
+      error_message: degradedNote,
       completed_at: new Date().toISOString(),
       lease_expires_at: null,
       updated_at: new Date().toISOString(),
@@ -1179,9 +1190,13 @@ async function runJob(
   await db.from("notifications").insert({
     organization_id: orgId,
     title: freshReplace ? "Your fresh website rebuild is ready" : "Your website draft is ready to review",
-    body: leadCapture
+    body:
+      (leadCapture
         ? "Revora built your site from your information and connected lead capture."
-        : "Revora built your site. Turn on the quote calculator or online booking to capture leads.",
+        : "Revora built your site. Turn on the quote calculator or online booking to capture leads.") +
+      (degraded.length
+        ? ` Note: the AI design step was unavailable, so a basic ${degraded.join(", ")} was used — ask the builder to redesign ${degraded.length === 1 ? "it" : "them"}.`
+        : ""),
     kind: "website",
     link: "/app/website",
   } as never);

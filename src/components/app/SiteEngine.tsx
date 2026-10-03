@@ -193,6 +193,16 @@ export function SiteEnginePanel({
         </div>
       ) : null}
 
+      {status === "completed" && job?.error_message ? (
+        <div className="mt-4 flex items-start gap-2.5 rounded-md border border-amber-500/40 bg-amber-500/5 p-3.5">
+          <TriangleAlert className="mt-0.5 size-4 text-amber-600" aria-hidden="true" />
+          <div>
+            <p className="text-[13px] font-medium">Built with a basic design in places</p>
+            <p className="mt-0.5 text-[12px] text-muted-foreground">{String(job.error_message)}</p>
+          </div>
+        </div>
+      ) : null}
+
       {status !== "none" ? (
         <>
           <div className="mt-5 h-1.5 overflow-hidden rounded-full bg-elevated" role="presentation">

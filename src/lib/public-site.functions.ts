@@ -208,6 +208,26 @@ export const getPreviewSite = createServerFn({ method: "GET" })
     };
   });
 
+/** "Monday, October 5, 2026 at 10:00 AM" in the business's own calendar. */
+function bookingWhen(booking: { startsAt: string; localDate?: string; localTime?: string }): string {
+  const date = /^(\d{4})-(\d{2})-(\d{2})$/.exec(booking.localDate ?? "");
+  const time = /^(\d{2}):(\d{2})$/.exec(booking.localTime ?? "");
+  if (date && time) {
+    const day = new Date(Date.UTC(Number(date[1]), Number(date[2]) - 1, Number(date[3]), 12));
+    const dayText = day.toLocaleDateString("en-US", {
+      weekday: "long",
+      month: "long",
+      day: "numeric",
+      year: "numeric",
+      timeZone: "UTC",
+    });
+    const hour = Number(time[1]);
+    const clock = `${hour % 12 === 0 ? 12 : hour % 12}:${time[2]} ${hour < 12 ? "AM" : "PM"}`;
+    return `${dayText} at ${clock}`;
+  }
+  return new Date(booking.startsAt).toLocaleString("en-US", { timeZone: "UTC", timeZoneName: "short" });
+}
+
 /** Anonymous lead / quote / booking submission from a public business site. */
 export const submitPublicLead = createServerFn({ method: "POST" })
   .validator(
@@ -230,7 +250,13 @@ export const submitPublicLead = createServerFn({ method: "POST" })
         min: number;
         max: number;
       } | null;
-      booking?: { startsAt: string; durationMinutes: number } | null;
+      booking?: {
+        startsAt: string;
+        durationMinutes: number;
+        /** Wall-clock date/time the visitor picked, in the business's calendar. */
+        localDate?: string;
+        localTime?: string;
+      } | null;
       /**
        * Honeypot: a field real visitors never see or fill in (kept invisible
        * and unlabeled in the form), so anything other than empty means a bot
@@ -352,7 +378,7 @@ export const submitPublicLead = createServerFn({ method: "POST" })
       if (!data.serviceId) throw new Error("Choose a service to book.");
       const { data: service } = await supabase
         .from("services")
-        .select("id, price, starting_price")
+        .select("id, price, starting_price, duration_minutes")
         .eq("id", data.serviceId)
         .eq("organization_id", orgId)
         .eq("is_active", true)
@@ -360,6 +386,29 @@ export const submitPublicLead = createServerFn({ method: "POST" })
         .maybeSingle();
       if (!service) throw new Error("That service can't be booked online. Please contact the business.");
       data.estimatedValue = Number(service.price ?? service.starting_price ?? 0) || 0;
+      // The appointment length comes from the owner's service, not the browser.
+      const ownDuration = Number((service as { duration_minutes?: number | null }).duration_minutes ?? 0);
+      if (ownDuration > 0) data.booking.durationMinutes = ownDuration;
+      const startsAt = new Date(data.booking.startsAt);
+      if (Number.isNaN(startsAt.getTime())) throw new Error("Choose a valid date and time.");
+      if (startsAt.getTime() < Date.now() - 5 * 60 * 1000)
+        throw new Error("That time has already passed. Please choose a future time.");
+      // Opening hours: checked on the wall-clock time the visitor picked.
+      if (data.booking.localDate && data.booking.localTime) {
+        const { data: hoursRow } = await supabase
+          .from("public_business_profiles")
+          .select("hours")
+          .eq("organization_id", orgId)
+          .maybeSingle();
+        const { checkBookingTime } = await import("@/lib/booking-hours");
+        const verdict = checkBookingTime({
+          hours: (hoursRow as { hours?: unknown } | null)?.hours ?? null,
+          localDate: data.booking.localDate,
+          localTime: data.booking.localTime,
+          durationMinutes: data.booking.durationMinutes,
+        });
+        if (!verdict.ok) throw new Error(verdict.reason);
+      }
     }
 
     // Origin event for the CRM timeline: every public submission is visible as
@@ -539,8 +588,10 @@ export const submitPublicLead = createServerFn({ method: "POST" })
             ? `$${data.estimatedValue}`
             : undefined,
         message: data.message || undefined,
-        when: data.booking ? new Date(data.booking.startsAt).toLocaleString() : undefined,
-        requestedWhen: data.booking ? new Date(data.booking.startsAt).toLocaleString() : undefined,
+        // The server runs in UTC, so formatting the timestamp here showed the
+        // wrong hour. Use the wall-clock date and time the visitor picked.
+        when: data.booking ? bookingWhen(data.booking) : undefined,
+        requestedWhen: data.booking ? bookingWhen(data.booking) : undefined,
         budget: data.quote
           ? `${data.quote.min}–${data.quote.max}`
           : data.estimatedValue

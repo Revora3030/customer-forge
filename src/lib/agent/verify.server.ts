@@ -90,7 +90,7 @@ async function load(url: string, timeoutMs = 8000) {
  * switched off again the moment the check finishes. It exists only so the
  * checker can load the owner's unpublished pages over real HTTP.
  */
-async function openDraftWindow(organizationId: string) {
+async function openDraftWindow(organizationId: string, lifetimeMs = 2 * 60 * 1000) {
   try {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const token = crypto.randomUUID().replace(/-/g, "") + crypto.randomUUID().replace(/-/g, "");
@@ -100,7 +100,7 @@ async function openDraftWindow(organizationId: string) {
         organization_id: organizationId,
         token,
         label: "Automatic quality check",
-        expires_at: new Date(Date.now() + 2 * 60 * 1000).toISOString(),
+        expires_at: new Date(Date.now() + lifetimeMs).toISOString(),
       })
       .select("id")
       .maybeSingle();
@@ -200,13 +200,24 @@ export async function verifyWorkspaceSite(
     });
   }
 
-  if (published) {
+  // Visitors of a published site see the last published copy, so the edit
+  // being checked lives only in the draft. Check the draft over real HTTP
+  // through a short private window; links are mapped back into that window
+  // so a page added in this edit is not reported as a dead end.
+  const publishedWindow = published ? await openDraftWindow(organizationId, 10 * 60 * 1000) : null;
+  const sitePrefix = publishedWindow ? `/p/${publishedWindow.token}` : `/s/${slug}`;
+  const toWindow = (link: string) =>
+    publishedWindow && (link === `/s/${slug}` || link.startsWith(`/s/${slug}/`))
+      ? `${sitePrefix}${link.slice(`/s/${slug}`.length)}`
+      : link;
+
+  if (published) try {
     const targets: { path: string; label: string }[] = [
-      { path: `/s/${slug}`, label: String(home?.["title"] ?? "Home") },
+      { path: sitePrefix, label: String(home?.["title"] ?? "Home") },
       ...list
         .filter((page) => page !== home && page["slug"])
         .map((page) => ({
-          path: `/s/${slug}/${String(page["slug"])}`,
+          path: `${sitePrefix}/${String(page["slug"])}`,
           label: String(page["title"] ?? page["slug"]),
         })),
     ];
@@ -237,7 +248,7 @@ export async function verifyWorkspaceSite(
       });
       const inspection = inspectHtml(html, target.label);
       checks.push(...inspection.checks);
-      for (const link of inspection.links) linkTargets.add(link);
+      for (const link of inspection.links) linkTargets.add(toWindow(link));
     }
 
     // Every menu and button link on those pages is followed once, so a change
@@ -257,6 +268,8 @@ export async function verifyWorkspaceSite(
         ...(status === 200 ? {} : { detail: status ? `answered ${status}` : "did not answer" }),
       });
     }
+  } finally {
+    await publishedWindow?.close();
   } else {
     // A draft is checked through its own private render. Nothing here can
     // reverse an owner's work just because the site is not live yet: a draft

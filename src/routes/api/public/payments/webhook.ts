@@ -179,6 +179,10 @@ async function handleEvent(event: StripeWebhookEvent, env: StripeEnv) {
       });
       break;
     }
+    // Delayed payment methods (bank debits) complete the session as "unpaid"
+    // and confirm the money later with async_payment_succeeded. Without this
+    // case the customer paid but setup was never unlocked.
+    case "checkout.session.async_payment_succeeded":
     case "checkout.session.completed": {
       const md = (object?.metadata ?? {}) as Record<string, string | undefined>;
 
@@ -313,6 +317,36 @@ async function handleEvent(event: StripeWebhookEvent, env: StripeEnv) {
         await applyEntitlement(admin, updated);
         await logPaymentActivity(admin, updated, "completed");
       }
+      break;
+    }
+    case "checkout.session.async_payment_failed": {
+      const md = (object?.metadata ?? {}) as Record<string, string | undefined>;
+      const organizationId = md["organizationId"];
+      if (organizationId) {
+        const { error: notifyError } = await admin.from("notifications").insert({
+          organization_id: organizationId,
+          title: "Payment did not go through",
+          body: "Your bank payment for Revora was declined or returned. Nothing was charged — please try again with another payment method.",
+          kind: "warning",
+          link: "/app/billing",
+        });
+        if (notifyError)
+          throw new Error(`async_payment_notification_failed:${notifyError.code ?? notifyError.message}`);
+      }
+      if (md["kind"] !== "service" || !md["paymentId"]) break;
+      const { data: payment } = await admin
+        .from("payments")
+        .select("*")
+        .eq("id", md["paymentId"])
+        .eq("payment_provider", "stripe")
+        .eq("environment", env)
+        .maybeSingle();
+      if (!payment || payment.status === "completed") break;
+      const { error: failError } = await admin
+        .from("payments")
+        .update({ status: "failed", failure_reason: "Bank payment failed" })
+        .eq("id", payment.id);
+      if (failError) throw new Error(`payment_fail_failed:${failError.code ?? failError.message}`);
       break;
     }
     case "checkout.session.expired": {
@@ -484,8 +518,15 @@ export const Route = createFileRoute("/api/public/payments/webhook")({
           console.error("[payments:webhook] invalid env", rawEnv);
           return new Response("Invalid or missing env query parameter", { status: 400 });
         }
+        let event: StripeWebhookEvent;
         try {
-          const event = (await verifyWebhook(request, rawEnv)) as StripeWebhookEvent;
+          event = (await verifyWebhook(request, rawEnv)) as StripeWebhookEvent;
+        } catch (error) {
+          // Signature/parse failures: never retryable, never processed.
+          console.error("[payments:webhook] error", (error as Error).message);
+          return new Response("Webhook error", { status: 400 });
+        }
+        try {
           const claim = await claimEvent(event, rawEnv);
           if (claim.outcome === "duplicate")
             return Response.json({ received: true, duplicate: true });
@@ -518,9 +559,10 @@ export const Route = createFileRoute("/api/public/payments/webhook")({
           }
           return Response.json({ received: true });
         } catch (error) {
-          // Signature/parse failures: never retryable, never processed.
-          console.error("[payments:webhook] error", (error as Error).message);
-          return new Response("Webhook error", { status: 400 });
+          // An internal failure after a valid signature (database client,
+          // claim bookkeeping) must be retried by Stripe, not dropped as a 400.
+          console.error("[payments:webhook] internal error", (error as Error).message);
+          return new Response("Webhook processing failed", { status: 500 });
         }
       },
     },

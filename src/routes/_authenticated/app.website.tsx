@@ -590,7 +590,7 @@ function WebsitePage() {
             saveSettings.isPending || saveProfile.isPending
               ? "Saving…"
               : settings?.last_published_at && publishState === "published"
-                ? "Changes saved"
+                ? "Saved to draft — Publish to update the live site"
                 : "Changes save automatically"
           }
           sections={[{ key: "workspace", label: "Website", node: workspace }]}

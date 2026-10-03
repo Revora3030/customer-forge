@@ -404,6 +404,8 @@ export function BookingForm({ site, presentation }: { site: Site; presentation?:
                 ? {
                     startsAt: new Date(`${date}T${time}`).toISOString(),
                     durationMinutes: service?.duration_minutes ?? 60,
+                    localDate: date,
+                    localTime: time,
                   }
                 : null,
           },
