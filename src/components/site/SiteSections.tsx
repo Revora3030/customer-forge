@@ -83,12 +83,18 @@ const Heading = ({ section, lead = false }: { section: Section; lead?: boolean }
  */
 export function SiteSection({ site, section, lead = false, first = false }: { site: Site; section: Section; lead?: boolean; first?: boolean }) {
   const css = blockCss(readBlockStyle(section.settings), siteSurface(site));
+  // In-page anchors for buttons like "#contact" or "#services": the section's
+  // role (kept when it became an AI layout) or its kind.
+  const storedRole = (section.settings as Record<string, unknown> | null)?.["role"];
+  const role = typeof storedRole === "string" && /^[a-z][a-z0-9_-]{0,40}$/.test(storedRole) ? storedRole : section.kind;
+  const anchor = role && role !== "composition" ? role.replace(/_/g, "-") : undefined;
   return (
     <div
+      id={anchor}
       data-rvb={section.id}
       data-rvb-kind={section.kind}
       data-rvb-label={sectionLabel(section.kind)}
-      className="rv-site-section"
+      className="rv-site-section scroll-mt-20"
       style={{ ...css, minWidth: 0, maxWidth: "100%" }}
     >
       <SiteSectionBody site={site} section={section} lead={lead} first={first} />
