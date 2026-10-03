@@ -74,7 +74,8 @@ describe("cohere free-model discovery", () => {
     expect(models).toContain("command-a-plus-05-2026");
     expect(models).toContain("command-r7b-12-2024");
     expect(models).toContain("north-mini-code");
-    expect(models).toContain("embed-english-v3");
+    // Embedders cannot write an answer, so they never join the team.
+    expect(models).not.toContain("embed-english-v3");
     expect(models).toContain("c4ai-aya-expanse-8b");
     expect(models).not.toContain("some-paid-model");
     expect(discoveredFreeModels("cohere")).toEqual(models);
