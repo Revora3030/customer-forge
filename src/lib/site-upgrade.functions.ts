@@ -78,13 +78,16 @@ const textOrNull = (value: unknown): string | null =>
   typeof value === "string" && value.trim() ? value.trim() : null;
 
 async function restoreSectionLayouts(supabase: SupabaseLike, organizationId: string, sections: SectionRow[]) {
+  let failed = 0;
   for (const section of sections) {
-    await supabase
+    const { error } = await supabase
       .from("website_sections")
       .update({ kind: section.kind, settings: section.settings } as never)
       .eq("id", section.id)
       .eq("organization_id", organizationId);
+    if (error) failed += 1;
   }
+  return failed;
 }
 
 async function restoreGeneration(
@@ -92,9 +95,11 @@ async function restoreGeneration(
   organizationId: string,
   generation: Record<string, unknown>,
 ) {
-  await supabase
+  const { error } = await supabase
     .from("website_settings")
-    .upsert({ organization_id: organizationId, generation } as never, { onConflict: "organization_id" });
+    .update({ generation } as never)
+    .eq("organization_id", organizationId);
+  if (error) console.error("[site-upgrade] design settings could not be put back", error.message);
 }
 
 async function loadPagesAndSections(supabase: SupabaseLike, organizationId: string) {
@@ -141,7 +146,25 @@ async function saveRestorePoint(
       .filter((section) => section.page_id === page.id)
       .map((section) => ({ ...section, settings: {}, components: [] })),
   }));
-  const snapshot = snapshotContent(tree as never) as unknown as never;
+  // The full tree (layouts, elements, search settings) is stored alongside the
+  // summary, so "restore" can put the website back exactly, not just its text.
+  const { readWebsiteState } = await import("@/lib/site-restore.functions");
+  const full = await readWebsiteState(supabase as never, organizationId);
+  const { data: settingsRow } = await supabase
+    .from("website_settings")
+    .select("generation, seo, pages")
+    .eq("organization_id", organizationId)
+    .maybeSingle();
+  const settingsData = (settingsRow ?? null) as { generation?: unknown; seo?: unknown; pages?: unknown } | null;
+  const snapshot = {
+    ...(snapshotContent(tree as never) as unknown as Record<string, unknown>),
+    full,
+    settings_pages: settingsData?.pages ?? null,
+  } as unknown as never;
+  const settingsFields = {
+    generation: (settingsData?.generation ?? {}) as never,
+    seo: (settingsData?.seo ?? {}) as never,
+  };
 
   const { data: latest } = await supabase
     .from("website_versions")
@@ -161,6 +184,7 @@ async function saveRestorePoint(
         version,
         label,
         pages: snapshot,
+        ...settingsFields,
         created_by: userId,
       })
       .select("id")
@@ -303,8 +327,14 @@ export const applySiteWideRedesign = createServerFn({ method: "POST" })
         lookSummary,
       });
     } catch (error) {
-      await restoreSectionLayouts(supabase, data.organizationId, sections);
+      const failed = await restoreSectionLayouts(supabase, data.organizationId, sections);
       await restoreGeneration(supabase, data.organizationId, generation);
+      if (failed) {
+        // Saying "nothing changed" would be untrue: point at the restore point.
+        throw new Error(
+          `The redesign stopped part-way and ${failed} section${failed === 1 ? "" : "s"} couldn't be put back automatically. Restore "${`Before the ${authored.label} redesign`}" from the version history.`,
+        );
+      }
       throw error;
     }
 
