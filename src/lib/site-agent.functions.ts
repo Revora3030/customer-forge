@@ -474,7 +474,7 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
       .maybeSingle();
     if (!agentContext.pages.length || activeBuild) {
       const reply =
-        "Got it — your AI team is finishing the first website now. I’ve saved this change and will apply it automatically as soon as the pages appear.";
+        "Got it — your AI team is finishing the first website now. Keep this window open and I’ll apply this change as soon as the build finishes (usually a few minutes).";
       return {
         reply,
         summary: "",
@@ -753,6 +753,14 @@ type ApplyInput = {
 
 /** Accepts any id, so a batch can be read exactly as it was planned. */
 const ANY_ID = { has: () => true } as unknown as Set<string>;
+
+/** True when a composition tree places the named working widget. */
+function treeHasWidget(node: { type?: string; text?: string; children?: unknown[]; tabs?: { children?: unknown[] }[] }, name: string): boolean {
+  if (node.type === "widget" && node.text === name) return true;
+  for (const child of node.children ?? []) if (treeHasWidget(child as never, name)) return true;
+  for (const tab of node.tabs ?? []) for (const child of tab.children ?? []) if (treeHasWidget(child as never, name)) return true;
+  return false;
+}
 
 async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInput) {
   {
@@ -1311,9 +1319,30 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
           break;
         }
         case "set_composition": {
-          // The AI has full freedom over booking/quote/contact sections too:
-          // it may place the working feature with a widget node, or design the
-          // section without one. No layout is rejected for omitting a widget.
+          // The AI has full freedom over how a booking/quote/contact section
+          // looks, but it must keep the working feature. A restyle that
+          // dropped the widget silently turned off the business's booking or
+          // quote form on the live site — the owner stopped receiving leads.
+          {
+            const target = site.sections.find((section) => section.id === action.sectionId);
+            const previousKind = String(target?.kind ?? "");
+            const previousTree = readComposition(target?.settings);
+            const hadWidget = (name: string) => {
+              if (previousKind === "booking" && name === "booking_form") return true;
+              if (previousKind === "quote" && name === "quote_calculator") return true;
+              if (previousKind === "contact" && (name === "contact_details" || name === "direct_contact")) return true;
+              return previousTree ? treeHasWidget(previousTree.root, name) : false;
+            };
+            const lost = ["booking_form", "quote_calculator", "contact_details", "direct_contact"].filter(
+              (name) => hadWidget(name) && !treeHasWidget(action.tree.root, name) &&
+                !(name === "contact_details" && treeHasWidget(action.tree.root, "direct_contact")) &&
+                !(name === "direct_contact" && treeHasWidget(action.tree.root, "contact_details")),
+            );
+            if (lost.length) {
+              failed.push(`set_composition:would_remove_${lost[0]}`);
+              break;
+            }
+          }
           noteColumn("website_sections", action.sectionId, "kind", "composition");
           await run(action.type, () => {
             const tree = resolveCompositionMediaRefs(action.tree, newComponents);
