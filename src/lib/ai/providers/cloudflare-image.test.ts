@@ -13,6 +13,21 @@ describe("cloudflare image request bodies", () => {
     expect(buildCloudflareImageBody("a tidy workshop")).toEqual({ prompt: "a tidy workshop" });
   });
 
+  it("uses the maximum 8 quality steps for Flux and a capped prompt", () => {
+    expect(buildCloudflareImageBody("a tidy workshop", null, "@cf/black-forest-labs/flux-1-schnell")).toEqual({
+      prompt: "a tidy workshop",
+      steps: 8,
+    });
+    const long = buildCloudflareImageBody("x".repeat(3000), null, "@cf/black-forest-labs/flux-1-schnell");
+    expect(long.prompt.length).toBe(2048);
+  });
+
+  it("keeps text, watermarks and blur out of Stable Diffusion photos", () => {
+    const body = buildCloudflareImageBody("a tidy workshop", null, "@cf/bytedance/stable-diffusion-xl-lightning");
+    expect(body).toMatchObject({ prompt: "a tidy workshop" });
+    expect((body as { negative_prompt: string }).negative_prompt).toMatch(/watermark/);
+  });
+
   it("sends the source picture and a full-coverage mask when editing", () => {
     const body = buildCloudflareImageBody("same photo at dusk", {
       dataUrl: "data:image/png;base64,iVBORw0KGgo=",
