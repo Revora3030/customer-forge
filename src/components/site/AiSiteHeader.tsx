@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Menu, X } from "lucide-react";
 import { CompositionRenderer } from "@/components/site/CompositionRenderer";
 import type { CompositionTree } from "@/lib/builder/composition-tree";
+import { stripBusinessSuffix } from "@/lib/website-content";
 
 /**
  * Sol's menu bar, made usable on phones. Wide screens show Sol's design as is.
@@ -13,7 +14,9 @@ export function AiSiteHeader(props: {
   name: string;
   homeHref: string;
   resolveHref: (href: string) => string;
+  surface?: string | null;
 }) {
+  const linkLabel = (text: string) => stripBusinessSuffix(text, props.name);
   const [open, setOpen] = useState(false);
   const closeRef = useRef<HTMLButtonElement>(null);
   const toggleRef = useRef<HTMLButtonElement>(null);
@@ -42,7 +45,7 @@ export function AiSiteHeader(props: {
     <header className="rv-site-header rv-ai-header sticky top-0 z-40 border-b border-border bg-background/95 backdrop-blur-md pt-[env(safe-area-inset-top)]">
       <nav aria-label="Main" className="hidden md:block">
         <div className="rv-site-header-nav mx-auto flex max-w-6xl items-center gap-4 px-4 py-3">
-          <CompositionRenderer as="div" scope="site-header" tree={props.tree} resolveHref={props.resolveHref} />
+          <CompositionRenderer as="div" scope="site-header" tree={props.tree} resolveHref={props.resolveHref} surface={props.surface ?? null} linkLabel={linkLabel} />
         </div>
       </nav>
       <nav aria-label="Main" className="flex items-center justify-between gap-3 px-4 py-3 text-foreground md:hidden">
@@ -82,7 +85,7 @@ export function AiSiteHeader(props: {
             </button>
           </div>
           <div className="flex min-h-0 flex-1 items-center justify-center overflow-y-auto">
-            <CompositionRenderer as="div" scope="site-header" tree={props.tree} resolveHref={props.resolveHref} />
+            <CompositionRenderer as="div" scope="site-header" tree={props.tree} resolveHref={props.resolveHref} surface={props.surface ?? null} linkLabel={linkLabel} />
           </div>
         </div>
       ) : null}
