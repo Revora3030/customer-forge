@@ -10,7 +10,7 @@
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { safeLinkUrl } from "@/lib/website-content";
+import { pageNavLabel, safeLinkUrl } from "@/lib/website-content";
 import { effectForKind, type DesignDirection } from "@/lib/authored-direction";
 import { writeSectionEffect } from "@/lib/site-effects";
 import { writeComponentVisual } from "@/lib/site-style";
@@ -328,7 +328,7 @@ export async function materializeSiteContent(
     ...(hasServices
       ? [{
           slug: "services",
-          title: `Services — ${input.businessName}`,
+          title: "Services",
           purpose: "detailed service breakdown and booking",
           primaryAction,
           sections: [
@@ -343,7 +343,7 @@ export async function materializeSiteContent(
     // certifications the business has not supplied.
     {
       slug: "about",
-      title: `About — ${input.businessName}`,
+      title: "About",
       purpose: "business story, values and service territory",
       primaryAction,
       sections: [
@@ -357,7 +357,7 @@ export async function materializeSiteContent(
     // direct phone/address and the booking widget when available.
     {
       slug: input.hasBooking ? "book" : "contact",
-      title: input.hasBooking ? `Book — ${input.businessName}` : `Contact — ${input.businessName}`,
+      title: input.hasBooking ? "Book" : "Contact",
       purpose: "lead intake, booking and direct contact",
       primaryAction,
       sections: [
@@ -448,11 +448,11 @@ export async function materializeSiteContent(
     for (const [index, asset] of unassigned.entries()) claim(contentSlots[index % contentSlots.length]!, asset);
   let tree: Page[] = architecture.map((page) => ({
     slug: page.slug,
-    title: page.title,
+    title: page.slug === "home" ? page.title : pageNavLabel(page.title, input.businessName, page.slug),
     kind: page.slug === "home" ? "home" : "page",
-    seo_title: page.slug === "home" ? clean(input.copy.metaTitle) : clean(`${page.title} — ${input.businessName}`),
+    seo_title: page.slug === "home" ? clean(input.copy.metaTitle) : clean(`${pageNavLabel(page.title, input.businessName, page.slug)} — ${input.businessName}`),
     seo_description: clean(input.copy.metaDescription),
-    og_title: page.slug === "home" ? clean(input.copy.ogTitle) : clean(page.title),
+    og_title: page.slug === "home" ? clean(input.copy.ogTitle) : clean(`${pageNavLabel(page.title, input.businessName, page.slug)} — ${input.businessName}`),
     og_description: clean(input.copy.ogDescription),
     sections: page.sections.map((section, index) => {
       const role = section.role;
