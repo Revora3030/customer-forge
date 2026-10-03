@@ -317,7 +317,7 @@ function renderNode(node: CompositionNode, ctx: Ctx, key: string): ReactNode {
         <div key={key} {...props} style={{ overflow: "hidden", ...props.style }}>
           <div className="rv-cn-marquee" style={{ display: "flex", width: "max-content", gap: props.style.gap }}>
             {kids}
-            <div aria-hidden="true" {...{ inert: "" }} style={{ display: "flex", gap: props.style.gap }}>{node.children?.map((c, i) => renderNode(c, ctx, `${key}.dup.${i}`))}</div>
+            <div aria-hidden="true" inert style={{ display: "flex", gap: props.style.gap }}>{node.children?.map((c, i) => renderNode(c, ctx, `${key}.dup.${i}`))}</div>
           </div>
         </div>
       );
