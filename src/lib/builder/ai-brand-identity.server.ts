@@ -182,8 +182,11 @@ export async function authorBrandIdentity(
         name: "Safe neutral identity",
         mood: "Professional and trustworthy",
         bestFor: "Any business",
+        // The secondary colour is the page surface. The old fallback used a
+        // near-black navy surface with near-black navy buttons (contrast
+        // about 1.1:1), so every action on the site was invisible.
         primary: "#1a1a2e",
-        secondary: "#16213e",
+        secondary: "#f7f7f5",
         accent: "#0f3460",
         font: "Inter",
         fontNote: "Safe neutral font",
