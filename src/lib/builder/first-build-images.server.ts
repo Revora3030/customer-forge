@@ -161,6 +161,11 @@ export async function generateFirstBuildImages(
   // imagery when enabled and inside the durable budget gate. The standard lane
   // is capability-aware failover, not the default merely because it is free.
   let standardBlocked = false;
+  // A busy or briefly rate-limited picture service is not a closed one. Pause
+  // and try again a few times before giving up on the remaining pictures, so a
+  // momentary 429 no longer leaves most pages of a first build without images.
+  let blockedStrikes = 0;
+  const MAX_BLOCKED_STRIKES = 3;
 
 
   for (const [index, shot] of shots.entries()) {
@@ -213,7 +218,7 @@ export async function generateFirstBuildImages(
       }
     }
 
-    if (!made && !standardBlocked) {
+    for (let tries = 0; !made && !standardBlocked && tries < 2; tries += 1) {
       const standard = await generateImageBase64(prompt, {
         organizationId: input.organizationId,
         userId: input.userId,
@@ -221,11 +226,20 @@ export async function generateFirstBuildImages(
       if (standard.ok) {
         made = standard;
         source = source === "premium" ? source : "standard";
-      } else {
-        firstBlockedMessage = firstBlockedMessage ?? standard.message;
-        if (standard.blocked) standardBlocked = true;
-        else skipped.push({ slot: shot.slot, label: shot.label, reason: standard.message });
+        blockedStrikes = 0;
+        break;
       }
+      firstBlockedMessage = firstBlockedMessage ?? standard.message;
+      if (standard.blocked) {
+        blockedStrikes += 1;
+        if (blockedStrikes >= MAX_BLOCKED_STRIKES) {
+          standardBlocked = true;
+          break;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 4000 * blockedStrikes));
+        continue;
+      }
+      if (tries === 1) skipped.push({ slot: shot.slot, label: shot.label, reason: standard.message });
     }
 
     if (!made) {
