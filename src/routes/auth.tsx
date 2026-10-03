@@ -27,7 +27,16 @@ export const Route = createFileRoute("/auth")({
     const rawRedirect = search["redirect"];
     const out: Search = {};
     if (rawMode === "signup" || rawMode === "signin") out.mode = rawMode;
-    if (typeof rawRedirect === "string" && rawRedirect.startsWith("/")) out.redirect = rawRedirect;
+    // Same-site paths only: "//evil.com" and "/\\evil.com" start with "/" but
+    // send the browser to another site after sign-in.
+    if (
+      typeof rawRedirect === "string" &&
+      rawRedirect.startsWith("/") &&
+      !rawRedirect.startsWith("//") &&
+      !rawRedirect.includes("\\") &&
+      !/^\/[^/]*:/.test(rawRedirect)
+    )
+      out.redirect = rawRedirect;
     return out;
   },
   head: () => ({

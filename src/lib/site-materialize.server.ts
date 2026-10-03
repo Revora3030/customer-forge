@@ -444,6 +444,20 @@ export async function materializeSiteContent(
       if (asset) claim(slot, asset);
     }
   }
+  // Every page gets a picture: before spreading the rest, give each page that
+  // still has none one leftover picture on its first picture-friendly section.
+  for (const page of architecture) {
+    if (!unassigned.length) break;
+    const slots = contentSlots.filter((slot) => slot.page === page.slug);
+    if (!slots.length) continue;
+    if (slots.some((slot) => allocatedAssets.get(slotKey(slot.page, slot.role, slot.index))?.length)) continue;
+    const pageWords = new Set([page.slug, ...page.slug.split("-"), ...slots.map((slot) => slot.role)]);
+    const fit = unassigned.findIndex((asset) =>
+      asset.placement.some((place) => pageWords.has(place) || place.startsWith(`${page.slug}:`)),
+    );
+    const [asset] = unassigned.splice(fit >= 0 ? fit : 0, 1);
+    if (asset) claim(slots.find((slot) => slot.media !== "none") ?? slots[0]!, asset);
+  }
   if (contentSlots.length)
     for (const [index, asset] of unassigned.entries()) claim(contentSlots[index % contentSlots.length]!, asset);
   let tree: Page[] = architecture.map((page) => ({

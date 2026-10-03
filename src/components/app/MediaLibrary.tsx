@@ -116,10 +116,21 @@ export function MediaLibrary({
             file_name: original.name.slice(0, 120),
             size_bytes: file.size,
             alt_text: null,
-          });
+            // Owner uploads always go on the site before any AI picture.
+            source: "owner",
+          } as never);
           if (rowError) {
             await supabase.storage.from(MEDIA_BUCKET).remove([path]);
             throw rowError;
+          }
+          // A logo upload becomes the site's logo straight away.
+          if (category === "logo") {
+            const { error: logoError } = await supabase
+              .from("business_profiles")
+              .update({ logo_url: path } as never)
+              .eq("organization_id", organizationId);
+            if (logoError) toast.error("Logo saved to your photos, but couldn't be set as the site logo.");
+            else void queryClient.invalidateQueries();
           }
           ok += 1;
         } catch (error) {
@@ -133,7 +144,7 @@ export function MediaLibrary({
         invalidate();
       }
     },
-    [organizationId, category, invalidate],
+    [organizationId, category, invalidate, queryClient],
   );
 
   const removeMedia = useMutation({

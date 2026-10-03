@@ -318,7 +318,7 @@ async function runJob(
 
   const p = (profile.data ?? {}) as Record<string, unknown>;
   const realMediaCount = (media.data ?? []).filter((item) =>
-    ["hero", "work", "gallery"].includes(String(item.category ?? "").toLowerCase()),
+    ["hero", "work", "gallery", "team", "premises"].includes(String(item.category ?? "").toLowerCase()),
   ).length + ((p["hero_image_url"] as string) ? 1 : 0);
   const serviceRows = (services.data ?? []) as {
     name: string;
@@ -685,7 +685,12 @@ async function runJob(
     // Only a deliberately assigned hero fills that role. A generic upload or
     // one work photo no longer blocks the complete supporting image campaign.
     occupiedSlots: new Set([
-      ...((p["hero_image_url"] as string) ? (["hero"] as const) : []),
+      ...((p["hero_image_url"] as string) ||
+      ((media.data ?? []) as { category: string | null; source: string | null }[]).some(
+        (row) => String(row.category ?? "").toLowerCase() === "hero" && row.source === "owner",
+      )
+        ? (["hero"] as const)
+        : []),
     ]),
     creative,
   });
@@ -693,9 +698,19 @@ async function runJob(
   // their category suggests; AI pictures only fill whatever is left.
   type MediaRow = { id: string; category: string | null; url: string | null; alt_text: string | null; file_name: string | null; source: string | null };
   const heroUrl = (p["hero_image_url"] as string) || "";
+  // A logo is the brand mark, shown in the header — never a page photo.
   const ownerRows = ((media.data ?? []) as MediaRow[]).filter(
-    (row) => row.url && row.source !== "generated" && row.source !== "ai" && row.source !== "stock",
+    (row) =>
+      row.url &&
+      row.source !== "generated" &&
+      row.source !== "ai" &&
+      // Stock rows ("stock:<library>") are licensed pictures the owner chose
+      // in the photo library, so they are placed like the owner's own photos.
+      String(row.category ?? "").toLowerCase() !== "logo" &&
+      // Video clips are not pictures; an <img> of an .mp4 shows nothing.
+      !/\.(mp4|webm|mov|m4v)(\?|$)/i.test(String(row.url)),
   );
+  const ownerHeroRow = ownerRows.find((row) => String(row.category ?? "").toLowerCase() === "hero");
   const bizName = org.data?.name ?? "Business";
   const ownerAssets: typeof starterImages.assets = [
     ...(heroUrl
@@ -713,7 +728,14 @@ async function runJob(
         provider: "owner",
         model: "owner",
         prompt: "",
-        placement: cat === "hero" && !heroUrl ? ["hero", "home:hero"] : cat === "team" ? ["about", "team"] : ["gallery", "work", "services", "about"],
+        placement:
+          cat === "hero" && !heroUrl && row.id === ownerHeroRow?.id
+            ? ["hero", "home:hero"]
+            : cat === "team"
+              ? ["about", "story", "team"]
+              : cat === "premises"
+                ? ["about", "story", "service_area", "contact"]
+                : ["gallery", "work", "services", "process", "about", "story"],
         aspectRatio: "3:2",
       };
     }),
