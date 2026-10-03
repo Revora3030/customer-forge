@@ -991,6 +991,11 @@ async function runJob(
       composed = { sections: [], models: [], totalCostMicrocents: 0 } as never;
       degraded.push("section layouts");
     }
+    // Sections that quietly kept their default layout were never reported, so
+    // the owner saw a plain site with no hint that a redesign would help.
+    if (!degraded.includes("section layouts") && ((composed as { fallback?: number }).fallback ?? 0) > 0) {
+      degraded.push("section layouts");
+    }
     await db.from("ai_generations").insert({
       organization_id: orgId,
       job_id: job.id,
