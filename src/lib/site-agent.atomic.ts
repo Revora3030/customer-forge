@@ -47,6 +47,35 @@ const IMMUTABLE = new Set(["id", "organization_id", "created_at", "updated_at"])
 const restorable = (row: Row) =>
   Object.fromEntries(Object.entries(row).filter(([key]) => !IMMUTABLE.has(key)));
 
+/**
+ * Awaits a database call and throws when it reports an error. Supabase never
+ * rejects on a refused write, so an undo step that ignored `error` counted as
+ * "undone" while the row stayed changed.
+ */
+async function must(call: PromiseLike<{ error: unknown }>, what: string): Promise<void> {
+  const { error } = await call;
+  if (error) throw new Error(`${what}: ${(error as { message?: string })?.message ?? String(error)}`);
+}
+
+/** Child tables removed by ON DELETE CASCADE when their parent row is deleted. */
+const CASCADE_CHILDREN: Record<string, { table: string; key: string }[]> = {
+  website_pages: [{ table: "website_sections", key: "page_id" }],
+  website_sections: [{ table: "website_components", key: "section_id" }],
+};
+
+/** Every snapshot row that a delete of (table,id) will cascade away, parents first. */
+function cascadeRows(snapshot: UndoSnapshot, table: string, id: string): { table: string; row: Row }[] {
+  const out: { table: string; row: Row }[] = [];
+  for (const child of CASCADE_CHILDREN[table] ?? []) {
+    for (const row of snapshot.rows.get(child.table)?.values() ?? []) {
+      if (String(row[child.key]) !== id) continue;
+      out.push({ table: child.table, row });
+      out.push(...cascadeRows(snapshot, child.table, String(row["id"])));
+    }
+  }
+  return out;
+}
+
 type Target =
   | { kind: "update"; table: string; id: string }
   | { kind: "updateMany"; table: string; ids: string[] }
@@ -115,116 +144,10 @@ export async function captureUndo(
   orgId: string,
   action: AgentAction,
 ): Promise<UndoStep[]> {
-  const target = targetOf(action);
-  if (!target) return [];
-  const table = target.table;
-
-  if (target.kind === "update" || target.kind === "delete") {
-    const { data } = await client
-      .from(table)
-      .select("*")
-      .eq("id", target.id)
-      .eq("organization_id", orgId)
-      .maybeSingle();
-    const row = (data ?? null) as Row | null;
-    if (!row) return [];
-    if (target.kind === "update")
-      return [
-        {
-          label: `${action.type}:restore`,
-          run: async () => {
-            await client
-              .from(table)
-              .update(restorable(row))
-              .eq("id", target.id)
-              .eq("organization_id", orgId);
-          },
-        },
-      ];
-    return [
-      {
-        label: `${action.type}:reinsert`,
-        run: async () => {
-          await client.from(table).insert(row);
-        },
-      },
-    ];
-  }
-
-  if (target.kind === "updateMany") {
-    const { data } = await client
-      .from(table)
-      .select("*")
-      .eq("organization_id", orgId)
-      .in("id", target.ids);
-    const rows = (data ?? []) as Row[];
-    return rows.map((row) => ({
-      label: `${action.type}:restore`,
-      run: async () => {
-        await client
-          .from(table)
-          .update(restorable(row))
-          .eq("id", String(row["id"]))
-          .eq("organization_id", orgId);
-      },
-    }));
-  }
-
-  if (target.kind === "org") {
-    const { data } = await client
-      .from(table)
-      .select("*")
-      .eq("organization_id", orgId)
-      .maybeSingle();
-    const row = (data ?? null) as Row | null;
-    if (!row)
-      return [
-        {
-          label: `${action.type}:remove`,
-          run: async () => {
-            await client.from(table).delete().eq("organization_id", orgId);
-          },
-        },
-      ];
-    return [
-      {
-        label: `${action.type}:restore`,
-        run: async () => {
-          await client.from(table).update(restorable(row)).eq("organization_id", orgId);
-        },
-      },
-    ];
-  }
-
-  // An insert: remember which rows existed, so only genuinely new ones are
-  // removed. Concurrent work by another member of the same workspace is never
-  // touched, because those rows are not in the "new" set for this run either
-  // way — the undo only deletes ids absent from the pre-write list AND created
-  // by this run's own insert window.
-  const { data } = await client.from(table).select("id").eq("organization_id", orgId);
-  const before = new Set(((data ?? []) as Row[]).map((row) => String(row["id"])));
-  const since = new Date().toISOString();
-  return [
-    {
-      label: `${action.type}:delete-new`,
-      run: async () => {
-        const { data: after } = await client
-          .from(table)
-          .select("id, created_at")
-          .eq("organization_id", orgId)
-          .gte("created_at", since);
-        for (const row of ((after ?? []) as Row[]).filter(
-          (candidate) => !before.has(String(candidate["id"])),
-        )) {
-          await client
-            .from(table)
-            .delete()
-            .eq("id", String(row["id"]))
-            .eq("organization_id", orgId);
-        }
-      },
-    },
-  ];
+  // Same reversal as the batched path, from a fresh one-action snapshot, so
+  // the two can never drift apart.
+  const snapshot = await loadUndoSnapshot(client, orgId, [action]);
+  return captureUndoFrom(client, orgId, action, snapshot);
 }
 
 /* --------------------------- batched undo capture -------------------------- */
@@ -265,6 +188,18 @@ export async function loadUndoSnapshot(
     if (!target) continue;
     if (target.kind === "org") orgTables.add(target.table);
     else rowTables.add(target.table);
+    // A delete cascades to child rows; their pre-write state is needed so the
+    // undo can put them back too.
+    if (target.kind === "delete") {
+      const queue = [target.table];
+      while (queue.length) {
+        const parent = queue.shift()!;
+        for (const child of CASCADE_CHILDREN[parent] ?? []) {
+          rowTables.add(child.table);
+          queue.push(child.table);
+        }
+      }
+    }
   }
 
   const snapshot: UndoSnapshot = {
@@ -277,7 +212,14 @@ export async function loadUndoSnapshot(
 
   await Promise.all([
     ...[...rowTables].map(async (table) => {
-      const { data } = await client.from(table).select("*").eq("organization_id", orgId);
+      // Paged so a large site's undo snapshot holds every row.
+      const { readAll } = await import("@/lib/db/read-all");
+      const { data } = await readAll(
+        () =>
+          (client.from(table).select("*").eq("organization_id", orgId) as unknown as {
+            order: (c: string) => { range: (a: number, b: number) => PromiseLike<{ data: Row[] | null; error: unknown }> };
+          }).order("id"),
+      );
       const rows = (data ?? []) as Row[];
       snapshot.rows.set(table, new Map(rows.map((row) => [String(row["id"]), row])));
       snapshot.ids.set(table, new Set(rows.map((row) => String(row["id"]))));
@@ -321,19 +263,28 @@ export function captureUndoFrom(
         {
           label: `${action.type}:restore`,
           run: async () => {
-            await client
-              .from(table)
-              .update(restorable(row))
-              .eq("id", target.id)
-              .eq("organization_id", orgId);
+            await must(
+              client
+                .from(table)
+                .update(restorable(row))
+                .eq("id", target.id)
+                .eq("organization_id", orgId),
+              `restore ${table}`,
+            );
           },
         },
       ];
+    // Deleting a page or section also deletes everything inside it (cascade).
+    // Re-insert the parent, then every child row the snapshot holds, so an
+    // undone delete brings back the buttons, cards and sections it removed.
+    const children = cascadeRows(snapshot, table, target.id);
     return [
       {
         label: `${action.type}:reinsert`,
         run: async () => {
-          await client.from(table).insert(row);
+          await must(client.from(table).insert(row), `reinsert ${table}`);
+          for (const child of children)
+            await must(client.from(child.table).insert(child.row), `reinsert ${child.table}`);
         },
       },
     ];
@@ -347,11 +298,14 @@ export function captureUndoFrom(
       .map((row) => ({
         label: `${action.type}:restore`,
         run: async () => {
-          await client
-            .from(table)
-            .update(restorable(row))
-            .eq("id", String(row["id"]))
-            .eq("organization_id", orgId);
+          await must(
+            client
+              .from(table)
+              .update(restorable(row))
+              .eq("id", String(row["id"]))
+              .eq("organization_id", orgId),
+            `restore ${table}`,
+          );
         },
       }));
   }
@@ -363,7 +317,7 @@ export function captureUndoFrom(
         {
           label: `${action.type}:remove`,
           run: async () => {
-            await client.from(table).delete().eq("organization_id", orgId);
+            await must(client.from(table).delete().eq("organization_id", orgId), `remove ${table}`);
           },
         },
       ];
@@ -371,35 +325,17 @@ export function captureUndoFrom(
       {
         label: `${action.type}:restore`,
         run: async () => {
-          await client.from(table).update(restorable(row)).eq("organization_id", orgId);
+          await must(client.from(table).update(restorable(row)).eq("organization_id", orgId), `restore ${table}`);
         },
       },
     ];
   }
 
-  const before = snapshot.ids.get(table) ?? new Set<string>();
-  const since = snapshot.since;
-  return [
-    {
-      label: `${action.type}:delete-new`,
-      run: async () => {
-        const { data: after } = await client
-          .from(table)
-          .select("id, created_at")
-          .eq("organization_id", orgId)
-          .gte("created_at", since);
-        for (const row of ((after ?? []) as Row[]).filter(
-          (candidate) => !before.has(String(candidate["id"])),
-        )) {
-          await client
-            .from(table)
-            .delete()
-            .eq("id", String(row["id"]))
-            .eq("organization_id", orgId);
-        }
-      },
-    },
-  ];
+  // Inserts: the writer records a targeted undo for the exact row it created
+  // (by its new id) as soon as the row exists. The old "delete every row
+  // created since the batch started" step also deleted rows a teammate, the
+  // first-build worker or another tab created at the same moment.
+  return [];
 }
 
 /**
