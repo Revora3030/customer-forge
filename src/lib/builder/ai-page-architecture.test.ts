@@ -37,7 +37,7 @@ describe("AI-authored page architecture", () => {
     expect(candidate[0]?.primaryAction).toBe("Book a visit");
   });
 
-  it("lets the AI reorder and omit sections, and reports the change", () => {
+  it("lets the AI reorder and omit sections, restores a dropped page, and reports the change", () => {
     const proposal = parsePageArchitecture(
       '{"pages":[{"slug":"home","sections":["hero","benefits","services","cta"]}]}',
     );
@@ -45,7 +45,9 @@ describe("AI-authored page architecture", () => {
     const result = normalizePageArchitecture({ proposal: proposal!, candidate });
     expect(result).not.toBeNull();
     expect(result!.changed).toBe(true);
-    expect(result!.architecture.map((page) => page.slug)).toEqual(["home"]);
+    // The first build ships every page the business has material for.
+    expect(result!.architecture.map((page) => page.slug)).toEqual(["home", "about"]);
+    expect(result!.rejected.some((entry) => entry.field === "page.about" && /restored/.test(entry.reason))).toBe(true);
     expect(result!.architecture[0]?.sections.map((section) => section.role)).toEqual([
       "hero",
       "benefits",
@@ -61,7 +63,8 @@ describe("AI-authored page architecture", () => {
     const result = normalizePageArchitecture({ proposal: proposal!, candidate });
     expect(result).not.toBeNull();
     expect(result!.architecture[0]?.sections.map((section) => section.role)).toEqual(["hero"]);
-    expect(result!.architecture.map((page) => page.slug)).toEqual(["home"]);
+    // The invented "careers" page is refused; the real "about" page is kept.
+    expect(result!.architecture.map((page) => page.slug)).toEqual(["home", "about"]);
     expect(result!.rejected.map((entry) => entry.field)).toEqual(
       expect.arrayContaining(["page.home.pricing", "page.careers"]),
     );
@@ -96,8 +99,11 @@ describe("AI-authored page architecture", () => {
       '{"pages":[{"slug":"home","sections":["hero"]},{"slug":"about","sections":["gallery"]}]}',
     );
     const result = normalizePageArchitecture({ proposal: proposal!, candidate });
-    expect(result!.architecture.map((page) => page.slug)).toEqual(["home"]);
+    // The empty proposal is refused, then the real about page is restored with
+    // its own material so the site is never missing a page.
     expect(result!.rejected.some((entry) => entry.field === "page.about")).toBe(true);
+    expect(result!.architecture.map((page) => page.slug)).toEqual(["home", "about"]);
+    expect(result!.architecture[1]?.sections.map((section) => section.role)).toEqual(["intro", "cta"]);
   });
 });
 
