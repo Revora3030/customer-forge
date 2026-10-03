@@ -94,13 +94,15 @@ export const createTeamInvitation = createServerFn({ method: "POST" })
         }
 
         // Replace any open invitation for the same address.
-        await supabaseAdmin
+        const { error: revokeError } = await supabaseAdmin
           .from("team_invitations")
           .update({ revoked_at: new Date().toISOString() })
           .eq("organization_id", data.organizationId)
           .eq("email", data.email)
           .is("accepted_at", null)
           .is("revoked_at", null);
+        // Otherwise the old link (possibly with a different role) stays valid.
+        if (revokeError) return { error: "Could not replace the earlier invite. Try again." };
 
         const token = Array.from(crypto.getRandomValues(new Uint8Array(24)))
           .map((b) => b.toString(16).padStart(2, "0"))
@@ -159,13 +161,15 @@ export const revokeTeamInvitation = createServerFn({ method: "POST" })
     try {
       await assertCanManage(context.supabase, data.organizationId, context.userId);
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-      await supabaseAdmin
+      const { error } = await supabaseAdmin
         .from("team_invitations")
         .update({ revoked_at: new Date().toISOString() })
         .eq("id", data.invitationId)
         .eq("organization_id", data.organizationId)
         .is("accepted_at", null)
         .is("revoked_at", null);
+      // A revoke that didn't save leaves the invite link usable.
+      if (error) return { error: "Could not revoke that invite. Try again." };
       return { ok: true };
     } catch (error) {
       return { error: error instanceof Error ? error.message : "Could not revoke that invite." };
