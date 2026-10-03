@@ -362,7 +362,7 @@ function AppShell() {
             >
               {navOpen ? <X className="size-4" /> : <Menu className="size-4" />}
             </Button>
-            <LogoMark className="lg:hidden" />
+            <LogoMark className="size-8 lg:hidden" />
             <div className="hidden min-w-0 sm:block">
               <p className="truncate text-[13px] font-medium">
                 {currentPage?.label ?? "Workspace"}
@@ -377,7 +377,7 @@ function AppShell() {
             {trialStillActive && countdown ? (
               <Pill tone="attention">
                 <span className="whitespace-nowrap">
-                  Free access ·{" "}
+                  <span className="hidden min-[400px]:inline">Free access · </span>
                   <span className="tnum font-semibold" aria-live="off">
                     {countdown.label}
                   </span>
