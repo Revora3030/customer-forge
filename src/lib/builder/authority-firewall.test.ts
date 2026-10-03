@@ -282,3 +282,17 @@ describe("no canned upgrade engine", () => {
     expect(offenders).toEqual([]);
   });
 });
+
+describe("no non-AI build fallback (Oct 3)", () => {
+  const worker = readFileSync("src/lib/site-engine.worker.server.ts", "utf8");
+  it("the first build never ships a fact-scaffold, default layout or generic menu", () => {
+    expect(worker).not.toMatch(/safe-fallback|safe fact-based|using default layout|using default chrome|degradedNote/);
+    expect(readFileSync("src/lib/builder/first-build-chrome.server.ts", "utf8")).not.toMatch(/writeSafeChromeFallback/);
+    expect(readFileSync("src/lib/builder/ai-brand-identity.server.ts", "utf8")).not.toMatch(/safe-neutral|Safe neutral identity/);
+    expect(readFileSync("src/lib/site-engine.server.ts", "utf8")).not.toMatch(/safe fact-based brief|source: "safe-fallback"/);
+    expect(readFileSync("src/lib/site-materialize.server.ts", "utf8")).not.toMatch(/fact inventory as a baseline|\|\| "Get in touch"/);
+  });
+  it("an AI step that fails raises the shared retryable error", () => {
+    expect(worker).toMatch(/AiStepUnavailableError/);
+  });
+});
