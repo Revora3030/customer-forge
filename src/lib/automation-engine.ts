@@ -134,7 +134,8 @@ export async function enqueueAutomations(
   }
 
   if (!rows.length) return { queued: 0, sent: 0, skipped: 0, failed: 0 };
-  await client.from("automation_runs").insert(rows);
+  const { error: queueError } = await client.from("automation_runs").insert(rows);
+  if (queueError) throw new Error(`Couldn't queue the follow-up steps: ${queueError.message}`);
   const result = await processDueRuns(client, ctx.organizationId, options);
   return { queued: rows.length, ...result };
 }
@@ -217,13 +218,24 @@ export async function processDueRuns(
     else if (run.recipient) failed += 1;
     else skipped += 1;
 
-    await client
+    // Only the pass that moves the run out of "queued" records it: two passes
+    // running at once (dashboard + scheduler) must not log it twice. The email
+    // itself is already single-send through its idempotency key.
+    const { data: claimed } = await client
       .from("automation_runs")
       .update({
         status: delivered ? "sent" : run.recipient ? "failed" : "skipped",
         sent_at: delivered ? nowIso : null,
       })
-      .eq("id", run.id);
+      .eq("id", run.id)
+      .eq("status", "queued")
+      .select("id");
+    if (!claimed?.length) {
+      if (delivered) sent -= 1;
+      else if (run.recipient) failed -= 1;
+      else skipped -= 1;
+      continue;
+    }
 
     if (run.lead_id) {
       const reason = !outcome.ok ? (REASON_TEXT[outcome.reason] ?? outcome.reason) : "";
@@ -248,8 +260,14 @@ export async function processDueRuns(
     }
   }
 
-  if (activities.length) await client.from("lead_activities").insert(activities);
-  if (notifications.length) await client.from("notifications").insert(notifications);
+  if (activities.length) {
+    const { error } = await client.from("lead_activities").insert(activities);
+    if (error) console.error("automation activity log failed", error.message);
+  }
+  if (notifications.length) {
+    const { error } = await client.from("notifications").insert(notifications);
+    if (error) console.error("automation task notifications failed", error.message);
+  }
 
   return { sent, skipped, failed };
 }
