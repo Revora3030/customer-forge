@@ -176,9 +176,13 @@ export async function generateFirstBuildImages(
       skipped.push({ slot: shot.slot, label: shot.label, reason: "the AI picture campaign was incomplete" });
       continue;
     }
+    // Most important instructions first: picture models (Flux caps prompts at
+    // 2048 characters) weigh the start of the prompt most, and anything past
+    // the cap is cut — so the subject and the safety rules lead, and the long
+    // art-direction notes follow.
     const prompt = [
-      "Commissioned website photograph. No typography baked into the picture.",
-      `Purpose: ${spec.purpose}. Subject: ${spec.subject}.`,
+      `Photorealistic professional website photograph of ${spec.subject}. No text, logos, watermarks, signage or recognisable real people.`,
+      `Purpose: ${spec.purpose}.`,
       spec.action ? `Action: ${spec.action}.` : "",
       spec.environment ? `Environment: ${spec.environment}.` : "",
       spec.lighting ? `Lighting: ${spec.lighting}.` : "",
@@ -191,7 +195,7 @@ export async function generateFirstBuildImages(
       artDirectionNote(input.creative, shot),
       ...spec.constraints,
       "Starter marketing image only. Do not depict a real employee, actual customer, award, review, brand logo, licence plate, address, or before-and-after result.",
-      "Photorealistic professional photography, not an illustration or generic stock composition.",
+      "Shot on a full-frame camera with natural light, shallow depth of field, true-to-life colour, editorial magazine quality — not an illustration or generic stock composition.",
     ].filter(Boolean).join(" ");
 
     type Made = { base64: string; mimeType: string; provider: string; model: string };
