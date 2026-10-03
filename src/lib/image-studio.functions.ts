@@ -72,7 +72,7 @@ async function assertCanManage(
     .eq("user_id", userId)
     .maybeSingle();
   if (error) return "Couldn't verify workspace access.";
-  if (!membership || !["owner", "admin", "editor"].includes(String(membership.role)))
+  if (!membership || !["owner", "admin", "manager"].includes(String(membership.role)))
     return "You don't have permission to add photos to this website.";
   return null;
 }
