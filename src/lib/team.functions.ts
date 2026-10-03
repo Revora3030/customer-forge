@@ -207,6 +207,29 @@ export const acceptTeamInvitation = createServerFn({ method: "POST" })
         };
       }
 
+      // The email must be one the account actually proved it owns; an
+      // unverified sign-up with someone else's address cannot take their seat.
+      const { data: authUser } = await supabaseAdmin.auth.admin.getUserById(context.userId);
+      const confirmedEmail = String(authUser?.user?.email ?? "").toLowerCase();
+      if (!authUser?.user?.email_confirmed_at || confirmedEmail !== invite.email) {
+        return {
+          error: `Confirm ${invite.email} first (check your inbox for the verification email), then open this invitation again.`,
+        };
+      }
+
+      // Claim the invitation first, atomically: only one request can move it
+      // from open to accepted, so a link opened twice at once grants one seat.
+      const { data: claimed, error: claimError } = await supabaseAdmin
+        .from("team_invitations")
+        .update({ accepted_at: new Date().toISOString(), accepted_by: context.userId })
+        .eq("id", invite.id)
+        .is("accepted_at", null)
+        .is("revoked_at", null)
+        .select("id")
+        .maybeSingle();
+      if (claimError) return { error: "Could not accept that invitation. Try again." };
+      if (!claimed) return { error: "This invitation was already used." };
+
       const { data: existing } = await supabaseAdmin
         .from("memberships")
         .select("id")
@@ -219,13 +242,15 @@ export const acceptTeamInvitation = createServerFn({ method: "POST" })
           user_id: context.userId,
           role: invite.role,
         });
-        if (error) return { error: "Could not add you to that workspace." };
+        if (error) {
+          // Give the invitation back so the person can try again.
+          await supabaseAdmin
+            .from("team_invitations")
+            .update({ accepted_at: null, accepted_by: null })
+            .eq("id", invite.id);
+          return { error: "Could not add you to that workspace." };
+        }
       }
-
-      await supabaseAdmin
-        .from("team_invitations")
-        .update({ accepted_at: new Date().toISOString(), accepted_by: context.userId })
-        .eq("id", invite.id);
 
       const { data: org } = await supabaseAdmin
         .from("organizations")
