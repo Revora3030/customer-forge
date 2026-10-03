@@ -196,42 +196,19 @@ export type RestoreResult = {
  * the only tenant ever written to, so a mismatched id can never leak rows
  * across tenants.
  */
-export async function restoreBackup(
+/** Writes a tenant snapshot over the live workspace. Throws on the first failure. */
+async function applyTenantSnapshot(
   admin: Admin,
-  backupId: string,
-  options: { userId?: string | undefined } = {},
-): Promise<RestoreResult> {
-  const { data: backup, error } = await admin
-    .from("data_backups")
-    .select("id, organization_id, snapshot")
-    .eq("id", backupId)
-    .maybeSingle();
-  if (error) throw new Error(`Couldn't read that backup: ${error.message}`);
-  if (!backup) throw new Error("That backup no longer exists.");
-
-  const organizationId = backup.organization_id as string;
-  const snapshot = backup.snapshot as TenantSnapshot;
-  if (!snapshot || snapshot.format !== 1 || snapshot.organization_id !== organizationId) {
-    throw new Error("That backup is not in a restorable format.");
-  }
-
-  // Safety net: capture where the workspace stands right now, so a restore can
-  // itself be undone.
-  const safety = await createBackup(admin, organizationId, {
-    kind: "pre_restore",
-    label: `Before restoring ${new Date(snapshot.taken_at).toISOString()}`,
-    userId: options.userId,
-  });
-
-  // Website tree first: one atomic RPC that also removes pages/sections/
-  // components that no longer exist in the snapshot.
+  organizationId: string,
+  snapshot: TenantSnapshot,
+  tables: Record<string, number>,
+): Promise<unknown> {
   const { data: siteResult, error: siteError } = await admin.rpc("restore_website_state", {
     _organization_id: organizationId,
     _snapshot: snapshot.website as never,
   });
   if (siteError) throw new Error(`Website restore failed: ${siteError.message}`);
 
-  const tables: Record<string, number> = {};
   const keptIds: Record<string, Set<string>> = {};
 
   // Parents before children so foreign keys always resolve.
@@ -264,6 +241,55 @@ export async function restoreBackup(
     if (!stale.length) continue;
     const { error: deleteError } = await admin.from(table).delete().in("id", stale);
     if (deleteError) throw new Error(`Restore cleanup failed on ${table}: ${deleteError.message}`);
+  }
+
+  return siteResult;
+}
+
+export async function restoreBackup(
+  admin: Admin,
+  backupId: string,
+  options: { userId?: string | undefined; rollingBack?: boolean } = {},
+): Promise<RestoreResult> {
+  const { data: backup, error } = await admin
+    .from("data_backups")
+    .select("id, organization_id, snapshot")
+    .eq("id", backupId)
+    .maybeSingle();
+  if (error) throw new Error(`Couldn't read that backup: ${error.message}`);
+  if (!backup) throw new Error("That backup no longer exists.");
+
+  const organizationId = backup.organization_id as string;
+  const snapshot = backup.snapshot as TenantSnapshot;
+  if (!snapshot || snapshot.format !== 1 || snapshot.organization_id !== organizationId) {
+    throw new Error("That backup is not in a restorable format.");
+  }
+
+  // Safety net: capture where the workspace stands right now, so a restore can
+  // itself be undone.
+  const safety = options.rollingBack
+    ? { id: backupId }
+    : await createBackup(admin, organizationId, {
+        kind: "pre_restore",
+        label: `Before restoring ${new Date(snapshot.taken_at).toISOString()}`,
+        userId: options.userId,
+      });
+
+  let siteResult: unknown = null;
+  const tables: Record<string, number> = {};
+  try {
+    siteResult = await applyTenantSnapshot(admin, organizationId, snapshot, tables);
+  } catch (failure) {
+    const reason = failure instanceof Error ? failure.message : String(failure);
+    if (options.rollingBack) throw failure;
+    try {
+      await restoreBackup(admin, safety.id, { ...options, rollingBack: true });
+    } catch (rollbackFailure) {
+      throw new Error(
+        `${reason} Putting the workspace back also failed (${rollbackFailure instanceof Error ? rollbackFailure.message : "unknown error"}); restore backup ${safety.id} to recover.`,
+      );
+    }
+    throw new Error(`${reason} Nothing was changed — the workspace was put back as it was.`);
   }
 
   await admin
