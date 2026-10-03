@@ -35,7 +35,7 @@ export function TrafficMonitor({
   const query = useQuery({
     queryKey: ["traffic-report", organizationId, days],
     enabled: !!organizationId,
-    queryFn: () => report({ data: { organizationId: organizationId!, days: Number(days) } }),
+    queryFn: () => report({ data: { organizationId: organizationId!, days: Number(days), tzOffset: new Date().getTimezoneOffset() } }),
   });
 
   const toggle = useMutation({
