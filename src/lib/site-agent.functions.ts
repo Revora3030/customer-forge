@@ -557,6 +557,42 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
     // the owner is told plainly and nothing is changed.
     const { planWebsiteChangesWithAi } = await import("@/lib/builder/ai-agent-plan.server");
 
+    // Photos the owner attaches in the chat are their own pictures: save each
+    // one to the photo library (so every later rebuild uses it too) and give
+    // the planner its stored address so it can actually place it. Before, the
+    // planner only saw the file name and could never put the photo on the site.
+    const ownerUploads: { name: string; path: string }[] = [];
+    for (const attachment of data.attachments.filter((a) => a.kind === "image").slice(0, 8)) {
+      try {
+        const mime = attachment.mimeType.split(";")[0]?.trim().toLowerCase() ?? "image/jpeg";
+        // HEIC/HEIF and GIF don't display reliably in every browser as a page photo.
+        if (!["image/jpeg", "image/png", "image/webp"].includes(mime)) continue;
+        const bytes = decodeBase64(attachment.dataUrl.slice(attachment.dataUrl.indexOf(",") + 1));
+        const extension = mime === "image/png" ? "png" : mime === "image/webp" ? "webp" : "jpg";
+        const stem = attachment.name.replace(/\.[^.]+$/, "") || "photo";
+        const path = buildObjectPath(orgId, `${stem}.${extension}`);
+        const uploaded = await supabase.storage
+          .from(MEDIA_BUCKET)
+          .upload(path, bytes, { contentType: mime, upsert: false });
+        if (uploaded.error) continue;
+        const row = await supabase.from("media").insert({
+          organization_id: orgId,
+          url: path,
+          category: "work",
+          file_name: attachment.name.slice(0, 120),
+          size_bytes: bytes.byteLength,
+          source: "owner",
+        } as never);
+        if (row.error) {
+          await supabase.storage.from(MEDIA_BUCKET).remove([path]);
+          continue;
+        }
+        ownerUploads.push({ name: attachment.name, path });
+      } catch (error) {
+        console.warn("[site-agent] attached photo not saved", (error as Error)?.message);
+      }
+    }
+
     let raw: Record<string, unknown>;
     let requirements: { label: string; covered: boolean }[] = [];
     let trace: string[] = [];
@@ -579,10 +615,10 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
           .map((turn) => turn.content)
           .slice(-6),
         context: agentContext,
-        attachments: data.attachments.map((attachment) => ({
-          kind: attachment.kind,
-          name: attachment.name,
-        })),
+        attachments: data.attachments.map((attachment) => {
+          const saved = ownerUploads.find((upload) => upload.name === attachment.name);
+          return { kind: attachment.kind, name: attachment.name, ...(saved ? { path: saved.path } : {}) };
+        }),
         onStage: (stage, detail) => {
           planStage = stage;
           noteStage(orgId, runId, stage, detail);
@@ -1457,7 +1493,18 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
             noteColumn("website_components", action.componentId, "settings", settings);
             const mediaUrl = action.patch["media_url"];
             const patch: Record<string, unknown> = { settings };
-            if (mediaUrl !== undefined) patch["media_url"] = safeLinkUrl(mediaUrl);
+            // A photo stored in this workspace's own library is referenced by
+            // its storage path ("<org-id>/<file>"), which is not a web link.
+            // Only this workspace's folder is accepted; anything else must be a
+            // safe web address.
+            if (mediaUrl !== undefined)
+              patch["media_url"] =
+                typeof mediaUrl === "string" &&
+                isStoragePath(mediaUrl) &&
+                mediaUrl.startsWith(`${orgId}/`) &&
+                !mediaUrl.includes("..")
+                  ? mediaUrl
+                  : safeLinkUrl(mediaUrl);
             return supabase
               .from("website_components")
               .update(patch as never)

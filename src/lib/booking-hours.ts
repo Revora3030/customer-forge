@@ -83,7 +83,11 @@ export function parseDayHours(text: string | null): DayHours {
 export function readWeeklyHours(value: unknown): Partial<Record<DayKey, DayHours>> {
   const out: Partial<Record<DayKey, DayHours>> = {};
   if (!value || typeof value !== "object" || Array.isArray(value)) return out;
-  for (const [key, raw] of Object.entries(value as Record<string, unknown>)) {
+  // Onboarding saves `{ summary: "Mon-Fri 8am-5pm, Sat 9-1" }`; read it as days.
+  const record = value as Record<string, unknown>;
+  const fromSummary = typeof record["summary"] === "string" ? weeklyHoursFromSummary(record["summary"]) : {};
+  for (const [day, text] of Object.entries(fromSummary)) out[day as DayKey] = parseDayHours(text);
+  for (const [key, raw] of Object.entries(record)) {
     const day = ALIASES[key.trim().toLowerCase()];
     if (!day) continue;
     out[day] = parseDayHours(entryText(raw));
@@ -124,4 +128,63 @@ export function checkBookingTime(input: {
     return { ok: false, reason: "That time is outside opening hours. Please choose another time." };
   }
   return { ok: true };
+}
+
+const DAY_ORDER: DayKey[] = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
+
+/**
+ * Turns the free-text hours an owner types in onboarding ("Mon-Fri 8am-5pm,
+ * Sat 9-1, Sun closed") into a weekday map the booking check and the search
+ * listing can read. Unreadable text returns `{}` so nothing is ever refused
+ * on a guess; days the owner didn't mention are simply left out.
+ */
+export function weeklyHoursFromSummary(summary: string | null | undefined): Partial<Record<DayKey, string>> {
+  const out: Partial<Record<DayKey, string>> = {};
+  const text = (summary ?? "").trim();
+  if (!text) return out;
+  const dayWord = "(sun(?:day)?|mon(?:day)?|tue(?:s|sday)?|wed(?:s|nesday)?|thu(?:r|rs|rsday)?|fri(?:day)?|sat(?:urday)?)";
+  const chunks = text.split(/[;,\n]+|\.\s+/).map((c) => c.trim()).filter(Boolean);
+  for (const chunk of chunks) {
+    const lower = chunk.toLowerCase();
+    let days: DayKey[] = [];
+    let rest = lower;
+    if (/^(daily|every ?day|7 days(?: a week)?|mon(?:day)?\s*(?:-|–|—|to|through|thru)\s*sun(?:day)?)\b/.test(lower)) {
+      days = [...DAY_ORDER];
+      rest = lower.replace(/^(daily|every ?day|7 days(?: a week)?|mon(?:day)?\s*(?:-|–|—|to|through|thru)\s*sun(?:day)?)\s*:?\s*/, "");
+    } else if (/^weekdays?\b/.test(lower)) {
+      days = ["mon", "tue", "wed", "thu", "fri"];
+      rest = lower.replace(/^weekdays?\s*:?\s*/, "");
+    } else if (/^weekends?\b/.test(lower)) {
+      days = ["sat", "sun"];
+      rest = lower.replace(/^weekends?\s*:?\s*/, "");
+    } else {
+      const range = new RegExp(`^${dayWord}\\s*(?:-|–|—|to|through|thru)\\s*${dayWord}\\s*:?\\s*`).exec(lower);
+      if (range) {
+        const from = DAY_ORDER.indexOf(ALIASES[range[1]!]!);
+        const to = DAY_ORDER.indexOf(ALIASES[range[2]!]!);
+        if (from >= 0 && to >= 0)
+          for (let i = from; ; i = (i + 1) % 7) {
+            days.push(DAY_ORDER[i]!);
+            if (i === to || days.length > 7) break;
+          }
+        rest = lower.slice(range[0].length);
+      } else {
+        const list = new RegExp(`^(${dayWord}(?:\\s*(?:&|and|/|\\+)\\s*${dayWord})*)\\s*:?\\s*`).exec(lower);
+        if (list) {
+          for (const word of list[1]!.split(/\s*(?:&|and|\/|\+)\s*/)) {
+            const day = ALIASES[word.trim()];
+            if (day && !days.includes(day)) days.push(day);
+          }
+          rest = lower.slice(list[0].length);
+        }
+      }
+    }
+    if (!days.length) continue;
+    const value = rest.trim();
+    if (!value) continue;
+    // Only keep values the booking check can actually read.
+    if (parseDayHours(value) === null) continue;
+    for (const day of days) out[day] = value;
+  }
+  return out;
 }

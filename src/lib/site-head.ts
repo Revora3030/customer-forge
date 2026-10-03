@@ -11,6 +11,7 @@
  * an unknown field is simply left out.
  */
 import { hoursDisplay } from "@/lib/builder/presentation";
+import { weeklyHoursFromSummary } from "@/lib/booking-hours";
 
 type Profile = {
   tagline?: string | null;
@@ -67,8 +68,17 @@ function to24h(raw: string): string | null {
 export function openingHoursSpec(hours: unknown): Record<string, unknown>[] {
   if (!hours || typeof hours !== "object" || Array.isArray(hours)) return [];
   const out: Record<string, unknown>[] = [];
-  for (const [key, raw] of Object.entries(hours as Record<string, unknown>)) {
+  const record = hours as Record<string, unknown>;
+  // Onboarding stores free text as { summary }; read it as days too.
+  const entries: [string, unknown][] = [
+    ...Object.entries(typeof record["summary"] === "string" ? weeklyHoursFromSummary(record["summary"]) : {}),
+    ...Object.entries(record),
+  ];
+  const seenDays = new Set<string>();
+  for (const [key, raw] of entries) {
     const day = DAY_SCHEMA[key.trim().toLowerCase()];
+    if (day && seenDays.has(day)) continue;
+    if (day) seenDays.add(day);
     if (!day) continue;
     const text =
       typeof raw === "string"
