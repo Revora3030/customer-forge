@@ -114,9 +114,8 @@ export function QuoteCalculator({ site, presentation }: { site: Site; presentati
   const min = Math.max(Number(quote.form.min_price ?? 0), Math.round(total * 0.9));
   const max = Math.max(
     min,
-    Math.min(
-      Number(quote.form.max_price ?? total * 1.15) || total * 1.15,
-      Math.round(total * 1.15),
+    Math.round(
+      Math.min(Number(quote.form.max_price ?? total * 1.15) || total * 1.15, total * 1.15),
     ),
   );
   const answered = selected.filter((s) => s.option).length;
