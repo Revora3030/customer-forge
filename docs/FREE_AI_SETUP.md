@@ -64,8 +64,9 @@ in-flight de-duplication so identical requests are never spent twice.
 
 ## Guarantees
 
-- Free-provider eligibility is enforced per provider/model, and `FREE_AI_ONLY`
-  is an explicit cost-control lane rather than the builder's creative authority.
+- Free-provider eligibility is enforced per provider/model. Free models are a
+  failover lane only — there is no free-only or zero-cost mode, and paid
+  specialists are always available to the AI team.
 - The quality-first router can use configured paid specialists and free providers
   according to capability, health, routing and request policy.
 - When no eligible model can answer, the creative path fails clearly or retries
