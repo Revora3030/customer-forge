@@ -112,6 +112,7 @@ export const generateSectionVideo = createServerFn({ method: "POST" })
         file_name: `motion-${data.componentId}.mp4`,
         size_bytes: result.bytes.byteLength,
         alt_text: alt,
+        source: "generated",
       } as never)
       .select("id")
       .maybeSingle();
