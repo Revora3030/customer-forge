@@ -2,12 +2,14 @@
  * LIVE IMAGE-GENERATION CAPABILITY
  * ================================
  *
- * One honest, live answer to "can Revora make a picture right now, for free?".
+ * One honest, live answer to "can the FREE picture lane make a picture right
+ * now?". This is the failover lane only: site pictures are made by the paid
+ * specialist picture models first (see generatePaidImageBase64).
  *
  * Nothing here trusts the existence of code. A provider is only reported as
  * usable when ALL of these are true at the moment of asking:
  *
- *  1. free AI is enabled and free-only mode has not been switched off,
+ *  1. the free lane is enabled,
  *  2. the provider's credentials are actually present in this environment,
  *  3. it has at least one model that passes the free-eligibility gate for the
  *     image role (paid or partner-billed models can never qualify),
