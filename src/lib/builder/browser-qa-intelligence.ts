@@ -57,8 +57,12 @@ function sections(context: AgentContext): Section[] {
 
 function pageHasInternalDestination(context: AgentContext, url: string): boolean {
   if (url.startsWith("/#") || url.startsWith("#")) return true;
+  // Compare the path only: "/about#team" and "/about?x=1" are the about page,
+  // and "/home" is the same page as "/".
+  const path = (url.split(/[?#]/)[0] || "/").replace(/\/+$/, "") || "/";
+  if (path === "/" || path === "/home") return true;
   return context.pages.some((page) => page.is_visible && !page.noindex && (
-    url === "/" || url === page.slug || url === `/${page.slug}`
+    path === page.slug || path === `/${page.slug}`
   ));
 }
 
