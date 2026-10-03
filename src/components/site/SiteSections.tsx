@@ -80,7 +80,7 @@ const Heading = ({ section, lead = false }: { section: Section; lead?: boolean }
  * render; no built-in variant, style family or layout class is applied.
  * The owner's own block edits still apply; old named effects are no longer drawn.
  */
-export function SiteSection({ site, section, lead = false }: { site: Site; section: Section; lead?: boolean }) {
+export function SiteSection({ site, section, lead = false, first = false }: { site: Site; section: Section; lead?: boolean; first?: boolean }) {
   const css = blockCss(readBlockStyle(section.settings), siteSurface(site));
   return (
     <div
@@ -90,12 +90,12 @@ export function SiteSection({ site, section, lead = false }: { site: Site; secti
       className="rv-site-section"
       style={{ ...css, minWidth: 0, maxWidth: "100%" }}
     >
-      <SiteSectionBody site={site} section={section} lead={lead} />
+      <SiteSectionBody site={site} section={section} lead={lead} first={first} />
     </div>
   );
 }
 
-function SiteSectionBody({ site, section, lead = false }: { site: Site; section: Section; lead?: boolean }) {
+function SiteSectionBody({ site, section, lead = false, first = false }: { site: Site; section: Section; lead?: boolean; first?: boolean }) {
   const components = section.components ?? [];
   const { profile, org } = site;
   const ownAddress = useOwnAddress();
@@ -115,6 +115,7 @@ function SiteSectionBody({ site, section, lead = false }: { site: Site; section:
         <CompositionRenderer
           tree={tree}
           scope={`s-${section.id}`}
+          eagerFirstMedia={first}
           resolveMedia={(ref) => media.get(ref) ?? null}
           resolveHref={(href) => resolveSiteHref(href, org.slug, ownAddress)}
           resolveWidget={(name, presentation?: WidgetPresentation) => {
@@ -289,34 +290,117 @@ function SiteSectionBody({ site, section, lead = false }: { site: Site; section:
     case "story":
     case "values":
     case "service_area": {
-      const cards = components.filter((c) => c.kind === "card" || c.kind === "button" || c.kind === "image");
-      const hasContent = safeText(section.heading) || safeText(section.subheading) || safeParagraph(section.body) || cards.length > 0;
+      // Shown only when the AI layout step could not design this section. It
+      // must still look like a finished, professional site — not a bare list —
+      // so it uses the site's own theme tokens, a real hero and real buttons.
+      const images = components.filter((c) => (c.kind === "image" || c.kind === "hero_image") && c.url);
+      const buttons = components.filter((c) => c.kind === "button" && safeLinkUrl(c.link_url));
+      const cards = components.filter((c) => c.kind === "card");
+      const heading = safeText(section.heading);
+      const subheading = safeText(section.subheading);
+      const body = safeParagraph(section.body);
+      const hasContent = heading || subheading || body || cards.length > 0 || images.length > 0;
       if (!hasContent) return null;
+      const isHero = section.kind === "hero" || lead;
+      const heroImage = images[0];
+      const actionRow = buttons.length ? (
+        <div className="mt-8 flex flex-wrap gap-3">
+          {buttons.slice(0, 2).map((button, index) => (
+            <a
+              key={button.id}
+              href={resolveSiteHref(safeLinkUrl(button.link_url)!, org.slug, ownAddress)}
+              className={
+                index === 0
+                  ? "inline-flex min-h-12 items-center justify-center rounded-full bg-primary px-6 text-[15px] font-semibold text-primary-foreground shadow-sm transition hover:-translate-y-0.5 hover:shadow-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+                  : "inline-flex min-h-12 items-center justify-center rounded-full border border-border px-6 text-[15px] font-semibold transition hover:bg-card focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+              }
+            >
+              {safeText(button.link_label) || safeText(button.label) || "Get started"}
+            </a>
+          ))}
+        </div>
+      ) : null;
+
+      if (isHero) {
+        const Title = lead ? "h1" : "h2";
+        return (
+          <section id={section.kind === "hero" ? undefined : `section-${section.id}`} className="relative overflow-hidden" style={{ minWidth: 0 }}>
+            <div className="mx-auto grid w-full max-w-6xl items-center gap-10 px-4 sm:px-6 lg:grid-cols-[1.1fr_1fr]" style={{ paddingBlock: "calc(5rem * var(--site-space, 1))" }}>
+              <div className="min-w-0">
+                {heading ? (
+                  <Title className="font-display text-[clamp(2.25rem,5.5vw,4rem)] font-semibold leading-[1.04] tracking-tight [text-wrap:balance]">
+                    {heading}
+                  </Title>
+                ) : null}
+                {subheading ? <p className="mt-5 max-w-xl text-[clamp(1.05rem,1.6vw,1.25rem)] leading-relaxed text-muted-foreground">{subheading}</p> : null}
+                {body ? <p className="mt-4 max-w-xl text-[15px] leading-relaxed text-muted-foreground whitespace-pre-line">{body}</p> : null}
+                {actionRow}
+              </div>
+              {heroImage ? (
+                <div className="relative min-w-0">
+                  <img
+                    src={heroImage.url!}
+                    alt={safeText(heroImage.label) ?? heading ?? ""}
+                    loading={first ? "eager" : "lazy"}
+                    decoding="async"
+                    {...(first ? { fetchPriority: "high" as const } : {})}
+                    className="aspect-[4/3] w-full rounded-3xl object-cover shadow-2xl"
+                  />
+                </div>
+              ) : null}
+            </div>
+          </section>
+        );
+      }
+
+      const sideImage = cards.length === 0 ? images[0] : undefined;
       return (
-        <Shell wide id={section.kind === "hero" ? undefined : `section-${section.id}`}>
-          <Heading section={section} lead={lead} />
+        <Shell wide id={`section-${section.id}`}>
+          <div className={sideImage ? "grid items-center gap-10 lg:grid-cols-2" : ""}>
+            <div className="min-w-0">
+              {heading ? (
+                <h2 className="font-display text-[clamp(1.75rem,3.4vw,2.6rem)] font-semibold leading-tight tracking-tight [text-wrap:balance]">{heading}</h2>
+              ) : null}
+              {subheading ? <p className="mt-3 max-w-2xl text-[16px] leading-relaxed text-muted-foreground">{subheading}</p> : null}
+              {body ? <p className="mt-4 max-w-2xl text-[15px] leading-relaxed text-muted-foreground whitespace-pre-line">{body}</p> : null}
+              {actionRow}
+            </div>
+            {sideImage ? (
+              <img src={sideImage.url!} alt={safeText(sideImage.label) ?? heading ?? ""} loading="lazy" decoding="async" className="aspect-[4/3] w-full min-w-0 rounded-3xl object-cover shadow-xl" />
+            ) : null}
+          </div>
           {cards.length > 0 ? (
-            <div className={`mt-8 grid gap-4 ${cards.length > 2 ? "sm:grid-cols-2 lg:grid-cols-3" : "sm:grid-cols-2"}`}>
+            <div className={`mt-10 grid gap-5 ${cards.length > 2 ? "sm:grid-cols-2 lg:grid-cols-3" : "sm:grid-cols-2"}`}>
               {cards.map((card) => {
                 const label = safeText(card.label);
-                const body = safeText(card.body);
+                const cardBody = safeText(card.body);
                 const linkUrl = safeLinkUrl(card.link_url);
                 const mediaUrl = card.url;
                 return (
-                  <div key={card.id} className="flex flex-col rounded-lg border border-border bg-card/50 p-5">
+                  <article key={card.id} className="group flex min-w-0 flex-col overflow-hidden rounded-2xl border border-border bg-card transition hover:-translate-y-1 hover:shadow-lg">
                     {mediaUrl ? (
-                      <img src={mediaUrl} alt={label ?? ""} loading="lazy" className="mb-3 aspect-video w-full rounded-md object-cover" />
+                      <img src={mediaUrl} alt={label ?? ""} loading="lazy" decoding="async" className="aspect-[16/10] w-full object-cover" />
                     ) : null}
-                    {label ? <h3 className="font-display text-[16px] font-semibold">{label}</h3> : null}
-                    {body ? <p className="mt-1 text-[14px] text-muted-foreground">{body}</p> : null}
-                    {linkUrl ? (
-                      <a href={linkUrl} className="mt-3 inline-flex min-h-9 items-center text-[13px] font-medium text-primary hover:underline">
-                        {safeText(card.link_label) || "Learn more"}
-                      </a>
-                    ) : null}
-                  </div>
+                    <div className="flex flex-1 flex-col p-6">
+                      {label ? <h3 className="font-display text-[18px] font-semibold leading-snug">{label}</h3> : null}
+                      {cardBody ? <p className="mt-2 flex-1 text-[14.5px] leading-relaxed text-muted-foreground">{cardBody}</p> : null}
+                      {linkUrl ? (
+                        <a href={resolveSiteHref(linkUrl, org.slug, ownAddress)} className="mt-4 inline-flex min-h-11 items-center gap-1 text-[14px] font-semibold text-primary">
+                          {safeText(card.link_label) || "Learn more"}
+                          <span aria-hidden="true" className="transition group-hover:translate-x-0.5">→</span>
+                        </a>
+                      ) : null}
+                    </div>
+                  </article>
                 );
               })}
+            </div>
+          ) : null}
+          {cards.length > 0 && images.length > 0 ? (
+            <div className="mt-10 grid gap-4 sm:grid-cols-2">
+              {images.slice(0, 4).map((image) => (
+                <img key={image.id} src={image.url!} alt={safeText(image.label) ?? ""} loading="lazy" decoding="async" className="aspect-[4/3] w-full rounded-2xl object-cover" />
+              ))}
             </div>
           ) : null}
         </Shell>
