@@ -8,7 +8,7 @@ import { placeDisplay } from "@/lib/builder/presentation";
 import { compositionFonts, siteFontsHref } from "@/lib/site-theme";
 import { readSiteChrome } from "@/lib/builder/site-chrome";
 import { metaDescription } from "@/lib/seo";
-import { clientHeadExtrasSync } from "@/lib/site-head";
+import { clientHeadExtrasSync, shareImageFor } from "@/lib/site-head";
 
 export const Route = createFileRoute("/s/$slug")({
   loader: async ({ params }) => {
@@ -45,7 +45,11 @@ export const Route = createFileRoute("/s/$slug")({
     const url =
       canonicalSiteUrl(loaderData.settings, params.slug, page?.slug, page?.seo_canonical) ??
       `https://revoragrowthsystems.com/s/${params.slug}`;
-    const shareImage = page?.og_image_url || loaderData.profile?.hero_image_url || null;
+    const shareImage = shareImageFor({
+      ogImage: page?.og_image_url ?? null,
+      heroImage: loaderData.profile?.hero_image_url ?? null,
+      sections: loaderData.content?.sections ?? null,
+    });
     const extras = clientHeadExtrasSync(
       loaderData as never,
       canonicalSiteUrl(loaderData.settings, params.slug) ?? url,
