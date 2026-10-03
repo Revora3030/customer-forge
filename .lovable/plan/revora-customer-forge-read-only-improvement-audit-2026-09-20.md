@@ -28,7 +28,7 @@ Confirmed good: `quality.server.ts` re-grades from raw stored measurements, trea
 ### 5. Free-AI routing state is per-isolate — HIGH for correctness of the caps
 Area: `src/lib/ai/free.ts` (daily budget Map), `router.server.ts` (circuit breaker Map, in-flight concurrency Map), `cache.server.ts` (result cache and dedupe Maps). On Cloudflare each isolate has its own copy, so the daily free caps, the breaker cooldown, per-workspace concurrency and the cache are all enforced per instance, not globally — with six providers this can silently exceed a provider's free allowance and keeps calling a provider another isolate already parked. Deterministic-safe: yes. Fix: back budget counters, breaker state and the response cache with a small backend table (or Durable-Object-style single writer), keeping the in-memory maps as a fast path. Evidence: tests for cross-instance counting and a stale-day reset; admin page shows shared counts. Priority 2.
 
-Also in this area, all verified-correct and worth keeping: free-only default ON (`freeAiOnly`), paid names rejected per provider, live model discovery re-checked against `isFreeEligibleModel`, malformed structured output failing over to the next free provider, and last-outcome reporting without key material.
+Also in this area, all verified-correct and worth keeping: paid names rejected per provider, live model discovery re-checked against `isFreeEligibleModel`, malformed structured output failing over to the next free provider, and last-outcome reporting without key material.
 
 ### 6. Free AI is gated off by default for the builder — HIGH, config not code
 The AI team has full creative authority in all areas. All configured providers (free and paid) are available to the builder. No deterministic fallback exists.
