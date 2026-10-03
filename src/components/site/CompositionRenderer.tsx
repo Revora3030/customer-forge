@@ -210,12 +210,19 @@ export function readablePaint(node: Pick<CompositionNode, "type" | "style">, ctx
 
 function renderNodeInner(node: CompositionNode, ctx: Ctx, key: string): ReactNode {
   const id = `${ctx.scope}-${ctx.counter.n++}`;
-  for (const [bp, style] of Object.entries(node.responsive ?? {}) as [Breakpoint, NodeStyle][]) {
+  // Buttons and links are how visitors act: a design may restyle them per
+  // screen size but never hide one, or a phone visitor loses the action.
+  const actionable = node.type === "button" || node.type === "link";
+  for (const [bp, rawStyle] of Object.entries(node.responsive ?? {}) as [Breakpoint, NodeStyle][]) {
+    const style = actionable && rawStyle.hidden ? { ...rawStyle, hidden: false } : rawStyle;
     const text = cssText(styleToCss(style, node.type));
     if (text) ctx.rules.push(`@media ${MEDIA[bp]}{[data-cn="${id}"]{${text}}}`);
   }
   if (node.hover) ctx.rules.push(hoverCss(id, node.hover));
-  const style: CSSProperties = { ...baseLayout(node.type), ...styleToCss(node.style, node.type) };
+  const style: CSSProperties = {
+    ...baseLayout(node.type),
+    ...styleToCss(actionable && node.style?.hidden ? { ...node.style, hidden: false } : node.style, node.type),
+  };
   // Readability guard: saved layouts render even when a quality check failed,
   // so a heading could be painted white on a pale grey panel (unreadable).
   // Text is re-paired with the surface it actually sits on, keeping its hue.
