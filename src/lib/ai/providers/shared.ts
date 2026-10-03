@@ -40,7 +40,17 @@ export async function providerHttpError(
   // rejection as unauthorized so the request moves on to the next provider
   // instead of being reported as a malformed request.
   const keyRejected = /API_KEY_INVALID|API key not valid|invalid[_ ]api[_ ]key/i.test(detail);
-  const category = keyRejected ? "unauthorized" : categoryForStatus(response.status);
+  // A 404 means this one model id is retired or not served to this key. That
+  // is a fact about the model, not an outage: it must not be retried or bench
+  // the provider, and the next model in the pool should answer instead.
+  const modelMissing =
+    response.status === 404 ||
+    /model[^"]{0,40}(not found|does not exist|not available|unknown|decommission|deprecat)|no such model|invalid model/i.test(detail);
+  const category = keyRejected
+    ? "unauthorized"
+    : modelMissing && response.status !== 429 && response.status < 500
+      ? "bad_response"
+      : categoryForStatus(response.status);
 
   const message =
     category === "rate_limited"
@@ -51,7 +61,9 @@ export async function providerHttpError(
           ? "That attachment is too large for Revora AI. Try a smaller file."
           : category === "invalid_request"
             ? "Revora AI could not process that request."
-            : category === "unauthorized"
+            : category === "bad_response"
+              ? `Revora's ${provider} model is not available right now.`
+              : category === "unauthorized"
               ? `Revora's ${provider} AI credentials were rejected.`
               : `Revora's AI provider (${provider}) is temporarily unavailable.`;
   return new RevoraAiError(response.status, message, {
