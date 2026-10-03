@@ -213,14 +213,18 @@ export function aiLimits(): AiLimits {
     perWorkspaceDaily: numberEnv("AI_MAX_REQUESTS_PER_WORKSPACE_DAY", 1000),
     perWorkspaceMonthly: numberEnv("AI_MAX_REQUESTS_PER_WORKSPACE_MONTH", 10000),
     maxRequestChars: numberEnv("AI_MAX_REQUEST_CHARS", 400000),
-    maxOutputTokens: numberEnv("AI_MAX_OUTPUT_TOKENS", 8192),
+    // Section layouts ask for 16k and the edit planner for 32k tokens. A lower
+    // ceiling silently truncated those answers into unparseable JSON.
+    maxOutputTokens: numberEnv("AI_MAX_OUTPUT_TOKENS", 32000),
     maxAttachmentBytes: numberEnv("AI_MAX_ATTACHMENT_BYTES", 24 * 1024 * 1024),
     requestTimeoutMs: numberEnv("AI_REQUEST_TIMEOUT_MS", 90_000),
     maxAttemptsPerProvider: numberEnv("AI_MAX_ATTEMPTS_PER_PROVIDER", 2),
     maxAgentIterations: numberEnv("AI_MAX_AGENT_ITERATIONS", 6),
     maxToolCalls: numberEnv("AI_MAX_TOOL_CALLS", 24),
     maxAgentRuntimeMs: numberEnv("AI_MAX_AGENT_RUNTIME_MS", 240_000),
-    maxConcurrentPerWorkspace: numberEnv("AI_MAX_CONCURRENT_PER_WORKSPACE", 3),
+    // The review panel fans out up to 15 reviewers at once; a ceiling of 3
+    // refused most of them as "already working" and pushed the rest to paid.
+    maxConcurrentPerWorkspace: numberEnv("AI_MAX_CONCURRENT_PER_WORKSPACE", 16),
   };
 }
 
