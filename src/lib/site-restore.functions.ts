@@ -50,25 +50,37 @@ export async function readWebsiteState(
   organizationId: string,
 ): Promise<FullSnapshot> {
 
+  // Paged: snapshots and restore points must hold every row, not the first 1,000.
+  const { readAll } = await import("@/lib/db/read-all");
+  const db = supabase as unknown as { from: (t: string) => any }; // eslint-disable-line @typescript-eslint/no-explicit-any
   const [pages, sections, components] = await Promise.all([
-    supabase
-      .from("website_pages")
-      .select(
-        "id, slug, title, kind, seo_title, seo_description, seo_canonical, og_title, og_description, og_image_url, noindex, sort_order, is_visible",
-      )
-      .eq("organization_id", organizationId),
-    supabase
-      .from("website_sections")
-      .select(
-        "id, page_id, kind, variant, heading, subheading, body, settings, sort_order, is_visible",
-      )
-      .eq("organization_id", organizationId),
-    supabase
-      .from("website_components")
-      .select(
-        "id, section_id, kind, label, body, link_label, link_url, media_url, settings, sort_order, is_visible",
-      )
-      .eq("organization_id", organizationId),
+    readAll(() =>
+      db
+        .from("website_pages")
+        .select(
+          "id, slug, title, kind, seo_title, seo_description, seo_canonical, og_title, og_description, og_image_url, noindex, sort_order, is_visible",
+        )
+        .eq("organization_id", organizationId)
+        .order("id"),
+    ),
+    readAll(() =>
+      db
+        .from("website_sections")
+        .select(
+          "id, page_id, kind, variant, heading, subheading, body, settings, sort_order, is_visible",
+        )
+        .eq("organization_id", organizationId)
+        .order("id"),
+    ),
+    readAll(() =>
+      db
+        .from("website_components")
+        .select(
+          "id, section_id, kind, label, body, link_label, link_url, media_url, settings, sort_order, is_visible",
+        )
+        .eq("organization_id", organizationId)
+        .order("id"),
+    ),
   ]);
   for (const result of [pages, sections, components]) {
     if (result.error) throw new Error("Couldn't read your website right now.");
