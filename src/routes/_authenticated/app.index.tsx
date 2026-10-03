@@ -127,6 +127,11 @@ function startOfToday() {
 
 const RANGE_KEY = "revora.dashboard.range";
 
+function localDay(date: Date): string {
+  const shifted = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
+  return shifted.toISOString().slice(0, 10);
+}
+
 function Dashboard() {
   const { data: ws } = useWorkspace();
   const { data: production } = useProductionStatus(ws?.workspace?.organizationId);
@@ -135,9 +140,11 @@ function Dashboard() {
 
   const [range, setRange] = useState<RangeValue>("30");
   const [customFrom, setCustomFrom] = useState(() =>
-    new Date(Date.now() - 14 * DAY).toISOString().slice(0, 10),
+    localDay(new Date(Date.now() - 14 * DAY)),
   );
-  const [customTo, setCustomTo] = useState(() => new Date().toISOString().slice(0, 10));
+  // The owner's own calendar day: a UTC date showed "tomorrow" every evening
+  // in the Americas, so the default custom range ended in the future.
+  const [customTo, setCustomTo] = useState(() => localDay(new Date()));
 
   // Remember the range the owner last looked at (client-only, avoids hydration mismatch).
   useEffect(() => {
