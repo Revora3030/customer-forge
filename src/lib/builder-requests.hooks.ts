@@ -351,38 +351,24 @@ export function useBuilderRequests({
         const attempts = (deferRef.current.get(task.id) ?? 0) + 1;
         deferRef.current.set(task.id, attempts);
         if (attempts === 1) remember([{ role: "user", content: task.instruction }, { role: "assistant", content: result.reply }]);
-        // Poll for up to ~15 minutes (90 attempts × 10s), but do it by checking
-        // page count — NOT by re-calling the planner.
-        if (attempts <= 90) {
+        // Wait for the first build to settle by polling the cheap pages read
+        // (never the planner), for at most ~15 minutes in total. The old code
+        // nested a second 90-poll loop inside each of 90 outer attempts and
+        // re-entered runPlan recursively, so one deferred request could keep
+        // polling for hours. One bounded loop, one re-plan.
+        if (attempts === 1) {
           patch(task.id, { state: "planning", reply: result.reply });
+          const deadline = Date.now() + 15 * 60 * 1000;
           let pagesReady = false;
-          try {
-            pagesReady = await firstBuildSettled(organizationId!);
-          } catch {
-            // If the read fails, fall back to a simple delay and retry.
-          }
-          if (pagesReady) {
-            // Pages exist now — re-plan the actual change request once.
-            return runPlan(task);
-          }
-          // Pages not ready: wait and poll again (does NOT call planWebsiteChanges).
-          await new Promise((resolve) => setTimeout(resolve, 10000));
-          // Re-check pages without calling runPlan (which calls planWebsiteChanges).
-          // We loop here polling page count until pages appear or we time out.
-          let pollAttempts = 0;
-          while (!pagesReady && pollAttempts < 90) {
-            pollAttempts++;
+          while (!pagesReady && Date.now() < deadline) {
             try {
               pagesReady = await firstBuildSettled(organizationId!);
             } catch {
-              // If the read fails, continue to delay.
+              // A failed read is retried after the delay.
             }
-            if (pagesReady) break;
-            await new Promise((resolve) => setTimeout(resolve, 10000));
+            if (!pagesReady) await new Promise((resolve) => setTimeout(resolve, 10000));
           }
-          if (pagesReady) {
-            return runPlan(task);
-          }
+          if (pagesReady) return runPlan(task);
         }
         // Exhausted: tell the owner the first build is taking longer than expected.
         patch(task.id, {
