@@ -200,9 +200,8 @@ export async function refineSectionWordingWithCollective(input: {
     passes.push(
       record(solCall.wanted, "content_strategy", { skipped: solCall.detail ?? solCall.reason }),
     );
-    // Sol could not author section copy. Degrade gracefully: return no patches
-    // instead of stopping the build. The sections already have AI-authored or
-    // fact-based copy from the earlier pass.
+    // Sol could not author section copy: no patches. The sections keep the
+    // AI-authored wording from the first-build copy pass.
     console.warn(`[collective-sections] Sol section copy failed: ${solCall.detail ?? solCall.reason}`);
     return { patches: [], passes, totalCostMicrocents: 0 };
   }
@@ -227,7 +226,7 @@ export async function refineSectionWordingWithCollective(input: {
     }),
   );
   if (!proposal) {
-    // Sol returned unreadable section copy. Degrade gracefully.
+    // Sol returned unreadable section copy: no patches.
     console.warn("[collective-sections] Sol section copy unreadable; skipping section refinement.");
     return { patches: [], passes, totalCostMicrocents: 0 };
   }
