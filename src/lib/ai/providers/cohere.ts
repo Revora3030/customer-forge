@@ -10,5 +10,7 @@ import { createOpenAiCompatibleAdapter } from "@/lib/ai/providers/openai-compati
 
 export const cohereAdapter = createOpenAiCompatibleAdapter({
   name: "cohere",
-  baseUrl: () => "https://api.cohere.ai/v2",
+  // Cohere's OpenAI-compatible chat lives under /compatibility/v1; the native
+  // /v2 API has a different shape, so every call there answered 404.
+  baseUrl: () => "https://api.cohere.ai/compatibility/v1",
 });
