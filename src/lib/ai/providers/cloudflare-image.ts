@@ -33,8 +33,22 @@ function byteArray(base64: string): number[] {
   return Array.from(bytesFromDataUrl(base64));
 }
 
+/**
+ * Quality settings for MAKING a picture, per model, using only the fields each
+ * model's published input schema accepts (unknown fields are rejected):
+ * - FLUX.1 schnell takes `prompt` and `steps` (default 4, maximum 8). Eight
+ *   steps gives noticeably sharper detail and cleaner hands/edges.
+ * - Stable Diffusion models take a `negative_prompt`, used to keep text,
+ *   watermarks, logos and blur out of website photography.
+ */
+export const FLUX_SCHNELL_STEPS = 8;
+export const PHOTO_NEGATIVE_PROMPT =
+  "text, words, letters, watermark, signature, logo, caption, blurry, out of focus, low resolution, jpeg artifacts, oversaturated, cartoon, illustration, 3d render, deformed hands, extra fingers, distorted faces, cropped subject, frame, border";
+
 export type CloudflareImageBody =
   | { prompt: string }
+  | { prompt: string; steps: number }
+  | { prompt: string; negative_prompt: string }
   | {
       prompt: string;
       image: number[];
@@ -50,8 +64,14 @@ export type CloudflareImageBody =
 export function buildCloudflareImageBody(
   prompt: string,
   source?: { dataUrl: string; mimeType: string } | null,
+  model?: string,
 ): CloudflareImageBody {
-  if (!source) return { prompt };
+  if (!source) {
+    // Flux caps the prompt at 2048 characters and refuses anything longer.
+    if (model && /flux-1-schnell/i.test(model)) return { prompt: prompt.slice(0, 2048), steps: FLUX_SCHNELL_STEPS };
+    if (model && /stable-diffusion/i.test(model)) return { prompt, negative_prompt: PHOTO_NEGATIVE_PROMPT };
+    return { prompt };
+  }
   return {
     prompt,
     image: byteArray(source.dataUrl),
