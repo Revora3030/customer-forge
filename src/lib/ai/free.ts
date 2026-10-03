@@ -460,14 +460,15 @@ export function isFreeEligibleModel(provider: FreeProviderName, model: string): 
   if (provider === "llm7") return llm7FreeEligible(name);
   if (provider === "mistral")
     return /^(mistral-small|mistral-nemo|codestral|ministral-3b|open-mistral|open-mixtral)/i.test(name);
-  if (provider === "huggingface")
-    return true;
+  // Hugging Face hosts every kind of model; only chat generators may write.
+  if (provider === "huggingface") return name.includes("/") && !NON_CHAT_MODEL.test(name);
   if (provider === "deepseek")
     return /^(deepseek-flash|deepseek-v4-pro|deepseek-chat|deepseek-reasoner|deepseek-coder)/i.test(name);
   if (provider === "cerebras")
     return /^(gpt-oss|qwen|llama|deepseek)/i.test(name);
   if (provider === "cohere")
-    return /^(command|north|embed|c4ai-aya)/i.test(name);
+    // Embed models turn text into numbers; they can never write an answer.
+    return /^(command|north|c4ai-aya)/i.test(name) && !NON_CHAT_MODEL.test(name);
   // Cloudflare's catalogue also carries partner image models that are billed
   // per tile/step (Leonardo) or carry partner pricing Revora has not verified as
   // free (the flux-2 line). Those are rejected by name so neither a default nor
