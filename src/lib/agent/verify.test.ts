@@ -21,10 +21,10 @@ describe("inspectHtml", () => {
     expect(result.checks.some((check) => check.category === "security" && check.ok)).toBe(true);
   });
 
-  it("flags a missing headline as critical", () => {
+  it("flags a missing headline as a warning, never a reason to undo a change", () => {
     const result = inspectHtml(good.replace(/<h1[\s\S]*?<\/h1>/, ""), "Home");
     const failed = result.checks.find((check) => !check.ok);
-    expect(failed?.severity).toBe("critical");
+    expect(failed?.severity).toBe("warning");
     expect(failed?.label).toContain("headline");
   });
 
