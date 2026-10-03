@@ -79,7 +79,10 @@ export function inspectHtml(html: string, where: string): PageInspection {
 
   const headings = html.match(/<h1\b[^>]*>([\s\S]*?)<\/h1>/gi) ?? [];
   const headingText = headings.map((tag) => stripped(tag)).filter(Boolean);
-  add("The page has a real headline", headingText.length > 0, "critical", undefined, "content");
+  // A missing h1 is an SEO/accessibility finding, not something broken for a
+  // visitor. As "critical" it reversed otherwise-good changes on any page whose
+  // layout used a level-2 headline.
+  add("The page has a real headline", headingText.length > 0, "warning", undefined, "content");
   if (headings.length > 1)
     add("Only one main headline per page", false, "warning", `${headings.length} found`, "accessibility");
 
