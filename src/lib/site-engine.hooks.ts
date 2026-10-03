@@ -1,11 +1,12 @@
 import { useEffect } from "react";
-import { nextPublishState } from "@/lib/publish-state";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "@/lib/ui/notify";
 import { friendlyError } from "@/lib/user-error";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchAllRows } from "@/lib/paginate";
+import { readWebsiteState, restoreWebsiteVersion } from "@/lib/site-restore.functions";
+import { insertVersionSnapshot, versionContent } from "@/lib/version-snapshot";
 import {
   aiEditSiteCopy,
   extractScreenshotReference,
@@ -175,7 +176,7 @@ export function useSnapshotWebsiteVersion(organizationId: string | undefined) {
   return useMutation({
     mutationFn: async (label?: string) => {
       const orgId = organizationId!;
-      const [{ data: settings }, { data: last }, pages, sections] = await Promise.all([
+      const [{ data: settings }, { data: last }, full] = await Promise.all([
         supabase.from("website_settings").select("*").eq("organization_id", orgId).maybeSingle(),
         supabase
           .from("website_versions")
@@ -184,39 +185,25 @@ export function useSnapshotWebsiteVersion(organizationId: string | undefined) {
           .order("version", { ascending: false })
           .limit(1)
           .maybeSingle(),
-        supabase
-          .from("website_pages")
-          .select("id, slug, title, kind, seo_title, seo_description")
-          .eq("organization_id", orgId)
-          .order("sort_order"),
-        supabase
-          .from("website_sections")
-          .select("id, page_id, kind, heading, subheading, body, sort_order, is_visible")
-          .eq("organization_id", orgId)
-          .order("sort_order"),
+        readWebsiteState(supabase as never, orgId),
       ]);
       if (!settings) throw new Error("There's no website to snapshot yet.");
-      const version = Number(last?.version ?? 0) + 1;
-      // Every version also carries the structure, so two versions can be
-      // compared section by section later on.
-      const content = {
-        pages: (pages.data ?? []).map((page) => ({
-          ...page,
-          sections: (sections.data ?? []).filter((section) => section.page_id === page.id),
-        })),
-      };
-      const { error } = await supabase.from("website_versions").insert({
-        organization_id: orgId,
-        version,
-        label: label ?? `Version ${version}`,
-        generation: settings.generation as never,
-        seo: settings.seo as never,
-        pages: { settings_pages: settings.pages ?? null, content } as never,
-        published_at: new Date().toISOString(),
-        created_by: (await supabase.auth.getUser()).data.user?.id ?? null,
+      // Every version carries the full website (layouts and elements included)
+      // so restoring it puts the pages back, plus the summary for comparisons.
+      const { data, error } = await insertVersionSnapshot(orgId, Number(last?.version ?? 0), {
+        label: label ?? "",
+        generation: settings.generation,
+        seo: settings.seo,
+        pages: { settings_pages: settings.pages ?? null, ...versionContent(full), full },
       });
-      if (error) throw error;
-      return version;
+      if (error || !data) throw error ?? new Error("Couldn't save this version.");
+      if (!label) {
+        await supabase
+          .from("website_versions")
+          .update({ label: `Version ${data.version}` })
+          .eq("id", data.id);
+      }
+      return data.version;
     },
     onSuccess: (version) => {
       toast.success(`Saved as version ${version}.`);
@@ -229,42 +216,23 @@ export function useSnapshotWebsiteVersion(organizationId: string | undefined) {
 /** Restores a previous version into the working draft. Nothing is destroyed. */
 export function useRestoreWebsiteVersion(organizationId: string | undefined) {
   const queryClient = useQueryClient();
+  const restore = useServerFn(restoreWebsiteVersion);
   return useMutation({
-    mutationFn: async (versionId: string) => {
-      const orgId = organizationId!;
-      const { data: snapshot, error: readError } = await supabase
-        .from("website_versions")
-        .select("*")
-        .eq("id", versionId)
-        .eq("organization_id", orgId)
-        .maybeSingle();
-      if (readError) throw readError;
-      if (!snapshot) throw new Error("That version is no longer available.");
-
-      const stored = snapshot.pages as { settings_pages?: unknown } | null;
-      const settingsPages =
-        stored && typeof stored === "object" && "settings_pages" in stored
-          ? stored.settings_pages
-          : snapshot.pages;
-
-      const keepState = await nextPublishState(supabase, orgId);
-      const { error } = await supabase.from("website_settings").upsert(
-        {
-          organization_id: orgId,
-          generation: snapshot.generation as never,
-          seo: snapshot.seo as never,
-          pages: settingsPages as never,
-          review_state: "ready_for_review",
-          publish_state: keepState,
-        } as never,
-        { onConflict: "organization_id" },
-      );
-      if (error) throw error;
-      return snapshot.version;
-    },
-    onSuccess: (version) => {
-      toast.success(`Version ${version} restored into your draft. Review, then publish.`);
+    // Pages, sections and elements come back with the settings — restoring
+    // only the settings used to leave every page exactly as edited.
+    mutationFn: async (versionId: string) =>
+      restore({ data: { organizationId: organizationId!, versionId } }),
+    onSuccess: (result) => {
+      if (result.exact === false) {
+        toast.warning(
+          `Version ${result.version} restored into your draft, but a few items didn't match exactly. Check the pages before publishing.`,
+        );
+      } else {
+        toast.success(`Version ${result.version} restored into your draft. Review, then publish.`);
+      }
       void queryClient.invalidateQueries({ queryKey: ["website_settings"] });
+      void queryClient.invalidateQueries({ queryKey: ["website_content", organizationId] });
+      void queryClient.invalidateQueries({ queryKey: ["site_pages", organizationId] });
     },
     onError: (error: Error) => toast.error(friendlyError(error, "Couldn't restore that version.")),
   });

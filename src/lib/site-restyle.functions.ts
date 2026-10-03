@@ -34,12 +34,21 @@ async function requireManager(db: Client, organizationId: string, userId: string
 }
 
 async function putBack(db: Client, organizationId: string, saved: Saved[]) {
+  // Every section is attempted; any that could not be written are reported
+  // instead of claiming the earlier layout is back when it is not.
+  let failed = 0;
   for (const row of saved) {
-    await db
+    const { error } = await db
       .from("website_sections")
       .update({ kind: row.kind, settings: row.settings } as never)
       .eq("id", row.id)
       .eq("organization_id", organizationId);
+    if (error) failed += 1;
+  }
+  if (failed) {
+    throw new Error(
+      `${failed} section${failed === 1 ? "" : "s"} couldn't be put back. Try again in a moment.`,
+    );
   }
 }
 

@@ -146,19 +146,36 @@ export const runSelfHeal = createServerFn({ method: "POST" })
       .limit(1)
       .maybeSingle();
     const { snapshotContent } = await import("@/lib/website-content");
+    const { readWebsiteState } = await import("@/lib/site-restore.functions");
     const tree = state.pages.map((page) => ({
       ...page,
       sections: state.sections
         .filter((section) => section.page_id === page.id)
         .map((section) => ({ ...section, components: [] })),
     }));
-    await supabase.from("website_versions").insert({
-      organization_id: orgId,
-      version: ((latest as { version?: number } | null)?.version ?? 0) + 1,
-      label: restoreLabel,
-      pages: snapshotContent(tree as never) as unknown as never,
-      created_by: userId,
-    });
+    // The full website goes into the restore point so it can really be put
+    // back; a failed save stops the repairs instead of running without one.
+    const full = await readWebsiteState(supabase as never, orgId);
+    let restoreVersion = (latest as { version?: number } | null)?.version ?? 0;
+    let restoreSaved = false;
+    for (let attempt = 0; attempt < 5 && !restoreSaved; attempt += 1) {
+      restoreVersion += 1;
+      const { error: restoreError } = await supabase.from("website_versions").insert({
+        organization_id: orgId,
+        version: restoreVersion,
+        label: restoreLabel,
+        pages: {
+          ...(snapshotContent(tree as never) as unknown as Record<string, unknown>),
+          full,
+        } as unknown as never,
+        created_by: userId,
+      });
+      if (!restoreError) restoreSaved = true;
+      else if ((restoreError as { code?: string }).code !== "23505") break;
+    }
+    if (!restoreSaved) {
+      throw new Error("Revora couldn't save a restore point first, so no repairs were made.");
+    }
 
     type Undo = () => PromiseLike<unknown>;
     const undo: Undo[] = [];

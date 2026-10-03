@@ -6,6 +6,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { auditLiveSite } from "@/lib/site-audit.functions";
 import type { UpgradeProposal } from "@/lib/auto-upgrade";
 import { runSiteGeneration } from "@/lib/site-engine.functions";
+import { readWebsiteState, restoreWebsiteVersion } from "@/lib/site-restore.functions";
+import { insertVersionSnapshot, versionContent } from "@/lib/version-snapshot";
 
 /** Runs the live-page audit on demand (never on page load — it fetches pages). */
 export function useLiveAudit(organizationId: string | undefined) {
@@ -27,7 +29,7 @@ export type AppliedUpgrade = {
 
 /** The restore point Revora saves before every applied upgrade. */
 async function snapshotForRollback(orgId: string, label: string) {
-  const [{ data: settings }, { data: last }, pages, sections] = await Promise.all([
+  const [{ data: settings }, { data: last }, full] = await Promise.all([
     supabase.from("website_settings").select("*").eq("organization_id", orgId).maybeSingle(),
     supabase
       .from("website_versions")
@@ -36,39 +38,17 @@ async function snapshotForRollback(orgId: string, label: string) {
       .order("version", { ascending: false })
       .limit(1)
       .maybeSingle(),
-    supabase
-      .from("website_pages")
-      .select("id, slug, title, kind, seo_title, seo_description")
-      .eq("organization_id", orgId),
-    supabase
-      .from("website_sections")
-      .select("id, page_id, kind, heading, subheading, body, sort_order, is_visible")
-      .eq("organization_id", orgId),
+    readWebsiteState(supabase as never, orgId),
   ]);
   if (!settings) return { versionId: null, version: null };
-  const version = Number(last?.version ?? 0) + 1;
-  const content = {
-    pages: (pages.data ?? []).map((page) => ({
-      ...page,
-      sections: (sections.data ?? []).filter((section) => section.page_id === page.id),
-    })),
-  };
-  const { data, error } = await supabase
-    .from("website_versions")
-    .insert({
-      organization_id: orgId,
-      version,
-      label,
-      generation: settings.generation as never,
-      seo: settings.seo as never,
-      pages: { settings_pages: settings.pages ?? null, content } as never,
-      published_at: new Date().toISOString(),
-      created_by: (await supabase.auth.getUser()).data.user?.id ?? null,
-    })
-    .select("id, version")
-    .maybeSingle();
+  const { data, error } = await insertVersionSnapshot(orgId, Number(last?.version ?? 0), {
+    label,
+    generation: settings.generation,
+    seo: settings.seo,
+    pages: { settings_pages: settings.pages ?? null, ...versionContent(full), full },
+  });
   if (error) throw error;
-  return { versionId: data?.id ?? null, version: data?.version ?? version };
+  return { versionId: data?.id ?? null, version: data?.version ?? null };
 }
 
 /**
@@ -301,34 +281,14 @@ export function useBatchFix(
 /** Restores the snapshot taken before an upgrade. */
 export function useUndoUpgrade(organizationId: string | undefined) {
   const queryClient = useQueryClient();
+  const restore = useServerFn(restoreWebsiteVersion);
   return useMutation({
     mutationFn: async (applied: AppliedUpgrade) => {
       if (!applied.versionId) throw new Error("There's no restore point for that change.");
-      const orgId = organizationId!;
-      const { data: snapshot, error } = await supabase
-        .from("website_versions")
-        .select("*")
-        .eq("id", applied.versionId)
-        .eq("organization_id", orgId)
-        .maybeSingle();
-      if (error) throw error;
-      if (!snapshot) throw new Error("That restore point is no longer available.");
-      const stored = snapshot.pages as { settings_pages?: unknown } | null;
-      const settingsPages =
-        stored && typeof stored === "object" && "settings_pages" in stored
-          ? stored.settings_pages
-          : snapshot.pages;
-      const { error: writeError } = await supabase.from("website_settings").upsert(
-        {
-          organization_id: orgId,
-          generation: snapshot.generation as never,
-          seo: snapshot.seo as never,
-          pages: settingsPages as never,
-        } as never,
-        { onConflict: "organization_id" },
-      );
-      if (writeError) throw writeError;
-      return snapshot.version;
+      const result = await restore({
+        data: { organizationId: organizationId!, versionId: applied.versionId },
+      });
+      return result.version;
     },
     onSuccess: (version) => {
       toast.success(`Rolled back to version ${version}.`);

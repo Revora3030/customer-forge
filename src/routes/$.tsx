@@ -44,7 +44,12 @@ export const Route = createFileRoute("/$")({
       loaderData.site.profile?.tagline ||
       `${page.title} from ${name}.`
     ).slice(0, 158);
-    const url = page.seo_canonical || `https://${loaderData.host}/${page.slug}`;
+    // Same rule as the other site routes: only an absolute https canonical is
+    // trusted; anything else would point search engines at a broken address.
+    const explicit = String(page.seo_canonical ?? "").trim();
+    const url = explicit.startsWith("https://")
+      ? explicit
+      : `https://${loaderData.host}/${page.slug}`;
     const shareImage = page.og_image_url || loaderData.site.profile?.hero_image_url || null;
     const extras = clientHeadExtrasSync(
       loaderData.site as never,

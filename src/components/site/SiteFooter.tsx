@@ -13,6 +13,9 @@ export function SiteFooter({ site }: { site: Site }) {
     ["Google", social?.google_business],
     ["Facebook", social?.facebook],
     ["Instagram", social?.instagram],
+    ["YouTube", social?.youtube],
+    ["TikTok", social?.tiktok],
+    ["LinkedIn", social?.linkedin],
   ].map(([label, value]) => ({ label, href: safeLinkUrl(value ?? null) })).filter((item) => item.href);
 
   return (
@@ -40,7 +43,7 @@ export function SiteFooter({ site }: { site: Site }) {
           <div>
             <p className="eyebrow">Connect</p>
             <div className="mt-4 grid gap-3 text-[14px] text-muted-foreground">
-              {socials.map((item) => <a key={item.label} href={item.href!} rel="noopener noreferrer">{item.label}</a>)}
+              {socials.map((item) => <a key={item.label} href={item.href!} target="_blank" rel="noopener noreferrer">{item.label}</a>)}
             </div>
           </div>
         ) : null}
