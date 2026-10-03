@@ -77,7 +77,7 @@ function actionContract(context: AgentContext): string {
     'Style keys: columns 1..12, gap 0..240, padding/paddingX/paddingY 0..320, maxWidth 200..2400, align left|center|right, justify start|center|end|between, items start|center|end|stretch, span 1..12, size 8..200, weight 100..900, lineHeight, letterSpacing, italic, uppercase, font, color, background, gradientTo, gradientAngle, radius, borderWidth, borderColor, shadow none|subtle|medium|strong, opacity 0..100, aspect, minHeight, hidden. Layering: position relative|sticky|absolute, top/left/right/bottom -400..1600, zIndex 0..50, overlap 0..400, blur 0..40, rotate -45..45, gridAreas (quoted rows like "media copy"), area (name). Reset overlap/position/rotate on mobile.',
     "DEFAULT LAYOUT RULE: for every section you add, restructure or redesign (first builds, redesigns and edits alike), author its layout with set_composition — invent the structure yourself. Use add_section only to create the section container, then compose it in the same list using its temp ref. Use set_block_style for literal styling tweaks that do not need a new composition.",
     '{"type":"set_component","componentId":id,"patch":{"label":string,"body":string,"link_label":string,"link_url":string}}',
-    '{"type":"set_component_visual","componentId":id,"patch":{"alt":string,"object_fit":"cover|contain","object_position":string,"overlay":"none|soft|dark|brand|gradient","radius":"none|small|medium|large|pill","shadow":"none|soft|medium|strong","aspect_ratio":"1:1|4:3|3:2|16:9|21:9","focal_point":string}}',
+    '{"type":"set_component_visual","componentId":id,"patch":{"media_url":"saved owner photo path (only when given above)","alt":string,"object_fit":"cover|contain","object_position":string,"overlay":"none|soft|dark|brand|gradient","radius":"none|small|medium|large|pill","shadow":"none|soft|medium|strong","aspect_ratio":"1:1|4:3|3:2|16:9|21:9","focal_point":string}}',
     '{"type":"add_component","sectionId":id,"ref":"temp_component_1","kind":kind,"label":string,"body":string,"link_label":string,"link_url":string}',
     '{"type":"delete_component","componentId":id}',
     '{"type":"generate_component_image","componentId":id,"prompt":string,"alt":string,"mode":"replace"|"create"}',
@@ -237,7 +237,7 @@ export async function planWebsiteChangesWithAi(input: {
   instruction: string;
   history: string[];
   context: AgentContext;
-  attachments: { kind: string; name: string }[];
+  attachments: { kind: string; name: string; path?: string }[];
   /** Live progress hook: fired as the plan moves between real stages. */
   onStage?: (stage: string, detail?: string) => void;
   /** Live progress hook: fired as each free model is tried. */
@@ -268,6 +268,12 @@ export async function planWebsiteChangesWithAi(input: {
       : "",
     input.attachments.length
       ? `THE OWNER ATTACHED: ${input.attachments.map((a) => `${a.kind} ${a.name}`).join(", ")}\n`
+      : "",
+    input.attachments.some((a) => a.path)
+      ? `THE OWNER'S PHOTOS ARE SAVED. To put one on the site, use set_component_visual with patch.media_url set to its exact path (never generate a picture to replace an owner photo):\n${input.attachments
+          .filter((a) => a.path)
+          .map((a) => `- ${a.name}: ${a.path}`)
+          .join("\n")}\n`
       : "",
     "THE OWNER'S REQUEST:",
     input.instruction,
