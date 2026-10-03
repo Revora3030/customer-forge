@@ -1004,7 +1004,19 @@ async function runJob(
       organizationId: orgId,
       businessName: org.data.name ?? "",
       facts: buildFacts,
-      lookSummary: JSON.stringify({ colors: effectivePalette, font: effectiveFont }),
+      // The menu and footer follow the SAME creative direction as the page
+      // sections; colours and font alone produced a header that clashed with
+      // the rest of the site's typography, shapes and buttons.
+      lookSummary: JSON.stringify({
+        colors: effectivePalette,
+        font: effectiveFont,
+        concept: creative.brief.concept,
+        personality: creative.brief.personality,
+        typography: creative.brief.typography,
+        ctaLanguage: creative.brief.ctaLanguage,
+        shapeLanguage: creative.brief.shapeLanguage,
+        surfaceIs: effectivePalette?.secondary ? (isLightSurface(effectivePalette.secondary) ? "light" : "dark") : null,
+      }),
     });
     await db.from("ai_generations").insert({
       organization_id: orgId,
@@ -1173,6 +1185,18 @@ async function runJob(
   );
   if (saveError) throw new Error(saveError.message);
   noteStage(orgId, job.id, "finishing up");
+  // Final check before the owner sees the draft: the same safe automatic
+  // repairs the builder runs after every chat edit (broken internal links,
+  // missing page titles/descriptions). They only correct facts the site
+  // already has, never the design, and a failure here never blocks the build.
+  if (!built.skipped) {
+    try {
+      const { runQaRepairLoop } = await import("@/lib/builder/qa-loop.server");
+      await runQaRepairLoop(db as never, orgId, "first build", 12);
+    } catch (error) {
+      console.warn("[site-engine] first-build QA repair skipped", (error as Error)?.message);
+    }
+  }
   await step("leads");
   await step("mobile");
 
