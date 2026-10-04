@@ -7,6 +7,20 @@ export const ONBOARDING_MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
 export const ONBOARDING_PHOTO_TYPES = ["image/jpeg", "image/png", "image/webp"] as const;
 export const ONBOARDING_LOGO_TYPES = [...ONBOARDING_PHOTO_TYPES, "image/svg+xml"] as const;
 
+async function withUploadTimeout<T>(promise: Promise<T>, ms = 20_000): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>((_, reject) => {
+        timer = setTimeout(() => reject(new Error("upload_timeout")), ms);
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
 export type PendingPhoto = {
   id: string;
   file: File;
@@ -38,9 +52,12 @@ export async function saveOwnerPhotos(
     }
     const path = buildObjectPath(organizationId, photo.file.name);
     try {
-      const { error: upErr } = await supabase.storage
-        .from(MEDIA_BUCKET)
-        .upload(path, photo.file, { contentType: photo.file.type, upsert: false });
+      const { error: upErr } = await withUploadTimeout(
+        supabase.storage
+          .from(MEDIA_BUCKET)
+          .upload(path, photo.file, { contentType: photo.file.type, upsert: false }),
+      );
+
       if (upErr) throw upErr;
       const category =
         photo.id === heroId ? "hero" : photo.category === "hero" ? "work" : photo.category;
@@ -76,14 +93,13 @@ export async function saveOwnerLogo(organizationId: string, file: File): Promise
   }
   const path = buildObjectPath(organizationId, `logo-${file.name}`);
   try {
-    const controller = new AbortController();
-    const timeout = window.setTimeout(() => controller.abort(), 20_000);
-    const { error } = await supabase.storage
-      .from(MEDIA_BUCKET)
-      .upload(path, file, { contentType: file.type, upsert: false, signal: controller.signal } as never);
-    window.clearTimeout(timeout);
+    const { error } = await withUploadTimeout(
+      supabase.storage
+        .from(MEDIA_BUCKET)
+        .upload(path, file, { contentType: file.type, upsert: false }),
+    );
     if (error) {
-    toast.error("Your logo could not be saved. You can add it later in the builder.");
+      toast.error("Your logo could not be saved. You can add it later in the builder.");
       return null;
     }
   } catch (error) {
