@@ -6,13 +6,19 @@ Reproducible browser evidence for the release gate. No external credentials are
 required: every check either runs against the local app or is recorded as
 NOT_VERIFIED. Nothing is ever reported as passing without a real page load.
 
-Checks per route, at desktop (1280x900) and mobile (390x844):
+Checks per route, at every acceptance viewport
+(320, 375, 390, 414, 768, 1024, 1280, 1920):
   - HTTP status of the document
   - page title / first heading present
   - console errors
   - failed network requests
   - horizontal overflow
   - direct-route refresh (second navigation straight to the URL)
+
+A cold dev server can reload the first page it serves while it optimizes
+dependencies. Every route is therefore warmed up once before the matrix, and a
+page read interrupted by such a reload is retried once. Real failures (status,
+overflow, console errors, failed requests) are never retried away.
 
 Optional, only when a fixture is supplied:
   - REVORA_SMOKE_PUBLISHED_PATH  e.g. /s/elite-mobile-detailing
@@ -33,16 +39,76 @@ import sys
 from playwright.async_api import async_playwright
 
 BASE_URL = os.environ.get("BROWSER_QA_BASE_URL", "http://127.0.0.1:8080").rstrip("/")
-ROUTES = [r.strip() for r in os.environ.get("BROWSER_QA_ROUTES", "/,/auth,/pricing").split(",") if r.strip()][:12]
+ROUTES = [r.strip() for r in os.environ.get("BROWSER_QA_ROUTES", "/,/auth,/pricing").split(",") if r.strip()][:24]
 PUBLISHED_PATH = os.environ.get("REVORA_SMOKE_PUBLISHED_PATH", "").strip()
 ARTIFACTS = pathlib.Path("browser-qa-artifacts")
-VIEWPORTS = [("desktop", 1280, 900), ("mobile", 390, 844)]
+# Acceptance matrix: every width below 768 is a mobile layout.
+VIEWPORTS = [
+    ("w320", 320, 740),
+    ("w375", 375, 812),
+    ("w390", 390, 844),
+    ("w414", 414, 896),
+    ("w768", 768, 1024),
+    ("w1024", 1024, 768),
+    ("w1280", 1280, 900),
+    ("w1920", 1920, 1080),
+]
 # Noise that is not an application fault.
 IGNORED_CONSOLE = ("favicon", "sourcemap", "Download the React DevTools")
+# Errors caused by the page navigating/reloading while it is being read.
+NAVIGATION_INTERRUPTIONS = ("Execution context was destroyed", "because of a navigation", "Target closed")
+
+
+def url_for(route: str) -> str:
+    return BASE_URL + route if route.startswith("/") else route
+
+
+async def settle(page) -> None:
+    try:
+        await page.wait_for_load_state("load", timeout=15000)
+    except Exception:  # noqa: BLE001 - settling is best-effort, the read below decides
+        pass
+    await page.wait_for_timeout(600)
+
+
+async def read_page(page) -> tuple[str, str, int]:
+    title = (await page.title())[:160]
+    headings = await page.locator("h1").all_inner_texts()
+    heading = headings[0][:160] if headings else ""
+    overflow = await page.evaluate(
+        "() => Math.max(0, document.documentElement.scrollWidth - window.innerWidth)"
+    )
+    return title, heading, overflow
+
+
+async def read_page_with_retry(page, result: dict) -> tuple[str, str, int]:
+    try:
+        return await read_page(page)
+    except Exception as error:  # noqa: BLE001
+        if not any(marker in str(error) for marker in NAVIGATION_INTERRUPTIONS):
+            raise
+        result["retriedAfterReload"] = str(error)[:200]
+        await settle(page)
+        return await read_page(page)
+
+
+async def warm_up(browser) -> list[dict]:
+    """Load each route once so the dev server finishes its first-load work."""
+    notes: list[dict] = []
+    context = await browser.new_context(viewport={"width": 1280, "height": 900})
+    page = await context.new_page()
+    for route in ROUTES:
+        try:
+            await page.goto(url_for(route), wait_until="load", timeout=60000)
+            await page.wait_for_timeout(1500)
+        except Exception as error:  # noqa: BLE001 - recorded; the real check decides pass/fail
+            notes.append({"route": route, "warmUpError": str(error)[:200]})
+    await context.close()
+    return notes
 
 
 async def check_route(browser, route: str, label: str, width: int, height: int) -> dict:
-    url = BASE_URL + route if route.startswith("/") else route
+    url = url_for(route)
     context = await browser.new_context(viewport={"width": width, "height": height})
     page = await context.new_page()
     console_errors: list[str] = []
@@ -55,6 +121,7 @@ async def check_route(browser, route: str, label: str, width: int, height: int) 
         else None,
     )
     page.on("pageerror", lambda err: console_errors.append(str(err)[:300]))
+
     def on_request_failed(req) -> None:
         # A navigation cancels in-flight requests; an aborted request is not an
         # application fault, so only real transport/server failures are recorded.
@@ -65,23 +132,20 @@ async def check_route(browser, route: str, label: str, width: int, height: int) 
 
     page.on("requestfailed", on_request_failed)
 
-
-    result: dict = {"route": route, "url": url, "viewport": label}
+    result: dict = {"route": route, "url": url, "viewport": label, "width": width}
     try:
         response = await page.goto(url, wait_until="domcontentloaded", timeout=45000)
         result["status"] = response.status if response else None
-        await page.wait_for_timeout(600)
-        result["title"] = (await page.title())[:160]
-        headings = await page.locator("h1").all_inner_texts()
-        result["heading"] = (headings[0][:160] if headings else "")
-        overflow = await page.evaluate(
-            "() => Math.max(0, document.documentElement.scrollWidth - window.innerWidth)"
-        )
+        await settle(page)
+        title, heading, overflow = await read_page_with_retry(page, result)
+        result["title"] = title
+        result["heading"] = heading
         result["horizontalOverflowPx"] = overflow
 
         # Direct-route refresh: a fresh navigation to the same URL must also work.
         refreshed = await page.goto(url, wait_until="domcontentloaded", timeout=45000)
         result["refreshStatus"] = refreshed.status if refreshed else None
+        await settle(page)
 
         slug = (route.strip("/").replace("/", "-") or "home")
         shot = ARTIFACTS / f"{slug}-{label}.png"
@@ -116,6 +180,7 @@ async def main() -> int:
 
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
+        warm_up_notes = await warm_up(browser)
         for route in ROUTES:
             for label, width, height in VIEWPORTS:
                 checks.append(await check_route(browser, route, label, width, height))
@@ -136,17 +201,27 @@ async def main() -> int:
         await browser.close()
 
     failed = [c for c in checks if not c.get("passed")]
+    retried = [{"route": c["route"], "width": c.get("width")} for c in checks if c.get("retriedAfterReload")]
     report = {
         "status": "FAILED" if failed else ("PASSED" if checks else "NOT_VERIFIED"),
         "baseUrl": BASE_URL,
         "routes": ROUTES,
+        "viewports": [v[1] for v in VIEWPORTS],
         "performed": len(checks),
         "failed": len(failed),
+        "failedSummary": [
+            {"route": c["route"], "width": c.get("width"), "overflowPx": c.get("horizontalOverflowPx"),
+             "status": c.get("status"), "error": c.get("error"),
+             "consoleErrors": c.get("consoleErrors", [])[:3], "failedRequests": c.get("failedRequests", [])[:3]}
+            for c in failed
+        ],
+        "retriedAfterReload": retried,
+        "warmUp": warm_up_notes,
         "notVerified": not_verified,
         "checks": checks,
     }
     (ARTIFACTS / "report.json").write_text(json.dumps(report, indent=2))
-    print(json.dumps({k: report[k] for k in ("status", "performed", "failed", "notVerified")}, indent=2))
+    print(json.dumps({k: report[k] for k in ("status", "performed", "failed", "failedSummary", "retriedAfterReload", "warmUp", "notVerified")}, indent=2))
     return 1 if failed else 0
 
 
