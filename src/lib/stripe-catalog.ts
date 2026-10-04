@@ -104,6 +104,12 @@ export function verifyGrowthMonthlyCatalog(input: {
       return { ok: false, reason: "The monthly subscription product does not match the Revora product on file." };
     if (input.monthlyProduct?.active === false)
       return { ok: false, reason: "The monthly subscription product is archived in the payment provider." };
+    const taxCode =
+      typeof input.monthlyProduct?.tax_code === "string"
+        ? input.monthlyProduct.tax_code
+        : ((input.monthlyProduct?.tax_code as { id?: unknown } | null)?.id ?? null);
+    if (typeof taxCode === "string" && taxCode !== expected.taxCode)
+      return { ok: false, reason: "The monthly subscription product has the wrong tax category." };
   }
   return { ok: true };
 }
