@@ -386,7 +386,7 @@ function Onboarding() {
         org = updated;
       } else {
         let inserted: { id: string; slug: string } | null = null;
-        for (let attempt = 0; attempt < 20 && !inserted; attempt++) {
+        for (let attempt = 0; attempt < 20; attempt++) {
           slug = attempt === 0 ? slugBase : `${slugBase}-${attempt + 1}`;
           const { data, error: orgError } = await supabase
             .from("organizations")
