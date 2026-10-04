@@ -83,6 +83,18 @@ export function DraftMessage({
 }
 
 function DraftHomeRoute() {
+  return (
+    <RenderErrorBoundary
+      title="Your draft could not render"
+      body="The draft data is safe. Reload the preview or return to the builder."
+      backHref="/app/website"
+    >
+      <DraftHomeRouteContent />
+    </RenderErrorBoundary>
+  );
+}
+
+function DraftHomeRouteContent() {
   const children = useChildMatches();
   const router = useRouter();
   const result = Route.useLoaderData();
@@ -119,15 +131,7 @@ function DraftHomeRoute() {
   }
 
   if (result?.status === "ready" && result.site && sections.length > 0) {
-    return (
-      <RenderErrorBoundary
-        title="Your draft couldn't render"
-        body="The draft data is safe. Reload the preview or return to the builder."
-        backHref="/app/website"
-      >
-        <PublicSiteView site={result.site} preview />
-      </RenderErrorBoundary>
-    );
+    return <PublicSiteView site={result.site} preview />;
   }
 
   return (
