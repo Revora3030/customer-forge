@@ -98,12 +98,12 @@ function DraftHomeRouteContent() {
   const children = useChildMatches();
   const router = useRouter();
   const result = Route.useLoaderData();
-  const retry = () => void router.invalidate();
+  const retry = () => void router.invalidate().catch(() => undefined);
   const sections = result?.site?.content?.sections ?? [];
 
   useEffect(() => {
     if (result?.status !== "pending") return;
-    const timer = window.setInterval(() => void router.invalidate(), 2500);
+    const timer = window.setInterval(() => void router.invalidate().catch(() => undefined), 2500);
     return () => window.clearInterval(timer);
   }, [result?.status, router]);
 

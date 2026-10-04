@@ -56,7 +56,7 @@ function DraftPageRouteContent() {
 
   useEffect(() => {
     if (result?.status !== "pending") return;
-    const timer = window.setInterval(() => void router.invalidate(), 2500);
+    const timer = window.setInterval(() => void router.invalidate().catch(() => undefined), 2500);
     return () => window.clearInterval(timer);
   }, [result?.status, router]);
 
@@ -78,7 +78,7 @@ function DraftPageRouteContent() {
             Open builder
           </Link>
         }
-        onRetry={() => void router.invalidate()}
+        onRetry={() => void router.invalidate().catch(() => undefined)}
       />
     );
   }
@@ -99,7 +99,7 @@ function DraftPageRouteContent() {
           Open builder
         </Link>
       }
-      onRetry={() => void router.invalidate()}
+      onRetry={() => void router.invalidate().catch(() => undefined)}
     />
   );
 }
