@@ -65,3 +65,33 @@ describe("cloudflare image request bodies", () => {
     expect(isFreeEligibleModel("cloudflare", "@cf/black-forest-labs/flux-2-dev")).toBe(false);
   });
 });
+
+describe("FLUX.2 [klein] 4B free picture model", () => {
+  it("is the default free picture model and passes the free-eligibility gate", async () => {
+    const { freeModelFor } = await import("@/lib/ai/free");
+    process.env["CLOUDFLARE_AI_API_TOKEN"] = process.env["CLOUDFLARE_AI_API_TOKEN"] ?? "cf-token";
+    expect(isFreeEligibleModel("cloudflare", "@cf/black-forest-labs/flux-2-klein-4b")).toBe(true);
+    expect(freeModelFor("cloudflare", "image")).toBe("@cf/black-forest-labs/flux-2-klein-4b");
+  });
+
+  it("keeps the expensive partner picture models out of the free lane", () => {
+    expect(isFreeEligibleModel("cloudflare", "@cf/black-forest-labs/flux-2-dev")).toBe(false);
+    expect(isFreeEligibleModel("cloudflare", "@cf/black-forest-labs/flux-2-klein-9b")).toBe(false);
+    expect(isFreeEligibleModel("cloudflare", "@cf/leonardo/lucid-origin")).toBe(false);
+    expect(isFreeEligibleModel("cloudflare", "@cf/leonardo/phoenix-1.0")).toBe(false);
+  });
+
+  it("sends a multipart form with a sharp, aspect-correct size and prompt guidance", async () => {
+    const { buildFlux2Form, flux2Size } = await import("@/lib/ai/providers/cloudflare-image");
+    const { cloudflareMultipartImageModel } = await import("@/lib/ai/free");
+    expect(cloudflareMultipartImageModel("@cf/black-forest-labs/flux-2-klein-4b")).toBe(true);
+    expect(cloudflareMultipartImageModel("@cf/black-forest-labs/flux-1-schnell")).toBe(false);
+    expect(flux2Size("Aspect ratio: 16:9.")).toEqual({ width: 1344, height: 768 });
+    expect(flux2Size("Aspect ratio: 4:5.")).toEqual({ width: 1088, height: 1344 });
+    const form = buildFlux2Form("a detailer polishing a bonnet. Aspect ratio: 1:1.");
+    expect(form.get("width")).toBe("1344");
+    expect(form.get("height")).toBe("1344");
+    expect(Number(form.get("guidance"))).toBeGreaterThan(0);
+    expect(String(form.get("prompt")).length).toBeLessThanOrEqual(2048);
+  });
+});

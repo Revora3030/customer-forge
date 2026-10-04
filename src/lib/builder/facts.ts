@@ -103,13 +103,20 @@ export function businessFacts(profile: RawProfile, businessName?: unknown): Busi
 }
 
 /** Full postal address line built from the validated parts. */
-export const factsAddressLine = (facts: BusinessFacts): string | null =>
-  addressDisplay({
+export const factsAddressLine = (facts: BusinessFacts): string | null => {
+  // Owners often type the full address (with city/state/zip) into the street
+  // field. Appending the city again produced "123 Test St, Chapel Hill, NC
+  // 27514, Chapel Hill, NC". Drop the locality when the street already has it.
+  const street = typeof facts.address === "string" ? facts.address.toLowerCase() : "";
+  const city = typeof facts.city === "string" ? facts.city.trim().toLowerCase() : "";
+  const repeats = Boolean(street && city && street.includes(city));
+  return addressDisplay({
     address: facts.address,
-    city: facts.city,
-    state: facts.state,
-    zip: facts.zip,
+    city: repeats ? null : facts.city,
+    state: repeats ? null : facts.state,
+    zip: repeats ? null : facts.zip,
   });
+};
 
 /** "Certifications" style copy is only safe when the owner actually entered it. */
 export function isSupportedClaim(value: unknown): boolean {

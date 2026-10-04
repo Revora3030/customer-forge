@@ -151,10 +151,11 @@ const FREE_MODEL_DEFAULTS: Record<FreeProviderName, Partial<Record<ModelRole, st
     fast: "@cf/meta/llama-3.2-3b-instruct",
     coding: "@cf/qwen/qwen2.5-coder-32b-instruct",
     vision: "@cf/meta/llama-4-scout-17b-16e-instruct",
-    // Live-verified on this account: returns a JPEG inside the free Neuron
-    // allowance. Cloudflare's other zero-price image models are reached through
-    // live discovery as backups.
-    image: "@cf/black-forest-labs/flux-1-schnell",
+    // FLUX.2 [klein] 4B: Black Forest Labs' current distilled generator. Much
+    // cleaner hands, materials and (crucially) far less smeared pseudo-text than
+    // FLUX.1 schnell, at ~26 Neurons per 1024px frame — well inside the 10,000
+    // Neuron free daily allocation. FLUX.1 schnell stays as the first backup.
+    image: "@cf/black-forest-labs/flux-2-klein-4b",
     conversation: "@cf/openai/gpt-oss-120b",
   },
   // Verified live against Groq's free developer-tier catalogue. Groq serves no
@@ -260,8 +261,9 @@ const FREE_MODEL_DEFAULTS: Record<FreeProviderName, Partial<Record<ModelRole, st
  * never chooses a creative substitute.
  *
  * Image generation is no longer here: Cloudflare Workers AI serves
- * `@cf/black-forest-labs/flux-1-schnell` inside the free Neuron allowance, and
- * it was verified live on this account. Gemini's image models are still refused
+ * `@cf/black-forest-labs/flux-2-klein-4b` (primary) and
+ * `@cf/black-forest-labs/flux-1-schnell` (backup) inside the free Neuron
+ * allowance. Gemini's image models are still refused
  * on the free tier, so Google keeps no image entry above.
  */
 export const FREE_UNSERVED_ROLES: ModelRole[] = [];
@@ -330,10 +332,22 @@ const GROQ_NON_CHAT = /whisper|orpheus|prompt-guard|safeguard|tts|playai/i;
  * answer, so they are rejected for every provider that has no stricter filter.
  */
 /**
- * Cloudflare model families that are billed, or whose partner pricing Revora
- * has not verified as zero. Rejected for every role.
+ * Cloudflare picture models that are too expensive for the free Neuron
+ * allocation to carry a whole site campaign. Leonardo charges ~530-636 Neurons
+ * per tile, FLUX.2 [dev] ~37.5 Neurons per output tile PER STEP, and FLUX.2
+ * [klein] 9B ~1,364 Neurons for the first megapixel — one site's worth of
+ * frames would spend the day's allocation. They are rejected for every role.
+ *
+ * FLUX.2 [klein] 4B is deliberately NOT here: Cloudflare publishes it at 26.05
+ * Neurons per output 512px tile (~105 Neurons for a 1024x1024 frame), which is
+ * about 95 full-resolution pictures per day inside the free 10,000 Neurons.
  */
-const CLOUDFLARE_PAID_MODEL = /leonardo|flux-2/i;
+const CLOUDFLARE_PAID_MODEL = /leonardo|flux-2-dev|flux-2-klein-9b|flux-2-(?!klein-4b)/i;
+
+/** Cloudflare models that take multipart form data instead of a JSON body. */
+export function cloudflareMultipartImageModel(model: string) {
+  return /flux-2/i.test(model);
+}
 
 const NON_CHAT_MODEL =
   /guard|safety|safeguard|moderation|embed|rerank|retriev|whisper|orpheus|\btts\b|-lora\b|lora$|classifier/i;
@@ -719,7 +733,9 @@ export function noteFreeUse(provider: FreeProviderName, role?: ModelRole) {
  * Override with `FREE_AI_IMAGE_DAILY_CAP` (all providers) or
  * `FREE_AI_<PROVIDER>_IMAGE_DAILY_CAP` (one provider).
  */
-const DEFAULT_IMAGE_DAILY_CAP = 40;
+// ~105 Neurons per FLUX.2 [klein] 4B frame, so 60 frames is ~6,300 Neurons and
+// leaves the rest of the 10,000 daily Neurons for copy and review calls.
+const DEFAULT_IMAGE_DAILY_CAP = 60;
 
 export function freeImageBudgetKey(provider: FreeProviderName) {
   return `${provider}#image`;

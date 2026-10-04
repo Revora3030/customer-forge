@@ -3,11 +3,18 @@ import { describe, expect, it } from "vitest";
 import { readVerdict } from "@/lib/ai/photo-direction.server";
 
 describe("photo reviewer verdicts", () => {
-  it("only rejects a picture on an explicit false", () => {
+  it("fails closed: only an explicit true publishes a picture", () => {
     expect(readVerdict({ publishable: true }).publishable).toBe(true);
-    expect(readVerdict({}).publishable).toBe(true);
-    expect(readVerdict({ publishable: "no" }).publishable).toBe(true);
+    expect(readVerdict({}).publishable).toBe(false);
+    expect(readVerdict({ publishable: "no" }).publishable).toBe(false);
+    expect(readVerdict({ publishable: "yes" }).publishable).toBe(false);
     expect(readVerdict({ publishable: false }).publishable).toBe(false);
+  });
+
+  it("explains an unclear review to the owner instead of silently passing it", () => {
+    const unclear = readVerdict({});
+    expect(unclear.defects.length).toBeGreaterThan(0);
+    expect(unclear.reviewed).toBe(true);
   });
 
   it("keeps a reshoot brief only when the picture was rejected and the brief is real", () => {
