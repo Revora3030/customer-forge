@@ -72,6 +72,49 @@ export type ProductShape =
 
 export type CatalogVerification = { ok: true } | { ok: false; reason: string };
 
+/** Verifies only the recurring Growth System price for the platform-owner waiver path. */
+export function verifyGrowthMonthlyCatalog(input: {
+  environment: StripeEnvName;
+  monthlyPrice: PriceShape;
+  monthlyProduct?: ProductShape;
+  rates?: OfferRates;
+}): CatalogVerification {
+  const expected = STRIPE_CATALOG[input.environment]?.monthly;
+  if (!expected) return { ok: false, reason: "Unknown payment environment." };
+  const price = input.monthlyPrice;
+  const amounts = verifyGrowthPrices(
+    {
+      id: "owner-waived-placeholder",
+      lookup_key: expected.priceLookupKey,
+      active: price?.active,
+      currency: price?.currency,
+      unit_amount: DEFAULT_OFFER_RATES.monthlyPrice * 100,
+      type: "recurring",
+      recurring: { interval: "month", interval_count: 1 },
+    },
+    price,
+    {
+      ...(input.rates ?? DEFAULT_OFFER_RATES),
+      setupPrice: 0,
+    },
+  );
+  if (!amounts.ok) return amounts;
+  if (price?.id !== expected.stripePriceId)
+    return { ok: false, reason: "The monthly subscription price does not match the Revora price on file." };
+  if ((price?.lookup_key ?? "").trim() !== expected.priceLookupKey)
+    return { ok: false, reason: "The monthly subscription price has the wrong lookup key." };
+  const linkedProduct = productIdOf(price);
+  if (linkedProduct && linkedProduct !== expected.stripeProductId)
+    return { ok: false, reason: "The monthly subscription price belongs to a different product." };
+  if (input.monthlyProduct !== undefined) {
+    if (input.monthlyProduct?.id !== expected.stripeProductId)
+      return { ok: false, reason: "The monthly subscription product does not match the Revora product on file." };
+    if (input.monthlyProduct?.active === false)
+      return { ok: false, reason: "The monthly subscription product is archived in the payment provider." };
+  }
+  return { ok: true };
+}
+
 const productIdOf = (price: PriceShape): string | null => {
   const raw = (price as { product?: unknown } | null)?.product;
   if (typeof raw === "string") return raw;
