@@ -157,6 +157,12 @@ export async function generateFirstBuildImages(
   let source: FirstBuildImageSource = "none";
   let paidCostMicrocents = 0;
   const paid = paidImageStatus();
+  // When the paid picture lane is out of budget, switched off, or its model is
+  // unreachable, stop asking it for every remaining picture. It used to be
+  // retried per shot, which slowed every build and left the free lane to pick
+  // up the pieces one failure at a time.
+  let paidUsable = paid.allowed;
+  const PAID_STOP = new Set(["disabled", "no_key", "model_unavailable", "budget_exhausted", "ledger_unavailable"]);
   // Quality first. Sunburst owns hero/editorial frames and Flare owns supporting
   // imagery when enabled and inside the durable budget gate. The standard lane
   // is capability-aware failover, not the default merely because it is free.
@@ -181,7 +187,7 @@ export async function generateFirstBuildImages(
     // the cap is cut — so the subject and the safety rules lead, and the long
     // art-direction notes follow.
     const prompt = [
-      `Photorealistic professional website photograph of ${spec.subject}. No text, logos, watermarks, signage or recognisable real people.`,
+      `Photorealistic professional website photograph of ${spec.subject}. Single photograph, not a collage or split-screen. No text, letters, numbers, logos, car badges, emblems, licence plates, watermarks, signage or recognisable real people.`,
       `Purpose: ${spec.purpose}.`,
       spec.action ? `Action: ${spec.action}.` : "",
       spec.environment ? `Environment: ${spec.environment}.` : "",
@@ -201,7 +207,7 @@ export async function generateFirstBuildImages(
     type Made = { base64: string; mimeType: string; provider: string; model: string };
     let made: Made | null = null;
 
-    if (paid.allowed) {
+    if (paidUsable) {
       const specialist = await generatePaidImageBase64(
         prompt,
         { organizationId: input.organizationId, userId: input.userId },
@@ -219,6 +225,7 @@ export async function generateFirstBuildImages(
         source = "premium";
       } else {
         firstBlockedMessage = firstBlockedMessage ?? specialist.message;
+        if (PAID_STOP.has(specialist.reason)) paidUsable = false;
       }
     }
 
@@ -270,7 +277,34 @@ export async function generateFirstBuildImages(
     );
     if (!verdict.publishable) {
       let replaced = false;
-      if (paid.allowed) {
+      // Free reshoots first when the paid lane is unavailable: up to two
+      // corrected attempts on the best free model, each re-inspected by Terra.
+      if (!paidUsable && !standardBlocked) {
+        let brief = verdict.revisedPrompt ?? `${prompt} Fix these problems: ${verdict.defects.join("; ")}.`;
+        for (let reshootTry = 0; reshootTry < 2 && !replaced; reshootTry += 1) {
+          const reshoot = await generateImageBase64(brief, {
+            organizationId: input.organizationId,
+            userId: input.userId,
+          });
+          if (!reshoot.ok) {
+            if (reshoot.blocked) standardBlocked = true;
+            break;
+          }
+          const recheck = await inspectPhoto(
+            { base64: reshoot.base64, mimeType: reshoot.mimeType },
+            { prompt: brief, placement: `${shot.slot} ${shot.placement.join(" ")}`.trim() },
+            { organizationId: input.organizationId, userId: input.userId },
+          );
+          if (recheck.publishable) {
+            made = reshoot;
+            source = source === "premium" ? source : "standard";
+            replaced = true;
+          } else {
+            brief = recheck.revisedPrompt ?? `${brief} Fix these problems: ${recheck.defects.join("; ")}.`;
+          }
+        }
+      }
+      if (!replaced && paidUsable) {
         const reshoot = await generatePaidImageBase64(
           verdict.revisedPrompt ?? `${prompt} Fix these problems: ${verdict.defects.join("; ")}.`,
           { organizationId: input.organizationId, userId: input.userId },
