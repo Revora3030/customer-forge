@@ -43,12 +43,16 @@ export const reportClientError = createServerFn({ method: "POST" })
       route?: string;
       mechanism?: string;
       componentStack?: string;
+      kind?: string;
+      level?: string;
     }) => ({
       message: String(input?.message ?? "").slice(0, 500),
       stack: String(input?.stack ?? "").slice(0, 4000) || undefined,
       route: String(input?.route ?? "").slice(0, 300) || undefined,
       mechanism: String(input?.mechanism ?? "").slice(0, 80) || undefined,
       componentStack: String(input?.componentStack ?? "").slice(0, 4000) || undefined,
+      kind: String(input?.kind ?? "").slice(0, 60) || undefined,
+      level: input?.level === "warning" ? ("warning" as const) : ("error" as const),
     }),
   )
   .handler(async ({ data }) => {
@@ -59,9 +63,10 @@ export const reportClientError = createServerFn({ method: "POST" })
       stack: data.stack ?? null,
       route: data.route ?? null,
       source: "client",
-      level: "error",
+      level: data.level,
       context: {
         mechanism: data.mechanism ?? "client",
+        thrownKind: data.kind ?? "",
         componentStack: data.componentStack ?? "",
       },
     });

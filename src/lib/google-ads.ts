@@ -40,6 +40,11 @@ export async function loadGoogleAds(consentModeRoute = true): Promise<void> {
     script.src = `https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(GOOGLE_ADS_ID)}`;
     script.async = true;
     script.dataset["googleAds"] = "";
+    // Ad blockers and restricted networks block this tag. Handle the failure
+    // here so it stays a no-op instead of a page-level error.
+    script.onerror = () => {
+      script.remove();
+    };
     document.head.appendChild(script);
   })();
   return loadPromise;

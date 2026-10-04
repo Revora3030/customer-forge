@@ -50,7 +50,7 @@ export function useWorkspace() {
       const user = auth.user;
       if (!user) return { user: null, workspace: null, isSuperAdmin: false, supporting: false };
 
-      const [{ data: memberships }, { data: roles }] = await Promise.all([
+      const [{ data: memberships, error: membershipError }, { data: roles }] = await Promise.all([
         supabase
           .from("memberships")
           .select(`organization_id, role, organizations(${ORG_FIELDS})`)
@@ -58,6 +58,12 @@ export function useWorkspace() {
           .order("created_at", { ascending: true }),
         supabase.from("user_roles").select("role").eq("user_id", user.id),
       ]);
+
+      // A failed lookup is not "no workspace": treating it as one sent signed-in
+      // owners back to onboarding. Fail with a real Error so the query retries.
+      if (membershipError) {
+        throw new Error(`Failed to load workspace: ${membershipError.message || "unknown error"}`);
+      }
 
       const isSuperAdmin = (roles ?? []).some((r) => r.role === "super_admin");
 
