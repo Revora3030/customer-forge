@@ -1,0 +1,27 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1791090404653,
+      "tag": "0000_lead_delivery_telemetry",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1791090431307,
+      "tag": "0001_builder_restore_point_fix",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1791090463188,
+      "tag": "0002_membership_role_guard",
+      "breakpoints": true
+    }
+  ]
+}
