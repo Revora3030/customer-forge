@@ -63,3 +63,6 @@ export class RenderErrorBoundary extends Component<Props, State> {
     );
   }
 }
+
+/** Semantic alias for route-level render protection. */
+export const ErrorBoundary = RenderErrorBoundary;
