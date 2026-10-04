@@ -8,7 +8,7 @@ import {
   parseWorkspaceId,
 } from "@/lib/stripe-input";
 import { DEFAULT_OFFER_RATES, GROWTH_SYSTEM } from "@/lib/offer";
-import { isPlatformOwnerAccount } from "@/lib/platform-owner";
+import { isPlatformOwnerAccount, PLATFORM_OWNER_ORG_ID } from "@/lib/platform-owner";
 
 export type GrowthSystemIntake = {
   fullName: string;
@@ -89,10 +89,13 @@ export const createGrowthSystemCheckout = createServerFn({ method: "POST" })
       return { error: "Only workspace owners and admins can start billing." };
     }
 
-    const ownerEmail =
+    let ownerEmail =
       typeof (context.claims as { email?: unknown })?.email === "string"
         ? (context.claims as { email: string }).email
         : "";
+    if (!ownerEmail && data.organizationId === PLATFORM_OWNER_ORG_ID) {
+      ownerEmail = (await context.supabase.auth.getUser()).data.user?.email ?? "";
+    }
     const ownerSetupWaived = isPlatformOwnerAccount(data.organizationId, ownerEmail);
 
     // Duplicate-subscription guard: an existing live subscription must be
@@ -224,8 +227,9 @@ export const createGrowthSystemCheckout = createServerFn({ method: "POST" })
         setupWaived: String(ownerSetupWaived),
       };
       const base = {
-        // One-time setup line is billed on the FIRST invoice only; the
-        // recurring price stays $100/month.
+        // Customer setup is billed on the FIRST invoice only; the fixed
+        // internal owner path intentionally omits the setup line.
+        // The recurring price always stays $100/month.
         line_items: [
           { price: catalog.monthly.stripePriceId, quantity: 1 },
           ...(ownerSetupWaived ? [] : [{ price: catalog.setup.stripePriceId, quantity: 1 }]),
