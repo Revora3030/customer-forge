@@ -7,7 +7,7 @@
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { useEffect } from "react";
 import { getOwnerDraftSite } from "@/lib/public-site.functions";
-import { RenderErrorBoundary } from "@/components/app/RenderErrorBoundary";
+import { ErrorBoundary } from "@/components/app/ErrorBoundary";
 import { SitePageView } from "@/routes/s.$slug.$page";
 import { DraftMessage } from "@/routes/_authenticated/draft.$slug";
 
@@ -39,13 +39,13 @@ export const Route = createFileRoute("/_authenticated/draft/$slug/$page")({
 
 function DraftPageRoute() {
   return (
-    <RenderErrorBoundary
+    <ErrorBoundary
       title="This draft page could not render"
       body="The page data is safe. Reload the preview or return to the builder."
       backHref="/app/website"
     >
       <DraftPageRouteContent />
-    </RenderErrorBoundary>
+    </ErrorBoundary>
   );
 }
 
