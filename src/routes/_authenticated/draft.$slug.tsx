@@ -98,9 +98,6 @@ function DraftHomeRouteContent() {
   const children = useChildMatches();
   const router = useRouter();
   const result = Route.useLoaderData();
-
-  if (children.length > 0) return <Outlet />;
-
   const retry = () => void router.invalidate();
   const sections = result?.site?.content?.sections ?? [];
 
@@ -109,6 +106,8 @@ function DraftHomeRouteContent() {
     const timer = window.setInterval(() => void router.invalidate(), 2500);
     return () => window.clearInterval(timer);
   }, [result?.status, router]);
+
+  if (children.length > 0) return <Outlet />;
 
   if (result?.status === "pending") {
     return (
