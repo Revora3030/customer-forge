@@ -13,6 +13,15 @@ WHERE subscription_status = 'trialing'
   AND trial_ends_at IS NOT NULL
   AND trial_ends_at < created_at + interval '3 days';
 
+UPDATE public.platform_trials pt
+SET trial_ends_at = o.trial_ends_at
+FROM public.organizations o
+WHERE pt.organization_id = o.id
+  AND pt.kind = 'free_access'
+  AND o.trial_ends_at IS NOT NULL
+  AND (pt.trial_ends_at IS NULL OR pt.trial_ends_at < o.trial_ends_at);
+
+
 CREATE OR REPLACE FUNCTION private.default_org_billing_columns()
 RETURNS trigger
 LANGUAGE plpgsql
