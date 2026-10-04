@@ -45,6 +45,10 @@ export function loadGa4(measurementId: string) {
   const script = document.createElement("script");
   script.async = true;
   script.src = `https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(id)}`;
+  // Blocked analytics (ad blockers, strict networks) must fail silently.
+  script.onerror = () => {
+    script.remove();
+  };
   document.head.appendChild(script);
 }
 

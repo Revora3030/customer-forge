@@ -21,6 +21,8 @@ import { CookieConsent } from "@/components/marketing/CookieConsent";
 import { PlatformAnalytics } from "@/components/marketing/PlatformAnalytics";
 import { loadGoogleAds } from "@/lib/google-ads";
 import { reportRouteError } from "@/lib/route-error-reporting";
+import { errorFromWindowEvent } from "@/lib/client-error-classify";
+import { safeJsonLd } from "@/lib/json-ld";
 
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
   /**
@@ -118,8 +120,8 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         children:
           "window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('consent','default',{ad_storage:'granted',ad_user_data:'granted',ad_personalization:'granted'});gtag('consent','default',{ad_storage:'denied',ad_user_data:'denied',ad_personalization:'denied',wait_for_update:500,region:['AT','BE','BG','HR','CY','CZ','DK','EE','FI','FR','DE','GR','HU','IE','IT','LV','LT','LU','MT','NL','PL','PT','RO','SK','SI','ES','SE','IS','LI','NO','GB','CH','CA-QC']});",
       },
-      { type: "application/ld+json", children: JSON.stringify(ORGANIZATION_SCHEMA) },
-      { type: "application/ld+json", children: JSON.stringify(WEBSITE_SCHEMA) },
+      { type: "application/ld+json", children: safeJsonLd(ORGANIZATION_SCHEMA) },
+      { type: "application/ld+json", children: safeJsonLd(WEBSITE_SCHEMA) },
     ],
     links: [
       { rel: "stylesheet", href: appCss },
@@ -143,11 +145,13 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 
 function RootShell({ children }: { children: ReactNode }) {
   return (
-    <html lang="en">
+    // Browser extensions (password managers, translators, Grammarly) inject
+    // attributes on <html>/<body> before hydration; those are not app bugs.
+    <html lang="en" suppressHydrationWarning>
       <head>
         <HeadContent />
       </head>
-      <body>
+      <body suppressHydrationWarning>
         {children}
         <Scripts />
       </body>
@@ -221,7 +225,7 @@ function RootComponent() {
     // React route boundaries catch render/loader failures, while these listeners
     // cover errors that escape the router boundary or occur during hydration.
     const onError = (event: ErrorEvent) => {
-      reportRouteError(event.error ?? event.message, {
+      reportRouteError(errorFromWindowEvent(event), {
         boundary: "window_error",
         mechanism: "window_error",
       });

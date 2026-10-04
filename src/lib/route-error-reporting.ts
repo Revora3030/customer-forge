@@ -1,4 +1,5 @@
 import { reportClientError } from "@/lib/monitoring.functions";
+import { classifyClientError, describeClientError } from "@/lib/client-error-classify";
 
 type RouteErrorContext = {
   boundary?: string;
@@ -9,25 +10,17 @@ type RouteErrorContext = {
 const recentReports = new Map<string, number>();
 const DEDUPE_MS = 10_000;
 
-function details(error: unknown) {
-  if (typeof Response !== "undefined" && error instanceof Response) {
-    return {
-      message: `Response ${error.status}${error.url ? ` at ${error.url}` : ""}`,
-      stack: "",
-    };
-  }
-  if (error instanceof Error) {
-    return { message: error.message || error.name || "Unknown error", stack: error.stack ?? "" };
-  }
-  return { message: String(error || "Unknown error"), stack: "" };
-}
-
 function route() {
   return typeof window === "undefined" ? "" : window.location.pathname;
 }
 
 export function reportRouteError(error: unknown, context: RouteErrorContext = {}) {
-  const { message, stack } = details(error);
+  const described = describeClientError(error);
+  // Router redirects/notFound, cross-origin "Script error." and similar noise
+  // carry nothing actionable; React-recovered hydration errors are warnings.
+  const disposition = classifyClientError(error, described);
+  if (disposition === "ignore") return;
+  const { message, stack } = described;
   const key = `${route()}|${message.slice(0, 180)}|${stack.split("\n")[0] ?? ""}`;
   const now = Date.now();
   const previous = recentReports.get(key);
@@ -45,6 +38,8 @@ export function reportRouteError(error: unknown, context: RouteErrorContext = {}
     stack,
     route: route(),
     mechanism: context.mechanism ?? "tanstack_route",
+    kind: described.kind,
+    level: disposition === "warn" ? "warning" : "error",
   };
   if (context.componentStack) data.componentStack = context.componentStack.slice(0, 4000);
   void reportClientError({ data }).catch(() => undefined);
