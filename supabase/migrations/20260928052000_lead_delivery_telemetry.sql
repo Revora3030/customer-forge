@@ -29,7 +29,10 @@ alter table public.lead_delivery_logs enable row level security;
 create policy lead_delivery_logs_member_select
   on public.lead_delivery_logs
   for select to authenticated
-  using (public.is_org_member(organization_id));
+  using (private.is_org_member(organization_id));
 
 -- There is intentionally no public/anon insert policy. Server-side delivery
 -- code records outcomes; browser clients cannot forge delivery telemetry.
+
+grant select on public.lead_delivery_logs to authenticated;
+grant all on public.lead_delivery_logs to service_role;

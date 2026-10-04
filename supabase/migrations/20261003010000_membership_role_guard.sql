@@ -16,7 +16,7 @@ CREATE OR REPLACE FUNCTION private.guard_membership_change()
 RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, private
 AS $$
 DECLARE
   _actor uuid := auth.uid();
@@ -25,7 +25,7 @@ DECLARE
   _owners integer;
 BEGIN
   -- Server-side code (service role) and platform admins manage freely.
-  IF _actor IS NULL OR public.is_super_admin() THEN
+  IF _actor IS NULL OR private.is_super_admin() THEN
     IF TG_OP = 'DELETE' THEN RETURN OLD; END IF;
     RETURN NEW;
   END IF;
