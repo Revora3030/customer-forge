@@ -281,7 +281,7 @@ describe("builder availability", () => {
     process.env["CLOUDFLARE_ACCOUNT_ID"] = "cf-account";
     const images = freeProviderChain("image");
     expect(images.map((entry) => entry.name)).toEqual(["cloudflare"]);
-    expect(images[0]?.model).toBe("@cf/black-forest-labs/flux-1-schnell");
+    expect(images[0]?.model).toBe("@cf/black-forest-labs/flux-2-klein-4b");
   });
 
   it("reports voice as available from the free tier, and pictures too", async () => {
