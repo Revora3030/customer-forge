@@ -81,27 +81,20 @@ export function verifyGrowthMonthlyCatalog(input: {
 }): CatalogVerification {
   const expected = STRIPE_CATALOG[input.environment]?.monthly;
   if (!expected) return { ok: false, reason: "Unknown payment environment." };
+
   const price = input.monthlyPrice;
-  const amounts = verifyGrowthPrices(
-    {
-      id: "owner-waived-placeholder",
-      lookup_key: expected.priceLookupKey,
-      active: price?.active,
-      currency: price?.currency,
-      unit_amount: DEFAULT_OFFER_RATES.monthlyPrice * 100,
-      type: "recurring",
-      recurring: { interval: "month", interval_count: 1 },
-    },
-    price,
-    {
-      ...(input.rates ?? DEFAULT_OFFER_RATES),
-      setupPrice: 0,
-    },
-  );
-  if (!amounts.ok) return amounts;
-  if (price?.id !== expected.stripePriceId)
+  const expectedDollars = input.rates?.monthlyPrice ?? DEFAULT_OFFER_RATES.monthlyPrice;
+  if (!price?.id) return { ok: false, reason: "The monthly subscription price is not set up in the payment provider yet." };
+  if (price.active === false) return { ok: false, reason: "The monthly subscription price is archived in the payment provider." };
+  if ((price.currency ?? "usd").toLowerCase() !== "usd")
+    return { ok: false, reason: "The monthly subscription price is not in US dollars." };
+  if (price.unit_amount !== Math.round(expectedDollars * 100))
+    return { ok: false, reason: "The monthly subscription price does not match the Revora offer." };
+  if (price.type !== "recurring" || price.recurring?.interval !== "month" || (price.recurring?.interval_count ?? 1) !== 1)
+    return { ok: false, reason: "The monthly subscription price is not a monthly recurring price." };
+  if (price.id !== expected.stripePriceId)
     return { ok: false, reason: "The monthly subscription price does not match the Revora price on file." };
-  if ((price?.lookup_key ?? "").trim() !== expected.priceLookupKey)
+  if ((price.lookup_key ?? "").trim() !== expected.priceLookupKey)
     return { ok: false, reason: "The monthly subscription price has the wrong lookup key." };
   const linkedProduct = productIdOf(price);
   if (linkedProduct && linkedProduct !== expected.stripeProductId)
@@ -114,7 +107,6 @@ export function verifyGrowthMonthlyCatalog(input: {
   }
   return { ok: true };
 }
-
 const productIdOf = (price: PriceShape): string | null => {
   const raw = (price as { product?: unknown } | null)?.product;
   if (typeof raw === "string") return raw;
