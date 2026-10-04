@@ -38,6 +38,18 @@ export const Route = createFileRoute("/_authenticated/draft/$slug/$page")({
 });
 
 function DraftPageRoute() {
+  return (
+    <RenderErrorBoundary
+      title="This draft page could not render"
+      body="The page data is safe. Reload the preview or return to the builder."
+      backHref="/app/website"
+    >
+      <DraftPageRouteContent />
+    </RenderErrorBoundary>
+  );
+}
+
+function DraftPageRouteContent() {
   const router = useRouter();
   const result = Route.useLoaderData();
   const sections = result?.site?.content?.sections ?? [];
@@ -72,15 +84,7 @@ function DraftPageRoute() {
   }
 
   if (result?.status === "ready" && result.site && sections.length > 0) {
-    return (
-      <RenderErrorBoundary
-        title="This draft page couldn't render"
-        body="The page data is safe. Reload the preview or return to the builder."
-        backHref="/app/website"
-      >
-        <SitePageView site={result.site} preview />
-      </RenderErrorBoundary>
-    );
+    return <SitePageView site={result.site} preview />;
   }
 
   return (
