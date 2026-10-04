@@ -5,6 +5,7 @@
  * that business only.
  */
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
+import { useEffect } from "react";
 import { getOwnerDraftSite } from "@/lib/public-site.functions";
 import { RenderErrorBoundary } from "@/components/app/RenderErrorBoundary";
 import { SitePageView } from "@/routes/s.$slug.$page";
@@ -40,6 +41,12 @@ function DraftPageRoute() {
   const router = useRouter();
   const result = Route.useLoaderData();
   const sections = result?.site?.content?.sections ?? [];
+
+  useEffect(() => {
+    if (result?.status !== "pending") return;
+    const timer = window.setInterval(() => void router.invalidate(), 2500);
+    return () => window.clearInterval(timer);
+  }, [result?.status, router]);
 
   if (result?.status === "pending") {
     return (
