@@ -5,6 +5,11 @@
  * as a paying customer in analytics — it only unlocks publishing.
  */
 export const PLATFORM_OWNER_ORG_ID = "e0c08aa2-a95f-4049-8ce0-ffbb869dae10";
+export const PLATFORM_OWNER_EMAIL = "revorabusiness0@gmail.com";
 
 export const isPlatformOwnerOrg = (id: string | null | undefined): boolean =>
   id === PLATFORM_OWNER_ORG_ID;
+
+/** True only for Revora's fixed internal workspace and its fixed owner account. */
+export const isPlatformOwnerAccount = (orgId: string | null | undefined, email: string | null | undefined): boolean =>
+  isPlatformOwnerOrg(orgId) && email?.trim().toLowerCase() === PLATFORM_OWNER_EMAIL;
