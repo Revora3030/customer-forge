@@ -150,8 +150,8 @@ export const Route = createFileRoute("/")({
             ],
             links: [canonicalLink("/")],
             scripts: [
-              { type: "application/ld+json", children: JSON.stringify(LOCAL_BUSINESS_SCHEMA) },
-              { type: "application/ld+json", children: JSON.stringify(GROWTH_SYSTEM_SCHEMA) },
+              jsonLdScript(LOCAL_BUSINESS_SCHEMA),
+              jsonLdScript(GROWTH_SYSTEM_SCHEMA),
               {
                 type: "application/ld+json",
                 children: JSON.stringify({
@@ -167,9 +167,18 @@ export const Route = createFileRoute("/")({
             ],
           } as const),
   component: HomeRoute,
+  errorComponent: RouteError,
 });
 
 /** Client website on a client host, Revora's sales site on Revora's host. */
+function jsonLdScript(schema: unknown) {
+  const serialized = JSON.stringify(schema);
+  return {
+    type: "application/ld+json" as const,
+    children: typeof serialized === "string" ? serialized.replace(/</g, "\\u003c") : "{}",
+  };
+}
+
 function HomeRoute() {
   const hostSite = Route.useLoaderData();
   if (hostSite && "pending" in hostSite) {
