@@ -15,6 +15,7 @@ import { isBackdropId, safeBackdropSpec, type BackdropId } from "@/lib/site-effe
 import { safeColor } from "@/lib/site-style";
 import { siteHeadingFont } from "@/lib/site-theme";
 import { callBestThinker } from "@/lib/ai/hall-of-fame.server";
+import { paletteProblems } from "@/lib/builder/palette-guard";
 
 export type BrandIdentityInput = {
   organizationId: string;
@@ -40,7 +41,8 @@ const SYSTEM = [
   "Choose colours that suit this specific business and would look deliberate to a design critic — not a default blue, and not the same scheme you would give any other business.",
   "Choose real typeface families by name (any family available on Google Fonts). Pair a heading face with a body face that genuinely complements it; avoid default system sans pairings unless the business identity truly calls for them.",
   "Industry pairing intelligence: luxury/hospitality should consider an elegant display serif with an understated grotesque body; trades/automotive/engineering should consider a confident geometric or industrial headline with an ultra-legible functional sans; modern tech/SaaS should consider a crisp neo-grotesque headline with a humanist body. Treat these as intelligent starting points, not presets, and adapt them to the actual business.",
-  "Palette architecture: design a 60/30/10 balance — roughly 60% dominant neutral surface, 30% structural grounding tone, and 10% high-intent action accent. Never wash the entire page in a uniform neon or purple-blue gradient. The three supplied colours must work as roles, not as three equally dominant colours.",
+  "Palette architecture: design a 60/30/10 balance — roughly 60% dominant brand surface, 30% structural grounding tone, and 10% high-intent action accent. Never wash the entire page in a uniform neon or purple-blue gradient. The three supplied colours must work as roles, not as three equally dominant colours.",
+  "Banned: generic grey, greige, silver, plain white-and-black, and any colourless palette. The surface must carry a deliberate tint (for example deep ink-navy, warm bone, forest, oxblood, espresso, midnight, sand) and the action colour must be saturated and memorable. Every colour must look chosen for THIS business, the way a top studio (Lovable, Framer, Pentagram) would brand it.",
   craftBarPrompt("brand_identity"),
   "Reply with JSON only.",
 ].join(" ");
@@ -67,7 +69,7 @@ function schemaPrompt(input: BrandIdentityInput): string {
         mood: "one sentence the owner would understand",
         bestFor: "who this look suits",
         primary: "#hex — the high-intent action accent used sparingly (~10%)",
-        secondary: "#hex — the dominant neutral page surface (~60%)",
+        secondary: "#hex — the dominant tinted brand surface (~60%), never plain grey or plain white",
         accent: "#hex — the structural grounding tone (~30%)",
         headingFont: "Family Name",
         bodyFont: "Family Name",
@@ -163,8 +165,10 @@ export async function authorBrandIdentity(
     accent = safeColor(data?.["accent"]) ?? primary;
     heading = siteHeadingFont(str(data?.["headingFont"], 42));
     body = siteHeadingFont(str(data?.["bodyFont"], 42));
-    if (data && primary && secondary && heading) break;
+    const generic = primary && secondary ? paletteProblems({ primary, secondary, accent }) : [];
+    if (data && primary && secondary && heading && generic.length === 0) break;
     repairContext = [
+      ...generic,
       !data ? "response was not a JSON object" : null,
       !primary ? "primary colour was missing or invalid" : null,
       !secondary ? "secondary colour was missing or invalid" : null,

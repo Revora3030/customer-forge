@@ -35,7 +35,7 @@ export type PhotoBrief = {
 };
 
 const EXCLUSIONS = [
-  "No text, lettering, captions, numbers, watermarks or logos rendered inside the picture.",
+  "No text, lettering, captions, numbers, watermarks or logos rendered inside the picture. No car badges, emblems, seals, stamps or licence plates. Single photograph only: no collage, split-screen, grid or multi-panel layout, no borders.",
   "No award badges, star ratings, review quotes, certifications or guarantees.",
   "No identifiable real customer, employee, licence plate, street address or before-and-after proof.",
   "No plastic 3D CGI gloss, cartoon or illustration styling, oversaturated HDR halos, neon bloom, smeary pseudo-text, waxy skin or impossible materials.",
@@ -129,18 +129,18 @@ export type PhotoVerdict = {
 };
 
 const REVIEWER_SYSTEM = [
-  "You are Terra, an adversarial photo editor reviewing one generated website picture before it goes live.",
-  "Reject only for real, visible defects: warped or melted objects, extra or missing limbs or fingers, garbled text-like marks, duplicated edges, impossible geometry, heavy noise or blur, a subject that does not match the brief, a frame with no usable space for headline words, or a picture so busy or low-contrast that overlaid words would be unreadable.",
-  "When the brief asks for photorealistic photography, also reject any picture that reads as an illustration, cartoon, cel-shaded or painted art, clip art, flat vector, toy-like 3D render, or plastic CGI look. That is a brief mismatch, not a taste call.",
-  "Otherwise do not reject for taste, style preference, or because you would have shot it differently.",
+  "You are Terra, an adversarial photo editor reviewing one generated website picture before it goes live on a premium business website. The bar is a top design studio's commissioned photography: if you would not put it on a Lovable, Framer or Apple-grade site, reject it.",
+  "Reject for ANY of these: warped or melted objects, extra or missing limbs or fingers, malformed hands, garbled or invented text, letters, numbers, badges, emblems, seals, stamps, licence plates or logos anywhere in the frame (including fake car badges and fake brand marks), real brand logos, duplicated edges, impossible geometry, heavy noise or blur, a subject that does not match the brief, a collage, split-screen, grid or multi-panel composition, visible borders or frames, a frame with no usable space for headline words, or a picture so busy or low-contrast that overlaid words would be unreadable.",
+  "Also reject flat, dull, grey or washed-out pictures with no clear focal subject, generic stock-photo staging, and anything that reads as an illustration, cartoon, cel-shaded or painted art, clip art, flat vector, toy-like 3D render, or plastic CGI look.",
+  "When in doubt, reject: a missing picture can be reshot, a bad picture damages the customer's brand.",
   'Answer as JSON only: {"publishable": boolean, "defects": string[], "revisedPrompt": string}.',
   "defects are short plain-English phrases a business owner would understand. revisedPrompt is a full corrected photography brief when publishable is false, otherwise an empty string.",
 ].join(" ");
 
 /**
  * Terra looks at the finished picture and reports whether it is publishable.
- * Any failure to review returns `publishable: true` so a good picture is never
- * thrown away because the reviewer was unreachable.
+ * Fail closed: a picture Terra could not actually look at is NOT published.
+ * Unreviewed pictures are how warped badges and fake text reached live sites.
  */
 const TARGETED_REVISION_SYSTEM = [
   "You are Sol performing one targeted commercial-photography revision after Terra rejected a generated frame.",
@@ -182,7 +182,7 @@ async function reviseRejectedPhotoPrompt(
     );
     const revised = result.data["prompt"];
     if (typeof revised !== "string") return null;
-    const normalized = revised.replace(/\\s+/g, " ").trim();
+    const normalized = revised.replace(/\s+/g, " ").trim();
     if (normalized.length < 80) return null;
     return normalized.includes("No text") ? normalized.slice(0, 1800) : `${normalized} ${EXCLUSIONS}`.slice(0, 1800);
   } catch (error) {
@@ -245,7 +245,13 @@ export async function inspectPhoto(
     return verdict;
   } catch (error) {
     console.warn("[photo-direction] visual review unavailable:", error);
-    return { publishable: true, defects: [], revisedPrompt: null, reviewed: false };
+    // Fail closed: an unreviewed picture never reaches a customer's website.
+    return {
+      publishable: false,
+      defects: ["the picture could not be quality-checked, so it was not used"],
+      revisedPrompt: null,
+      reviewed: false,
+    };
   }
 }
 
@@ -262,8 +268,13 @@ export function readVerdict(data: Record<string, unknown>): PhotoVerdict {
     : [];
   const revisedPrompt =
     typeof revised === "string" && revised.trim().length >= 40 ? revised.replace(/\s+/g, " ").trim().slice(0, 1800) : null;
-  // Anything other than an explicit `false` passes: an unclear answer must never
-  // discard a picture that may well be fine.
-  if (publishable === false) return { publishable: false, defects, revisedPrompt, reviewed: true };
-  return { publishable: true, defects, revisedPrompt: null, reviewed: true };
+  // Only an explicit `true` passes. An unclear or malformed answer is treated as
+  // a rejection so an unchecked picture can never slip onto a live site.
+  if (publishable === true) return { publishable: true, defects, revisedPrompt: null, reviewed: true };
+  return {
+    publishable: false,
+    defects: defects.length ? defects : ["the picture review was unclear, so the picture was not used"],
+    revisedPrompt,
+    reviewed: true,
+  };
 }
