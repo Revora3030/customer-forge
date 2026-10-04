@@ -129,16 +129,22 @@ export async function ensureProfile(user?: User | null): Promise<void> {
     avatar_url?: string;
     picture?: string;
   } | null;
-  await supabase.from("profiles").upsert(
-    {
-      id: current.id,
-      email: current.email ?? null,
-      full_name: meta?.full_name || meta?.name || null,
-      avatar_url: meta?.avatar_url || meta?.picture || null,
-      updated_at: new Date().toISOString(),
-    },
-    { onConflict: "id" },
-  );
+  const payload = {
+    id: current.id,
+    email: current.email ?? null,
+    full_name: meta?.full_name || meta?.name || null,
+    avatar_url: meta?.avatar_url || meta?.picture || null,
+    updated_at: new Date().toISOString(),
+  };
+
+  let lastError: unknown = null;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const { error } = await supabase.from("profiles").upsert(payload, { onConflict: "id" });
+    if (!error) return;
+    lastError = error;
+    await new Promise((resolve) => setTimeout(resolve, 250 * (attempt + 1)));
+  }
+  throw lastError instanceof Error ? lastError : new Error("Could not save your account profile.");
 }
 
 /**
@@ -154,21 +160,35 @@ export async function resolvePostLoginPath(): Promise<string> {
   const user = auth.user;
   if (!user) return "/auth";
 
-  const [{ data: memberships }, { data: roles }] = await Promise.all([
-    supabase
-      .from("memberships")
-      .select("organization_id, organizations(onboarding_completed)")
-      .eq("user_id", user.id)
-      .order("created_at", { ascending: true }),
-    supabase.from("user_roles").select("role").eq("user_id", user.id),
-  ]);
-
-  const first = (memberships ?? []).find((m) => m.organizations);
-  if (first?.organizations) {
-    const org = first.organizations as { onboarding_completed: boolean | null };
-    return org.onboarding_completed ? "/app" : "/onboarding";
+  // A provider redirect can beat the transaction that creates the membership.
+  // Re-read a few times so /app never wins a race with workspace provisioning.
+  let lastRoles: Array<{ role?: string | null }> = [];
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const [{ data: memberships, error: membershipError }, { data: roles }] = await Promise.all([
+      supabase
+        .from("memberships")
+        .select("organization_id, organizations(onboarding_completed)")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: true }),
+      supabase.from("user_roles").select("role").eq("user_id", user.id),
+    ]);
+    lastRoles = roles ?? lastRoles;
+    if (!membershipError) {
+      const first = (memberships ?? []).find((m) => m.organizations);
+      if (first?.organizations) {
+        const org = first.organizations as { onboarding_completed: boolean | null };
+        return org.onboarding_completed ? "/app" : "/onboarding";
+      }
+      // The user is authenticated but provisioning has not committed yet.
+      if (attempt < 3) {
+        await new Promise((resolve) => setTimeout(resolve, 250 * (attempt + 1)));
+        continue;
+      }
+      break;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 250 * (attempt + 1)));
   }
 
-  const isSuperAdmin = (roles ?? []).some((r) => r.role === "super_admin");
+  const isSuperAdmin = lastRoles.some((r) => r.role === "super_admin");
   return isSuperAdmin ? "/admin" : "/onboarding";
 }
