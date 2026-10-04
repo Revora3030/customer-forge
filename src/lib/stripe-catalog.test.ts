@@ -11,6 +11,7 @@ import {
   SETUP_PRICE_LOOKUP_KEY,
   STRIPE_CATALOG,
   verifyGrowthCatalog,
+  verifyGrowthMonthlyCatalog,
 } from "@/lib/stripe-catalog";
 
 const live = STRIPE_CATALOG.live;
@@ -97,6 +98,24 @@ describe("Revora Stripe catalog", () => {
   it("rejects inactive prices and archived products", () => {
     expect(verify({ monthlyPrice: { ...monthlyPrice, active: false } }).ok).toBe(false);
     expect(verify({ monthlyProduct: { ...monthlyProduct, active: false } }).ok).toBe(false);
+  });
+
+
+  it("accepts the monthly-only catalog used by the owner setup-fee waiver", () => {
+    expect(
+      verifyGrowthMonthlyCatalog({
+        environment: "live",
+        monthlyPrice,
+        monthlyProduct,
+      }),
+    ).toEqual({ ok: true });
+    expect(
+      verifyGrowthMonthlyCatalog({
+        environment: "live",
+        monthlyPrice: { ...monthlyPrice, unit_amount: 75_000 },
+        monthlyProduct,
+      }).ok,
+    ).toBe(false);
   });
 
   it("rejects a recurring setup fee and a one-time monthly price", () => {
