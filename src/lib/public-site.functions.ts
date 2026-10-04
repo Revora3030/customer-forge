@@ -142,12 +142,50 @@ export const getOwnerDraftSite = createServerFn({ method: "GET" })
       .select("id")
       .eq("slug", data.slug)
       .maybeSingle();
-    if (!org?.id) return null;
+
+    if (!org?.id)
+      return {
+        ok: true as const,
+        status: "empty" as const,
+        site: null,
+        job: null,
+      };
+
     const { loadSite } = await import("@/lib/public-site.server");
-    return loadSite(data.slug, {
+    const site = await loadSite(data.slug, {
       allowUnpublished: true,
       ...(data.pageSlug ? { pageSlug: data.pageSlug } : {}),
     });
+
+    const { data: job } = await context.supabase
+      .from("generation_jobs")
+      .select("id, status, current_step, progress")
+      .eq("organization_id", org.id)
+      .in("status", ["queued", "processing"])
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    const sectionCount = site?.content?.sections?.length ?? 0;
+    if (job)
+      return {
+        ok: true as const,
+        status: "pending" as const,
+        site,
+        job: {
+          id: String(job.id),
+          status: String(job.status),
+          currentStep: job.current_step ? String(job.current_step) : null,
+          progress: Number(job.progress ?? 0),
+        },
+      };
+
+    return {
+      ok: true as const,
+      status: sectionCount > 0 ? ("ready" as const) : ("empty" as const),
+      site,
+      job: null,
+    };
   });
 
 /**
