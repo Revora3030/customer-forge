@@ -125,7 +125,12 @@ export function SitePageView({
 }) {
   const track = useServerFn(trackPublicEvent);
   const { org, profile } = site;
-  const page = site.content!.page;
+  // Drafts can load before their page rows exist (Sentry JAVASCRIPT-REACT-2/3/5/6),
+  // so never assume content, page or sections are present.
+  const content = site.content ?? null;
+  const page = content?.page ?? null;
+  const rawSections = content?.sections;
+  const sections = Array.isArray(rawSections) ? rawSections : [];
   const ownAddress = useOwnAddress();
   const chrome = readSiteChrome(site.settings?.generation ?? null);
   const chromeHref = (href: string) => resolveSiteHref(href, org.slug, ownAddress);
@@ -142,6 +147,20 @@ export function SitePageView({
       },
     }).catch(() => undefined);
   }, [org.slug, track, preview]);
+
+  if (!page) {
+    return (
+      <div className="flex min-h-screen items-center justify-center px-4 text-center">
+        <div>
+          <h1 className="font-display text-[20px] font-semibold">This page isn't ready yet</h1>
+          <p className="mt-2 text-[13px] text-muted-foreground">
+            The page is still being prepared. Refresh in a moment.
+          </p>
+          {preview ? <BuilderReturnBar /> : null}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div
@@ -171,21 +190,21 @@ export function SitePageView({
 
         {/* Tablet and phone overrides the client set in the visual builder. */}
         <ResponsiveStyles
-          sections={site.content!.sections}
+          sections={sections}
           surface={profile?.secondary_color ?? null}
         />
 
         <main className="scroll-mt-20 pt-2 sm:pt-4 pb-24 sm:pb-16">
           {(() => {
-            const lead = leadSectionIndex(site.content!.sections as never);
-            return site.content!.sections.map((section, index) => (
+            const lead = leadSectionIndex(sections as never);
+            return sections.map((section, index) => (
               <SiteSection key={section.id} site={site} section={section} lead={index === lead} first={index === 0} />
             ));
           })()}
           {/* Published reviews from the Reviews tool always reach the home
               page, even on sites designed before reviews existed. Skipped when
               the AI layout already places the live review wall itself. */}
-          {site.content!.page.kind === "home" && (site.reviews?.length ?? 0) > 0 && !pageHasWidget(site.content!.sections as never, "review_wall") ? (
+          {page.kind === "home" && (site.reviews?.length ?? 0) > 0 && !pageHasWidget(sections as never, "review_wall") ? (
             <section id="reviews" className="scroll-mt-20" style={{ minWidth: 0 }}>
               <div className="mx-auto w-full max-w-6xl px-4 sm:px-6" style={{ paddingBlock: "calc(4rem * var(--site-space, 1))" }}>
                 <h2 className="mb-2 font-display text-[clamp(1.75rem,4vw,2.5rem)] font-semibold leading-tight">What customers say</h2>

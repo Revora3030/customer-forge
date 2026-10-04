@@ -151,11 +151,19 @@ function Dashboard() {
 
   // Remember the range the owner last looked at (client-only, avoids hydration mismatch).
   useEffect(() => {
-    const saved = globalThis.localStorage.getItem(RANGE_KEY);
-    if (saved && RANGES.some((r) => r.value === saved)) setRange(saved as RangeValue);
+    try {
+      const saved = globalThis.localStorage?.getItem(RANGE_KEY);
+      if (saved && RANGES.some((r) => r.value === saved)) setRange(saved as RangeValue);
+    } catch {
+      // Storage can be blocked (private mode, sandboxed iframe); keep the default.
+    }
   }, []);
   useEffect(() => {
-    globalThis.localStorage.setItem(RANGE_KEY, range);
+    try {
+      globalThis.localStorage?.setItem(RANGE_KEY, range);
+    } catch {
+      // Ignore storage failures; the range simply isn't remembered.
+    }
   }, [range]);
 
   const window = useMemo(() => {
@@ -172,12 +180,15 @@ function Dashboard() {
         days: Math.max(1, Math.round((safeTo.getTime() - safeFrom.getTime()) / DAY)),
       };
     }
-    const days = RANGES.find((r) => r.value === range)!.days;
+    // A stale or tampered saved range must never crash the dashboard
+    // (Sentry JAVASCRIPT-REACT-1): fall back to the 30-day default.
+    const activeRange = RANGES.find((r) => r.value === range) ?? RANGES[2];
+    const days = activeRange.days;
     const from = days === 1 ? startOfToday() : new Date(Date.now() - days * DAY);
     return {
       from,
       to: new Date(),
-      label: RANGES.find((r) => r.value === range)!.label,
+      label: activeRange.label,
       days,
     };
   }, [range, customFrom, customTo]);
