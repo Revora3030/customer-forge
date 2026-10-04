@@ -62,8 +62,11 @@ const IMAGE_QUALITY = new Map<string, number>([
   ["gpt-image-2", 88],
   ["gpt-image-2.5-flare", 84],
   ["gemini-3.1-flash-image", 70],
-  ["@cf/black-forest-labs/flux-1-schnell", 55],
-  ["@cf/bytedance/stable-diffusion-xl-lightning", 45],
+  ["@cf/black-forest-labs/flux-2-klein-4b", 68],
+  ["@cf/black-forest-labs/flux-1-schnell", 60],
+  ["@cf/stabilityai/stable-diffusion-xl-base-1.0", 50],
+  ["@cf/lykon/dreamshaper-8-lcm", 46],
+  ["@cf/bytedance/stable-diffusion-xl-lightning", 42],
 ]);
 
 /** Quality for a runtime candidate: the specialist ceiling, or the id's size class. */

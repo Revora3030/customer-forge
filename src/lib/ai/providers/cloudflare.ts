@@ -13,8 +13,8 @@
  */
 
 import { RevoraAiError } from "@/lib/ai/errors";
-import { imageCreationCapableModel, imageEditCapableModel } from "@/lib/ai/free";
-import { buildCloudflareImageBody } from "@/lib/ai/providers/cloudflare-image";
+import { cloudflareMultipartImageModel, imageCreationCapableModel, imageEditCapableModel } from "@/lib/ai/free";
+import { buildCloudflareImageBody, buildFlux2Form } from "@/lib/ai/providers/cloudflare-image";
 import { createOpenAiCompatibleAdapter } from "@/lib/ai/providers/openai-compatible";
 import { providerHttpError } from "@/lib/ai/providers/shared";
 import type { ProviderAdapter } from "@/lib/ai/types";
@@ -66,17 +66,22 @@ export const cloudflareAdapter: ProviderAdapter = {
       });
 
 
+    // FLUX.2 models only accept multipart form data (even for a bare prompt);
+    // a JSON body is rejected with "required properties at '/' are 'multipart'".
+    // Letting fetch serialise the FormData sets the boundary header correctly.
+    const multipart = !source && cloudflareMultipartImageModel(model);
+    const headers: Record<string, string> = {
+      authorization: `Bearer ${apiKey}`,
+      "user-agent": "RevoraGrowthSystems/1.0 (+https://revoragrowthsystems.com)",
+      accept: "application/json, image/*",
+    };
+    if (!multipart) headers["content-type"] = "application/json";
     const response = await fetch(
       `https://api.cloudflare.com/client/v4/accounts/${id}/ai/run/${model}`,
       {
         method: "POST",
-        headers: {
-          "content-type": "application/json",
-          authorization: `Bearer ${apiKey}`,
-          "user-agent": "RevoraGrowthSystems/1.0 (+https://revoragrowthsystems.com)",
-          accept: "application/json, image/*",
-        },
-        body: JSON.stringify(buildCloudflareImageBody(prompt, source, model)),
+        headers,
+        body: multipart ? buildFlux2Form(prompt) : JSON.stringify(buildCloudflareImageBody(prompt, source, model)),
         signal,
       },
     );

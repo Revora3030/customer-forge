@@ -5,10 +5,31 @@ import { safeText } from "@/lib/builder/presentation";
 type Site = NonNullable<PublicSite>;
 type Section = NonNullable<Site["content"]>["sections"][number];
 
+/**
+ * The page surface colour as #RRGGBB. A short #RGB value used to reach the
+ * layout renderer unexpanded, where it was ignored, so the readability guard had
+ * no surface to measure and white headings stayed white on pale surfaces.
+ */
 export function siteSurface(site: Site): string | null {
   const profile = (site.profile ?? null) as { secondary_color?: string | null } | null;
-  const surface = profile?.secondary_color;
-  return typeof surface === "string" && surface.trim() ? surface.trim() : null;
+  return normalizeHex(profile?.secondary_color);
+}
+
+function normalizeHex(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const raw = value.trim();
+  if (/^#[0-9a-f]{3}$/i.test(raw)) return `#${raw[1]}${raw[1]}${raw[2]}${raw[2]}${raw[3]}${raw[3]}`;
+  return /^#[0-9a-f]{6}$/i.test(raw) ? raw : raw || null;
+}
+
+/**
+ * The colour a section's text is actually drawn over: the section's own
+ * background when the design gave it one, otherwise the page surface.
+ * Measuring against the page surface while the section painted its own pale
+ * grey panel is how white headings ended up invisible on light grey.
+ */
+export function sectionSurface(site: Site, sectionBg: string | null | undefined): string | null {
+  return normalizeHex(sectionBg) && /^#[0-9a-f]{6}$/i.test(normalizeHex(sectionBg)!) ? normalizeHex(sectionBg) : siteSurface(site);
 }
 
 /** True when a stored AI layout for this section already draws a level-1 heading. */
