@@ -41,6 +41,7 @@ const requiredScripts = [
   "browser:journey:test",
   "security:audit",
   "security:audit:test",
+  "supabase:drift",
   "production:readiness:max",
 ];
 const missingScripts = requiredScripts.filter((name) => !pkg.scripts?.[name]);
