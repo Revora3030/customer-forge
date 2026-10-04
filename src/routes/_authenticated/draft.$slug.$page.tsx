@@ -4,8 +4,9 @@
  * including pages and sections that are switched off — to signed-in members of
  * that business only.
  */
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { getOwnerDraftSite } from "@/lib/public-site.functions";
+import { RenderErrorBoundary } from "@/components/app/RenderErrorBoundary";
 import { SitePageView } from "@/routes/s.$slug.$page";
 import { DraftMessage } from "@/routes/_authenticated/draft.$slug";
 
@@ -36,14 +37,58 @@ export const Route = createFileRoute("/_authenticated/draft/$slug/$page")({
 });
 
 function DraftPageRoute() {
-  const site = Route.useLoaderData();
-  if (!site?.content || site.content.sections.length === 0) {
+  const router = useRouter();
+  const result = Route.useLoaderData();
+  const sections = result?.site?.content?.sections ?? [];
+
+  if (result?.status === "pending") {
     return (
       <DraftMessage
-        title="This page is empty so far"
-        body="Add a section to it and the preview will fill in."
+        title="This page is still being built"
+        body={
+          result.job?.currentStep
+            ? `Revora is ${result.job.currentStep}. The preview will refresh automatically.`
+            : "Revora is finishing this page. The preview will refresh automatically."
+        }
+        progress={result.job?.progress ?? null}
+        action={
+          <Link
+            to="/app/website"
+            className="inline-flex h-10 items-center justify-center rounded-md bg-primary px-4 text-sm font-semibold text-primary-foreground"
+          >
+            Open builder
+          </Link>
+        }
+        onRetry={() => void router.invalidate()}
       />
     );
   }
-  return <SitePageView site={site} preview />;
+
+  if (result?.status === "ready" && result.site && sections.length > 0) {
+    return (
+      <RenderErrorBoundary
+        title="This draft page couldn't render"
+        body="The page data is safe. Reload the preview or return to the builder."
+        backHref="/app/website"
+      >
+        <SitePageView site={result.site} preview />
+      </RenderErrorBoundary>
+    );
+  }
+
+  return (
+    <DraftMessage
+      title="This page is empty so far"
+      body="Revora has your workspace data, but this page has no generated sections yet."
+      action={
+        <Link
+          to="/app/website"
+          className="inline-flex h-10 items-center justify-center rounded-md bg-primary px-4 text-sm font-semibold text-primary-foreground"
+        >
+          Open builder
+        </Link>
+      }
+      onRetry={() => void router.invalidate()}
+    />
+  );
 }
