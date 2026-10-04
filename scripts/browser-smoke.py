@@ -6,7 +6,8 @@ Reproducible browser evidence for the release gate. No external credentials are
 required: every check either runs against the local app or is recorded as
 NOT_VERIFIED. Nothing is ever reported as passing without a real page load.
 
-Checks per route, at desktop (1280x900) and mobile (390x844):
+Checks per route, at every acceptance viewport
+(320, 375, 390, 414, 768, 1024, 1280, 1920):
   - HTTP status of the document
   - page title / first heading present
   - console errors
@@ -33,10 +34,20 @@ import sys
 from playwright.async_api import async_playwright
 
 BASE_URL = os.environ.get("BROWSER_QA_BASE_URL", "http://127.0.0.1:8080").rstrip("/")
-ROUTES = [r.strip() for r in os.environ.get("BROWSER_QA_ROUTES", "/,/auth,/pricing").split(",") if r.strip()][:12]
+ROUTES = [r.strip() for r in os.environ.get("BROWSER_QA_ROUTES", "/,/auth,/pricing").split(",") if r.strip()][:24]
 PUBLISHED_PATH = os.environ.get("REVORA_SMOKE_PUBLISHED_PATH", "").strip()
 ARTIFACTS = pathlib.Path("browser-qa-artifacts")
-VIEWPORTS = [("desktop", 1280, 900), ("mobile", 390, 844)]
+# Acceptance matrix: every width below 768 is a mobile layout.
+VIEWPORTS = [
+    ("w320", 320, 740),
+    ("w375", 375, 812),
+    ("w390", 390, 844),
+    ("w414", 414, 896),
+    ("w768", 768, 1024),
+    ("w1024", 1024, 768),
+    ("w1280", 1280, 900),
+    ("w1920", 1920, 1080),
+]
 # Noise that is not an application fault.
 IGNORED_CONSOLE = ("favicon", "sourcemap", "Download the React DevTools")
 
@@ -55,6 +66,7 @@ async def check_route(browser, route: str, label: str, width: int, height: int) 
         else None,
     )
     page.on("pageerror", lambda err: console_errors.append(str(err)[:300]))
+
     def on_request_failed(req) -> None:
         # A navigation cancels in-flight requests; an aborted request is not an
         # application fault, so only real transport/server failures are recorded.
@@ -65,8 +77,7 @@ async def check_route(browser, route: str, label: str, width: int, height: int) 
 
     page.on("requestfailed", on_request_failed)
 
-
-    result: dict = {"route": route, "url": url, "viewport": label}
+    result: dict = {"route": route, "url": url, "viewport": label, "width": width}
     try:
         response = await page.goto(url, wait_until="domcontentloaded", timeout=45000)
         result["status"] = response.status if response else None
@@ -140,13 +151,20 @@ async def main() -> int:
         "status": "FAILED" if failed else ("PASSED" if checks else "NOT_VERIFIED"),
         "baseUrl": BASE_URL,
         "routes": ROUTES,
+        "viewports": [v[1] for v in VIEWPORTS],
         "performed": len(checks),
         "failed": len(failed),
+        "failedSummary": [
+            {"route": c["route"], "width": c.get("width"), "overflowPx": c.get("horizontalOverflowPx"),
+             "status": c.get("status"), "error": c.get("error"),
+             "consoleErrors": c.get("consoleErrors", [])[:3], "failedRequests": c.get("failedRequests", [])[:3]}
+            for c in failed
+        ],
         "notVerified": not_verified,
         "checks": checks,
     }
     (ARTIFACTS / "report.json").write_text(json.dumps(report, indent=2))
-    print(json.dumps({k: report[k] for k in ("status", "performed", "failed", "notVerified")}, indent=2))
+    print(json.dumps({k: report[k] for k in ("status", "performed", "failed", "failedSummary", "notVerified")}, indent=2))
     return 1 if failed else 0
 
 
