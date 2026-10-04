@@ -126,7 +126,7 @@ export function PublicSiteView({
   site: NonNullable<PublicSite>;
   preview?: boolean;
 }) {
-  if (site.content && site.content.sections.length > 0) {
+  if ((site?.content?.sections ?? []).length > 0) {
     return <SitePageView site={site} preview={preview} />;
   }
   return (

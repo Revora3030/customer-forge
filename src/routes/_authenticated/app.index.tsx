@@ -34,6 +34,8 @@ import {
 } from "@/lib/queries";
 import { currency, dateShort, relative, timeShort } from "@/lib/format";
 import { leadStatusMeta } from "@/lib/domain";
+import { RouteError } from "@/components/app/RouteStates";
+import { WorkspaceSkeleton } from "@/components/app/WorkspaceSkeleton";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authenticated/app/")({
@@ -48,6 +50,7 @@ export const Route = createFileRoute("/_authenticated/app/")({
     ],
   }),
   component: Dashboard,
+  errorComponent: RouteError,
 });
 
 const DAY = 86_400_000;
@@ -133,7 +136,7 @@ function localDay(date: Date): string {
 }
 
 function Dashboard() {
-  const { data: ws } = useWorkspace();
+  const { data: ws, isLoading: workspaceLoading } = useWorkspace();
   const { data: production } = useProductionStatus(ws?.workspace?.organizationId);
   const orgId = ws?.workspace?.organizationId;
   const org = ws?.workspace?.organization;
@@ -300,7 +303,15 @@ function Dashboard() {
   );
   const remaining = checklist.filter((c) => !c.done);
 
-  if (leadsQuery.isLoading || !orgId) return <LoadingRows rows={5} />;
+  if (workspaceLoading || !orgId || !org) {
+    return (
+      <WorkspaceSkeleton
+        title="Preparing your dashboard"
+        body="Your dashboard waits for a confirmed workspace before loading tenant data."
+      />
+    );
+  }
+  if (leadsQuery.isLoading) return <LoadingRows rows={5} />;
 
   return (
     <div className="product-page">

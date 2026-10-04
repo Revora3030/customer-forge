@@ -8,6 +8,7 @@ import {
   parseWorkspaceId,
 } from "@/lib/stripe-input";
 import { DEFAULT_OFFER_RATES, GROWTH_SYSTEM } from "@/lib/offer";
+import { isPlatformOwnerAccount, PLATFORM_OWNER_ORG_ID } from "@/lib/platform-owner";
 
 export type GrowthSystemIntake = {
   fullName: string;
@@ -88,6 +89,15 @@ export const createGrowthSystemCheckout = createServerFn({ method: "POST" })
       return { error: "Only workspace owners and admins can start billing." };
     }
 
+    let ownerEmail =
+      typeof (context.claims as { email?: unknown })?.email === "string"
+        ? (context.claims as { email: string }).email
+        : "";
+    if (!ownerEmail && data.organizationId === PLATFORM_OWNER_ORG_ID) {
+      ownerEmail = (await context.supabase.auth.getUser()).data.user?.email ?? "";
+    }
+    const ownerSetupWaived = isPlatformOwnerAccount(data.organizationId, ownerEmail);
+
     // Duplicate-subscription guard: an existing live subscription must be
     // changed through the billing portal, never a second checkout.
     const { data: existing } = await context.supabase
@@ -141,22 +151,24 @@ export const createGrowthSystemCheckout = createServerFn({ method: "POST" })
 
     try {
       const stripe = createStripeClient(data.environment);
-      const { STRIPE_CATALOG, verifyGrowthCatalog } = await import("@/lib/stripe-catalog");
+      const { STRIPE_CATALOG, verifyGrowthCatalog, verifyGrowthMonthlyCatalog } = await import("@/lib/stripe-catalog");
       const catalog = STRIPE_CATALOG[data.environment];
 
-      // Bind the EXACT pinned Price IDs — lookup keys alone are transferable
-      // between products, so they are verified but never trusted on their own.
-      const [setup, monthly] = await Promise.all([
-        stripe.prices.retrieve(catalog.setup.stripePriceId).catch(() => null),
-        stripe.prices.retrieve(catalog.monthly.stripePriceId).catch(() => null),
-      ]);
-      if (!monthly || !setup) {
+      // Bind the EXACT pinned Price IDs. The owner waiver path does not even
+      // require a setup Price to exist, because that line is never added to checkout.
+      const monthly = await stripe.prices.retrieve(catalog.monthly.stripePriceId).catch(() => null);
+      const setup = ownerSetupWaived
+        ? null
+        : await stripe.prices.retrieve(catalog.setup.stripePriceId).catch(() => null);
+      if (!monthly || (!ownerSetupWaived && !setup)) {
         return { error: "Revora Growth System pricing is not set up in the payment provider yet." };
       }
-      const [setupProduct, monthlyProduct] = await Promise.all([
-        stripe.products.retrieve(catalog.setup.stripeProductId).catch(() => null),
-        stripe.products.retrieve(catalog.monthly.stripeProductId).catch(() => null),
-      ]);
+      const monthlyProduct = await stripe.products
+        .retrieve(catalog.monthly.stripeProductId)
+        .catch(() => null);
+      const setupProduct = ownerSetupWaived
+        ? null
+        : await stripe.products.retrieve(catalog.setup.stripeProductId).catch(() => null);
 
       // ONE canonical source of truth: the immutable code-level offer. Neither
       // the browser nor a database row may influence what is charged.
@@ -164,14 +176,21 @@ export const createGrowthSystemCheckout = createServerFn({ method: "POST" })
 
       // Never open a session against a product/price that disagrees with the
       // published offer — a mis-set price would charge the wrong amount.
-      const verified = verifyGrowthCatalog({
-        environment: data.environment,
-        setupPrice: setup,
-        monthlyPrice: monthly,
-        setupProduct,
-        monthlyProduct,
-        rates,
-      });
+      const verified = ownerSetupWaived
+        ? verifyGrowthMonthlyCatalog({
+            environment: data.environment,
+            monthlyPrice: monthly,
+            monthlyProduct,
+            rates,
+          })
+        : verifyGrowthCatalog({
+            environment: data.environment,
+            setupPrice: setup,
+            monthlyPrice: monthly,
+            setupProduct,
+            monthlyProduct,
+            rates,
+          });
       if (!verified.ok) {
         console.error("[payments:checkout] catalog verification failed", verified.reason);
         return { error: `${verified.reason} Checkout is paused until this is corrected.` };
@@ -203,15 +222,17 @@ export const createGrowthSystemCheckout = createServerFn({ method: "POST" })
         organizationId: data.organizationId,
         planId: GROWTH_PLAN_ID,
         userId: context.userId,
-        setupAmount: String(rates.setupPrice),
+        setupAmount: String(ownerSetupWaived ? 0 : rates.setupPrice),
         monthlyAmount: String(rates.monthlyPrice),
+        setupWaived: String(ownerSetupWaived),
       };
       const base = {
-        // One-time setup line is billed on the FIRST invoice only; the
-        // recurring price stays $100/month.
+        // Customer setup is billed on the FIRST invoice only; the fixed
+        // internal owner path intentionally omits the setup line.
+        // The recurring price always stays $100/month.
         line_items: [
           { price: catalog.monthly.stripePriceId, quantity: 1 },
-          { price: catalog.setup.stripePriceId, quantity: 1 },
+          ...(ownerSetupWaived ? [] : [{ price: catalog.setup.stripePriceId, quantity: 1 }]),
         ],
         mode: "subscription" as const,
         ui_mode: "embedded_page" as const,

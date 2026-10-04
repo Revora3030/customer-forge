@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { DEFAULT_OFFER_RATES } from "@/lib/offer";
 import { type StripeEnv, verifyWebhook } from "@/lib/stripe.server";
+import { isPlatformOwnerAccount, PLATFORM_OWNER_ORG_ID } from "@/lib/platform-owner";
 
 /** Minimal Stripe webhook event envelope — narrowed per-handler. */
 type StripeWebhookEvent = {
@@ -206,11 +207,27 @@ async function handleEvent(event: StripeWebhookEvent, env: StripeEnv) {
           break;
         }
         const lines = session.line_items?.data ?? [];
+        const setupWaived = session.metadata?.["setupWaived"] === "true";
+        if (setupWaived) {
+          const userId = session.metadata?.["userId"] ?? null;
+          const authUser = userId ? await admin.auth.admin.getUserById(userId) : { data: { user: null } };
+          const ownerEmail = authUser.data.user?.email ?? null;
+          if (!isPlatformOwnerAccount(organizationId, ownerEmail)) {
+            console.error("[payments:webhook] invalid setup-fee waiver", session.id);
+            break;
+          }
+        }
         const priceIds = lines.map((l) => l.price?.id).filter(Boolean) as string[];
-        const expectedIds = [catalog.setup.stripePriceId, catalog.monthly.stripePriceId];
+        const expectedIds = setupWaived
+          ? [catalog.monthly.stripePriceId]
+          : [catalog.setup.stripePriceId, catalog.monthly.stripePriceId];
         const unexpected = priceIds.filter((id) => !expectedIds.includes(id));
         if (unexpected.length || !expectedIds.every((id) => priceIds.includes(id))) {
           console.error("[payments:webhook] unexpected prices on growth session", session.id);
+          break;
+        }
+        if (setupWaived && organizationId !== PLATFORM_OWNER_ORG_ID) {
+          console.error("[payments:webhook] setup waiver on non-owner workspace", session.id);
           break;
         }
         const currency = String(session.currency ?? "usd").toLowerCase();
@@ -222,7 +239,10 @@ async function handleEvent(event: StripeWebhookEvent, env: StripeEnv) {
         const monthlyLine = lines.find((l) => l.price?.id === catalog.monthly.stripePriceId);
         const setupCents = Math.round(DEFAULT_OFFER_RATES.setupPrice * 100);
         const monthlyCents = Math.round(DEFAULT_OFFER_RATES.monthlyPrice * 100);
-        if (setupLine?.price?.unit_amount !== setupCents) {
+        if (
+          !setupWaived &&
+          setupLine?.price?.unit_amount !== setupCents
+        ) {
           console.error("[payments:webhook] setup amount mismatch", session.id);
           break;
         }
@@ -244,33 +264,35 @@ async function handleEvent(event: StripeWebhookEvent, env: StripeEnv) {
           console.error("[payments:webhook] growth session org mismatch", session.id);
           break;
         }
-        // Only verified LIVE money unlocks production access. A sandbox setup
-        // session is bookkept as a sandbox payment row and nothing more.
-        if (env === "live") {
-          const { error: orgError } = await admin
-            .from("organizations")
-            .update({
-              setup_paid_at: new Date().toISOString(),
-              setup_checkout_session_id: String(session.id),
-              plan_id: GROWTH_PLAN_ID,
-            })
-            .eq("id", organizationId);
-          if (orgError)
-            throw new Error(`setup_activation_failed:${orgError.code ?? orgError.message}`);
+        // Only a verified paid setup unlocks production for customer workspaces.
+        // The fixed internal owner workspace is the single, verified waiver path.
+        if (!setupWaived) {
+          if (env === "live") {
+            const { error: orgError } = await admin
+              .from("organizations")
+              .update({
+                setup_paid_at: new Date().toISOString(),
+                setup_checkout_session_id: String(session.id),
+                plan_id: GROWTH_PLAN_ID,
+              })
+              .eq("id", organizationId);
+            if (orgError)
+              throw new Error(`setup_activation_failed:${orgError.code ?? orgError.message}`);
+          }
+          await recordStripeTransaction(admin, {
+            organizationId,
+            stripeId: `setup:${String(session.id)}`,
+            // Independently verified above: the setup line's own amount.
+            amount: setupCents / 100,
+            currency,
+            description: "Revora Growth System setup fee",
+            status: "completed",
+            planId: GROWTH_PLAN_ID,
+            interval: "monthly",
+            customerEmail: (object?.customer_details?.email as string | undefined) ?? null,
+            environment: env,
+          });
         }
-        await recordStripeTransaction(admin, {
-          organizationId,
-          stripeId: `setup:${String(session.id)}`,
-          // Independently verified above: the setup line's own amount.
-          amount: setupCents / 100,
-          currency,
-          description: "Revora Growth System setup fee",
-          status: "completed",
-          planId: GROWTH_PLAN_ID,
-          interval: "monthly",
-          customerEmail: (object?.customer_details?.email as string | undefined) ?? null,
-          environment: env,
-        });
         break;
       }
 

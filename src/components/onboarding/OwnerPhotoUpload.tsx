@@ -2,8 +2,13 @@ import { useEffect, useRef, useState } from "react";
 import { ImagePlus, Loader2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/lib/ui/notify";
-import { ACCEPTED_IMAGE_TYPES, MAX_UPLOAD_BYTES, compressImage } from "@/lib/media";
-import type { PendingPhoto } from "@/components/onboarding/owner-photos";
+import { compressImage } from "@/lib/media";
+import {
+  ONBOARDING_LOGO_TYPES,
+  ONBOARDING_MAX_UPLOAD_BYTES,
+  ONBOARDING_PHOTO_TYPES,
+  type PendingPhoto,
+} from "@/components/onboarding/owner-photos";
 
 const CATEGORY_LABEL: Record<PendingPhoto["category"], string> = {
   hero: "Main photo",
@@ -13,16 +18,26 @@ const CATEGORY_LABEL: Record<PendingPhoto["category"], string> = {
 };
 
 async function prepare(file: File): Promise<File | null> {
-  if (!ACCEPTED_IMAGE_TYPES.includes(file.type)) {
-    toast.error(`${file.name}: only JPG, PNG, WebP or AVIF.`);
+  if (!ONBOARDING_PHOTO_TYPES.includes(file.type as (typeof ONBOARDING_PHOTO_TYPES)[number])) {
+    toast.error(`${file.name}: only JPG, PNG, or WebP photos are supported.`);
     return null;
   }
-  const compressed = await compressImage(file);
-  if (compressed.size > MAX_UPLOAD_BYTES) {
-    toast.error(`${file.name} is too large (max 10 MB).`);
+  if (file.size > ONBOARDING_MAX_UPLOAD_BYTES) {
+    toast.error(`${file.name} is too large (max 5 MB).`);
     return null;
   }
-  return compressed;
+  try {
+    const compressed = await compressImage(file);
+    if (compressed.size > ONBOARDING_MAX_UPLOAD_BYTES) {
+      toast.error(`${file.name} is too large after compression (max 5 MB).`);
+      return null;
+    }
+    return compressed;
+  } catch (error) {
+    console.error("[onboarding] image preparation failed", error);
+    toast.error(`${file.name} could not be prepared. Please choose another image.`);
+    return null;
+  }
 }
 
 /**
@@ -54,17 +69,23 @@ export function OwnerPhotoUpload(props: {
     if (!files?.length) return;
     setBusy(true);
     const next = [...photos];
-    for (const file of Array.from(files).slice(0, Math.max(0, 20 - photos.length))) {
-      const ready = await prepare(file);
-      if (!ready) continue;
-      next.push({
-        id: crypto.randomUUID(),
-        file: ready,
-        preview: URL.createObjectURL(ready),
-        category: next.length === 0 && !props.savedCount ? "hero" : "work",
-      });
+    try {
+      for (const file of Array.from(files).slice(0, Math.max(0, 20 - photos.length))) {
+        const ready = await prepare(file);
+        if (!ready) continue;
+        next.push({
+          id: crypto.randomUUID(),
+          file: ready,
+          preview: URL.createObjectURL(ready),
+          category: next.length === 0 && !props.savedCount ? "hero" : "work",
+        });
+      }
+    } catch (error) {
+      console.error("[onboarding] photo picker failed", error);
+      toast.error("One or more photos could not be prepared. Please try again.");
+    } finally {
+      setBusy(false);
     }
-    setBusy(false);
     onPhotosChange(next);
   }
 
@@ -73,6 +94,14 @@ export function OwnerPhotoUpload(props: {
     if (!file) return;
     const ready = file.type === "image/svg+xml" ? file : await prepare(file);
     if (!ready) return;
+    if (!ONBOARDING_LOGO_TYPES.includes(ready.type as (typeof ONBOARDING_LOGO_TYPES)[number])) {
+      toast.error("Your logo must be JPG, PNG, WebP, or SVG.");
+      return;
+    }
+    if (ready.size > ONBOARDING_MAX_UPLOAD_BYTES) {
+      toast.error(`${file.name} is too large (max 5 MB).`);
+      return;
+    }
     if (logo) URL.revokeObjectURL(logo.preview);
     onLogoChange({
       id: crypto.randomUUID(),
@@ -89,7 +118,7 @@ export function OwnerPhotoUpload(props: {
         <input
           ref={logoInput}
           type="file"
-          accept={[...ACCEPTED_IMAGE_TYPES, "image/svg+xml"].join(",")}
+          accept={ONBOARDING_LOGO_TYPES.join(",")}
           className="hidden"
           onChange={(e) => {
             void pickLogo(e.target.files);
@@ -131,7 +160,7 @@ export function OwnerPhotoUpload(props: {
         <input
           ref={input}
           type="file"
-          accept={ACCEPTED_IMAGE_TYPES.join(",")}
+          accept={ONBOARDING_PHOTO_TYPES.join(",")}
           multiple
           className="hidden"
           onChange={(e) => {

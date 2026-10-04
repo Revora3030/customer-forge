@@ -202,7 +202,8 @@ function RootComponent() {
     try {
       const { data } = supabase.auth.onAuthStateChange((event) => {
         if (event !== "SIGNED_IN" && event !== "SIGNED_OUT" && event !== "USER_UPDATED") return;
-        if (event !== "SIGNED_OUT") void ensureProfile();
+        if (event !== "SIGNED_OUT")
+          void ensureProfile().catch((error) => reportRouteError(error, { boundary: "profile_bootstrap" }));
         router.invalidate();
         if (event !== "SIGNED_OUT") {
           queryClient.invalidateQueries();

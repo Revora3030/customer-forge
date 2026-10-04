@@ -23,6 +23,7 @@ import { useStepScroll } from "@/lib/use-step-scroll";
 import { useServerFn } from "@tanstack/react-start";
 import { analyzeSiteBrief, runSiteGeneration, saveSiteBrief } from "@/lib/site-engine.functions";
 import { clearStarter, readStarter } from "@/components/marketing/hero-starter-utils";
+import { RouteError } from "@/components/app/RouteStates";
 
 import {
   WEBSITE_GOALS,
@@ -44,6 +45,7 @@ export const Route = createFileRoute("/_authenticated/onboarding")({
     ],
   }),
   component: Onboarding,
+  errorComponent: RouteError,
 });
 
 type ServiceDraft = { name: string; description: string; price: string };
@@ -158,6 +160,7 @@ function Onboarding() {
   useEffect(() => {
     let cancelled = false;
     (async () => {
+      try {
       const { data: auth } = await supabase.auth.getUser();
       const user = auth.user;
       if (!user) {
@@ -287,6 +290,12 @@ function Onboarding() {
         };
       });
       setRestored(true);
+      } catch (error) {
+        console.error("[onboarding] restore failed", error);
+        if (!cancelled) toast.error("We could not restore your saved onboarding progress. You can continue from here.");
+      } finally {
+        if (!cancelled) setRestored(true);
+      }
     })();
     return () => {
       cancelled = true;
@@ -295,14 +304,21 @@ function Onboarding() {
 
   useEffect(() => {
     if (!restored || ws?.workspace?.organization.onboarding_completed) return;
-    const timer = setTimeout(async () => {
-      const { data: auth } = await supabase.auth.getUser();
-      const user = auth.user;
-      if (!user) return;
-      const { error: saveError } = await supabase
-        .from("onboarding_drafts")
-        .upsert({ user_id: user.id, step, data: draft as never }, { onConflict: "user_id" });
-      if (!saveError) setSavedAt(new Date().toISOString());
+    const timer = setTimeout(() => {
+      void (async () => {
+        try {
+          const { data: auth } = await supabase.auth.getUser();
+          const user = auth.user;
+          if (!user) return;
+          const { error: saveError } = await supabase
+            .from("onboarding_drafts")
+            .upsert({ user_id: user.id, step, data: draft as never }, { onConflict: "user_id" });
+          if (saveError) throw saveError;
+          setSavedAt(new Date().toISOString());
+        } catch (error) {
+          console.warn("[onboarding] autosave deferred", supabaseErrorMessage(error));
+        }
+      })();
     }, 800);
     return () => clearTimeout(timer);
   }, [draft, step, restored, ws?.workspace?.organization.onboarding_completed]);
@@ -370,8 +386,8 @@ function Onboarding() {
         org = updated;
       } else {
         let inserted: { id: string; slug: string } | null = null;
-        for (let attempt = 0; attempt < 6 && !inserted; attempt++) {
-          if (attempt > 0) slug = `${slugBase}-${Math.floor(Math.random() * 9000 + 1000)}`;
+        for (let attempt = 0; attempt < 20; attempt++) {
+          slug = attempt === 0 ? slugBase : `${slugBase}-${attempt + 1}`;
           const { data, error: orgError } = await supabase
             .from("organizations")
             .insert({
@@ -407,11 +423,16 @@ function Onboarding() {
       // can place them. A failed upload never blocks the site being built.
       let logoPath: string | null = null;
       if (logoFile || photos.length) setFinishStage("Saving your photos…");
-      if (logoFile) logoPath = await saveOwnerLogo(org.id, logoFile.file);
-      if (photos.length) {
-        const saved = await saveOwnerPhotos(org.id, photos);
-        if (saved) setSavedPhotoCount((n) => n + saved);
-        setPhotos([]);
+      try {
+        if (logoFile) logoPath = await saveOwnerLogo(org.id, logoFile.file);
+        if (photos.length) {
+          const saved = await saveOwnerPhotos(org.id, photos);
+          if (saved) setSavedPhotoCount((n) => n + saved);
+          setPhotos([]);
+        }
+      } catch (uploadError) {
+        console.error("[onboarding] media save failed", uploadError);
+        toast.error("Your site details were saved, but a photo or logo could not be uploaded. You can add it later in the builder.");
       }
       setFinishStage("Saving your business details…");
 

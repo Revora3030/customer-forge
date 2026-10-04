@@ -72,6 +72,47 @@ export type ProductShape =
 
 export type CatalogVerification = { ok: true } | { ok: false; reason: string };
 
+/** Verifies only the recurring Growth System price for the platform-owner waiver path. */
+export function verifyGrowthMonthlyCatalog(input: {
+  environment: StripeEnvName;
+  monthlyPrice: PriceShape;
+  monthlyProduct?: ProductShape;
+  rates?: OfferRates;
+}): CatalogVerification {
+  const expected = STRIPE_CATALOG[input.environment]?.monthly;
+  if (!expected) return { ok: false, reason: "Unknown payment environment." };
+
+  const price = input.monthlyPrice;
+  const expectedDollars = input.rates?.monthlyPrice ?? DEFAULT_OFFER_RATES.monthlyPrice;
+  if (!price?.id) return { ok: false, reason: "The monthly subscription price is not set up in the payment provider yet." };
+  if (price.active === false) return { ok: false, reason: "The monthly subscription price is archived in the payment provider." };
+  if ((price.currency ?? "usd").toLowerCase() !== "usd")
+    return { ok: false, reason: "The monthly subscription price is not in US dollars." };
+  if (price.unit_amount !== Math.round(expectedDollars * 100))
+    return { ok: false, reason: "The monthly subscription price does not match the Revora offer." };
+  if (price.type !== "recurring" || price.recurring?.interval !== "month" || (price.recurring?.interval_count ?? 1) !== 1)
+    return { ok: false, reason: "The monthly subscription price is not a monthly recurring price." };
+  if (price.id !== expected.stripePriceId)
+    return { ok: false, reason: "The monthly subscription price does not match the Revora price on file." };
+  if ((price.lookup_key ?? "").trim() !== expected.priceLookupKey)
+    return { ok: false, reason: "The monthly subscription price has the wrong lookup key." };
+  const linkedProduct = productIdOf(price);
+  if (linkedProduct && linkedProduct !== expected.stripeProductId)
+    return { ok: false, reason: "The monthly subscription price belongs to a different product." };
+  if (input.monthlyProduct !== undefined) {
+    if (input.monthlyProduct?.id !== expected.stripeProductId)
+      return { ok: false, reason: "The monthly subscription product does not match the Revora product on file." };
+    if (input.monthlyProduct?.active === false)
+      return { ok: false, reason: "The monthly subscription product is archived in the payment provider." };
+    const taxCode =
+      typeof input.monthlyProduct?.tax_code === "string"
+        ? input.monthlyProduct.tax_code
+        : ((input.monthlyProduct?.tax_code as { id?: unknown } | null)?.id ?? null);
+    if (typeof taxCode === "string" && taxCode !== expected.taxCode)
+      return { ok: false, reason: "The monthly subscription product has the wrong tax category." };
+  }
+  return { ok: true };
+}
 const productIdOf = (price: PriceShape): string | null => {
   const raw = (price as { product?: unknown } | null)?.product;
   if (typeof raw === "string") return raw;

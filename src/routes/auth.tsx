@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ErrorNote, Pill } from "@/components/app/Bits";
+import { RouteError } from "@/components/app/RouteStates";
 import { GROWTH_SYSTEM, usd } from "@/lib/offer";
 import {
   ensureProfile,
@@ -53,6 +54,7 @@ export const Route = createFileRoute("/auth")({
     ],
   }),
   component: AuthPage,
+  errorComponent: RouteError,
 });
 
 function AuthPage() {
@@ -63,7 +65,11 @@ function AuthPage() {
   const [magicSent, setMagicSent] = useState(false);
   const [forgotMode, setForgotMode] = useState(false);
   const [resetSent, setResetSent] = useState(false);
-  const [remember, setRemember] = useState(rememberPreference());
+  const [remember, setRemember] = useState(true);
+
+  useEffect(() => {
+    setRemember(rememberPreference());
+  }, []);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
