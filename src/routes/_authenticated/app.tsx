@@ -40,12 +40,15 @@ import { useBillingState } from "@/lib/stripe.hooks";
 import { trialEndsAtMs } from "@/lib/trial";
 import { useTrialCountdown } from "@/lib/trial-clock";
 import { useQueryClient } from "@tanstack/react-query";
+import { RouteError } from "@/components/app/RouteStates";
+import { WorkspaceSkeleton } from "@/components/app/WorkspaceSkeleton";
 
 export const Route = createFileRoute("/_authenticated/app")({
   head: () => ({
     meta: [{ title: "Workspace — Revora" }, { name: "robots", content: "noindex, nofollow" }],
   }),
   component: AppShell,
+  errorComponent: RouteError,
 });
 
 const PRIMARY_NAV = [
@@ -219,6 +222,15 @@ function AppShell() {
   useEffect(() => {
     setNavOpen(false);
   }, [pathname]);
+
+  if (isLoading || !data?.workspace?.organization) {
+    return (
+      <WorkspaceSkeleton
+        title="Preparing your workspace"
+        body="We’re making sure your account, business profile and secure workspace are ready before the dashboard renders."
+      />
+    );
+  }
 
   useEffect(() => {
     if (!navOpen) return;
