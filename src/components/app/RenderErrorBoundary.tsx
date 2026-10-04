@@ -11,13 +11,13 @@ type Props = {
 type State = { failed: boolean };
 
 export class RenderErrorBoundary extends Component<Props, State> {
-  state: State = { failed: false };
+  override state: State = { failed: false };
 
   static getDerivedStateFromError(): State {
     return { failed: true };
   }
 
-  componentDidCatch(error: unknown, info: ErrorInfo) {
+  override componentDidCatch(error: unknown, info: ErrorInfo) {
     console.error("[render-boundary]", error);
     reportRouteError(error, {
       boundary: "render_error_boundary",
@@ -26,7 +26,7 @@ export class RenderErrorBoundary extends Component<Props, State> {
     });
   }
 
-  render() {
+  override render() {
     if (!this.state.failed) return this.props.children;
 
     const title = this.props.title ?? "This view couldn't load";
