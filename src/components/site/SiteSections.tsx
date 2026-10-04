@@ -22,7 +22,7 @@ import { safeLinkUrl, sectionLabel } from "@/lib/website-content";
 import { readEmbed } from "@/lib/site-embed";
 import { businessFacts, factsAddressLine } from "@/lib/builder/facts";
 import { safeParagraph, safeText } from "@/lib/builder/presentation";
-import { siteSurface } from "@/components/site/site-sections-utils";
+import { sectionSurface, siteSurface } from "@/components/site/site-sections-utils";
 
 type Site = NonNullable<PublicSite>;
 type Section = NonNullable<Site["content"]>["sections"][number];
@@ -122,7 +122,7 @@ function SiteSectionBody({ site, section, lead = false, first = false }: { site:
         <CompositionRenderer
           tree={tree}
           scope={`s-${section.id}`}
-          surface={siteSurface(site)}
+          surface={sectionSurface(site, readBlockStyle(section.settings).bgColor)}
           eagerFirstMedia={first}
           resolveMedia={(ref) => media.get(ref) ?? null}
           resolveHref={(href) => resolveSiteHref(href, org.slug, ownAddress)}
