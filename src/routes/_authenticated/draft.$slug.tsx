@@ -11,7 +11,7 @@ import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { getOwnerDraftSite } from "@/lib/public-site.functions";
 import { PublicSiteView } from "@/routes/s.$slug";
-import { RenderErrorBoundary } from "@/components/app/RenderErrorBoundary";
+import { ErrorBoundary } from "@/components/app/ErrorBoundary";
 
 export const Route = createFileRoute("/_authenticated/draft/$slug")({
   loader: async ({ params }) => getOwnerDraftSite({ data: { slug: params.slug } }),
@@ -84,13 +84,13 @@ export function DraftMessage({
 
 function DraftHomeRoute() {
   return (
-    <RenderErrorBoundary
+    <ErrorBoundary
       title="Your draft could not render"
       body="The draft data is safe. Reload the preview or return to the builder."
       backHref="/app/website"
     >
       <DraftHomeRouteContent />
-    </RenderErrorBoundary>
+    </ErrorBoundary>
   );
 }
 
