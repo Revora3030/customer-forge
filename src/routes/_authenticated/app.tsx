@@ -223,17 +223,9 @@ function AppShell() {
     setNavOpen(false);
   }, [pathname]);
 
-  if (isLoading || !data?.workspace?.organization) {
-    return (
-      <WorkspaceSkeleton
-        title="Preparing your workspace"
-        body="We’re making sure your account, business profile and secure workspace are ready before the dashboard renders."
-      />
-    );
-  }
-
   useEffect(() => {
     if (!navOpen) return;
+
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") setNavOpen(false);
     };
@@ -245,6 +237,15 @@ function AppShell() {
       document.body.style.overflow = prev;
     };
   }, [navOpen]);
+
+  if (isLoading || !data?.workspace?.organization) {
+    return (
+      <WorkspaceSkeleton
+        title="Preparing your workspace"
+        body="We’re making sure your account, business profile and secure workspace are ready before the dashboard renders."
+      />
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background/76 backdrop-blur-[2px] lg:flex">
