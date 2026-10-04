@@ -5,11 +5,12 @@
  * there. This route shows the work in progress instead, to signed-in members
  * of that business only.
  */
-import { createFileRoute, Link, Outlet, useChildMatches } from "@tanstack/react-router";
+import { createFileRoute, Link, Outlet, useChildMatches, useRouter } from "@tanstack/react-router";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { getOwnerDraftSite } from "@/lib/public-site.functions";
 import { PublicSiteView } from "@/routes/s.$slug";
+import { RenderErrorBoundary } from "@/components/app/RenderErrorBoundary";
 
 export const Route = createFileRoute("/_authenticated/draft/$slug")({
   loader: async ({ params }) => getOwnerDraftSite({ data: { slug: params.slug } }),
@@ -53,18 +54,57 @@ export function DraftMessage({ title, body }: { title: string; body: string }) {
 }
 
 function DraftHomeRoute() {
-  // `/draft/:slug/:page` nests under this route, so inner pages render instead
-  // of the home page.
   const children = useChildMatches();
-  const site = Route.useLoaderData();
+  const router = useRouter();
+  const result = Route.useLoaderData();
+
   if (children.length > 0) return <Outlet />;
-  if (!site) {
+
+  const retry = () => void router.invalidate();
+  const sections = result?.site?.content?.sections ?? [];
+
+  if (result?.status === "pending") {
     return (
       <DraftMessage
-        title="Nothing to preview yet"
-        body="Once your website has been built, it appears here."
+        title="Your website is still being built"
+        body={
+          result.job?.currentStep
+            ? `Revora is ${result.job.currentStep}. This preview will refresh automatically.`
+            : "Revora is finishing your website. This preview will refresh automatically."
+        }
+        progress={result.job?.progress ?? null}
+        action={
+          <Button asChild variant="signal">
+            <Link to="/app/website">Open builder</Link>
+          </Button>
+        }
+        onRetry={retry}
       />
     );
   }
-  return <PublicSiteView site={site} preview />;
+
+  if (result?.status === "ready" && result.site && sections.length > 0) {
+    return (
+      <RenderErrorBoundary
+        title="Your draft couldn't render"
+        body="The draft data is safe. Reload the preview or return to the builder."
+        backHref="/app/website"
+      >
+        <PublicSiteView site={result.site} preview />
+      </RenderErrorBoundary>
+    );
+  }
+
+  return (
+    <DraftMessage
+      title="Nothing to preview yet"
+      body="Your answers are saved. Start or reopen the website build in the builder."
+      action={
+        <Button asChild variant="signal">
+          <Link to="/app/website">Open builder</Link>
+        </Button>
+      }
+      onRetry={retry}
+    />
+  );
 }
