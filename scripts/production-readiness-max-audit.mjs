@@ -24,6 +24,7 @@ const required = [
   "scripts/website-rpc-security.contract.mjs",
   "supabase/migrations/20261005000000_harden_website_rpc_execute.sql",
   ".github/workflows/browser-qa.yml",
+  ".github/workflows/authenticated-browser-journey.yml",
   ".github/workflows/quality-gate.yml",
 ];
 
