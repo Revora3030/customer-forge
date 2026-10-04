@@ -148,7 +148,7 @@ export const createGrowthSystemCheckout = createServerFn({ method: "POST" })
 
     try {
       const stripe = createStripeClient(data.environment);
-      const { STRIPE_CATALOG, verifyGrowthCatalog } = await import("@/lib/stripe-catalog");
+      const { STRIPE_CATALOG, verifyGrowthCatalog, verifyGrowthMonthlyCatalog } = await import("@/lib/stripe-catalog");
       const catalog = STRIPE_CATALOG[data.environment];
 
       // Bind the EXACT pinned Price IDs. The owner waiver path does not even
