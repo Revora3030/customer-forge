@@ -3,6 +3,10 @@ import { toast } from "@/lib/ui/notify";
 import { MEDIA_BUCKET, buildObjectPath } from "@/lib/media";
 
 /** A photo picked during onboarding, before or after it reached storage. */
+export const ONBOARDING_MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
+export const ONBOARDING_PHOTO_TYPES = ["image/jpeg", "image/png", "image/webp"] as const;
+export const ONBOARDING_LOGO_TYPES = [...ONBOARDING_PHOTO_TYPES, "image/svg+xml"] as const;
+
 export type PendingPhoto = {
   id: string;
   file: File;
@@ -24,6 +28,14 @@ export async function saveOwnerPhotos(
   // One main photo at most: the first one the owner marked (or the first photo).
   const heroId = photos.find((p) => p.category === "hero")?.id ?? photos[0]?.id;
   for (const photo of photos) {
+    if (!ONBOARDING_PHOTO_TYPES.includes(photo.file.type as (typeof ONBOARDING_PHOTO_TYPES)[number])) {
+      toast.error(`${photo.file.name} is not a supported photo format.`);
+      continue;
+    }
+    if (photo.file.size > ONBOARDING_MAX_UPLOAD_BYTES) {
+      toast.error(`${photo.file.name} is too large (max 5 MB).`);
+      continue;
+    }
     const path = buildObjectPath(organizationId, photo.file.name);
     try {
       const { error: upErr } = await supabase.storage
@@ -54,12 +66,29 @@ export async function saveOwnerPhotos(
 
 /** Uploads a logo file and returns its storage path for `business_profiles.logo_url`. */
 export async function saveOwnerLogo(organizationId: string, file: File): Promise<string | null> {
+  if (!ONBOARDING_LOGO_TYPES.includes(file.type as (typeof ONBOARDING_LOGO_TYPES)[number])) {
+    toast.error("Your logo must be JPG, PNG, WebP, or SVG.");
+    return null;
+  }
+  if (file.size > ONBOARDING_MAX_UPLOAD_BYTES) {
+    toast.error("Your logo is too large (max 5 MB).");
+    return null;
+  }
   const path = buildObjectPath(organizationId, `logo-${file.name}`);
-  const { error } = await supabase.storage
-    .from(MEDIA_BUCKET)
-    .upload(path, file, { contentType: file.type, upsert: false });
-  if (error) {
+  try {
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 20_000);
+    const { error } = await supabase.storage
+      .from(MEDIA_BUCKET)
+      .upload(path, file, { contentType: file.type, upsert: false, signal: controller.signal } as never);
+    window.clearTimeout(timeout);
+    if (error) {
     toast.error("Your logo could not be saved. You can add it later in the builder.");
+      return null;
+    }
+  } catch (error) {
+    console.error("[onboarding] logo upload failed", error);
+    toast.error("Your logo could not be uploaded. Check your connection and try again.");
     return null;
   }
   const { error: rowErr } = await supabase.from("media").insert({
