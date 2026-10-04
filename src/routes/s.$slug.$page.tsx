@@ -35,7 +35,7 @@ export const Route = createFileRoute("/s/$slug/$page")({
     const site = await getPublicSite({ data: { slug: params.slug, pageSlug: params.page } });
     // A page with no visible sections would render blank for a real visitor —
     // treat it as not published yet rather than serving an empty page.
-    if (!site || !site.content || site.content.sections.length === 0) throw notFound();
+    if ((site?.content?.sections ?? []).length === 0) throw notFound();
     return site;
   },
 
