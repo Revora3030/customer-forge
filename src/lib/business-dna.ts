@@ -49,6 +49,8 @@ export type DnaFacts = {
   city?: string | null;
   region?: string | null;
   country?: string | null;
+  /** Language the website must be written in (owner-chosen). */
+  siteLanguage?: string | null;
   serviceArea?: string | null;
   phone?: string | null;
   email?: string | null;
