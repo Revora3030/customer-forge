@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ErrorNote, Pill } from "@/components/app/Bits";
 import { RouteError } from "@/components/app/RouteStates";
+import { reportRouteError } from "@/lib/route-error-reporting";
 import { GROWTH_SYSTEM, usd } from "@/lib/offer";
 import {
   ensureProfile,
@@ -92,11 +93,18 @@ function AuthPage() {
 
   useEffect(() => {
     let active = true;
-    supabase.auth.getSession().then(async ({ data }) => {
-      if (!active || !data.session) return;
-      await ensureProfile(data.session.user);
-      if (active) void goToWorkspace();
-    });
+    // Runs only after mount. A failed session/profile check must leave the
+    // sign-in form usable instead of escaping as an unhandled rejection.
+    supabase.auth
+      .getSession()
+      .then(async ({ data }) => {
+        if (!active || !data.session) return;
+        await ensureProfile(data.session.user);
+        if (active) await goToWorkspace();
+      })
+      .catch((error: unknown) => {
+        reportRouteError(error, { boundary: "auth_session_check" });
+      });
     return () => {
       active = false;
     };
