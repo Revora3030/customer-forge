@@ -6,6 +6,7 @@
  * of that business only.
  */
 import { createFileRoute, Link, Outlet, useChildMatches, useRouter } from "@tanstack/react-router";
+import { useEffect, type ReactNode } from "react";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { getOwnerDraftSite } from "@/lib/public-site.functions";
@@ -37,17 +38,45 @@ export const Route = createFileRoute("/_authenticated/draft/$slug")({
   ),
 });
 
-export function DraftMessage({ title, body }: { title: string; body: string }) {
+export function DraftMessage({
+  title,
+  body,
+  action,
+  onRetry,
+  progress,
+}: {
+  title: string;
+  body: string;
+  action?: ReactNode;
+  onRetry?: () => void;
+  progress?: number | null;
+}) {
   return (
     <div className="flex min-h-screen items-center justify-center px-4 text-center">
       <div>
         <h1 className="font-display text-[20px] font-semibold">{title}</h1>
         <p className="mt-2 text-[13px] text-muted-foreground">{body}</p>
-        <Button asChild variant="outline" size="sm" className="mt-5">
-          <Link to="/app/website">
-            <ArrowLeft className="size-4" /> Back to builder
-          </Link>
-        </Button>
+        {typeof progress === "number" ? (
+          <div className="mx-auto mt-4 w-full max-w-xs">
+            <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+              <div className="h-full rounded-full bg-primary transition-[width]" style={{ width: `${Math.min(100, Math.max(0, progress))}%` }} />
+            </div>
+            <p className="mt-1 text-[11px] text-muted-foreground">{Math.round(progress)}% complete</p>
+          </div>
+        ) : null}
+        <div className="mt-5 flex flex-wrap justify-center gap-2">
+          {action}
+          {onRetry ? (
+            <Button type="button" variant="outline" size="sm" onClick={onRetry}>
+              Try again
+            </Button>
+          ) : null}
+          <Button asChild variant={action || onRetry ? "ghost" : "outline"} size="sm">
+            <Link to="/app/website">
+              <ArrowLeft className="size-4" /> Back to builder
+            </Link>
+          </Button>
+        </div>
       </div>
     </div>
   );
@@ -62,6 +91,12 @@ function DraftHomeRoute() {
 
   const retry = () => void router.invalidate();
   const sections = result?.site?.content?.sections ?? [];
+
+  useEffect(() => {
+    if (result?.status !== "pending") return;
+    const timer = window.setInterval(() => void router.invalidate(), 2500);
+    return () => window.clearInterval(timer);
+  }, [result?.status, router]);
 
   if (result?.status === "pending") {
     return (
