@@ -9,7 +9,7 @@ const functions = [
   "apply_ai_website_changes(uuid, jsonb, uuid, text)",
   "apply_website_theme(uuid, text, text, text, text, text)",
   "create_website_snapshot(uuid)",
-  "generate_industry_website(uuid, text, text, text)",
+  "generate_industry_website(uuid, text, text, text, text)",
   "publish_website_draft(uuid, uuid)",
 ];
 
