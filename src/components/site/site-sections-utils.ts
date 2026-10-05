@@ -59,3 +59,33 @@ export function pageHasWidget(sections: Section[], name: string): boolean {
     return tree ? walk(tree.root as never) : false;
   });
 }
+
+/**
+ * True when a stored section is complete enough to render. While the worker is
+ * still writing a page, the draft preview can read a section row before its
+ * kind or child arrays are in place (Sentry JAVASCRIPT-REACT-2/3/5/6). Such a
+ * row is drawn as a shimmer placeholder instead of crashing the whole draft.
+ */
+export function isRenderableSection(section: unknown): section is Section {
+  if (!section || typeof section !== "object") return false;
+  const row = section as { id?: unknown; kind?: unknown; components?: unknown };
+  if (typeof row.id !== "string" || !row.id) return false;
+  if (typeof row.kind !== "string" || !row.kind) return false;
+  if (row.components != null && !Array.isArray(row.components)) return false;
+  return true;
+}
+
+/**
+ * Normalises a section that passed `isRenderableSection` so nested readers
+ * never see `undefined` where they expect an array or object.
+ */
+export function normalizeSection(section: Section): Section {
+  const components = Array.isArray(section.components)
+    ? section.components.filter((c): c is NonNullable<typeof c> => !!c && typeof c === "object")
+    : [];
+  return {
+    ...section,
+    settings: section.settings ?? {},
+    components,
+  } as Section;
+}

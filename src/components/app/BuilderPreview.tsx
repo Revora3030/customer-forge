@@ -23,6 +23,7 @@ import {
 } from "@/lib/builder/preview-bridge";
 import { pageNavLabel, type ContentPage } from "@/lib/website-content";
 import { cn } from "@/lib/utils";
+import { LiveCanvasSkeleton } from "@/components/app/LiveCanvasSkeleton";
 
 const VIEWPORT_ICONS = {
   phone: Smartphone,
@@ -34,15 +35,7 @@ const VIEWPORT_ICONS = {
 /** A block the owner clicked in the preview, handed to the assistant. */
 export type PreviewSelection = Extract<PreviewToBuilderMessage, { type: "select" }>;
 
-export function BuilderPreview({
-  slug,
-  pages,
-  businessName = null,
-  refreshing = false,
-  refreshRevision = 0,
-  onSelect,
-  selectedId = null,
-}: {
+type BuilderPreviewProps = {
   slug: string;
   pages: ContentPage[];
   /** Used to shorten older page titles ("Services — Acme") to "Services". */
@@ -54,7 +47,33 @@ export function BuilderPreview({
   onSelect?: (selection: PreviewSelection) => void;
   /** The block currently being discussed, outlined inside the preview. */
   selectedId?: string | null;
-}) {
+  /** Workspace whose build progress feeds the first-build canvas. */
+  organizationId?: string | null;
+  /** Nothing built yet: show the live canvas skeleton instead of an empty frame. */
+  firstRun?: boolean;
+};
+
+/**
+ * The builder's preview pane. It is mounted from the very first build: while
+ * there are no pages yet it shows the live canvas skeleton with the real build
+ * status, and it switches to the real draft frame as soon as pages are written.
+ */
+export function BuilderPreview({ firstRun = false, organizationId = null, ...props }: BuilderPreviewProps) {
+  if (firstRun || props.pages.length === 0) {
+    return <LiveCanvasSkeleton organizationId={organizationId} businessName={props.businessName ?? null} />;
+  }
+  return <BuilderPreviewFrame {...props} />;
+}
+
+function BuilderPreviewFrame({
+  slug,
+  pages,
+  businessName = null,
+  refreshing = false,
+  refreshRevision = 0,
+  onSelect,
+  selectedId = null,
+}: Omit<BuilderPreviewProps, "firstRun" | "organizationId">) {
   const ordered = useMemo(() => [...pages].sort((a, b) => a.sort_order - b.sort_order), [pages]);
   const [pageId, setPageId] = useState<string | null>(null);
   const [viewport, setViewport] = useState<BuilderViewportKey>("laptop");
