@@ -42,3 +42,6 @@ dist-ssr
 
 # Lockfile — project uses bun.lock as the single source of truth
 package-lock.json
+
+# Generated browser evidence — retained as CI artifacts, never source-of-truth.
+browser-qa-artifacts/

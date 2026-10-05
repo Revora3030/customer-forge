@@ -1,0 +1,75 @@
+name: Revora Authenticated Browser Journey
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: "Application URL to exercise"
+        required: true
+        type: string
+        default: "http://127.0.0.1:8080"
+      allow_build:
+        description: "Allow the journey to submit the real AI build request"
+        required: true
+        type: boolean
+        default: false
+      allow_mutate:
+        description: "Allow edit/persistence/rollback checks"
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: revora-authenticated-journey
+  cancel-in-progress: true
+
+jobs:
+  journey:
+    name: Authenticated customer journey
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies and Chromium
+        run: |
+          npm install --no-audit --no-fund --prefer-online
+          python -m pip install --upgrade pip
+          python -m pip install playwright
+          python -m playwright install --with-deps chromium
+
+      - name: Browser journey contract
+        run: npm run browser:journey:test
+
+      - name: Run authenticated journey
+        env:
+          JOURNEY_BASE_URL: ${{ inputs.base_url }}
+          JOURNEY_ALLOW_BUILD: ${{ inputs.allow_build && '1' || '0' }}
+          JOURNEY_ALLOW_MUTATE: ${{ inputs.allow_mutate && '1' || '0' }}
+          JOURNEY_FIXTURE_WORKSPACE: ${{ secrets.REVORA_JOURNEY_FIXTURE_WORKSPACE }}
+          LOVABLE_BROWSER_SUPABASE_STORAGE_KEY: ${{ secrets.REVORA_JOURNEY_STORAGE_KEY }}
+          LOVABLE_BROWSER_SUPABASE_SESSION_JSON: ${{ secrets.REVORA_JOURNEY_SESSION_JSON }}
+        run: npm run browser:journey:ci
+
+      - name: Upload authenticated journey evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: revora-authenticated-journey-${{ github.run_id }}
+          path: browser-qa-artifacts
+          if-no-files-found: warn
+          retention-days: 30
