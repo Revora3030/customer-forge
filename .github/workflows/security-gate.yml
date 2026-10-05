@@ -27,3 +27,18 @@ jobs:
         run: node scripts/production-readiness-audit.mjs
       - name: Whole repository security contract
         run: node scripts/whole-repo-upgrade-audit.contract.mjs
+
+  stripe-catalog-contract:
+    name: Live Stripe catalog matches the pinned offer
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      # Fails closed: without the key, or on any divergence between the live
+      # Stripe catalog and the pinned $750 + $100/month offer, the gate fails
+      # and the deploy is blocked instead of charging customers wrong amounts.
+      - name: Verify live Stripe catalog against the canonical offer
+        env:
+          STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
+        run: bun scripts/stripe-catalog-contract.mjs --env=live
