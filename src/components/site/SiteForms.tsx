@@ -20,13 +20,14 @@ import type { WidgetPresentation } from "@/lib/builder/composition-tree";
 
 type Site = NonNullable<PublicSite>;
 
-/** The visit's own opaque token, or null during SSR / when storage is blocked. */
-function currentSessionId(): string | null {
-  if (typeof window === "undefined") return null;
+/** The visit's own opaque token, or "" during SSR / when storage is blocked.
+ * The server validator drops anything that isn't a well-formed token. */
+function currentSessionId(): string {
+  if (typeof window === "undefined") return "";
   try {
     return visitToken();
   } catch {
-    return null;
+    return "";
   }
 }
 
