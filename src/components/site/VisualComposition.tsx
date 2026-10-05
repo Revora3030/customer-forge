@@ -21,12 +21,13 @@ export function VisualComposition({
   inline?: boolean;
 }) {
   const ref = useRef<HTMLDivElement>(null);
-  const wantsPointer = !!composition?.layers.some(
-    (l) => l.interaction === "cursor" || l.interaction === "both",
-  );
-  const wantsScroll = !!composition?.layers.some(
-    (l) => l.interaction === "scroll" || l.interaction === "both",
-  );
+  // A composition read while the worker is still writing it can arrive without
+  // its layer list or with empty slots (Sentry JAVASCRIPT-REACT-2/3/5/6).
+  const layers = Array.isArray(composition?.layers)
+    ? composition.layers.filter((l): l is NonNullable<typeof l> => !!l && typeof l.kind === "string")
+    : [];
+  const wantsPointer = layers.some((l) => l.interaction === "cursor" || l.interaction === "both");
+  const wantsScroll = layers.some((l) => l.interaction === "scroll" || l.interaction === "both");
 
   useEffect(() => {
     const node = ref.current;
@@ -74,16 +75,17 @@ export function VisualComposition({
     };
   }, [wantsPointer, wantsScroll]);
 
-  if (!composition || !composition.layers.length) return null;
+  if (!composition || !layers.length) return null;
+  const intensity = Number.isFinite(composition.intensity) ? composition.intensity : 65;
 
   return (
     <div
       ref={ref}
       aria-hidden
       className={inline ? "fxc fxc-inline" : "fxc"}
-      style={{ ["--fxc-intensity" as string]: (composition.intensity / 100).toFixed(2) }}
+      style={{ ["--fxc-intensity" as string]: (intensity / 100).toFixed(2) }}
     >
-      {composition.layers.map((layer) => (
+      {layers.map((layer) => (
         <span
           key={layer.kind}
           className={[

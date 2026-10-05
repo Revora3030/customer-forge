@@ -99,7 +99,9 @@ function DraftHomeRouteContent() {
   const router = useRouter();
   const result = Route.useLoaderData();
   const retry = () => void router.invalidate().catch(() => undefined);
-  const sections = result?.site?.content?.sections ?? [];
+  // Mid-build reads can return a partial row; never assume an array.
+  const rawSections: unknown = result?.site?.content?.sections;
+  const sections = Array.isArray(rawSections) ? rawSections : [];
 
   useEffect(() => {
     if (result?.status !== "pending") return;
