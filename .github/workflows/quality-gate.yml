@@ -86,10 +86,27 @@ jobs:
           cat /tmp/revora-e2e.log
           exit 1
 
-      - name: Test
+      - name: Test with coverage
         env:
           E2E_BASE_URL: http://127.0.0.1:8080
-        run: npm test
+        run: npm run test:coverage
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          files: ./coverage/lcov.info
+          flags: unittests
+          name: codecov-umbrella
+          fail_ci_if_error: false
+          token: ${{ secrets.CODECOV_TOKEN }}
+
+      - name: Upload coverage artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report-${{ github.run_id }}
+          path: coverage/
+          retention-days: 30
 
       - name: Stop E2E server
         if: always()
