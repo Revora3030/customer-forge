@@ -59,11 +59,14 @@ describe("links inside AI-authored sections are repaired too", () => {
       { id: "s2", kind: "custom", settings: { spec: { type: "booking", ctaHref: "/services", ctaLabel: "Go" } } },
     ];
     const out = repairStoredLinks(sections, pages, new Set<string>());
-    expect(out[0]!.settings.composition.root.href).toBe("/contact");
-    expect(out[0]!.settings.composition.root.style.color).toBe("#fff");
-    expect(out[0]!.components[0]!.link_url).toBe("/contact");
-    expect(out[0]!.components[0]!.url).toBe("https://cdn.example/x.jpg");
-    expect(out[1]!.settings.spec.ctaHref).toBe("/services");
+    const composition = out[0]?.settings?.composition;
+    const component = out[0]?.components?.[0];
+    const spec = out[1]?.settings?.spec;
+    expect(composition?.root.href).toBe("/contact");
+    expect(composition?.root.style?.color).toBe("#fff");
+    expect(component?.link_url).toBe("/contact");
+    expect(component?.url).toBe("https://cdn.example/x.jpg");
+    expect(spec?.ctaHref).toBe("/services");
     expect(repairStoredLinks(sections, null, null)).toBe(sections);
   });
 });
