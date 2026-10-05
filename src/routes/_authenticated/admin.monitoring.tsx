@@ -12,6 +12,7 @@ import {
   SectionHeading,
 } from "@/components/app/Bits";
 import { getErrorFeed } from "@/lib/monitoring.functions";
+import { getBuildHealth } from "@/lib/build-monitoring.functions";
 
 export const Route = createFileRoute("/_authenticated/admin/monitoring")({
   head: () => ({
@@ -42,6 +43,15 @@ function AdminMonitoring() {
   });
 
   const data = feed.data;
+  const loadHealth = useServerFn(getBuildHealth);
+  const health = useQuery({
+    queryKey: ["admin-build-health"],
+    queryFn: () => loadHealth({}),
+    refetchInterval: 60_000,
+  });
+  const h = health.data;
+  const secs = (value: number | null | undefined) =>
+    value == null ? "—" : value < 90 ? `${Math.round(value)}s` : `${Math.round(value / 60)}m`;
 
   return (
     <div className="product-page">
@@ -63,6 +73,66 @@ function AdminMonitoring() {
           }
         />
       </div>
+
+      <Panel>
+        <SectionHeading
+          title="Builds, publishes & pictures (7 days)"
+          description="Success rate, build times, where builds fail, live publish checks and picture approvals."
+        />
+        {health.isLoading ? <LoadingRows /> : null}
+        {health.error ? <ErrorNote message={(health.error as Error).message} /> : null}
+        {h ? (
+          <>
+            {h.alerts.length ? (
+              <ul className="mb-3 space-y-1" role="alert">
+                {h.alerts.map((alert) => (
+                  <li key={alert} className="flex items-start gap-2 text-destructive">
+                    <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden /> {alert}
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+            <div className="grid gap-3 sm:grid-cols-4">
+              <MetricCard label="Build success" value={h.builds.successRate == null ? "—" : `${h.builds.successRate}%`} />
+              <MetricCard label="Median build" value={secs(h.builds.medianBuildSeconds)} hint={`p90 ${secs(h.builds.p90BuildSeconds)}`} />
+              <MetricCard label="Builds" value={String(h.builds.total)} hint={`${h.builds.failed} failed · ${h.builds.cancelled} cancelled · ${h.builds.active} running`} />
+              <MetricCard label="Live checks passed" value={h.publishes.passRate == null ? "—" : `${h.publishes.passRate}%`} hint={`${h.publishes.total} publishes`} />
+            </div>
+            <div className="mt-3 grid gap-3 sm:grid-cols-3">
+              <div className="product-tile">
+                <p className="font-medium">Failures by kind</p>
+                {h.builds.failuresByKind.length ? (
+                  <ul className="mt-1 text-muted-foreground">
+                    {h.builds.failuresByKind.map((f) => (
+                      <li key={f.kind}>{f.kind}: {f.count}</li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="mt-1 text-muted-foreground">None</p>
+                )}
+              </div>
+              <div className="product-tile">
+                <p className="font-medium">Slowest stages (median)</p>
+                {h.builds.slowestStages.length ? (
+                  <ul className="mt-1 text-muted-foreground">
+                    {h.builds.slowestStages.map((s) => (
+                      <li key={s.stage}>{s.stage}: {s.medianSeconds}s ({s.samples})</li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="mt-1 text-muted-foreground">No timings yet</p>
+                )}
+              </div>
+              <div className="product-tile">
+                <p className="font-medium">Pictures</p>
+                <p className="mt-1 text-muted-foreground">
+                  {h.images.approved} approved · {h.images.pending} pending · {h.images.rejected} rejected · {h.images.failed} failed
+                </p>
+              </div>
+            </div>
+          </>
+        ) : null}
+      </Panel>
 
       <Panel>
         <SectionHeading
