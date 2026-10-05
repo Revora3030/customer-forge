@@ -10,9 +10,14 @@
  *  2. Terra (adversarial reviewer, `vision` role) looks at the finished picture
  *     and says whether it is publishable, and if not, what to change.
  *
- * Both are advisory helpers, never gates that can lose a picture:
- *  - if Sol cannot answer, the original request is sent through untouched;
- *  - if Terra cannot answer, the picture passes.
+ * Sol is advisory: if Sol cannot answer, the original request is sent through
+ * untouched. Terra separates two very different outcomes:
+ *  - `contentRejected`: Terra actually looked at the pixels and found a real
+ *    defect. Only this may trigger a corrected reshoot.
+ *  - `reviewFailed`: the review itself could not run (timeout, 5xx, network,
+ *    adapter error). The picture is NOT regenerated; the review is retried once
+ *    on its own and the caller decides the fallback. An infrastructure glitch
+ *    used to turn one picture into three generations and three reviews.
  * Neither may invent business facts: the brief is explicitly forbidden from
  * adding text, logos, awards, reviews, people-as-proof or results into a frame.
  *
@@ -20,6 +25,8 @@
  */
 
 import { generateStructuredOutput } from "@/lib/ai/router.server";
+import { RevoraAiError } from "@/lib/ai/errors";
+import { toImageDataUrl } from "@/lib/ai/data-url";
 
 export type PhotoBrief = {
   /** The raw picture request, as authored by the AI plan or the owner. */
@@ -118,7 +125,7 @@ export async function directPhotoPrompt(
 }
 
 export type PhotoVerdict = {
-  /** False only when Terra found a defect serious enough to reshoot. */
+  /** False when Terra rejected the picture OR the review could not run. */
   publishable: boolean;
   /** Plain-language defects Terra saw, safe to show an owner. */
   defects: string[];
@@ -126,7 +133,69 @@ export type PhotoVerdict = {
   revisedPrompt: string | null;
   /** True when Terra actually looked at the picture. */
   reviewed: boolean;
+  /**
+   * True ONLY when Terra inspected the pixels and found a genuine defect.
+   * This is the sole signal that may trigger a reshoot.
+   */
+  contentRejected: boolean;
+  /**
+   * True when the review itself failed for infrastructure reasons (timeout,
+   * network, 5xx, no vision model reachable). Never a reason to reshoot.
+   */
+  reviewFailed: boolean;
 };
+
+/** Per-attempt ceiling for one visual review call (fail fast, fail over). */
+export const VISUAL_REVIEW_TIMEOUT_MS = 9_000;
+/** Whole-chain budget for one visual review, across every vision model. */
+export const VISUAL_REVIEW_CHAIN_MS = 25_000;
+/** Review-only retries after an infrastructure failure. Never a reshoot. */
+export const VISUAL_REVIEW_RETRIES = 1;
+
+/**
+ * What to do with a picture whose review could not run.
+ *
+ * Default `accept`: the picture is kept under the safe fallback — it was
+ * generated from a brief that already forbids text/logos/claims and still has
+ * to pass the deterministic first-build image QA gate. Operators who prefer the
+ * old fail-closed behaviour set `VISUAL_REVIEW_UNAVAILABLE_POLICY=reject`; even
+ * then no reshoot is triggered, the slot is simply left empty.
+ */
+export function reviewUnavailablePolicy(): "accept" | "reject" {
+  return process.env["VISUAL_REVIEW_UNAVAILABLE_POLICY"] === "reject" ? "reject" : "accept";
+}
+
+/** True when a verdict may trigger a regenerated picture. */
+export function shouldReshoot(verdict: PhotoVerdict): boolean {
+  return verdict.contentRejected && verdict.reviewed && !verdict.reviewFailed;
+}
+
+/** True when a verdict lets the picture be used (passed, or safe fallback). */
+export function acceptedForUse(verdict: PhotoVerdict, policy = reviewUnavailablePolicy()): boolean {
+  if (verdict.publishable) return true;
+  return verdict.reviewFailed && !verdict.contentRejected && policy === "accept";
+}
+
+/**
+ * Errors that describe the review infrastructure rather than the picture.
+ * Anything else unexpected (a thrown non-AI error) is also infrastructure: the
+ * picture was never judged.
+ */
+export function isInfrastructureFailure(error: unknown): boolean {
+  if (!(error instanceof RevoraAiError)) return true;
+  return error.category !== "policy" && error.category !== "too_large";
+}
+
+function reviewUnavailableVerdict(): PhotoVerdict {
+  return {
+    publishable: false,
+    defects: ["the picture could not be quality-checked right now"],
+    revisedPrompt: null,
+    reviewed: false,
+    contentRejected: false,
+    reviewFailed: true,
+  };
+}
 
 const REVIEWER_SYSTEM = [
   "You are Terra, an adversarial photo editor reviewing one generated website picture before it goes live on a premium business website. The bar is a top design studio's commissioned photography: if you would not put it on a Lovable, Framer or Apple-grade site, reject it.",
@@ -137,11 +206,6 @@ const REVIEWER_SYSTEM = [
   "defects are short plain-English phrases a business owner would understand. revisedPrompt is a full corrected photography brief when publishable is false, otherwise an empty string.",
 ].join(" ");
 
-/**
- * Terra looks at the finished picture and reports whether it is publishable.
- * Fail closed: a picture Terra could not actually look at is NOT published.
- * Unreviewed pictures are how warped badges and fake text reached live sites.
- */
 const TARGETED_REVISION_SYSTEM = [
   "You are Sol performing one targeted commercial-photography revision after Terra rejected a generated frame.",
   "Rewrite only the photography brief details needed to correct Terra's defects. Preserve the real business/service context, documentary realism, physically plausible lighting and commercial editorial intent.",
@@ -191,19 +255,76 @@ async function reviseRejectedPhotoPrompt(
   }
 }
 
+/**
+ * Terra looks at the finished picture and reports whether it is publishable.
+ *
+ * A Terra rejection (`contentRejected`) is the only outcome that may lead to a
+ * reshoot. When the review itself cannot run, the call is retried once (the
+ * review only — the picture is never regenerated for an infrastructure error)
+ * and then reported as `reviewFailed` so the caller applies its fallback.
+ */
 export async function inspectPhoto(
   picture: { base64: string; mimeType: string },
   brief: { prompt: string; placement?: string },
   caller: { organizationId: string; userId?: string | null },
 ): Promise<PhotoVerdict> {
-  const mimeType = picture.mimeType.split(";")[0] || "image/png";
-  try {
-    const result = await generateStructuredOutput(
+  const mimeType = picture.mimeType.split(";")[0]?.trim().toLowerCase() || "image/png";
+  // Several OpenAI-compatible vision endpoints (Cloudflare, OpenRouter, NVIDIA)
+  // reject raw base64 with 400 "invalid image URL". Always send a data URL.
+  const fullDataUrl = toImageDataUrl(picture.base64, mimeType);
+
+  let result: Awaited<ReturnType<typeof generateStructuredOutput>> | null = null;
+  let lastError: unknown = null;
+  for (let attempt = 0; attempt <= VISUAL_REVIEW_RETRIES && !result; attempt += 1) {
+    try {
+      result = await reviewOnce(fullDataUrl, mimeType, brief, caller);
+    } catch (error) {
+      lastError = error;
+      // A policy refusal or an oversized picture is the same on retry.
+      if (!isInfrastructureFailure(error)) break;
+    }
+  }
+  if (!result) {
+    console.warn("[photo-direction] visual review unavailable (no reshoot triggered):", lastError);
+    return reviewUnavailableVerdict();
+  }
+
+  const verdict = readVerdict(result.data);
+  if (!verdict.publishable) {
+    // Terra's defects become one targeted Sol revision before the caller can
+    // fall back to any other image source. This keeps the retry a true art-
+    // direction correction rather than an unconstrained second generation.
+    const targeted = await reviseRejectedPhotoPrompt(
+      brief.prompt,
+      brief.placement,
+      verdict.defects,
+      verdict.revisedPrompt,
+      caller,
+    );
+    return {
+      ...verdict,
+      revisedPrompt: targeted ?? verdict.revisedPrompt,
+    };
+  }
+  return verdict;
+}
+
+async function reviewOnce(
+  fullDataUrl: string,
+  mimeType: string,
+  brief: { prompt: string; placement?: string },
+  caller: { organizationId: string; userId?: string | null },
+) {
+  return generateStructuredOutput(
       { organizationId: caller.organizationId, userId: caller.userId ?? null, task: "image.visual_review" },
       {
         role: "vision",
         json: true,
         maxOutputTokens: 700,
+        // Fail fast and fail over: a slow vision model must not hold a build
+        // worker for a minute. The router clamps these to its own ceilings.
+        timeoutMs: VISUAL_REVIEW_TIMEOUT_MS,
+        chainDeadlineMs: VISUAL_REVIEW_CHAIN_MS,
         messages: [
           { role: "system", content: REVIEWER_SYSTEM },
           {
@@ -219,40 +340,12 @@ export async function inspectPhoto(
                   .filter(Boolean)
                   .join("\n"),
               },
-              { type: "image", dataUrl: picture.base64, mimeType },
+              { type: "image", dataUrl: fullDataUrl, mimeType },
             ],
           },
         ],
       },
     );
-    const verdict = readVerdict(result.data);
-    if (!verdict.publishable) {
-      // Terra's defects become one targeted Sol revision before the caller can
-      // fall back to any other image source. This keeps the retry a true art-
-      // direction correction rather than an unconstrained second generation.
-      const targeted = await reviseRejectedPhotoPrompt(
-        brief.prompt,
-        brief.placement,
-        verdict.defects,
-        verdict.revisedPrompt,
-        caller,
-      );
-      return {
-        ...verdict,
-        revisedPrompt: targeted ?? verdict.revisedPrompt,
-      };
-    }
-    return verdict;
-  } catch (error) {
-    console.warn("[photo-direction] visual review unavailable:", error);
-    // Fail closed: an unreviewed picture never reaches a customer's website.
-    return {
-      publishable: false,
-      defects: ["the picture could not be quality-checked, so it was not used"],
-      revisedPrompt: null,
-      reviewed: false,
-    };
-  }
 }
 
 /** Pure reader for a reviewer answer; exported so the rules are unit-testable. */
@@ -270,11 +363,15 @@ export function readVerdict(data: Record<string, unknown>): PhotoVerdict {
     typeof revised === "string" && revised.trim().length >= 40 ? revised.replace(/\s+/g, " ").trim().slice(0, 1800) : null;
   // Only an explicit `true` passes. An unclear or malformed answer is treated as
   // a rejection so an unchecked picture can never slip onto a live site.
-  if (publishable === true) return { publishable: true, defects, revisedPrompt: null, reviewed: true };
+  if (publishable === true)
+    return { publishable: true, defects, revisedPrompt: null, reviewed: true, contentRejected: false, reviewFailed: false };
   return {
     publishable: false,
     defects: defects.length ? defects : ["the picture review was unclear, so the picture was not used"],
     revisedPrompt,
     reviewed: true,
+    // Terra answered and did not approve: this is a content judgement.
+    contentRejected: true,
+    reviewFailed: false,
   };
 }

@@ -12,6 +12,11 @@
  */
 import type { PageArchitectureOutcome } from "@/lib/builder/ai-page-architecture.server";
 import { nextPublishState } from "@/lib/publish-state";
+import {
+  INTERRUPTED_BUILD_MESSAGE,
+  RECOVERING_BUILD_MESSAGE,
+  STALLED_LEASE_GRACE_MS,
+} from "@/lib/builder/job-liveness";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -172,20 +177,44 @@ export class StaleAttemptError extends Error {
 }
 
 /**
- * Keeps a claimed job's lease alive while it runs. Renews every third of the
- * lease, fenced on the attempt number so a superseded attempt never extends a
- * lease it no longer owns.
+ * Heartbeat cadence: well before half the lease, so one missed beat (a slow
+ * database round trip, a GC pause) still leaves a full beat of margin before
+ * the lease lapses. Clamped to the safe range in case LEASE_SECONDS changes.
+ */
+export function heartbeatIntervalMs(leaseSeconds = LEASE_SECONDS): number {
+  const lease = leaseSeconds * 1000;
+  return Math.max(5_000, Math.min(Math.floor(lease / 4), Math.floor(lease / 2) - 5_000));
+}
+
+export type LeaseHeartbeat = {
+  stop: () => void;
+  /** True once the attempt fence stopped holding (another attempt owns it). */
+  lost: () => boolean;
+  /** Consecutive renewal errors (database/network), reset on success. */
+  failures: () => number;
+};
+
+/**
+ * Keeps a claimed job's lease alive while it runs. Renews on
+ * `heartbeatIntervalMs()`, fenced on the attempt number so a superseded attempt
+ * never extends a lease it no longer owns. Every renewal error is logged; a
+ * renewal that matches no row means this attempt lost the job, and the beat
+ * stops so the stale run can be detected instead of silently racing.
  */
 export function startLeaseHeartbeat(
   db: Db,
   job: { id: string; attempts: number },
-  intervalMs = Math.floor((LEASE_SECONDS * 1000) / 3),
-): { stop: () => void } {
+  intervalMs = heartbeatIntervalMs(),
+): LeaseHeartbeat {
   let stopped = false;
-  const timer = setInterval(() => {
-    if (stopped) return;
-    void Promise.resolve(
-      db
+  let lost = false;
+  let failures = 0;
+  let inFlight = false;
+  const beat = async () => {
+    if (stopped || inFlight) return;
+    inFlight = true;
+    try {
+      const result = (await db
         .from("generation_jobs")
         .update({
           lease_expires_at: new Date(Date.now() + LEASE_SECONDS * 1000).toISOString(),
@@ -193,15 +222,43 @@ export function startLeaseHeartbeat(
         } as never)
         .eq("id", job.id)
         .eq("attempts", job.attempts)
-        .eq("status", "processing"),
-    ).catch(() => undefined);
-  }, intervalMs);
+        .eq("status", "processing")
+        .select("id")) as { data: unknown[] | null; error: { message: string } | null };
+      if (result.error) {
+        failures += 1;
+        console.warn(
+          `[site-engine] lease heartbeat failed for job ${job.id} (attempt ${job.attempts}, ${failures} in a row): ${result.error.message}`,
+        );
+        return;
+      }
+      failures = 0;
+      if (Array.isArray(result.data) && result.data.length === 0 && !stopped) {
+        lost = true;
+        stopped = true;
+        clearInterval(timer);
+        console.warn(
+          `[site-engine] lease for job ${job.id} is no longer held by attempt ${job.attempts}; heartbeat stopped.`,
+        );
+      }
+    } catch (error) {
+      failures += 1;
+      console.warn(
+        `[site-engine] lease heartbeat threw for job ${job.id} (attempt ${job.attempts}, ${failures} in a row):`,
+        error,
+      );
+    } finally {
+      inFlight = false;
+    }
+  };
+  const timer = setInterval(() => void beat(), intervalMs);
   (timer as { unref?: () => void }).unref?.();
   return {
     stop: () => {
       stopped = true;
       clearInterval(timer);
     },
+    lost: () => lost,
+    failures: () => failures,
   };
 }
 
@@ -214,11 +271,12 @@ export function startLeaseHeartbeat(
  */
 async function closeAbandonedJobs(db: Db, organizationId?: string) {
   const now = new Date().toISOString();
+  // 1. Out of attempts: close as failed with a plain, actionable message.
   let query = db
     .from("generation_jobs")
     .update({
       status: "failed",
-      error_message: "The build was interrupted and could not finish. Press Build to try again.",
+      error_message: INTERRUPTED_BUILD_MESSAGE,
       completed_at: now,
       lease_expires_at: null,
       updated_at: now,
@@ -229,6 +287,40 @@ async function closeAbandonedJobs(db: Db, organizationId?: string) {
   if (organizationId) query = query.eq("organization_id", organizationId);
   const { error } = await query;
   if (error) console.warn("[site-engine] abandoned job sweep failed", error.message);
+
+  // 2. A processing row with NO lease at all can never be claimed by the
+  //    expired-lease check (null is not "< now" in SQL). Re-queue it if it has
+  //    attempts left and has been untouched for the grace period, otherwise
+  //    fail it, so it can never become an infinite "finishing" spinner.
+  const staleBefore = new Date(Date.now() - STALLED_LEASE_GRACE_MS).toISOString();
+  let orphanRetry = db
+    .from("generation_jobs")
+    .update({ status: "queued", error_message: RECOVERING_BUILD_MESSAGE, updated_at: now } as never)
+    .eq("status", "processing")
+    .is("lease_expires_at", null)
+    .lt("attempts", MAX_ATTEMPTS)
+    .lt("updated_at", staleBefore);
+  if (organizationId) orphanRetry = orphanRetry.eq("organization_id", organizationId);
+  const orphanRetryResult = await orphanRetry;
+  if (orphanRetryResult.error)
+    console.warn("[site-engine] lease-less job requeue failed", orphanRetryResult.error.message);
+
+  let orphanFail = db
+    .from("generation_jobs")
+    .update({
+      status: "failed",
+      error_message: INTERRUPTED_BUILD_MESSAGE,
+      completed_at: now,
+      updated_at: now,
+    } as never)
+    .eq("status", "processing")
+    .is("lease_expires_at", null)
+    .gte("attempts", MAX_ATTEMPTS)
+    .lt("updated_at", staleBefore);
+  if (organizationId) orphanFail = orphanFail.eq("organization_id", organizationId);
+  const orphanFailResult = await orphanFail;
+  if (orphanFailResult.error)
+    console.warn("[site-engine] lease-less job close failed", orphanFailResult.error.message);
 }
 
 /** Claims one runnable job with a lease. Returns null when there is nothing to do. */
@@ -243,10 +335,19 @@ async function claimJob(db: Db, organizationId?: string) {
     .limit(5);
   if (organizationId) query = query.eq("organization_id", organizationId);
 
-  const { data: candidates } = await query;
+  const { data: candidates, error: candidateError } = await query;
+  if (candidateError) console.warn("[site-engine] claim query failed", candidateError.message);
   for (const job of candidates ?? []) {
     const leaseFree = !job.lease_expires_at || new Date(job.lease_expires_at as string) < now;
     if (!leaseFree) continue;
+    // Reclaiming a processing job means its previous worker died mid-run.
+    // Say so in the logs and on the row, so the owner sees a recovery message
+    // instead of a frozen "finishing" state.
+    const recovering = job.status === "processing";
+    if (recovering)
+      console.warn(
+        `[site-engine] reclaiming job ${String(job.id)} after its lease expired (attempt ${Number(job.attempts) + 1}/${MAX_ATTEMPTS}).`,
+      );
 
     // Conditional update = single-flight lock: only one worker wins the row.
     const { data: claimed } = await db
@@ -257,6 +358,7 @@ async function claimJob(db: Db, organizationId?: string) {
         started_at: job.status === "queued" ? now.toISOString() : undefined,
         lease_expires_at: new Date(now.getTime() + LEASE_SECONDS * 1000).toISOString(),
         updated_at: now.toISOString(),
+        ...(recovering ? { error_message: RECOVERING_BUILD_MESSAGE } : {}),
       } as never)
       .eq("id", job.id)
       .eq("attempts", job.attempts as number)
@@ -1325,6 +1427,10 @@ export async function drainSiteEngineQueue(
       // A superseded attempt must not requeue, fail or restore anything —
       // the newer attempt owns the job and the site now.
       if (error instanceof StaleAttemptError) continue;
+      if (heartbeat.lost()) {
+        console.warn(`[site-engine] job ${job.id} attempt ${job.attempts} failed after losing its lease; leaving it to the newer attempt.`);
+        continue;
+      }
       const { RevoraAiError } = await import("@/lib/site-engine.server");
       const isGateway = error instanceof RevoraAiError;
       const status = isGateway ? (error as InstanceType<typeof RevoraAiError>).status : 0;

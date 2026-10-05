@@ -16,7 +16,13 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Json } from "@/integrations/supabase/types";
 import { generateImageBase64, decodeBase64 } from "@/lib/image-studio.server";
 import { generatePaidImageBase64, paidImageStatus } from "@/lib/ai/paid-image.server";
-import { inspectPhoto } from "@/lib/ai/photo-direction.server";
+import {
+  acceptedForUse,
+  inspectPhoto,
+  reviewUnavailablePolicy,
+  shouldReshoot,
+} from "@/lib/ai/photo-direction.server";
+import { createBackoffGate, mapConcurrent } from "@/lib/concurrency";
 import { gradeFirstBuildImages } from "@/lib/builder/first-build-image-qa";
 import type {
   FirstBuildImageAsset,
@@ -53,6 +59,14 @@ function maxStarterImages() {
   return Number.isFinite(raw) && raw > 0 ? Math.min(Math.floor(raw), 28) : 24;
 }
 
+/**
+ * How many pictures are made at once. Small on purpose: free picture services
+ * rate-limit aggressively, and a shared backoff gate slows every lane on a 429.
+ */
+export function firstBuildImageConcurrency() {
+  const raw = Number(process.env["FIRST_BUILD_IMAGE_CONCURRENCY"] ?? "");
+  return Number.isFinite(raw) && raw > 0 ? Math.min(Math.floor(raw), 6) : 3;
+}
 
 function safeSlot(shot: PlannedShot) {
   if (!/^[a-z0-9][a-z0-9-]{0,59}$/.test(shot.slot)) return false;
@@ -149,12 +163,13 @@ export async function generateFirstBuildImages(
     };
   }
 
-  const assets: FirstBuildImageAsset[] = [];
   const skipped: FirstBuildImageEvidence["skipped"] = [];
   const models = new Set<string>();
   let provider: string | null = null;
   let firstBlockedMessage: string | null = null;
-  let source: FirstBuildImageSource = "none";
+  // Mutated from inside the concurrent lanes; held in an object so TypeScript
+  // does not narrow it to its initial literal at the read sites below.
+  const lane: { source: FirstBuildImageSource } = { source: "none" };
   let paidCostMicrocents = 0;
   const paid = paidImageStatus();
   // When the paid picture lane is out of budget, switched off, or its model is
@@ -170,17 +185,47 @@ export async function generateFirstBuildImages(
   // A busy or briefly rate-limited picture service is not a closed one. Pause
   // and try again a few times before giving up on the remaining pictures, so a
   // momentary 429 no longer leaves most pages of a first build without images.
+  // The pause is SHARED across the concurrent pool: one 429 slows every lane
+  // instead of each lane hammering the provider on its own.
   let blockedStrikes = 0;
   const MAX_BLOCKED_STRIKES = 3;
+  const backoff = createBackoffGate();
+  const caller = { organizationId: input.organizationId, userId: input.userId };
+  const policy = reviewUnavailablePolicy();
+  let reviewFallbacks = 0;
 
+  type Made = { base64: string; mimeType: string; provider: string; model: string };
 
-  for (const [index, shot] of shots.entries()) {
+  const standardShot = async (prompt: string): Promise<Made | null> => {
+    await backoff.wait();
+    if (standardBlocked) return null;
+    const standard = await generateImageBase64(prompt, caller);
+    if (standard.ok) {
+      blockedStrikes = 0;
+      return standard;
+    }
+    firstBlockedMessage = firstBlockedMessage ?? standard.message;
+    if (standard.blocked) {
+      blockedStrikes += 1;
+      if (blockedStrikes >= MAX_BLOCKED_STRIKES) standardBlocked = true;
+      else backoff.trip(4000 * blockedStrikes);
+    }
+    return null;
+  };
+
+  const placementOf = (shot: PlannedShot) => `${shot.slot} ${shot.placement.join(" ")}`.trim();
+
+  async function makeShot(shot: PlannedShot, index: number): Promise<FirstBuildImageAsset | null> {
     const spec = input.creative.brief.imageInventory.find(
       (item) => item.slot === shot.slot && item.label === shot.label,
     );
     if (!spec?.subject || !spec.altText) {
       skipped.push({ slot: shot.slot, label: shot.label, reason: "the AI picture campaign was incomplete" });
-      continue;
+      return null;
+    }
+    if (standardBlocked && !paidUsable) {
+      skipped.push({ slot: shot.slot, label: shot.label, reason: firstBlockedMessage ?? paid.message });
+      return null;
     }
     // Most important instructions first: picture models (Flux caps prompts at
     // 2048 characters) weigh the start of the prompt most, and anything past
@@ -204,124 +249,86 @@ export async function generateFirstBuildImages(
       "Shot on a full-frame camera with natural light, shallow depth of field, true-to-life colour, editorial magazine quality — not an illustration or generic stock composition.",
     ].filter(Boolean).join(" ");
 
-    type Made = { base64: string; mimeType: string; provider: string; model: string };
     let made: Made | null = null;
+    let madePremium = false;
 
     if (paidUsable) {
       const specialist = await generatePaidImageBase64(
         prompt,
-        { organizationId: input.organizationId, userId: input.userId },
-        /hero|masthead|opening|lead/i.test(`${shot.slot} ${shot.placement.join(" ")}`)
+        caller,
+        /hero|masthead|opening|lead/i.test(placementOf(shot))
           ? "hero_master"
-          : /about|story|editorial/i.test(`${shot.slot} ${shot.placement.join(" ")}`)
+          : /about|story|editorial/i.test(placementOf(shot))
             ? "editorial_feature"
-            : /service|offering/i.test(`${shot.slot} ${shot.placement.join(" ")}`)
+            : /service|offering/i.test(placementOf(shot))
               ? "service_photo"
               : "starter_photo",
       );
       if (specialist.ok) {
         made = specialist;
+        madePremium = true;
         paidCostMicrocents += specialist.costMicrocents;
-        source = "premium";
       } else {
         firstBlockedMessage = firstBlockedMessage ?? specialist.message;
         if (PAID_STOP.has(specialist.reason)) paidUsable = false;
       }
     }
 
-    for (let tries = 0; !made && !standardBlocked && tries < 2; tries += 1) {
-      const standard = await generateImageBase64(prompt, {
-        organizationId: input.organizationId,
-        userId: input.userId,
-      });
-      if (standard.ok) {
-        made = standard;
-        source = source === "premium" ? source : "standard";
-        blockedStrikes = 0;
-        break;
-      }
-      firstBlockedMessage = firstBlockedMessage ?? standard.message;
-      if (standard.blocked) {
-        blockedStrikes += 1;
-        if (blockedStrikes >= MAX_BLOCKED_STRIKES) {
-          standardBlocked = true;
-          break;
-        }
-        await new Promise((resolve) => setTimeout(resolve, 4000 * blockedStrikes));
-        continue;
-      }
-      if (tries === 1) skipped.push({ slot: shot.slot, label: shot.label, reason: standard.message });
-    }
+    for (let tries = 0; !made && !standardBlocked && tries < 2; tries += 1) made = await standardShot(prompt);
 
     if (!made) {
-      if (standardBlocked) {
-        skipped.push({
-          slot: shot.slot,
-          label: shot.label,
-          reason: firstBlockedMessage ?? paid.message,
-        });
-        break;
-      }
-      continue;
+      skipped.push({
+        slot: shot.slot,
+        label: shot.label,
+        reason: standardBlocked ? (firstBlockedMessage ?? paid.message) : (firstBlockedMessage ?? "the picture service did not return a picture"),
+      });
+      return null;
     }
 
-    // Terra inspects the finished frame before it is saved. One corrected
-    // reshoot only. A picture Terra rejected is never saved: if the reshoot
-    // fails or is also rejected, the slot is left empty rather than showing a
-    // low-quality or off-brief picture. A reviewer that cannot answer never
-    // costs the business a usable picture.
+    // Terra inspects the finished frame before it is saved. Only a genuine
+    // content rejection (Terra saw the pixels and found a defect) may trigger a
+    // corrected reshoot. An infrastructure failure of the review never
+    // regenerates the picture: inspectPhoto already retried the review itself
+    // once, and the picture is then kept under the safe fallback (or left out
+    // when the operator chose the strict policy).
     const verdict = await inspectPhoto(
       { base64: made.base64, mimeType: made.mimeType },
-      { prompt, placement: `${shot.slot} ${shot.placement.join(" ")}`.trim() },
-      { organizationId: input.organizationId, userId: input.userId },
+      { prompt, placement: placementOf(shot) },
+      caller,
     );
-    if (!verdict.publishable) {
+    if (!acceptedForUse(verdict, policy)) {
       let replaced = false;
-      // Free reshoots first when the paid lane is unavailable: up to two
-      // corrected attempts on the best free model, each re-inspected by Terra.
-      if (!paidUsable && !standardBlocked) {
-        let brief = verdict.revisedPrompt ?? `${prompt} Fix these problems: ${verdict.defects.join("; ")}.`;
-        for (let reshootTry = 0; reshootTry < 2 && !replaced; reshootTry += 1) {
-          const reshoot = await generateImageBase64(brief, {
-            organizationId: input.organizationId,
-            userId: input.userId,
-          });
-          if (!reshoot.ok) {
-            if (reshoot.blocked) standardBlocked = true;
-            break;
-          }
-          const recheck = await inspectPhoto(
-            { base64: reshoot.base64, mimeType: reshoot.mimeType },
-            { prompt: brief, placement: `${shot.slot} ${shot.placement.join(" ")}`.trim() },
-            { organizationId: input.organizationId, userId: input.userId },
+      if (shouldReshoot(verdict)) {
+        const brief = verdict.revisedPrompt ?? `${prompt} Fix these problems: ${verdict.defects.join("; ")}.`;
+        // One corrected reshoot on the best lane available. A second free
+        // reshoot used to double the cost of every rejected frame.
+        let reshoot: Made | null = null;
+        let reshootPremium = false;
+        if (paidUsable) {
+          const premium = await generatePaidImageBase64(
+            brief,
+            caller,
+            /hero|masthead|opening|lead/i.test(placementOf(shot)) ? "hero_master" : "editorial_feature",
           );
-          if (recheck.publishable) {
-            made = reshoot;
-            source = source === "premium" ? source : "standard";
-            replaced = true;
-          } else {
-            brief = recheck.revisedPrompt ?? `${brief} Fix these problems: ${recheck.defects.join("; ")}.`;
+          if (premium.ok) {
+            paidCostMicrocents += premium.costMicrocents;
+            reshoot = premium;
+            reshootPremium = true;
           }
         }
-      }
-      if (!replaced && paidUsable) {
-        const reshoot = await generatePaidImageBase64(
-          verdict.revisedPrompt ?? `${prompt} Fix these problems: ${verdict.defects.join("; ")}.`,
-          { organizationId: input.organizationId, userId: input.userId },
-          /hero|masthead|opening|lead/i.test(`${shot.slot} ${shot.placement.join(" ")}`)
-            ? "hero_master"
-            : "editorial_feature",
-        );
-        if (reshoot.ok) {
-          paidCostMicrocents += reshoot.costMicrocents;
+        if (!reshoot) reshoot = await standardShot(brief);
+        if (reshoot) {
           const recheck = await inspectPhoto(
             { base64: reshoot.base64, mimeType: reshoot.mimeType },
-            { prompt: verdict.revisedPrompt ?? prompt, placement: shot.slot },
-            { organizationId: input.organizationId, userId: input.userId },
+            { prompt: brief, placement: placementOf(shot) },
+            caller,
           );
-          if (recheck.publishable) {
+          // The reshoot was made from Terra's own correction; a review outage on
+          // the recheck follows the same safe-fallback policy as the first look.
+          if (acceptedForUse(recheck, policy)) {
+            if (recheck.reviewFailed) reviewFallbacks += 1;
             made = reshoot;
-            source = "premium";
+            madePremium = reshootPremium;
             replaced = true;
           }
         }
@@ -330,13 +337,21 @@ export async function generateFirstBuildImages(
         skipped.push({
           slot: shot.slot,
           label: shot.label,
-          reason: `picture failed quality review (${verdict.defects.join("; ") || "off-brief"})`,
+          reason: verdict.reviewFailed
+            ? "the picture could not be quality-checked, so it was not used"
+            : `picture failed quality review (${verdict.defects.join("; ") || "off-brief"})`,
         });
-        continue;
+        return null;
       }
+    } else if (verdict.reviewFailed) {
+      reviewFallbacks += 1;
+      console.warn(
+        `[first-build-images] visual review unavailable for ${shot.slot}/${shot.label}; kept under safe fallback (no reshoot).`,
+      );
     }
 
     const image = made;
+    lane.source = madePremium ? "premium" : lane.source === "premium" ? "premium" : "standard";
     const mime = image.mimeType.split(";")[0]?.trim().toLowerCase() ?? "image/png";
     const extension = MIME_EXTENSION[mime] ?? "png";
     const bytes = decodeBase64(image.base64);
@@ -347,7 +362,7 @@ export async function generateFirstBuildImages(
       .upload(path, bytes, { contentType: mime, upsert: false });
     if (uploadError) {
       skipped.push({ slot: shot.slot, label: shot.label, reason: uploadError.message });
-      continue;
+      return null;
     }
 
     const altText = spec.altText;
@@ -356,7 +371,7 @@ export async function generateFirstBuildImages(
       .insert({
         organization_id: input.organizationId,
         url: path,
-        category: /hero|masthead|opening|lead/i.test(`${shot.slot} ${shot.placement.join(" ")}`) ? "hero" : "other",
+        category: /hero|masthead|opening|lead/i.test(placementOf(shot)) ? "hero" : "other",
         file_name: `${fileStem(shot, index)}.${extension}`,
         size_bytes: bytes.byteLength,
         alt_text: altText,
@@ -370,12 +385,12 @@ export async function generateFirstBuildImages(
     if (rowError) {
       await db.storage.from(MEDIA_BUCKET).remove([path]);
       skipped.push({ slot: shot.slot, label: shot.label, reason: rowError.message });
-      continue;
+      return null;
     }
 
     provider = image.provider;
     models.add(image.model);
-    assets.push({
+    return {
       slot: shot.slot,
       label: shot.label,
       altText,
@@ -386,14 +401,35 @@ export async function generateFirstBuildImages(
       prompt,
       placement: shot.placement,
       aspectRatio: shot.aspect,
-    });
+    };
   }
+
+  // BOUNDED CONCURRENCY. Pictures used to be made strictly one after another
+  // (12–24 frames at 15–20s each = 5–8 minutes of serial waiting). A small pool
+  // keeps every provider inside its rate limits while cutting the picture phase
+  // to roughly a minute. Results keep campaign order so the hero stays first.
+  const made = await mapConcurrent(shots, firstBuildImageConcurrency(), async (shot, index) => {
+    try {
+      return await makeShot(shot, index);
+    } catch (error) {
+      skipped.push({
+        slot: shot.slot,
+        label: shot.label,
+        reason: error instanceof Error ? error.message : "the picture could not be made",
+      });
+      return null;
+    }
+  });
+  const assets = made.filter((asset): asset is FirstBuildImageAsset => asset !== null);
+  if (reviewFallbacks > 0)
+    console.warn(`[first-build-images] ${reviewFallbacks} picture(s) kept without a completed visual review.`);
 
   // Quality gate: a picture that is unsafe for its slot, undescribed, unstored or
   // duplicated never reaches the website. Required slots fail materialization.
   const graded = gradeFirstBuildImages(assets);
   const kept = graded.accepted;
   const status = kept.length ? "generated" : skipped.length || graded.rejected.length ? "blocked" : "failed";
+  const source = lane.source;
   const laneLabel = source === "premium" ? "specialist picture team" : "standard capability-matched picture service";
 
   return {

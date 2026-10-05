@@ -7,6 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { fetchAllRows } from "@/lib/paginate";
 import { readWebsiteState, restoreWebsiteVersion } from "@/lib/site-restore.functions";
 import { insertVersionSnapshot, versionContent } from "@/lib/version-snapshot";
+import { jobLiveness, type JobLiveness } from "@/lib/builder/job-liveness";
 import {
   aiEditSiteCopy,
   extractScreenshotReference,
@@ -30,6 +31,14 @@ export function queuePumpDelay(job: {
   if (!Number.isFinite(expiresAt)) return 500;
   return Math.max(250, expiresAt - now + 250);
 }
+
+/**
+ * While a job stays stalled (its lease lapsed and the row stopped changing),
+ * the effect above does not re-fire because nothing in its dependencies
+ * changes. Keep nudging the worker on this cadence so the server sweep can
+ * re-queue or close the job instead of the owner waiting forever.
+ */
+export const STALLED_PUMP_INTERVAL_MS = 15_000;
 
 /** Latest build job for the workspace; polls while a build is running. */
 export function useLatestGenerationJob(organizationId: string | undefined) {
@@ -57,10 +66,27 @@ export function useLatestGenerationJob(organizationId: string | undefined) {
   // server to advance the queue for this workspace. The database lease makes this
   // safe to call repeatedly — it never double-processes a job.
   const pump = useServerFn(pumpSiteEngineQueue);
-  const job = query.data as { status?: string; lease_expires_at?: string | null } | null | undefined;
+  const job = query.data as
+    | { status?: string; lease_expires_at?: string | null; updated_at?: string | null }
+    | null
+    | undefined;
   const status = job?.status;
   const leaseExpiresAt = job?.lease_expires_at ?? null;
+  const updatedAt = job?.updated_at ?? null;
   const hasJob = job != null;
+  // Re-evaluated on every poll (every 1.5s while active), so this flips to
+  // `stalled` about a minute after a worker dies.
+  const liveness = jobLiveness(
+    hasJob ? { status: status ?? null, lease_expires_at: leaseExpiresAt, updated_at: updatedAt } : null,
+    query.dataUpdatedAt || Date.now(),
+  );
+  useEffect(() => {
+    if (!organizationId || liveness !== "stalled") return;
+    const id = setInterval(() => {
+      void pump({ data: { organizationId } }).catch(() => undefined);
+    }, STALLED_PUMP_INTERVAL_MS);
+    return () => clearInterval(id);
+  }, [organizationId, liveness, pump]);
   useEffect(() => {
     if (!organizationId) return;
     const delay = queuePumpDelay(hasJob ? { status, lease_expires_at: leaseExpiresAt } : null);
@@ -81,6 +107,25 @@ export function useLatestGenerationJob(organizationId: string | undefined) {
   }, [status, queryClient]);
 
   return query;
+}
+
+/**
+ * Liveness of the workspace's latest build job for the UI: `running`,
+ * `queued`, `stalled` (worker died; recovery in progress) or `idle`.
+ */
+export function useJobLiveness(organizationId: string | undefined): {
+  liveness: JobLiveness;
+  message: string | null;
+} {
+  const query = useLatestGenerationJob(organizationId);
+  const row = query.data as
+    | { status?: string | null; lease_expires_at?: string | null; updated_at?: string | null; error_message?: string | null }
+    | null
+    | undefined;
+  return {
+    liveness: jobLiveness(row ?? null, query.dataUpdatedAt || Date.now()),
+    message: row?.error_message ?? null,
+  };
 }
 
 export function useRunSiteEngine(organizationId: string | undefined) {

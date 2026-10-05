@@ -11,6 +11,7 @@
 
 import type { ProviderName } from "@/lib/ai/config";
 import { RevoraAiError } from "@/lib/ai/errors";
+import { toImageDataUrl } from "@/lib/ai/data-url";
 import { providerHttpError } from "@/lib/ai/providers/shared";
 import type { AiPart, AiUsage, ProviderAdapter } from "@/lib/ai/types";
 
@@ -18,11 +19,14 @@ type CompatPart =
   | { type: "text"; text: string }
   | { type: "image_url"; image_url: { url: string } };
 
-function partsOf(provider: ProviderName, content: string | AiPart[]): string | CompatPart[] {
+export function partsOf(provider: ProviderName, content: string | AiPart[]): string | CompatPart[] {
   if (typeof content === "string") return content;
   return content.map((part): CompatPart => {
     if (part.type === "text") return { type: "text", text: part.text };
-    if (part.type === "image") return { type: "image_url", image_url: { url: part.dataUrl } };
+    // Always a valid data URL (or http URL): raw base64 is rejected by every
+    // OpenAI-compatible vision endpoint with 400 "invalid image URL".
+    if (part.type === "image")
+      return { type: "image_url", image_url: { url: toImageDataUrl(part.dataUrl, part.mimeType) } };
     throw new RevoraAiError(403, `Revora's ${provider} free models cannot read that attachment.`, {
       category: "policy",
       provider,

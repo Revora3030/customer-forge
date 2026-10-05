@@ -55,6 +55,7 @@ import {
   noteFreeUse,
   type FreeProviderName,
 } from "@/lib/ai/free";
+import { PREFERRED_FREE_VISION_MODELS, preferredVisionRank, visionCapableModel } from "@/lib/ai/vision-models";
 import { pickDiscoveredModels, refreshFreeModels } from "@/lib/ai/free-models.server";
 import { preserveGroupOrder, qualityFirstOrder } from "@/lib/ai/orchestration/order";
 import { cloudflareAdapter } from "@/lib/ai/providers/cloudflare";
@@ -280,6 +281,12 @@ export async function freeModelPool(
       if (!models.includes(model) && isFreeEligibleModel(entry.name, model)) models.push(model);
     };
     const configuredModel = entry.model;
+    // FAST VISION FIRST: the verified low-latency vision endpoints lead each
+    // provider's vision pool so a visual review answers in about a second
+    // instead of waiting on a large general multimodal model.
+    if (role === "vision")
+      for (const preferred of PREFERRED_FREE_VISION_MODELS)
+        if (preferred.provider === entry.name) consider(preferred.model);
     // Keep a known-good creation route in every Cloudflare image pool. An
     // operator override or a stale discovery cache may point the configured
     // image model at an inpainting-only endpoint; capability filtering then
@@ -365,7 +372,11 @@ async function buildChain(
     ...ranked.filter((entry) => entry.free === null),
     ...ranked.filter((entry) => entry.free !== null),
   ];
-  const grouped = preserveGroupOrder(paidFirst, candidates, (entry) => entry.free === null);
+  const groupedRaw = preserveGroupOrder(paidFirst, candidates, (entry) => entry.free === null);
+  // Visual review is latency-critical: inside the free group, the verified fast
+  // vision endpoints go first (NIM llama-3.2-11b-vision, then Workers AI), and
+  // everything else keeps its quality-first place behind them.
+  const grouped = role === "vision" ? fastVisionFirst(groupedRaw) : groupedRaw;
   // LIVE ADMIN ROUTING: pins and pauses set in the Command Center.
   const { loadCommandSettings, applyRoutingOverrides } = await import("@/lib/ai/command-settings.server");
   const ordered = applyRoutingOverrides(grouped, (entry) => entry.model, await loadCommandSettings());
@@ -375,6 +386,32 @@ async function buildChain(
   const failoverLimit = Number(process.env["AI_MAX_FAILOVER_CANDIDATES"] ?? "");
   const cap = Number.isFinite(failoverLimit) && failoverLimit > 0 ? Math.floor(failoverLimit) : 24;
   return ordered.slice(0, cap);
+}
+
+/** Stable reorder: preferred fast free vision models first, inside the free group. */
+export function fastVisionFirst<T extends { free: FreeProviderName | null; model: string }>(entries: T[]): T[] {
+  const paid = entries.filter((entry) => entry.free === null);
+  const free = entries.filter((entry) => entry.free !== null);
+  const preferred = free
+    .map((entry, index) => ({ entry, index, rank: preferredVisionRank(entry.free as string, entry.model) }))
+    .filter((row) => Number.isFinite(row.rank))
+    .sort((a, b) => a.rank - b.rank || a.index - b.index)
+    .map((row) => row.entry);
+  const rest = free.filter((entry) => !preferred.includes(entry));
+  return [...paid, ...preferred, ...rest];
+}
+
+/**
+ * The capability gate a role needs on top of free eligibility. Vision is strict:
+ * a model that cannot read pixels is never handed a picture, so visual review
+ * no longer times out on text-only models (`glm-5.2`, `gpt-oss`, ...).
+ */
+export function roleCapability(
+  role: ModelRole,
+  capable?: (model: string) => boolean,
+): ((model: string) => boolean) | undefined {
+  if (role !== "vision") return capable;
+  return capable ? (model: string) => visionCapableModel(model) && capable(model) : visionCapableModel;
 }
 
 /**
@@ -497,7 +534,15 @@ async function run<T>(
     model: string;
     signal: AbortSignal;
   }) => Promise<{ value: T; inputTokens?: number | null; outputTokens?: number | null }>,
-  options?: { capable?: (model: string) => boolean; nextProviderOnInvalidRequest?: boolean; freeOnly?: boolean },
+  options?: {
+    capable?: (model: string) => boolean;
+    nextProviderOnInvalidRequest?: boolean;
+    freeOnly?: boolean;
+    /** Per-attempt timeout; clamped to the configured ceiling. */
+    timeoutMs?: number;
+    /** Whole-chain wall-clock budget; clamped to the configured deadline. */
+    chainDeadlineMs?: number;
+  },
 ): Promise<{
   value: T;
   provider: ProviderName;
@@ -515,7 +560,14 @@ async function run<T>(
   // mode; whatever is reachable is then ranked on capability and quality, with
   // cost last. An empty chain is an explicit AI failure; creative callers stop
   // rather than substituting a built-in website engine.
-  const chain = await buildChain(caller, role, options?.capable, options?.freeOnly === true);
+  const chain = await buildChain(
+    caller,
+    role,
+    roleCapability(role, options?.capable),
+    options?.freeOnly === true,
+  );
+  const attemptTimeoutMs = clampPositive(options?.timeoutMs, limits.requestTimeoutMs);
+  const chainBudgetMs = clampPositive(options?.chainDeadlineMs, chainDeadlineMs());
   if (chain.length === 0) throw freeAiUnavailable("no free provider configured or in budget");
 
   const verdict = await checkAiLimits(caller);
@@ -533,7 +585,7 @@ async function run<T>(
     // TEAM FAILOVER. One model failing says nothing about the rest of the pool,
     // so the chain keeps going until somebody answers — bounded by a wall-clock
     // deadline so a bad day can never hold a customer's build for an hour.
-    const chainDeadline = Date.now() + chainDeadlineMs();
+    const chainDeadline = Date.now() + chainBudgetMs;
     // A provider whose key was rejected or whose account is out of quota will
     // refuse every one of its models, so the rest of them are skipped.
     const deadProviders = new Set<string>();
@@ -555,7 +607,9 @@ async function run<T>(
         if (attempt > 1 && Date.now() >= chainDeadline) break;
         const started = Date.now();
         const controller = new AbortController();
-        const timer = setTimeout(() => controller.abort(), limits.requestTimeoutMs);
+        // Never let one slow model eat past the chain budget either.
+        const attemptBudget = Math.max(1, Math.min(attemptTimeoutMs, chainDeadline - Date.now()));
+        const timer = setTimeout(() => controller.abort(), attemptBudget);
         try {
           if (candidate.free) {
             noteFreeUse(candidate.free, role);
@@ -697,6 +751,11 @@ async function run<T>(
   }
 }
 
+/** A caller override, only ever lowering the configured ceiling. */
+function clampPositive(value: number | undefined, ceiling: number): number {
+  return typeof value === "number" && Number.isFinite(value) && value > 0 ? Math.min(Math.floor(value), ceiling) : ceiling;
+}
+
 /** Total time one logical call may spend walking the failover chain. */
 function chainDeadlineMs() {
   const raw = Number(process.env["AI_CHAIN_DEADLINE_MS"] ?? "");
@@ -725,6 +784,16 @@ function carriesAttachment(messages: AiRequest["messages"]): boolean {
 
 /* ------------------------------ public surface ----------------------------- */
 
+/** Router options derived from one text/structured request. */
+function runOptionsFor(request: AiRequest) {
+  return {
+    nextProviderOnInvalidRequest: carriesAttachment(request.messages),
+    freeOnly: request.freeOnly === true,
+    ...(request.timeoutMs ? { timeoutMs: request.timeoutMs } : {}),
+    ...(request.chainDeadlineMs ? { chainDeadlineMs: request.chainDeadlineMs } : {}),
+  };
+}
+
 /** Plain text generation. */
 export async function generateText(caller: AiCaller, request: AiRequest): Promise<AiTextResult> {
   guardRequest(request.messages);
@@ -751,7 +820,7 @@ export async function generateText(caller: AiCaller, request: AiRequest): Promis
         outputTokens: result.usage.outputTokens,
       };
     },
-    { nextProviderOnInvalidRequest: carriesAttachment(request.messages), freeOnly: request.freeOnly === true },
+    runOptionsFor(request),
   );
   return {
     text: outcome.value,
@@ -796,7 +865,7 @@ export async function generateStructuredOutput(
         outputTokens: result.usage.outputTokens,
       };
     },
-    { nextProviderOnInvalidRequest: carriesAttachment(request.messages), freeOnly: request.freeOnly === true },
+    runOptionsFor(request),
   );
   return {
     text: outcome.value.text,

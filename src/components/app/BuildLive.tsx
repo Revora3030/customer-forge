@@ -14,6 +14,7 @@ import { Panel, SectionHeading } from "@/components/app/Bits";
 import { Button } from "@/components/ui/button";
 import { Shimmer } from "@/components/ai-elements/shimmer";
 import { useLatestGenerationJob } from "@/lib/site-engine.hooks";
+import { RECOVERING_BUILD_MESSAGE, jobLiveness } from "@/lib/builder/job-liveness";
 import { useBuildProgress } from "@/lib/builder/progress.hooks";
 import { cn } from "@/lib/utils";
 
@@ -24,6 +25,8 @@ type JobRow = {
   current_step?: string | null;
   progress?: number | null;
   error_message?: string | null;
+  lease_expires_at?: string | null;
+  updated_at?: string | null;
 };
 
 export function BuildLive({ organizationId }: { organizationId: string | null | undefined }) {
@@ -32,6 +35,10 @@ export function BuildLive({ organizationId }: { organizationId: string | null | 
   const status = row?.status ?? null;
   const active = Boolean(status && ACTIVE.has(status));
   const failed = status === "failed";
+  // A worker that died leaves the job "processing" with a lapsed lease. Say so
+  // plainly (the server sweep re-queues or closes it) instead of an endless
+  // "finishing" shimmer.
+  const stalled = jobLiveness(row, job.dataUpdatedAt || Date.now()) === "stalled";
 
   // Poll the recorded build stages while the job needs watching.
   const { latest, steps } = useBuildProgress(organizationId, active || failed);
@@ -80,14 +87,18 @@ export function BuildLive({ organizationId }: { organizationId: string | null | 
         </span>
         <span className="min-w-0 flex-1">
           <span className="block truncate text-[14px] font-medium">
-            {active ? (
+            {stalled ? (
+              <span className="text-amber-500">Reconnecting to your build…</span>
+            ) : active ? (
               <Shimmer as="span">{latest ? `${latest.stage}…` : "Starting your website build…"}</Shimmer>
             ) : (
               "The build hit a problem — our team has been notified"
             )}
           </span>
           <span className="block text-[12px] text-muted-foreground">
-            {active
+            {stalled
+              ? "The build worker stopped responding. Revora is restarting it automatically."
+              : active
               ? "Revora is building your website right now — you can watch every step here."
               : "You can keep going; the build retries automatically and nothing is charged twice."}
           </span>
@@ -138,6 +149,12 @@ export function BuildLive({ organizationId }: { organizationId: string | null | 
           ) : active ? (
             <p className="text-[13px] text-muted-foreground">
               Queued — the builder picks up new jobs within a few seconds.
+            </p>
+          ) : null}
+          {stalled ? (
+            <p role="status" className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-[12.5px] text-amber-600">
+              {row?.error_message || RECOVERING_BUILD_MESSAGE} If it doesn’t resume in a couple of minutes it will be
+              stopped, and you can press Build to try again.
             </p>
           ) : null}
           {failed && row?.error_message ? (

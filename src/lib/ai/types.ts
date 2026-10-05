@@ -35,6 +35,17 @@ export type AiRequest = {
   json?: boolean;
   maxOutputTokens?: number;
   temperature?: number;
+  /**
+   * Per-provider-call timeout in milliseconds. Never raises the router's
+   * configured ceiling; used by latency-sensitive helpers (visual review) so a
+   * slow model fails fast and the next candidate is tried immediately.
+   */
+  timeoutMs?: number;
+  /**
+   * Total wall-clock budget for the whole failover chain of this one call.
+   * Never raises the router's configured chain deadline.
+   */
+  chainDeadlineMs?: number;
 };
 
 export type AiUsage = { inputTokens: number | null; outputTokens: number | null };
