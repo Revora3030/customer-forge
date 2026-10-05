@@ -52,6 +52,7 @@ VIEWPORTS = [
     ("w1024", 1024, 768),
     ("w1280", 1280, 900),
     ("w1920", 1920, 1080),
+    ("w2560", 2560, 1440),
 ]
 # Noise that is not an application fault.
 IGNORED_CONSOLE = ("favicon", "sourcemap", "Download the React DevTools")
@@ -79,6 +80,50 @@ async def read_page(page) -> tuple[str, str, int]:
         "() => Math.max(0, document.documentElement.scrollWidth - window.innerWidth)"
     )
     return title, heading, overflow
+
+
+# Automated WCAG basics (spec H). Each finding is a real DOM fact, not a score:
+# images without alt, form controls with no accessible name, buttons/links with
+# no accessible name, a missing <html lang>, and (on phones) visible tap targets
+# smaller than 24x24 CSS px (WCAG 2.2 SC 2.5.8 minimum). Hidden mirrors that
+# component libraries render with aria-hidden are excluded. Missing alt, labels,
+# accessible names and lang FAIL the run; small tap targets are recorded as
+# warnings (the size heuristic can't see WCAG's spacing exception), and a
+# control inside a <label> is measured by its label.
+A11Y_SNIPPET = r"""() => {
+  const visible = (el) => {
+    if (el.closest('[aria-hidden="true"]')) return false;
+    const s = getComputedStyle(el); const r = el.getBoundingClientRect();
+    return s.display !== 'none' && s.visibility !== 'hidden' && r.width > 0 && r.height > 0;
+  };
+  const name = (el) => (el.getAttribute('aria-label') || '').trim()
+    || (el.getAttribute('aria-labelledby') ? (el.getAttribute('aria-labelledby').split(/\s+/).map(id => document.getElementById(id)?.textContent || '').join(' ').trim()) : '')
+    || (el.id && document.querySelector(`label[for="${CSS.escape(el.id)}"]`)?.textContent.trim()) || ''
+    || (el.closest('label')?.textContent.trim() || '')
+    || (el.getAttribute('title') || '').trim();
+  const describe = (el) => `${el.tagName.toLowerCase()}${el.id ? '#' + el.id : ''}${el.className && typeof el.className === 'string' ? '.' + el.className.split(/\s+/).slice(0, 2).join('.') : ''}`.slice(0, 80);
+  const out = { missingLang: !document.documentElement.getAttribute('lang'), imagesWithoutAlt: [], unlabeledControls: [], unnamedButtons: [], smallTargets: [] };
+  for (const img of document.querySelectorAll('img')) if (visible(img) && !img.hasAttribute('alt')) out.imagesWithoutAlt.push(describe(img));
+  for (const el of document.querySelectorAll('input:not([type=hidden]), select, textarea')) if (visible(el) && !name(el) && !(el.getAttribute('placeholder') || '').trim()) out.unlabeledControls.push(describe(el));
+  for (const el of document.querySelectorAll('button, a[href], [role=button]')) {
+    if (!visible(el)) continue;
+    const text = (el.textContent || '').trim() || name(el) || el.querySelector('img[alt]:not([alt=""])')?.getAttribute('alt') || el.querySelector('svg title')?.textContent || '';
+    if (!text.trim()) out.unnamedButtons.push(describe(el));
+    if (window.innerWidth < 768 && !el.closest('label')) { const r = el.getBoundingClientRect(); const inline = getComputedStyle(el).display === 'inline' && el.tagName === 'A'; if (!inline && (r.width < 24 || r.height < 24)) out.smallTargets.push(describe(el)); }
+  }
+  for (const k of ['imagesWithoutAlt', 'unlabeledControls', 'unnamedButtons', 'smallTargets']) out[k] = out[k].slice(0, 10);
+  return out;
+}"""
+
+
+def a11y_problems(a11y: dict) -> list[str]:
+    problems: list[str] = []
+    if a11y.get("missingLang"):
+        problems.append("missing <html lang>")
+    for key, label in (("imagesWithoutAlt", "image without alt"), ("unlabeledControls", "form control without a label"), ("unnamedButtons", "button/link without an accessible name")):
+        if a11y.get(key):
+            problems.append(f"{len(a11y[key])} {label}: {', '.join(a11y[key][:3])}")
+    return problems
 
 
 async def read_page_with_retry(page, result: dict) -> tuple[str, str, int]:
@@ -150,6 +195,12 @@ async def check_route(browser, route: str, label: str, width: int, height: int) 
         result["title"] = title
         result["heading"] = heading
         result["horizontalOverflowPx"] = overflow
+        try:
+            result["a11y"] = await page.evaluate(A11Y_SNIPPET)
+        except Exception as error:  # noqa: BLE001 - recorded; a failed read is a failure
+            result["a11y"] = {"error": str(error)[:200]}
+        result["a11yProblems"] = a11y_problems(result["a11y"]) if "error" not in result["a11y"] else [result["a11y"]["error"]]
+        result["a11yWarnings"] = [f"{len(result['a11y'].get('smallTargets', []))} tap target(s) under 24px: {', '.join(result['a11y'].get('smallTargets', [])[:3])}"] if result["a11y"].get("smallTargets") else []
 
         # Direct-route refresh: a fresh navigation to the same URL must also work.
         refreshed = await page.goto(url, wait_until="domcontentloaded", timeout=45000)
@@ -170,6 +221,7 @@ async def check_route(browser, route: str, label: str, width: int, height: int) 
             and result["refreshStatus"]
             and result["refreshStatus"] < 400
             and overflow <= 1
+            and not result.get("a11yProblems")
             and not console_errors
             and not failed_requests
         )
@@ -190,7 +242,7 @@ async def main() -> int:
     not_verified: list[dict] = []
 
     async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=True)
+        browser = await p.chromium.launch(headless=True, **({"executable_path": os.environ["BROWSER_QA_CHROMIUM"]} if os.environ.get("BROWSER_QA_CHROMIUM") else {}))
         warm_up_notes = await warm_up(browser)
         for route in ROUTES:
             for label, width, height in VIEWPORTS:
@@ -224,6 +276,7 @@ async def main() -> int:
             {"route": c["route"], "width": c.get("width"), "overflowPx": c.get("horizontalOverflowPx"),
              "status": c.get("status"), "error": c.get("error"),
              "consoleErrors": c.get("consoleErrors", [])[:3],
+             "a11yProblems": c.get("a11yProblems", [])[:5],
              "hydrationWarnings": c.get("hydrationWarnings", [])[:3],
              "failedRequests": c.get("failedRequests", [])[:3]}
             for c in failed

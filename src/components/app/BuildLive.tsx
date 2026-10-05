@@ -16,6 +16,7 @@ import { Shimmer } from "@/components/ai-elements/shimmer";
 import { useLatestGenerationJob } from "@/lib/site-engine.hooks";
 import { RECOVERING_BUILD_MESSAGE, jobLiveness } from "@/lib/builder/job-liveness";
 import { useBuildProgress } from "@/lib/builder/progress.hooks";
+import { describeBuildFailure } from "@/lib/builder/build-failure";
 import { cn } from "@/lib/utils";
 
 const ACTIVE = new Set(["queued", "processing"]);
@@ -25,6 +26,7 @@ type JobRow = {
   current_step?: string | null;
   progress?: number | null;
   error_message?: string | null;
+  failure_kind?: string | null;
   lease_expires_at?: string | null;
   updated_at?: string | null;
 };
@@ -35,6 +37,7 @@ export function BuildLive({ organizationId }: { organizationId: string | null | 
   const status = row?.status ?? null;
   const active = Boolean(status && ACTIVE.has(status));
   const failed = status === "failed";
+  const failure = describeBuildFailure(row ?? {});
   // A worker that died leaves the job "processing" with a lapsed lease. Say so
   // plainly (the server sweep re-queues or closes it) instead of an endless
   // "finishing" shimmer.
@@ -92,7 +95,7 @@ export function BuildLive({ organizationId }: { organizationId: string | null | 
             ) : active ? (
               <Shimmer as="span">{latest ? `${latest.stage}…` : "Starting your website build…"}</Shimmer>
             ) : (
-              "The build hit a problem — our team has been notified"
+              failure?.label ?? "The build hit a problem — our team has been notified"
             )}
           </span>
           <span className="block text-[12px] text-muted-foreground">
@@ -157,9 +160,9 @@ export function BuildLive({ organizationId }: { organizationId: string | null | 
               stopped, and you can press Build to try again.
             </p>
           ) : null}
-          {failed && row?.error_message ? (
+          {failed && failure ? (
             <p className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-[12.5px] text-destructive">
-              {row.error_message}
+              {failure.message}
             </p>
           ) : null}
           <div className="flex flex-col gap-2 pt-1 sm:flex-row">

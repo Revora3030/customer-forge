@@ -66,3 +66,11 @@ than 60s ago; repeated `[infrastructure]` tags.
 
 Add a regression test for the root cause, link the PR, and record timeline, impact (tenants affected,
 no secrets) and prevention in the incident record.
+
+## Build cancel, picture approvals, publish checks and alerts
+
+- **Cancel a build:** owners/managers press *Cancel build* (Site Engine panel). The job becomes `cancelled` (terminal, outside the one-active index), the worker stops at its next stage write (all stage/complete writes require `status = processing`), its AI pictures are cleaned up and a fresh rebuild restores its backup. A new build can start immediately. Audit: `audit_logs.action = BUILD_CANCELLED`.
+- **Failed build:** `generation_jobs.failure_kind` and `failed_stage` say what failed and where; the owner sees the label from `describeBuildFailure`. *Retry build* reruns the whole pipeline (stages are not checkpointed).
+- **Pictures:** `image_records` holds one row per slot. A stuck `regenerating` row (worker died mid-call) can be reset by an admin: `update image_records set status='failed' where status='regenerating' and updated_at < now() - interval '10 minutes';` The owner then regenerates that one picture.
+- **Publish smoke failed:** see `publish_events.smoke_report` and `audit_logs.action = PUBLISH_SMOKE_FAILED`. The live version is not rolled back automatically; fix the cause and publish again, or select the previous version in *Publish a specific version* and publish it.
+- **Alerts (Admin → Monitoring):** build success < 80% (≥ 5 finished builds), p90 build > 15 min, ≥ 3 provider failures, any failed live check. Each alert links to its runbook section above.

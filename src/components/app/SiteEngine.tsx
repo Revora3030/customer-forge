@@ -9,6 +9,7 @@ import {
   Sparkles,
   TriangleAlert,
   Wand2,
+  X,
 } from "lucide-react";
 import { MetricCard, Panel, Pill, SectionHeading } from "@/components/app/Bits";
 import { Button } from "@/components/ui/button";
@@ -27,6 +28,8 @@ import {
   useWebsiteVersions,
 } from "@/lib/site-engine.hooks";
 import { dateShort } from "@/lib/format";
+import { describeBuildFailure } from "@/lib/builder/build-failure";
+import { useCancelSiteEngine } from "@/lib/site-engine-cancel.hooks";
 import { cn } from "@/lib/utils";
 import { focusAndScrollToId } from "@/lib/use-step-scroll";
 
@@ -46,12 +49,15 @@ export function SiteEnginePanel({
   const { data: job } = useLatestGenerationJob(organizationId);
   const { data: readiness } = useBuildReadiness(organizationId);
   const run = useRunSiteEngine(organizationId);
+  const cancel = useCancelSiteEngine(organizationId);
   const [freshConfirm, setFreshConfirm] = useState("");
 
   const status = run.isPending ? "processing" : ((job?.status as string | undefined) ?? "none");
   const doneSteps = Array.isArray(job?.steps) ? (job?.steps as string[]) : [];
   const progress = run.isPending && !doneSteps.length ? 5 : Number(job?.progress ?? 0);
   const running = status === "processing" || status === "queued";
+  const failure = describeBuildFailure((job ?? {}) as { status?: string; failure_kind?: string | null; error_message?: string | null });
+  const jobId = (job as { id?: string } | null | undefined)?.id ?? null;
 
   // Generation is gated on an approved brief and the facts Revora needs, so it
   // never produces a website from guesses.
@@ -79,7 +85,7 @@ export function SiteEnginePanel({
             title={
               running
                 ? "Revora is building your website…"
-                : status === "failed"
+                : status === "failed" || status === "cancelled"
                   ? "The last build didn't finish"
                   : hasCopy
                     ? "Your website is built from your information"
@@ -104,11 +110,22 @@ export function SiteEnginePanel({
             ) : (
               <Sparkles className="size-4" />
             )}
-            {status === "failed"
+            {status === "failed" || status === "cancelled"
               ? "Retry build"
               : hasCopy
                 ? "Rebuild from my info"
                 : "Build my complete website"}
+          </Button>
+        ) : null}
+        {canManage && running && jobId && !run.isPending ? (
+          <Button
+            variant="outline"
+            disabled={cancel.isPending}
+            onClick={() => cancel.mutate(jobId)}
+            aria-label="Cancel this build"
+          >
+            {cancel.isPending ? <Loader2 className="size-4 animate-spin" /> : <X className="size-4" />}
+            Cancel build
           </Button>
         ) : null}
       </div>
@@ -183,12 +200,18 @@ export function SiteEnginePanel({
         </div>
       ) : null}
 
-      {status === "failed" && job?.error_message ? (
-        <div className="mt-4 flex items-start gap-2.5 rounded-md border border-destructive/40 bg-destructive/5 p-3.5">
+      {failure ? (
+        <div
+          role="status"
+          className="mt-4 flex items-start gap-2.5 rounded-md border border-destructive/40 bg-destructive/5 p-3.5"
+        >
           <TriangleAlert className="mt-0.5 size-4 text-destructive" aria-hidden="true" />
           <div>
-            <p className="text-[13px] font-medium">Generation failed</p>
-            <p className="mt-0.5 text-[12px] text-muted-foreground">{String(job.error_message)}</p>
+            <p className="text-[13px] font-medium">{failure.label}</p>
+            <p className="mt-0.5 text-[12px] text-muted-foreground">{failure.message}</p>
+            {failure.canRetry && canManage ? (
+              <p className="mt-1 text-[12px] text-muted-foreground">Press “Retry build” to run the whole build again.</p>
+            ) : null}
           </div>
         </div>
       ) : null}

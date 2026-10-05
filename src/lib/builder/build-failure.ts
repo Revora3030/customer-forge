@@ -86,6 +86,39 @@ export function readFailureKind(message: string | null | undefined): BuildFailur
   return kind && (BUILD_FAILURE_KINDS as readonly string[]).includes(kind) ? kind : null;
 }
 
+/** Short owner-facing label for each kind, shown next to a failed build. */
+export const FAILURE_KIND_LABELS: Record<BuildFailureKind | "cancelled", string> = {
+  intake_validation: "Missing business details",
+  provider: "AI provider unavailable",
+  content: "Copy didn't pass fact checks",
+  image: "Pictures couldn't be finished",
+  rendering: "Page assembly failed",
+  preview: "Preview couldn't be prepared",
+  publish: "Publish didn't complete",
+  validation: "Quality checks failed",
+  infrastructure: "Build worker interrupted",
+  cancelled: "Cancelled by you",
+};
+
+/**
+ * What the owner sees for a failed or cancelled build: a short label, the
+ * plain-language explanation for its kind, and whether pressing Build again is
+ * the right next step. Reads the structured column first, then the tag.
+ */
+export function describeBuildFailure(row: {
+  status?: string | null;
+  failure_kind?: string | null;
+  error_message?: string | null;
+}): { label: string; message: string; canRetry: boolean } | null {
+  if (row.status === "cancelled" || row.failure_kind === "cancelled")
+    return { label: FAILURE_KIND_LABELS.cancelled, message: "The build was stopped before it finished. Nothing was published.", canRetry: true };
+  if (row.status !== "failed") return null;
+  const stored = row.failure_kind as BuildFailureKind | null | undefined;
+  const kind = stored && (BUILD_FAILURE_KINDS as readonly string[]).includes(stored) ? stored : readFailureKind(row.error_message);
+  if (!kind) return { label: "Build didn't finish", message: untaggedMessage(row.error_message) || "The build didn't finish.", canRetry: true };
+  return { label: FAILURE_KIND_LABELS[kind], message: OWNER_MESSAGES[kind], canRetry: true };
+}
+
 /** The message without its kind tag, for display. */
 export function untaggedMessage(message: string | null | undefined): string {
   return (message ?? "").replace(PREFIX, "");

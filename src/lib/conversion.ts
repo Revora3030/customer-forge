@@ -1,4 +1,5 @@
 import { recordConversion, type ConversionEvent } from "@/lib/conversion.functions";
+import { isNonProductionTraffic } from "@/lib/analytics-taxonomy";
 import { ga4Event, ga4PageView } from "@/lib/ga4";
 
 const KEY = "revora.attribution.v1";
@@ -87,6 +88,9 @@ export function trackConversion(
   },
 ) {
   if (!isBrowser()) return;
+  // Spec I: preview hosts, local development and the builder's draft/preview
+  // frames never reach customer production analytics.
+  if (isNonProductionTraffic(window.location.hostname, window.location.pathname)) return;
   const attribution = getAttribution();
   // Variants ride along on every event so each funnel stage can be split by test.
   let variants: Record<string, string> = {};

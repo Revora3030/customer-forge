@@ -52,6 +52,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { AssistantMedia } from "@/components/app/AssistantMedia";
 import { CompositionPreviewCard } from "@/components/app/CompositionPreviewCard";
+import { BranchSwitcher, ChatSearch, VoiceDictationButton } from "@/components/app/ChatThreadTools";
 import { attachmentNotice } from "@/lib/builder/capabilities";
 import { useBuildProgress } from "@/lib/builder/progress.hooks";
 import { useQuery } from "@tanstack/react-query";
@@ -60,6 +61,7 @@ import { getAiSuggestions } from "@/lib/ai-suggestions.functions";
 import { QUEUE_LABELS, timelineFor, type QueueTask } from "@/lib/builder-queue";
 import { onAssistantPrompt } from "@/lib/assistant-bridge";
 import { selectionPrefix } from "@/lib/builder/preview-bridge";
+import { actionsForElement } from "@/lib/builder/element-actions";
 import { INSTRUCTION_LIMIT, type BuilderRequests } from "@/lib/builder-requests.hooks";
 import type { AgentAttachment } from "@/lib/site-agent";
 import { cn } from "@/lib/utils";
@@ -253,6 +255,17 @@ export function BuilderAssistant({
             {busy ? "Working on your website…" : "AI website team · ready"}
           </p>
         </div>
+        {!onFirstBuild && requests.memoryLoaded ? (
+          <>
+            <ChatSearch search={requests.search} />
+            <BranchSwitcher
+              branch={requests.branch}
+              branches={requests.branches}
+              onSwitch={requests.switchBranch}
+              disabled={requests.busy}
+            />
+          </>
+        ) : null}
         {requests.tasks.length > 0 && !requests.busy ? (
           <button
             type="button"
@@ -466,14 +479,7 @@ export function BuilderAssistant({
                   </span>
                 ) : null}
                 {selection
-                  ? (
-                      [
-                        ["Rewrite copy", "Rewrite the copy on this block to be clearer and more compelling."],
-                        ["Replace image", "Replace the image on this block with a better-fitting one."],
-                        ["New layout", "Change the layout of this block to something more visually interesting."],
-                        ["Shorter", "Make this block shorter and more concise."],
-                      ] as const
-                    ).map(([label, prompt]) => (
+                  ? actionsForElement(selection.kind).map(({ label, prompt }) => (
                       <button
                         key={label}
                         type="button"
@@ -521,6 +527,10 @@ export function BuilderAssistant({
                 >
                   {mediaOpen ? <X className="size-4" aria-hidden /> : <Plus className="size-[18px]" aria-hidden />}
                 </PromptInputButton>
+                <VoiceDictationButton
+                  disabled={!requests.ready}
+                  onText={(text) => setValue((prior) => (prior ? `${prior.trim()} ${text}` : text).slice(0, INSTRUCTION_LIMIT))}
+                />
                 {attachments.length ? (
                   <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[11.5px] text-muted-foreground">
                     <ImagePlus className="size-3" aria-hidden /> {attachments.length}

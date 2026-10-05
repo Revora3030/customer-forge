@@ -12,6 +12,7 @@ import {
   type ProductionReadiness,
   type ProductionStatus,
 } from "@/lib/production.functions";
+import { recordPublishAndSmoke } from "@/lib/publish-records.functions";
 
 /** Sandbox/production state for this workspace, read from the server. */
 export function useProductionStatus(organizationId: string | undefined) {
@@ -93,6 +94,19 @@ export function useLaunchFlow(organizationId: string | undefined) {
         });
         toast.success("Your website is live.");
         setLockedOpen(false);
+        // Post-publish smoke check (spec F): confirm the live page really
+        // renders and record the publish. Never blocks or undoes the launch.
+        if (data.version) {
+          void recordPublishAndSmoke({ data: { organizationId: organizationId!, version: data.version } })
+            .then((smoke) => {
+              if (smoke.status === "failed")
+                toast.warning("Your site is published, but the live check found a problem. See Publish history.", {
+                  duration: 12_000,
+                });
+              void queryClient.invalidateQueries({ queryKey: ["publish_events", organizationId] });
+            })
+            .catch(() => undefined);
+        }
       } else if (!data.readiness.unlocked) {
         trackConversion("publish_blocked", {
           metadata: { organization_id: organizationId ?? "", reason: blockReason(data) },

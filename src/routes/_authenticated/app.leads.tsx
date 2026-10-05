@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import {
   CalendarPlus,
+  Download,
   Mail,
   MessageSquare,
   Phone,
@@ -42,7 +43,9 @@ import {
   useTeam,
 } from "@/lib/queries";
 import { useWorkspace } from "@/lib/use-tenant";
-import { LEAD_STATUSES, leadStatusMeta, sourceLabel, type LeadStatus } from "@/lib/domain";
+import { CRM_STAGES, LEAD_STATUSES, crmStageOf, leadStatusMeta, sourceLabel, type CrmStageKey, type LeadStatus } from "@/lib/domain";
+import { groupByStage, leadsToCsv } from "@/lib/crm";
+import { DueTasksStrip, LeadTasks } from "@/components/app/LeadTasks";
 import { currency, relative } from "@/lib/format";
 
 export const Route = createFileRoute("/_authenticated/app/leads")({
@@ -78,7 +81,7 @@ function LeadsPage() {
   const createAppointment = useCreateAppointment(orgId, businessName);
 
   const [query, setQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState<LeadStatus | "all">("all");
+  const [statusFilter, setStatusFilter] = useState<CrmStageKey | "all">("all");
   const [addOpen, setAddOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [note, setNote] = useState("");
@@ -87,7 +90,7 @@ function LeadsPage() {
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return (leads ?? []).filter((lead) => {
-      const matchesStatus = statusFilter === "all" || lead.status === statusFilter;
+      const matchesStatus = statusFilter === "all" || crmStageOf(lead.status as LeadStatus) === statusFilter;
       const matchesQuery =
         !q ||
         [lead.name, lead.email, lead.phone, lead.service_interest, lead.city]
@@ -215,31 +218,57 @@ function LeadsPage() {
           >
             All
           </button>
-          {LEAD_STATUSES.map((s) => (
+          {CRM_STAGES.map((s) => (
             <button
-              key={s.value}
+              key={s.key}
               type="button"
-              onClick={() => setStatusFilter(s.value)}
-              className={`cursor-pointer rounded-full border px-3 py-1 text-[12px] ${statusFilter === s.value ? "border-primary text-primary" : "border-border text-muted-foreground"}`}
+              aria-pressed={statusFilter === s.key}
+              onClick={() => setStatusFilter(s.key)}
+              className={`cursor-pointer rounded-full border px-3 py-1 text-[12px] ${statusFilter === s.key ? "border-primary text-primary" : "border-border text-muted-foreground"}`}
             >
               {s.label}
             </button>
           ))}
         </div>
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={filtered.length === 0}
+          onClick={() => {
+            const csv = leadsToCsv(filtered as never);
+            const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+            const link = document.createElement("a");
+            link.href = url;
+            link.download = `leads-${new Date().toISOString().slice(0, 10)}.csv`;
+            link.click();
+            URL.revokeObjectURL(url);
+          }}
+        >
+          <Download className="size-4" /> Export CSV
+        </Button>
       </div>
+
+      <DueTasksStrip
+        organizationId={orgId}
+        leadName={(id) => (leads ?? []).find((l) => l.id === id)?.name ?? "Lead"}
+        onOpenLead={(id) => {
+          setSelectedId(id);
+          setNote("");
+        }}
+      />
 
       {/* Board — only shown once there is at least one real lead, so a new
           account sees one clear next step instead of seven empty columns. */}
       {(leads ?? []).length > 0 ? (
         <div className="-mx-4 overflow-x-auto px-4">
           <div className="flex w-max gap-3">
-            {LEAD_STATUSES.map((status) => {
-              const column = filtered.filter((l) => l.status === status.value);
+            {groupByStage(filtered as (typeof filtered[number] & { status: LeadStatus })[]).map((stage) => {
+              const column = stage.leads;
               const value = column.reduce((sum, l) => sum + Number(l.estimated_value ?? 0), 0);
               return (
-                <section key={status.value} className="w-64 shrink-0">
+                <section key={stage.key} className="w-64 shrink-0" aria-label={`${stage.label} leads`}>
                   <div className="mb-2 flex items-center justify-between">
-                    <span className="eyebrow">{status.label}</span>
+                    <span className="eyebrow">{stage.label}</span>
                     <span className="tnum rounded-full bg-elevated px-1.5 py-0.5 text-[10px] font-semibold">
                       {column.length} · {currency(value)}
                     </span>
@@ -397,6 +426,8 @@ function LeadsPage() {
                     {selected.customer_id ? "Already a customer" : "Convert to customer"}
                   </Button>
                 </div>
+
+                <LeadTasks organizationId={orgId} leadId={selected.id} />
 
                 {selected.message ? (
                   <Panel className="p-3.5">
