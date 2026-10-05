@@ -22,9 +22,7 @@ try {
     .map((name) => name.slice(0, -4))
     .sort();
 
-  const rows = await sql<
-    { version: string; name: string }[]
-  >`select version, name from supabase_migrations.schema_migrations order by version asc`;
+  const rows = await sql`select version, name from supabase_migrations.schema_migrations order by version asc`;
 
   const liveMigrations = rows.map((row) => `${row.version}_${row.name}`).sort();
   const repoSet = new Set(repoMigrations);
