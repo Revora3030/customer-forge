@@ -216,6 +216,26 @@ async function handleEvent(event: StripeWebhookEvent, env: StripeEnv) {
             console.error("[payments:webhook] invalid setup-fee waiver", session.id);
             break;
           }
+          // A granted waiver must be auditable: record the actor, the session
+          // and the verified owner email every time the $750 setup fee is
+          // skipped, so the single bypass path can never be used silently.
+          const { error: waiverAuditError } = await admin.from("audit_logs").insert({
+            organization_id: organizationId,
+            actor_id: userId,
+            action: "platform_owner_setup_fee_waiver",
+            entity: "checkout_session",
+            entity_id: String(session.id),
+            metadata: {
+              provider: "stripe",
+              environment: env,
+              verified_owner_email: ownerEmail,
+              waived_amount: DEFAULT_OFFER_RATES.setupPrice,
+            },
+          });
+          if (waiverAuditError)
+            throw new Error(
+              `waiver_audit_failed:${waiverAuditError.code ?? waiverAuditError.message}`,
+            );
         }
         const priceIds = lines.map((l) => l.price?.id).filter(Boolean) as string[];
         const expectedIds = setupWaived
