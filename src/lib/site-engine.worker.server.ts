@@ -370,7 +370,7 @@ async function claimJob(db: Db, organizationId?: string) {
   return null;
 }
 
-/** Runs the nine generation stages for one claimed job using the privileged client. */
+/** Runs the generation stages (GENERATION_STEPS) for one claimed job using the privileged client. */
 async function runJob(
   db: Db,
   job: { id: string; organization_id: string; created_by: string | null; attempts: number },
@@ -399,12 +399,21 @@ async function runJob(
     structure: "planning the page layout",
     copy: "writing the pages",
     conversion: "checking conversion paths",
+    pictures: "generating your pictures",
+    pages: "assembling your pages",
+    wording: "reviewing every section's wording",
+    layout: "composing each section's layout",
+    checks: "checking links, mobile and quality",
     leads: "connecting lead capture",
-    mobile: "optimizing the mobile experience",
     ready: "preparing your preview",
   };
+  // Per-stage wall-clock timings, stored on the job for operator metrics.
+  const stageTimings: Record<string, number> = {};
+  let stageStartedAt = Date.now();
   const step = async (key: string) => {
     done.push(key);
+    stageTimings[key] = Date.now() - stageStartedAt;
+    stageStartedAt = Date.now();
     const meta = GENERATION_STEPS.find((s) => s.key === key);
     const friendly = WORKER_STAGE_LABELS[key];
     if (friendly) noteStage(orgId, job.id, friendly);
@@ -414,10 +423,14 @@ async function runJob(
         current_step: key,
         progress: meta?.progress ?? 0,
         steps: done,
+        stage_timings: stageTimings,
         lease_expires_at: new Date(Date.now() + LEASE_SECONDS * 1000).toISOString(),
         updated_at: new Date().toISOString(),
       } as never)
       .eq("id", job.id)
+      // Cancellation fence: an owner-cancelled job is no longer "processing",
+      // so the worker stops at the next stage boundary.
+      .eq("status", "processing")
       // Attempt fence: a stale worker whose lease was taken over stops here
       // instead of writing over the newer attempt.
       .eq("attempts", job.attempts)
@@ -825,6 +838,30 @@ async function runJob(
     ]),
     creative,
   });
+  await step("pictures");
+  // Picture records (spec D): one per generated slot with its art direction,
+  // pending owner approval. Cosmetic bookkeeping — never blocks the build.
+  if (starterImages.assets.length) {
+    const { normaliseSlot } = await import("@/lib/builder/image-records");
+    const rows = starterImages.assets
+      .map((asset) => ({
+        organization_id: orgId,
+        slot: normaliseSlot(asset.slot),
+        direction: String(asset.prompt ?? "").slice(0, 4000),
+        alt_text: asset.altText ? String(asset.altText).slice(0, 200) : null,
+        source: "generated",
+        status: "pending",
+        media_id: asset.mediaId,
+        rendered_url: asset.path,
+        provider: asset.provider || null,
+        model: asset.model || null,
+      }))
+      .filter((row) => row.slot);
+    if (rows.length) {
+      const { error: recordError } = await db.from("image_records").upsert(rows as never, { onConflict: "organization_id,slot" });
+      if (recordError) console.warn("[site-engine] picture records skipped", recordError.message);
+    }
+  }
   // The customer's own photos always go on the site first, in the places
   // their category suggests; AI pictures only fill whatever is left.
   type MediaRow = { id: string; category: string | null; url: string | null; alt_text: string | null; file_name: string | null; source: string | null };
@@ -953,6 +990,7 @@ async function runJob(
       : { authored: false, skipped: "the page plan was not requested for this build" }) as unknown as never,
     created_by: job.created_by,
   } as never);
+  await step("pages");
   // The page set and section order are the AI architect's. Without its plan
   // the build stops (and is retried); a fact inventory is never shipped.
   if (!built.skipped) {
@@ -1052,6 +1090,7 @@ async function runJob(
     } as never);
   }
 
+  await step("wording");
   // Every content section is laid out by Sol as its own composition. No
   // built-in section layout is used for a new site; if the AI layout fails,
   // the build continues with the default section layout so the customer still
@@ -1134,6 +1173,7 @@ async function runJob(
     } as never);
   }
 
+  await step("layout");
   // A brand chosen by the owner wins. Only replace the untouched generated
   // defaults during a first build, so onboarding produces a distinctive site
   // without overwriting deliberate colours on an existing workspace.
@@ -1309,8 +1349,8 @@ async function runJob(
       console.warn("[site-engine] first-build QA repair skipped", (error as Error)?.message);
     }
   }
+  await step("checks");
   await step("leads");
-  await step("mobile");
 
   await db
     .from("generation_jobs")
@@ -1322,10 +1362,12 @@ async function runJob(
       error_message: null,
       completed_at: new Date().toISOString(),
       lease_expires_at: null,
+      stage_timings: stageTimings,
       updated_at: new Date().toISOString(),
     } as never)
     .eq("id", job.id)
-    .eq("attempts", job.attempts);
+    .eq("attempts", job.attempts)
+    .eq("status", "processing");
 
   const leadCapture = (forms.data ?? []).length > 0 || (bookable.data ?? []).length > 0;
   await db.from("notifications").insert({
@@ -1427,6 +1469,15 @@ export async function drainSiteEngineQueue(
       // A superseded attempt must not requeue, fail or restore anything —
       // the newer attempt owns the job and the site now.
       if (error instanceof StaleAttemptError) continue;
+      // An owner-cancelled build stays cancelled: never requeue or relabel it.
+      {
+        const { data: latest } = await db
+          .from("generation_jobs")
+          .select("status")
+          .eq("id", job.id)
+          .maybeSingle();
+        if ((latest as { status?: string } | null)?.status === "cancelled") continue;
+      }
       if (heartbeat.lost()) {
         console.warn(`[site-engine] job ${job.id} attempt ${job.attempts} failed after losing its lease; leaving it to the newer attempt.`);
         continue;
@@ -1443,10 +1494,12 @@ export async function drainSiteEngineQueue(
           .update({
             status: "failed",
             error_message: message,
+            failure_kind: "rendering",
             completed_at: new Date().toISOString(),
             lease_expires_at: null,
           } as never)
-          .eq("id", job.id);
+          .eq("id", job.id)
+          .neq("status", "cancelled");
         await writeQueueState(db, { last_error: message });
         continue;
       }
@@ -1496,25 +1549,34 @@ export async function drainSiteEngineQueue(
       console.warn(`[site-engine] job ${job.id} attempt ${job.attempts} failed (${failure.kind}): ${message}`);
       const { data: current } = await db
         .from("generation_jobs")
-        .select("attempts")
+        .select("attempts, current_step")
         .eq("id", job.id)
         .maybeSingle();
       const attempts = (current?.attempts as number | undefined) ?? MAX_ATTEMPTS;
+      // The stage the attempt was working on when it failed: the one after the
+      // last completed step. Stored for the owner's message and operator metrics.
+      const { GENERATION_STEPS: STAGES } = await import("@/lib/site-engine");
+      const lastDone = (current as { current_step?: string | null } | null)?.current_step ?? null;
+      const failedStage = STAGES[lastDone ? STAGES.findIndex((s) => s.key === lastDone) + 1 : 0]?.key ?? null;
       await db
         .from("generation_jobs")
         .update(
-          attempts >= MAX_ATTEMPTS || !failure.retryable
+          (attempts >= MAX_ATTEMPTS || !failure.retryable
             ? {
                 status: "failed",
                 error_message: taggedMessage,
+                failure_kind: failure.kind,
+                failed_stage: failedStage,
                 completed_at: new Date().toISOString(),
                 lease_expires_at: null,
               }
-            : { status: "queued", error_message: taggedMessage, lease_expires_at: null },
+            : { status: "queued", error_message: taggedMessage, failure_kind: failure.kind, failed_stage: failedStage, lease_expires_at: null }) as never,
         )
         .eq("id", job.id)
-        // Only the attempt that failed may requeue/fail the job.
-        .eq("attempts", job.attempts);
+        // Only the attempt that failed may requeue/fail the job, and an
+        // owner-cancelled job is never brought back.
+        .eq("attempts", job.attempts)
+        .neq("status", "cancelled");
       await writeQueueState(db, { last_error: message });
     }
   }
