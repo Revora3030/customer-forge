@@ -97,17 +97,36 @@ export function summariseVitals(
   });
 }
 
+/**
+ * Random base-36 fragment for the visit token. Uses the Web Crypto API so the
+ * token is unguessable (it doubles as the de-duplication key for server-side
+ * conversion analytics); Math.random() would be predictable and is flagged by
+ * code scanning. Falls back to a timestamp fragment only when no crypto API
+ * exists (legacy webviews), never to Math.random().
+ */
+function randomFragment(length: number): string {
+  try {
+    const bytes = new Uint8Array(length);
+    globalThis.crypto.getRandomValues(bytes);
+    let out = "";
+    for (const byte of bytes) out += (byte % 36).toString(36);
+    return out;
+  } catch {
+    return Date.now().toString(36).slice(-length).padStart(length, "0");
+  }
+}
+
 /** Opaque per-visit token; never identifies a person or persists past the tab. */
 export function visitToken(): string {
   const KEY = "revora.vitals.visit";
   try {
     const existing = window.sessionStorage.getItem(KEY);
     if (existing && /^[A-Za-z0-9_-]{6,60}$/.test(existing)) return existing;
-    const token = Math.random().toString(36).slice(2, 12) + Date.now().toString(36).slice(-6);
+    const token = randomFragment(10) + Date.now().toString(36).slice(-6);
     window.sessionStorage.setItem(KEY, token);
     return token;
   } catch {
-    return Math.random().toString(36).slice(2, 12) + Date.now().toString(36).slice(-6);
+    return randomFragment(10) + Date.now().toString(36).slice(-6);
   }
 }
 
