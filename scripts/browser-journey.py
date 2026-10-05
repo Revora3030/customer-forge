@@ -25,6 +25,11 @@ JOURNEY_SESSION_FILE        Supabase session JSON (default the Lovable auth cach
 JOURNEY_ALLOW_MUTATE=1      run the edit / persistence / rollback steps
 JOURNEY_ALLOW_BUILD=1       submit a real AI-authored build request
 JOURNEY_FIXTURE_WORKSPACE   expected workspace name (asserted when provided)
+JOURNEY_CHROMIUM            optional path to a local Chromium binary
+
+Without a session, step 03 still asserts the signed-out gate and is reported
+NOT_TESTED; steps 04-22 (which need the signed-in workspace) are reported
+NOT_TESTED with that reason instead of failing on a closed page.
 
 Outputs
 -------
@@ -129,12 +134,27 @@ class Skip(Exception):
     """Raised by a step that cannot honestly be attempted -> NOT_TESTED."""
 
 
+# Steps 04-22 all run inside the signed-in workspace that step 03 opens.
+FIRST_SESSION_STEP = 4
+
+
+def requires_session(key: str) -> bool:
+    """True for journey steps that drive the signed-in page (04 onward)."""
+    prefix = key[:2]
+    return prefix.isdigit() and int(prefix) >= FIRST_SESSION_STEP
+
+
 class Journey:
     def __init__(self, browser: Browser) -> None:
         self.browser = browser
         self.page: Page | None = None
         self.recorder: Recorder | None = None
         self.steps: list[dict[str, Any]] = []
+        # Set only when step 03 restored a real session and reached the workspace.
+        # Every later step drives that signed-in page, so without it they are
+        # reported NOT_TESTED instead of crashing on a closed page.
+        self.signed_in = False
+        self.auth_skip_reason: str | None = None
         self.state: dict[str, Any] = {
             "slug": None,
             "pagePaths": [],
@@ -194,6 +214,14 @@ class Journey:
         started = time.time()
         attempts = 0
         record: dict[str, Any] = {"id": key, "title": title}
+        if requires_session(key) and not self.signed_in:
+            reason = (
+                "Needs the signed-in workspace from 03_auth_session, which did not complete"
+                + (f": {self.auth_skip_reason}" if self.auth_skip_reason else ".")
+            )
+            record.update({"status": "NOT_TESTED", "reason": reason, "durationMs": 0, "url": None})
+            self.steps.append(record)
+            return
         while True:
             attempts += 1
             try:
@@ -267,12 +295,20 @@ class Journey:
         await page.wait_for_url(lambda url: "/auth" in url, timeout=25000)
         gated = page.url
         await page.context.close()
+        # The signed-out page is gone; never let a later step reuse it.
+        self.page = None
+        self.recorder = None
 
         # 2. A restored session reaches the workspace.
-        page = await self.open_app(authenticated=True)
+        try:
+            page = await self.open_app(authenticated=True)
+        except Skip as skip:
+            self.auth_skip_reason = str(skip)
+            raise Skip(f"Signed-out gate held (/app redirected to {gated}). {skip}") from None
         await page.goto(f"{BASE}/app", wait_until="domcontentloaded")
         await page.wait_for_selector("h1", timeout=40000)
         await page.wait_for_selector("text=Sign out", timeout=40000)
+        self.signed_in = True
         return {
             "note": f"Signed out /app redirected to {gated}; restored session reached the workspace.",
             "screenshot": await self.shot("dashboard"),
@@ -692,7 +728,10 @@ async def main() -> int:
     ARTIFACTS.mkdir(parents=True, exist_ok=True)
     started = time.time()
     async with async_playwright() as playwright:
-        browser = await playwright.chromium.launch(headless=True)
+        browser = await playwright.chromium.launch(
+            headless=True,
+            **({"executable_path": os.environ["JOURNEY_CHROMIUM"]} if os.environ.get("JOURNEY_CHROMIUM") else {}),
+        )
         journey = Journey(browser)
         plan: list[tuple[str, str, Callable[[], Awaitable[dict[str, Any] | None]]]] = [
             ("01_app_loads", "The application loads", journey.step_app_loads),
