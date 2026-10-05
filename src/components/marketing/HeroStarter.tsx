@@ -14,6 +14,7 @@ import {
 import { useSession } from "@/lib/auth-session";
 import { SIGN_UP_SEARCH } from "@/components/marketing/AuthButtons";
 import { STARTER_KEY } from "@/components/marketing/hero-starter-utils";
+import { GROWTH_SYSTEM } from "@/lib/offer";
 
 const INDUSTRY_OPTIONS = [
   "Auto Detailing",
