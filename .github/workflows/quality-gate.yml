@@ -91,15 +91,6 @@ jobs:
           E2E_BASE_URL: http://127.0.0.1:8080
         run: npm run test:coverage
 
-      - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v4
-        with:
-          files: ./coverage/lcov.info
-          flags: unittests
-          name: codecov-umbrella
-          fail_ci_if_error: false
-          token: ${{ secrets.CODECOV_TOKEN }}
-
       - name: Upload coverage artifacts
         if: always()
         uses: actions/upload-artifact@v4
@@ -107,6 +98,13 @@ jobs:
           name: coverage-report-${{ github.run_id }}
           path: coverage/
           retention-days: 30
+
+      - name: Upload coverage artifact for code coverage API
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report-typescript
+          path: coverage/cobertura-coverage.xml
 
       - name: Stop E2E server
         if: always()
@@ -117,3 +115,23 @@ jobs:
 
       - name: Production build
         run: npm run build
+
+  upload-coverage-typescript:
+    name: Upload TypeScript coverage
+    needs: quality
+    if: ${{ !cancelled() && needs.quality.result == 'success' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      code-quality: write
+    steps:
+      - name: Download coverage artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: coverage-report-typescript
+
+      - uses: actions/upload-code-coverage@v1
+        with:
+          file: cobertura-coverage.xml
+          language: TypeScript
+          label: code-coverage-agent
