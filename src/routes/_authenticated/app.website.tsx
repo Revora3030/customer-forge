@@ -459,10 +459,14 @@ function WebsitePage() {
   /** Nothing built yet: one conversation and nothing else. */
   const firstRun = (pages ?? []).length === 0;
 
-  /** Chat is the workspace. Preview stays beside it on desktop and one tap away on mobile. */
+  /**
+   * Chat is the workspace. Preview stays beside it on desktop and one tap away
+   * on mobile — including during the first build, where it shows the live
+   * canvas skeleton until the first pages are written.
+   */
   const workspace = (
     <div className="min-w-0">
-      {!firstRun ? (
+      {org?.slug ? (
         <div className="mb-2 flex justify-center lg:hidden">
           <div className="inline-flex rounded-full border border-border/70 bg-muted/40 p-0.5" role="tablist" aria-label="Builder view">
             {([
@@ -570,12 +574,14 @@ function WebsitePage() {
             emptyHint={firstRun ? "Tell me what you do, who you help and where you work. I’ll ask for anything I need, then design every page — no made-up details." : "Ask for any change in plain words — a new section, different photos, a fresh look. I keep the context of everything we’ve done."}
           />
         </div>
-        {!firstRun && org?.slug && (previewOpen || isWide) ? (
+        {org?.slug && (previewOpen || isWide) ? (
           <div className={!previewOpen ? "hidden min-w-0 lg:block" : "min-w-0"}>
             <BuilderPreview
               slug={org.slug}
               businessName={org.name ?? null}
               pages={pages ?? []}
+              firstRun={firstRun}
+              organizationId={orgId ?? null}
               refreshing={requests.refreshing}
               refreshRevision={requests.refreshRevision}
               selectedId={selected?.id ?? null}
