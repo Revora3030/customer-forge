@@ -8,6 +8,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { ArrowRight, CheckCircle2, CircleDashed } from "lucide-react";
 import { Panel, Pill, SectionHeading } from "@/components/app/Bits";
+import { BuildLive } from "@/components/app/BuildLive";
 import { Button } from "@/components/ui/button";
 import { useBusinessProfile, useServices, useWebsiteSettings } from "@/lib/queries";
 import { useWebsiteContent } from "@/lib/website-content.hooks";
@@ -125,6 +126,10 @@ function MyStart() {
           />
         </div>
       </Panel>
+
+      {/* While Revora is building the site, this shows the real recorded
+          build stages so the owner watches it happen instead of guessing. */}
+      <BuildLive organizationId={orgId} />
 
       <ol className="space-y-3">
         {steps.map((step, index) => (
