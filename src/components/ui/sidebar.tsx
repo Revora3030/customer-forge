@@ -638,10 +638,10 @@ const SidebarMenuSkeleton = React.forwardRef<
     showIcon?: boolean;
   }
 >(({ className, showIcon = false, ...props }, ref) => {
-  // Random width between 50 to 90%.
-  const width = React.useMemo(() => {
-    return `${Math.floor(Math.random() * 40) + 50}%`;
-  }, []);
+  // Stable across SSR and hydration. Randomized skeleton dimensions caused
+  // React 19 hydration attribute mismatches when this component was rendered
+  // on both server and client.
+  const width = "68%";
 
   return (
     <div
