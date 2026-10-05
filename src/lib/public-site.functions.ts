@@ -280,6 +280,12 @@ export const submitPublicLead = createServerFn({ method: "POST" })
       serviceInterest?: string | null;
       source?: string;
       campaign?: string | null;
+      /**
+       * Visitor session id (the site's own opaque token, when the browser
+       * supplies one). Used to de-duplicate the server-side conversion event
+       * against the client beacon that may have fired for the same visit.
+       */
+      sessionId?: string | null;
       kind: "inquiry" | "quote" | "booking" | "consultation" | "contact";
       estimatedValue?: number;
       quote?: {
@@ -339,6 +345,9 @@ export const submitPublicLead = createServerFn({ method: "POST" })
         city: clean(input.city, 120),
         serviceInterest: clean(input.serviceInterest, 160),
         estimatedValue: Math.max(0, Math.min(1_000_000, Number(input.estimatedValue ?? 0))),
+        sessionId: /^[A-Za-z0-9_-]{6,60}$/.test(String(input?.sessionId ?? ""))
+          ? String(input.sessionId)
+          : null,
         isBot,
       };
     },
@@ -598,6 +607,49 @@ export const submitPublicLead = createServerFn({ method: "POST" })
       await recordMilestone("first_quote_request", Math.round((data.quote.min ?? 0) * 100));
     if (data.booking) await recordMilestone("first_booking");
 
+    // Primary conversion metrics must survive ad-blockers. The site's own
+    // beacon (trackPublicEvent) fires quote_complete / booking_start /
+    // form_submit from the browser, but privacy tools routinely block those
+    // requests; the form submission itself always reaches the server, so the
+    // completed conversion is recorded here too. De-duplication keeps both
+    // paths honest: when the visitor's session id is known and a beacon for
+    // the same event already landed in the last hour, the server-side record
+    // is skipped, so an unblocked browser never counts twice — and a blocked
+    // one still counts once. Reporting must never lose the customer's request,
+    // so any failure here is logged and swallowed.
+    try {
+      const conversionEvent =
+        data.kind === "quote" ? "quote_complete" : data.kind === "booking" ? "booking_start" : "form_submit";
+      let alreadyRecorded = false;
+      if (data.sessionId) {
+        const since = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+        const { count } = await supabase
+          .from("analytics_events")
+          .select("id", { count: "exact", head: true })
+          .eq("organization_id", orgId)
+          .eq("event_type", conversionEvent)
+          .eq("session_id", data.sessionId)
+          .gte("created_at", since);
+        alreadyRecorded = (count ?? 0) > 0;
+      }
+      if (!alreadyRecorded) {
+        await supabase.from("analytics_events").insert({
+          organization_id: orgId,
+          event_type: conversionEvent,
+          path: null,
+          source: data.source || "website",
+          campaign: data.campaign ?? null,
+          device: null,
+          session_id: data.sessionId,
+        });
+      }
+    } catch (analyticsError) {
+      console.warn(
+        "server-side conversion analytics not recorded",
+        analyticsError instanceof Error ? analyticsError.message : analyticsError,
+      );
+    }
+
     // Everything below is a post-commit side effect (owner alert, follow-up
     // automations). The customer's request is already durably saved, so a
     // provider outage here must never delete it or fail the submission.
@@ -836,7 +888,7 @@ const ANALYTICS_SESSION_LIMIT = 60;
 function analyticsText(value: unknown, max: number) {
   const clean = String(value ?? "")
     // eslint-disable-next-line no-control-regex
-    .replace(/[\u0000-\u001f\u007f]/g, "")
+    .replace(/[\\u0000-\\u001f\\u007f]/g, "")
     .trim()
     .slice(0, max);
   return clean || null;
