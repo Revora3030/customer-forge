@@ -38,7 +38,15 @@ import type { AgentStep } from "@/lib/site-agent";
 import type { AgentAttachment } from "@/lib/site-agent";
 import { trackConversion } from "@/lib/conversion";
 import { friendlyError } from "@/lib/user-error";
-import { clearTurns, loadTurns, pairTurns, saveTurns, type SavedTaskResult } from "@/lib/builder-memory";
+import { clearTurns, loadTurns, pairTurns, saveTurns, type SavedTaskResult, type SavedTurn } from "@/lib/builder-memory";
+import {
+  MAIN_BRANCH,
+  listBranches,
+  normaliseBranch,
+  searchTurns,
+  turnsForBranch,
+  type MessageKind,
+} from "@/lib/builder/chat-thread";
 import { supabase } from "@/integrations/supabase/client";
 
 export const INSTRUCTION_LIMIT = 1200;
@@ -82,6 +90,12 @@ export function useBuilderRequests({
 }) {
   const [tasks, setTasks] = useState<QueueTask[]>([]);
   const [capabilities, setCapabilities] = useState<BuilderCapabilities | null>(null);
+  // Active conversation branch (spec A). Alternate directions are saved under
+  // their own branch so they never overwrite the main conversation.
+  const [branch, setBranch] = useState<string>(MAIN_BRANCH);
+  const branchRef = useRef(branch);
+  branchRef.current = branch;
+  const [savedTurns, setSavedTurns] = useState<SavedTurn[]>([]);
   const [conversation, setConversation] = useState<
     Array<{ role: "user" | "assistant"; content: string }>
   >([]);
@@ -119,8 +133,10 @@ export function useBuilderRequests({
     loadTurns(organizationId).then(
       (turns) => {
         if (!live) return;
-        setConversation(turns.map(({ role, content }) => ({ role, content })).slice(-24));
-        const past = pairTurns(turns).map((pair) => ({
+        setSavedTurns(turns);
+        const mainTurns = turnsForBranch(turns, MAIN_BRANCH);
+        setConversation(mainTurns.map(({ role, content }) => ({ role, content })).slice(-24));
+        const past = pairTurns(mainTurns).map((pair) => ({
           ...newTask(pair.instruction),
           state: pair.taskResult?.state ?? ("complete" as const),
           reply: pair.reply || "Done.",
@@ -149,10 +165,20 @@ export function useBuilderRequests({
       role: "user" | "assistant";
       content: string;
       taskResult?: SavedTaskResult;
+      requestId?: string | null;
+      kind?: MessageKind;
     }>,
+    requestId?: string | null,
   ) => {
     if (!organizationId || !canManage) return;
-    void saveTurns(organizationId, turns).catch(() => {
+    const tagged = turns.map((turn) => ({
+      ...turn,
+      requestId: turn.requestId ?? requestId ?? null,
+      branch: branchRef.current,
+    }));
+    const at = new Date().toISOString();
+    setSavedTurns((current) => [...current, ...tagged.map((turn) => ({ ...turn, at }))].slice(-400));
+    void saveTurns(organizationId, tagged).catch(() => {
       // Saving the chat never blocks building; the change itself is already safe.
     });
   };
@@ -256,7 +282,7 @@ export function useBuilderRequests({
             content: message,
             taskResult: { state: "failed" },
           },
-        ]);
+        ], task.id);
         await refresh();
         return;
       }
@@ -308,7 +334,7 @@ export function useBuilderRequests({
             }) } : {}),
           },
         },
-      ]);
+      ], task.id);
       await refresh();
     } catch (error) {
       const message = friendlyError(error as Error, "Couldn't apply those changes.");
@@ -323,7 +349,7 @@ export function useBuilderRequests({
           content: message,
             taskResult: { state: "failed" },
         },
-      ]);
+      ], task.id);
       await refresh();
     }
   };
@@ -350,7 +376,7 @@ export function useBuilderRequests({
         // progress noise — and only re-plan once pages exist.
         const attempts = (deferRef.current.get(task.id) ?? 0) + 1;
         deferRef.current.set(task.id, attempts);
-        if (attempts === 1) remember([{ role: "user", content: task.instruction }, { role: "assistant", content: result.reply }]);
+        if (attempts === 1) remember([{ role: "user", content: task.instruction }, { role: "assistant", content: result.reply }], task.id);
         // Wait for the first build to settle by polling the cheap pages read
         // (never the planner), for at most ~15 minutes in total. The old code
         // nested a second 90-poll loop inside each of 90 outer attempts and
@@ -393,7 +419,7 @@ export function useBuilderRequests({
         remember([
           { role: "user", content: task.instruction },
           { role: "assistant", content: result.reply },
-        ]);
+        ], task.id);
         return;
       }
       const steps = result.steps as AgentStep[];
@@ -457,7 +483,7 @@ export function useBuilderRequests({
         ...(!canAutoApply(planned) && result.reply
           ? [{ role: "assistant" as const, content: result.reply }]
           : []),
-      ]);
+      ], task.id);
       // Every planned change is applied straight to the site (undo per turn).
       if (!result.unavailable && canAutoApply(planned))
         await runBuild(planned);
@@ -473,7 +499,7 @@ export function useBuilderRequests({
       remember([
         { role: "user", content: task.instruction },
         { role: "assistant", content: message, taskResult: { state: "failed" } },
-      ]);
+      ], task.id);
     }
   };
 
@@ -531,10 +557,38 @@ export function useBuilderRequests({
     memoryLoaded,
     /** Saves chat turns from flows outside the queue (first build, fact answers). */
     remember,
+    /** Active conversation branch and every branch saved for this business. */
+    branch,
+    branches: listBranches(savedTurns),
+    /**
+     * Switches to (or starts) an alternate direction. The main conversation is
+     * never overwritten: new turns are saved under the chosen branch, and the
+     * visible history becomes that branch's turns.
+     */
+    switchBranch: (next: string) => {
+      const key = normaliseBranch(next);
+      setBranch(key);
+      const turns = turnsForBranch(savedTurns, key);
+      setConversation(turns.map(({ role, content }) => ({ role, content })).slice(-24));
+      setTasks((current) => [
+        ...pairTurns(turns).map((pair) => ({
+          ...newTask(pair.instruction),
+          state: pair.taskResult?.state ?? ("complete" as const),
+          reply: pair.reply || "Done.",
+          answered: !pair.taskResult,
+          restored: true,
+        })),
+        ...current.filter((task) => !task.restored && (task.state === "planning" || task.state === "building")),
+      ]);
+    },
+    /** Case- and accent-insensitive search across every saved turn and branch. */
+    search: (query: string) => searchTurns(savedTurns, query),
     /** Starts a fresh conversation and forgets the saved one for this business. */
     newChat: async () => {
       setTasks((current) => current.filter((task) => task.state === "planning" || task.state === "building"));
       setConversation([]);
+      setSavedTurns([]);
+      setBranch(MAIN_BRANCH);
       if (organizationId && canManage) await clearTurns(organizationId);
     },
     toggleStep: (id: string, key: string) =>

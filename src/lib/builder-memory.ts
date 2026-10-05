@@ -3,8 +3,10 @@
  * so an owner can close the builder and carry on later where they left off.
  * Access is limited by the table's access rules to members of that business.
  */
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import type { Json } from "@/integrations/supabase/types";
+import { MAIN_BRANCH, kindForTurn, normaliseBranch, normaliseRequestId, type MessageKind } from "@/lib/builder/chat-thread";
 
 export type SavedTaskResult = {
   state: "complete" | "failed" | "skipped";
@@ -20,12 +22,27 @@ export type SavedTurn = {
   content: string;
   at: string;
   taskResult?: SavedTaskResult;
+  /** The request this turn belongs to (same id the server uses for idempotency). */
+  requestId?: string | null;
+  kind?: MessageKind;
+  /** Conversation branch; "main" unless the owner explored an alternate direction. */
+  branch?: string;
 };
 
 /** How many earlier turns are brought back when the builder opens. */
 export const MEMORY_TURNS = 40;
 
-export function toTurns(rows: Array<{ role: string; content: string; created_at: string; plan?: unknown }>): SavedTurn[] {
+export function toTurns(
+  rows: Array<{
+    role: string;
+    content: string;
+    created_at: string;
+    plan?: unknown;
+    request_id?: string | null;
+    kind?: string | null;
+    branch?: string | null;
+  }>,
+): SavedTurn[] {
   return [...rows]
     // Same moment: a request always comes before its reply.
     .sort((a, b) => a.created_at.localeCompare(b.created_at) || (a.role === "user" ? -1 : b.role === "user" ? 1 : 0))
@@ -35,6 +52,13 @@ export function toTurns(rows: Array<{ role: string; content: string; created_at:
       content: row.content,
       at: row.created_at,
       ...(isSavedTaskResult(row.plan) ? { taskResult: row.plan } : {}),
+      requestId: row.request_id ?? null,
+      kind: kindForTurn({
+        role: row.role as SavedTurn["role"],
+        kind: row.kind,
+        taskResult: isSavedTaskResult(row.plan) ? row.plan : null,
+      }),
+      branch: row.branch || MAIN_BRANCH,
     }));
 }
 
@@ -54,9 +78,11 @@ export function pairTurns(turns: SavedTurn[]): Array<{ instruction: string; repl
 }
 
 export async function loadTurns(organizationId: string): Promise<SavedTurn[]> {
-  const { data, error } = await supabase
+  // request_id/kind/branch were added by migration 20261005140000; read them
+  // through an untyped view until the generated types are refreshed.
+  const { data, error } = await (supabase as unknown as SupabaseClient)
     .from("builder_messages")
-    .select("role, content, created_at, plan")
+    .select("role, content, created_at, plan, request_id, kind, branch")
     .eq("organization_id", organizationId)
     .order("created_at", { ascending: false })
     .limit(MEMORY_TURNS);
@@ -77,7 +103,10 @@ export async function saveTurns(organizationId: string, turns: Array<Omit<SavedT
       role: turn.role,
       content: turn.content.slice(0, 20000),
       plan: (turn.taskResult ?? null) as Json,
-    })),
+      request_id: normaliseRequestId(turn.requestId),
+      kind: kindForTurn(turn),
+      branch: normaliseBranch(turn.branch ?? MAIN_BRANCH),
+    })) as never,
   );
   if (error) throw error;
 }
