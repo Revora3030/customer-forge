@@ -1,0 +1,20 @@
+engines:
+  eslint:
+    enabled: true
+    exclude_paths:
+      - node_modules/
+      - dist/
+      - .output/
+      - .vinxi/
+
+  pmd:
+    enabled: false
+
+  pmd-legacy:
+    enabled: false
+
+exclude_paths:
+  - node_modules/
+  - dist/
+  - .output/
+  - .vinxi/
