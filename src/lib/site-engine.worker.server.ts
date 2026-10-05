@@ -297,6 +297,9 @@ async function runJob(
     structure: "planning the page layout",
     copy: "writing the pages",
     conversion: "checking conversion paths",
+    leads: "connecting lead capture",
+    mobile: "optimizing the mobile experience",
+    ready: "preparing your preview",
   };
   const step = async (key: string) => {
     done.push(key);

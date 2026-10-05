@@ -14,6 +14,7 @@ import {
 import { OnboardingJourney } from "@/components/app/OnboardingJourney";
 import { ProductionSummaryCard } from "@/components/app/ProductionLaunch";
 import { StatusCenter } from "@/components/app/StatusCenter";
+import { BuildLive } from "@/components/app/BuildLive";
 import { ActivityFeed } from "@/components/app/ActivityFeed";
 import { RevoraCommandBar } from "@/components/app/RevoraCommandBar";
 import { ClientWebsiteSummary } from "@/components/app/ClientWebsiteSummary";
@@ -366,6 +367,9 @@ function Dashboard() {
       </div>
 
       <StatusCenter organizationId={orgId} />
+      {/* New customers see their site being built, live, at the top of the
+          dashboard — real server-recorded stages, hidden once nothing runs. */}
+      <BuildLive organizationId={orgId} />
       <ActivityFeed organizationId={orgId} />
 
       <ClientWebsiteSummary

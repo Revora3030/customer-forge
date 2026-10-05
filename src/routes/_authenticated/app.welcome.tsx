@@ -4,6 +4,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { ArrowRight, CheckCircle2, CircleDashed, Clock, Headphones } from "lucide-react";
 import { MetricCard, Panel, Pill, SectionHeading } from "@/components/app/Bits";
+import { BuildLiveSection } from "@/components/app/BuildLive";
 import { Button } from "@/components/ui/button";
 import { useBillingState } from "@/lib/stripe.hooks";
 import { useWorkspace } from "@/lib/use-tenant";
@@ -109,6 +110,10 @@ function WelcomePage() {
           hint={org?.slug ? `${org.slug}.revora.app` : ""}
         />
       </div>
+
+      {/* Live build: the moment a customer has paid, they watch Revora build
+          their site here — real recorded stages, never a canned animation. */}
+      <BuildLiveSection organizationId={orgId} />
 
       <Panel className="p-5">
         <SectionHeading eyebrow="Onboarding" title="Your next steps" />
