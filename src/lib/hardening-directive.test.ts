@@ -79,11 +79,12 @@ describe("getOwnerDraftSite payload contract", () => {
   });
 
   it("a pending job always carries a numeric progress and nullable step", () => {
+    const rawProgress: number | undefined = undefined;
     const job = {
       id: "j1",
       status: "processing",
       currentStep: null as string | null,
-      progress: Number((undefined as number | undefined) ?? 0),
+      progress: Number(rawProgress ?? 0),
     };
     expect(job.progress).toBe(0);
     expect(Number.isFinite(job.progress)).toBe(true);
@@ -194,10 +195,10 @@ describe("LocalBusiness schema review honesty", () => {
         { author_name: "B", rating: 4, comment: null, created_at: null },
       ] as never[],
     } as never);
-    const rating = (withReviews as Record<string, Record<string, unknown>>)["aggregateRating"];
+    const rating = (withReviews as Record<string, Record<string, unknown> | undefined>)["aggregateRating"];
     expect(rating).toBeDefined();
-    expect(rating["reviewCount"]).toBe(2);
-    expect(Number(rating["ratingValue"])).toBeCloseTo(4.5);
+    expect(rating?.["reviewCount"]).toBe(2);
+    expect(Number(rating?.["ratingValue"])).toBeCloseTo(4.5);
 
     const withJunk = localBusinessSchema({
       ...base,
