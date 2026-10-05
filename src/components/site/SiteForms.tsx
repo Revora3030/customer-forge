@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { submitPublicLead, trackPublicEvent, type PublicSite } from "@/lib/public-site.functions";
 import { readAttribution } from "@/lib/attribution";
+import { visitToken } from "@/lib/performance/web-vitals";
 import { currency } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { useStepScroll } from "@/lib/use-step-scroll";
@@ -19,6 +20,16 @@ import type { WidgetPresentation } from "@/lib/builder/composition-tree";
 
 type Site = NonNullable<PublicSite>;
 
+/** The visit's own opaque token, or null during SSR / when storage is blocked. */
+function currentSessionId(): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    return visitToken();
+  } catch {
+    return null;
+  }
+}
+
 function useTracker(slug: string) {
   const track = useServerFn(trackPublicEvent);
   return (eventType: string) => {
@@ -26,6 +37,7 @@ function useTracker(slug: string) {
       data: {
         slug,
         eventType,
+        sessionId: currentSessionId(),
         ...(typeof window === "undefined" ? {} : { path: window.location.pathname }),
         device: typeof window !== "undefined" && window.innerWidth < 768 ? "mobile" : "desktop",
       },
@@ -269,6 +281,7 @@ export function QuoteCalculator({ site, presentation }: { site: Site; presentati
                 phone: String(form.get("phone") ?? ""),
                 message: String(form.get("message") ?? ""),
                 companyWebsite: String(form.get("company_website") ?? ""),
+                sessionId: currentSessionId(),
                 serviceInterest: quote.form.name,
                 estimatedValue: Math.round((min + max) / 2),
                 ...(() => {
@@ -435,6 +448,7 @@ export function BookingForm({ site, presentation }: { site: Site; presentation?:
             message: String(form.get("message") ?? ""),
             city: String(form.get("city") ?? ""),
             companyWebsite: String(form.get("company_website") ?? ""),
+            sessionId: currentSessionId(),
             serviceId: serviceId || null,
             serviceInterest: service?.name ?? null,
             estimatedValue: Number(service?.price ?? 0),
