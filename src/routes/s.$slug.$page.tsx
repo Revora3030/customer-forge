@@ -24,7 +24,7 @@ import { PreviewLinkBridge } from "@/components/site/PreviewLinkBridge";
 import { styleSheet } from "@/lib/site-style";
 import { canonicalSiteUrl } from "@/lib/revora-address";
 import { CompositionRenderer } from "@/components/site/CompositionRenderer";
-import { readSiteChrome, resolveSiteHref } from "@/lib/builder/site-chrome";
+import { knownPageSlugs, missingChromeLinks, readSiteChrome, repairStoredLinks, resolveSiteHref } from "@/lib/builder/site-chrome";
 import { AiSiteHeader } from "@/components/site/AiSiteHeader";
 import { useOwnAddress } from "@/components/site/use-own-address";
 import { metaDescription } from "@/lib/seo";
@@ -130,10 +130,31 @@ export function SitePageView({
   const content = site.content ?? null;
   const page = content?.page ?? null;
   const rawSections = content?.sections;
-  const sections = Array.isArray(rawSections) ? rawSections : [];
+  const storedSections = Array.isArray(rawSections) ? rawSections : [];
   const ownAddress = useOwnAddress();
   const chrome = readSiteChrome(site.settings?.generation ?? null);
-  const chromeHref = (href: string) => resolveSiteHref(href, org.slug, ownAddress);
+  // The site's real pages and this page's section anchors, so every button the
+  // AI team authored is checked against what actually exists: a link to a page
+  // the site does not have, or a "#contact" with no contact section here, is
+  // sent somewhere real instead of a dead end.
+  const navRows = Array.isArray(site.nav) ? site.nav : [];
+  const knownPages = knownPageSlugs(navRows);
+  const pageAnchors = new Set(
+    storedSections
+      .map((section) => {
+        const role = (section.settings as Record<string, unknown> | null)?.["role"];
+        const name = typeof role === "string" && /^[a-z][a-z0-9_-]{0,40}$/.test(role) ? role : section.kind;
+        return name && name !== "composition" ? name.replace(/_/g, "-") : "";
+      })
+      .filter(Boolean),
+  );
+  if (page?.kind === "home" && (site.reviews?.length ?? 0) > 0) pageAnchors.add("reviews");
+  // Every button and link the AI team authored inside the page's sections
+  // (layouts, custom blocks, calculators, booking pickers) gets the same repair.
+  const sections = repairStoredLinks(storedSections, knownPages, pageAnchors);
+  const chromeHref = (href: string) => resolveSiteHref(href, org.slug, ownAddress, knownPages, pageAnchors);
+  // Pages the AI menu left out are still offered, so no page is orphaned.
+  const extraNav = missingChromeLinks(chrome.header, navRows as never);
 
   useEffect(() => {
     if (preview) return;
@@ -185,7 +206,18 @@ export function SitePageView({
             business name stays readable on pale and dark themes alike rather
             than inheriting whatever colour the section below it chose. */}
         {chrome.header ? (
-          <AiSiteHeader tree={chrome.header} name={org.name} homeHref={chromeHref("/")} resolveHref={chromeHref} surface={profile?.secondary_color ?? null} logoUrl={profile?.logo_url ?? null} />
+          <AiSiteHeader
+            tree={chrome.header}
+            name={org.name}
+            homeHref={chromeHref("/")}
+            resolveHref={chromeHref}
+            surface={profile?.secondary_color ?? null}
+            logoUrl={profile?.logo_url ?? null}
+            extraLinks={extraNav.map((link) => ({
+              href: chromeHref(link.href),
+              label: pageNavLabel(link.title, org.name, link.slug),
+            }))}
+          />
         ) : null}
 
         {/* Tablet and phone overrides the client set in the visual builder. */}

@@ -17,7 +17,11 @@ export function AiSiteHeader(props: {
   surface?: string | null;
   /** The owner's uploaded logo (already a usable URL), shown beside the menu. */
   logoUrl?: string | null;
+  /** Real pages the AI-authored menu does not link to (already resolved). */
+  extraLinks?: { href: string; label: string }[];
 }) {
+  const extraLinks = props.extraLinks ?? [];
+  const dialogRef = useRef<HTMLDivElement>(null);
   const logo = props.logoUrl && /^(https:\/\/|\/)/i.test(props.logoUrl) ? props.logoUrl : null;
   const linkLabel = (text: string) => stripBusinessSuffix(text, props.name);
   const [open, setOpen] = useState(false);
@@ -25,7 +29,27 @@ export function AiSiteHeader(props: {
   const toggleRef = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     if (!open) return;
-    const close = (event: KeyboardEvent) => event.key === "Escape" && setOpen(false);
+    const close = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setOpen(false);
+        return;
+      }
+      // Keep keyboard focus inside the open menu (it covers the whole page).
+      if (event.key !== "Tab" || !dialogRef.current) return;
+      const focusable = Array.from(
+        dialogRef.current.querySelectorAll<HTMLElement>('a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])'),
+      ).filter((el) => el.offsetParent !== null || el === document.activeElement);
+      if (focusable.length === 0) return;
+      const first = focusable[0]!;
+      const last = focusable[focusable.length - 1]!;
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
     window.addEventListener("keydown", close);
     // Turning the phone sideways (or widening the window) hides the phone
     // menu; it must also close, or the page stays unable to scroll.
@@ -54,6 +78,17 @@ export function AiSiteHeader(props: {
             </a>
           ) : null}
           <CompositionRenderer as="div" scope="site-header" tree={props.tree} resolveHref={props.resolveHref} surface={props.surface ?? null} linkLabel={linkLabel} />
+          {extraLinks.length ? (
+            <ul className="ml-auto flex shrink-0 flex-wrap items-center gap-x-4 gap-y-1">
+              {extraLinks.map((link) => (
+                <li key={link.href}>
+                  <a href={link.href} className="inline-flex min-h-11 items-center text-[14px] font-medium hover:underline">
+                    {link.label}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          ) : null}
         </div>
       </nav>
       <nav aria-label="Main" className="flex items-center justify-between gap-3 px-4 py-3 text-foreground md:hidden">
@@ -74,6 +109,7 @@ export function AiSiteHeader(props: {
       </nav>
       {open ? (
         <div
+          ref={dialogRef}
           role="dialog"
           aria-modal="true"
           aria-label="Menu"
@@ -93,8 +129,19 @@ export function AiSiteHeader(props: {
               <X className="size-5" />
             </button>
           </div>
-          <div className="flex min-h-0 flex-1 items-center justify-center overflow-y-auto">
+          <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-4 overflow-y-auto overscroll-contain">
             <CompositionRenderer as="div" scope="site-header" tree={props.tree} resolveHref={props.resolveHref} surface={props.surface ?? null} linkLabel={linkLabel} />
+            {extraLinks.length ? (
+              <ul className="flex flex-col items-center gap-1 text-foreground">
+                {extraLinks.map((link) => (
+                  <li key={link.href}>
+                    <a href={link.href} className="inline-flex min-h-11 items-center px-3 text-[18px] font-medium">
+                      {link.label}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
           </div>
         </div>
       ) : null}
