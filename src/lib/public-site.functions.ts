@@ -888,7 +888,7 @@ const ANALYTICS_SESSION_LIMIT = 60;
 function analyticsText(value: unknown, max: number) {
   const clean = String(value ?? "")
     // eslint-disable-next-line no-control-regex
-    .replace(/[\\u0000-\\u001f\\u007f]/g, "")
+    .replace(/[\x00-\x1f\x7f]/g, "")
     .trim()
     .slice(0, max);
   return clean || null;
