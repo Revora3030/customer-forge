@@ -1487,7 +1487,13 @@ export async function drainSiteEngineQueue(
       }
 
       // Ordinary failure: retry until MAX_ATTEMPTS, then mark it failed for good.
+      // The stored message carries a stable failure kind ([content], [image],
+      // [infrastructure]...) so the owner and operators see what failed.
       failed += 1;
+      const { classifyBuildFailure, tagFailureMessage } = await import("@/lib/builder/build-failure");
+      const failure = classifyBuildFailure(error, status);
+      const taggedMessage = tagFailureMessage(failure.kind, message);
+      console.warn(`[site-engine] job ${job.id} attempt ${job.attempts} failed (${failure.kind}): ${message}`);
       const { data: current } = await db
         .from("generation_jobs")
         .select("attempts")
@@ -1497,14 +1503,14 @@ export async function drainSiteEngineQueue(
       await db
         .from("generation_jobs")
         .update(
-          attempts >= MAX_ATTEMPTS
+          attempts >= MAX_ATTEMPTS || !failure.retryable
             ? {
                 status: "failed",
-                error_message: message,
+                error_message: taggedMessage,
                 completed_at: new Date().toISOString(),
                 lease_expires_at: null,
               }
-            : { status: "queued", error_message: message, lease_expires_at: null },
+            : { status: "queued", error_message: taggedMessage, lease_expires_at: null },
         )
         .eq("id", job.id)
         // Only the attempt that failed may requeue/fail the job.
