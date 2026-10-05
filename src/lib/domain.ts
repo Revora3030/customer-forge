@@ -20,6 +20,35 @@ export type Tone = "signal" | "attention" | "info" | "neutral" | "danger";
 export const leadStatusMeta = (status: LeadStatus) =>
   LEAD_STATUSES.find((s) => s.value === status) ?? LEAD_STATUSES[0]!;
 
+/**
+ * The five-stage CRM pipeline the product promises: New → Contacted → Quoted →
+ * Won → Closed. It is a read model over the stored `lead_status` values, so no
+ * existing lead is migrated or relabelled in the database:
+ *  - qualified sits inside "Contacted" (still being worked),
+ *  - booked and completed are "Won",
+ *  - lost is "Closed" (closed without a sale).
+ */
+export const CRM_STAGES = [
+  { key: "new", label: "New", statuses: ["new"] },
+  { key: "contacted", label: "Contacted", statuses: ["contacted", "qualified"] },
+  { key: "quoted", label: "Quoted", statuses: ["quoted"] },
+  { key: "won", label: "Won", statuses: ["booked", "completed"] },
+  { key: "closed", label: "Closed", statuses: ["lost"] },
+] as const satisfies readonly { key: string; label: string; statuses: readonly LeadStatus[] }[];
+
+export type CrmStageKey = (typeof CRM_STAGES)[number]["key"];
+
+/** The pipeline stage a stored lead status belongs to. */
+export function crmStageOf(status: LeadStatus | null | undefined): CrmStageKey {
+  const stage = CRM_STAGES.find((s) => (s.statuses as readonly string[]).includes(status ?? "new"));
+  return stage?.key ?? "new";
+}
+
+/** The status written when a lead is moved into a stage (first status of that stage). */
+export function statusForCrmStage(stage: CrmStageKey): LeadStatus {
+  return CRM_STAGES.find((s) => s.key === stage)!.statuses[0];
+}
+
 export const APPOINTMENT_STATUSES: { value: AppointmentStatus; label: string; tone: Tone }[] = [
   { value: "pending", label: "Pending", tone: "attention" },
   { value: "confirmed", label: "Confirmed", tone: "signal" },

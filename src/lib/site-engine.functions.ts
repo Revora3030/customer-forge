@@ -184,6 +184,25 @@ export const runSiteGeneration = createServerFn({ method: "POST" })
       .single();
     if (error || !job) {
       await cleanupFreshQueue();
+      // The database allows one active build per workspace
+      // (generation_jobs_one_active_per_org). Losing that race means another
+      // request queued the build a moment ago: hand back that job instead of
+      // failing, so a double click or retry never starts a second build.
+      if (isActiveBuildConflict(error)) {
+        const { data: running } = await supabase
+          .from("generation_jobs")
+          .select("id, status, progress")
+          .eq("organization_id", orgId)
+          .in("status", ["queued", "processing"])
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (running) {
+          if (data.mode === "fresh_replace")
+            throw new Error("A build is already running. Wait for it to finish before starting a fresh rebuild.");
+          return { jobId: running.id, status: running.status, progress: running.progress, queued: true, mode: "safe" };
+        }
+      }
       throw new Error(error?.message ?? "Couldn't queue the build.");
     }
 
@@ -204,6 +223,17 @@ export const runSiteGeneration = createServerFn({ method: "POST" })
       ...(backupId ? { backupId } : {}),
     };
   });
+
+/**
+ * True when an insert lost the one-active-build-per-workspace race
+ * (unique index `generation_jobs_one_active_per_org`, Postgres 23505).
+ */
+export function isActiveBuildConflict(error: { code?: string; message?: string } | null | undefined): boolean {
+  if (!error || error.code !== "23505") return false;
+  // Any 23505 on this insert can only come from the active-build index (the id
+  // is server-generated), but name it when the driver includes it.
+  return !error.message || /generation_jobs_one_active_per_org|duplicate key/i.test(error.message);
+}
 
 async function kickWorker(origin: string) {
   const secret = process.env["LOVABLE_CRON_SECRET"];
