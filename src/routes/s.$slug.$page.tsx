@@ -10,7 +10,12 @@ import { createFileRoute, notFound } from "@tanstack/react-router";
 import { useEffect } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { SiteSection } from "@/components/site/SiteSections";
-import { leadSectionIndex, pageHasWidget } from "@/components/site/site-sections-utils";
+import {
+  isRenderableSection,
+  leadSectionIndex,
+  normalizeSection,
+  pageHasWidget,
+} from "@/components/site/site-sections-utils";
 import { ReviewWall } from "@/components/site/LiveBlocks";
 import { PreviewSelectBridge } from "@/components/site/PreviewSelectBridge";
 import { SiteBackdrop } from "@/components/site/SiteBackdrop";
@@ -130,7 +135,11 @@ export function SitePageView({
   const content = site.content ?? null;
   const page = content?.page ?? null;
   const rawSections = content?.sections;
-  const storedSections = Array.isArray(rawSections) ? rawSections : [];
+  const rawRows: unknown[] = Array.isArray(rawSections) ? rawSections : [];
+  // A section the worker is still writing (no id or kind yet, or a malformed
+  // child list) is kept as an in-place shimmer slot instead of being read.
+  const slots = rawRows.map((row) => (isRenderableSection(row) ? normalizeSection(row) : null));
+  const storedSections = slots.filter((slot): slot is NonNullable<typeof slot> => slot !== null);
   const ownAddress = useOwnAddress();
   const chrome = readSiteChrome(site.settings?.generation ?? null);
   // The site's real pages and this page's section anchors, so every button the
@@ -229,9 +238,25 @@ export function SitePageView({
         <main className="scroll-mt-20 pt-2 sm:pt-4 pb-24 sm:pb-16">
           {(() => {
             const lead = leadSectionIndex(sections as never);
-            return sections.map((section, index) => (
-              <SiteSection key={section.id} site={site} section={section} lead={index === lead} first={index === 0} />
-            ));
+            let ready = 0;
+            return slots.map((slot, slotIndex) => {
+              if (!slot) {
+                return (
+                  <div
+                    key={`pending-${slotIndex}`}
+                    data-testid="draft-section-pending"
+                    aria-hidden
+                    className="mx-auto my-4 h-48 w-full max-w-6xl animate-pulse rounded-lg bg-muted/40"
+                  />
+                );
+              }
+              const index = ready++;
+              const section = sections[index];
+              if (!section) return null;
+              return (
+                <SiteSection key={section.id} site={site} section={section} lead={index === lead} first={index === 0} />
+              );
+            });
           })()}
           {/* Published reviews from the Reviews tool always reach the home
               page, even on sites designed before reviews existed. Skipped when
