@@ -37,6 +37,18 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
+      - name: Repository security audit
+        run: npm run security:audit
+
+      - name: Security audit contract
+        run: npm run security:audit:test
+
+      - name: Website RPC security contract
+        run: node scripts/website-rpc-security.contract.mjs
+
+      - name: Browser journey contract
+        run: npm run browser:journey:test
+
       - name: Lint
         run: npm run lint
 
@@ -54,6 +66,9 @@ jobs:
 
       - name: Production readiness contract
         run: npm run production:readiness
+
+      - name: Maximum production readiness gate
+        run: npm run production:readiness:max
 
       - name: Production control audit
         run: npm run production:controls

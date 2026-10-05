@@ -32,7 +32,8 @@
     "visual:benchmark:browser": "python3 scripts/visual-qa.py --benchmark",
     "browser:journey": "node scripts/browser-journey.mjs",
     "browser:journey:ci": "node scripts/browser-journey.mjs --require-browser",
-    "browser:journey:test": "node scripts/browser-journey.contract.mjs"
+    "browser:journey:test": "node scripts/browser-journey.contract.mjs",
+    "supabase:drift": "node scripts/supabase-migration-drift-audit.mjs"
   },
   "overrides": {
     "rolldown": "1.2.1",
