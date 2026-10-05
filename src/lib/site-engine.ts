@@ -14,15 +14,19 @@ export type GenerationStep = { key: string; label: string; progress: number };
 
 /** Real backend stages — each one is written to the job as it completes. */
 export const GENERATION_STEPS: GenerationStep[] = [
-  { key: "business", label: "Business information analysed", progress: 8 },
-  { key: "services", label: "Services organised", progress: 18 },
-  { key: "brand", label: "Brand identity prepared", progress: 26 },
-  { key: "analysis", label: "Customers, intent and conversion strategy analysed", progress: 38 },
-  { key: "structure", label: "Website structure generated", progress: 46 },
-  { key: "copy", label: "Local SEO content generated", progress: 62 },
-  { key: "conversion", label: "Conversion system configured", progress: 74 },
-  { key: "leads", label: "Lead capture connected", progress: 84 },
-  { key: "mobile", label: "Mobile experience optimised", progress: 94 },
+  { key: "business", label: "Business information analysed", progress: 6 },
+  { key: "services", label: "Services organised", progress: 12 },
+  { key: "brand", label: "Brand identity prepared", progress: 18 },
+  { key: "analysis", label: "Customers, intent and conversion strategy analysed", progress: 26 },
+  { key: "structure", label: "Website structure generated", progress: 32 },
+  { key: "copy", label: "Local SEO content generated", progress: 40 },
+  { key: "conversion", label: "Conversion system configured", progress: 46 },
+  { key: "pictures", label: "Pictures generated and checked", progress: 58 },
+  { key: "pages", label: "Pages assembled", progress: 66 },
+  { key: "wording", label: "Section wording reviewed", progress: 74 },
+  { key: "layout", label: "Section layouts composed", progress: 82 },
+  { key: "checks", label: "Links, mobile and quality checked", progress: 90 },
+  { key: "leads", label: "Lead capture connected", progress: 96 },
   { key: "ready", label: "Draft ready for browser review", progress: 100 },
 ];
 
