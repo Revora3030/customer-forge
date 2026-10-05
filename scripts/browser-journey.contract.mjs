@@ -66,6 +66,13 @@ if (driver.includes("await asyncio.sleep(") && !driver.includes("wait_for_select
 if (!runner.includes("NOT_VERIFIED")) {
   failures.push("A missing browser runner must report NOT_VERIFIED, never a pass.");
 }
+// Without a session, steps after 03 must be NOT_TESTED, never FAIL on a closed page.
+if (!/requires_session\(key\) and not self\.signed_in/.test(driver) || !driver.includes("self.signed_in = True")) {
+  failures.push("Steps after 03_auth_session must be NOT_TESTED when no session was restored.");
+}
+if (!driver.includes("self.page = None")) {
+  failures.push("The closed signed-out page must never be reused by later steps.");
+}
 if (driver.includes("publish.click()")) {
   failures.push("The suite must never press Publish.");
 }
