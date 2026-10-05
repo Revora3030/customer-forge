@@ -65,4 +65,36 @@ describe("cross-session free-access trial", () => {
     const end = newTrialEndsAt(from);
     expect(new Date(end).getTime() - from.getTime()).toBe(TRIAL_DAYS * DAY);
   });
+
+  it("grants access up to the exact trial boundary and denies it one second later", () => {
+    // A workspace created exactly TRIAL_DAYS ago (to the second) must still be
+    // inside its window only until the boundary instant, not beyond it. This
+    // pins the entitlement edge so timezone/clock drift can't quietly extend
+    // or shorten the promised free days.
+    const createdAt = new Date(Date.now() - TRIAL_DAYS * DAY).toISOString();
+    const end = trialEndsAtMs({ trial_ends_at: null, created_at: createdAt });
+    expect(end).toBe(new Date(createdAt).getTime() + TRIAL_DAYS * DAY);
+    // One second before the boundary: still active.
+    const beforeBoundary = {
+      trial_ends_at: new Date(Date.now() + 1_000).toISOString(),
+      created_at: null,
+    };
+    expect(isTrialActive(beforeBoundary)).toBe(true);
+    // One second after the boundary: locked out.
+    const afterBoundary = {
+      trial_ends_at: new Date(Date.now() - 1_000).toISOString(),
+      created_at: null,
+    };
+    expect(isTrialActive(afterBoundary)).toBe(false);
+    expect(trialHoursLeft(afterBoundary)).toBe(0);
+  });
+
+  it("parses ISO 8601 timestamps with timezone offsets instead of assuming local time", () => {
+    // Supabase returns timestamptz as ISO 8601 with an explicit offset. If the
+    // parser ever assumed local time, a workspace created near midnight UTC
+    // would gain or lose hours of trial depending on the server's timezone.
+    const createdAt = "2026-01-01T23:59:00+05:30"; // 18:29 UTC
+    const end = trialEndsAtMs({ trial_ends_at: null, created_at: createdAt });
+    expect(end).toBe(Date.parse(createdAt) + TRIAL_DAYS * DAY);
+  });
 });
