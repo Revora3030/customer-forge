@@ -121,6 +121,19 @@ export type PublicSite = Awaited<ReturnType<typeof loadSite>>;
  * signed-in member sees their unpublished work — hidden pages and sections
  * included — for a business they actually belong to, and for no one else.
  */
+/** Draft previews stop waiting on a job that hasn't moved for this long. */
+export const DRAFT_STALL_MS = 10 * 60 * 1000;
+
+/**
+ * True when an active job has not been updated within DRAFT_STALL_MS and the
+ * draft already has content to show. Pure, so it is unit tested.
+ */
+export function isStalledJob(updatedAt: string | null | undefined, sectionCount: number, now = Date.now()): boolean {
+  if (sectionCount <= 0 || !updatedAt) return false;
+  const touched = Date.parse(updatedAt);
+  return Number.isFinite(touched) && now - touched > DRAFT_STALL_MS;
+}
+
 export const getOwnerDraftSite = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .validator((input: { slug: string; pageSlug?: string }) => {
@@ -159,7 +172,7 @@ export const getOwnerDraftSite = createServerFn({ method: "GET" })
 
     const { data: job } = await context.supabase
       .from("generation_jobs")
-      .select("id, status, current_step, progress")
+      .select("id, status, current_step, progress, updated_at")
       .eq("organization_id", org.id)
       .in("status", ["queued", "processing"])
       .order("created_at", { ascending: false })
@@ -167,6 +180,18 @@ export const getOwnerDraftSite = createServerFn({ method: "GET" })
       .maybeSingle();
 
     const sectionCount = site?.content?.sections?.length ?? 0;
+    // A job untouched for longer than the stall window is a dead worker, not a
+    // running build. When the draft already has sections, show it as ready so
+    // the preview never sits behind a dead lock (the worker sweep recovers or
+    // closes the job separately; nothing is changed here).
+    if (job && isStalledJob(job.updated_at as string | null, sectionCount)) {
+      return {
+        ok: true as const,
+        status: "ready" as const,
+        site,
+        job: null,
+      };
+    }
     if (job)
       return {
         ok: true as const,

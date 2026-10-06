@@ -82,6 +82,43 @@ export function DraftMessage({
   );
 }
 
+/**
+ * Slim progress header shown above a live draft while a rebuild or AI update
+ * runs. The draft stays visible underneath, so the owner can watch sections
+ * change instead of losing the preview to a full-page "still building" screen.
+ */
+export function DraftUpdatingBanner({
+  job,
+}: {
+  job: { currentStep: string | null; progress: number } | null | undefined;
+}) {
+  const progress = Math.min(100, Math.max(5, job?.progress ?? 0));
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      data-testid="draft-updating-banner"
+      className="sticky top-0 z-50 flex items-center justify-between gap-3 border-b bg-background/95 px-4 py-2 text-xs backdrop-blur"
+    >
+      <span className="truncate font-medium text-muted-foreground">
+        {job?.currentStep
+          ? `Updating draft: ${job.currentStep} (${Math.round(job.progress ?? 0)}%)`
+          : "Updating draft in background..."}
+      </span>
+      <div
+        className="h-1.5 w-24 shrink-0 overflow-hidden rounded-full bg-muted"
+        role="progressbar"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={Math.round(job?.progress ?? 0)}
+        aria-label="Draft update progress"
+      >
+        <div className="h-full rounded-full bg-primary transition-all duration-300" style={{ width: `${progress}%` }} />
+      </div>
+    </div>
+  );
+}
+
 function DraftHomeRoute() {
   return (
     <ErrorBoundary
@@ -111,6 +148,17 @@ function DraftHomeRouteContent() {
 
   if (children.length > 0) return <Outlet />;
 
+  // A draft that already has sections stays visible during rebuilds and AI
+  // updates; only a brand-new empty first build gets the full-page message.
+  if (result?.site && sections.length > 0 && (result.status === "pending" || result.status === "ready")) {
+    return (
+      <>
+        {result.status === "pending" ? <DraftUpdatingBanner job={result.job} /> : null}
+        <PublicSiteView site={result.site} preview />
+      </>
+    );
+  }
+
   if (result?.status === "pending") {
     return (
       <DraftMessage
@@ -129,10 +177,6 @@ function DraftHomeRouteContent() {
         onRetry={retry}
       />
     );
-  }
-
-  if (result?.status === "ready" && result.site && sections.length > 0) {
-    return <PublicSiteView site={result.site} preview />;
   }
 
   return (
