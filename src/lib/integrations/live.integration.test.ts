@@ -46,6 +46,7 @@ describe("live CRM hand-off", () => {
       });
 
     const first = await send();
+    if (!first.ok) console.log("CRM endpoint replied", first.status, (await first.text()).slice(0, 200));
     expect(first.ok).toBe(true);
     const replay = await send();
     // A correct receiver either accepts idempotently (2xx) or rejects the
@@ -57,24 +58,28 @@ describe("live CRM hand-off", () => {
 describe("live transactional email", () => {
   emailIt("accepts a lead notification for delivery", async () => {
     const { sendTemplateEmail } = await import("@/lib/email-templates/send-email");
-    const result = await sendTemplateEmail("lead_notification", env["INTEGRATION_TEST_EMAIL_TO"]!, {
-      variables: {
+    const result = await sendTemplateEmail("lead-alert", env["INTEGRATION_TEST_EMAIL_TO"]!, {
+      idempotencyKey: `revora-it-email-${Date.now()}`,
+      templateData: {
         businessName: "Integration Test",
         leadName: "Integration Test",
         leadEmail: "integration@revoratest.dev",
       },
-    } as never);
-    expect(result).toBeDefined();
-    expect((result as { ok?: boolean }).ok).toBe(true);
+    });
+    expect(result.sent).toBe(true);
   }, 60_000);
 });
 
 describe("live payments", () => {
   paymentsIt("creates a sandbox checkout session", async () => {
-    const { createStripeClient } = await import("@/lib/stripe.server");
-    const stripe = createStripeClient("sandbox");
+    // Uses ONLY the sandbox key, never the live STRIPE_SECRET_KEY.
+    const { default: Stripe } = await import("stripe");
+    const key = env["STRIPE_SANDBOX_API_KEY"]!;
+    expect(key.startsWith("sk_test_") || key.startsWith("rk_test_")).toBe(true);
+    const stripe = new Stripe(key, { httpClient: Stripe.createFetchHttpClient() });
     const session = await stripe.checkout.sessions.create({
       mode: "payment",
+      managed_payments: { enabled: false },
       success_url: "https://revoragrowthsystems.com/app/billing?status=success",
       cancel_url: "https://revoragrowthsystems.com/app/billing?status=cancelled",
       line_items: [
