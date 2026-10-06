@@ -9,7 +9,7 @@ import { useEffect } from "react";
 import { getOwnerDraftSite } from "@/lib/public-site.functions";
 import { ErrorBoundary } from "@/components/app/ErrorBoundary";
 import { SitePageView } from "@/routes/s.$slug.$page";
-import { DraftMessage } from "@/routes/_authenticated/draft.$slug";
+import { DraftMessage, DraftUpdatingBanner } from "@/routes/_authenticated/draft.$slug";
 
 export const Route = createFileRoute("/_authenticated/draft/$slug/$page")({
   loader: async ({ params }) =>
@@ -62,6 +62,17 @@ function DraftPageRouteContent() {
     return () => window.clearInterval(timer);
   }, [result?.status, router]);
 
+  // Keep showing the page while it is being updated; only an empty page that is
+  // still being built gets the full-page message.
+  if (result?.site && sections.length > 0 && (result.status === "pending" || result.status === "ready")) {
+    return (
+      <>
+        {result.status === "pending" ? <DraftUpdatingBanner job={result.job} /> : null}
+        <SitePageView site={result.site} preview />
+      </>
+    );
+  }
+
   if (result?.status === "pending") {
     return (
       <DraftMessage
@@ -83,10 +94,6 @@ function DraftPageRouteContent() {
         onRetry={() => void router.invalidate().catch(() => undefined)}
       />
     );
-  }
-
-  if (result?.status === "ready" && result.site && sections.length > 0) {
-    return <SitePageView site={result.site} preview />;
   }
 
   return (
