@@ -79,7 +79,6 @@ describe("live payments", () => {
     const stripe = new Stripe(key, { httpClient: Stripe.createFetchHttpClient() });
     const session = await stripe.checkout.sessions.create({
       mode: "payment",
-      managed_payments: { enabled: false },
       success_url: "https://revoragrowthsystems.com/app/billing?status=success",
       cancel_url: "https://revoragrowthsystems.com/app/billing?status=cancelled",
       line_items: [
@@ -92,6 +91,8 @@ describe("live payments", () => {
           },
         },
       ],
+      // Not yet in the SDK types; Stripe requires it for accounts with Managed Payments on.
+      ...({ managed_payments: { enabled: false } } as Record<string, unknown>),
     });
     expect(session.id).toMatch(/^cs_/);
     expect(session.url).toBeTruthy();
