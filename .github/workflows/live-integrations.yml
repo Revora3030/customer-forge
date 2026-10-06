@@ -1,0 +1,62 @@
+name: Live Integrations
+
+# Runs the live CRM / email / payments suites (npm run test:integrations)
+# against real sandbox services using repository secrets.
+# Manual only: each run sends a real test email, creates a Stripe sandbox
+# checkout session and posts a test lead to the CRM webhook.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: revora-live-integrations
+  cancel-in-progress: false
+
+jobs:
+  live:
+    name: Live integration suites (CRM, email, payments)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Pin npm
+        run: npm install --global npm@11.6.0
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Credential preflight (names only)
+        env:
+          INTEGRATION_TESTS_ENABLED: ${{ secrets.INTEGRATION_TESTS_ENABLED }}
+          LOVABLE_API_KEY: ${{ secrets.LOVABLE_API_KEY }}
+          INTEGRATION_TEST_EMAIL_TO: ${{ secrets.INTEGRATION_TEST_EMAIL_TO }}
+          INTEGRATION_TEST_CRM_WEBHOOK_URL: ${{ secrets.INTEGRATION_TEST_CRM_WEBHOOK_URL }}
+          STRIPE_SANDBOX_API_KEY: ${{ secrets.STRIPE_SANDBOX_API_KEY }}
+          PAYMENTS_SANDBOX_WEBHOOK_SECRET: ${{ secrets.PAYMENTS_SANDBOX_WEBHOOK_SECRET }}
+        run: |
+          missing=0
+          for name in INTEGRATION_TESTS_ENABLED LOVABLE_API_KEY INTEGRATION_TEST_EMAIL_TO \
+                      INTEGRATION_TEST_CRM_WEBHOOK_URL STRIPE_SANDBOX_API_KEY PAYMENTS_SANDBOX_WEBHOOK_SECRET; do
+            if [ -z "${!name}" ]; then echo "::error::Missing secret: $name"; missing=1; else echo "present: $name"; fi
+          done
+          exit $missing
+
+      - name: Live integration tests
+        env:
+          INTEGRATION_TESTS_ENABLED: ${{ secrets.INTEGRATION_TESTS_ENABLED }}
+          LOVABLE_API_KEY: ${{ secrets.LOVABLE_API_KEY }}
+          INTEGRATION_TEST_EMAIL_TO: ${{ secrets.INTEGRATION_TEST_EMAIL_TO }}
+          INTEGRATION_TEST_CRM_WEBHOOK_URL: ${{ secrets.INTEGRATION_TEST_CRM_WEBHOOK_URL }}
+          STRIPE_SANDBOX_API_KEY: ${{ secrets.STRIPE_SANDBOX_API_KEY }}
+          PAYMENTS_SANDBOX_WEBHOOK_SECRET: ${{ secrets.PAYMENTS_SANDBOX_WEBHOOK_SECRET }}
+        run: npm run test:integrations -- --reporter=verbose
