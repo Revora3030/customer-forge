@@ -1,6 +1,7 @@
 import type { PublicSite } from "@/lib/public-site.functions";
 import {
   readComposition,
+  validateComposition,
   type CompositionNode,
   type CompositionTree,
 } from "@/lib/builder/composition-tree";
@@ -175,7 +176,7 @@ export function legacySectionToComposition(section: Section, options: Compositio
   });
 
   if (!nodes.length) return null;
-  return {
+  const candidate: CompositionTree = {
     version: 1,
     label: "legacy-section-modernized",
     root: {
@@ -184,6 +185,10 @@ export function legacySectionToComposition(section: Section, options: Compositio
       responsive: { tablet: { paddingY: options.lead ? 64 : 52, paddingX: 20 }, mobile: { paddingY: options.lead ? 52 : 44, paddingX: 18, gap: 20 } },
     },
   };
+  const checked = validateComposition(candidate, {
+    allowedMediaRefs: new Set(media.map((item) => item.mediaRef)),
+  });
+  return checked.ok ? checked.tree : null;
 }
 /** True when a stored AI layout for this section already draws a level-1 heading. */
 export function compositionHasH1(section: Section): boolean {
