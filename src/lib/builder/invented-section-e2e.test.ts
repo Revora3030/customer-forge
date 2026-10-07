@@ -115,6 +115,13 @@ describe("an AI-invented section reaches the finished page unchanged", () => {
     expect(html).toContain("Our launch times follow the tide table.");
   });
 
+  it("proves failed AI architecture cannot fall back to the fact inventory", () => {
+    const source = readFileSync("src/lib/site-materialize.server.ts", "utf8");
+    expect(source).toContain('db.rpc("clear_website_content"');
+    expect(source).not.toMatch(/: factInventory\b/);
+    expect(source).toContain("no AI-authored architecture or approved design contract was supplied");
+  });
+
   it("is reported, never hidden, if it has no drawable layout", () => {
     expect(isRenderableSectionKind(INVENTED)).toBe(false);
     expect(isRenderableSectionKind("composition")).toBe(true);
