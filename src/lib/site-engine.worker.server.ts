@@ -678,7 +678,7 @@ async function runJob(
   // retried); no stock identity is ever substituted.
   const identity = await withActiveLease(db, job, "brand identity", () => authorBrandIdentity({
     organizationId: orgId,
-    businessName: org.data.name ?? "",
+    businessName: org.data!.name ?? "",
     industry: org.data!.industry ?? null,
     description: (p["description"] as string) ?? null,
     city: (p["city"] as string) ?? null,
