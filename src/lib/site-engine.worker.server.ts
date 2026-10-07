@@ -117,6 +117,58 @@ async function rollbackFreshBuild(
   return { restored: restoreError === null, restoreError };
 }
 
+
+export function isTransientAiFailure(error: unknown): boolean {
+  const status = typeof error === "object" && error !== null && "status" in error
+    ? Number((error as { status?: unknown }).status)
+    : NaN;
+  if ([408, 425, 429, 500, 502, 503, 504].includes(status)) return true;
+  const message = error instanceof Error ? error.message : String(error ?? "");
+  return /timeout|timed out|deadline|overloaded|temporar|rate limit|too many requests|fetch failed|network|ECONNRESET|ECONNABORTED|ETIMEDOUT/i.test(message);
+}
+
+export async function withActiveLease<T>(
+  db: Db,
+  job: { id: string; attempts: number },
+  label: string,
+  task: () => Promise<T>,
+  options: { maxAttempts?: number; baseDelayMs?: number } = {},
+): Promise<T> {
+  const maxAttempts = Math.max(1, Math.min(options.maxAttempts ?? 3, 4));
+  const baseDelayMs = Math.max(250, options.baseDelayMs ?? 1500);
+
+  const renew = async (phase: string) => {
+    const { data, error } = await db
+      .from("generation_jobs")
+      .update({
+        lease_expires_at: new Date(Date.now() + LEASE_SECONDS * 1000).toISOString(),
+        updated_at: new Date().toISOString(),
+      } as never)
+      .eq("id", job.id)
+      .eq("attempts", job.attempts)
+      .eq("status", "processing")
+      .select("id");
+    if (error) throw new Error(`Lease renewal failed for ${label} (${phase}): ${error.message}`);
+    if (!Array.isArray(data) || data.length === 0) throw new StaleAttemptError(job.id);
+  };
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    await renew(`attempt ${attempt}`);
+    try {
+      const value = await task();
+      await renew(`completion ${attempt}`);
+      return value;
+    } catch (error) {
+      if (error instanceof StaleAttemptError || !isTransientAiFailure(error) || attempt >= maxAttempts) throw error;
+      const delay = baseDelayMs * 2 ** (attempt - 1);
+      console.warn(`[site-engine] transient AI failure in ${label} (attempt ${attempt}/${maxAttempts}); retrying in ${delay}ms:`, error);
+      await new Promise((resolve) => setTimeout(resolve, delay));
+    }
+  }
+
+  throw new Error(`AI step ${label} failed after retries.`);
+}
+
 export type QueueState = {
   paused: boolean;
   pause_reason: string | null;
@@ -379,7 +431,11 @@ async function runJob(
   const { GENERATION_STEPS } = await import("@/lib/site-engine");
   const { readBrief } = await import("@/lib/site-brief");
   const { captureQa } = await import("@/lib/launch-qa");
-  const { gatherBriefFacts } = await import("@/lib/site-brief.server");
+  const {
+    gatherBriefFacts,
+    sanitizeCustomerContactEmail,
+    sanitizeServiceRows,
+  } = await import("@/lib/site-brief.server");
   const {
     analyzeBusiness,
     blankCopy,
@@ -441,7 +497,7 @@ async function runJob(
   const [org, profile, services, media, socials, forms, bookable] = await Promise.all([
     db
       .from("organizations")
-      .select("name, industry, conversion_goal")
+      .select("name, slug, industry, conversion_goal")
       .eq("id", orgId)
       .maybeSingle(),
     db.from("business_profiles").select("*").eq("organization_id", orgId).maybeSingle(),
@@ -461,15 +517,22 @@ async function runJob(
   await step("business");
 
   const p = (profile.data ?? {}) as Record<string, unknown>;
+  const customerEmail = sanitizeCustomerContactEmail((p["email"] as string) ?? null, {
+    orgName: org.data.name ?? null,
+    orgSlug: org.data.slug ?? null,
+  });
   const realMediaCount = (media.data ?? []).filter((item) =>
     ["hero", "work", "gallery", "team", "premises"].includes(String(item.category ?? "").toLowerCase()),
   ).length + ((p["hero_image_url"] as string) ? 1 : 0);
-  const serviceRows = (services.data ?? []) as {
-    name: string;
-    description?: string | null;
-    price?: number | null;
-    starting_price?: number | null;
-  }[];
+  const serviceRows = sanitizeServiceRows(
+    (services.data ?? []) as {
+      name: string;
+      description?: string | null;
+      price?: number | null;
+      starting_price?: number | null;
+    }[],
+    org.data.industry ?? null,
+  );
   await step("services");
 
   const social = (socials.data ?? {}) as Record<string, unknown>;
@@ -495,7 +558,7 @@ async function runJob(
     state: (p["state"] as string) ?? null,
     serviceArea: (p["service_area"] as string) ?? null,
     phone: (p["phone"] as string) ?? null,
-    email: (p["email"] as string) ?? null,
+    email: customerEmail,
     yearsInBusiness: (p["years_in_business"] as number) ?? null,
     hasHours: Boolean(p["hours"] && Object.keys(p["hours"] as object).length),
     style: (p["font_preference"] as string) ?? null,
@@ -546,7 +609,9 @@ async function runJob(
   const approvedBrief = readBrief(priorGeneration["brief"]);
 
   // No built-in strategy: an unapproved brief is written by the AI.
-  const brief = approvedBrief?.approved ? approvedBrief : await analyzeBusiness(copyFacts);
+  const brief = approvedBrief?.approved
+    ? approvedBrief
+    : await withActiveLease(db, job, "business analysis", () => analyzeBusiness(copyFacts));
   if (!approvedBrief?.approved) {
     await db.from("ai_generations").insert({
       organization_id: orgId,
@@ -607,7 +672,7 @@ async function runJob(
   // The visual identity — palette, typefaces, surface treatments — is authored
   // for this business by the design team. A failure stops the build (it is
   // retried); no stock identity is ever substituted.
-  const identity = await authorBrandIdentity({
+  const identity = await withActiveLease(db, job, "brand identity", () => authorBrandIdentity({
     organizationId: orgId,
     businessName: org.data.name ?? "",
     industry: org.data.industry ?? null,
@@ -615,7 +680,7 @@ async function runJob(
     city: (p["city"] as string) ?? null,
     services: serviceRows.map((service) => ({ name: service.name })),
     requestedFont: (p["font_preference"] as string) ?? null,
-  });
+  }));
   const direction = identity.direction;
   const ownerColour = (key: string) => {
     const value = p[key];
