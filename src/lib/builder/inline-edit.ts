@@ -20,12 +20,20 @@ export function isInlinePath(path: unknown): path is string {
   return typeof path === "string" && PATH.test(path);
 }
 
-/** Collapses whitespace, strips control characters and markup-looking input. */
+/**
+ * Collapses whitespace and strips control characters and angle brackets.
+ *
+ * Angle brackets are removed outright rather than "stripping tags": a
+ * tag-stripping regex can be defeated by nested input (`<scr<script>ipt>`),
+ * while text with no `<` or `>` can never form an HTML element. Plain words
+ * (the only thing inline edits change) never need them. React escapes text
+ * on render as well, so this is defence in depth.
+ */
 export function cleanInlineText(value: unknown): string {
   return String(value ?? "")
     // eslint-disable-next-line no-control-regex -- control characters are stripped from owner text
     .replace(/[\u0000-\u001f\u007f]/g, " ")
-    .replace(/<[^>]*>/g, "")
+    .replace(/[<>]/g, "")
     .replace(/\s+/g, " ")
     .trim()
     .slice(0, INLINE_TEXT_MAX);
