@@ -59,7 +59,7 @@ export const Route = createFileRoute("/locations/$city")({
         meta: [{ title: "Page not found — Revora" }, { name: "robots", content: "noindex" }],
       };
     }
-    const title = `${location.city}, NC website & lead generation for local businesses — Revora`;
+    const title = `${location.city} website design & lead generation — Revora`;
     const description = `Revora builds ${location.city} service businesses a complete customer acquisition system: website, instant quotes, online booking, CRM, follow-up and reviews. ${usdExact(GROWTH_SYSTEM.setupPrice)} setup, then ${usdExact(GROWTH_SYSTEM.monthlyPrice)}/month.`;
     const path = `/locations/${location.slug}`;
     return {

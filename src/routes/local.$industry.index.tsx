@@ -20,7 +20,7 @@ export const Route = createFileRoute("/local/$industry/")({
         meta: [{ title: "Page not found — Revora" }, { name: "robots", content: "noindex" }],
       };
     }
-    const title = `${industry.name} websites, quotes & lead generation — every US state | Revora`;
+    const title = `${industry.name} growth systems by state — Revora`;
     const description = `Revora builds ${industry.name.toLowerCase()} businesses a complete customer acquisition system — website, instant quotes, booking, CRM, follow-up and reviews. Choose your state. ${usdExact(GROWTH_SYSTEM.setupPrice)} setup, first month free, then ${usdExact(GROWTH_SYSTEM.monthlyPrice)}/month.`;
     const path = localPath(industry.slug);
     return {

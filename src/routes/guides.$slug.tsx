@@ -5,7 +5,7 @@ import { RelatedLinks } from "@/components/marketing/SeoLinks";
 import { Button } from "@/components/ui/button";
 import { findGuide, type Guide } from "@/lib/guides";
 import { BUSINESS } from "@/lib/business-identity";
-import { breadcrumbSchema, canonicalLink, ogUrl, SITE_URL, metaDescription } from "@/lib/seo";
+import { breadcrumbSchema, canonicalLink, ogUrl, OG_IMAGE, SITE_URL, metaDescription } from "@/lib/seo";
 
 export const Route = createFileRoute("/guides/$slug")({
   beforeLoad: ({ params }) => {
@@ -50,8 +50,15 @@ export const Route = createFileRoute("/guides/$slug")({
             "@type": "Article",
             headline: guide.title,
             description: guide.description,
+            image: OG_IMAGE.url,
             author: { "@type": "Organization", name: BUSINESS.legalName, url: SITE_URL },
-            publisher: { "@type": "Organization", name: BUSINESS.legalName, url: SITE_URL },
+            publisher: {
+              "@type": "Organization",
+              "@id": `${SITE_URL}/#organization`,
+              name: BUSINESS.legalName,
+              url: SITE_URL,
+              logo: { "@type": "ImageObject", url: `${SITE_URL}/revora-mark-144.png` },
+            },
             mainEntityOfPage: `${SITE_URL}${path}`,
           }),
         },
