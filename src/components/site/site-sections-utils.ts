@@ -18,8 +18,8 @@ type Section = NonNullable<Site["content"]>["sections"][number];
  * no surface to measure and white headings stayed white on pale surfaces.
  */
 export function siteSurface(site: Site): string | null {
-  const profile = (site.profile ?? null) as { secondary_color?: string | null } | null;
-  return normalizeHex(profile?.secondary_color);
+  const profile = (site.profile ?? null) as { secondary_color?: string | null; primary_color?: string | null } | null;
+  return normalizeHex(profile?.secondary_color) ?? normalizeHex(profile?.primary_color);
 }
 
 function normalizeHex(value: unknown): string | null {
