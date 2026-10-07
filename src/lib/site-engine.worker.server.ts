@@ -1145,7 +1145,7 @@ async function runJob(
         ownerFont: effectiveFont,
         surfaceIs: effectivePalette?.secondary ? (isLightSurface(effectivePalette.secondary) ? "light" : "dark") : null,
       }),
-    ));
+    }));
     // Every section is designed by the AI team. A section left without its
     // layout stops the build (it is retried) instead of shipping a default.
     if ((composed.fallback ?? 0) > 0) {
@@ -1185,7 +1185,7 @@ async function runJob(
         shapeLanguage: creative.brief.shapeLanguage,
         surfaceIs: effectivePalette?.secondary ? (isLightSurface(effectivePalette.secondary) ? "light" : "dark") : null,
       }),
-    ));
+    }));
     await db.from("ai_generations").insert({
       organization_id: orgId,
       job_id: job.id,
