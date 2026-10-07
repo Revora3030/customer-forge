@@ -85,3 +85,39 @@ describe("toggle block", () => {
     expect(validateComposition(tree({ type: "toggle", children: [opt("A")] })).ok).toBe(false);
   });
 });
+
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { clampSplit, splitForKey, splitForPointer, SLIDER_STEP } from "./compare-slider";
+
+describe("before/after slider: keyboard, pointer and ARIA", () => {
+  it("steps 5% with arrow keys and jumps with Home/End", () => {
+    expect(SLIDER_STEP).toBe(5);
+    expect(splitForKey("ArrowRight", 50)).toBe(55);
+    expect(splitForKey("ArrowLeft", 50)).toBe(45);
+    expect(splitForKey("ArrowUp", 98)).toBe(100);
+    expect(splitForKey("ArrowDown", 2)).toBe(0);
+    expect(splitForKey("Home", 63)).toBe(0);
+    expect(splitForKey("End", 12)).toBe(100);
+    expect(splitForKey("PageUp", 50)).toBe(70);
+    expect(splitForKey("a", 50)).toBeNull();
+  });
+
+  it("maps a pointer across the full 0–100% width", () => {
+    expect(splitForPointer(100, 100, 400)).toBe(0);
+    expect(splitForPointer(500, 100, 400)).toBe(100);
+    expect(splitForPointer(300, 100, 400)).toBe(50);
+    expect(splitForPointer(-50, 100, 400)).toBe(0);
+    expect(splitForPointer(10, 0, 0)).toBe(50);
+    expect(clampSplit(Number.NaN)).toBe(50);
+  });
+
+  it("renders a real slider with full ARIA semantics and no distortion", () => {
+    const source = readFileSync(resolve(__dirname, "../../components/site/CompositionRenderer.tsx"), "utf8");
+    const slider = source.slice(source.indexOf("function BeforeAfterSlider("), source.indexOf("function FaqAccordion("));
+    for (const attr of ['role="slider"', 'aria-label="Before and after comparison slider"', "aria-valuemin={0}", "aria-valuemax={100}", "aria-valuenow={Math.round(pos)}", "tabIndex={0}", "onPointerDown", "onKeyDown"]) expect(slider).toContain(attr);
+    expect(slider.match(/objectFit: "cover"/g)?.length).toBe(2);
+    expect(source).toContain("backdrop-filter:blur(8px)");
+    expect(source).toMatch(/prefers-reduced-motion: reduce\)\{\.rv-cn-compare-handle/);
+  });
+});
