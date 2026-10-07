@@ -62,6 +62,7 @@ import { QUEUE_LABELS, timelineFor, type QueueTask } from "@/lib/builder-queue";
 import { onAssistantPrompt } from "@/lib/assistant-bridge";
 import { selectionPrefix } from "@/lib/builder/preview-bridge";
 import { actionsForElement } from "@/lib/builder/element-actions";
+import { SectionHistoryButton } from "@/components/app/SectionHistoryButton";
 import { INSTRUCTION_LIMIT, type BuilderRequests } from "@/lib/builder-requests.hooks";
 import type { AgentAttachment } from "@/lib/site-agent";
 import { cn } from "@/lib/utils";
@@ -488,6 +489,7 @@ export function BuilderAssistant({
                     </button>
                   </span>
                 ) : null}
+                {selection ? <SectionHistoryButton organizationId={organizationId} sectionId={selection.id} /> : null}
                 {selection
                   ? actionsForElement(selection.kind).map(({ label, prompt }) => (
                       <button
