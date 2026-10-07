@@ -23,6 +23,7 @@ import {
   type PreviewAction,
   type PreviewToBuilderMessage,
 } from "@/lib/builder/preview-bridge";
+import { contrast, over, parseColor, requiredRatio, type Rgba } from "@/lib/builder/contrast-scan";
 
 const INLINE_TYPES = new Set(["heading", "text", "button", "link", "quote"]);
 const ACTIONS: { action: PreviewAction; label: string }[] = [
@@ -186,11 +187,102 @@ export function PreviewSelectBridge() {
       return true;
     };
 
+    /* ------------------------- responsive overflow probe ------------------------ */
+    const describe = (node: Element) => {
+      const name = node.getAttribute("data-rvb-label") ?? node.getAttribute("data-rvp-type") ?? node.tagName.toLowerCase();
+      const words = (node.textContent ?? "").replace(/\s+/g, " ").trim().slice(0, 40);
+      return words ? `${name}: "${words}"` : name;
+    };
+    let lastOverflow = "";
+    const probeOverflow = () => {
+      const doc = document.documentElement;
+      const clientWidth = doc.clientWidth || window.innerWidth;
+      const scrollWidth = Math.max(doc.scrollWidth, document.body?.scrollWidth ?? 0);
+      const culprits: string[] = [];
+      if (scrollWidth > clientWidth + 1) {
+        for (const node of Array.from(document.body.querySelectorAll("*"))) {
+          if (culprits.length >= 3) break;
+          if (layer.contains(node)) continue;
+          const rect = node.getBoundingClientRect();
+          if (rect.width > 0 && rect.right > clientWidth + 1 && getComputedStyle(node).position !== "fixed") culprits.push(describe(node));
+        }
+      }
+      const key = `${scrollWidth}:${clientWidth}`;
+      if (key === lastOverflow) return;
+      lastOverflow = key;
+      post({ source: PREVIEW_BRIDGE_SOURCE, type: "overflow", overflow: scrollWidth > clientWidth + 1, scrollWidth, clientWidth, culprits });
+    };
+    let overflowTimer = 0;
+    const scheduleOverflow = () => {
+      window.clearTimeout(overflowTimer);
+      overflowTimer = window.setTimeout(probeOverflow, 250);
+    };
+    const resizeObserver = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(scheduleOverflow);
+    resizeObserver?.observe(document.documentElement);
+    // Late images and fonts change widths after first paint.
+    window.addEventListener("load", scheduleOverflow);
+    scheduleOverflow();
+
+    /* --------------------------- WCAG 2.2 AA contrast -------------------------- */
+    const backgroundOf = (node: Element): Rgba => {
+      const stack: Rgba[] = [];
+      for (let el: Element | null = node; el; el = el.parentElement) {
+        const style = getComputedStyle(el);
+        // A background picture or gradient: the real backdrop can't be read
+        // from CSS, so this text is not judged (no false alarms).
+        if (style.backgroundImage && style.backgroundImage !== "none") return { r: 0, g: 0, b: 0, a: -1 };
+        const color = parseColor(style.backgroundColor);
+        if (color && color.a > 0) {
+          stack.push(color);
+          if (color.a >= 1) break;
+        }
+      }
+      return stack.reduceRight<Rgba>((below, top) => over(top, below), { r: 255, g: 255, b: 255, a: 1 });
+    };
+    const runA11yCheck = () => {
+      const issues: { text: string; ratio: number; required: number; path: string }[] = [];
+      let issueCount = 0;
+      const seen = new Set<Element>();
+      const nodes = document.querySelectorAll("main h1, main h2, main h3, main h4, main p, main li, main a, main button, main label, header a, footer a, footer p");
+      for (const node of Array.from(nodes)) {
+        if (seen.has(node) || layer.contains(node)) continue;
+        seen.add(node);
+        const words = (node.textContent ?? "").replace(/\s+/g, " ").trim();
+        if (!words) continue;
+        const rect = node.getBoundingClientRect();
+        if (rect.width === 0 || rect.height === 0) continue;
+        const style = getComputedStyle(node);
+        if (style.visibility === "hidden" || Number(style.opacity) === 0) continue;
+        const bg = backgroundOf(node);
+        if (bg.a < 0) continue;
+        const fg = parseColor(style.color);
+        if (!fg) continue;
+        const ratio = contrast(over(fg, bg), bg);
+        const required = requiredRatio(parseFloat(style.fontSize) || 16, Number(style.fontWeight) || 400);
+        if (ratio + 0.01 >= required) continue;
+        issueCount += 1;
+        if (issues.length < 25) {
+          const block = blockOf(node);
+          issues.push({
+            text: words.slice(0, 80),
+            ratio: Math.round(ratio * 100) / 100,
+            required,
+            path: [block?.getAttribute("data-rvb") ?? "", node.closest("[data-rvp]")?.getAttribute("data-rvp") ?? ""].filter(Boolean).join(":"),
+          });
+        }
+      }
+      post({ source: PREVIEW_BRIDGE_SOURCE, type: "a11y-report", issueCount, issues });
+    };
+
     /* ------------------------------- handlers ------------------------------- */
     const onMessage = (event: MessageEvent) => {
       if (event.origin !== origin || event.source !== window.parent) return;
       const message = readBuilderMessage(event.data);
       if (!message) return;
+      if (message.type === "run-a11y-check") {
+        runA11yCheck();
+        return;
+      }
       if (message.type === "status") {
         status.textContent = message.text ?? "";
         status.style.display = message.text ? "block" : "none";
@@ -277,6 +369,9 @@ export function PreviewSelectBridge() {
     post({ source: PREVIEW_BRIDGE_SOURCE, type: "ready" });
 
     return () => {
+      window.clearTimeout(overflowTimer);
+      resizeObserver?.disconnect();
+      window.removeEventListener("load", scheduleOverflow);
       finishEdit(false);
       window.removeEventListener("message", onMessage);
       document.removeEventListener("mousemove", onMove, true);
