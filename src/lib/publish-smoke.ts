@@ -33,6 +33,8 @@ export function evaluateSmoke(probes: readonly SmokeProbe[], expected: { busines
     else if (!/text\/html/i.test(probe.contentType ?? "")) problem = "not an HTML page";
     else if (probe.body.length < 500) problem = "page is nearly empty";
     else if (LEAKS.some((leak) => leak.test(probe.body))) problem = "template placeholder text is visible";
+    else if (!/<title>[^<]{2,}<\/title>/i.test(probe.body)) problem = "page has no title";
+    else if (!/<link[^>]+rel=["']?stylesheet/i.test(probe.body) && !/<style[\s>]/i.test(probe.body)) problem = "page has no stylesheet";
     else if (
       probe.path === "/" &&
       expected.businessName &&
@@ -56,3 +58,32 @@ export function liveSiteUrl(input: {
   if (domain && input.dnsOk && input.sslOk && /^[a-z0-9.-]+\.[a-z]{2,}$/.test(domain)) return `https://${domain}`;
   return `${(input.platformOrigin ?? "https://revoragrowthsystems.com").replace(/\/$/, "")}/s/${encodeURIComponent(input.slug)}`;
 }
+
+/**
+ * The paths to smoke-test after a publish: the home page plus every visible
+ * page (capped so a large site can't stall the publish response).
+ */
+export function smokePaths(pages: readonly { slug: string | null; hidden?: boolean | null; kind?: string | null }[], limit = 8): string[] {
+  const paths = ["/"];
+  for (const page of pages) {
+    const slug = String(page.slug ?? "").trim();
+    if (!slug || slug === "home" || page.hidden || page.kind === "thanks") continue;
+    if (!/^[a-z0-9-]{1,80}$/.test(slug)) continue;
+    const path = `/${slug}`;
+    if (!paths.includes(path)) paths.push(path);
+    if (paths.length >= limit) break;
+  }
+  return paths;
+}
+
+/** The newest published production snapshot older than the current one. */
+export function previousProduction<T extends { version: number; published_at: string | null; live: boolean }>(
+  versions: readonly T[],
+  currentVersion: number | null,
+): T | null {
+  const candidates = versions
+    .filter((row) => row.live && row.published_at && (currentVersion === null || row.version < currentVersion))
+    .sort((a, b) => b.version - a.version);
+  return candidates[0] ?? null;
+}
+
