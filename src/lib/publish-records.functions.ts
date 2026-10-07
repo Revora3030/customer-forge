@@ -13,7 +13,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { getRequest } from "@tanstack/react-start/server";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { evaluateSmoke, liveSiteUrl, type SmokeProbe } from "@/lib/publish-smoke";
+import { evaluateSmoke, liveSiteUrl, previousProduction, smokePaths, type SmokeProbe } from "@/lib/publish-smoke";
 
 const UUID = /^[0-9a-f-]{36}$/i;
 
@@ -163,8 +163,19 @@ export const recordPublishAndSmoke = createServerFn({ method: "POST" })
       : null;
 
     const probes: SmokeProbe[] = [];
+    const { data: pageRows } = await context.supabase
+      .from("website_pages")
+      .select("slug, hidden, kind")
+      .eq("organization_id", data.organizationId)
+      .order("sort_order", { ascending: true });
+    const paths = smokePaths((pageRows ?? []) as never);
+    // Fresh copies at the edge first, so visitors and the check see this version.
     if (base) {
-      for (const path of ["/"]) {
+      const { purgeEdgeCache, purgeUrls } = await import("@/lib/edge-cache.server");
+      await purgeEdgeCache(purgeUrls(base, paths));
+    }
+    if (base) {
+      for (const path of paths) {
         const started = Date.now();
         try {
           const response = await fetch(`${base}${path === "/" ? "" : path}`, {
@@ -210,3 +221,76 @@ export const recordPublishAndSmoke = createServerFn({ method: "POST" })
     }
     return { status: result?.status ?? "skipped", url: base, checks: result?.checks ?? [] };
   });
+
+/**
+ * One-click "Revert live site": visitors go back to the previous production
+ * version immediately. The previous snapshot is copied as a NEW production
+ * version (the newest live snapshot is what visitors are served), so nothing
+ * is deleted and the revert itself can be reverted. The draft is untouched.
+ * Owner/admin/manager only; RLS scopes every read and write to the workspace.
+ */
+export const revertLiveSite = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((input: { organizationId: string }) => {
+    const organizationId = String(input?.organizationId ?? "");
+    if (!UUID.test(organizationId)) throw new Error("Invalid workspace");
+    return { organizationId };
+  })
+  .handler(async ({ data, context }) => {
+    const { requireOrgRole } = await import("@/lib/org-authz.server");
+    await requireOrgRole(context.supabase, data.organizationId, context.userId, "manager");
+    const { data: rows, error } = await context.supabase
+      .from("website_versions")
+      .select("id, version, published_at, pages, seo, generation")
+      .eq("organization_id", data.organizationId)
+      .not("published_at", "is", null)
+      .order("version", { ascending: false })
+      .limit(20);
+    if (error) throw new Error("Couldn't read your published versions right now.");
+    const live = (rows ?? []).map((row) => ({
+      ...row,
+      version: Number(row.version),
+      live: (row.pages as Record<string, unknown> | null)?.["live_format"] === 1,
+    }));
+    const current = live.find((row) => row.live) ?? null;
+    if (!current) throw new Error("This website hasn't been published yet.");
+    const target = previousProduction(live, current.version);
+    if (!target) throw new Error("There's no earlier live version to go back to.");
+
+    const { data: latest } = await context.supabase
+      .from("website_versions")
+      .select("version")
+      .eq("organization_id", data.organizationId)
+      .order("version", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const nextVersion = Number(latest?.version ?? 0) + 1;
+    const publishedAt = new Date().toISOString();
+    const { error: insertError } = await context.supabase.from("website_versions").insert({
+      organization_id: data.organizationId,
+      version: nextVersion,
+      label: `Production v${nextVersion} (reverted to v${target.version})`,
+      generation: (target.generation ?? {}) as never,
+      seo: (target.seo ?? {}) as never,
+      pages: target.pages as never,
+      published_at: publishedAt,
+      created_by: context.userId,
+    });
+    if (insertError) throw new Error("Couldn't revert the live site. Nothing changed — try again.");
+    await context.supabase
+      .from("website_settings")
+      .update({ last_published_at: publishedAt } as never)
+      .eq("organization_id", data.organizationId);
+
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    await supabaseAdmin.from("audit_logs").insert({
+      organization_id: data.organizationId,
+      actor_id: context.userId,
+      action: "LIVE_SITE_REVERTED",
+      entity: "website",
+      entity_id: data.organizationId,
+      metadata: { from_version: current.version, to_version: target.version, new_version: nextVersion } as never,
+    });
+    return { version: nextVersion, restoredFrom: target.version, replaced: current.version };
+  });
+

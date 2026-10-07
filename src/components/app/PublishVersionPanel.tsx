@@ -9,11 +9,11 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Loader2, Rocket } from "lucide-react";
+import { Loader2, Rocket, Undo2 } from "lucide-react";
 import { Panel, Pill, SectionHeading } from "@/components/app/Bits";
 import { Button } from "@/components/ui/button";
 import { dateShort } from "@/lib/format";
-import { listPublishEvents, selectVersionForPublish } from "@/lib/publish-records.functions";
+import { listPublishEvents, recordPublishAndSmoke, revertLiveSite, selectVersionForPublish } from "@/lib/publish-records.functions";
 import { useWebsiteVersions } from "@/lib/site-engine.hooks";
 import { friendlyError } from "@/lib/user-error";
 import { toast } from "@/lib/ui/notify";
@@ -30,6 +30,24 @@ export function PublishVersionPanel({
   const select = useServerFn(selectVersionForPublish);
   const loadEvents = useServerFn(listPublishEvents);
   const [versionId, setVersionId] = useState("");
+  const revert = useServerFn(revertLiveSite);
+  const smoke = useServerFn(recordPublishAndSmoke);
+  const [confirmRevert, setConfirmRevert] = useState(false);
+  const revertLive = useMutation({
+    mutationFn: () => revert({ data: { organizationId: organizationId! } }),
+    onSuccess: (result) => {
+      setConfirmRevert(false);
+      toast.success(`Visitors now see version ${result.restoredFrom} again. Your draft is unchanged.`);
+      // Same live check as a publish (refreshes the edge cache first).
+      void smoke({ data: { organizationId: organizationId!, version: result.version, sourceVersion: result.restoredFrom } })
+        .then(() => queryClient.invalidateQueries({ queryKey: ["publish_events", organizationId] }))
+        .catch(() => undefined);
+      for (const key of ["website_versions", "publish_events", "website_settings"])
+        void queryClient.invalidateQueries({ queryKey: [key, organizationId] });
+    },
+    onError: (error: Error) => toast.error(friendlyError(error, "Couldn't revert the live site.")),
+  });
+  const publishedCount = (versions ?? []).filter((version) => version.published_at).length;
   const events = useQuery({
     queryKey: ["publish_events", organizationId],
     enabled: Boolean(organizationId),
@@ -79,6 +97,30 @@ export function PublishVersionPanel({
             {choose.isPending ? <Loader2 className="size-4 animate-spin" /> : <Rocket className="size-4" />}
             Make this my draft
           </Button>
+        </div>
+      ) : null}
+
+      {canManage && publishedCount > 1 ? (
+        <div className="mt-4 flex flex-wrap items-center gap-2 rounded-lg border border-border/70 p-3">
+          <p className="min-w-0 flex-1 text-[12.5px] text-muted-foreground">
+            Something wrong on the live site? Put the previous live version back instantly. Your draft stays as it is.
+          </p>
+          {confirmRevert ? (
+            <>
+              <Button variant="destructive" size="sm" disabled={revertLive.isPending} onClick={() => revertLive.mutate()}>
+                {revertLive.isPending ? <Loader2 className="size-4 animate-spin" /> : <Undo2 className="size-4" />}
+                Yes, revert live site
+              </Button>
+              <Button variant="ghost" size="sm" onClick={() => setConfirmRevert(false)}>
+                Cancel
+              </Button>
+            </>
+          ) : (
+            <Button variant="outline" size="sm" data-testid="revert-live-site" onClick={() => setConfirmRevert(true)}>
+              <Undo2 className="size-4" />
+              Revert live site
+            </Button>
+          )}
         </div>
       ) : null}
 

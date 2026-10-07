@@ -203,7 +203,7 @@ describe("D: picture approval records", () => {
 });
 
 describe("F: publish selection and post-publish smoke", () => {
-  const html = (body: string) => `<html><body>${body}${" ".repeat(600)}</body></html>`;
+  const html = (body: string) => `<html><head><title>Live site</title><link rel="stylesheet" href="/app.css"></head><body>${body}${" ".repeat(600)}</body></html>`;
   it("passes a real page and fails broken ones", () => {
     expect(evaluateSmoke([{ path: "/", status: 200, contentType: "text/html", body: html("Acme Roofing"), ms: 10 }], { businessName: "Acme Roofing" }).status).toBe("passed");
     const bad = evaluateSmoke([

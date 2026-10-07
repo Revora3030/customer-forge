@@ -64,6 +64,36 @@ export function pageHasWidget(sections: Section[], name: string): boolean {
   });
 }
 
+/** True when any section's AI layout already carries its own node of this type. */
+export function pageHasNodeType(sections: Section[], type: string): boolean {
+  const walk = (node: { type?: string; children?: unknown[] }): boolean =>
+    node.type === type || (node.children ?? []).some((child) => walk(child as never));
+  return sections.some((section) => {
+    const tree = readComposition(section.settings);
+    return tree ? walk(tree.root as never) : false;
+  });
+}
+
+/**
+ * Actions for the phone-only sticky bar, from VERIFIED profile facts only:
+ * a call button needs a real phone number, a book/quote button needs a real
+ * page or section to land on. Nothing is shown when there is nothing real.
+ */
+export function stickyActions(input: {
+  phone?: string | null;
+  hasBookingPage?: boolean;
+  hasQuote?: boolean;
+  contactHref?: string | null;
+}): { label: string; href: string; kind: "call" | "book" | "quote" | "contact" }[] {
+  const actions: { label: string; href: string; kind: "call" | "book" | "quote" | "contact" }[] = [];
+  const digits = String(input.phone ?? "").replace(/[^\d+]/g, "");
+  if (digits.replace(/\D/g, "").length >= 7) actions.push({ label: "Call", href: `tel:${digits}`, kind: "call" });
+  if (input.hasBookingPage && input.contactHref) actions.push({ label: "Book now", href: input.contactHref, kind: "book" });
+  else if (input.hasQuote && input.contactHref) actions.push({ label: "Get a quote", href: input.contactHref, kind: "quote" });
+  else if (input.contactHref) actions.push({ label: "Contact us", href: input.contactHref, kind: "contact" });
+  return actions.slice(0, 2);
+}
+
 /**
  * True when a stored section is complete enough to render. While the worker is
  * still writing a page, the draft preview can read a section row before its

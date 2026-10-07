@@ -14,7 +14,9 @@ import {
   isRenderableSection,
   leadSectionIndex,
   normalizeSection,
+  pageHasNodeType,
   pageHasWidget,
+  stickyActions,
 } from "@/components/site/site-sections-utils";
 import { ReviewWall } from "@/components/site/LiveBlocks";
 import { PreviewSelectBridge } from "@/components/site/PreviewSelectBridge";
@@ -272,6 +274,42 @@ export function SitePageView({
             </section>
           ) : null}
         </main>
+
+        {/* Phone-only one-tap actions, built from verified facts only (a real
+            phone number, a real contact/booking page). Skipped when the AI
+            layout already placed its own sticky bar. */}
+        {(() => {
+          if (pageHasNodeType(sections as never, "mobile_sticky_bar")) return null;
+          const known = knownPages ?? new Set<string>();
+          const contactSlug = ["book", "booking", "contact", "quote", "contact-us"].find((slug) => known.has(slug));
+          const actions = stickyActions({
+            phone: (profile as { phone?: string | null } | null)?.phone ?? null,
+            hasBookingPage: contactSlug === "book" || contactSlug === "booking",
+            hasQuote: Boolean(site.quote),
+            contactHref: contactSlug ? chromeHref(`/${contactSlug}`) : pageAnchors.has("contact") ? "#contact" : null,
+          });
+          if (!actions.length) return null;
+          return (
+            <nav
+              aria-label="Quick actions"
+              data-testid="site-sticky-actions"
+              className="fixed inset-x-0 bottom-0 z-40 flex gap-2 border-t border-border/60 bg-background/95 px-3 pt-2.5 backdrop-blur md:hidden"
+              style={{ paddingBottom: "max(0.625rem, env(safe-area-inset-bottom, 0px))" }}
+            >
+              {actions.map((action, index) => (
+                <a
+                  key={action.kind}
+                  href={action.href}
+                  className={`inline-flex min-h-11 flex-1 items-center justify-center rounded-xl px-4 text-[15px] font-semibold no-underline ${
+                    index === 0 && actions.length > 1 ? "border border-current text-foreground" : "bg-primary text-primary-foreground"
+                  }`}
+                >
+                  {action.label}
+                </a>
+              ))}
+            </nav>
+          );
+        })()}
 
         {chrome.footer ? (
           <footer className="rv-site-footer rv-ai-footer">
