@@ -71,6 +71,8 @@ export type CompositionPassResult = {
   /** Craft findings sent back to Sol for revision, and how many remained. */
   designRepairs?: number;
   designFindings?: number;
+  /** Pages whose optional quality rounds were skipped to stay within the time budget. */
+  optionalSkipped?: number;
 };
 
 const RULES = [
@@ -185,8 +187,19 @@ export async function composeFirstBuildSections(input: {
   organizationId: string;
   facts: DnaFacts;
   lookSummary: string;
+  /**
+   * Epoch ms after which the OPTIONAL quality rounds (advisory panel, craft
+   * repair, team improvement) are skipped. The required per-section AI design
+   * and its safety validation always run. Without a budget a large site spent
+   * so long in optional rounds that the worker was cut off and the build
+   * failed at the layout stage on every attempt.
+   */
+  optionalPassDeadline?: number;
+  /** Called between pages so the caller can renew its job lease. */
+  onPageDone?: () => Promise<void> | void;
 }): Promise<CompositionPassResult> {
   const { db, organizationId, facts } = input;
+  const withinBudget = () => input.optionalPassDeadline === undefined || Date.now() < input.optionalPassDeadline;
   const [{ data: sections, error }, { data: components }] = await Promise.all([
     db.from("website_sections").select("id,page_id,kind,heading,subheading,body,settings").eq("organization_id", organizationId).order("sort_order"),
     db.from("website_components").select("id,section_id,kind,label,body,media_url,link_url,link_label").eq("organization_id", organizationId).order("sort_order"),
@@ -215,7 +228,7 @@ export async function composeFirstBuildSections(input: {
   // The wider team advises Sol before the first design, from supplied material
   // only. A failed adviser is skipped; advice never blocks a build.
   let advice: { area: string; issues: string[] }[] = [];
-  try {
+  if (withinBudget()) try {
     const panel = await runAdvisoryPanel({
       organizationId,
       material: JSON.stringify(rows.filter((r) => !FUNCTIONAL_SECTION_KINDS.has(r.kind)).map((s) => materialFor(s, parts.filter((p) => p.section_id === s.id)))),
@@ -349,8 +362,16 @@ export async function composeFirstBuildSections(input: {
     // DESIGN QUALITY BAR: measurable craft (headline scale, readable copy,
     // phone layouts, rhythm, an action in the opening section). Sections that
     // fall short go back to Sol with exact repair notes before anything is saved.
-    await repairDesignQuality({ organizationId, lookSummary: input.lookSummary, sections: pageSections, parts, designed, screen, result });
-    const best = await improveWithTeam({ organizationId, lookSummary: input.lookSummary, evidence, memory, sections: pageSections, parts, designed, screen, result });
+    // Optional craft rounds run only while the time budget allows; the
+    // validated AI design above is always kept either way.
+    if (withinBudget()) {
+      await repairDesignQuality({ organizationId, lookSummary: input.lookSummary, sections: pageSections, parts, designed, screen, result });
+    } else {
+      result.optionalSkipped = (result.optionalSkipped ?? 0) + 1;
+    }
+    const best = withinBudget()
+      ? await improveWithTeam({ organizationId, lookSummary: input.lookSummary, evidence, memory, sections: pageSections, parts, designed, screen, result })
+      : new Map(designed);
     // The team round can only replace a tree with a validated one; if it made
     // the craft worse, the pre-team design is kept for that section.
     const before = auditPageDesign(pageSections.filter((s) => designed.has(s.id)).map((s) => ({ id: s.id, role: s.kind, tree: designed.get(s.id)! })));
@@ -367,6 +388,7 @@ export async function composeFirstBuildSections(input: {
       result.composed += 1;
       result.kept -= 1;
     }
+    await input.onPageDone?.();
   }
   return result;
 }
