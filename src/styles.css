@@ -2514,3 +2514,18 @@ body { padding-bottom: env(safe-area-inset-bottom); }
   outline: 3px solid var(--primary);
   outline-offset: 3px;
 }
+
+/* Native date/time pickers never overflow their card on iOS Safari. */
+.rv-site-section input[type="date"],
+.rv-site-section input[type="time"],
+[data-widget] input[type="date"],
+[data-widget] input[type="time"] {
+  min-width: 0;
+  max-width: 100%;
+  width: 100%;
+  -webkit-appearance: none;
+}
+.rv-site-section input[type="date"]::-webkit-date-and-time-value,
+[data-widget] input[type="date"]::-webkit-date-and-time-value {
+  text-align: left;
+}
