@@ -1,0 +1,62 @@
+name: Apply Pending Migrations
+
+# Applies repo migrations missing from the production migration history.
+# Manual only. Always start with mode=dry-run (executes everything, then rolls back).
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "dry-run (no changes) or apply (changes production)"
+        required: true
+        default: dry-run
+        type: choice
+        options:
+          - dry-run
+          - apply
+      confirm:
+        description: 'For mode=apply, type APPLY to confirm'
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: revora-apply-migrations
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    name: Pending migrations (${{ inputs.mode }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Guard apply confirmation
+        if: ${{ inputs.mode == 'apply' && inputs.confirm != 'APPLY' }}
+        run: |
+          echo "::error::mode=apply requires confirm=APPLY"
+          exit 1
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Run
+        env:
+          SUPABASE_DB_URL: ${{ secrets.REVORA_SUPABASE_DB_URL }}
+          MODE: ${{ inputs.mode }}
+        run: node scripts/apply-pending-migrations.mjs
+
+      - name: Drift check after apply
+        if: ${{ inputs.mode == 'apply' }}
+        env:
+          SUPABASE_DB_URL: ${{ secrets.REVORA_SUPABASE_DB_URL }}
+        run: npm run supabase:drift
