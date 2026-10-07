@@ -111,39 +111,50 @@ function SiteSectionBody({ site, section, lead = false, first = false }: { site:
   const components = section.components ?? [];
   const { profile, org } = site;
   const ownAddress = useOwnAddress();
+  const media = new Map(components.map((component) => [component.id, {
+    url: component.url,
+    visual: readComponentVisual(component.settings),
+  }]));
 
-  // Any valid AI composition wins over the legacy kind, so AI designs are never hidden.
+  const renderCompositionTree = (tree: NonNullable<ReturnType<typeof readComposition>>) => (
+    <CompositionRenderer
+      tree={tree}
+      scope={`s-${section.id}`}
+      surface={sectionSurface(site, readBlockStyle(section.settings).bgColor)}
+      eagerFirstMedia={first}
+      resolveMedia={(ref) => media.get(ref) ?? null}
+      resolveHref={(href) => resolveSiteHref(href, org.slug, ownAddress)}
+      resolveWidget={(name, presentation?: WidgetPresentation) => {
+        if (name === "booking_form") return <BookingForm site={site} {...(presentation ? { presentation } : {})} />;
+        if (name === "quote_calculator") return site.quote ? <QuoteCalculator site={site} {...(presentation ? { presentation } : {})} /> : null;
+        if (name === "contact_details") return <ContactFacts site={site} {...(presentation ? { presentation } : {})} />;
+        if (name === "service_menu") return <ServiceMenu site={site} {...(presentation ? { presentation } : {})} />;
+        if (name === "review_wall") return <ReviewWall site={site} {...(presentation ? { presentation } : {})} />;
+        if (name === "direct_contact")
+          return <DirectContact profile={profile} businessName={site.org.name} label={presentation?.contactLabel ?? presentation?.title ?? `Call or email ${site.org.name} directly`} {...(presentation ? { presentation } : {})} />;
+        return null;
+      }}
+    />
+  );
+
   const storedTree = readComposition(section.settings);
-  const kind = storedTree ? "composition" : section.kind;
+  if (storedTree) return renderCompositionTree(storedTree);
+
+  // Existing customer records can predate CompositionTree storage. They are
+  // upgraded in-memory, then rendered by the exact same CompositionRenderer.
+  if (LEGACY_SECTION_KINDS.has(section.kind)) {
+    const legacyTree = legacySectionToComposition(section, {
+      lead,
+      surface: sectionSurface(site, readBlockStyle(section.settings).bgColor),
+      accent:
+        typeof (site.profile as Record<string, unknown> | null)?.accent_color === "string"
+          ? ((site.profile as Record<string, unknown>).accent_color as string)
+          : null,
+    });
+    return legacyTree ? renderCompositionTree(legacyTree) : null;
+  }
 
   switch (kind) {
-    case "composition": {
-      const tree = storedTree;
-      const media = new Map(components.map((component) => [component.id, {
-        url: component.url,
-        visual: readComponentVisual(component.settings),
-      }]));
-      return tree ? (
-        <CompositionRenderer
-          tree={tree}
-          scope={`s-${section.id}`}
-          surface={sectionSurface(site, readBlockStyle(section.settings).bgColor)}
-          eagerFirstMedia={first}
-          resolveMedia={(ref) => media.get(ref) ?? null}
-          resolveHref={(href) => resolveSiteHref(href, org.slug, ownAddress)}
-          resolveWidget={(name, presentation?: WidgetPresentation) => {
-            if (name === "booking_form") return <BookingForm site={site} {...(presentation ? { presentation } : {})} />;
-            if (name === "quote_calculator") return site.quote ? <QuoteCalculator site={site} {...(presentation ? { presentation } : {})} /> : null;
-            if (name === "contact_details") return <ContactFacts site={site} {...(presentation ? { presentation } : {})} />;
-            if (name === "service_menu") return <ServiceMenu site={site} {...(presentation ? { presentation } : {})} />;
-            if (name === "review_wall") return <ReviewWall site={site} {...(presentation ? { presentation } : {})} />;
-            if (name === "direct_contact")
-              return <DirectContact profile={profile} businessName={site.org.name} label={presentation?.contactLabel ?? presentation?.title ?? `Call or email ${site.org.name} directly`} {...(presentation ? { presentation } : {})} />;
-            return null;
-          }}
-        />
-      ) : null;
-    }
     case "quote":
       if (!site.quote) return null;
       return (
