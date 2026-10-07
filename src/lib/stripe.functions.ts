@@ -24,7 +24,7 @@ export type GrowthSystemIntake = {
 
 /**
  * Starts the single Revora Growth System checkout:
- *   • $750 one-time setup (charged on the first invoice)
+ *   • $350 one-time setup (charged on the first invoice)
  *   • $100/month recurring subscription
  * Both live on ONE Stripe subscription session, so the recurring amount is
  * never $850 — only the first invoice includes the setup line.
@@ -239,7 +239,7 @@ export const createGrowthSystemCheckout = createServerFn({ method: "POST" })
         return_url: data.returnUrl,
         customer: customerId,
         metadata,
-        // The $750 setup is charged today. The first month of the $100/month fee
+        // The $350 setup is charged today. The first month of the $100/month fee
         // is FREE: the recurring price is on a 30-day trial, so the first monthly
         // charge lands 30 days later (i.e. the second month is the first paid one).
         // Checkout stores the card collected here as the subscription's default

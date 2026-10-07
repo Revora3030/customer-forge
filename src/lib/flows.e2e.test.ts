@@ -111,7 +111,7 @@ describe("marketing and discovery", () => {
   live("serves the home page with pricing and a signup path", async () => {
     const { status, body } = await get("/");
     expect(status).toBe(200);
-    expect(body).toMatch(/750/);
+    expect(body).toMatch(/350/);
     expect(body).toMatch(/100/);
     // No legacy Revora price may be quoted as our own offer. (Competitor
     // comparison copy may still mention other market prices.)

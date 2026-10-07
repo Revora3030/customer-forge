@@ -134,16 +134,16 @@ export const Route = createFileRoute("/")({
               {
                 name: "description",
                 content:
-                  "AI-built website, CRM, booking, follow-up and SEO for any industry, anywhere. First month free, then $100/month ($750 one-time setup).",
+                  "AI-built website, CRM, booking, follow-up and SEO for any industry, anywhere. First month free, then $100/month ($350 one-time setup).",
               },
               {
                 property: "og:title",
-                content: "Revora Growth Systems — $750 Setup, First Month Free",
+                content: "Revora Growth Systems — $350 Setup, First Month Free",
               },
               {
                 property: "og:description",
                 content:
-                  "AI-built website, CRM, booking, follow-up and SEO for any industry, anywhere. First month free, then $100/month ($750 one-time setup).",
+                  "AI-built website, CRM, booking, follow-up and SEO for any industry, anywhere. First month free, then $100/month ($350 one-time setup).",
               },
               { property: "og:type", content: "website" },
               { name: "twitter:card", content: "summary_large_image" },
@@ -344,7 +344,7 @@ function Landing() {
                 </span>{" "}
                 — for any industry, in any city, anywhere in the world. The work finds you and books itself while you work.{" "}
                 <span className="text-foreground">
-                  $750 one-time setup, your first month free, then $100/month.
+                  $350 one-time setup, your first month free, then $100/month.
                 </span>
               </p>
 

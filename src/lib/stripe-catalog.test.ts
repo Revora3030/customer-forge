@@ -57,8 +57,8 @@ describe("Revora Stripe catalog", () => {
     expect(live.monthly.priceLookupKey).toBe("revora_system_monthly");
   });
 
-  it("keeps the canonical offer at $750 + $100/month", () => {
-    expect(GROWTH_SYSTEM.setupPrice).toBe(750);
+  it("keeps the canonical offer at $350 + $100/month", () => {
+    expect(GROWTH_SYSTEM.setupPrice).toBe(350);
     expect(GROWTH_SYSTEM.monthlyPrice).toBe(100);
     expect(GROWTH_SYSTEM.trialDays).toBe(30);
     expect(GROWTH_SYSTEM.fullAccessTrialDays).toBe(3);

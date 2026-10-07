@@ -1,6 +1,6 @@
 /**
  * Proves Revora's single commercial offer is immutable in code and that the
- * price verifier refuses everything that is not exactly $750 + $100/month.
+ * price verifier refuses everything that is not exactly $350 + $100/month.
  */
 import { describe, expect, it } from "vitest";
 import { CANONICAL_OFFER_RATES, GROWTH_SYSTEM, verifyGrowthPrices } from "@/lib/offer";
@@ -27,12 +27,12 @@ const monthly = {
 };
 
 describe("canonical Revora offer", () => {
-  it("is exactly $750 setup, $100/month, 30-day first month, 3-day full access", () => {
-    expect(GROWTH_SYSTEM.setupPrice).toBe(750);
+  it("is exactly $350 setup, $100/month, 30-day first month, 3-day full access", () => {
+    expect(GROWTH_SYSTEM.setupPrice).toBe(350);
     expect(GROWTH_SYSTEM.monthlyPrice).toBe(100);
     expect(GROWTH_SYSTEM.trialDays).toBe(30);
     expect(GROWTH_SYSTEM.fullAccessTrialDays).toBe(3);
-    expect(CANONICAL_OFFER_RATES).toEqual({ setupPrice: 750, monthlyPrice: 100 });
+    expect(CANONICAL_OFFER_RATES).toEqual({ setupPrice: 350, monthlyPrice: 100 });
   });
 
   it("is frozen and has no rate-editing helper left in the codebase", () => {

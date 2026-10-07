@@ -86,7 +86,7 @@ function PricingControls() {
     <Panel className="space-y-4">
       <SectionHeading
         eyebrow="Canonical Revora offer"
-        title="Locked — $750 setup + $100/month"
+        title="Locked — $350 setup + $100/month"
         action={<Pill tone="signal">Not editable</Pill>}
       />
       <p className="text-[12px] text-muted-foreground">

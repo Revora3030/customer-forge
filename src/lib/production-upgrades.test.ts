@@ -190,6 +190,6 @@ describe("operations runbooks", () => {
     for (const heading of ["AI provider outage", "Payment / webhook failure", "Custom domain / SSL", "Stuck or failing first builds"]) {
       expect(doc).toContain(heading);
     }
-    expect(doc).toContain("$750 setup, 3-day full access, first month free, $100/month");
+    expect(doc).toContain("$350 setup, 3-day full access, first month free, $100/month");
   });
 });

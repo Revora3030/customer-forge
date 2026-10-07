@@ -11,7 +11,7 @@ export const Route = createFileRoute("/terms")({
       {
         name: "description",
         content:
-          "Revora Growth Systems terms of service: free trial, $750 setup, $100/month platform fee, first month free, cancellation, data ownership, acceptable use and support commitments.",
+          "Revora Growth Systems terms of service: free trial, $350 setup, $100/month platform fee, first month free, cancellation, data ownership, acceptable use and support commitments.",
       },
       { property: "og:title", content: "Revora Growth Systems terms of service" },
       {

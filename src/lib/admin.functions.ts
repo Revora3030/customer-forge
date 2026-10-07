@@ -683,7 +683,7 @@ export const getMonthlyBusinessReport = createServerFn({ method: "GET" })
 
 /**
  * Read-only report of the canonical Revora offer plus what the payment provider
- * currently has on file. Revora's commercial offer is immutable ($750 setup +
+ * currently has on file. Revora's commercial offer is immutable ($350 setup +
  * $100/month with the first month free) and cannot be changed from the admin
  * dashboard — this function never writes.
  */
