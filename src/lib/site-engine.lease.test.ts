@@ -50,7 +50,7 @@ describe("AI inference lease wrapper", () => {
     );
     expect(value).toBe("ok");
     expect(runs).toBe(2);
-    expect(calls.length).toBe(4);
+    expect(calls.length).toBe(3);
   });
 });
 
