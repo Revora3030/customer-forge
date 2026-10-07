@@ -59,6 +59,30 @@ export const isLight = (hex: string) => {
   return onDark >= onLight;
 };
 
+/**
+ * A page background must be clearly light or clearly dark. Mid-tone surfaces
+ * (a #c0c0c0 grey, a dusty mid blue) are the one choice where neither white
+ * nor black text reads well — headings authored in white vanish, and the
+ * whole site looks washed out. Such a surface keeps its hue but is moved to a
+ * premium light tint (most cases) or a deep shade (when it was already darker
+ * than mid), so every text colour has strong contrast. Clean surfaces are
+ * returned unchanged. Used both when the AI picks colours and when a saved
+ * site renders, so existing sites are corrected without a rebuild.
+ */
+export function premiumSurface(hex: string | null | undefined): string | null {
+  const surface = clean(hex);
+  if (!surface) return null;
+  const l = luminance(surface);
+  // Clearly light (>= ~#e6e6e6) or clearly dark (<= ~#3a3a3a): keep it.
+  if (l >= 0.78 || l <= 0.045) return surface;
+  const [r, g, b] = channels(surface);
+  const toward = l >= 0.18 ? 1 : 0; // mid-light goes light, mid-dark goes deep
+  const amount = toward === 1 ? 0.88 : 0.82;
+  const blend = (c: number) => Math.round((c + (toward - c) * amount) * 255);
+  const hexOf = (n: number) => Math.max(0, Math.min(255, n)).toString(16).padStart(2, "0");
+  return `#${hexOf(blend(r))}${hexOf(blend(g))}${hexOf(blend(b))}`;
+}
+
 /** "light" when the site's surface colour is pale — used for copy and UI tone. */
 export function siteTone(secondaryColor: string | null | undefined): "light" | "dark" {
   const surface = clean(secondaryColor);
@@ -82,7 +106,7 @@ export function siteThemeStyle(input: {
   accentColor?: string | null;
 }): CSSProperties | undefined {
   const primary = clean(input.primaryColor);
-  const surface = clean(input.secondaryColor);
+  const surface = premiumSurface(input.secondaryColor);
   const accent = clean(input.accentColor) ?? primary;
   // Neutral blank state (no brand opinion): white surface, ink for actions.
   const background = surface ?? "#ffffff";
@@ -125,6 +149,13 @@ export function siteThemeStyle(input: {
   vars["--accent-foreground"] = accent ? onAccent : actionText;
   vars["--gold-soft"] = support;
   vars["--chart-2"] = support;
+
+  // The wrapper paints its own surface and ink. Without these, text that the
+  // renderer leaves unstyled inherits Revora's dark-theme near-white from
+  // <body> — white headings on a white page.
+  vars["color"] = ink;
+  vars["backgroundColor"] = background;
+  vars["colorScheme"] = light ? "light" : "dark";
 
   return vars as CSSProperties;
 }
