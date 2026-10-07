@@ -752,7 +752,9 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
         (data.attachments.length
           ? `\n[attached: ${data.attachments.map((a) => `${a.kind} ${a.name}`).join(", ")}]`
           : ""),
-      result: plan as unknown as never,
+      // The request id lets a phone that lost the connection mid-plan pick
+      // the finished plan up instead of showing "Load failed".
+      result: { ...plan, requestId: runId } as unknown as never,
       created_by: userId,
     });
 
