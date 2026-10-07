@@ -21,7 +21,7 @@
  * desktop.
  */
 import type * as React from "react";
-import { readableOn } from "@/lib/readable-color";
+import { contrastRatio, mutedOn, readableOn, relativeLuminance, toRgb } from "@/lib/readable-color";
 import { safeLinkUrl } from "@/lib/website-content";
 import { normalizeAspect } from "@/lib/builder/composition-tree";
 
@@ -720,6 +720,7 @@ export function blockCss(style: BlockStyle, surface?: string | null): React.CSSP
       : "normal";
   }
   if (style.textColor) css.color = readableTextColor(style, surface);
+  else if (style.bgColor && !style.bgImage) Object.assign(css, surfaceInkTokens(style.bgColor, surface));
   if (style.objectFit) css.objectFit = style.objectFit;
   if (style.columns !== null)
     (css as Record<string, string | number>)["--rv-items-columns"] = style.columns;
@@ -791,6 +792,34 @@ function readableTextColor(style: BlockStyle, surface?: string | null): string {
   if (!background) return text;
   const large = (style.size ?? 16) >= 24 || (style.weight ?? 400) >= 700;
   return readableOn(text, background, { large });
+}
+
+const DARK_INK = "#101114";
+const LIGHT_INK = "#f7f7f8";
+
+/**
+ * A block that paints its own background but chose no text colour inherits
+ * the page's ink. On a dark site that ink is near-white, so a white or pale
+ * card rendered white headings on white (1:1). When the inherited ink would be
+ * unreadable on the block's own colour, the block re-scopes its text tokens to
+ * the ink that reads on that colour. A readable inherited ink is left alone,
+ * and an unmeasurable colour (CSS variable, translucent value) is never touched.
+ */
+export function surfaceInkTokens(background: string, pageSurface?: string | null): Record<string, string> {
+  const bg = toRgb(background);
+  if (!bg) return {};
+  const ink = relativeLuminance(bg) > 0.179 ? DARK_INK : LIGHT_INK;
+  const page = pageSurface ? toRgb(pageSurface) : null;
+  const inherited = page ? (relativeLuminance(page) > 0.179 ? DARK_INK : LIGHT_INK) : null;
+  if (inherited && (contrastRatio(inherited, background) ?? 0) >= 4.5) return {};
+  return {
+    color: ink,
+    "--foreground": ink,
+    "--card-foreground": ink,
+    "--popover-foreground": ink,
+    "--secondary-foreground": ink,
+    "--muted-foreground": mutedOn(ink, background),
+  };
 }
 
 /** The URL is validated first, then encoded so quotes cannot break out. */
