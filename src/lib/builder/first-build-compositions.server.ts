@@ -18,6 +18,7 @@ import { screenText } from "@/lib/builder/collective-copy";
 import {
   COMPOSITION_PRIMITIVES, PRIMITIVE_GUIDE,
   isSafeHref,
+  readComposition,
   validateComposition,
   writeComposition,
   type CompositionIssue,
@@ -33,6 +34,9 @@ import { auditPageDesign, needsDesignRepair, type DesignFinding } from "@/lib/bu
 const IMPROVEMENT_ROUNDS = 2;
 
 type Db = { from: (table: string) => any }; // eslint-disable-line @typescript-eslint/no-explicit-any
+
+/** How many pages are designed at the same time on a first build. */
+const PAGE_CONCURRENCY = 3;
 
 /** Sections whose job is a working feature, not a layout. */
 export const FUNCTIONAL_SECTION_KINDS = new Set([
@@ -240,8 +244,26 @@ export async function composeFirstBuildSections(input: {
     console.warn("advisory panel skipped", (error as Error).message);
   }
 
-  for (const pageSections of byPage.values()) {
-    let pending = pageSections;
+  // Pages are designed in parallel (a few at a time). Designing every page one
+  // after another made a large site's layout stage run longer than the build
+  // could stay alive, so first builds died at 74% and the site was left on
+  // plain placeholder layouts.
+  const composePage = async (allPageSections: SectionRow[]) => {
+    // A section that already carries a valid saved AI layout (an earlier pass
+    // of this build got that far) is kept instead of being designed again.
+    const pageSections = allPageSections;
+    for (const section of allPageSections) {
+      const saved = readComposition(section.settings);
+      if (saved) {
+        result.composed += 1;
+        result.kept -= 1;
+      }
+    }
+    let pending = allPageSections.filter((section) => !readComposition(section.settings));
+    if (!pending.length) {
+      await input.onPageDone?.();
+      return;
+    }
     // Smaller batches: a page with many sections asked for one huge JSON
     // answer that was regularly cut off at the output limit, so every section
     // on that page failed together. Sections are designed a few at a time.
@@ -323,6 +345,53 @@ export async function composeFirstBuildSections(input: {
       feedback = nextFeedback;
       pending = next;
     }
+    // Rescue pass: sections still without a layout are designed one at a time.
+    // A single-section answer is small, so it survives the output limits and
+    // model timeouts that sink a batch of four.
+    if (pending.length) {
+      const rescued = await Promise.all(pending.map(async (section) => {
+        const call = await callBestThinker({
+          json: true,
+          purpose: "creative_direction",
+          complexity: "high",
+          organizationId,
+          maxOutputTokens: 12000,
+          system: RULES,
+          user: [
+            "SITE LOOK (follow it):",
+            input.lookSummary,
+            "",
+            "SECTION TO DESIGN (material only):",
+            JSON.stringify([materialFor(section, parts.filter((p) => p.section_id === section.id))], null, 2),
+            ...(feedback[section.id]?.length ? ["", "FIX THESE PROBLEMS FROM YOUR LAST ATTEMPT:", JSON.stringify(feedback[section.id], null, 2)] : []),
+            "",
+            'Return JSON: {"sections": {"<sectionId>": {"version": 1, "label": "...", "root": {...}}}} with exactly one tree.',
+          ].join("\n"),
+        });
+        if (!call.ok) return false;
+        if (call.model) result.models.push(call.model);
+        result.costMicrocents += call.costMicrocents ?? 0;
+        const trees = parseTrees(call.text) ?? {};
+        const mediaRefs = mediaRefsFor(section, parts);
+        const checked = validateComposition(trees[section.id] ?? Object.values(trees)[0], {
+          screenText: screen,
+          allowedMediaRefs: mediaRefs,
+          requiredMediaRefs: mediaRefs,
+        });
+        if (!checked.ok) {
+          feedback[section.id] = checked.issues.slice(0, 12);
+          return false;
+        }
+        const widgetName = requiredWidgetForRole(section.kind);
+        if (widgetName) {
+          const widget = findWidget(checked.tree.root, widgetName);
+          if (!widget || widgetPresentationProblem(section.kind, widget)) return false;
+        }
+        designed.set(section.id, checked.tree);
+        return true;
+      }));
+      pending = pending.filter((_, index) => !rescued[index]);
+    }
     if (pending.length) {
       // Some sections could not get a safe AI layout after retries. The count
       // is reported so callers stop rather than ship a default layout.
@@ -389,7 +458,17 @@ export async function composeFirstBuildSections(input: {
       result.kept -= 1;
     }
     await input.onPageDone?.();
-  }
+  };
+  const pages = [...byPage.values()];
+  let nextPage = 0;
+  await Promise.all(
+    Array.from({ length: Math.min(PAGE_CONCURRENCY, pages.length) }, async () => {
+      while (nextPage < pages.length) {
+        const page = pages[nextPage++]!;
+        await composePage(page);
+      }
+    }),
+  );
   return result;
 }
 
