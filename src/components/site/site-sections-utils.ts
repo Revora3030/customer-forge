@@ -6,6 +6,7 @@ import {
 } from "@/lib/builder/composition-tree";
 import { readableOn } from "@/lib/readable-color";
 import { safeText } from "@/lib/builder/presentation";
+import { safeLinkUrl } from "@/lib/website-content";
 
 type Site = NonNullable<PublicSite>;
 type Section = NonNullable<Site["content"]>["sections"][number];
@@ -71,7 +72,7 @@ function legacyButtons(section: Section) {
   return (section.components ?? [])
     .filter((component) => component.kind === "button")
     .map((component) => {
-      const href = typeof component.link_url === "string" ? component.link_url.trim() : "";
+      const href = safeLinkUrl(component.link_url);
       const label = componentText(component, "link_label") ?? componentText(component, "label");
       return href && label ? { href, label } : null;
     })
@@ -90,7 +91,7 @@ function legacyCards(section: Section) {
     .map((component) => ({
       label: componentText(component, "label"),
       body: componentText(component, "body"),
-      href: typeof component.link_url === "string" ? component.link_url.trim() : "",
+      href: safeLinkUrl(component.link_url),
       hrefLabel: componentText(component, "link_label"),
       mediaRef: component.media_url ? component.id : null,
       alt: componentText(component, "label") ?? "Business image",
