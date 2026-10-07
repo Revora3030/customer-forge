@@ -42,6 +42,18 @@ describe("pending builder requests", () => {
     expect(readPending("org", null, now)).toEqual([]);
   });
 
+  it("never stores attachment data, only that there were attachments", () => {
+    const store = memoryStore();
+    addPending(
+      "org",
+      { id: "t1", instruction: "Use this photo", hadAttachments: true, sentAt: at(-1000), ...({ attachments: [{ dataUrl: "data:image/png;base64,AAAA" }] } as object) },
+      store,
+    );
+    const raw = store.getItem("rv-builder-pending:org") ?? "";
+    expect(raw).not.toContain("base64");
+    expect(readPending("org", store, now)[0]).toMatchObject({ id: "t1", hadAttachments: true });
+  });
+
   it("drops a request that already finished and was saved to the conversation", () => {
     const pending = [
       { id: "t1", instruction: "Finish my site", sentAt: "2026-10-07T11:00:00.000Z" },

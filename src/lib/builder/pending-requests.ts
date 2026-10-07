@@ -9,15 +9,20 @@
  * it and it is worked again under the same request id (the server's
  * idempotency and progress records are keyed on that id).
  *
+ * Attachments are never stored: they are large base64 data (they would blow
+ * the storage quota) and planning saves attached photos to the media library,
+ * so re-sending them would duplicate uploads. A request that carried
+ * attachments is restored as needing the owner to attach them again.
+ *
  * Pure apart from the injected storage, so it is unit-testable and safe on
  * the server (no window → no-op).
  */
-import type { AgentAttachment } from "@/lib/site-agent";
 
 export type PendingRequest = {
   id: string;
   instruction: string;
-  attachments?: AgentAttachment[];
+  /** True when the original request carried photos/clips (not stored). */
+  hadAttachments?: boolean;
   sentAt: string;
 };
 
@@ -71,7 +76,13 @@ function write(organizationId: string, rows: PendingRequest[], store: Store | nu
 
 export function addPending(organizationId: string, request: PendingRequest, store: Store | null = defaultStore()) {
   const rows = readPending(organizationId, store).filter((row) => row.id !== request.id);
-  write(organizationId, [...rows, request], store);
+  const safe: PendingRequest = {
+    id: request.id,
+    instruction: request.instruction,
+    sentAt: request.sentAt,
+    ...(request.hadAttachments ? { hadAttachments: true } : {}),
+  };
+  write(organizationId, [...rows, safe], store);
 }
 
 /** Removes a request once it completed, failed, was skipped or dismissed. Retries keep the base id. */
