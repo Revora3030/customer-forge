@@ -97,6 +97,7 @@ import { Route as AuthenticatedAdminClientsOrgIdRouteImport } from './routes/_au
 import { Route as AuthenticatedDraftSlugPageRouteImport } from './routes/_authenticated/draft.$slug.$page'
 import { Route as ApiPublicJobsBackupRouteImport } from './routes/api/public/jobs/backup'
 import { Route as ApiPublicJobsLifecycleEmailRouteImport } from './routes/api/public/jobs/lifecycle-email'
+import { Route as ApiPublicJobsMediaCleanupRouteImport } from './routes/api/public/jobs/media-cleanup'
 import { Route as ApiPublicJobsSiteEngineRouteImport } from './routes/api/public/jobs/site-engine'
 import { Route as ApiPublicPaymentsWebhookRouteImport } from './routes/api/public/payments/webhook'
 import { Route as LovableEmailAuthPreviewRouteImport } from './routes/lovable/email/auth/preview'
@@ -561,6 +562,12 @@ const ApiPublicJobsLifecycleEmailRoute =
     path: '/api/public/jobs/lifecycle-email',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicJobsMediaCleanupRoute =
+  ApiPublicJobsMediaCleanupRouteImport.update({
+    id: '/api/public/jobs/media-cleanup',
+    path: '/api/public/jobs/media-cleanup',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicJobsSiteEngineRoute = ApiPublicJobsSiteEngineRouteImport.update({
   id: '/api/public/jobs/site-engine',
   path: '/api/public/jobs/site-engine',
@@ -677,6 +684,7 @@ export interface FileRoutesByFullPath {
   '/draft/$slug/$page': typeof AuthenticatedDraftSlugPageRoute
   '/api/public/jobs/backup': typeof ApiPublicJobsBackupRoute
   '/api/public/jobs/lifecycle-email': typeof ApiPublicJobsLifecycleEmailRoute
+  '/api/public/jobs/media-cleanup': typeof ApiPublicJobsMediaCleanupRoute
   '/api/public/jobs/site-engine': typeof ApiPublicJobsSiteEngineRoute
   '/api/public/payments/webhook': typeof ApiPublicPaymentsWebhookRoute
   '/lovable/email/auth/preview': typeof LovableEmailAuthPreviewRoute
@@ -766,6 +774,7 @@ export interface FileRoutesByTo {
   '/draft/$slug/$page': typeof AuthenticatedDraftSlugPageRoute
   '/api/public/jobs/backup': typeof ApiPublicJobsBackupRoute
   '/api/public/jobs/lifecycle-email': typeof ApiPublicJobsLifecycleEmailRoute
+  '/api/public/jobs/media-cleanup': typeof ApiPublicJobsMediaCleanupRoute
   '/api/public/jobs/site-engine': typeof ApiPublicJobsSiteEngineRoute
   '/api/public/payments/webhook': typeof ApiPublicPaymentsWebhookRoute
   '/lovable/email/auth/preview': typeof LovableEmailAuthPreviewRoute
@@ -862,6 +871,7 @@ export interface FileRoutesById {
   '/_authenticated/draft/$slug/$page': typeof AuthenticatedDraftSlugPageRoute
   '/api/public/jobs/backup': typeof ApiPublicJobsBackupRoute
   '/api/public/jobs/lifecycle-email': typeof ApiPublicJobsLifecycleEmailRoute
+  '/api/public/jobs/media-cleanup': typeof ApiPublicJobsMediaCleanupRoute
   '/api/public/jobs/site-engine': typeof ApiPublicJobsSiteEngineRoute
   '/api/public/payments/webhook': typeof ApiPublicPaymentsWebhookRoute
   '/lovable/email/auth/preview': typeof LovableEmailAuthPreviewRoute
@@ -958,6 +968,7 @@ export interface FileRouteTypes {
     | '/draft/$slug/$page'
     | '/api/public/jobs/backup'
     | '/api/public/jobs/lifecycle-email'
+    | '/api/public/jobs/media-cleanup'
     | '/api/public/jobs/site-engine'
     | '/api/public/payments/webhook'
     | '/lovable/email/auth/preview'
@@ -1047,6 +1058,7 @@ export interface FileRouteTypes {
     | '/draft/$slug/$page'
     | '/api/public/jobs/backup'
     | '/api/public/jobs/lifecycle-email'
+    | '/api/public/jobs/media-cleanup'
     | '/api/public/jobs/site-engine'
     | '/api/public/payments/webhook'
     | '/lovable/email/auth/preview'
@@ -1142,6 +1154,7 @@ export interface FileRouteTypes {
     | '/_authenticated/draft/$slug/$page'
     | '/api/public/jobs/backup'
     | '/api/public/jobs/lifecycle-email'
+    | '/api/public/jobs/media-cleanup'
     | '/api/public/jobs/site-engine'
     | '/api/public/payments/webhook'
     | '/lovable/email/auth/preview'
@@ -1192,6 +1205,7 @@ export interface RootRouteChildren {
   LocalIndustryIndexRoute: typeof LocalIndustryIndexRoute
   ApiPublicJobsBackupRoute: typeof ApiPublicJobsBackupRoute
   ApiPublicJobsLifecycleEmailRoute: typeof ApiPublicJobsLifecycleEmailRoute
+  ApiPublicJobsMediaCleanupRoute: typeof ApiPublicJobsMediaCleanupRoute
   ApiPublicJobsSiteEngineRoute: typeof ApiPublicJobsSiteEngineRoute
   ApiPublicPaymentsWebhookRoute: typeof ApiPublicPaymentsWebhookRoute
   LovableEmailAuthPreviewRoute: typeof LovableEmailAuthPreviewRoute
@@ -1817,6 +1831,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicJobsLifecycleEmailRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/jobs/media-cleanup': {
+      id: '/api/public/jobs/media-cleanup'
+      path: '/api/public/jobs/media-cleanup'
+      fullPath: '/api/public/jobs/media-cleanup'
+      preLoaderRoute: typeof ApiPublicJobsMediaCleanupRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/jobs/site-engine': {
       id: '/api/public/jobs/site-engine'
       path: '/api/public/jobs/site-engine'
@@ -2077,6 +2098,7 @@ const rootRouteChildren: RootRouteChildren = {
   LocalIndustryIndexRoute: LocalIndustryIndexRoute,
   ApiPublicJobsBackupRoute: ApiPublicJobsBackupRoute,
   ApiPublicJobsLifecycleEmailRoute: ApiPublicJobsLifecycleEmailRoute,
+  ApiPublicJobsMediaCleanupRoute: ApiPublicJobsMediaCleanupRoute,
   ApiPublicJobsSiteEngineRoute: ApiPublicJobsSiteEngineRoute,
   ApiPublicPaymentsWebhookRoute: ApiPublicPaymentsWebhookRoute,
   LovableEmailAuthPreviewRoute: LovableEmailAuthPreviewRoute,
