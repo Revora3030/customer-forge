@@ -10,6 +10,7 @@ import { useEffect, type ReactNode } from "react";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { getOwnerDraftSite } from "@/lib/public-site.functions";
+import { stepLabel } from "@/lib/site-engine";
 import { PublicSiteView } from "@/routes/s.$slug";
 import { ErrorBoundary } from "@/components/app/ErrorBoundary";
 
@@ -93,27 +94,40 @@ export function DraftUpdatingBanner({
   job: { currentStep: string | null; progress: number } | null | undefined;
 }) {
   const progress = Math.min(100, Math.max(5, job?.progress ?? 0));
+  // The job stores a step KEY ("wording"); show the owner the readable label.
+  const step = job?.currentStep ? stepLabel(job.currentStep) : null;
   return (
     <div
       role="status"
       aria-live="polite"
       data-testid="draft-updating-banner"
-      className="sticky top-0 z-50 flex items-center justify-between gap-3 border-b bg-background/95 px-4 py-2 text-xs backdrop-blur"
+      // Floating, non-blocking badge: the draft underneath stays fully visible
+      // and clickable. Long stage titles wrap (never clip) on narrow phones.
+      className="pointer-events-none fixed inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-50 flex justify-center sm:inset-x-auto sm:right-4"
     >
-      <span className="truncate font-medium text-muted-foreground">
-        {job?.currentStep
-          ? `Updating draft: ${job.currentStep} (${Math.round(job.progress ?? 0)}%)`
-          : "Updating draft in background..."}
-      </span>
-      <div
-        className="h-1.5 w-24 shrink-0 overflow-hidden rounded-full bg-muted"
-        role="progressbar"
-        aria-valuemin={0}
-        aria-valuemax={100}
-        aria-valuenow={Math.round(job?.progress ?? 0)}
-        aria-label="Draft update progress"
-      >
-        <div className="h-full rounded-full bg-primary transition-all duration-300" style={{ width: `${progress}%` }} />
+      <div className="pointer-events-auto flex w-full max-w-sm items-center gap-3 rounded-2xl border bg-background/95 px-4 py-2.5 text-xs text-foreground shadow-lg backdrop-blur">
+        <span className="relative flex h-2 w-2 shrink-0" aria-hidden="true">
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-60 motion-reduce:hidden" />
+          <span className="relative inline-flex h-2 w-2 rounded-full bg-primary" />
+        </span>
+        <span className="min-w-0 flex-1 break-words leading-snug">
+          <span className="font-medium">Sol is drafting revisions…</span>
+          {step ? (
+            <span className="block text-muted-foreground">
+              {step} · {Math.round(job?.progress ?? 0)}%
+            </span>
+          ) : null}
+        </span>
+        <div
+          className="h-1.5 w-14 shrink-0 overflow-hidden rounded-full bg-muted"
+          role="progressbar"
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={Math.round(job?.progress ?? 0)}
+          aria-label="Draft update progress"
+        >
+          <div className="h-full rounded-full bg-primary transition-all duration-300" style={{ width: `${progress}%` }} />
+        </div>
       </div>
     </div>
   );
@@ -165,7 +179,7 @@ function DraftHomeRouteContent() {
         title="Your website is still being built"
         body={
           result.job?.currentStep
-            ? `Revora is ${result.job.currentStep}. This preview will refresh automatically.`
+            ? `${stepLabel(result.job.currentStep)}. This preview will refresh automatically.`
             : "Revora is finishing your website. This preview will refresh automatically."
         }
         progress={result.job?.progress ?? null}
