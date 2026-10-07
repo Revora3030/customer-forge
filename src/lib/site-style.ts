@@ -789,8 +789,8 @@ function readableTextColor(style: BlockStyle, surface?: string | null): string {
   if (!text || style.bgImage) return text;
   const background = style.bgColor ?? surface;
   if (!background) return text;
-  const large = (style.size ?? 16) >= 24 || (style.weight ?? 400) >= 700;
-  return readableOn(text, background, { large });
+  // Published heading/body text is always held to AA normal-text contrast.
+  return readableOn(text, background, { large: false });
 }
 
 /** The URL is validated first, then encoded so quotes cannot break out. */
