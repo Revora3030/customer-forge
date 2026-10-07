@@ -77,38 +77,141 @@ export function pairTurns(turns: SavedTurn[]): Array<{ instruction: string; repl
   return pairs;
 }
 
-export async function loadTurns(organizationId: string): Promise<SavedTurn[]> {
-  // request_id/kind/branch were added by migration 20261005140000; read them
-  // through an untyped view until the generated types are refreshed.
-  const { data, error } = await (supabase as unknown as SupabaseClient)
+/** Columns every deployed builder_messages table has. */
+const CORE_COLUMNS = "role, content, created_at, plan";
+/** Columns added by migration 20261005140000 (may be missing where it has not been applied). */
+const THREAD_COLUMNS = "request_id, kind, branch";
+
+/**
+ * True for PostgREST/Postgres "column does not exist" errors (42703, or the
+ * PostgREST schema-cache variant PGRST204). When migration 20261005140000 is
+ * missing on an environment, the thread columns are absent; the chat must
+ * still load and save instead of vanishing.
+ */
+export function isMissingColumnError(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const { code, message } = error as { code?: unknown; message?: unknown };
+  if (code === "42703" || code === "PGRST204") return true;
+  return typeof message === "string" && /column .* does not exist|could not find the '.*' column/i.test(message);
+}
+
+const CACHE_PREFIX = "rv-builder-turns:";
+const CACHE_LIMIT = 80;
+
+function cacheKey(organizationId: string) {
+  return `${CACHE_PREFIX}${organizationId}`;
+}
+
+/** Session-scoped copy so moving between preview and builder never shows an empty chat. */
+export function readCachedTurns(organizationId: string): SavedTurn[] {
+  try {
+    if (typeof window === "undefined") return [];
+    const raw = window.sessionStorage.getItem(cacheKey(organizationId));
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(
+      (turn): turn is SavedTurn =>
+        !!turn &&
+        typeof turn === "object" &&
+        ((turn as SavedTurn).role === "user" || (turn as SavedTurn).role === "assistant") &&
+        typeof (turn as SavedTurn).content === "string" &&
+        typeof (turn as SavedTurn).at === "string",
+    );
+  } catch {
+    return [];
+  }
+}
+
+export function writeCachedTurns(organizationId: string, turns: SavedTurn[]): void {
+  try {
+    if (typeof window === "undefined") return;
+    window.sessionStorage.setItem(cacheKey(organizationId), JSON.stringify(turns.slice(-CACHE_LIMIT)));
+  } catch {
+    /* storage full or blocked: the database copy is still authoritative */
+  }
+}
+
+export function clearCachedTurns(organizationId: string): void {
+  try {
+    if (typeof window === "undefined") return;
+    window.sessionStorage.removeItem(cacheKey(organizationId));
+  } catch {
+    /* ignore */
+  }
+}
+
+/** Database turns win; cached turns newer than the newest saved one are kept (unsaved in-flight turns). */
+export function mergeTurns(saved: SavedTurn[], cached: SavedTurn[]): SavedTurn[] {
+  if (!cached.length) return saved;
+  if (!saved.length) return cached;
+  const newest = saved[saved.length - 1]!.at;
+  const seen = new Set(saved.map((turn) => `${turn.role}|${turn.content}`));
+  const extra = cached.filter((turn) => turn.at > newest && !seen.has(`${turn.role}|${turn.content}`));
+  return [...saved, ...extra];
+}
+
+type MessageRow = Parameters<typeof toTurns>[0][number];
+
+async function selectRows(organizationId: string, columns: string) {
+  return (supabase as unknown as SupabaseClient)
     .from("builder_messages")
-    .select("role, content, created_at, plan, request_id, kind, branch")
+    .select(columns)
     .eq("organization_id", organizationId)
     .order("created_at", { ascending: false })
     .limit(MEMORY_TURNS);
-  if (error) throw error;
-  return toTurns([...(data ?? [])].reverse());
+}
+
+export async function loadTurns(organizationId: string): Promise<SavedTurn[]> {
+  const cached = readCachedTurns(organizationId);
+  // request_id/kind/branch were added by migration 20261005140000; read them
+  // through an untyped client until the generated types are refreshed, and
+  // fall back to the core columns where that migration is not applied yet.
+  let result = await selectRows(organizationId, `${CORE_COLUMNS}, ${THREAD_COLUMNS}`);
+  if (result.error && isMissingColumnError(result.error)) {
+    console.warn("[builder-memory] thread columns missing; loading core chat columns only", result.error.message);
+    result = await selectRows(organizationId, CORE_COLUMNS);
+  }
+  if (result.error) {
+    // Network blip or permission error: show what this session already has.
+    if (cached.length) return cached;
+    throw result.error;
+  }
+  const saved = toTurns([...((result.data ?? []) as unknown as MessageRow[])].reverse());
+  const merged = mergeTurns(saved, cached);
+  writeCachedTurns(organizationId, merged);
+  return merged;
 }
 
 export async function saveTurns(organizationId: string, turns: Array<Omit<SavedTurn, "at">>): Promise<void> {
-  const { data: auth } = await supabase.auth.getUser();
-  if (!auth.user || !turns.length) return;
+  if (!turns.length) return;
   // Turns saved together get distinct times so they always read back in order.
   const base = Date.now();
-  const { error } = await supabase.from("builder_messages").insert(
-    turns.map((turn, index) => ({
-      created_at: new Date(base + index).toISOString(),
-      organization_id: organizationId,
-      user_id: auth.user!.id,
-      role: turn.role,
-      content: turn.content.slice(0, 20000),
-      plan: (turn.taskResult ?? null) as Json,
-      request_id: normaliseRequestId(turn.requestId),
-      kind: kindForTurn(turn),
-      branch: normaliseBranch(turn.branch ?? MAIN_BRANCH),
-    })) as never,
-  );
-  if (error) throw error;
+  const stamped = turns.map((turn, index) => ({ ...turn, at: new Date(base + index).toISOString() }));
+  // Cache first: navigation straight after sending must never lose the turn.
+  writeCachedTurns(organizationId, [...readCachedTurns(organizationId), ...stamped]);
+  const { data: auth } = await supabase.auth.getUser();
+  if (!auth.user) return;
+  const core = stamped.map((turn) => ({
+    created_at: turn.at,
+    organization_id: organizationId,
+    user_id: auth.user!.id,
+    role: turn.role,
+    content: turn.content.slice(0, 20000),
+    plan: (turn.taskResult ?? null) as Json,
+  }));
+  const full = stamped.map((turn, index) => ({
+    ...core[index]!,
+    request_id: normaliseRequestId(turn.requestId),
+    kind: kindForTurn(turn),
+    branch: normaliseBranch(turn.branch ?? MAIN_BRANCH),
+  }));
+  const { error } = await supabase.from("builder_messages").insert(full as never);
+  if (!error) return;
+  if (!isMissingColumnError(error)) throw error;
+  console.warn("[builder-memory] thread columns missing; saving core chat columns only", error.message);
+  const retry = await supabase.from("builder_messages").insert(core as never);
+  if (retry.error) throw retry.error;
 }
 
 function isSavedTaskResult(value: unknown): value is SavedTaskResult {
@@ -118,6 +221,7 @@ function isSavedTaskResult(value: unknown): value is SavedTaskResult {
 }
 
 export async function clearTurns(organizationId: string): Promise<void> {
+  clearCachedTurns(organizationId);
   const { error } = await supabase.from("builder_messages").delete().eq("organization_id", organizationId);
   if (error) throw error;
 }
