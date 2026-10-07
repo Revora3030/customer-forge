@@ -52,7 +52,10 @@ describe("inline text edits", () => {
   });
 
   it("strips markup and control characters", () => {
-    expect(cleanInlineText("<script>alert(1)</script>Hi\u0007 there")).toBe("alert(1)Hi there");
+    expect(cleanInlineText("<script>alert(1)</script>Hi\u0007 there")).toBe("scriptalert(1)/scriptHi there");
+    // Nested input that defeats single-pass tag stripping can't form a tag.
+    const nested = cleanInlineText("<scr<script>ipt>alert(1)</scr</script>ipt>");
+    expect(nested).not.toMatch(/[<>]/);
     expect(cleanInlineText("a".repeat(900))).toHaveLength(600);
   });
 });
