@@ -15,6 +15,6 @@ describe("builder preview", () => {
   });
 
   it("offers representative phone, tablet, laptop and wide widths", () => {
-    expect(BUILDER_VIEWPORTS.map((item) => item.width)).toEqual([390, 768, 1280, 1440]);
+    expect(BUILDER_VIEWPORTS.map((item) => item.width)).toEqual([320, 390, 768, 1280, 1440, 2560]);
   });
 });
