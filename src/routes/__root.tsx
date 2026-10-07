@@ -21,7 +21,7 @@ import { CookieConsent } from "@/components/marketing/CookieConsent";
 import { PlatformAnalytics } from "@/components/marketing/PlatformAnalytics";
 import { loadGoogleAds } from "@/lib/google-ads";
 import { reportRouteError } from "@/lib/route-error-reporting";
-import { errorFromWindowEvent } from "@/lib/client-error-classify";
+import { describeClientError, errorFromWindowEvent, isStaleDeployError, reloadOnceForNewBuild } from "@/lib/client-error-classify";
 import { safeJsonLd } from "@/lib/json-ld";
 
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
@@ -224,22 +224,45 @@ function RootComponent() {
   useEffect(() => {
     // React route boundaries catch render/loader failures, while these listeners
     // cover errors that escape the router boundary or occur during hydration.
+    const storage = (() => {
+      try {
+        return window.sessionStorage;
+      } catch {
+        return null;
+      }
+    })();
+    const recoverStaleBuild = (error: unknown) =>
+      isStaleDeployError(describeClientError(error).message) && reloadOnceForNewBuild(storage, () => window.location.reload());
+    // Vite reports a missing code chunk (a deploy replaced it) here.
+    const onPreloadError = (event: Event) => {
+      event.preventDefault();
+      if (!reloadOnceForNewBuild(storage, () => window.location.reload())) {
+        reportRouteError((event as Event & { payload?: unknown }).payload ?? new Error("Code chunk failed to load"), {
+          boundary: "window_error",
+          mechanism: "preload_error",
+        });
+      }
+    };
     const onError = (event: ErrorEvent) => {
+      if (recoverStaleBuild(errorFromWindowEvent(event))) return;
       reportRouteError(errorFromWindowEvent(event), {
         boundary: "window_error",
         mechanism: "window_error",
       });
     };
     const onUnhandledRejection = (event: PromiseRejectionEvent) => {
+      if (recoverStaleBuild(event.reason)) return;
       reportRouteError(event.reason, {
         boundary: "window_unhandled_rejection",
         mechanism: "unhandled_rejection",
       });
     };
 
+    window.addEventListener("vite:preloadError", onPreloadError);
     window.addEventListener("error", onError);
     window.addEventListener("unhandledrejection", onUnhandledRejection);
     return () => {
+      window.removeEventListener("vite:preloadError", onPreloadError);
       window.removeEventListener("error", onError);
       window.removeEventListener("unhandledrejection", onUnhandledRejection);
     };
