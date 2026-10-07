@@ -23,6 +23,13 @@ if (preflight.status === "NOT_VERIFIED")
     "Live integration suites NOT_VERIFIED — missing credentials: " +
       preflight.missingCredentials.join(", "),
   );
+// One actionable line per skipped suite: what to set to run it. A skip is
+// never reported as a pass.
+for (const suite of preflight.suites)
+  if (!suite.runnable)
+    console.log(
+      `[live:${suite.id}] SKIPPED (not verified) — set ${suite.missingCredentials.join(", ") || "INTEGRATION_TESTS_ENABLED=1"} to run it.`,
+    );
 
 const crmIt = it.skipIf(!liveSuiteEnabled("crm", env));
 const emailIt = it.skipIf(!liveSuiteEnabled("email", env));
@@ -31,25 +38,21 @@ const paymentsIt = it.skipIf(!liveSuiteEnabled("payments", env));
 describe("live CRM hand-off", () => {
   crmIt("delivers a lead once and rejects an identical replay", async () => {
     const url = env["INTEGRATION_TEST_CRM_WEBHOOK_URL"]!;
-    const idempotencyKey = `revora-it-${Date.now()}`;
-    // Exactly the body and headers production sends (dispatchLeadWebhook in
-    // lead-routing.server.ts). The old ad-hoc test body ({source, lead}) was
-    // rejected with HTTP 400 by receivers that expect the real lead.created
-    // event, so the test failed while real leads were delivered fine.
-    const payload = {
-      event: "lead.created" as const,
-      timestamp: new Date().toISOString(),
-      workspace_id: "integration-test",
-      idempotency_key: idempotencyKey,
-      lead: {
-        name: "Integration Test",
-        email: "integration@revoratest.dev",
-        phone: null,
-        service: null,
-        message: "Revora live integration test - safe to delete.",
-        source_url: null,
-      },
-    };
+    // Exactly the body and headers production sends (buildLeadWebhookPayload +
+    // dispatchLeadWebhook in lead-routing.server.ts). Strict receivers
+    // validate lead_id / name / email / phone / organization_id and answered
+    // HTTP 400 when the old body omitted lead_id and organization_id.
+    const { buildLeadWebhookPayload } = await import("@/lib/lead-routing.server");
+    const payload = buildLeadWebhookPayload({
+      organizationId: env["INTEGRATION_TEST_CRM_ORGANIZATION_ID"] ?? "00000000-0000-4000-8000-000000000001",
+      leadId: crypto.randomUUID(),
+      name: "Integration Test",
+      email: "integration@revoratest.dev",
+      phone: "+15555550100",
+      message: "Revora live integration test - safe to delete.",
+      sourceUrl: "https://revoragrowthsystems.com/integration-test",
+    });
+    const idempotencyKey = payload.idempotency_key;
     const send = () =>
       fetch(url, {
         method: "POST",
