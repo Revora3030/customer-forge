@@ -22,7 +22,12 @@ import { safeLinkUrl, sectionLabel } from "@/lib/website-content";
 import { readEmbed } from "@/lib/site-embed";
 import { businessFacts, factsAddressLine } from "@/lib/builder/facts";
 import { safeParagraph, safeText } from "@/lib/builder/presentation";
-import { sectionSurface, siteSurface } from "@/components/site/site-sections-utils";
+import {
+  LEGACY_SECTION_KINDS,
+  legacySectionToComposition,
+  sectionSurface,
+  siteSurface,
+} from "@/components/site/site-sections-utils";
 
 type Site = NonNullable<PublicSite>;
 type Section = NonNullable<Site["content"]>["sections"][number];
@@ -106,39 +111,50 @@ function SiteSectionBody({ site, section, lead = false, first = false }: { site:
   const components = section.components ?? [];
   const { profile, org } = site;
   const ownAddress = useOwnAddress();
+  const media = new Map(components.map((component) => [component.id, {
+    url: component.url,
+    visual: readComponentVisual(component.settings),
+  }]));
 
-  // Any valid AI composition wins over the legacy kind, so AI designs are never hidden.
+  const renderCompositionTree = (tree: NonNullable<ReturnType<typeof readComposition>>) => (
+    <CompositionRenderer
+      tree={tree}
+      scope={`s-${section.id}`}
+      surface={sectionSurface(site, readBlockStyle(section.settings).bgColor)}
+      eagerFirstMedia={first}
+      resolveMedia={(ref) => media.get(ref) ?? null}
+      resolveHref={(href) => resolveSiteHref(href, org.slug, ownAddress)}
+      resolveWidget={(name, presentation?: WidgetPresentation) => {
+        if (name === "booking_form") return <BookingForm site={site} {...(presentation ? { presentation } : {})} />;
+        if (name === "quote_calculator") return site.quote ? <QuoteCalculator site={site} {...(presentation ? { presentation } : {})} /> : null;
+        if (name === "contact_details") return <ContactFacts site={site} {...(presentation ? { presentation } : {})} />;
+        if (name === "service_menu") return <ServiceMenu site={site} {...(presentation ? { presentation } : {})} />;
+        if (name === "review_wall") return <ReviewWall site={site} {...(presentation ? { presentation } : {})} />;
+        if (name === "direct_contact")
+          return <DirectContact profile={profile} businessName={site.org.name} label={presentation?.contactLabel ?? presentation?.title ?? `Call or email ${site.org.name} directly`} {...(presentation ? { presentation } : {})} />;
+        return null;
+      }}
+    />
+  );
+
   const storedTree = readComposition(section.settings);
-  const kind = storedTree ? "composition" : section.kind;
+  if (storedTree) return renderCompositionTree(storedTree);
 
-  switch (kind) {
-    case "composition": {
-      const tree = storedTree;
-      const media = new Map(components.map((component) => [component.id, {
-        url: component.url,
-        visual: readComponentVisual(component.settings),
-      }]));
-      return tree ? (
-        <CompositionRenderer
-          tree={tree}
-          scope={`s-${section.id}`}
-          surface={sectionSurface(site, readBlockStyle(section.settings).bgColor)}
-          eagerFirstMedia={first}
-          resolveMedia={(ref) => media.get(ref) ?? null}
-          resolveHref={(href) => resolveSiteHref(href, org.slug, ownAddress)}
-          resolveWidget={(name, presentation?: WidgetPresentation) => {
-            if (name === "booking_form") return <BookingForm site={site} {...(presentation ? { presentation } : {})} />;
-            if (name === "quote_calculator") return site.quote ? <QuoteCalculator site={site} {...(presentation ? { presentation } : {})} /> : null;
-            if (name === "contact_details") return <ContactFacts site={site} {...(presentation ? { presentation } : {})} />;
-            if (name === "service_menu") return <ServiceMenu site={site} {...(presentation ? { presentation } : {})} />;
-            if (name === "review_wall") return <ReviewWall site={site} {...(presentation ? { presentation } : {})} />;
-            if (name === "direct_contact")
-              return <DirectContact profile={profile} businessName={site.org.name} label={presentation?.contactLabel ?? presentation?.title ?? `Call or email ${site.org.name} directly`} {...(presentation ? { presentation } : {})} />;
-            return null;
-          }}
-        />
-      ) : null;
-    }
+  // Existing customer records can predate CompositionTree storage. They are
+  // upgraded in-memory, then rendered by the exact same CompositionRenderer.
+  if (LEGACY_SECTION_KINDS.has(section.kind)) {
+    const legacyTree = legacySectionToComposition(section, {
+      lead,
+      surface: sectionSurface(site, readBlockStyle(section.settings).bgColor),
+      accent:
+        typeof (site.profile as Record<string, unknown> | null)?.["accent_color"] === "string"
+          ? ((site.profile as Record<string, unknown>)["accent_color"] as string)
+          : null,
+    });
+    return legacyTree ? renderCompositionTree(legacyTree) : null;
+  }
+
+  switch (section.kind) {
     case "quote":
       if (!site.quote) return null;
       return (
@@ -280,135 +296,6 @@ function SiteSectionBody({ site, section, lead = false, first = false }: { site:
           <div className="mt-2">
             <CustomBlock spec={spec} />
           </div>
-        </Shell>
-      );
-    }
-
-    // Display safety only, for sites built before every section was required
-    // to carry an AI layout. New builds and redesigns stop rather than ship a
-    // section without its AI composition, so these are never a design source.
-    case "hero":
-    case "services":
-    case "process":
-    case "social_proof":
-    case "faq":
-    case "home":
-    case "page":
-    case "story":
-    case "values":
-    case "service_area": {
-      // Older sites only: keeps a pre-existing section readable with the
-      // site's own theme tokens until the owner asks the AI team to redesign.
-      const images = components.filter((c) => (c.kind === "image" || c.kind === "hero_image") && c.url);
-      const buttons = components.filter((c) => c.kind === "button" && safeLinkUrl(c.link_url));
-      const cards = components.filter((c) => c.kind === "card");
-      const heading = safeText(section.heading);
-      const subheading = safeText(section.subheading);
-      const body = safeParagraph(section.body);
-      const hasContent = heading || subheading || body || cards.length > 0 || images.length > 0;
-      if (!hasContent) return null;
-      const isHero = section.kind === "hero" || lead;
-      const heroImage = images[0];
-      const actionRow = buttons.length ? (
-        <div className="mt-8 flex flex-wrap gap-3">
-          {buttons.slice(0, 2).map((button, index) => (
-            <a
-              key={button.id}
-              href={resolveSiteHref(safeLinkUrl(button.link_url)!, org.slug, ownAddress)}
-              className={
-                index === 0
-                  ? "inline-flex min-h-12 items-center justify-center rounded-full bg-primary px-6 text-[15px] font-semibold text-primary-foreground shadow-sm transition hover:-translate-y-0.5 hover:shadow-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
-                  : "inline-flex min-h-12 items-center justify-center rounded-full border border-border px-6 text-[15px] font-semibold transition hover:bg-card focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
-              }
-            >
-              {safeText(button.link_label) || safeText(button.label) || "Get started"}
-            </a>
-          ))}
-        </div>
-      ) : null;
-
-      if (isHero) {
-        const Title = lead ? "h1" : "h2";
-        return (
-          <section id={section.kind === "hero" ? undefined : `section-${section.id}`} className="relative overflow-hidden" style={{ minWidth: 0 }}>
-            <div className="mx-auto grid w-full max-w-6xl items-center gap-10 px-4 sm:px-6 lg:grid-cols-[1.1fr_1fr]" style={{ paddingBlock: "calc(5rem * var(--site-space, 1))" }}>
-              <div className="min-w-0">
-                {heading ? (
-                  <Title className="font-display text-[clamp(2.25rem,5.5vw,4rem)] font-semibold leading-[1.04] tracking-tight [text-wrap:balance]">
-                    {heading}
-                  </Title>
-                ) : null}
-                {subheading ? <p className="mt-5 max-w-xl text-[clamp(1.05rem,1.6vw,1.25rem)] leading-relaxed text-muted-foreground">{subheading}</p> : null}
-                {body ? <p className="mt-4 max-w-xl text-[15px] leading-relaxed text-muted-foreground whitespace-pre-line">{body}</p> : null}
-                {actionRow}
-              </div>
-              {heroImage ? (
-                <div className="relative min-w-0">
-                  <img
-                    src={heroImage.url!}
-                    alt={safeText(heroImage.label) ?? heading ?? ""}
-                    loading={first ? "eager" : "lazy"}
-                    decoding="async"
-                    {...(first ? { fetchPriority: "high" as const } : {})}
-                    className="aspect-[4/3] w-full rounded-3xl object-cover shadow-2xl"
-                  />
-                </div>
-              ) : null}
-            </div>
-          </section>
-        );
-      }
-
-      const sideImage = cards.length === 0 ? images[0] : undefined;
-      return (
-        <Shell wide id={`section-${section.id}`}>
-          <div className={sideImage ? "grid items-center gap-10 lg:grid-cols-2" : ""}>
-            <div className="min-w-0">
-              {heading ? (
-                <h2 className="font-display text-[clamp(1.75rem,3.4vw,2.6rem)] font-semibold leading-tight tracking-tight [text-wrap:balance]">{heading}</h2>
-              ) : null}
-              {subheading ? <p className="mt-3 max-w-2xl text-[16px] leading-relaxed text-muted-foreground">{subheading}</p> : null}
-              {body ? <p className="mt-4 max-w-2xl text-[15px] leading-relaxed text-muted-foreground whitespace-pre-line">{body}</p> : null}
-              {actionRow}
-            </div>
-            {sideImage ? (
-              <img src={sideImage.url!} alt={safeText(sideImage.label) ?? heading ?? ""} loading="lazy" decoding="async" className="aspect-[4/3] w-full min-w-0 rounded-3xl object-cover shadow-xl" />
-            ) : null}
-          </div>
-          {cards.length > 0 ? (
-            <div className={`mt-10 grid gap-5 ${cards.length > 2 ? "sm:grid-cols-2 lg:grid-cols-3" : "sm:grid-cols-2"}`}>
-              {cards.map((card) => {
-                const label = safeText(card.label);
-                const cardBody = safeText(card.body);
-                const linkUrl = safeLinkUrl(card.link_url);
-                const mediaUrl = card.url;
-                return (
-                  <article key={card.id} className="group flex min-w-0 flex-col overflow-hidden rounded-2xl border border-border bg-card transition hover:-translate-y-1 hover:shadow-lg">
-                    {mediaUrl ? (
-                      <img src={mediaUrl} alt={label ?? ""} loading="lazy" decoding="async" className="aspect-[16/10] w-full object-cover" />
-                    ) : null}
-                    <div className="flex flex-1 flex-col p-6">
-                      {label ? <h3 className="font-display text-[18px] font-semibold leading-snug">{label}</h3> : null}
-                      {cardBody ? <p className="mt-2 flex-1 text-[14.5px] leading-relaxed text-muted-foreground">{cardBody}</p> : null}
-                      {linkUrl ? (
-                        <a href={resolveSiteHref(linkUrl, org.slug, ownAddress)} className="mt-4 inline-flex min-h-11 items-center gap-1 text-[14px] font-semibold text-primary">
-                          {safeText(card.link_label) || "Learn more"}
-                          <span aria-hidden="true" className="transition group-hover:translate-x-0.5">→</span>
-                        </a>
-                      ) : null}
-                    </div>
-                  </article>
-                );
-              })}
-            </div>
-          ) : null}
-          {cards.length > 0 && images.length > 0 ? (
-            <div className="mt-10 grid gap-4 sm:grid-cols-2">
-              {images.slice(0, 4).map((image) => (
-                <img key={image.id} src={image.url!} alt={safeText(image.label) ?? ""} loading="lazy" decoding="async" className="aspect-[4/3] w-full rounded-2xl object-cover" />
-              ))}
-            </div>
-          ) : null}
         </Shell>
       );
     }

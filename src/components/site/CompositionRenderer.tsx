@@ -166,8 +166,8 @@ function renderNode(node: CompositionNode, ctx: Ctx, key: string): ReactNode {
 const TEXTUAL = new Set<CompositionNode["type"]>(["heading", "text", "link", "button", "list", "quote", "icon", "accordion", "faq_accordion", "tabs", "toggle", "tab_group"]);
 const BRIGHT = "#ffffff";
 const INK = "#101114";
-const isReadablePair = (fg: string, bg: string, bg2: string | undefined, large: boolean) => {
-  const need = large ? 3 : 4.5;
+const isReadablePair = (fg: string, bg: string, bg2: string | undefined) => {
+  const need = 4.5;
   return (contrastRatio(fg, bg) ?? 21) >= need && (!bg2 || (contrastRatio(fg, bg2) ?? 21) >= need);
 };
 const bestInk = (bg: string, bg2?: string) => {
@@ -186,24 +186,23 @@ export function readablePaint(node: Pick<CompositionNode, "type" | "style">, ctx
   const bg = own ?? ctx.bg;
   const bg2 = own ? node.style?.gradientTo : ctx.bg2;
   const authored = node.style?.color;
-  const large = node.type === "heading" || (node.style?.size ?? 0) >= 24;
   let color: string | undefined;
   if (authored && bg) {
     const rgb = toRgb(authored);
     const neutral = rgb ? Math.max(rgb.r, rgb.g, rgb.b) - Math.min(rgb.r, rgb.g, rgb.b) < 28 : false;
     // White/grey/black text has no hue to keep: flip to the readable ink
     // instead of walking it into a muddy mid-grey.
-    let fixed = neutral && !isReadablePair(authored, bg, bg2, large) ? bestInk(bg, bg2) : readableOn(authored, bg, { large });
-    if (bg2) fixed = readableOn(fixed, bg2, { large });
-    if (bg2 && (contrastRatio(fixed, bg) ?? 21) < (large ? 3 : 4.5)) fixed = bestInk(bg, bg2);
+    let fixed = neutral && !isReadablePair(authored, bg, bg2) ? bestInk(bg, bg2) : readableOn(authored, bg, { large: false });
+    if (bg2) fixed = readableOn(fixed, bg2, { large: false });
+    if (bg2 && (contrastRatio(fixed, bg) ?? 21) < 4.5) fixed = bestInk(bg, bg2);
     if (fixed.toLowerCase() !== authored.toLowerCase()) color = fixed;
   } else if (!authored && own) {
     // A new surface with no authored text colour: the inherited colour may be
     // unreadable on it (white page text over a pale card). Pick the readable ink.
     const inherited = ctx.fg;
-    if (!inherited || (contrastRatio(inherited, own) ?? 21) < (large ? 3 : 4.5)) color = bestInk(own, bg2);
+    if (!inherited || (contrastRatio(inherited, own) ?? 21) < 4.5) color = bestInk(own, bg2);
   } else if (!authored && bg && ctx.fg && TEXTUAL.has(node.type)) {
-    if ((contrastRatio(ctx.fg, bg) ?? 21) < (large ? 3 : 4.5)) color = readableOn(ctx.fg, bg, { large });
+    if ((contrastRatio(ctx.fg, bg) ?? 21) < 4.5) color = readableOn(ctx.fg, bg, { large: false });
   }
   return { ...(color ? { color } : {}), bg, bg2, fg: color ?? authored ?? ctx.fg };
 }
@@ -228,6 +227,7 @@ function renderNodeInner(node: CompositionNode, ctx: Ctx, key: string): ReactNod
   // Text is re-paired with the surface it actually sits on, keeping its hue.
   const paint = readablePaint(node, ctx);
   if (paint.color) style.color = paint.color;
+  if (paint.fg) (style as CSSProperties & Record<string, string>) ["--rv-card-foreground"] = paint.fg;
   ctx.bg = paint.bg; ctx.bg2 = paint.bg2; ctx.fg = paint.fg;
   const motion = node.motion && node.motion.kind !== "none" ? node.motion : null;
   const interactive = node.type === "button" || node.type === "link" || node.type === "card" || node.type === "widget";

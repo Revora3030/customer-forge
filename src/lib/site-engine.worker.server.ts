@@ -117,6 +117,58 @@ async function rollbackFreshBuild(
   return { restored: restoreError === null, restoreError };
 }
 
+
+export function isTransientAiFailure(error: unknown): boolean {
+  const status = typeof error === "object" && error !== null && "status" in error
+    ? Number((error as { status?: unknown }).status)
+    : NaN;
+  if ([408, 425, 429, 500, 502, 503, 504].includes(status)) return true;
+  const message = error instanceof Error ? error.message : String(error ?? "");
+  return /timeout|timed out|deadline|overloaded|temporar|rate limit|too many requests|fetch failed|network|ECONNRESET|ECONNABORTED|ETIMEDOUT/i.test(message);
+}
+
+export async function withActiveLease<T>(
+  db: Db,
+  job: { id: string; attempts: number },
+  label: string,
+  task: () => Promise<T>,
+  options: { maxAttempts?: number; baseDelayMs?: number } = {},
+): Promise<T> {
+  const maxAttempts = Math.max(1, Math.min(options.maxAttempts ?? 3, 4));
+  const baseDelayMs = Math.max(250, options.baseDelayMs ?? 1500);
+
+  const renew = async (phase: string) => {
+    const { data, error } = await db
+      .from("generation_jobs")
+      .update({
+        lease_expires_at: new Date(Date.now() + LEASE_SECONDS * 1000).toISOString(),
+        updated_at: new Date().toISOString(),
+      } as never)
+      .eq("id", job.id)
+      .eq("attempts", job.attempts)
+      .eq("status", "processing")
+      .select("id");
+    if (error) throw new Error(`Lease renewal failed for ${label} (${phase}): ${error.message}`);
+    if (!Array.isArray(data) || data.length === 0) throw new StaleAttemptError(job.id);
+  };
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    await renew(`attempt ${attempt}`);
+    try {
+      const value = await task();
+      await renew(`completion ${attempt}`);
+      return value;
+    } catch (error) {
+      if (error instanceof StaleAttemptError || !isTransientAiFailure(error) || attempt >= maxAttempts) throw error;
+      const delay = baseDelayMs * 2 ** (attempt - 1);
+      console.warn(`[site-engine] transient AI failure in ${label} (attempt ${attempt}/${maxAttempts}); retrying in ${delay}ms:`, error);
+      await new Promise((resolve) => setTimeout(resolve, delay));
+    }
+  }
+
+  throw new Error(`AI step ${label} failed after retries.`);
+}
+
 export type QueueState = {
   paused: boolean;
   pause_reason: string | null;
@@ -379,7 +431,12 @@ async function runJob(
   const { GENERATION_STEPS } = await import("@/lib/site-engine");
   const { readBrief } = await import("@/lib/site-brief");
   const { captureQa } = await import("@/lib/launch-qa");
-  const { gatherBriefFacts } = await import("@/lib/site-brief.server");
+  const {
+    gatherBriefFacts,
+    isPlatformServiceToken,
+    sanitizeCustomerContactEmail,
+    sanitizeServiceRows,
+  } = await import("@/lib/site-brief.server");
   const {
     analyzeBusiness,
     blankCopy,
@@ -441,7 +498,7 @@ async function runJob(
   const [org, profile, services, media, socials, forms, bookable] = await Promise.all([
     db
       .from("organizations")
-      .select("name, industry, conversion_goal")
+      .select("name, slug, industry, conversion_goal")
       .eq("id", orgId)
       .maybeSingle(),
     db.from("business_profiles").select("*").eq("organization_id", orgId).maybeSingle(),
@@ -454,23 +511,33 @@ async function runJob(
     db.from("media").select("id, category, url, alt_text, file_name, source").eq("organization_id", orgId).order("created_at"),
     db.from("social_profiles").select("*").eq("organization_id", orgId).maybeSingle(),
     db.from("quote_forms").select("id").eq("organization_id", orgId).eq("is_active", true),
-    db.from("services").select("id").eq("organization_id", orgId).eq("bookable", true),
+    db.from("services").select("id, name").eq("organization_id", orgId).eq("bookable", true),
   ]);
 
   if (!org.data) throw new Error("Workspace not found.");
   await step("business");
 
   const p = (profile.data ?? {}) as Record<string, unknown>;
+  const customerEmail = sanitizeCustomerContactEmail((p["email"] as string) ?? null, {
+    orgName: org.data.name ?? null,
+    orgSlug: org.data.slug ?? null,
+  });
   const realMediaCount = (media.data ?? []).filter((item) =>
     ["hero", "work", "gallery", "team", "premises"].includes(String(item.category ?? "").toLowerCase()),
   ).length + ((p["hero_image_url"] as string) ? 1 : 0);
-  const serviceRows = (services.data ?? []) as {
-    name: string;
-    description?: string | null;
-    price?: number | null;
-    starting_price?: number | null;
-  }[];
+  const serviceRows = sanitizeServiceRows(
+    (services.data ?? []) as {
+      name: string;
+      description?: string | null;
+      price?: number | null;
+      starting_price?: number | null;
+    }[],
+    org.data.industry ?? null,
+  );
   await step("services");
+  const bookableCount = ((bookable.data ?? []) as { id: string; name?: string | null }[])
+    .filter((row) => !row.name || !isPlatformServiceToken(row.name))
+    .length;
 
   const social = (socials.data ?? {}) as Record<string, unknown>;
   const socialLinks = [
@@ -495,7 +562,7 @@ async function runJob(
     state: (p["state"] as string) ?? null,
     serviceArea: (p["service_area"] as string) ?? null,
     phone: (p["phone"] as string) ?? null,
-    email: (p["email"] as string) ?? null,
+    email: customerEmail,
     yearsInBusiness: (p["years_in_business"] as number) ?? null,
     hasHours: Boolean(p["hours"] && Object.keys(p["hours"] as object).length),
     style: (p["font_preference"] as string) ?? null,
@@ -546,7 +613,9 @@ async function runJob(
   const approvedBrief = readBrief(priorGeneration["brief"]);
 
   // No built-in strategy: an unapproved brief is written by the AI.
-  const brief = approvedBrief?.approved ? approvedBrief : await analyzeBusiness(copyFacts);
+  const brief = approvedBrief?.approved
+    ? approvedBrief
+    : await withActiveLease(db, job, "business analysis", () => analyzeBusiness(copyFacts));
   if (!approvedBrief?.approved) {
     await db.from("ai_generations").insert({
       organization_id: orgId,
@@ -607,15 +676,15 @@ async function runJob(
   // The visual identity — palette, typefaces, surface treatments — is authored
   // for this business by the design team. A failure stops the build (it is
   // retried); no stock identity is ever substituted.
-  const identity = await authorBrandIdentity({
+  const identity = await withActiveLease(db, job, "brand identity", () => authorBrandIdentity({
     organizationId: orgId,
-    businessName: org.data.name ?? "",
-    industry: org.data.industry ?? null,
+    businessName: org.data!.name ?? "",
+    industry: org.data!.industry ?? null,
     description: (p["description"] as string) ?? null,
     city: (p["city"] as string) ?? null,
     services: serviceRows.map((service) => ({ name: service.name })),
     requestedFont: (p["font_preference"] as string) ?? null,
-  });
+  }));
   const direction = identity.direction;
   const ownerColour = (key: string) => {
     const value = p[key];
@@ -643,7 +712,7 @@ async function runJob(
     state: (p["state"] as string) ?? null,
     serviceArea: (p["service_area"] as string) ?? null,
     phone: (p["phone"] as string) ?? null,
-    email: (p["email"] as string) ?? null,
+    email: customerEmail,
     yearsInBusiness: (p["years_in_business"] as number) ?? null,
     services: serviceRows,
     goals,
@@ -651,7 +720,7 @@ async function runJob(
     photoCount: realMediaCount,
     hasHeroImage: Boolean(p["hero_image_url"]),
     testimonialCount: testimonials.length,
-    bookableServices: (bookable.data ?? []).length,
+    bookableServices: bookableCount,
     hasHours: Boolean(p["hours"] && Object.keys(p["hours"] as object).length),
   });
   const storedReferenceObservations = priorGeneration["screenshotReferenceObservations"];
@@ -702,14 +771,16 @@ async function runJob(
   const { refineFirstBuildWithCollective } = await import(
     "@/lib/builder/collective-first-build.server"
   );
-  const refined = await refineFirstBuildWithCollective({
-    organizationId: orgId,
-    facts: buildFacts,
-    brief,
-    copy,
-    creative,
-    hardGenericityGate: true,
-  });
+  const refined = await withActiveLease(db, job, "collective first-build review", () =>
+    refineFirstBuildWithCollective({
+      organizationId: orgId,
+      facts: buildFacts,
+      brief,
+      copy,
+      creative,
+      hardGenericityGate: true,
+    }),
+  );
   if (refined.creativeChanged) creative = refined.creative;
   if (refined.changed) {
     copy = refined.copy;
@@ -764,66 +835,13 @@ async function runJob(
   }
   let generatedAssets: import("@/lib/builder/first-build-images.types").FirstBuildImageAsset[] = [];
   try {
-  // A retry of the same first build may find the partial pages written by its
-  // previous attempt. They are not an existing customer site and must never
-  // make the retry silently skip architecture, composition, chrome, or media.
-  // Only rows tagged with this job are cleared; fresh rebuilds remain protected
-  // by their restore point and unrelated customer content is untouched.
-  const retryOwnsPartialBuild = !freshReplace && (existingPages.count ?? 0) > 0 && Number(job.attempts ?? 0) > 1;
-  if (retryOwnsPartialBuild) {
-    const partial = await db
-      .from("website_settings")
-      .select("generation")
-      .eq("organization_id", orgId)
-      .maybeSingle();
-    const partialGeneration = (partial.data?.generation ?? {}) as Record<string, unknown>;
-    const report = partialGeneration["report"] as Record<string, unknown> | undefined;
-    const ownsPartialBuild =
-      report?.["jobId"] === job.id || partialGeneration["jobId"] === job.id;
-    if (ownsPartialBuild) {
-      // Fence by job: only rows written since this job was created are its own
-      // partial output. Anything older belongs to the customer and is kept.
-      const jobRow = await db
-        .from("generation_jobs")
-        .select("created_at")
-        .eq("id", job.id)
-        .eq("organization_id", orgId)
-        .maybeSingle();
-      const since = jobRow.data?.created_at as string | undefined;
-      if (!since) throw new Error("Couldn't confirm which rows this build attempt owns.");
-      const older = await db
-        .from("website_pages")
-        .select("id", { count: "exact", head: true })
-        .eq("organization_id", orgId)
-        .lt("created_at", since);
-      if ((older.count ?? 0) > 0) {
-        throw new Error("This retry found pages older than the build itself, so it stopped instead of deleting them.");
-      }
-      const pageIds = await db
-        .from("website_pages")
-        .select("id")
-        .eq("organization_id", orgId)
-        .gte("created_at", since);
-      const ids = (pageIds.data ?? []).map((row) => row.id as string);
-      if (ids.length) {
-        const sectionIds = await db.from("website_sections").select("id").eq("organization_id", orgId).in("page_id", ids);
-        const sIds = (sectionIds.data ?? []).map((row) => row.id as string);
-        if (sIds.length) {
-          const componentDelete = await db.from("website_components").delete().eq("organization_id", orgId).in("section_id", sIds);
-          if (componentDelete.error) throw new Error(`Couldn't clear the incomplete build components: ${componentDelete.error.message}`);
-          const sectionDelete = await db.from("website_sections").delete().eq("organization_id", orgId).in("id", sIds);
-          if (sectionDelete.error) throw new Error(`Couldn't clear the incomplete build sections: ${sectionDelete.error.message}`);
-        }
-        const pageDelete = await db.from("website_pages").delete().eq("organization_id", orgId).in("id", ids);
-        if (pageDelete.error) throw new Error(`Couldn't clear the incomplete build pages: ${pageDelete.error.message}`);
-      }
-    }
-  }
+  // Partial pages are cleared atomically inside materializeSiteContent only when this
+  // attempt is proven to own them. Never delete by age or broad organization scope.
   noteStage(orgId, job.id, "generating your pictures");
-  const starterImages = await generateFirstBuildImages(db, {
+  const starterImages = await withActiveLease(db, job, "first-build image generation", () => generateFirstBuildImages(db, {
     organizationId: orgId,
     userId: job.created_by,
-    businessName: org.data.name ?? "",
+    businessName: org.data!.name ?? "",
     city: (p["city"] as string) ?? null,
     photoCount: realMediaCount,
     // Only a deliberately assigned hero fills that role. A generic upload or
@@ -837,7 +855,7 @@ async function runJob(
         : []),
     ]),
     creative,
-  });
+  }));
   await step("pictures");
   // Picture records (spec D): one per generated slot with its art direction,
   // pending owner approval. Cosmetic bookkeeping — never blocks the build.
@@ -941,11 +959,11 @@ async function runJob(
     state: (p["state"] as string) ?? null,
     serviceArea: (p["service_area"] as string) ?? null,
     phone: (p["phone"] as string) ?? null,
-    email: (p["email"] as string) ?? null,
+    email: customerEmail,
     yearsInBusiness: (p["years_in_business"] as number) ?? null,
     photoCount: realMediaCount,
     hasQuoteForm: (forms.data ?? []).length > 0,
-    hasBooking: (bookable.data ?? []).length > 0,
+    hasBooking: bookableCount > 0,
     direction,
     creativeBrief: creative.brief,
     generatedAssets: siteAssets,
@@ -954,12 +972,16 @@ async function runJob(
     reviewedBy:
       refined.passes.filter((pass) => pass.used && pass.model)[1]?.model ?? null,
     conversionGoal: goals[0] ?? org.data.conversion_goal ?? null,
-    replaceExisting: freshReplace,
+    replaceExisting:
+      freshReplace ||
+      (Number(job.attempts ?? 0) > 1 &&
+        priorGeneration["jobId"] === job.id &&
+        priorGeneration["buildState"] === "materializing"),
     architect: async (candidate) => {
       const { proposePageArchitecture } = await import(
         "@/lib/builder/ai-page-architecture.server"
       );
-      const outcome = await proposePageArchitecture({
+      const outcome = await withActiveLease(db, job, "page architecture", () => proposePageArchitecture({
         organizationId: orgId,
         businessName: architectBusinessName,
         industry: architectIndustry,
@@ -968,7 +990,7 @@ async function runJob(
         description: (p["description"] as string) ?? null,
         services: serviceRows.map((service) => String((service as { name?: unknown }).name ?? "")).filter(Boolean),
         serviceArea: (p["service_area"] as string) ?? null,
-      });
+      }));
       architectureRef.current = outcome;
       return outcome.architecture;
     },
@@ -1051,13 +1073,15 @@ async function runJob(
       subheading: section.subheading,
       body: section.body,
     }));
-    const outcome = await refineSectionWordingWithCollective({
-      organizationId: orgId,
-      facts: buildFacts,
-      sections: wording,
-      directionSummary: [creative.brief.concept, creative.brief.personality].filter(Boolean).join(" · "),
-      hardGenericityGate: true,
-    });
+    const outcome = await withActiveLease(db, job, "section wording review", () =>
+      refineSectionWordingWithCollective({
+        organizationId: orgId,
+        facts: buildFacts,
+        sections: wording,
+        directionSummary: [creative.brief.concept, creative.brief.personality].filter(Boolean).join(" · "),
+        hardGenericityGate: true,
+      }),
+    );
     for (const patch of outcome.patches) {
       const update: Record<string, string> = {};
       if (patch.heading !== undefined) update["heading"] = patch.heading;
@@ -1097,7 +1121,7 @@ async function runJob(
   // gets a complete site.
   if (!built.skipped) {
     const { composeFirstBuildSections } = await import("@/lib/builder/first-build-compositions.server");
-    const composed = await composeFirstBuildSections({
+    const composed = await withActiveLease(db, job, "first-build section composition", () => composeFirstBuildSections({
       db: db as never,
       organizationId: orgId,
       facts: buildFacts,
@@ -1121,7 +1145,7 @@ async function runJob(
         ownerFont: effectiveFont,
         surfaceIs: effectivePalette?.secondary ? (isLightSurface(effectivePalette.secondary) ? "light" : "dark") : null,
       }),
-    });
+    }));
     // Every section is designed by the AI team. A section left without its
     // layout stops the build (it is retried) instead of shipping a default.
     if ((composed.fallback ?? 0) > 0) {
@@ -1143,10 +1167,10 @@ async function runJob(
     // Sol also designs the menu bar and footer. Its failure stops the build
     // (it is retried); no generic menu is substituted.
     const { composeSiteChrome } = await import("@/lib/builder/first-build-chrome.server");
-    const chrome = await composeSiteChrome({
+    const chrome = await withActiveLease(db, job, "site chrome composition", () => composeSiteChrome({
       db: db as never,
       organizationId: orgId,
-      businessName: org.data.name ?? "",
+      businessName: org.data!.name ?? "",
       facts: buildFacts,
       // The menu and footer follow the SAME creative direction as the page
       // sections; colours and font alone produced a header that clashed with
@@ -1161,7 +1185,7 @@ async function runJob(
         shapeLanguage: creative.brief.shapeLanguage,
         surfaceIs: effectivePalette?.secondary ? (isLightSurface(effectivePalette.secondary) ? "light" : "dark") : null,
       }),
-    });
+    }));
     await db.from("ai_generations").insert({
       organization_id: orgId,
       job_id: job.id,

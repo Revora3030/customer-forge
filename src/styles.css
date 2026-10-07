@@ -555,8 +555,12 @@
 .rv-site .rv-section[data-rv-custom-spacing="true"] > [data-rvb] > section > div {
   padding: 0;
 }
+.rv-site [data-rvb],
+.rv-site [data-cn] {
+  --rv-card-foreground: var(--rv-section-foreground, currentColor);
+}
 .rv-site .rv-section[data-rv-custom-text="true"] > [data-rvb] :where(h1, h2, h3, h4, h5, h6, p, li, dt, dd, label, figcaption) {
-  color: inherit;
+  color: var(--rv-card-foreground, inherit);
 }
 .rv-site .rv-section[data-rv-custom-font="true"] > [data-rvb] :where(h1, h2, h3, h4, h5, h6, p, li, dt, dd, label, button, input, select, textarea) {
   font-family: inherit;

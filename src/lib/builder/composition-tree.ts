@@ -367,10 +367,10 @@ function checkStyle(style: unknown, path: string, issues: CompositionIssue[], no
     // WCAG AA: 3:1 is the requirement for large text (24px+, or 18.66px+
     // bold). Holding big headings to 4.5:1 rejected many sound designs and
     // pushed whole sections onto the basic fallback layout.
-    const size = typeof out["size"] === "number" ? (out["size"] as number) : null;
-    const weight = typeof out["weight"] === "number" ? (out["weight"] as number) : null;
-    const large = nodeType === "heading" ? size == null || size >= 24 || (size >= 18.66 && (weight ?? 700) >= 700) : size != null && (size >= 24 || (size >= 18.66 && (weight ?? 400) >= 700));
-    const required = large ? 3 : 4.5;
+    // All customer-facing text is held to WCAG 2.2 AA 4.5:1. Large headings
+    // are intentionally not exempted; this prevents white-on-pale regressions
+    // when a nested card establishes a lighter immediate surface.
+    const required = 4.5;
     if (ratio != null && ratio < required) issues.push({ path, problem: `text/background contrast ${ratio.toFixed(2)} is below ${required}` });
   }
   return out as NodeStyle;

@@ -259,20 +259,15 @@ export async function materializeSiteContent(
     .eq("organization_id", orgId);
   if ((count ?? 0) > 0 && !input.replaceExisting)
     return { pages: 0, sections: 0, components: 0, skipped: true, designContract: null };
-  // A fresh rebuild clears the old site only AFTER the AI architect, design
-  // contract and media checks below have all succeeded (see clearExisting),
-  // so a failure in any of them leaves the customer's current site untouched.
+
+  // Rebuild cleanup is a single database transaction exposed only to service_role.
+  // It executes only after AI architecture + media validation succeeds, so an AI
+  // failure never destroys an existing customer site and a retry cannot leave a
+  // half-deleted page tree.
   const clearExisting = async () => {
     if (!((count ?? 0) > 0 && input.replaceExisting)) return;
-    const { error: componentDeleteError } = await db.from("website_components").delete().eq("organization_id", orgId);
-    if (componentDeleteError)
-      throw new Error(`Couldn't clear old components before rebuilding: ${componentDeleteError.message}`);
-    const { error: sectionDeleteError } = await db.from("website_sections").delete().eq("organization_id", orgId);
-    if (sectionDeleteError)
-      throw new Error(`Couldn't clear old sections before rebuilding: ${sectionDeleteError.message}`);
-    const { error: pageDeleteError } = await db.from("website_pages").delete().eq("organization_id", orgId);
-    if (pageDeleteError)
-      throw new Error(`Couldn't clear old pages before rebuilding: ${pageDeleteError.message}`);
+    const { error } = await db.rpc("clear_website_content", { p_org_id: orgId });
+    if (error) throw new Error(`Couldn't atomically clear the existing site: ${error.message}`);
   };
 
   // The renderer produces safe building blocks; the AI design decides the site.
@@ -379,8 +374,10 @@ export async function materializeSiteContent(
     const { AiStepUnavailableError } = await import("@/lib/builder/ai-step-error");
     throw new AiStepUnavailableError("page plan", "the architect returned no usable plan");
   }
-  // The AI architect's plan, or the AI design contract's pages.
-  const architecture: PageArchitecture[] =
+  // Only an AI-authored page architecture or an approved AI design contract
+  // can become the site. The fact inventory above is prompt material only and
+  // is never a shipping fallback.
+  const architecture: PageArchitecture[] | null =
     authored ??
     (designContract
       ? designContract.pages.map((page) => ({
@@ -395,7 +392,11 @@ export async function materializeSiteContent(
             media: section.media,
           })),
         }))
-      : factInventory);
+      : null);
+  if (!architecture?.length) {
+    const { AiStepUnavailableError } = await import("@/lib/builder/ai-step-error");
+    throw new AiStepUnavailableError("page plan", "no AI-authored architecture or approved design contract was supplied");
+  }
   // Functional safeguard (not a creative choice): every site must give visitors
   // a working way to send an enquiry, so leads reach the owner's lead inbox.
   // If the AI plan left out every enquiry section, add the strongest real

@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { heartbeatIntervalMs, startLeaseHeartbeat } from "@/lib/site-engine.worker.server";
+import { heartbeatIntervalMs, startLeaseHeartbeat, withActiveLease, isTransientAiFailure } from "@/lib/site-engine.worker.server";
 import { queuePumpDelay } from "@/lib/site-engine.hooks";
 
 type Result = { data: unknown[] | null; error: { message: string } | null };
@@ -26,6 +26,33 @@ function fakeDb(results: Array<Result | Error>) {
   };
   return { db: db as never, calls };
 }
+
+describe("AI inference lease wrapper", () => {
+  it("classifies provider/network failures as transient", () => {
+    expect(isTransientAiFailure(new Error("request timed out"))).toBe(true);
+    expect(isTransientAiFailure(Object.assign(new Error("rate limited"), { status: 429 }))).toBe(true);
+    expect(isTransientAiFailure(new Error("invalid business facts"))).toBe(false);
+  });
+
+  it("renews before/after a transient AI failure and retries the same attempt", async () => {
+    const { db, calls } = fakeDb([]);
+    let runs = 0;
+    const value = await withActiveLease(
+      db,
+      { id: "job", attempts: 1 },
+      "composition",
+      async () => {
+        runs += 1;
+        if (runs === 1) throw new Error("provider timed out");
+        return "ok";
+      },
+      { baseDelayMs: 1 },
+    );
+    expect(value).toBe("ok");
+    expect(runs).toBe(2);
+    expect(calls.length).toBe(3);
+  });
+});
 
 describe("lease heartbeat", () => {
   beforeEach(() => vi.useFakeTimers());

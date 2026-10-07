@@ -36,6 +36,70 @@ export type BriefFacts = {
 
 const str = (value: unknown) => (typeof value === "string" && value.trim() ? value.trim() : null);
 
+const PLATFORM_SERVICE_TOKENS = new Set([
+  "build my site",
+  "generate site",
+  "submit",
+  "command center",
+  "all",
+]);
+
+const INDUSTRY_SERVICE_ARCHETYPES: Record<string, string[]> = {
+  "pressure washing": ["Driveway Cleaning", "House Soft Washing", "Roof Cleaning", "Deck Restoration"],
+  roofing: ["Roof Inspection", "Roof Repair", "Roof Replacement", "Roof Maintenance"],
+  "luxury detailing": ["Paint Correction", "Ceramic Coating", "Interior Detailing", "Exterior Detailing"],
+  "auto detailing": ["Interior Detailing", "Exterior Detailing", "Paint Correction", "Ceramic Coating"],
+  landscaping: ["Lawn Maintenance", "Landscape Design", "Mulching", "Seasonal Cleanup"],
+  "house cleaning": ["Recurring Home Cleaning", "Deep Cleaning", "Move-In Cleaning", "Move-Out Cleaning"],
+  hvac: ["AC Repair", "Heating Repair", "HVAC Maintenance", "System Replacement"],
+  plumbing: ["Drain Cleaning", "Leak Repair", "Water Heater Service", "Pipe Repair"],
+  electrical: ["Electrical Repairs", "Lighting Installation", "Panel Upgrades", "Electrical Inspections"],
+};
+
+const normalizeServiceToken = (value: string) =>
+  value.trim().replace(/\s+/g, " ").toLowerCase();
+
+export function isPlatformServiceToken(value: string): boolean {
+  return PLATFORM_SERVICE_TOKENS.has(normalizeServiceToken(value));
+}
+
+export type SanitizedServiceRow = BriefFacts["serviceRows"][number];
+
+export function sanitizeServiceRows(
+  rows: SanitizedServiceRow[],
+  industry: string | null,
+): SanitizedServiceRow[] {
+  const clean: SanitizedServiceRow[] = [];
+  const seen = new Set<string>();
+  for (const row of rows) {
+    const name = str(row.name);
+    if (!name) continue;
+    const token = normalizeServiceToken(name);
+    if (PLATFORM_SERVICE_TOKENS.has(token) || seen.has(token)) continue;
+    seen.add(token);
+    clean.push({ ...row, name });
+  }
+  if (clean.length) return clean;
+  const archetypeKey = normalizeServiceToken(industry ?? "");
+  const archetypes = INDUSTRY_SERVICE_ARCHETYPES[archetypeKey];
+  return (archetypes ?? []).map((name) => ({ name }));
+}
+
+export function sanitizeCustomerContactEmail(
+  value: string | null,
+  options: { orgName?: string | null; orgSlug?: string | null } = {},
+): string | null {
+  if (!value) return null;
+  const email = value.trim().toLowerCase();
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return null;
+  const internalWorkspace =
+    /\brevora\b/i.test(options.orgName ?? "") ||
+    /(^|[-_])revora([-_]|$)/i.test(options.orgSlug ?? "");
+  if (!internalWorkspace && email.endsWith("@revoragrowthsystems.com")) return null;
+  return email;
+}
+
+
 /** Reads everything the orchestrator and QA need, using the caller's client. */
 export async function gatherBriefFacts(
   db: Db,
@@ -73,7 +137,7 @@ export async function gatherBriefFacts(
     db.from("social_profiles").select("*").eq("organization_id", orgId).maybeSingle(),
     db.from("quote_forms").select("id").eq("organization_id", orgId).eq("is_active", true),
     db.from("quote_questions").select("id").eq("organization_id", orgId),
-    db.from("services").select("id").eq("organization_id", orgId).eq("bookable", true),
+    db.from("services").select("id, name").eq("organization_id", orgId).eq("bookable", true),
     db
       .from("website_settings")
       .select("seo, generation")
@@ -100,7 +164,7 @@ export async function gatherBriefFacts(
   if (!org.data) throw new Error("Workspace not found.");
 
   const p = (profile.data ?? {}) as Record<string, unknown>;
-  const serviceRows = (services.data ?? []) as BriefFacts["serviceRows"];
+  const serviceRows = sanitizeServiceRows((services.data ?? []) as BriefFacts["serviceRows"], org.data.industry);
   const social = (socials.data ?? {}) as Record<string, unknown>;
   const socialLinks = [
     "instagram",
@@ -113,6 +177,7 @@ export async function gatherBriefFacts(
   const testimonials = Array.isArray(p["testimonials"]) ? (p["testimonials"] as unknown[]) : [];
   const goalsRaw = (p["website_goals"] as string[] | undefined) ?? [];
   const goals = goalsRaw.length ? goalsRaw : org.data.conversion_goal ? [org.data.conversion_goal] : [];
+  const email = sanitizeCustomerContactEmail(str(p["email"]), { orgName: org.data.name, orgSlug: org.data.slug });
   const photoCount = (media.data ?? []).length + (str(p["hero_image_url"]) ? 1 : 0);
   const seo = (settings.data?.seo ?? {}) as Record<string, unknown>;
   const hasHours = Boolean(p["hours"] && Object.keys(p["hours"] as object).length);
@@ -133,7 +198,7 @@ export async function gatherBriefFacts(
     state: str(p["state"]),
     serviceArea: str(p["service_area"]),
     phone: str(p["phone"]),
-    email: str(p["email"]),
+    email,
     yearsInBusiness: (p["years_in_business"] as number) ?? null,
     hasHours,
     style: str(p["font_preference"]),
@@ -156,7 +221,7 @@ export async function gatherBriefFacts(
       businessName: org.data.name ?? "",
       description: str(p["description"]),
       phone: str(p["phone"]),
-      email: str(p["email"]),
+      email,
       city: str(p["city"]),
       serviceArea: str(p["service_area"]),
       servicesCount: serviceRows.length,
@@ -169,10 +234,12 @@ export async function gatherBriefFacts(
       primaryCtaLabel: str(seo["primary_cta_label"]),
       secondaryCtaLabel: str(seo["secondary_cta_label"]),
       phone: str(p["phone"]),
-      email: str(p["email"]),
+      email,
       quoteForms: (forms.data ?? []).length,
       quoteQuestions: (questions.data ?? []).length,
-      bookableServices: (bookable.data ?? []).length,
+      bookableServices: ((bookable.data ?? []) as { id: string; name?: string | null }[])
+        .filter((row) => !row.name || !isPlatformServiceToken(row.name))
+        .length,
       captureSections,
       siteLeads: (leads.data ?? []).length,
       loggedActivities: (activities.data ?? []).length,

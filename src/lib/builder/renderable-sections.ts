@@ -1,8 +1,8 @@
 /**
  * Section kinds the public renderer can draw. Anything else is not shown.
  *
- * Kept in step with the `switch` in src/components/site/SiteSections.tsx
- * (a test locks the two together).
+ * Functional kinds are handled by the section switch; legacy kinds are handled
+ * by the CompositionTree compatibility adapter before the switch.
  */
 export const RENDERABLE_SECTION_KINDS = [
   "composition",

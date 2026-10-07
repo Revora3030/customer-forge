@@ -10,7 +10,7 @@ describe("readable text on AI layouts", () => {
     const panel = readablePaint({ type: "stack", style: { background: "#c4c4c4" } }, { bg: "#0b0b0d", fg: "#ffffff" });
     const heading = readablePaint({ type: "heading", style: { color: "#ffffff" } }, panel);
     expect(heading.color).toBeDefined();
-    expect(contrastRatio(heading.color!, "#c4c4c4")!).toBeGreaterThanOrEqual(3);
+    expect(contrastRatio(heading.color!, "#c4c4c4")!).toBeGreaterThanOrEqual(4.5);
     const body = readablePaint({ type: "text", style: {} }, panel);
     expect(contrastRatio(body.color ?? panel.fg!, "#c4c4c4")!).toBeGreaterThanOrEqual(4.5);
   });
@@ -18,6 +18,15 @@ describe("readable text on AI layouts", () => {
   it("leaves an already readable choice untouched", () => {
     const out = readablePaint({ type: "heading", style: { color: "#111111", background: "#ffffff" } }, {});
     expect(out.color).toBeUndefined();
+  });
+
+  it("rejects sub-AA contrast even for large headings", () => {
+    const out = validateComposition({
+      version: 1,
+      root: { type: "heading", level: 1, text: "Readable", style: { color: "#ffffff", background: "#c4c4c4", size: 64 } },
+    });
+    expect(out.ok).toBe(false);
+    expect(out.ok ? [] : out.issues.some((issue) => issue.problem.includes("below 4.5"))).toBe(true);
   });
 
   it("checks both ends of a gradient", () => {
