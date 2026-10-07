@@ -29,6 +29,13 @@
       "when": 1791344385701,
       "tag": "0003_setup_price_350",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1791344647640,
+      "tag": "0004_publish_lock_message_350",
+      "breakpoints": true
     }
   ]
 }
