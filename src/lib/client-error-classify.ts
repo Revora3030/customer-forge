@@ -112,7 +112,45 @@ export function classifyClientError(error: unknown, described = describeClientEr
   // Browser-extension / ResizeObserver noise that is not caused by the app.
   if (/^ResizeObserver loop (limit exceeded|completed with undelivered notifications)/i.test(message)) return "ignore";
   if (RECOVERABLE_REACT.some((pattern) => pattern.test(message))) return "warn";
+  // Old code after a deploy: recovered by a reload, not an application fault.
+  if (isStaleDeployError(message)) return "warn";
   return "report";
+}
+
+const STALE_DEPLOY = [
+  /failed to fetch dynamically imported module/i,
+  /error loading dynamically imported module/i,
+  /importing a module script failed/i,
+  /unable to preload css/i,
+  /unexpected token ['"]?<['"]?/i,
+  /chunkloaderror|loading chunk \S+ failed/i,
+];
+
+/**
+ * True when the browser is running an old build after a deploy: it asks for a
+ * code file that no longer exists and gets the HTML page back ("Unexpected
+ * token '<'") or a failed module import. A single reload fixes it.
+ */
+export function isStaleDeployError(message: string): boolean {
+  return STALE_DEPLOY.some((pattern) => pattern.test(message));
+}
+
+/**
+ * Reloads the page once per tab session to pick up the new build. Returns
+ * false (and does nothing) when a reload was already tried, so a real fault
+ * can never cause a reload loop.
+ */
+export function reloadOnceForNewBuild(storage: Pick<Storage, "getItem" | "setItem"> | null, reload: () => void, now = Date.now()): boolean {
+  const KEY = "rv-stale-build-reload";
+  try {
+    const last = Number(storage?.getItem(KEY) ?? 0);
+    if (last && now - last < 60_000) return false;
+    storage?.setItem(KEY, String(now));
+  } catch {
+    return false;
+  }
+  reload();
+  return true;
 }
 
 /** Shape a window `error` event so a missing `event.error` still keeps its location. */
