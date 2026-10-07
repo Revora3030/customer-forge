@@ -715,6 +715,13 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
         });
     }
     const steps = describeActions(actions, index, currentText);
+    // Live plan: the owner sees the AI's own words and each planned step in
+    // the activity card as soon as they exist, before the final checks finish.
+    {
+      const reply = str(raw["reply"], 1500);
+      if (reply) noteStage(orgId, runId, "plan ready", reply.slice(0, 160));
+      steps.slice(0, 12).forEach((step, i) => noteStage(orgId, runId, `step ${i + 1}: ${step.title}`.slice(0, 60), step.where ? String(step.where).slice(0, 160) : undefined));
+    }
 
     const list = (value: unknown) =>
       Array.isArray(value)
