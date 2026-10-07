@@ -49,7 +49,7 @@ import {
 } from "@/lib/builder/chat-thread";
 import { supabase } from "@/integrations/supabase/client";
 import { jobIsActive, type JobLivenessRow } from "@/lib/builder/job-liveness";
-import { addPending, clearAllPending, clearPending, readPending, unresolvedPending } from "@/lib/builder/pending-requests";
+import { addPending, clearAllPending, clearPending, readPending, unresolvedPending, type PendingRequest } from "@/lib/builder/pending-requests";
 
 export const INSTRUCTION_LIMIT = 1200;
 
@@ -80,6 +80,27 @@ async function firstBuildSettled(organizationId: string): Promise<boolean> {
   // A stalled job (worker cut off, lease long expired) is not a running build.
   const running = ((active ?? []) as JobLivenessRow[]).some((row) => jobIsActive(row));
   return (count ?? 0) > 0 && !running;
+}
+
+/**
+ * A request restored after navigation. Text-only requests are queued again
+ * under their original id. A request that carried photos is NOT re-run (its
+ * photos were not kept, and planning saves attached photos to the library, so
+ * re-running would duplicate uploads); it is shown with a clear prompt to
+ * re-attach and resend, so the owner's words are never lost.
+ */
+function resumeTask(request: PendingRequest): QueueTask {
+  const task = { ...newTask(request.instruction), id: request.id };
+  if (!request.hadAttachments) return task;
+  return {
+    ...task,
+    state: "failed",
+    error: "You left the builder before this finished, and its photos couldn't be kept. Attach them again and send it once more.",
+    retryable: false,
+    // Kept in the pending record (see the clean-up effect) until the owner
+    // dismisses it, so a second reload doesn't lose their words either.
+    awaitingReattach: true,
+  };
 }
 
 export type BuilderRequests = ReturnType<typeof useBuilderRequests>;
@@ -165,7 +186,7 @@ export function useBuilderRequests({
           const known = new Set(current.map((task) => task.id.split("~")[0]));
           const restoredQueue = resumed
             .filter((request) => !known.has(request.id.split("~")[0]))
-            .map((request) => ({ ...newTask(request.instruction, request.attachments ?? []), id: request.id }));
+            .map(resumeTask);
           return [...past, ...current, ...restoredQueue];
         });
         setMemoryLoaded(true);
@@ -182,7 +203,7 @@ export function useBuilderRequests({
               ...current,
               ...resumed
                 .filter((request) => !known.has(request.id.split("~")[0]))
-                .map((request) => ({ ...newTask(request.instruction, request.attachments ?? []), id: request.id })),
+                .map(resumeTask),
             ];
           });
         setMemoryLoaded(true);
@@ -557,7 +578,7 @@ export function useBuilderRequests({
   useEffect(() => {
     if (!organizationId) return;
     for (const task of tasks) {
-      if (task.restored) continue;
+      if (task.restored || task.awaitingReattach) continue;
       if (task.state === "complete" || task.state === "failed" || task.state === "skipped" || task.state === "waiting_for_approval")
         clearPending(organizationId, task.id);
     }
@@ -572,7 +593,13 @@ export function useBuilderRequests({
     const task = newTask(request, attachments);
     // Recorded on this device the moment it is sent, so switching to the
     // dashboard or preview mid-plan can never lose the request.
-    if (organizationId) addPending(organizationId, { id: task.id, instruction: task.instruction, attachments, sentAt: new Date().toISOString() });
+    if (organizationId)
+      addPending(organizationId, {
+        id: task.id,
+        instruction: task.instruction,
+        hadAttachments: attachments.length > 0,
+        sentAt: new Date().toISOString(),
+      });
     setTasks((current) => [...current, task]);
     // Funnel stage: an owner actually asked for a build (never the text itself).
     trackConversion("build_requested", { metadata: { organization_id: organizationId ?? "" } });

@@ -39,6 +39,8 @@ export type QueueTask = {
   answered?: boolean;
   /** Brought back from the saved conversation; shown, never re-run. */
   restored?: boolean;
+  /** Restored after navigation but its photos weren't kept: waiting for the owner to re-attach. */
+  awaitingReattach?: boolean;
   summary?: string;
   questions: string[];
   /** Requested outcomes independently matched to concrete, renderable actions. */
