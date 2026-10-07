@@ -105,6 +105,39 @@ function resumeTask(request: PendingRequest): QueueTask {
 
 export type BuilderRequests = ReturnType<typeof useBuilderRequests>;
 
+/** Safari "Load failed", Chrome "Failed to fetch", timeouts: the request never got its answer. */
+function isDroppedConnection(error: unknown): boolean {
+  const message = String((error as Error)?.message ?? error ?? "").toLowerCase();
+  return /load failed|failed to fetch|network ?error|networkerror|timed? ?out|the network connection was lost|aborted/.test(message);
+}
+
+/**
+ * Polls for a plan the server finished after the browser lost the connection.
+ * The server stores every finished plan with its request id; this reads it
+ * back for up to ~4 minutes.
+ */
+async function recoverPlan(organizationId: string, requestId: string): Promise<unknown | null> {
+  const deadline = Date.now() + 4 * 60 * 1000;
+  while (Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, 5000));
+    try {
+      const { data } = await supabase
+        .from("ai_generations")
+        .select("result")
+        .eq("organization_id", organizationId)
+        .eq("kind", "agent_plan")
+        .contains("result", { requestId } as never)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (data?.result) return data.result;
+    } catch {
+      // Still offline: keep waiting.
+    }
+  }
+  return null;
+}
+
 export function useBuilderRequests({
   organizationId,
   canManage,
@@ -282,7 +315,20 @@ export function useBuilderRequests({
         batches.push(allActions.slice(index, index + APPLY_BATCH_SIZE));
       if (!batches.length) batches.push([]);
 
-      let result = await applyFn({
+      // Each apply carries a stable operation key, so the server writes it at
+      // most once: a phone that drops the connection ("Load failed") simply
+      // asks again and gets the same result back.
+      const applyOnce = async (input: Parameters<typeof applyFn>[0]) => {
+        for (let attempt = 0; ; attempt += 1) {
+          try {
+            return await applyFn(input);
+          } catch (error) {
+            if (attempt >= 3 || !isDroppedConnection(error)) throw error;
+            await new Promise((resolve) => setTimeout(resolve, 4000 * (attempt + 1)));
+          }
+        }
+      };
+      let result = await applyOnce({
         data: {
           organizationId: organizationId!,
           actions: batches[0]!,
@@ -298,7 +344,7 @@ export function useBuilderRequests({
         // which replans against the current site.
         if (!result.applied) break;
         patch(task.id, { applied: result.applied });
-        const next = await applyFn({
+        const next = await applyOnce({
           data: {
             organizationId: organizationId!,
             actions: batches[index]!,
@@ -414,16 +460,27 @@ export function useBuilderRequests({
   const runPlan = async (task: QueueTask) => {
     patch(task.id, { state: "planning" });
     try {
-      const result = await planFn({
-        data: {
-          organizationId: organizationId!,
-          instruction: task.instruction,
-          history: conversation.slice(-24),
-          attachments: task.attachments ?? [],
-          requestId: task.id,
-          ...(brand && hasBrandChoices(brand) ? { brand } : {}),
-        },
-      });
+      let result: Awaited<ReturnType<typeof planFn>>;
+      try {
+        result = await planFn({
+          data: {
+            organizationId: organizationId!,
+            instruction: task.instruction,
+            history: conversation.slice(-24),
+            attachments: task.attachments ?? [],
+            requestId: task.id,
+            ...(brand && hasBrandChoices(brand) ? { brand } : {}),
+          },
+        });
+      } catch (error) {
+        // Phones drop long requests ("Load failed") while the AI team keeps
+        // working on the server. The finished plan is saved under this
+        // request's id, so wait for it instead of failing the request.
+        if (!isDroppedConnection(error)) throw error;
+        const recovered = await recoverPlan(organizationId!, task.id);
+        if (!recovered) throw error;
+        result = recovered as Awaited<ReturnType<typeof planFn>>;
+      }
       if ("deferred" in result && result.deferred) {
         // First build still running: wait for pages to appear WITHOUT calling
         // planWebsiteChanges again. Each call to planWebsiteChanges writes
