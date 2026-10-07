@@ -545,6 +545,9 @@ export function BookingForm({ site, presentation }: { site: Site; presentation?:
                 id={fid("date")}
                 name="date"
                 type="date"
+                // iOS Safari gives native date/time inputs an intrinsic min-width
+                // that pushed them past the card edge on phones.
+                className="w-full min-w-0 max-w-full appearance-none"
                 min={today || undefined}
                 required
                 value={pickedDate}
@@ -558,6 +561,9 @@ export function BookingForm({ site, presentation }: { site: Site; presentation?:
                 id={fid("time")}
                 name="time"
                 type="time"
+                // iOS Safari gives native date/time inputs an intrinsic min-width
+                // that pushed them past the card edge on phones.
+                className="w-full min-w-0 max-w-full appearance-none"
                 required
                 value={pickedTime}
                 onChange={(event) => setPickedTime(event.target.value)}
