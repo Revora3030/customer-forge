@@ -57,7 +57,7 @@ const INDUSTRY_SERVICE_ARCHETYPES: Record<string, string[]> = {
 };
 
 const normalizeServiceToken = (value: string) =>
-  value.trim().replace(/\\s+/g, " ").toLowerCase();
+  value.trim().replace(/\s+/g, " ").toLowerCase();
 
 export type SanitizedServiceRow = BriefFacts["serviceRows"][number];
 
@@ -87,9 +87,9 @@ export function sanitizeCustomerContactEmail(
 ): string | null {
   if (!value) return null;
   const email = value.trim().toLowerCase();
-  if (!/^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$/.test(email)) return null;
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return null;
   const internalWorkspace =
-    /\\brevora\\b/i.test(options.orgName ?? "") ||
+    /\brevora\b/i.test(options.orgName ?? "") ||
     /(^|[-_])revora([-_]|$)/i.test(options.orgSlug ?? "");
   if (!internalWorkspace && email.endsWith("@revoragrowthsystems.com")) return null;
   return email;
