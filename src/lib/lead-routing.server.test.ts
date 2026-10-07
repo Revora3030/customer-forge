@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  buildLeadWebhookPayload,
   classifyLeadWebhookFailure,
   dispatchLeadWebhook,
   validateLeadWebhookUrl,
@@ -25,7 +26,10 @@ describe("lead webhook routing", () => {
       event: "lead.created",
       timestamp: new Date().toISOString(),
       workspace_id: "workspace-1",
+      organization_id: "workspace-1",
+      idempotency_key: "lead.created:lead-1",
       lead: {
+        lead_id: "lead-1",
         name: "Jordan",
         email: null,
         phone: "555-0100",
@@ -49,7 +53,10 @@ describe("lead webhook routing", () => {
       event: "lead.created" as const,
       timestamp: "2026-09-27T00:00:00.000Z",
       workspace_id: "workspace-1",
+      organization_id: "workspace-1",
+      idempotency_key: "lead.created:lead-1",
       lead: {
+        lead_id: "lead-1",
         name: "Jordan",
         email: "jordan@example.com",
         phone: "555-0100",
@@ -74,6 +81,7 @@ describe("lead webhook routing", () => {
       "content-type": "application/json",
       "x-revora-event": "lead.created",
       "x-revora-workspace-id": "workspace-1",
+      "idempotency-key": "lead.created:lead-1",
     });
     expect(JSON.parse(String(init?.body))).toEqual(payload);
   });
@@ -97,7 +105,10 @@ describe("lead webhook routing", () => {
       event: "lead.created",
       timestamp: "2026-09-28T00:00:00.000Z",
       workspace_id: "workspace-1",
+      organization_id: "workspace-1",
+      idempotency_key: "lead.created:lead-1",
       lead: {
+        lead_id: "lead-1",
         name: "Jordan",
         email: "jordan@example.com",
         phone: null,
@@ -124,7 +135,10 @@ describe("lead webhook routing", () => {
       event: "lead.created",
       timestamp: "2026-09-28T00:00:00.000Z",
       workspace_id: "workspace-1",
+      organization_id: "workspace-1",
+      idempotency_key: "lead.created:lead-1",
       lead: {
+        lead_id: "lead-1",
         name: "Jordan",
         email: null,
         phone: "555-0100",
@@ -151,7 +165,10 @@ describe("lead webhook routing", () => {
       event: "lead.created",
       timestamp: "2026-09-28T00:00:00.000Z",
       workspace_id: "workspace-1",
+      organization_id: "workspace-1",
+      idempotency_key: "lead.created:lead-1",
       lead: {
+        lead_id: "lead-1",
         name: "Jordan",
         email: null,
         phone: null,
@@ -166,4 +183,35 @@ describe("lead webhook routing", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it("builds a strict-receiver payload with lead_id, organization_id and a stable key", () => {
+    const now = new Date("2026-10-07T00:00:00.000Z");
+    const first = buildLeadWebhookPayload({
+      organizationId: "org-1",
+      leadId: "lead-9",
+      name: "  Jordan ",
+      email: "",
+      phone: " 555-0100 ",
+      sourceUrl: "https://example.com/contact",
+      now,
+    });
+    expect(first).toEqual({
+      event: "lead.created",
+      timestamp: "2026-10-07T00:00:00.000Z",
+      workspace_id: "org-1",
+      organization_id: "org-1",
+      idempotency_key: "lead.created:lead-9",
+      lead: {
+        lead_id: "lead-9",
+        name: "Jordan",
+        email: null,
+        phone: "555-0100",
+        service: null,
+        message: null,
+        source_url: "https://example.com/contact",
+      },
+    });
+    // A retry of the same lead is the same event.
+    const retry = buildLeadWebhookPayload({ organizationId: "org-1", leadId: "lead-9", name: "Jordan", sourceUrl: "x" });
+    expect(retry.idempotency_key).toBe(first.idempotency_key);
+  });
 });
