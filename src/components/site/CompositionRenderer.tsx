@@ -186,25 +186,23 @@ export function readablePaint(node: Pick<CompositionNode, "type" | "style">, ctx
   const bg = own ?? ctx.bg;
   const bg2 = own ? node.style?.gradientTo : ctx.bg2;
   const authored = node.style?.color;
-  // Customer-facing headings/body copy must meet WCAG AA 4.5:1 even when large.
-  const large = false;
   let color: string | undefined;
   if (authored && bg) {
     const rgb = toRgb(authored);
     const neutral = rgb ? Math.max(rgb.r, rgb.g, rgb.b) - Math.min(rgb.r, rgb.g, rgb.b) < 28 : false;
     // White/grey/black text has no hue to keep: flip to the readable ink
     // instead of walking it into a muddy mid-grey.
-    let fixed = neutral && !isReadablePair(authored, bg, bg2) ? bestInk(bg, bg2) : readableOn(authored, bg, { large });
-    if (bg2) fixed = readableOn(fixed, bg2, { large });
-    if (bg2 && (contrastRatio(fixed, bg) ?? 21) < (large ? 3 : 4.5)) fixed = bestInk(bg, bg2);
+    let fixed = neutral && !isReadablePair(authored, bg, bg2) ? bestInk(bg, bg2) : readableOn(authored, bg, { large: false });
+    if (bg2) fixed = readableOn(fixed, bg2, { large: false });
+    if (bg2 && (contrastRatio(fixed, bg) ?? 21) < 4.5) fixed = bestInk(bg, bg2);
     if (fixed.toLowerCase() !== authored.toLowerCase()) color = fixed;
   } else if (!authored && own) {
     // A new surface with no authored text colour: the inherited colour may be
     // unreadable on it (white page text over a pale card). Pick the readable ink.
     const inherited = ctx.fg;
-    if (!inherited || (contrastRatio(inherited, own) ?? 21) < (large ? 3 : 4.5)) color = bestInk(own, bg2);
+    if (!inherited || (contrastRatio(inherited, own) ?? 21) < 4.5) color = bestInk(own, bg2);
   } else if (!authored && bg && ctx.fg && TEXTUAL.has(node.type)) {
-    if ((contrastRatio(ctx.fg, bg) ?? 21) < (large ? 3 : 4.5)) color = readableOn(ctx.fg, bg, { large });
+    if ((contrastRatio(ctx.fg, bg) ?? 21) < 4.5) color = readableOn(ctx.fg, bg, { large: false });
   }
   return { ...(color ? { color } : {}), bg, bg2, fg: color ?? authored ?? ctx.fg };
 }
