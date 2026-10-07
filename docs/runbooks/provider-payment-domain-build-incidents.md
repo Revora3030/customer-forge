@@ -31,7 +31,7 @@ customers report "paid but still locked".
 3. Entitlement is derived from verified webhook state only. Never mark an organization paid manually
    in the UI or by editing client state. If a manual correction is unavoidable, do it with the service
    role, record an `audit_logs` row with reason and actor, and reconcile with Stripe.
-4. Pricing is immutable ($750 setup, 3-day full access, first month free, $100/month). Do not create
+4. Pricing is immutable ($350 setup, 3-day full access, first month free, $100/month). Do not create
    new products or prices to work around an incident.
 5. The setup-fee waiver exists **only** for Revora's internal workspace, and every grant is audit-logged.
 

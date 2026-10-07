@@ -27,7 +27,7 @@
 - [x] Multi-provider advisers before Sol + diverse free-squad reviewers in first build and edits (Terra keeps truthfulness)
 - [x] Persisted per-model capability registry with probe evidence + admin counts
 - [x] Per-build team trace table and admin view
-- [ ] Revora site: visual 97/100 and hours fixed — publish waits on the $750 setup payment
+- [ ] Revora site: visual 97/100 and hours fixed — publish waits on the $350 setup payment
 - [ ] Second genuinely different industry build — needs real business details from owner
 - [x] Final security/billing review (clean)
 - [ ] Northline rebuild — waiting on owner go-ahead (uses AI budget)
