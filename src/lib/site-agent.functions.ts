@@ -465,13 +465,20 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
     // layouts and the header/footer finish. An edit planned in that window was
     // overwritten by the later stages, so wait for the whole build, not just
     // for the first pages to appear.
-    const { data: activeBuild } = await supabase
+    // Only a build that is really alive defers the request. A job whose worker
+    // was cut off keeps status "processing" with a lapsed lease; treating that
+    // as active held every chat request in an endless "finishing your first
+    // website" loop long after the worker had stopped.
+    const { data: buildRows } = await supabase
       .from("generation_jobs")
-      .select("id")
+      .select("id, status, lease_expires_at, updated_at")
       .eq("organization_id", orgId)
       .in("status", ["queued", "processing"])
-      .limit(1)
-      .maybeSingle();
+      .order("created_at", { ascending: false })
+      .limit(5);
+    const { jobIsActive } = await import("@/lib/builder/job-liveness");
+    const activeBuild = ((buildRows ?? []) as { status: string; lease_expires_at: string | null; updated_at: string | null }[])
+      .some((row) => jobIsActive(row));
     if (!agentContext.pages.length || activeBuild) {
       const reply =
         "Got it — your AI team is finishing the first website now. Keep this window open and I’ll apply this change as soon as the build finishes (usually a few minutes).";
