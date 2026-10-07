@@ -154,7 +154,7 @@ function SiteSectionBody({ site, section, lead = false, first = false }: { site:
     return legacyTree ? renderCompositionTree(legacyTree) : null;
   }
 
-  switch (kind) {
+  switch (section.kind) {
     case "quote":
       if (!site.quote) return null;
       return (
