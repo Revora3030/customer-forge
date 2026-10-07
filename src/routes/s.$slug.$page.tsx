@@ -282,7 +282,7 @@ export function SitePageView({
         <SiteVitals slug={org.slug} preview={preview} />
         {/* Lets the builder's preview frame pick a block by clicking it. Inert
             for every ordinary visitor and for any frame from another origin. */}
-        <PreviewSelectBridge />
+        {preview ? <PreviewSelectBridge /> : null}
         {preview ? <BuilderReturnBar /> : null}
         {preview ? <PreviewLinkBridge slug={org.slug} /> : null}
       </div>

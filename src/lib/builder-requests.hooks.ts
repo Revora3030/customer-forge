@@ -11,6 +11,7 @@
  * No policy changed here: the same server functions, the same approval gates,
  * the same honest failure reporting as before.
  */
+import { announceDraftChange } from "@/lib/builder/preview-bridge";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -288,6 +289,8 @@ export function useBuilderRequests({
       ]);
     } finally {
       setRefreshRevision((value) => value + 1);
+      // Other open tabs (a second builder, a full-size preview) refresh too.
+      if (organizationId) announceDraftChange(organizationId);
       setRefreshing(false);
     }
   };

@@ -7,6 +7,7 @@ import { useOwnAddress } from "@/components/site/use-own-address";
  * claims. Lead-capture blocks (quote, booking, sticky call bar) render the same
  * forms used on the home page, so any page can convert a visitor.
  */
+import { usePreviewMode } from "@/components/site/preview-mode-context";
 import { CompositionRenderer } from "@/components/site/CompositionRenderer";
 import { readComposition, type WidgetPresentation } from "@/lib/builder/composition-tree";
 import { legacySectionToComposition } from "@/lib/builder/legacy-composition";
@@ -113,6 +114,9 @@ function SiteSectionBody({ site, section, lead = false, first = false, surface =
   const components = section.components ?? [];
   const { profile, org } = site;
   const ownAddress = useOwnAddress();
+  // Element-level picking and inline edits exist only for SAVED AI layouts in
+  // the owner's draft preview (a legacy translation has no tree to write to).
+  const editable = usePreviewMode() && readComposition(section.settings) !== null;
 
   // Any valid AI composition wins over the legacy kind, so AI designs are never hidden.
   // Older plain sections (built before every section carried an AI layout, or
@@ -134,6 +138,7 @@ function SiteSectionBody({ site, section, lead = false, first = false, surface =
         <CompositionRenderer
           tree={tree}
           scope={`s-${section.id}`}
+          editable={editable}
           surface={sectionSurface(site, readBlockStyle(section.settings).bgColor)}
           eagerFirstMedia={first}
           resolveMedia={(ref) => media.get(ref) ?? null}

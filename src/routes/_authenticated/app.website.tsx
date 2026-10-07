@@ -1,5 +1,6 @@
 import { toast } from "sonner";
 import { useEffect, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { LoadingRows } from "@/components/app/Bits";
 import { Button } from "@/components/ui/button";
@@ -30,6 +31,9 @@ import { GroupTabs } from "@/components/app/BuilderGroups";
 import { orderGroups } from "@/components/app/builder-groups-utils";
 import { BuilderAssistant } from "@/components/app/BuilderAssistant";
 import { useBuilderRequests } from "@/lib/builder-requests.hooks";
+import { actionPrompt, selectionPrefix } from "@/lib/builder/preview-bridge";
+import { liveStatusLine } from "@/lib/builder/live-status";
+import { useBuildProgress } from "@/lib/builder/progress.hooks";
 import { ConversionOptimizer } from "@/components/app/ConversionOptimizer";
 import { normalizeBuilderMode } from "@/lib/builder-modes";
 
@@ -233,6 +237,13 @@ function WebsitePage() {
 
   /** One request engine for the whole workspace. */
   const requests = useBuilderRequests({ organizationId: orgId ?? null, canManage: manage });
+  const queryClient = useQueryClient();
+  // The newest real progress stage of the running request, floated on the preview.
+  const activeTask = requests.tasks.find((task) => task.state === "planning" || task.state === "building");
+  const progress = useBuildProgress(orgId, Boolean(activeTask), activeTask?.id ?? null);
+  const liveStatus = activeTask
+    ? liveStatusLine(progress.latest?.stage ?? (activeTask.state === "building" ? "designing your change" : "planning the change"), selected?.label ?? null)
+    : null;
   const firstBuild = useGenerateSectionsFromText(orgId);
   const latestJob = useLatestGenerationJob(orgId);
   useEnsureFirstBuild(orgId, {
@@ -587,7 +598,20 @@ function WebsitePage() {
               refreshing={requests.refreshing}
               refreshRevision={requests.refreshRevision}
               selectedId={selected?.id ?? null}
+              selectedPath={selected?.path ?? null}
+              liveStatus={liveStatus}
+              onInlineSaved={() => {
+                // The frame already shows the new words; refresh caches so
+                // the canvas, history and chat context read the saved text.
+                void queryClient.invalidateQueries({ queryKey: ["website_content", orgId] });
+              }}
               onSelect={(pick) => {
+                // A hover-menu action runs at once as a scoped request.
+                if (pick.action && manage) {
+                  requests.queue(`${selectionPrefix(pick)} ${actionPrompt(pick.action, pick)}`);
+                  setSelected(pick);
+                  return;
+                }
                 setSelected(pick);
                 setPreviewOpen(false);
               }}

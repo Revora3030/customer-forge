@@ -2498,3 +2498,19 @@ body { padding-bottom: env(safe-area-inset-bottom); }
 .rv-site main > :is(section, [data-composition]) {
   scroll-margin-top: 5rem;
 }
+
+/* Inline text editing in the builder preview (owner draft only). */
+[data-rv-editing="true"] {
+  outline: 2px solid var(--primary) !important;
+  outline-offset: 3px;
+  border-radius: 4px;
+  cursor: text;
+  caret-color: var(--primary);
+}
+.rv-preview-select [data-rvp] {
+  cursor: pointer;
+}
+.rv-preview-select [data-rvp][data-rvb-selected="true"] {
+  outline: 3px solid var(--primary);
+  outline-offset: 3px;
+}

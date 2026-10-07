@@ -7,6 +7,8 @@
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { useEffect } from "react";
 import { getOwnerDraftSite } from "@/lib/public-site.functions";
+import { DRAFT_CHANNEL, readDraftPing } from "@/lib/builder/preview-bridge";
+import { PreviewModeContext } from "@/components/site/preview-mode-context";
 import { stepLabel } from "@/lib/site-engine";
 import { ErrorBoundary } from "@/components/app/ErrorBoundary";
 import { SitePageView } from "@/routes/s.$slug.$page";
@@ -57,6 +59,17 @@ function DraftPageRouteContent() {
   const rawSections: unknown = result?.site?.content?.sections;
   const sections = Array.isArray(rawSections) ? rawSections : [];
 
+  // A change saved in another tab (builder, inline edit) reloads this draft.
+  useEffect(() => {
+    // Inside the builder's own frame the builder already reloads it.
+    if (typeof BroadcastChannel === "undefined" || window.parent !== window) return;
+    const channel = new BroadcastChannel(DRAFT_CHANNEL);
+    channel.onmessage = (event) => {
+      if (readDraftPing(event.data)) void router.invalidate().catch(() => undefined);
+    };
+    return () => channel.close();
+  }, [router]);
+
   useEffect(() => {
     if (result?.status !== "pending") return;
     const timer = window.setInterval(() => void router.invalidate().catch(() => undefined), 2500);
@@ -69,7 +82,9 @@ function DraftPageRouteContent() {
     return (
       <>
         {result.status === "pending" ? <DraftUpdatingBanner job={result.job} /> : null}
-        <SitePageView site={result.site} preview />
+        <PreviewModeContext.Provider value={true}>
+          <SitePageView site={result.site} preview />
+        </PreviewModeContext.Provider>
       </>
     );
   }
