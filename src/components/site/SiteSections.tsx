@@ -318,8 +318,8 @@ function SiteSectionBody({ site, section, lead = false, first = false }: { site:
         lead,
         surface: sectionSurface(site, readBlockStyle(section.settings).bgColor),
         accent:
-          typeof (site.profile as Record<string, unknown> | null)?.accent_color === "string"
-            ? ((site.profile as Record<string, unknown>).accent_color as string)
+          typeof (site.profile as Record<string, unknown> | null)?.["accent_color"] === "string"
+            ? ((site.profile as Record<string, unknown>)["accent_color"] as string)
             : null,
       });
       if (!tree) return null;
