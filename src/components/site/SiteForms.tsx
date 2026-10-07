@@ -17,6 +17,7 @@ import { useStepScroll } from "@/lib/use-step-scroll";
 import { DirectContact } from "@/components/site/ContactDetails";
 import { widgetPresentationStyle } from "@/components/site/contact-details-utils";
 import type { WidgetPresentation } from "@/lib/builder/composition-tree";
+import { usePreviewMode } from "@/components/site/preview-mode-context";
 
 type Site = NonNullable<PublicSite>;
 
@@ -90,9 +91,27 @@ function contactProblem(email: string, phone: string): string | null {
   return null;
 }
 
+/**
+ * Sends a lead, or SIMULATES sending it in the owner's draft preview: the form
+ * runs its real validation and shows its real success screen, but no lead,
+ * booking, CRM webhook or email is created. Owners can test every widget
+ * without polluting their own pipeline.
+ */
+function useLeadSubmit(): typeof submitPublicLead {
+  const send = useServerFn(submitPublicLead);
+  const preview = usePreviewMode();
+  if (!preview) return send as typeof submitPublicLead;
+  const simulated = async () => {
+    await new Promise((resolve) => setTimeout(resolve, 350));
+    toast.success("Preview only — this test was not sent to your leads.");
+    return { ok: true as const, simulated: true as const };
+  };
+  return simulated as unknown as typeof submitPublicLead;
+}
+
 export function QuoteCalculator({ site, presentation }: { site: Site; presentation?: WidgetPresentation }) {
   const quote = site.quote;
-  const submit = useServerFn(submitPublicLead);
+  const submit = useLeadSubmit();
   const track = useTracker(site.org.slug);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [picked, setPicked] = useState<string[]>([]);
@@ -357,7 +376,7 @@ export function QuoteCalculator({ site, presentation }: { site: Site; presentati
 export function BookingForm({ site, presentation }: { site: Site; presentation?: WidgetPresentation }) {
   const uid = useId();
   const fid = (key: string) => `b-${key}-${uid}`;
-  const submit = useServerFn(submitPublicLead);
+  const submit = useLeadSubmit();
   const track = useTracker(site.org.slug);
   const bookable = site.services.filter((s) => s.bookable);
   const [pending, setPending] = useState(false);
