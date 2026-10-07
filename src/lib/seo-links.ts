@@ -76,6 +76,26 @@ const L = {
     anchor: "Free lead-value calculators",
     note: "What a lead, a missed call and follow-up are worth to you.",
   },
+  states: {
+    path: "/states",
+    anchor: "Growth systems in all 50 states",
+    note: "The same complete system, wherever your business is.",
+  },
+  locations: {
+    path: "/locations",
+    anchor: "North Carolina cities we serve",
+    note: "Charlotte, Raleigh, Greensboro and the rest of the state.",
+  },
+  about: {
+    path: "/about",
+    anchor: "Who builds Revora",
+    note: "The team and the reason Revora exists.",
+  },
+  contact: {
+    path: "/contact",
+    anchor: "Talk to the Revora team",
+    note: "Email or call with questions about your business.",
+  },
   reviews: {
     path: "/guides/get-more-google-reviews",
     anchor: "How to get more Google reviews",
@@ -85,15 +105,18 @@ const L = {
 
 const FALLBACK: SeoLink[] = [L.pricing, L.crm];
 
+// Each cluster's first four links are what a page renders by default. Every
+// indexable hub appears in at least one cluster so it has a contextual
+// inbound link (not only a footer link) and is never an orphan.
 const CLUSTERS: Record<string, SeoLink[]> = {
   brand: [L.crm, L.local, L.pricing, L.audit],
-  commercial: [L.industries, L.local, L.guides, L.pricing],
+  commercial: [L.industries, L.local, L.guides, L.assessment],
   transactional: [L.crm, L.compare, L.guides, L.audit],
   industry: [L.crm, L.local, L.reviews, L.pricing],
-  local: [L.industries, L.crm, L.guides, L.getStarted],
+  local: [L.states, L.locations, L.industries, L.getStarted],
   informational: [L.crm, L.contractorCrm, L.tools, L.pricing],
-  comparison: [L.pricing, L.crm, L.guides, L.getStarted],
-  navigational: [L.pricing, L.crm, L.guides],
+  comparison: [L.pricing, L.about, L.crm, L.getStarted],
+  navigational: [L.pricing, L.contact, L.about, L.crm],
 };
 
 /**

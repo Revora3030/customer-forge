@@ -17,7 +17,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { GROWTH_SYSTEM, usdExact } from "@/lib/offer";
 import { getPublicOfferRates } from "@/lib/offer.functions";
-import { GROWTH_SYSTEM_SCHEMA, breadcrumbSchema, canonicalLink, ogUrl } from "@/lib/seo";
+import { GROWTH_SYSTEM_SCHEMA, breadcrumbSchema, canonicalLink, faqSchema, ogUrl } from "@/lib/seo";
 import { useExperiment } from "@/lib/experiments.hooks";
 import { trackConversion } from "@/lib/conversion";
 import { LocalPriceEstimate } from "@/components/marketing/LocalPriceEstimate";
@@ -56,6 +56,8 @@ export const Route = createFileRoute("/pricing")({
             ]),
           ),
         },
+        // The same questions are rendered in the #faq section below.
+        { type: "application/ld+json", children: JSON.stringify(faqSchema(FAQ)) },
       ],
     },
   component: PricingRoute,

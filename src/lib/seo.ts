@@ -43,6 +43,16 @@ export const ORGANIZATION_SCHEMA = {
   name: BUSINESS.legalName,
   legalName: BUSINESS.legalName,
   url: SITE_URL,
+  // Google uses Organization.logo for the logo in search results and the
+  // knowledge panel. It must be a crawlable, square-ish image of at least
+  // 112x112 on the site's own domain.
+  logo: {
+    "@type": "ImageObject",
+    url: absoluteUrl("/revora-mark-144.png"),
+    width: 158,
+    height: 144,
+  },
+  image: OG_IMAGE.url,
   telephone: BUSINESS.tel,
   email: BUSINESS.email,
   description:
@@ -84,7 +94,8 @@ export const LOCAL_BUSINESS_SCHEMA = {
   url: SITE_URL,
   telephone: BUSINESS.tel,
   email: BUSINESS.email,
-  image: `${SITE_URL}/favicon.png`,
+  image: OG_IMAGE.url,
+  logo: absoluteUrl("/revora-mark-144.png"),
   priceRange: BUSINESS.priceRange,
   currenciesAccepted: "USD",
   paymentAccepted: "Credit Card, Debit Card, Apple Pay, Google Pay",
@@ -211,6 +222,19 @@ export const GROWTH_SYSTEM_SCHEMA = {
     },
   ],
 };
+
+/** FAQPage schema for questions that are visibly answered on the page. */
+export function faqSchema(items: readonly { q: string; a: string }[]) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: items.map((item) => ({
+      "@type": "Question",
+      name: item.q,
+      acceptedAnswer: { "@type": "Answer", text: item.a },
+    })),
+  };
+}
 
 /** Breadcrumbs help search engines understand deep pages. */
 export function breadcrumbSchema(trail: { name: string; path: string }[]) {
