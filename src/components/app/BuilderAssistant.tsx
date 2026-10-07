@@ -238,7 +238,12 @@ export function BuilderAssistant({
       )}
     >
       {/* ------------------------------ Chat header ----------------------------- */}
-      <header className="flex shrink-0 items-center gap-2.5 border-b border-border/60 px-4 py-2.5 sm:px-5">
+      {/* Phones (≈390px) cannot fit the title, search, branch picker and "New
+          chat" on one row; the title used to get ~15px and wrapped one letter
+          per line. The title keeps a guaranteed minimum width and never wraps,
+          the branch picker is hidden below sm, and "New chat" collapses to an
+          icon. */}
+      <header className="flex min-w-0 shrink-0 items-center gap-2 border-b border-border/60 px-3 py-2.5 sm:gap-2.5 sm:px-5">
         <span className="relative inline-flex size-7 shrink-0">
           <img src="/revora-mark-144.png" alt="" className="size-7 rounded-lg" />
           <span
@@ -249,31 +254,36 @@ export function BuilderAssistant({
             aria-hidden
           />
         </span>
-        <div className="min-w-0 flex-1 leading-tight">
-          <p className="text-[13.5px] font-semibold">Revora</p>
-          <p className="truncate text-[11.5px] text-muted-foreground" aria-live="polite">
+        <div className="min-w-[7.5rem] flex-1 overflow-hidden leading-tight">
+          <p className="truncate whitespace-nowrap text-[13.5px] font-semibold">Revora</p>
+          <p className="truncate whitespace-nowrap text-[11.5px] text-muted-foreground" aria-live="polite">
             {busy ? "Working on your website…" : "AI website team · ready"}
           </p>
         </div>
         {!onFirstBuild && requests.memoryLoaded ? (
           <>
-            <ChatSearch search={requests.search} />
-            <BranchSwitcher
-              branch={requests.branch}
-              branches={requests.branches}
-              onSwitch={requests.switchBranch}
-              disabled={requests.busy}
-            />
+            <div className="shrink-0">
+              <ChatSearch search={requests.search} />
+            </div>
+            <div className="hidden shrink-0 sm:block">
+              <BranchSwitcher
+                branch={requests.branch}
+                branches={requests.branches}
+                onSwitch={requests.switchBranch}
+                disabled={requests.busy}
+              />
+            </div>
           </>
         ) : null}
         {requests.tasks.length > 0 && !requests.busy ? (
           <button
             type="button"
             onClick={() => void requests.newChat()}
-            className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-full px-3 text-[12.5px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+            className="inline-flex size-8 shrink-0 cursor-pointer items-center justify-center gap-1.5 rounded-full text-[12.5px] whitespace-nowrap text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none sm:h-8 sm:w-auto sm:px-3"
             title="Start a new conversation"
+            aria-label="Start a new conversation"
           >
-            <SquarePen className="size-3.5" aria-hidden /> New chat
+            <SquarePen className="size-3.5" aria-hidden /> <span className="hidden sm:inline">New chat</span>
           </button>
         ) : null}
       </header>
