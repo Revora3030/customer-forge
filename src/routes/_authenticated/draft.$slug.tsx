@@ -10,6 +10,8 @@ import { useEffect, type ReactNode } from "react";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { getOwnerDraftSite } from "@/lib/public-site.functions";
+import { DRAFT_CHANNEL, readDraftPing } from "@/lib/builder/preview-bridge";
+import { PreviewModeContext } from "@/components/site/preview-mode-context";
 import { stepLabel } from "@/lib/site-engine";
 import { PublicSiteView } from "@/routes/s.$slug";
 import { ErrorBoundary } from "@/components/app/ErrorBoundary";
@@ -154,6 +156,17 @@ function DraftHomeRouteContent() {
   const rawSections: unknown = result?.site?.content?.sections;
   const sections = Array.isArray(rawSections) ? rawSections : [];
 
+  // A change saved in another tab (builder, inline edit) reloads this draft.
+  useEffect(() => {
+    // Inside the builder's own frame the builder already reloads it.
+    if (typeof BroadcastChannel === "undefined" || window.parent !== window) return;
+    const channel = new BroadcastChannel(DRAFT_CHANNEL);
+    channel.onmessage = (event) => {
+      if (readDraftPing(event.data)) void router.invalidate().catch(() => undefined);
+    };
+    return () => channel.close();
+  }, [router]);
+
   useEffect(() => {
     if (result?.status !== "pending") return;
     const timer = window.setInterval(() => void router.invalidate().catch(() => undefined), 2500);
@@ -168,7 +181,9 @@ function DraftHomeRouteContent() {
     return (
       <>
         {result.status === "pending" ? <DraftUpdatingBanner job={result.job} /> : null}
-        <PublicSiteView site={result.site} preview />
+        <PreviewModeContext.Provider value={true}>
+          <PublicSiteView site={result.site} preview />
+        </PreviewModeContext.Provider>
       </>
     );
   }
