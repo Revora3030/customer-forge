@@ -300,55 +300,6 @@ function SiteSectionBody({ site, section, lead = false, first = false }: { site:
       );
     }
 
-    // Backward compatibility only: legacy records are adapted in-memory to the
-    // same CompositionTree renderer used by new AI-authored sections. There is
-    // deliberately no legacy JSX/layout engine left in this component.
-    case "hero":
-    case "services":
-    case "process":
-    case "social_proof":
-    case "faq":
-    case "home":
-    case "page":
-    case "story":
-    case "values":
-    case "service_area": {
-      if (!LEGACY_SECTION_KINDS.has(section.kind)) return null;
-      const tree = legacySectionToComposition(section, {
-        lead,
-        surface: sectionSurface(site, readBlockStyle(section.settings).bgColor),
-        accent:
-          typeof (site.profile as Record<string, unknown> | null)?.["accent_color"] === "string"
-            ? ((site.profile as Record<string, unknown>)["accent_color"] as string)
-            : null,
-      });
-      if (!tree) return null;
-      const media = new Map(components.map((component) => [component.id, {
-        url: component.url,
-        visual: readComponentVisual(component.settings),
-      }]));
-      return (
-        <CompositionRenderer
-          tree={tree}
-          scope={`legacy-s-${section.id}`}
-          surface={sectionSurface(site, readBlockStyle(section.settings).bgColor)}
-          eagerFirstMedia={first}
-          resolveMedia={(ref) => media.get(ref) ?? null}
-          resolveHref={(href) => resolveSiteHref(href, org.slug, ownAddress)}
-          resolveWidget={(name, presentation?: WidgetPresentation) => {
-            if (name === "booking_form") return <BookingForm site={site} {...(presentation ? { presentation } : {})} />;
-            if (name === "quote_calculator") return site.quote ? <QuoteCalculator site={site} {...(presentation ? { presentation } : {})} /> : null;
-            if (name === "contact_details") return <ContactFacts site={site} {...(presentation ? { presentation } : {})} />;
-            if (name === "service_menu") return <ServiceMenu site={site} {...(presentation ? { presentation } : {})} />;
-            if (name === "review_wall") return <ReviewWall site={site} {...(presentation ? { presentation } : {})} />;
-            if (name === "direct_contact")
-              return <DirectContact profile={profile} businessName={site.org.name} label={presentation?.contactLabel ?? presentation?.title ?? `Call or email ${site.org.name} directly`} {...(presentation ? { presentation } : {})} />;
-            return null;
-          }}
-        />
-      );
-    }
-
     default:
       // Only AI-designed layouts and working features render; there is no
       // built-in layout for anything else.
