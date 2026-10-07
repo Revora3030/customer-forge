@@ -10,8 +10,14 @@
 export type LeadWebhookPayload = {
   event: "lead.created";
   timestamp: string;
+  /** Kept for existing receivers; same value as organization_id. */
   workspace_id: string;
+  /** Standard tenant identifier many CRM/webhook receivers validate. */
+  organization_id: string;
+  /** Stable per lead: a retried submit or redelivery carries the same key. */
+  idempotency_key: string;
   lead: {
+    lead_id: string;
     name: string;
     email: string | null;
     phone: string | null;
@@ -41,6 +47,45 @@ export type LeadWebhookResult =
     };
 
 const WEBHOOK_TIMEOUT_MS = 5_000;
+
+/** One key per lead, so every delivery attempt for it is the same event. */
+export function leadIdempotencyKey(leadId: string): string {
+  return `lead.created:${leadId}`;
+}
+
+/**
+ * Builds the outbound body. Required fields are always present (null when
+ * unknown) so strict receivers validating `lead_id`, `name`, `email`, `phone`
+ * and `organization_id` never answer 400 for a missing key.
+ */
+export function buildLeadWebhookPayload(input: {
+  organizationId: string;
+  leadId: string;
+  name: string;
+  email?: string | null;
+  phone?: string | null;
+  service?: string | null;
+  message?: string | null;
+  sourceUrl: string;
+  now?: Date;
+}): LeadWebhookPayload {
+  return {
+    event: "lead.created",
+    timestamp: (input.now ?? new Date()).toISOString(),
+    workspace_id: input.organizationId,
+    organization_id: input.organizationId,
+    idempotency_key: leadIdempotencyKey(input.leadId),
+    lead: {
+      lead_id: input.leadId,
+      name: String(input.name ?? "").trim().slice(0, 200),
+      email: input.email?.trim() || null,
+      phone: input.phone?.trim() || null,
+      service: input.service?.trim() || null,
+      message: input.message?.trim() || null,
+      source_url: input.sourceUrl,
+    },
+  };
+}
 
 export function classifyLeadWebhookFailure(
   statusCode: number | null,
@@ -105,6 +150,9 @@ export async function dispatchLeadWebhook(
         "content-type": "application/json",
         "x-revora-event": payload.event,
         "x-revora-workspace-id": payload.workspace_id,
+        // Receivers that dedupe on the header (Stripe-style) see the same key
+        // the body carries, so a redelivered lead is never created twice.
+        "idempotency-key": payload.idempotency_key,
       },
       body: JSON.stringify(payload),
       signal: controller.signal,
