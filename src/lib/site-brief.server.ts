@@ -233,7 +233,9 @@ export async function gatherBriefFacts(
       email: str(p["email"]),
       quoteForms: (forms.data ?? []).length,
       quoteQuestions: (questions.data ?? []).length,
-      bookableServices: (bookable.data ?? []).length,
+      bookableServices: ((bookable.data ?? []) as { id: string; name?: string | null }[])
+        .filter((row) => !row.name || !isPlatformServiceToken(row.name))
+        .length,
       captureSections,
       siteLeads: (leads.data ?? []).length,
       loggedActivities: (activities.data ?? []).length,
