@@ -20,10 +20,12 @@ describe("composition render safety", () => {
     const bad = { composition: { version: 1, root: { type: "link", text: "x", href: "javascript:alert(1)" } } };
     expect(readComposition(bad)).toBeNull();
   });
-  it("accepts 3:1 contrast for large headings (WCAG large text)", () => {
-    const heading = tree({ color: "#949494", background: "#ffffff", size: 48 }, "heading");
-    expect(validateComposition(heading).ok).toBe(true);
-    const small = tree({ color: "#949494", background: "#ffffff", size: 14 });
-    expect(validateComposition(small).ok).toBe(false);
+  it("requires 4.5:1 contrast for headings and body copy", () => {
+    const strong = tree({ color: "#666666", background: "#ffffff", size: 48 }, "heading");
+    expect(validateComposition(strong).ok).toBe(true);
+    const weakHeading = tree({ color: "#949494", background: "#ffffff", size: 48 }, "heading");
+    expect(validateComposition(weakHeading).ok).toBe(false);
+    const weakBody = tree({ color: "#949494", background: "#ffffff", size: 14 });
+    expect(validateComposition(weakBody).ok).toBe(false);
   });
 });
