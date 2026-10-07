@@ -19,7 +19,9 @@ describe("final blocker regressions", () => {
   it("first-build retry cleanup is fenced to rows the job wrote", () => {
     const src = read("src/lib/site-engine.worker.server.ts");
     expect(src).not.toMatch(/from\("website_(pages|sections|components)"\)\.delete\(\)\.eq\("organization_id", orgId\);/);
-    expect(src).toContain('.lt("created_at", since)');
+    expect(read("src/lib/site-materialize.server.ts")).toContain('db.rpc("clear_website_content", { p_org_id: orgId })');
+    expect(src).toContain('buildState: "materializing"');
+    expect(src).toContain('priorGeneration["jobId"] === job.id');
   });
 
   it("the materializer does not impose picture treatment by slot", () => {
