@@ -166,8 +166,8 @@ function renderNode(node: CompositionNode, ctx: Ctx, key: string): ReactNode {
 const TEXTUAL = new Set<CompositionNode["type"]>(["heading", "text", "link", "button", "list", "quote", "icon", "accordion", "faq_accordion", "tabs", "toggle", "tab_group"]);
 const BRIGHT = "#ffffff";
 const INK = "#101114";
-const isReadablePair = (fg: string, bg: string, bg2: string | undefined, large: boolean) => {
-  const need = large ? 3 : 4.5;
+const isReadablePair = (fg: string, bg: string, bg2: string | undefined, _large: boolean) => {
+  const need = 4.5;
   return (contrastRatio(fg, bg) ?? 21) >= need && (!bg2 || (contrastRatio(fg, bg2) ?? 21) >= need);
 };
 const bestInk = (bg: string, bg2?: string) => {
@@ -186,7 +186,8 @@ export function readablePaint(node: Pick<CompositionNode, "type" | "style">, ctx
   const bg = own ?? ctx.bg;
   const bg2 = own ? node.style?.gradientTo : ctx.bg2;
   const authored = node.style?.color;
-  const large = node.type === "heading" || (node.style?.size ?? 0) >= 24;
+  // Customer-facing headings/body copy must meet WCAG AA 4.5:1 even when large.
+  const large = false;
   let color: string | undefined;
   if (authored && bg) {
     const rgb = toRgb(authored);
@@ -228,6 +229,7 @@ function renderNodeInner(node: CompositionNode, ctx: Ctx, key: string): ReactNod
   // Text is re-paired with the surface it actually sits on, keeping its hue.
   const paint = readablePaint(node, ctx);
   if (paint.color) style.color = paint.color;
+  if (paint.fg) (style as CSSProperties & Record<string, string>) ["--rv-card-foreground"] = paint.fg;
   ctx.bg = paint.bg; ctx.bg2 = paint.bg2; ctx.fg = paint.fg;
   const motion = node.motion && node.motion.kind !== "none" ? node.motion : null;
   const interactive = node.type === "button" || node.type === "link" || node.type === "card" || node.type === "widget";
