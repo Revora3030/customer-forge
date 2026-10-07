@@ -10,7 +10,7 @@ describe("readable text on AI layouts", () => {
     const panel = readablePaint({ type: "stack", style: { background: "#c4c4c4" } }, { bg: "#0b0b0d", fg: "#ffffff" });
     const heading = readablePaint({ type: "heading", style: { color: "#ffffff" } }, panel);
     expect(heading.color).toBeDefined();
-    expect(contrastRatio(heading.color!, "#c4c4c4")!).toBeGreaterThanOrEqual(3);
+    expect(contrastRatio(heading.color!, "#c4c4c4")!).toBeGreaterThanOrEqual(4.5);
     const body = readablePaint({ type: "text", style: {} }, panel);
     expect(contrastRatio(body.color ?? panel.fg!, "#c4c4c4")!).toBeGreaterThanOrEqual(4.5);
   });
