@@ -153,7 +153,7 @@ export function legacySectionToComposition(section: Section, options: Compositio
           ...(card.mediaRef ? [{ type: "media" as const, mediaRef: card.mediaRef, alt: card.alt, style: { aspect: "16:10", radius: 14, objectFit: "cover" as const } }] : []),
           ...(card.label ? [{ type: "heading" as const, text: card.label, level: 3 as const, style: { size: 20, weight: 700, color: foreground } }] : []),
           ...(card.body ? [{ type: "text" as const, text: card.body, style: { size: 15, color: foreground, lineHeight: 1.6 } }] : []),
-          ...(card.href && card.hrefLabel ? [{ type: "link" as const, text: card.hrefLabel, href: card.href, style: { color: accent, size: 15, weight: 700 } }] : []),
+          ...(card.href && card.hrefLabel ? [{ type: "link" as const, text: card.hrefLabel, href: card.href, style: { color: accent, size: 15, weight: 700, minHeight: 44, paddingY: 10, paddingX: 8 } }] : []),
         ],
       })),
     });
@@ -169,7 +169,7 @@ export function legacySectionToComposition(section: Section, options: Compositio
     type: "row", style: { gap: 12, items: "center", paddingY: 8 }, responsive: { mobile: { gap: 10 } },
     children: buttons.slice(0, 3).map((button, index) => ({
       type: "button" as const, text: button.label, href: button.href,
-      style: { background: index === 0 ? accent : background, color: readableOn("#ffffff", index === 0 ? accent : background, { large: false }), size: 15, weight: 700, radius: 999, paddingX: 22, paddingY: 13 },
+      style: { background: index === 0 ? accent : background, color: readableOn("#ffffff", index === 0 ? accent : background, { large: false }), size: 15, weight: 700, radius: 999, minHeight: 44, paddingX: 22, paddingY: 13 },
       responsive: { mobile: { size: 15, paddingX: 18, paddingY: 12 } },
     })),
   });
