@@ -10,8 +10,16 @@ type RouteErrorContext = {
 const recentReports = new Map<string, number>();
 const DEDUPE_MS = 10_000;
 
+/**
+ * The route WITHOUT secrets: share-preview and invite paths carry a bearer
+ * token as a path segment, and must never reach the error store or Sentry.
+ */
+export function safeRoutePath(pathname: string): string {
+  return pathname.replace(/^\/(p|invite|preview|unsubscribe)\/[^/]+/, "/$1/[token]");
+}
+
 function route() {
-  return typeof window === "undefined" ? "" : window.location.pathname;
+  return typeof window === "undefined" ? "" : safeRoutePath(window.location.pathname);
 }
 
 export function reportRouteError(error: unknown, context: RouteErrorContext = {}) {
