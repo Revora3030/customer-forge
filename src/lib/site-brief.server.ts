@@ -59,6 +59,10 @@ const INDUSTRY_SERVICE_ARCHETYPES: Record<string, string[]> = {
 const normalizeServiceToken = (value: string) =>
   value.trim().replace(/\s+/g, " ").toLowerCase();
 
+export function isPlatformServiceToken(value: string): boolean {
+  return PLATFORM_SERVICE_TOKENS.has(normalizeServiceToken(value));
+}
+
 export type SanitizedServiceRow = BriefFacts["serviceRows"][number];
 
 export function sanitizeServiceRows(
