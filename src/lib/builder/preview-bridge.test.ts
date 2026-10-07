@@ -60,3 +60,47 @@ describe("preview bridge", () => {
     expect(selectionPrefix({ id: "s1", label: null, kind: null })).toContain("block");
   });
 });
+
+import { contrast, over, parseColor, requiredRatio } from "./contrast-scan";
+
+describe("preview bridge: overflow and accessibility contracts", () => {
+  it("reads an overflow report and flags real horizontal scroll", () => {
+    expect(readPreviewMessage({ source: PREVIEW_BRIDGE_SOURCE, type: "overflow", scrollWidth: 412, clientWidth: 320, culprits: ["hero: \"Big\"", 5, "x".repeat(200)] })).toEqual({
+      source: PREVIEW_BRIDGE_SOURCE,
+      type: "overflow",
+      overflow: true,
+      scrollWidth: 412,
+      clientWidth: 320,
+      culprits: ['hero: "Big"', "x".repeat(80)],
+    });
+    expect(readPreviewMessage({ source: PREVIEW_BRIDGE_SOURCE, type: "overflow", scrollWidth: 320.6, clientWidth: 320 })).toMatchObject({ overflow: false });
+  });
+
+  it("reads an a11y report, dropping malformed issues", () => {
+    const message = readPreviewMessage({
+      source: PREVIEW_BRIDGE_SOURCE,
+      type: "a11y-report",
+      issueCount: 3,
+      issues: [{ text: "Grey on white", ratio: 2.345, required: 4.5, path: "s1:root.0" }, { text: "", ratio: 1, required: 4.5 }, "junk"],
+    });
+    expect(message).toEqual({ source: PREVIEW_BRIDGE_SOURCE, type: "a11y-report", issueCount: 3, issues: [{ text: "Grey on white", ratio: 2.35, required: 4.5, path: "s1:root.0" }] });
+  });
+
+  it("accepts the builder's run-a11y-check request", () => {
+    expect(readBuilderMessage({ source: PREVIEW_BRIDGE_SOURCE, type: "run-a11y-check" })).toEqual({ source: PREVIEW_BRIDGE_SOURCE, type: "run-a11y-check" });
+  });
+
+  it("measures WCAG contrast the way the scan does", () => {
+    const white = parseColor("rgb(255, 255, 255)")!;
+    const black = parseColor("#000")!;
+    expect(contrast(black, white)).toBeCloseTo(21, 0);
+    const grey = parseColor("rgb(170, 170, 170)")!;
+    expect(contrast(grey, white)).toBeLessThan(4.5);
+    // Half-transparent black over white is mid grey.
+    expect(contrast(over(parseColor("rgba(0, 0, 0, 0.5)")!, white), white)).toBeLessThan(5);
+    expect(parseColor("transparent")?.a).toBe(0);
+    expect(requiredRatio(16, 400)).toBe(4.5);
+    expect(requiredRatio(24, 400)).toBe(3);
+    expect(requiredRatio(19, 700)).toBe(3);
+  });
+});
