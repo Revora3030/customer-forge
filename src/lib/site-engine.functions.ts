@@ -79,15 +79,21 @@ export const runSiteGeneration = createServerFn({ method: "POST" })
       .eq("organization_id", orgId)
       .eq("status", "queued")
       .lt("updated_at", staleQueuedBefore);
-    // A processing job whose lease lapsed is retried by the worker (claimJob
-    // picks up expired leases). Only clear one that has been dead for a long
-    // time; a short lapse is a running build between heartbeats.
+    // A processing job whose worker died keeps its row with a lapsed lease.
+    // The worker heartbeat renews the lease well inside its window, so a lease
+    // that lapsed more than the shared stall grace ago (and a row untouched
+    // for as long) is a dead build, not one between heartbeats. Pressing Build
+    // used to hand back that dead job for 30 minutes; it is now closed at
+    // once so the owner's new build actually starts.
+    const { STALLED_LEASE_GRACE_MS, INTERRUPTED_BUILD_MESSAGE } = await import("@/lib/builder/job-liveness");
+    const deadBefore = new Date(now.getTime() - STALLED_LEASE_GRACE_MS).toISOString();
     await supabase
       .from("generation_jobs")
-      .update({ status: "failed", error_message: "Stale processing job cleared for new build request", completed_at: now.toISOString(), lease_expires_at: null })
+      .update({ status: "failed", error_message: INTERRUPTED_BUILD_MESSAGE, completed_at: now.toISOString(), lease_expires_at: null })
       .eq("organization_id", orgId)
       .eq("status", "processing")
-      .lt("lease_expires_at", staleQueuedBefore);
+      .lt("lease_expires_at", deadBefore)
+      .lt("updated_at", deadBefore);
     const { data: existing } = await supabase
       .from("generation_jobs")
       .select("id, status, progress")
