@@ -48,6 +48,8 @@ import {
   type MessageKind,
 } from "@/lib/builder/chat-thread";
 import { supabase } from "@/integrations/supabase/client";
+import { jobIsActive, type JobLivenessRow } from "@/lib/builder/job-liveness";
+import { addPending, clearAllPending, clearPending, readPending, unresolvedPending, type PendingRequest } from "@/lib/builder/pending-requests";
 
 export const INSTRUCTION_LIMIT = 1200;
 
@@ -70,13 +72,35 @@ async function firstBuildSettled(organizationId: string): Promise<boolean> {
       .eq("organization_id", organizationId),
     supabase
       .from("generation_jobs")
-      .select("id")
+      .select("id, status, lease_expires_at, updated_at")
       .eq("organization_id", organizationId)
       .in("status", ["queued", "processing"])
-      .limit(1)
-      .maybeSingle(),
+      .limit(5),
   ]);
-  return (count ?? 0) > 0 && !active;
+  // A stalled job (worker cut off, lease long expired) is not a running build.
+  const running = ((active ?? []) as JobLivenessRow[]).some((row) => jobIsActive(row));
+  return (count ?? 0) > 0 && !running;
+}
+
+/**
+ * A request restored after navigation. Text-only requests are queued again
+ * under their original id. A request that carried photos is NOT re-run (its
+ * photos were not kept, and planning saves attached photos to the library, so
+ * re-running would duplicate uploads); it is shown with a clear prompt to
+ * re-attach and resend, so the owner's words are never lost.
+ */
+function resumeTask(request: PendingRequest): QueueTask {
+  const task = { ...newTask(request.instruction), id: request.id };
+  if (!request.hadAttachments) return task;
+  return {
+    ...task,
+    state: "failed",
+    error: "You left the builder before this finished, and its photos couldn't be kept. Attach them again and send it once more.",
+    retryable: false,
+    // Kept in the pending record (see the clean-up effect) until the owner
+    // dismisses it, so a second reload doesn't lose their words either.
+    awaitingReattach: true,
+  };
 }
 
 export type BuilderRequests = ReturnType<typeof useBuilderRequests>;
@@ -150,10 +174,40 @@ export function useBuilderRequests({
             : {}),
           ...(pair.taskResult?.notice ? { notice: pair.taskResult.notice } : {}),
         }));
-        setTasks((current) => [...past, ...current]);
+        // Requests sent before the owner left the builder (dashboard, preview,
+        // reload) and not finished yet come back as queued work under their
+        // original request id, so nothing they typed is lost. Planning has no
+        // side effects; building still needs the same approval as before.
+        const resumed = unresolvedPending(
+          readPending(organizationId),
+          mainTurns.filter((turn) => turn.role === "user"),
+        );
+        setTasks((current) => {
+          const known = new Set(current.map((task) => task.id.split("~")[0]));
+          const restoredQueue = resumed
+            .filter((request) => !known.has(request.id.split("~")[0]))
+            .map(resumeTask);
+          return [...past, ...current, ...restoredQueue];
+        });
         setMemoryLoaded(true);
       },
-      () => live && setMemoryLoaded(true),
+      () => {
+        if (!live) return;
+        // Even when the saved conversation can't be read, in-flight requests
+        // from this device are never dropped.
+        const resumed = readPending(organizationId);
+        if (resumed.length)
+          setTasks((current) => {
+            const known = new Set(current.map((task) => task.id.split("~")[0]));
+            return [
+              ...current,
+              ...resumed
+                .filter((request) => !known.has(request.id.split("~")[0]))
+                .map(resumeTask),
+            ];
+          });
+        setMemoryLoaded(true);
+      },
     );
     return () => {
       live = false;
@@ -178,8 +232,11 @@ export function useBuilderRequests({
     }));
     const at = new Date().toISOString();
     setSavedTurns((current) => [...current, ...tagged.map((turn) => ({ ...turn, at }))].slice(-400));
-    void saveTurns(organizationId, tagged).catch(() => {
-      // Saving the chat never blocks building; the change itself is already safe.
+    void saveTurns(organizationId, tagged).catch((error: unknown) => {
+      // Saving the chat never blocks building, and the turn is already kept on
+      // this device. The failure is logged instead of silently swallowed, so a
+      // schema or permission problem is visible in monitoring.
+      console.error("[builder] chat turn could not be saved", error);
     });
   };
   /** Full plan actions kept out of React state: only the labels are editable. */
@@ -516,13 +573,34 @@ export function useBuilderRequests({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tasks, ready]);
 
+  // A request leaves the pending record once it reaches an end state (or is
+  // waiting for the owner's OK — its plan is then shown and saved).
+  useEffect(() => {
+    if (!organizationId) return;
+    for (const task of tasks) {
+      if (task.restored || task.awaitingReattach) continue;
+      if (task.state === "complete" || task.state === "failed" || task.state === "skipped" || task.state === "waiting_for_approval")
+        clearPending(organizationId, task.id);
+    }
+  }, [tasks, organizationId]);
+
   const busy = tasks.some((task) => task.state === "planning" || task.state === "building");
 
   const queue = (instruction: string, attachments: AgentAttachment[] = []) => {
     const text = instruction.trim().slice(0, INSTRUCTION_LIMIT);
     if ((!text && attachments.length === 0) || !ready) return;
     const request = text || "Use the attached media to improve this website without inventing details.";
-    setTasks((current) => [...current, newTask(request, attachments)]);
+    const task = newTask(request, attachments);
+    // Recorded on this device the moment it is sent, so switching to the
+    // dashboard or preview mid-plan can never lose the request.
+    if (organizationId)
+      addPending(organizationId, {
+        id: task.id,
+        instruction: task.instruction,
+        hadAttachments: attachments.length > 0,
+        sentAt: new Date().toISOString(),
+      });
+    setTasks((current) => [...current, task]);
     // Funnel stage: an owner actually asked for a build (never the text itself).
     trackConversion("build_requested", { metadata: { organization_id: organizationId ?? "" } });
   };
@@ -553,7 +631,10 @@ export function useBuilderRequests({
             : task,
         ),
       ),
-    dismiss: (id: string) => setTasks((current) => current.filter((task) => task.id !== id)),
+    dismiss: (id: string) => {
+      if (organizationId) clearPending(organizationId, id);
+      setTasks((current) => current.filter((task) => task.id !== id));
+    },
     memoryLoaded,
     /** Saves chat turns from flows outside the queue (first build, fact answers). */
     remember,
@@ -589,6 +670,7 @@ export function useBuilderRequests({
       setConversation([]);
       setSavedTurns([]);
       setBranch(MAIN_BRANCH);
+      if (organizationId) clearAllPending(organizationId);
       if (organizationId && canManage) await clearTurns(organizationId);
     },
     toggleStep: (id: string, key: string) =>
