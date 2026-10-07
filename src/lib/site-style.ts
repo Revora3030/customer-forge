@@ -719,7 +719,19 @@ export function blockCss(style: BlockStyle, surface?: string | null): React.CSSP
       ? "italic"
       : "normal";
   }
-  if (style.textColor) css.color = readableTextColor(style, surface);
+  if (style.textColor) {
+    const readable = readableTextColor(style, surface);
+    css.color = readable;
+    (css as Record<string, string | number>)["--rv-section-foreground"] = readable;
+    (css as Record<string, string | number>)["--rv-card-foreground"] = readable;
+  } else {
+    const background = style.bgColor ?? surface;
+    if (background) {
+      const readable = readableOn("#ffffff", background, { large: false });
+      (css as Record<string, string | number>)["--rv-section-foreground"] = readable;
+      (css as Record<string, string | number>)["--rv-card-foreground"] = readable;
+    }
+  }
   if (style.objectFit) css.objectFit = style.objectFit;
   if (style.columns !== null)
     (css as Record<string, string | number>)["--rv-items-columns"] = style.columns;
