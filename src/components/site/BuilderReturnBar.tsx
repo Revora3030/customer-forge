@@ -37,11 +37,11 @@ export function BuilderReturnBar() {
   if (!signedIn || framed || hidden) return null;
 
   return (
-    // Compact, dismissible, and positioned to never overlap site content.
-    // On mobile it sits below the status bar safe area at the top-right;
-    // on desktop bottom-left.
-    <div className="fixed right-3 z-[60] sm:top-auto sm:bottom-4 sm:left-3 inline-flex items-center rounded-full border border-foreground/15 bg-foreground text-background shadow-lg"
-         style={{ top: "calc(env(safe-area-inset-top, 0px) + 0.75rem)" }}
+    // Compact, dismissible, and kept out of the site's own content: bottom-left
+    // on every screen (at the top it sat over the site's menu and headlines on
+    // phones), above the home-indicator safe area.
+    <div className="fixed left-3 z-[60] inline-flex items-center rounded-full border border-foreground/15 bg-foreground text-background shadow-lg"
+         style={{ bottom: "calc(env(safe-area-inset-bottom, 0px) + 0.75rem)" }}
     >
       {/* Client-side navigation: a full page reload here used to drop the
           builder's in-memory state (including unsaved chat) on the way back. */}
