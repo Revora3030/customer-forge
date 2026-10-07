@@ -166,7 +166,7 @@ function renderNode(node: CompositionNode, ctx: Ctx, key: string): ReactNode {
 const TEXTUAL = new Set<CompositionNode["type"]>(["heading", "text", "link", "button", "list", "quote", "icon", "accordion", "faq_accordion", "tabs", "toggle", "tab_group"]);
 const BRIGHT = "#ffffff";
 const INK = "#101114";
-const isReadablePair = (fg: string, bg: string, bg2: string | undefined, _large: boolean) => {
+const isReadablePair = (fg: string, bg: string, bg2: string | undefined) => {
   const need = 4.5;
   return (contrastRatio(fg, bg) ?? 21) >= need && (!bg2 || (contrastRatio(fg, bg2) ?? 21) >= need);
 };
@@ -194,7 +194,7 @@ export function readablePaint(node: Pick<CompositionNode, "type" | "style">, ctx
     const neutral = rgb ? Math.max(rgb.r, rgb.g, rgb.b) - Math.min(rgb.r, rgb.g, rgb.b) < 28 : false;
     // White/grey/black text has no hue to keep: flip to the readable ink
     // instead of walking it into a muddy mid-grey.
-    let fixed = neutral && !isReadablePair(authored, bg, bg2, large) ? bestInk(bg, bg2) : readableOn(authored, bg, { large });
+    let fixed = neutral && !isReadablePair(authored, bg, bg2) ? bestInk(bg, bg2) : readableOn(authored, bg, { large });
     if (bg2) fixed = readableOn(fixed, bg2, { large });
     if (bg2 && (contrastRatio(fixed, bg) ?? 21) < (large ? 3 : 4.5)) fixed = bestInk(bg, bg2);
     if (fixed.toLowerCase() !== authored.toLowerCase()) color = fixed;
