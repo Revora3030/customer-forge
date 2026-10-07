@@ -34,7 +34,7 @@ describe("lease heartbeat", () => {
   it("fires before half the lease expires", () => {
     const interval = heartbeatIntervalMs(180);
     expect(interval).toBeLessThan(90_000);
-    expect(interval).toBeLessThanOrEqual(45_000);
+    expect(interval).toBeLessThanOrEqual(30_000);
     // Even a short lease keeps a full beat of margin.
     expect(heartbeatIntervalMs(30)).toBeLessThan(15_000);
   });
