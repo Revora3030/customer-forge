@@ -22,6 +22,13 @@
       "when": 1791090463188,
       "tag": "0002_membership_role_guard",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1791344385701,
+      "tag": "0003_setup_price_350",
+      "breakpoints": true
     }
   ]
 }
