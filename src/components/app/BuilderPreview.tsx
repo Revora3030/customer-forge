@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { forwardRef, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ExternalLink,
   Maximize2,
@@ -8,6 +8,8 @@ import {
   RefreshCw,
   Smartphone,
   Tablet,
+  Tv,
+  Columns2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -17,19 +19,27 @@ import {
   type BuilderViewportKey,
 } from "@/lib/builder-preview";
 import {
+  DRAFT_CHANNEL,
   PREVIEW_BRIDGE_SOURCE,
+  announceDraftChange,
+  readDraftPing,
   readPreviewMessage,
   type PreviewToBuilderMessage,
 } from "@/lib/builder/preview-bridge";
+import { saveInlineText } from "@/lib/builder/inline-edit.functions";
+import { useServerFn } from "@tanstack/react-start";
+import { toast } from "@/lib/ui/notify";
 import { pageNavLabel, type ContentPage } from "@/lib/website-content";
 import { cn } from "@/lib/utils";
 import { LiveCanvasSkeleton } from "@/components/app/LiveCanvasSkeleton";
 
 const VIEWPORT_ICONS = {
+  compact: Smartphone,
   phone: Smartphone,
   tablet: Tablet,
   laptop: Monitor,
   wide: Monitor,
+  ultra: Tv,
 } satisfies Record<BuilderViewportKey, typeof Monitor>;
 
 /** A block the owner clicked in the preview, handed to the assistant. */
@@ -47,6 +57,12 @@ type BuilderPreviewProps = {
   onSelect?: (selection: PreviewSelection) => void;
   /** The block currently being discussed, outlined inside the preview. */
   selectedId?: string | null;
+  /** The exact element being discussed inside that block, if one was picked. */
+  selectedPath?: string | null;
+  /** Live line shown on the preview while the team works ("Sol is restyling…"). */
+  liveStatus?: string | null;
+  /** Called after an in-place text edit was saved (to refresh caches/undo). */
+  onInlineSaved?: (edit: { sectionId: string; path: string; before: string; after: string }) => void;
   /** Workspace whose build progress feeds the first-build canvas. */
   organizationId?: string | null;
   /** Nothing built yet: show the live canvas skeleton instead of an empty frame. */
@@ -62,7 +78,7 @@ export function BuilderPreview({ firstRun = false, organizationId = null, ...pro
   if (firstRun || props.pages.length === 0) {
     return <LiveCanvasSkeleton organizationId={organizationId} businessName={props.businessName ?? null} />;
   }
-  return <BuilderPreviewFrame {...props} />;
+  return <BuilderPreviewFrame {...props} organizationId={organizationId} />;
 }
 
 function BuilderPreviewFrame({
@@ -73,7 +89,11 @@ function BuilderPreviewFrame({
   refreshRevision = 0,
   onSelect,
   selectedId = null,
-}: Omit<BuilderPreviewProps, "firstRun" | "organizationId">) {
+  selectedPath = null,
+  liveStatus = null,
+  onInlineSaved,
+  organizationId = null,
+}: Omit<BuilderPreviewProps, "firstRun">) {
   const ordered = useMemo(() => [...pages].sort((a, b) => a.sort_order - b.sort_order), [pages]);
   const [pageId, setPageId] = useState<string | null>(null);
   const [viewport, setViewport] = useState<BuilderViewportKey>("laptop");
@@ -89,6 +109,11 @@ function BuilderPreviewFrame({
   const [refreshKey, setRefreshKey] = useState(0);
   const [fullscreen, setFullscreen] = useState(false);
   const [selectMode, setSelectMode] = useState(false);
+  // Compare: the published site (what visitors see now) next to the draft
+  // (what Publish would put live), so every AI change can be checked first.
+  const [compare, setCompare] = useState(false);
+  const [tabRevision, setTabRevision] = useState(0);
+  const saveText = useServerFn(saveInlineText);
   const frameRef = useRef<HTMLIFrameElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
   const [stageWidth, setStageWidth] = useState(0);
@@ -122,6 +147,8 @@ function BuilderPreviewFrame({
   const mobileCap = typeof window !== "undefined" && window.innerWidth < 768 ? 900 : 1200;
   const frameHeight = Math.min(mobileCap, Math.max(640, stageHeight > 0 ? Math.round((stageHeight - 24) / Math.max(scale, 0.25)) : 760));
   const source = page ? previewPath(slug, page.slug) : previewPath(slug, "home");
+  // Side by side, each pane gets half the stage.
+  const paneScale = compare && stageWidth > 0 ? Math.min(scale, (stageWidth - 36) / 2 / viewportWidth) : scale;
 
   useEffect(() => {
     if (!fullscreen || typeof document === "undefined") return;
@@ -137,11 +164,52 @@ function BuilderPreviewFrame({
       const frame = frameRef.current?.contentWindow;
       if (!frame || typeof window === "undefined") return;
       frame.postMessage(
-        { source: PREVIEW_BRIDGE_SOURCE, type: "select-mode", on, selectedId },
+        { source: PREVIEW_BRIDGE_SOURCE, type: "select-mode", on, selectedId, selectedPath },
         window.location.origin,
       );
     },
-    [selectedId],
+    [selectedId, selectedPath],
+  );
+
+  /** Sends a message to the preview frame; silently a no-op before it loads. */
+  const tell = useCallback((message: Record<string, unknown>) => {
+    const frame = frameRef.current?.contentWindow;
+    if (!frame || typeof window === "undefined") return;
+    frame.postMessage({ source: PREVIEW_BRIDGE_SOURCE, ...message }, window.location.origin);
+  }, []);
+
+  // Live team status floats on the preview itself, over the block being worked on.
+  useEffect(() => {
+    tell({ type: "status", text: liveStatus ?? null, id: selectedId });
+  }, [liveStatus, selectedId, tell]);
+
+  // Another tab (or the canvas editor) changed this draft: reload this preview.
+  useEffect(() => {
+    if (typeof BroadcastChannel === "undefined" || !organizationId) return;
+    const channel = new BroadcastChannel(DRAFT_CHANNEL);
+    channel.onmessage = (event) => {
+      const ping = readDraftPing(event.data);
+      if (ping?.organizationId === organizationId) setTabRevision((value) => value + 1);
+    };
+    return () => channel.close();
+  }, [organizationId]);
+
+  const onInlineEdit = useCallback(
+    async (edit: { id: string; path: string; text: string }) => {
+      if (!organizationId) return;
+      try {
+        const result = await saveText({ data: { organizationId, sectionId: edit.id, path: edit.path, text: edit.text } });
+        if (result.unchanged) return;
+        // The preview already shows the new words; no reload needed.
+        onInlineSaved?.({ sectionId: edit.id, path: edit.path, before: result.before, after: result.after });
+        announceDraftChange(organizationId);
+        toast.success("Saved to draft");
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : "Couldn't save that change.");
+        setRefreshKey((value) => value + 1);
+      }
+    },
+    [onInlineSaved, organizationId, saveText],
   );
 
   useEffect(() => {
@@ -159,13 +227,18 @@ function BuilderPreviewFrame({
       if (!message) return;
       if (message.type === "ready") {
         syncSelectMode(selectMode);
+        tell({ type: "status", text: liveStatus ?? null, id: selectedId });
+        return;
+      }
+      if (message.type === "inline-edit") {
+        void onInlineEdit(message);
         return;
       }
       onSelect?.(message);
     };
     window.addEventListener("message", onMessage);
     return () => window.removeEventListener("message", onMessage);
-  }, [onSelect, selectMode, syncSelectMode]);
+  }, [liveStatus, onInlineEdit, onSelect, selectMode, selectedId, syncSelectMode, tell]);
 
 
   return (
@@ -229,6 +302,18 @@ function BuilderPreviewFrame({
               </Button>
             );
           })}
+          <Button
+            type="button"
+            size="icon-sm"
+            variant={compare ? "secondary" : "ghost"}
+            aria-pressed={compare}
+            data-testid="builder-preview-compare"
+            aria-label={compare ? "Close live vs draft compare" : "Compare live site with draft"}
+            title={compare ? "Close compare" : "Live vs draft"}
+            onClick={() => setCompare((value) => !value)}
+          >
+            <Columns2 className="size-4" aria-hidden />
+          </Button>
           <select
             aria-label="Preview zoom"
             value={zoom}
@@ -273,32 +358,68 @@ function BuilderPreviewFrame({
             Updating your preview…
           </div>
         ) : null}
-        <div
-          className="mx-auto overflow-hidden rounded-lg border border-border bg-background shadow-lift transition-[width,height] duration-300"
-          style={{ width: Math.round(viewportWidth * scale), height: Math.round(frameHeight * scale) }}
-        >
-          {/* Scale a fixed-size wrapper rather than the frame itself: iPhone
-              Safari ignores width on a transformed frame and lays the site
-              out at the phone's width, leaving a narrow strip. */}
-          <div
-            className="origin-top-left"
-            style={{ width: viewportWidth, height: frameHeight, transform: `scale(${scale})` }}
-          >
-            <iframe
-              ref={frameRef}
-              key={`${source}-${refreshKey}-${refreshRevision}`}
-              data-testid="builder-preview-frame"
-              data-preview-src={source}
-              title={`${page?.title ?? "Website"} preview`}
-              src={source}
-              loading="lazy"
-              sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox"
-              className="block border-0"
-              style={{ width: viewportWidth, minWidth: viewportWidth, maxWidth: viewportWidth, height: frameHeight, backgroundColor: "#fff" }}
+        <div className={cn("flex justify-center gap-3", compare && "items-start")}>
+          {compare ? (
+            <PreviewFrame
+              label="Live now"
+              src={`/s/${encodeURIComponent(slug)}${page && page.slug !== "home" ? `/${encodeURIComponent(page.slug)}` : ""}`}
+              frameKey={`live-${source}-${refreshKey}-${refreshRevision}-${tabRevision}`}
+              viewportWidth={viewportWidth}
+              frameHeight={frameHeight}
+              scale={paneScale}
+              title="Published site"
             />
-          </div>
+          ) : null}
+          <PreviewFrame
+            ref={frameRef}
+            label={compare ? "Draft" : null}
+            src={source}
+            frameKey={`${source}-${refreshKey}-${refreshRevision}-${tabRevision}`}
+            viewportWidth={viewportWidth}
+            frameHeight={frameHeight}
+            scale={paneScale}
+            title={`${page?.title ?? "Website"} preview`}
+            testId="builder-preview-frame"
+          />
         </div>
       </div>
     </section>
   );
 }
+
+/**
+ * One scaled device frame. The fixed-size wrapper is scaled rather than the
+ * frame itself: iPhone Safari ignores width on a transformed frame and lays the
+ * site out at the phone's width, leaving a narrow strip.
+ */
+const PreviewFrame = forwardRef<
+  HTMLIFrameElement,
+  { label: string | null; src: string; frameKey: string; viewportWidth: number; frameHeight: number; scale: number; title: string; testId?: string }
+>(function PreviewFrame({ label, src, frameKey, viewportWidth, frameHeight, scale, title, testId }, ref) {
+  return (
+    <figure className="m-0 min-w-0">
+      {label ? (
+        <figcaption className="mb-1.5 text-center text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{label}</figcaption>
+      ) : null}
+      <div
+        className="overflow-hidden rounded-lg border border-border bg-background shadow-lift transition-[width,height] duration-300"
+        style={{ width: Math.round(viewportWidth * scale), height: Math.round(frameHeight * scale) }}
+      >
+        <div className="origin-top-left" style={{ width: viewportWidth, height: frameHeight, transform: `scale(${scale})` }}>
+          <iframe
+            ref={ref}
+            key={frameKey}
+            {...(testId ? { "data-testid": testId } : {})}
+            data-preview-src={src}
+            title={title}
+            src={src}
+            loading="lazy"
+            sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox"
+            className="block border-0"
+            style={{ width: viewportWidth, minWidth: viewportWidth, maxWidth: viewportWidth, height: frameHeight, backgroundColor: "#fff" }}
+          />
+        </div>
+      </div>
+    </figure>
+  );
+});
