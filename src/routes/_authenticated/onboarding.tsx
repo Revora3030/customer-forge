@@ -24,6 +24,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { analyzeSiteBrief, runSiteGeneration, saveSiteBrief } from "@/lib/site-engine.functions";
 import { clearStarter, readStarter } from "@/components/marketing/hero-starter-utils";
 import { RouteError } from "@/components/app/RouteStates";
+import { customerBusinessEmail, sanitizeServices } from "@/lib/builder/intake-sanitize";
 
 import {
   WEBSITE_GOALS,
@@ -355,7 +356,9 @@ function Onboarding() {
       const slugBase = existingOrg?.slug ?? safeSlug(draft.businessName);
       let slug = slugBase;
 
-      const services = draft.services.filter((s) => s.name.trim());
+      // Platform wording ("Build my site", "All", "Submit") is never saved as a
+      // business service; it would otherwise render on the customer's site.
+      const services = sanitizeServices(draft.services.filter((s) => s.name.trim()));
       const testimonials = draft.testimonials.filter((t) => t.text.trim());
       const goals: GoalKey[] = draft.goals;
       if (!goals.length) throw new Error("Choose at least one website goal before Revora builds your site.");
@@ -440,7 +443,8 @@ function Onboarding() {
         {
           organization_id: org.id,
           phone: draft.phone || null,
-          email: draft.email || null,
+          // Revora's own inbox is never stored as a customer's business email.
+          email: customerBusinessEmail(draft.email, org.id),
           address: draft.address || null,
           city: draft.city || null,
           state: draft.state || null,

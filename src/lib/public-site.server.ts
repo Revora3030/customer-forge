@@ -5,6 +5,7 @@
  * links (`/p/:token`). The only difference between them is whether an
  * unpublished draft may be served, which the caller states explicitly.
  */
+import { customerBusinessEmail, sanitizeServices } from "@/lib/builder/intake-sanitize";
 import { createClient } from "@supabase/supabase-js";
 import type { Database, Json } from "@/integrations/supabase/types";
 import { safeLinkUrl } from "@/lib/website-content";
@@ -504,9 +505,15 @@ export async function loadSite(
           ...profileRow,
           logo_url: resolve(profileRow.logo_url),
           hero_image_url: resolve(profileRow.hero_image_url),
+          // Revora's own inbox is never shown as a customer's business email.
+          ...("email" in profileRow
+            ? { email: customerBusinessEmail((profileRow as { email?: unknown }).email, orgId) }
+            : {}),
         }
       : null,
-    services: services.data ?? [],
+    // Platform UI wording saved as a service ("Build my site", "All") never
+    // reaches a visitor; real services are untouched.
+    services: sanitizeServices(services.data ?? []),
     // Site-wide SEO and page settings also come from the published copy, so
     // a draft edit to them never reaches visitors before Publish.
     settings:

@@ -6,6 +6,7 @@
  */
 import { useEffect, useState } from "react";
 import { ArrowLeft, X } from "lucide-react";
+import { Link } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
 
 export function BuilderReturnBar() {
@@ -42,13 +43,15 @@ export function BuilderReturnBar() {
     <div className="fixed right-3 z-[60] sm:top-auto sm:bottom-4 sm:left-3 inline-flex items-center rounded-full border border-foreground/15 bg-foreground text-background shadow-lg"
          style={{ top: "calc(env(safe-area-inset-top, 0px) + 0.75rem)" }}
     >
-      <a
-        href="/app/website"
-        className="inline-flex min-h-9 items-center gap-1.5 pl-3 pr-1.5 font-display text-[12px] font-semibold transition-opacity hover:opacity-90"
+      {/* Client-side navigation: a full page reload here used to drop the
+          builder's in-memory state (including unsaved chat) on the way back. */}
+      <Link
+        to="/app/website"
+        className="inline-flex min-h-11 items-center gap-1.5 pl-3 pr-1.5 font-display text-[12px] font-semibold transition-opacity hover:opacity-90"
       >
         <ArrowLeft className="size-3.5" aria-hidden="true" />
         Builder
-      </a>
+      </Link>
       <button
         type="button"
         aria-label="Hide the builder shortcut"

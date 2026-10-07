@@ -1,3 +1,4 @@
+import { LEGACY_CONTENT_KINDS } from "@/lib/builder/legacy-composition";
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { createElement } from "react";
@@ -123,7 +124,11 @@ describe("an AI-invented section reaches the finished page unchanged", () => {
   it("the site check's list matches exactly what the page can draw", () => {
     const source = readFileSync("src/components/site/SiteSections.tsx", "utf8");
     const body = source.slice(source.indexOf("function SiteSectionBody"));
-    const cases = [...body.matchAll(/case "([a-z_]+)":/g)].map((m) => m[1]).sort();
-    expect(cases).toEqual([...RENDERABLE_SECTION_KINDS].sort());
+    const cases = [...body.matchAll(/case "([a-z_]+)":/g)].map((m) => m[1]);
+    // Older plain kinds no longer have their own template branch: they are
+    // upgraded to a composition tree and drawn by the "composition" case.
+    const upgraded = [...LEGACY_CONTENT_KINDS];
+    expect(body).toContain("legacySectionToComposition(section");
+    expect([...cases, ...upgraded].sort()).toEqual([...RENDERABLE_SECTION_KINDS].sort());
   });
 });
