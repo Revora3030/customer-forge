@@ -767,14 +767,16 @@ async function runJob(
   const { refineFirstBuildWithCollective } = await import(
     "@/lib/builder/collective-first-build.server"
   );
-  const refined = await refineFirstBuildWithCollective({
-    organizationId: orgId,
-    facts: buildFacts,
-    brief,
-    copy,
-    creative,
-    hardGenericityGate: true,
-  });
+  const refined = await withActiveLease(db, job, "collective first-build review", () =>
+    refineFirstBuildWithCollective({
+      organizationId: orgId,
+      facts: buildFacts,
+      brief,
+      copy,
+      creative,
+      hardGenericityGate: true,
+    }),
+  );
   if (refined.creativeChanged) creative = refined.creative;
   if (refined.changed) {
     copy = refined.copy;
@@ -829,63 +831,10 @@ async function runJob(
   }
   let generatedAssets: import("@/lib/builder/first-build-images.types").FirstBuildImageAsset[] = [];
   try {
-  // A retry of the same first build may find the partial pages written by its
-  // previous attempt. They are not an existing customer site and must never
-  // make the retry silently skip architecture, composition, chrome, or media.
-  // Only rows tagged with this job are cleared; fresh rebuilds remain protected
-  // by their restore point and unrelated customer content is untouched.
-  const retryOwnsPartialBuild = !freshReplace && (existingPages.count ?? 0) > 0 && Number(job.attempts ?? 0) > 1;
-  if (retryOwnsPartialBuild) {
-    const partial = await db
-      .from("website_settings")
-      .select("generation")
-      .eq("organization_id", orgId)
-      .maybeSingle();
-    const partialGeneration = (partial.data?.generation ?? {}) as Record<string, unknown>;
-    const report = partialGeneration["report"] as Record<string, unknown> | undefined;
-    const ownsPartialBuild =
-      report?.["jobId"] === job.id || partialGeneration["jobId"] === job.id;
-    if (ownsPartialBuild) {
-      // Fence by job: only rows written since this job was created are its own
-      // partial output. Anything older belongs to the customer and is kept.
-      const jobRow = await db
-        .from("generation_jobs")
-        .select("created_at")
-        .eq("id", job.id)
-        .eq("organization_id", orgId)
-        .maybeSingle();
-      const since = jobRow.data?.created_at as string | undefined;
-      if (!since) throw new Error("Couldn't confirm which rows this build attempt owns.");
-      const older = await db
-        .from("website_pages")
-        .select("id", { count: "exact", head: true })
-        .eq("organization_id", orgId)
-        .lt("created_at", since);
-      if ((older.count ?? 0) > 0) {
-        throw new Error("This retry found pages older than the build itself, so it stopped instead of deleting them.");
-      }
-      const pageIds = await db
-        .from("website_pages")
-        .select("id")
-        .eq("organization_id", orgId)
-        .gte("created_at", since);
-      const ids = (pageIds.data ?? []).map((row) => row.id as string);
-      if (ids.length) {
-        const sectionIds = await db.from("website_sections").select("id").eq("organization_id", orgId).in("page_id", ids);
-        const sIds = (sectionIds.data ?? []).map((row) => row.id as string);
-        if (sIds.length) {
-          const componentDelete = await db.from("website_components").delete().eq("organization_id", orgId).in("section_id", sIds);
-          if (componentDelete.error) throw new Error(`Couldn't clear the incomplete build components: ${componentDelete.error.message}`);
-          const sectionDelete = await db.from("website_sections").delete().eq("organization_id", orgId).in("id", sIds);
-          if (sectionDelete.error) throw new Error(`Couldn't clear the incomplete build sections: ${sectionDelete.error.message}`);
-        }
-        const pageDelete = await db.from("website_pages").delete().eq("organization_id", orgId).in("id", ids);
-        if (pageDelete.error) throw new Error(`Couldn't clear the incomplete build pages: ${pageDelete.error.message}`);
-      }
-    }
-  }
+  // Partial pages are cleared atomically inside materializeSiteContent only when this
+  // attempt is proven to own them. Never delete by age or broad organization scope.
   noteStage(orgId, job.id, "generating your pictures");
-  const starterImages = await generateFirstBuildImages(db, {
+  const starterImages = await withActiveLease(db, job, "first-build image generation", () => generateFirstBuildImages(db, {
     organizationId: orgId,
     userId: job.created_by,
     businessName: org.data.name ?? "",
@@ -902,7 +851,7 @@ async function runJob(
         : []),
     ]),
     creative,
-  });
+  }));
   await step("pictures");
   // Picture records (spec D): one per generated slot with its art direction,
   // pending owner approval. Cosmetic bookkeeping — never blocks the build.
@@ -1019,12 +968,16 @@ async function runJob(
     reviewedBy:
       refined.passes.filter((pass) => pass.used && pass.model)[1]?.model ?? null,
     conversionGoal: goals[0] ?? org.data.conversion_goal ?? null,
-    replaceExisting: freshReplace,
+    replaceExisting:
+      freshReplace ||
+      (Number(job.attempts ?? 0) > 1 &&
+        priorGeneration["jobId"] === job.id &&
+        priorGeneration["buildState"] === "materializing"),
     architect: async (candidate) => {
       const { proposePageArchitecture } = await import(
         "@/lib/builder/ai-page-architecture.server"
       );
-      const outcome = await proposePageArchitecture({
+      const outcome = await withActiveLease(db, job, "page architecture", () => proposePageArchitecture({
         organizationId: orgId,
         businessName: architectBusinessName,
         industry: architectIndustry,
@@ -1033,7 +986,7 @@ async function runJob(
         description: (p["description"] as string) ?? null,
         services: serviceRows.map((service) => String((service as { name?: unknown }).name ?? "")).filter(Boolean),
         serviceArea: (p["service_area"] as string) ?? null,
-      });
+      }));
       architectureRef.current = outcome;
       return outcome.architecture;
     },
@@ -1116,13 +1069,15 @@ async function runJob(
       subheading: section.subheading,
       body: section.body,
     }));
-    const outcome = await refineSectionWordingWithCollective({
-      organizationId: orgId,
-      facts: buildFacts,
-      sections: wording,
-      directionSummary: [creative.brief.concept, creative.brief.personality].filter(Boolean).join(" · "),
-      hardGenericityGate: true,
-    });
+    const outcome = await withActiveLease(db, job, "section wording review", () =>
+      refineSectionWordingWithCollective({
+        organizationId: orgId,
+        facts: buildFacts,
+        sections: wording,
+        directionSummary: [creative.brief.concept, creative.brief.personality].filter(Boolean).join(" · "),
+        hardGenericityGate: true,
+      }),
+    );
     for (const patch of outcome.patches) {
       const update: Record<string, string> = {};
       if (patch.heading !== undefined) update["heading"] = patch.heading;
@@ -1162,7 +1117,7 @@ async function runJob(
   // gets a complete site.
   if (!built.skipped) {
     const { composeFirstBuildSections } = await import("@/lib/builder/first-build-compositions.server");
-    const composed = await composeFirstBuildSections({
+    const composed = await withActiveLease(db, job, "first-build section composition", () => composeFirstBuildSections({
       db: db as never,
       organizationId: orgId,
       facts: buildFacts,
@@ -1186,7 +1141,7 @@ async function runJob(
         ownerFont: effectiveFont,
         surfaceIs: effectivePalette?.secondary ? (isLightSurface(effectivePalette.secondary) ? "light" : "dark") : null,
       }),
-    });
+    ));
     // Every section is designed by the AI team. A section left without its
     // layout stops the build (it is retried) instead of shipping a default.
     if ((composed.fallback ?? 0) > 0) {
@@ -1208,7 +1163,7 @@ async function runJob(
     // Sol also designs the menu bar and footer. Its failure stops the build
     // (it is retried); no generic menu is substituted.
     const { composeSiteChrome } = await import("@/lib/builder/first-build-chrome.server");
-    const chrome = await composeSiteChrome({
+    const chrome = await withActiveLease(db, job, "site chrome composition", () => composeSiteChrome({
       db: db as never,
       organizationId: orgId,
       businessName: org.data.name ?? "",
@@ -1226,7 +1181,7 @@ async function runJob(
         shapeLanguage: creative.brief.shapeLanguage,
         surfaceIs: effectivePalette?.secondary ? (isLightSurface(effectivePalette.secondary) ? "light" : "dark") : null,
       }),
-    });
+    ));
     await db.from("ai_generations").insert({
       organization_id: orgId,
       job_id: job.id,
