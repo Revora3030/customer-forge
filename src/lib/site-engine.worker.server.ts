@@ -959,7 +959,7 @@ async function runJob(
     state: (p["state"] as string) ?? null,
     serviceArea: (p["service_area"] as string) ?? null,
     phone: (p["phone"] as string) ?? null,
-    email: (p["email"] as string) ?? null,
+    email: customerEmail,
     yearsInBusiness: (p["years_in_business"] as number) ?? null,
     photoCount: realMediaCount,
     hasQuoteForm: (forms.data ?? []).length > 0,
