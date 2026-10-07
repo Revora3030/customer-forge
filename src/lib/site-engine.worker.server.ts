@@ -882,6 +882,48 @@ async function runJob(
       }
     }
   }
+  // PARALLEL TEAM: the page architect does not need the pictures, so its plan
+  // is authored WHILE the photos are being made instead of after them. Only
+  // started when this build will actually write pages (a first build), and its
+  // outcome is recorded exactly as before.
+  const architectureRef: { current: PageArchitectureOutcome | null } = { current: null };
+  const earlyName = org.data?.name ?? "";
+  const earlyIndustry = org.data?.industry ?? null;
+  const earlyGoal = goals[0] ?? org.data?.conversion_goal ?? null;
+  const architecturePlan: Promise<import("@/lib/builder/creative-authority").PageArchitecture[] | null> | null = firstBuild
+    ? (async () => {
+        const [{ proposePageArchitecture }, { candidatePageInventory }] = await Promise.all([
+          import("@/lib/builder/ai-page-architecture.server"),
+          import("@/lib/site-materialize.server"),
+        ]);
+        const primary = String(copy.primaryCta ?? "").trim();
+        if (!primary) return null;
+        const outcome = await proposePageArchitecture({
+          organizationId: orgId,
+          businessName: earlyName,
+          industry: earlyIndustry,
+          conversionGoal: earlyGoal,
+          candidate: candidatePageInventory(
+            {
+              businessName: earlyName,
+              copy,
+              services: serviceRows,
+              hasBooking: (bookable.data ?? []).length > 0,
+              hasQuoteForm: (forms.data ?? []).length > 0,
+            },
+            primary,
+          ),
+          description: (p["description"] as string) ?? null,
+          services: serviceRows.map((service) => String((service as { name?: unknown }).name ?? "")).filter(Boolean),
+          serviceArea: (p["service_area"] as string) ?? null,
+        });
+        architectureRef.current = outcome;
+        return outcome.architecture;
+      })()
+    : null;
+  // Never leave an unhandled rejection if pictures fail first; the error is
+  // re-raised where the plan is awaited.
+  architecturePlan?.catch(() => undefined);
   noteStage(orgId, job.id, "generating your pictures");
   const starterImages = await generateFirstBuildImages(db, {
     organizationId: orgId,
@@ -977,7 +1019,6 @@ async function runJob(
   const architectBusinessName = org.data.name ?? "";
   const architectIndustry = org.data.industry ?? null;
   const architectGoal = goals[0] ?? org.data.conversion_goal ?? null;
-  const architectureRef: { current: PageArchitectureOutcome | null } = { current: null };
   noteStage(orgId, job.id, "writing the pages");
   // Persist ownership before materialization so a failed attempt leaves a
   // verifiable job marker for safe retry cleanup. The marker is metadata only;
@@ -1018,6 +1059,7 @@ async function runJob(
       refined.passes.filter((pass) => pass.used && pass.model)[1]?.model ?? null,
     conversionGoal: goals[0] ?? org.data.conversion_goal ?? null,
     replaceExisting: freshReplace,
+    ...(architecturePlan ? { architecture_: architecturePlan } : {}),
     architect: async (candidate) => {
       const { proposePageArchitecture } = await import(
         "@/lib/builder/ai-page-architecture.server"

@@ -1,0 +1,79 @@
+name: Scheduled maintenance jobs
+
+# Calls the app's cron-authenticated job routes on a schedule.
+#
+# Needs two repository secrets (Settings → Secrets and variables → Actions):
+#   REVORA_APP_URL       e.g. https://revoragrowthsystems.com
+#   LOVABLE_CRON_SECRET  the same value set in the app's environment
+# Without them every job is skipped with a notice — nothing fails.
+#
+# Media clean-up runs as a DRY RUN (report only). Set the repository variable
+# MEDIA_CLEANUP_APPLY=1 to let the weekly run actually delete orphaned files.
+
+on:
+  schedule:
+    # Daily 07:00 UTC: point-in-time backups.
+    - cron: "0 7 * * *"
+    # Sundays 08:30 UTC: orphaned media clean-up.
+    - cron: "30 8 * * 0"
+  workflow_dispatch:
+    inputs:
+      job:
+        description: "Which job to run now"
+        required: true
+        type: choice
+        options: [backup, media-cleanup, lifecycle-email, site-engine]
+      apply:
+        description: "media-cleanup only: actually delete (otherwise dry run)"
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: revora-scheduled-jobs-${{ github.event.schedule || inputs.job }}
+  cancel-in-progress: false
+
+jobs:
+  run:
+    name: Run scheduled job
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Pick job
+        id: pick
+        run: |
+          case "${{ github.event.schedule }}" in
+            "0 7 * * *") echo "job=backup" >> "$GITHUB_OUTPUT" ;;
+            "30 8 * * 0") echo "job=media-cleanup" >> "$GITHUB_OUTPUT" ;;
+            *) echo "job=${{ inputs.job }}" >> "$GITHUB_OUTPUT" ;;
+          esac
+
+      - name: Call job route
+        env:
+          APP_URL: ${{ secrets.REVORA_APP_URL }}
+          CRON_SECRET: ${{ secrets.LOVABLE_CRON_SECRET }}
+          JOB: ${{ steps.pick.outputs.job }}
+          APPLY_INPUT: ${{ inputs.apply }}
+          APPLY_VAR: ${{ vars.MEDIA_CLEANUP_APPLY }}
+        run: |
+          if [ -z "$APP_URL" ] || [ -z "$CRON_SECRET" ]; then
+            echo "::notice::REVORA_APP_URL or LOVABLE_CRON_SECRET is not set; skipping $JOB."
+            exit 0
+          fi
+          query=""
+          if [ "$JOB" = "media-cleanup" ] && { [ "$APPLY_INPUT" = "true" ] || [ "$APPLY_VAR" = "1" ]; }; then
+            query="?apply=1"
+          fi
+          url="${APP_URL%/}/api/public/jobs/${JOB}${query}"
+          echo "Calling /api/public/jobs/${JOB}${query}"
+          status=$(curl -sS -o response.json -w '%{http_code}' -X POST \
+            -H "authorization: Bearer ${CRON_SECRET}" --max-time 600 "$url")
+          echo "HTTP $status"
+          head -c 2000 response.json; echo
+          if [ "$status" -ge 400 ]; then
+            echo "::error::$JOB returned HTTP $status"
+            exit 1
+          fi

@@ -94,6 +94,11 @@ export type MaterializeInput = {
    * Returning null is a hard failure.
    */
   architect?: (candidate: PageArchitecture[]) => Promise<PageArchitecture[] | null>;
+  /**
+   * The architect's plan, already started by the caller (so it runs in
+   * parallel with picture generation). Takes precedence over `architect`.
+   */
+  architecture_?: Promise<PageArchitecture[] | null>;
 };
 
 type Component = {
@@ -241,51 +246,16 @@ export function materializedSectionDesign(
  * the workspace already has pages unless an owner/admin explicitly requested a
  * fresh rebuild and the caller already captured a restorable backup.
  */
-export async function materializeSiteContent(
-  db: Db,
-  orgId: string,
-  input: MaterializeInput,
-): Promise<{
-  pages: number;
-  sections: number;
-  components: number;
-  skipped: boolean;
-  /** The AI design this site was built from, when one governed the build. */
-  designContract: AiDesignContract | null;
-}> {
-  const { count } = await db
-    .from("website_pages")
-    .select("id", { count: "exact", head: true })
-    .eq("organization_id", orgId);
-  if ((count ?? 0) > 0 && !input.replaceExisting)
-    return { pages: 0, sections: 0, components: 0, skipped: true, designContract: null };
-  // A fresh rebuild clears the old site only AFTER the AI architect, design
-  // contract and media checks below have all succeeded (see clearExisting),
-  // so a failure in any of them leaves the customer's current site untouched.
-  const clearExisting = async () => {
-    if (!((count ?? 0) > 0 && input.replaceExisting)) return;
-    const { error: componentDeleteError } = await db.from("website_components").delete().eq("organization_id", orgId);
-    if (componentDeleteError)
-      throw new Error(`Couldn't clear old components before rebuilding: ${componentDeleteError.message}`);
-    const { error: sectionDeleteError } = await db.from("website_sections").delete().eq("organization_id", orgId);
-    if (sectionDeleteError)
-      throw new Error(`Couldn't clear old sections before rebuilding: ${sectionDeleteError.message}`);
-    const { error: pageDeleteError } = await db.from("website_pages").delete().eq("organization_id", orgId);
-    if (pageDeleteError)
-      throw new Error(`Couldn't clear old pages before rebuilding: ${pageDeleteError.message}`);
-  };
 
-  // The renderer produces safe building blocks; the AI design decides the site.
-  // The contract OVERRIDES the renderer's page set and section order, and any
-  // visual container the design requires must resolve to a real picture —
-  // otherwise the build fails rather than publishing a blank box.
-  // The main call to action is the AI team's wording; a build without one
-  // stops instead of shipping a stock label.
-  const primaryAction = clean(input.copy.primaryCta);
-  if (!primaryAction) {
-    const { AiStepUnavailableError } = await import("@/lib/builder/ai-step-error");
-    throw new AiStepUnavailableError("main call to action", "no label was authored");
-  }
+/**
+ * The candidate page inventory the AI architect starts from, built only from
+ * verified business facts. Exported so the worker can start the architect in
+ * parallel with picture generation (it does not depend on the pictures).
+ */
+export function candidatePageInventory(
+  input: Pick<MaterializeInput, "businessName" | "copy" | "services" | "hasBooking" | "hasQuoteForm">,
+  primaryAction: string,
+): PageArchitecture[] {
   const functionalSections = [
     ...(input.hasQuoteForm ? [{ role: "quote" }] : []),
     ...(input.hasBooking ? [{ role: "booking" }] : []),
@@ -307,7 +277,7 @@ export async function materializeSiteContent(
   // When the AI architect fails and this inventory becomes the fallback, the
   // sections carry real headings and includes so the site is complete, not a
   // skeleton of empty role-only sections.
-  const factInventory: PageArchitecture[] = [
+  return [
     {
       slug: "home",
       title: input.businessName,
@@ -367,13 +337,63 @@ export async function materializeSiteContent(
       ],
     },
   ];
+}
+
+export async function materializeSiteContent(
+  db: Db,
+  orgId: string,
+  input: MaterializeInput,
+): Promise<{
+  pages: number;
+  sections: number;
+  components: number;
+  skipped: boolean;
+  /** The AI design this site was built from, when one governed the build. */
+  designContract: AiDesignContract | null;
+}> {
+  const { count } = await db
+    .from("website_pages")
+    .select("id", { count: "exact", head: true })
+    .eq("organization_id", orgId);
+  if ((count ?? 0) > 0 && !input.replaceExisting)
+    return { pages: 0, sections: 0, components: 0, skipped: true, designContract: null };
+  // A fresh rebuild clears the old site only AFTER the AI architect, design
+  // contract and media checks below have all succeeded (see clearExisting),
+  // so a failure in any of them leaves the customer's current site untouched.
+  const clearExisting = async () => {
+    if (!((count ?? 0) > 0 && input.replaceExisting)) return;
+    const { error: componentDeleteError } = await db.from("website_components").delete().eq("organization_id", orgId);
+    if (componentDeleteError)
+      throw new Error(`Couldn't clear old components before rebuilding: ${componentDeleteError.message}`);
+    const { error: sectionDeleteError } = await db.from("website_sections").delete().eq("organization_id", orgId);
+    if (sectionDeleteError)
+      throw new Error(`Couldn't clear old sections before rebuilding: ${sectionDeleteError.message}`);
+    const { error: pageDeleteError } = await db.from("website_pages").delete().eq("organization_id", orgId);
+    if (pageDeleteError)
+      throw new Error(`Couldn't clear old pages before rebuilding: ${pageDeleteError.message}`);
+  };
+
+  // The renderer produces safe building blocks; the AI design decides the site.
+  // The contract OVERRIDES the renderer's page set and section order, and any
+  // visual container the design requires must resolve to a real picture —
+  // otherwise the build fails rather than publishing a blank box.
+  // The main call to action is the AI team's wording; a build without one
+  // stops instead of shipping a stock label.
+  const primaryAction = clean(input.copy.primaryCta);
+  if (!primaryAction) {
+    const { AiStepUnavailableError } = await import("@/lib/builder/ai-step-error");
+    throw new AiStepUnavailableError("main call to action", "no label was authored");
+  }
+  const factInventory = candidatePageInventory(input, primaryAction);
   let designContract: AiDesignContract | null = input.designContract ?? null;
   const authored = designContract
     ? null
-    : input.architect
-      ? await input.architect(factInventory)
-      : null;
-  if (!designContract && input.architect && !authored?.length) {
+    : input.architecture_
+      ? await input.architecture_
+      : input.architect
+        ? await input.architect(factInventory)
+        : null;
+  if (!designContract && (input.architect || input.architecture_) && !authored?.length) {
     // The AI architect could not produce a plan. The fact inventory is only
     // material for the architect — it is never shipped as the site.
     const { AiStepUnavailableError } = await import("@/lib/builder/ai-step-error");

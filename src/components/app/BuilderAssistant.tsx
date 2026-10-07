@@ -649,7 +649,7 @@ function LiveActivity({
     .filter((step, index, all) =>
       index === all.findIndex((s) => s.stage === step.stage),
     )
-    .slice(0, 12);
+    .slice(0, 20);
   const [open, setOpen] = useState(true);
   const elapsed = seconds < 60 ? `${seconds}s` : `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
   return (
@@ -680,7 +680,12 @@ function LiveActivity({
               {done.map((step) => (
                 <li key={`${step.stage}-${step.at}`} className="chat-rise flex items-start gap-2 text-[12.5px] text-muted-foreground">
                   <Check className="mt-0.5 size-3.5 shrink-0 text-emerald-400" aria-hidden />
-                  <span className="min-w-0 break-words">{step.stage}</span>
+                  <span className="min-w-0 break-words">
+                    {step.stage}
+                    {step.stage === "plan ready" && step.detail ? (
+                      <span className="mt-0.5 block text-foreground/80">{step.detail}</span>
+                    ) : null}
+                  </span>
                 </li>
               ))}
             </ol>
