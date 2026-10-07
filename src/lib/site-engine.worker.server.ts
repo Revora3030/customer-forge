@@ -679,7 +679,7 @@ async function runJob(
   const identity = await withActiveLease(db, job, "brand identity", () => authorBrandIdentity({
     organizationId: orgId,
     businessName: org.data.name ?? "",
-    industry: org.data.industry ?? null,
+    industry: org.data!.industry ?? null,
     description: (p["description"] as string) ?? null,
     city: (p["city"] as string) ?? null,
     services: serviceRows.map((service) => ({ name: service.name })),
@@ -841,7 +841,7 @@ async function runJob(
   const starterImages = await withActiveLease(db, job, "first-build image generation", () => generateFirstBuildImages(db, {
     organizationId: orgId,
     userId: job.created_by,
-    businessName: org.data.name ?? "",
+    businessName: org.data!.name ?? "",
     city: (p["city"] as string) ?? null,
     photoCount: realMediaCount,
     // Only a deliberately assigned hero fills that role. A generic upload or
@@ -1170,7 +1170,7 @@ async function runJob(
     const chrome = await withActiveLease(db, job, "site chrome composition", () => composeSiteChrome({
       db: db as never,
       organizationId: orgId,
-      businessName: org.data.name ?? "",
+      businessName: org.data!.name ?? "",
       facts: buildFacts,
       // The menu and footer follow the SAME creative direction as the page
       // sections; colours and font alone produced a header that clashed with
