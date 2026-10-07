@@ -1,8 +1,10 @@
 export const BUILDER_VIEWPORTS = [
+  { key: "compact", label: "Small phone", width: 320 },
   { key: "phone", label: "Phone", width: 390 },
   { key: "tablet", label: "Tablet", width: 768 },
   { key: "laptop", label: "Laptop", width: 1280 },
   { key: "wide", label: "Wide", width: 1440 },
+  { key: "ultra", label: "4K", width: 2560 },
 ] as const;
 
 export type BuilderViewportKey = (typeof BUILDER_VIEWPORTS)[number]["key"];
