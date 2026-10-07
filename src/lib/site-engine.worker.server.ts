@@ -433,6 +433,7 @@ async function runJob(
   const { captureQa } = await import("@/lib/launch-qa");
   const {
     gatherBriefFacts,
+    isPlatformServiceToken,
     sanitizeCustomerContactEmail,
     sanitizeServiceRows,
   } = await import("@/lib/site-brief.server");
@@ -510,7 +511,7 @@ async function runJob(
     db.from("media").select("id, category, url, alt_text, file_name, source").eq("organization_id", orgId).order("created_at"),
     db.from("social_profiles").select("*").eq("organization_id", orgId).maybeSingle(),
     db.from("quote_forms").select("id").eq("organization_id", orgId).eq("is_active", true),
-    db.from("services").select("id").eq("organization_id", orgId).eq("bookable", true),
+    db.from("services").select("id, name").eq("organization_id", orgId).eq("bookable", true),
   ]);
 
   if (!org.data) throw new Error("Workspace not found.");
@@ -534,6 +535,9 @@ async function runJob(
     org.data.industry ?? null,
   );
   await step("services");
+  const bookableCount = ((bookable.data ?? []) as { id: string; name?: string | null }[])
+    .filter((row) => !row.name || !isPlatformServiceToken(row.name))
+    .length;
 
   const social = (socials.data ?? {}) as Record<string, unknown>;
   const socialLinks = [
@@ -708,7 +712,7 @@ async function runJob(
     state: (p["state"] as string) ?? null,
     serviceArea: (p["service_area"] as string) ?? null,
     phone: (p["phone"] as string) ?? null,
-    email: (p["email"] as string) ?? null,
+    email: customerEmail,
     yearsInBusiness: (p["years_in_business"] as number) ?? null,
     services: serviceRows,
     goals,
@@ -716,7 +720,7 @@ async function runJob(
     photoCount: realMediaCount,
     hasHeroImage: Boolean(p["hero_image_url"]),
     testimonialCount: testimonials.length,
-    bookableServices: (bookable.data ?? []).length,
+    bookableServices: bookableCount,
     hasHours: Boolean(p["hours"] && Object.keys(p["hours"] as object).length),
   });
   const storedReferenceObservations = priorGeneration["screenshotReferenceObservations"];
@@ -959,7 +963,7 @@ async function runJob(
     yearsInBusiness: (p["years_in_business"] as number) ?? null,
     photoCount: realMediaCount,
     hasQuoteForm: (forms.data ?? []).length > 0,
-    hasBooking: (bookable.data ?? []).length > 0,
+    hasBooking: bookableCount > 0,
     direction,
     creativeBrief: creative.brief,
     generatedAssets: siteAssets,
