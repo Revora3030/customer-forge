@@ -20,6 +20,15 @@ describe("readable text on AI layouts", () => {
     expect(out.color).toBeUndefined();
   });
 
+  it("rejects sub-AA contrast even for large headings", () => {
+    const out = validateComposition({
+      version: 1,
+      root: { type: "heading", level: 1, text: "Readable", style: { color: "#ffffff", background: "#c4c4c4", size: 64 } },
+    });
+    expect(out.ok).toBe(false);
+    expect(out.ok ? [] : out.issues.some((issue) => issue.problem.includes("below 4.5"))).toBe(true);
+  });
+
   it("checks both ends of a gradient", () => {
     const out = readablePaint({ type: "text", style: { color: "#ffffff", background: "#ffffff", gradientTo: "#000000" } }, {});
     expect(out.color).toBeDefined();
