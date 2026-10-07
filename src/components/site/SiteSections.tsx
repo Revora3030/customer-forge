@@ -11,6 +11,7 @@ import { CompositionRenderer } from "@/components/site/CompositionRenderer";
 import { readComposition, type WidgetPresentation } from "@/lib/builder/composition-tree";
 import { legacySectionToComposition } from "@/lib/builder/legacy-composition";
 import { blockCss, readBlockStyle, readComponentVisual } from "@/lib/site-style";
+import { premiumSurface } from "@/lib/site-theme";
 import { SitePageLink } from "@/components/site/site-links";
 import { Mail, MapPin, Phone } from "lucide-react";
 import { BookingForm, QuoteCalculator } from "@/components/site/SiteForms";
@@ -83,7 +84,12 @@ const Heading = ({ section, lead = false }: { section: Section; lead?: boolean }
  * The owner's own block edits still apply; old named effects are no longer drawn.
  */
 export function SiteSection({ site, section, lead = false, first = false }: { site: Site; section: Section; lead?: boolean; first?: boolean }) {
-  const css = blockCss(readBlockStyle(section.settings), siteSurface(site));
+  const block = readBlockStyle(section.settings);
+  // A section's own background (set from the builder) wins over the page
+  // surface. Mid-grey washes are corrected to a clean tint or deep shade, the
+  // same way the page surface is, so no section ships as dull grey.
+  const ownBg = block.bgColor && /^#[0-9a-f]{6}$/i.test(block.bgColor) && !block.bgImage ? premiumSurface(block.bgColor) : null;
+  const css = blockCss(ownBg ? { ...block, bgColor: ownBg } : block, siteSurface(site));
   // In-page anchors for buttons like "#contact" or "#services": the section's
   // role (kept when it became an AI layout) or its kind.
   const storedRole = (section.settings as Record<string, unknown> | null)?.["role"];
@@ -98,12 +104,12 @@ export function SiteSection({ site, section, lead = false, first = false }: { si
       className="rv-site-section scroll-mt-20"
       style={{ ...css, minWidth: 0, maxWidth: "100%" }}
     >
-      <SiteSectionBody site={site} section={section} lead={lead} first={first} />
+      <SiteSectionBody site={site} section={section} lead={lead} first={first} surface={ownBg} />
     </div>
   );
 }
 
-function SiteSectionBody({ site, section, lead = false, first = false }: { site: Site; section: Section; lead?: boolean; first?: boolean }) {
+function SiteSectionBody({ site, section, lead = false, first = false, surface = null }: { site: Site; section: Section; lead?: boolean; first?: boolean; surface?: string | null }) {
   const components = section.components ?? [];
   const { profile, org } = site;
   const ownAddress = useOwnAddress();

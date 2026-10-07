@@ -34,6 +34,7 @@ import { AiSiteHeader } from "@/components/site/AiSiteHeader";
 import { useOwnAddress } from "@/components/site/use-own-address";
 import { metaDescription } from "@/lib/seo";
 import { clientHeadExtrasSync, shareImageFor } from "@/lib/site-head";
+import { premiumSurface } from "@/lib/site-theme";
 
 export const Route = createFileRoute("/s/$slug/$page")({
   loader: async ({ params }) => {
@@ -45,7 +46,8 @@ export const Route = createFileRoute("/s/$slug/$page")({
   },
 
   head: ({ loaderData, params }) => {
-    if (!loaderData?.content) {
+    // A draft can load before its page row exists; never read a missing page.
+    if (!loaderData?.content?.page) {
       return { meta: [{ title: "Page not found" }, { name: "robots", content: "noindex" }] };
     }
     const page = loaderData.content.page;
@@ -62,7 +64,7 @@ export const Route = createFileRoute("/s/$slug/$page")({
     const shareImage = shareImageFor({
       ogImage: page.og_image_url,
       heroImage: loaderData.profile?.hero_image_url ?? null,
-      sections: loaderData.content.sections,
+      sections: Array.isArray(loaderData.content.sections) ? loaderData.content.sections : [],
     });
     const extras = clientHeadExtrasSync(
       loaderData as never,
@@ -194,7 +196,7 @@ export function SitePageView({
 
   return (
     <div
-      className={`min-h-screen bg-background ${designTokenClasses(readDesignTokens(site.settings?.generation ?? null))}`}
+      className={`min-h-screen bg-background text-foreground ${designTokenClasses(readDesignTokens(site.settings?.generation ?? null))}`}
       style={{
         ...siteThemeStyle({
           primaryColor: profile?.primary_color ?? null,
@@ -273,7 +275,7 @@ export function SitePageView({
 
         {chrome.footer ? (
           <footer className="rv-site-footer rv-ai-footer">
-            <CompositionRenderer as="div" scope="site-footer" tree={chrome.footer} resolveHref={chromeHref} surface={profile?.secondary_color ?? null} linkLabel={(text) => stripBusinessSuffix(text, org.name)} />
+            <CompositionRenderer as="div" scope="site-footer" tree={chrome.footer} resolveHref={chromeHref} surface={premiumSurface(profile?.secondary_color ?? null)} linkLabel={(text) => stripBusinessSuffix(text, org.name)} />
           </footer>
         ) : null}
 

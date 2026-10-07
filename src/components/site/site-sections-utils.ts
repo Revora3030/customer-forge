@@ -1,3 +1,4 @@
+import { premiumSurface } from "@/lib/site-theme";
 import type { PublicSite } from "@/lib/public-site.functions";
 import { readComposition } from "@/lib/builder/composition-tree";
 import { safeText } from "@/lib/builder/presentation";
@@ -12,7 +13,9 @@ type Section = NonNullable<Site["content"]>["sections"][number];
  */
 export function siteSurface(site: Site): string | null {
   const profile = (site.profile ?? null) as { secondary_color?: string | null } | null;
-  return normalizeHex(profile?.secondary_color);
+  // The same corrected surface the page theme paints, so section text is
+  // measured against the colour visitors actually see.
+  return premiumSurface(normalizeHex(profile?.secondary_color));
 }
 
 function normalizeHex(value: unknown): string | null {
@@ -29,7 +32,8 @@ function normalizeHex(value: unknown): string | null {
  * grey panel is how white headings ended up invisible on light grey.
  */
 export function sectionSurface(site: Site, sectionBg: string | null | undefined): string | null {
-  return normalizeHex(sectionBg) && /^#[0-9a-f]{6}$/i.test(normalizeHex(sectionBg)!) ? normalizeHex(sectionBg) : siteSurface(site);
+  const own = normalizeHex(sectionBg);
+  return own && /^#[0-9a-f]{6}$/i.test(own) ? premiumSurface(own) : siteSurface(site);
 }
 
 /** True when a stored AI layout for this section already draws a level-1 heading. */

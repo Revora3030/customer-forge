@@ -3,6 +3,7 @@ import type { Breakpoint, CompositionFaqItem, CompositionNode, CompositionTab, C
 import type { PersistedComponentVisual } from "@/lib/site-style";
 import { resolveImageSource } from "@/lib/brand-logos";
 import { contrastRatio, readableOn, toRgb } from "@/lib/readable-color";
+import { premiumSurface } from "@/lib/site-theme";
 
 /**
  * Draws any validated AI-authored composition tree. It only translates the
@@ -100,7 +101,7 @@ const MEDIA: Record<Breakpoint, string> = {
 };
 
 type ResolvedMedia = string | { url: string | null; visual?: PersistedComponentVisual };
-type Ctx = { label?: (text: string) => string; bg?: string | undefined; bg2?: string | undefined; fg?: string | undefined; rules: string[]; counter: { n: number; sawMedia?: boolean }; eagerFirstMedia?: boolean; scope: string; href: (h: string) => string; media: (ref: string) => ResolvedMedia | null; widget: (name: string, presentation?: WidgetPresentation) => ReactNode };
+type Ctx = { label?: (text: string) => string; depth?: number | undefined; bg?: string | undefined; bg2?: string | undefined; fg?: string | undefined; rules: string[]; counter: { n: number; sawMedia?: boolean }; eagerFirstMedia?: boolean; scope: string; href: (h: string) => string; media: (ref: string) => ResolvedMedia | null; widget: (name: string, presentation?: WidgetPresentation) => ReactNode };
 
 const mediaUrl = (media: ResolvedMedia | null): string | null =>
   typeof media === "string" ? media : media?.url ?? null;
@@ -155,11 +156,11 @@ function baseLayout(type: CompositionNode["type"]): CSSProperties {
 }
 
 function renderNode(node: CompositionNode, ctx: Ctx, key: string): ReactNode {
-  const saved = { bg: ctx.bg, bg2: ctx.bg2, fg: ctx.fg };
+  const saved = { bg: ctx.bg, bg2: ctx.bg2, fg: ctx.fg, depth: ctx.depth };
   try {
     return renderNodeInner(node, ctx, key);
   } finally {
-    ctx.bg = saved.bg; ctx.bg2 = saved.bg2; ctx.fg = saved.fg;
+    ctx.bg = saved.bg; ctx.bg2 = saved.bg2; ctx.fg = saved.fg; ctx.depth = saved.depth;
   }
 }
 
@@ -208,7 +209,31 @@ export function readablePaint(node: Pick<CompositionNode, "type" | "style">, ctx
   return { ...(color ? { color } : {}), bg, bg2, fg: color ?? authored ?? ctx.fg };
 }
 
-function renderNodeInner(node: CompositionNode, ctx: Ctx, key: string): ReactNode {
+/**
+ * Big background areas (the section itself and full-width rows/grids/stacks)
+ * get the same premium-surface correction as the page: a washed-out mid-grey
+ * band becomes a clean light tint or a deep shade. Cards, buttons, badges and
+ * gradients keep exactly the colour the design chose.
+ */
+function correctSurface(node: CompositionNode, depth: number): CompositionNode {
+  const background = node.style?.background;
+  if (!background || node.style?.gradientTo) return node;
+  const container = node.type === "stack" || node.type === "grid" || node.type === "row" || node.type === "card";
+  if (!container) return node;
+  // Big bands always get the premium correction. Deeper boxes only when they
+  // are a dull, colourless mid-grey (the washed-out look) — a deliberately
+  // coloured card keeps exactly the colour the design chose.
+  const rgb = toRgb(background);
+  const colourless = rgb ? Math.max(rgb.r, rgb.g, rgb.b) - Math.min(rgb.r, rgb.g, rgb.b) < 18 : false;
+  if (depth > 1 && !colourless) return node;
+  const fixed = premiumSurface(background);
+  return fixed && fixed.toLowerCase() !== background.toLowerCase()
+    ? { ...node, style: { ...node.style, background: fixed } }
+    : node;
+}
+
+function renderNodeInner(rawNode: CompositionNode, ctx: Ctx, key: string): ReactNode {
+  const node = correctSurface(rawNode, ctx.depth ?? 0);
   const id = `${ctx.scope}-${ctx.counter.n++}`;
   // Buttons and links are how visitors act: a design may restyle them per
   // screen size but never hide one, or a phone visitor loses the action.
@@ -229,6 +254,7 @@ function renderNodeInner(node: CompositionNode, ctx: Ctx, key: string): ReactNod
   const paint = readablePaint(node, ctx);
   if (paint.color) style.color = paint.color;
   ctx.bg = paint.bg; ctx.bg2 = paint.bg2; ctx.fg = paint.fg;
+  ctx.depth = (ctx.depth ?? 0) + 1;
   const motion = node.motion && node.motion.kind !== "none" ? node.motion : null;
   const interactive = node.type === "button" || node.type === "link" || node.type === "card" || node.type === "widget";
   const classNames = [
@@ -626,15 +652,19 @@ export function CompositionRenderer({ tree, scope, as = "section", resolveHref, 
     </style>
   );
   const own = ctx.rules.length ? <style>{ctx.rules.join("")}</style> : null;
+  // Unstyled text was measured against this surface's ink, so the wrapper
+  // must actually paint that ink — otherwise it inherits whatever the page
+  // or <body> happens to use (white-on-white on light client sites).
+  const rootStyle: CSSProperties | undefined = page ? { color: bestInk(page) } : undefined;
   return (
     as === "div" ? (
-      <div data-composition={tree.label ?? "composition"}>
+      <div data-composition={tree.label ?? "composition"} style={rootStyle}>
         {shared}
         {own}
         {body}
       </div>
     ) : (
-      <section data-composition={tree.label ?? "composition"}>
+      <section data-composition={tree.label ?? "composition"} style={rootStyle}>
         {shared}
         {own}
         {body}

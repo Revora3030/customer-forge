@@ -32,15 +32,33 @@ describe("live CRM hand-off", () => {
   crmIt("delivers a lead once and rejects an identical replay", async () => {
     const url = env["INTEGRATION_TEST_CRM_WEBHOOK_URL"]!;
     const idempotencyKey = `revora-it-${Date.now()}`;
+    // Exactly the body and headers production sends (dispatchLeadWebhook in
+    // lead-routing.server.ts). The old ad-hoc test body ({source, lead}) was
+    // rejected with HTTP 400 by receivers that expect the real lead.created
+    // event, so the test failed while real leads were delivered fine.
     const payload = {
-      source: "integration-test",
+      event: "lead.created" as const,
+      timestamp: new Date().toISOString(),
+      workspace_id: "integration-test",
       idempotency_key: idempotencyKey,
-      lead: { name: "Integration Test", email: "integration@revoratest.dev" },
+      lead: {
+        name: "Integration Test",
+        email: "integration@revoratest.dev",
+        phone: null,
+        service: null,
+        message: "Revora live integration test - safe to delete.",
+        source_url: null,
+      },
     };
     const send = () =>
       fetch(url, {
         method: "POST",
-        headers: { "content-type": "application/json", "idempotency-key": idempotencyKey },
+        headers: {
+          "content-type": "application/json",
+          "x-revora-event": payload.event,
+          "x-revora-workspace-id": payload.workspace_id,
+          "idempotency-key": idempotencyKey,
+        },
         body: JSON.stringify(payload),
         signal: AbortSignal.timeout(20_000),
       });
