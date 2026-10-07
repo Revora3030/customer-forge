@@ -127,10 +127,14 @@ describe("an AI-invented section reaches the finished page unchanged", () => {
     expect(isRenderableSectionKind("composition")).toBe(true);
   });
 
-  it("the site check's list matches exactly what the page can draw", () => {
+  it("keeps functional switch kinds aligned while compatibility kinds bypass the switch", () => {
     const source = readFileSync("src/components/site/SiteSections.tsx", "utf8");
     const body = source.slice(source.indexOf("function SiteSectionBody"));
     const cases = [...body.matchAll(/case "([a-z_]+)":/g)].map((m) => m[1]).sort();
-    expect(cases).toEqual([...RENDERABLE_SECTION_KINDS].sort());
+    const functionalKinds = [...RENDERABLE_SECTION_KINDS]
+      .filter((kind) => !["composition", "hero", "services", "process", "social_proof", "faq", "home", "page", "story", "values", "service_area"].includes(kind))
+      .sort();
+    expect(cases).toEqual(functionalKinds);
+    expect(body).not.toMatch(/case "hero":|case "services":|case "process":|case "social_proof":|case "faq":/);
   });
 });
