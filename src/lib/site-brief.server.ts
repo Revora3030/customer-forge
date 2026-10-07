@@ -133,7 +133,7 @@ export async function gatherBriefFacts(
     db.from("social_profiles").select("*").eq("organization_id", orgId).maybeSingle(),
     db.from("quote_forms").select("id").eq("organization_id", orgId).eq("is_active", true),
     db.from("quote_questions").select("id").eq("organization_id", orgId),
-    db.from("services").select("id").eq("organization_id", orgId).eq("bookable", true),
+    db.from("services").select("id, name").eq("organization_id", orgId).eq("bookable", true),
     db
       .from("website_settings")
       .select("seo, generation")
@@ -230,7 +230,7 @@ export async function gatherBriefFacts(
       primaryCtaLabel: str(seo["primary_cta_label"]),
       secondaryCtaLabel: str(seo["secondary_cta_label"]),
       phone: str(p["phone"]),
-      email: str(p["email"]),
+      email,
       quoteForms: (forms.data ?? []).length,
       quoteQuestions: (questions.data ?? []).length,
       bookableServices: ((bookable.data ?? []) as { id: string; name?: string | null }[])
