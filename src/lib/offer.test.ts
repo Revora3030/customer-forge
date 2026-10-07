@@ -6,7 +6,7 @@ const setup = {
   lookup_key: GROWTH_SYSTEM.setupPriceKey,
   active: true,
   currency: "usd",
-  unit_amount: 75_000,
+  unit_amount: 35_000,
   type: "one_time",
   recurring: null,
 };

@@ -22,7 +22,7 @@ const setupPrice = {
   lookup_key: SETUP_PRICE_LOOKUP_KEY,
   active: true,
   currency: "usd",
-  unit_amount: 75_000,
+  unit_amount: 35_000,
   type: "one_time",
   recurring: null,
 };
@@ -112,7 +112,7 @@ describe("Revora Stripe catalog", () => {
     expect(
       verifyGrowthMonthlyCatalog({
         environment: "live",
-        monthlyPrice: { ...monthlyPrice, unit_amount: 75_000 },
+        monthlyPrice: { ...monthlyPrice, unit_amount: 35_000 },
         monthlyProduct,
       }).ok,
     ).toBe(false);

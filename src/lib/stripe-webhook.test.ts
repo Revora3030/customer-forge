@@ -47,7 +47,7 @@ const eventBody = (overrides: Record<string, unknown> = {}) =>
   JSON.stringify({
     id: "evt_test_1",
     type: "checkout.session.completed",
-    data: { object: { id: "cs_test_1", payment_status: "paid", amount_total: 75000 } },
+    data: { object: { id: "cs_test_1", payment_status: "paid", amount_total: 35000 } },
     ...overrides,
   });
 
@@ -62,7 +62,7 @@ describe("payment webhook signature verification", () => {
     const event = await verifyWebhook(await request(body), "sandbox");
     expect(event.type).toBe("checkout.session.completed");
     expect(event.id).toBe("evt_test_1");
-    expect(event.data.object.amount_total).toBe(75000);
+    expect(event.data.object.amount_total).toBe(35000);
   });
 
   it("rejects an unsigned request", async () => {
