@@ -268,3 +268,79 @@ export const restoreWebsiteVersion = createServerFn({ method: "POST" })
       exact,
     };
   });
+
+/** The saved versions of one section, newest first (for "revert this section"). */
+export const listSectionHistory = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((data: { organizationId: string; sectionId: string }) => ({
+    organizationId: uuid(data?.organizationId),
+    sectionId: uuid(data?.sectionId),
+  }))
+  .handler(async ({ data, context }) => {
+    const { data: rows, error } = await context.supabase
+      .from("website_versions")
+      .select("id, version, label, created_at, pages")
+      .eq("organization_id", data.organizationId)
+      .order("version", { ascending: false })
+      .limit(40);
+    if (error) throw new Error("Couldn't read your saved versions right now.");
+    const { sectionHistory } = await import("@/lib/section-restore");
+    return {
+      entries: sectionHistory((rows ?? []) as never, data.sectionId).filter((entry) => entry.changed).slice(0, 15),
+    };
+  });
+
+/**
+ * Puts ONE section back the way it was in a saved version. Everything else on
+ * the site stays exactly as it is now. Runs through the same atomic, verified
+ * restore as a full version restore, and saves a restore point first so the
+ * section restore itself can be undone. Manager+ only.
+ */
+export const restoreSectionVersion = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((data: { organizationId: string; sectionId: string; versionId: string }) => ({
+    organizationId: uuid(data?.organizationId),
+    sectionId: uuid(data?.sectionId),
+    versionId: uuid(data?.versionId),
+  }))
+  .handler(async ({ data, context }) => {
+    const { requireOrgRole } = await import("@/lib/org-authz.server");
+    await requireOrgRole(context.supabase as never, data.organizationId, context.userId, "manager");
+    const { data: version, error } = await context.supabase
+      .from("website_versions")
+      .select("id, version, pages")
+      .eq("id", data.versionId)
+      .eq("organization_id", data.organizationId)
+      .maybeSingle();
+    if (error) throw new Error("Couldn't read that version right now.");
+    if (!version) throw new Error("That version is no longer available.");
+
+    const { sectionInVersion, withSectionFrom } = await import("@/lib/section-restore");
+    const saved = sectionInVersion(version.pages, data.sectionId);
+    if (!saved) throw new Error("That version doesn't include this section.");
+
+    const current = await readWebsiteState(context.supabase as never as StateReader, data.organizationId);
+    const merged = withSectionFrom(current, saved);
+    if (!merged) throw new Error("This section isn't on the page anymore. Restore the whole version instead.");
+
+    // Restore point of the current draft first (never a published version).
+    const { data: latest } = await context.supabase
+      .from("website_versions")
+      .select("version")
+      .eq("organization_id", data.organizationId)
+      .order("version", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const { error: backupError } = await context.supabase.from("website_versions").insert({
+      organization_id: data.organizationId,
+      version: Number(latest?.version ?? 0) + 1,
+      label: `Before restoring one section to version ${version.version}`,
+      pages: current as never,
+      created_by: context.userId,
+    });
+    if (backupError) throw new Error("Couldn't save your current draft first, so nothing was changed.");
+
+    const result = await applyWebsiteRestore(context.supabase as never, data.organizationId, merged);
+    return { restoredFrom: Number(version.version), exact: result.exact };
+  });
+
