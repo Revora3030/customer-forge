@@ -77,6 +77,7 @@ import {
 } from "@/lib/ai/providers/openai";
 
 import { base64ByteLength } from "@/lib/ai/providers/shared";
+import { demoteDegradedPaid, noteProviderFailure, noteProviderSuccess } from "@/lib/ai/provider-backoff";
 import { checkAiLimits, recordAiEvent } from "@/lib/ai/telemetry.server";
 import type {
   AiCaller,
@@ -379,7 +380,11 @@ async function buildChain(
   const grouped = role === "vision" ? fastVisionFirst(groupedRaw) : groupedRaw;
   // LIVE ADMIN ROUTING: pins and pauses set in the Command Center.
   const { loadCommandSettings, applyRoutingOverrides } = await import("@/lib/ai/command-settings.server");
-  const ordered = applyRoutingOverrides(grouped, (entry) => entry.model, await loadCommandSettings());
+  const overridden = applyRoutingOverrides(grouped, (entry) => entry.model, await loadCommandSettings());
+  // FREE-FIRST AUTO-SWITCH: a paid provider that recently answered 402/quota/
+  // key-rejected/rate-limited moves behind the free pool until its backoff
+  // lapses, so an unfunded account never adds latency to every build step.
+  const ordered = demoteDegradedPaid(overridden);
   // The POOL is unlimited; one single request's FAILOVER depth is not, so a
   // simple call can never turn into a 60-model latency wall. The ensemble
   // orchestrator uses the full pool in parallel instead.
@@ -619,6 +624,7 @@ async function run<T>(
           }
           const result = await execute({ adapter, config, model, signal: controller.signal });
           noteSuccess(breakerScope);
+          if (!candidate.free) noteProviderSuccess(config.name);
           if (candidate.free)
             void noteDurableProviderResult({
               provider: candidate.free,
@@ -672,6 +678,7 @@ async function run<T>(
                 : providerUnavailable(config.name, (rawError as Error)?.message?.slice(0, 120));
           lastError = error;
           if (error.retryable) noteFailure(breakerScope);
+          if (!candidate.free) noteProviderFailure(config.name, error.category);
           // The shared (cross-worker) health record is per PROVIDER, so only
           // provider-wide trouble goes into it. A retired model id or one bad
           // answer must not bench every other model that provider serves.
