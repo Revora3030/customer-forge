@@ -153,5 +153,5 @@ WHERE id = 'growth_system'
 ALTER TABLE public.offer_config ADD CONSTRAINT offer_config_revora_offer_locked
   CHECK (
     id <> 'growth_system'
-    OR (setup_price = 750 AND monthly_price = 100 AND trial_days = 30 AND full_access_days = 3)
+    OR (setup_price = 350 AND monthly_price = 100 AND trial_days = 30 AND full_access_days = 3)
   );

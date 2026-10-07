@@ -38,7 +38,7 @@ export const STRIPE_CATALOG: Record<
   live: Object.freeze({
     setup: Object.freeze({
       stripeProductId: "prod_V9zmxmIK9gzVz2",
-      stripePriceId: "price_1UHbVYJiPGcf7LJpNHniO2Zb",
+      stripePriceId: "price_1UNlh4JiPGcf7LJpNGag1LLJ",
       priceLookupKey: SETUP_PRICE_LOOKUP_KEY,
       taxCode: SAAS_TAX_CODE,
     }),

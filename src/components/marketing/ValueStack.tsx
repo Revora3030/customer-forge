@@ -1,5 +1,5 @@
 /**
- * $750 value presentation — what the setup fee actually replaces, priced
+ * $350 value presentation — what the setup fee actually replaces, priced
  * against what a local business would otherwise pay for each piece separately.
  * Comparison figures are typical market ranges, labelled as estimates.
  */
@@ -25,7 +25,7 @@ const LINE_ITEMS = [
   { item: "Ongoing updates, support and optimization", elsewhere: "$500+/month agency retainer" },
 ] as const;
 
-/** The "why $750 is the easy part" value stack. */
+/** The "why $350 is the easy part" value stack. */
 export function ValueStack() {
   return (
     <div className="grid gap-6 lg:grid-cols-[1.05fr_0.95fr] lg:gap-8">

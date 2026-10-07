@@ -63,7 +63,7 @@ const AssessmentEmail = (p: AssessmentEmailProps) => (
           Start 1 day of free full access
         </Link>
         <Text style={footer}>
-          $750 one-time setup, first month free, then $100/month. Cancel anytime. Questions? Reply
+          $350 one-time setup, first month free, then $100/month. Cancel anytime. Questions? Reply
           to this email or call (919) 622-6620.
         </Text>
       </Container>

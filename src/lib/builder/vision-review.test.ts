@@ -41,7 +41,7 @@ describe("vision review", () => {
   it("drops anything that reads like a claim about the business", () => {
     const review = parseVisionReview({
       issues: [
-        { kind: "cta_not_prominent", severity: "major", detail: "The $750 button is hard to see." },
+        { kind: "cta_not_prominent", severity: "major", detail: "The $350 button is hard to see." },
         { kind: "unbalanced_layout", severity: "major", detail: "Trusted by 2000 customers is squashed." },
       ],
     });

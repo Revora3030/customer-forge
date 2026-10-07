@@ -217,7 +217,7 @@ async function handleEvent(event: StripeWebhookEvent, env: StripeEnv) {
             break;
           }
           // A granted waiver must be auditable: record the actor, the session
-          // and the verified owner email every time the $750 setup fee is
+          // and the verified owner email every time the $350 setup fee is
           // skipped, so the single bypass path can never be used silently.
           const { error: waiverAuditError } = await admin.from("audit_logs").insert({
             organization_id: organizationId,
