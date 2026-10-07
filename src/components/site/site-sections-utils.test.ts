@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { validateComposition } from "@/lib/builder/composition-tree";
 import { LEGACY_SECTION_KINDS, legacySectionToComposition } from "@/components/site/site-sections-utils";
@@ -105,6 +106,17 @@ describe("legacy section composition adapter", () => {
 
     const checked = validateComposition(tree);
     expect(checked.ok).toBe(true);
+  });
+
+
+  it("removes the legacy JSX switch from the public section renderer", () => {
+    const source = readFileSync("src/components/site/SiteSections.tsx", "utf8");
+    const body = source.slice(source.indexOf("function SiteSectionBody"));
+    expect(body).not.toMatch(/case "hero":/);
+    expect(body).not.toMatch(/case "services":/);
+    expect(body).not.toMatch(/<article/);
+    expect(body).toContain("legacySectionToComposition");
+    expect(body).toContain("CompositionRenderer");
   });
 
   it("returns null for section kinds that are functional or unknown", () => {
