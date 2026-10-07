@@ -22,6 +22,14 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 const QUEUE_ID = "site_engine";
 const LEASE_SECONDS = 180;
+/**
+ * Time budgets for the two longest AI stages. Section wording is a refinement
+ * of copy that is already AI-authored and fact-checked, so when it overruns it
+ * is abandoned (the authored wording stays). Layout always designs every
+ * section; only its optional review/craft rounds stop at the budget.
+ */
+const WORDING_BUDGET_MS = 150_000;
+const LAYOUT_OPTIONAL_BUDGET_MS = 240_000;
 const MAX_ATTEMPTS = 3;
 const RATE_LIMIT_TRIP = 3;
 
@@ -263,6 +271,24 @@ export function startLeaseHeartbeat(
 }
 
 /**
+ * Renews the lease immediately (in addition to the background heartbeat) at
+ * points where a long AI stage has just finished. Fenced on the attempt, so a
+ * superseded attempt never extends a lease it no longer owns.
+ */
+async function touchLease(db: Db, job: { id: string; attempts: number }): Promise<void> {
+  const { error } = await db
+    .from("generation_jobs")
+    .update({
+      lease_expires_at: new Date(Date.now() + LEASE_SECONDS * 1000).toISOString(),
+      updated_at: new Date().toISOString(),
+    } as never)
+    .eq("id", job.id)
+    .eq("attempts", job.attempts)
+    .eq("status", "processing");
+  if (error) console.warn(`[site-engine] lease touch failed for job ${job.id}: ${error.message}`);
+}
+
+/**
  * A job whose LAST allowed attempt died mid-run (the worker was cut off, the
  * platform recycled it) keeps status "processing" with an expired lease. The
  * claimer skips it because its attempts are used up, so without this sweep the
@@ -464,12 +490,21 @@ async function runJob(
   const realMediaCount = (media.data ?? []).filter((item) =>
     ["hero", "work", "gallery", "team", "premises"].includes(String(item.category ?? "").toLowerCase()),
   ).length + ((p["hero_image_url"] as string) ? 1 : 0);
-  const serviceRows = (services.data ?? []) as {
-    name: string;
-    description?: string | null;
-    price?: number | null;
-    starting_price?: number | null;
-  }[];
+  // Platform UI wording ("Build my site", "All") saved as a service by an
+  // earlier intake bug is never a real business service, so it is dropped
+  // before anything is written about it. Nothing is invented in its place.
+  const { sanitizeServices, customerBusinessEmail } = await import("@/lib/builder/intake-sanitize");
+  const serviceRows = sanitizeServices(
+    (services.data ?? []) as {
+      name: string;
+      description?: string | null;
+      price?: number | null;
+      starting_price?: number | null;
+    }[],
+  );
+  // Revora's own inbox is never a customer's business email (except on
+  // Revora's internal workspace). Treated as "not supplied", never replaced.
+  const businessEmail = customerBusinessEmail(p["email"], orgId);
   await step("services");
 
   const social = (socials.data ?? {}) as Record<string, unknown>;
@@ -487,6 +522,8 @@ async function runJob(
   const goalsRaw = (p["website_goals"] as string[] | undefined) ?? [];
   const goals = (goalsRaw.length ? goalsRaw : org.data.conversion_goal ? [org.data.conversion_goal] : []) as string[];
 
+  /** Supplied facts held back from the site because they failed the integrity check. */
+  const withheldFacts: string[] = [];
   const copyFacts = {
     businessName: org.data.name ?? "",
     industry: org.data.industry ?? "",
@@ -494,8 +531,8 @@ async function runJob(
     city: (p["city"] as string) ?? null,
     state: (p["state"] as string) ?? null,
     serviceArea: (p["service_area"] as string) ?? null,
-    phone: (p["phone"] as string) ?? null,
-    email: (p["email"] as string) ?? null,
+    phone: (p["phone"] as string | null) ?? null,
+    email: businessEmail,
     yearsInBusiness: (p["years_in_business"] as number) ?? null,
     hasHours: Boolean(p["hours"] && Object.keys(p["hours"] as object).length),
     style: (p["font_preference"] as string) ?? null,
@@ -508,7 +545,19 @@ async function runJob(
   // built site. Nothing is invented in their place — the build stops and asks
   // for the real information.
   {
-    const { assertContentIntegrity } = await import("@/lib/builder/content-integrity");
+    const { assertContentIntegrity, inspectContentIntegrity } = await import("@/lib/builder/content-integrity");
+    // A placeholder phone number is not a reason to refuse the whole build.
+    // It is withheld from the site (never shown, never replaced by an invented
+    // number) and the owner is told to add the real one. Every other field
+    // keeps the hard gate.
+    const phoneProblems = inspectContentIntegrity([{ field: "phone", value: copyFacts.phone }]);
+    if (phoneProblems.length) {
+      console.warn(
+        `[site-engine] job ${job.id}: phone withheld from the site (${phoneProblems.map((v) => v.detail).join("; ")})`,
+      );
+      copyFacts.phone = null;
+      withheldFacts.push("phone");
+    }
     assertContentIntegrity([
       { field: "business name", value: copyFacts.businessName, heading: true },
       { field: "description", value: copyFacts.description },
@@ -642,8 +691,8 @@ async function runJob(
     city: (p["city"] as string) ?? null,
     state: (p["state"] as string) ?? null,
     serviceArea: (p["service_area"] as string) ?? null,
-    phone: (p["phone"] as string) ?? null,
-    email: (p["email"] as string) ?? null,
+    phone: copyFacts.phone,
+    email: businessEmail,
     yearsInBusiness: (p["years_in_business"] as number) ?? null,
     services: serviceRows,
     goals,
@@ -725,7 +774,17 @@ async function runJob(
     .from("website_pages")
     .select("id", { count: "exact", head: true })
     .eq("organization_id", orgId);
-  const firstBuild = freshReplace || (existingPages.count ?? 0) === 0;
+  // A previous build that died mid-write (interrupted, failed or cancelled)
+  // leaves its "materializing" marker behind. Its half-written pages are not a
+  // customer site: pressing Build again starts a NEW job, which used to treat
+  // those orphaned rows as the owner's site, skip materialization, and so skip
+  // every AI layout pass — freezing the site in a half-built skeleton. Those
+  // rows are now identified (fenced by the dead job's start time) and cleared
+  // below, so the new build runs every pass from scratch.
+  const orphanedBuild = !freshReplace && (existingPages.count ?? 0) > 0
+    ? await findOrphanedPartialBuild(db, orgId, priorGeneration, job.id)
+    : null;
+  const firstBuild = freshReplace || (existingPages.count ?? 0) === 0 || orphanedBuild !== null;
   const missingCopy = missingAiCopy(copy);
   if (firstBuild && !refined.creativeChanged) {
     const { AiStepUnavailableError } = await import("@/lib/builder/ai-step-error");
@@ -770,7 +829,9 @@ async function runJob(
   // Only rows tagged with this job are cleared; fresh rebuilds remain protected
   // by their restore point and unrelated customer content is untouched.
   const retryOwnsPartialBuild = !freshReplace && (existingPages.count ?? 0) > 0 && Number(job.attempts ?? 0) > 1;
-  if (retryOwnsPartialBuild) {
+  if (orphanedBuild) {
+    await clearOrphanedPartialBuild(db, orgId, orphanedBuild);
+  } else if (retryOwnsPartialBuild) {
     const partial = await db
       .from("website_settings")
       .select("generation")
@@ -940,8 +1001,8 @@ async function runJob(
     city: (p["city"] as string) ?? null,
     state: (p["state"] as string) ?? null,
     serviceArea: (p["service_area"] as string) ?? null,
-    phone: (p["phone"] as string) ?? null,
-    email: (p["email"] as string) ?? null,
+    phone: copyFacts.phone,
+    email: businessEmail,
     yearsInBusiness: (p["years_in_business"] as number) ?? null,
     photoCount: realMediaCount,
     hasQuoteForm: (forms.data ?? []).length > 0,
@@ -1051,13 +1112,38 @@ async function runJob(
       subheading: section.subheading,
       body: section.body,
     }));
-    const outcome = await refineSectionWordingWithCollective({
-      organizationId: orgId,
-      facts: buildFacts,
-      sections: wording,
-      directionSummary: [creative.brief.concept, creative.brief.personality].filter(Boolean).join(" · "),
-      hardGenericityGate: true,
-    });
+    // Section wording is a refinement of copy that is already AI-authored and
+    // fact-checked. It is bounded in time: when Sol/Terra are slow, the abort
+    // makes the refinement return no patches (the authored wording stays)
+    // instead of holding the worker until it is cut off at 74%.
+    const wordingAbort = new AbortController();
+    const wordingTimer = setTimeout(() => wordingAbort.abort(), WORDING_BUDGET_MS);
+    (wordingTimer as { unref?: () => void }).unref?.();
+    type WordingOutcome = Awaited<ReturnType<typeof refineSectionWordingWithCollective>>;
+    const keepAuthored: WordingOutcome = { patches: [], passes: [], totalCostMicrocents: 0 };
+    // Raced against the abort as well, because not every provider fallback
+    // honours the signal; the stage must return on time either way.
+    const timedOut = new Promise<WordingOutcome>((resolve) =>
+      wordingAbort.signal.addEventListener("abort", () => resolve(keepAuthored), { once: true }),
+    );
+    const outcome = await Promise.race([
+      refineSectionWordingWithCollective({
+        organizationId: orgId,
+        facts: buildFacts,
+        sections: wording,
+        directionSummary: [creative.brief.concept, creative.brief.personality].filter(Boolean).join(" · "),
+        hardGenericityGate: true,
+        signal: wordingAbort.signal,
+      }).catch((error: unknown) => {
+        if (!wordingAbort.signal.aborted) throw error;
+        return keepAuthored;
+      }),
+      timedOut,
+    ]).finally(() => clearTimeout(wordingTimer));
+    if (wordingAbort.signal.aborted) {
+      console.warn(`[site-engine] job ${job.id}: section wording refinement exceeded its budget; keeping the authored wording.`);
+    }
+    await touchLease(db, job);
     for (const patch of outcome.patches) {
       const update: Record<string, string> = {};
       if (patch.heading !== undefined) update["heading"] = patch.heading;
@@ -1101,6 +1187,10 @@ async function runJob(
       db: db as never,
       organizationId: orgId,
       facts: buildFacts,
+      // Optional review/craft rounds stop once this build has used its layout
+      // budget; the required AI design and safety checks always complete.
+      optionalPassDeadline: Date.now() + LAYOUT_OPTIONAL_BUDGET_MS,
+      onPageDone: () => touchLease(db, job),
       lookSummary: JSON.stringify({
         concept: creative.brief.concept,
         personality: creative.brief.personality,
@@ -1376,7 +1466,10 @@ async function runJob(
     body:
       (leadCapture
         ? "Revora built your site from your information and connected lead capture."
-        : "Revora built your site. Turn on the quote calculator or online booking to capture leads."),
+        : "Revora built your site. Turn on the quote calculator or online booking to capture leads.") +
+      (withheldFacts.includes("phone")
+        ? " Your phone number looked like a placeholder, so it was left off the site — add your real number in Business details to show call buttons."
+        : ""),
     kind: "website",
     link: "/app/website",
   } as never);
@@ -1402,6 +1495,72 @@ async function runJob(
     }
     throw error;
   }
+}
+
+/** A dead earlier build whose partial rows can be safely cleared. */
+type OrphanedBuild = { jobId: string; since: string };
+
+/**
+ * Finds the partial output of an earlier build that never finished. Only
+ * returns a match when ALL of these hold, so a real customer site is never
+ * treated as disposable:
+ *  - website_settings.generation still carries buildState "materializing"
+ *    (it is removed when a build settles successfully);
+ *  - the marker names a different job, and that job is failed or cancelled;
+ *  - no page in the workspace is older than that job (anything older belongs
+ *    to the owner and blocks the cleanup).
+ */
+export async function findOrphanedPartialBuild(
+  db: Db,
+  orgId: string,
+  generation: Record<string, unknown>,
+  currentJobId: string,
+): Promise<OrphanedBuild | null> {
+  if (generation["buildState"] !== "materializing") return null;
+  const deadJobId = typeof generation["jobId"] === "string" ? generation["jobId"] : null;
+  if (!deadJobId || deadJobId === currentJobId) return null;
+  const { data: dead } = await db
+    .from("generation_jobs")
+    .select("id, status, created_at")
+    .eq("id", deadJobId)
+    .eq("organization_id", orgId)
+    .maybeSingle();
+  const row = dead as { status?: string; created_at?: string } | null;
+  if (!row?.created_at || (row.status !== "failed" && row.status !== "cancelled")) return null;
+  const older = await db
+    .from("website_pages")
+    .select("id", { count: "exact", head: true })
+    .eq("organization_id", orgId)
+    .lt("created_at", row.created_at);
+  if ((older.count ?? 0) > 0) {
+    console.warn(
+      `[site-engine] earlier build ${deadJobId} left partial rows, but older owner pages exist; they are kept untouched.`,
+    );
+    return null;
+  }
+  return { jobId: deadJobId, since: row.created_at };
+}
+
+/** Deletes only the rows written since the dead build started (components → sections → pages). */
+async function clearOrphanedPartialBuild(db: Db, orgId: string, orphan: OrphanedBuild) {
+  const pageIds = await db
+    .from("website_pages")
+    .select("id")
+    .eq("organization_id", orgId)
+    .gte("created_at", orphan.since);
+  const ids = (pageIds.data ?? []).map((row) => row.id as string);
+  if (!ids.length) return;
+  const sectionIds = await db.from("website_sections").select("id").eq("organization_id", orgId).in("page_id", ids);
+  const sIds = (sectionIds.data ?? []).map((row) => row.id as string);
+  if (sIds.length) {
+    const componentDelete = await db.from("website_components").delete().eq("organization_id", orgId).in("section_id", sIds);
+    if (componentDelete.error) throw new Error(`Couldn't clear the interrupted build's components: ${componentDelete.error.message}`);
+    const sectionDelete = await db.from("website_sections").delete().eq("organization_id", orgId).in("id", sIds);
+    if (sectionDelete.error) throw new Error(`Couldn't clear the interrupted build's sections: ${sectionDelete.error.message}`);
+  }
+  const pageDelete = await db.from("website_pages").delete().eq("organization_id", orgId).in("id", ids);
+  if (pageDelete.error) throw new Error(`Couldn't clear the interrupted build's pages: ${pageDelete.error.message}`);
+  console.warn(`[site-engine] cleared ${ids.length} page(s) left by interrupted build ${orphan.jobId}.`);
 }
 
 export type DrainResult = {
