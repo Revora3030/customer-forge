@@ -47,8 +47,21 @@ export function sanitizeErrorText(value: string | null | undefined): string | nu
     .replace(SENSITIVE_QUERY_PARAM, "$1[redacted]")
     .replace(CREDENTIAL_VALUE, "[redacted]")
     .replace(AUTH_VALUE, "[redacted]")
-    .replace(SENSITIVE_HEADER, "$1[redacted]");
+    .replace(SENSITIVE_HEADER, "$1[redacted]")
+    .replace(BEARER_PATH, "$1[token]")
+    .replace(JWT_VALUE, "[redacted-jwt]")
+    .replace(EMAIL_VALUE, "[email]")
+    .replace(PHONE_VALUE, "[phone]");
 }
+
+/**
+ * Route paths whose segment IS a secret (share-preview and invite links), and
+ * PII that visitors type into forms. None of it is needed to fix a bug.
+ */
+const BEARER_PATH = /(\/(?:p|invite|preview|unsubscribe|reset-password)\/)[A-Za-z0-9_-]{12,}/g;
+const JWT_VALUE = /\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b/g;
+const EMAIL_VALUE = /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/g;
+const PHONE_VALUE = /(?<![\w.:/-])\+?\(?\d{3}\)?[\s.-]\d{3}[\s.-]\d{4}(?![\w])/g;
 
 /** Stable grouping key: same failure in the same place = same fingerprint. */
 export function fingerprintOf(input: {

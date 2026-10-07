@@ -208,6 +208,9 @@ function RootComponent() {
         if (event !== "SIGNED_IN" && event !== "SIGNED_OUT" && event !== "USER_UPDATED") return;
         if (event !== "SIGNED_OUT")
           void ensureProfile().catch((error) => reportRouteError(error, { boundary: "profile_bootstrap" }));
+        // A shared device must not show the previous owner's builder chat.
+        if (event === "SIGNED_OUT")
+          void import("@/lib/builder-memory").then((memory) => memory.clearAllCachedTurns()).catch(() => undefined);
         router.invalidate();
         if (event !== "SIGNED_OUT") {
           queryClient.invalidateQueries();

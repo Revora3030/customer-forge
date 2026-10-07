@@ -98,6 +98,19 @@ export function isMissingColumnError(error: unknown): boolean {
 const CACHE_PREFIX = "rv-builder-turns:";
 const CACHE_LIMIT = 80;
 
+/**
+ * Scoped browser cache. Keys are per workspace, the copy is display-only (the
+ * database stays authoritative and RLS still decides what is loaded), and it
+ * is cleared on "New chat". Never used for authorization.
+ */
+function cacheStore(): Storage | null {
+  try {
+    return typeof window === "undefined" ? null : window.localStorage;
+  } catch {
+    return null;
+  }
+}
+
 function cacheKey(organizationId: string) {
   return `${CACHE_PREFIX}${organizationId}`;
 }
@@ -106,7 +119,9 @@ function cacheKey(organizationId: string) {
 export function readCachedTurns(organizationId: string): SavedTurn[] {
   try {
     if (typeof window === "undefined") return [];
-    const raw = window.sessionStorage.getItem(cacheKey(organizationId));
+    // localStorage first: it survives the preview opening in a new tab and a
+    // browser restart. sessionStorage is the older location, still honoured.
+    const raw = cacheStore()?.getItem(cacheKey(organizationId)) ?? window.sessionStorage.getItem(cacheKey(organizationId));
     if (!raw) return [];
     const parsed = JSON.parse(raw) as unknown;
     if (!Array.isArray(parsed)) return [];
@@ -126,7 +141,10 @@ export function readCachedTurns(organizationId: string): SavedTurn[] {
 export function writeCachedTurns(organizationId: string, turns: SavedTurn[]): void {
   try {
     if (typeof window === "undefined") return;
-    window.sessionStorage.setItem(cacheKey(organizationId), JSON.stringify(turns.slice(-CACHE_LIMIT)));
+    const payload = JSON.stringify(turns.slice(-CACHE_LIMIT));
+    const store = cacheStore();
+    if (store) store.setItem(cacheKey(organizationId), payload);
+    else window.sessionStorage.setItem(cacheKey(organizationId), payload);
   } catch {
     /* storage full or blocked: the database copy is still authoritative */
   }
@@ -135,9 +153,25 @@ export function writeCachedTurns(organizationId: string, turns: SavedTurn[]): vo
 export function clearCachedTurns(organizationId: string): void {
   try {
     if (typeof window === "undefined") return;
+    cacheStore()?.removeItem(cacheKey(organizationId));
     window.sessionStorage.removeItem(cacheKey(organizationId));
   } catch {
     /* ignore */
+  }
+}
+
+/** Drops every workspace's cached chat on this device (called on sign-out). */
+export function clearAllCachedTurns(): void {
+  for (const store of [cacheStore(), typeof window === "undefined" ? null : window.sessionStorage]) {
+    try {
+      if (!store) continue;
+      for (let index = store.length - 1; index >= 0; index -= 1) {
+        const key = store.key(index);
+        if (key?.startsWith(CACHE_PREFIX)) store.removeItem(key);
+      }
+    } catch {
+      /* blocked storage: nothing cached */
+    }
   }
 }
 

@@ -57,8 +57,14 @@ describe("draft updating banner", () => {
     expect(src).toContain('role="status"');
     expect(src).toContain('aria-live="polite"');
     expect(src).toContain('role="progressbar"');
-    expect(src).toContain("Updating draft: ${job.currentStep}");
-    expect(src).toContain("Updating draft in background...");
+    expect(src).toContain("Sol is drafting revisions…");
+    // The job stores a step key; the owner sees the readable label.
+    expect(src).toContain("stepLabel(job.currentStep)");
+  });
+  it("floats over the draft without blocking it and wraps long titles", () => {
+    expect(src).toContain("pointer-events-none fixed");
+    expect(src).toContain("break-words");
+    expect(src).not.toContain("sticky top-0 z-50");
   });
 });
 

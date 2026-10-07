@@ -54,6 +54,8 @@ type LeadDeliveryLogInsert = {
   reason: string | null;
   retryable: boolean;
   attempted_at: string;
+  /** Added by migration 20261007200000; omitted when that column is absent. */
+  idempotency_key?: string;
 };
 
 type LeadDeliveryLogTable = {
@@ -727,7 +729,7 @@ export const submitPublicLead = createServerFn({ method: "POST" })
       };
 
       const { sendLeadConfirmation } = await import("@/lib/messaging.server");
-      const { dispatchLeadWebhook } = await import("@/lib/lead-routing.server");
+      const { buildLeadWebhookPayload, dispatchLeadWebhook } = await import("@/lib/lead-routing.server");
       const webhookUrl =
         typeof routingSettings?.lead_webhook_url === "string"
           ? routingSettings.lead_webhook_url
@@ -745,19 +747,17 @@ export const submitPublicLead = createServerFn({ method: "POST" })
             ownerEmail || profile?.email || null,
           )
         : Promise.resolve({ ok: true as const, skipped: true as const, reason: "no_email_address" as const });
-      const webhook = dispatchLeadWebhook(webhookUrl, {
-        event: "lead.created",
-        timestamp: new Date().toISOString(),
-        workspace_id: orgId,
-        lead: {
-          name: data.name,
-          email: data.email || null,
-          phone: data.phone || null,
-          service: data.serviceInterest || null,
-          message: data.message || null,
-          source_url: source.sourceUrl,
-        },
+      const webhookPayload = buildLeadWebhookPayload({
+        organizationId: orgId,
+        leadId: lead.id,
+        name: data.name,
+        email: data.email || null,
+        phone: data.phone || null,
+        service: data.serviceInterest || null,
+        message: data.message || null,
+        sourceUrl: source.sourceUrl,
       });
+      const webhook = dispatchLeadWebhook(webhookUrl, webhookPayload);
 
       const [alert, confirmation, webhookResult] = await Promise.all([
         alertEmail
@@ -798,7 +798,7 @@ export const submitPublicLead = createServerFn({ method: "POST" })
         // than the generated schema types: Lovable regenerates `types.ts` from the
         // live database, and until the migration is applied there, a typed
         // `.from("lead_delivery_logs")` call breaks the build gate.
-        const { error: telemetryInsertError } = await leadDeliveryLogs(supabase).insert({
+        const logRow: LeadDeliveryLogInsert = {
           organization_id: orgId,
           lead_id: lead.id,
           delivery_status: deliveryStatus,
@@ -806,7 +806,15 @@ export const submitPublicLead = createServerFn({ method: "POST" })
           reason: webhookResult.ok ? null : webhookResult.reason,
           retryable: webhookResult.ok ? false : webhookResult.retryable,
           attempted_at: webhookResult.attemptedAt,
-        });
+          idempotency_key: webhookPayload.idempotency_key,
+        };
+        let { error: telemetryInsertError } = await leadDeliveryLogs(supabase).insert(logRow);
+        // Environments without the idempotency_key column yet still keep
+        // their delivery telemetry instead of silently dropping it.
+        if (telemetryInsertError && /idempotency_key/.test(telemetryInsertError.message)) {
+          const { idempotency_key: _omit, ...core } = logRow;
+          ({ error: telemetryInsertError } = await leadDeliveryLogs(supabase).insert(core));
+        }
         if (telemetryInsertError) {
           const { captureError } = await import("@/lib/monitoring.server");
           await captureError({

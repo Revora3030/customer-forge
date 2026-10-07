@@ -7,6 +7,7 @@
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { useEffect } from "react";
 import { getOwnerDraftSite } from "@/lib/public-site.functions";
+import { stepLabel } from "@/lib/site-engine";
 import { ErrorBoundary } from "@/components/app/ErrorBoundary";
 import { SitePageView } from "@/routes/s.$slug.$page";
 import { DraftMessage, DraftUpdatingBanner } from "@/routes/_authenticated/draft.$slug";
@@ -79,7 +80,7 @@ function DraftPageRouteContent() {
         title="This page is still being built"
         body={
           result.job?.currentStep
-            ? `Revora is ${result.job.currentStep}. The preview will refresh automatically.`
+            ? `${stepLabel(result.job.currentStep)}. The preview will refresh automatically.`
             : "Revora is finishing this page. The preview will refresh automatically."
         }
         progress={result.job?.progress ?? null}

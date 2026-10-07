@@ -24,6 +24,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { analyzeSiteBrief, runSiteGeneration, saveSiteBrief } from "@/lib/site-engine.functions";
 import { clearStarter, readStarter } from "@/components/marketing/hero-starter-utils";
 import { RouteError } from "@/components/app/RouteStates";
+import { ErrorBoundary } from "@/components/app/ErrorBoundary";
 import { customerBusinessEmail, sanitizeServices } from "@/lib/builder/intake-sanitize";
 
 import {
@@ -45,9 +46,26 @@ export const Route = createFileRoute("/_authenticated/onboarding")({
       { name: "robots", content: "noindex" },
     ],
   }),
-  component: Onboarding,
+  component: OnboardingRoute,
   errorComponent: RouteError,
 });
+
+/**
+ * A render crash inside the six-step form (a partial business profile, a
+ * malformed saved draft) shows a recovery card with the answers kept, instead
+ * of the whole app error page. Reported with sanitized metadata only.
+ */
+function OnboardingRoute() {
+  return (
+    <ErrorBoundary
+      title="This step couldn't load"
+      body="Your answers so far are saved. Reload to continue where you left off."
+      backHref="/app"
+    >
+      <Onboarding />
+    </ErrorBoundary>
+  );
+}
 
 type ServiceDraft = { name: string; description: string; price: string };
 type TestimonialDraft = { name: string; text: string };

@@ -5,6 +5,7 @@
  */
 
 import { RevoraAiError, categoryForStatus } from "@/lib/ai/errors";
+import { BILLING_EXHAUSTED_TEXT } from "@/lib/ai/provider-backoff";
 import type { ProviderName } from "@/lib/ai/config";
 
 export function base64FromDataUrl(dataUrl: string) {
@@ -46,8 +47,14 @@ export async function providerHttpError(
   const modelMissing =
     response.status === 404 ||
     /model[^"]{0,40}(not found|does not exist|not available|unknown|decommission|deprecat)|no such model|invalid model/i.test(detail);
+  // "Out of credit" is often sent as 429 or 400 (OpenAI insufficient_quota).
+  // It is an account fact, not a busy moment: classify it as quota so the
+  // provider is skipped and backed off instead of retried.
+  const billingExhausted = response.status !== 401 && BILLING_EXHAUSTED_TEXT.test(detail);
   const category = keyRejected
     ? "unauthorized"
+    : billingExhausted
+      ? "quota"
     : modelMissing && response.status !== 429 && response.status < 500
       ? "bad_response"
       : categoryForStatus(response.status);

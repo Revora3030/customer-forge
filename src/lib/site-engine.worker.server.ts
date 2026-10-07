@@ -191,7 +191,9 @@ export class StaleAttemptError extends Error {
  */
 export function heartbeatIntervalMs(leaseSeconds = LEASE_SECONDS): number {
   const lease = leaseSeconds * 1000;
-  return Math.max(5_000, Math.min(Math.floor(lease / 4), Math.floor(lease / 2) - 5_000));
+  // At most every 30s during long stages (conversion, layout synthesis,
+  // pictures), and always well inside half the lease.
+  return Math.max(5_000, Math.min(30_000, Math.floor(lease / 4), Math.floor(lease / 2) - 5_000));
 }
 
 export type LeaseHeartbeat = {
