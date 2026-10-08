@@ -1,0 +1,78 @@
+{
+  "name": "Revora — full site browser audit (self-hosted)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": { "interval": [{ "field": "days", "triggerAtHour": 7 }] }
+      },
+      "name": "Every morning",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [0, 0]
+    },
+    {
+      "parameters": {},
+      "name": "Run now",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [0, 200]
+    },
+    {
+      "parameters": {
+        "executeOnce": true,
+        "command": "cd \"${REVORA_AUDIT_DIR:-/home/node/revora-audit}\" && BASE_URL=\"${BASE_URL:-https://revoragrowthsystems.com}\" ARTIFACTS_DIR=/tmp/qa-run node full-site-audit.mjs || true"
+      },
+      "name": "Run browser audit",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [260, 100]
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $input.first().json.stdout || '';\nconst line = raw.trim().split('\\n').filter(l => l.startsWith('{')).pop() || '{}';\nlet report;\ntry { report = JSON.parse(line); } catch { report = { status: 'NOT_RUN', reason: 'Could not read the audit output', raw: raw.slice(0, 2000), stderr: ($input.first().json.stderr || '').slice(0, 2000) }; }\nconst s = report.summary || {};\nconst needsAlert = report.status !== 'PASS' || (s.failed_buttons_count || 0) > 0 || (s.console_errors_count || 0) > 0;\nconst lines = [\n  `Revora site audit: ${report.status}`,\n  `Pages ${s.pages_audited ?? 0} · buttons ${s.total_buttons_tested ?? 0} · dead ${s.failed_buttons_count ?? 0} · console ${s.console_errors_count ?? 0} · network ${s.network_errors_count ?? 0} · build ${s.build_status ?? '-'}`,\n  ...((report.actionable_fixes || []).slice(0, 15).map(f => `• ${f}`)),\n  report.screenshots?.length ? `Screenshots: ${report.screenshots.slice(0, 5).join(', ')}` : '',\n  report.reason ? `Reason: ${report.reason}` : ''\n].filter(Boolean);\nreturn [{ json: { needsAlert, message: lines.join('\\n'), report } }];"
+      },
+      "name": "Read report",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [520, 100]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 },
+          "conditions": [
+            { "id": "alert", "leftValue": "={{ $json.needsAlert }}", "rightValue": true, "operator": { "type": "boolean", "operation": "true", "singleValue": true } }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "name": "Problems found?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [780, 100]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.QA_ALERT_WEBHOOK_URL }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ text: $json.message, content: $json.message }) }}",
+        "options": {}
+      },
+      "name": "Send alert (Slack/Discord webhook)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1040, 0]
+    }
+  ],
+  "connections": {
+    "Every morning": { "main": [[{ "node": "Run browser audit", "type": "main", "index": 0 }]] },
+    "Run now": { "main": [[{ "node": "Run browser audit", "type": "main", "index": 0 }]] },
+    "Run browser audit": { "main": [[{ "node": "Read report", "type": "main", "index": 0 }]] },
+    "Read report": { "main": [[{ "node": "Problems found?", "type": "main", "index": 0 }]] },
+    "Problems found?": { "main": [[{ "node": "Send alert (Slack/Discord webhook)", "type": "main", "index": 0 }], []] }
+  },
+  "settings": { "executionOrder": "v1" }
+}
