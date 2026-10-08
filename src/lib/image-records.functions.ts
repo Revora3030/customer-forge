@@ -290,15 +290,24 @@ export const regenerateImage = createServerFn({ method: "POST" })
         return await fail("The new picture couldn't be added to your library. Your current picture is unchanged.");
       }
       // Point the draft's components that showed the old picture at the new one.
+      const mediaId = (media as { id?: string } | null)?.id ?? null;
+      const discardNew = async () => {
+        if (mediaId) await context.supabase.from("media").delete().eq("id", mediaId).eq("organization_id", data.organizationId);
+        await context.supabase.storage.from(MEDIA_BUCKET).remove([path]);
+      };
       if (row.rendered_url) {
-        await context.supabase
+        const repoint = await context.supabase
           .from("website_components")
           .update({ media_url: path })
           .eq("organization_id", data.organizationId)
           .eq("media_url", row.rendered_url);
+        if (repoint.error) {
+          await discardNew();
+          return await fail("The new picture couldn't be placed on your page. Your current picture is unchanged.");
+        }
       }
       const done = transitionImage({ ...(row as ImageRecordState), status: "regenerating" }, "regenerated");
-      await client
+      const recordWrite = await client
         .from("image_records")
         .update({
           status: done.ok ? done.status : "pending",
@@ -312,6 +321,18 @@ export const regenerateImage = createServerFn({ method: "POST" })
         })
         .eq("id", row.id)
         .eq("organization_id", data.organizationId);
+      if (recordWrite.error) {
+        // Put the page back on the old picture so the record and the page agree.
+        if (row.rendered_url) {
+          await context.supabase
+            .from("website_components")
+            .update({ media_url: row.rendered_url })
+            .eq("organization_id", data.organizationId)
+            .eq("media_url", path);
+        }
+        await discardNew();
+        return await fail("The new picture couldn't be recorded. Your current picture is unchanged.");
+      }
       return { ok: true as const, path };
     } catch (error) {
       console.warn("[image-records] regeneration failed", (error as Error)?.message);
