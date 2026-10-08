@@ -51,6 +51,17 @@ export type FirstBuildImageResult = {
   evidence: FirstBuildImageEvidence;
 };
 
+/**
+ * Wall-clock budget for the whole first-build picture stage. Once it is spent
+ * no new picture is started: the build moves on to write pages, menus and
+ * buttons, and the unfilled slots are reported (and picked up by the picture
+ * repair afterwards) instead of the worker being cut off mid-stage.
+ */
+export function firstBuildImageBudgetMs() {
+  const raw = Number(process.env["FIRST_BUILD_IMAGE_BUDGET_MS"] ?? "");
+  return Number.isFinite(raw) && raw >= 30_000 ? Math.min(Math.floor(raw), 600_000) : 240_000;
+}
+
 function maxStarterImages() {
   const raw = Number(process.env["FIRST_BUILD_IMAGE_MAX"] ?? "");
   // Every page that needs a picture must get one on the first build: the hero,
@@ -141,8 +152,19 @@ export async function generateFirstBuildImages(
     photoCount: number;
     occupiedSlots?: ReadonlySet<PlannedShot["slot"]>;
     creative: FirstBuildCreativeDirection;
+    /** Absolute time (ms) after which no new picture is started. */
+    deadline?: number;
+    /** Called after each finished picture so the caller can renew its lease. */
+    onShotDone?: () => unknown;
+    /**
+     * Pictures an earlier attempt of THIS build already made and stored
+     * (an interrupted worker never reaches its clean-up). Reused by file name
+     * so a retry does not spend minutes re-making them.
+     */
+    reusable?: { id: string; url: string; file_name: string | null; alt_text: string | null; attribution: string | null }[];
   },
 ): Promise<FirstBuildImageResult> {
+  const deadline = input.deadline ?? Date.now() + firstBuildImageBudgetMs();
   const shots = firstBuildImageShots(input.creative, input.photoCount, input.occupiedSlots);
   if (shots.length === 0) {
     const ownerCovered = input.occupiedSlots?.size && shots.length === 0;
@@ -216,12 +238,38 @@ export async function generateFirstBuildImages(
   const placementOf = (shot: PlannedShot) => `${shot.slot} ${shot.placement.join(" ")}`.trim();
 
   async function makeShot(shot: PlannedShot, index: number): Promise<FirstBuildImageAsset | null> {
+    // Out of time: keep the build moving. The hero (index 0) is always tried.
+    if (index > 0 && Date.now() >= deadline) {
+      skipped.push({ slot: shot.slot, label: shot.label, reason: "picture time budget reached; left for the picture repair" });
+      return null;
+    }
     const spec = input.creative.brief.imageInventory.find(
       (item) => item.slot === shot.slot && item.label === shot.label,
     );
     if (!spec?.subject || !spec.altText) {
       skipped.push({ slot: shot.slot, label: shot.label, reason: "the AI picture campaign was incomplete" });
       return null;
+    }
+    const stem = `${fileStem(shot, index)}.`;
+    const earlier = (input.reusable ?? []).find(
+      (row) => row.file_name?.startsWith(stem) && row.url.startsWith(`${input.organizationId}/`),
+    );
+    if (earlier) {
+      const [earlierProvider, ...earlierModel] = String(earlier.attribution ?? "reused").split(" ");
+      provider = earlierProvider || "reused";
+      models.add(earlierModel.join(" ") || "reused");
+      return {
+        slot: shot.slot,
+        label: shot.label,
+        altText: earlier.alt_text || spec.altText,
+        path: earlier.url,
+        mediaId: earlier.id,
+        provider: earlierProvider || "reused",
+        model: earlierModel.join(" ") || "reused",
+        prompt: "",
+        placement: shot.placement,
+        aspectRatio: shot.aspect,
+      };
     }
     if (standardBlocked && !paidUsable) {
       skipped.push({ slot: shot.slot, label: shot.label, reason: firstBlockedMessage ?? paid.message });
@@ -418,6 +466,12 @@ export async function generateFirstBuildImages(
         reason: error instanceof Error ? error.message : "the picture could not be made",
       });
       return null;
+    } finally {
+      try {
+        await input.onShotDone?.();
+      } catch {
+        // Lease renewal is best effort; the background heartbeat also runs.
+      }
     }
   });
   const assets = made.filter((asset): asset is FirstBuildImageAsset => asset !== null);

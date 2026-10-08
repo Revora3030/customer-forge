@@ -15,6 +15,7 @@
 import { callBestThinker } from "@/lib/ai/hall-of-fame.server";
 import { craftBarPrompt } from "@/lib/builder/world-class-craft";
 import { screenText } from "@/lib/builder/collective-copy";
+import { repairContactDetails } from "@/lib/builder/chrome-repair";
 import {
   COMPOSITION_PRIMITIVES, PRIMITIVE_GUIDE,
   isSafeHref,
@@ -221,6 +222,18 @@ export async function composeFirstBuildSections(input: {
     const problem = screenText(text, screenFacts, 4000);
     return problem && problem !== "empty" ? problem : null;
   };
+  // A made-up phone number or email in a layout is corrected to the owner's
+  // real one (or the contact page) instead of costing the whole section.
+  const pageRows = await db.from("website_pages").select("slug,kind").eq("organization_id", organizationId);
+  const contactSlug = ((pageRows.data ?? []) as { slug: string; kind: string | null }[]).find((page) =>
+    ["contact", "book", "booking", "quote", "contact-us"].includes(page.slug) || /contact|book|quote/i.test(String(page.kind ?? "")),
+  )?.slug;
+  const fixContacts = (raw: unknown) =>
+    repairContactDetails(raw, {
+      phone: facts.phone ?? null,
+      email: facts.email ?? null,
+      enquiryHref: contactSlug ? `/${contactSlug}` : null,
+    }).value;
 
   const byPage = new Map<string, SectionRow[]>();
   for (const row of rows) {
@@ -319,7 +332,7 @@ export async function composeFirstBuildSections(input: {
       const trees = parseTrees(call.text) ?? {};
       for (const section of batch) {
         const mediaRefs = mediaRefsFor(section, parts);
-        const checked = validateComposition(trees[section.id], {
+        const checked = validateComposition(fixContacts(trees[section.id]), {
           screenText: screen,
           allowedMediaRefs: mediaRefs,
           requiredMediaRefs: mediaRefs,
@@ -373,7 +386,7 @@ export async function composeFirstBuildSections(input: {
         result.costMicrocents += call.costMicrocents ?? 0;
         const trees = parseTrees(call.text) ?? {};
         const mediaRefs = mediaRefsFor(section, parts);
-        const checked = validateComposition(trees[section.id] ?? Object.values(trees)[0], {
+        const checked = validateComposition(fixContacts(trees[section.id] ?? Object.values(trees)[0]), {
           screenText: screen,
           allowedMediaRefs: mediaRefs,
           requiredMediaRefs: mediaRefs,

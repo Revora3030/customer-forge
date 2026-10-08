@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   applySiteWideRedesign,
+  designSiteChrome,
   undoSiteUpgrade,
   type RedesignResult,
   type SiteUpgradeUndo,
@@ -23,7 +24,7 @@ import {
 import { friendlyError } from "@/lib/user-error";
 import { restyleSiteWithAi, undoAiRestyle } from "@/lib/site-restyle.functions";
 
-type Busy = null | "motion" | "redesign" | "undo" | "restyle";
+type Busy = null | "motion" | "redesign" | "undo" | "restyle" | "chrome";
 
 /** Plain requests handed to the AI design team — it decides the movement. */
 const MOTION_CHOICES: { id: string; label: string; hint: string; ask: string }[] = [
@@ -36,10 +37,13 @@ export function SiteUpgradePanel({
   organizationId,
   canManage,
   onRefresh,
+  missingMenu = false,
 }: {
   organizationId: string | undefined;
   canManage: boolean;
   onRefresh?: () => Promise<void> | void;
+  /** True when the site has no AI-designed menu bar or footer yet. */
+  missingMenu?: boolean;
 }) {
   const queryClient = useQueryClient();
   const [busy, setBusy] = useState<Busy>(null);
@@ -75,6 +79,22 @@ export function SiteUpgradePanel({
       toast.success(outcome.summary);
     } catch (error) {
       toast.error(friendlyError(error, "The earlier layout couldn't be put back."));
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const [chromeNote, setChromeNote] = useState<string | null>(null);
+  const runChrome = async () => {
+    if (!organizationId || busy) return;
+    setBusy("chrome");
+    try {
+      const result = await designSiteChrome({ data: { organizationId } });
+      setChromeNote(result.summary);
+      refresh();
+      toast.success(result.summary);
+    } catch (error) {
+      toast.error(friendlyError(error, "The menu bar couldn't be designed just now. Please try again."));
     } finally {
       setBusy(null);
     }
@@ -147,6 +167,23 @@ export function SiteUpgradePanel({
             {busy === "undo" ? <Loader2 className="size-4 animate-spin" /> : <Undo2 className="size-4" />}
             Put it back
           </Button>
+        </Panel>
+      ) : null}
+      {missingMenu || chromeNote ? (
+        <Panel className="p-5" data-testid="missing-menu-panel">
+          <SectionHeading eyebrow="Menu bar" title={chromeNote ? "Menu bar and footer ready" : "Your site has no menu bar yet"} />
+          <p className="mt-2 max-w-xl text-[13px] text-muted-foreground">
+            {chromeNote ??
+              "Visitors can't move between pages or reach your main button without one. The AI designs a menu bar and footer in your site's style, linking every page."}
+          </p>
+          {!chromeNote ? (
+            <div className="mt-4">
+              <Button size="sm" disabled={!canManage || busy !== null} onClick={() => void runChrome()}>
+                {busy === "chrome" ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
+                Design my menu & footer
+              </Button>
+            </div>
+          ) : null}
         </Panel>
       ) : null}
       <Panel className="p-5">

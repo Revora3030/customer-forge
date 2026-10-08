@@ -926,6 +926,24 @@ async function runJob(
   // re-raised where the plan is awaited.
   architecturePlan?.catch(() => undefined);
   noteStage(orgId, job.id, "generating your pictures");
+  // A retry of an interrupted build reuses the pictures its earlier attempt
+  // already stored (only this job's own generated files, by creation time).
+  let reusablePictures: { id: string; url: string; file_name: string | null; alt_text: string | null; attribution: string | null }[] = [];
+  if (Number(job.attempts ?? 0) > 1) {
+    const jobRow = await db.from("generation_jobs").select("created_at").eq("id", job.id).maybeSingle();
+    const since = (jobRow.data as { created_at?: string } | null)?.created_at;
+    if (since) {
+      const earlier = await db
+        .from("media")
+        .select("id, url, file_name, alt_text, attribution")
+        .eq("organization_id", orgId)
+        .eq("source", "generated")
+        .like("file_name", "first-build-%")
+        .gte("created_at", since)
+        .limit(60);
+      if (!earlier.error) reusablePictures = (earlier.data ?? []) as typeof reusablePictures;
+    }
+  }
   const starterImages = await generateFirstBuildImages(db, {
     organizationId: orgId,
     userId: job.created_by,
@@ -943,6 +961,11 @@ async function runJob(
         : []),
     ]),
     creative,
+    // The picture stage has a fixed time budget so a slow or rate-limited
+    // picture service can never stop the build before pages, menus and buttons
+    // are written. Unfilled slots go to the picture repair afterwards.
+    onShotDone: () => touchLease(db, job),
+    reusable: reusablePictures,
   });
   await step("pictures");
   // Picture records (spec D): one per generated slot with its art direction,
@@ -1286,6 +1309,7 @@ async function runJob(
       organizationId: orgId,
       businessName: org.data.name ?? "",
       facts: buildFacts,
+      primaryCta: copy.primaryCta ?? null,
       // The menu and footer follow the SAME creative direction as the page
       // sections; colours and font alone produced a header that clashed with
       // the rest of the site's typography, shapes and buttons.
@@ -1309,6 +1333,42 @@ async function runJob(
       result: chrome as unknown as never,
       created_by: job.created_by,
     } as never);
+  } else {
+    // The site already had pages (an older workspace or a rebuild), so page
+    // writing was skipped — but a site without a menu bar or footer is not
+    // finished. Sol designs them now; the rest of the site is untouched.
+    const { readSiteChrome } = await import("@/lib/builder/site-chrome");
+    const current = await db.from("website_settings").select("generation").eq("organization_id", orgId).maybeSingle();
+    const existing = readSiteChrome(current.data?.generation ?? null);
+    if (!existing.header || !existing.footer) {
+      const { composeSiteChrome } = await import("@/lib/builder/first-build-chrome.server");
+      const chrome = await composeSiteChrome({
+        db: db as never,
+        organizationId: orgId,
+        businessName: org.data.name ?? "",
+        facts: buildFacts,
+        primaryCta: copy.primaryCta ?? null,
+        lookSummary: JSON.stringify({
+          colors: effectivePalette,
+          font: effectiveFont,
+          concept: creative.brief.concept,
+          personality: creative.brief.personality,
+          typography: creative.brief.typography,
+          ctaLanguage: creative.brief.ctaLanguage,
+          shapeLanguage: creative.brief.shapeLanguage,
+          surfaceIs: effectivePalette?.secondary ? (isLightSurface(effectivePalette.secondary) ? "light" : "dark") : null,
+        }),
+      });
+      await db.from("ai_generations").insert({
+        organization_id: orgId,
+        job_id: job.id,
+        kind: "existing_site_chrome",
+        model: chrome.models.join("+") || "none",
+        instruction: null,
+        result: chrome as unknown as never,
+        created_by: job.created_by,
+      } as never);
+    }
   }
 
   await step("layout");
