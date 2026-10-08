@@ -85,11 +85,12 @@ async function clearPendingBuild(db: Db, orgId: string) {
     .maybeSingle();
   const generation = (data?.generation ?? {}) as Record<string, unknown>;
   if (!("pendingBuild" in generation)) return;
-  await db
+  const { error } = await db
     .from("website_settings")
     .upsert({ organization_id: orgId, generation: withoutPendingBuild(generation) } as never, {
       onConflict: "organization_id",
     });
+  if (error) throw new Error(`Couldn't clear the pending build marker: ${error.message}`);
 }
 
 async function rollbackFreshBuild(
@@ -1194,11 +1195,14 @@ async function runJob(
       if (patch.subheading !== undefined) update["subheading"] = patch.subheading;
       if (patch.body !== undefined) update["body"] = patch.body;
       if (!Object.keys(update).length) continue;
-      await db
+      const wordingWrite = await db
         .from("website_sections")
         .update(update as never)
         .eq("id", patch.id)
         .eq("organization_id", orgId);
+      if (wordingWrite.error) {
+        throw new Error(`Couldn't save the refined section wording: ${wordingWrite.error.message}`);
+      }
     }
     await db.from("ai_generations").insert({
       organization_id: orgId,
@@ -1486,7 +1490,7 @@ async function runJob(
   await step("checks");
   await step("leads");
 
-  await db
+  const completion = await db
     .from("generation_jobs")
     .update({
       status: "completed",
@@ -1501,7 +1505,17 @@ async function runJob(
     } as never)
     .eq("id", job.id)
     .eq("attempts", job.attempts)
-    .eq("status", "processing");
+    .eq("status", "processing")
+    .select("id");
+  const completedRows = (completion.data ?? []) as unknown[];
+  if (completion.error || completedRows.length === 0) {
+    // The job was cancelled, taken over by another worker, or the write failed:
+    // never tell the owner a draft is ready when this run no longer owns the job.
+    console.warn(
+      `[site-engine] job ${job.id}: completion not recorded (${completion.error?.message ?? "job no longer owned by this run"}); skipping the ready notification.`,
+    );
+    return;
+  }
 
   const leadCapture = (forms.data ?? []).length > 0 || (bookable.data ?? []).length > 0;
   await db.from("notifications").insert({
