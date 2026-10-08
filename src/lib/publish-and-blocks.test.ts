@@ -94,6 +94,8 @@ describe("publish purge targets", () => {
   });
   it("skips an unverified custom domain", () => {
     const urls = purgeTargets({ slug: "acme", paths: ["/"], platformOrigin: "https://revoragrowthsystems.com/", customDomain: "acme.com", domainVerified: false });
-    expect(urls.some((url) => url.includes("acme.com/") && !url.includes("revoragrowthsystems"))).toBe(false);
+    // Compare parsed hostnames, never substrings: only the platform host may appear.
+    expect(urls.map((url) => new URL(url).hostname)).not.toContain("acme.com");
+    expect(new Set(urls.map((url) => new URL(url).hostname))).toEqual(new Set(["revoragrowthsystems.com"]));
   });
 });
