@@ -17,9 +17,11 @@ import {
 } from "@/lib/builder/composition-tree";
 import { readSiteChrome, writeSiteChrome } from "@/lib/builder/site-chrome";
 import { safeLinkUrl, pageNavLabel } from "@/lib/website-content";
+import { ensureHeaderAction } from "@/lib/builder/chrome-repair";
 import {
   addMissingNavLinks,
   collectAnchors,
+  enquiryPage,
   repairHref,
   repairTreeLinks,
   type SitePage,
@@ -28,6 +30,8 @@ import {
 type Db = { from: (table: string) => any }; // eslint-disable-line @typescript-eslint/no-explicit-any
 
 export type LinkIntegrityReport = {
+  /** True when a menu bar without an action button was given one. */
+  headerActionAdded?: boolean;
   sectionsFixed: number;
   componentsFixed: number;
   menuLinksAdded: string[];
@@ -65,6 +69,11 @@ export async function ensureLinkIntegrity(
         .maybeSingle(),
       db.from("organizations").select("name").eq("id", organizationId).maybeSingle(),
     ]);
+    const contactRes = await db
+      .from("business_profiles")
+      .select("phone")
+      .eq("organization_id", organizationId)
+      .maybeSingle();
     if (pagesRes.error) throw new Error(pagesRes.error.message);
     const pageRows = (pagesRes.data ?? []) as (SitePage & {
       id: string;
@@ -136,7 +145,18 @@ export async function ensureLinkIntegrity(
       header = h2.tree;
       footer = f2.tree;
       report.menuLinksAdded = [...new Set([...h2.added, ...f2.added])];
-      const changed = report.chromeLinksFixed > 0 || h2.added.length > 0 || f2.added.length > 0;
+      // A menu bar with no action button (older designs) gets one: the AI's
+      // own contact link is promoted, or a button to the real contact page.
+      const enquiry = enquiryPage(pages);
+      const action = ensureHeaderAction(header, {
+        enquiryHref: enquiry,
+        enquiryTitle: enquiry ? navPages.find((p) => p.href === enquiry)?.title ?? null : null,
+        phone: (contactRes?.data as { phone?: string | null } | null)?.phone ?? null,
+      });
+      header = action.tree;
+      report.headerActionAdded = action.changed !== "none";
+      const changed =
+        report.chromeLinksFixed > 0 || h2.added.length > 0 || f2.added.length > 0 || action.changed !== "none";
       if (
         changed &&
         validateComposition(header, { lenient: true }).ok &&
