@@ -170,9 +170,20 @@ export const recordPublishAndSmoke = createServerFn({ method: "POST" })
       .order("sort_order", { ascending: true });
     const paths = smokePaths((pageRows ?? []) as never);
     // Fresh copies at the edge first, so visitors and the check see this version.
-    if (base) {
-      const { purgeEdgeCache, purgeUrls } = await import("@/lib/edge-cache.server");
-      await purgeEdgeCache(purgeUrls(base, paths));
+    if (slug) {
+      // Both addresses a visitor can use: the custom domain (once verified)
+      // and the platform /s/<slug> copy. Never fails the publish.
+      const { purgeEdgeCache, purgeTargets } = await import("@/lib/edge-cache.server");
+      const purge = await purgeEdgeCache(
+        purgeTargets({
+          slug,
+          paths,
+          platformOrigin: origin,
+          customDomain: (settings as { custom_domain?: string | null } | null)?.custom_domain ?? null,
+          domainVerified: Boolean((settings as { dns_ok?: boolean | null } | null)?.dns_ok && (settings as { ssl_ok?: boolean | null } | null)?.ssl_ok),
+        }),
+      );
+      if (purge.skipped) console.info("[publish] edge cache purge skipped:", purge.skipped);
     }
     if (base) {
       for (const path of paths) {

@@ -82,3 +82,20 @@ describe("phone sticky actions", () => {
     expect(stickyActions({ phone: null, contactHref: null })).toEqual([]);
   });
 });
+
+import { purgeTargets } from "@/lib/edge-cache.server";
+
+describe("publish purge targets", () => {
+  it("purges the verified custom domain AND the /s/<slug> copy", () => {
+    const urls = purgeTargets({ slug: "acme", paths: ["/", "/services"], platformOrigin: "https://revoragrowthsystems.com", customDomain: "Acme.com", domainVerified: true });
+    expect(urls).toContain("https://acme.com/services");
+    expect(urls).toContain("https://revoragrowthsystems.com/s/acme/services");
+    expect(urls).toContain("https://revoragrowthsystems.com/s/acme/sitemap.xml");
+  });
+  it("skips an unverified custom domain", () => {
+    const urls = purgeTargets({ slug: "acme", paths: ["/"], platformOrigin: "https://revoragrowthsystems.com/", customDomain: "acme.com", domainVerified: false });
+    // Compare parsed hostnames, never substrings: only the platform host may appear.
+    expect(urls.map((url) => new URL(url).hostname)).not.toContain("acme.com");
+    expect(new Set(urls.map((url) => new URL(url).hostname))).toEqual(new Set(["revoragrowthsystems.com"]));
+  });
+});

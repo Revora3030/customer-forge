@@ -22,6 +22,25 @@ export function purgeUrls(base: string | null, paths: readonly string[]): string
   return [...urls].slice(0, 30);
 }
 
+/**
+ * Every URL to refresh after a publish: the verified custom domain AND the
+ * platform `/s/<slug>` address, for each published path plus the sitemap.
+ */
+export function purgeTargets(input: {
+  slug: string;
+  paths: readonly string[];
+  platformOrigin: string;
+  customDomain?: string | null;
+  domainVerified?: boolean;
+}): string[] {
+  const urls: string[] = [];
+  const domain = input.customDomain?.trim().toLowerCase();
+  if (domain && input.domainVerified && /^[a-z0-9.-]+\.[a-z]{2,}$/.test(domain)) urls.push(...purgeUrls(`https://${domain}`, input.paths));
+  const platform = `${input.platformOrigin.replace(/\/$/, "")}/s/${encodeURIComponent(input.slug)}`;
+  urls.push(...purgeUrls(platform, input.paths));
+  return [...new Set(urls)].slice(0, 30);
+}
+
 export async function purgeEdgeCache(urls: readonly string[]): Promise<{ purged: number; skipped?: string }> {
   // A dedicated purge-only token: the AI token is never reused here.
   const token = process.env["CLOUDFLARE_CACHE_PURGE_TOKEN"];

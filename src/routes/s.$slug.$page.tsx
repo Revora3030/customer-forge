@@ -293,7 +293,7 @@ export function SitePageView({
             <nav
               aria-label="Quick actions"
               data-testid="site-sticky-actions"
-              className="fixed inset-x-0 bottom-0 z-40 flex gap-2 border-t border-border/60 bg-background/95 px-3 pt-2.5 backdrop-blur md:hidden"
+              className="fixed inset-x-0 bottom-0 z-50 flex gap-2 border-t border-border/60 bg-background/95 px-3 pt-2.5 backdrop-blur md:hidden"
               style={{ paddingBottom: "max(0.625rem, env(safe-area-inset-bottom, 0px))" }}
             >
               {actions.map((action, index) => (

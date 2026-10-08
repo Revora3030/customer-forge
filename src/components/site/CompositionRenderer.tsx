@@ -1,9 +1,10 @@
-import { useState, type CSSProperties, type ReactNode } from "react";
+import { useRef, useState, type CSSProperties, type ReactNode } from "react";
 import type { Breakpoint, CompositionFaqItem, CompositionNode, CompositionTab, CompositionTree, MotionEasing, NodeHover, NodeMotion, NodeStyle, WidgetPresentation } from "@/lib/builder/composition-tree";
 import type { PersistedComponentVisual } from "@/lib/site-style";
 import { resolveImageSource } from "@/lib/brand-logos";
 import { contrastRatio, readableOn, toRgb } from "@/lib/readable-color";
 import { premiumSurface } from "@/lib/site-theme";
+import { clampSplit, splitForKey, splitForPointer } from "@/lib/builder/compare-slider";
 
 /**
  * Draws any validated AI-authored composition tree. It only translates the
@@ -488,15 +489,14 @@ function Tabs({ props, labels, panels }: { props: NodeProps; labels: string[]; p
 }
 
 function Compare({ props, before, after, beforeSource, afterSource }: { props: NodeProps; before: CompositionNode; after: CompositionNode; beforeSource: string; afterSource: string }) {
-  const [pos, setPos] = useState(50);
+  // Same accessible, draggable slider as before_after_slider.
   return (
-    <div {...props} style={{ position: "relative", overflow: "hidden", ...props.style }}>
-      <img src={afterSource} alt={after.alt ?? ""} loading="lazy" style={{ display: "block", width: "100%", height: "100%", objectFit: after.style?.objectFit ?? "cover" }} />
-      <img src={beforeSource} alt={before.alt ?? ""} loading="lazy" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: before.style?.objectFit ?? "cover", clipPath: `inset(0 ${100 - pos}% 0 0)` }} />
-      <div aria-hidden="true" style={{ position: "absolute", top: 0, bottom: 0, left: `${pos}%`, width: 2, background: "currentColor" }} />
-      <input type="range" min={0} max={100} value={pos} onChange={(e) => setPos(Number(e.target.value))} aria-label="Compare before and after"
-        style={{ position: "absolute", inset: 0, width: "100%", height: "100%", opacity: 0, cursor: "ew-resize", margin: 0 }} />
-    </div>
+    <BeforeAfterSlider
+      props={props}
+      before={{ src: beforeSource, alt: before.alt ?? "", label: before.text?.slice(0, 30) || "Before" }}
+      after={{ src: afterSource, alt: after.alt ?? "", label: after.text?.slice(0, 30) || "After" }}
+      initialSplit={50}
+    />
   );
 }
 
@@ -506,21 +506,50 @@ function BeforeAfterSlider({ props, before, after, initialSplit }: {
   after: { src: string; alt: string; label: string };
   initialSplit: number;
 }) {
-  const [pos, setPos] = useState(Math.min(100, Math.max(0, initialSplit)));
+  const [pos, setPos] = useState(clampSplit(initialSplit));
+  const dragging = useRef(false);
+  const moveTo = (event: { clientX: number; currentTarget: Element }) => {
+    const box = (event.currentTarget.closest("figure") ?? event.currentTarget).getBoundingClientRect();
+    setPos(splitForPointer(event.clientX, box.left, box.width));
+  };
   return (
-    <figure {...props} style={{ position: "relative", overflow: "hidden", aspectRatio: props.style.aspectRatio ?? "16 / 10", width: "100%", touchAction: "none", ...props.style }}>
-      <img src={after.src} alt={after.alt} loading="lazy" draggable={false} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", userSelect: "none" }} />
+    <figure {...props} className={`${props.className ?? ""} rv-cn-compare`.trim()} style={{ position: "relative", overflow: "hidden", aspectRatio: props.style.aspectRatio ?? "16 / 10", width: "100%", touchAction: "pan-y", userSelect: "none", ...props.style }}
+      onPointerDown={(event) => {
+        dragging.current = true;
+        event.currentTarget.setPointerCapture?.(event.pointerId);
+        moveTo(event);
+      }}
+      onPointerMove={(event) => {
+        if (dragging.current) moveTo(event);
+      }}
+      onPointerUp={() => (dragging.current = false)}
+      onPointerCancel={() => (dragging.current = false)}
+    >
+      {/* Both pictures fill the same frame with object-fit: cover, so neither is ever stretched. */}
+      <img src={after.src} alt={after.alt} loading="lazy" draggable={false} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
       <div aria-hidden="true" style={{ position: "absolute", inset: 0, overflow: "hidden", clipPath: `inset(0 ${100 - pos}% 0 0)` }}>
-        <img src={before.src} alt="" loading="lazy" draggable={false} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", userSelect: "none" }} />
+        <img src={before.src} alt="" loading="lazy" draggable={false} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
       </div>
-      <div aria-hidden="true" className="rv-cn-compare-divider" style={{ left: `${pos}%` }}><span className="rv-cn-compare-handle" /></div>
       <div className="rv-cn-compare-label rv-cn-compare-label-before">{before.label}</div>
       <div className="rv-cn-compare-label rv-cn-compare-label-after">{after.label}</div>
-      <input type="range" min={0} max={100} step={1} value={pos}
-        onChange={(event) => setPos(Number(event.currentTarget.value))}
-        aria-label={`${before.label} versus ${after.label}`}
-        aria-valuetext={`${Math.round(pos)}% ${before.label}`}
-        className="rv-cn-compare-input"
+      <div className="rv-cn-compare-divider" style={{ left: `${pos}%` }} aria-hidden="true" />
+      <div
+        role="slider"
+        tabIndex={0}
+        aria-label="Before and after comparison slider"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={Math.round(pos)}
+        aria-valuetext={`${Math.round(pos)}% ${before.label}, ${100 - Math.round(pos)}% ${after.label}`}
+        aria-orientation="horizontal"
+        className="rv-cn-compare-handle"
+        style={{ left: `${pos}%` }}
+        onKeyDown={(event) => {
+          const next = splitForKey(event.key, pos);
+          if (next === null) return;
+          event.preventDefault();
+          setPos(next);
+        }}
       />
     </figure>
   );
@@ -583,7 +612,7 @@ function MobileStickyBar({ props, primary, secondary }: {
   return (
     <div {...props} className={`${props.className ?? ""} rv-cn-mobile-sticky-bar`.trim()} style={{
       ...props.style,
-      position: "fixed", left: 0, right: 0, bottom: 0, zIndex: 40, display: "flex", gap: 8, alignItems: "stretch",
+      position: "fixed", left: 0, right: 0, bottom: 0, zIndex: 50, display: "flex", gap: 8, alignItems: "stretch",
       padding: "10px 12px", paddingBottom: "max(10px, env(safe-area-inset-bottom, 0px))",
       background: props.style.background ?? "Canvas", color: props.style.color ?? "CanvasText",
     }}>
@@ -604,12 +633,15 @@ const INTERACTIVE_CSS = `
 .rv-cn-interactive:focus-visible{outline:3px solid currentColor;outline-offset:3px}
 .rv-cn-interactive a:focus-visible,.rv-cn-interactive button:focus-visible{outline:3px solid currentColor;outline-offset:3px}
 @media (prefers-reduced-motion: reduce){.rv-cn-interactive{transition:none!important}.rv-cn-interactive:hover{transform:none}}
-.rv-cn-compare-input{position:absolute;inset:0;width:100%;height:100%;margin:0;opacity:0;cursor:ew-resize;touch-action:none;z-index:3}
-.rv-cn-compare-divider{position:absolute;top:0;bottom:0;width:2px;background:currentColor;transform:translateX(-1px);pointer-events:none;z-index:2}
-.rv-cn-compare-handle{position:absolute;top:50%;left:50%;width:44px;height:44px;border-radius:999px;border:2px solid currentColor;background:Canvas;box-shadow:0 3px 16px rgb(0 0 0 / .22);transform:translate(-50%,-50%);display:grid;place-items:center}
-.rv-cn-compare-handle::before,.rv-cn-compare-handle::after{content:"";position:absolute;width:7px;height:7px;border-top:2px solid currentColor;border-right:2px solid currentColor}
+.rv-cn-compare{cursor:ew-resize}
+.rv-cn-compare-divider{position:absolute;top:0;bottom:0;width:3px;background:#fff;box-shadow:0 0 0 1px rgb(0 0 0 / .45),0 0 12px rgb(0 0 0 / .35);transform:translateX(-50%);pointer-events:none;z-index:2}
+.rv-cn-compare-handle{position:absolute;top:50%;width:48px;height:48px;border-radius:999px;border:2px solid #fff;background:rgb(17 17 20 / .55);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);box-shadow:0 4px 18px rgb(0 0 0 / .35);transform:translate(-50%,-50%);z-index:3;cursor:ew-resize;touch-action:none;color:#fff;transition:transform .15s ease}
+.rv-cn-compare-handle:focus-visible{outline:3px solid #fff;outline-offset:3px}
+.rv-cn-compare-handle:hover{transform:translate(-50%,-50%) scale(1.06)}
+@media (prefers-reduced-motion: reduce){.rv-cn-compare-handle{transition:none}.rv-cn-compare-handle:hover{transform:translate(-50%,-50%)}}
+.rv-cn-compare-handle::before,.rv-cn-compare-handle::after{content:"";position:absolute;top:50%;left:50%;width:8px;height:8px;margin:-4px 0 0 -4px;border-top:2px solid currentColor;border-right:2px solid currentColor}
 .rv-cn-compare-handle::before{transform:translateX(-6px) rotate(-135deg)} .rv-cn-compare-handle::after{transform:translateX(6px) rotate(45deg)}
-.rv-cn-compare-label{position:absolute;top:12px;z-index:4;padding:5px 9px;border-radius:999px;background:rgb(0 0 0 / .55);color:white;font-size:12px;line-height:1.2;pointer-events:none;max-width:42%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rv-cn-compare-label{position:absolute;top:12px;z-index:4;padding:5px 10px;border-radius:999px;background:rgb(0 0 0 / .62);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);color:white;font-weight:600;font-size:12px;line-height:1.2;pointer-events:none;max-width:42%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .rv-cn-compare-label-before{left:12px}.rv-cn-compare-label-after{right:12px}
 .rv-cn-faq details{border-bottom:1px solid currentColor}
 .rv-cn-faq summary{min-height:44px;display:flex;align-items:center;justify-content:space-between;gap:16px;cursor:pointer;list-style:none;padding:14px 0}
@@ -625,8 +657,8 @@ const INTERACTIVE_CSS = `
 .rv-cn-tab.is-active{opacity:1}.rv-cn-tab.is-active::after{transform:scaleX(1)}
 .rv-cn-tab:focus-visible,.rv-cn-faq summary:focus-visible,.rv-cn-mobile-sticky-bar a:focus-visible{outline:3px solid currentColor;outline-offset:3px}
 .rv-cn-mobile-sticky-bar{display:none}
-@media (max-width:639px){.rv-cn-mobile-sticky-bar{display:flex!important;position:fixed!important;left:0!important;right:0!important;bottom:0!important}}
-@media (min-width:640px){.rv-cn-mobile-sticky-bar{display:none!important}}
+@media (max-width:767px){.rv-cn-mobile-sticky-bar{display:flex!important;position:fixed!important;left:0!important;right:0!important;bottom:0!important;z-index:50!important;padding-bottom:max(10px,env(safe-area-inset-bottom,0px))!important}.rv-cn-mobile-sticky-bar a{min-height:44px;min-width:44px}}
+@media (min-width:768px){.rv-cn-mobile-sticky-bar{display:none!important}}
 @media (prefers-reduced-motion: reduce){.rv-cn-faq-chevron,.rv-cn-faq-panel,.rv-cn-tab::after{transition:none!important}}
 `;
 
