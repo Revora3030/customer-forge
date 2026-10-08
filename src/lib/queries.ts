@@ -670,10 +670,11 @@ export function useCreateAppointment(
         if (leadError) throw leadError;
         leadId = created.id;
       } else {
-        await supabase
+        const { error: leadStatusError } = await supabase
           .from("leads")
           .update({ status: "booked" } as never)
           .eq("id", leadId);
+        if (leadStatusError) throw leadStatusError;
       }
 
       const { data: appt, error } = await supabase
@@ -770,10 +771,13 @@ export function useSaveAppointment(
         };
         const nextLeadStatus = patch.status ? leadStatus[patch.status] : undefined;
         if (nextLeadStatus) {
-          await supabase
+          const { error: leadStatusError } = await supabase
             .from("leads")
             .update({ status: nextLeadStatus } as never)
             .eq("id", appointment.lead_id);
+          if (leadStatusError) {
+            toast.warning(`Appointment saved — but the lead couldn't be marked ${nextLeadStatus}. Update it from Leads.`);
+          }
         }
         await supabase.from("lead_activities").insert({
           organization_id: organizationId!,
