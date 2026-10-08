@@ -1,28 +1,16 @@
-# This workflow uses actions that are not certified by GitHub.
-# They are provided by a third-party and are governed by
-# separate terms of service, privacy policy, and support
-# documentation.
-# JFrog SAST performs 1st party source code security analysis
-# For more information, see
-# https://docs.jfrog-applications.jfrog.io/jfrog-security-features/sast
-
+# JFrog SAST scan. Needs a JFrog Advanced Security account:
+#   secrets JF_URL, JF_ACCESS_TOKEN
+# Until they are set the job reports "not configured" and passes.
 name: "JFrog SAST Scan"
 
 on:
   push:
-    branches: [ "lovable-sync" ]
+    branches: ["lovable-sync"]
   pull_request:
-    branches: [ "lovable-sync" ]
+    branches: ["lovable-sync"]
   schedule:
-    - cron: '16 3 * * 5'
+    - cron: "16 3 * * 5"
 
-env:
-  # [Mandatory]
-  # JFrog platform URL and access token for
-  # a JFrog platform instance with active
-  # JFrog Advanced Security subscription
-  JF_URL: ${{ secrets.JF_URL }}
-  JF_TOKEN: ${{ secrets.JF_ACCESS_TOKEN }}
 jobs:
   analyze:
     name: Analyze
@@ -31,24 +19,38 @@ jobs:
       actions: read
       contents: read
       security-events: write
+    env:
+      JF_URL: ${{ secrets.JF_URL }}
+      JF_TOKEN: ${{ secrets.JF_ACCESS_TOKEN }}
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
+      - name: Check configuration
+        id: cfg
+        run: |
+          if [ -n "$JF_URL" ] && [ -n "$JF_TOKEN" ]; then echo "ready=true" >> "$GITHUB_OUTPUT";
+          else echo "::notice::JFrog is not configured (needs secrets JF_URL and JF_ACCESS_TOKEN); skipping."; fi
 
-    - name: Setup Node.js
-      uses: actions/setup-node@v4
+      - name: Checkout repository
+        if: steps.cfg.outputs.ready == 'true'
+        uses: actions/checkout@v4
 
-    - name: Install and configure JFrog CLI
-      run: |
-        npm install -g jfrog-cli-v2-jf
-        echo $JF_TOKEN | jf c add --interactive=false --url=$JF_URL --access-token-stdin
+      - name: Setup Node.js
+        if: steps.cfg.outputs.ready == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
 
-    - name: Run JFrog SAST
-      run: |
-        jf audit --sast --format=sarif > jfrog_sast.sarif
+      - name: Install and configure JFrog CLI
+        if: steps.cfg.outputs.ready == 'true'
+        run: |
+          npm install -g jfrog-cli-v2-jf
+          echo "$JF_TOKEN" | jf c add --interactive=false --url="$JF_URL" --access-token-stdin
 
+      - name: Run JFrog SAST
+        if: steps.cfg.outputs.ready == 'true'
+        run: jf audit --sast --format=sarif > jfrog_sast.sarif
 
-    - name: Upload output to generate autofix
-      uses: github/codeql-action/upload-sarif@v3
-      with:
-        sarif_file: jfrog_sast.sarif
+      - name: Upload results
+        if: ${{ steps.cfg.outputs.ready == 'true' && hashFiles('jfrog_sast.sarif') != '' }}
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: jfrog_sast.sarif
