@@ -25,7 +25,7 @@ import { safeLinkUrl, sectionLabel } from "@/lib/website-content";
 import { readEmbed } from "@/lib/site-embed";
 import { businessFacts, factsAddressLine } from "@/lib/builder/facts";
 import { safeParagraph, safeText } from "@/lib/builder/presentation";
-import { sectionSurface, siteSurface } from "@/components/site/site-sections-utils";
+import { distinctServiceArea, sectionSurface, siteSurface } from "@/components/site/site-sections-utils";
 
 type Site = NonNullable<PublicSite>;
 type Section = NonNullable<Site["content"]>["sections"][number];
@@ -318,7 +318,7 @@ function SiteSectionBody({ site, section, lead = false, first = false, surface =
 function ContactFacts({ site, presentation }: { site: Site; presentation?: WidgetPresentation }) {
   const facts = businessFacts(site.profile as Record<string, unknown> | null, site.org.name);
   const addressLine = factsAddressLine(facts);
-  const area = facts.serviceArea ?? facts.city;
+  const area = distinctServiceArea(facts.serviceArea ?? facts.city, addressLine);
   // Nothing real to show → render nothing, never an empty styled box.
   if (!(facts.phone && facts.phoneHref) && !(facts.email && facts.emailHref) && !area && !addressLine && !facts.hours) return null;
   return (
@@ -354,7 +354,7 @@ function ContactFacts({ site, presentation }: { site: Site; presentation?: Widge
             {area ? (
               <div>
                 <dt className="eyebrow flex items-center gap-1.5">
-                  <MapPin className="size-3.5" aria-hidden="true" /> {presentation?.fieldLabels?.location ?? "Area"}
+                  <MapPin className="size-3.5" aria-hidden="true" /> {addressLine ? "Service area" : presentation?.fieldLabels?.location ?? "Area"}
                 </dt>
                 <dd className="mt-1 text-[14px]">{area}</dd>
               </div>
