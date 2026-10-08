@@ -180,7 +180,15 @@ export async function pruneBackups(admin: Admin, organizationId: string, keep = 
     .range(keep, keep + 200);
   if (error || !data?.length) return 0;
   const ids = data.map((row) => row.id as string);
-  await admin.from("data_backups").delete().in("id", ids);
+  const { error: deleteError } = await admin
+    .from("data_backups")
+    .delete()
+    .eq("organization_id", organizationId)
+    .in("id", ids);
+  if (deleteError) {
+    console.warn(`[backup] couldn't prune old backups for ${organizationId}: ${deleteError.message}`);
+    return 0;
+  }
   return ids.length;
 }
 
@@ -292,10 +300,15 @@ export async function restoreBackup(
     throw new Error(`${reason} Nothing was changed — the workspace was put back as it was.`);
   }
 
-  await admin
+  const { error: markError } = await admin
     .from("data_backups")
     .update({ restored_at: new Date().toISOString() })
-    .eq("id", backupId);
+    .eq("id", backupId)
+    .eq("organization_id", organizationId);
+  if (markError) {
+    // The restore itself succeeded; only the "last restored" stamp is missing.
+    console.warn(`[backup] restore of ${backupId} finished but couldn't be stamped: ${markError.message}`);
+  }
 
   const site = (siteResult ?? {}) as { pages?: number; sections?: number; components?: number };
   return {
