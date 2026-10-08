@@ -2,14 +2,24 @@ import { pageNavLabel } from "@/lib/website-content";
 /**
  * FIRST-BUILD CHROME. Sol designs the menu bar and footer from scratch as
  * composition trees. Every tree passes the safety validator and fact check, and
- * must link to every real page. One repair attempt; still invalid stops the
- * build — no built-in menu or footer design is substituted.
+ * must link to every real page. Faults that can be corrected with the owner's
+ * real facts and pages (a missing page link, an invented phone number, a text
+ * link where the action button belongs) are repaired on the AI's own design;
+ * only genuine design faults go back to Sol. No built-in menu or footer design
+ * is ever substituted.
  */
 import { callBestThinker } from "@/lib/ai/hall-of-fame.server";
 import { screenText } from "@/lib/builder/collective-copy";
 import { COMPOSITION_PRIMITIVES, PRIMITIVE_GUIDE, validateComposition, type CompositionIssue, type CompositionNode, type CompositionTree } from "@/lib/builder/composition-tree";
 import { collectHrefs, requiredChromeLinks, writeSiteChrome } from "@/lib/builder/site-chrome";
 import type { DnaFacts } from "@/lib/business-dna";
+import { completeChromeLinks, ensureHeaderAction, repairContactDetails } from "@/lib/builder/chrome-repair";
+import { enquiryPage } from "@/lib/builder/link-integrity";
+
+/** One menu/footer design call may not hold the build hostage. */
+const CHROME_CALL_TIMEOUT_MS = 120_000;
+/** Six tries (three before the old limit) across the free and paid teams. */
+const CHROME_ATTEMPTS = 6;
 
 type Db = { from: (table: string) => any }; // eslint-disable-line @typescript-eslint/no-explicit-any
 
@@ -49,6 +59,9 @@ export async function composeSiteChrome(input: {
   businessName: string;
   facts: DnaFacts;
   lookSummary: string;
+  /** The AI-authored primary call to action for this site (already screened). */
+  primaryCta?: string | null;
+  signal?: AbortSignal;
 }): Promise<{ models: string[]; costMicrocents: number }> {
   const { db, organizationId, facts } = input;
   const { data: pages, error } = await db.from("website_pages").select("slug,title,kind").eq("organization_id", organizationId).order("sort_order");
@@ -65,31 +78,45 @@ export async function composeSiteChrome(input: {
     phone: facts.phone?.trim() || null,
     email: facts.email?.trim() || null,
     area: facts.serviceArea ?? facts.city ?? null,
-    ctaLabel: (facts as { ctaLabel?: string | null }).ctaLabel ?? null,
+    ctaLabel: input.primaryCta?.trim() || (facts as { ctaLabel?: string | null }).ctaLabel || null,
   };
+
+  const linkablePages = nav.filter((p) => p.kind !== "thanks" && p.kind !== "post");
+  const enquiryHref = enquiryPage(linkablePages);
+  const enquiryTitle = enquiryHref ? linkablePages.find((p) => `/${p.slug}` === enquiryHref)?.title ?? null : null;
+  const contact = { phone: material.phone, email: material.email, enquiryHref };
 
   const models: string[] = [];
   let cost = 0;
   let feedback: Record<string, CompositionIssue[]> = {};
-  for (let attempt = 0; attempt < 3; attempt += 1) {
+  /** The best valid tree seen for each part, kept across attempts. */
+  const best: Partial<Record<"header" | "footer", CompositionTree>> = {};
+  for (let attempt = 0; attempt < CHROME_ATTEMPTS; attempt += 1) {
+    const abort = new AbortController();
+    const timer = setTimeout(() => abort.abort(), CHROME_CALL_TIMEOUT_MS);
     const call = await callBestThinker({
       json: true,
       purpose: "creative_direction",
-      complexity: "high",
+      // Later attempts ask for a smaller design so a slow model still finishes.
+      complexity: attempt >= 3 ? "medium" : "high",
       organizationId,
       maxOutputTokens: 8000,
+      signal: abort.signal,
       system: RULES,
       user: [
         "SITE LOOK:", input.lookSummary, "",
         "MATERIAL (only these facts):", JSON.stringify(material, null, 2),
         ...(Object.keys(feedback).length ? ["", "FIX THESE PROBLEMS:", JSON.stringify(feedback, null, 2)] : []),
+        ...(best.header && !best.footer ? ["", "Your header was accepted; only the footer still needs fixing (return both)."] : []),
+        ...(best.footer && !best.header ? ["", "Your footer was accepted; only the header still needs fixing (return both)."] : []),
         "", 'Return JSON: {"header": {"version":1,"root":{...}}, "footer": {"version":1,"root":{...}}, "heroVideoBrief": "..."}',
       ].join("\n"),
-    });
+    }).finally(() => clearTimeout(timer));
     if (!call.ok) {
-      // A single failed call is often transient: try again before giving up.
-      if (attempt < 2) {
-        await new Promise((resolve) => setTimeout(resolve, 1500));
+      // A single failed or slow call is often transient: try again before giving up.
+      if (attempt < CHROME_ATTEMPTS - 1) {
+        const pause = Number(process.env["CHROME_RETRY_PAUSE_MS"] ?? 1500);
+        await new Promise((resolve) => setTimeout(resolve, (Number.isFinite(pause) ? pause : 1500) * Math.min(attempt + 1, 3)));
         continue;
       }
       const { AiStepUnavailableError } = await import("@/lib/builder/ai-step-error");
@@ -99,19 +126,35 @@ export async function composeSiteChrome(input: {
     cost += call.costMicrocents ?? 0;
     const parsed = parse(call.text) ?? {};
     feedback = {};
-    const trees: Partial<Record<"header" | "footer", CompositionTree>> = {};
+    const trees: Partial<Record<"header" | "footer", CompositionTree>> = { ...best };
     for (const part of ["header", "footer"] as const) {
-      const checked = validateComposition(parsed[part], { screenText: screen });
-      if (!checked.ok) { feedback[part] = checked.issues.slice(0, 12); continue; }
-      const hrefs = collectHrefs(checked.tree);
+      if (parsed[part] == null && best[part]) continue;
+      // Invented contact details are corrected to the owner's real ones (or the
+      // real contact page) rather than costing the whole design.
+      const repaired = repairContactDetails(parsed[part], contact).value;
+      const checked = validateComposition(repaired, { screenText: screen });
+      if (!checked.ok) { if (!best[part]) feedback[part] = checked.issues.slice(0, 12); continue; }
+      // A forgotten page link is added in the style of the AI's own links.
+      let tree = checked.tree;
+      const hrefs = collectHrefs(tree);
       const missing = required.filter((href) => !hrefs.has(href));
-      if (missing.length) { feedback[part] = [{ path: "root", problem: `missing links to ${missing.join(", ")}` }]; continue; }
-      // The menu bar must carry one clear call-to-action button, not only text links.
-      if (part === "header" && !hasButton(checked.tree.root)) {
-        feedback[part] = [{ path: "root", problem: "the header needs one primary call-to-action button (type \"button\") linking to a real page, tel: or mailto:" }];
+      if (missing.length) tree = completeChromeLinks(tree, required, material.pages).tree;
+      // The menu bar must carry one clear call-to-action button: promote the
+      // AI's own contact link, or add its authored call to action.
+      if (part === "header" && !hasButton(tree.root)) {
+        tree = ensureHeaderAction(tree, { ctaLabel: material.ctaLabel, enquiryHref, phone: material.phone, enquiryTitle }).tree;
+      }
+      const final = validateComposition(tree, { screenText: screen });
+      if (!final.ok) { if (!best[part]) feedback[part] = final.issues.slice(0, 12); continue; }
+      const stillMissing = required.filter((href) => !collectHrefs(final.tree).has(href));
+      if (stillMissing.length) { if (!best[part]) feedback[part] = [{ path: "root", problem: `missing links to ${stillMissing.join(", ")}` }]; continue; }
+      if (part === "header" && !hasButton(final.tree.root)) {
+        if (!best[part]) feedback[part] = [{ path: "root", problem: "the header needs one primary call-to-action button (type \"button\") linking to a real page, tel: or mailto:" }];
         continue;
       }
-      trees[part] = checked.tree;
+      trees[part] = final.tree;
+      best[part] = final.tree;
+      delete feedback[part];
     }
     if (trees.header && trees.footer) {
       const { data } = await db.from("website_settings").select("generation").eq("organization_id", organizationId).maybeSingle();
