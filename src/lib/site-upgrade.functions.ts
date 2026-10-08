@@ -688,3 +688,77 @@ export const undoSiteUpgrade = createServerFn({ method: "POST" })
     };
   });
 
+
+/* ------------------------------------------------- menu bar and footer */
+
+/**
+ * Sites built before the AI menu bar existed (or whose menu design was lost)
+ * show no menu at all. This asks the design team to design the menu bar and
+ * footer now, from the site's own look and the owner's real facts. Pages,
+ * sections and wording are untouched; the previous settings are kept so a
+ * failure leaves the site exactly as it was.
+ */
+export const designSiteChrome = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((input: { organizationId: string }) => {
+    if (!input?.organizationId) throw new Error("organizationId is required");
+    return { organizationId: input.organizationId };
+  })
+  .handler(async ({ data, context }): Promise<{ ok: true; summary: string }> => {
+    const supabase = context.supabase as unknown as SupabaseLike;
+    await requireManager(supabase, data.organizationId, context.userId);
+    const [{ data: settings }, { data: profile }, { data: org }, { data: services }] = await Promise.all([
+      supabase.from("website_settings").select("generation, seo").eq("organization_id", data.organizationId).maybeSingle(),
+      supabase
+        .from("business_profiles")
+        .select("description, industry, city, state, service_area, phone, email, years_in_business, website_goals, hours, primary_color, secondary_color, accent_color, font_preference")
+        .eq("organization_id", data.organizationId)
+        .maybeSingle(),
+      supabase.from("organizations").select("name, industry, conversion_goal").eq("id", data.organizationId).maybeSingle(),
+      supabase.from("services").select("name, price, starting_price").eq("organization_id", data.organizationId).eq("is_active", true),
+    ]);
+    const generation = ((settings as { generation?: unknown } | null)?.generation ?? {}) as Record<string, unknown>;
+    const p = (profile ?? {}) as Record<string, unknown>;
+    const o = (org ?? {}) as { name?: string | null; industry?: string | null; conversion_goal?: string | null };
+    const svc = ((services ?? []) as ServiceFactRow[]).filter((service) => textOrNull(service.name));
+    const facts: DnaFacts = {
+      businessName: o.name ?? null,
+      industry: textOrNull(p["industry"]) ?? o.industry ?? null,
+      services: svc.map((service) => String(service.name)),
+      description: textOrNull(p["description"]),
+      city: textOrNull(p["city"]),
+      region: textOrNull(p["state"]),
+      serviceArea: textOrNull(p["service_area"]),
+      phone: textOrNull(p["phone"]),
+      email: textOrNull(p["email"]),
+      yearsInBusiness: typeof p["years_in_business"] === "number" ? (p["years_in_business"] as number) : null,
+      hasPrices: svc.some((service) => service.price != null || service.starting_price != null),
+      goals: Array.isArray(p["website_goals"]) ? (p["website_goals"] as string[]).slice(0, 6) : null,
+      conversionGoal: o.conversion_goal ?? null,
+      hasHours: Boolean(p["hours"] && typeof p["hours"] === "object" && Object.keys(p["hours"] as object).length),
+    };
+    const creative = (generation["firstBuildCreative"] as { brief?: Record<string, unknown> } | undefined)?.brief ?? null;
+    const seo = ((settings as { seo?: unknown } | null)?.seo ?? {}) as { primary_cta_label?: unknown };
+    const lookSummary = JSON.stringify({
+      colors: { primary: p["primary_color"] ?? null, secondary: p["secondary_color"] ?? null, accent: p["accent_color"] ?? null },
+      font: p["font_preference"] ?? null,
+      brief: generation["aiCreativeBrief"] ?? creative ?? null,
+    });
+    const { composeSiteChrome } = await import("@/lib/builder/first-build-chrome.server");
+    try {
+      await composeSiteChrome({
+        db: supabase as never,
+        organizationId: data.organizationId,
+        businessName: o.name ?? "",
+        facts,
+        lookSummary,
+        primaryCta: typeof seo.primary_cta_label === "string" ? seo.primary_cta_label : null,
+      });
+    } catch (error) {
+      await restoreGeneration(supabase, data.organizationId, generation);
+      throw error;
+    }
+    const { ensureLinkIntegrity } = await import("@/lib/builder/link-integrity.server");
+    await ensureLinkIntegrity(supabase as never, data.organizationId);
+    return { ok: true, summary: "The AI designed your menu bar and footer. Every page and your main action button are now in the menu." };
+  });
