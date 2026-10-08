@@ -25,7 +25,22 @@ const REASONS: Array<{ match: RegExp; text: string }> = [
   { match: /\(section removed\)/, text: "a section had been removed" },
   { match: /\(component removed\)/, text: "an item on the page had been removed" },
   { match: /duplicate/, text: "the same change appeared twice" },
+  {
+    match: /generate_component_image:(generation|upload|media)_failed/,
+    text: "a new picture couldn't be made or saved, so the current picture stayed",
+  },
+  { match: /generate_component_image:link_failed|link_generated_image/, text: "a new picture couldn't be placed on the page" },
+  {
+    match: /set_composition:would_remove_/,
+    text: "a redesign would have removed a working form or contact block, so it was held back",
+  },
 ];
+
+/**
+ * A skipped label with no reason code is a write the database refused (the
+ * apply step records just the action name). That is still describable.
+ */
+const WRITE_FAILED = "some changes couldn't be saved just now";
 
 export type ApplyOutcome = {
   /** How many steps reached the website. */
@@ -43,9 +58,15 @@ export function skippedReasons(details: readonly string[] = []): string[] {
   const out: string[] = [];
   for (const line of details) {
     if (!/^(skipped|stale)\b/.test(line)) continue;
+    let known = false;
     for (const reason of REASONS) {
-      if (reason.match.test(line) && !out.includes(reason.text)) out.push(reason.text);
+      if (reason.match.test(line)) {
+        known = true;
+        if (!out.includes(reason.text)) out.push(reason.text);
+      }
     }
+    // "skipped set_design_tokens" — a bare action name means the write failed.
+    if (!known && /^skipped [a-z_]+$/.test(line.trim()) && !out.includes(WRITE_FAILED)) out.push(WRITE_FAILED);
   }
   return out;
 }
@@ -63,8 +84,6 @@ export function applySummary(outcome: ApplyOutcome): string {
   const tail = reasons.length
     ? ` — the other ${skipped} ${skipped === 1 ? "was" : "were"} skipped because ${reasons.join(", and ")}.`
     : ` — the other ${skipped} ${skipped === 1 ? "was" : "were"} skipped, so nothing was left half-finished.`;
-  const fix = reasons.length
-    ? " Ask for the same change again and Revora will plan it against your site as it is now."
-    : "";
+  const fix = " Ask for the same change again and Revora will plan it against your site as it is now.";
   return head + tail + fix;
 }
