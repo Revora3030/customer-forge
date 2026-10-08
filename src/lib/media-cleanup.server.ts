@@ -24,8 +24,13 @@ const SOURCES: { table: string; columns: string }[] = [
   { table: "website_settings", columns: "generation, seo, pages" },
   { table: "business_profiles", columns: "*" },
   { table: "image_records", columns: "*" },
-  { table: "website_versions", columns: "pages, generation" },
+  { table: "website_versions", columns: "pages, generation, seo" },
   { table: "data_backups", columns: "snapshot" },
+  // Service cards carry their own picture, draft branches keep a full copy of
+  // the site, and chat plans name the photos the owner attached.
+  { table: "services", columns: "image_url" },
+  { table: "website_branches", columns: "base_snapshot" },
+  { table: "builder_messages", columns: "content, plan" },
 ];
 
 async function listFolder(admin: Admin, organizationId: string): Promise<StoredObject[] | null> {
