@@ -1,64 +1,49 @@
-# This workflow uses actions that are not certified by GitHub.
-# They are provided by a third-party and are governed by
-# separate terms of service, privacy policy, and support
-# documentation.
-#
-# This workflow starts your API and fuzzes it with ForAllSecure Mayhem for API
-# to find reliability, performance and security issues before they reach
-# production.
-#
-# To use this workflow, you will need to:
-#
-# 1. Create a Mayhem account at https://app.mayhem.security
-#
-# 2. Create an API token at https://app.mayhem.security/-/settings/user/api-tokens
-#
-# 3. Add the API token as a secret in GitHub called "MAYHEM_TOKEN"
-#
-# 4. Update the "Start your API" step to run your API in the background before
-#    starting the Mayhem for API scan, and update the `api-url` & `api-spec`
-#    field.
-#
-# If you have any questions, please contact us at mayhem4api@forallsecure.com
-
+# Mayhem for API: fuzzes a running API from its OpenAPI spec. Needs:
+#   secret    MAYHEM_TOKEN
+#   variables MAYHEM_API_URL  (e.g. a staging URL — never production)
+#             MAYHEM_API_SPEC (URL of an OpenAPI/Swagger document)
+# This app does not publish an OpenAPI spec today, so until all three are set
+# the job reports "not configured" and passes.
 name: "Mayhem for API"
 
 on:
   push:
-    branches: [ "lovable-sync" ]
+    branches: ["lovable-sync"]
   pull_request:
-    # The branches below must be a subset of the branches above
-    branches: [ "lovable-sync" ]
+    branches: ["lovable-sync"]
 
 jobs:
   mayhem-for-api:
     name: Mayhem for API
-    # Mayhem for API runs on linux, mac and windows
     runs-on: ubuntu-latest
     permissions:
       actions: read
       contents: read
       security-events: write
     steps:
-      - uses: actions/checkout@v4
-
-      # Run your API in the background. Ideally, the API would run in debug
-      # mode & send stacktraces back on "500 Internal Server Error" responses
-      # (don't do this in production though!)
-      - name: Start your API
-        run: ./run_your_api.sh & # <- ✏️ update this
+      - name: Check configuration
+        id: cfg
+        env:
+          TOKEN: ${{ secrets.MAYHEM_TOKEN }}
+          URL: ${{ vars.MAYHEM_API_URL }}
+          SPEC: ${{ vars.MAYHEM_API_SPEC }}
+        run: |
+          if [ -n "$TOKEN" ] && [ -n "$URL" ] && [ -n "$SPEC" ]; then echo "ready=true" >> "$GITHUB_OUTPUT";
+          else echo "::notice::Mayhem for API is not configured (needs secret MAYHEM_TOKEN and variables MAYHEM_API_URL, MAYHEM_API_SPEC); skipping."; fi
 
       - name: Mayhem for API
+        if: steps.cfg.outputs.ready == 'true'
         uses: ForAllSecure/mapi-action@v1
         continue-on-error: true
         with:
           mayhem-token: ${{ secrets.MAYHEM_TOKEN }}
-          api-url: http://localhost:8080 # <- ✏️ update this
-          api-spec: http://localhost:8080/openapi.json # <- ✏️ update this
+          api-url: ${{ vars.MAYHEM_API_URL }}
+          api-spec: ${{ vars.MAYHEM_API_SPEC }}
           duration: 60
           sarif-report: mapi.sarif
 
       - name: Upload SARIF file
+        if: ${{ steps.cfg.outputs.ready == 'true' && hashFiles('mapi.sarif') != '' }}
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: mapi.sarif
