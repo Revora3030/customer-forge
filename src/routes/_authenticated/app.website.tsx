@@ -25,6 +25,9 @@ import { GoogleSearchGrowth } from "@/components/app/GoogleSearchGrowth";
 
 import { BuilderWizard } from "@/components/app/BuilderWizard";
 import { BuilderShell } from "@/components/app/BuilderShell";
+import { MissingMenuBanner } from "@/components/app/MissingMenuBanner";
+import { readSiteChrome } from "@/lib/builder/site-chrome";
+import { jobIsActive } from "@/lib/builder/job-liveness";
 import { Disclosure, OverlayPanel } from "@/components/app/BuilderTools";
 import { BuilderHistoryProvider } from "@/lib/builder-history.hooks";
 import { GroupTabs } from "@/components/app/BuilderGroups";
@@ -477,8 +480,12 @@ function WebsitePage() {
    * on mobile — including during the first build, where it shows the live
    * canvas skeleton until the first pages are written.
    */
+  const storedChrome = readSiteChrome(generation);
+  const buildActive = jobIsActive(latestJob.data as never);
+  const missingMenu = !firstRun && !buildActive && (!storedChrome.header || !storedChrome.footer);
   const workspace = (
     <div className="min-w-0">
+      {missingMenu && orgId ? <MissingMenuBanner organizationId={orgId} canManage={manage} /> : null}
       {org?.slug ? (
         <div className="mb-2 flex justify-center lg:hidden">
           <div className="inline-flex rounded-full border border-border/70 bg-muted/40 p-0.5" role="tablist" aria-label="Builder view">
