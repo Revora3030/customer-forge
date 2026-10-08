@@ -21,6 +21,7 @@ import {
 import { parseReview } from "@/lib/builder/collective-copy";
 import { creativeQualityPrompt } from "@/lib/builder/creative-quality-matrix";
 import { craftBarPrompt } from "@/lib/builder/world-class-craft";
+import { businessNameHeadlines, stripBusinessNameHeadlines } from "@/lib/builder/headline-names";
 
 export type PageArchitectureOutcome = {
   architecture: PageArchitecture[] | null;
@@ -81,7 +82,7 @@ export async function proposePageArchitecture(input: {
       "You may invent any justified content sections and pages within the supplied facts. Give every section its own layout, intent and media requirement. Give each new section a plain role name, heading, and body of up to 1200 characters.",
       "Invented words may only restate the business's supplied facts, services and place — never new claims, numbers, reviews or guarantees. You cannot invent forms, booking, contact, embeds, heroes or galleries.",
       "Write your own heading (<=120 chars) and optional subheading (<=260 chars) for every section except each page's hero. There are no default headings: a section you leave without one shows none.",
-      "Headings may only use the business name, its real services and its real place — never an unsupported claim.",
+      "Headings may only use the business's real services and its real place — never an unsupported claim. Do NOT put the business name in section headings (no \"<Business> Process\", \"<Business> Services\"): the name already sits in the logo and page title. Only the home page's opening heading may name the business.",
       input.revisionNotes ? `REVIEWER REFUSED YOUR LAST PLAN — address this: ${input.revisionNotes.slice(0, 1500)}` : null,
       "COMPLETENESS: plan a whole website, not a stub. A visitor must be able to understand what the business does, see each real service explained, understand how working together goes, and act — using only the facts above. A plan that is just an opening and a form is incomplete and will be refused. The shape, count and order of pages and sections are still entirely yours.",
       "FIRST BUILD IS COMPLETE: this is the customer's first build and it must ship every page they need — nothing is added later. Always include: a home page, a services page that covers EVERY supplied service (with service_cards), an about page, and a contact page (or book page when booking exists). When there are 3 or more services, also give each major service its own page (slug like \"service-name\") explaining that service. Give every page at least one section with media \"required\" so every page has a real picture.",
@@ -186,8 +187,12 @@ export async function proposePageArchitecture(input: {
 
   const review = parseReview(terra.text);
   const approved = review?.approvedFields.some((field) => /structure|pages?/i.test(field)) ?? false;
+  const namedHeadings = businessNameHeadlines(normalized.architecture, input.businessName);
   if (!approved && review !== null && !input.revisionNotes) {
-    const notes = JSON.stringify(review.notes ?? []).slice(0, 1500) || "the structure was too thin";
+    const nameNote = namedHeadings.length
+      ? ` Also remove the business name from these headings: ${namedHeadings.map((h) => JSON.stringify(h.heading)).join(", ")}.`
+      : "";
+    const notes = (JSON.stringify(review.notes ?? []).slice(0, 1300) || "the structure was too thin") + nameNote.slice(0, 200);
     const revised = await proposePageArchitecture({ ...input, revisionNotes: notes });
     return {
       ...revised,
@@ -207,7 +212,7 @@ export async function proposePageArchitecture(input: {
     };
 
   return {
-    architecture: normalized.architecture,
+    architecture: stripBusinessNameHeadlines(normalized.architecture, input.businessName),
     skipped: null,
     rejected: normalized.rejected,
     models,
