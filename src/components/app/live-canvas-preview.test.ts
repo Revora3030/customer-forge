@@ -6,7 +6,7 @@
  */
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { canvasStatusLine } from "@/components/app/LiveCanvasSkeleton";
+import { canvasStatusLine } from "@/components/app/live-canvas-utils";
 import { isRenderableSection, normalizeSection } from "@/components/site/site-sections-utils";
 
 const read = (path: string) => readFileSync(path, "utf8");
