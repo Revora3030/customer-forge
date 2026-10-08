@@ -123,3 +123,17 @@ export function normalizeSection(section: Section): Section {
     components,
   } as Section;
 }
+
+/**
+ * The "Area" row is only worth showing when it adds something the street
+ * address does not already say — "Chapel Hill, NC" above "12 Main St, Chapel
+ * Hill, NC" just repeats itself.
+ */
+export function distinctServiceArea(area: string | null | undefined, addressLine: string | null | undefined): string | null {
+  const a = (area ?? "").trim();
+  if (!a) return null;
+  const norm = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  const address = norm(addressLine ?? "");
+  if (address && (address.includes(norm(a)) || norm(a) === address)) return null;
+  return a;
+}

@@ -581,14 +581,17 @@ export const applyVisionRepairs = createServerFn({ method: "POST" })
     for (const repair of repairs) {
       switch (repair.action) {
         case "set_section_effect": {
+          let effectFailed = 0;
           for (const section of scope) {
-            await supabase
+            const write = await supabase
               .from("website_sections")
               .update({ settings: writeSectionEffect(section.settings ?? null, repair.effect) as never })
               .eq("id", section.id)
               .eq("organization_id", data.organizationId);
+            if (write.error) effectFailed += 1;
           }
-          applied.push("Movement switched off on this page");
+          if (effectFailed) skipped.push(repair.kind);
+          else applied.push("Movement switched off on this page");
           break;
         }
         case "set_image_overlay": {
@@ -596,17 +599,20 @@ export const applyVisionRepairs = createServerFn({ method: "POST" })
           break;
         }
         case "set_image_fit": {
+          let fitFailed = 0;
           for (const section of scope) {
             const current = { ...((section.settings ?? {}) as Record<string, unknown>) };
             if (current["imageFit"] === repair.fit) continue;
             current["imageFit"] = repair.fit;
-            await supabase
+            const write = await supabase
               .from("website_sections")
               .update({ settings: current as never })
               .eq("id", section.id)
               .eq("organization_id", data.organizationId);
+            if (write.error) fitFailed += 1;
           }
-          applied.push("Photos cropped to fit rather than stretched");
+          if (fitFailed) skipped.push(repair.kind);
+          else applied.push("Photos cropped to fit rather than stretched");
           break;
         }
         // Contrast and call-to-action emphasis are design choices: they are

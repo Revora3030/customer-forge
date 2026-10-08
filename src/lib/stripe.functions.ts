@@ -432,13 +432,24 @@ export const createServiceCheckout = createServerFn({ method: "POST" })
         if (!session.client_secret)
           throw new Error("The payment provider did not return a checkout session.");
 
-        await admin
-          .from("payments")
-          .update({
-            status: "pending",
-            metadata: { checkout: "stripe_service", stripe_session_id: session.id },
-          })
-          .eq("id", payment.id);
+        const recordSession = () =>
+          admin
+            .from("payments")
+            .update({
+              status: "pending",
+              metadata: { checkout: "stripe_service", stripe_session_id: session.id },
+            })
+            .eq("id", payment.id);
+        let sessionWrite = await recordSession();
+        if (sessionWrite.error) sessionWrite = await recordSession();
+        if (sessionWrite.error) {
+          // The session still carries paymentId in its metadata, so the webhook
+          // can match it; record the gap loudly instead of losing it silently.
+          logPaymentError("stripe-service-checkout-session-link", {
+            paymentId: payment.id,
+            message: sessionWrite.error.message,
+          });
+        }
 
         return { clientSecret: session.client_secret, paymentId: payment.id };
       } catch (error) {
