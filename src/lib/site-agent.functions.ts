@@ -1385,7 +1385,7 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
               if (previousKind === "contact" && (name === "contact_details" || name === "direct_contact")) return true;
               return previousTree ? treeHasWidget(previousTree.root, name) : false;
             };
-            const lost = ["booking_form", "quote_calculator", "contact_details", "direct_contact"].filter(
+            const lost = ["booking_form", "quote_calculator", "enquiry_form", "contact_details", "direct_contact"].filter(
               (name) => hadWidget(name) && !treeHasWidget(action.tree.root, name) &&
                 !(name === "contact_details" && treeHasWidget(action.tree.root, "direct_contact")) &&
                 !(name === "direct_contact" && treeHasWidget(action.tree.root, "contact_details")),
