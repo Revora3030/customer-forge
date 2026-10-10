@@ -29,10 +29,10 @@ describe("lead webhook routing", () => {
     expect(validateLeadWebhookUrl("http://192.168.1.20/hook")).toBeNull();
     expect(validateLeadWebhookUrl("javascript:alert(1)")).toBeNull();
     for (const url of [
-      "http://hooks.example.com/lead",
+      "http://hooks.example.com/lead", // DevSkim: ignore DS137138 -- Negative fixture: plaintext webhooks must be rejected; no request is sent.
       "https://metadata.google.internal/hook",
       "https://[fd00::1]/hook",
-      "https://[::ffff:127.0.0.1]/hook",
+      "https://[::ffff:127.0.0.1]/hook", // DevSkim: ignore DS162092 -- Negative fixture: mapped loopback addresses must be rejected.
       "https://user:secret@hooks.example.com/hook",
       "https://hooks.example.com:8080/hook",
     ]) expect(validateLeadWebhookUrl(url), url).toBeNull();

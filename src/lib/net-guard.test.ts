@@ -31,7 +31,7 @@ describe("ssrf guard", () => {
   it.each([
     "8..8.8", "1.2.3.4.5", "198.18.0.1", "198.51.100.5", "203.0.113.5",
     "not:ipv6", "::", "::1", "0:0:0:0:0:0:0:1", "fd00::1", "fe80::1",
-    "::ffff:7f00:1", "::ffff:a00:1", "::ffff:192.168.1.1", "::127.0.0.1",
+    "::ffff:7f00:1", "::ffff:a00:1", "::ffff:192.168.1.1", "::127.0.0.1", // DevSkim: ignore DS162092 -- Negative fixtures: mapped and compatible private addresses must be rejected.
     "2001:db8::1", "2002:7f00:1::1", "3fff::1", "2001::1",
   ])("blocks non-public or invalid address %s", (ip) => expect(isPublicAddress(ip)).toBe(false));
 

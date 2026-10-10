@@ -69,7 +69,7 @@ export function isPublicIpv6(ip: string): boolean {
   const raw = ip.trim().toLowerCase().replace(/^\[/, "").replace(/\]$/, "");
   // URL parsing validates and canonicalizes compressed and mapped forms.
   let normalized: string;
-  try { normalized = new URL(`http://[${raw}]/`).hostname.slice(1, -1); }
+  try { normalized = new URL(`https://[${raw}]/`).hostname.slice(1, -1); }
   catch { return false; }
   const halves = normalized.split("::");
   const left = halves[0] ? halves[0].split(":") : [];
