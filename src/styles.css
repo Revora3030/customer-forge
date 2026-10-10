@@ -292,15 +292,19 @@
 }
 
 /* The panel: flat card, hairline border, no glass, no heavy shadow. */
+/* Panels read the raw --card/--border tokens, not the --color-* aliases: the
+   aliases resolve once at :root (Revora's dark app theme) and are inherited,
+   so a customer site's own lighter --card never reached its forms and their
+   dark text sat on a near-black box. In the app the two values are identical. */
 @utility panel {
-  background-color: color-mix(in oklab, var(--color-card) 62%, transparent);
-  border: 1px solid var(--color-border);
+  background-color: color-mix(in oklab, var(--card) 62%, transparent);
+  border: 1px solid var(--border);
   border-radius: var(--radius-md);
 }
 
 @utility panel-inset {
   background-color: transparent;
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--border);
   border-radius: var(--radius-md);
 }
 
