@@ -15,10 +15,12 @@ import {
   leadSectionIndex,
   normalizeSection,
   pageHasNodeType,
+  needsEnquiryForm,
   pageHasWidget,
   stickyActions,
 } from "@/components/site/site-sections-utils";
 import { ReviewWall } from "@/components/site/LiveBlocks";
+import { EnquiryForm } from "@/components/site/SiteForms";
 import { PreviewSelectBridge } from "@/components/site/PreviewSelectBridge";
 import { SiteBackdrop } from "@/components/site/SiteBackdrop";
 import { compositionFonts, siteFontStyle, siteFontsHref, siteThemeStyle } from "@/lib/site-theme";
@@ -33,7 +35,7 @@ import { canonicalSiteUrl } from "@/lib/revora-address";
 import { CompositionRenderer } from "@/components/site/CompositionRenderer";
 import { knownPageSlugs, missingChromeLinks, readSiteChrome, repairStoredLinks, resolveSiteHref } from "@/lib/builder/site-chrome";
 import { AiSiteHeader } from "@/components/site/AiSiteHeader";
-import { useOwnAddress } from "@/components/site/use-own-address";
+import { useOwnAddress, useSiteBase } from "@/components/site/use-own-address";
 import { metaDescription } from "@/lib/seo";
 import { clientHeadExtrasSync, shareImageFor } from "@/lib/site-head";
 import { premiumSurface } from "@/lib/site-theme";
@@ -145,6 +147,7 @@ export function SitePageView({
   const slots = rawRows.map((row) => (isRenderableSection(row) ? normalizeSection(row) : null));
   const storedSections = slots.filter((slot): slot is NonNullable<typeof slot> => slot !== null);
   const ownAddress = useOwnAddress();
+  const previewBase = useSiteBase();
   const chrome = readSiteChrome(site.settings?.generation ?? null);
   // The site's real pages and this page's section anchors, so every button the
   // AI team authored is checked against what actually exists: a link to a page
@@ -165,7 +168,7 @@ export function SitePageView({
   // Every button and link the AI team authored inside the page's sections
   // (layouts, custom blocks, calculators, booking pickers) gets the same repair.
   const sections = repairStoredLinks(storedSections, knownPages, pageAnchors);
-  const chromeHref = (href: string) => resolveSiteHref(href, org.slug, ownAddress, knownPages, pageAnchors);
+  const chromeHref = (href: string) => resolveSiteHref(href, org.slug, ownAddress, knownPages, pageAnchors, previewBase);
   // Pages the AI menu left out are still offered, so no page is orphaned.
   const extraNav = missingChromeLinks(chrome.header, navRows as never);
 
@@ -262,6 +265,16 @@ export function SitePageView({
               );
             });
           })()}
+          {/* Every contact page — and any page whose buttons point at the
+              message form — can always take a message, even when its AI
+              layout only listed a phone number and email. */}
+          {needsEnquiryForm(page.kind, (page as { slug?: string | null }).slug ?? null, sections as never) ? (
+            <section id="contact" className="scroll-mt-20" style={{ minWidth: 0 }}>
+              <div className="mx-auto w-full max-w-[680px] px-4 sm:px-6" style={{ paddingBlock: "calc(3.5rem * var(--site-space, 1))" }}>
+                <EnquiryForm site={site} />
+              </div>
+            </section>
+          ) : null}
           {/* Published reviews from the Reviews tool always reach the home
               page, even on sites designed before reviews existed. Skipped when
               the AI layout already places the live review wall itself. */}
