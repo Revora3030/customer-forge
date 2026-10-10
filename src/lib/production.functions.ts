@@ -170,6 +170,9 @@ async function gatherReadiness(
   const pageRows = pages.data ?? [];
   const visibleSections = (sections.data ?? []).filter((s) => s.is_visible);
   const captureKinds = new Set(["quote", "booking", "contact", "cta", "sticky_cta"]);
+  const { readSiteChrome } = await import("@/lib/builder/site-chrome");
+  const siteChrome = readSiteChrome(settings.data?.generation ?? null);
+  const hasChrome = Boolean(siteChrome.header && siteChrome.footer);
   const paid = !!org.data?.setup_paid_at || org.data?.setup_payment_status === "paid";
   const unlocked = !org.data?.is_suspended && (paid || !!org.data?.is_demo || isPlatformOwnerOrg(organizationId));
 
@@ -220,8 +223,19 @@ async function gatherReadiness(
     {
       key: "capture",
       label: "A way for customers to enquire",
-      ok: visibleSections.some((s) => captureKinds.has(String(s.kind))),
-      detail: "A quote form, booking block or contact section must be live.",
+      // A visible contact page always renders the working message form.
+      ok:
+        visibleSections.some((s) => captureKinds.has(String(s.kind))) ||
+        pageRows.some((page) => page.is_visible && ["contact", "contact-us", "get-in-touch"].includes(String(page.slug))),
+      detail: "A quote form, booking block, contact section or contact page (with its message form) must be live.",
+    },
+    {
+      key: "navigation",
+      label: "Menu bar and footer designed",
+      ok: hasChrome,
+      detail: hasChrome
+        ? "Visitors can move between every page from the menu and footer."
+        : "This site has no menu bar or footer yet, so visitors can't move between pages. Use “Design my menu & footer” in the builder.",
     },
     {
       key: "services",
