@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { getPreviewSite } from "@/lib/public-site.functions";
 import { PublicSiteView } from "@/routes/s.$slug";
 import { PreviewMessage } from "@/components/PreviewMessage";
+import { SiteBaseContext } from "@/components/site/site-address-context";
 
 /**
  * Shareable, time-limited draft preview. The token is checked on the server;
@@ -34,6 +35,7 @@ export const Route = createFileRoute("/p/$token")({
 
 function PreviewRoute() {
   const result = Route.useLoaderData();
+  const { token } = Route.useParams();
 
   if (!result?.ok || !result.site) {
     const reason = result?.reason ?? "unknown";
@@ -52,5 +54,9 @@ function PreviewRoute() {
     return <PreviewMessage {...copy} />;
   }
 
-  return <PublicSiteView site={result.site} preview />;
+  return (
+    <SiteBaseContext.Provider value={`/p/${encodeURIComponent(token)}`}>
+      <PublicSiteView site={result.site} preview />
+    </SiteBaseContext.Provider>
+  );
 }
