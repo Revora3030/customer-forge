@@ -108,6 +108,13 @@ const mediaUrl = (media: ResolvedMedia | null): string | null =>
   typeof media === "string" ? media : media?.url ?? null;
 const mediaVisual = (media: ResolvedMedia | null): PersistedComponentVisual | undefined =>
   typeof media === "string" ? undefined : media?.visual;
+/**
+ * AI_GENERATED_DRAFT / NOT_VERIFIED_WORK_PROOF: a stored picture whose visual
+ * record says it was generated can illustrate a page, but it must never be
+ * shown as a before/after result — that would present AI work as the
+ * business's real job.
+ */
+const isGeneratedMedia = (media: ResolvedMedia | null): boolean => mediaVisual(media)?.source === "generated";
 
 function widgetThemeStyle(theme: WidgetPresentation["theme"] | undefined): CSSProperties {
   if (!theme) return {};
@@ -358,6 +365,7 @@ function renderNodeInner(rawNode: CompositionNode, ctx: Ctx, key: string): React
       );
     case "compare": {
       const [before, after] = node.children ?? [];
+      if ((before?.mediaRef && isGeneratedMedia(ctx.media(before.mediaRef))) || (after?.mediaRef && isGeneratedMedia(ctx.media(after.mediaRef)))) return null;
       const beforeSource = before?.src ? resolveImageSource(before.src) : (before?.mediaRef ? mediaUrl(ctx.media(before.mediaRef)) : null);
       const afterSource = after?.src ? resolveImageSource(after.src) : (after?.mediaRef ? mediaUrl(ctx.media(after.mediaRef)) : null);
       return before && after && beforeSource && afterSource ? <Compare key={key} props={props} before={before} after={after} beforeSource={beforeSource} afterSource={afterSource} /> : null;
