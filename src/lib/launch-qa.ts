@@ -31,6 +31,8 @@ export type CaptureQaInput = {
   quoteQuestions: number;
   /** Services a visitor can book online. */
   bookableServices: number;
+  /** Sections whose layout carries the general enquiry (message) form. */
+  enquiryForms?: number;
   /** Visible sections that contain a form or a booking widget. */
   captureSections: number;
   /** Leads that already arrived from the public site. */
@@ -59,7 +61,8 @@ const check = (
  */
 export function captureQa(input: CaptureQaInput) {
   const hasContact = Boolean(input.phone?.trim() || input.email?.trim());
-  const capture = input.quoteForms > 0 || input.bookableServices > 0;
+  const enquiry = input.enquiryForms ?? 0;
+  const capture = input.quoteForms > 0 || input.bookableServices > 0 || enquiry > 0;
 
   const checks: CaptureCheck[] = [
     check(
@@ -89,9 +92,9 @@ export function captureQa(input: CaptureQaInput) {
       "A way to enquire",
       capture,
       capture
-        ? `${input.quoteForms} quote calculator${input.quoteForms === 1 ? "" : "s"} and ${input.bookableServices} bookable service${input.bookableServices === 1 ? "" : "s"} are live.`
-        : "Nobody can request a quote or book online yet.",
-      "Turn on the quote calculator or make at least one service bookable.",
+        ? `${input.quoteForms} quote calculator${input.quoteForms === 1 ? "" : "s"}, ${input.bookableServices} bookable service${input.bookableServices === 1 ? "" : "s"} and ${enquiry} message form${enquiry === 1 ? "" : "s"} are live.`
+        : "Nobody can send a message, request a quote or book online yet.",
+      "Keep a contact page (it always carries the message form), turn on the quote calculator or make a service bookable.",
       "blocker",
       "/app/quotes",
     ),
