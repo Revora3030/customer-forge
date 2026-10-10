@@ -5,6 +5,7 @@
  * there. This route shows the work in progress instead, to signed-in members
  * of that business only.
  */
+import { SiteBaseContext } from "@/components/site/site-address-context";
 import { createFileRoute, Link, Outlet, useChildMatches, useRouter } from "@tanstack/react-router";
 import { useEffect, type ReactNode } from "react";
 import { ArrowLeft } from "lucide-react";
@@ -182,7 +183,9 @@ function DraftHomeRouteContent() {
       <>
         {result.status === "pending" ? <DraftUpdatingBanner job={result.job} /> : null}
         <PreviewModeContext.Provider value={true}>
-          <PublicSiteView site={result.site} preview />
+          <SiteBaseContext.Provider value={`/draft/${encodeURIComponent(result.site.org.slug)}`}>
+            <PublicSiteView site={result.site} preview />
+          </SiteBaseContext.Provider>
         </PreviewModeContext.Provider>
       </>
     );
