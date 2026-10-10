@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { RevoraAiError } from "./errors";
 
 const calls: { model: string; hasSource: boolean }[] = [];
 const usage: { outcome: string; reason: string | null; model?: string }[] = [];
@@ -161,5 +162,27 @@ describe("premium picture lane", () => {
     const result = await generatePaidImageBase64("supporting photo", { organizationId: "org" });
     expect(result.ok === false && result.reason).toBe("invalid_image");
     expect(usage.at(-1)).toMatchObject({ outcome: "failed", reason: "invalid_image" });
+  });
+
+  it("does not refund an indeterminate timeout and overrun the spending cap", async () => {
+    const router = await import("./router.server");
+    const ledger = await import("./luna.server");
+    vi.mocked(router.callPinnedPaidImage).mockRejectedValueOnce(new RevoraAiError(408, "Timed out"));
+    const { generatePaidImageBase64, paidImagePriceMicrocents } = await paidImage();
+    const result = await generatePaidImageBase64("supporting photo", { organizationId: "org" });
+    const estimate = paidImagePriceMicrocents("flare");
+    expect(result.ok).toBe(false);
+    expect(ledger.settleBudget).toHaveBeenLastCalledWith("org", estimate, estimate);
+    expect(usage.at(-1)).toMatchObject({ outcome: "failed", reason: "provider_outcome_unknown", cost: estimate });
+    expect(!result.ok && result.message).not.toContain("Nothing was charged");
+  });
+
+  it("releases the reservation after a definite provider rejection", async () => {
+    const router = await import("./router.server");
+    const ledger = await import("./luna.server");
+    vi.mocked(router.callPinnedPaidImage).mockRejectedValueOnce(new RevoraAiError(403, "Forbidden"));
+    const { generatePaidImageBase64, paidImagePriceMicrocents } = await paidImage();
+    await generatePaidImageBase64("supporting photo", { organizationId: "org" });
+    expect(ledger.settleBudget).toHaveBeenLastCalledWith("org", paidImagePriceMicrocents("flare"), 0);
   });
 });

@@ -217,7 +217,7 @@ export const runSiteGeneration = createServerFn({ method: "POST" })
     {
       const origin = new URL(getRequest().url).origin;
       const { runInBackground } = await import("@/lib/background");
-      runInBackground(() => kickWorker(origin));
+      runInBackground(() => kickWorker(origin, orgId));
     }
 
     return {
@@ -241,7 +241,7 @@ export function isActiveBuildConflict(error: { code?: string; message?: string }
   return !error.message || /generation_jobs_one_active_per_org|duplicate key/i.test(error.message);
 }
 
-async function kickWorker(origin: string) {
+async function kickWorker(origin: string, organizationId: string) {
   const secret = process.env["LOVABLE_CRON_SECRET"];
   if (!secret) {
     // Without it every scheduled worker run is refused (HTTP 500) and builds
@@ -255,22 +255,25 @@ async function kickWorker(origin: string) {
   // Try the HTTP kick first (fastest path when the scheduler is running).
   if (secret && base) {
     try {
-      await fetch(`${base.replace(/\/$/, "")}/api/public/jobs/site-engine`, {
+      const response = await fetch(`${base.replace(/\/$/, "")}/api/public/jobs/site-engine?organizationId=${encodeURIComponent(organizationId)}`, {
         method: "POST",
         headers: { authorization: `Bearer ${secret}` },
+        redirect: "error",
       });
+      if (response.ok) return;
     } catch {
       // Fall through to the direct drain below.
     }
   }
   // Direct fallback: drain the queue in-process when the HTTP kick is
   // unavailable (missing LOVABLE_CRON_SECRET, no scheduler, or network
-  // failure). This ensures the build always progresses even without a
-  // separate worker process. The database lease guarantees single-flight.
+  // failure). This is best effort only: serverless background grace periods
+  // cannot sustain a long build. The independent runner/client request must
+  // remain connected. Always scope the fallback to the initiating workspace.
   try {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { drainSiteEngineQueue } = await import("@/lib/site-engine.worker.server");
-    await drainSiteEngineQueue(supabaseAdmin as never, { max: 1, probeWhilePaused: true });
+    await drainSiteEngineQueue(supabaseAdmin as never, { max: 1, organizationId });
   } catch {
     // The client pump and the scheduled run still pick the job up.
   }
@@ -303,7 +306,6 @@ export const pumpSiteEngineQueue = createServerFn({ method: "POST" })
     return drainSiteEngineQueue(supabaseAdmin as never, {
       max: 1,
       organizationId: data.organizationId,
-      probeWhilePaused: true,
     });
   });
 
@@ -372,6 +374,7 @@ export const aiEditSiteCopy = createServerFn({ method: "POST" })
       },
       data.fields,
       data.instruction,
+      { organizationId: orgId, userId },
     );
 
     await supabase.from("ai_generations").insert({
@@ -511,6 +514,10 @@ export const analyzeSiteBrief = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
     const orgId = data.organizationId;
+    const { requireOrgRole } = await import("@/lib/org-authz.server");
+    await requireOrgRole(supabase, orgId, userId, "manager");
+    const { assertOrgEntitled } = await import("@/lib/entitlement.server");
+    await assertOrgEntitled(supabase, orgId);
     const { gatherBriefFacts } = await import("@/lib/site-brief.server");
     const { analyzeBusiness } = await import("@/lib/site-engine.server");
     const { readBrief } = await import("@/lib/site-brief");
@@ -524,7 +531,7 @@ export const analyzeSiteBrief = createServerFn({ method: "POST" })
     const generation = (settings.data?.generation ?? {}) as Record<string, unknown>;
     const previous = readBrief(generation["brief"]);
 
-    let brief = await analyzeBusiness(facts.copyFacts);
+    let brief = await analyzeBusiness(facts.copyFacts, { organizationId: orgId, userId });
 
     // A new analysis always needs re-approval, but the owner's answers stay.
     brief = { ...brief, approved: false, factAnswers: previous?.factAnswers ?? {} };
@@ -702,6 +709,8 @@ export const extractScreenshotReference = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { requireOrgRole } = await import("@/lib/org-authz.server");
     await requireOrgRole(context.supabase, data.organizationId, context.userId, "manager");
+    const { assertOrgEntitled } = await import("@/lib/entitlement.server");
+    await assertOrgEntitled(context.supabase, data.organizationId);
 
     // Quality first: any connected picture-reading model may answer this call.
     const { builderAiAvailable } = await import("@/lib/ai/availability");
@@ -815,6 +824,10 @@ export const runSiteEngineCheck = createServerFn({ method: "POST" })
   .validator((input: { organizationId: string }) => ({ organizationId: orgIdOf(input) }))
   .handler(async ({ data, context }) => {
     const orgId = data.organizationId;
+    const { requireOrgRole } = await import("@/lib/org-authz.server");
+    await requireOrgRole(context.supabase, orgId, context.userId, "manager");
+    const { assertOrgEntitled } = await import("@/lib/entitlement.server");
+    await assertOrgEntitled(context.supabase, orgId);
     const steps: { key: string; label: string; ok: boolean; detail: string }[] = [];
     const { gatherBriefFacts } = await import("@/lib/site-brief.server");
     const { analyzeBusiness } = await import("@/lib/site-engine.server");
@@ -841,7 +854,7 @@ export const runSiteEngineCheck = createServerFn({ method: "POST" })
 
     if (facts) {
       try {
-        const brief = await analyzeBusiness(facts.copyFacts);
+        const brief = await analyzeBusiness(facts.copyFacts, { organizationId: orgId, userId: context.userId });
         steps.push({
           key: "ai",
           label: "Live AI analysis call",

@@ -85,8 +85,10 @@ describe("build attempt fencing", () => {
   it("progress, completion and failure writes are fenced by attempt", () => {
     expect(src).toMatch(/\.eq\("attempts", job\.attempts\)\s*\.select\("id"\)/);
     expect(src).toMatch(/status: "completed"[\s\S]{0,400}\.eq\("attempts", job\.attempts\)/);
-    // The update payload may carry a type cast (`}) as never,`); the attempt fence must still follow the id match.
-    expect(src).toMatch(/lease_expires_at: null \}\)?(?: as never)?,\s*\)\s*\.eq\("id", job\.id\)\s*(?:\/\/[^\n]*\n\s*)+\.eq\("attempts", job\.attempts\)/);
+    // Queued failures now carry a retry-not-before lease, not a null lease.
+    // Runtime race/cancellation behavior is covered in site-engine.queue.test.
+    const failure = src.slice(src.indexOf("// Ordinary failure"));
+    expect(failure).toMatch(/\.eq\("id", job\.id\)[\s\S]*?\.eq\("attempts", job\.attempts\)\s*\.eq\("status", "processing"\)/);
   });
   it("a superseded attempt stops without requeuing or restoring", () => {
     expect(src).toContain("if (error instanceof StaleAttemptError) continue;");

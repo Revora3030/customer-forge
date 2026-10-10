@@ -93,9 +93,13 @@ export function sanitizeContext(context: Record<string, unknown> | undefined) {
       continue;
     }
     if (value === null || ["string", "number", "boolean"].includes(typeof value)) {
-      out[key] = typeof value === "string" ? value.slice(0, 500) : value;
+      out[key] = typeof value === "string" ? sanitizeErrorText(value)?.slice(0, 500) : value;
     } else {
-      out[key] = String(JSON.stringify(value) ?? "").slice(0, 500);
+      // Redact nested keys too; serializing first used to leak nested tokens.
+      const json = JSON.stringify(value, (nestedKey, nestedValue: unknown) =>
+        SENSITIVE.test(nestedKey) ? "[redacted]" : nestedValue,
+      );
+      out[key] = sanitizeErrorText(String(json ?? ""))?.slice(0, 500);
     }
   }
   return out;
@@ -105,21 +109,23 @@ function environment() {
   return process.env["NODE_ENV"] === "production" ? "production" : "development";
 }
 
-function stacktraceFrames(stack: string | null | undefined) {
+export function stacktraceFrames(stack: string | null | undefined) {
   if (!stack) return [];
   return stack
     .split("\n")
     .map((line) => line.trim())
     .filter(Boolean)
     .map((line) => {
-      const match = line.match(/^at\\s+(.*?)\\s+\\((.*?):(\\d+):(\\d+)\\)$/) ??
-        line.match(/^at\\s+(.*?):(\\d+):(\\d+)\\$/);
+      // V8/Node named and anonymous frames, plus Firefox/Safari fn@url.
+      const match = line.match(/^at\s+(.*?)\s+\((.*?):(\d+):(\d+)\)$/) ??
+        line.match(/^(.*?)@(.*?):(\d+):(\d+)$/) ??
+        line.match(/^at\s+(.*?):(\d+):(\d+)$/);
       if (!match) return null;
       if (match.length === 5) {
         const [, fn, rawUrl, lineNo, colNo] = match;
         return {
           function: fn || "<anonymous>",
-          filename: String(rawUrl).split(/[?#]/, 1)[0],
+          filename: sanitizeErrorText(String(rawUrl).split(/[?#]/, 1)[0]),
           lineno: Number(lineNo),
           colno: Number(colNo),
           in_app: true,
@@ -128,14 +134,16 @@ function stacktraceFrames(stack: string | null | undefined) {
       const [, rawUrl, lineNo, colNo] = match;
       return {
         function: "<anonymous>",
-        filename: String(rawUrl).split(/[?#]/, 1)[0],
+        filename: sanitizeErrorText(String(rawUrl).split(/[?#]/, 1)[0]),
         lineno: Number(lineNo),
         colno: Number(colNo),
         in_app: true,
       };
     })
     .filter((frame): frame is NonNullable<typeof frame> => frame !== null)
-    .slice(-50);
+    .slice(0, 50)
+    // JavaScript stacks are newest-first; Sentry expects oldest-first.
+    .reverse();
 }
 
 async function forwardToSentry(event: CapturedError, fingerprint: string): Promise<boolean> {
@@ -181,6 +189,7 @@ async function forwardToSentry(event: CapturedError, fingerprint: string): Promi
         "x-sentry-auth": `Sentry sentry_version=7, sentry_key=${publicKey}, sentry_client=revora/1.0`,
       },
       body,
+      signal: AbortSignal.timeout(5_000),
     });
     return res.ok;
   } catch {

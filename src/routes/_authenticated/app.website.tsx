@@ -485,7 +485,7 @@ function WebsitePage() {
   const missingMenu = !firstRun && !buildActive && (!storedChrome.header || !storedChrome.footer);
   const workspace = (
     <div className="min-w-0">
-      {missingMenu && orgId ? <MissingMenuBanner organizationId={orgId} canManage={manage} /> : null}
+      {missingMenu && orgId ? <MissingMenuBanner organizationId={orgId} canManage={manage} hasHeader={Boolean(storedChrome.header)} hasFooter={Boolean(storedChrome.footer)} /> : null}
       {org?.slug ? (
         <div className="mb-2 flex justify-center lg:hidden">
           <div className="inline-flex rounded-full border border-border/70 bg-muted/40 p-0.5" role="tablist" aria-label="Builder view">

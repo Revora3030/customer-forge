@@ -66,6 +66,8 @@ export const restyleSiteWithAi = createServerFn({ method: "POST" })
     const db = context.supabase as unknown as Client;
     const orgId = data.organizationId;
     await requireManager(db, orgId, context.userId);
+    const { assertOrgEntitled } = await import("@/lib/entitlement.server");
+    await assertOrgEntitled(context.supabase, orgId);
 
     const [{ data: sections }, { data: org }, { data: profile }, { data: services }, { data: settings }] = await Promise.all([
       db.from("website_sections").select("id,kind,settings").eq("organization_id", orgId),

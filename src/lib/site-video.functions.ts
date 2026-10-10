@@ -70,6 +70,10 @@ export const generateSectionVideo = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
+    const { requireOrgRole } = await import("@/lib/org-authz.server");
+    await requireOrgRole(supabase, data.organizationId, userId, "manager");
+    const { assertOrgEntitled } = await import("@/lib/entitlement.server");
+    await assertOrgEntitled(supabase, data.organizationId);
 
     // RLS gate: a member only ever sees their own workspace's blocks.
     const { data: component, error } = await supabase

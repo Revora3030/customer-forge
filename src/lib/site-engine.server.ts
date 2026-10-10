@@ -13,6 +13,7 @@ import { businessDna, dnaBrief, screenClaims, type DnaFacts } from "@/lib/busine
 import { RevoraAiError } from "@/lib/ai/errors";
 import { generateStructuredOutput } from "@/lib/ai/router.server";
 import type { ModelRole } from "@/lib/ai/config";
+import type { AiCaller } from "@/lib/ai/types";
 
 export { RevoraAiError };
 
@@ -89,8 +90,11 @@ async function chatJson(
   caller?: { organizationId?: string | null; userId?: string | null; task?: string },
 ): Promise<Record<string, unknown>> {
   if (!isAiAvailable(caller?.organizationId))
-    throw new RevoraAiError(402, "The AI team is temporarily unavailable for this workspace. The build stopped without using a fallback writer.", {
-      category: "quota",
+    throw new RevoraAiError(503, "The AI team is temporarily unavailable for this workspace. The build stopped without using a fallback writer.", {
+      category: "workspace_cooldown",
+      retryAfterSeconds: Math.max(1, Math.ceil(
+        ((aiUnavailableUntilByTenant.get(aiTenantKey(caller?.organizationId)) ?? Date.now()) - Date.now()) / 1000,
+      )),
     });
 
   try {
@@ -189,11 +193,14 @@ export async function rewriteCopyFields(
   facts: CopyFacts,
   current: Record<string, string>,
   instruction: string,
+  caller: Pick<AiCaller, "organizationId" | "userId"> = {},
 ): Promise<Record<string, string>> {
   const data = await chatJson(
     `Rewrite only the fields given in "current". Return JSON with the same keys and no others.
 Keep each field's role (a button label stays a button label). Choose whatever length best serves the instruction. Do not add facts. Do not change structure.`,
     `Instruction from the business owner: "${instruction}"\n\ncurrent:\n${JSON.stringify(current, null, 2)}\n\nFACTS:\n${factSheet(facts)}`,
+    COPY_ROLE,
+    { ...caller, task: "copy.rewrite" },
   );
 
   const out: Record<string, string> = {};
@@ -213,7 +220,10 @@ Keep each field's role (a button label stays a button label). Choose whatever le
  * context. Facts are never invented: anything the client hasn't supplied is
  * returned in `missingFacts` for the owner to fill in.
  */
-export async function analyzeBusiness(facts: CopyFacts): Promise<SiteBrief> {
+export async function analyzeBusiness(
+  facts: CopyFacts,
+  caller: Pick<AiCaller, "organizationId" | "userId"> = {},
+): Promise<SiteBrief> {
   const system = `You analyse a business (any industry, any size, local or global) so a website can be built around how its customers actually buy.
 Return JSON with exactly these keys:
 positioning (one plain sentence, max 200 chars, what the business does and for whom),
@@ -232,6 +242,7 @@ Never assert reviews, credentials, prices, guarantees or history that were not s
 
   const attempt = async (role: ModelRole) =>
     chatJson(system, `Analyse this business.\n\nFACTS:\n${factSheet(facts)}`, role, {
+      ...caller,
       task: "copy.analyse",
     });
 

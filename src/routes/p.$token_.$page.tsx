@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 import { getPreviewSite } from "@/lib/public-site.functions";
 import { PublicSiteView } from "@/routes/s.$slug";
 import { PreviewMessage } from "@/components/PreviewMessage";
@@ -7,6 +7,15 @@ import { metaDescription } from "@/lib/seo";
 
 /** Sub-pages of a private draft preview link, checked on the server like the home page. */
 export const Route = createFileRoute("/p/$token_/$page")({
+  beforeLoad: ({ params, location }) => {
+    if (params.page === "home") throw redirect({
+      to: "/p/$token",
+      params: { token: params.token },
+      search: true,
+      hash: location.hash,
+      replace: true,
+    });
+  },
   loader: async ({ params }) =>
     getPreviewSite({ data: { token: params.token, pageSlug: params.page } }),
   head: () => ({

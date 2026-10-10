@@ -21,6 +21,8 @@ describe("live integration credential contract", () => {
     const status = suiteStatus(contract, {
       INTEGRATION_TESTS_ENABLED: "1",
       INTEGRATION_TEST_CRM_WEBHOOK_URL: "   ",
+      INTEGRATION_TEST_CRM_ORGANIZATION_ID: "test-workspace",
+      INTEGRATION_TEST_CRM_EMAIL: "qa@example.com",
     });
     expect(status.runnable).toBe(false);
     expect(status.missingCredentials).toEqual(["INTEGRATION_TEST_CRM_WEBHOOK_URL"]);
@@ -30,6 +32,8 @@ describe("live integration credential contract", () => {
     const report = livePreflight({
       INTEGRATION_TESTS_ENABLED: "1",
       INTEGRATION_TEST_CRM_WEBHOOK_URL: "https://example.test/hook",
+      INTEGRATION_TEST_CRM_ORGANIZATION_ID: "test-workspace",
+      INTEGRATION_TEST_CRM_EMAIL: "qa@example.com",
     });
     expect(report.status).toBe("PARTIAL");
     expect(report.suites.find((s) => s.id === "crm")?.runnable).toBe(true);
@@ -49,5 +53,21 @@ describe("live integration credential contract", () => {
 
   it("states what each suite would prove", () => {
     for (const suite of LIVE_SUITES) expect(suite.proves.length).toBeGreaterThan(0);
+  });
+
+  it.each(["false", "0", "no", "disabled"])("does not treat %s as permission to send live requests", (flag) => {
+    const report = livePreflight({
+      INTEGRATION_TESTS_ENABLED: flag,
+      LOVABLE_API_KEY: "present",
+      INTEGRATION_TEST_EMAIL_TO: "qa@example.com",
+    });
+    expect(report.status).toBe("NOT_VERIFIED");
+  });
+
+  it("never invents a workspace or contact for the CRM", () => {
+    const report = livePreflight({ INTEGRATION_TESTS_ENABLED: "true", INTEGRATION_TEST_CRM_WEBHOOK_URL: "https://example.com/hook" });
+    expect(report.suites.find(s => s.id === "crm")?.missingCredentials).toEqual([
+      "INTEGRATION_TEST_CRM_ORGANIZATION_ID", "INTEGRATION_TEST_CRM_EMAIL",
+    ]);
   });
 });

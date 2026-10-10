@@ -234,6 +234,8 @@ export const regenerateImage = createServerFn({ method: "POST" })
   })
   .handler(async ({ data, context }) => {
     await requireManager(context.supabase, data.organizationId, context.userId);
+    const { assertOrgEntitled } = await import("@/lib/entitlement.server");
+    await assertOrgEntitled(context.supabase, data.organizationId);
     const client = db(context.supabase);
     const row = await loadRecord(context.supabase, data.organizationId, data.recordId);
     const start = transitionImage(row as ImageRecordState, "regenerate");

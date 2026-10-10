@@ -41,15 +41,11 @@ jobs:
           LOVABLE_API_KEY: ${{ secrets.LOVABLE_API_KEY }}
           INTEGRATION_TEST_EMAIL_TO: ${{ secrets.INTEGRATION_TEST_EMAIL_TO }}
           INTEGRATION_TEST_CRM_WEBHOOK_URL: ${{ secrets.INTEGRATION_TEST_CRM_WEBHOOK_URL }}
+          INTEGRATION_TEST_CRM_ORGANIZATION_ID: ${{ secrets.INTEGRATION_TEST_CRM_ORGANIZATION_ID }}
+          INTEGRATION_TEST_CRM_EMAIL: ${{ secrets.INTEGRATION_TEST_CRM_EMAIL }}
           STRIPE_SANDBOX_API_KEY: ${{ secrets.STRIPE_SANDBOX_API_KEY }}
           PAYMENTS_SANDBOX_WEBHOOK_SECRET: ${{ secrets.PAYMENTS_SANDBOX_WEBHOOK_SECRET }}
-        run: |
-          missing=0
-          for name in INTEGRATION_TESTS_ENABLED LOVABLE_API_KEY INTEGRATION_TEST_EMAIL_TO \
-                      INTEGRATION_TEST_CRM_WEBHOOK_URL STRIPE_SANDBOX_API_KEY PAYMENTS_SANDBOX_WEBHOOK_SECRET; do
-            if [ -z "${!name}" ]; then echo "::error::Missing secret: $name"; missing=1; else echo "present: $name"; fi
-          done
-          exit $missing
+        run: node scripts/integration-preflight.mjs --require-all
 
       - name: Live integration tests
         env:
@@ -57,6 +53,9 @@ jobs:
           LOVABLE_API_KEY: ${{ secrets.LOVABLE_API_KEY }}
           INTEGRATION_TEST_EMAIL_TO: ${{ secrets.INTEGRATION_TEST_EMAIL_TO }}
           INTEGRATION_TEST_CRM_WEBHOOK_URL: ${{ secrets.INTEGRATION_TEST_CRM_WEBHOOK_URL }}
+          INTEGRATION_TEST_CRM_ORGANIZATION_ID: ${{ secrets.INTEGRATION_TEST_CRM_ORGANIZATION_ID }}
+          INTEGRATION_TEST_CRM_EMAIL: ${{ secrets.INTEGRATION_TEST_CRM_EMAIL }}
+          INTEGRATION_TEST_CRM_PHONE: ${{ secrets.INTEGRATION_TEST_CRM_PHONE }}
           STRIPE_SANDBOX_API_KEY: ${{ secrets.STRIPE_SANDBOX_API_KEY }}
           PAYMENTS_SANDBOX_WEBHOOK_SECRET: ${{ secrets.PAYMENTS_SANDBOX_WEBHOOK_SECRET }}
         run: npm run test:integrations -- --reporter=verbose

@@ -18,6 +18,8 @@ export const getAiSuggestions = createServerFn({ method: "POST" })
   .handler(async ({ data, context }): Promise<{ suggestions: AiSuggestion[] }> => {
     const { supabase, userId } = context;
     const orgId = data.organizationId;
+    const { assertOrgEntitled } = await import("@/lib/entitlement.server");
+    await assertOrgEntitled(supabase, orgId);
 
     // RLS scopes every read to workspaces the caller belongs to.
     const [org, profile, services, pages, sections] = await Promise.all([

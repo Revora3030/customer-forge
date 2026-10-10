@@ -36,25 +36,31 @@ const emailIt = it.skipIf(!liveSuiteEnabled("email", env));
 const paymentsIt = it.skipIf(!liveSuiteEnabled("payments", env));
 
 describe("live CRM hand-off", () => {
-  crmIt("delivers a lead once and rejects an identical replay", async () => {
+  crmIt("accepts a configured test lead and handles an identical replay", async () => {
     const url = env["INTEGRATION_TEST_CRM_WEBHOOK_URL"]!;
+    const organizationId = env["INTEGRATION_TEST_CRM_ORGANIZATION_ID"]!;
+    const email = env["INTEGRATION_TEST_CRM_EMAIL"]!;
+    expect(organizationId).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+    expect(email).toMatch(/^[^\s@]+@[^\s@]+\.[^\s@]+$/);
     // Exactly the body and headers production sends (buildLeadWebhookPayload +
     // dispatchLeadWebhook in lead-routing.server.ts). Strict receivers
     // validate lead_id / name / email / phone / organization_id and answered
     // HTTP 400 when the old body omitted lead_id and organization_id.
-    const { buildLeadWebhookPayload } = await import("@/lib/lead-routing.server");
+    const { buildLeadWebhookPayload, validateLeadWebhookUrl } = await import("@/lib/lead-routing.server");
+    const { guardedFetch } = await import("@/lib/net-guard.server");
+    expect(validateLeadWebhookUrl(url)).toBeTruthy();
     const payload = buildLeadWebhookPayload({
-      organizationId: env["INTEGRATION_TEST_CRM_ORGANIZATION_ID"] ?? "00000000-0000-4000-8000-000000000001",
+      organizationId,
       leadId: crypto.randomUUID(),
       name: "Integration Test",
-      email: "integration@revoratest.dev",
-      phone: "+15555550100",
+      email,
+      phone: env["INTEGRATION_TEST_CRM_PHONE"] ?? null,
       message: "Revora live integration test - safe to delete.",
       sourceUrl: "https://revoragrowthsystems.com/integration-test",
     });
     const idempotencyKey = payload.idempotency_key;
     const send = () =>
-      fetch(url, {
+      guardedFetch(url, {
         method: "POST",
         headers: {
           "content-type": "application/json",
@@ -67,11 +73,13 @@ describe("live CRM hand-off", () => {
       });
 
     const first = await send();
-    if (!first.ok) console.log("CRM endpoint replied", first.status, (await first.text()).slice(0, 200));
+    // Never print a receiver body: it may echo workspace data or credentials.
+    if (!first.ok) console.log("CRM endpoint replied", first.status);
     expect(first.ok).toBe(true);
     const replay = await send();
     // A correct receiver either accepts idempotently (2xx) or rejects the
-    // duplicate (409). It must never create a second lead.
+    // duplicate (409). HTTP alone cannot prove no duplicate record was created;
+    // operators must verify the stable idempotency_key in the receiver.
     expect([200, 201, 202, 204, 409]).toContain(replay.status);
   }, 60_000);
 });

@@ -11,7 +11,7 @@ import { pageNavLabel } from "@/lib/website-content";
 import { callBestThinker } from "@/lib/ai/hall-of-fame.server";
 import { screenText } from "@/lib/builder/collective-copy";
 import { COMPOSITION_PRIMITIVES, PRIMITIVE_GUIDE, validateComposition, type CompositionIssue, type CompositionNode, type CompositionTree } from "@/lib/builder/composition-tree";
-import { collectHrefs, requiredChromeLinks, writeSiteChrome } from "@/lib/builder/site-chrome";
+import { collectHrefs, readSiteChrome, requiredChromeLinks, writeSiteChrome } from "@/lib/builder/site-chrome";
 import type { DnaFacts } from "@/lib/business-dna";
 import { completeChromeLinks, ensureHeaderAction, repairContactDetails } from "@/lib/builder/chrome-repair";
 import { enquiryPage } from "@/lib/builder/link-integrity";
@@ -61,12 +61,16 @@ export async function composeSiteChrome(input: {
   lookSummary: string;
   /** The AI-authored primary call to action for this site (already screened). */
   primaryCta?: string | null;
+  /** Keep existing, renderable parts when repairing an interrupted build. */
+  repairMissingOnly?: boolean;
   signal?: AbortSignal;
 }): Promise<{ models: string[]; costMicrocents: number }> {
   const { db, organizationId, facts } = input;
-  const { data: pages, error } = await db.from("website_pages").select("slug,title,kind").eq("organization_id", organizationId).order("sort_order");
+  input.signal?.throwIfAborted();
+  const { data: pages, error } = await db.from("website_pages").select("slug,title,kind,is_visible").eq("organization_id", organizationId).order("sort_order");
   if (error) throw new Error(error.message);
-  const nav = ((pages ?? []) as { slug: string; title: string; kind: string | null }[]);
+  const nav = ((pages ?? []) as { slug: string; title: string; kind: string | null; is_visible?: boolean | null }[])
+    .filter((page) => page.is_visible !== false);
   const required = requiredChromeLinks(nav);
   const screen = (text: string) => {
     const problem = screenText(text, facts, 4000);
@@ -91,8 +95,24 @@ export async function composeSiteChrome(input: {
   let feedback: Record<string, CompositionIssue[]> = {};
   /** The best valid tree seen for each part, kept across attempts. */
   const best: Partial<Record<"header" | "footer", CompositionTree>> = {};
+  const preserved = new Set<"header" | "footer">();
+  if (input.repairMissingOnly) {
+    const current = await db.from("website_settings").select("generation").eq("organization_id", organizationId).maybeSingle();
+    if (current.error) throw new Error("Couldn't read the existing menu and footer.");
+    const existing = readSiteChrome(current.data?.generation);
+    for (const part of ["header", "footer"] as const) {
+      if (existing[part]) {
+        best[part] = existing[part];
+        preserved.add(part);
+      }
+    }
+    if (best.header && best.footer) return { models, costMicrocents: 0 };
+  }
   for (let attempt = 0; attempt < CHROME_ATTEMPTS; attempt += 1) {
+    input.signal?.throwIfAborted();
     const abort = new AbortController();
+    const cancel = () => abort.abort(input.signal?.reason);
+    input.signal?.addEventListener("abort", cancel, { once: true });
     const timer = setTimeout(() => abort.abort(), CHROME_CALL_TIMEOUT_MS);
     const call = await callBestThinker({
       json: true,
@@ -111,7 +131,11 @@ export async function composeSiteChrome(input: {
         ...(best.footer && !best.header ? ["", "Your footer was accepted; only the header still needs fixing (return both)."] : []),
         "", 'Return JSON: {"header": {"version":1,"root":{...}}, "footer": {"version":1,"root":{...}}, "heroVideoBrief": "..."}',
       ].join("\n"),
-    }).finally(() => clearTimeout(timer));
+    }).finally(() => {
+      clearTimeout(timer);
+      input.signal?.removeEventListener("abort", cancel);
+    });
+    input.signal?.throwIfAborted();
     if (!call.ok) {
       // A single failed or slow call is often transient: try again before giving up.
       if (attempt < CHROME_ATTEMPTS - 1) {
@@ -128,6 +152,7 @@ export async function composeSiteChrome(input: {
     feedback = {};
     const trees: Partial<Record<"header" | "footer", CompositionTree>> = { ...best };
     for (const part of ["header", "footer"] as const) {
+      if (preserved.has(part)) continue;
       if (parsed[part] == null && best[part]) continue;
       // Invented contact details are corrected to the owner's real ones (or the
       // real contact page) rather than costing the whole design.
@@ -157,12 +182,17 @@ export async function composeSiteChrome(input: {
       delete feedback[part];
     }
     if (trees.header && trees.footer) {
-      const { data } = await db.from("website_settings").select("generation").eq("organization_id", organizationId).maybeSingle();
-      const chromed = writeSiteChrome(data?.generation ?? {}, { header: trees.header, footer: trees.footer });
       const brief = cleanVideoBrief(parsed.heroVideoBrief, screen);
-      const generation = brief ? { ...chromed, heroVideoBrief: brief } : chromed;
-      const { error: saveError } = await db.from("website_settings").upsert({ organization_id: organizationId, generation } as never, { onConflict: "organization_id" });
-      if (saveError) throw new Error(`The menu and footer couldn't be saved: ${saveError.message}`);
+      if (input.repairMissingOnly) {
+        await saveMissingChrome(db, organizationId, { header: trees.header, footer: trees.footer }, brief, input.signal);
+      } else {
+        const { data, error: readError } = await db.from("website_settings").select("generation").eq("organization_id", organizationId).maybeSingle();
+        if (readError) throw new Error("Couldn't read the website settings before saving the menu.");
+        const chromed = writeSiteChrome(data?.generation ?? {}, { header: trees.header, footer: trees.footer });
+        const generation = brief ? { ...chromed, heroVideoBrief: brief } : chromed;
+        const { error: saveError } = await db.from("website_settings").upsert({ organization_id: organizationId, generation } as never, { onConflict: "organization_id" });
+        if (saveError) throw new Error(`The menu and footer couldn't be saved: ${saveError.message}`);
+      }
       return { models, costMicrocents: cost };
     }
   }
@@ -174,6 +204,34 @@ export async function composeSiteChrome(input: {
   throw new AiStepUnavailableError("menu and footer design", why || null);
 }
 
+
+/** Compare-and-set prevents a repair from replacing concurrent draft edits. */
+async function saveMissingChrome(
+  db: Db,
+  organizationId: string,
+  proposed: { header: CompositionTree; footer: CompositionTree },
+  brief: string | null,
+  signal?: AbortSignal,
+) {
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    signal?.throwIfAborted();
+    const { data, error } = await db.from("website_settings").select("generation").eq("organization_id", organizationId).maybeSingle();
+    if (error || !data) throw new Error("Couldn't read the website settings before repairing the menu.");
+    const current = readSiteChrome(data.generation);
+    if (current.header && current.footer) return;
+    const chromed = writeSiteChrome(data.generation, {
+      header: current.header ?? proposed.header,
+      footer: current.footer ?? proposed.footer,
+    });
+    const generation = brief && !chromed["heroVideoBrief"] ? { ...chromed, heroVideoBrief: brief } : chromed;
+    let update = db.from("website_settings").update({ generation }).eq("organization_id", organizationId);
+    update = data.generation == null ? update.is("generation", null) : update.eq("generation", JSON.stringify(data.generation));
+    const saved = await update.select("organization_id");
+    if (saved.error) throw new Error("The menu and footer couldn't be saved. Please try again.");
+    if (saved.data?.length) return;
+  }
+  throw new Error("Your draft changed while the menu was being repaired. Please try again.");
+}
 
 /** Keeps Sol's hero-video idea only when it is safe, plain text with no unsupported claims. */
 export function cleanVideoBrief(raw: unknown, screen?: (text: string) => string | null): string | null {

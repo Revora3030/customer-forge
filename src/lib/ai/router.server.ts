@@ -1125,18 +1125,29 @@ export async function callPinnedPaidImage(
     throw new RevoraAiError(429, "Revora AI is already working on this workspace's requests.", {
       category: "rate_limited",
     });
+  const controller = new AbortController();
+  let timer: ReturnType<typeof setTimeout> | undefined;
   try {
-    // No timer abort: an aborted picture request is still billed but produces
-    // nothing, so a slow answer is preferred to a wasted charge.
-    const result = await ADAPTERS["openai"].image({
+    // An unbounded provider request can hold a workspace slot forever. A
+    // timeout does not prove zero provider cost; the paid caller retains its
+    // conservative reservation for an indeterminate result.
+    const deadline = new Promise<never>((_resolve, reject) => {
+      timer = setTimeout(() => {
+        const error = new RevoraAiError(408, "The picture provider did not finish within the time limit.", { category: "timeout", provider: "openai" });
+        controller.abort(error);
+        reject(error);
+      }, limits.requestTimeoutMs);
+    });
+    const result = await Promise.race([ADAPTERS["openai"].image({
       apiKey: config.apiKey,
       model,
       prompt,
       source,
-      signal: new AbortController().signal,
-    });
+      signal: controller.signal,
+    }), deadline]);
     return { base64: result.base64, mimeType: result.mimeType, provider: "openai", model };
   } finally {
+    clearTimeout(timer);
     release(concurrencyKey);
   }
 }

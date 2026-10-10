@@ -1,0 +1,35 @@
+name: Published Tenant Conversion Check
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: "HTTPS deployment origin to verify (not a preview token)"
+        required: true
+      tenant_slug:
+        description: "Published tenant slug in that same deployment"
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: Verify published conversion paths
+        env:
+          E2E_BASE_URL: ${{ inputs.base_url }}
+          E2E_TENANT_SLUG: ${{ inputs.tenant_slug }}
+          E2E_REQUIRE_TENANT: "1"
+          INTEGRATION_TESTS_ENABLED: "0"
+        run: |
+          node -e 'const u=new URL(process.env.E2E_BASE_URL); if(u.protocol!=="https:" || u.username || u.password || u.pathname!=="/" || u.search || u.hash) throw new Error("Use an HTTPS deployment origin");'
+          npx vitest run src/lib/flows.e2e.test.ts --reporter=verbose

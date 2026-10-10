@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
-import { ArrowRight, Wand2, Sparkles, ShieldCheck, Star } from "lucide-react";
+import { ArrowRight, Wand2, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -47,9 +47,9 @@ const SERVICE_BY_INDUSTRY: Record<string, readonly string[]> = {
 };
 
 /**
- * Instant mini website preview canvas. Renders a live hero banner, trust badge
- * and services card from Revora's design token system as the visitor types.
- * Every value is derived from the visitor's own input — no fabricated claims.
+ * Illustrative mini website preview, not an AI-generated customer site.
+ * The name/industry reflect input; example services are clearly labeled.
+ * Never invent credentials, insurance, ratings or reviews for the business.
  */
 function InstantPreview({
   businessName,
@@ -95,21 +95,17 @@ function InstantPreview({
           </span>
         </div>
       </div>
-      {/* Trust badge */}
+      {/* Make the sample's status explicit, without fabricated social proof. */}
       <div className="flex items-center gap-1.5 border-t border-border/60 px-3 py-2">
-        <ShieldCheck className="size-3 text-success" aria-hidden="true" />
-        <span className="text-[10.5px] text-muted-foreground">Licensed & Insured</span>
-        <span className="ml-auto flex items-center gap-0.5">
-          {[0, 1, 2, 3, 4].map((i) => (
-            <Star key={i} className="size-2.5 fill-primary text-primary" aria-hidden="true" />
-          ))}
+        <span className="text-[10.5px] text-muted-foreground">
+          Illustrative layout · your actual site is AI-designed
         </span>
       </div>
       {/* Services card */}
       {services.length > 0 ? (
         <div className="border-t border-border/60 p-3">
           <p className="text-[10px] font-semibold tracking-wide text-muted-foreground uppercase">
-            Our Services
+            Example services
           </p>
           <div className="mt-1.5 grid grid-cols-2 gap-1.5">
             {services.slice(0, 4).map((service) => (
@@ -219,7 +215,7 @@ export function HeroStarter({ className = "" }: { className?: string }) {
       {/* Live instant preview canvas */}
       <div className="mt-3">{preview}</div>
       <Button type="submit" variant="signal" size="lg" className="mt-3 w-full" disabled={!ready}>
-        Claim this site & start ${GROWTH_SYSTEM.fullAccessWindow} free access <ArrowRight className="size-4" aria-hidden="true" />
+        Start your {GROWTH_SYSTEM.fullAccessWindow} free <ArrowRight className="size-4" aria-hidden="true" />
       </Button>
       <p className="mt-2 text-center text-[11.5px] text-muted-foreground">
         No card to start · you review everything before it goes live

@@ -72,10 +72,12 @@ export function resolveSiteHref(
 ): string {
   // "/home" is the home page's slug; it is the same page as "/".
   const repaired = repairSiteHref(rawHref, knownPages, pageAnchors);
-  const href = repaired === "/home" ? "/" : repaired.replace(/^\/home(?=[#?])/, "/");
+  const href = repaired.replace(/^\/home\/?(?=[#?]|$)/, "/");
   const safeBase = previewBase && /^\/(?:p|draft)\/[A-Za-z0-9_-]+$/.test(previewBase) ? previewBase : null;
-  if (safeBase && href.startsWith(`/s/${encodeURIComponent(slug)}`)) {
-    return safeBase + href.slice(`/s/${encodeURIComponent(slug)}`.length);
+  const publicBase = `/s/${encodeURIComponent(slug)}`;
+  if (safeBase && (href === publicBase || href.startsWith(`${publicBase}/`) || href.startsWith(`${publicBase}?`) || href.startsWith(`${publicBase}#`))) {
+    const rest = href.slice(publicBase.length).replace(/^\/home\/?(?=[#?]|$)/, "").replace(/^\/(?=[#?]|$)/, "");
+    return safeBase + rest;
   }
   if ((ownAddress && !safeBase) || !href.startsWith("/") || href.startsWith("//") || href.startsWith("/s/")) return href;
   const base = safeBase ?? `/s/${encodeURIComponent(slug)}`;
@@ -94,6 +96,13 @@ export function repairSiteHref(
   pageAnchors?: ReadonlySet<string> | null,
 ): string {
   const href = (rawHref ?? "").trim();
+  if (/^#(?:contact|contact-form|get-quote|get_quote|quote-form)$/i.test(href)) {
+    if (pageAnchors?.has(href.slice(1))) return href;
+    if (pageAnchors?.has("contact-form")) return "#contact-form";
+    if (pageAnchors?.has("contact")) return "#contact";
+    // The other page exists, but its section IDs are not known here.
+    if (knownPages?.has("contact")) return "/contact";
+  }
   if (!knownPages) return href;
   if (href === "" || href === "#" || href === "/#") return deadLinkTarget(knownPages);
   if (/^#[\w-]+$/.test(href)) {

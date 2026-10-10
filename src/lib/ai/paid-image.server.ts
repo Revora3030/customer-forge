@@ -24,6 +24,7 @@
  */
 
 import { providerConfig } from "@/lib/ai/config";
+import { RevoraAiError } from "@/lib/ai/errors";
 import { callPinnedPaidImage, paidImageModelReachable } from "@/lib/ai/router.server";
 import {
   DEFAULT_IMAGE_TIER_MODELS,
@@ -361,21 +362,27 @@ export async function generatePaidImage(
       costMicrocents: estimate,
     };
   } catch (error) {
-    await settleBudget(caller.organizationId, estimate, 0);
+    // A timed-out/disconnected request may still be billed by the provider.
+    // Only a definite pre-generation rejection releases the reservation.
+    const rejected = error instanceof RevoraAiError &&
+      [400, 401, 402, 403, 404, 413, 422, 429].includes(error.status);
+    const accounted = rejected ? 0 : estimate;
+    await settleBudget(caller.organizationId, estimate, accounted);
     await recordUsage({
       organizationId: caller.organizationId,
       purpose: "image_generation",
       model,
       usage: { inputTokens: 0, cachedInputTokens: 0, outputTokens: 0 },
-      cost: 0,
+      cost: accounted,
       outcome: "failed",
-      reason: error instanceof Error ? error.message.slice(0, 200) : "provider_error",
+      reason: rejected ? "provider_rejected" : "provider_outcome_unknown",
     });
     return {
       ok: false,
       reason: "provider_error",
-      message:
-        "The premium picture service did not return a picture. Nothing was charged for it.",
+      message: rejected
+        ? "The premium picture service rejected the request. No picture was saved."
+        : "The premium picture service did not return a picture. Nothing was saved; the request may still count toward AI usage.",
     };
   }
 }
