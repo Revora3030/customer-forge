@@ -5,11 +5,12 @@
  * where pages live at `/about`, and on the platform share path at
  * `/s/<slug>/about`. Visitors must never see builder-shaped URLs on the
  * customer's own domain, so every in-site link goes through this component and
- * picks the right shape for the address being served.
+ * picks the right shape for the address being served. Inside a draft or share
+ * preview, links stay on that preview (`/p/<token>/about`).
  */
 import { Link } from "@tanstack/react-router";
 import { type CSSProperties, type ReactNode } from "react";
-import { useOwnAddress } from "@/components/site/use-own-address";
+import { useOwnAddress, useSiteBase } from "@/components/site/use-own-address";
 
 /** Link to a page of the same website. `page` empty/null means the home page. */
 export function SitePageLink({
@@ -28,6 +29,15 @@ export function SitePageLink({
   children: ReactNode;
 }) {
   const ownAddress = useOwnAddress();
+  const previewBase = useSiteBase();
+  if (previewBase) {
+    const href = !page ? previewBase : page.startsWith("#") ? `${previewBase}${page}` : `${previewBase}/${page}`;
+    return (
+      <a href={href} className={className} style={style} data-rvb={blockId}>
+        {children}
+      </a>
+    );
+  }
   if (page?.startsWith("#")) {
     return (
       <a href={ownAddress ? `/${page}` : `/s/${encodeURIComponent(slug)}${page}`} className={className} style={style} data-rvb={blockId}>

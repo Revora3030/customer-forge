@@ -102,7 +102,7 @@ const RULES = [
   "Never output placeholder or fixture language, including phrases such as fictional studio or test-fixture service, in headings, descriptions, labels or button text. Use only supplied business material.",
   "On mobile, keep functional forms and conversion controls one column and full width while preserving the authored visual hierarchy.",
   "For services sections, prefer a service_menu widget so prices and services stay in sync with the owner's Services tool; for social_proof sections, a review_wall widget shows the owner's published reviews (it hides itself when none exist). Never retype prices or reviews.",
-  "For quote sections, the composition MUST contain one quote_calculator widget; for booking sections, one booking_form widget; for contact sections, one contact_details widget. These widgets are the only application-owned mechanics — you own their entire surrounding layout and their widgetPresentation.",
+  "For quote sections, the composition MUST contain one quote_calculator widget; for booking sections, one booking_form widget; for contact sections, one enquiry_form widget (the working message form) AND one contact_details widget. These widgets are the only application-owned mechanics — you own their entire surrounding layout and their widgetPresentation.",
   "Every working widget in a first build MUST include widgetPresentation with an AI-authored title, actionLabel when actionable, successTitle/successBody when it submits, appropriate fieldLabels, and a local theme using surface, text, muted, border, action and actionText. Choose the palette yourself for this specific site; do not reuse a generic form palette.",
   'widgetPresentation shape: {"eyebrow":"...","title":"...","description":"...","optionPrompt":"...","estimateLabel":"...","extraLabel":"...","actionLabel":"...","backLabel":"...","successTitle":"...","successBody":"...","contactLabel":"...","fieldLabels":{"service":"...","name":"...","phone":"...","email":"...","location":"...","date":"...","time":"...","details":"..."},"theme":{"surface":"#RRGGBB","text":"#RRGGBB","muted":"#RRGGBB","border":"#RRGGBB","action":"#RRGGBB","actionText":"#RRGGBB","selected":"#RRGGBB","selectedText":"#RRGGBB"}}',
   "Widget presentation copy must be specific to the supplied business and the section's role. Avoid stock phrases and generic filler such as 'choose your options', 'request your appointment', 'lock in this price', 'anything we should know', 'before you request a time', or 'without the guesswork' unless those exact words are genuinely appropriate to the supplied business.",
@@ -131,10 +131,12 @@ function materialFor(section: SectionRow, parts: ComponentRow[]) {
   };
 }
 
-function requiredWidgetForRole(role: string): "booking_form" | "quote_calculator" | "contact_details" | null {
+function requiredWidgetForRole(role: string): "booking_form" | "quote_calculator" | "enquiry_form" | null {
   if (role === "booking") return "booking_form";
   if (role === "quote") return "quote_calculator";
-  if (role === "contact") return "contact_details";
+  // A contact section must let a visitor actually send a message; showing
+  // only a phone number and email captured no lead at all.
+  if (role === "contact") return "enquiry_form";
   return null;
 }
 

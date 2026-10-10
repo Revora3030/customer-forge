@@ -16,15 +16,16 @@ import type { WidgetPresentation } from "@/lib/builder/composition-tree";
 import type { PublicSite } from "@/lib/public-site.functions";
 import { widgetPresentationStyle } from "@/components/site/contact-details-utils";
 import { serviceMenuItems, reviewWallItems } from "@/components/site/live-blocks-utils";
-import { useOwnAddress } from "@/components/site/use-own-address";
+import { useOwnAddress, useSiteBase } from "@/components/site/use-own-address";
 
 type Site = NonNullable<PublicSite>;
 
 export function ServiceMenu({ site, presentation, limit = 12 }: { site: Site; presentation?: WidgetPresentation; limit?: number }) {
   const items = serviceMenuItems(site.services ?? [], limit);
   const ownAddress = useOwnAddress();
+  const previewBase = useSiteBase();
   if (!items.length) return null;
-  const bookHref = ownAddress ? "/#book" : `/s/${encodeURIComponent(site.org.slug)}#book`;
+  const bookHref = previewBase ? `${previewBase}#book` : ownAddress ? "/#book" : `/s/${encodeURIComponent(site.org.slug)}#book`;
   const hasBooking = items.some((item) => item.bookable);
   return (
     <div data-live-block="service_menu" style={widgetPresentationStyle(presentation)} className="w-full">

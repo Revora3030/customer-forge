@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { getPreviewSite } from "@/lib/public-site.functions";
 import { PublicSiteView } from "@/routes/s.$slug";
 import { PreviewMessage } from "@/components/PreviewMessage";
+import { SiteBaseContext } from "@/components/site/site-address-context";
 import { metaDescription } from "@/lib/seo";
 
 /** Sub-pages of a private draft preview link, checked on the server like the home page. */
@@ -27,6 +28,7 @@ export const Route = createFileRoute("/p/$token_/$page")({
 
 function PreviewPageRoute() {
   const result = Route.useLoaderData();
+  const { token } = Route.useParams();
   if (!result?.ok || !result.site) {
     return (
       <PreviewMessage
@@ -35,5 +37,9 @@ function PreviewPageRoute() {
       />
     );
   }
-  return <PublicSiteView site={result.site} preview />;
+  return (
+    <SiteBaseContext.Provider value={`/p/${encodeURIComponent(token)}`}>
+      <PublicSiteView site={result.site} preview />
+    </SiteBaseContext.Provider>
+  );
 }

@@ -1,5 +1,5 @@
 import { resolveSiteHref } from "@/lib/builder/site-chrome";
-import { useOwnAddress } from "@/components/site/use-own-address";
+import { useOwnAddress, useSiteBase } from "@/components/site/use-own-address";
 /**
  * Renders the builder's structured sections on a public business website.
  *
@@ -15,7 +15,7 @@ import { blockCss, readBlockStyle, readComponentVisual } from "@/lib/site-style"
 import { premiumSurface } from "@/lib/site-theme";
 import { SitePageLink } from "@/components/site/site-links";
 import { Mail, MapPin, Phone } from "lucide-react";
-import { BookingForm, QuoteCalculator } from "@/components/site/SiteForms";
+import { BookingForm, EnquiryForm, QuoteCalculator } from "@/components/site/SiteForms";
 import { DirectContact } from "@/components/site/ContactDetails";
 import { ReviewWall, ServiceMenu } from "@/components/site/LiveBlocks";
 import type { PublicSite } from "@/lib/public-site.functions";
@@ -114,6 +114,7 @@ function SiteSectionBody({ site, section, lead = false, first = false, surface =
   const components = section.components ?? [];
   const { profile, org } = site;
   const ownAddress = useOwnAddress();
+  const previewBase = useSiteBase();
   // Element-level picking and inline edits exist only for SAVED AI layouts in
   // the owner's draft preview (a legacy translation has no tree to write to).
   const editable = usePreviewMode() && readComposition(section.settings) !== null;
@@ -142,11 +143,12 @@ function SiteSectionBody({ site, section, lead = false, first = false, surface =
           surface={sectionSurface(site, readBlockStyle(section.settings).bgColor)}
           eagerFirstMedia={first}
           resolveMedia={(ref) => media.get(ref) ?? null}
-          resolveHref={(href) => resolveSiteHref(href, org.slug, ownAddress)}
+          resolveHref={(href) => resolveSiteHref(href, org.slug, ownAddress, null, null, previewBase)}
           resolveWidget={(name, presentation?: WidgetPresentation) => {
             if (name === "booking_form") return <BookingForm site={site} {...(presentation ? { presentation } : {})} />;
             if (name === "quote_calculator") return site.quote ? <QuoteCalculator site={site} {...(presentation ? { presentation } : {})} /> : null;
             if (name === "contact_details") return <ContactFacts site={site} {...(presentation ? { presentation } : {})} />;
+            if (name === "enquiry_form") return <EnquiryForm site={site} {...(presentation ? { presentation } : {})} />;
             if (name === "service_menu") return <ServiceMenu site={site} {...(presentation ? { presentation } : {})} />;
             if (name === "review_wall") return <ReviewWall site={site} {...(presentation ? { presentation } : {})} />;
             if (name === "direct_contact")

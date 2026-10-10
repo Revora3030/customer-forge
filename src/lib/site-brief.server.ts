@@ -81,7 +81,7 @@ export async function gatherBriefFacts(
       .maybeSingle(),
     db
       .from("website_sections")
-      .select("id, kind")
+      .select("id, kind, settings")
       .eq("organization_id", orgId)
       .eq("is_visible", true),
     db
@@ -118,9 +118,13 @@ export async function gatherBriefFacts(
   const hasHours = Boolean(p["hours"] && Object.keys(p["hours"] as object).length);
 
   const captureKinds = new Set(["quote", "booking", "contact", "lead_form", "cta"]);
-  const captureSections = ((sections.data ?? []) as { kind: string }[]).filter((s) =>
-    captureKinds.has(s.kind),
+  // AI-designed sections are stored as kind "composition"; they count when
+  // their layout carries a working lead widget.
+  const sectionRows = (sections.data ?? []) as { kind: string; settings?: unknown }[];
+  const captureSections = sectionRows.filter((s) =>
+    captureKinds.has(s.kind) || ["enquiry_form", "booking_form", "quote_calculator"].some((name) => settingsHaveWidget(s.settings, name)),
   ).length;
+  const enquiryForms = sectionRows.filter((s) => s.kind === "contact" || settingsHaveWidget(s.settings, "enquiry_form")).length;
   const triggers = ((automations.data ?? []) as { trigger_event: string }[]).map(
     (a) => a.trigger_event,
   );
@@ -173,6 +177,7 @@ export async function gatherBriefFacts(
       quoteForms: (forms.data ?? []).length,
       quoteQuestions: (questions.data ?? []).length,
       bookableServices: (bookable.data ?? []).length,
+      enquiryForms,
       captureSections,
       siteLeads: (leads.data ?? []).length,
       loggedActivities: (activities.data ?? []).length,
@@ -188,4 +193,16 @@ export async function gatherBriefFacts(
       notifiesOwner: true,
     },
   };
+}
+
+/** True when a section's stored AI layout contains the named working widget. */
+export function settingsHaveWidget(settings: unknown, name: string): boolean {
+  const walk = (node: unknown, depth: number): boolean => {
+    if (depth > 40 || !node || typeof node !== "object") return false;
+    if (Array.isArray(node)) return node.some((child) => walk(child, depth + 1));
+    const record = node as Record<string, unknown>;
+    if (record["type"] === "widget" && record["text"] === name) return true;
+    return Object.values(record).some((child) => walk(child, depth + 1));
+  };
+  return walk(settings, 0);
 }
