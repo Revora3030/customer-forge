@@ -63,12 +63,22 @@ export function resolveSiteHref(
   knownPages?: ReadonlySet<string> | null,
   /** Section anchors present on the page being served ("contact", "services"...). */
   pageAnchors?: ReadonlySet<string> | null,
+  /**
+   * Inside a preview ("/p/<token>" or "/draft/<slug>") links stay on that
+   * preview, so a link opened in a new tab or shared never lands on the
+   * unpublished public address.
+   */
+  previewBase?: string | null,
 ): string {
   // "/home" is the home page's slug; it is the same page as "/".
   const repaired = repairSiteHref(rawHref, knownPages, pageAnchors);
   const href = repaired === "/home" ? "/" : repaired.replace(/^\/home(?=[#?])/, "/");
-  if (ownAddress || !href.startsWith("/") || href.startsWith("//") || href.startsWith("/s/")) return href;
-  const base = `/s/${encodeURIComponent(slug)}`;
+  const safeBase = previewBase && /^\/(?:p|draft)\/[A-Za-z0-9_-]+$/.test(previewBase) ? previewBase : null;
+  if (safeBase && href.startsWith(`/s/${encodeURIComponent(slug)}`)) {
+    return safeBase + href.slice(`/s/${encodeURIComponent(slug)}`.length);
+  }
+  if ((ownAddress && !safeBase) || !href.startsWith("/") || href.startsWith("//") || href.startsWith("/s/")) return href;
+  const base = safeBase ?? `/s/${encodeURIComponent(slug)}`;
   if (href === "/") return base;
   if (href.startsWith("/#") || href.startsWith("/?")) return `${base}${href.slice(1)}`;
   return `${base}${href}`;
