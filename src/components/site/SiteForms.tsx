@@ -608,3 +608,159 @@ export function BookingForm({ site, presentation }: { site: Site; presentation?:
     </form>
   );
 }
+
+/**
+ * The general enquiry form: name, a way to reply (phone or email), and a
+ * message. Every site has one so a visitor can always reach the business,
+ * even when no service is bookable and no quote calculator exists. It uses
+ * the same protected submit as booking and quotes (server validation, rate
+ * limit, honeypot, owner alert, CRM webhook) and is simulated in previews.
+ */
+export function EnquiryForm({ site, presentation }: { site: Site; presentation?: WidgetPresentation }) {
+  const uid = useId();
+  const fid = (key: string) => `e-${key}-${uid}`;
+  const submit = useLeadSubmit();
+  const track = useTracker(site.org.slug);
+  const services = (site.services ?? []).filter((s) => s.name);
+  const [pending, setPending] = useState(false);
+  const [done, setDone] = useState(false);
+  const [problem, setProblem] = useState<string | null>(null);
+  const [confirmationEmail, setConfirmationEmail] = useState("");
+  const doneRef = useStepScroll<HTMLDivElement>(done);
+
+  if (done) {
+    return (
+      <div ref={doneRef} id="contact-form" role="status" aria-live="polite">
+        <Success
+          title={presentation?.successTitle ?? "Message sent"}
+          body={
+            presentation?.successBody ??
+            (confirmationEmail
+              ? `Thanks — ${site.org.name} has your message. A copy is on its way to your inbox.`
+              : `Thanks — ${site.org.name} has your message and will reply using the details you gave.`)
+          }
+        />
+      </div>
+    );
+  }
+
+  return (
+    <form
+      id="contact-form"
+      className="panel space-y-4 p-5 scroll-mt-24"
+      style={widgetPresentationStyle(presentation)}
+      noValidate
+      aria-describedby={problem ? fid("problem") : undefined}
+      onFocus={() => track("enquiry_start")}
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (pending) return;
+        const form = new FormData(e.currentTarget);
+        const name = String(form.get("name") ?? "").trim();
+        const email = String(form.get("email") ?? "").trim();
+        const phone = String(form.get("phone") ?? "").trim();
+        const message = String(form.get("message") ?? "").trim();
+        const found =
+          name.length < 2 ? "Please enter your name." : contactProblem(email, phone) ?? (message.length < 2 ? "Tell us a little about what you need." : null);
+        setProblem(found);
+        if (found) return;
+        const serviceName = String(form.get("service") ?? "");
+        const service = services.find((s) => s.name === serviceName);
+        setConfirmationEmail(email);
+        setPending(true);
+        submit({
+          data: {
+            slug: site.org.slug,
+            kind: "inquiry",
+            name,
+            email,
+            phone,
+            message,
+            city: String(form.get("city") ?? ""),
+            companyWebsite: String(form.get("company_website") ?? ""),
+            sessionId: currentSessionId(),
+            serviceId: service?.id ?? null,
+            serviceInterest: service?.name ?? null,
+            estimatedValue: Number(service?.price ?? 0),
+            ...(() => {
+              const attribution = readAttribution();
+              return { source: attribution.source, campaign: attribution.campaign };
+            })(),
+          },
+        })
+          .then(() => {
+            track("enquiry_submitted");
+            setDone(true);
+          })
+          .catch((error: Error) => setProblem(friendlyError(error)))
+          .finally(() => setPending(false));
+      }}
+    >
+      <div>
+        <p className="eyebrow">{presentation?.eyebrow ?? "Send a message"}</p>
+        <h3 className="mt-1 font-display text-[19px] font-semibold">{presentation?.title ?? `Contact ${site.org.name}`}</h3>
+        {presentation?.description ? <p className="mt-2 text-[14px] text-muted-foreground">{presentation.description}</p> : null}
+      </div>
+
+      <Honeypot />
+
+      {services.length > 1 ? (
+        <div className="space-y-1.5">
+          <Label htmlFor={fid("service")}>{presentation?.fieldLabels?.service ?? "What can we help with? (optional)"}</Label>
+          <select id={fid("service")} name="service" className="h-11 w-full rounded-md border border-input bg-transparent px-3 text-[14px]">
+            <option value="">Not sure yet</option>
+            {services.map((s) => (
+              <option key={s.id} value={s.name}>
+                {s.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      ) : services.length === 1 ? (
+        <input type="hidden" name="service" value={services[0]!.name} />
+      ) : null}
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="space-y-1.5 sm:col-span-2">
+          <Label htmlFor={fid("name")}>
+            {presentation?.fieldLabels?.name ?? "Your name"} <span aria-hidden="true">*</span>
+          </Label>
+          <Input id={fid("name")} name="name" required aria-required="true" autoComplete="name" maxLength={120} />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor={fid("phone")}>{presentation?.fieldLabels?.phone ?? "Phone"}</Label>
+          <Input id={fid("phone")} name="phone" type="tel" autoComplete="tel" inputMode="tel" maxLength={40} aria-describedby={fid("reach")} />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor={fid("email")}>{presentation?.fieldLabels?.email ?? "Email"}</Label>
+          <Input id={fid("email")} name="email" type="email" autoComplete="email" inputMode="email" maxLength={160} aria-describedby={fid("reach")} />
+        </div>
+        <p id={fid("reach")} className="-mt-2 text-[13px] text-muted-foreground sm:col-span-2">
+          Phone or email — at least one, so we can reply.
+        </p>
+        <div className="space-y-1.5 sm:col-span-2">
+          <Label htmlFor={fid("city")}>{presentation?.fieldLabels?.location ?? "Your town or ZIP (optional)"}</Label>
+          <Input id={fid("city")} name="city" autoComplete="address-level2" maxLength={120} />
+        </div>
+      </div>
+
+      <div className="space-y-1.5">
+        <Label htmlFor={fid("message")}>
+          {presentation?.fieldLabels?.details ?? "How can we help?"} <span aria-hidden="true">*</span>
+        </Label>
+        <Textarea id={fid("message")} name="message" rows={4} required aria-required="true" maxLength={2000} />
+      </div>
+
+      {problem ? (
+        <p id={fid("problem")} role="alert" className="text-[14px] font-medium text-destructive">
+          {problem}
+        </p>
+      ) : null}
+
+      <Button type="submit" variant="signal" disabled={pending} aria-busy={pending} className="min-h-11 w-full sm:w-auto">
+        {pending ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : null} {presentation?.actionLabel ?? "Send message"}
+      </Button>
+      <p className="text-[13px] text-muted-foreground">Your details are only used to reply to this message.</p>
+    </form>
+  );
+}
