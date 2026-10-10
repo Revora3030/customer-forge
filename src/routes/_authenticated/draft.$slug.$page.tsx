@@ -4,6 +4,7 @@
  * including pages and sections that are switched off — to signed-in members of
  * that business only.
  */
+import { SiteBaseContext } from "@/components/site/site-address-context";
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { useEffect } from "react";
 import { getOwnerDraftSite } from "@/lib/public-site.functions";
@@ -83,7 +84,9 @@ function DraftPageRouteContent() {
       <>
         {result.status === "pending" ? <DraftUpdatingBanner job={result.job} /> : null}
         <PreviewModeContext.Provider value={true}>
-          <SitePageView site={result.site} preview />
+          <SiteBaseContext.Provider value={`/draft/${encodeURIComponent(result.site.org.slug)}`}>
+            <SitePageView site={result.site} preview />
+          </SiteBaseContext.Provider>
         </PreviewModeContext.Provider>
       </>
     );
