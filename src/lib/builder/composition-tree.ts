@@ -16,7 +16,7 @@ export const COMPOSITION_PRIMITIVES = [
 ] as const;
 
 /** Working features an AI layout may place anywhere. Their data (prices, phone, email, hours) always comes from verified business facts. */
-export const COMPOSITION_WIDGETS = ["booking_form", "quote_calculator", "contact_details", "direct_contact", "service_menu", "review_wall"] as const;
+export const COMPOSITION_WIDGETS = ["booking_form", "quote_calculator", "enquiry_form", "contact_details", "direct_contact", "service_menu", "review_wall"] as const;
 export type CompositionWidget = (typeof COMPOSITION_WIDGETS)[number];
 
 export const COMPOSITION_WIDGET_FIELDS = [
@@ -62,7 +62,7 @@ export const PRIMITIVE_GUIDE =
   "faq_accordion (items are question/answer pairs; defaultOpen is optional and at most the supplied FAQ content may be used). " +
   "tab_group (tabs are labelled panels; each tab owns child nodes and only the active panel is rendered). " +
   "mobile_sticky_bar (primaryCta and optional secondaryCta; conversion actions only, hidden above the mobile breakpoint). " +
-  "widget (text is one of booking_form|quote_calculator|contact_details|direct_contact|service_menu|review_wall — drops the site's real working form, verified phone/email/hours/area, the live service menu (names, prices, durations straight from the owner's Services tool) or the live published reviews into your layout; style its wrapper freely, never retype those facts yourself; service_menu and review_wall stay in sync when the owner edits services or publishes reviews). For working widgets, widgetPresentation may author visible labels, helper/success copy and a bounded local theme (surface, text, muted, border, action, actionText, selected, selectedText); never put business data or pricing into widgetPresentation — the application supplies those facts. " +
+  "widget (text is one of booking_form|quote_calculator|enquiry_form|contact_details|direct_contact|service_menu|review_wall — enquiry_form is the site's working message form (name, phone/email, message; saved to the owner's leads); booking_form/quote_calculator drop the site's real working form, verified phone/email/hours/area, the live service menu (names, prices, durations straight from the owner's Services tool) or the live published reviews into your layout; style its wrapper freely, never retype those facts yourself; service_menu and review_wall stay in sync when the owner edits services or publishes reviews). For working widgets, widgetPresentation may author visible labels, helper/success copy and a bounded local theme (surface, text, muted, border, action, actionText, selected, selectedText); never put business data or pricing into widgetPresentation — the application supplies those facts. " +
   "Real company logos: a media src of https://img.logo.dev/<domain> (e.g. img.logo.dev/stripe.com) renders that company's real logo — use ONLY for companies the customer actually named as partners, clients or platforms they use; never invent an affiliation. " +
   "Layering: style.position (relative|sticky|absolute), style.top/left/right/bottom (px), style.zIndex (0-50), style.overlap (px a block pulls up over the one before it), style.blur (frosted-glass backdrop px), style.rotate (deg), style.gridAreas + style.area for named grid regions. " +
   "Motion: motion.kind fade|rise|scale|float|slide-left|slide-right|blur|reveal, motion.delayMs, motion.durationMs, motion.easing (ease|ease-in|ease-out|ease-in-out|linear|spring|snap); presets are optional shortcuts. " +
