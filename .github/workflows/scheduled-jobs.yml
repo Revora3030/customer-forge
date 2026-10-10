@@ -7,6 +7,12 @@ name: Scheduled maintenance jobs
 #   LOVABLE_CRON_SECRET  the same value set in the app's environment
 # Without them every job is skipped with a notice — nothing fails.
 #
+# Owner automations that used to live in n8n now run here, inside the app:
+#   lead-reminder  daily 12:00 UTC (8am New York) — leads still "new" after 24h
+#   weekly-report  Mondays 12:00 UTC              — last 7 days per workspace
+#   site-health    hourly                          — main site + live custom domains
+# Nothing here needs n8n.
+#
 # Media clean-up runs as a DRY RUN (report only). Set the repository variable
 # MEDIA_CLEANUP_APPLY=1 to let the weekly run actually delete orphaned files.
 
@@ -16,13 +22,19 @@ on:
     - cron: "0 7 * * *"
     # Sundays 08:30 UTC: orphaned media clean-up.
     - cron: "30 8 * * 0"
+    # Daily 12:00 UTC (08:00 New York in summer): uncontacted-lead reminder.
+    - cron: "0 12 * * *"
+    # Mondays 12:15 UTC: weekly owner report.
+    - cron: "15 12 * * 1"
+    # Hourly at :20: website health check.
+    - cron: "20 * * * *"
   workflow_dispatch:
     inputs:
       job:
         description: "Which job to run now"
         required: true
         type: choice
-        options: [backup, media-cleanup, lifecycle-email, site-engine]
+        options: [backup, media-cleanup, lifecycle-email, site-engine, lead-reminder, weekly-report, site-health]
       apply:
         description: "media-cleanup only: actually delete (otherwise dry run)"
         required: false
@@ -48,6 +60,9 @@ jobs:
           case "${{ github.event.schedule }}" in
             "0 7 * * *") echo "job=backup" >> "$GITHUB_OUTPUT" ;;
             "30 8 * * 0") echo "job=media-cleanup" >> "$GITHUB_OUTPUT" ;;
+            "0 12 * * *") echo "job=lead-reminder" >> "$GITHUB_OUTPUT" ;;
+            "15 12 * * 1") echo "job=weekly-report" >> "$GITHUB_OUTPUT" ;;
+            "20 * * * *") echo "job=site-health" >> "$GITHUB_OUTPUT" ;;
             *) echo "job=${{ inputs.job }}" >> "$GITHUB_OUTPUT" ;;
           esac
 
