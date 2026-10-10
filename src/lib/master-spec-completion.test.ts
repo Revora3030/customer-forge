@@ -54,7 +54,11 @@ describe("C: 14 build stages, cancel and failure labels", () => {
     expect(worker).toMatch(/Cancellation fence[\s\S]{0,200}\.eq\("status", "processing"\)/);
     expect(worker).toMatch(/status: "completed"[\s\S]{0,400}\.eq\("status", "processing"\)/);
     expect(worker).toContain('if ((latest as { status?: string } | null)?.status === "cancelled") continue;');
-    expect(worker).toContain('.neq("status", "cancelled")');
+    // Requiring the still-active status is stronger than excluding cancelled:
+    // completed/failed/requeued rows must not be settled by an old attempt.
+    expect(worker.slice(worker.indexOf("// Ordinary failure"))).toMatch(
+      /\.eq\("attempts", job\.attempts\)\s*\.eq\("status", "processing"\)/,
+    );
   });
 
   it("cancel is manager+, scoped to the workspace and only touches active jobs", () => {

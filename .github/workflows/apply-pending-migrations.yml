@@ -1,19 +1,24 @@
 name: Apply Pending Migrations
 
 # Applies repo migrations missing from the production migration history.
-# Manual only. Always start with mode=dry-run (executes everything, then rolls back).
+# Manual only. Start with plan (SELECT only), reconcile history, then use a
+# staging dry-run. A transaction rollback is not a substitute for a backup.
 
 on:
   workflow_dispatch:
     inputs:
       mode:
-        description: "dry-run (no changes) or apply (changes production)"
+        description: "plan (read only), dry-run (executes then rolls back), or apply"
         required: true
-        default: dry-run
+        default: plan
         type: choice
         options:
+          - plan
           - dry-run
           - apply
+      project_ref:
+        description: "Confirmed Supabase project ref matching the database secret"
+        required: true
       confirm:
         description: 'For mode=apply, type APPLY to confirm'
         required: false
@@ -53,6 +58,8 @@ jobs:
         env:
           SUPABASE_DB_URL: ${{ secrets.REVORA_SUPABASE_DB_URL }}
           MODE: ${{ inputs.mode }}
+          EXPECTED_SUPABASE_PROJECT_REF: ${{ inputs.project_ref }}
+          CONFIRM_APPLY: ${{ inputs.confirm }}
         run: node scripts/apply-pending-migrations.mjs
 
       - name: Drift check after apply

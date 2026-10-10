@@ -165,6 +165,9 @@ export function SitePageView({
       .filter(Boolean),
   );
   if (page?.kind === "home" && (site.reviews?.length ?? 0) > 0) pageAnchors.add("reviews");
+  const addEnquiryForm = needsEnquiryForm(page?.kind, (page as { slug?: string | null } | null)?.slug ?? null, storedSections as never);
+  if (addEnquiryForm) pageAnchors.add("contact");
+  if (addEnquiryForm || pageHasWidget(storedSections as never, "enquiry_form")) pageAnchors.add("contact-form");
   // Every button and link the AI team authored inside the page's sections
   // (layouts, custom blocks, calculators, booking pickers) gets the same repair.
   const sections = repairStoredLinks(storedSections, knownPages, pageAnchors);
@@ -268,7 +271,7 @@ export function SitePageView({
           {/* Every contact page — and any page whose buttons point at the
               message form — can always take a message, even when its AI
               layout only listed a phone number and email. */}
-          {needsEnquiryForm(page.kind, (page as { slug?: string | null }).slug ?? null, sections as never) ? (
+          {addEnquiryForm ? (
             <section id="contact" className="scroll-mt-20" style={{ minWidth: 0 }}>
               <div className="mx-auto w-full max-w-[680px] px-4 sm:px-6" style={{ paddingBlock: "calc(3.5rem * var(--site-space, 1))" }}>
                 <EnquiryForm site={site} />

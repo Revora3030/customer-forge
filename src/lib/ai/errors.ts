@@ -16,12 +16,13 @@ export type AiErrorCategory =
   | "policy"
   | "too_large"
   | "timeout"
+  | "workspace_cooldown"
   | "provider_unavailable"
   | "bad_response"
   | "free_unavailable";
 
 /** Categories where sending the same request again can succeed. */
-const RETRYABLE: AiErrorCategory[] = ["rate_limited", "timeout", "provider_unavailable"];
+const RETRYABLE: AiErrorCategory[] = ["rate_limited", "timeout", "provider_unavailable", "workspace_cooldown"];
 
 export class RevoraAiError extends Error {
   status: number;

@@ -234,6 +234,8 @@ export const applySiteWideRedesign = createServerFn({ method: "POST" })
   .handler(async ({ data, context }): Promise<RedesignResult> => {
     const supabase = context.supabase as unknown as SupabaseLike;
     await requireManager(supabase, data.organizationId, context.userId);
+    const { assertOrgEntitled } = await import("@/lib/entitlement.server");
+    await assertOrgEntitled(context.supabase, data.organizationId);
 
     const [{ data: settings }, { data: profile }, { data: org }, { data: services }] = await Promise.all([
       supabase.from("website_settings").select("generation").eq("organization_id", data.organizationId).maybeSingle(),
@@ -425,6 +427,8 @@ export const reviewPageScreenshot = createServerFn({ method: "POST" })
   .handler(async ({ data, context }): Promise<VisionReviewResult> => {
     const supabase = context.supabase as unknown as SupabaseLike;
     await requireManager(supabase, data.organizationId, context.userId);
+    const { assertOrgEntitled } = await import("@/lib/entitlement.server");
+    await assertOrgEntitled(context.supabase, data.organizationId);
 
     const { builderAiAvailable } = await import("@/lib/ai/availability");
     if (!builderAiAvailable("vision")) {
@@ -707,6 +711,16 @@ export const designSiteChrome = createServerFn({ method: "POST" })
   .handler(async ({ data, context }): Promise<{ ok: true; summary: string }> => {
     const supabase = context.supabase as unknown as SupabaseLike;
     await requireManager(supabase, data.organizationId, context.userId);
+    const { assertOrgEntitled } = await import("@/lib/entitlement.server");
+    await assertOrgEntitled(context.supabase, data.organizationId);
+    const { data: active, error: activeError } = await supabase
+      .from("generation_jobs")
+      .select("id")
+      .eq("organization_id", data.organizationId)
+      .in("status", ["queued", "processing"])
+      .limit(1);
+    if (activeError) throw new Error("Couldn't verify whether a build is running. Please try again.");
+    if (active?.length) throw new Error("Wait for your current build to finish before repairing the menu.");
     const [{ data: settings }, { data: profile }, { data: org }, { data: services }] = await Promise.all([
       supabase.from("website_settings").select("generation, seo").eq("organization_id", data.organizationId).maybeSingle(),
       supabase
@@ -745,20 +759,18 @@ export const designSiteChrome = createServerFn({ method: "POST" })
       brief: generation["aiCreativeBrief"] ?? creative ?? null,
     });
     const { composeSiteChrome } = await import("@/lib/builder/first-build-chrome.server");
-    try {
-      await composeSiteChrome({
-        db: supabase as never,
-        organizationId: data.organizationId,
-        businessName: o.name ?? "",
-        facts,
-        lookSummary,
-        primaryCta: typeof seo.primary_cta_label === "string" ? seo.primary_cta_label : null,
-      });
-    } catch (error) {
-      await restoreGeneration(supabase, data.organizationId, generation);
-      throw error;
-    }
+    // The composer saves only when both parts are valid. Do not restore a
+    // stale settings snapshot on failure: that could erase concurrent edits.
+    await composeSiteChrome({
+      db: supabase as never,
+      organizationId: data.organizationId,
+      businessName: o.name ?? "",
+      facts,
+      lookSummary,
+      primaryCta: typeof seo.primary_cta_label === "string" ? seo.primary_cta_label : null,
+      repairMissingOnly: true,
+    });
     const { ensureLinkIntegrity } = await import("@/lib/builder/link-integrity.server");
     await ensureLinkIntegrity(supabase as never, data.organizationId);
-    return { ok: true, summary: "The AI designed your menu bar and footer. Every page and your main action button are now in the menu." };
+    return { ok: true, summary: "Your menu bar and footer are ready in the draft. Review the preview before publishing." };
   });

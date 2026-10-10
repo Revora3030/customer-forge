@@ -106,6 +106,8 @@ export const generateStudioImage = createServerFn({ method: "POST" })
 
     const denied = await assertCanManage(supabase as never, data.organizationId, context.userId);
     if (denied) return { ok: false, message: denied, code: "FORBIDDEN" };
+    const { assertOrgEntitled } = await import("@/lib/entitlement.server");
+    await assertOrgEntitled(supabase, data.organizationId);
 
     const brief = data.aspectRatio
       ? `${data.prompt}\n\nFraming: ${ASPECT_GUIDANCE[data.aspectRatio]}`
@@ -332,6 +334,8 @@ export const editStudioImage = createServerFn({ method: "POST" })
     const supabase = context.supabase;
     const denied = await assertCanManage(supabase as never, data.organizationId, context.userId);
     if (denied) return { ok: false, message: denied, code: "FORBIDDEN" };
+    const { assertOrgEntitled } = await import("@/lib/entitlement.server");
+    await assertOrgEntitled(supabase, data.organizationId);
 
     const { data: file, error: downloadError } = await supabase.storage
       .from(MEDIA_BUCKET)

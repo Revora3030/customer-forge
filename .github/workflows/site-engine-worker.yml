@@ -1,0 +1,31 @@
+name: Site Engine Queue Runner
+
+# Opt-in recovery runner independent of the owner's browser. Keep the HTTP
+# request connected while a build runs; waitUntil alone is not durable.
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: revora-site-engine-runner
+  cancel-in-progress: false
+
+jobs:
+  drain:
+    if: ${{ github.event_name == 'workflow_dispatch' || vars.SITE_ENGINE_RUNNER_ENABLED == '1' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 27
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Run one queued build
+        env:
+          APP_URL: ${{ secrets.REVORA_APP_URL }}
+          LOVABLE_CRON_SECRET: ${{ secrets.LOVABLE_CRON_SECRET }}
+        run: node scripts/run-site-engine.mjs

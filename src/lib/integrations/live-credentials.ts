@@ -30,27 +30,25 @@ export const LIVE_SUITES: LiveSuiteContract[] = [
     required: ["INTEGRATION_TESTS_ENABLED", "LOVABLE_API_KEY", "INTEGRATION_TEST_EMAIL_TO"],
     proves: [
       "A lead notification is accepted by the email provider",
-      "A duplicate send with the same idempotency key is not delivered twice",
     ],
   },
   {
     id: "crm",
     label: "CRM hand-off",
-    required: ["INTEGRATION_TESTS_ENABLED", "INTEGRATION_TEST_CRM_WEBHOOK_URL"],
+    required: ["INTEGRATION_TESTS_ENABLED", "INTEGRATION_TEST_CRM_WEBHOOK_URL", "INTEGRATION_TEST_CRM_ORGANIZATION_ID", "INTEGRATION_TEST_CRM_EMAIL"],
     proves: [
-      "Lead form submission reaches the database",
-      "The CRM endpoint receives the lead exactly once",
-      "A replayed delivery is rejected as a duplicate",
+      "The configured CRM accepts a production-shaped test lead",
+      "An identical replay returns 2xx or 409 (receiver-side deduplication still requires verification)",
     ],
   },
   {
     id: "payments",
-    label: "Checkout and subscription entitlement",
+    label: "Sandbox checkout and signature verification",
     required: ["INTEGRATION_TESTS_ENABLED", "STRIPE_SANDBOX_API_KEY", "PAYMENTS_SANDBOX_WEBHOOK_SECRET"],
     proves: [
       "A sandbox checkout session is created",
-      "A signed webhook updates the subscription and entitlement",
-      "An unsigned or replayed webhook is rejected",
+      "The signature verifier accepts a correctly signed payload",
+      "The signature verifier rejects a tampered signature",
     ],
   },
 ];
@@ -70,6 +68,7 @@ export function suiteStatus(
 ): SuiteStatus {
   const present = (name: string) => {
     const value = env[name];
+    if (name === "INTEGRATION_TESTS_ENABLED") return /^(1|true)$/i.test(value?.trim() ?? "");
     return typeof value === "string" && value.trim().length > 0;
   };
   const groups = [contract.required, ...(contract.alternatives ?? [])];

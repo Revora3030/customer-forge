@@ -9,7 +9,7 @@
  *   node scripts/integration-preflight.mjs
  *   node scripts/integration-preflight.mjs --json
  *
- * Exit 0 always: a missing credential is a configuration status, not a fault.
+ * --require-all exits nonzero unless every suite is explicitly enabled.
  */
 
 const SUITES = [
@@ -21,11 +21,11 @@ const SUITES = [
   {
     id: "crm",
     label: "CRM hand-off",
-    required: ["INTEGRATION_TESTS_ENABLED", "INTEGRATION_TEST_CRM_WEBHOOK_URL"],
+    required: ["INTEGRATION_TESTS_ENABLED", "INTEGRATION_TEST_CRM_WEBHOOK_URL", "INTEGRATION_TEST_CRM_ORGANIZATION_ID", "INTEGRATION_TEST_CRM_EMAIL"],
   },
   {
     id: "payments",
-    label: "Checkout and subscription entitlement",
+    label: "Sandbox checkout and signature verification",
     required: [
       "INTEGRATION_TESTS_ENABLED",
       "STRIPE_SANDBOX_API_KEY",
@@ -36,6 +36,7 @@ const SUITES = [
 
 const present = (name) => {
   const value = process.env[name];
+  if (name === "INTEGRATION_TESTS_ENABLED") return /^(1|true)$/i.test(value?.trim() ?? "");
   return typeof value === "string" && value.trim().length > 0;
 };
 
@@ -72,3 +73,5 @@ if (process.argv.includes("--json")) {
       "\nNo external service was contacted. Add the credential names above as server-side secrets to enable these suites.",
     );
 }
+
+if (process.argv.includes("--require-all") && report.status !== "RUNNABLE") process.exitCode = 1;

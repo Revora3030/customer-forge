@@ -46,6 +46,9 @@ jobs:
       - name: Website RPC security contract
         run: node scripts/website-rpc-security.contract.mjs
 
+      - name: Migration runner safety contract
+        run: node scripts/apply-pending-migrations.contract.mjs
+
       - name: Browser journey contract
         run: npm run browser:journey:test
 

@@ -9,14 +9,19 @@ import { authenticateCronRequest } from "@/integrations/supabase/cron-auth";
 async function handle(request: Request): Promise<Response> {
   const denied = await authenticateCronRequest(request);
   if (denied) return denied as Response;
+  const organizationId = new URL(request.url).searchParams.get("organizationId");
+  if (organizationId && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(organizationId))
+    return Response.json({ error: "Invalid workspace" }, { status: 400 });
 
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { drainSiteEngineQueue } = await import("@/lib/site-engine.worker.server");
 
   try {
     const result = await drainSiteEngineQueue(supabaseAdmin as never, {
-      max: 3,
-      probeWhilePaused: true,
+      // One long-lived request per build; do not pile several multi-minute
+      // builds behind the same HTTP request or override an operator pause.
+      max: 1,
+      ...(organizationId ? { organizationId } : {}),
     });
     return Response.json(result);
   } catch (error) {

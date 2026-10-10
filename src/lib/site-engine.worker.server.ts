@@ -21,7 +21,7 @@ import {
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 const QUEUE_ID = "site_engine";
-const LEASE_SECONDS = 180;
+export const LEASE_SECONDS = 300;
 /**
  * Time budgets for the two longest AI stages. Section wording is a refinement
  * of copy that is already AI-authored and fact-checked, so when it overruns it
@@ -31,7 +31,6 @@ const LEASE_SECONDS = 180;
 const WORDING_BUDGET_MS = 150_000;
 const LAYOUT_OPTIONAL_BUDGET_MS = 240_000;
 const MAX_ATTEMPTS = 3;
-const RATE_LIMIT_TRIP = 3;
 
 type Db = SupabaseClient;
 
@@ -134,11 +133,12 @@ export type QueueState = {
 };
 
 async function readQueueState(db: Db): Promise<QueueState> {
-  const { data } = await db
+  const { data, error } = await db
     .from("job_queue_state")
     .select("paused, pause_reason, pause_kind, consecutive_rate_limits")
     .eq("id", QUEUE_ID)
     .maybeSingle();
+  if (error) throw new Error("The build queue state could not be checked. Please try again.");
   return (
     (data as QueueState | null) ?? {
       paused: false,
@@ -155,16 +155,6 @@ async function writeQueueState(db: Db, patch: Record<string, unknown>) {
     .upsert({ id: QUEUE_ID, ...patch, updated_at: new Date().toISOString() } as never, {
       onConflict: "id",
     });
-}
-
-async function pauseQueue(db: Db, kind: "credits" | "blocked" | "rate_limit", reason: string) {
-  await writeQueueState(db, {
-    paused: true,
-    pause_kind: kind,
-    pause_reason: reason,
-    paused_at: new Date().toISOString(),
-    last_error: reason,
-  });
 }
 
 export async function resumeQueue(db: Db) {
@@ -278,8 +268,8 @@ export function startLeaseHeartbeat(
  * points where a long AI stage has just finished. Fenced on the attempt, so a
  * superseded attempt never extends a lease it no longer owns.
  */
-async function touchLease(db: Db, job: { id: string; attempts: number }): Promise<void> {
-  const { error } = await db
+export async function touchLease(db: Db, job: { id: string; attempts: number }): Promise<void> {
+  const { data, error } = await db
     .from("generation_jobs")
     .update({
       lease_expires_at: new Date(Date.now() + LEASE_SECONDS * 1000).toISOString(),
@@ -287,8 +277,10 @@ async function touchLease(db: Db, job: { id: string; attempts: number }): Promis
     } as never)
     .eq("id", job.id)
     .eq("attempts", job.attempts)
-    .eq("status", "processing");
-  if (error) console.warn(`[site-engine] lease touch failed for job ${job.id}: ${error.message}`);
+    .eq("status", "processing")
+    .select("id");
+  if (error) throw new Error(`Build lease could not be renewed: ${error.message}`);
+  if (!data?.length) throw new StaleAttemptError(job.id);
 }
 
 /**
@@ -298,7 +290,7 @@ async function touchLease(db: Db, job: { id: string; attempts: number }): Promis
  * owner would watch "building your website" forever and could never start a
  * new build. It is closed as failed with a plain message so they can retry.
  */
-async function closeAbandonedJobs(db: Db, organizationId?: string) {
+export async function closeAbandonedJobs(db: Db, organizationId?: string) {
   const now = new Date().toISOString();
   // 1. Out of attempts: close as failed with a plain, actionable message.
   let query = db
@@ -316,6 +308,24 @@ async function closeAbandonedJobs(db: Db, organizationId?: string) {
   if (organizationId) query = query.eq("organization_id", organizationId);
   const { error } = await query;
   if (error) console.warn("[site-engine] abandoned job sweep failed", error.message);
+
+  // A retryable provider error can leave the final attempt queued. It is no
+  // longer claimable, so close it without waiting for another Build click.
+  let exhausted = db
+    .from("generation_jobs")
+    .update({
+      status: "failed",
+      error_message: INTERRUPTED_BUILD_MESSAGE,
+      completed_at: now,
+      lease_expires_at: null,
+      updated_at: now,
+    } as never)
+    .eq("status", "queued")
+    .gte("attempts", MAX_ATTEMPTS);
+  if (organizationId) exhausted = exhausted.eq("organization_id", organizationId);
+  const exhaustedResult = await exhausted;
+  if (exhaustedResult.error)
+    console.warn("[site-engine] exhausted queued job sweep failed", exhaustedResult.error.message);
 
   // 2. A processing row with NO lease at all can never be claimed by the
   //    expired-lease check (null is not "< now" in SQL). Re-queue it if it has
@@ -353,13 +363,16 @@ async function closeAbandonedJobs(db: Db, organizationId?: string) {
 }
 
 /** Claims one runnable job with a lease. Returns null when there is nothing to do. */
-async function claimJob(db: Db, organizationId?: string) {
+export async function claimJob(db: Db, organizationId?: string) {
   const now = new Date();
   let query = db
     .from("generation_jobs")
     .select("id, organization_id, attempts, created_by, status, lease_expires_at")
     .in("status", ["queued", "processing"])
     .lt("attempts", MAX_ATTEMPTS)
+    // Filter BEFORE limit, otherwise five live/backing-off jobs starve every
+    // runnable job behind them. A queued lease is its retry-not-before time.
+    .or(`lease_expires_at.is.null,lease_expires_at.lte.${now.toISOString()}`)
     .order("created_at", { ascending: true })
     .limit(5);
   if (organizationId) query = query.eq("organization_id", organizationId);
@@ -367,7 +380,7 @@ async function claimJob(db: Db, organizationId?: string) {
   const { data: candidates, error: candidateError } = await query;
   if (candidateError) console.warn("[site-engine] claim query failed", candidateError.message);
   for (const job of candidates ?? []) {
-    const leaseFree = !job.lease_expires_at || new Date(job.lease_expires_at as string) < now;
+    const leaseFree = !job.lease_expires_at || new Date(job.lease_expires_at as string) <= now;
     if (!leaseFree) continue;
     // Reclaiming a processing job means its previous worker died mid-run.
     // Say so in the logs and on the row, so the owner sees a recovery message
@@ -391,6 +404,8 @@ async function claimJob(db: Db, organizationId?: string) {
       } as never)
       .eq("id", job.id)
       .eq("attempts", job.attempts as number)
+      .eq("status", job.status)
+      .or(`lease_expires_at.is.null,lease_expires_at.lte.${now.toISOString()}`)
       .select("id, organization_id, created_by, attempts")
       .maybeSingle();
     if (claimed)
@@ -598,7 +613,10 @@ async function runJob(
   const approvedBrief = readBrief(priorGeneration["brief"]);
 
   // No built-in strategy: an unapproved brief is written by the AI.
-  const brief = approvedBrief?.approved ? approvedBrief : await analyzeBusiness(copyFacts);
+  const brief = approvedBrief?.approved ? approvedBrief : await analyzeBusiness(copyFacts, {
+    organizationId: orgId,
+    userId: job.created_by,
+  });
   if (!approvedBrief?.approved) {
     await db.from("ai_generations").insert({
       organization_id: orgId,
@@ -659,6 +677,7 @@ async function runJob(
   // The visual identity — palette, typefaces, surface treatments — is authored
   // for this business by the design team. A failure stops the build (it is
   // retried); no stock identity is ever substituted.
+  await touchLease(db, job);
   const identity = await authorBrandIdentity({
     organizationId: orgId,
     businessName: org.data.name ?? "",
@@ -668,6 +687,7 @@ async function runJob(
     services: serviceRows.map((service) => ({ name: service.name })),
     requestedFont: (p["font_preference"] as string) ?? null,
   });
+  await touchLease(db, job);
   const direction = identity.direction;
   const ownerColour = (key: string) => {
     const value = p[key];
@@ -754,6 +774,7 @@ async function runJob(
   const { refineFirstBuildWithCollective } = await import(
     "@/lib/builder/collective-first-build.server"
   );
+  await touchLease(db, job);
   const refined = await refineFirstBuildWithCollective({
     organizationId: orgId,
     facts: buildFacts,
@@ -762,6 +783,7 @@ async function runJob(
     creative,
     hardGenericityGate: true,
   });
+  await touchLease(db, job);
   if (refined.creativeChanged) creative = refined.creative;
   if (refined.changed) {
     copy = refined.copy;
@@ -944,6 +966,7 @@ async function runJob(
       if (!earlier.error) reusablePictures = (earlier.data ?? []) as typeof reusablePictures;
     }
   }
+  await touchLease(db, job);
   const starterImages = await generateFirstBuildImages(db, {
     organizationId: orgId,
     userId: job.created_by,
@@ -967,6 +990,7 @@ async function runJob(
     onShotDone: () => touchLease(db, job),
     reusable: reusablePictures,
   });
+  await touchLease(db, job);
   await step("pictures");
   // Picture records (spec D): one per generated slot with its art direction,
   // pending owner approval. Cosmetic bookkeeping — never blocks the build.
@@ -1696,17 +1720,34 @@ export type DrainResult = {
 export async function drainSiteEngineQueue(
   db: Db,
   options: { max?: number; organizationId?: string; probeWhilePaused?: boolean } = {},
+  executeJob: typeof runJob = runJob,
 ): Promise<DrainResult> {
   const max = Math.min(Math.max(options.max ?? 2, 1), 5);
-  const state = await readQueueState(db);
+  let state = await readQueueState(db);
 
-  // Paused-state guard. Rate limits may recover on a later run. Credit and
-  // policy blocks require an owner/admin action and stay paused.
+  // Recover legacy automatic pauses. A tenant's quota/policy/provider failure
+  // must never disable other tenants. Fence recovery so a new operator block
+  // cannot be cleared between this read and the update.
+  if (state.paused && (state.pause_kind === "rate_limit" || state.pause_kind === "credits")) {
+    const { error } = await db.from("job_queue_state")
+      .update({
+        paused: false,
+        pause_kind: null,
+        pause_reason: null,
+        paused_at: null,
+        consecutive_rate_limits: 0,
+        updated_at: new Date().toISOString(),
+      } as never)
+      .eq("id", QUEUE_ID)
+      .eq("paused", true)
+      .in("pause_kind", ["rate_limit", "credits"]);
+    if (error) throw new Error("The automatic queue pause could not be cleared. Please try again.");
+    state = await readQueueState(db);
+  }
+  // Explicit operator blocks still apply; only an explicit probe may bypass one.
   let budget = max;
   if (state.paused) {
-    if (state.pause_kind === "rate_limit") {
-      await resumeQueue(db);
-    } else if (options.probeWhilePaused) {
+    if (options.probeWhilePaused) {
       budget = 1;
     } else {
       return { processed: 0, failed: 0, paused: true, pauseReason: state.pause_reason, idle: true };
@@ -1720,6 +1761,10 @@ export async function drainSiteEngineQueue(
   let failed = 0;
 
   for (let i = 0; i < budget; i += 1) {
+    const currentState = await readQueueState(db);
+    if (currentState.paused && !options.probeWhilePaused) {
+      return { processed, failed, paused: true, pauseReason: currentState.pause_reason, idle: processed + failed === 0 };
+    }
     const job = await claimJob(db, options.organizationId);
     if (!job)
       return {
@@ -1737,10 +1782,9 @@ export async function drainSiteEngineQueue(
     // the whole run and stops renewing once the attempt fence no longer holds.
     const heartbeat = startLeaseHeartbeat(db, job);
     try {
-      await runJob(db, job);
+      await executeJob(db, job);
       heartbeat.stop();
       processed += 1;
-      if (state.paused || state.consecutive_rate_limits > 0) await resumeQueue(db);
     } catch (error) {
       heartbeat.stop();
       // A superseded attempt must not requeue, fail or restore anything —
@@ -1776,44 +1820,10 @@ export async function drainSiteEngineQueue(
             lease_expires_at: null,
           } as never)
           .eq("id", job.id)
-          .neq("status", "cancelled");
+          .eq("attempts", job.attempts)
+          .eq("status", "processing");
         await writeQueueState(db, { last_error: message });
         continue;
-      }
-
-      // Credit and policy denials are terminal for this run. Pause the whole
-      // generation queue until the owner/admin restores access.
-      if (status === 402 || status === 403) {
-        failed += 1;
-        await pauseQueue(db, "credits", message);
-        await db
-          .from("generation_jobs")
-          .update({ status: "queued", error_message: message, lease_expires_at: null } as never)
-          .eq("id", job.id);
-        return { processed, failed, paused: true, pauseReason: message, idle: false };
-      }
-
-      if (status === 429) {
-        failed += 1;
-        // A workspace's own concurrency ceiling ("already working on this
-        // workspace's requests") is local busy-ness, not a provider rate limit.
-        // It must not count towards pausing the queue for every customer.
-        const localBusy = /already working on this workspace/i.test(message);
-        const rl = localBusy ? state.consecutive_rate_limits : state.consecutive_rate_limits + 1;
-        await writeQueueState(db, { consecutive_rate_limits: rl, last_error: message });
-        if (rl >= RATE_LIMIT_TRIP) await pauseQueue(db, "rate_limit", message);
-        // leave the job retryable — the lease expires and a later run picks it up
-        await db
-          .from("generation_jobs")
-          .update({ status: "queued", error_message: message, lease_expires_at: null } as never)
-          .eq("id", job.id);
-        return {
-          processed,
-          failed,
-          paused: rl >= RATE_LIMIT_TRIP,
-          pauseReason: message,
-          idle: false,
-        };
       }
 
       // Ordinary failure: retry until MAX_ATTEMPTS, then mark it failed for good.
@@ -1828,7 +1838,10 @@ export async function drainSiteEngineQueue(
         .from("generation_jobs")
         .select("attempts, current_step")
         .eq("id", job.id)
+        .eq("attempts", job.attempts)
+        .eq("status", "processing")
         .maybeSingle();
+      if (!current) continue;
       const attempts = (current?.attempts as number | undefined) ?? MAX_ATTEMPTS;
       // The stage the attempt was working on when it failed: the one after the
       // last completed step. Stored for the owner's message and operator metrics.
@@ -1847,16 +1860,34 @@ export async function drainSiteEngineQueue(
                 completed_at: new Date().toISOString(),
                 lease_expires_at: null,
               }
-            : { status: "queued", error_message: taggedMessage, failure_kind: failure.kind, failed_stage: failedStage, lease_expires_at: null }) as never,
+            : {
+                status: "queued",
+                error_message: taggedMessage,
+                failure_kind: failure.kind,
+                failed_stage: failedStage,
+                // Back off this job only; another workspace can run now.
+                lease_expires_at: new Date(Date.now() + retryDelayMs(
+                  job.attempts,
+                  isGateway ? error.retryAfterSeconds : null,
+                )).toISOString(),
+              }) as never,
         )
         .eq("id", job.id)
         // Only the attempt that failed may requeue/fail the job, and an
         // owner-cancelled job is never brought back.
         .eq("attempts", job.attempts)
-        .neq("status", "cancelled");
+        .eq("status", "processing");
       await writeQueueState(db, { last_error: message });
     }
   }
 
   return { processed, failed, paused: false, pauseReason: null, idle: processed + failed === 0 };
+}
+
+/** Bounded per-job backoff, including an explicit workspace cooldown. */
+export function retryDelayMs(attempt: number, retryAfterSeconds?: number | null): number {
+  const requested = typeof retryAfterSeconds === "number" && Number.isFinite(retryAfterSeconds)
+    ? retryAfterSeconds * 1000
+    : 0;
+  return Math.min(30 * 60_000, Math.max(15_000 * 2 ** Math.max(0, Math.min(attempt - 1, 6)), requested));
 }

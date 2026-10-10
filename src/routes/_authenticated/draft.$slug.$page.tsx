@@ -5,7 +5,7 @@
  * that business only.
  */
 import { SiteBaseContext } from "@/components/site/site-address-context";
-import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
+import { createFileRoute, Link, redirect, useRouter } from "@tanstack/react-router";
 import { useEffect } from "react";
 import { getOwnerDraftSite } from "@/lib/public-site.functions";
 import { DRAFT_CHANNEL, readDraftPing } from "@/lib/builder/preview-bridge";
@@ -16,6 +16,15 @@ import { SitePageView } from "@/routes/s.$slug.$page";
 import { DraftMessage, DraftUpdatingBanner } from "@/routes/_authenticated/draft.$slug";
 
 export const Route = createFileRoute("/_authenticated/draft/$slug/$page")({
+  beforeLoad: ({ params, location }) => {
+    if (params.page === "home") throw redirect({
+      to: "/draft/$slug",
+      params: { slug: params.slug },
+      search: true,
+      hash: location.hash,
+      replace: true,
+    });
+  },
   loader: async ({ params }) =>
     getOwnerDraftSite({ data: { slug: params.slug, pageSlug: params.page } }),
   head: () => ({

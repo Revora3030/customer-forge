@@ -6,6 +6,7 @@
  * payload. Delivery is best effort: a webhook outage must never turn a
  * successfully persisted lead into a failed visitor submission.
  */
+import { guardedFetch, isFetchableHostname, UnsafeOutboundUrlError } from "@/lib/net-guard.server";
 
 export type LeadWebhookPayload = {
   event: "lead.created";
@@ -30,7 +31,7 @@ export type LeadWebhookPayload = {
 export type LeadWebhookFailure = {
   statusCode: number | null;
   retryable: boolean;
-  kind: "timeout" | "network" | "http";
+  kind: "timeout" | "network" | "http" | "configuration";
 };
 
 export type LeadWebhookResult =
@@ -93,29 +94,12 @@ export function classifyLeadWebhookFailure(
 ): LeadWebhookFailure {
   if (kind === "timeout") return { statusCode, retryable: true, kind };
   if (kind === "network") return { statusCode, retryable: true, kind };
+  if (kind === "configuration") return { statusCode, retryable: false, kind };
   return {
     statusCode,
     retryable: statusCode === null || statusCode === 408 || statusCode === 425 || statusCode === 429 || statusCode >= 500,
     kind,
   };
-}
-
-function isPrivateHostname(hostname: string) {
-  const host = hostname.toLowerCase().replace(/^\[|\]$/g, "");
-  return (
-    host === "localhost" ||
-    host === "localhost.localdomain" ||
-    host.endsWith(".localhost") ||
-    host.endsWith(".local") ||
-    host === "0.0.0.0" ||
-    host === "::" ||
-    host === "::1" ||
-    /^127\./.test(host) ||
-    /^10\./.test(host) ||
-    /^192\.168\./.test(host) ||
-    /^169\.254\./.test(host) ||
-    /^172\.(?:1[6-9]|2\d|3[0-1])\./.test(host)
-  );
 }
 
 export function validateLeadWebhookUrl(value: unknown): string | null {
@@ -124,8 +108,10 @@ export function validateLeadWebhookUrl(value: unknown): string | null {
 
   try {
     const url = new URL(raw);
-    if (url.protocol !== "https:" && url.protocol !== "http:") return null;
-    if (!url.hostname || isPrivateHostname(url.hostname)) return null;
+    // Leads contain personal contact data: never send it over plaintext HTTP,
+    // embedded credentials, arbitrary ports, or literal/private addresses.
+    if (url.protocol !== "https:" || url.username || url.password || url.port || url.hash) return null;
+    if (!isFetchableHostname(url.hostname)) return null;
     return url.toString();
   } catch {
     return null;
@@ -137,14 +123,18 @@ export async function dispatchLeadWebhook(
   payload: LeadWebhookPayload,
 ): Promise<LeadWebhookResult> {
   const attemptedAt = new Date().toISOString();
+  if (!webhookUrl?.trim()) return { ok: true, skipped: true, reason: "not_configured", attemptedAt };
   const url = validateLeadWebhookUrl(webhookUrl);
-  if (!url) return { ok: true, skipped: true, reason: "not_configured", attemptedAt };
+  if (!url) return {
+    ok: false, skipped: false, reason: "invalid_webhook_url", attemptedAt,
+    statusCode: null, retryable: false, kind: "configuration",
+  };
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), WEBHOOK_TIMEOUT_MS);
 
   try {
-    const response = await fetch(url, {
+    const response = await guardedFetch(url, {
       method: "POST",
       headers: {
         "content-type": "application/json",
@@ -173,13 +163,11 @@ export async function dispatchLeadWebhook(
 
     return { ok: true, attemptedAt };
   } catch (error) {
-    const timeout = error instanceof DOMException && error.name === "AbortError";
-    const reason = timeout
-      ? "timeout"
-      : error instanceof Error
-        ? error.message.slice(0, 160)
-        : "webhook_transport_error";
-    const failure = classifyLeadWebhookFailure(null, timeout ? "timeout" : "network");
+    const timeout = controller.signal.aborted || (error instanceof Error && ["AbortError", "TimeoutError"].includes(error.name));
+    const unsafe = error instanceof UnsafeOutboundUrlError;
+    // Never store/log a raw network error, which can contain the secret webhook URL.
+    const reason = unsafe ? "unsafe_webhook_target" : timeout ? "timeout" : "webhook_transport_error";
+    const failure = classifyLeadWebhookFailure(null, unsafe ? "configuration" : timeout ? "timeout" : "network");
     console.warn("[lead-routing] webhook delivery failed", {
       reason,
       attemptedAt,
