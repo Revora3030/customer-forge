@@ -1,4 +1,3 @@
-import { useEffect, useState } from "react";
 import { BellRing, CalendarCheck, MessageSquare, Star } from "lucide-react";
 import { MetricCard, Pill } from "@/components/app/Bits";
 
@@ -11,69 +10,64 @@ const ACTIVITY = [
   { icon: BellRing, text: "3 quiet leads nudged with a second-chance offer" },
 ] as const;
 
-/** The system never sleeps — this strip quietly cycles real work it just did. */
-function ActivityTicker() {
-  const [index, setIndex] = useState(0);
-
-  useEffect(() => {
-    if (typeof window.matchMedia !== "function") return;
-    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (reduced) return;
-    const timer = window.setInterval(() => setIndex((i) => (i + 1) % ACTIVITY.length), 3200);
-    return () => window.clearInterval(timer);
-  }, []);
-
-  const Current = ACTIVITY[index] ?? ACTIVITY[0]!;
-
+/** Static examples, not recent customer activity or live delivery evidence. */
+function ActivityExamples() {
   return (
-    <div
-      aria-hidden="true"
-      className="flex items-center gap-2.5 border-t border-border bg-elevated/60 px-3.5 py-2.5"
-    >
-      <span className="relative flex size-2">
-        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-60" />
-        <span className="relative inline-flex size-2 rounded-full bg-primary" />
-      </span>
-      <Current.icon className="size-3.5 shrink-0 text-primary" />
-      <span key={index} className="reveal truncate text-[11.5px] text-muted-foreground">
-        {Current.text}
-      </span>
+    <div className="border-t border-border bg-elevated/60 px-3.5 py-3">
+      <p className="eyebrow">Example workflow activity</p>
+      <ul className="mt-2 space-y-2" aria-label="Illustrative automation examples">
+        {ACTIVITY.map(({ icon: Icon, text }) => (
+          <li key={text} className="flex items-start gap-2 text-[11.5px] leading-relaxed text-muted-foreground">
+            <Icon className="mt-0.5 size-3.5 shrink-0 text-primary" aria-hidden="true" />
+            <span>{text}</span>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
 
-/** Static, honest product preview: real dashboard chrome, clearly labelled demo. */
+/** Static product illustration: sample metrics and contacts are not customer results. */
 export function DashboardPreview() {
   return (
-    <div className="panel dashboard-preview-shell shadow-lift overflow-hidden p-0" aria-label="Product preview">
-      <div className="dashboard-preview-topbar flex items-center justify-between border-b border-border bg-elevated px-3.5 py-2.5">
-        <div className="flex items-center gap-2">
-          <span className="dashboard-window-dots" aria-hidden="true">
+    <div
+      className="panel dashboard-preview-shell shadow-lift overflow-hidden p-0"
+      role="group"
+      aria-label="Illustrative dashboard preview with sample data"
+      data-testid="sample-dashboard-preview"
+    >
+      <div className="dashboard-preview-topbar flex items-center justify-between gap-2 border-b border-border bg-elevated px-3.5 py-2.5">
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="dashboard-window-dots shrink-0" aria-hidden="true">
             <i />
             <i />
             <i />
           </span>
           <span className="eyebrow">Business Command Center</span>
         </div>
-        <Pill tone="signal">Demo data</Pill>
+        <Pill tone="signal">Sample data</Pill>
       </div>
+      <p className="border-b border-border bg-primary/5 px-3.5 py-3 text-xs leading-relaxed text-muted-foreground">
+        Illustrative preview — metrics, contacts and activity are sample data, not live customer
+        results. This preview does not send messages, create bookings or process payments.
+      </p>
 
       <div className="space-y-2.5 p-3.5">
         <div className="panel-inset p-4">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <p className="eyebrow">New leads · this week</p>
+              <p className="eyebrow">New leads · sample week</p>
               <p className="tnum mt-1 font-display text-[38px] leading-none font-semibold">42</p>
-              <p className="mt-2 text-xs text-primary">▲ 18% vs last week</p>
+              <p className="mt-2 text-xs text-primary">▲ 18% · illustrative comparison</p>
             </div>
             <div className="text-right">
-              <p className="eyebrow">Value</p>
+              <p className="eyebrow">Sample value</p>
               <p className="tnum font-display text-[15px] font-semibold">$8,420</p>
               <div className="mt-2 flex h-8 items-end justify-end gap-[3px]" aria-hidden="true">
                 {[8, 12, 10, 16, 20, 32].map((h, i) => (
                   <span
                     key={i}
-                    className={`grow-bar w-1.5 rounded-sm ${i > 3 ? "bg-primary" : i > 2 ? "bg-primary/60" : "bg-border"}`}
+                    className={`grow-bar motion-reduce:animate-none w-1.5 rounded-sm ${i > 3 ? "bg-primary" : i > 2 ? "bg-primary/60" : "bg-border"}`}
                     style={{ height: h, animationDelay: `${420 + i * 60}ms` }}
                   />
                 ))}
@@ -83,29 +77,34 @@ export function DashboardPreview() {
         </div>
 
         <div className="grid grid-cols-2 gap-2.5">
-          <MetricCard label="Bookings" value="16" hint="3 today" tone="signal" />
-          <MetricCard label="Conversion" value="6.8%" hint="visitor → lead" tone="attention" />
-          <MetricCard label="Follow-up" value="5" hint="need attention" tone="attention" />
-          <MetricCard label="Traffic" value="1,240" hint="visitors" />
+          <MetricCard label="Bookings" value="16" hint="sample count" tone="signal" />
+          <MetricCard label="Conversion" value="6.8%" hint="sample visitor → lead" tone="attention" />
+          <MetricCard label="Follow-up" value="5" hint="sample pending leads" tone="attention" />
+          <MetricCard label="Traffic" value="1,240" hint="sample visitors" />
         </div>
 
         <div className="panel-inset p-3.5">
-          <div className="mb-3 flex items-center justify-between">
-            <span className="eyebrow">Leads over time</span>
-            <span className="tnum text-[11px] text-muted-foreground">12 wks</span>
+          <div className="mb-3 flex items-center justify-between gap-2">
+            <span className="eyebrow">Illustrative lead trend</span>
+            <span className="tnum text-[11px] text-muted-foreground">12 sample weeks</span>
           </div>
           <div className="flex h-20 items-end gap-1.5" aria-hidden="true">
             {BARS.map((h, i) => (
               <div
                 key={i}
-                className={`grow-bar flex-1 rounded-sm ${i === BARS.length - 1 ? "bg-primary" : "bg-primary/35"}`}
+                className={`grow-bar motion-reduce:animate-none flex-1 rounded-sm ${i === BARS.length - 1 ? "bg-primary" : "bg-primary/35"}`}
                 style={{ height: `${h}%`, animationDelay: `${520 + i * 45}ms` }}
               />
             ))}
           </div>
         </div>
 
-        <div className="-mx-3.5 overflow-x-auto px-3.5">
+        <div
+          className="-mx-3.5 overflow-x-auto px-3.5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+          role="region"
+          aria-label="Sample lead pipeline; scroll horizontally to view all stages"
+          tabIndex={0}
+        >
           <div className="flex w-max gap-2.5">
             {[
               {
@@ -113,8 +112,8 @@ export function DashboardPreview() {
                 count: 9,
                 tone: "neutral" as const,
                 rows: [
-                  ["Marcus Bell", "Interior Detail"],
-                  ["Dana Reyes", "Quote request"],
+                  ["Sample contact 1", "Interior Detail"],
+                  ["Sample contact 2", "Quote request"],
                 ],
               },
               {
@@ -122,15 +121,15 @@ export function DashboardPreview() {
                 count: 4,
                 tone: "signal" as const,
                 rows: [
-                  ["Priya Nair", "Fleet · 3 vans"],
-                  ["Tom Okafor", "Paint correction"],
+                  ["Sample contact 3", "Fleet · 3 vans"],
+                  ["Sample contact 4", "Paint correction"],
                 ],
               },
               {
                 label: "Booked",
                 count: 6,
                 tone: "neutral" as const,
-                rows: [["Sofia Lin", "Tomorrow 9:00a"]],
+                rows: [["Sample contact 5", "Example: Tue 9:00a"]],
               },
             ].map((col) => (
               <div
@@ -168,15 +167,15 @@ export function DashboardPreview() {
             ◆
           </div>
           <div>
-            <p className="font-display text-xs font-semibold">5 leads haven't been contacted</p>
+            <p className="font-display text-xs font-semibold">Example alert: 5 leads need a reply</p>
             <p className="mt-0.5 text-[11px] leading-snug text-muted-foreground">
-              Oldest is 6h old. Replying inside an hour is what turns quotes into bookings.
+              The dashboard can help you identify pending follow-ups. These figures illustrate the interface.
             </p>
           </div>
         </div>
       </div>
 
-      <ActivityTicker />
+      <ActivityExamples />
     </div>
   );
 }
