@@ -62,6 +62,7 @@ type ComponentRow = {
   media_url: string | null;
   link_url: string | null;
   link_label: string | null;
+  settings?: unknown;
 };
 
 export type CompositionPassResult = {
@@ -85,6 +86,7 @@ const RULES = [
   `Design each section from scratch as a composition tree built only from these primitives: ${COMPOSITION_PRIMITIVES.join(", ")}.`,
   PRIMITIVE_GUIDE,
   "Node shape: {type, text?, href?, src?, mediaRef?, alt?, level?, items?, beforeImage?, afterImage?, initialSplit?, faqItems?, tabs?, primaryCta?, secondaryCta?, style?, responsive?: {mobile?, tablet?, desktop?}, motion?: {kind: none|fade|rise|scale|float|slide-left|slide-right|blur|reveal, delayMs?, durationMs?}, children?}.",
+  "Pictures marked aiGenerated are AI-made illustrations, not the business's real work: never place them in a compare or before_after_slider, a gallery captioned as completed jobs, or any caption that calls them a real project, customer, result or team member.",
   "Studio interactive primitives: before_after_slider uses beforeImage:{src,alt,label}, afterImage:{src,alt,label}, and initialSplit 0-100 (default 50); use it when supplied material genuinely shows a transformation. faq_accordion uses faqItems:[{question,answer,defaultOpen?}] and only supplied FAQ copy. tab_group uses tabs:[{label,children:[...]}] and renders one active panel at a time. mobile_sticky_bar uses primaryCta:{label,href,ariaLabel?} and optional secondaryCta with safe conversion destinations; it is mobile-only and must never duplicate a desktop CTA unnecessarily.",
   "Interactive quality: use these primitives when they clarify real content, not as decoration. Keep every control at least 44px, make labels concise, preserve 4.5:1 text contrast, and design for touch and keyboard. Do not invent phone numbers, URLs, prices, FAQs, service tiers, before/after claims or other business facts.",
   "style keys: columns, gap, padding, paddingX, paddingY, maxWidth, align, justify, items, span, size, weight, lineHeight, letterSpacing, italic, uppercase, font, color, background, gradientTo, gradientAngle, radius, borderWidth, borderColor, shadow, opacity, aspect, objectFit, minHeight, hidden, position, top, left, right, bottom, zIndex, overlap, blur, rotate, gridAreas, area. Colours are #RRGGBB.",
@@ -125,10 +127,17 @@ function materialFor(section: SectionRow, parts: ComponentRow[]) {
       label: part.label,
       body: part.body,
       mediaRef: part.media_url ? part.id : null,
+      // AI_GENERATED_DRAFT / NOT_VERIFIED_WORK_PROOF: illustrative only.
+      ...(part.media_url && isGeneratedPart(part) ? { aiGenerated: true } : {}),
       href: part.link_url && isSafeHref(part.link_url) ? part.link_url : null,
       linkLabel: part.link_label,
     })),
   };
+}
+
+function isGeneratedPart(part: ComponentRow): boolean {
+  const visual = (part.settings as { visual?: { source?: unknown } } | null | undefined)?.visual;
+  return visual?.source === "generated";
 }
 
 function requiredWidgetForRole(role: string): "booking_form" | "quote_calculator" | "enquiry_form" | null {
@@ -209,7 +218,7 @@ export async function composeFirstBuildSections(input: {
   const withinBudget = () => input.optionalPassDeadline === undefined || Date.now() < input.optionalPassDeadline;
   const [{ data: sections, error }, { data: components }] = await Promise.all([
     db.from("website_sections").select("id,page_id,kind,heading,subheading,body,settings").eq("organization_id", organizationId).order("sort_order"),
-    db.from("website_components").select("id,section_id,kind,label,body,media_url,link_url,link_label").eq("organization_id", organizationId).order("sort_order"),
+    db.from("website_components").select("id,section_id,kind,label,body,media_url,link_url,link_label,settings").eq("organization_id", organizationId).order("sort_order"),
   ]);
   if (error) throw new Error(error.message);
   const rows = (sections ?? []) as SectionRow[];
