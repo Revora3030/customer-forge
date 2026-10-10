@@ -96,9 +96,12 @@ import { Route as SSlugPageRouteImport } from './routes/s.$slug.$page'
 import { Route as AuthenticatedAdminClientsOrgIdRouteImport } from './routes/_authenticated/admin.clients.$orgId'
 import { Route as AuthenticatedDraftSlugPageRouteImport } from './routes/_authenticated/draft.$slug.$page'
 import { Route as ApiPublicJobsBackupRouteImport } from './routes/api/public/jobs/backup'
+import { Route as ApiPublicJobsLeadReminderRouteImport } from './routes/api/public/jobs/lead-reminder'
 import { Route as ApiPublicJobsLifecycleEmailRouteImport } from './routes/api/public/jobs/lifecycle-email'
 import { Route as ApiPublicJobsMediaCleanupRouteImport } from './routes/api/public/jobs/media-cleanup'
 import { Route as ApiPublicJobsSiteEngineRouteImport } from './routes/api/public/jobs/site-engine'
+import { Route as ApiPublicJobsSiteHealthRouteImport } from './routes/api/public/jobs/site-health'
+import { Route as ApiPublicJobsWeeklyReportRouteImport } from './routes/api/public/jobs/weekly-report'
 import { Route as ApiPublicPaymentsWebhookRouteImport } from './routes/api/public/payments/webhook'
 import { Route as LovableEmailAuthPreviewRouteImport } from './routes/lovable/email/auth/preview'
 import { Route as LovableEmailAuthWebhookRouteImport } from './routes/lovable/email/auth/webhook'
@@ -556,6 +559,12 @@ const ApiPublicJobsBackupRoute = ApiPublicJobsBackupRouteImport.update({
   path: '/api/public/jobs/backup',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicJobsLeadReminderRoute =
+  ApiPublicJobsLeadReminderRouteImport.update({
+    id: '/api/public/jobs/lead-reminder',
+    path: '/api/public/jobs/lead-reminder',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicJobsLifecycleEmailRoute =
   ApiPublicJobsLifecycleEmailRouteImport.update({
     id: '/api/public/jobs/lifecycle-email',
@@ -573,6 +582,17 @@ const ApiPublicJobsSiteEngineRoute = ApiPublicJobsSiteEngineRouteImport.update({
   path: '/api/public/jobs/site-engine',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicJobsSiteHealthRoute = ApiPublicJobsSiteHealthRouteImport.update({
+  id: '/api/public/jobs/site-health',
+  path: '/api/public/jobs/site-health',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicJobsWeeklyReportRoute =
+  ApiPublicJobsWeeklyReportRouteImport.update({
+    id: '/api/public/jobs/weekly-report',
+    path: '/api/public/jobs/weekly-report',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicPaymentsWebhookRoute =
   ApiPublicPaymentsWebhookRouteImport.update({
     id: '/api/public/payments/webhook',
@@ -683,9 +703,12 @@ export interface FileRoutesByFullPath {
   '/admin/clients/$orgId': typeof AuthenticatedAdminClientsOrgIdRoute
   '/draft/$slug/$page': typeof AuthenticatedDraftSlugPageRoute
   '/api/public/jobs/backup': typeof ApiPublicJobsBackupRoute
+  '/api/public/jobs/lead-reminder': typeof ApiPublicJobsLeadReminderRoute
   '/api/public/jobs/lifecycle-email': typeof ApiPublicJobsLifecycleEmailRoute
   '/api/public/jobs/media-cleanup': typeof ApiPublicJobsMediaCleanupRoute
   '/api/public/jobs/site-engine': typeof ApiPublicJobsSiteEngineRoute
+  '/api/public/jobs/site-health': typeof ApiPublicJobsSiteHealthRoute
+  '/api/public/jobs/weekly-report': typeof ApiPublicJobsWeeklyReportRoute
   '/api/public/payments/webhook': typeof ApiPublicPaymentsWebhookRoute
   '/lovable/email/auth/preview': typeof LovableEmailAuthPreviewRoute
   '/lovable/email/auth/webhook': typeof LovableEmailAuthWebhookRoute
@@ -773,9 +796,12 @@ export interface FileRoutesByTo {
   '/admin/clients/$orgId': typeof AuthenticatedAdminClientsOrgIdRoute
   '/draft/$slug/$page': typeof AuthenticatedDraftSlugPageRoute
   '/api/public/jobs/backup': typeof ApiPublicJobsBackupRoute
+  '/api/public/jobs/lead-reminder': typeof ApiPublicJobsLeadReminderRoute
   '/api/public/jobs/lifecycle-email': typeof ApiPublicJobsLifecycleEmailRoute
   '/api/public/jobs/media-cleanup': typeof ApiPublicJobsMediaCleanupRoute
   '/api/public/jobs/site-engine': typeof ApiPublicJobsSiteEngineRoute
+  '/api/public/jobs/site-health': typeof ApiPublicJobsSiteHealthRoute
+  '/api/public/jobs/weekly-report': typeof ApiPublicJobsWeeklyReportRoute
   '/api/public/payments/webhook': typeof ApiPublicPaymentsWebhookRoute
   '/lovable/email/auth/preview': typeof LovableEmailAuthPreviewRoute
   '/lovable/email/auth/webhook': typeof LovableEmailAuthWebhookRoute
@@ -870,9 +896,12 @@ export interface FileRoutesById {
   '/_authenticated/admin/clients/$orgId': typeof AuthenticatedAdminClientsOrgIdRoute
   '/_authenticated/draft/$slug/$page': typeof AuthenticatedDraftSlugPageRoute
   '/api/public/jobs/backup': typeof ApiPublicJobsBackupRoute
+  '/api/public/jobs/lead-reminder': typeof ApiPublicJobsLeadReminderRoute
   '/api/public/jobs/lifecycle-email': typeof ApiPublicJobsLifecycleEmailRoute
   '/api/public/jobs/media-cleanup': typeof ApiPublicJobsMediaCleanupRoute
   '/api/public/jobs/site-engine': typeof ApiPublicJobsSiteEngineRoute
+  '/api/public/jobs/site-health': typeof ApiPublicJobsSiteHealthRoute
+  '/api/public/jobs/weekly-report': typeof ApiPublicJobsWeeklyReportRoute
   '/api/public/payments/webhook': typeof ApiPublicPaymentsWebhookRoute
   '/lovable/email/auth/preview': typeof LovableEmailAuthPreviewRoute
   '/lovable/email/auth/webhook': typeof LovableEmailAuthWebhookRoute
@@ -967,9 +996,12 @@ export interface FileRouteTypes {
     | '/admin/clients/$orgId'
     | '/draft/$slug/$page'
     | '/api/public/jobs/backup'
+    | '/api/public/jobs/lead-reminder'
     | '/api/public/jobs/lifecycle-email'
     | '/api/public/jobs/media-cleanup'
     | '/api/public/jobs/site-engine'
+    | '/api/public/jobs/site-health'
+    | '/api/public/jobs/weekly-report'
     | '/api/public/payments/webhook'
     | '/lovable/email/auth/preview'
     | '/lovable/email/auth/webhook'
@@ -1057,9 +1089,12 @@ export interface FileRouteTypes {
     | '/admin/clients/$orgId'
     | '/draft/$slug/$page'
     | '/api/public/jobs/backup'
+    | '/api/public/jobs/lead-reminder'
     | '/api/public/jobs/lifecycle-email'
     | '/api/public/jobs/media-cleanup'
     | '/api/public/jobs/site-engine'
+    | '/api/public/jobs/site-health'
+    | '/api/public/jobs/weekly-report'
     | '/api/public/payments/webhook'
     | '/lovable/email/auth/preview'
     | '/lovable/email/auth/webhook'
@@ -1153,9 +1188,12 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/clients/$orgId'
     | '/_authenticated/draft/$slug/$page'
     | '/api/public/jobs/backup'
+    | '/api/public/jobs/lead-reminder'
     | '/api/public/jobs/lifecycle-email'
     | '/api/public/jobs/media-cleanup'
     | '/api/public/jobs/site-engine'
+    | '/api/public/jobs/site-health'
+    | '/api/public/jobs/weekly-report'
     | '/api/public/payments/webhook'
     | '/lovable/email/auth/preview'
     | '/lovable/email/auth/webhook'
@@ -1204,9 +1242,12 @@ export interface RootRouteChildren {
   PTokenPageRoute: typeof PTokenPageRoute
   LocalIndustryIndexRoute: typeof LocalIndustryIndexRoute
   ApiPublicJobsBackupRoute: typeof ApiPublicJobsBackupRoute
+  ApiPublicJobsLeadReminderRoute: typeof ApiPublicJobsLeadReminderRoute
   ApiPublicJobsLifecycleEmailRoute: typeof ApiPublicJobsLifecycleEmailRoute
   ApiPublicJobsMediaCleanupRoute: typeof ApiPublicJobsMediaCleanupRoute
   ApiPublicJobsSiteEngineRoute: typeof ApiPublicJobsSiteEngineRoute
+  ApiPublicJobsSiteHealthRoute: typeof ApiPublicJobsSiteHealthRoute
+  ApiPublicJobsWeeklyReportRoute: typeof ApiPublicJobsWeeklyReportRoute
   ApiPublicPaymentsWebhookRoute: typeof ApiPublicPaymentsWebhookRoute
   LovableEmailAuthPreviewRoute: typeof LovableEmailAuthPreviewRoute
   LovableEmailAuthWebhookRoute: typeof LovableEmailAuthWebhookRoute
@@ -1824,6 +1865,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicJobsBackupRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/jobs/lead-reminder': {
+      id: '/api/public/jobs/lead-reminder'
+      path: '/api/public/jobs/lead-reminder'
+      fullPath: '/api/public/jobs/lead-reminder'
+      preLoaderRoute: typeof ApiPublicJobsLeadReminderRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/jobs/lifecycle-email': {
       id: '/api/public/jobs/lifecycle-email'
       path: '/api/public/jobs/lifecycle-email'
@@ -1843,6 +1891,20 @@ declare module '@tanstack/react-router' {
       path: '/api/public/jobs/site-engine'
       fullPath: '/api/public/jobs/site-engine'
       preLoaderRoute: typeof ApiPublicJobsSiteEngineRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/jobs/site-health': {
+      id: '/api/public/jobs/site-health'
+      path: '/api/public/jobs/site-health'
+      fullPath: '/api/public/jobs/site-health'
+      preLoaderRoute: typeof ApiPublicJobsSiteHealthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/jobs/weekly-report': {
+      id: '/api/public/jobs/weekly-report'
+      path: '/api/public/jobs/weekly-report'
+      fullPath: '/api/public/jobs/weekly-report'
+      preLoaderRoute: typeof ApiPublicJobsWeeklyReportRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/public/payments/webhook': {
@@ -2097,9 +2159,12 @@ const rootRouteChildren: RootRouteChildren = {
   PTokenPageRoute: PTokenPageRoute,
   LocalIndustryIndexRoute: LocalIndustryIndexRoute,
   ApiPublicJobsBackupRoute: ApiPublicJobsBackupRoute,
+  ApiPublicJobsLeadReminderRoute: ApiPublicJobsLeadReminderRoute,
   ApiPublicJobsLifecycleEmailRoute: ApiPublicJobsLifecycleEmailRoute,
   ApiPublicJobsMediaCleanupRoute: ApiPublicJobsMediaCleanupRoute,
   ApiPublicJobsSiteEngineRoute: ApiPublicJobsSiteEngineRoute,
+  ApiPublicJobsSiteHealthRoute: ApiPublicJobsSiteHealthRoute,
+  ApiPublicJobsWeeklyReportRoute: ApiPublicJobsWeeklyReportRoute,
   ApiPublicPaymentsWebhookRoute: ApiPublicPaymentsWebhookRoute,
   LovableEmailAuthPreviewRoute: LovableEmailAuthPreviewRoute,
   LovableEmailAuthWebhookRoute: LovableEmailAuthWebhookRoute,
