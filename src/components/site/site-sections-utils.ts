@@ -137,3 +137,19 @@ export function distinctServiceArea(area: string | null | undefined, addressLine
   if (address && (address.includes(norm(a)) || norm(a) === address)) return null;
   return a;
 }
+
+/** Widgets that let a visitor actually send something to the business. */
+const LEAD_WIDGETS = ["enquiry_form", "booking_form", "quote_calculator"] as const;
+
+/**
+ * True when this page must show the general enquiry form because its own AI
+ * layout has no way to send a message: it is the contact page, or a button on
+ * it points at the "#contact-form" anchor. A page that already carries a
+ * booking form, quote calculator or enquiry form is left alone.
+ */
+export function needsEnquiryForm(pageKind: string | null | undefined, pageSlug: string | null | undefined, sections: Section[]): boolean {
+  if (LEAD_WIDGETS.some((name) => pageHasWidget(sections, name))) return false;
+  const isContactPage = pageKind === "contact" || ["contact", "contact-us", "get-in-touch"].includes(String(pageSlug ?? "").toLowerCase());
+  if (isContactPage) return true;
+  return sections.some((section) => JSON.stringify(section.settings ?? {}).includes("#contact-form"));
+}
