@@ -3,9 +3,16 @@ import { createRouter } from "@tanstack/react-router";
 import { RouteError, RouteNotFound } from "./components/app/RouteStates";
 import { routeTree } from "./routeTree.gen";
 import { reportRouteError } from "@/lib/route-error-reporting";
+import { installBuilderResumeSync } from "@/lib/builder/resume-sync";
+
+let disposeResumeSync: (() => void) | undefined;
 
 export const getRouter = () => {
   const queryClient = new QueryClient();
+  if (typeof window !== "undefined" && typeof document !== "undefined") {
+    disposeResumeSync?.();
+    disposeResumeSync = installBuilderResumeSync(queryClient, window, document);
+  }
 
   const router = createRouter({
     routeTree,
