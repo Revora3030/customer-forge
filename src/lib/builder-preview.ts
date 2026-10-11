@@ -6,73 +6,49 @@ export const BUILDER_VIEWPORTS = [
   { key: "wide", label: "Wide", width: 1440 },
   { key: "ultra", label: "4K", width: 2560 },
 ] as const;
-
 export type BuilderViewportKey = (typeof BUILDER_VIEWPORTS)[number]["key"];
 
-/**
- * The address the builder preview loads. It points at the owner's private draft
- * rather than the public site, because the public address only serves a site
- * after it has been published — before that it would show "business not found",
- * and it would never show unpublished edits.
- */
 export function previewPath(slug: string, pageSlug: string): string {
   const safeSite = encodeURIComponent(slug.trim());
   const safePage = pageSlug.trim();
-  return safePage === "home" || safePage === "" 
-    ? `/draft/${safeSite}`
-    : `/draft/${safeSite}/${encodeURIComponent(safePage)}`;
+  return safePage === "home" || safePage === "" ? `/draft/${safeSite}` : `/draft/${safeSite}/${encodeURIComponent(safePage)}`;
 }
-
 export function previewZoom(value: number): number {
   if (!Number.isFinite(value)) return 0.75;
   return Math.min(1, Math.max(0.5, Math.round(value * 20) / 20));
 }
-/* ------------------------------ compare modes ------------------------------ */
-
 export type CompareMode = "off" | "side" | "overlay";
-
-/** Cycles the compare button: off → side by side → overlay split → off. */
 export function nextCompareMode(mode: CompareMode): CompareMode {
   return mode === "off" ? "side" : mode === "side" ? "overlay" : "off";
 }
+const positive = (value: number) => Number.isFinite(value) && value > 0;
 
-/**
- * Scale for each pane: side by side splits the stage in two; the overlay and
- * single views use the whole stage. Never above the user's zoom cap.
- */
-export function compareScale(mode: CompareMode, scale: number, stageWidth: number, viewportWidth: number): number {
-  if (mode !== "side" || !(stageWidth > 0) || !(viewportWidth > 0)) return scale;
-  return Math.max(0.1, Math.min(scale, (stageWidth - 36) / 2 / viewportWidth));
-}
-
-/** Zoom that fits the whole device width into the stage (the "Fit" option). */
+/** Fit the available width, even when a 4K frame needs a scale below 0.1. */
 export function fitZoom(stageWidth: number, viewportWidth: number): number {
-  if (!(stageWidth > 0) || !(viewportWidth > 0)) return 0.75;
-  return Math.max(0.1, Math.min(1, (stageWidth - 24) / viewportWidth));
+  if (!positive(stageWidth) || !positive(viewportWidth)) return 0.75;
+  const available = Math.max(1, stageWidth - 24);
+  return Math.min(1, available / viewportWidth);
 }
-
-/* ---------------------------- draft vs live diff ---------------------------- */
+export function compareScale(mode: CompareMode, scale: number, stageWidth: number, viewportWidth: number): number {
+  const safeScale = positive(scale) ? Math.min(scale, 1) : 0.75;
+  if (mode !== "side" || !positive(stageWidth) || !positive(viewportWidth)) return safeScale;
+  const availablePerPane = Math.max(1, (stageWidth - 36) / 2);
+  return Math.min(safeScale, availablePerPane / viewportWidth);
+}
 
 type DiffSection = { id: string; fingerprint: string };
-
 export type DraftDiff = { updated: number; added: number; removed: number };
-
-/** Counts sections changed, added and removed between the live copy and the draft. */
 export function draftDiff(live: readonly DiffSection[], draft: readonly DiffSection[]): DraftDiff {
   const liveById = new Map(live.map((section) => [section.id, section.fingerprint]));
   const draftIds = new Set(draft.map((section) => section.id));
-  let updated = 0;
-  let added = 0;
+  let updated = 0, added = 0;
   for (const section of draft) {
     const before = liveById.get(section.id);
     if (before === undefined) added += 1;
     else if (before !== section.fingerprint) updated += 1;
   }
-  const removed = live.filter((section) => !draftIds.has(section.id)).length;
-  return { updated, added, removed };
+  return { updated, added, removed: live.filter((section) => !draftIds.has(section.id)).length };
 }
-
-/** "2 updated sections · 1 new section", or "No changes" / "Not published yet". */
 export function draftDiffLabel(diff: DraftDiff | null): string {
   if (!diff) return "Not published yet";
   const parts: string[] = [];

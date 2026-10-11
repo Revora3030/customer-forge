@@ -1,76 +1,41 @@
-/**
- * REVORA BUILDER QUEUE — pure state for queued requests and editable plans.
- *
- * The owner can line up several requests ("make the home page premium", "add a
- * services page", "improve mobile") and Revora works through them one at a
- * time. Each request produces a plan whose steps can be edited, skipped,
- * reordered or removed before anything touches the draft.
- *
- * Pure functions only: no network, no timers. The panel owns the effects, so
- * the state machine can be tested exactly as the owner experiences it.
- */
-
+/** Pure request state; no network, timers or publishing side effects. */
 import type { CompositionPreview } from "@/lib/builder/composition-preview";
 import type { AgentAttachment } from "@/lib/site-agent";
 
-export type QueueState =
-  "queued" | "planning" | "waiting_for_approval" | "building" | "complete" | "failed" | "skipped";
-
+export type QueueState = "queued" | "planning" | "waiting_for_approval" | "building" | "complete" | "failed" | "skipped";
 export type PlanStep = {
   key: string;
   title: string;
   where: string;
   destructive: boolean;
-  /** Unapproved steps are never sent to the builder. */
   included: boolean;
   before?: string;
   after?: string;
 };
-
 export type QueueTask = {
   id: string;
   instruction: string;
   state: QueueState;
-  /** Plan steps, once Revora has worked the request out. */
   steps: PlanStep[];
-  /** Revora's own words about the request. */
   reply?: string;
-  /** True when the AI simply answered in chat and nothing was meant to change. */
   answered?: boolean;
-  /** Brought back from the saved conversation; shown, never re-run. */
   restored?: boolean;
-  /** Restored after navigation but its photos weren't kept: waiting for the owner to re-attach. */
   awaitingReattach?: boolean;
   summary?: string;
   questions: string[];
-  /** Requested outcomes independently matched to concrete, renderable actions. */
   requirements?: { label: string; covered: boolean }[];
-  /** Real result of the build, never assumed. */
   applied?: number;
-  /** Version saved just before this change — the QA gate restores it. */
   snapshotVersion?: number | undefined;
   failedCount?: number;
-  /** Steps skipped because their target no longer existed. */
   staleCount?: number;
-  /** True when some updates landed and some did not. */
   partial?: boolean;
-  /** Plain-English note about a partial or stale apply. */
   notice?: string;
-  /** Per-operation outcomes, collapsed behind "Details". */
   details?: string[];
   error?: string;
   retryable?: boolean;
-  /**
-   * The look and page blocks the AI composed for this request, with its
-   * reasoning. Present means the owner gets a preview to approve or adjust
-   * before anything is written.
-   */
   composition?: CompositionPreview | null;
-  /** Photos or clips supplied with this exact turn. */
   attachments?: AgentAttachment[];
 };
-
-
 export const QUEUE_LABELS: Record<QueueState, string> = {
   queued: "Waiting",
   planning: "Working it out",
@@ -80,76 +45,36 @@ export const QUEUE_LABELS: Record<QueueState, string> = {
   failed: "Didn't work",
   skipped: "Skipped",
 };
-
 let counter = 0;
-
 export function newTask(instruction: string, attachments: AgentAttachment[] = []): QueueTask {
   counter += 1;
-  const text = instruction.trim().slice(0, 1200);
-  return {
-    id: `t${Date.now().toString(36)}${counter}`,
-    instruction: text,
-    state: "queued",
-    steps: [],
-    questions: [],
-    attachments,
-  };
+  return { id: `t${Date.now().toString(36)}${counter}`, instruction: instruction.trim().slice(0, 1200), state: "queued", steps: [], questions: [], attachments };
 }
-
-/** The next request to work on — one at a time, so builds can't collide. */
 export function nextRunnable(tasks: QueueTask[]): QueueTask | null {
-  const active = tasks.find((task) => task.state === "planning" || task.state === "building");
-  if (active) return null;
+  if (tasks.some((task) => task.state === "planning" || task.state === "building")) return null;
   return tasks.find((task) => task.state === "queued") ?? null;
 }
-
 export function updateTask(tasks: QueueTask[], id: string, patch: Partial<QueueTask>): QueueTask[] {
-  return tasks.map((task) => (task.id === id ? { ...task, ...patch } : task));
+  return tasks.map((task) => task.id === id ? { ...task, ...patch } : task);
 }
-
-export function toPlanSteps(
-  steps: { key: string; title: string; where: string; destructive?: boolean; before?: string; after?: string }[],
-): PlanStep[] {
-  return steps.map((step) => ({
-    key: step.key,
-    title: step.title,
-    where: step.where,
-    destructive: Boolean(step.destructive),
-    included: true,
-    ...(step.before !== undefined ? { before: step.before } : {}),
-    ...(step.after !== undefined ? { after: step.after } : {}),
-  }));
+export function toPlanSteps(steps: { key: string; title: string; where: string; destructive?: boolean; before?: string; after?: string }[]): PlanStep[] {
+  return steps.map((step) => ({ key: step.key, title: step.title, where: step.where, destructive: Boolean(step.destructive), included: true,
+    ...(step.before !== undefined ? { before: step.before } : {}), ...(step.after !== undefined ? { after: step.after } : {}) }));
 }
-
-/** Steps the owner actually approved, in the order they arranged them. */
 export function approvedSteps(task: QueueTask): PlanStep[] {
   return task.steps.filter((step) => step.included);
 }
-
-/**
- * A plan may be applied without asking when every step keeps existing content
- * and Revora has nothing to ask. Anything else waits for an explicit press.
- */
+/** Reversible edits may apply automatically; removal or open questions require approval. */
 export function canAutoApply(task: QueueTask): boolean {
   const steps = approvedSteps(task);
-  // Every chat change goes straight onto the site; each turn can be undone.
-  // Only an open question (Revora genuinely needs an answer) holds a plan back.
-  return steps.length > 0 && task.questions.length === 0;
+  return steps.length > 0 && task.questions.length === 0 && steps.every((step) => !step.destructive);
 }
-
 export function toggleStep(task: QueueTask, key: string): QueueTask {
-  return {
-    ...task,
-    steps: task.steps.map((step) =>
-      step.key === key ? { ...step, included: !step.included } : step,
-    ),
-  };
+  return { ...task, steps: task.steps.map((step) => step.key === key ? { ...step, included: !step.included } : step) };
 }
-
 export function removeStep(task: QueueTask, key: string): QueueTask {
   return { ...task, steps: task.steps.filter((step) => step.key !== key) };
 }
-
 export function moveStep(task: QueueTask, key: string, direction: -1 | 1): QueueTask {
   const index = task.steps.findIndex((step) => step.key === key);
   const target = index + direction;
@@ -159,66 +84,22 @@ export function moveStep(task: QueueTask, key: string, direction: -1 | 1): Queue
   steps.splice(target, 0, moved!);
   return { ...task, steps };
 }
-
-/**
- * Decides the honest terminal state for a plan that came back empty.
- *
- * A plan with zero steps is a real outcome, not a dropped result: the engine
- * read the request and found nothing safe to change. If there are follow-up
- * questions, the owner must answer them (the panel surfaces them and offers
- * "Continue in chat"). Otherwise the request is a failure the owner can retry
- * or remove — never a silent hold with no button anywhere on it.
- */
-export function terminalStateForEmptyPlan(input: {
-  steps: PlanStep[];
-  questions: string[];
-  unavailable?: { retryable?: boolean } | null;
-}): QueueState {
-  const { steps, questions } = input;
-  if (steps.length > 0) return "waiting_for_approval";
-  if (questions.length > 0) return "waiting_for_approval";
-  return "failed";
+export function terminalStateForEmptyPlan(input: { steps: PlanStep[]; questions: string[]; unavailable?: { retryable?: boolean } | null }): QueueState {
+  return input.steps.length > 0 || input.questions.length > 0 ? "waiting_for_approval" : "failed";
 }
-
-/** One honest sentence about the queue, never rounded up. */
 export function queueSummary(tasks: QueueTask[]): string {
-  if (tasks.length === 0) return "";
-  const done = tasks.filter((t) => t.state === "complete" && !t.answered).length;
-  const failed = tasks.filter((t) => t.state === "failed").length;
-  const waiting = tasks.filter(
-    (t) => t.state === "queued" || t.state === "waiting_for_approval",
-  ).length;
+  if (!tasks.length) return "";
+  const done = tasks.filter((task) => task.state === "complete" && !task.answered).length;
+  const failed = tasks.filter((task) => task.state === "failed").length;
+  const waiting = tasks.filter((task) => task.state === "queued" || task.state === "waiting_for_approval").length;
   const parts = [`${done} done`];
   if (waiting) parts.push(`${waiting} waiting`);
   if (failed) parts.push(`${failed} didn't work`);
   return parts.join(" · ");
 }
-
-/**
- * One compact execution timeline per request, so the owner reads a single line
- * of progress instead of a stack of "I understood the request" cards.
- * Thinking → Planning → Applying X/Y → Validating → Verified.
- */
 export function timelineFor(task: QueueTask): { stages: string[]; current: number } {
   const total = task.steps.filter((step) => step.included).length;
-  const stages = [
-    "Thinking",
-    "Planning",
-    total ? `Applying ${task.applied ?? 0}/${total}` : "Applying",
-    "Validating",
-    task.partial ? "Partly applied" : "Verified",
-  ];
-  const current =
-    task.state === "queued"
-      ? 0
-      : task.state === "planning"
-        ? 1
-        : task.state === "waiting_for_approval"
-          ? 1
-          : task.state === "building"
-            ? 2
-            : task.state === "complete"
-              ? 4
-              : 3;
+  const stages = ["Thinking", "Planning", total ? `Applying ${task.applied ?? 0}/${total}` : "Applying", "Validating", task.partial ? "Partly applied" : "Verified"];
+  const current = task.state === "queued" ? 0 : task.state === "planning" || task.state === "waiting_for_approval" ? 1 : task.state === "building" ? 2 : task.state === "complete" ? 4 : 3;
   return { stages, current };
 }
