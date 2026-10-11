@@ -18,16 +18,14 @@ export type Entitlement = { allowed: boolean; reason: string; state: AccountStat
  * own verified session, never from request data.
  */
 async function callerIsSuperAdmin(supabase: SupabaseClient): Promise<boolean> {
-  const { data: auth } = await supabase.auth.getUser();
-  const userId = auth?.user?.id;
-  if (!userId) return false;
-  const { data } = await supabase
+  // RLS on user_roles exposes a non-admin caller only to their own rows, so a
+  // super_admin row is visible only when the caller is a super_admin.
+  const { data, error } = await supabase
     .from("user_roles")
     .select("role")
-    .eq("user_id", userId)
     .eq("role", "super_admin")
-    .maybeSingle();
-  return Boolean(data);
+    .limit(1);
+  return !error && (data?.length ?? 0) > 0;
 }
 
 export async function orgEntitlement(
