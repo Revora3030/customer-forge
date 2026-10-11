@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { addPending, clearAllPending, clearPending, readPending, unresolvedPending, PENDING_MAX_AGE_MS } from "./pending-requests";
 
 function memoryStore() {
@@ -12,6 +12,9 @@ function memoryStore() {
 
 const now = Date.parse("2026-10-07T12:00:00.000Z");
 const at = (offsetMs: number) => new Date(now + offsetMs).toISOString();
+
+beforeEach(() => { vi.useFakeTimers(); vi.setSystemTime(now); });
+afterEach(() => { vi.useRealTimers(); });
 
 describe("pending builder requests", () => {
   it("keeps a sent request until it reaches an end state", () => {
@@ -54,12 +57,39 @@ describe("pending builder requests", () => {
     expect(readPending("org", store, now)[0]).toMatchObject({ id: "t1", hadAttachments: true });
   });
 
-  it("drops a request that already finished and was saved to the conversation", () => {
+  it("does not mistake a saved user turn for a completed request", () => {
     const pending = [
-      { id: "t1", instruction: "Finish my site", sentAt: "2026-10-07T11:00:00.000Z" },
-      { id: "t2", instruction: "Add a FAQ", sentAt: "2026-10-07T11:05:00.000Z" },
+      { id: "t1", instruction: "Finish my site", sentAt: at(-2000) },
+      { id: "t2", instruction: "Add a FAQ", sentAt: at(-1000) },
     ];
-    const saved = [{ content: "Finish my site", at: "2026-10-07T11:00:02.000Z" }];
-    expect(unresolvedPending(pending, saved).map((r) => r.id)).toEqual(["t2"]);
+    const saved = [{ content: "Finish my site", at: at(-1500) }];
+    expect(unresolvedPending(pending, saved).map((r) => r.id)).toEqual(["t1", "t2"]);
+  });
+
+  it("preserves repeated instructions as distinct requests", () => {
+    const pending = [
+      { id: "t1", instruction: "Improve my hero", sentAt: at(-2000) },
+      { id: "t2", instruction: "Improve my hero", sentAt: at(-1000) },
+    ];
+    const saved = [{ content: "Improve my hero", at: at(-500) }];
+    expect(unresolvedPending(pending, saved)).toEqual(pending);
+  });
+
+  it("preserves attachment recovery flags and returns a separate list", () => {
+    const pending = [{ id: "t1", instruction: "Use my photo", hadAttachments: true, sentAt: at(-1000) }];
+    const restored = unresolvedPending(pending, [{ content: "Use my photo", at: at(0) }]);
+    expect(restored).toEqual(pending);
+    expect(restored).not.toBe(pending);
+    restored.pop();
+    expect(pending).toHaveLength(1);
+  });
+
+  it("still clears an explicitly finished request after its user turn was saved", () => {
+    const store = memoryStore();
+    addPending("org", { id: "t1", instruction: "Finish my site", sentAt: at(-1000) }, store);
+    const saved = [{ content: "Finish my site", at: at(-500) }];
+    expect(unresolvedPending(readPending("org", store, now), saved)).toHaveLength(1);
+    clearPending("org", "t1", store);
+    expect(unresolvedPending(readPending("org", store, now), saved)).toEqual([]);
   });
 });

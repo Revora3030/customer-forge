@@ -100,18 +100,16 @@ export function clearAllPending(organizationId: string, store: Store | null = de
 }
 
 /**
- * Pending requests that still need to be shown/worked after the saved
- * conversation was loaded. A request whose words already appear as a saved
- * user turn sent after it was queued finished elsewhere, so it is dropped.
+ * A saved user turn proves receipt, not completion: the hook saves it before
+ * approved changes finish applying. Retain the original pending id until the
+ * queue explicitly clears it on a terminal state, approval handoff or dismissal.
+ * The second argument stays compatible with existing callers; user text and
+ * timestamps are deliberately never used as evidence that work finished.
+ * This does not make browser-managed execution durable or verify an outcome.
  */
 export function unresolvedPending(
   pending: PendingRequest[],
-  savedUserTurns: { content: string; at: string }[],
+  _savedUserTurns: { content: string; at: string }[],
 ): PendingRequest[] {
-  return pending.filter(
-    (request) =>
-      !savedUserTurns.some(
-        (turn) => turn.content.trim() === request.instruction.trim() && turn.at >= request.sentAt.slice(0, 19),
-      ),
-  );
+  return [...pending];
 }
