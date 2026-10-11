@@ -34,11 +34,23 @@ async function admin() {
   return supabaseAdmin;
 }
 
+/** Database messages can contain row details; log only the table and SQLSTATE. */
+function reportTelemetryWriteFailure(
+  table: "ai_usage_events" | "ai_team_trace",
+  error: unknown,
+) {
+  const rawCode = (error as { code?: unknown } | null)?.code;
+  const code = typeof rawCode === "string" && /^[0-9A-Z]{5}$/.test(rawCode)
+    ? rawCode
+    : "unknown";
+  console.error("[revora-ai] telemetry write failed", { table, code });
+}
+
 /** Records one call. Telemetry failure never breaks the AI request itself. */
 export async function recordAiEvent(event: AiEvent) {
   try {
     const client = await admin();
-    await client.from("ai_usage_events").insert({
+    const { error } = await client.from("ai_usage_events").insert({
       request_id: event.requestId ?? crypto.randomUUID(),
       provider: event.provider,
       model: event.model,
@@ -58,8 +70,9 @@ export async function recordAiEvent(event: AiEvent) {
       fallback_used: event.fallbackUsed,
       tool_calls: event.toolCalls,
     });
+    if (error) reportTelemetryWriteFailure("ai_usage_events", error);
   } catch (error) {
-    console.error("[revora-ai] telemetry write failed", (error as Error).message);
+    reportTelemetryWriteFailure("ai_usage_events", error);
   }
 }
 
@@ -81,7 +94,7 @@ export async function recordTeamStep(step: TeamStep) {
   try {
     const client = await admin();
     const [provider, model] = step.model?.includes(" · ") ? step.model.split(" · ") : [step.lane === "paid" ? "openai" : null, step.model];
-    await client.from("ai_team_trace").insert({
+    const { error } = await client.from("ai_team_trace").insert({
       organization_id: step.organizationId,
       stage: step.stage.slice(0, 60),
       purpose: step.purpose.slice(0, 60),
@@ -94,8 +107,9 @@ export async function recordTeamStep(step: TeamStep) {
       contribution: step.contribution?.slice(0, 200) ?? null,
       cost_microcents: Math.max(0, Math.round(step.costMicrocents)),
     });
+    if (error) reportTelemetryWriteFailure("ai_team_trace", error);
   } catch (error) {
-    console.error("[revora-ai] team trace write failed", (error as Error).message);
+    reportTelemetryWriteFailure("ai_team_trace", error);
   }
 }
 
