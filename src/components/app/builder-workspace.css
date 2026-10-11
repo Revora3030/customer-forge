@@ -23,3 +23,8 @@
   [data-revora-builder-workspace] .is-thinking { animation: none !important; }
   [data-revora-builder-workspace] [data-testid="builder-preview"] * { transition-duration: 0ms !important; }
 }
+
+/* A verified account notice replaces the misleading ready line in non-ready states. */
+[data-revora-builder-workspace]:not([data-builder-access-state="ready"]) #website-assistant > header [aria-live="polite"] {
+  display: none;
+}

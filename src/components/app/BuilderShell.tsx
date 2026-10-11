@@ -4,6 +4,8 @@ import { useBuilderHistory } from "@/lib/builder-history.hooks";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import "./builder-workspace.css";
+import { BuilderAccessNotice } from "@/components/app/BuilderAccessNotice";
+import type { BuilderAccessUiState } from "@/lib/builder-access-status";
 
 function UndoRedo() {
   const history = useBuilderHistory();
@@ -53,6 +55,7 @@ export function BuilderShell({ projectName, statusLabel, statusTone = "draft", s
   sections, activeKey, onActiveKeyChange }: BuilderShellProps) {
   const [internal, setInternal] = useState(sections[0]?.key ?? "");
   const [navOpen, setNavOpen] = useState(false);
+  const [accessState, setAccessState] = useState<BuilderAccessUiState>("checking");
   const rootRef = useRef<HTMLDivElement>(null);
   const active = activeKey ?? internal;
   const current = useMemo(() => sections.find((section) => section.key === active) ?? sections[0], [sections, active]);
@@ -96,7 +99,7 @@ export function BuilderShell({ projectName, statusLabel, statusTone = "draft", s
 
   return (
     <Sheet open={navOpen} onOpenChange={setNavOpen}>
-      <div ref={rootRef} data-revora-builder-workspace="true" className="-mt-1 min-w-0">
+      <div ref={rootRef} data-revora-builder-workspace="true" data-builder-access-state={accessState} className="-mt-1 min-w-0">
         <div data-testid="builder-topbar" className="sticky top-[calc(3.5rem+env(safe-area-inset-top))] z-20 -mx-4 mb-3 border-b border-border/60 bg-background/95 px-4 py-2 backdrop-blur-xl sm:-mx-6 sm:px-6">
           <div className="flex min-w-0 flex-wrap items-center gap-2">
             {sections.length > 1 ? (
@@ -123,6 +126,7 @@ export function BuilderShell({ projectName, statusLabel, statusTone = "draft", s
           </div>
         </div>
 
+        <BuilderAccessNotice onStateChange={setAccessState} />
         <div className="flex min-w-0 gap-6">
           <nav aria-label="Builder sections" className={cn("hidden w-56 shrink-0", sections.length > 1 && "lg:block")}>
             <div className="sticky top-24 space-y-1">
