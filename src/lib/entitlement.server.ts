@@ -12,6 +12,22 @@ import { resolveAccess, type AccountState } from "@/lib/access-state";
 
 export type Entitlement = { allowed: boolean; reason: string; state: AccountState | "DEMO" };
 
+/**
+ * Platform admins (super_admin in user_roles — a role the database only lets
+ * the owner's admin emails hold) are never paywalled. Checked with the caller's
+ * own verified session, never from request data.
+ */
+async function callerIsSuperAdmin(supabase: SupabaseClient): Promise<boolean> {
+  // RLS on user_roles exposes a non-admin caller only to their own rows, so a
+  // super_admin row is visible only when the caller is a super_admin.
+  const { data, error } = await supabase
+    .from("user_roles")
+    .select("role")
+    .eq("role", "super_admin")
+    .limit(1);
+  return !error && (data?.length ?? 0) > 0;
+}
+
 export async function orgEntitlement(
   supabase: SupabaseClient,
   organizationId: string,
@@ -28,6 +44,8 @@ export async function orgEntitlement(
   if (org.is_demo) return { allowed: true, reason: "demo", state: "DEMO" };
   if (!org.is_suspended && isPlatformOwnerOrg(org.id))
     return { allowed: true, reason: "platform owner", state: "ACTIVE_SUBSCRIPTION" };
+  if (await callerIsSuperAdmin(supabase))
+    return { allowed: true, reason: "platform admin", state: "ACTIVE_SUBSCRIPTION" };
 
   // Builder usage itself is never metered: access is the only gate.
   const access = resolveAccess(org as never);
