@@ -24,7 +24,7 @@ export function BuilderAccessNotice({ onStateChange }: { onStateChange: (state: 
     signedIn: Boolean(userId), hasWorkspace: Boolean(organizationId),
     checking: workspace.isPending || Boolean(userId && organizationId && access.isPending),
     failed: workspace.isError || access.isError,
-    access: access.data,
+    ...(access.data !== undefined ? { access: access.data } : {}),
   });
   useEffect(() => { onStateChange(view.state); }, [onStateChange, view.state]);
   const Icon = view.state === "checking" ? Loader2 : view.state === "ready" ? ShieldCheck : view.state === "error" ? TriangleAlert : LockKeyhole;
