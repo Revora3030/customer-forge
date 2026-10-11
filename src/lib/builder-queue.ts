@@ -1,4 +1,5 @@
 /** Pure request state; no network, timers or publishing side effects. */
+import { builderAccessBlock } from "@/lib/builder-access-error";
 import type { CompositionPreview } from "@/lib/builder/composition-preview";
 import type { AgentAttachment } from "@/lib/site-agent";
 
@@ -55,7 +56,13 @@ export function nextRunnable(tasks: QueueTask[]): QueueTask | null {
   return tasks.find((task) => task.state === "queued") ?? null;
 }
 export function updateTask(tasks: QueueTask[], id: string, patch: Partial<QueueTask>): QueueTask[] {
-  return tasks.map((task) => task.id === id ? { ...task, ...patch } : task);
+  return tasks.map((task) => {
+    if (task.id !== id) return task;
+    const next = { ...task, ...patch };
+    if (next.state === "failed" && next.error && builderAccessBlock(next.error))
+      return { ...next, retryable: false };
+    return next;
+  });
 }
 export function toPlanSteps(steps: { key: string; title: string; where: string; destructive?: boolean; before?: string; after?: string }[]): PlanStep[] {
   return steps.map((step) => ({ key: step.key, title: step.title, where: step.where, destructive: Boolean(step.destructive), included: true,
