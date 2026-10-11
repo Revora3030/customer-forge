@@ -8,6 +8,9 @@ import { supabase } from "@/integrations/supabase/client";
 import type { Json } from "@/integrations/supabase/types";
 import { MAIN_BRANCH, kindForTurn, normaliseBranch, normaliseRequestId, type MessageKind } from "@/lib/builder/chat-thread";
 
+import { normaliseSavedTaskResult } from "@/lib/builder-chat-result";
+import { pairTurns as pairSavedTurns } from "@/lib/builder-message-pairing";
+
 export type SavedTaskResult = {
   state: "complete" | "failed" | "skipped";
   applied?: number;
@@ -15,6 +18,8 @@ export type SavedTaskResult = {
   staleCount?: number;
   snapshotVersion?: number;
   notice?: string;
+  error?: string;
+  retryable?: boolean;
 };
 
 export type SavedTurn = {
@@ -47,34 +52,23 @@ export function toTurns(
     // Same moment: a request always comes before its reply.
     .sort((a, b) => a.created_at.localeCompare(b.created_at) || (a.role === "user" ? -1 : b.role === "user" ? 1 : 0))
     .filter((row) => (row.role === "user" || row.role === "assistant") && row.content.trim())
-    .map((row) => ({
-      role: row.role as SavedTurn["role"],
-      content: row.content,
-      at: row.created_at,
-      ...(isSavedTaskResult(row.plan) ? { taskResult: row.plan } : {}),
-      requestId: row.request_id ?? null,
-      kind: kindForTurn({
+    .map((row) => {
+      const result = normaliseSavedTaskResult(row.plan, row.content);
+      return {
         role: row.role as SavedTurn["role"],
-        kind: row.kind,
-        taskResult: isSavedTaskResult(row.plan) ? row.plan : null,
-      }),
-      branch: row.branch || MAIN_BRANCH,
-    }));
+        content: row.content,
+        at: row.created_at,
+        ...(result ? { taskResult: result } : {}),
+        requestId: normaliseRequestId(row.request_id),
+        kind: kindForTurn({ role: row.role as SavedTurn["role"], kind: row.kind, taskResult: result }),
+        branch: normaliseBranch(row.branch),
+      };
+    });
 }
 
 /** Pairs saved turns back into finished chat entries: each request with its reply. */
 export function pairTurns(turns: SavedTurn[]): Array<{ instruction: string; reply: string; at: string; taskResult?: SavedTaskResult }> {
-  const pairs: Array<{ instruction: string; reply: string; at: string; taskResult?: SavedTaskResult }> = [];
-  for (const turn of turns) {
-    if (turn.role === "user") pairs.push({ instruction: turn.content, reply: "", at: turn.at });
-    else if (pairs.length) {
-      const pair = pairs[pairs.length - 1];
-      if (!pair) continue;
-      pair.reply = pair.reply ? `${pair.reply}\n\n${turn.content}` : turn.content;
-      if (turn.taskResult) pair.taskResult = turn.taskResult;
-    }
-  }
-  return pairs;
+  return pairSavedTurns(turns);
 }
 
 /** Columns every deployed builder_messages table has. */
@@ -246,12 +240,6 @@ export async function saveTurns(organizationId: string, turns: Array<Omit<SavedT
   console.warn("[builder-memory] thread columns missing; saving core chat columns only", error.message);
   const retry = await supabase.from("builder_messages").insert(core as never);
   if (retry.error) throw retry.error;
-}
-
-function isSavedTaskResult(value: unknown): value is SavedTaskResult {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
-  const state = (value as { state?: unknown }).state;
-  return state === "complete" || state === "failed" || state === "skipped";
 }
 
 export async function clearTurns(organizationId: string): Promise<void> {
