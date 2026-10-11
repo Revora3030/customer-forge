@@ -7,9 +7,10 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import type { Json } from "@/integrations/supabase/types";
 import { MAIN_BRANCH, kindForTurn, normaliseBranch, normaliseRequestId, type MessageKind } from "@/lib/builder/chat-thread";
-
-import { normaliseSavedTaskResult } from "@/lib/builder-chat-result";
+import { normaliseSavedTaskResult, isChatAuthorizationError } from "@/lib/builder-chat-result";
 import { pairTurns as pairSavedTurns } from "@/lib/builder-message-pairing";
+import { clearCachedTurns, readCachedTurns, writeCachedTurns } from "@/lib/builder-chat-cache";
+export { clearAllCachedTurns, clearCachedTurns, readCachedTurns, writeCachedTurns } from "@/lib/builder-chat-cache";
 
 export type SavedTaskResult = {
   state: "complete" | "failed" | "skipped";
@@ -76,97 +77,12 @@ const CORE_COLUMNS = "role, content, created_at, plan";
 /** Columns added by migration 20261005140000 (may be missing where it has not been applied). */
 const THREAD_COLUMNS = "request_id, kind, branch";
 
-/**
- * True for PostgREST/Postgres "column does not exist" errors (42703, or the
- * PostgREST schema-cache variant PGRST204). When migration 20261005140000 is
- * missing on an environment, the thread columns are absent; the chat must
- * still load and save instead of vanishing.
- */
+/** Missing thread columns must not prevent core chat from loading and saving. */
 export function isMissingColumnError(error: unknown): boolean {
   if (!error || typeof error !== "object") return false;
   const { code, message } = error as { code?: unknown; message?: unknown };
   if (code === "42703" || code === "PGRST204") return true;
   return typeof message === "string" && /column .* does not exist|could not find the '.*' column/i.test(message);
-}
-
-const CACHE_PREFIX = "rv-builder-turns:";
-const CACHE_LIMIT = 80;
-
-/**
- * Scoped browser cache. Keys are per workspace, the copy is display-only (the
- * database stays authoritative and RLS still decides what is loaded), and it
- * is cleared on "New chat". Never used for authorization.
- */
-function cacheStore(): Storage | null {
-  try {
-    return typeof window === "undefined" ? null : window.localStorage;
-  } catch {
-    return null;
-  }
-}
-
-function cacheKey(organizationId: string) {
-  return `${CACHE_PREFIX}${organizationId}`;
-}
-
-/** Session-scoped copy so moving between preview and builder never shows an empty chat. */
-export function readCachedTurns(organizationId: string): SavedTurn[] {
-  try {
-    if (typeof window === "undefined") return [];
-    // localStorage first: it survives the preview opening in a new tab and a
-    // browser restart. sessionStorage is the older location, still honoured.
-    const raw = cacheStore()?.getItem(cacheKey(organizationId)) ?? window.sessionStorage.getItem(cacheKey(organizationId));
-    if (!raw) return [];
-    const parsed = JSON.parse(raw) as unknown;
-    if (!Array.isArray(parsed)) return [];
-    return parsed.filter(
-      (turn): turn is SavedTurn =>
-        !!turn &&
-        typeof turn === "object" &&
-        ((turn as SavedTurn).role === "user" || (turn as SavedTurn).role === "assistant") &&
-        typeof (turn as SavedTurn).content === "string" &&
-        typeof (turn as SavedTurn).at === "string",
-    );
-  } catch {
-    return [];
-  }
-}
-
-export function writeCachedTurns(organizationId: string, turns: SavedTurn[]): void {
-  try {
-    if (typeof window === "undefined") return;
-    const payload = JSON.stringify(turns.slice(-CACHE_LIMIT));
-    const store = cacheStore();
-    if (store) store.setItem(cacheKey(organizationId), payload);
-    else window.sessionStorage.setItem(cacheKey(organizationId), payload);
-  } catch {
-    /* storage full or blocked: the database copy is still authoritative */
-  }
-}
-
-export function clearCachedTurns(organizationId: string): void {
-  try {
-    if (typeof window === "undefined") return;
-    cacheStore()?.removeItem(cacheKey(organizationId));
-    window.sessionStorage.removeItem(cacheKey(organizationId));
-  } catch {
-    /* ignore */
-  }
-}
-
-/** Drops every workspace's cached chat on this device (called on sign-out). */
-export function clearAllCachedTurns(): void {
-  for (const store of [cacheStore(), typeof window === "undefined" ? null : window.sessionStorage]) {
-    try {
-      if (!store) continue;
-      for (let index = store.length - 1; index >= 0; index -= 1) {
-        const key = store.key(index);
-        if (key?.startsWith(CACHE_PREFIX)) store.removeItem(key);
-      }
-    } catch {
-      /* blocked storage: nothing cached */
-    }
-  }
 }
 
 /** Database turns win; cached turns newer than the newest saved one are kept (unsaved in-flight turns). */
@@ -180,7 +96,6 @@ export function mergeTurns(saved: SavedTurn[], cached: SavedTurn[]): SavedTurn[]
 }
 
 type MessageRow = Parameters<typeof toTurns>[0][number];
-
 async function selectRows(organizationId: string, columns: string) {
   return (supabase as unknown as SupabaseClient)
     .from("builder_messages")
@@ -192,16 +107,17 @@ async function selectRows(organizationId: string, columns: string) {
 
 export async function loadTurns(organizationId: string): Promise<SavedTurn[]> {
   const cached = readCachedTurns(organizationId);
-  // request_id/kind/branch were added by migration 20261005140000; read them
-  // through an untyped client until the generated types are refreshed, and
-  // fall back to the core columns where that migration is not applied yet.
   let result = await selectRows(organizationId, `${CORE_COLUMNS}, ${THREAD_COLUMNS}`);
   if (result.error && isMissingColumnError(result.error)) {
     console.warn("[builder-memory] thread columns missing; loading core chat columns only", result.error.message);
     result = await selectRows(organizationId, CORE_COLUMNS);
   }
   if (result.error) {
-    // Network blip or permission error: show what this session already has.
+    if (isChatAuthorizationError(result.error, result.status)) {
+      clearCachedTurns(organizationId);
+      throw result.error;
+    }
+    // A network failure may retain display-only cache, but never an authorization rejection.
     if (cached.length) return cached;
     throw result.error;
   }
@@ -213,26 +129,17 @@ export async function loadTurns(organizationId: string): Promise<SavedTurn[]> {
 
 export async function saveTurns(organizationId: string, turns: Array<Omit<SavedTurn, "at">>): Promise<void> {
   if (!turns.length) return;
-  // Turns saved together get distinct times so they always read back in order.
   const base = Date.now();
   const stamped = turns.map((turn, index) => ({ ...turn, at: new Date(base + index).toISOString() }));
-  // Cache first: navigation straight after sending must never lose the turn.
   writeCachedTurns(organizationId, [...readCachedTurns(organizationId), ...stamped]);
   const { data: auth } = await supabase.auth.getUser();
   if (!auth.user) return;
   const core = stamped.map((turn) => ({
-    created_at: turn.at,
-    organization_id: organizationId,
-    user_id: auth.user!.id,
-    role: turn.role,
-    content: turn.content.slice(0, 20000),
-    plan: (turn.taskResult ?? null) as Json,
+    created_at: turn.at, organization_id: organizationId, user_id: auth.user!.id,
+    role: turn.role, content: turn.content.slice(0, 20000), plan: (turn.taskResult ?? null) as Json,
   }));
   const full = stamped.map((turn, index) => ({
-    ...core[index]!,
-    request_id: normaliseRequestId(turn.requestId),
-    kind: kindForTurn(turn),
-    branch: normaliseBranch(turn.branch ?? MAIN_BRANCH),
+    ...core[index]!, request_id: normaliseRequestId(turn.requestId), kind: kindForTurn(turn), branch: normaliseBranch(turn.branch ?? MAIN_BRANCH),
   }));
   const { error } = await supabase.from("builder_messages").insert(full as never);
   if (!error) return;
