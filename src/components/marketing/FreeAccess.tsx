@@ -86,15 +86,15 @@ const FREE_STEPS = [
   },
   {
     title: "Tell us about your business",
-    body: "One short guided form. Your answers auto-fill your site, CRM, quotes and booking.",
+    body: "One short guided form. Your answers help configure your website and customer workflow.",
   },
   {
-    title: "Explore every feature free",
-    body: `Full access for ${GROWTH_SYSTEM.fullAccessWindow} — website builder, leads, quotes, bookings, automations and analytics.`,
+    title: "Explore your workspace free",
+    body: `Explore the builder and customer-management tools for ${GROWTH_SYSTEM.fullAccessWindow}. Live integrations depend on configuration and provider availability.`,
   },
   {
-    title: "Launch when you're ready",
-    body: `${usd(GROWTH_SYSTEM.setupPrice)} setup starts your build. First month of the ${usd(GROWTH_SYSTEM.monthlyPrice)}/month fee is free.`,
+    title: "Choose your paid setup",
+    body: `${usd(GROWTH_SYSTEM.setupPrice)} one-time setup starts your build. Your first platform month is free, then ${usd(GROWTH_SYSTEM.monthlyPrice)}/month. Exploring free access does not itself publish a finished website.`,
   },
 ];
 
@@ -108,13 +108,14 @@ export function FreeAccessSection() {
           FREE ACCESS
         </Pill>
         <h2 className="mt-4 font-display text-[clamp(1.4rem,3vw,2rem)] leading-tight font-semibold">
-          Try Revora free for{" "}
-          <span className="gold-text">{GROWTH_SYSTEM.fullAccessWindow}</span> — full access,
-          nothing locked.
+          Explore Revora free for{" "}
+          <span className="gold-text">{GROWTH_SYSTEM.fullAccessWindow}</span> — decide before you pay.
         </h2>
         <p className="mt-3 max-w-2xl text-[14px] leading-relaxed text-muted-foreground">
-          Get inside the real system, not a slideshow. Build your website, capture a test lead, send
-          a quote, take a booking and watch the automations fire — before you pay anything.
+          Create your account, add your business details and explore the workspace before choosing
+          paid setup. Free exploration, website implementation and a live launch are separate steps.
+          Connected services require configuration; exploring the workspace is not proof that live
+          messages, bookings or payments have been verified.
         </p>
         <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center">
           <FreeAccessButton />
