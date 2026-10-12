@@ -1,0 +1,57 @@
+name: End-to-end upgrade baseline
+
+on:
+  push:
+    branches: [lovable-sync]
+  pull_request:
+    branches: [lovable-sync]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: end-to-end-upgrade-baseline-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  baseline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact revision
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Record inspected revision
+        run: git rev-parse HEAD | tee /tmp/revora-upgrade-revision.txt
+
+      - name: Scan entire repository
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/whole-repo-upgrade-audit.mjs | tee /tmp/revora-upgrade-repository-report.json
+
+      - name: Run repository security audit
+        if: ${{ !cancelled() }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/security-audit.mjs 2>&1 | tee /tmp/revora-upgrade-security-report.txt
+
+      - name: Preserve baseline evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: end-to-end-upgrade-baseline-${{ github.run_id }}
+          path: |
+            /tmp/revora-upgrade-revision.txt
+            /tmp/revora-upgrade-repository-report.json
+            /tmp/revora-upgrade-security-report.txt
+          if-no-files-found: warn
+          retention-days: 7
