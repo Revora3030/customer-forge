@@ -55,13 +55,18 @@ export async function publicOrganization(by: { slug: string } | { id: string }):
   const { data } = await query.maybeSingle();
   if (!data) return null;
   const { liveSiteAllowed } = await import("@/lib/live-site-access");
+  let accessAllowed = liveSiteAllowed(data as never);
+  if (!accessAllowed) {
+    const { orgHasPlatformAdmin } = await import("@/lib/live-site-access.server");
+    accessAllowed = await orgHasPlatformAdmin(data.id);
+  }
   return {
     id: data.id,
     name: data.name,
     slug: data.slug,
     industry: data.industry,
     is_demo: data.is_demo,
-    access_allowed: liveSiteAllowed(data as never),
+    access_allowed: accessAllowed,
   };
 }
 
