@@ -14,19 +14,19 @@ for (const tag of ["script", "style"] as const) {
     it.each([">", " >", "\t>", "\n>", ' data-test="x">'])(
       "excludes raw text with closing suffix %j",
       (ending) => {
-        expect(placeholderCheck(`<${tag}>TODO hidden</${tag}${ending}`)).toMatchObject({
+        expect(placeholderCheck(`<${tag}>lorem ipsum hidden</${tag}${ending}`)).toMatchObject({
           ok: true,
         });
       },
     );
 
     it("does not hide visible content inside similarly named custom elements", () => {
-      const markup = `<${tag}-widget>TODO visible</${tag}-widget><${tag}>hidden</${tag}>`;
+      const markup = `<${tag}-widget>lorem ipsum visible</${tag}-widget><${tag}>hidden</${tag}>`;
       expect(placeholderCheck(markup)).toMatchObject({ ok: false });
     });
 
     it("does not treat a similarly named closing tag as the raw-text end", () => {
-      const markup = `<${tag}>hidden</${tag}-widget>TODO hidden</${tag}>`;
+      const markup = `<${tag}>hidden</${tag}-widget>lorem ipsum hidden</${tag}>`;
       expect(placeholderCheck(markup)).toMatchObject({ ok: true });
     });
   });
