@@ -41,15 +41,28 @@ export async function publicOrganization(by: { slug: string } | { id: string }):
   slug: string;
   industry: string | null;
   is_demo: boolean;
+  /** Free window open or setup paid. Live sites go offline when false. */
+  access_allowed: boolean;
 } | null> {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   let query = supabaseAdmin
     .from("organizations")
-    .select("id, name, slug, industry, is_demo")
+    .select(
+      "id, name, slug, industry, is_demo, is_suspended, subscription_status, trial_ends_at, created_at, setup_paid_at, setup_payment_status",
+    )
     .eq("is_suspended", false);
   query = "slug" in by ? query.eq("slug", by.slug) : query.eq("id", by.id);
   const { data } = await query.maybeSingle();
-  return data ?? null;
+  if (!data) return null;
+  const { liveSiteAllowed } = await import("@/lib/live-site-access");
+  return {
+    id: data.id,
+    name: data.name,
+    slug: data.slug,
+    industry: data.industry,
+    is_demo: data.is_demo,
+    access_allowed: liveSiteAllowed(data as never),
+  };
 }
 
 export type SiteSectionSettings = ({
@@ -186,6 +199,9 @@ export async function loadSite(
   // or shares a signed preview link (/p/<token>).
   if (!allowUnpublished) {
     if (!gate || gate.publish_state !== "published") return null;
+    // Trial ended without setup payment: the live site goes offline
+    // automatically, and comes back the moment the setup fee clears.
+    if (!org.access_allowed) return null;
   }
   // Visitors see the last published version, never in-progress edits.
   const live = allowUnpublished ? null : await loadLiveSnapshot(orgId);
