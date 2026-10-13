@@ -47,10 +47,11 @@ export type VerificationReport = {
 
 const PLACEHOLDER = /(lorem ipsum|\bTODO\b|\bFIXME\b|\{\{\s*\w+\s*\}\}|\[insert\b|\bundefined\b)/i;
 
+// Plain-text inspection only: this is not an HTML sanitizer for rendering.
 const stripped = (html: string) =>
   html
-    .replace(/<script[\s\S]*?<\/script>/gi, " ")
-    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<script(?=[\s/>])[^>]*>[\s\S]*?<\/script(?=[\s/>])[^>]*>/gi, " ")
+    .replace(/<style(?=[\s/>])[^>]*>[\s\S]*?<\/style(?=[\s/>])[^>]*>/gi, " ")
     .replace(/<[^>]+>/g, " ")
     .replace(/&nbsp;/gi, " ")
     .replace(/\s+/g, " ")
