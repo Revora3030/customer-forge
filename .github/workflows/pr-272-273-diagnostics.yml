@@ -1,0 +1,146 @@
+name: PR 272 and 273 repair diagnostics
+
+on:
+  push:
+    branches: [fix/pr-272-273-reconciliation-20261013]
+    paths: [.github/workflows/pr-272-273-diagnostics.yml]
+  pull_request:
+    branches: [main, lovable-sync]
+    paths: [.github/workflows/pr-272-273-diagnostics.yml]
+
+permissions:
+  contents: read
+  actions: read
+  checks: read
+  pull-requests: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    outputs:
+      findings: ${{ steps.inspect.outputs.findings }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/pr-272-273-reconciliation-20261013
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Rehearse merge and retrieve failed-check diagnostics
+        id: inspect
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPORT_DIR: ${{ runner.temp }}/pr-272-273-diagnostics
+        shell: python
+        run: |
+          import json, os, pathlib, re, subprocess
+          root = pathlib.Path(os.environ['REPORT_DIR'])
+          root.mkdir(parents=True, exist_ok=True)
+          findings = []
+          token = os.environ.get('GH_TOKEN', '')
+          def clean(text):
+              if token:
+                  text = text.replace(token, '[REDACTED]')
+              text = re.sub(r'\x1b\[[0-9;]*[A-Za-z]', '', text)
+              text = re.sub(r'(?i)Bearer\s+\S+', 'Bearer [REDACTED]', text)
+              text = re.sub(r'\b(?:github_pat_|gh[pousr]_|sk-)[A-Za-z0-9_-]+', '[REDACTED]', text)
+              text = re.sub(r'(?im)^.*(?:API_KEY|API_TOKEN|SERVICE_ROLE_KEY|WEBHOOK_SECRET)\s*[:=].*$', '[credential assignment redacted]', text)
+              return text
+          def save(name, text):
+              (root / name).write_text(clean(text), encoding='utf-8')
+          def note(text):
+              findings.append({'name': clean('Diagnostic: ' + text).replace('\n', ' ')[:180]})
+          def run(args):
+              return subprocess.run(args, capture_output=True, text=True, timeout=90)
+          def api(path):
+              result = run(['gh', 'api', path])
+              if result.returncode:
+                  raise RuntimeError(clean(result.stderr)[:300])
+              return result.stdout
+          for key, ref in [('repair', 'HEAD'), ('main', 'origin/main'), ('lovable-sync', 'origin/lovable-sync')]:
+              result = run(['git', 'rev-parse', ref])
+              save(key + '-sha.txt', result.stdout + result.stderr)
+          base = run(['git', 'merge-base', 'HEAD', 'origin/main'])
+          save('merge-base.txt', base.stdout + base.stderr)
+          note('merge base ' + (base.stdout.strip() or 'not found'))
+          run(['git', 'config', 'user.name', 'PR repair diagnostics'])
+          run(['git', 'config', 'user.email', 'diagnostics@users.noreply.github.com'])
+          try:
+              merged = run(['git', 'merge', '--no-commit', '--no-ff', 'origin/main'])
+              save('merge-rehearsal.txt', merged.stdout + merged.stderr)
+              conflicts = run(['git', 'diff', '--name-only', '--diff-filter=U']).stdout.splitlines()
+              save('conflicting-files.txt', '\n'.join(conflicts))
+              save('conflict-diff.txt', run(['git', 'diff', '--cc']).stdout)
+              if conflicts:
+                  for path in conflicts:
+                      note('merge conflict: ' + path)
+              else:
+                  note('merge rehearsal exit ' + str(merged.returncode) + '; no unmerged files')
+          finally:
+              if run(['git', 'rev-parse', '--verify', 'MERGE_HEAD']).returncode == 0:
+                  run(['git', 'merge', '--abort'])
+          repo = 'repos/Revora3030/customer-forge'
+          for number in [272, 273]:
+              try:
+                  pr = json.loads(api(repo + '/pulls/' + str(number)))
+                  save('pr-' + str(number) + '.json', json.dumps(pr, indent=2))
+                  sha = pr['head']['sha']
+                  checks = json.loads(api(repo + '/commits/' + sha + '/check-runs?per_page=100'))
+                  save('checks-' + str(number) + '.json', json.dumps(checks, indent=2))
+                  failed = [c for c in checks.get('check_runs', []) if c.get('conclusion') == 'failure']
+                  note('PR ' + str(number) + ': ' + str(len(failed)) + ' failed checks on ' + sha[:12])
+                  for check in failed[:20]:
+                      note('PR ' + str(number) + ' failed: ' + check['name'])
+                      cid = str(check['id'])
+                      try:
+                          annotations = api(repo + '/check-runs/' + cid + '/annotations?per_page=100')
+                          save('annotations-' + cid + '.json', annotations)
+                          for item in json.loads(annotations)[:2]:
+                              note(str(number) + ' ' + str(item.get('path', '')) + ': ' + str(item.get('message', ''))[:120])
+                      except Exception as error:
+                          save('annotations-' + cid + '-error.txt', str(error))
+                      match = re.search(r'/job/(\d+)', check.get('html_url', ''))
+                      if match:
+                          jid = match.group(1)
+                          try:
+                              log = clean(api(repo + '/actions/jobs/' + jid + '/logs'))
+                              save('job-' + jid + '.log', log)
+                              errors = [line for line in log.splitlines() if re.search(r'##\[error\]|\berror\b|FAIL|failed|not found', line, re.I)]
+                              if errors:
+                                  note('PR ' + str(number) + ' ' + check['name'] + ': ' + errors[0][-120:])
+                          except Exception as error:
+                              save('job-' + jid + '-error.txt', str(error))
+                              note('PR ' + str(number) + ' log unavailable: ' + check['name'])
+              except Exception as error:
+                  save('pr-' + str(number) + '-error.txt', str(error))
+                  note('PR ' + str(number) + ': diagnostic retrieval failed; see artifact')
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as summary:
+              summary.write('# Read-only PR repair diagnostics\n\n')
+              summary.write('No application edits, branch merges, provider requests, or deployments were performed by this workflow. Existing failing checks remain unchanged.\n\n')
+              summary.write('\n'.join('- ' + item['name'] for item in findings))
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              output.write('findings=' + json.dumps(findings[:40]) + '\n')
+      - name: Upload private diagnostic report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr-272-273-diagnostics-${{ github.run_id }}
+          path: ${{ runner.temp }}/pr-272-273-diagnostics/
+          retention-days: 7
+          if-no-files-found: warn
+
+  findings:
+    needs: inspect
+    if: needs.inspect.result == 'success'
+    name: ${{ matrix.name }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    strategy:
+      max-parallel: 4
+      matrix:
+        include: ${{ fromJSON(needs.inspect.outputs.findings) }}
+    steps:
+      - name: Surface diagnostic metadata without overriding existing checks
+        env:
+          FINDING: ${{ matrix.name }}
+        run: printf '%s\n' "$FINDING"
