@@ -91,7 +91,8 @@ export const getProductionStatus = createServerFn({ method: "POST" })
       (org.setup_paid_at ? "paid" : "unpaid")) as SetupPaymentStatus;
     const paid = !!org.setup_paid_at || setupPaymentStatus === "paid";
     const { liveSiteAllowed } = await import("@/lib/live-site-access");
-    const unlocked = liveSiteAllowed(org as never);
+    const { callerIsPlatformAdmin } = await import("@/lib/live-site-access.server");
+    const unlocked = liveSiteAllowed(org as never) || (!org.is_suspended && (await callerIsPlatformAdmin(supabase)));
 
     const accountStatus: ProductionStatus["accountStatus"] = org.is_suspended
       ? "suspended"
@@ -177,7 +178,10 @@ async function gatherReadiness(
   const siteChrome = readSiteChrome(settings.data?.generation ?? null);
   const hasChrome = Boolean(siteChrome.header && siteChrome.footer);
   const { liveSiteAllowed } = await import("@/lib/live-site-access");
-  const unlocked = liveSiteAllowed(org.data as never);
+  const { callerIsPlatformAdmin } = await import("@/lib/live-site-access.server");
+  const unlocked =
+    liveSiteAllowed(org.data as never) ||
+    (!org.data?.is_suspended && (await callerIsPlatformAdmin(supabase)));
 
   // Real audit of the rendered website: broken contact details, unfinished copy
   // or unsupported claims stop a publish instead of reaching customers.
