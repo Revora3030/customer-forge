@@ -375,7 +375,7 @@ export const activateProduction = createServerFn({ method: "POST" })
       await audit("PUBLISH_BLOCKED", { reason: "setup_payment_required", role });
       return {
         activated: false,
-        reason: `Complete your one-time ${usd(GROWTH_SYSTEM.setupPrice)} setup to publish your website, connect your domain and go live. Everything you've built stays saved.`,
+        reason: `Your free trial has ended. Complete your one-time ${usd(GROWTH_SYSTEM.setupPrice)} setup and your website goes live again automatically. Everything you've built stays saved.`,
         version: null,
         publishState: "draft",
         readiness,
