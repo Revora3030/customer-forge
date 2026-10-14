@@ -8,7 +8,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { businessFacts } from "./facts";
 import { auditWebsite, type QualityInput, type QualityReport } from "./quality";
-import { gradeSite, gradeVisual, type VisualReport } from "./visual";
+import { gradeSite, gradeVisual, VIEWPORTS, type VisualFinding, type VisualReport } from "./visual";
+import { inspectRenderedEvidence } from "./rendered-evidence.mjs";
 
 type Db = SupabaseClient<never>;
 
@@ -31,9 +32,46 @@ export function freshVisualReport(
   if (latestEdit > measuredAt) return null;
   // Re-grade from the stored raw measurements rather than trusting the stored
   // verdict: the same judgement runs everywhere, always.
-  const measurements = Array.isArray(row["measurements"]) ? row["measurements"] : [];
-  const report = gradeVisual(measurements as never);
-  return report.widths.length ? report : null;
+  const evidence = inspectRenderedEvidence(row["measurements"], VIEWPORTS);
+  if (!evidence.measurements.length) return null;
+  let report: VisualReport;
+  try {
+    report = gradeVisual(evidence.measurements);
+  } catch {
+    return null;
+  }
+  const blockers: VisualFinding[] = [];
+  const add = (key: string, detail: string) => {
+    blockers.push({
+      key,
+      severity: "p0",
+      detail,
+      fix: "Run complete browser measurements for this page at every required width.",
+      width: 0,
+    });
+  };
+  if (evidence.invalidMeasurements) {
+    add("malformed_visual_evidence", "The stored report contains malformed viewport measurements.");
+  }
+  if (evidence.missingWidths.length) {
+    add("page_widths_not_measured", `This page was not checked at ${evidence.missingWidths.join(", ")}px.`);
+  }
+  if (evidence.missingAccessibilityWidths.length) {
+    add("incomplete_accessibility_evidence", "Accessibility evidence is incomplete at one or more required widths.");
+  }
+  if (evidence.missingPerformanceWidths.length) {
+    add("incomplete_performance_evidence", "Performance evidence is incomplete at one or more required widths.");
+  }
+  return {
+    ...report,
+    passed: report.passed && blockers.length === 0,
+    score: blockers.length ? Math.min(report.score, 80) : report.score,
+    findings: [...report.findings, ...blockers],
+    coverage: {
+      accessibility: evidence.missingAccessibilityWidths.length === 0,
+      performance: evidence.missingPerformanceWidths.length === 0,
+    },
+  };
 }
 
 /**
@@ -47,10 +85,11 @@ export function freshSiteVisualReport(
   visiblePages: string[],
   contentUpdatedAt: (string | undefined)[],
 ): VisualReport {
+  const expectedPages = [...new Set(visiblePages.map((page) => page.trim() || "home"))];
   const newest = new Map<string, Record<string, unknown>>();
   for (const row of rows) {
-    const slug = String(row["page_slug"] ?? "").trim();
-    if (!slug) continue;
+    if (typeof row["page_slug"] !== "string") continue;
+    const slug = row["page_slug"].trim() || "home";
     const at = Date.parse(String(row["measured_at"] ?? ""));
     if (!Number.isFinite(at)) continue;
     const current = newest.get(slug);
@@ -59,11 +98,11 @@ export function freshSiteVisualReport(
   }
 
   const reports: { page: string; report: VisualReport }[] = [];
-  for (const page of visiblePages) {
+  for (const page of expectedPages) {
     const report = freshVisualReport(newest.get(page) ?? null, contentUpdatedAt);
     if (report) reports.push({ page, report: { ...report, pages: [page] } });
   }
-  return gradeSite(visiblePages, reports);
+  return gradeSite(expectedPages, reports);
 }
 
 /** Audits one workspace's website. Every count comes from a real table. */
@@ -74,14 +113,14 @@ export async function auditWorkspaceWebsite(db: Db, orgId: string): Promise<Qual
         eq: (
           column: string,
           value: unknown,
-        ) => Promise<{ data: unknown[] | null }> & {
-          eq: (column: string, value: unknown) => Promise<{ data: unknown[] | null }>;
-          maybeSingle: () => Promise<{ data: Record<string, unknown> | null }>;
+        ) => Promise<{ data: unknown[] | null; error?: unknown }> & {
+          eq: (column: string, value: unknown) => Promise<{ data: unknown[] | null; error?: unknown }>;
+          maybeSingle: () => Promise<{ data: Record<string, unknown> | null; error?: unknown }>;
           order: (
             column: string,
             options: { ascending: boolean },
           ) => {
-            limit: (count: number) => Promise<{ data: Record<string, unknown>[] | null }>;
+            limit: (count: number) => Promise<{ data: Record<string, unknown>[] | null; error?: unknown }>;
           };
         };
       };
@@ -112,6 +151,11 @@ export async function auditWorkspaceWebsite(db: Db, orgId: string): Promise<Qual
         .order("measured_at", { ascending: false })
         .limit(200),
     ]);
+
+  if ([profile, org, pages, sections, reviews, media, quoteForms, bookable, visualRows]
+    .some((result) => result.error)) {
+    throw new Error("Website quality could not be verified because a required database read failed. Try again before publishing.");
+  }
 
   const profileRow = (profile.data ?? null) as Record<string, unknown> | null;
   const orgRow = (org.data ?? null) as Record<string, unknown> | null;
@@ -164,7 +208,7 @@ export async function auditWorkspaceWebsite(db: Db, orgId: string): Promise<Qual
     // browser and nothing on the site has changed since those checks ran.
     visual: freshSiteVisualReport(
       (visualRows.data ?? []) as Record<string, unknown>[],
-      pageRows.map((page) => String(page["slug"] ?? "")).filter(Boolean),
+      pageRows.map((page) => String(page["slug"] ?? "")),
       [
         ...pageRows.map((page) => page["updated_at"] as string | undefined),
         ...sectionRows.map((section) => section["updated_at"] as string | undefined),
