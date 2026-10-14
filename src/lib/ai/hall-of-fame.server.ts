@@ -1,111 +1,69 @@
 /**
- * THE HALL OF FAME RUNNER — the platform never stops building.
- *
- * `luna.server.ts` owns the paid lanes (Sol, Terra, Luna) and their monthly
- * spend cap. The moment a paid lane is off, out of budget, rate limited or
- * unreachable, this module takes the SAME piece of thinking to Revora's free
- * model pool and works down an ordered squad of the strongest capable models
- * until one answers usefully.
- *
- * Guarantees kept here:
- *
- *  - Zero cost. Every attempt goes through the router's pinned free-model
- *    entry point, so the free-eligibility gate, the daily allowance, the
- *    circuit breaker and the telemetry all still apply. No paid model and no
- *    unverified model can be reached from here.
- *  - No silent rubbish. An empty answer, or a JSON job answered in the wrong
- *    shape, counts as that model failing; the next model in the squad is tried.
- *  - Honest failure. When the whole squad cannot answer, the caller is told so
- *    and reports it to the owner. Nothing generic or templated is substituted.
- *
- * Server-only.
+ * Task-shaped Hall of Fame execution. Strict free-only mode skips the paid
+ * collective entirely. Provider discovery, transport policy and account-level
+ * free eligibility remain separate integration and verification requirements.
  */
-
-import type { CollectivePurpose, CollectiveTier, TaskComplexity } from "@/lib/ai/collective";
-import {
-  DEFAULT_SQUAD_SIZE,
-  capabilityForPurpose,
-  rankHallOfFame,
-  roleForPurpose,
-  type HallOfFameCandidate,
-} from "@/lib/ai/hall-of-fame";
+import { selectTier, type CollectivePurpose, type CollectiveTier, type TaskComplexity } from "@/lib/ai/collective";
+import { DEFAULT_SQUAD_SIZE, capabilityForPurpose, rankHallOfFame, roleForPurpose, type HallOfFameCandidate } from "@/lib/ai/hall-of-fame";
 import { freeModelForm, recordFreeModelOutcome } from "@/lib/ai/free-reputation";
 import { callCollective, type LunaSkipReason } from "@/lib/ai/luna.server";
+import { freeAiOnly } from "@/lib/ai/free-only-policy.server";
 
 export type HallOfFameAttempt = {
   provider: string;
   model: string;
   ok: boolean;
-  /** Short, safe reason. Never a prompt, never customer content. */
   detail: string | null;
   latencyMs: number;
 };
-
 export type HallOfFameRun = {
   at: number;
   purpose: CollectivePurpose;
   capability: string;
   squadSize: number;
   attempts: HallOfFameAttempt[];
-  /** The model that carried the job, or null when the squad could not. */
   answeredBy: string | null;
-  /** Why the paid lane handed over, when it was tried at all. */
   paidReason: string | null;
 };
-
 const RUNS: HallOfFameRun[] = [];
 const MAX_RUNS = 40;
-
 function recordRun(run: HallOfFameRun) {
   RUNS.unshift(run);
   if (RUNS.length > MAX_RUNS) RUNS.length = MAX_RUNS;
 }
-
-/** Recent stand-in work, for the admin surface. Contains no customer content. */
 export function recentHallOfFameRuns(limit = 20): HallOfFameRun[] {
   return RUNS.slice(0, Math.max(limit, 0));
 }
-
 export function resetHallOfFameRuns() {
   RUNS.length = 0;
 }
-
 export type HallOfFameOutcome =
-  | {
-      ok: true;
-      text: string;
-      provider: string;
-      model: string;
-      attempts: HallOfFameAttempt[];
-    }
-  | {
-      ok: false;
-      reason: "no_free_model" | "squad_exhausted";
-      detail: string | null;
-      attempts: HallOfFameAttempt[];
-    };
+  | { ok: true; text: string; provider: string; model: string; attempts: HallOfFameAttempt[] }
+  | { ok: false; reason: "no_free_model" | "squad_exhausted"; detail: string | null; attempts: HallOfFameAttempt[] };
 
-/** Builds the live squad for one purpose from the free-model registry. */
 export async function hallOfFameSquad(
   purpose: CollectivePurpose,
   squadSize = DEFAULT_SQUAD_SIZE,
 ): Promise<{ role: string; capability: string; squad: HallOfFameCandidate[] }> {
   const role = roleForPurpose(purpose);
   const capability = capabilityForPurpose(purpose);
+  const strictFreeOnly = freeAiOnly();
   let candidates: HallOfFameCandidate[] = [];
   try {
     const { buildFreeModelRegistry } = await import("@/lib/ai/registry.server");
     const registry = await buildFreeModelRegistry(role);
-    candidates = registry.map((entry) => ({
-      provider: entry.provider,
-      model: entry.model,
-      capabilities: entry.capabilities,
-      weight: entry.weight,
-      healthy: entry.health.healthy,
-      remainingToday: entry.quota.remainingToday,
-    }));
+    candidates = registry
+      .filter((entry) => !strictFreeOnly || (entry.provider !== "openai" && entry.provider !== "google"))
+      .map((entry) => ({
+        provider: entry.provider,
+        model: entry.model,
+        capabilities: entry.capabilities,
+        weight: entry.weight,
+        healthy: entry.health.healthy,
+        remainingToday: entry.quota.remainingToday,
+      }));
   } catch {
-    // A provider catalogue being unreachable means a shorter squad, not a crash.
+    // Catalogue failure is reported as an unavailable squad, never a template.
   }
   return {
     role,
@@ -114,12 +72,10 @@ export async function hallOfFameSquad(
       purpose,
       candidates,
       squadSize,
-      // Live proven form: models genuinely delivering today lead the squad.
       form: (candidate) => freeModelForm(candidate.provider, candidate.model).score,
     }),
   };
 }
-
 export type HallOfFameRequest = {
   purpose: CollectivePurpose;
   system: string;
@@ -129,16 +85,9 @@ export type HallOfFameRequest = {
   organizationId?: string | null;
   userId?: string | null;
   squadSize?: number;
-  /** Recorded on the run so the admin can see why the paid lane handed over. */
   paidReason?: string | null;
-  /** Live progress: fired just before each free model is tried. */
   onAttempt?: (provider: string, model: string) => void;
 };
-
-/**
- * Takes one piece of thinking to the free pool, strongest capable model first.
- * Never throws: an exhausted squad is reported, not raised.
- */
 export async function callHallOfFame(request: HallOfFameRequest): Promise<HallOfFameOutcome> {
   const { callPinnedFreeModel } = await import("@/lib/ai/router.server");
   const { role, capability, squad } = await hallOfFameSquad(
@@ -146,17 +95,17 @@ export async function callHallOfFame(request: HallOfFameRequest): Promise<HallOf
     request.squadSize ?? DEFAULT_SQUAD_SIZE,
   );
   const attempts: HallOfFameAttempt[] = [];
-
+  const finish = (answeredBy: string | null) => recordRun({
+    at: Date.now(),
+    purpose: request.purpose,
+    capability,
+    squadSize: squad.length,
+    attempts,
+    answeredBy,
+    paidReason: request.paidReason ?? null,
+  });
   if (!squad.length) {
-    recordRun({
-      at: Date.now(),
-      purpose: request.purpose,
-      capability,
-      squadSize: 0,
-      attempts,
-      answeredBy: null,
-      paidReason: request.paidReason ?? null,
-    });
+    finish(null);
     return {
       ok: false,
       reason: "no_free_model",
@@ -164,7 +113,6 @@ export async function callHallOfFame(request: HallOfFameRequest): Promise<HallOf
       attempts,
     };
   }
-
   for (const member of squad) {
     const started = Date.now();
     try {
@@ -184,9 +132,7 @@ export async function callHallOfFame(request: HallOfFameRequest): Promise<HallOf
             { role: "user", content: request.user },
           ],
           ...(request.json === true ? { json: true } : {}),
-          ...(request.maxOutputTokens === undefined
-            ? {}
-            : { maxOutputTokens: request.maxOutputTokens }),
+          ...(request.maxOutputTokens === undefined ? {} : { maxOutputTokens: request.maxOutputTokens }),
         },
       );
       const text = result.text.trim();
@@ -205,43 +151,22 @@ export async function callHallOfFame(request: HallOfFameRequest): Promise<HallOf
         latencyMs: result.latencyMs,
       });
       if (usable) {
-        recordRun({
-          at: Date.now(),
-          purpose: request.purpose,
-          capability,
-          squadSize: squad.length,
-          attempts,
-          answeredBy: `${member.provider} · ${member.model}`,
-          paidReason: request.paidReason ?? null,
-        });
+        finish(`${member.provider} · ${member.model}`);
         return { ok: true, text, provider: member.provider, model: member.model, attempts };
       }
     } catch (error) {
-      recordFreeModelOutcome({
-        provider: member.provider,
-        model: member.model,
-        ok: false,
-        latencyMs: Date.now() - started,
-      });
+      const latencyMs = Date.now() - started;
+      recordFreeModelOutcome({ provider: member.provider, model: member.model, ok: false, latencyMs });
       attempts.push({
         provider: member.provider,
         model: member.model,
         ok: false,
         detail: error instanceof Error ? error.message.slice(0, 160) : "call failed",
-        latencyMs: Date.now() - started,
+        latencyMs,
       });
     }
   }
-
-  recordRun({
-    at: Date.now(),
-    purpose: request.purpose,
-    capability,
-    squadSize: squad.length,
-    attempts,
-    answeredBy: null,
-    paidReason: request.paidReason ?? null,
-  });
+  finish(null);
   return {
     ok: false,
     reason: "squad_exhausted",
@@ -249,9 +174,6 @@ export async function callHallOfFame(request: HallOfFameRequest): Promise<HallOf
     attempts,
   };
 }
-
-/* --------------------------- the single front door -------------------------- */
-
 export type ThinkerOutcome =
   | {
       ok: true;
@@ -262,9 +184,7 @@ export type ThinkerOutcome =
       text: string;
       model: string;
       costMicrocents: number;
-      /** Free stand-ins tried, in order. Empty when the paid lane answered. */
       attempts: HallOfFameAttempt[];
-      /** Why the paid lane handed over, when it did. */
       handoverReason: string | null;
     }
   | {
@@ -277,16 +197,6 @@ export type ThinkerOutcome =
       attempts: HallOfFameAttempt[];
       handoverReason: string | null;
     };
-
-/**
- * THE call every builder step makes for real thinking.
- *
- * Paid first when it is genuinely available, because Sol and Terra are the
- * quality ceiling. The instant the paid lane cannot serve — switched off, out
- * of monthly budget, rate limited, unreachable or answering unusably — the same
- * job goes to the Hall of Fame free squad. Only when both are exhausted does
- * this report failure, and the caller then tells the owner plainly.
- */
 async function callBestThinkerInner(request: {
   purpose: CollectivePurpose;
   system: string;
@@ -299,36 +209,38 @@ async function callBestThinkerInner(request: {
   signal?: AbortSignal;
   onAttempt?: (provider: string, model: string) => void;
 }): Promise<ThinkerOutcome> {
-  const paid = await callCollective({
-    purpose: request.purpose,
-    system: request.system,
-    user: request.user,
-    ...(request.complexity ? { complexity: request.complexity } : {}),
-    ...(request.organizationId === undefined ? {} : { organizationId: request.organizationId }),
-    ...(request.maxOutputTokens === undefined ? {} : { maxOutputTokens: request.maxOutputTokens }),
-    ...(request.signal ? { signal: request.signal } : {}),
-  });
-
+  const strictFreeOnly = freeAiOnly();
+  const paid = strictFreeOnly
+    ? {
+        ok: false as const,
+        tier: null,
+        wanted: selectTier({
+          purpose: request.purpose,
+          ...(request.complexity ? { complexity: request.complexity } : {}),
+          available: [],
+        }).wanted,
+        reason: "free_only",
+        detail: "Paid collective skipped by free-only policy.",
+      }
+    : await callCollective({
+        purpose: request.purpose,
+        system: request.system,
+        user: request.user,
+        ...(request.complexity ? { complexity: request.complexity } : {}),
+        ...(request.organizationId === undefined ? {} : { organizationId: request.organizationId }),
+        ...(request.maxOutputTokens === undefined ? {} : { maxOutputTokens: request.maxOutputTokens }),
+        ...(request.signal ? { signal: request.signal } : {}),
+      });
   if (paid.ok) {
     return {
-      ok: true,
-      lane: "paid",
-      tier: paid.tier,
-      wanted: paid.wanted,
-      downgraded: paid.downgraded,
-      text: paid.text,
-      model: paid.model,
-      costMicrocents: paid.costMicrocents,
-      attempts: [],
-      handoverReason: null,
+      ok: true, lane: "paid", tier: paid.tier, wanted: paid.wanted,
+      downgraded: paid.downgraded, text: paid.text, model: paid.model,
+      costMicrocents: paid.costMicrocents, attempts: [], handoverReason: null,
     };
   }
-
   const handoverReason = paid.detail ? `${paid.reason}: ${paid.detail}` : paid.reason;
   const free = await callHallOfFame({
-    purpose: request.purpose,
-    system: request.system,
-    user: request.user,
+    purpose: request.purpose, system: request.system, user: request.user,
     ...(request.json === undefined ? {} : { json: request.json }),
     ...(request.maxOutputTokens === undefined ? {} : { maxOutputTokens: request.maxOutputTokens }),
     ...(request.organizationId === undefined ? {} : { organizationId: request.organizationId }),
@@ -336,39 +248,18 @@ async function callBestThinkerInner(request: {
     ...(request.onAttempt === undefined ? {} : { onAttempt: request.onAttempt }),
     paidReason: handoverReason,
   });
-
   if (free.ok) {
     return {
-      ok: true,
-      lane: "free",
-      tier: null,
-      wanted: paid.wanted,
-      downgraded: true,
-      text: free.text,
-      model: `${free.provider} · ${free.model}`,
-      costMicrocents: 0,
-      attempts: free.attempts,
-      handoverReason,
+      ok: true, lane: "free", tier: null, wanted: paid.wanted,
+      downgraded: !strictFreeOnly, text: free.text, model: `${free.provider} · ${free.model}`,
+      costMicrocents: 0, attempts: free.attempts, handoverReason,
     };
   }
-
   return {
-    ok: false,
-    lane: "free",
-    tier: paid.tier,
-    wanted: paid.wanted,
-    reason: free.reason,
-    detail: free.detail,
-    attempts: free.attempts,
-    handoverReason,
+    ok: false, lane: "free", tier: paid.tier, wanted: paid.wanted,
+    reason: free.reason, detail: free.detail, attempts: free.attempts, handoverReason,
   };
 }
-
-/**
- * Every Sol / Terra / Hall-of-Fame step is recorded in the team trace so the
- * owner can see which model did which job, and why. Recording never breaks
- * the build.
- */
 export async function callBestThinker(
   request: Parameters<typeof callBestThinkerInner>[0] & { stage?: string; area?: string },
 ): Promise<ThinkerOutcome> {
@@ -378,11 +269,8 @@ export async function callBestThinker(
   await recordTeamStep({
     organizationId: request.organizationId ?? null,
     stage: request.stage ?? request.purpose,
-    purpose: request.purpose,
-    lane: outcome.lane,
-    model: outcome.ok ? outcome.model : null,
-    ok: outcome.ok,
-    latencyMs: Date.now() - started,
+    purpose: request.purpose, lane: outcome.lane, model: outcome.ok ? outcome.model : null,
+    ok: outcome.ok, latencyMs: Date.now() - started,
     reason: outcome.ok
       ? outcome.handoverReason ? `free squad took over: ${outcome.handoverReason}` : `routed to ${outcome.tier ?? "free"} tier`
       : `${outcome.reason}${outcome.detail ? `: ${outcome.detail}` : ""}`,
