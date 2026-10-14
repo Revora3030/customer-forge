@@ -2,6 +2,7 @@
 import { createClient } from "@supabase/supabase-js";
 import type { Database } from "./types";
 import { brokeredPreviewStorage } from "./previewAuthStorage";
+import { assertPublicSupabaseKey } from "../../lib/security/public-env-policy.mjs";
 
 function isNewSupabaseApiKey(value: string): boolean {
   return value.startsWith("sb_publishable_");
@@ -53,11 +54,7 @@ function createSupabaseClient() {
     throw new Error(message);
   }
 
-  if (SUPABASE_PUBLISHABLE_KEY.startsWith("sb_secret_")) {
-    throw new Error(
-      "Invalid public Supabase configuration: secret keys are server-only. Use a publishable key.",
-    );
-  }
+  assertPublicSupabaseKey(SUPABASE_PUBLISHABLE_KEY);
 
   return createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
     global: {

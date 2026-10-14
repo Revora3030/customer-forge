@@ -8,6 +8,7 @@
 import path from "node:path";
 import { loadEnv } from "vite";
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
+import { assertPublicEnvironment } from "./src/lib/security/public-env-policy.mjs";
 
 // Load unprefixed env vars into process.env for server routes (never into the client bundle).
 const serverEnv = loadEnv(process.env["NODE_ENV"] ?? "development", process.cwd(), "");
@@ -27,6 +28,9 @@ process.env["VITE_SUPABASE_PUBLISHABLE_KEY"] ||=
   process.env["SUPABASE_PUBLISHABLE_KEY"] || PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 process.env["SUPABASE_URL"] ||= process.env["VITE_SUPABASE_URL"];
 process.env["SUPABASE_PUBLISHABLE_KEY"] ||= process.env["VITE_SUPABASE_PUBLISHABLE_KEY"];
+
+// Fail before Vite can inject server credentials into public assets.
+assertPublicEnvironment(process.env);
 
 export default defineConfig({
   tanstackStart: {
