@@ -27,6 +27,12 @@ describe("canonical Revora offer database contract", () => {
     expect(migration).toContain("Existing explicitly granted trial end timestamps are not shortened");
   });
 
+  it("keeps database publish-lock messages aligned with the same setup fee", () => {
+    expect(migration).toContain("private.guard_production_activation()");
+    expect(migration).toContain("Complete your one-time $750 setup to publish your website");
+    expect(migration).not.toContain("Complete your one-time $350 setup");
+  });
+
   it("keeps existing server-only workspace-provisioning grants intact", () => {
     expect(migration).toContain("REVOKE ALL ON FUNCTION public.provision_workspace_server(uuid, text, text, jsonb, integer) FROM authenticated");
     expect(migration).toContain("GRANT EXECUTE ON FUNCTION public.provision_workspace_server(uuid, text, text, jsonb, integer) TO service_role");
