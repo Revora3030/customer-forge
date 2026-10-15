@@ -223,27 +223,41 @@ async function providerEvidence() {
 
 async function releaseEvidence() {
   const token = process.env["REVORA_GITHUB_READ_TOKEN"];
-  const url = `https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/runs?branch=${encodeURIComponent(GITHUB_BRANCH)}&per_page=5`;
+  const apiRoot = `https://api.github.com/repos/${GITHUB_REPOSITORY}`;
+  const headers = {
+    Accept: "application/vnd.github+json",
+    "X-GitHub-Api-Version": "2022-11-28",
+    "User-Agent": "Revora-Jarvis-ReadOnly-Diagnostics",
+    ...(token ? { Authorization: "Bearer " + token } : {}),
+  };
   try {
-    const response = await fetch(url, {
-      headers: {
-        Accept: "application/vnd.github+json",
-        "X-GitHub-Api-Version": "2022-11-28",
-        "User-Agent": "Revora-Jarvis-ReadOnly-Diagnostics",
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      redirect: "error",
-      signal: AbortSignal.timeout(7000),
-    });
-    if (!response.ok) {
+    // CI on an old commit is not evidence for the current release. Fetch the
+    // release branch's current commit independently and bind every verdict to it.
+    const [headResponse, runsResponse] = await Promise.all([
+      fetch(apiRoot + "/commits/" + encodeURIComponent(GITHUB_BRANCH), {
+        headers,
+        redirect: "error",
+        signal: AbortSignal.timeout(7000),
+      }),
+      fetch(apiRoot + "/actions/runs?branch=" + encodeURIComponent(GITHUB_BRANCH) + "&per_page=100", {
+        headers,
+        redirect: "error",
+        signal: AbortSignal.timeout(7000),
+      }),
+    ]);
+    if (!headResponse.ok || !runsResponse.ok) {
+      const failedStatus = !headResponse.ok ? headResponse.status : runsResponse.status;
       return {
         status: "needs_verification" as const,
-        httpStatus: response.status,
-        reason: response.status === 401 || response.status === 403 ? "github_access_or_rate_limit" : "github_api_unavailable",
+        httpStatus: failedStatus,
+        reason: failedStatus === 401 || failedStatus === 403 ? "github_access_or_rate_limit" : "github_api_unavailable",
+        branchHeadCommit: null,
         runs: [],
       };
     }
-    const json = await response.json() as {
+    const head = await headResponse.json() as { sha?: string };
+    const currentHead = /^[a-f0-9]{40}$/i.test(head.sha ?? "") ? head.sha! : null;
+    const json = await runsResponse.json() as {
       total_count?: number;
       workflow_runs?: Array<{
         name?: string | null;
@@ -256,7 +270,7 @@ async function releaseEvidence() {
         html_url?: string | null;
       }>;
     };
-    const runs = (json.workflow_runs ?? []).slice(0, 5).map((run) => ({
+    const rawRuns = (json.workflow_runs ?? []).map((run) => ({
       name: (run.name ?? "Unnamed workflow").slice(0, 160),
       status: run.status ?? "unknown",
       conclusion: run.conclusion ?? null,
@@ -266,16 +280,34 @@ async function releaseEvidence() {
       commit: /^[a-f0-9]{40}$/i.test(run.head_sha ?? "") ? run.head_sha : null,
       url: run.html_url?.startsWith("https://github.com/Revora3030/customer-forge/actions/runs/") ? run.html_url : null,
     }));
+    // Keep the newest relevant run per workflow name for the current release
+    // SHA. Include missing evidence as absent so consumers cannot infer a pass.
+    const names = [
+      /revora quality gate/i,
+      /revora security gate/i,
+      /revora browser qa/i,
+    ];
+    const runs = names.flatMap((pattern) => {
+      const relevant = rawRuns.filter((run) => pattern.test(run.name));
+      return relevant.slice(0, 10).filter((run, index) =>
+        index === 0 || run.commit === currentHead
+      ).slice(0, 1);
+    });
+    const status = currentHead && runs.length > 0
+      ? "observed" as const
+      : "needs_verification" as const;
     return {
-      status: runs.length ? "observed" as const : "needs_verification" as const,
+      status,
       repository: GITHUB_REPOSITORY,
       branch: GITHUB_BRANCH,
+      branchHeadCommit: currentHead,
+      checkedAt: new Date().toISOString(),
       totalCountReported: Number.isInteger(json.total_count) ? json.total_count : null,
       runs,
-      limitation: "CI evidence is not proof of a deployed production revision.",
+      limitation: "A workflow passes for the current release only when it is completed successfully on the exact current branch commit. CI evidence is not proof of a deployed production revision.",
     };
   } catch {
-    return { status: "unknown" as const, reason: "github_api_unreachable", runs: [] };
+    return { status: "unknown" as const, reason: "github_api_unreachable", branchHeadCommit: null, runs: [] };
   }
 }
 
