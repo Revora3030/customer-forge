@@ -227,6 +227,7 @@ export async function searchPerformance(siteUrl: string): Promise<SearchPerforma
  * ------------------------------------------------------------------ */
 
 export type LocalListing = {
+  placeId: string | null;
   name: string;
   address: string | null;
   phone: string | null;
@@ -259,13 +260,14 @@ export async function localListings(query: string): Promise<LocalListing[]> {
     body: { textQuery: text, maxResultCount: 5 },
     headers: {
       "X-Goog-FieldMask":
-        "places.displayName,places.formattedAddress,places.nationalPhoneNumber,places.websiteUri,places.rating,places.userRatingCount,places.googleMapsUri",
+        "places.id,places.displayName,places.formattedAddress,places.nationalPhoneNumber,places.websiteUri,places.rating,places.userRatingCount,places.googleMapsUri",
     },
   })) as { places?: Record<string, unknown>[] } | null;
 
   const fetchedAt = new Date().toISOString();
   const listings: LocalListing[] = (Array.isArray(payload?.places) ? payload!.places! : []).map(
     (place) => ({
+      placeId: typeof place["id"] === "string" ? place["id"] : null,
       name: String((place["displayName"] as { text?: unknown } | undefined)?.text ?? "").trim(),
       address: (place["formattedAddress"] as string | undefined) ?? null,
       phone: (place["nationalPhoneNumber"] as string | undefined) ?? null,
