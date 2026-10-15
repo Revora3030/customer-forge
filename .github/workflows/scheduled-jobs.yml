@@ -11,6 +11,7 @@ name: Scheduled maintenance jobs
 #   lead-reminder  daily 12:00 UTC (8am New York) — leads still "new" after 24h
 #   weekly-report  Mondays 12:00 UTC              — last 7 days per workspace
 #   site-health    hourly                          — main site + live custom domains
+#   jarvis-acquisition-cleanup daily 08:45 UTC     — expired Places data and concept links
 # Nothing here needs n8n.
 #
 # Media clean-up runs as a DRY RUN (report only). Set the repository variable
@@ -22,6 +23,8 @@ on:
     - cron: "0 7 * * *"
     # Sundays 08:30 UTC: orphaned media clean-up.
     - cron: "30 8 * * 0"
+    # Daily 08:45 UTC: enforce expiry of Google Places acquisition data.
+    - cron: "45 8 * * *"
     # Daily 12:00 UTC (08:00 New York in summer): uncontacted-lead reminder.
     - cron: "0 12 * * *"
     # Mondays 12:15 UTC: weekly owner report.
@@ -34,9 +37,9 @@ on:
         description: "Which job to run now"
         required: true
         type: choice
-        options: [backup, media-cleanup, lifecycle-email, site-engine, lead-reminder, weekly-report, site-health]
+        options: [backup, media-cleanup, jarvis-acquisition-cleanup, lifecycle-email, site-engine, lead-reminder, weekly-report, site-health]
       apply:
-        description: "media-cleanup only: actually delete (otherwise dry run)"
+        description: "media-cleanup deletes files; acquisition cleanup expires stale source fields (otherwise dry run where supported)"
         required: false
         type: boolean
         default: false
@@ -60,6 +63,7 @@ jobs:
           case "${{ github.event.schedule }}" in
             "0 7 * * *") echo "job=backup" >> "$GITHUB_OUTPUT" ;;
             "30 8 * * 0") echo "job=media-cleanup" >> "$GITHUB_OUTPUT" ;;
+            "45 8 * * *") echo "job=jarvis-acquisition-cleanup" >> "$GITHUB_OUTPUT" ;;
             "0 12 * * *") echo "job=lead-reminder" >> "$GITHUB_OUTPUT" ;;
             "15 12 * * 1") echo "job=weekly-report" >> "$GITHUB_OUTPUT" ;;
             "20 * * * *") echo "job=site-health" >> "$GITHUB_OUTPUT" ;;
@@ -79,7 +83,9 @@ jobs:
             exit 0
           fi
           query=""
-          if [ "$JOB" = "media-cleanup" ] && { [ "$APPLY_INPUT" = "true" ] || [ "$APPLY_VAR" = "1" ]; }; then
+          if [ "$JOB" = "jarvis-acquisition-cleanup" ]; then
+            query="?apply=1"
+          elif [ "$JOB" = "media-cleanup" ] && { [ "$APPLY_INPUT" = "true" ] || [ "$APPLY_VAR" = "1" ]; }; then
             query="?apply=1"
           fi
           url="${APP_URL%/}/api/public/jobs/${JOB}${query}"
