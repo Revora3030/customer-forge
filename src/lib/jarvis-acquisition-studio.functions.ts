@@ -1,4 +1,3 @@
-import { createHash, randomBytes } from "node:crypto";
 import { createServerFn } from "@tanstack/react-start";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
@@ -15,7 +14,7 @@ import {
 const MAX_RESULTS = 5;
 const PLACES_TTL_DAYS = 30;
 const PREVIEW_TTL_DAYS = 14;
-const tokenHash = (token: string) => createHash("sha256").update(token).digest("hex");
+async function tokenHash(token: string): Promise<string> { const { createHash } = await import("node:crypto"); return createHash("sha256").update(token).digest("hex"); }
 const clean = (value: unknown, max: number) =>
   typeof value === "string" ? value.trim().replace(/\s+/g, " ").slice(0, max) : "";
 
@@ -337,8 +336,9 @@ export const generateAcquisitionSitePreview = createServerFn({ method: "POST" })
     if (prospect.pipeline_status === "dismissed") throw new Error("This opportunity was dismissed.");
     if (!clean(prospect.business_name, 200)) throw new Error("Refresh the saved listing before generating a site.");
 
-    const { data: currentCount } = await db.from("jarvis_acquisition_sites").select("id", { count: "exact", head: true })
+    const { count: currentCount, error: countError } = await db.from("jarvis_acquisition_sites").select("id", { count: "exact", head: true })
       .eq("prospect_id", data.prospectId);
+    if (countError) throw new Error("Could not verify the preview version limit.");
     if ((currentCount ?? 0) >= 10) throw new Error("This prospect has reached the ten-version safety limit.");
 
     const caller = { userId: String(context.userId), task: "jarvis.acquisition.website_concept" };
@@ -384,8 +384,9 @@ export const generateAcquisitionSitePreview = createServerFn({ method: "POST" })
     }
 
     const concept: AcquisitionConcept = parsed.concept;
+    const { randomBytes } = await import("node:crypto");
     const token = randomBytes(32).toString("base64url");
-    const tokenDigest = tokenHash(token);
+    const tokenDigest = await tokenHash(token);
     const now = new Date();
     const normalExpiry = now.getTime() + PREVIEW_TTL_DAYS * 86_400_000;
     const sourceExpiry = new Date(String(prospect.source_data_expires_at)).getTime();
@@ -450,18 +451,19 @@ export type PublicAcquisitionSite = {
 export const getAcquisitionSitePreview = createServerFn({ method: "GET" })
   .validator((input: { token: string }) => {
     const token = clean(input?.token, 120);
-    if (!/^[A-Za-z0-9_-]{32,100}$/.test(token)) return { token: "", digest: "" };
-    return { token: "", digest: tokenHash(token) };
+    if (!/^[A-Za-z0-9_-]{32,100}$/.test(token)) return { token: "" };
+    return { token };
   })
   .handler(async ({ data }): Promise<{ found: boolean; ok: boolean; reason: "expired" | "revoked" | "unknown" | null; site: PublicAcquisitionSite | null }> => {
     const invalid = { found: false, ok: false, reason: "unknown" as const, site: null };
     try {
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
       const db = supabaseAdmin as unknown as AdminDb;
-      if (!data.digest) return invalid;
+      if (!data.token) return invalid;
+      const digest = await tokenHash(data.token);
       const { data: row, error } = await db.from("jarvis_acquisition_sites")
         .select("id, prospect_id, title, description, composition_tree, proposed_services, facts_to_confirm, design_notes, status, expires_at")
-        .eq("token_hash", data.digest).maybeSingle();
+        .eq("token_hash", digest).maybeSingle();
       if (error || !row) return invalid;
       if (row.status !== "active") return { found: true, ok: false, reason: "revoked" as const, site: null };
       if (new Date(String(row.expires_at)).getTime() <= Date.now()) {
@@ -502,13 +504,14 @@ export const recordAcquisitionSiteInterest = createServerFn({ method: "POST" })
     if (!/^[A-Za-z0-9_-]{32,100}$/.test(token)) throw new Error("This preview link is not valid.");
     if (!contactName) throw new Error("Enter your name.");
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw new Error("Enter a valid email address.");
-    return { digest: tokenHash(token), contactName, email, phone, notes };
+    return { token, contactName, email, phone, notes };
   })
   .handler(async ({ data }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = supabaseAdmin as unknown as AdminDb;
+    const digest = await tokenHash(data.token);
     const { data: site, error } = await db.from("jarvis_acquisition_sites")
-      .select("id, status, expires_at").eq("token_hash", data.digest).maybeSingle();
+      .select("id, status, expires_at").eq("token_hash", digest).maybeSingle();
     if (error || !site || site.status !== "active" || new Date(String(site.expires_at)).getTime() <= Date.now()) {
       throw new Error("This preview has expired or is no longer available. Request a fresh link.");
     }
