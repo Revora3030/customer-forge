@@ -1,6 +1,7 @@
 import { Buffer } from "node:buffer";
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { speakableText } from "./jarvis-actions";
 
 /**
  * ElevenLabs TTS is called only on the server. The API key is never returned
@@ -10,8 +11,7 @@ export const synthesizeJarvisVoice = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: { text: string }) => {
     if (typeof input?.text !== "string") throw new Error("Enter text for Jarvis to speak.");
-    const text = input.text.replace(/<followups>[\s\S]*?<\/followups>/gi, "")
-      .replace(/[#*_\x60>|]/g, " ").replace(/\s+/g, " ").trim().slice(0, 1200);
+    const text = speakableText(input.text);
     if (!text) throw new Error("There is no readable text to speak.");
     return { text };
   })
