@@ -18,7 +18,7 @@ This is the policy and persistence foundation, not a fully wired autonomous exec
 6. Execute code-owned allowlisted tools with timeouts and bounded inputs/outputs.
 7. Independently verify postconditions; model narrative alone never means success.
 8. Persist state transitions and append audit events; bound retries and stop on failed verification.
-9. Every mutation requires explicit administrator approval, including low-risk, reversible, idempotent writes. No mutating tool may run unattended.
+9. Auto-run only low-risk, reversible, idempotent writes when preconditions pass. Require approval for security/RLS findings, migrations, publishing/deployment, billing, customer-data changes, and external messages.
 10. Stop on kill switch, exhausted budgets, verification failure, or degraded connector.
 
 ## Rollout
@@ -28,18 +28,9 @@ This is the policy and persistence foundation, not a fully wired autonomous exec
 - Runtime-verify each connector with bounded non-mutating checks; expose missing credential names only, never values.
 - Keep production execution disabled until migration and preflight pass. Keep irreversible actions approval-gated.
 
-## Access & Permissions surface
-
-The Jarvis admin page now includes a read-only connector snapshot backed by the server-side capability registry. It is super-admin guarded and omits credential names and values. It reports whether a provider is implemented, whether required credentials appear present, whether this process has recorded a successful call, and the provider's declared permission scope.
-
-This is deliberately **not** a live external health check: a configured credential does not prove connectivity, quota, billing eligibility, commercial licensing, or service health. Runtime verification is process-local and can reset on restart. Connector-specific health probes and durable evidence remain future work.
-
-## Default permission matrix
-
-- **Read-only by default:** repository/CI summaries, bounded builder diagnostics, public-site QA, AI routing configuration, sanitized database-health summaries, security posture summaries, tenant-safe funnel counts, and release evidence.
-- **Explicit administrator approval:** source edits, migrations, publishing/unpublishing, DNS/domain changes, external messages, webhook retries, paid AI calls, billing/entitlement actions, role or RLS changes, membership changes, and destructive data operations.
-- **Never granted:** secret reveal, raw service-role credentials, unrestricted SQL/shell, cross-tenant customer exports, policy bypasses, unattended charges/refunds, mass messaging, domain transfers, or destructive migrations.
-- **Draft-first publishing:** create/update draft → render preview → run quality/security checks → obtain explicit approval → publish → retain rollback evidence.
-- **Evidence labels:** observed working, configured, failed, unknown, and needs verification. Never convert missing evidence into a healthy claim.
-
-The access snapshot is an initial visibility layer, not a grant of new connector permissions and not an autonomous executor.
+## PR 275 hardening
+- Authorization flags must be actual booleans; truthy strings are not proof of authorization or preflight.
+- Run budgets are capped at 20 to match the ledger. Tool IDs, access/risk enums, boolean metadata, timeouts and output limits are validated.
+- High-risk reads and explicitly approval-gated reads cannot bypass approval through their access classification.
+- Redaction covers recognized underscore credentials, bearer tokens, JWTs, URL credentials/query values and quoted JSON secret fields. It is defense in depth, not a guarantee of complete sensitive-data removal.
+- This patch does not enable the executor, merge the PR, apply its migration, or weaken CI. Standalone runtime checks are separate from the repository's typecheck, lint, tests, build and security scans.

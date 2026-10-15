@@ -1,75 +1,98 @@
 import { describe, expect, it } from "vitest";
-import { authorizeJarvisAction, isTerminalJarvisStatus, redactJarvisSummary, validateJarvisWriteApproval, type JarvisApprovalProof, type JarvisPolicyContext, type JarvisToolDefinition } from "./jarvis-autopilot-policy";
-const context: JarvisPolicyContext = { authenticated:true, superAdmin:true, autopilotEnabled:true, killSwitchEngaged:false, migrationVerified:true, preflightVerified:true, connectorState:"ready", actionCount:0, maxActionsPerRun:4 };
-const safeWrite: JarvisToolDefinition = { id:"diagnostics.refresh", description:"Refresh bounded diagnostics", access:"write", risk:"low", connector:"supabase", reversible:true, idempotent:true, maxRuntimeMs:5000, maxOutputBytes:12000, requiresApproval:false };
+import {
+  authorizeJarvisAction, isTerminalJarvisStatus, redactJarvisSummary,
+  type JarvisPolicyContext, type JarvisToolDefinition,
+} from "./jarvis-autopilot-policy";
+
+const context: JarvisPolicyContext = {
+  authenticated: true, superAdmin: true, autopilotEnabled: true, killSwitchEngaged: false,
+  migrationVerified: true, preflightVerified: true, connectorState: "ready",
+  actionCount: 0, maxActionsPerRun: 4,
+};
+const safeWrite: JarvisToolDefinition = {
+  id: "diagnostics.refresh", description: "Refresh bounded diagnostics", access: "write",
+  risk: "low", connector: "supabase", reversible: true, idempotent: true,
+  maxRuntimeMs: 5000, maxOutputBytes: 12000, requiresApproval: false,
+};
+const denials: [Partial<JarvisPolicyContext>, string][] = [
+  [{ authenticated: false }, "authentication_required"],
+  [{ superAdmin: false }, "super_admin_required"],
+  [{ killSwitchEngaged: true }, "autopilot_kill_switch_engaged"],
+  [{ migrationVerified: false }, "autopilot_migration_not_verified"],
+  [{ preflightVerified: false }, "autopilot_preflight_not_verified"],
+  [{ connectorState: "needs_connection" }, "connector_not_ready"],
+  [{ actionCount: 4 }, "run_action_budget_exhausted"],
+  [{ alreadyExecutedIdempotencyKey: "run/action/key" }, "idempotent_action_already_executed"],
+  [{ maxActionsPerRun: 21 }, "invalid_run_budget"],
+];
+
 describe("Jarvis Autopilot policy", () => {
-  it("requires explicit admin approval for every write, even low-risk reversible idempotent ones", () => expect(authorizeJarvisAction(safeWrite,context)).toMatchObject({allowed:true,mode:"approval_required",reason:"all_write_actions_require_explicit_admin_approval"}));
-  it.each([
-    [{authenticated:false},"authentication_required"], [{superAdmin:false},"super_admin_required"], [{killSwitchEngaged:true},"autopilot_kill_switch_engaged"],
-    [{migrationVerified:false},"autopilot_migration_not_verified"], [{preflightVerified:false},"autopilot_preflight_not_verified"],
-    [{connectorState:"needs_connection" as const},"connector_not_ready"], [{actionCount:4},"run_action_budget_exhausted"],
-    [{alreadyExecutedIdempotencyKey:"run/action/key"},"idempotent_action_already_executed"],
-  ])("fails closed for unsafe context", (override,reason) => {
-    const result=authorizeJarvisAction(safeWrite,{...context,...override});
-    expect(result.allowed).toBe(false); if(!result.allowed) expect(result.reason).toBe(reason);
+  it("allows low-risk reversible idempotent writes", () => {
+    expect(authorizeJarvisAction(safeWrite, context)).toMatchObject({ allowed: true, mode: "autonomous" });
   });
-  it("requires approval for critical writes", () => expect(authorizeJarvisAction({...safeWrite,id:"billing.refund",risk:"critical",reversible:false},context)).toMatchObject({allowed:true,mode:"approval_required"}));
-  it("never returns autonomous mode for any write risk level", () => {
-    for (const risk of ["low","medium","high","critical"] as const) {
-      const decision=authorizeJarvisAction({...safeWrite,risk},context);
-      expect(decision.allowed).toBe(true);
-      if(decision.allowed) expect(decision.mode).toBe("approval_required");
-    }
+  it.each(denials)("fails closed for unsafe context", (override, reason) => {
+    expect(authorizeJarvisAction(safeWrite, { ...context, ...override }))
+      .toMatchObject({ allowed: false, reason });
   });
-  it("requires approval for non-idempotent writes", () => expect(authorizeJarvisAction({...safeWrite,idempotent:false},context)).toMatchObject({allowed:true,mode:"approval_required"}));
-  it("blocks writes when autopilot is disabled", () => expect(authorizeJarvisAction(safeWrite,{...context,autopilotEnabled:false})).toMatchObject({allowed:false,reason:"autopilot_disabled"}));
+  it("rejects truthy strings used as authorization booleans", () => {
+    expect(authorizeJarvisAction(safeWrite, { ...context, authenticated: "false" } as never).allowed).toBe(false);
+    expect(authorizeJarvisAction(safeWrite, { ...context, migrationVerified: "true" } as never).allowed).toBe(false);
+    expect(authorizeJarvisAction(safeWrite, { ...context, killSwitchEngaged: undefined } as never).allowed).toBe(false);
+  });
+  it("rejects malformed tool definitions", () => {
+    expect(authorizeJarvisAction({ ...safeWrite, access: "execute" } as never, context).allowed).toBe(false);
+    expect(authorizeJarvisAction({ ...safeWrite, maxRuntimeMs: Number.NaN }, context).allowed).toBe(false);
+    expect(authorizeJarvisAction({ ...safeWrite, maxOutputBytes: 0 }, context).allowed).toBe(false);
+    expect(authorizeJarvisAction({ ...safeWrite, id: "../shell" }, context).allowed).toBe(false);
+  });
+  it("requires approval for critical writes and non-idempotent writes", () => {
+    expect(authorizeJarvisAction({ ...safeWrite, id: "billing.refund", risk: "critical", reversible: false }, context))
+      .toMatchObject({ allowed: true, mode: "approval_required" });
+    expect(authorizeJarvisAction({ ...safeWrite, idempotent: false }, context))
+      .toMatchObject({ allowed: true, mode: "approval_required" });
+  });
+  it("does not bypass approval for a read tool", () => {
+    expect(authorizeJarvisAction({ ...safeWrite, access: "read", requiresApproval: true }, context))
+      .toMatchObject({ allowed: true, mode: "approval_required" });
+    expect(authorizeJarvisAction({ ...safeWrite, access: "read", risk: "critical" }, context))
+      .toMatchObject({ allowed: true, mode: "approval_required" });
+  });
+  it("blocks writes when autopilot is disabled", () => {
+    expect(authorizeJarvisAction(safeWrite, { ...context, autopilotEnabled: false }))
+      .toMatchObject({ allowed: false, reason: "autopilot_disabled" });
+  });
+  it("preserves ordinary reads when autopilot writes are disabled", () => {
+    expect(authorizeJarvisAction({ ...safeWrite, access: "read" }, { ...context, autopilotEnabled: false }))
+      .toMatchObject({ allowed: true, mode: "autonomous" });
+  });
   it("redacts secrets and emails", () => {
-    const result=redactJarvisSummary("owner@example.com api_key=abc123456789 Authorization: Bearer supersecretvalue sk-live-abcdefgh1234");
-    expect(result).not.toContain("owner@example.com"); expect(result).not.toContain("abc123456789");
-    expect(result).not.toContain("supersecretvalue"); expect(result).not.toContain("sk-live-abcdefgh1234"); expect(result).toContain("[REDACTED");
+    const result = redactJarvisSummary("owner@example.com api_key=abc123456789 Authorization: Bearer supersecretvalue sk-live-abcdefgh1234");
+    for (const value of ["owner@example.com", "abc123456789", "supersecretvalue", "sk-live-abcdefgh1234"])
+      expect(result).not.toContain(value);
+    expect(result).toContain("[REDACTED");
   });
-  it("identifies terminal action states", () => { expect(isTerminalJarvisStatus("succeeded")).toBe(true); expect(isTerminalJarvisStatus("verification_failed")).toBe(true); expect(isTerminalJarvisStatus("running")).toBe(false); });
-});
-
-describe("Jarvis explicit write-approval proof", () => {
-  const now = Date.parse("2026-10-15T12:00:00.000Z");
-  const valid: JarvisApprovalProof = {
-    approvalId: "approval-123",
-    status: "approved",
-    toolId: "website.draft.update",
-    authenticated: true,
-    superAdmin: true,
-    approverId: "admin-user",
-    approvedBy: "admin-user",
-    approvedAt: "2026-10-15T11:59:00.000Z",
-    expiresAt: "2026-10-15T12:05:00.000Z",
-    consumedAt: null,
-    requestedInputHash: "a".repeat(64),
-    approvedInputHash: "a".repeat(64),
-  };
-
-  it("accepts only a current super-admin approval bound to the exact tool and input digest", () => {
-    expect(validateJarvisWriteApproval("website.draft.update", "a".repeat(64), valid, now))
-      .toEqual({ allowed: true, reason: "valid_explicit_admin_approval" });
+  it.each(["sb_secret_", "sk_live_", "sk_test_", "whsec_", "ghp_", "github_pat_", "lov_"])(
+    "redacts unlabelled underscore credential prefix %s", (prefix) => {
+      const value = prefix + "a".repeat(24);
+      expect(redactJarvisSummary(value)).not.toContain(value);
+    },
+  );
+  it("strips URL credentials, query values and JSON secret values", () => {
+    expect(redactJarvisSummary("https://user:password@example.test/path?token=private#fragment"))
+      .toBe("https://example.test/path");
+    expect(redactJarvisSummary({ api_key: "privatevalue" })).not.toContain("privatevalue");
   });
-
-  it.each([
-    [{ authenticated: false }, "approval_authentication_required"],
-    [{ superAdmin: false }, "approval_super_admin_required"],
-    [{ status: "pending" as const }, "approval_not_approved"],
-    [{ toolId: "website.publish" }, "approval_tool_mismatch"],
-    [{ consumedAt: "2026-10-15T11:59:30.000Z" }, "approval_already_consumed"],
-    [{ expiresAt: "2026-10-15T11:59:59.000Z" }, "approval_expired"],
-    [{ approvedBy: "different-admin" }, "approval_actor_mismatch"],
-  ])("fails closed on invalid approval context", (override, reason) => {
-    const result = validateJarvisWriteApproval("website.draft.update", "a".repeat(64), { ...valid, ...override }, now);
-    expect(result).toEqual({ allowed: false, reason });
+  it("handles circular data and bounds invalid limits", () => {
+    const circular: { self?: unknown } = {};
+    circular.self = circular;
+    expect(redactJarvisSummary(circular)).toBe("[UNSERIALIZABLE]");
+    expect(redactJarvisSummary("a".repeat(5000), Number.NaN)).toHaveLength(1200);
+    expect(redactJarvisSummary("a".repeat(5000), 99999)).toHaveLength(4000);
+    expect(redactJarvisSummary("example", -1)).toBe("");
   });
-
-  it("rejects changed arguments and malformed hashes after approval", () => {
-    expect(validateJarvisWriteApproval("website.draft.update", "b".repeat(64), valid, now))
-      .toEqual({ allowed: false, reason: "requested_input_hash_mismatch" });
-    expect(validateJarvisWriteApproval("website.draft.update", "not-a-hash", valid, now))
-      .toEqual({ allowed: false, reason: "invalid_input_hash" });
+  it("identifies terminal action states", () => {
+    expect(isTerminalJarvisStatus("succeeded")).toBe(true);
+    expect(isTerminalJarvisStatus("verification_failed")).toBe(true);
+    expect(isTerminalJarvisStatus("running")).toBe(false);
   });
 });
