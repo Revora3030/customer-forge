@@ -422,12 +422,40 @@ export async function executeJarvisDiagnosticTool(
       setEvidence("safety.secretBoundary", "configured", "Diagnostic outputs exclude credential values by design; full model/tool data-flow verification remains required.", "tool registry and redaction design");
 
       const scorecard = scoreJarvisCapabilities(evidence, checkedAt);
-      return result(toolId, scorecard.verified10Of10Areas === 7 ? "observed" : "needs_verification", scorecard, {
+      // The scorecard has many explanatory strings and repeated blocker text. Keep
+      // every area and every check queryable while fitting the read-only tool's
+      // strict 12 KB output contract (rather than returning an unhelpful truncated preview).
+      const boundedScorecard = {
+        checkedAt: scorecard.checkedAt,
+        overallScore: scorecard.overallScore,
+        verifiedChecks: scorecard.verifiedChecks,
+        totalChecks: scorecard.totalChecks,
+        verified10Of10Areas: scorecard.verified10Of10Areas,
+        areas: scorecard.areas.map((area) => ({
+          id: area.id,
+          title: area.title,
+          score: area.score,
+          verified: area.verified,
+          total: area.total,
+          status: area.status,
+          checks: area.checks.map((check) => ({
+            id: check.id,
+            label: check.label,
+            status: check.status,
+            summary: check.summary.slice(0, 100),
+          })),
+          blockers: area.blockers.map((blocker) => blocker.split(":")[0] ?? blocker).slice(0, 5),
+        })),
+        nextActions: scorecard.nextActions.slice(0, 5).map((action) => action.slice(0, 180)),
+        policy: scorecard.policy,
+      };
+      return result(toolId, scorecard.verified10Of10Areas === 7 ? "observed" : "needs_verification", boundedScorecard, {
         checkedAt,
         durationMs: Date.now() - started,
         limitations: [
           "Scores are intentionally conservative: configured-only, missing, stale, or indirect evidence does not pass.",
           "A 10/10 requires every check in that area to be independently verified.",
+          "Scorecard evidence is compacted to fit the read-only tool's 12 KB output limit; check summaries are shortened and blockers contain labels only.",
           "This tool does not grant permissions, execute writes, send messages, publish websites, or spend money.",
         ],
       });
