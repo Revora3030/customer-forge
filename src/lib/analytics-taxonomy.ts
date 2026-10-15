@@ -34,7 +34,7 @@ export const EVENT_TAXONOMY: readonly TaxonomyEntry[] = [
   { event: "trial_started", source: "server", funnelStep: 3, idempotency: "per_workspace", definition: "The 3-day full-access trial began for a workspace (server-set trial_ends_at)." },
   { event: "trial_active", source: "server", funnelStep: 4, idempotency: "per_workspace", definition: "Workspace is inside its trial window per server time (derived, never browser)." },
   { event: "checkout_started", source: "server", funnelStep: 5, idempotency: "per_record", definition: "A Stripe Checkout session was created server-side for an authorized member." },
-  { event: "setup_payment_completed", source: "server", funnelStep: 6, idempotency: "per_provider_event", definition: "Verified Stripe webhook confirmed the $750 setup payment (or the audited internal waiver)." },
+  { event: "setup_payment_completed", source: "server", funnelStep: 6, idempotency: "per_provider_event", definition: "Verified Stripe webhook confirmed the $350 setup payment (or the audited internal waiver)." },
   { event: "subscription_active", source: "server", funnelStep: 7, idempotency: "per_provider_event", definition: "Verified Stripe webhook shows the $100/month subscription active or trialing (first month free)." },
   { event: "site_published", source: "server", funnelStep: 8, idempotency: "per_record", definition: "A validated immutable website version was published." },
   { event: "lead_created", source: "server", funnelStep: 9, idempotency: "per_record", definition: "A public lead was durably saved in the customer's own workspace." },
