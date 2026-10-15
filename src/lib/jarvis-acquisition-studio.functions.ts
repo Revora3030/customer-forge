@@ -192,7 +192,7 @@ export const saveAcquisitionProspect = createServerFn({ method: "POST" })
     return { id: String(inserted.id), alreadySaved: false, candidate };
   });
 
-async function expireSourceData(db: AdminDb) {
+export async function runAcquisitionSourceDataCleanup(db: AdminDb, apply = true) {
   const now = new Date().toISOString();
   const { data: expired, error } = await db
     .from("jarvis_acquisition_prospects")
@@ -200,12 +200,14 @@ async function expireSourceData(db: AdminDb) {
     .eq("owner_verified", false)
     .lt("source_data_expires_at", now)
     .neq("pipeline_status", "needs_refresh")
-    .limit(100);
-  if (error || !expired?.length) return;
-  for (const item of expired) {
+    .limit(500);
+  if (error) throw new Error("Couldn't inspect expired acquisition source data.");
+  const rows = expired ?? [];
+  if (!apply || !rows.length) return { dryRun: !apply, found: rows.length, expired: 0 };
+  for (const item of rows) {
     await db.from("jarvis_acquisition_sites").update({ status: "expired", updated_at: now })
       .eq("prospect_id", item.id).eq("status", "active");
-    await db.from("jarvis_acquisition_prospects").update({
+    const { error: updateError } = await db.from("jarvis_acquisition_prospects").update({
       business_name: "",
       category: "",
       address: null,
@@ -220,13 +222,16 @@ async function expireSourceData(db: AdminDb) {
       score_reasons: [],
       updated_at: now,
     }).eq("id", item.id);
-    await db.from("jarvis_acquisition_events").insert({
+    if (updateError) throw new Error("An expired listing could not be scrubbed; cleanup stopped.");
+    const { error: auditError } = await db.from("jarvis_acquisition_events").insert({
       prospect_id: item.id,
       event_type: "source_data_expired",
       outcome: "info",
-      summary: "Unverified listing fields and concepts were expired; refresh the listing before continuing.",
+      summary: "Unverified listing fields and concepts expired; refresh the listing before continuing.",
     });
+    if (auditError) throw new Error("Cleanup could not write an audit event; inspect operations before retrying.");
   }
+  return { dryRun: false, found: rows.length, expired: rows.length };
 }
 
 export type AcquisitionPipelineItem = {
@@ -249,7 +254,7 @@ export const listAcquisitionPipeline = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const db = await guardedDb(context);
-    await expireSourceData(db);
+    await runAcquisitionSourceDataCleanup(db, true);
     const { data, error } = await db.from("jarvis_acquisition_prospects")
       .select("id, business_name, city, category, website, website_status, score, score_reasons, pipeline_status, source_data_expires_at, created_at")
       .order("updated_at", { ascending: false }).limit(100);
