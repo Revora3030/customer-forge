@@ -327,8 +327,9 @@ export async function executeJarvisDiagnosticTool(
         run.commit === requiredRuns[0]?.commit
       );
       const runStatus = (run: (typeof ciRuns)[number] | undefined): JarvisCapabilityEvidenceStatus => {
-        if (run?.status === "completed" && run.conclusion === "success" && sharedCommit) return "verified";
-        if (run?.status === "completed" && run.conclusion && run.conclusion !== "success") return "failed";
+        const sameCommit = Boolean(run?.commit && requiredRuns[0]?.commit && run.commit === requiredRuns[0].commit);
+        if (run?.status === "completed" && run.conclusion === "success" && sharedCommit && sameCommit) return "verified";
+        if (run?.status === "completed" && run.conclusion && run.conclusion !== "success" && sameCommit) return "failed";
         return "unknown";
       };
       const qualityStatus = runStatus(qualityRun);
