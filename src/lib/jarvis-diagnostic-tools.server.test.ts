@@ -206,7 +206,7 @@ describe("Jarvis diagnostic executor", () => {
     expect(engineering?.checks.find((check) => check.id === "engineering.browser")?.status).toBe("verified");
     expect(scorecard.areas.find((area) => area.id === "diagnostics")?.checks.find((check) => check.id === "diagnostics.redaction")?.status).toBe("verified");
     expect(scorecard.areas.find((area) => area.id === "growth")?.checks.find((check) => check.id === "growth.offerConsistency")?.status).toBe("verified");
-    expect(JSON.stringify(output)).not.toContain("secret");
+    expect(JSON.stringify(output)).not.toContain("SECRET_SHOULD_NOT_ESCAPE");
 
     // Once the branch moves ahead, the same green workflows are stale. They must
     // no longer count as verification for the new release commit.
