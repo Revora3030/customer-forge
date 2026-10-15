@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { MessageResponse } from "@/components/ai-elements/message";
-import { clearJarvisHistory, getJarvisHistory, getJarvisDiagnostics, regenerateJarvisReply, sendJarvisMessage } from "@/lib/jarvis.functions";
+import { clearJarvisHistory, getJarvisHistory, getJarvisDiagnostics, getJarvisAccessSnapshot, getJarvisDiagnosticTools, getJarvisAutopilotStatus, runJarvisDiagnosticTool, regenerateJarvisReply, sendJarvisMessage } from "@/lib/jarvis.functions";
 
 type Recognition = {
   lang: string; interimResults: boolean;
@@ -65,11 +65,24 @@ function Jarvis() {
   const qc = useQueryClient();
   const load = useServerFn(getJarvisHistory);
   const inspect = useServerFn(getJarvisDiagnostics);
+  const inspectAccess = useServerFn(getJarvisAccessSnapshot);
+  const loadTools = useServerFn(getJarvisDiagnosticTools);
+  const loadAutopilot = useServerFn(getJarvisAutopilotStatus);
+  const runTool = useServerFn(runJarvisDiagnosticTool);
   const send = useServerFn(sendJarvisMessage);
   const redo = useServerFn(regenerateJarvisReply);
   const clear = useServerFn(clearJarvisHistory);
   const history = useQuery({ queryKey: ["jarvis", "history"], queryFn: () => load() });
   const diagnostics = useQuery({ queryKey: ["jarvis", "diagnostics"], queryFn: () => inspect(), staleTime: 60_000, retry: false });
+  const access = useQuery({ queryKey: ["jarvis", "access"], queryFn: () => inspectAccess(), enabled: false, retry: false });
+  const autopilot = useQuery({ queryKey: ["jarvis", "autopilot-status"], queryFn: () => loadAutopilot(), enabled: false, retry: false });
+  const toolCatalog = useQuery({ queryKey: ["jarvis", "tool-catalog"], queryFn: () => loadTools(), retry: false });
+  const [toolResults, setToolResults] = useState<Record<string, unknown>>({});
+  const toolRun = useMutation({
+    mutationFn: (toolId: string) => runTool({ data: { toolId } }),
+    onSuccess: (result, toolId) => setToolResults((previous) => ({ ...previous, [toolId]: result })),
+    onError: (error: Error) => toast.error(error.message),
+  });
   const [text, setText] = useState("");
   const [mode, setMode] = useState<Mode>("balanced");
   const [pending, setPending] = useState<string | null>(null);
@@ -208,6 +221,22 @@ function Jarvis() {
           <Button type="button" variant="ghost" size="icon" aria-label="Clear my chat" title="Clear my chat" disabled={clearing.isPending || busy} onClick={() => { if (window.confirm("Clear your Jarvis history?")) clearing.mutate(); }}><Trash2 className="size-4" /></Button>
         </div>
       </header>
+      <section aria-label="Jarvis access and diagnostic tools" className="rounded-xl border border-border bg-card p-3 space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div><h2 className="font-semibold">Access &amp; diagnostic toolbench</h2><p className="text-xs text-muted-foreground">Super-admin only. Registered, bounded, read-only diagnostics; no mutation executor is available.</p></div>
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" size="sm" variant="outline" disabled={access.isFetching} onClick={() => { void access.refetch(); }}>Check connector access</Button>
+            <Button type="button" size="sm" variant="outline" disabled={autopilot.isFetching} onClick={() => { void autopilot.refetch(); }}>Check safety state</Button>
+          </div>
+        </div>
+        {access.data ? <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">{access.data.providers.map((provider) => <article key={provider.id} className="rounded-md border border-border p-3 text-sm"><div className="flex justify-between gap-2"><strong>{provider.label}</strong><span className="text-xs text-muted-foreground">{provider.status.replaceAll("_", " ")}</span></div><p className="mt-1 text-xs text-muted-foreground">{provider.permission}</p><p className="mt-2 text-xs">Scope: {provider.scope} · Cost: {provider.cost}</p><p className="text-xs">Runtime verified: {provider.runtimeVerifiedInThisProcess ? "Yes" : "Unknown"} · Missing credential count: {provider.missingCredentialCount}</p></article>)}</div> : access.error ? <p role="alert" className="text-sm text-destructive">Connector snapshot unavailable; live health is unknown.</p> : <p className="text-xs text-muted-foreground">Connector configuration has not been checked.</p>}
+        {autopilot.data ? <div className="rounded-md border border-border p-3 text-sm"><strong>Autopilot safety state: {autopilot.data.status}</strong><p>Enabled: {autopilot.data.enabled ? "Yes" : "No"} · Kill switch: {autopilot.data.killSwitchEngaged ? "Engaged" : "Not engaged"}</p><p className="text-xs text-muted-foreground">{autopilot.data.note} Write executors available: No.</p></div> : autopilot.error ? <p role="alert" className="text-sm text-destructive">Safety state unavailable; treat autopilot as disabled.</p> : null}
+        <div><h3 className="font-medium">Registered diagnostics</h3><p className="text-xs text-muted-foreground">Tools accept registered IDs only and do not change data.</p></div>
+        {toolCatalog.error ? <p role="alert" className="text-sm text-destructive">Diagnostic tool catalog unavailable.</p> : null}
+        <div className="grid gap-2 sm:grid-cols-2">{(toolCatalog.data ?? []).map((tool) => <article key={tool.id} className="rounded-md border border-border p-3"><div className="flex flex-wrap items-center justify-between gap-2"><strong>{tool.title}</strong><span className="text-xs text-muted-foreground">{tool.implementation}</span></div><p className="mt-1 text-sm text-muted-foreground">{tool.description}</p><p className="mt-1 text-xs text-muted-foreground">Evidence: {tool.evidence}</p><Button type="button" size="sm" variant="outline" className="mt-3" disabled={toolRun.isPending} onClick={() => toolRun.mutate(tool.id)}>{toolRun.isPending ? "Running…" : "Run diagnostic"}</Button>{toolResults[tool.id] !== undefined ? <details className="mt-2"><summary className="cursor-pointer text-sm">View result</summary><pre className="mt-2 max-h-56 overflow-auto whitespace-pre-wrap break-words rounded bg-muted p-2 text-xs">{JSON.stringify(toolResults[tool.id], null, 2)}</pre></details> : null}</article>)}</div>
+        {Object.keys(toolResults).length > 0 ? <Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => submit("Analyze these sanitized read-only Jarvis diagnostic results. Separate observed facts, hypotheses, and missing evidence. Do not claim any fix was applied.\n\n" + JSON.stringify(Object.entries(toolResults).slice(-3), null, 2).slice(0, 8000))}>Ask Jarvis to analyze results</Button> : null}
+      </section>
+
 
       <details className="rounded-xl border border-border bg-card">
         <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-2 text-sm">
