@@ -99,7 +99,7 @@ function splitFollowups(raw: string): { body: string; followups: string[] } {
   let followups: string[] = [];
   if (match) {
     try {
-      const parsed: unknown = JSON.parse(match[1]);
+      const parsed: unknown = JSON.parse(match[1] ?? "");
       if (Array.isArray(parsed)) {
         followups = parsed
           .filter((item): item is string => typeof item === "string")
