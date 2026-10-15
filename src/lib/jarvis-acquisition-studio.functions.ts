@@ -532,3 +532,92 @@ export const recordAcquisitionSiteInterest = createServerFn({ method: "POST" })
     }
     return { ok: true as const, message: "Your request is recorded. Revora will review it before following up." };
   });
+
+
+export type AcquisitionInterestQueueItem = {
+  id: string;
+  prospectId: string;
+  siteId: string;
+  businessName: string;
+  category: string;
+  city: string;
+  previewTitle: string;
+  contactName: string;
+  email: string;
+  phone: string | null;
+  notes: string;
+  status: "new" | "reviewed" | "converted" | "dismissed";
+  createdAt: string;
+};
+
+export const listAcquisitionInterestQueue = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const db = await guardedDb(context);
+    const { data: interests, error } = await db.from("jarvis_acquisition_interests")
+      .select("id, prospect_id, site_id, contact_name, email, phone, notes, status, created_at")
+      .in("status", ["new", "reviewed"])
+      .order("created_at", { ascending: false }).limit(100);
+    if (error) throw new Error("Couldn't load acquisition interest requests.");
+    const rows = interests ?? [];
+    if (!rows.length) return { requests: [] as AcquisitionInterestQueueItem[] };
+    const prospectIds = [...new Set(rows.map((row) => String(row.prospect_id)))];
+    const siteIds = [...new Set(rows.map((row) => String(row.site_id)))];
+    const [{ data: prospects }, { data: sites }] = await Promise.all([
+      db.from("jarvis_acquisition_prospects").select("id, business_name, category, city").in("id", prospectIds),
+      db.from("jarvis_acquisition_sites").select("id, title").in("id", siteIds),
+    ]);
+    const byProspect = new Map((prospects ?? []).map((row) => [String(row.id), row]));
+    const bySite = new Map((sites ?? []).map((row) => [String(row.id), row]));
+    return {
+      requests: rows.map((row) => {
+        const prospect = byProspect.get(String(row.prospect_id));
+        const site = bySite.get(String(row.site_id));
+        return {
+          id: String(row.id),
+          prospectId: String(row.prospect_id),
+          siteId: String(row.site_id),
+          businessName: clean(prospect?.business_name, 200) || "Listing needs refresh",
+          category: clean(prospect?.category, 120),
+          city: clean(prospect?.city, 120),
+          previewTitle: clean(site?.title, 160) || "Website concept",
+          contactName: clean(row.contact_name, 120),
+          email: clean(row.email, 254),
+          phone: clean(row.phone, 50) || null,
+          notes: clean(row.notes, 1400),
+          status: row.status as AcquisitionInterestQueueItem["status"],
+          createdAt: String(row.created_at),
+        };
+      }),
+    };
+  });
+
+export const updateAcquisitionInterestStatus = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((input: { interestId: string; status: "reviewed" | "dismissed" }) => {
+    const interestId = clean(input?.interestId, 64);
+    const status = input?.status;
+    if (!/^[0-9a-f-]{36}$/i.test(interestId)) throw new Error("Choose a valid interest request.");
+    if (status !== "reviewed" && status !== "dismissed") throw new Error("Choose an allowed review status.");
+    return { interestId, status };
+  })
+  .handler(async ({ data, context }) => {
+    const db = await guardedDb(context);
+    const { data: row, error: readError } = await db.from("jarvis_acquisition_interests")
+      .select("id, prospect_id, site_id, status").eq("id", data.interestId).maybeSingle();
+    if (readError || !row) throw new Error("That interest request could not be found.");
+    if (row.status === "converted") throw new Error("A converted request can only be recorded from verified payment evidence.");
+    const { error } = await db.from("jarvis_acquisition_interests").update({ status: data.status }).eq("id", data.interestId);
+    if (error) throw new Error("The interest request could not be updated.");
+    const { error: auditError } = await db.from("jarvis_acquisition_events").insert({
+      prospect_id: row.prospect_id,
+      site_id: row.site_id,
+      actor_id: String(context.userId),
+      event_type: "preview_interest_reviewed",
+      outcome: data.status === "dismissed" ? "info" : "success",
+      summary: data.status === "dismissed" ? "A super-admin dismissed the preview interest request." : "A super-admin marked the preview interest request as reviewed.",
+      metadata: { interestId: data.interestId },
+    });
+    if (auditError) throw new Error("Status changed, but its audit event failed. Check the event log before continuing.");
+    return { ok: true as const, status: data.status };
+  });
