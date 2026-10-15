@@ -171,6 +171,21 @@ function fallbackDraft(name: string): { subject: string; body: string } {
   };
 }
 
+/** Sender block every outreach draft ends with: name, physical address and an opt-out line. */
+export function outreachFooter(): { address: string; footer: string } {
+  const address = process.env["REVORA_MAILING_ADDRESS"]?.trim() ?? "";
+  const sender = process.env["REVORA_SENDER_NAME"]?.trim() || "Revora Growth Systems";
+  const footer = [
+    "",
+    "--",
+    sender,
+    "Revora Growth Systems",
+    address || "[ADD YOUR PHYSICAL MAILING ADDRESS BEFORE SENDING]",
+    "Not interested? Reply \"no thanks\" and I won't contact you again.",
+  ].join("\n");
+  return { address, footer };
+}
+
 export const draftProspectOutreach = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: { prospects: ProspectInput[]; suppress?: string[] }) => {
@@ -191,16 +206,7 @@ export const draftProspectOutreach = createServerFn({ method: "POST" })
     const { assertSuperAdmin } = await import("./admin.server");
     await assertSuperAdmin(context.supabase as Parameters<typeof assertSuperAdmin>[0], String(context.userId));
     const userId = String(context.userId);
-    const address = process.env["REVORA_MAILING_ADDRESS"]?.trim() ?? "";
-    const sender = process.env["REVORA_SENDER_NAME"]?.trim() || "Revora Growth Systems";
-    const footer = [
-      "",
-      "--",
-      sender,
-      "Revora Growth Systems",
-      address || "[ADD YOUR PHYSICAL MAILING ADDRESS BEFORE SENDING]",
-      "Not interested? Reply \"no thanks\" and I won't contact you again.",
-    ].join("\n");
+    const { address, footer } = outreachFooter();
     const { generateText } = await import("@/lib/ai/router.server");
     const seen = new Set<string>();
     const drafts = await Promise.all(data.prospects.map(async (prospect): Promise<ProspectDraft> => {

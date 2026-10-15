@@ -1,13 +1,13 @@
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-import { Copy, ExternalLink, Hammer } from "lucide-react";
+import { Copy, ExternalLink, Hammer, Mail } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { listProspectDemoBuilds, startProspectDemoBuild } from "@/lib/jarvis-demo-site.functions";
+import { draftDemoOutreach, listProspectDemoBuilds, startProspectDemoBuild, type DemoOutreachDraft } from "@/lib/jarvis-demo-site.functions";
 import { pumpSiteEngineQueue } from "@/lib/site-engine.functions";
 
 const EMPTY = { businessName: "", industry: "", city: "", state: "", phone: "", email: "", services: "", description: "" };
@@ -34,7 +34,18 @@ export function ProspectDemoBuilder() {
   const start = useServerFn(startProspectDemoBuild);
   const list = useServerFn(listProspectDemoBuilds);
   const pump = useServerFn(pumpSiteEngineQueue);
+  const draftFn = useServerFn(draftDemoOutreach);
   const [form, setForm] = useState(EMPTY);
+  const [drafts, setDrafts] = useState<Record<string, DemoOutreachDraft>>({});
+  const [bodies, setBodies] = useState<Record<string, string>>({});
+  const drafting = useMutation({
+    mutationFn: (organizationId: string) => draftFn({ data: { organizationId } }),
+    onSuccess: (draft, organizationId) => {
+      setDrafts((current) => ({ ...current, [organizationId]: draft }));
+      setBodies((current) => ({ ...current, [organizationId]: draft.body }));
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
 
   const demos = useQuery({
     queryKey: ["jarvis", "prospect-demos"],
@@ -178,7 +189,69 @@ export function ProspectDemoBuilder() {
                   >
                     <Copy className="mr-1 size-3.5" />Copy link
                   </Button>
+                  {done ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      disabled={drafting.isPending && drafting.variables === demo.organizationId}
+                      onClick={() => drafting.mutate(demo.organizationId)}
+                    >
+                      <Mail className="mr-1 size-3.5" />
+                      {drafting.isPending && drafting.variables === demo.organizationId
+                        ? "Writing…"
+                        : drafts[demo.organizationId]
+                          ? "Rewrite email"
+                          : "Write email"}
+                    </Button>
+                  ) : null}
                 </div>
+                {drafts[demo.organizationId] ? (() => {
+                  const draft = drafts[demo.organizationId]!;
+                  const body = bodies[demo.organizationId] ?? draft.body;
+                  const blocked = !draft.mailingAddressConfigured;
+                  return (
+                    <div className="mt-3 space-y-2 rounded-md border border-border p-2">
+                      <p className="text-xs text-muted-foreground">
+                        To: {draft.email ?? "no business email on file, so copy the text and reach them another way"} ·{" "}
+                        {draft.aiWritten ? "written by the free AI pool" : "AI unavailable, plain template used"}
+                      </p>
+                      <p className="text-sm font-medium">{draft.subject}</p>
+                      <Textarea
+                        rows={8}
+                        value={body}
+                        onChange={(event) => setBodies((current) => ({ ...current, [demo.organizationId]: event.target.value }))}
+                      />
+                      {blocked ? (
+                        <p role="alert" className="text-xs text-destructive">
+                          Set REVORA_MAILING_ADDRESS (a real street address or PO box) in your server secrets before sending. Commercial email must include it.
+                        </p>
+                      ) : null}
+                      <div className="flex flex-wrap gap-2">
+                        {draft.email && !blocked ? (
+                          <a
+                            className="inline-flex h-8 items-center rounded-md border border-border px-3 text-xs font-medium hover:bg-muted"
+                            href={`mailto:${draft.email}?subject=${encodeURIComponent(draft.subject)}&body=${encodeURIComponent(body)}`}
+                          >
+                            Send from my mail app
+                          </a>
+                        ) : null}
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => {
+                            void navigator.clipboard
+                              .writeText(`${draft.subject}\n\n${body}`)
+                              .then(() => toast.success("Email copied."), () => toast.error("Couldn't copy the email."));
+                          }}
+                        >
+                          <Copy className="mr-1 size-3.5" />Copy email
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })() : null}
               </article>
             );
           })}
