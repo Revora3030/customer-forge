@@ -11,11 +11,11 @@ const safeFollowup: FollowupContext = {
 
 describe("Jarvis acquisition policy", () => {
   it("uses the single canonical Revora offer", () => {
-    expect(REVORA_OFFER).toEqual({ setupFeeUsd: 750, firstMonthFree: true, monthlyPriceUsd: 100, trialDays: 1 });
+    expect(REVORA_OFFER).toEqual({ setupFeeUsd: 350, firstMonthFree: true, monthlyPriceUsd: 100, trialDays: 3 });
     expect(REVORA_OFFER.setupFeeUsd).toBe(GROWTH_SYSTEM.setupPrice);
     expect(REVORA_OFFER.monthlyPriceUsd).toBe(GROWTH_SYSTEM.monthlyPrice);
     expect(REVORA_OFFER.trialDays).toBe(GROWTH_SYSTEM.fullAccessTrialDays);
-    expect(formatRevoraOffer()).toBe("$750 one-time setup, first month free, then $100/month, with a 1-day full-access trial");
+    expect(formatRevoraOffer()).toBe("$350 one-time setup, first month free, then $100/month, with a 3-day full-access trial");
     expect(formatRevoraOffer()).not.toContain("$350");
   });
   it("scores a high-intent lead without inventing evidence", () => {
