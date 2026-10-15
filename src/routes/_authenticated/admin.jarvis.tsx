@@ -2,16 +2,18 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
-import { ArrowDown, Ban, Bot, Copy, Download, Megaphone, Mic, MicOff, RefreshCw, RotateCcw, Send, Trash2, Volume2, VolumeX } from "lucide-react";
+import { ArrowDown, Ban, Bot, Check, Copy, Download, ExternalLink, GitPullRequest, Hammer, Megaphone, Mic, MicOff, Radio, RefreshCw, RotateCcw, Send, Trash2, Volume2, VolumeX, Wrench } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { MessageResponse } from "@/components/ai-elements/message";
-import { clearJarvisHistory, getJarvisHistory, getJarvisDiagnostics, getJarvisAcquisitionReadiness, getJarvisDiagnosticTools, runJarvisDiagnosticTool, regenerateJarvisReply, sendJarvisMessage } from "@/lib/jarvis.functions";
+import { openJarvisPullRequestFn, clearJarvisHistory, getJarvisHistory, getJarvisDiagnostics, getJarvisAcquisitionReadiness, getJarvisDiagnosticTools, runJarvisDiagnosticTool, regenerateJarvisReply, sendJarvisMessage } from "@/lib/jarvis.functions";
 import { draftProspectOutreach, type ProspectDraft } from "@/lib/jarvis-prospecting.functions";
 import { formatRevoraOffer } from "@/lib/jarvis-acquisition-policy";
 import { synthesizeJarvisVoice } from "@/lib/jarvis-voice.functions";
 import { ProspectDemoBuilder } from "@/components/app/ProspectDemoBuilder";
+import { speakableText, splitReplyMeta, type WriteProposal } from "@/lib/jarvis-actions";
+import { startProspectDemoBuild } from "@/lib/jarvis-demo-site.functions";
 
 type Recognition = {
   lang: string; interimResults: boolean;
@@ -62,7 +64,12 @@ const AUTOPILOT = `Build my customer-acquisition autopilot plan for this week. S
 const PROSPECT_IDEAS = `List ten types of Raleigh and Chapel Hill local service businesses most likely to buy a website with this offer: ${formatRevoraOffer()} with built-in quotes, booking and follow-up, and how to find each type legally (Google Maps, chamber directories, Yelp). Do not suggest scraping that breaks a site's terms. ${RULES}`;
 const FOLLOW_UP = `Design a three-touch email follow-up sequence for prospects who did not reply, spaced over two weeks, each under 80 words, each with an easy opt-out. ${RULES}`;
 
+const FIX_TOP_ERROR = "Run the platform error and builder health checks, find the most damaging real problem, read the code responsible, and propose a focused pull request that fixes the root cause. Explain the fix in plain language.";
+const UPGRADE = "Read the code behind the builder and Jarvis, pick the single highest-impact upgrade for customers, and propose it as a focused pull request. Say what you'd do next after it.";
+
 const COMMANDS = [
+  ["Fix top error", FIX_TOP_ERROR],
+  ["Propose an upgrade", UPGRADE],
   ["Daily briefing", BRIEFING],
   ["Autopilot plan", AUTOPILOT],
   ["Prospect ideas", PROSPECT_IDEAS],
@@ -80,9 +87,10 @@ const COMMANDS = [
 ] as const;
 
 const STARTERS = [
+  ["Fix top error", "Find it, read the code, open a fix PR", FIX_TOP_ERROR],
   ["Daily briefing", "What matters today, ranked by impact", BRIEFING],
   ["Autopilot plan", "This week's customer-acquisition routine", AUTOPILOT],
-  ["Offer review", "Find conversion leaks in the $350 setup offer", OFFER],
+  ["Propose an upgrade", "The highest-impact improvement, as a PR", UPGRADE],
   ["Outreach drafts", "Three emails for Raleigh-area businesses", OUTREACH],
 ] as const;
 
@@ -115,6 +123,9 @@ function Jarvis() {
   const clear = useServerFn(clearJarvisHistory);
   const synthesizeVoice = useServerFn(synthesizeJarvisVoice);
   const draftFn = useServerFn(draftProspectOutreach);
+  const buildDemo = useServerFn(startProspectDemoBuild);
+  const openPr = useServerFn(openJarvisPullRequestFn);
+  const [openedPrs, setOpenedPrs] = useState<Record<string, string>>({});
   const history = useQuery({ queryKey: ["jarvis", "history"], queryFn: () => load() });
   const diagnostics = useQuery({ queryKey: ["jarvis", "diagnostics"], queryFn: () => inspect(), staleTime: 60_000, retry: false });
   const acquisition = useQuery({ queryKey: ["jarvis", "acquisition-readiness"], queryFn: () => inspectAcquisition(), enabled: false, retry: false });
@@ -136,6 +147,10 @@ function Jarvis() {
   const [pending, setPending] = useState<string | null>(null);
   const [followups, setFollowups] = useState<string[]>([]);
   const [voice, setVoice] = useState(false);
+  const [live, setLive] = useState(false);
+  const liveRef = useRef(false);
+  const [showTools, setShowTools] = useState(false);
+  const [approved, setApproved] = useState<Record<string, "building" | "done">>({});
   const [listening, setListening] = useState(false);
   const [atBottom, setAtBottom] = useState(true);
   const [elapsed, setElapsed] = useState(0);
@@ -159,8 +174,8 @@ function Jarvis() {
     if (typeof window !== "undefined" && "speechSynthesis" in window) window.speechSynthesis.cancel();
   };
   const speak = async (content: string) => {
-    const clean = content.replace(/<followups>[\s\S]*?<\/followups>/gi, " ").replace(/[#*_\x60>|]/g, " ").replace(/\s+/g, " ").trim().slice(0, 1200);
-    if (!clean) { toast.error("There is no readable text to speak."); return; }
+    const clean = speakableText(content);
+    if (!clean) { toast.error("There is no readable text to speak."); resumeLive(); return; }
     stopVoice();
     try {
       const result = await synthesizeVoice({ data: { text: clean } });
@@ -171,29 +186,31 @@ function Jarvis() {
       audioUrlRef.current = url;
       const audio = new Audio(url);
       audioRef.current = audio;
-      audio.onended = () => { if (audioUrlRef.current === url) { URL.revokeObjectURL(url); audioUrlRef.current = null; audioRef.current = null; } };
+      audio.onended = () => { if (audioUrlRef.current === url) { URL.revokeObjectURL(url); audioUrlRef.current = null; audioRef.current = null; } resumeLive(); };
       audio.onerror = () => { if (audioUrlRef.current === url) { URL.revokeObjectURL(url); audioUrlRef.current = null; audioRef.current = null; } };
       await audio.play();
     } catch (error) {
       if ("speechSynthesis" in window) {
         window.speechSynthesis.cancel();
-        window.speechSynthesis.speak(new SpeechSynthesisUtterance(clean));
+        const utterance = new SpeechSynthesisUtterance(clean);
+        utterance.onend = () => resumeLive();
+        window.speechSynthesis.speak(utterance);
         toast.message("Using your browser voice because ElevenLabs was unavailable.", {
           description: error instanceof Error ? error.message : undefined,
         });
-      } else toast.error(error instanceof Error ? error.message : "Jarvis voice could not be played.");
+      } else { toast.error(error instanceof Error ? error.message : "Jarvis voice could not be played."); resumeLive(); }
     }
   };
   const finish = async (result: { reply: string; diagnostics: unknown; followups?: string[] }) => {
     qc.setQueryData(["jarvis", "diagnostics"], result.diagnostics);
     setFollowups(result.followups ?? []);
     await qc.invalidateQueries({ queryKey: ["jarvis", "history"] });
-    if (voice) speak(result.reply);
+    if (voice || liveRef.current) void speak(result.reply);
   };
   const mutation = useMutation({
     mutationFn: (message: string) => send({ data: { message, mode } }),
     onSuccess: finish,
-    onError: (error: Error, message: string) => { toast.error(error.message); setText((current) => current || message); },
+    onError: (error: Error, message: string) => { toast.error(error.message); setText((current) => current || message); resumeLive(); },
     onSettled: () => setPending(null),
   });
   const regen = useMutation({
@@ -216,7 +233,7 @@ function Jarvis() {
   const lastMessage = messages[messages.length - 1];
   const lastAssistantId = lastMessage?.role === "assistant" ? lastMessage.id : null;
   const empty = !history.isLoading && !history.error && messages.length === 0 && !pending;
-  const stage = elapsed < 3 ? "Collecting diagnostics" : elapsed < 8 ? "Checking the live site" : "Thinking it through";
+  const stage = elapsed < 3 ? "Collecting diagnostics" : elapsed < 8 ? "Checking the live site" : elapsed < 20 ? "Thinking and running checks" : "Reading results and writing the answer";
   const prospectLines = parseProspects(prospectText);
 
   useEffect(() => {
@@ -296,16 +313,64 @@ function Jarvis() {
   };
   const toggleMic = () => {
     if (listening) { recognition.current?.stop(); return; }
+    listen(false);
+  };
+  /** Hands-free mode: listen, send, speak the answer, listen again. */
+  const toggleLive = () => {
+    const next = !liveRef.current;
+    liveRef.current = next;
+    setLive(next);
+    if (next) { setVoice(true); toast.message("Live mode on. Talk to Jarvis; he'll answer out loud and keep listening."); listen(true); }
+    else { recognition.current?.stop(); stopVoice(); }
+  };
+  function resumeLive() {
+    if (liveRef.current) window.setTimeout(() => { if (liveRef.current) listen(true); }, 350);
+  }
+  function listen(autoSend: boolean) {
     const browser = window as unknown as { SpeechRecognition?: RecognitionConstructor; webkitSpeechRecognition?: RecognitionConstructor };
     const Ctor = browser.SpeechRecognition ?? browser.webkitSpeechRecognition;
     if (!Ctor) { toast.error("Voice input is unavailable; use text instead."); return; }
     const rec = new Ctor();
     rec.lang = "en-US"; rec.interimResults = false;
-    rec.onresult = (event) => setText(String(event.results[0]?.[0]?.transcript ?? ""));
-    rec.onend = () => setListening(false);
-    rec.onerror = () => { setListening(false); toast.error("Voice input failed. You can still type."); };
+    let heard = false;
+    rec.onresult = (event) => {
+      const transcript = String(event.results[0]?.[0]?.transcript ?? "").trim();
+      if (!transcript) return;
+      heard = true;
+      if (autoSend) submit(transcript); else setText(transcript);
+    };
+    // Silence in live mode just means keep listening.
+    rec.onend = () => { setListening(false); if (autoSend && !heard) resumeLive(); };
+    rec.onerror = () => {
+      setListening(false);
+      if (!autoSend) toast.error("Voice input failed. You can still type.");
+    };
     recognition.current = rec;
-    try { rec.start(); setListening(true); } catch { setListening(false); toast.error("Microphone could not start."); }
+    try { rec.start(); setListening(true); } catch { setListening(false); if (!autoSend) toast.error("Microphone could not start."); }
+  }
+  const approveProposal = async (key: string, proposal: WriteProposal) => {
+    setApproved((current) => ({ ...current, [key]: "building" }));
+    if (proposal.id === "code.pr") {
+      try {
+        const result = await openPr({ data: { pr: proposal.pr } });
+        setOpenedPrs((current) => ({ ...current, [key]: result.url }));
+        setApproved((current) => ({ ...current, [key]: "done" }));
+        toast.success(`Pull request #${result.number} opened. Review and merge it on GitHub.`);
+      } catch (error) {
+        setApproved((current) => { const next = { ...current }; delete next[key]; return next; });
+        toast.error(error instanceof Error ? error.message : "Couldn't open the pull request.");
+      }
+      return;
+    }
+    try {
+      await buildDemo({ data: proposal.input });
+      setApproved((current) => ({ ...current, [key]: "done" }));
+      toast.success(`Building the demo site for ${proposal.input.businessName}. Track it under Tools → Demo sites.`);
+      void qc.invalidateQueries({ queryKey: ["jarvis", "prospect-demos"] });
+    } catch (error) {
+      setApproved((current) => { const next = { ...current }; delete next[key]; return next; });
+      toast.error(error instanceof Error ? error.message : "Couldn't start the build.");
+    }
   };
 
   return (
@@ -315,16 +380,19 @@ function Jarvis() {
           <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary"><Bot className="size-5" aria-hidden /></span>
           <div className="min-w-0">
             <h1 className="truncate text-xl font-semibold leading-tight">Jarvis</h1>
-            <p className="truncate text-xs text-muted-foreground">Mission control · read-only · free AI · you approve every send</p>
+            <p className="truncate text-xs text-muted-foreground">{live ? (listening ? "Listening…" : busy ? "Thinking…" : "Live") : "Checks, reads code, opens PRs, builds demos · you approve every change"}</p>
           </div>
         </div>
         <div className="flex shrink-0 gap-1">
+          <Button type="button" variant={live ? "default" : "outline"} size="sm" aria-pressed={live} className={`gap-1.5 ${live ? "animate-pulse" : ""}`} onClick={toggleLive}><Radio className="size-4" aria-hidden />Live</Button>
+          <Button type="button" variant={showTools ? "secondary" : "ghost"} size="icon" aria-label={showTools ? "Hide tools" : "Show tools"} aria-pressed={showTools} title="Tools" onClick={() => setShowTools((value) => !value)}><Wrench className="size-4" /></Button>
           <Button type="button" variant="ghost" size="icon" aria-label="Refresh diagnostics" title="Refresh diagnostics" disabled={diagnostics.isFetching} onClick={() => { void diagnostics.refetch(); }}><RefreshCw className={`size-4 ${diagnostics.isFetching ? "animate-spin" : ""}`} /></Button>
           <Button type="button" variant="ghost" size="icon" aria-label={voice ? "Mute replies" : "Speak replies"} aria-pressed={voice} title={voice ? "Mute replies" : "Speak replies"} onClick={() => { const next = !voice; setVoice(next); if (!next) stopVoice(); }}>{voice ? <Volume2 className="size-4" /> : <VolumeX className="size-4" />}</Button>
           <Button type="button" variant="ghost" size="icon" aria-label="Export chat" title="Export chat as Markdown" onClick={exportChat}><Download className="size-4" /></Button>
           <Button type="button" variant="ghost" size="icon" aria-label="Clear my chat" title="Clear my chat" disabled={clearing.isPending || busy} onClick={() => { if (window.confirm("Clear your Jarvis history?")) clearing.mutate(); }}><Trash2 className="size-4" /></Button>
         </div>
       </header>
+      {showTools ? <div className="space-y-3">
       <section aria-label="Jarvis customer acquisition autopilot" className="rounded-xl border border-border bg-card p-3 space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div><h2 className="font-semibold">Customer acquisition autopilot</h2><p className="text-xs text-muted-foreground">Measure → qualify → prepare → approve → verify paid conversion. No guaranteed revenue claims.</p></div>
@@ -466,6 +534,7 @@ function Jarvis() {
       </details>
 
       <ProspectDemoBuilder />
+      </div> : null}
 
       <div className="inline-flex w-fit rounded-full border border-border p-0.5" role="radiogroup" aria-label="Response style">
         {MODES.map(([value, label]) => (
@@ -482,7 +551,7 @@ function Jarvis() {
           {history.error ? <p role="alert" className="text-sm text-destructive">Your conversation could not be loaded.</p> : null}
           {empty ? (
             <div className="space-y-4 py-4">
-              <div className="space-y-1 text-center"><p className="text-lg font-medium">What are we working on?</p><p className="text-sm text-muted-foreground">Briefings, strategy, copy, Lovable prompts, code, second opinions.</p></div>
+              <div className="space-y-1 text-center"><p className="text-lg font-medium">What are we working on?</p><p className="text-sm text-muted-foreground">Ask anything. Jarvis runs platform checks, reads your code, and proposes fixes as pull requests and demo sites for you to approve. Tap Live to just talk.</p></div>
               <div className="grid gap-2 sm:grid-cols-2">
                 {STARTERS.map(([label, hint, prompt]) => (
                   <button key={label} type="button" disabled={busy} onClick={() => submit(prompt)} className="rounded-xl border border-border p-3 text-left transition-colors hover:bg-muted disabled:opacity-50"><span className="block text-sm font-medium">{label}</span><span className="block text-xs text-muted-foreground">{hint}</span></button>
@@ -499,11 +568,65 @@ function Jarvis() {
             <article key={message.id} className={`flex min-w-0 gap-2 ${regen.isPending && message.id === lastAssistantId ? "opacity-50" : ""}`}>
               <span className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary"><Bot className="size-4" aria-hidden /></span>
               <div className="min-w-0 flex-1">
-                <div className="text-sm"><MessageResponse>{message.content}</MessageResponse></div>
+                {(() => {
+                  const { body, meta } = splitReplyMeta(message.content);
+                  return (
+                    <>
+                      {meta.ran.length ? <div className="mb-1.5 flex flex-wrap gap-1">{meta.ran.map((item) => <span key={item} className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[11px] text-muted-foreground"><Check className="size-3" aria-hidden />{item}</span>)}</div> : null}
+                      <div className="text-sm"><MessageResponse>{body}</MessageResponse></div>
+                      {meta.proposals.map((proposal, index) => {
+                        const key = `${message.id}:${index}`;
+                        const state = approved[key];
+                        if (proposal.id === "code.pr") {
+                          const url = openedPrs[key];
+                          return (
+                            <div key={key} className="mt-2 rounded-xl border border-primary/40 bg-primary/5 p-3">
+                              <p className="flex items-center gap-1.5 text-sm font-medium"><GitPullRequest className="size-4 text-primary" aria-hidden />Pull request: {proposal.pr.title}</p>
+                              <p className="mt-1 whitespace-pre-wrap text-xs text-muted-foreground">{proposal.pr.summary}</p>
+                              <details className="mt-2 rounded-md border border-border bg-background/60 p-2">
+                                <summary className="cursor-pointer text-xs">{proposal.pr.changes.length} file{proposal.pr.changes.length === 1 ? "" : "s"} · review the exact changes</summary>
+                                <div className="mt-2 space-y-3">
+                                  {proposal.pr.changes.map((change) => (
+                                    <div key={change.path} className="space-y-1">
+                                      <p className="break-all font-mono text-[11px] font-semibold">{change.path} {"content" in change ? "(new file)" : ""}</p>
+                                      {"content" in change ? (
+                                        <pre className="max-h-60 overflow-auto rounded bg-muted p-2 text-[11px]">{change.content}</pre>
+                                      ) : change.edits.map((edit, editIndex) => (
+                                        <div key={editIndex} className="grid gap-1">
+                                          <pre className="max-h-40 overflow-auto rounded bg-destructive/10 p-2 text-[11px]">{edit.find}</pre>
+                                          <pre className="max-h-40 overflow-auto rounded bg-emerald-500/10 p-2 text-[11px]">{edit.replace}</pre>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  ))}
+                                </div>
+                              </details>
+                              {url ? (
+                                <a href={url} target="_blank" rel="noreferrer" className="mt-2 inline-flex h-8 items-center gap-1 rounded-md border border-border px-3 text-xs font-medium hover:bg-muted"><ExternalLink className="size-3.5" aria-hidden />View on GitHub</a>
+                              ) : (
+                                <Button type="button" size="sm" className="mt-2" disabled={Boolean(state)} onClick={() => { void approveProposal(key, proposal); }}>{state === "building" ? "Opening…" : "Approve and open pull request"}</Button>
+                              )}
+                              <p className="mt-1 text-[11px] text-muted-foreground">Opens a pull request into lovable-sync. Nothing merges until you merge it on GitHub.</p>
+                            </div>
+                          );
+                        }
+                        const facts = [proposal.input.industry, [proposal.input.city, proposal.input.state].filter(Boolean).join(", "), proposal.input.phone, proposal.input.email].filter(Boolean).join(" · ");
+                        return (
+                          <div key={key} className="mt-2 rounded-xl border border-primary/40 bg-primary/5 p-3">
+                            <p className="flex items-center gap-1.5 text-sm font-medium"><Hammer className="size-4 text-primary" aria-hidden />Build demo site: {proposal.input.businessName}</p>
+                            <p className="mt-0.5 text-xs text-muted-foreground">{facts}</p>
+                            {proposal.input.services.length ? <p className="mt-0.5 text-xs text-muted-foreground">Services: {proposal.input.services.join(", ")}</p> : null}
+                            <Button type="button" size="sm" className="mt-2" disabled={Boolean(state)} onClick={() => { void approveProposal(key, proposal); }}>{state === "building" ? "Starting…" : state === "done" ? "Build started" : "Approve and build"}</Button>
+                          </div>
+                        );
+                      })}
+                    </>
+                  );
+                })()}
                 <div className="mt-1 flex flex-wrap items-center gap-1 text-muted-foreground">
                   <span className="mr-1 text-[11px]">{clock(message.created_at)}</span>
-                  <Button type="button" variant="ghost" size="sm" className="h-7 gap-1 px-2 text-xs" onClick={() => { void copy(message.content); }}><Copy className="size-3.5" />Copy</Button>
-                  <Button type="button" variant="ghost" size="sm" className="h-7 gap-1 px-2 text-xs" onClick={() => speak(message.content)}><Volume2 className="size-3.5" />Listen</Button>
+                  <Button type="button" variant="ghost" size="sm" className="h-7 gap-1 px-2 text-xs" onClick={() => { void copy(splitReplyMeta(message.content).body); }}><Copy className="size-3.5" />Copy</Button>
+                  <Button type="button" variant="ghost" size="sm" className="h-7 gap-1 px-2 text-xs" onClick={() => { void speak(message.content); }}><Volume2 className="size-3.5" />Listen</Button>
                   {message.id === lastAssistantId ? <Button type="button" variant="ghost" size="sm" className="h-7 gap-1 px-2 text-xs" disabled={busy} onClick={() => regen.mutate()}><RotateCcw className="size-3.5" />Regenerate</Button> : null}
                 </div>
               </div>
