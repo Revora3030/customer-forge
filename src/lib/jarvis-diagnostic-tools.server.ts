@@ -368,6 +368,13 @@ export async function executeJarvisDiagnosticTool(
         return "unknown";
       };
       const qualityStatus = runStatus(qualityRun);
+      setEvidence(
+        "diagnostics.redaction",
+        qualityStatus,
+        "Redaction regression fixtures: " + (qualityRun?.conclusion ?? qualityRun?.status ?? "missing") +
+          "; only a successful Quality Gate on the exact current release commit proves the checked-in adversarial/regression suite ran.",
+        "same-commit GitHub Actions Quality Gate",
+      );
       const qualityDetail = "Quality Gate: " + (qualityRun?.conclusion ?? qualityRun?.status ?? "missing") +
         "; run commit " + (qualityRun?.commit ?? "unknown") + ", current release commit " + (currentReleaseCommit ?? "unknown") +
         "; completed success on the exact current release commit is required.";
@@ -385,7 +392,14 @@ export async function executeJarvisDiagnosticTool(
       setEvidence("reliability.rollback", "unknown", "A recovery plan does not prove a successful rollback exercise.", "rollback exercise unavailable");
 
       setEvidence("growth.funnelSignals", "configured", "Aggregate funnel queries are implemented; record counts are not represented as campaign-attributed revenue.", "read-only database query capability");
-      setEvidence("growth.offerConsistency", "configured", "The application has one canonical offer source; live provider agreement requires a separate catalog contract.", "application configuration only");
+      const offerConsistencyStatus = runStatus(securityRun);
+      setEvidence(
+        "growth.offerConsistency",
+        offerConsistencyStatus,
+        "Revora Security Gate: " + (securityRun?.conclusion ?? securityRun?.status ?? "missing") +
+          "; its live Stripe catalog contract must pass on the exact current release commit before the published offer is treated as verified.",
+        "same-commit GitHub Actions Security Gate with live Stripe catalog contract",
+      );
       setEvidence("growth.attribution", "unknown", "Trusted campaign-to-paid-conversion attribution was not verified.", "attribution evidence unavailable");
       setEvidence("growth.experiments", "unknown", "Controlled conversion experiments and measured outcomes were not verified.", "experiment evidence unavailable");
 
