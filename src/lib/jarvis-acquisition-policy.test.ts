@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { authorizeAcquisitionFollowup, buildAcquisitionPlan, formatRevoraOffer, REVORA_OFFER, scoreAcquisitionLead, type FollowupContext } from "./jarvis-acquisition-policy";
+import { GROWTH_SYSTEM } from "./offer";
 
 const safeFollowup: FollowupContext = {
   channel: "email", consent: "explicit", optedOut: false, bounced: false, complained: false,
@@ -9,9 +10,13 @@ const safeFollowup: FollowupContext = {
 };
 
 describe("Jarvis acquisition policy", () => {
-  it("uses the canonical owner-approved offer consistently", () => {
-    expect(REVORA_OFFER).toEqual({ setupFeeUsd: 750, firstMonthFree: true, monthlyPriceUsd: 100, trialDays: 1 });
-    expect(formatRevoraOffer()).toBe("$750 one-time setup, first month free, then $100/month, with a 1-day full-access trial");
+  it("uses the single canonical Revora offer", () => {
+    expect(REVORA_OFFER).toEqual({ setupFeeUsd: 350, firstMonthFree: true, monthlyPriceUsd: 100, trialDays: 3 });
+    expect(REVORA_OFFER.setupFeeUsd).toBe(GROWTH_SYSTEM.setupPrice);
+    expect(REVORA_OFFER.monthlyPriceUsd).toBe(GROWTH_SYSTEM.monthlyPrice);
+    expect(REVORA_OFFER.trialDays).toBe(GROWTH_SYSTEM.fullAccessTrialDays);
+    expect(formatRevoraOffer()).toBe("$350 one-time setup, first month free, then $100/month, with a 3-day full-access trial");
+    expect(formatRevoraOffer()).not.toContain("$750");
   });
   it("scores a high-intent lead without inventing evidence", () => {
     const score = scoreAcquisitionLead({ requestedQuote: true, hasValidContactRoute: true, serviceAreaMatch: true, recentIntentDays: 0 });
@@ -38,6 +43,22 @@ describe("Jarvis acquisition policy", () => {
       { tenantScopeVerified: false }, { withinQuietHours: false }, { optedOut: true },
     ];
     for (const patch of cases) expect(authorizeAcquisitionFollowup({ ...safeFollowup, ...patch }).allowed).toBe(false);
+  });
+  it("does not treat truthy strings or missing values as verification", () => {
+    const cases = [
+      { approvedTemplate: "false" }, { verifiedProvider: "true" }, { tenantScopeVerified: 1 },
+      { withinQuietHours: undefined }, { optedOut: undefined }, { bounced: "false" },
+      { complained: null }, { duplicateIdempotencyKey: undefined }, { includesSensitiveData: undefined },
+      { includesUnverifiedClaims: "false" }, { isBulkColdOutreach: undefined }, { channel: "voice" },
+    ];
+    for (const patch of cases) {
+      expect(authorizeAcquisitionFollowup({ ...safeFollowup, ...patch } as never).allowed).toBe(false);
+    }
+  });
+  it("rejects malformed contexts and invalid budgets", () => {
+    expect(authorizeAcquisitionFollowup(null as never).allowed).toBe(false);
+    expect(authorizeAcquisitionFollowup({ ...safeFollowup, sentInRolling24h: Number.NaN }).allowed).toBe(false);
+    expect(authorizeAcquisitionFollowup({ ...safeFollowup, maxPerRolling24h: 0 }).allowed).toBe(false);
   });
   it("blocks a plan whose requested daily budget exceeds approved budget", () => {
     const plan = buildAcquisitionPlan({

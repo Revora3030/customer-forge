@@ -4,12 +4,14 @@
  * It scores supplied lead metadata and decides whether a pre-approved follow-up
  * may be queued. Provider execution remains a separate server-side integration.
  */
-/** Canonical offer values used by acquisition copy; change only with owner authorization. */
+import { GROWTH_SYSTEM } from "./offer";
+
+/** Derived from the single canonical offer module; never hard-code commercial terms here. */
 export const REVORA_OFFER = {
-  setupFeeUsd: 750,
+  setupFeeUsd: GROWTH_SYSTEM.setupPrice,
   firstMonthFree: true,
-  monthlyPriceUsd: 100,
-  trialDays: 1,
+  monthlyPriceUsd: GROWTH_SYSTEM.monthlyPrice,
+  trialDays: GROWTH_SYSTEM.fullAccessTrialDays,
 } as const;
 
 export function formatRevoraOffer(): string {
@@ -108,21 +110,24 @@ export function scoreAcquisitionLead(input: LeadSignal): LeadScore {
 /**
  * Outbound delivery is deliberately fail-closed. Even an eligible follow-up
  * requires an explicit opt-in, approved copy, a verified provider and tenant
- * scope, and an idempotent bounded delivery queue.
+ * scope, and an idempotent bounded delivery queue. Authorization flags must be
+ * actual booleans; truthy strings or missing values never grant permission.
  */
 export function authorizeAcquisitionFollowup(context: FollowupContext): FollowupDecision {
   const deny = (reason: string): FollowupDecision => ({ allowed: false, mode: "blocked", reason });
-  if (context.optedOut || context.consent === "withdrawn") return deny("Recipient has opted out or withdrawn consent.");
-  if (context.bounced || context.complained) return deny("Delivery failure or complaint suppresses outbound follow-up.");
+  if (!context || typeof context !== "object") return deny("Follow-up context is invalid.");
+  if (context.optedOut !== false || context.consent === "withdrawn") return deny("Recipient has opted out, withdrawn consent, or opt-out status is not verified.");
+  if (context.bounced !== false || context.complained !== false) return deny("Delivery failure or complaint suppresses outbound follow-up, or suppression status is not verified.");
   if (context.consent !== "explicit") return deny("Explicit channel-appropriate consent is required.");
-  if (context.isBulkColdOutreach) return deny("Bulk cold outreach is not permitted by the acquisition autopilot.");
-  if (!context.approvedTemplate) return deny("Use an approved, versioned message template.");
-  if (!context.verifiedProvider) return deny("The sending provider must be connected and runtime-verified.");
-  if (!context.tenantScopeVerified) return deny("Tenant ownership and sender identity must be verified.");
-  if (!context.withinQuietHours) return deny("The recipient's permitted sending window is closed.");
-  if (context.includesUnverifiedClaims) return deny("Unverified business, pricing, performance, or testimonial claims are prohibited.");
-  if (context.includesSensitiveData) return deny("Sensitive or unnecessary personal data must not be included.");
-  if (context.duplicateIdempotencyKey) return deny("Duplicate delivery key detected.");
+  if (!["email", "sms", "whatsapp", "in_app"].includes(context.channel)) return deny("The delivery channel is not recognized.");
+  if (context.isBulkColdOutreach !== false) return deny("Bulk cold outreach is not permitted by the acquisition autopilot.");
+  if (context.approvedTemplate !== true) return deny("Use an approved, versioned message template.");
+  if (context.verifiedProvider !== true) return deny("The sending provider must be connected and runtime-verified.");
+  if (context.tenantScopeVerified !== true) return deny("Tenant ownership and sender identity must be verified.");
+  if (context.withinQuietHours !== true) return deny("The recipient's permitted sending window is closed or unverified.");
+  if (context.includesUnverifiedClaims !== false) return deny("Unverified business, pricing, performance, or testimonial claims are prohibited.");
+  if (context.includesSensitiveData !== false) return deny("Sensitive or unnecessary personal data must not be included.");
+  if (context.duplicateIdempotencyKey !== false) return deny("Duplicate or unverified delivery key detected.");
   if (!Number.isInteger(context.sentInRolling24h) || context.sentInRolling24h < 0 ||
       !Number.isInteger(context.maxPerRolling24h) || context.maxPerRolling24h < 1 ||
       context.sentInRolling24h >= context.maxPerRolling24h) return deny("Rolling 24-hour send budget is exhausted or invalid.");
