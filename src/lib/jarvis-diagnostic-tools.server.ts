@@ -124,7 +124,10 @@ async function publicPageCheck(path: "/" | "/robots.txt" | "/sitemap.xml") {
       signal: AbortSignal.timeout(7000),
     });
     const body = await readLimited(response);
-    const pick = (pattern: RegExp) => body.match(pattern)?.[1]?.trim().slice(0, 240) ?? null;
+    const pick = (pattern: RegExp) => {
+      const value = body.match(pattern)?.[1]?.trim().slice(0, 240);
+      return value || null;
+    };
     return {
       path,
       httpStatus: response.status,
