@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { MessageResponse } from "@/components/ai-elements/message";
-import { clearJarvisHistory, getJarvisHistory, getJarvisDiagnostics, getJarvisAccessSnapshot, getJarvisDiagnosticTools, runJarvisDiagnosticTool, sendJarvisMessage } from "@/lib/jarvis.functions";
+import { clearJarvisHistory, getJarvisHistory, getJarvisDiagnostics, getJarvisAccessSnapshot, getJarvisDiagnosticTools, getJarvisAutopilotStatus, runJarvisDiagnosticTool, sendJarvisMessage } from "@/lib/jarvis.functions";
 
 type Recognition = {
   lang: string; interimResults: boolean;
@@ -44,11 +44,11 @@ const COMMAND_GROUPS = [
 function Jarvis() {
   const qc = useQueryClient();
   const load = useServerFn(getJarvisHistory);
-  const inspect = useServerFn(getJarvisDiagnostics);\n  const inspectAccess = useServerFn(getJarvisAccessSnapshot);\n  const loadTools = useServerFn(getJarvisDiagnosticTools);\n  const runTool = useServerFn(runJarvisDiagnosticTool);
+  const inspect = useServerFn(getJarvisDiagnostics);\n  const inspectAccess = useServerFn(getJarvisAccessSnapshot);\n  const loadTools = useServerFn(getJarvisDiagnosticTools);\n  const loadAutopilot = useServerFn(getJarvisAutopilotStatus);\n  const runTool = useServerFn(runJarvisDiagnosticTool);
   const send = useServerFn(sendJarvisMessage);
   const clear = useServerFn(clearJarvisHistory);
   const history = useQuery({ queryKey: ["jarvis", "history"], queryFn: () => load() });
-  const diagnostics = useQuery({ queryKey: ["jarvis", "diagnostics"], queryFn: () => inspect(), enabled: false, retry: false });\n  const access = useQuery({ queryKey: ["jarvis", "access"], queryFn: () => inspectAccess(), enabled: false, retry: false });\n  const toolCatalog = useQuery({ queryKey: ["jarvis", "tool-catalog"], queryFn: () => loadTools(), retry: false });\n  const [toolResults, setToolResults] = useState<Record<string, unknown>>({});\n  const toolRun = useMutation({\n    mutationFn: (toolId: string) => runTool({ data: { toolId } }),\n    onSuccess: (result, toolId) => setToolResults((previous) => ({ ...previous, [toolId]: result })),\n    onError: (error: Error) => toast.error(error.message),\n  });
+  const diagnostics = useQuery({ queryKey: ["jarvis", "diagnostics"], queryFn: () => inspect(), enabled: false, retry: false });\n  const access = useQuery({ queryKey: ["jarvis", "access"], queryFn: () => inspectAccess(), enabled: false, retry: false });\n  const autopilot = useQuery({ queryKey: ["jarvis", "autopilot-status"], queryFn: () => loadAutopilot(), enabled: false, retry: false });\n  const toolCatalog = useQuery({ queryKey: ["jarvis", "tool-catalog"], queryFn: () => loadTools(), retry: false });\n  const [toolResults, setToolResults] = useState<Record<string, unknown>>({});\n  const toolRun = useMutation({\n    mutationFn: (toolId: string) => runTool({ data: { toolId } }),\n    onSuccess: (result, toolId) => setToolResults((previous) => ({ ...previous, [toolId]: result })),\n    onError: (error: Error) => toast.error(error.message),\n  });
   const [text, setText] = useState("");
   const [pending, setPending] = useState<string | null>(null);
   const [followups, setFollowups] = useState<string[]>([]);
@@ -181,6 +181,25 @@ function Jarvis() {
             </article>;
           })}
         </div>
+      </section>
+      <section aria-label="Autopilot safety state" className="rounded-lg border border-border bg-card p-4">
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <div>
+            <h2 className="font-semibold">Autopilot safety state</h2>
+            <p className="text-xs text-muted-foreground">Read-only. Unknown settings always mean disabled with the kill switch treated as engaged.</p>
+          </div>
+          <Button variant="outline" size="sm" disabled={autopilot.isFetching} onClick={() => { void autopilot.refetch(); }}>Check safety state</Button>
+        </div>
+        {autopilot.data ? <>
+          <div className="mt-3 grid gap-2 sm:grid-cols-3">
+            <div className="rounded-md border border-border p-3"><p className="text-xs text-muted-foreground">Settings</p><p className="font-medium">{autopilot.data.status}</p></div>
+            <div className="rounded-md border border-border p-3"><p className="text-xs text-muted-foreground">Autopilot enabled</p><p className="font-medium">{autopilot.data.enabled ? "Yes" : "No"}</p></div>
+            <div className="rounded-md border border-border p-3"><p className="text-xs text-muted-foreground">Kill switch</p><p className="font-medium">{autopilot.data.killSwitchEngaged ? "Engaged" : "Not engaged"}</p></div>
+          </div>
+          <p className="mt-2 text-sm">{autopilot.data.note}</p>
+          <p className="text-xs text-muted-foreground">Mutation executors available: {autopilot.data.writeExecutorsAvailable ? "Yes" : "No"}. A configured setting does not make a write tool executable.</p>
+        </> : <p className="mt-3 text-sm text-muted-foreground">Safety state has not been checked yet.</p>}
+        {autopilot.error ? <p role="alert" className="mt-2 text-sm">Settings check failed; autopilot remains treated as disabled.</p> : null}
       </section>
       <section aria-label="Diagnostic status" className="grid gap-3 sm:grid-cols-3">
         {["errors", "builds", "schema"].map((name) => {
