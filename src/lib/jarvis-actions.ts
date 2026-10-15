@@ -10,6 +10,7 @@
  * SQL, URLs or credentials.
  */
 import { parseProspectDemoInput, type ProspectDemoInput } from "./jarvis-demo-site";
+import { safeInspectionPath } from "./builder/inspection-paths";
 
 export const MAX_ACTIONS_PER_STEP = 3;
 export const MAX_ACTION_STEPS = 3;
@@ -20,7 +21,72 @@ export type ReadAction =
   | { id: "code.list"; page: number }
   | { id: "demos.list" };
 
-export type WriteProposal = { id: "demo.build"; input: ProspectDemoInput };
+export type CodeChange =
+  | { path: string; edits: { find: string; replace: string }[] }
+  | { path: string; content: string };
+
+export type PullRequestProposal = { title: string; summary: string; changes: CodeChange[] };
+
+export type WriteProposal =
+  | { id: "demo.build"; input: ProspectDemoInput }
+  | { id: "code.pr"; pr: PullRequestProposal };
+
+export const MAX_PR_FILES = 6;
+export const MAX_PR_CHARS = 60_000;
+
+/** Paths Jarvis may change. CI workflows, generated files and secrets are off limits. */
+export function writablePath(path: string): boolean {
+  return safeInspectionPath(path) && !path.startsWith(".github/");
+}
+
+/** Validates a pull-request proposal; throws a plain-language reason. */
+export function parsePullRequestProposal(value: unknown): PullRequestProposal {
+  const raw = (value && typeof value === "object" ? value : {}) as Record<string, unknown>;
+  const title = str(raw["title"], 120);
+  if (title.length < 8) throw new Error("needs a clear title");
+  const summary = str(raw["summary"], 4000);
+  if (summary.length < 20) throw new Error("needs a summary of what changes and why");
+  const rawChanges = Array.isArray(raw["changes"]) ? raw["changes"] : [];
+  if (!rawChanges.length) throw new Error("has no file changes");
+  if (rawChanges.length > MAX_PR_FILES) throw new Error(`changes more than ${MAX_PR_FILES} files`);
+  const seen = new Set<string>();
+  let total = 0;
+  const changes: CodeChange[] = rawChanges.map((item) => {
+    const change = (item && typeof item === "object" ? item : {}) as Record<string, unknown>;
+    const path = str(change["path"], 240);
+    if (!writablePath(path)) throw new Error(`can't change ${path || "that path"}`);
+    if (seen.has(path)) throw new Error(`lists ${path} twice`);
+    seen.add(path);
+    if (typeof change["content"] === "string") {
+      total += change["content"].length;
+      return { path, content: change["content"] };
+    }
+    const edits = (Array.isArray(change["edits"]) ? change["edits"] : []).slice(0, 20).map((edit) => {
+      const e = (edit && typeof edit === "object" ? edit : {}) as Record<string, unknown>;
+      const find = typeof e["find"] === "string" ? e["find"] : "";
+      const replace = typeof e["replace"] === "string" ? e["replace"] : "";
+      if (find.trim().length < 8) throw new Error(`has an edit in ${path} without enough text to find`);
+      total += find.length + replace.length;
+      return { find, replace };
+    });
+    if (!edits.length) throw new Error(`has no edits for ${path}`);
+    return { path, edits };
+  });
+  if (total > MAX_PR_CHARS) throw new Error("is too large; split it into smaller pull requests");
+  return { title, summary, changes };
+}
+
+/** Applies exact find/replace edits. Each find must match exactly once. */
+export function applyEdits(source: string, edits: { find: string; replace: string }[], path: string): string {
+  let out = source;
+  for (const edit of edits) {
+    const first = out.indexOf(edit.find);
+    if (first === -1) throw new Error(`${path}: text to replace was not found. Read the file again and retry.`);
+    if (out.indexOf(edit.find, first + 1) !== -1) throw new Error(`${path}: text to replace appears more than once; include more context.`);
+    out = out.slice(0, first) + edit.replace + out.slice(first + edit.find.length);
+  }
+  return out;
+}
 
 export type ParsedActions = {
   reads: ReadAction[];
@@ -37,6 +103,7 @@ export function actionCatalogPrompt(diagnosticToolIds: string[]): string {
     '- {"id":"code.read","args":{"paths":["src/..."],"line":1}}: read up to 2 source files, 120 lines each, starting at line. Use code.list first if unsure of a path.',
     '- {"id":"demos.list","args":{}}: list prospect demo sites with build status and preview links.',
     '- {"id":"demo.build","args":{"businessName":"","industry":"","city":"","state":"","phone":"","email":"","services":["..."],"description":""}}: PROPOSE building a private demo website for a real business with no website. Only facts the owner gave you; never invent phone numbers, emails or services. The owner approves with one tap; you do not run it.',
+    '- {"id":"code.pr","args":{"title":"","summary":"","changes":[{"path":"src/...","edits":[{"find":"exact existing text","replace":"new text"}]},{"path":"src/new-file.ts","content":"full file"}]}}: PROPOSE a GitHub pull request into lovable-sync. Read every file you edit with code.read first in this conversation; "find" must be copied exactly from it and appear once. Use "content" only for new files. Up to 6 files. Keep changes minimal, complete and type-safe; never touch auth, RLS, billing or tenant isolation unless the owner asked; never add secrets. The owner approves with one tap and reviews before merging.',
     "Use actions whenever they would make your answer more accurate. Prefer checking over guessing. Never claim an action ran unless you received its result.",
   ].join("\n");
 }
@@ -80,6 +147,12 @@ export function parseActions(requested: unknown[], diagnosticToolIds: string[]):
       out.reads.push({ id, page: Math.min(1000, Math.max(1, Math.floor(Number(args["page"]) || 1))) });
     } else if (id === "demos.list") {
       out.reads.push({ id });
+    } else if (id === "code.pr") {
+      try {
+        out.proposals.push({ id, pr: parsePullRequestProposal(args) });
+      } catch (error) {
+        out.rejected.push(`code.pr ${error instanceof Error ? error.message : "is invalid"}`);
+      }
     } else if (id === "demo.build") {
       try {
         out.proposals.push({ id, input: parseProspectDemoInput(args) });
@@ -127,9 +200,9 @@ export function splitReplyMeta(content: string): { body: string; meta: JarvisRep
     const ran = Array.isArray(parsed.ran) ? parsed.ran.filter((item): item is string => typeof item === "string").slice(0, 12) : [];
     const proposals: WriteProposal[] = [];
     for (const proposal of Array.isArray(parsed.proposals) ? parsed.proposals.slice(0, 5) : []) {
-      if (proposal?.id !== "demo.build") continue;
       try {
-        proposals.push({ id: "demo.build", input: parseProspectDemoInput(proposal.input) });
+        if (proposal?.id === "demo.build") proposals.push({ id: "demo.build", input: parseProspectDemoInput(proposal.input) });
+        else if (proposal?.id === "code.pr") proposals.push({ id: "code.pr", pr: parsePullRequestProposal(proposal.pr) });
       } catch {
         /* drop anything that no longer validates */
       }

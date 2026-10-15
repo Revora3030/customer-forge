@@ -1,12 +1,9 @@
 import { Buffer } from "node:buffer";
 
+import { safeInspectionPath } from "./inspection-paths";
+
 const REPO = "Revora3030/customer-forge";
-export function safeInspectionPath(path: string): boolean {
-  if (path.length > 240 || /[\\%?#]/.test(path) || path.split("").some((character) => character.charCodeAt(0) === 0)) return false;
-  if (path.split("/").some((part) => part === ".." || part === ".")) return false;
-  if (/(^|\/)(\.env[^/]*|node_modules|\.git)(\/|$)/i.test(path)) return false;
-  return /^(src\/|scripts\/|docs\/|supabase\/migrations\/|\.github\/workflows\/)/.test(path) && /\.(ts|tsx|js|mjs|css|md|json|sql|yml|yaml)$/.test(path) && !/routeTree\.gen|supabase\/types/.test(path);
-}
+export { safeInspectionPath };
 export function redactInspectionSource(source: string): string {
   return source.replace(/-----BEGIN [^-]*PRIVATE KEY-----[\s\S]*?-----END [^-]*PRIVATE KEY-----/g, "[REDACTED PRIVATE KEY]").split("\n").map((line) => /(?:sk-[A-Za-z0-9_-]{20,}|gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]+|AIza[A-Za-z0-9_-]{20,})/.test(line) || /(?:password|secret|api[_-]?key|access[_-]?token)\s*[=:]\s*["'][^"']+["']/i.test(line) ? "[REDACTED SENSITIVE LINE]" : line).join("\n");
 }

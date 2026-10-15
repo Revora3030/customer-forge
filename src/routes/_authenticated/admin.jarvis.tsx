@@ -2,12 +2,12 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
-import { ArrowDown, Ban, Bot, Check, Copy, Download, Hammer, Megaphone, Mic, MicOff, Radio, RefreshCw, RotateCcw, Send, Trash2, Volume2, VolumeX, Wrench } from "lucide-react";
+import { ArrowDown, Ban, Bot, Check, Copy, Download, ExternalLink, GitPullRequest, Hammer, Megaphone, Mic, MicOff, Radio, RefreshCw, RotateCcw, Send, Trash2, Volume2, VolumeX, Wrench } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { MessageResponse } from "@/components/ai-elements/message";
-import { clearJarvisHistory, getJarvisHistory, getJarvisDiagnostics, getJarvisAcquisitionReadiness, getJarvisDiagnosticTools, runJarvisDiagnosticTool, regenerateJarvisReply, sendJarvisMessage } from "@/lib/jarvis.functions";
+import { openJarvisPullRequestFn, clearJarvisHistory, getJarvisHistory, getJarvisDiagnostics, getJarvisAcquisitionReadiness, getJarvisDiagnosticTools, runJarvisDiagnosticTool, regenerateJarvisReply, sendJarvisMessage } from "@/lib/jarvis.functions";
 import { draftProspectOutreach, type ProspectDraft } from "@/lib/jarvis-prospecting.functions";
 import { formatRevoraOffer } from "@/lib/jarvis-acquisition-policy";
 import { synthesizeJarvisVoice } from "@/lib/jarvis-voice.functions";
@@ -64,7 +64,12 @@ const AUTOPILOT = `Build my customer-acquisition autopilot plan for this week. S
 const PROSPECT_IDEAS = `List ten types of Raleigh and Chapel Hill local service businesses most likely to buy a website with this offer: ${formatRevoraOffer()} with built-in quotes, booking and follow-up, and how to find each type legally (Google Maps, chamber directories, Yelp). Do not suggest scraping that breaks a site's terms. ${RULES}`;
 const FOLLOW_UP = `Design a three-touch email follow-up sequence for prospects who did not reply, spaced over two weeks, each under 80 words, each with an easy opt-out. ${RULES}`;
 
+const FIX_TOP_ERROR = "Run the platform error and builder health checks, find the most damaging real problem, read the code responsible, and propose a focused pull request that fixes the root cause. Explain the fix in plain language.";
+const UPGRADE = "Read the code behind the builder and Jarvis, pick the single highest-impact upgrade for customers, and propose it as a focused pull request. Say what you'd do next after it.";
+
 const COMMANDS = [
+  ["Fix top error", FIX_TOP_ERROR],
+  ["Propose an upgrade", UPGRADE],
   ["Daily briefing", BRIEFING],
   ["Autopilot plan", AUTOPILOT],
   ["Prospect ideas", PROSPECT_IDEAS],
@@ -82,9 +87,10 @@ const COMMANDS = [
 ] as const;
 
 const STARTERS = [
+  ["Fix top error", "Find it, read the code, open a fix PR", FIX_TOP_ERROR],
   ["Daily briefing", "What matters today, ranked by impact", BRIEFING],
   ["Autopilot plan", "This week's customer-acquisition routine", AUTOPILOT],
-  ["Offer review", "Find conversion leaks in the $350 setup offer", OFFER],
+  ["Propose an upgrade", "The highest-impact improvement, as a PR", UPGRADE],
   ["Outreach drafts", "Three emails for Raleigh-area businesses", OUTREACH],
 ] as const;
 
@@ -118,6 +124,8 @@ function Jarvis() {
   const synthesizeVoice = useServerFn(synthesizeJarvisVoice);
   const draftFn = useServerFn(draftProspectOutreach);
   const buildDemo = useServerFn(startProspectDemoBuild);
+  const openPr = useServerFn(openJarvisPullRequestFn);
+  const [openedPrs, setOpenedPrs] = useState<Record<string, string>>({});
   const history = useQuery({ queryKey: ["jarvis", "history"], queryFn: () => load() });
   const diagnostics = useQuery({ queryKey: ["jarvis", "diagnostics"], queryFn: () => inspect(), staleTime: 60_000, retry: false });
   const acquisition = useQuery({ queryKey: ["jarvis", "acquisition-readiness"], queryFn: () => inspectAcquisition(), enabled: false, retry: false });
@@ -342,6 +350,18 @@ function Jarvis() {
   }
   const approveProposal = async (key: string, proposal: WriteProposal) => {
     setApproved((current) => ({ ...current, [key]: "building" }));
+    if (proposal.id === "code.pr") {
+      try {
+        const result = await openPr({ data: { pr: proposal.pr } });
+        setOpenedPrs((current) => ({ ...current, [key]: result.url }));
+        setApproved((current) => ({ ...current, [key]: "done" }));
+        toast.success(`Pull request #${result.number} opened. Review and merge it on GitHub.`);
+      } catch (error) {
+        setApproved((current) => { const next = { ...current }; delete next[key]; return next; });
+        toast.error(error instanceof Error ? error.message : "Couldn't open the pull request.");
+      }
+      return;
+    }
     try {
       await buildDemo({ data: proposal.input });
       setApproved((current) => ({ ...current, [key]: "done" }));
@@ -360,7 +380,7 @@ function Jarvis() {
           <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary"><Bot className="size-5" aria-hidden /></span>
           <div className="min-w-0">
             <h1 className="truncate text-xl font-semibold leading-tight">Jarvis</h1>
-            <p className="truncate text-xs text-muted-foreground">{live ? (listening ? "Listening…" : busy ? "Thinking…" : "Live") : "Checks, reads code, builds demos · you approve every change"}</p>
+            <p className="truncate text-xs text-muted-foreground">{live ? (listening ? "Listening…" : busy ? "Thinking…" : "Live") : "Checks, reads code, opens PRs, builds demos · you approve every change"}</p>
           </div>
         </div>
         <div className="flex shrink-0 gap-1">
@@ -531,7 +551,7 @@ function Jarvis() {
           {history.error ? <p role="alert" className="text-sm text-destructive">Your conversation could not be loaded.</p> : null}
           {empty ? (
             <div className="space-y-4 py-4">
-              <div className="space-y-1 text-center"><p className="text-lg font-medium">What are we working on?</p><p className="text-sm text-muted-foreground">Ask anything. Jarvis runs platform checks, reads your code, and proposes demo sites for you to approve. Tap Live to just talk.</p></div>
+              <div className="space-y-1 text-center"><p className="text-lg font-medium">What are we working on?</p><p className="text-sm text-muted-foreground">Ask anything. Jarvis runs platform checks, reads your code, and proposes fixes as pull requests and demo sites for you to approve. Tap Live to just talk.</p></div>
               <div className="grid gap-2 sm:grid-cols-2">
                 {STARTERS.map(([label, hint, prompt]) => (
                   <button key={label} type="button" disabled={busy} onClick={() => submit(prompt)} className="rounded-xl border border-border p-3 text-left transition-colors hover:bg-muted disabled:opacity-50"><span className="block text-sm font-medium">{label}</span><span className="block text-xs text-muted-foreground">{hint}</span></button>
@@ -557,6 +577,39 @@ function Jarvis() {
                       {meta.proposals.map((proposal, index) => {
                         const key = `${message.id}:${index}`;
                         const state = approved[key];
+                        if (proposal.id === "code.pr") {
+                          const url = openedPrs[key];
+                          return (
+                            <div key={key} className="mt-2 rounded-xl border border-primary/40 bg-primary/5 p-3">
+                              <p className="flex items-center gap-1.5 text-sm font-medium"><GitPullRequest className="size-4 text-primary" aria-hidden />Pull request: {proposal.pr.title}</p>
+                              <p className="mt-1 whitespace-pre-wrap text-xs text-muted-foreground">{proposal.pr.summary}</p>
+                              <details className="mt-2 rounded-md border border-border bg-background/60 p-2">
+                                <summary className="cursor-pointer text-xs">{proposal.pr.changes.length} file{proposal.pr.changes.length === 1 ? "" : "s"} · review the exact changes</summary>
+                                <div className="mt-2 space-y-3">
+                                  {proposal.pr.changes.map((change) => (
+                                    <div key={change.path} className="space-y-1">
+                                      <p className="break-all font-mono text-[11px] font-semibold">{change.path} {"content" in change ? "(new file)" : ""}</p>
+                                      {"content" in change ? (
+                                        <pre className="max-h-60 overflow-auto rounded bg-muted p-2 text-[11px]">{change.content}</pre>
+                                      ) : change.edits.map((edit, editIndex) => (
+                                        <div key={editIndex} className="grid gap-1">
+                                          <pre className="max-h-40 overflow-auto rounded bg-destructive/10 p-2 text-[11px]">{edit.find}</pre>
+                                          <pre className="max-h-40 overflow-auto rounded bg-emerald-500/10 p-2 text-[11px]">{edit.replace}</pre>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  ))}
+                                </div>
+                              </details>
+                              {url ? (
+                                <a href={url} target="_blank" rel="noreferrer" className="mt-2 inline-flex h-8 items-center gap-1 rounded-md border border-border px-3 text-xs font-medium hover:bg-muted"><ExternalLink className="size-3.5" aria-hidden />View on GitHub</a>
+                              ) : (
+                                <Button type="button" size="sm" className="mt-2" disabled={Boolean(state)} onClick={() => { void approveProposal(key, proposal); }}>{state === "building" ? "Opening…" : "Approve and open pull request"}</Button>
+                              )}
+                              <p className="mt-1 text-[11px] text-muted-foreground">Opens a pull request into lovable-sync. Nothing merges until you merge it on GitHub.</p>
+                            </div>
+                          );
+                        }
                         const facts = [proposal.input.industry, [proposal.input.city, proposal.input.state].filter(Boolean).join(", "), proposal.input.phone, proposal.input.email].filter(Boolean).join(" · ");
                         return (
                           <div key={key} className="mt-2 rounded-xl border border-primary/40 bg-primary/5 p-3">

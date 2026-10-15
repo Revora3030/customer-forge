@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   appendReplyMeta,
+  applyEdits,
+  parsePullRequestProposal,
   extractActionBlock,
   MAX_ACTIONS_PER_STEP,
   parseActions,
@@ -83,5 +85,43 @@ describe("reply metadata", () => {
   it("leaves plain replies untouched", () => {
     expect(appendReplyMeta("Hi", { ran: [], proposals: [] })).toBe("Hi");
     expect(splitReplyMeta("Hi").meta).toEqual({ ran: [], proposals: [] });
+  });
+});
+
+describe("pull request proposals", () => {
+  const valid = {
+    title: "Fix stalled build retry",
+    summary: "Retries the worker kick once when the first attempt fails, so builds don't wait for the scheduler.",
+    changes: [{ path: "src/lib/site-engine.functions.ts", edits: [{ find: "if (response.ok) return;", replace: "if (response.ok) return; // retried" }] }],
+  };
+
+  it("accepts focused edits to source files", () => {
+    const pr = parsePullRequestProposal(valid);
+    expect(pr.changes[0]?.path).toBe("src/lib/site-engine.functions.ts");
+  });
+
+  it("refuses CI workflows, generated files, secrets and traversal", () => {
+    for (const path of [".github/workflows/ci.yml", "src/routeTree.gen.ts", ".env", "src/../.env", "package.json"]) {
+      expect(() => parsePullRequestProposal({ ...valid, changes: [{ path, content: "x" }] })).toThrow(/can't change/);
+    }
+  });
+
+  it("requires a title, a summary and real edits", () => {
+    expect(() => parsePullRequestProposal({ ...valid, title: "fix" })).toThrow(/title/);
+    expect(() => parsePullRequestProposal({ ...valid, summary: "" })).toThrow(/summary/);
+    expect(() => parsePullRequestProposal({ ...valid, changes: [] })).toThrow(/no file changes/);
+    expect(() => parsePullRequestProposal({ ...valid, changes: [{ path: "src/a.ts", edits: [{ find: "x", replace: "y" }] }] })).toThrow(/enough text/);
+  });
+
+  it("is reachable through parseActions as a proposal, never a read", () => {
+    const parsed = parseActions([{ id: "code.pr", args: valid }], TOOLS);
+    expect(parsed.reads).toEqual([]);
+    expect(parsed.proposals[0]?.id).toBe("code.pr");
+  });
+
+  it("applies edits only when the text matches exactly once", () => {
+    expect(applyEdits("alpha beta gamma", [{ find: "beta", replace: "BETA" }], "f")).toBe("alpha BETA gamma");
+    expect(() => applyEdits("alpha", [{ find: "missing", replace: "" }], "f")).toThrow(/not found/);
+    expect(() => applyEdits("dup dup", [{ find: "dup", replace: "x" }], "f")).toThrow(/more than once/);
   });
 });
