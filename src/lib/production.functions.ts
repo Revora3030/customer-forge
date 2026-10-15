@@ -90,7 +90,7 @@ export const getProductionStatus = createServerFn({ method: "POST" })
       (org.setup_paid_at ? "paid" : "unpaid")) as SetupPaymentStatus;
     const paid = !!org.setup_paid_at || setupPaymentStatus === "paid";
     const { siteAccess } = await import("@/lib/site-access");
-    const access = siteAccess({ ...(org as never), id: data.organizationId });
+    const access = siteAccess(Object.assign({}, org, { id: data.organizationId }) as never);
     // Trial workspaces may publish too; the site goes offline if the trial
     // ends without the setup payment (see src/lib/site-access.ts).
     const unlocked = access.live;
@@ -179,7 +179,7 @@ async function gatherReadiness(
   const siteChrome = readSiteChrome(settings.data?.generation ?? null);
   const hasChrome = Boolean(siteChrome.header && siteChrome.footer);
   const { siteAccess } = await import("@/lib/site-access");
-  const access = siteAccess(org.data ? { ...(org.data as never), id: organizationId } : null);
+  const access = siteAccess(org.data ? (Object.assign({}, org.data, { id: organizationId }) as never) : null);
   const unlocked = access.live;
 
   // Real audit of the rendered website: broken contact details, unfinished copy
