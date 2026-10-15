@@ -1433,6 +1433,30 @@ export type Database = {
           },
         ]
       }
+      jarvis_messages: {
+        Row: {
+          content: string
+          created_at: string
+          id: string
+          role: string
+          user_id: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          id?: string
+          role: string
+          user_id?: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: string
+          role?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       job_queue_state: {
         Row: {
           consecutive_rate_limits: number
