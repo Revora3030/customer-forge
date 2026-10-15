@@ -2,7 +2,7 @@
 /**
  * Pre-deploy Stripe catalog contract.
  *
- * The commercial offer ($750 setup + $100/month) is immutable in code and the
+ * The commercial offer ($350 setup + $100/month) is immutable in code and the
  * checkout flow pins exact Stripe Product/Price ids per environment. This
  * script proves at deploy time that the LIVE Stripe objects still match the
  * pinned catalog and the canonical offer — if anyone edits prices, archives a
