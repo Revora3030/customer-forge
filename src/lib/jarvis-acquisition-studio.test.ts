@@ -62,15 +62,16 @@ describe("Jarvis acquisition concept validation", () => {
   it("accepts a valid structured concept and real composition tree", () => {
     const result = readAcquisitionConcept(validConcept());
     expect(result.ok).toBe(true);
-    if (result.ok) {
-      expect(result.concept.tree.version).toBe(1);
-      expect(result.concept.factsToConfirm.length).toBeGreaterThanOrEqual(3);
-    }
+    if (!result.ok) throw new Error("Expected valid concept");
+    expect(result.concept.tree.version).toBe(1);
+    expect(result.concept.factsToConfirm.length).toBeGreaterThanOrEqual(3);
   });
 
   it("blocks credentials and fabricated social proof", () => {
     const raw = validConcept();
-    raw.tree.root.children[1].text = "Licensed, insured and award-winning professionals.";
+    const claimNode = raw.tree.root.children[1];
+    if (!claimNode) throw new Error("Expected heading node in valid fixture");
+    claimNode.text = "Licensed, insured and award-winning professionals.";
     const result = readAcquisitionConcept(raw);
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.issues.join(" ")).toMatch(/claim|credential|review|evidence/i);
@@ -78,7 +79,9 @@ describe("Jarvis acquisition concept validation", () => {
 
   it("blocks links outside the concept's in-page navigation", () => {
     const raw = validConcept();
-    raw.tree.root.children[3].href = "https://example.com/contact";
+    const linkNode = raw.tree.root.children[3];
+    if (!linkNode) throw new Error("Expected CTA node in valid fixture");
+    linkNode.href = "https://example.com/contact";
     const result = readAcquisitionConcept(raw);
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.issues.join(" ")).toMatch(/in-page links/i);
@@ -100,7 +103,9 @@ describe("Jarvis acquisition concept validation", () => {
 
   it("rejects an invalid composition instead of generating a fallback template", () => {
     const raw = validConcept();
-    raw.tree.root.children[0].type = "arbitrary-html";
+    const invalidNode = raw.tree.root.children[0];
+    if (!invalidNode) throw new Error("Expected first node in valid fixture");
+    invalidNode.type = "arbitrary-html";
     expect(readAcquisitionConcept(raw).ok).toBe(false);
   });
 });
