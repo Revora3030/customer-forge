@@ -10,6 +10,7 @@ import { MessageResponse } from "@/components/ai-elements/message";
 import { clearJarvisHistory, getJarvisHistory, getJarvisDiagnostics, getJarvisAcquisitionReadiness, getJarvisDiagnosticTools, runJarvisDiagnosticTool, regenerateJarvisReply, sendJarvisMessage } from "@/lib/jarvis.functions";
 import { draftProspectOutreach, type ProspectDraft } from "@/lib/jarvis-prospecting.functions";
 import { formatRevoraOffer } from "@/lib/jarvis-acquisition-policy";
+import { synthesizeJarvisVoice } from "@/lib/jarvis-voice.functions";
 
 type Recognition = {
   lang: string; interimResults: boolean;
@@ -111,6 +112,7 @@ function Jarvis() {
   const send = useServerFn(sendJarvisMessage);
   const redo = useServerFn(regenerateJarvisReply);
   const clear = useServerFn(clearJarvisHistory);
+  const synthesizeVoice = useServerFn(synthesizeJarvisVoice);
   const draftFn = useServerFn(draftProspectOutreach);
   const history = useQuery({ queryKey: ["jarvis", "history"], queryFn: () => load() });
   const diagnostics = useQuery({ queryKey: ["jarvis", "diagnostics"], queryFn: () => inspect(), staleTime: 60_000, retry: false });
@@ -145,11 +147,39 @@ function Jarvis() {
   const end = useRef<HTMLDivElement>(null);
   const scroller = useRef<HTMLDivElement>(null);
   const input = useRef<HTMLTextAreaElement>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const audioUrlRef = useRef<string | null>(null);
 
-  const speak = (content: string) => {
-    if (!("speechSynthesis" in window)) { toast.error("Speech is unavailable in this browser."); return; }
-    window.speechSynthesis.cancel();
-    window.speechSynthesis.speak(new SpeechSynthesisUtterance(content.replace(/[#*_`>|]/g, " ").slice(0, 1500)));
+  const stopVoice = () => {
+    audioRef.current?.pause();
+    audioRef.current = null;
+    if (audioUrlRef.current) URL.revokeObjectURL(audioUrlRef.current);
+    audioUrlRef.current = null;
+    if (typeof window !== "undefined" && "speechSynthesis" in window) window.speechSynthesis.cancel();
+  };
+  const speak = async (content: string) => {
+    const clean = content.replace(/<followups>[\s\S]*?<\/followups>/gi, " ").replace(/[#*_\x60>|]/g, " ").replace(/\s+/g, " ").trim().slice(0, 1200);
+    if (!clean) { toast.error("There is no readable text to speak."); return; }
+    stopVoice();
+    try {
+      const result = await synthesizeVoice({ data: { text: clean } });
+      const binary = window.atob(result.audioBase64);
+      const bytes = new Uint8Array(binary.length);
+      for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
+      const url = URL.createObjectURL(new Blob([bytes], { type: result.contentType }));
+      audioUrlRef.current = url;
+      const audio = new Audio(url);
+      audioRef.current = audio;
+      audio.onended = () => { if (audioUrlRef.current === url) { URL.revokeObjectURL(url); audioUrlRef.current = null; audioRef.current = null; } };
+      audio.onerror = () => { if (audioUrlRef.current === url) { URL.revokeObjectURL(url); audioUrlRef.current = null; audioRef.current = null; } };
+      await audio.play();
+    } catch (error) {
+      if ("speechSynthesis" in window) {
+        window.speechSynthesis.cancel();
+        window.speechSynthesis.speak(new SpeechSynthesisUtterance(clean));
+        toast.message("Using your browser voice because ElevenLabs was unavailable.");
+      } else toast.error(error instanceof Error ? error.message : "Jarvis voice could not be played.");
+    }
   };
   const finish = async (result: { reply: string; diagnostics: unknown; followups?: string[] }) => {
     qc.setQueryData(["jarvis", "diagnostics"], result.diagnostics);
@@ -217,7 +247,7 @@ function Jarvis() {
       recognition.current.onerror = null;
       recognition.current.stop();
     }
-    if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+    stopVoice();
   }, []);
 
   const onScroll = () => {
@@ -287,7 +317,7 @@ function Jarvis() {
         </div>
         <div className="flex shrink-0 gap-1">
           <Button type="button" variant="ghost" size="icon" aria-label="Refresh diagnostics" title="Refresh diagnostics" disabled={diagnostics.isFetching} onClick={() => { void diagnostics.refetch(); }}><RefreshCw className={`size-4 ${diagnostics.isFetching ? "animate-spin" : ""}`} /></Button>
-          <Button type="button" variant="ghost" size="icon" aria-label={voice ? "Mute replies" : "Speak replies"} aria-pressed={voice} title={voice ? "Mute replies" : "Speak replies"} onClick={() => { setVoice(!voice); window.speechSynthesis?.cancel(); }}>{voice ? <Volume2 className="size-4" /> : <VolumeX className="size-4" />}</Button>
+          <Button type="button" variant="ghost" size="icon" aria-label={voice ? "Mute replies" : "Speak replies"} aria-pressed={voice} title={voice ? "Mute replies" : "Speak replies"} onClick={() => { const next = !voice; setVoice(next); if (!next) stopVoice(); }}>{voice ? <Volume2 className="size-4" /> : <VolumeX className="size-4" />}</Button>
           <Button type="button" variant="ghost" size="icon" aria-label="Export chat" title="Export chat as Markdown" onClick={exportChat}><Download className="size-4" /></Button>
           <Button type="button" variant="ghost" size="icon" aria-label="Clear my chat" title="Clear my chat" disabled={clearing.isPending || busy} onClick={() => { if (window.confirm("Clear your Jarvis history?")) clearing.mutate(); }}><Trash2 className="size-4" /></Button>
         </div>
