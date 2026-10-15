@@ -159,12 +159,13 @@ describe("Jarvis diagnostic executor", () => {
   });
 
   it("verifies CI checks only when quality, security, and browser runs match current lovable-sync HEAD", async () => {
-    const commit = "a".repeat(40);
+    let currentHead = "a".repeat(40);
+    const runCommit = currentHead;
     const workflowNames = ["Revora Quality Gate", "Revora Security Gate", "Revora Browser QA"];
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const url = new URL(String(input));
       if (url.hostname === "api.github.com" && url.pathname.endsWith("/commits/lovable-sync")) {
-        return new Response(JSON.stringify({ sha: commit }), {
+        return new Response(JSON.stringify({ sha: currentHead }), {
           status: 200, headers: { "content-type": "application/json" },
         });
       }
@@ -172,7 +173,7 @@ describe("Jarvis diagnostic executor", () => {
         return new Response(JSON.stringify({
           total_count: workflowNames.length,
           workflow_runs: workflowNames.map((name) => ({
-            name, status: "completed", conclusion: "success", head_sha: commit,
+            name, status: "completed", conclusion: "success", head_sha: runCommit,
             created_at: "2026-10-15T12:00:00Z", updated_at: "2026-10-15T12:01:00Z",
             html_url: "https://github.com/Revora3030/customer-forge/actions/runs/123",
           })),
@@ -203,7 +204,18 @@ describe("Jarvis diagnostic executor", () => {
     expect(engineering?.checks.find((check) => check.id === "engineering.tests")?.status).toBe("verified");
     expect(engineering?.checks.find((check) => check.id === "engineering.security")?.status).toBe("verified");
     expect(engineering?.checks.find((check) => check.id === "engineering.browser")?.status).toBe("verified");
+    expect(scorecard.areas.find((area) => area.id === "diagnostics")?.checks.find((check) => check.id === "diagnostics.redaction")?.status).toBe("verified");
+    expect(scorecard.areas.find((area) => area.id === "growth")?.checks.find((check) => check.id === "growth.offerConsistency")?.status).toBe("verified");
     expect(JSON.stringify(output)).not.toContain("secret");
+
+    // Once the branch moves ahead, the same green workflows are stale. They must
+    // no longer count as verification for the new release commit.
+    currentHead = "b".repeat(40);
+    const staleOutput = await executeJarvisDiagnosticTool(db, "jarvis.capabilities.scorecard");
+    const staleScorecard = staleOutput.data as unknown as typeof scorecard;
+    const staleEngineering = staleScorecard.areas.find((area) => area.id === "engineering");
+    expect(staleEngineering?.checks.find((check) => check.id === "engineering.typecheck")?.status).toBe("unknown");
+    expect(staleScorecard.areas.find((area) => area.id === "growth")?.checks.find((check) => check.id === "growth.offerConsistency")?.status).toBe("unknown");
   });
 
   it("returns partial security evidence rather than a false green security verdict", async () => {
