@@ -2,12 +2,13 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
-import { ArrowDown, Bot, Copy, Download, Mic, MicOff, RefreshCw, RotateCcw, Send, Trash2, Volume2, VolumeX } from "lucide-react";
+import { ArrowDown, Ban, Bot, Copy, Download, Megaphone, Mic, MicOff, RefreshCw, RotateCcw, Send, Trash2, Volume2, VolumeX } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { MessageResponse } from "@/components/ai-elements/message";
-import { clearJarvisHistory, getJarvisHistory, getJarvisDiagnostics, getJarvisAccessSnapshot, getJarvisDiagnosticTools, getJarvisAutopilotStatus, runJarvisDiagnosticTool, regenerateJarvisReply, sendJarvisMessage } from "@/lib/jarvis.functions";
+import { clearJarvisHistory, getJarvisHistory, getJarvisDiagnostics, regenerateJarvisReply, sendJarvisMessage } from "@/lib/jarvis.functions";
+import { draftProspectOutreach, type ProspectDraft } from "@/lib/jarvis-prospecting.functions";
 
 type Recognition = {
   lang: string; interimResults: boolean;
@@ -17,6 +18,7 @@ type Recognition = {
 };
 type RecognitionConstructor = new () => Recognition;
 type Mode = "brief" | "balanced" | "deep";
+type ProspectLine = { name: string; website: string; city: string; email: string };
 
 export const Route = createFileRoute("/_authenticated/admin/jarvis")({
   head: () => ({ meta: [{ title: "Jarvis mission control — Revora" }, { name: "robots", content: "noindex" }] }),
@@ -26,6 +28,8 @@ export const Route = createFileRoute("/_authenticated/admin/jarvis")({
 const MAX_LENGTH = 4000;
 const DRAFT_KEY = "jarvis:draft";
 const MODE_KEY = "jarvis:mode";
+const DNC_KEY = "jarvis:dnc";
+const ADDRESS_PLACEHOLDER = "[ADD YOUR PHYSICAL MAILING ADDRESS";
 const MODES = [["brief", "Brief"], ["balanced", "Balanced"], ["deep", "Deep"]] as const;
 const SECTIONS = [["errors", "Errors"], ["builds", "Builds"], ["schema", "Schema"]] as const;
 
@@ -33,9 +37,16 @@ const BRIEFING = "Give me a daily briefing: the top three priorities from the di
 const AUDIT = "Audit my homepage HTTP and metadata checks and give me the exact fixes in priority order. Say what is not proven.";
 const OFFER = "Review my offer ($350 setup, first month free, then $100/month, 3-day trial) for conversion weaknesses and suggest tests sized for low traffic. Do not invent numbers.";
 const OUTREACH = "Draft three short cold emails for Raleigh-area local service businesses offering the Revora website and CRM. No phone numbers, no invented results or reviews.";
+const RULES = "Legal and honest only: cold email needs an honest sender, a physical mailing address, and an opt-out; no cold texts or auto-dialed calls without prior consent; no purchased lists, fake reviews, or deceptive subject lines.";
+const AUTOPILOT = `Build my customer-acquisition autopilot plan for this week. Split it into what Jarvis can draft for me, what needs my approval before anything goes out, and what I must do myself. Include the daily routine, the numbers to track (prospects found, emails approved, replies, trials started, paid customers), and a realistic expectation for low volume. ${RULES}`;
+const PROSPECT_IDEAS = `List ten types of Raleigh and Chapel Hill local service businesses most likely to buy a $350 website with built-in quotes, booking and follow-up, and how to find each type legally (Google Maps, chamber directories, Yelp). Do not suggest scraping that breaks a site's terms. ${RULES}`;
+const FOLLOW_UP = `Design a three-touch email follow-up sequence for prospects who did not reply, spaced over two weeks, each under 80 words, each with an easy opt-out. ${RULES}`;
 
 const COMMANDS = [
   ["Daily briefing", BRIEFING],
+  ["Autopilot plan", AUTOPILOT],
+  ["Prospect ideas", PROSPECT_IDEAS],
+  ["Follow-up sequence", FOLLOW_UP],
   ["Platform errors", "Analyze observed error groups. Separate facts, hypotheses, and missing evidence."],
   ["Builder health", "Analyze build and publish health. Do not guess the cause of stalled progress."],
   ["SEO readiness", "Explain the HTTP and metadata checks and what still needs Search Console verification."],
@@ -50,10 +61,21 @@ const COMMANDS = [
 
 const STARTERS = [
   ["Daily briefing", "What matters today, ranked by impact", BRIEFING],
-  ["Site audit", "Metadata, redirects, robots, sitemap", AUDIT],
+  ["Autopilot plan", "This week's customer-acquisition routine", AUTOPILOT],
   ["Offer review", "Find conversion leaks in the $350 offer", OFFER],
   ["Outreach drafts", "Three emails for Raleigh-area businesses", OUTREACH],
 ] as const;
+
+const parseProspects = (raw: string): ProspectLine[] =>
+  raw.split("\n").map((line) => line.trim()).filter(Boolean).slice(0, 5).map((line) => {
+    const [name = "", website = "", city = "", email = ""] = line.split("|").map((part) => part.trim());
+    return { name, website, city, email };
+  }).filter((item) => item.name);
+
+const hostFromUrl = (value: string | null) => {
+  if (!value) return null;
+  try { return new URL(value).hostname.replace(/^www\./, "").toLowerCase(); } catch { return null; }
+};
 
 const clock = (iso: string) => {
   const date = new Date(iso);
@@ -65,24 +87,12 @@ function Jarvis() {
   const qc = useQueryClient();
   const load = useServerFn(getJarvisHistory);
   const inspect = useServerFn(getJarvisDiagnostics);
-  const inspectAccess = useServerFn(getJarvisAccessSnapshot);
-  const loadTools = useServerFn(getJarvisDiagnosticTools);
-  const loadAutopilot = useServerFn(getJarvisAutopilotStatus);
-  const runTool = useServerFn(runJarvisDiagnosticTool);
   const send = useServerFn(sendJarvisMessage);
   const redo = useServerFn(regenerateJarvisReply);
   const clear = useServerFn(clearJarvisHistory);
+  const draftFn = useServerFn(draftProspectOutreach);
   const history = useQuery({ queryKey: ["jarvis", "history"], queryFn: () => load() });
   const diagnostics = useQuery({ queryKey: ["jarvis", "diagnostics"], queryFn: () => inspect(), staleTime: 60_000, retry: false });
-  const access = useQuery({ queryKey: ["jarvis", "access"], queryFn: () => inspectAccess(), enabled: false, retry: false });
-  const autopilot = useQuery({ queryKey: ["jarvis", "autopilot-status"], queryFn: () => loadAutopilot(), enabled: false, retry: false });
-  const toolCatalog = useQuery({ queryKey: ["jarvis", "tool-catalog"], queryFn: () => loadTools(), retry: false });
-  const [toolResults, setToolResults] = useState<Record<string, unknown>>({});
-  const toolRun = useMutation({
-    mutationFn: (toolId: string) => runTool({ data: { toolId } }),
-    onSuccess: (result, toolId) => setToolResults((previous) => ({ ...previous, [toolId]: result })),
-    onError: (error: Error) => toast.error(error.message),
-  });
   const [text, setText] = useState("");
   const [mode, setMode] = useState<Mode>("balanced");
   const [pending, setPending] = useState<string | null>(null);
@@ -91,6 +101,11 @@ function Jarvis() {
   const [listening, setListening] = useState(false);
   const [atBottom, setAtBottom] = useState(true);
   const [elapsed, setElapsed] = useState(0);
+  const [prospectText, setProspectText] = useState("");
+  const [drafts, setDrafts] = useState<ProspectDraft[]>([]);
+  const [edits, setEdits] = useState<Record<number, string>>({});
+  const [dnc, setDnc] = useState<string[]>([]);
+  const [addressConfigured, setAddressConfigured] = useState(true);
   const recognition = useRef<Recognition | null>(null);
   const end = useRef<HTMLDivElement>(null);
   const scroller = useRef<HTMLDivElement>(null);
@@ -123,12 +138,18 @@ function Jarvis() {
     onSuccess: () => { setFollowups([]); return qc.invalidateQueries({ queryKey: ["jarvis", "history"] }); },
     onError: (error: Error) => toast.error(error.message),
   });
+  const prospecting = useMutation({
+    mutationFn: (prospects: ProspectLine[]) => draftFn({ data: { prospects, suppress: dnc } }),
+    onSuccess: (result) => { setDrafts(result.drafts); setEdits({}); setAddressConfigured(result.mailingAddressConfigured); },
+    onError: (error: Error) => toast.error(error.message),
+  });
   const busy = mutation.isPending || regen.isPending;
   const messages = history.data ?? [];
   const lastMessage = messages[messages.length - 1];
   const lastAssistantId = lastMessage?.role === "assistant" ? lastMessage.id : null;
   const empty = !history.isLoading && !history.error && messages.length === 0 && !pending;
   const stage = elapsed < 3 ? "Collecting diagnostics" : elapsed < 8 ? "Checking the live site" : "Thinking it through";
+  const prospectLines = parseProspects(prospectText);
 
   useEffect(() => {
     try {
@@ -136,6 +157,11 @@ function Jarvis() {
       if (draft) setText(draft.slice(0, MAX_LENGTH));
       const saved = localStorage.getItem(MODE_KEY);
       if (saved === "brief" || saved === "balanced" || saved === "deep") setMode(saved);
+      const rawDnc = localStorage.getItem(DNC_KEY);
+      if (rawDnc) {
+        const parsed: unknown = JSON.parse(rawDnc);
+        if (Array.isArray(parsed)) setDnc(parsed.filter((item): item is string => typeof item === "string").slice(0, 500));
+      }
     } catch { /* storage unavailable */ }
   }, []);
   useEffect(() => {
@@ -166,6 +192,16 @@ function Jarvis() {
   const chooseMode = (value: Mode) => {
     setMode(value);
     try { localStorage.setItem(MODE_KEY, value); } catch { /* storage unavailable */ }
+  };
+  const saveDnc = (next: string[]) => {
+    setDnc(next);
+    try { localStorage.setItem(DNC_KEY, JSON.stringify(next)); } catch { /* storage unavailable */ }
+  };
+  const suppressDraft = (draft: ProspectDraft) => {
+    const entry = draft.email ?? hostFromUrl(draft.website);
+    if (!entry) { toast.error("Nothing to block: this prospect has no email or website."); return; }
+    if (!dnc.includes(entry)) saveDnc([...dnc, entry]);
+    toast.success(`${entry} added to do-not-contact.`);
   };
   const submit = (message = text) => {
     const clean = message.trim();
@@ -211,7 +247,7 @@ function Jarvis() {
           <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary"><Bot className="size-5" aria-hidden /></span>
           <div className="min-w-0">
             <h1 className="truncate text-xl font-semibold leading-tight">Jarvis</h1>
-            <p className="truncate text-xs text-muted-foreground">Mission control · read-only · free AI · no auto repairs</p>
+            <p className="truncate text-xs text-muted-foreground">Mission control · read-only · free AI · you approve every send</p>
           </div>
         </div>
         <div className="flex shrink-0 gap-1">
@@ -221,22 +257,6 @@ function Jarvis() {
           <Button type="button" variant="ghost" size="icon" aria-label="Clear my chat" title="Clear my chat" disabled={clearing.isPending || busy} onClick={() => { if (window.confirm("Clear your Jarvis history?")) clearing.mutate(); }}><Trash2 className="size-4" /></Button>
         </div>
       </header>
-      <section aria-label="Jarvis access and diagnostic tools" className="rounded-xl border border-border bg-card p-3 space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div><h2 className="font-semibold">Access &amp; diagnostic toolbench</h2><p className="text-xs text-muted-foreground">Super-admin only. Registered, bounded, read-only diagnostics; no mutation executor is available.</p></div>
-          <div className="flex flex-wrap gap-2">
-            <Button type="button" size="sm" variant="outline" disabled={access.isFetching} onClick={() => { void access.refetch(); }}>Check connector access</Button>
-            <Button type="button" size="sm" variant="outline" disabled={autopilot.isFetching} onClick={() => { void autopilot.refetch(); }}>Check safety state</Button>
-          </div>
-        </div>
-        {access.data ? <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">{access.data.providers.map((provider) => <article key={provider.id} className="rounded-md border border-border p-3 text-sm"><div className="flex justify-between gap-2"><strong>{provider.label}</strong><span className="text-xs text-muted-foreground">{provider.status.replaceAll("_", " ")}</span></div><p className="mt-1 text-xs text-muted-foreground">{provider.permission}</p><p className="mt-2 text-xs">Scope: {provider.scope} · Cost: {provider.cost}</p><p className="text-xs">Runtime verified: {provider.runtimeVerifiedInThisProcess ? "Yes" : "Unknown"} · Missing credential count: {provider.missingCredentialCount}</p></article>)}</div> : access.error ? <p role="alert" className="text-sm text-destructive">Connector snapshot unavailable; live health is unknown.</p> : <p className="text-xs text-muted-foreground">Connector configuration has not been checked.</p>}
-        {autopilot.data ? <div className="rounded-md border border-border p-3 text-sm"><strong>Autopilot safety state: {autopilot.data.status}</strong><p>Enabled: {autopilot.data.enabled ? "Yes" : "No"} · Kill switch: {autopilot.data.killSwitchEngaged ? "Engaged" : "Not engaged"}</p><p className="text-xs text-muted-foreground">{autopilot.data.note} Write executors available: No.</p></div> : autopilot.error ? <p role="alert" className="text-sm text-destructive">Safety state unavailable; treat autopilot as disabled.</p> : null}
-        <div><h3 className="font-medium">Registered diagnostics</h3><p className="text-xs text-muted-foreground">Tools accept registered IDs only and do not change data.</p></div>
-        {toolCatalog.error ? <p role="alert" className="text-sm text-destructive">Diagnostic tool catalog unavailable.</p> : null}
-        <div className="grid gap-2 sm:grid-cols-2">{(toolCatalog.data ?? []).map((tool) => <article key={tool.id} className="rounded-md border border-border p-3"><div className="flex flex-wrap items-center justify-between gap-2"><strong>{tool.title}</strong><span className="text-xs text-muted-foreground">{tool.implementation}</span></div><p className="mt-1 text-sm text-muted-foreground">{tool.description}</p><p className="mt-1 text-xs text-muted-foreground">Evidence: {tool.evidence}</p><Button type="button" size="sm" variant="outline" className="mt-3" disabled={toolRun.isPending} onClick={() => toolRun.mutate(tool.id)}>{toolRun.isPending ? "Running…" : "Run diagnostic"}</Button>{toolResults[tool.id] !== undefined ? <details className="mt-2"><summary className="cursor-pointer text-sm">View result</summary><pre className="mt-2 max-h-56 overflow-auto whitespace-pre-wrap break-words rounded bg-muted p-2 text-xs">{JSON.stringify(toolResults[tool.id], null, 2)}</pre></details> : null}</article>)}</div>
-        {Object.keys(toolResults).length > 0 ? <Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => submit("Analyze these sanitized read-only Jarvis diagnostic results. Separate observed facts, hypotheses, and missing evidence. Do not claim any fix was applied.\n\n" + JSON.stringify(Object.entries(toolResults).slice(-3), null, 2).slice(0, 8000))}>Ask Jarvis to analyze results</Button> : null}
-      </section>
-
 
       <details className="rounded-xl border border-border bg-card">
         <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-2 text-sm">
@@ -262,6 +282,44 @@ function Jarvis() {
           <p className="text-xs text-muted-foreground">Snapshot: {diagnostics.data?.checkedAt ?? "not collected"}. “Checked” means the query ran—not that the subsystem is healthy.</p>
           {diagnostics.error ? <p role="alert" className="text-xs text-destructive">Diagnostics unavailable. No healthy verdict can be inferred.</p> : null}
           {diagnostics.data ? <details className="rounded-lg border border-border p-2"><summary className="cursor-pointer text-xs">Inspect bounded diagnostic evidence</summary><pre className="mt-2 max-h-80 overflow-auto whitespace-pre-wrap break-words text-xs">{JSON.stringify(diagnostics.data, null, 2)}</pre></details> : null}
+        </div>
+      </details>
+
+      <details className="rounded-xl border border-border bg-card">
+        <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2 text-sm font-medium"><Megaphone className="size-4" aria-hidden />Prospector · research and draft, you approve every send</summary>
+        <div className="space-y-3 border-t border-border p-3">
+          <p className="text-xs text-muted-foreground">One business per line: name | website | city | email. Website and email are optional; up to 5 at a time. Jarvis reads each public homepage, writes a short honest email from what it actually sees, adds your opt-out line and mailing address, then stops. You review and send. Email only: cold texts and auto-dialed calls need prior consent.</p>
+          <Textarea value={prospectText} rows={4} onChange={(event) => setProspectText(event.target.value)} placeholder="Triangle Comfort HVAC | triangle-comfort.com | Raleigh | owner@triangle-comfort.com" />
+          <div className="flex flex-wrap items-center gap-2">
+            <Button type="button" size="sm" disabled={prospecting.isPending || prospectLines.length === 0} onClick={() => prospecting.mutate(prospectLines)}>{prospecting.isPending ? "Reading sites and drafting…" : `Draft outreach${prospectLines.length ? ` (${prospectLines.length})` : ""}`}</Button>
+            {dnc.length > 0 ? <span className="text-xs text-muted-foreground">{dnc.length} on do-not-contact (this device) <button type="button" className="underline" onClick={() => saveDnc([])}>clear</button></span> : null}
+          </div>
+          {drafts.length > 0 && !addressConfigured ? <p role="alert" className="text-xs text-destructive">Your mailing address isn't configured. Set REVORA_MAILING_ADDRESS (a real street address or PO box) in your server environment. Until then every draft carries a placeholder and the mail button stays off.</p> : null}
+          {drafts.map((draft, index) => {
+            const body = edits[index] ?? draft.body;
+            const blocked = body.includes(ADDRESS_PLACEHOLDER);
+            return (
+              <article key={`${draft.name}-${index}`} className="space-y-2 rounded-lg border border-border p-3">
+                <div className="min-w-0">
+                  <p className="truncate font-medium">{draft.name}</p>
+                  <p className="truncate text-xs text-muted-foreground">{draft.website ?? "No website"}{draft.email ? ` · ${draft.email}` : " · no email yet"}</p>
+                </div>
+                {draft.skipped ? <p className="text-xs text-destructive">{draft.skipped}</p> : (
+                  <>
+                    <p className="text-xs text-muted-foreground">{draft.notes.join(" · ")}</p>
+                    <p className="break-words text-sm font-medium">Subject: {draft.subject}</p>
+                    <Textarea rows={9} value={body} onChange={(event) => setEdits((current) => ({ ...current, [index]: event.target.value }))} />
+                    <div className="flex flex-wrap gap-2">
+                      <Button type="button" size="sm" variant="outline" onClick={() => { void copy(`Subject: ${draft.subject}\n\n${body}`); }}><Copy className="mr-1 size-3.5" />Copy</Button>
+                      {draft.email && !blocked ? <a className="inline-flex h-8 items-center rounded-md border border-border px-3 text-xs font-medium hover:bg-muted" href={`mailto:${draft.email}?subject=${encodeURIComponent(draft.subject)}&body=${encodeURIComponent(body)}`}>Open in mail app</a> : null}
+                      <Button type="button" size="sm" variant="ghost" onClick={() => suppressDraft(draft)}><Ban className="mr-1 size-3.5" />Do not contact</Button>
+                    </div>
+                    {blocked ? <p className="text-xs text-destructive">Add your mailing address to the footer before sending.</p> : null}
+                  </>
+                )}
+              </article>
+            );
+          })}
         </div>
       </details>
 
