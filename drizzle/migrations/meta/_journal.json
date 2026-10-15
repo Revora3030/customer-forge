@@ -43,6 +43,13 @@
       "when": 1792024997453,
       "tag": "0005_jarvis_messages",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1792092600000,
+      "tag": "0006_revora_offer_750_one_day",
+      "breakpoints": true
     }
   ]
 }
