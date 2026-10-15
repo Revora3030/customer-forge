@@ -61,6 +61,7 @@ import { Route as AuthenticatedAdminBackupsRouteImport } from './routes/_authent
 import { Route as AuthenticatedAdminClientsRouteImport } from './routes/_authenticated/admin.clients'
 import { Route as AuthenticatedAdminCommandRouteImport } from './routes/_authenticated/admin.command'
 import { Route as AuthenticatedAdminDomainsRouteImport } from './routes/_authenticated/admin.domains'
+import { Route as AuthenticatedAdminJarvisRouteImport } from './routes/_authenticated/admin.jarvis'
 import { Route as AuthenticatedAdminMonitoringRouteImport } from './routes/_authenticated/admin.monitoring'
 import { Route as AuthenticatedAdminMonthlyRouteImport } from './routes/_authenticated/admin.monthly'
 import { Route as AuthenticatedAdminOutreachRouteImport } from './routes/_authenticated/admin.outreach'
@@ -371,6 +372,12 @@ const AuthenticatedAdminDomainsRoute =
     path: '/domains',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
+const AuthenticatedAdminJarvisRoute =
+  AuthenticatedAdminJarvisRouteImport.update({
+    id: '/jarvis',
+    path: '/jarvis',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
 const AuthenticatedAdminMonitoringRoute =
   AuthenticatedAdminMonitoringRouteImport.update({
     id: '/monitoring',
@@ -667,6 +674,7 @@ export interface FileRoutesByFullPath {
   '/admin/clients': typeof AuthenticatedAdminClientsRouteWithChildren
   '/admin/command': typeof AuthenticatedAdminCommandRoute
   '/admin/domains': typeof AuthenticatedAdminDomainsRoute
+  '/admin/jarvis': typeof AuthenticatedAdminJarvisRoute
   '/admin/monitoring': typeof AuthenticatedAdminMonitoringRoute
   '/admin/monthly': typeof AuthenticatedAdminMonthlyRoute
   '/admin/outreach': typeof AuthenticatedAdminOutreachRoute
@@ -760,6 +768,7 @@ export interface FileRoutesByTo {
   '/admin/clients': typeof AuthenticatedAdminClientsRouteWithChildren
   '/admin/command': typeof AuthenticatedAdminCommandRoute
   '/admin/domains': typeof AuthenticatedAdminDomainsRoute
+  '/admin/jarvis': typeof AuthenticatedAdminJarvisRoute
   '/admin/monitoring': typeof AuthenticatedAdminMonitoringRoute
   '/admin/monthly': typeof AuthenticatedAdminMonthlyRoute
   '/admin/outreach': typeof AuthenticatedAdminOutreachRoute
@@ -860,6 +869,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/clients': typeof AuthenticatedAdminClientsRouteWithChildren
   '/_authenticated/admin/command': typeof AuthenticatedAdminCommandRoute
   '/_authenticated/admin/domains': typeof AuthenticatedAdminDomainsRoute
+  '/_authenticated/admin/jarvis': typeof AuthenticatedAdminJarvisRoute
   '/_authenticated/admin/monitoring': typeof AuthenticatedAdminMonitoringRoute
   '/_authenticated/admin/monthly': typeof AuthenticatedAdminMonthlyRoute
   '/_authenticated/admin/outreach': typeof AuthenticatedAdminOutreachRoute
@@ -960,6 +970,7 @@ export interface FileRouteTypes {
     | '/admin/clients'
     | '/admin/command'
     | '/admin/domains'
+    | '/admin/jarvis'
     | '/admin/monitoring'
     | '/admin/monthly'
     | '/admin/outreach'
@@ -1053,6 +1064,7 @@ export interface FileRouteTypes {
     | '/admin/clients'
     | '/admin/command'
     | '/admin/domains'
+    | '/admin/jarvis'
     | '/admin/monitoring'
     | '/admin/monthly'
     | '/admin/outreach'
@@ -1152,6 +1164,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/clients'
     | '/_authenticated/admin/command'
     | '/_authenticated/admin/domains'
+    | '/_authenticated/admin/jarvis'
     | '/_authenticated/admin/monitoring'
     | '/_authenticated/admin/monthly'
     | '/_authenticated/admin/outreach'
@@ -1620,6 +1633,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminDomainsRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
+    '/_authenticated/admin/jarvis': {
+      id: '/_authenticated/admin/jarvis'
+      path: '/jarvis'
+      fullPath: '/admin/jarvis'
+      preLoaderRoute: typeof AuthenticatedAdminJarvisRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
     '/_authenticated/admin/monitoring': {
       id: '/_authenticated/admin/monitoring'
       path: '/monitoring'
@@ -1959,6 +1979,7 @@ interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminClientsRoute: typeof AuthenticatedAdminClientsRouteWithChildren
   AuthenticatedAdminCommandRoute: typeof AuthenticatedAdminCommandRoute
   AuthenticatedAdminDomainsRoute: typeof AuthenticatedAdminDomainsRoute
+  AuthenticatedAdminJarvisRoute: typeof AuthenticatedAdminJarvisRoute
   AuthenticatedAdminMonitoringRoute: typeof AuthenticatedAdminMonitoringRoute
   AuthenticatedAdminMonthlyRoute: typeof AuthenticatedAdminMonthlyRoute
   AuthenticatedAdminOutreachRoute: typeof AuthenticatedAdminOutreachRoute
@@ -1976,6 +1997,7 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminClientsRoute: AuthenticatedAdminClientsRouteWithChildren,
   AuthenticatedAdminCommandRoute: AuthenticatedAdminCommandRoute,
   AuthenticatedAdminDomainsRoute: AuthenticatedAdminDomainsRoute,
+  AuthenticatedAdminJarvisRoute: AuthenticatedAdminJarvisRoute,
   AuthenticatedAdminMonitoringRoute: AuthenticatedAdminMonitoringRoute,
   AuthenticatedAdminMonthlyRoute: AuthenticatedAdminMonthlyRoute,
   AuthenticatedAdminOutreachRoute: AuthenticatedAdminOutreachRoute,
