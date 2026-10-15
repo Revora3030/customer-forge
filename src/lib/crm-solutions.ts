@@ -16,7 +16,7 @@
 
 import { GROWTH_SYSTEM } from "@/lib/offer";
 
-// Short, human price forms for titles and prose ("$750", not "$750.00").
+// Short, human price forms for titles and prose ("$350", not "$350.00").
 const SETUP = `$${GROWTH_SYSTEM.setupPrice}`;
 const MONTHLY = `$${GROWTH_SYSTEM.monthlyPrice}`;
 
