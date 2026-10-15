@@ -1,13 +1,13 @@
 /**
  * Shared free-access trial resolution.
  *
- * Every new workspace gets full access for `TRIAL_DAYS` days. Some rows were
+ * Every new workspace gets full access for the canonical `TRIAL_DAYS` window. Some rows were
  * created with a null `trial_ends_at` (explicit null insert bypassed the column
  * default), which used to lock the client out immediately. We fall back to
  * `created_at + TRIAL_DAYS` so the client always gets the free access promised
  * on the marketing site.
  */
-export const TRIAL_DAYS = 3;
+export const TRIAL_DAYS = 1;
 const DAY_MS = 86_400_000;
 
 export type TrialOrgFields = {
