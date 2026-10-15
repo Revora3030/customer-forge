@@ -268,6 +268,20 @@ function Jarvis() {
         <p className="text-sm text-muted-foreground">Jarvis can prepare an evidence-backed daily plan and identify missing integrations. This check does not read prospect records, send messages, publish changes, or spend money.</p>
         {acquisition.data ? <div className="space-y-3">
           <div className="rounded-md border border-border p-3"><div className="flex flex-wrap items-center justify-between gap-2"><strong>Readiness: {acquisition.data.status.replaceAll("_", " ")}</strong><span className="text-xs text-muted-foreground">Spend authorized: No · Sending enabled: No</span></div><p className="mt-1 text-xs text-muted-foreground">{acquisition.data.note}</p><p className="mt-2 text-xs">Verified signals: analytics {acquisition.data.analyticsVerified ? "yes" : "unknown"}, lead source {acquisition.data.liveLeadSourceVerified ? "yes" : "unknown"}, outbound provider {acquisition.data.outboundProviderVerified ? "yes" : "unknown"}, booking {acquisition.data.bookingVerified ? "yes" : "unknown"}, payment flow {acquisition.data.paymentFlowVerified ? "yes" : "unknown"}.</p><p className="mt-1 text-xs">Server-approved daily spend cap: {(acquisition.data.configuredSpendCapCents / 100).toLocaleString(undefined, { style: "currency", currency: "USD" })}; this run requested $0.</p></div>
+          <div className="space-y-2">
+            <h3 className="text-sm font-semibold">Observed funnel signals</h3>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+              {[
+                ["Organizations", acquisition.data.funnelMetrics.organizationsTotal],
+                ["Trial records", acquisition.data.funnelMetrics.trialRecordsTotal],
+                ["Leads · 7 days", acquisition.data.funnelMetrics.leadsCreatedLast7Days],
+                ["Appointments · 7 days", acquisition.data.funnelMetrics.appointmentsCreatedLast7Days],
+                ["Paid invoices · 30 days", acquisition.data.funnelMetrics.paidInvoicesLast30Days],
+                ["Active subscription records", acquisition.data.funnelMetrics.activeSubscriptionRecords],
+              ].map(([label, value]) => <div key={String(label)} className="rounded-md border border-border p-3"><p className="text-xs text-muted-foreground">{label}</p><p className="mt-1 text-lg font-semibold tabular-nums">{value === null ? "Unknown" : value}</p></div>)}
+            </div>
+            <p className="text-xs text-muted-foreground">{acquisition.data.funnelMetrics.note}</p>
+          </div>
           <ol className="space-y-2">{acquisition.data.steps.map((step) => <li key={step.id} className="rounded-md border border-border p-3"><div className="flex flex-wrap items-center justify-between gap-2"><strong className="text-sm">{step.title}</strong><span className="text-xs text-muted-foreground">{step.mode.replaceAll("_", " ")}</span></div><p className="mt-1 text-xs text-muted-foreground">{step.reason}</p></li>)}</ol>
         </div> : acquisition.error ? <p role="alert" className="text-sm text-destructive">Acquisition readiness could not be verified. Treat all live integrations as unavailable.</p> : <p className="text-xs text-muted-foreground">Not checked yet. Jarvis will verify server-side connector evidence when requested.</p>}
       </section>
