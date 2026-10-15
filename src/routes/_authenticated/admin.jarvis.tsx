@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { MessageResponse } from "@/components/ai-elements/message";
-import { clearJarvisHistory, getJarvisHistory, getJarvisDiagnostics, sendJarvisMessage } from "@/lib/jarvis.functions";
+import { clearJarvisHistory, getJarvisHistory, getJarvisDiagnostics, getJarvisAccessSnapshot, sendJarvisMessage } from "@/lib/jarvis.functions";
 
 type Recognition = {
   lang: string; interimResults: boolean;
@@ -31,11 +31,11 @@ const COMMANDS = [
 function Jarvis() {
   const qc = useQueryClient();
   const load = useServerFn(getJarvisHistory);
-  const inspect = useServerFn(getJarvisDiagnostics);
+  const inspect = useServerFn(getJarvisDiagnostics);\n  const inspectAccess = useServerFn(getJarvisAccessSnapshot);
   const send = useServerFn(sendJarvisMessage);
   const clear = useServerFn(clearJarvisHistory);
   const history = useQuery({ queryKey: ["jarvis", "history"], queryFn: () => load() });
-  const diagnostics = useQuery({ queryKey: ["jarvis", "diagnostics"], queryFn: () => inspect(), enabled: false, retry: false });
+  const diagnostics = useQuery({ queryKey: ["jarvis", "diagnostics"], queryFn: () => inspect(), enabled: false, retry: false });\n  const access = useQuery({ queryKey: ["jarvis", "access"], queryFn: () => inspectAccess(), enabled: false, retry: false });
   const [text, setText] = useState("");
   const [voice, setVoice] = useState(false);
   const [listening, setListening] = useState(false);
@@ -92,7 +92,7 @@ function Jarvis() {
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div><h1 className="text-2xl font-semibold">Jarvis mission control</h1><p className="text-sm text-muted-foreground">Read-only diagnostics and free-only AI advice. No automatic repairs.</p></div>
         <div className="flex flex-wrap gap-2">
-          <Button variant="outline" disabled={diagnostics.isFetching} onClick={() => { void diagnostics.refetch(); }}>Refresh diagnostics</Button>
+          <Button variant="outline" disabled={diagnostics.isFetching} onClick={() => { void diagnostics.refetch(); }}>Refresh diagnostics</Button>\n          <Button variant="outline" disabled={access.isFetching} onClick={() => { void access.refetch(); }}>Refresh access status</Button>
           <Button variant="outline" aria-pressed={voice} onClick={() => { setVoice(!voice); window.speechSynthesis?.cancel(); }}>{voice ? "Mute replies" : "Speak replies"}</Button>
           <Button variant="outline" disabled={clearing.isPending || mutation.isPending} onClick={() => { if (window.confirm("Clear your Jarvis history?")) clearing.mutate(); }}>Clear my chat</Button>
         </div>
@@ -104,6 +104,35 @@ function Jarvis() {
         })}
       </section>
       <p className="text-xs text-muted-foreground">Snapshot: {diagnostics.data?.checkedAt ?? "not collected"}. “Checked” means the query ran—not that the subsystem is healthy.</p>
+      <section aria-label="Access and permissions" className="rounded-lg border border-border bg-card p-4">
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <div>
+            <h2 className="font-semibold">Access &amp; permissions</h2>
+            <p className="text-xs text-muted-foreground">Configuration evidence only—not proof that a live service is healthy. Secret values and credential names are never shown.</p>
+          </div>
+          <Button variant="outline" size="sm" disabled={access.isFetching} onClick={() => { void access.refetch(); }}>Check connectors</Button>
+        </div>
+        {access.error ? <p role="alert" className="mt-3 text-sm">Access status unavailable. No connection health verdict can be inferred.</p> : null}
+        {access.data ? <>
+          <p className="mt-2 text-xs text-muted-foreground">Checked {access.data.checkedAt}. Runtime verification is process-local and may reset on restart.</p>
+          <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {access.data.providers.map((provider) => <article key={provider.id} className="min-w-0 rounded-md border border-border p-3">
+              <div className="flex items-start justify-between gap-2">
+                <h3 className="font-medium">{provider.label}</h3>
+                <span className="shrink-0 rounded bg-muted px-2 py-1 text-xs">{provider.status.replaceAll("_", " ")}</span>
+              </div>
+              <p className="mt-2 text-xs text-muted-foreground">{provider.permission}</p>
+              <dl className="mt-2 space-y-1 text-xs">
+                <div className="flex justify-between gap-2"><dt>Scope</dt><dd>{provider.scope}</dd></div>
+                <div className="flex justify-between gap-2"><dt>Cost class</dt><dd>{provider.cost}</dd></div>
+                <div className="flex justify-between gap-2"><dt>Implemented</dt><dd>{provider.implemented ? "Yes" : "No"}</dd></div>
+                <div className="flex justify-between gap-2"><dt>Runtime call verified</dt><dd>{provider.runtimeVerified ? "Previously verified" : "Not verified"}</dd></div>
+                <div className="flex justify-between gap-2"><dt>Missing credentials</dt><dd>{provider.missingCredentialCount === 0 ? "None detected" : `${provider.missingCredentialCount} required`}</dd></div>
+              </dl>
+            </article>)}
+          </div>
+        </> : <p className="mt-3 text-sm text-muted-foreground">Access has not been checked yet.</p>}
+      </section>
       {diagnostics.error ? <p role="alert">Diagnostics unavailable. No healthy verdict can be inferred.</p> : null}
       <div className="flex flex-wrap gap-2">{COMMANDS.map(([label, prompt]) => <Button key={label} variant="outline" disabled={mutation.isPending} onClick={() => submit(prompt)}>{label}</Button>)}</div>
       {diagnostics.data ? <details className="rounded-lg border border-border p-3"><summary className="cursor-pointer">Inspect bounded diagnostic evidence</summary><pre className="mt-3 max-h-80 overflow-auto whitespace-pre-wrap break-words text-xs">{JSON.stringify(diagnostics.data, null, 2)}</pre></details> : null}
