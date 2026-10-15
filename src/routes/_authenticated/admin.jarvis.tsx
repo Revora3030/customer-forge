@@ -11,7 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { MessageResponse } from "@/components/ai-elements/message";
 import { clearJarvisHistory, getJarvisHistory, getJarvisDiagnostics, regenerateJarvisReply, sendJarvisMessage } from "@/lib/jarvis.functions";
 import { draftProspectOutreach, type ProspectDraft } from "@/lib/jarvis-prospecting.functions";
-import { generateAcquisitionSitePreview, listAcquisitionPipeline, saveAcquisitionProspect, searchAcquisitionCandidates } from "@/lib/jarvis-acquisition-studio.functions";
+import { generateAcquisitionSitePreview, listAcquisitionInterestQueue, listAcquisitionPipeline, saveAcquisitionProspect, searchAcquisitionCandidates, updateAcquisitionInterestStatus } from "@/lib/jarvis-acquisition-studio.functions";
 import type { AcquisitionCandidate } from "@/lib/jarvis-acquisition-studio";
 
 type Recognition = {
@@ -101,9 +101,12 @@ function Jarvis() {
   const saveCandidateFn = useServerFn(saveAcquisitionProspect);
   const pipelineFn = useServerFn(listAcquisitionPipeline);
   const generateSiteFn = useServerFn(generateAcquisitionSitePreview);
+  const interestQueueFn = useServerFn(listAcquisitionInterestQueue);
+  const reviewInterestFn = useServerFn(updateAcquisitionInterestStatus);
   const history = useQuery({ queryKey: ["jarvis", "history"], queryFn: () => load() });
   const diagnostics = useQuery({ queryKey: ["jarvis", "diagnostics"], queryFn: () => inspect(), staleTime: 60_000, retry: false });
   const acquisitionPipeline = useQuery({ queryKey: ["jarvis", "acquisition-pipeline"], queryFn: () => pipelineFn(), staleTime: 30_000, retry: false });
+  const acquisitionInterestQueue = useQuery({ queryKey: ["jarvis", "acquisition-interest-queue"], queryFn: () => interestQueueFn(), staleTime: 30_000, retry: false });
   const [text, setText] = useState("");
   const [mode, setMode] = useState<Mode>("balanced");
   const [pending, setPending] = useState<string | null>(null);
@@ -169,6 +172,11 @@ function Jarvis() {
     mutationFn: (prospectId: string) => generateSiteFn({ data: { prospectId, confirmation: "GENERATE SITE PREVIEW" } }),
     onSuccess: async (result) => { setGeneratedAcquisitionPreview({ title: result.title, previewPath: result.previewPath, expiresAt: result.expiresAt, notice: result.notice }); toast.success("The concept passed safety validation and a private preview was created."); await qc.invalidateQueries({ queryKey: ["jarvis", "acquisition-pipeline"] }); },
     onError: (error: Error) => toast.error(error.message || "Site concept could not be generated."),
+  });
+  const acquisitionReviewInterest = useMutation({
+    mutationFn: (input: { interestId: string; status: "reviewed" | "dismissed" }) => reviewInterestFn({ data: input }),
+    onSuccess: async (result) => { toast.success(result.status === "reviewed" ? "Marked for human follow-up." : "Request dismissed."); await Promise.all([qc.invalidateQueries({ queryKey: ["jarvis", "acquisition-interest-queue"] }), qc.invalidateQueries({ queryKey: ["jarvis", "acquisition-pipeline"] })]); },
+    onError: (error: Error) => toast.error(error.message || "Could not update the interest request."),
   });
   const prospecting = useMutation({
     mutationFn: (prospects: ProspectLine[]) => draftFn({ data: { prospects, suppress: dnc } }),
@@ -392,6 +400,31 @@ function Jarvis() {
               </div>
             </article>
           )) : <p className="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">{acquisitionPipeline.isLoading ? "Loading saved opportunities…" : "No opportunities saved yet. Search a business category and city to begin."}</p>}
+        </div>
+
+        <div className="space-y-3 rounded-lg border border-border p-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div><h3 className="text-sm font-semibold">Preview interest queue</h3><p className="mt-0.5 text-xs text-muted-foreground">Owner-initiated requests only. Contact is manual; nothing is emailed automatically.</p></div>
+            <Button type="button" size="sm" variant="outline" disabled={acquisitionInterestQueue.isFetching} onClick={() => { void acquisitionInterestQueue.refetch(); }}><RefreshCw className={"mr-2 size-3.5 " + (acquisitionInterestQueue.isFetching ? "animate-spin" : "")} />Refresh requests</Button>
+          </div>
+          {acquisitionInterestQueue.error ? <p role="alert" className="text-xs text-destructive">Interest queue unavailable. Check the database migration and service-role grants.</p> : null}
+          {(acquisitionInterestQueue.data?.requests ?? []).length ? (acquisitionInterestQueue.data?.requests ?? []).map((request) => (
+            <article key={request.id} className="space-y-2 rounded-md border border-border p-3">
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div><h4 className="text-sm font-medium">{request.contactName} · {request.businessName}</h4><p className="mt-1 text-xs text-muted-foreground">{request.category}{request.city ? " · " + request.city : ""} · {request.previewTitle}</p></div>
+                <span className="rounded-full border border-border px-2 py-1 text-[11px]">{request.status}</span>
+              </div>
+              <p className="text-xs">{request.email}{request.phone ? " · " + request.phone : ""}</p>
+              {request.notes ? <p className="rounded-md bg-muted/30 p-2 text-xs leading-relaxed">{request.notes}</p> : null}
+              <p className="text-[11px] text-muted-foreground">Received {new Date(request.createdAt).toLocaleString()}</p>
+              <div className="flex flex-wrap gap-2">
+                <a className="inline-flex h-8 items-center gap-1.5 rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground hover:opacity-90" href={"mailto:" + encodeURIComponent(request.email) + "?subject=" + encodeURIComponent("Your Revora website concept") + "&body=" + encodeURIComponent("Hi " + request.contactName + ",\n\nThanks for requesting next steps on your website concept. You can review Revora Growth Systems and continue setup here: https://revoragrowthsystems.com/get-started\n\nWe will confirm your actual business details before launching your site.")}>Open reply draft</a>
+                <Button size="sm" variant="outline" disabled={acquisitionReviewInterest.isPending || request.status === "reviewed"} onClick={() => acquisitionReviewInterest.mutate({ interestId: request.id, status: "reviewed" })}>Mark reviewed</Button>
+                <Button size="sm" variant="ghost" disabled={acquisitionReviewInterest.isPending} onClick={() => { if (window.confirm("Dismiss this request without contacting the owner?")) acquisitionReviewInterest.mutate({ interestId: request.id, status: "dismissed" }); }}>Dismiss</Button>
+                <Button size="sm" variant="ghost" onClick={() => { void copy("Business: " + request.businessName + "\nContact: " + request.contactName + "\nEmail: " + request.email + "\nPhone: " + (request.phone ?? "") + "\nRequest: " + request.notes); }}>Copy details</Button>
+              </div>
+            </article>
+          )) : <p className="rounded-md border border-dashed border-border p-4 text-xs text-muted-foreground">{acquisitionInterestQueue.isLoading ? "Loading interest requests…" : "No new or reviewed preview requests yet."}</p>}
         </div>
 
         {generatedAcquisitionPreview ? <div className="space-y-2 rounded-lg border border-primary/30 bg-primary/5 p-3">
