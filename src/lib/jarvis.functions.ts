@@ -477,3 +477,39 @@ export const openJarvisPullRequestFn = createServerFn({ method: "POST" })
     });
     return result;
   });
+
+/**
+ * Recovers stalled website builds after the owner approves Jarvis's proposal:
+ * the worker's own idempotent sweep, then a fresh worker kick for workspaces
+ * that still have a queued build. Never cancels a build that is still alive.
+ */
+export const recoverStalledBuildsFn = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const db = await guardedAdmin(context);
+    const { closeAbandonedJobs } = await import("./site-engine.worker.server");
+    await closeAbandonedJobs(db as never);
+    const { data: queued } = await db
+      .from("generation_jobs")
+      .select("organization_id")
+      .eq("status", "queued")
+      .order("created_at", { ascending: true })
+      .limit(20);
+    const orgIds = [...new Set((queued ?? []).map((row) => String(row.organization_id)))].slice(0, 5);
+    if (orgIds.length) {
+      const { getRequest } = await import("@tanstack/react-start/server");
+      const origin = new URL(getRequest().url).origin;
+      const { runInBackground } = await import("@/lib/background");
+      const { kickWorker } = await import("@/lib/site-engine.functions");
+      for (const orgId of orgIds) runInBackground(() => kickWorker(origin, orgId));
+    }
+    await db.from("audit_logs").insert({
+      organization_id: null,
+      actor_id: String(context.userId),
+      action: "jarvis.builds.recovered",
+      entity: "generation_jobs",
+      entity_id: null,
+      metadata: { restartedWorkspaces: orgIds.length },
+    });
+    return { restartedWorkspaces: orgIds.length };
+  });
