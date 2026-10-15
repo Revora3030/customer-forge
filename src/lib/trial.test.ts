@@ -16,6 +16,11 @@ const DAY = 86_400_000;
  * These tests pin that contract.
  */
 describe("cross-session free-access trial", () => {
+  it("pins the signup free-access window to exactly one day", () => {
+    expect(TRIAL_DAYS).toBe(1);
+  });
+
+
   it("keeps access on relogin when created less than 1 day ago, even with a null trial_ends_at", () => {
     const createdAt = new Date(Date.now() - DAY / 2).toISOString();
     const org = { subscription_status: "trialing", trial_ends_at: null, created_at: createdAt };
