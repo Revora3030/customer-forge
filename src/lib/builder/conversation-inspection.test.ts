@@ -7,7 +7,7 @@ describe("repository inspection boundaries", () => {
   it("allows source and migration paths but rejects secrets, traversal and generated types", () => {
     expect(safeInspectionPath("src/lib/agent/verify.server.ts")).toBe(true);
     expect(safeInspectionPath("supabase/migrations/example.sql")).toBe(true);
-    for (const path of [".env", "src/.env.json", "src/../secrets.json", "src/%2e%2e/private.ts", "src/file.ts?token=x", "src/integrations/supabase/types.ts", "private/key.pem"]) expect(safeInspectionPath(path)).toBe(false);
+    for (const path of [".env", "src/.env.json", "src/../secrets.json", "src/%2e%2e/private.ts", "src/file.ts?token=x", "src/file\0.ts", "src/integrations/supabase/types.ts", "private/key.pem"]) expect(safeInspectionPath(path)).toBe(false);
   });
   it("does not contact GitHub for an unverified administrator", async () => {
     const fetchMock = vi.fn();
