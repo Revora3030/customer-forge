@@ -4,6 +4,18 @@
  * It scores supplied lead metadata and decides whether a pre-approved follow-up
  * may be queued. Provider execution remains a separate server-side integration.
  */
+/** Canonical offer values used by acquisition copy; change only with owner authorization. */
+export const REVORA_OFFER = {
+  setupFeeUsd: 750,
+  firstMonthFree: true,
+  monthlyPriceUsd: 100,
+  trialDays: 1,
+} as const;
+
+export function formatRevoraOffer(): string {
+  return "$" + REVORA_OFFER.setupFeeUsd + " one-time setup, first month free, then $" + REVORA_OFFER.monthlyPriceUsd + "/month, with a " + REVORA_OFFER.trialDays + "-day full-access trial";
+}
+
 export type LeadSignal = {
   hasBusinessName?: boolean;
   hasValidContactRoute?: boolean;
