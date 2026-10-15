@@ -1,5 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { getPreviewSite } from "@/lib/public-site.functions";
+import { getAcquisitionSitePreview } from "@/lib/jarvis-acquisition-studio.functions";
+import { AcquisitionSitePreview } from "@/components/site/AcquisitionSitePreview";
 import { PublicSiteView } from "@/routes/s.$slug";
 import { PreviewMessage } from "@/components/PreviewMessage";
 import { SiteBaseContext } from "@/components/site/site-address-context";
@@ -9,7 +11,11 @@ import { SiteBaseContext } from "@/components/site/site-address-context";
  * an unknown, revoked or expired link renders a plain message and nothing else.
  */
 export const Route = createFileRoute("/p/$token")({
-  loader: async ({ params }) => getPreviewSite({ data: { token: params.token } }),
+  loader: async ({ params }) => {
+    const acquisition = await getAcquisitionSitePreview({ data: { token: params.token } });
+    if (acquisition.found) return { kind: "acquisition" as const, acquisition };
+    return { kind: "regular" as const, preview: await getPreviewSite({ data: { token: params.token } }) };
+  },
   head: () => ({
     meta: [
       { title: "Website draft preview — Revora" },
@@ -34,9 +40,23 @@ export const Route = createFileRoute("/p/$token")({
 });
 
 function PreviewRoute() {
-  const result = Route.useLoaderData();
+  const loaded = Route.useLoaderData();
   const { token } = Route.useParams();
 
+  if (loaded.kind === "acquisition") {
+    if (!loaded.acquisition.ok || !loaded.acquisition.site) {
+      const reason = loaded.acquisition.reason ?? "unknown";
+      const copy = reason === "expired"
+        ? { title: "This concept preview has expired", body: "Ask Revora for a refreshed concept preview." }
+        : reason === "revoked"
+          ? { title: "This concept preview is no longer available", body: "Ask Revora for a fresh preview link." }
+          : { title: "This preview link is not available", body: "Check the link or ask Revora for a new one." };
+      return <PreviewMessage {...copy} />;
+    }
+    return <AcquisitionSitePreview token={token} site={loaded.acquisition.site} />;
+  }
+
+  const result = loaded.preview;
   if (!result?.ok || !result.site) {
     const reason = result?.reason ?? "unknown";
     const copy =
