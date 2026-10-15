@@ -16,7 +16,7 @@ describe("Jarvis acquisition policy", () => {
     expect(REVORA_OFFER.monthlyPriceUsd).toBe(GROWTH_SYSTEM.monthlyPrice);
     expect(REVORA_OFFER.trialDays).toBe(GROWTH_SYSTEM.fullAccessTrialDays);
     expect(formatRevoraOffer()).toBe("$350 one-time setup, first month free, then $100/month, with a 3-day full-access trial");
-    expect(formatRevoraOffer()).not.toContain("$350");
+    expect(formatRevoraOffer()).not.toContain("$750");
   });
   it("scores a high-intent lead without inventing evidence", () => {
     const score = scoreAcquisitionLead({ requestedQuote: true, hasValidContactRoute: true, serviceAreaMatch: true, recentIntentDays: 0 });
