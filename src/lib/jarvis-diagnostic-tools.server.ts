@@ -3,6 +3,7 @@ import { collectJarvisDiagnostics } from "./jarvis-diagnostics.server";
 import { redactJarvisSummary } from "./jarvis-autopilot-policy";
 import { getJarvisDiagnosticTool, isJarvisDiagnosticToolId, type JarvisDiagnosticToolId } from "./jarvis-tool-registry";
 import { providerSnapshots } from "./integrations/registry.server";
+import { scoreJarvisCapabilities, type JarvisCapabilityCheckId, type JarvisCapabilityEvidence, type JarvisCapabilityEvidenceStatus } from "./jarvis-capability-scorecard";
 
 const SITE_ORIGIN = "https://revoragrowthsystems.com";
 const GITHUB_REPOSITORY = "Revora3030/customer-forge";
@@ -291,6 +292,94 @@ export async function executeJarvisDiagnosticTool(
   const checkedAt = new Date().toISOString();
   const started = Date.now();
   try {
+    if (toolId === "jarvis.capabilities.scorecard") {
+      const [diagnostics, website, ci] = await Promise.all([
+        collectJarvisDiagnostics(db),
+        publicWebsiteSmoke(),
+        releaseEvidence(),
+      ]);
+      const evidence: Partial<Record<JarvisCapabilityCheckId, JarvisCapabilityEvidence>> = {};
+      const setEvidence = (
+        id: JarvisCapabilityCheckId,
+        status: JarvisCapabilityEvidenceStatus,
+        summary: string,
+        source: string,
+      ) => {
+        evidence[id] = { status, summary, source, checkedAt };
+      };
+      const sectionStatus = (section: { status?: string } | undefined): JarvisCapabilityEvidenceStatus =>
+        section?.status === "checked" ? "verified" : "unknown";
+      setEvidence("diagnostics.errorSample", sectionStatus(diagnostics.sections["errors"]), "Error event sampling " + (diagnostics.sections["errors"]?.status ?? "unknown") + "; review redacted evidence and sample limits.", "live database diagnostic");
+      setEvidence("diagnostics.builderHealth", sectionStatus(diagnostics.sections["builds"]), "Build/publish/image diagnostic " + (diagnostics.sections["builds"]?.status ?? "unknown") + "; aggregate evidence does not prove a root cause.", "live database diagnostic");
+      setEvidence("diagnostics.schemaProbe", sectionStatus(diagnostics.sections["schema"]), "Read-only schema contract probe " + (diagnostics.sections["schema"]?.status ?? "unknown") + "; does not enumerate RLS or migration history.", "live database diagnostic");
+      setEvidence("diagnostics.redaction", "configured", "Redaction helpers and regression tests exist in code; a production adversarial execution was not performed by this check.", "code configuration only");
+
+      const ciRuns = Array.isArray(ci.runs) ? ci.runs : [];
+      const qualityRun = ciRuns.find((run) => /quality gate/i.test(String(run.name)));
+      const securityRun = ciRuns.find((run) => /security gate|authority validation|codeql/i.test(String(run.name)));
+      const browserRun = ciRuns.find((run) => /browser qa|browser journey/i.test(String(run.name)));
+      const requiredRuns = [qualityRun, securityRun, browserRun];
+      const sharedCommit = requiredRuns.every((run) =>
+        Boolean(run) &&
+        run?.status === "completed" &&
+        run?.conclusion === "success" &&
+        typeof run?.commit === "string" &&
+        run.commit === requiredRuns[0]?.commit
+      );
+      const runStatus = (run: (typeof ciRuns)[number] | undefined): JarvisCapabilityEvidenceStatus => {
+        if (run?.status === "completed" && run.conclusion === "success" && sharedCommit) return "verified";
+        if (run?.status === "completed" && run.conclusion && run.conclusion !== "success") return "failed";
+        return "unknown";
+      };
+      const qualityStatus = runStatus(qualityRun);
+      setEvidence("engineering.typecheck", qualityStatus, "Quality Gate: " + (qualityRun?.conclusion ?? qualityRun?.status ?? "missing") + "; completed success on the shared commit is required.", "GitHub Actions");
+      setEvidence("engineering.lint", qualityStatus, "Quality Gate: " + (qualityRun?.conclusion ?? qualityRun?.status ?? "missing") + "; completed success on the shared commit is required.", "GitHub Actions");
+      setEvidence("engineering.tests", qualityStatus, "Quality Gate: " + (qualityRun?.conclusion ?? qualityRun?.status ?? "missing") + "; completed success on the shared commit is required.", "GitHub Actions");
+      setEvidence("engineering.security", runStatus(securityRun), "Security/authority gate: " + (securityRun?.conclusion ?? securityRun?.status ?? "missing") + ".", "GitHub Actions");
+      setEvidence("engineering.browser", runStatus(browserRun), "Browser QA: " + (browserRun?.conclusion ?? browserRun?.status ?? "missing") + ".", "GitHub Actions");
+      setEvidence("reliability.ciSameHead", sharedCommit ? "verified" : "unknown", sharedCommit ? "Quality, security, and browser gates passed for one shared commit." : "Required gate results were not all verified as successful for the same commit.", "GitHub Actions");
+
+      const siteHasFailure = website.status === "failed";
+      setEvidence("reliability.syntheticHealth", "unknown", siteHasFailure ? "The limited public-site smoke check found issues; full production synthetic journeys still need verification." : "Homepage/robots/sitemap checks are not a full production synthetic journey.", "public HTTP smoke check");
+      setEvidence("reliability.productionRevision", "unknown", "This diagnostic cannot independently prove which commit is deployed.", "deployment evidence unavailable");
+      setEvidence("reliability.migrations", "unknown", "API contract probes do not prove applied migration history or drift status.", "migration verification unavailable");
+      setEvidence("reliability.rollback", "unknown", "A recovery plan does not prove a successful rollback exercise.", "rollback exercise unavailable");
+
+      setEvidence("growth.funnelSignals", "configured", "Aggregate funnel queries are implemented; record counts are not represented as campaign-attributed revenue.", "read-only database query capability");
+      setEvidence("growth.offerConsistency", "configured", "The application has one canonical offer source; live provider agreement requires a separate catalog contract.", "application configuration only");
+      setEvidence("growth.attribution", "unknown", "Trusted campaign-to-paid-conversion attribution was not verified.", "attribution evidence unavailable");
+      setEvidence("growth.experiments", "unknown", "Controlled conversion experiments and measured outcomes were not verified.", "experiment evidence unavailable");
+
+      setEvidence("acquisition.scoring", "configured", "Explainable lead scoring is implemented; adversarial runtime payloads were not replayed.", "code configuration only");
+      setEvidence("acquisition.consent", "unknown", "Durable, channel-specific consent provenance was not verified.", "consent evidence unavailable");
+      setEvidence("acquisition.suppression", "configured", "Suppression policy exists; production webhook reconciliation remains separate.", "policy configuration only");
+      setEvidence("acquisition.delivery", "unknown", "Durable provider receipts and bounce/complaint reconciliation were not verified.", "delivery evidence unavailable");
+      setEvidence("acquisition.paidConversion", "unknown", "Lead-to-paid attribution from trusted billing events was not verified.", "conversion evidence unavailable");
+
+      setEvidence("autonomy.killSwitch", "configured", "A server-owned kill-switch policy exists; its live persisted state was not verified.", "policy configuration only");
+      setEvidence("autonomy.approvalConsumption", "configured", "Approval validation exists; atomic one-time consumption under concurrency was not exercised.", "policy configuration only");
+      setEvidence("autonomy.idempotency", "configured", "Idempotency safeguards are defined; duplicate/concurrent production runs were not exercised.", "policy configuration only");
+      setEvidence("autonomy.postconditions", "configured", "Independent verification is required by contract; no production write was executed.", "execution contract only");
+      setEvidence("autonomy.recovery", "unknown", "Lease recovery, bounded retry, and dead-letter recovery were not verified end-to-end.", "recovery evidence unavailable");
+
+      setEvidence("safety.superAdminBoundary", "configured", "Super-admin authorization is enforced server-side; this is not an authorization penetration test.", "server access-control implementation");
+      setEvidence("safety.tenantIsolation", "unknown", "Cross-tenant negative tests were not run by this diagnostic.", "tenant isolation test evidence unavailable");
+      setEvidence("safety.redaction", "configured", "Redaction helpers are present; production output was not adversarially exercised in this run.", "code configuration only");
+      setEvidence("safety.audit", "configured", "Audit storage contracts exist; append-only trigger and grants require migration-level verification.", "database schema design only");
+      setEvidence("safety.secretBoundary", "configured", "Diagnostic outputs exclude credential values by design; full model/tool data-flow verification remains required.", "tool registry and redaction design");
+
+      const scorecard = scoreJarvisCapabilities(evidence, checkedAt);
+      return result(toolId, scorecard.verified10Of10Areas === 7 ? "observed" : "needs_verification", scorecard, {
+        checkedAt,
+        durationMs: Date.now() - started,
+        limitations: [
+          "Scores are intentionally conservative: configured-only, missing, stale, or indirect evidence does not pass.",
+          "A 10/10 requires every check in that area to be independently verified.",
+          "This tool does not grant permissions, execute writes, send messages, publish websites, or spend money.",
+        ],
+      });
+    }
+
     if (toolId === "platform.errors.summary" ||
         toolId === "builder.health.summary" ||
         toolId === "database.contracts.probe" ||
