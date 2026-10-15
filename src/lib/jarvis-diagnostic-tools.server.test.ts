@@ -158,6 +158,54 @@ describe("Jarvis diagnostic executor", () => {
     expect(serialized).not.toContain('"verified10Of10Areas":7');
   });
 
+  it("verifies CI checks only when quality, security, and browser runs match current lovable-sync HEAD", async () => {
+    const commit = "a".repeat(40);
+    const workflowNames = ["Revora Quality Gate", "Revora Security Gate", "Revora Browser QA"];
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = new URL(String(input));
+      if (url.hostname === "api.github.com" && url.pathname.endsWith("/commits/lovable-sync")) {
+        return new Response(JSON.stringify({ sha: commit }), {
+          status: 200, headers: { "content-type": "application/json" },
+        });
+      }
+      if (url.hostname === "api.github.com" && url.pathname.endsWith("/actions/runs")) {
+        return new Response(JSON.stringify({
+          total_count: workflowNames.length,
+          workflow_runs: workflowNames.map((name) => ({
+            name, status: "completed", conclusion: "success", head_sha: commit,
+            created_at: "2026-10-15T12:00:00Z", updated_at: "2026-10-15T12:01:00Z",
+            html_url: "https://github.com/Revora3030/customer-forge/actions/runs/123",
+          })),
+        }), { status: 200, headers: { "content-type": "application/json" } });
+      }
+      if (url.pathname === "/") {
+        return new Response("<html><head><title>Revora</title><meta name='description' content='Growth systems'></head><body><h1>Revora</h1></body></html>", {
+          status: 200, headers: { "content-type": "text/html" },
+        });
+      }
+      if (url.pathname === "/robots.txt") {
+        return new Response("User-agent: *\nSitemap: https://revoragrowthsystems.com/sitemap.xml", {
+          status: 200, headers: { "content-type": "text/plain" },
+        });
+      }
+      return new Response("<urlset><loc>https://revoragrowthsystems.com/</loc></urlset>", {
+        status: 200, headers: { "content-type": "application/xml" },
+      });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const output = await executeJarvisDiagnosticTool(db, "jarvis.capabilities.scorecard");
+    const scorecard = output.data as unknown as {
+      areas: Array<{ id: string; checks: Array<{ id: string; status: string; summary: string }> }>;
+    };
+    const engineering = scorecard.areas.find((area) => area.id === "engineering");
+    expect(engineering?.checks.find((check) => check.id === "engineering.typecheck")?.status).toBe("verified");
+    expect(engineering?.checks.find((check) => check.id === "engineering.lint")?.status).toBe("verified");
+    expect(engineering?.checks.find((check) => check.id === "engineering.tests")?.status).toBe("verified");
+    expect(engineering?.checks.find((check) => check.id === "engineering.security")?.status).toBe("verified");
+    expect(engineering?.checks.find((check) => check.id === "engineering.browser")?.status).toBe("verified");
+    expect(JSON.stringify(output)).not.toContain("secret");
+  });
+
   it("returns partial security evidence rather than a false green security verdict", async () => {
     const output = await executeJarvisDiagnosticTool(db, "security.posture.summary");
     expect(output.status).toBe("needs_verification");
