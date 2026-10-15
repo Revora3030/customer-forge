@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { MessageResponse } from "@/components/ai-elements/message";
-import { clearJarvisHistory, getJarvisHistory, getJarvisDiagnostics, getJarvisAcquisitionReadiness, regenerateJarvisReply, sendJarvisMessage } from "@/lib/jarvis.functions";
+import { clearJarvisHistory, getJarvisHistory, getJarvisDiagnostics, getJarvisAcquisitionReadiness, getJarvisDiagnosticTools, runJarvisDiagnosticTool, regenerateJarvisReply, sendJarvisMessage } from "@/lib/jarvis.functions";
 import { draftProspectOutreach, type ProspectDraft } from "@/lib/jarvis-prospecting.functions";
 import { formatRevoraOffer } from "@/lib/jarvis-acquisition-policy";
 
@@ -20,6 +20,23 @@ type Recognition = {
 type RecognitionConstructor = new () => Recognition;
 type Mode = "brief" | "balanced" | "deep";
 type ProspectLine = { name: string; website: string; city: string; email: string };
+
+type CapabilityScorePayload = {
+  overallScore: number;
+  verifiedChecks: number;
+  totalChecks: number;
+  verified10Of10Areas: number;
+  areas: Array<{
+    id: string;
+    title: string;
+    score: number;
+    verified: number;
+    total: number;
+    status: "verified_10_of_10" | "gaps_found" | "evidence_incomplete";
+    blockers: string[];
+  }>;
+  nextActions: string[];
+};
 
 export const Route = createFileRoute("/_authenticated/admin/jarvis")({
   head: () => ({ meta: [{ title: "Jarvis mission control — Revora" }, { name: "robots", content: "noindex" }] }),
@@ -89,6 +106,8 @@ function Jarvis() {
   const load = useServerFn(getJarvisHistory);
   const inspect = useServerFn(getJarvisDiagnostics);
   const inspectAcquisition = useServerFn(getJarvisAcquisitionReadiness);
+  const loadDiagnosticTools = useServerFn(getJarvisDiagnosticTools);
+  const runDiagnosticTool = useServerFn(runJarvisDiagnosticTool);
   const send = useServerFn(sendJarvisMessage);
   const redo = useServerFn(regenerateJarvisReply);
   const clear = useServerFn(clearJarvisHistory);
@@ -96,6 +115,19 @@ function Jarvis() {
   const history = useQuery({ queryKey: ["jarvis", "history"], queryFn: () => load() });
   const diagnostics = useQuery({ queryKey: ["jarvis", "diagnostics"], queryFn: () => inspect(), staleTime: 60_000, retry: false });
   const acquisition = useQuery({ queryKey: ["jarvis", "acquisition-readiness"], queryFn: () => inspectAcquisition(), enabled: false, retry: false });
+  const capabilityScorecard = useQuery({
+    queryKey: ["jarvis", "capability-scorecard"],
+    queryFn: async () => {
+      const tools = await loadDiagnosticTools();
+      if (!tools.some((tool) => tool.id === "jarvis.capabilities.scorecard")) {
+        throw new Error("The capability scorecard is not available on this release.");
+      }
+      return runDiagnosticTool({ data: { toolId: "jarvis.capabilities.scorecard" } });
+    },
+    enabled: false,
+    retry: false,
+    staleTime: 0,
+  });
   const [text, setText] = useState("");
   const [mode, setMode] = useState<Mode>("balanced");
   const [pending, setPending] = useState<string | null>(null);
@@ -286,6 +318,54 @@ function Jarvis() {
         </div> : acquisition.error ? <p role="alert" className="text-sm text-destructive">Acquisition readiness could not be verified. Treat all live integrations as unavailable.</p> : <p className="text-xs text-muted-foreground">Not checked yet. Jarvis will verify server-side connector evidence when requested.</p>}
       </section>
 
+
+      <section aria-label="Jarvis seven-area capability scorecard" className="rounded-xl border border-border bg-card p-3 space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h2 className="font-semibold">Jarvis capability scorecard</h2>
+            <p className="text-xs text-muted-foreground">Seven capability areas · evidence-backed · missing proof never counts as a pass.</p>
+          </div>
+          <Button type="button" size="sm" variant="outline" disabled={capabilityScorecard.isFetching} onClick={() => { void capabilityScorecard.refetch(); }}>
+            {capabilityScorecard.isFetching ? "Auditing…" : "Run seven-area audit"}
+          </Button>
+        </div>
+        <p className="text-sm text-muted-foreground">This reads bounded diagnostics, public-site smoke checks, and current branch CI evidence. It does not enable writes, outreach, publishing, or spend.</p>
+        {capabilityScorecard.data ? (() => {
+          const toolResult = capabilityScorecard.data;
+          const payload = toolResult.data as unknown as CapabilityScorePayload;
+          const valid = payload && typeof payload === "object" && Array.isArray(payload.areas) &&
+            typeof payload.overallScore === "number" && typeof payload.totalChecks === "number";
+          return valid ? (
+            <div className="space-y-3">
+              <div className="rounded-lg border border-border p-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <strong>Overall verified score: {payload.overallScore.toFixed(1)}/10</strong>
+                  <span className="text-xs text-muted-foreground">{payload.verifiedChecks}/{payload.totalChecks} checks verified</span>
+                </div>
+                <p className="mt-1 text-xs text-muted-foreground">{payload.verified10Of10Areas}/7 areas fully verified · status: {toolResult.status.replaceAll("_", " ")}</p>
+                <p className="mt-1 text-xs text-muted-foreground">Checked {clock(toolResult.checkedAt)} · {toolResult.durationMs} ms</p>
+              </div>
+              <div className="space-y-3">
+                {payload.areas.map((area) => (
+                  <article key={area.id} className="space-y-1.5">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="text-sm font-medium">{area.title}</span>
+                      <span className="text-xs tabular-nums">{area.score.toFixed(1)}/10 · {area.verified}/{area.total}</span>
+                    </div>
+                    <div className="h-1.5 overflow-hidden rounded-full bg-muted" role="progressbar" aria-label={area.title} aria-valuemin={0} aria-valuemax={10} aria-valuenow={area.score}>
+                      <div className="h-full rounded-full bg-primary" style={{ width: Math.min(100, Math.max(0, area.score * 10)) + "%" }} />
+                    </div>
+                    <p className="text-xs text-muted-foreground">{area.status.replaceAll("_", " ")}</p>
+                    {area.blockers.length > 0 ? <details className="rounded-md border border-border px-2 py-1.5"><summary className="cursor-pointer text-xs">Show {area.blockers.length} evidence gaps</summary><ul className="mt-2 list-disc space-y-1 pl-4 text-xs text-muted-foreground">{area.blockers.slice(0, 8).map((blocker) => <li key={blocker}>{blocker}</li>)}</ul></details> : <p className="text-xs text-muted-foreground">All required checks verified.</p>}
+                  </article>
+                ))}
+              </div>
+              {payload.nextActions.length > 0 ? <div className="rounded-lg border border-border p-3"><h3 className="text-sm font-semibold">Highest-priority next actions</h3><ol className="mt-2 list-decimal space-y-1 pl-4 text-xs text-muted-foreground">{payload.nextActions.map((action) => <li key={action}>{action}</li>)}</ol></div> : null}
+              <p className="text-xs text-muted-foreground">{toolResult.limitations.join(" ")}</p>
+            </div>
+          ) : <p role="alert" className="text-sm text-destructive">Jarvis returned a result that did not match the capability scorecard contract.</p>;
+        })() : capabilityScorecard.error ? <p role="alert" className="text-sm text-destructive">Capability audit failed: {capabilityScorecard.error.message}. No area should be treated as verified.</p> : <p className="text-xs text-muted-foreground">Run the audit to see evidence, exact gaps, and prioritized next actions.</p>}
+      </section>
 
       <details className="rounded-xl border border-border bg-card">
         <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-2 text-sm">
