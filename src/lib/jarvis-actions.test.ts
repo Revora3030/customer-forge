@@ -56,7 +56,8 @@ describe("parseActions", () => {
     );
     expect(parsed.reads).toEqual([]);
     expect(parsed.proposals).toHaveLength(1);
-    expect(parsed.proposals[0]?.input.businessName).toBe("Triangle Comfort");
+    const first = parsed.proposals[0];
+    expect(first?.id === "demo.build" ? first.input.businessName : null).toBe("Triangle Comfort");
     expect(parsed.rejected[0]).toMatch(/demo.build/);
   });
 
@@ -78,7 +79,8 @@ describe("reply metadata", () => {
     const { body, meta } = splitReplyMeta(stored);
     expect(body).toBe("Done.");
     expect(meta.ran).toEqual(["Listed demo sites"]);
-    expect(meta.proposals[0]?.input.businessName).toBe("Triangle Comfort");
+    const restored = meta.proposals[0];
+    expect(restored?.id === "demo.build" ? restored.input.businessName : null).toBe("Triangle Comfort");
     expect(speakableText(stored)).toBe("Done.");
   });
 
