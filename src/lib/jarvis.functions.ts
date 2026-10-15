@@ -32,6 +32,49 @@ export const clearJarvisHistory = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+
+export type JarvisAccessSnapshot = {
+  checkedAt: string;
+  evidence: "configuration_snapshot_not_live_health_check";
+  providers: {
+    id: string;
+    label: string;
+    scope: "platform" | "tenant";
+    cost: "free" | "paid" | "included";
+    implemented: boolean;
+    status: "ready" | "needs_connection" | "not_implemented";
+    runtimeVerified: boolean;
+    lastSuccessAt: number | null;
+    permission: string;
+    missingCredentialCount: number;
+  }[];
+};
+
+export const getJarvisAccessSnapshot = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async (): Promise<JarvisAccessSnapshot> => {
+    // The shared admin route is protected by the same server-side authorization
+    // used by Jarvis diagnostics. Never return credential names or values.
+    const { providerSnapshots } = await import("./integrations/registry.server");
+    const providers = providerSnapshots().map((provider) => ({
+      id: provider.id,
+      label: provider.label,
+      scope: provider.scope,
+      cost: provider.cost,
+      implemented: provider.implemented,
+      status: provider.status,
+      runtimeVerified: provider.runtimeVerified,
+      lastSuccessAt: provider.lastSuccessAt,
+      permission: provider.permission,
+      missingCredentialCount: provider.missing.length,
+    }));
+    return {
+      checkedAt: new Date().toISOString(),
+      evidence: "configuration_snapshot_not_live_health_check",
+      providers,
+    };
+  });
+
 export const getJarvisDiagnostics = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }): Promise<JarvisDiagnostics> => {
