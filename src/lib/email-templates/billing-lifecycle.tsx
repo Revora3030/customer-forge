@@ -58,7 +58,7 @@ const WelcomeEmail = (p: BillingProps) => (
     heading={`Welcome aboard, ${p.businessName || "there"} — ${p.planName || "your plan"} is live`}
   >
     <Text style={text}>
-      <strong>$750 setup payment received.</strong> Your {p.planName || "Revora Growth System"}{" "}
+      <strong>$350 setup payment received.</strong> Your {p.planName || "Revora Growth System"}{" "}
       workspace is ready — website builder, CRM, booking calendar, quote engine and automations are
       unlocked right now.
     </Text>
