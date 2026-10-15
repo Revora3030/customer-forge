@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { MessageResponse } from "@/components/ai-elements/message";
-import { clearJarvisHistory, getJarvisHistory, getJarvisDiagnostics, sendJarvisMessage } from "@/lib/jarvis.functions";
+import { clearJarvisHistory, getJarvisHistory, getJarvisDiagnostics, getJarvisAccessSnapshot, getJarvisDiagnosticTools, runJarvisDiagnosticTool, sendJarvisMessage } from "@/lib/jarvis.functions";
 
 type Recognition = {
   lang: string; interimResults: boolean;
@@ -44,11 +44,11 @@ const COMMAND_GROUPS = [
 function Jarvis() {
   const qc = useQueryClient();
   const load = useServerFn(getJarvisHistory);
-  const inspect = useServerFn(getJarvisDiagnostics);
+  const inspect = useServerFn(getJarvisDiagnostics);\n  const inspectAccess = useServerFn(getJarvisAccessSnapshot);\n  const loadTools = useServerFn(getJarvisDiagnosticTools);\n  const runTool = useServerFn(runJarvisDiagnosticTool);
   const send = useServerFn(sendJarvisMessage);
   const clear = useServerFn(clearJarvisHistory);
   const history = useQuery({ queryKey: ["jarvis", "history"], queryFn: () => load() });
-  const diagnostics = useQuery({ queryKey: ["jarvis", "diagnostics"], queryFn: () => inspect(), enabled: false, retry: false });
+  const diagnostics = useQuery({ queryKey: ["jarvis", "diagnostics"], queryFn: () => inspect(), enabled: false, retry: false });\n  const access = useQuery({ queryKey: ["jarvis", "access"], queryFn: () => inspectAccess(), enabled: false, retry: false });\n  const toolCatalog = useQuery({ queryKey: ["jarvis", "tool-catalog"], queryFn: () => loadTools(), retry: false });\n  const [toolResults, setToolResults] = useState<Record<string, unknown>>({});\n  const toolRun = useMutation({\n    mutationFn: (toolId: string) => runTool({ data: { toolId } }),\n    onSuccess: (result, toolId) => setToolResults((previous) => ({ ...previous, [toolId]: result })),\n    onError: (error: Error) => toast.error(error.message),\n  });
   const [text, setText] = useState("");
   const [pending, setPending] = useState<string | null>(null);
   const [followups, setFollowups] = useState<string[]>([]);
@@ -117,11 +117,71 @@ function Jarvis() {
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div><h1 className="text-2xl font-semibold">Jarvis mission control</h1><p className="text-sm text-muted-foreground">Read-only diagnostics and free-only AI advice. No automatic repairs.</p></div>
         <div className="flex flex-wrap gap-2">
-          <Button variant="outline" disabled={diagnostics.isFetching} onClick={() => { void diagnostics.refetch(); }}>Refresh diagnostics</Button>
+          <Button variant="outline" disabled={diagnostics.isFetching} onClick={() => { void diagnostics.refetch(); }}>Refresh diagnostics</Button>\n          <Button variant="outline" disabled={access.isFetching} onClick={() => { void access.refetch(); }}>Refresh access status</Button>
           <Button variant="outline" aria-pressed={voice} onClick={() => { setVoice(!voice); window.speechSynthesis?.cancel(); }}>{voice ? "Mute replies" : "Speak replies"}</Button>
           <Button variant="outline" disabled={clearing.isPending || mutation.isPending} onClick={() => { if (window.confirm("Clear your Jarvis history?")) clearing.mutate(); }}>Clear my chat</Button>
         </div>
       </header>
+      <section aria-label="Access and permissions" className="rounded-lg border border-border bg-card p-4">
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <div>
+            <h2 className="font-semibold">Access &amp; permissions</h2>
+            <p className="text-xs text-muted-foreground">Configuration evidence only—not proof that a live connector is healthy. Secret values and credential names are never displayed.</p>
+          </div>
+          <Button variant="outline" size="sm" disabled={access.isFetching} onClick={() => { void access.refetch(); }}>Check connectors</Button>
+        </div>
+        {access.error ? <p role="alert" className="mt-3 text-sm">Access status unavailable. No connection-health verdict can be inferred.</p> : null}
+        {access.data ? <>
+          <p className="mt-2 text-xs text-muted-foreground">Checked {access.data.checkedAt}. Runtime verification is process-local and may reset after restart.</p>
+          <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {access.data.providers.map((provider) => <article key={provider.id} className="min-w-0 rounded-md border border-border p-3">
+              <div className="flex items-start justify-between gap-2">
+                <h3 className="font-medium">{provider.label}</h3>
+                <span className="shrink-0 rounded bg-muted px-2 py-1 text-xs">{provider.status.replaceAll("_", " ")}</span>
+              </div>
+              <p className="mt-2 text-xs text-muted-foreground">{provider.permission}</p>
+              <dl className="mt-2 space-y-1 text-xs">
+                <div className="flex justify-between gap-2"><dt>Scope</dt><dd>{provider.scope}</dd></div>
+                <div className="flex justify-between gap-2"><dt>Cost class</dt><dd>{provider.cost}</dd></div>
+                <div className="flex justify-between gap-2"><dt>Implemented</dt><dd>{provider.implemented ? "Yes" : "No"}</dd></div>
+                <div className="flex justify-between gap-2"><dt>Runtime success seen</dt><dd>{provider.runtimeVerifiedInThisProcess ? "Yes" : "Not verified"}</dd></div>
+                <div className="flex justify-between gap-2"><dt>Missing credentials</dt><dd>{provider.missingCredentialCount === 0 ? "None detected" : `${provider.missingCredentialCount} required`}</dd></div>
+              </dl>
+            </article>)}
+          </div>
+        </> : <p className="mt-3 text-sm text-muted-foreground">Connector status has not been checked yet.</p>}
+      </section>
+      <section aria-label="Allowlisted read-only Jarvis tools" className="rounded-lg border border-border bg-card p-4">
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <div>
+            <h2 className="font-semibold">Diagnostic toolbench</h2>
+            <p className="text-xs text-muted-foreground">Registered, bounded, read-only tools. No generic SQL, shell, code execution, billing, messaging, or publishing tools are available here.</p>
+          </div>
+          <Button variant="outline" size="sm" disabled={toolCatalog.isFetching} onClick={() => { void toolCatalog.refetch(); }}>Refresh tool catalog</Button>
+        </div>
+        {toolCatalog.error ? <p role="alert" className="mt-3 text-sm">Tool catalog unavailable. No tool was executed.</p> : null}
+        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+          {(toolCatalog.data ?? []).map((tool) => {
+            const output = toolResults[tool.id];
+            return <article key={tool.id} className="min-w-0 rounded-md border border-border p-3">
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <h3 className="font-medium">{tool.title}</h3>
+                <span className="rounded bg-muted px-2 py-1 text-xs">{tool.implementation === "partial" ? "Partial evidence" : "Read-only"}</span>
+              </div>
+              <p className="mt-2 text-sm text-muted-foreground">{tool.description}</p>
+              <p className="mt-2 text-xs text-muted-foreground">Evidence: {tool.evidence}</p>
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <Button size="sm" variant="outline" disabled={toolRun.isPending} onClick={() => toolRun.mutate(tool.id)}>{toolRun.isPending ? "Running diagnostic…" : "Run diagnostic"}</Button>
+                <span className="text-xs text-muted-foreground">Read-only; no changes are made.</span>
+              </div>
+              {output !== undefined ? <details className="mt-3">
+                <summary className="cursor-pointer text-sm">View last result</summary>
+                <pre className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap break-words rounded bg-muted p-2 text-xs">{JSON.stringify(output, null, 2)}</pre>
+              </details> : null}
+            </article>;
+          })}
+        </div>
+      </section>
       <section aria-label="Diagnostic status" className="grid gap-3 sm:grid-cols-3">
         {["errors", "builds", "schema"].map((name) => {
           const section = diagnostics.data?.sections[name];
