@@ -289,9 +289,9 @@ async function releaseEvidence() {
     ];
     const runs = names.flatMap((pattern) => {
       const relevant = rawRuns.filter((run) => pattern.test(run.name));
-      return relevant.slice(0, 10).filter((run, index) =>
-        index === 0 || run.commit === currentHead
-      ).slice(0, 1);
+      const current = currentHead ? relevant.find((run) => run.commit === currentHead) : undefined;
+      // Preserve the newest historical result for explanation, but never as a pass.
+      return current ? [current] : relevant.slice(0, 1);
     });
     const status = currentHead && runs.length > 0
       ? "observed" as const
@@ -351,12 +351,15 @@ export async function executeJarvisDiagnosticTool(
       const securityRun = ciRuns.find((run) => /security gate|authority validation|codeql/i.test(String(run.name)));
       const browserRun = ciRuns.find((run) => /browser qa|browser journey/i.test(String(run.name)));
       const requiredRuns = [qualityRun, securityRun, browserRun];
-      const sharedCommit = requiredRuns.every((run) =>
+      const currentReleaseCommit = typeof ci.branchHeadCommit === "string" && /^[a-f0-9]{40}$/i.test(ci.branchHeadCommit)
+        ? ci.branchHeadCommit
+        : null;
+      const sharedCommit = Boolean(currentReleaseCommit) && requiredRuns.every((run) =>
         Boolean(run) &&
         run?.status === "completed" &&
         run?.conclusion === "success" &&
         typeof run?.commit === "string" &&
-        run.commit === requiredRuns[0]?.commit
+        run.commit === currentReleaseCommit
       );
       const runStatus = (run: (typeof ciRuns)[number] | undefined): JarvisCapabilityEvidenceStatus => {
         const sameCommit = Boolean(run?.commit && requiredRuns[0]?.commit && run.commit === requiredRuns[0].commit);
@@ -365,9 +368,12 @@ export async function executeJarvisDiagnosticTool(
         return "unknown";
       };
       const qualityStatus = runStatus(qualityRun);
-      setEvidence("engineering.typecheck", qualityStatus, "Quality Gate: " + (qualityRun?.conclusion ?? qualityRun?.status ?? "missing") + "; completed success on the shared commit is required.", "GitHub Actions");
-      setEvidence("engineering.lint", qualityStatus, "Quality Gate: " + (qualityRun?.conclusion ?? qualityRun?.status ?? "missing") + "; completed success on the shared commit is required.", "GitHub Actions");
-      setEvidence("engineering.tests", qualityStatus, "Quality Gate: " + (qualityRun?.conclusion ?? qualityRun?.status ?? "missing") + "; completed success on the shared commit is required.", "GitHub Actions");
+      const qualityDetail = "Quality Gate: " + (qualityRun?.conclusion ?? qualityRun?.status ?? "missing") +
+        "; run commit " + (qualityRun?.commit ?? "unknown") + ", current release commit " + (currentReleaseCommit ?? "unknown") +
+        "; completed success on the exact current release commit is required.";
+      setEvidence("engineering.typecheck", qualityStatus, qualityDetail, "GitHub Actions");
+      setEvidence("engineering.lint", qualityStatus, qualityDetail, "GitHub Actions");
+      setEvidence("engineering.tests", qualityStatus, qualityDetail, "GitHub Actions");
       setEvidence("engineering.security", runStatus(securityRun), "Security/authority gate: " + (securityRun?.conclusion ?? securityRun?.status ?? "missing") + ".", "GitHub Actions");
       setEvidence("engineering.browser", runStatus(browserRun), "Browser QA: " + (browserRun?.conclusion ?? browserRun?.status ?? "missing") + ".", "GitHub Actions");
       setEvidence("reliability.ciSameHead", sharedCommit ? "verified" : "unknown", sharedCommit ? "Quality, security, and browser gates passed for one shared commit." : "Required gate results were not all verified as successful for the same commit.", "GitHub Actions");
