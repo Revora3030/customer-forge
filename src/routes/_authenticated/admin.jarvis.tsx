@@ -6,7 +6,7 @@ import { ArrowDown, Ban, Bot, Check, Copy, Download, ExternalLink, GitPullReques
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { MessageResponse } from "@/components/ai-elements/message";
+import { JarvisMarkdown } from "@/components/app/JarvisMarkdown";
 import { openJarvisPullRequestFn, clearJarvisHistory, getJarvisHistory, getJarvisDiagnostics, getJarvisAcquisitionReadiness, getJarvisDiagnosticTools, runJarvisDiagnosticTool, regenerateJarvisReply, sendJarvisMessage } from "@/lib/jarvis.functions";
 import { draftProspectOutreach, type ProspectDraft } from "@/lib/jarvis-prospecting.functions";
 import { formatRevoraOffer } from "@/lib/jarvis-acquisition-policy";
@@ -375,15 +375,16 @@ function Jarvis() {
 
   return (
     <div className="product-page flex min-h-[70dvh] flex-col gap-3">
-      <header className="flex items-center justify-between gap-2">
-        <div className="flex min-w-0 items-center gap-3">
+      <header className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex min-w-[12rem] flex-1 items-center gap-3">
           <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary"><Bot className="size-5" aria-hidden /></span>
           <div className="min-w-0">
             <h1 className="truncate text-xl font-semibold leading-tight">Jarvis</h1>
             <p className="truncate text-xs text-muted-foreground">{live ? (listening ? "Listening…" : busy ? "Thinking…" : "Live") : "Checks, reads code, opens PRs, builds demos · you approve every change"}</p>
           </div>
         </div>
-        <div className="flex shrink-0 gap-1">
+        {/* On phones the controls get their own row so the title keeps its width. */}
+        <div className="flex w-full items-center justify-between gap-1 sm:w-auto sm:justify-end">
           <Button type="button" variant={live ? "default" : "outline"} size="sm" aria-pressed={live} className={`gap-1.5 ${live ? "animate-pulse" : ""}`} onClick={toggleLive}><Radio className="size-4" aria-hidden />Live</Button>
           <Button type="button" variant={showTools ? "secondary" : "ghost"} size="icon" aria-label={showTools ? "Hide tools" : "Show tools"} aria-pressed={showTools} title="Tools" onClick={() => setShowTools((value) => !value)}><Wrench className="size-4" /></Button>
           <Button type="button" variant="ghost" size="icon" aria-label="Refresh diagnostics" title="Refresh diagnostics" disabled={diagnostics.isFetching} onClick={() => { void diagnostics.refetch(); }}><RefreshCw className={`size-4 ${diagnostics.isFetching ? "animate-spin" : ""}`} /></Button>
@@ -573,7 +574,7 @@ function Jarvis() {
                   return (
                     <>
                       {meta.ran.length ? <div className="mb-1.5 flex flex-wrap gap-1">{meta.ran.map((item) => <span key={item} className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[11px] text-muted-foreground"><Check className="size-3" aria-hidden />{item}</span>)}</div> : null}
-                      <div className="text-sm"><MessageResponse>{body}</MessageResponse></div>
+                      <div className="text-sm"><JarvisMarkdown>{body}</JarvisMarkdown></div>
                       {meta.proposals.map((proposal, index) => {
                         const key = `${message.id}:${index}`;
                         const state = approved[key];
