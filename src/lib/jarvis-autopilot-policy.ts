@@ -55,3 +55,60 @@ export function redactJarvisSummary(value: unknown, maxChars = 1200): string {
 export function isTerminalJarvisStatus(status: JarvisActionStatus): boolean {
   return status === "succeeded" || status === "failed" || status === "blocked" || status === "verification_failed";
 }
+
+export type JarvisApprovalProof = {
+  approvalId: string;
+  status: "pending" | "approved" | "rejected" | "expired";
+  toolId: string;
+  authenticated: boolean;
+  superAdmin: boolean;
+  approverId: string | null;
+  approvedBy: string | null;
+  approvedAt: string | null;
+  expiresAt: string | null;
+  consumedAt: string | null;
+  requestedInputHash: string | null;
+  approvedInputHash: string | null;
+};
+
+export type JarvisApprovalDecision =
+  | { allowed: true; reason: "valid_explicit_admin_approval" }
+  | { allowed: false; reason: string };
+
+/**
+ * Bind approval to one tool and an exact SHA-256 digest of canonical validated
+ * arguments. Call immediately before mutation and atomically consume the proof
+ * in the persistence layer; this pure check is necessary, never sufficient,
+ * for safe execution.
+ */
+export function validateJarvisWriteApproval(
+  requestedToolId: string,
+  inputHash: string,
+  proof: JarvisApprovalProof,
+  now = Date.now(),
+): JarvisApprovalDecision {
+  const denyApproval = (reason: string): JarvisApprovalDecision => ({ allowed: false, reason });
+  if (!proof.authenticated) return denyApproval("approval_authentication_required");
+  if (!proof.superAdmin) return denyApproval("approval_super_admin_required");
+  if (!proof.approvalId.trim()) return denyApproval("approval_id_missing");
+  if (proof.status !== "approved") return denyApproval("approval_not_approved");
+  if (proof.toolId !== requestedToolId) return denyApproval("approval_tool_mismatch");
+  if (!/^[a-f0-9]{64}$/i.test(inputHash)) return denyApproval("invalid_input_hash");
+  if (!proof.requestedInputHash || !proof.approvedInputHash) return denyApproval("approval_input_hash_missing");
+  if (!/^[a-f0-9]{64}$/i.test(proof.requestedInputHash) || !/^[a-f0-9]{64}$/i.test(proof.approvedInputHash))
+    return denyApproval("invalid_approval_input_hash");
+  if (proof.requestedInputHash.toLowerCase() !== inputHash.toLowerCase())
+    return denyApproval("requested_input_hash_mismatch");
+  if (proof.approvedInputHash.toLowerCase() !== inputHash.toLowerCase())
+    return denyApproval("approved_input_hash_mismatch");
+  if (!proof.approverId || !proof.approvedBy || proof.approverId !== proof.approvedBy)
+    return denyApproval("approval_actor_mismatch");
+  if (proof.consumedAt) return denyApproval("approval_already_consumed");
+  if (!proof.approvedAt || !proof.expiresAt) return denyApproval("approval_timestamps_missing");
+  const approvedAt = Date.parse(proof.approvedAt);
+  const expiresAt = Date.parse(proof.expiresAt);
+  if (!Number.isFinite(approvedAt) || !Number.isFinite(expiresAt) || approvedAt > now)
+    return denyApproval("invalid_approval_timestamps");
+  if (expiresAt <= now || expiresAt <= approvedAt) return denyApproval("approval_expired");
+  return { allowed: true, reason: "valid_explicit_admin_approval" };
+}
