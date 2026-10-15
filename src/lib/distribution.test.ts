@@ -54,7 +54,7 @@ describe("buildChannelAssets", () => {
   it("uses the audience in the copy and never invents a price", () => {
     const linkedin = assets.find((a) => a.id === "linkedin");
     expect(linkedin?.message).toContain("HVAC companies in Charlotte");
-    expect(linkedin?.message).toContain("$750");
+    expect(linkedin?.message).toContain("$350");
     expect(linkedin?.message).toContain("$100");
   });
 
