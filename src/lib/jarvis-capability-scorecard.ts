@@ -130,9 +130,9 @@ export function scoreJarvisCapabilities(
   const areas: JarvisCapabilityAreaScore[] = definitions.map((definition) => {
     const checks = definition.checks.map(([id, label]) => {
       const candidate = evidence?.[id as JarvisCapabilityCheckId];
-      const item = validEvidence(candidate)
+      const item: JarvisCapabilityEvidence = validEvidence(candidate)
         ? candidate
-        : { status: "unknown" as const, summary: "No reliable evidence supplied." };
+        : { status: "unknown", summary: "No reliable evidence supplied." };
       return {
         id: id as JarvisCapabilityCheckId,
         label,
