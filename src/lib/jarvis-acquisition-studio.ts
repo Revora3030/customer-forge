@@ -41,7 +41,7 @@ export function scoreAcquisitionOpportunity(input: {
   const reasons: string[] = [];
   if (!input.websiteListed) {
     score += 35;
-    reasons.push("No website is listed on the checked business profile; existence still needs confirmation.");
+    reasons.push("No website is listed on the checked business profile; this does not prove the business has no website and existence still needs confirmation.");
   } else {
     reasons.push("A website is listed; prioritize only if the owner wants a redesign.");
   }
@@ -179,8 +179,8 @@ export function candidateForUi(input: {
   mapsUri?: string | null;
   rating?: number | null;
   reviewCount?: number | null;
-  city: string;
-  category: string;
+  city?: string | null;
+  category?: string | null;
   fetchedAt?: string | null;
 }): AcquisitionCandidate {
   const placeId = clean(input.placeId, 300);
