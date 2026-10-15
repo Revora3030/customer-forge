@@ -258,7 +258,7 @@ export async function kickWorker(origin: string, organizationId: string) {
       const response = await fetch(`${base.replace(/\/$/, "")}/api/public/jobs/site-engine?organizationId=${encodeURIComponent(organizationId)}`, {
         method: "POST",
         headers: { authorization: `Bearer ${secret}` },
-        redirect: "error",
+        redirect: "manual",
       });
       if (response.ok) return;
     } catch {

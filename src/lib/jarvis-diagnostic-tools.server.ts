@@ -124,7 +124,7 @@ async function publicPageCheck(path: "/" | "/robots.txt" | "/sitemap.xml") {
   try {
     const response = await fetch(new URL(path, SITE_ORIGIN), {
       method: "GET",
-      redirect: "error",
+      redirect: "manual",
       headers: { Accept: path.endsWith(".xml") ? "application/xml,text/xml,*/*" : "text/html,text/plain,*/*" },
       signal: AbortSignal.timeout(7000),
     });
@@ -236,12 +236,12 @@ async function releaseEvidence() {
     const [headResponse, runsResponse] = await Promise.all([
       fetch(apiRoot + "/commits/" + encodeURIComponent(GITHUB_BRANCH), {
         headers,
-        redirect: "error",
+        redirect: "manual",
         signal: AbortSignal.timeout(7000),
       }),
       fetch(apiRoot + "/actions/runs?branch=" + encodeURIComponent(GITHUB_BRANCH) + "&per_page=100", {
         headers,
-        redirect: "error",
+        redirect: "manual",
         signal: AbortSignal.timeout(7000),
       }),
     ]);

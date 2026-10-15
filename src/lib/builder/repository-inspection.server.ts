@@ -12,7 +12,7 @@ export function redactInspectionSource(source: string): string {
 }
 async function github<T>(path: string): Promise<T> {
   const token = process.env["REVORA_GITHUB_READ_TOKEN"];
-  const response = await fetch(`https://api.github.com/repos/${REPO}/${path}`, { headers: { Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28", ...(token ? { Authorization: `Bearer ${token}` } : {}) }, signal: AbortSignal.timeout(6000), redirect: "error" });
+  const response = await fetch(`https://api.github.com/repos/${REPO}/${path}`, { headers: { Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28", ...(token ? { Authorization: `Bearer ${token}` } : {}) }, signal: AbortSignal.timeout(6000), redirect: "manual" });
   if (!response.ok) throw new Error("Repository inspection unavailable.");
   return await response.json() as T;
 }
