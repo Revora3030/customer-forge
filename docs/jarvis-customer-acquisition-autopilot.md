@@ -38,3 +38,10 @@ This policy module is not a live acquisition executor. Before unattended executi
 
 ## Success criteria
 Measure verified funnel stages, not vanity metrics: qualified inbound lead, consented contact, booked appointment, completed proposal, and confirmed paid conversion from trusted billing evidence. Report sample size and attribution limits. Do not claim revenue caused by Jarvis unless a defensible attribution method supports it.
+
+## Demo site builder (businesses with no website)
+Super-admins can ask Jarvis to build a private demo website for a real business that has no website yet (`src/lib/jarvis-demo-site*.ts`, panel `ProspectDemoBuilder`).
+- Input is only operator-supplied public facts: name, category, city, optional state/phone/email/description, and real services. Validation requires real services or a real description; nothing is invented.
+- Jarvis creates an `is_demo` workspace owned by the requesting super-admin (excluded from customer funnel numbers and never billed), queues the normal site-engine first build, and creates a 30-day private `/p/:token` preview link. The marker lives in `website_settings.generation.prospectDemo`.
+- The build uses the same worker, free model pool, fact gates, creative authority and safety reviews as customer builds. The draft is never published and nothing is sent.
+- Not yet implemented: the claim bar on `/p/:token`, `/get-started?claim=` prefill, and transferring a claimed demo to the new owner's workspace. Automatic outreach sending remains approval-gated under this policy.
