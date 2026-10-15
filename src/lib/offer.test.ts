@@ -6,7 +6,7 @@ const setup = {
   lookup_key: GROWTH_SYSTEM.setupPriceKey,
   active: true,
   currency: "usd",
-  unit_amount: 75_000,
+  unit_amount: 35_000,
   type: "one_time",
   recurring: null,
 };
@@ -22,8 +22,8 @@ const monthly = {
 };
 
 describe("canonical offer", () => {
-  it("is $750 setup and $100/month", () => {
-    expect(GROWTH_SYSTEM.setupPrice).toBe(750);
+  it("is $350 setup and $100/month", () => {
+    expect(GROWTH_SYSTEM.setupPrice).toBe(350);
     expect(GROWTH_SYSTEM.monthlyPrice).toBe(100);
   });
 });
@@ -50,7 +50,7 @@ describe("verifyGrowthPrices", () => {
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.reason).toContain("$1,500");
-      expect(result.reason).toContain("$750");
+      expect(result.reason).toContain("$350");
     }
   });
 
