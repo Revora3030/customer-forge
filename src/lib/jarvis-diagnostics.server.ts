@@ -1,10 +1,38 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { summariseBuilds, summarisePublishes, summariseImages } from "./build-monitoring";
 
-export type DiagnosticSection = {
-  status: "checked" | "unavailable";
-  note: string;
-  data: unknown;
+export type ErrorDiagnostics = {
+  sampledRows: number;
+  possiblyTruncated: boolean;
+  groups: { fingerprint: string; source: string; message: string; route: string; count: number }[];
+  sentryForwardingConfigured: boolean;
+  sentryIngestionVerified: boolean;
 };
+
+export type BuildDiagnostics = {
+  builds: ReturnType<typeof summariseBuilds>;
+  publishes: ReturnType<typeof summarisePublishes>;
+  images: ReturnType<typeof summariseImages>;
+  alerts: string[];
+  limits: { jobs: number; publishes: number; images: number };
+  possiblyTruncated: boolean;
+};
+
+export type SchemaDiagnostics = {
+  contracts: {
+    table: string;
+    columns: string[];
+    status: "unavailable" | "query_contract_accepted";
+    code: string | null;
+  }[];
+  limitation: string;
+};
+
+export type DiagnosticData = ErrorDiagnostics | BuildDiagnostics | SchemaDiagnostics;
+export type DiagnosticSection<T = DiagnosticData> =
+  | { status: "checked"; note: string; data: T }
+  | { status: "unavailable"; note: string; data: null };
+
 export type JarvisDiagnostics = {
   checkedAt: string;
   sections: Record<string, DiagnosticSection>;
@@ -29,7 +57,7 @@ const CONTRACTS = {
   lead_delivery_logs: ["idempotency_key", "webhook_url", "status_code", "response_body"],
 } as const;
 
-async function checked(work: () => Promise<unknown>, note: string): Promise<DiagnosticSection> {
+async function checked<T>(work: () => Promise<T>, note: string): Promise<DiagnosticSection<T>> {
   try { return { status: "checked", note, data: await work() }; }
   catch { return { status: "unavailable", note: "Check failed; no healthy verdict can be inferred.", data: null }; }
 }
@@ -37,7 +65,7 @@ async function checked(work: () => Promise<unknown>, note: string): Promise<Diag
 export async function collectJarvisDiagnostics(db: SupabaseClient): Promise<JarvisDiagnostics> {
   const since = new Date(Date.now() - 7 * 86_400_000).toISOString();
   const entries = await Promise.all([
-    checked(async () => {
+    checked<ErrorDiagnostics>(async () => {
       const { data, error } = await db.from("error_events")
         .select("fingerprint,level,source,message,route,created_at,forwarded")
         .gte("created_at", since).order("created_at", { ascending: false }).limit(1000);
@@ -63,7 +91,7 @@ export async function collectJarvisDiagnostics(db: SupabaseClient): Promise<Jarv
         sentryIngestionVerified: false,
       };
     }, "Seven-day error sample; newest 1,000 rows maximum. Counts are sample counts."),
-    checked(async () => {
+    checked<BuildDiagnostics>(async () => {
       const [jobs, publishes, images] = await Promise.all([
         db.from("generation_jobs").select("status,failure_kind,failed_stage,stage_timings,created_at,started_at,completed_at")
           .gte("created_at", since).order("created_at", { ascending: false }).limit(5000),
@@ -86,11 +114,11 @@ export async function collectJarvisDiagnostics(db: SupabaseClient): Promise<Jarv
         possiblyTruncated: (jobs.data?.length ?? 0) >= 5000 || (publishes.data?.length ?? 0) >= 5000 || (images.data?.length ?? 0) >= 10000,
       };
     }, "Seven-day bounded aggregate; not a verified cause of an individual stalled build."),
-    checked(async () => {
-      const contracts = [];
+    checked<SchemaDiagnostics>(async () => {
+      const contracts: SchemaDiagnostics["contracts"] = [];
       for (const [table, columns] of Object.entries(CONTRACTS)) {
         const { error } = await db.from(table).select(columns.join(",")).limit(0);
-        contracts.push({ table, columns, status: error ? "unavailable" : "query_contract_accepted", code: error?.code ?? null });
+        contracts.push({ table, columns: [...columns], status: error ? "unavailable" : "query_contract_accepted", code: error?.code ?? null });
       }
       return { contracts, limitation: "API contract probes only; failures can reflect permissions, schema cache, project identity or migrations. Do not generate additive DDL from this alone." };
     }, "Read-only API contract probes; not a migration-history or RLS audit."),
