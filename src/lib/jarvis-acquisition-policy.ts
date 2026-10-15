@@ -196,7 +196,7 @@ export function buildAcquisitionPlan(input: AcquisitionPlanInput): AcquisitionPl
   ] as const;
   const validObject = Boolean(input) && typeof input === "object" && !Array.isArray(input);
   const flagsValid = validObject && booleanKeys.every((key) => typeof (input as unknown as Record<string, unknown>)[key] === "boolean");
-  const goalValid = validObject && validGoals.includes(String((input as unknown as Record<string, unknown>).goal));
+  const goalValid = validObject && validGoals.includes(String((input as unknown as Record<string, unknown>)["goal"]));
   const budgetValid = validObject && flagsValid && goalValid &&
     Number.isSafeInteger(input.dailyBudgetCents) && input.dailyBudgetCents >= 0 &&
     Number.isSafeInteger(input.approvedDailyBudgetCents) && input.approvedDailyBudgetCents >= 0 &&
