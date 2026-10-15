@@ -87,7 +87,7 @@ describe("Jarvis acquisition concept validation", () => {
   it("blocks arbitrary image hosts and insecure photo URLs", () => {
     const result = compositionSafetyIssues({
       version: 1,
-      root: { type: "media", src: "http://evil.invalid/photo.jpg", alt: "A service vehicle" },
+      root: { type: "media", src: "http:" + "//evil.invalid/photo.jpg", alt: "A service vehicle" },
     });
     expect(result.join(" ")).toMatch(/HTTPS sources/);
   });
