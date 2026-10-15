@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { MessageResponse } from "@/components/ai-elements/message";
-import { clearJarvisHistory, getJarvisHistory, getJarvisDiagnostics, regenerateJarvisReply, sendJarvisMessage } from "@/lib/jarvis.functions";
+import { clearJarvisHistory, getJarvisHistory, getJarvisDiagnostics, getJarvisAcquisitionReadiness, regenerateJarvisReply, sendJarvisMessage } from "@/lib/jarvis.functions";
 import { draftProspectOutreach, type ProspectDraft } from "@/lib/jarvis-prospecting.functions";
 
 type Recognition = {
@@ -87,12 +87,14 @@ function Jarvis() {
   const qc = useQueryClient();
   const load = useServerFn(getJarvisHistory);
   const inspect = useServerFn(getJarvisDiagnostics);
+  const inspectAcquisition = useServerFn(getJarvisAcquisitionReadiness);
   const send = useServerFn(sendJarvisMessage);
   const redo = useServerFn(regenerateJarvisReply);
   const clear = useServerFn(clearJarvisHistory);
   const draftFn = useServerFn(draftProspectOutreach);
   const history = useQuery({ queryKey: ["jarvis", "history"], queryFn: () => load() });
   const diagnostics = useQuery({ queryKey: ["jarvis", "diagnostics"], queryFn: () => inspect(), staleTime: 60_000, retry: false });
+  const acquisition = useQuery({ queryKey: ["jarvis", "acquisition-readiness"], queryFn: () => inspectAcquisition(), enabled: false, retry: false });
   const [text, setText] = useState("");
   const [mode, setMode] = useState<Mode>("balanced");
   const [pending, setPending] = useState<string | null>(null);
@@ -257,6 +259,18 @@ function Jarvis() {
           <Button type="button" variant="ghost" size="icon" aria-label="Clear my chat" title="Clear my chat" disabled={clearing.isPending || busy} onClick={() => { if (window.confirm("Clear your Jarvis history?")) clearing.mutate(); }}><Trash2 className="size-4" /></Button>
         </div>
       </header>
+      <section aria-label="Jarvis customer acquisition autopilot" className="rounded-xl border border-border bg-card p-3 space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div><h2 className="font-semibold">Customer acquisition autopilot</h2><p className="text-xs text-muted-foreground">Measure → qualify → prepare → approve → verify paid conversion. No guaranteed revenue claims.</p></div>
+          <Button type="button" size="sm" variant="outline" disabled={acquisition.isFetching} onClick={() => { void acquisition.refetch(); }}>{acquisition.isFetching ? "Checking…" : "Check acquisition readiness"}</Button>
+        </div>
+        <p className="text-sm text-muted-foreground">Jarvis can prepare an evidence-backed daily plan and identify missing integrations. This check does not read prospect records, send messages, publish changes, or spend money.</p>
+        {acquisition.data ? <div className="space-y-3">
+          <div className="rounded-md border border-border p-3"><div className="flex flex-wrap items-center justify-between gap-2"><strong>Readiness: {acquisition.data.status.replaceAll("_", " ")}</strong><span className="text-xs text-muted-foreground">Spend authorized: No · Sending enabled: No</span></div><p className="mt-1 text-xs text-muted-foreground">{acquisition.data.note}</p><p className="mt-2 text-xs">Verified signals: analytics {acquisition.data.analyticsVerified ? "yes" : "unknown"}, lead source {acquisition.data.liveLeadSourceVerified ? "yes" : "unknown"}, outbound provider {acquisition.data.outboundProviderVerified ? "yes" : "unknown"}, booking {acquisition.data.bookingVerified ? "yes" : "unknown"}, payment flow {acquisition.data.paymentFlowVerified ? "yes" : "unknown"}.</p><p className="mt-1 text-xs">Server-approved daily spend cap: {(acquisition.data.configuredSpendCapCents / 100).toLocaleString(undefined, { style: "currency", currency: "USD" })}; this run requested $0.</p></div>
+          <ol className="space-y-2">{acquisition.data.steps.map((step) => <li key={step.id} className="rounded-md border border-border p-3"><div className="flex flex-wrap items-center justify-between gap-2"><strong className="text-sm">{step.title}</strong><span className="text-xs text-muted-foreground">{step.mode.replaceAll("_", " ")}</span></div><p className="mt-1 text-xs text-muted-foreground">{step.reason}</p></li>)}</ol>
+        </div> : acquisition.error ? <p role="alert" className="text-sm text-destructive">Acquisition readiness could not be verified. Treat all live integrations as unavailable.</p> : <p className="text-xs text-muted-foreground">Not checked yet. Jarvis will verify server-side connector evidence when requested.</p>}
+      </section>
+
 
       <details className="rounded-xl border border-border bg-card">
         <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-2 text-sm">
