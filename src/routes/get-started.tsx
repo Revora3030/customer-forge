@@ -22,17 +22,17 @@ import { canonicalLink, ogUrl } from "@/lib/seo";
 export const Route = createFileRoute("/get-started")({
   head: () => ({
     meta: [
-      { title: "Start your Revora Growth System — $750 setup + $100/mo" },
+      { title: "Start your Revora Growth System — $350 setup + $100/mo" },
       {
         name: "description",
         content:
-          "Launch your Revora Growth System: $750 one-time setup, a first month free, then $100/month for website, CRM, booking, SEO and support.",
+          "Launch your Revora Growth System: $350 one-time setup, a first month free, then $100/month for website, CRM, booking, SEO and support.",
       },
       { property: "og:title", content: "Start your Revora Growth System" },
       {
         property: "og:description",
         content:
-          "$750 one-time setup + first month free + $100/month afterward. One complete customer acquisition system.",
+          "$350 one-time setup + first month free + $100/month afterward. One complete customer acquisition system.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
