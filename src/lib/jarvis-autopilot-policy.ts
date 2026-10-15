@@ -34,11 +34,14 @@ export function authorizeJarvisAction(tool: JarvisToolDefinition, context: Jarvi
   if (context.alreadyExecutedIdempotencyKey) return deny("idempotent_action_already_executed");
   if (tool.access === "read") return { allowed: true, mode: "autonomous", reason: "registered_read_tool" };
   if (!context.autopilotEnabled) return deny("autopilot_disabled");
-  if (tool.risk === "critical" || tool.risk === "high" || tool.requiresApproval)
-    return { allowed: true, mode: "approval_required", reason: "risk_requires_human_approval" };
-  if (tool.risk !== "low" || !tool.reversible || !tool.idempotent)
-    return { allowed: true, mode: "approval_required", reason: "write_not_safe_for_autonomous_execution" };
-  return { allowed: true, mode: "autonomous", reason: "low_risk_reversible_idempotent_write" };
+  // Revora's owner policy requires an administrator's explicit approval for
+  // EVERY mutating action, including low-risk, reversible, idempotent writes.
+  // Autopilot may diagnose and prepare proposals, never silently commit writes.
+  return {
+    allowed: true,
+    mode: "approval_required",
+    reason: "all_write_actions_require_explicit_admin_approval",
+  };
 }
 export function redactJarvisSummary(value: unknown, maxChars = 1200): string {
   const raw = typeof value === "string" ? value : JSON.stringify(value ?? "");
