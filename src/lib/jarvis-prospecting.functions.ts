@@ -163,7 +163,7 @@ function fallbackDraft(name: string): { subject: string; body: string } {
       "",
       "I help local service businesses turn their website into a steady source of calls and quote requests: online quotes, booking, and automatic follow-up.",
       "",
-      "It's a $350 one-time setup, your first month is free, then $100/month, with a 3-day full-access trial.",
+      "It's a $750 one-time setup, your first month is free, then $100/month, with a 1-day full-access trial.",
       "",
       `If you'd like, run the free website check at ${AUDIT_LINK} or just reply and I'll send a few ideas.`,
     ].join("\n"),
@@ -216,6 +216,7 @@ export const draftProspectOutreach = createServerFn({ method: "POST" })
       seen.add(key);
       const observation = website ? await observe(website) : null;
       const notes = describe(observation);
+      notes.push("Draft only: recipient-specific consent and current suppression status are not verified here. This tool cannot authorize sending.");
       let draft: { subject: string; body: string } | null = null;
       try {
         const result = await generateText({ userId, task: "admin.jarvis" }, {
@@ -232,7 +233,7 @@ export const draftProspectOutreach = createServerFn({ method: "POST" })
       return {
         ...base, observation, notes, subject: chosen.subject,
         body: `${chosen.body}\n${footer}`,
-        readyToSend: Boolean(address) && Boolean(email),
+        readyToSend: false,
       };
     }));
     return { drafts, mailingAddressConfigured: Boolean(address) };
