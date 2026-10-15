@@ -80,7 +80,7 @@ const COMMANDS = [
 const STARTERS = [
   ["Daily briefing", "What matters today, ranked by impact", BRIEFING],
   ["Autopilot plan", "This week's customer-acquisition routine", AUTOPILOT],
-  ["Offer review", "Find conversion leaks in the $750 setup offer", OFFER],
+  ["Offer review", "Find conversion leaks in the $350 setup offer", OFFER],
   ["Outreach drafts", "Three emails for Raleigh-area businesses", OUTREACH],
 ] as const;
 
