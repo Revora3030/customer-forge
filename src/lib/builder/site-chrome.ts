@@ -42,8 +42,18 @@ export function knownPageSlugs(nav: readonly { slug?: string | null }[] | null |
  * so a visitor never lands on "Page not found" from the site's own button:
  * the contact page when there is one, otherwise the home page.
  */
-function deadLinkTarget(known: ReadonlySet<string>): string {
-  return known.has("contact") ? "/contact" : "/";
+const ENQUIRY_PAGES = ["contact", "quote", "get-a-quote", "contact-us", "book", "booking", "appointments"];
+
+/**
+ * Where a button that leads nowhere should go: the enquiry form on this page,
+ * else the site's enquiry page, else home. A visitor who taps an action should
+ * always reach a way to get in touch.
+ */
+function deadLinkTarget(known: ReadonlySet<string>, anchors?: ReadonlySet<string> | null): string {
+  if (anchors?.has("contact-form")) return "#contact-form";
+  if (anchors?.has("contact")) return "#contact";
+  const page = ENQUIRY_PAGES.find((slug) => known.has(slug));
+  return page ? `/${page}` : "/";
 }
 
 /**
@@ -104,7 +114,7 @@ export function repairSiteHref(
     if (knownPages?.has("contact")) return "/contact";
   }
   if (!knownPages) return href;
-  if (href === "" || href === "#" || href === "/#") return deadLinkTarget(knownPages);
+  if (href === "" || href === "#" || href === "/#") return deadLinkTarget(knownPages, pageAnchors);
   if (/^#[\w-]+$/.test(href)) {
     const name = href.slice(1).toLowerCase();
     if (!pageAnchors?.has(href.slice(1)) && name !== "home" && knownPages.has(name)) return `/${name}`;
@@ -112,7 +122,7 @@ export function repairSiteHref(
   }
   if (href.startsWith("/") && !href.startsWith("//") && !href.startsWith("/s/")) {
     const page = (href.slice(1).split(/[/?#]/)[0] ?? "").toLowerCase();
-    if (page && !knownPages.has(page)) return deadLinkTarget(knownPages);
+    if (page && !knownPages.has(page)) return deadLinkTarget(knownPages, pageAnchors);
   }
   return href;
 }
@@ -133,6 +143,17 @@ export function repairStoredLinks<T>(value: T, knownPages: ReadonlySet<string> |
     const out: Record<string, unknown> = {};
     for (const [key, child] of Object.entries(node as Record<string, unknown>)) {
       out[key] = LINK_KEYS.has(key) && typeof child === "string" ? repairSiteHref(child, knownPages, pageAnchors) : walk(child, depth + 1);
+    }
+    // An AI button or link authored without any destination did nothing when
+    // tapped. Give it the same destination as an empty link.
+    if ((out["type"] === "button" || out["type"] === "link") && typeof out["href"] !== "string") {
+      out["href"] = repairSiteHref("", knownPages, pageAnchors);
+    }
+    for (const ctaKey of ["primaryCta", "secondaryCta"]) {
+      const cta = out[ctaKey];
+      if (cta && typeof cta === "object" && !Array.isArray(cta) && typeof (cta as Record<string, unknown>)["href"] !== "string") {
+        out[ctaKey] = { ...(cta as Record<string, unknown>), href: repairSiteHref("", knownPages, pageAnchors) };
+      }
     }
     return out;
   };
@@ -169,4 +190,38 @@ export function missingChromeLinks(
     .filter((p) => p.slug && p.slug !== "home" && p.kind !== "thanks" && p.kind !== "post")
     .filter((p) => !normalized.has(`/${p.slug}`.toLowerCase()))
     .map((p) => ({ href: `/${p.slug}`, slug: p.slug, title: (p.title ?? "").trim() || p.slug }));
+}
+
+/**
+ * The links and action buttons in an AI-authored menu, in reading order, for
+ * the phone menu. The AI's design can hide groups of links on small screens,
+ * so the phone menu lists them plainly instead of re-rendering that design.
+ */
+export function menuItems(tree: CompositionTree | null): { href: string; label: string; action: boolean }[] {
+  if (!tree) return [];
+  const out: { href: string; label: string; action: boolean }[] = [];
+  const seen = new Set<string>();
+  const walk = (node: CompositionTree["root"]) => {
+    if (node.type === "link" || node.type === "button") {
+      const label = (node.text ?? "").trim();
+      const href = (node.href ?? "").trim();
+      const key = `${href}|${label.toLowerCase()}`;
+      if (label && !seen.has(key)) {
+        seen.add(key);
+        out.push({ href, label, action: node.type === "button" });
+      }
+    }
+    for (const cta of [node.primaryCta, node.secondaryCta]) {
+      const label = cta?.label?.trim();
+      const key = `${cta?.href ?? ""}|${label?.toLowerCase()}`;
+      if (cta && label && !seen.has(key)) {
+        seen.add(key);
+        out.push({ href: cta.href ?? "", label, action: true });
+      }
+    }
+    node.children?.forEach(walk);
+    node.tabs?.forEach((tab) => tab.children.forEach(walk));
+  };
+  walk(tree.root);
+  return out.slice(0, 30);
 }

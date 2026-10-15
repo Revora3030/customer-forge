@@ -149,6 +149,16 @@ const visible = (row: LiveRow) => row["is_visible"] !== false;
  * Reads everything a business website renders. `allowUnpublished` is only ever
  * true behind an authorised, unexpired preview token.
  */
+/** Whether visitors may see this workspace's published site right now. */
+export async function siteIsLive(orgId: string): Promise<boolean> {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { SITE_ACCESS_COLUMNS, siteAccess } = await import("@/lib/site-access");
+  const { data, error } = await supabaseAdmin.from("organizations").select(SITE_ACCESS_COLUMNS).eq("id", orgId).maybeSingle();
+  // An unreadable billing row must not take a paying customer's site down.
+  if (error) return true;
+  return siteAccess(data as never).live;
+}
+
 export async function loadSite(
   slug: string,
   options?: { allowUnpublished?: boolean; pageSlug?: string },
@@ -186,6 +196,9 @@ export async function loadSite(
   // or shares a signed preview link (/p/<token>).
   if (!allowUnpublished) {
     if (!gate || gate.publish_state !== "published") return null;
+    // A site published during the free trial goes offline when the trial ends
+    // without the setup payment, and comes back once it is paid.
+    if (!(await siteIsLive(orgId))) return null;
   }
   // Visitors see the last published version, never in-progress edits.
   const live = allowUnpublished ? null : await loadLiveSnapshot(orgId);

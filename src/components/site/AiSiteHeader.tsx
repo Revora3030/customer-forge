@@ -1,13 +1,21 @@
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Menu, X } from "lucide-react";
 import { CompositionRenderer } from "@/components/site/CompositionRenderer";
 import type { CompositionTree } from "@/lib/builder/composition-tree";
 import { stripBusinessSuffix } from "@/lib/website-content";
+import { menuItems } from "@/lib/builder/site-chrome";
 
 /**
  * Sol's menu bar, made usable on phones. Wide screens show Sol's design as is.
  * Phones get a compact bar with the business name and a menu button that opens
- * Sol's full design, so a long list of links never fills the first screen.
+ * a full-screen list of every menu link and action.
+ *
+ * The phone menu is rendered into <body>, not inside the header: the header's
+ * backdrop blur makes it the containing block for fixed children, which used
+ * to squeeze the "full-screen" menu into the header bar so it showed nothing.
+ * It lists the menu's links plainly rather than re-rendering Sol's design,
+ * because that design may hide link groups at phone width.
  */
 export function AiSiteHeader(props: {
   tree: CompositionTree;
@@ -25,6 +33,12 @@ export function AiSiteHeader(props: {
   const logo = props.logoUrl && /^(https:\/\/|\/)/i.test(props.logoUrl) ? props.logoUrl : null;
   const linkLabel = (text: string) => stripBusinessSuffix(text, props.name);
   const [open, setOpen] = useState(false);
+  const items = menuItems(props.tree)
+    .map((item) => ({ ...item, href: props.resolveHref(item.href), label: linkLabel(item.label) }))
+    .filter((item) => item.href);
+  const links = items.filter((item) => !item.action);
+  const actions = items.filter((item) => item.action);
+  const extraMobile = extraLinks.filter((link) => !links.some((item) => item.href === link.href));
   const closeRef = useRef<HTMLButtonElement>(null);
   const toggleRef = useRef<HTMLButtonElement>(null);
   useEffect(() => {
@@ -107,44 +121,66 @@ export function AiSiteHeader(props: {
           {open ? <X className="size-5" /> : <Menu className="size-5" />}
         </button>
       </nav>
-      {open ? (
-        <div
-          ref={dialogRef}
-          role="dialog"
-          aria-modal="true"
-          aria-label="Menu"
-          className="fixed inset-0 z-50 flex flex-col bg-background/98 p-6 pt-[calc(1.5rem+env(safe-area-inset-top))] backdrop-blur-lg md:hidden"
-          onClick={(event) => {
-            if ((event.target as HTMLElement).closest("a")) setOpen(false);
-          }}
-        >
-          <div className="flex items-center justify-end gap-3 text-foreground">
-            <button
-              ref={closeRef}
-              type="button"
-              aria-label="Close menu"
-              onClick={() => setOpen(false)}
-              className="inline-flex size-11 shrink-0 items-center justify-center rounded-full border border-border"
+      {open && typeof document !== "undefined"
+        ? createPortal(
+            <div
+              ref={dialogRef}
+              role="dialog"
+              aria-modal="true"
+              aria-label="Menu"
+              className="rv-site-mobile-menu fixed inset-0 z-[100] flex flex-col bg-background p-6 pt-[calc(1.5rem+env(safe-area-inset-top))] text-foreground md:hidden"
+              onClick={(event) => {
+                if ((event.target as HTMLElement).closest("a")) setOpen(false);
+              }}
             >
-              <X className="size-5" />
-            </button>
-          </div>
-          <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-4 overflow-y-auto overscroll-contain">
-            <CompositionRenderer as="div" scope="site-header" tree={props.tree} resolveHref={props.resolveHref} surface={props.surface ?? null} linkLabel={linkLabel} />
-            {extraLinks.length ? (
-              <ul className="flex flex-col items-center gap-1 text-foreground">
-                {extraLinks.map((link) => (
-                  <li key={link.href}>
-                    <a href={link.href} className="inline-flex min-h-11 items-center px-3 text-[18px] font-medium">
-                      {link.label}
-                    </a>
+              <div className="flex items-center justify-between gap-3">
+                <a href={props.homeHref} className="flex min-h-11 min-w-0 items-center gap-2 font-display text-[17px] font-semibold leading-tight [overflow-wrap:anywhere]">
+                  {logo ? <img src={logo} alt="" className="h-8 w-auto max-w-[120px] shrink-0 object-contain" /> : null}
+                  <span>{props.name}</span>
+                </a>
+                <button
+                  ref={closeRef}
+                  type="button"
+                  aria-label="Close menu"
+                  onClick={() => setOpen(false)}
+                  className="inline-flex size-11 shrink-0 items-center justify-center rounded-full border border-border"
+                >
+                  <X className="size-5" />
+                </button>
+              </div>
+              <nav aria-label="Menu links" className="mt-6 flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain">
+                <ul className="flex flex-col divide-y divide-border">
+                  <li>
+                    <a href={props.homeHref} className="flex min-h-14 items-center text-[19px] font-medium">Home</a>
                   </li>
-                ))}
-              </ul>
-            ) : null}
-          </div>
-        </div>
-      ) : null}
+                  {[...links, ...extraMobile].filter((item) => item.href !== props.homeHref).map((item) => (
+                    <li key={`${item.href}|${item.label}`}>
+                      <a href={item.href} className="flex min-h-14 items-center text-[19px] font-medium">
+                        {item.label}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+                {actions.length ? (
+                  <div className="mt-6 flex flex-col gap-3 pb-[env(safe-area-inset-bottom)]">
+                    {actions.map((item) => (
+                      <a
+                        key={`${item.href}|${item.label}`}
+                        href={item.href}
+                        className="inline-flex min-h-12 items-center justify-center rounded-full bg-primary px-6 text-[17px] font-semibold text-primary-foreground"
+                      >
+                        {item.label}
+                      </a>
+                    ))}
+                  </div>
+                ) : null}
+              </nav>
+            </div>,
+            // Inside the site wrapper (it carries the site's colours and fonts)
+            // but outside the blurred header.
+            toggleRef.current?.closest(".rv-site-root") ?? document.body,
+          )
+        : null}
     </header>
   );
 }

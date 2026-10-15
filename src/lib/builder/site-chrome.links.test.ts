@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { knownPageSlugs, missingChromeLinks, repairStoredLinks, resolveSiteHref } from "@/lib/builder/site-chrome";
+import { knownPageSlugs, menuItems, missingChromeLinks, repairStoredLinks, resolveSiteHref } from "@/lib/builder/site-chrome";
 
 const nav = [
   { slug: "home", title: "Home", kind: "home" },
@@ -68,5 +68,51 @@ describe("links inside AI-authored sections are repaired too", () => {
     expect(component?.url).toBe("https://cdn.example/x.jpg");
     expect(spec?.ctaHref).toBe("/services");
     expect(repairStoredLinks(sections, null, null)).toBe(sections);
+  });
+});
+
+describe("buttons with no destination", () => {
+  it("get the enquiry form on the page, else the enquiry page", () => {
+    const tree = { type: "row", children: [{ type: "button", text: "Get a quote" }, { type: "link", text: "Call", href: "tel:9195550142" }] };
+    const onPage = repairStoredLinks(tree, pages, new Set(["contact-form"]));
+    expect(onPage.children[0]).toMatchObject({ href: "#contact-form" });
+    expect(onPage.children[1]).toMatchObject({ href: "tel:9195550142" });
+    const elsewhere = repairStoredLinks(tree, pages, new Set<string>());
+    expect(elsewhere.children[0]).toMatchObject({ href: "/contact" });
+  });
+
+  it("fills CTAs that lost their destination", () => {
+    const out = repairStoredLinks({ type: "mobile_sticky_bar", primaryCta: { label: "Book now" } }, pages, null);
+    expect(out.primaryCta).toMatchObject({ label: "Book now", href: "/contact" });
+  });
+
+  it("prefers a quote or booking page when there is no contact page", () => {
+    const quoteSite = knownPageSlugs([{ slug: "home" }, { slug: "get-a-quote" }]);
+    expect(resolveSiteHref("#", "acme", true, quoteSite)).toBe("/get-a-quote");
+  });
+});
+
+describe("phone menu", () => {
+  it("lists every link and action even when the design hides a group on phones", () => {
+    const tree = {
+      version: 1 as const,
+      root: {
+        type: "row" as const,
+        children: [
+          { type: "stack" as const, responsive: { mobile: { hidden: true } }, children: [
+            { type: "link" as const, text: "Services", href: "/services" },
+            { type: "link" as const, text: "Services", href: "/services" },
+            { type: "link" as const, text: "About" },
+          ] },
+          { type: "button" as const, text: "Get a quote", href: "/contact" },
+        ],
+      },
+    };
+    expect(menuItems(tree as never)).toEqual([
+      { href: "/services", label: "Services", action: false },
+      { href: "", label: "About", action: false },
+      { href: "/contact", label: "Get a quote", action: true },
+    ]);
+    expect(menuItems(null)).toEqual([]);
   });
 });

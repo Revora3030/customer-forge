@@ -1,4 +1,3 @@
-import { isPlatformOwnerOrg } from "@/lib/platform-owner";
 import { createServerFn } from "@tanstack/react-start";
 import { publishBlockReason } from "@/lib/builder/draft-branch";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
@@ -90,7 +89,11 @@ export const getProductionStatus = createServerFn({ method: "POST" })
     const setupPaymentStatus = ((org.setup_payment_status as SetupPaymentStatus | null) ??
       (org.setup_paid_at ? "paid" : "unpaid")) as SetupPaymentStatus;
     const paid = !!org.setup_paid_at || setupPaymentStatus === "paid";
-    const unlocked = !org.is_suspended && (paid || !!org.is_demo || isPlatformOwnerOrg(data.organizationId));
+    const { siteAccess } = await import("@/lib/site-access");
+    const access = siteAccess({ ...(org as never), id: data.organizationId });
+    // Trial workspaces may publish too; the site goes offline if the trial
+    // ends without the setup payment (see src/lib/site-access.ts).
+    const unlocked = access.live;
 
     const accountStatus: ProductionStatus["accountStatus"] = org.is_suspended
       ? "suspended"
@@ -113,9 +116,11 @@ export const getProductionStatus = createServerFn({ method: "POST" })
       unlocked,
       reason: org.is_suspended
         ? "This workspace is suspended."
-        : unlocked
-          ? "Production is unlocked."
-          : `Complete your one-time ${usd(GROWTH_SYSTEM.setupPrice)} setup to launch your website.`,
+        : access.reason === "trial"
+          ? `You can publish during your free trial. Your site goes offline when the trial ends${access.offlineAt ? ` (${new Date(access.offlineAt).toUTCString()})` : ""} unless the one-time ${usd(GROWTH_SYSTEM.setupPrice)} setup is paid. Nothing is deleted.`
+          : unlocked
+            ? "Production is unlocked."
+            : `Your free trial has ended. Complete your one-time ${usd(GROWTH_SYSTEM.setupPrice)} setup to put your website back online. Everything you've built is saved.`,
       liveSince: settings?.last_published_at ?? null,
       publishState: settings?.publish_state ?? "draft",
     };
@@ -130,7 +135,7 @@ async function gatherReadiness(
   const [org, profile, settings, pages, sections, services] = await Promise.all([
     supabase
       .from("organizations")
-      .select("id, name, is_demo, is_suspended, setup_paid_at, setup_payment_status")
+      .select("id, name, is_demo, is_suspended, setup_paid_at, setup_payment_status, trial_ends_at, created_at, subscription_status")
       .eq("id", organizationId)
       .maybeSingle(),
     supabase
@@ -173,8 +178,9 @@ async function gatherReadiness(
   const { readSiteChrome } = await import("@/lib/builder/site-chrome");
   const siteChrome = readSiteChrome(settings.data?.generation ?? null);
   const hasChrome = Boolean(siteChrome.header && siteChrome.footer);
-  const paid = !!org.data?.setup_paid_at || org.data?.setup_payment_status === "paid";
-  const unlocked = !org.data?.is_suspended && (paid || !!org.data?.is_demo || isPlatformOwnerOrg(organizationId));
+  const { siteAccess } = await import("@/lib/site-access");
+  const access = siteAccess(org.data ? { ...(org.data as never), id: organizationId } : null);
+  const unlocked = access.live;
 
   // Real audit of the rendered website: broken contact details, unfinished copy
   // or unsupported claims stop a publish instead of reaching customers.
@@ -190,11 +196,14 @@ async function gatherReadiness(
     },
     {
       key: "payment",
-      label: "Setup payment verified",
+      label: "Setup paid or free trial active",
       ok: unlocked,
-      detail: unlocked
-        ? `Your ${usd(GROWTH_SYSTEM.setupPrice)} setup is confirmed.`
-        : `Production stays locked until the ${usd(GROWTH_SYSTEM.setupPrice)} setup payment is confirmed by the payment provider.`,
+      detail:
+        access.reason === "trial"
+          ? `Free trial active: you can publish now. The site goes offline when the trial ends unless the ${usd(GROWTH_SYSTEM.setupPrice)} setup is paid.`
+          : unlocked
+            ? `Your ${usd(GROWTH_SYSTEM.setupPrice)} setup is confirmed.`
+            : `Your free trial has ended. Publishing resumes once the ${usd(GROWTH_SYSTEM.setupPrice)} setup payment is confirmed.`,
     },
     {
       key: "business",
@@ -372,7 +381,7 @@ export const activateProduction = createServerFn({ method: "POST" })
       await audit("PUBLISH_BLOCKED", { reason: "setup_payment_required", role });
       return {
         activated: false,
-        reason: `Complete your one-time ${usd(GROWTH_SYSTEM.setupPrice)} setup to publish your website, connect your domain and go live. Everything you've built stays saved.`,
+        reason: `Your free trial has ended. Complete your one-time ${usd(GROWTH_SYSTEM.setupPrice)} setup to publish your website and connect your domain. Everything you've built stays saved.`,
         version: null,
         publishState: "draft",
         readiness,
