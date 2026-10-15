@@ -3,7 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { localListings } from "@/lib/integrations/google.server";
 import { generateStructuredOutput } from "@/lib/ai/router.server";
-import { validateComposition, COMPOSITION_PRIMITIVES } from "@/lib/builder/composition-tree";
+import { validateComposition, COMPOSITION_PRIMITIVES, type CompositionTree } from "@/lib/builder/composition-tree";
 import {
   candidateForUi,
   readAcquisitionConcept,
@@ -450,7 +450,7 @@ export const generateAcquisitionSitePreview = createServerFn({ method: "POST" })
 export type PublicAcquisitionSite = {
   title: string;
   description: string;
-  tree: unknown;
+  tree: CompositionTree;
   proposedServices: string[];
   factsToConfirm: string[];
   designNotes: string;
