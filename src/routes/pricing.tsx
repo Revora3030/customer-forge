@@ -28,17 +28,17 @@ export const Route = createFileRoute("/pricing")({
   head: ({ loaderData }) =>
     tenantPageHead(loaderData ?? null) ?? {
       meta: [
-        { title: "Pricing — Revora Growth System | $750 setup + $100/mo" },
+        { title: "Pricing — Revora Growth System | $350 setup + $100/mo" },
         {
           name: "description",
           content:
-            "$750 one-time setup + $100/month, first month free. Website, lead capture, CRM, booking, quotes, follow-up, reviews, local SEO, analytics and support.",
+            "$350 one-time setup + $100/month, first month free. Website, lead capture, CRM, booking, quotes, follow-up, reviews, local SEO, analytics and support.",
         },
         { property: "og:title", content: "Pricing — Revora Growth System" },
         {
           property: "og:description",
           content:
-            "$750 one-time setup + first month free + $100/month afterward. One complete growth system.",
+            "$350 one-time setup + first month free + $100/month afterward. One complete growth system.",
         },
         { property: "og:type", content: "website" },
         { name: "twitter:card", content: "summary_large_image" },
@@ -73,7 +73,7 @@ function PricingRoute() {
 
 const FAQ = [
   {
-    q: "What does the $750 setup cover?",
+    q: "What does the $350 setup cover?",
     a: "The initial build, customization, configuration and launch of your system: website, domain setup, lead capture, CRM, booking, quote flow, follow-up automation, local SEO foundation and analytics. It is charged today.",
   },
   {
