@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { MessageResponse } from "@/components/ai-elements/message";
-import { clearJarvisHistory, getJarvisHistory, getJarvisDiagnostics, getJarvisAccessSnapshot, sendJarvisMessage } from "@/lib/jarvis.functions";
+import { clearJarvisHistory, getJarvisHistory, getJarvisDiagnostics, getJarvisAccessSnapshot, getJarvisDiagnosticTools, runJarvisDiagnosticTool, sendJarvisMessage } from "@/lib/jarvis.functions";
 
 type Recognition = {
   lang: string; interimResults: boolean;
@@ -31,11 +31,11 @@ const COMMANDS = [
 function Jarvis() {
   const qc = useQueryClient();
   const load = useServerFn(getJarvisHistory);
-  const inspect = useServerFn(getJarvisDiagnostics);\n  const inspectAccess = useServerFn(getJarvisAccessSnapshot);
+  const inspect = useServerFn(getJarvisDiagnostics);\n  const inspectAccess = useServerFn(getJarvisAccessSnapshot);\n  const loadTools = useServerFn(getJarvisDiagnosticTools);\n  const runTool = useServerFn(runJarvisDiagnosticTool);
   const send = useServerFn(sendJarvisMessage);
   const clear = useServerFn(clearJarvisHistory);
   const history = useQuery({ queryKey: ["jarvis", "history"], queryFn: () => load() });
-  const diagnostics = useQuery({ queryKey: ["jarvis", "diagnostics"], queryFn: () => inspect(), enabled: false, retry: false });\n  const access = useQuery({ queryKey: ["jarvis", "access"], queryFn: () => inspectAccess(), enabled: false, retry: false });
+  const diagnostics = useQuery({ queryKey: ["jarvis", "diagnostics"], queryFn: () => inspect(), enabled: false, retry: false });\n  const access = useQuery({ queryKey: ["jarvis", "access"], queryFn: () => inspectAccess(), enabled: false, retry: false });\n  const toolCatalog = useQuery({ queryKey: ["jarvis", "tool-catalog"], queryFn: () => loadTools(), retry: false });\n  const [toolResults, setToolResults] = useState<Record<string, unknown>>({});\n  const toolRun = useMutation({\n    mutationFn: (toolId: string) => runTool({ data: { toolId } }),\n    onSuccess: (result, toolId) => setToolResults((previous) => ({ ...previous, [toolId]: result })),\n    onError: (error: Error) => toast.error(error.message),\n  });
   const [text, setText] = useState("");
   const [voice, setVoice] = useState(false);
   const [listening, setListening] = useState(false);
@@ -97,6 +97,37 @@ function Jarvis() {
           <Button variant="outline" disabled={clearing.isPending || mutation.isPending} onClick={() => { if (window.confirm("Clear your Jarvis history?")) clearing.mutate(); }}>Clear my chat</Button>
         </div>
       </header>
+      <section aria-label="Allowlisted read-only Jarvis tools" className="rounded-lg border border-border bg-card p-4">
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <div>
+            <h2 className="font-semibold">Diagnostic toolbench</h2>
+            <p className="text-xs text-muted-foreground">Explicitly allowlisted, read-only tools. Jarvis has no generic SQL, shell, write, send, billing, or publish tool here.</p>
+          </div>
+          <Button variant="outline" size="sm" disabled={toolCatalog.isFetching} onClick={() => { void toolCatalog.refetch(); }}>Refresh tool catalog</Button>
+        </div>
+        {toolCatalog.error ? <p role="alert" className="mt-3 text-sm">Tool catalog unavailable. No tool was executed.</p> : null}
+        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+          {(toolCatalog.data ?? []).map((tool) => {
+            const output = toolResults[tool.id];
+            return <article key={tool.id} className="min-w-0 rounded-md border border-border p-3">
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <h3 className="font-medium">{tool.title}</h3>
+                <span className="rounded bg-muted px-2 py-1 text-xs">{tool.implementation === "partial" ? "Partial evidence" : "Read-only"}</span>
+              </div>
+              <p className="mt-2 text-sm text-muted-foreground">{tool.description}</p>
+              <p className="mt-2 text-xs text-muted-foreground">Evidence: {tool.evidence}</p>
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <Button size="sm" variant="outline" disabled={toolRun.isPending} onClick={() => toolRun.mutate(tool.id)}>{toolRun.isPending ? "Running diagnostic…" : "Run diagnostic"}</Button>
+                <span className="text-xs text-muted-foreground">No changes are made.</span>
+              </div>
+              {output !== undefined ? <details className="mt-3">
+                <summary className="cursor-pointer text-sm">View last result</summary>
+                <pre className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap break-words rounded bg-muted p-2 text-xs">{JSON.stringify(output, null, 2)}</pre>
+              </details> : null}
+            </article>;
+          })}
+        </div>
+      </section>
       <section aria-label="Diagnostic status" className="grid gap-3 sm:grid-cols-3">
         {["errors", "builds", "schema"].map((name) => {
           const section = diagnostics.data?.sections[name];
