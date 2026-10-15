@@ -47,7 +47,7 @@ describe("stripe price verification refuses drift", () => {
   });
 
   it("rejects retired amounts", () => {
-    for (const cents of [35_000, 150_000, 300_000]) {
+    for (const cents of [75_000, 150_000, 300_000]) {
       expect(verifyGrowthPrices({ ...setup, unit_amount: cents }, monthly).ok).toBe(false);
     }
     expect(verifyGrowthPrices(setup, { ...monthly, unit_amount: 25_000 }).ok).toBe(false);
