@@ -52,9 +52,9 @@ export type JarvisAccessSnapshot = {
 
 export const getJarvisAccessSnapshot = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .handler(async (): Promise<JarvisAccessSnapshot> => {
-    // The shared admin route is protected by the same server-side authorization
-    // used by Jarvis diagnostics. Never return credential names or values.
+  .handler(async ({ context }): Promise<JarvisAccessSnapshot> => {
+    await guardedAdmin(context);
+    // Re-check super-admin authorization on the server. Never return credential names or values.
     const { providerSnapshots } = await import("./integrations/registry.server");
     const providers = providerSnapshots().map((provider) => ({
       id: provider.id,
