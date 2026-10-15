@@ -48,7 +48,7 @@ function Jarvis() {
   const history = useQuery({ queryKey: ["jarvis"], queryFn: () => load() });
   const [pending, setPending] = useState<string | null>(null);
   const [text, setText] = useState("");
-  const [voiceOn, setVoiceOn] = useState(false);
+  const [voiceOn, setVoiceOn] = useState(true);
   const [listening, setListening] = useState(false);
   const recRef = useRef<SpeechRec>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -60,7 +60,11 @@ function Jarvis() {
     onSuccess: (res) => {
       if (voiceOn && typeof window !== "undefined" && "speechSynthesis" in window) {
         window.speechSynthesis.cancel();
-        window.speechSynthesis.speak(new SpeechSynthesisUtterance(speakable(res.reply)));
+        const u = new SpeechSynthesisUtterance(speakable(res.reply));
+        const voices = window.speechSynthesis.getVoices();
+        u.voice = voices.find((v) => /en/i.test(v.lang) && /(Daniel|Google UK English Male|Alex|Samantha)/i.test(v.name)) ?? voices.find((v) => /^en/i.test(v.lang)) ?? null;
+        u.rate = 1.02;
+        window.speechSynthesis.speak(u);
       }
     },
     onError: (e: Error) => toast.error(e.message),
@@ -88,6 +92,12 @@ function Jarvis() {
   const submit = (value = text) => {
     const message = value.trim();
     if (!message || mutation.isPending) return;
+    // Phones only allow speech that starts from a tap, so unlock it now.
+    if (voiceOn && typeof window !== "undefined" && "speechSynthesis" in window) {
+      const unlock = new SpeechSynthesisUtterance(" ");
+      unlock.volume = 0;
+      window.speechSynthesis.speak(unlock);
+    }
     setText("");
     mutation.mutate(message);
   };
