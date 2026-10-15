@@ -38,3 +38,11 @@ This policy module is not a live acquisition executor. Before unattended executi
 
 ## Success criteria
 Measure verified funnel stages, not vanity metrics: qualified inbound lead, consented contact, booked appointment, completed proposal, and confirmed paid conversion from trusted billing evidence. Report sample size and attribution limits. Do not claim revenue caused by Jarvis unless a defensible attribution method supports it.
+
+## Demo site builder (businesses with no website)
+Super-admins can ask Jarvis to build a private demo website for a real business that has no website yet (`src/lib/jarvis-demo-site*.ts`, panel `ProspectDemoBuilder`).
+- Input is only operator-supplied public facts: name, category, city, optional state/phone/email/description, and real services. Validation requires real services or a real description; nothing is invented.
+- Jarvis creates an `is_demo` workspace owned by the requesting super-admin (excluded from customer funnel numbers and never billed), queues the normal site-engine first build, and creates a 30-day private `/p/:token` preview link. The marker lives in `website_settings.generation.prospectDemo`.
+- The build uses the same worker, free model pool, fact gates, creative authority and safety reviews as customer builds. The draft is never published and nothing is sent.
+- Claiming: an unclaimed demo's `/p/:token` preview shows a floating claim bar with a phone-size view. `/get-started?claim=` pre-fills the business details; after sign-up, `claim_prospect_demo_server` (service role only, single use) makes the claimant the only owner, clears `is_demo`, starts the standard full-access trial, revokes old preview links and opens the builder. An account that already has a workspace cannot claim.
+- Outreach: when a demo finishes, Jarvis writes the email (free AI pool, preview link required, sender name, physical address and opt-out line appended) and the operator sends it from their own mail app. Nothing is sent automatically: the app's only sender is Lovable's transactional email on the domain that also carries customers' lead alerts, so cold sales email must not go through it. Automatic sending needs a dedicated outreach provider and domain, plus unsubscribe handling, suppression, daily caps and a kill switch.

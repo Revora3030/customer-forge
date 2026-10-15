@@ -3,6 +3,7 @@ import { getPreviewSite } from "@/lib/public-site.functions";
 import { PublicSiteView } from "@/routes/s.$slug";
 import { PreviewMessage } from "@/components/PreviewMessage";
 import { SiteBaseContext } from "@/components/site/site-address-context";
+import { ProspectClaimBar } from "@/components/site/ProspectClaimBar";
 
 /**
  * Shareable, time-limited draft preview. The token is checked on the server;
@@ -57,6 +58,7 @@ function PreviewRoute() {
   return (
     <SiteBaseContext.Provider value={`/p/${encodeURIComponent(token)}`}>
       <PublicSiteView site={result.site} preview />
+      <ProspectClaimBar token={token} />
     </SiteBaseContext.Provider>
   );
 }

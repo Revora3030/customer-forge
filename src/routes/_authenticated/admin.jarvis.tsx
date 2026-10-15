@@ -11,6 +11,7 @@ import { clearJarvisHistory, getJarvisHistory, getJarvisDiagnostics, getJarvisAc
 import { draftProspectOutreach, type ProspectDraft } from "@/lib/jarvis-prospecting.functions";
 import { formatRevoraOffer } from "@/lib/jarvis-acquisition-policy";
 import { synthesizeJarvisVoice } from "@/lib/jarvis-voice.functions";
+import { ProspectDemoBuilder } from "@/components/app/ProspectDemoBuilder";
 
 type Recognition = {
   lang: string; interimResults: boolean;
@@ -177,7 +178,9 @@ function Jarvis() {
       if ("speechSynthesis" in window) {
         window.speechSynthesis.cancel();
         window.speechSynthesis.speak(new SpeechSynthesisUtterance(clean));
-        toast.message("Using your browser voice because ElevenLabs was unavailable.");
+        toast.message("Using your browser voice because ElevenLabs was unavailable.", {
+          description: error instanceof Error ? error.message : undefined,
+        });
       } else toast.error(error instanceof Error ? error.message : "Jarvis voice could not be played.");
     }
   };
@@ -461,6 +464,8 @@ function Jarvis() {
           })}
         </div>
       </details>
+
+      <ProspectDemoBuilder />
 
       <div className="inline-flex w-fit rounded-full border border-border p-0.5" role="radiogroup" aria-label="Response style">
         {MODES.map(([value, label]) => (

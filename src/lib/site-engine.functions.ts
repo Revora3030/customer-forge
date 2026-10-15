@@ -241,7 +241,7 @@ export function isActiveBuildConflict(error: { code?: string; message?: string }
   return !error.message || /generation_jobs_one_active_per_org|duplicate key/i.test(error.message);
 }
 
-async function kickWorker(origin: string, organizationId: string) {
+export async function kickWorker(origin: string, organizationId: string) {
   const secret = process.env["LOVABLE_CRON_SECRET"];
   if (!secret) {
     // Without it every scheduled worker run is refused (HTTP 500) and builds

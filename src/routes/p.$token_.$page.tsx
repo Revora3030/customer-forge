@@ -3,6 +3,7 @@ import { getPreviewSite } from "@/lib/public-site.functions";
 import { PublicSiteView } from "@/routes/s.$slug";
 import { PreviewMessage } from "@/components/PreviewMessage";
 import { SiteBaseContext } from "@/components/site/site-address-context";
+import { ProspectClaimBar } from "@/components/site/ProspectClaimBar";
 import { metaDescription } from "@/lib/seo";
 
 /** Sub-pages of a private draft preview link, checked on the server like the home page. */
@@ -49,6 +50,7 @@ function PreviewPageRoute() {
   return (
     <SiteBaseContext.Provider value={`/p/${encodeURIComponent(token)}`}>
       <PublicSiteView site={result.site} preview />
+      <ProspectClaimBar token={token} />
     </SiteBaseContext.Provider>
   );
 }

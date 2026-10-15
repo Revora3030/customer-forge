@@ -18,8 +18,13 @@ import { provisionWorkspace, recordAccountCreated } from "@/lib/platform-funnel.
 import { useStepScroll } from "@/lib/use-step-scroll";
 import { smartIntakeValue } from "@/lib/intake-smart";
 import { canonicalLink, ogUrl } from "@/lib/seo";
+import { useServerFn } from "@tanstack/react-start";
+import { claimProspectDemo, getProspectClaim } from "@/lib/prospect-claim.functions";
+import { CLAIM_STORAGE_KEY, isClaimToken } from "@/lib/prospect-claim";
 
 export const Route = createFileRoute("/get-started")({
+  validateSearch: (search: Record<string, unknown>): { claim?: string } =>
+    isClaimToken(search["claim"]) ? { claim: search["claim"] } : {},
   head: () => ({
     meta: [
       { title: "Start your Revora Growth System — $350 setup + $100/mo" },
@@ -69,6 +74,40 @@ function GetStarted() {
   const [provisioning, setProvisioning] = useState(false);
   const [startingTrial, setStartingTrial] = useState(false);
   const navigate = useNavigate();
+  const search = Route.useSearch();
+  const loadClaim = useServerFn(getProspectClaim);
+  const claimDemo = useServerFn(claimProspectDemo);
+  // A Jarvis demo being claimed. Kept in localStorage so it survives sign-up,
+  // email confirmation in a new tab, and Google sign-in redirects.
+  const [claimToken, setClaimToken] = useState<string | null>(null);
+  useEffect(() => {
+    let token: string | null = search.claim ?? null;
+    try {
+      if (token) localStorage.setItem(CLAIM_STORAGE_KEY, token);
+      else {
+        const saved = localStorage.getItem(CLAIM_STORAGE_KEY);
+        token = isClaimToken(saved) ? saved : null;
+      }
+    } catch {
+      /* storage unavailable: the URL token still works */
+    }
+    setClaimToken(token);
+  }, [search.claim]);
+  const forgetClaim = () => {
+    try {
+      localStorage.removeItem(CLAIM_STORAGE_KEY);
+    } catch {
+      /* storage unavailable */
+    }
+    setClaimToken(null);
+  };
+  const claimInfo = useQuery({
+    queryKey: ["get-started", "claim", claimToken],
+    enabled: Boolean(claimToken),
+    queryFn: () => loadClaim({ data: { token: claimToken! } }),
+    retry: false,
+  });
+  const claiming = Boolean(claimToken && claimInfo.data?.claimable);
 
   const session = useQuery({
     queryKey: ["get-started", "session"],
@@ -176,6 +215,21 @@ function GetStarted() {
     }));
   }, [profileQuery.data]);
 
+  // Pre-fill what the demo already knows; never overwrite anything typed.
+  useEffect(() => {
+    const info = claimInfo.data;
+    if (!info?.claimable) return;
+    setIntake((prev) => ({
+      ...prev,
+      businessName: prev.businessName || info.businessName || "",
+      businessType: prev.businessType || info.industry || "",
+      phone: prev.phone || info.phone || "",
+      city: prev.city || info.city || "",
+      state: prev.state || info.state || "",
+      services: prev.services || info.services.join(", "),
+    }));
+  }, [claimInfo.data]);
+
   useEffect(() => {
     if (session.data?.email && !intake.email) {
       setIntake((prev) => ({ ...prev, email: session.data!.email! }));
@@ -227,6 +281,10 @@ function GetStarted() {
   async function ensureWorkspace(): Promise<string> {
     if (organizationId) return organizationId;
     const existing = session.data?.organizationId ?? null;
+    if (claiming && existing)
+      throw new Error(
+        "This account already has a Revora workspace. Sign up with a different email to claim this website, or contact us and we'll move it for you.",
+      );
     if (existing) {
       setOrganizationId(existing);
       return existing;
@@ -241,6 +299,13 @@ function GetStarted() {
         utmCampaign: attribution?.utmCampaign ?? null,
       },
     }).catch(() => undefined);
+
+    if (claiming && claimToken) {
+      const { organizationId: claimed } = await claimDemo({ data: { token: claimToken } });
+      forgetClaim();
+      setOrganizationId(claimed);
+      return claimed;
+    }
 
     const { organizationId: provisioned } = await provisionWorkspace({
       data: {
@@ -268,10 +333,12 @@ function GetStarted() {
     }
     setStartingTrial(true);
     try {
+      const wasClaim = claiming;
       await ensureWorkspace();
       // The trial genuinely starts here — tell Google Ads the ad worked.
       void trackTrialStarted();
-      navigate({ to: "/app" });
+      // A claimed demo already has a website: open it in the builder.
+      navigate({ to: wasClaim ? "/app/website" : "/app" });
     } catch (cause) {
       setError(
         cause instanceof Error && cause.message
@@ -304,6 +371,24 @@ function GetStarted() {
     <div className="min-h-screen">
       <SiteHeader />
       <main className="mx-auto w-full max-w-3xl px-4 py-10 sm:py-14">
+        {claiming ? (
+          <div role="status" className="mb-6 rounded-lg border border-primary/40 bg-primary/10 p-4 text-[13.5px]">
+            <p className="font-semibold">
+              You're claiming the website built for {claimInfo.data?.businessName ?? "your business"}.
+            </p>
+            <p className="mt-1 text-muted-foreground">
+              We've filled in what we already know. Create your account and the site moves into your own
+              workspace with {GROWTH_SYSTEM.fullAccessWindow} of free full access.
+            </p>
+          </div>
+        ) : claimToken && claimInfo.data && !claimInfo.data.claimable ? (
+          <div role="alert" className="mb-6 rounded-lg border border-border bg-card p-4 text-[13.5px]">
+            This website link can no longer be claimed. It may already be claimed, or the link expired.{" "}
+            <button type="button" className="underline" onClick={forgetClaim}>
+              Start fresh instead
+            </button>
+          </div>
+        ) : null}
         <p className="eyebrow">Get started</p>
         <h1 className="mt-2 font-display text-[clamp(1.6rem,5vw,2.3rem)] leading-tight font-semibold">
           {GROWTH_SYSTEM.headline}
