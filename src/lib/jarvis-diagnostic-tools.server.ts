@@ -29,6 +29,10 @@ export type JarvisDiagnosticToolResult = {
   limitations: string[];
 };
 
+function safeMetadata(value: string | null): string | null {
+  return value ? redactJarvisSummary(value, 240) : null;
+}
+
 function safeProviderFailure(reason: string | null) {
   if (!reason) return null;
   if (/timeout/i.test(reason)) return "timeout";
@@ -134,8 +138,8 @@ async function publicPageCheck(path: "/" | "/robots.txt" | "/sitemap.xml") {
       ok: response.ok,
       contentType: response.headers.get("content-type")?.slice(0, 120) ?? null,
       ...(path === "/" ? {
-        title: redactJarvisSummary(pick(/<title[^>]*>([^<]*)<\/title>/i), 240),
-        description: redactJarvisSummary(pick(/<meta[^>]+name=["']description["'][^>]+content=["']([^"']*)/i), 240),
+        title: safeMetadata(pick(/<title[^>]*>([^<]*)<\/title>/i)),
+        description: safeMetadata(pick(/<meta[^>]+name=["']description["'][^>]+content=["']([^"']*)/i)),
         canonicalPath: (() => {
           const value = pick(/<link[^>]+rel=["']canonical["'][^>]+href=["']([^"']*)/i);
           if (!value) return null;
