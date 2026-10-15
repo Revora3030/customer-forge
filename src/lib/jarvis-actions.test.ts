@@ -127,3 +127,13 @@ describe("pull request proposals", () => {
     expect(() => applyEdits("dup dup", [{ find: "dup", replace: "x" }], "f")).toThrow(/more than once/);
   });
 });
+
+describe("build recovery", () => {
+  it("is a single proposal, never a read", () => {
+    const parsed = parseActions([{ id: "builds.recover" }, { id: "builds.recover" }], TOOLS);
+    expect(parsed.reads).toEqual([]);
+    expect(parsed.proposals).toEqual([{ id: "builds.recover" }]);
+    const stored = appendReplyMeta("Builds look stuck.", { ran: [], proposals: parsed.proposals });
+    expect(splitReplyMeta(stored).meta.proposals).toEqual([{ id: "builds.recover" }]);
+  });
+});

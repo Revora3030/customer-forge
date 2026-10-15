@@ -29,7 +29,8 @@ export type PullRequestProposal = { title: string; summary: string; changes: Cod
 
 export type WriteProposal =
   | { id: "demo.build"; input: ProspectDemoInput }
-  | { id: "code.pr"; pr: PullRequestProposal };
+  | { id: "code.pr"; pr: PullRequestProposal }
+  | { id: "builds.recover" };
 
 export const MAX_PR_FILES = 6;
 export const MAX_PR_CHARS = 60_000;
@@ -104,6 +105,7 @@ export function actionCatalogPrompt(diagnosticToolIds: string[]): string {
     '- {"id":"demos.list","args":{}}: list prospect demo sites with build status and preview links.',
     '- {"id":"demo.build","args":{"businessName":"","industry":"","city":"","state":"","phone":"","email":"","services":["..."],"description":""}}: PROPOSE building a private demo website for a real business with no website. Only facts the owner gave you; never invent phone numbers, emails or services. The owner approves with one tap; you do not run it.',
     '- {"id":"code.pr","args":{"title":"","summary":"","changes":[{"path":"src/...","edits":[{"find":"exact existing text","replace":"new text"}]},{"path":"src/new-file.ts","content":"full file"}]}}: PROPOSE a GitHub pull request into lovable-sync. Read every file you edit with code.read first in this conversation; "find" must be copied exactly from it and appear once. Use "content" only for new files. Up to 6 files. Keep changes minimal, complete and type-safe; never touch auth, RLS, billing or tenant isolation unless the owner asked; never add secrets. The owner approves with one tap and reviews before merging.',
+    '- {"id":"builds.recover","args":{}}: PROPOSE recovering stalled website builds: closes builds whose worker died, re-queues orphaned ones and restarts the build worker. Suggest it when builder.health.summary shows stuck or long-running builds. The owner approves with one tap.',
     "Use actions whenever they would make your answer more accurate. Prefer checking over guessing. Never claim an action ran unless you received its result.",
   ].join("\n");
 }
@@ -153,6 +155,8 @@ export function parseActions(requested: unknown[], diagnosticToolIds: string[]):
       } catch (error) {
         out.rejected.push(`code.pr ${error instanceof Error ? error.message : "is invalid"}`);
       }
+    } else if (id === "builds.recover") {
+      if (!out.proposals.some((proposal) => proposal.id === "builds.recover")) out.proposals.push({ id });
     } else if (id === "demo.build") {
       try {
         out.proposals.push({ id, input: parseProspectDemoInput(args) });
@@ -203,6 +207,7 @@ export function splitReplyMeta(content: string): { body: string; meta: JarvisRep
       try {
         if (proposal?.id === "demo.build") proposals.push({ id: "demo.build", input: parseProspectDemoInput(proposal.input) });
         else if (proposal?.id === "code.pr") proposals.push({ id: "code.pr", pr: parsePullRequestProposal(proposal.pr) });
+        else if (proposal?.id === "builds.recover") proposals.push({ id: "builds.recover" });
       } catch {
         /* drop anything that no longer validates */
       }
