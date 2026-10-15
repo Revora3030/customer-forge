@@ -7,6 +7,7 @@ export type AcquisitionCandidate = {
   address: string | null;
   phone: string | null;
   website: string | null;
+  mapsUri: string | null;
   rating: number | null;
   reviewCount: number | null;
   city: string;
@@ -175,6 +176,7 @@ export function candidateForUi(input: {
   address?: string | null;
   phone?: string | null;
   website?: string | null;
+  mapsUri?: string | null;
   rating?: number | null;
   reviewCount?: number | null;
   city: string;
@@ -198,6 +200,7 @@ export function candidateForUi(input: {
     address: clean(input.address, 300) || null,
     phone: clean(input.phone, 80) || null,
     website,
+    mapsUri: clean(input.mapsUri, 500) || null,
     rating: typeof input.rating === "number" && Number.isFinite(input.rating) ? input.rating : null,
     reviewCount: typeof input.reviewCount === "number" && Number.isFinite(input.reviewCount) ? input.reviewCount : null,
     city: clean(input.city, 120),
