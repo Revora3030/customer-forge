@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { formatRevoraOffer } from "./jarvis-acquisition-policy";
 
 const AUDIT_LINK = "https://revoragrowthsystems.com/website-audit";
 const MAX_PROSPECTS = 5;
@@ -163,7 +164,7 @@ function fallbackDraft(name: string): { subject: string; body: string } {
       "",
       "I help local service businesses turn their website into a steady source of calls and quote requests: online quotes, booking, and automatic follow-up.",
       "",
-      "It's a $750 one-time setup, your first month is free, then $100/month, with a 1-day full-access trial.",
+      "It's ${formatRevoraOffer()}.",
       "",
       `If you'd like, run the free website check at ${AUDIT_LINK} or just reply and I'll send a few ideas.`,
     ].join("\n"),
