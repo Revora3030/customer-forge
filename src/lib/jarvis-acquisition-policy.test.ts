@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { authorizeAcquisitionFollowup, buildAcquisitionPlan, scoreAcquisitionLead, type FollowupContext } from "./jarvis-acquisition-policy";
+import { authorizeAcquisitionFollowup, buildAcquisitionPlan, formatRevoraOffer, REVORA_OFFER, scoreAcquisitionLead, type FollowupContext } from "./jarvis-acquisition-policy";
 
 const safeFollowup: FollowupContext = {
   channel: "email", consent: "explicit", optedOut: false, bounced: false, complained: false,
@@ -9,6 +9,10 @@ const safeFollowup: FollowupContext = {
 };
 
 describe("Jarvis acquisition policy", () => {
+  it("uses the canonical owner-approved offer consistently", () => {
+    expect(REVORA_OFFER).toEqual({ setupFeeUsd: 750, firstMonthFree: true, monthlyPriceUsd: 100, trialDays: 1 });
+    expect(formatRevoraOffer()).toBe("$750 one-time setup, first month free, then $100/month, with a 1-day full-access trial");
+  });
   it("scores a high-intent lead without inventing evidence", () => {
     const score = scoreAcquisitionLead({ requestedQuote: true, hasValidContactRoute: true, serviceAreaMatch: true, recentIntentDays: 0 });
     expect(score.score).toBe(65);
