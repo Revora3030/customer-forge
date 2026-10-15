@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { collectJarvisDiagnostics, redactDiagnosticText } from "./jarvis-diagnostics.server";
+import { collectJarvisDiagnostics } from "./jarvis-diagnostics.server";
 import { redactJarvisSummary } from "./jarvis-autopilot-policy";
 import { getJarvisDiagnosticTool, isJarvisDiagnosticToolId, type JarvisDiagnosticToolId } from "./jarvis-tool-registry";
 import { providerSnapshots } from "./integrations/registry.server";
@@ -115,7 +115,7 @@ async function publicPageCheck(path: "/" | "/robots.txt" | "/sitemap.xml") {
         canonical: pick(/<link[^>]+rel=["']canonical["'][^>]+href=["']([^"']*)/i),
         h1Count: (body.match(/<h1[\s>]/gi) ?? []).length,
         noindexCandidate: /name=["']robots["'][^>]+noindex/i.test(body),
-        responseTruncatedAtBytes: 36000,
+        inspectionLimitBytes: 36000,
       } : {}),
       ...(path === "/robots.txt" ? {
         mentionsSitemap: /sitemap/i.test(body),
