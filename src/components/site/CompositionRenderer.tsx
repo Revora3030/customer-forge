@@ -322,7 +322,9 @@ function renderNodeInner(rawNode: CompositionNode, ctx: Ctx, key: string): React
         return w ? <div key={key} {...props} data-widget={node.text} style={{ ...props.style, ...widgetThemeStyle(node.widgetPresentation?.theme) }}>{w}{kids}</div> : null; }
     case "button":
     case "link": {
-      const href = node.href ? ctx.href(node.href) : undefined;
+      // A button authored with no destination still goes somewhere useful when
+      // the resolver knows the site's pages (it maps "" to the enquiry form).
+      const href = node.href ? ctx.href(node.href) : ctx.href("") || undefined;
       const external = Boolean(href && /^https:\/\//i.test(href));
       return (
         <a key={key} {...props} href={href} {...(external ? { target: "_blank", rel: "noopener noreferrer" } : {})}>

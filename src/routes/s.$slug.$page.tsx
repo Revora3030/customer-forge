@@ -204,7 +204,7 @@ export function SitePageView({
 
   return (
     <div
-      className={`min-h-screen bg-background text-foreground ${designTokenClasses(readDesignTokens(site.settings?.generation ?? null))}`}
+      className={`rv-site-root min-h-screen bg-background text-foreground ${designTokenClasses(readDesignTokens(site.settings?.generation ?? null))}`}
       style={{
         ...siteThemeStyle({
           primaryColor: profile?.primary_color ?? null,
