@@ -329,7 +329,7 @@ function Jarvis() {
             {capabilityScorecard.isFetching ? "Auditing…" : "Run seven-area audit"}
           </Button>
         </div>
-        <p className="text-sm text-muted-foreground">This reads bounded diagnostics, public-site smoke checks, and current branch CI evidence. It does not enable writes, outreach, publishing, or spend.</p>
+        <p className="text-sm text-muted-foreground">This reads bounded diagnostics, public-site smoke checks, and release-branch CI summaries. It does not enable writes, outreach, publishing, or spend.</p>
         {capabilityScorecard.data ? (() => {
           const toolResult = capabilityScorecard.data;
           const payload = toolResult.data as unknown as CapabilityScorePayload;
