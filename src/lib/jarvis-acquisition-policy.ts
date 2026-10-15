@@ -202,14 +202,25 @@ export function buildAcquisitionPlan(input: AcquisitionPlanInput): AcquisitionPl
     Number.isSafeInteger(input.approvedDailyBudgetCents) && input.approvedDailyBudgetCents >= 0 &&
     input.dailyBudgetCents <= input.approvedDailyBudgetCents;
   const safeGoal = goalValid ? input.goal : fallbackGoal;
+  const safeInput: AcquisitionPlanInput = validObject ? input : {
+    goal: fallbackGoal,
+    dailyBudgetCents: -1,
+    approvedDailyBudgetCents: 0,
+    funnelHasVerifiedAnalytics: false,
+    websiteAuditAvailable: false,
+    leadCaptureAvailable: false,
+    calendarAvailable: false,
+    paymentFlowVerified: false,
+    outboundProviderVerified: false,
+  };
   const steps: AcquisitionPlan["steps"] = [
-    { id: "measure", title: "Measure funnel", mode: input.funnelHasVerifiedAnalytics ? "autonomous_read_only" : "prepare_for_approval", reason: input.funnelHasVerifiedAnalytics ? "Use verified, aggregate funnel events only." : "Analytics evidence is missing; validate instrumentation before claiming conversion performance." },
-    { id: "site_audit", title: "Find conversion blockers", mode: input.websiteAuditAvailable ? "autonomous_read_only" : "blocked", reason: input.websiteAuditAvailable ? "Run bounded read-only site, mobile, accessibility, and SEO checks." : "Website audit capability is unavailable." },
-    { id: "lead_capture", title: "Check lead capture", mode: input.leadCaptureAvailable ? "autonomous_read_only" : "prepare_for_approval", reason: input.leadCaptureAvailable ? "Verify forms and report aggregate delivery outcomes." : "Lead capture is not verified; do not promise lead delivery." },
+    { id: "measure", title: "Measure funnel", mode: safeInput.funnelHasVerifiedAnalytics ? "autonomous_read_only" : "prepare_for_approval", reason: safeInput.funnelHasVerifiedAnalytics ? "Use verified, aggregate funnel events only." : "Analytics evidence is missing; validate instrumentation before claiming conversion performance." },
+    { id: "site_audit", title: "Find conversion blockers", mode: safeInput.websiteAuditAvailable ? "autonomous_read_only" : "blocked", reason: safeInput.websiteAuditAvailable ? "Run bounded read-only site, mobile, accessibility, and SEO checks." : "Website audit capability is unavailable." },
+    { id: "lead_capture", title: "Check lead capture", mode: safeInput.leadCaptureAvailable ? "autonomous_read_only" : "prepare_for_approval", reason: safeInput.leadCaptureAvailable ? "Verify forms and report aggregate delivery outcomes." : "Lead capture is not verified; do not promise lead delivery." },
     { id: "offer", title: "Prepare conversion improvements", mode: "prepare_for_approval", reason: "Draft landing-page, offer, and copy improvements for owner review; never invent proof or guaranteed outcomes." },
-    { id: "followup", title: "Follow up with eligible leads", mode: input.outboundProviderVerified ? "prepare_for_approval" : "blocked", reason: input.outboundProviderVerified ? "Only explicit opt-ins, approved templates, verified tenant scope, quiet hours, idempotency, and send budgets qualify." : "No verified outbound provider; prepare recommendations only." },
-    { id: "booking", title: "Reduce booking friction", mode: input.calendarAvailable ? "prepare_for_approval" : "blocked", reason: input.calendarAvailable ? "Propose a booking CTA using verified availability; do not create appointments without authorization." : "Calendar capability is not verified." },
-    { id: "checkout", title: "Verify paid conversion path", mode: input.paymentFlowVerified ? "autonomous_read_only" : "prepare_for_approval", reason: input.paymentFlowVerified ? "Run a read-only entitlement and checkout contract check; never create a charge." : "Payment flow needs a sandbox/test verification before being treated as healthy." },
+    { id: "followup", title: "Follow up with eligible leads", mode: safeInput.outboundProviderVerified ? "prepare_for_approval" : "blocked", reason: safeInput.outboundProviderVerified ? "Only explicit opt-ins, approved templates, verified tenant scope, quiet hours, idempotency, and send budgets qualify." : "No verified outbound provider; prepare recommendations only." },
+    { id: "booking", title: "Reduce booking friction", mode: safeInput.calendarAvailable ? "prepare_for_approval" : "blocked", reason: safeInput.calendarAvailable ? "Propose a booking CTA using verified availability; do not create appointments without authorization." : "Calendar capability is not verified." },
+    { id: "checkout", title: "Verify paid conversion path", mode: safeInput.paymentFlowVerified ? "autonomous_read_only" : "prepare_for_approval", reason: safeInput.paymentFlowVerified ? "Run a read-only entitlement and checkout contract check; never create a charge." : "Payment flow needs a sandbox/test verification before being treated as healthy." },
   ];
   if (!budgetValid) {
     return { status: "blocked", goal: safeGoal, steps: steps.map(step => ({ ...step, mode: "blocked", reason: "Plan inputs must use a known goal, explicit boolean capability flags, and a non-negative safe-integer budget no greater than the owner-approved budget." })), budgetCents: 0, note: "No spend or paid provider call is authorized because the plan input is invalid or exceeds the approved budget." };
