@@ -359,7 +359,7 @@ export const getJarvisAcquisitionReadiness = createServerFn({ method: "GET" })
       provider.status === "ready" &&
       provider.runtimeVerified === true
     );
-    const rawBudget = process.env.JARVIS_ACQUISITION_DAILY_BUDGET_CENTS;
+    const rawBudget = process.env["JARVIS_ACQUISITION_DAILY_BUDGET_CENTS"];
     const configuredBudget = rawBudget && /^\d{1,9}$/.test(rawBudget) ? Number(rawBudget) : 0;
     const since7Days = new Date(Date.now() - 7 * 86_400_000).toISOString();
     const since30Days = new Date(Date.now() - 30 * 86_400_000).toISOString();
