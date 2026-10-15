@@ -134,12 +134,24 @@ async function publicWebsiteSmoke() {
     publicPageCheck("/robots.txt"),
     publicPageCheck("/sitemap.xml"),
   ]);
-  const status: JarvisToolEvidenceStatus = checks.every((check) => check.ok)
-    ? "observed"
-    : checks.some((check) => check.httpStatus !== null && !check.ok)
-      ? "failed"
-      : "needs_verification";
-  return { status, checks };
+  const [home, robots, sitemap] = checks;
+  const findings: string[] = [];
+  if (home.httpStatus === null || robots.httpStatus === null || sitemap.httpStatus === null)
+    findings.push("One or more public HTTP checks could not be completed.");
+  if (checks.some((check) => check.httpStatus !== null && !check.ok))
+    findings.push("One or more public endpoints returned a non-success HTTP status.");
+  if (home.ok && "title" in home && !home.title) findings.push("Homepage title was not detected.");
+  if (home.ok && "description" in home && !home.description) findings.push("Homepage meta description was not detected.");
+  if (home.ok && "canonicalPath" in home && !home.canonicalPath) findings.push("Homepage canonical URL was not detected.");
+  if (home.ok && "h1Count" in home && home.h1Count !== 1) findings.push("Homepage does not expose exactly one detectable H1.");
+  if (home.ok && "noindexCandidate" in home && home.noindexCandidate) findings.push("Homepage includes a noindex candidate.");
+  if (robots.ok && "mentionsSitemap" in robots && !robots.mentionsSitemap) findings.push("robots.txt does not mention a sitemap.");
+  if (robots.ok && "disallowsRoot" in robots && robots.disallowsRoot) findings.push("robots.txt contains a root Disallow directive.");
+  if (sitemap.ok && "sitemapLocationCount" in sitemap && sitemap.sitemapLocationCount === 0) findings.push("No sitemap <loc> entries were detected in the bounded response.");
+  const status: JarvisToolEvidenceStatus = findings.some((finding) => finding.startsWith("One or more public HTTP checks could not"))
+    ? "needs_verification"
+    : findings.length > 0 ? "failed" : "observed";
+  return { status, checks, findings };
 }
 
 async function providerEvidence() {
@@ -291,7 +303,7 @@ export async function executeJarvisDiagnosticTool(
 
     if (toolId === "website.public.seo-smoke") {
       const smoke = await publicWebsiteSmoke();
-      return result(toolId, smoke.status, smoke.checks, {
+      return result(toolId, smoke.status, { checks: smoke.checks, findings: smoke.findings }, {
         checkedAt,
         durationMs: Date.now() - started,
         limitations: [
