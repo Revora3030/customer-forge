@@ -218,6 +218,19 @@ function Jarvis() {
         ))}
       </div>
       {diagnostics.data ? <details className="rounded-lg border border-border p-3"><summary className="cursor-pointer">Inspect bounded diagnostic evidence</summary><pre className="mt-3 max-h-80 overflow-auto whitespace-pre-wrap break-words text-xs">{JSON.stringify(diagnostics.data, null, 2)}</pre></details> : null}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-xs text-muted-foreground">Diagnostic results are separate from chat unless you explicitly ask Jarvis to analyze them.</p>
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={mutation.isPending || Object.keys(toolResults).length === 0}
+          onClick={() => {
+            const latest = Object.entries(toolResults).slice(-3);
+            const evidence = JSON.stringify(latest, null, 2).slice(0, 8000);
+            submit("Analyze this sanitized read-only diagnostic evidence. Separate observed facts, likely hypotheses, and checks still required. Do not claim any fix was applied.\\n\\n" + evidence);
+          }}
+        >Ask Jarvis to analyze results</Button>
+      </div>
       <section aria-label="Jarvis conversation" aria-live="polite" className="min-h-64 max-h-[55dvh] flex-1 space-y-4 overflow-y-auto rounded-lg border border-border bg-card p-4">
         {history.isLoading ? <p>Loading your conversation…</p> : null}
         {history.error ? <p role="alert">Your conversation could not be loaded.</p> : null}
