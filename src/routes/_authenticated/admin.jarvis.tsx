@@ -44,11 +44,24 @@ const COMMAND_GROUPS = [
 function Jarvis() {
   const qc = useQueryClient();
   const load = useServerFn(getJarvisHistory);
-  const inspect = useServerFn(getJarvisDiagnostics);\n  const inspectAccess = useServerFn(getJarvisAccessSnapshot);\n  const loadTools = useServerFn(getJarvisDiagnosticTools);\n  const loadAutopilot = useServerFn(getJarvisAutopilotStatus);\n  const runTool = useServerFn(runJarvisDiagnosticTool);
+  const inspect = useServerFn(getJarvisDiagnostics);
+  const inspectAccess = useServerFn(getJarvisAccessSnapshot);
+  const loadTools = useServerFn(getJarvisDiagnosticTools);
+  const loadAutopilot = useServerFn(getJarvisAutopilotStatus);
+  const runTool = useServerFn(runJarvisDiagnosticTool);
   const send = useServerFn(sendJarvisMessage);
   const clear = useServerFn(clearJarvisHistory);
   const history = useQuery({ queryKey: ["jarvis", "history"], queryFn: () => load() });
-  const diagnostics = useQuery({ queryKey: ["jarvis", "diagnostics"], queryFn: () => inspect(), enabled: false, retry: false });\n  const access = useQuery({ queryKey: ["jarvis", "access"], queryFn: () => inspectAccess(), enabled: false, retry: false });\n  const autopilot = useQuery({ queryKey: ["jarvis", "autopilot-status"], queryFn: () => loadAutopilot(), enabled: false, retry: false });\n  const toolCatalog = useQuery({ queryKey: ["jarvis", "tool-catalog"], queryFn: () => loadTools(), retry: false });\n  const [toolResults, setToolResults] = useState<Record<string, unknown>>({});\n  const toolRun = useMutation({\n    mutationFn: (toolId: string) => runTool({ data: { toolId } }),\n    onSuccess: (result, toolId) => setToolResults((previous) => ({ ...previous, [toolId]: result })),\n    onError: (error: Error) => toast.error(error.message),\n  });
+  const diagnostics = useQuery({ queryKey: ["jarvis", "diagnostics"], queryFn: () => inspect(), enabled: false, retry: false });
+  const access = useQuery({ queryKey: ["jarvis", "access"], queryFn: () => inspectAccess(), enabled: false, retry: false });
+  const autopilot = useQuery({ queryKey: ["jarvis", "autopilot-status"], queryFn: () => loadAutopilot(), enabled: false, retry: false });
+  const toolCatalog = useQuery({ queryKey: ["jarvis", "tool-catalog"], queryFn: () => loadTools(), retry: false });
+  const [toolResults, setToolResults] = useState<Record<string, unknown>>({});
+  const toolRun = useMutation({
+    mutationFn: (toolId: string) => runTool({ data: { toolId } }),
+    onSuccess: (result, toolId) => setToolResults((previous) => ({ ...previous, [toolId]: result })),
+    onError: (error: Error) => toast.error(error.message),
+  });
   const [text, setText] = useState("");
   const [pending, setPending] = useState<string | null>(null);
   const [followups, setFollowups] = useState<string[]>([]);
@@ -117,7 +130,8 @@ function Jarvis() {
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div><h1 className="text-2xl font-semibold">Jarvis mission control</h1><p className="text-sm text-muted-foreground">Read-only diagnostics and free-only AI advice. No automatic repairs.</p></div>
         <div className="flex flex-wrap gap-2">
-          <Button variant="outline" disabled={diagnostics.isFetching} onClick={() => { void diagnostics.refetch(); }}>Refresh diagnostics</Button>\n          <Button variant="outline" disabled={access.isFetching} onClick={() => { void access.refetch(); }}>Refresh access status</Button>
+          <Button variant="outline" disabled={diagnostics.isFetching} onClick={() => { void diagnostics.refetch(); }}>Refresh diagnostics</Button>
+          <Button variant="outline" disabled={access.isFetching} onClick={() => { void access.refetch(); }}>Refresh access status</Button>
           <Button variant="outline" aria-pressed={voice} onClick={() => { setVoice(!voice); window.speechSynthesis?.cancel(); }}>{voice ? "Mute replies" : "Speak replies"}</Button>
           <Button variant="outline" disabled={clearing.isPending || mutation.isPending} onClick={() => { if (window.confirm("Clear your Jarvis history?")) clearing.mutate(); }}>Clear my chat</Button>
         </div>
@@ -227,7 +241,7 @@ function Jarvis() {
           onClick={() => {
             const latest = Object.entries(toolResults).slice(-3);
             const evidence = JSON.stringify(latest, null, 2).slice(0, 8000);
-            submit("Analyze this sanitized read-only diagnostic evidence. Separate observed facts, likely hypotheses, and checks still required. Do not claim any fix was applied.\\n\\n" + evidence);
+            submit("Analyze this sanitized read-only diagnostic evidence. Separate observed facts, likely hypotheses, and checks still required. Do not claim any fix was applied.\n\n" + evidence);
           }}
         >Ask Jarvis to analyze results</Button>
       </div>
