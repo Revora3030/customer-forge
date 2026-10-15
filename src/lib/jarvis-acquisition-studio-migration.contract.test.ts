@@ -14,8 +14,8 @@ describe("Jarvis acquisition studio migration contract", () => {
       "jarvis_acquisition_interests",
       "jarvis_acquisition_events",
     ]) {
-      expect(migration).toMatch(new RegExp("ALTER TABLE public\\\\." + table + " ENABLE ROW LEVEL SECURITY", "i"));
-      expect(migration).toMatch(new RegExp("REVOKE ALL ON public\\\\." + table + " FROM PUBLIC, anon, authenticated", "i"));
+      expect(migration).toMatch(new RegExp(`ALTER TABLE public\\.${table} ENABLE ROW LEVEL SECURITY`, "i"));
+      expect(migration).toMatch(new RegExp(`REVOKE ALL ON public\\.${table} FROM PUBLIC, anon, authenticated`, "i"));
     }
   });
 
