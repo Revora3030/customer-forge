@@ -80,4 +80,53 @@ describe("Jarvis acquisition policy", () => {
     expect(plan.steps.find(step => step.id === "followup")?.mode).toBe("blocked");
     expect(plan.note).toContain("does not send messages");
   });
+  it("rejects truthy strings and malformed suppression flags from lead scoring", () => {
+    const malformed = scoreAcquisitionLead({
+      requestedQuote: "false" as never,
+      hasValidContactRoute: "true" as never,
+      optedOut: "false" as never,
+    });
+    expect(malformed.score).toBe(0);
+    expect(malformed.recommendedNextStep).toBe("human_review");
+    expect(malformed.reasons[0]).toContain("Malformed boolean signals");
+  });
+
+  it("does not award points for false lead signals", () => {
+    const score = scoreAcquisitionLead({
+      requestedQuote: false,
+      requestedDemo: false,
+      hasValidContactRoute: false,
+      serviceAreaMatch: false,
+      recentIntentDays: Number.NaN,
+    });
+    expect(score.score).toBe(0);
+    expect(score.recommendedNextStep).toBe("human_review");
+  });
+
+  it("blocks acquisition plans with malformed flags, invalid goals, or unsafe numeric budgets", () => {
+    const valid = {
+      goal: "more_paid_customers",
+      dailyBudgetCents: 0,
+      approvedDailyBudgetCents: 0,
+      funnelHasVerifiedAnalytics: true,
+      websiteAuditAvailable: true,
+      leadCaptureAvailable: true,
+      calendarAvailable: true,
+      paymentFlowVerified: true,
+      outboundProviderVerified: true,
+    };
+    for (const malformed of [
+      { ...valid, websiteAuditAvailable: "true" },
+      { ...valid, goal: "spend_everything" },
+      { ...valid, dailyBudgetCents: Number.MAX_SAFE_INTEGER + 1 },
+      { ...valid, approvedDailyBudgetCents: -1 },
+      null,
+    ]) {
+      const plan = buildAcquisitionPlan(malformed as never);
+      expect(plan.status).toBe("blocked");
+      expect(plan.budgetCents).toBe(0);
+      expect(plan.steps.every((step) => step.mode === "blocked")).toBe(true);
+    }
+  });
+
 });
