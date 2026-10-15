@@ -67,7 +67,35 @@ export type FollowupDecision =
   | { allowed: false; mode: "blocked"; reason: string };
 
 export function scoreAcquisitionLead(input: LeadSignal): LeadScore {
-  if (input.optedOut || input.bounced || input.complained || input.consent === "withdrawn" || input.customerAlreadyActive) {
+  if (!input || typeof input !== "object" || Array.isArray(input)) {
+    return {
+      score: 0,
+      tier: "early",
+      reasons: ["Malformed lead data; keep the record in human review."],
+      recommendedNextStep: "human_review",
+    };
+  }
+
+  const booleanKeys = [
+    "hasBusinessName", "hasValidContactRoute", "requestedQuote", "requestedDemo",
+    "hasWebsite", "websiteHasIssues", "serviceAreaMatch", "budgetFit",
+    "optedOut", "bounced", "complained", "customerAlreadyActive",
+  ] as const;
+  const malformedFlags = booleanKeys.filter((key) => {
+    const value = (input as Record<string, unknown>)[key];
+    return value !== undefined && typeof value !== "boolean";
+  });
+  if (malformedFlags.length) {
+    return {
+      score: 0,
+      tier: "early",
+      reasons: ["Malformed boolean signals kept out of automated scoring: " + malformedFlags.join(", ") + "."],
+      recommendedNextStep: "human_review",
+    };
+  }
+
+  if (input.optedOut === true || input.bounced === true || input.complained === true ||
+      input.consent === "withdrawn" || input.customerAlreadyActive === true) {
     return {
       score: 0,
       tier: "early",
@@ -80,13 +108,13 @@ export function scoreAcquisitionLead(input: LeadSignal): LeadScore {
   const reasons: string[] = [];
   const add = (points: number, reason: string) => { score += points; reasons.push(reason); };
 
-  if (input.requestedQuote) add(30, "Explicit quote request");
-  if (input.requestedDemo) add(25, "Explicit demo or consultation request");
-  if (input.hasValidContactRoute) add(10, "A contact route is present");
-  if (input.hasBusinessName) add(5, "Business identity is present");
-  if (input.serviceAreaMatch) add(10, "Service area appears to match");
-  if (input.budgetFit) add(10, "Budget fit has been confirmed");
-  if (input.hasWebsite && input.websiteHasIssues) add(10, "Website issues may support a relevant audit");
+  if (input.requestedQuote === true) add(30, "Explicit quote request");
+  if (input.requestedDemo === true) add(25, "Explicit demo or consultation request");
+  if (input.hasValidContactRoute === true) add(10, "A contact route is present");
+  if (input.hasBusinessName === true) add(5, "Business identity is present");
+  if (input.serviceAreaMatch === true) add(10, "Service area appears to match");
+  if (input.budgetFit === true) add(10, "Budget fit has been confirmed");
+  if (input.hasWebsite === true && input.websiteHasIssues === true) add(10, "Website issues may support a relevant audit");
   if (typeof input.recentIntentDays === "number" && Number.isFinite(input.recentIntentDays) && input.recentIntentDays >= 0) {
     if (input.recentIntentDays <= 1) add(15, "Intent recorded within 24 hours");
     else if (input.recentIntentDays <= 7) add(10, "Intent recorded within 7 days");
@@ -96,8 +124,8 @@ export function scoreAcquisitionLead(input: LeadSignal): LeadScore {
   score = Math.max(0, Math.min(100, score));
   const tier = score >= 65 ? "hot" : score >= 35 ? "warm" : "early";
   let recommendedNextStep: LeadScore["recommendedNextStep"] = "human_review";
-  if (input.requestedQuote || input.requestedDemo) recommendedNextStep = "offer_booking";
-  else if (input.hasWebsite && input.websiteHasIssues) recommendedNextStep = "prepare_personalized_audit";
+  if (input.requestedQuote === true || input.requestedDemo === true) recommendedNextStep = "offer_booking";
+  else if (input.hasWebsite === true && input.websiteHasIssues === true) recommendedNextStep = "prepare_personalized_audit";
   else if (input.consent === "explicit") recommendedNextStep = "nurture_eligible";
 
   if (input.consent !== "explicit" && recommendedNextStep === "nurture_eligible") {
@@ -160,9 +188,20 @@ export type AcquisitionPlan = {
 };
 
 export function buildAcquisitionPlan(input: AcquisitionPlanInput): AcquisitionPlan {
-  const budgetValid = Number.isInteger(input.dailyBudgetCents) && input.dailyBudgetCents >= 0 &&
-    Number.isInteger(input.approvedDailyBudgetCents) && input.approvedDailyBudgetCents >= 0 &&
+  const fallbackGoal: AcquisitionGoal = "improve_conversion";
+  const validGoals: readonly string[] = ["more_qualified_leads", "more_booked_calls", "more_paid_customers", "improve_conversion"];
+  const booleanKeys = [
+    "funnelHasVerifiedAnalytics", "websiteAuditAvailable", "leadCaptureAvailable",
+    "calendarAvailable", "paymentFlowVerified", "outboundProviderVerified",
+  ] as const;
+  const validObject = Boolean(input) && typeof input === "object" && !Array.isArray(input);
+  const flagsValid = validObject && booleanKeys.every((key) => typeof (input as unknown as Record<string, unknown>)[key] === "boolean");
+  const goalValid = validObject && validGoals.includes(String((input as unknown as Record<string, unknown>).goal));
+  const budgetValid = validObject && flagsValid && goalValid &&
+    Number.isSafeInteger(input.dailyBudgetCents) && input.dailyBudgetCents >= 0 &&
+    Number.isSafeInteger(input.approvedDailyBudgetCents) && input.approvedDailyBudgetCents >= 0 &&
     input.dailyBudgetCents <= input.approvedDailyBudgetCents;
+  const safeGoal = goalValid ? input.goal : fallbackGoal;
   const steps: AcquisitionPlan["steps"] = [
     { id: "measure", title: "Measure funnel", mode: input.funnelHasVerifiedAnalytics ? "autonomous_read_only" : "prepare_for_approval", reason: input.funnelHasVerifiedAnalytics ? "Use verified, aggregate funnel events only." : "Analytics evidence is missing; validate instrumentation before claiming conversion performance." },
     { id: "site_audit", title: "Find conversion blockers", mode: input.websiteAuditAvailable ? "autonomous_read_only" : "blocked", reason: input.websiteAuditAvailable ? "Run bounded read-only site, mobile, accessibility, and SEO checks." : "Website audit capability is unavailable." },
@@ -173,11 +212,11 @@ export function buildAcquisitionPlan(input: AcquisitionPlanInput): AcquisitionPl
     { id: "checkout", title: "Verify paid conversion path", mode: input.paymentFlowVerified ? "autonomous_read_only" : "prepare_for_approval", reason: input.paymentFlowVerified ? "Run a read-only entitlement and checkout contract check; never create a charge." : "Payment flow needs a sandbox/test verification before being treated as healthy." },
   ];
   if (!budgetValid) {
-    return { status: "blocked", goal: input.goal, steps: steps.map(step => ({ ...step, mode: "blocked", reason: "Daily budget must be a non-negative integer no greater than the owner-approved budget." })), budgetCents: 0, note: "No spend or paid provider call is authorized." };
+    return { status: "blocked", goal: safeGoal, steps: steps.map(step => ({ ...step, mode: "blocked", reason: "Plan inputs must use a known goal, explicit boolean capability flags, and a non-negative safe-integer budget no greater than the owner-approved budget." })), budgetCents: 0, note: "No spend or paid provider call is authorized because the plan input is invalid or exceeds the approved budget." };
   }
   return {
     status: steps.some(step => step.mode === "blocked") ? "blocked" : "ready_for_review",
-    goal: input.goal,
+    goal: safeGoal,
     steps,
     budgetCents: input.dailyBudgetCents,
     note: "This planner prepares a measurable acquisition run. It does not send messages, spend money, publish changes, or guarantee customer/revenue outcomes.",
