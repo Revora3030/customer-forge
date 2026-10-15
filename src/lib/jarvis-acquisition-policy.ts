@@ -82,7 +82,7 @@ export function scoreAcquisitionLead(input: LeadSignal): LeadScore {
     "optedOut", "bounced", "complained", "customerAlreadyActive",
   ] as const;
   const malformedFlags = booleanKeys.filter((key) => {
-    const value = (input as Record<string, unknown>)[key];
+    const value = (input as unknown as Record<string, unknown>)[key];
     return value !== undefined && typeof value !== "boolean";
   });
   if (malformedFlags.length) {
