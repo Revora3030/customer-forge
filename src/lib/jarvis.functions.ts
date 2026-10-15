@@ -178,3 +178,52 @@ export const sendJarvisMessage = createServerFn({ method: "POST" })
     if (saved.error) throw new Error("Jarvis answered, but the reply could not be saved. Refresh before retrying.");
     return { reply, diagnostics, followups };
   });
+
+
+/** Configuration-only connector status. Credential names and values are never returned. */
+export const getJarvisAccessSnapshot = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    await guardedAdmin(context);
+    const { providerSnapshots } = await import("./integrations/registry.server");
+    return {
+      checkedAt: new Date().toISOString(),
+      evidence: "configuration_snapshot_not_live_health_check" as const,
+      providers: providerSnapshots().map((provider) => ({
+        id: provider.id,
+        label: provider.label,
+        scope: provider.scope,
+        cost: provider.cost,
+        implemented: provider.implemented,
+        status: provider.status,
+        runtimeVerifiedInThisProcess: provider.runtimeVerified,
+        lastSuccessAt: provider.lastSuccessAt,
+        permission: provider.permission,
+        missingCredentialCount: provider.missing.length,
+      })),
+    };
+  });
+
+/** Returns only the fixed read-only tool catalogue; it cannot grant permissions. */
+export const getJarvisDiagnosticTools = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    await guardedAdmin(context);
+    const { getJarvisDiagnosticToolCatalog } = await import("./jarvis-tool-registry");
+    return getJarvisDiagnosticToolCatalog();
+  });
+
+/** A caller can select a tool ID only; tool-specific arguments are not accepted. */
+export const runJarvisDiagnosticTool = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((input: { toolId: string }) => {
+    if (typeof input?.toolId !== "string" || input.toolId.length > 120) {
+      throw new Error("Choose a registered Jarvis diagnostic tool.");
+    }
+    return { toolId: input.toolId };
+  })
+  .handler(async ({ context, data }) => {
+    const db = await guardedAdmin(context);
+    const { executeJarvisDiagnosticTool } = await import("./jarvis-diagnostic-tools.server");
+    return executeJarvisDiagnosticTool(db, data.toolId);
+  });
