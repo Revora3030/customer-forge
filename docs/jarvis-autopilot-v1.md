@@ -27,3 +27,19 @@ This is the policy and persistence foundation, not a fully wired autonomous exec
 - Add negative tests for non-admins, missing connectors, RLS isolation, replay/concurrency, failed verification, and paid-provider fallback.
 - Runtime-verify each connector with bounded non-mutating checks; expose missing credential names only, never values.
 - Keep production execution disabled until migration and preflight pass. Keep irreversible actions approval-gated.
+
+## Access & Permissions surface
+
+The Jarvis admin page now includes a read-only connector snapshot backed by the server-side capability registry. It is super-admin guarded and omits credential names and values. It reports whether a provider is implemented, whether required credentials appear present, whether this process has recorded a successful call, and the provider's declared permission scope.
+
+This is deliberately **not** a live external health check: a configured credential does not prove connectivity, quota, billing eligibility, commercial licensing, or service health. Runtime verification is process-local and can reset on restart. Connector-specific health probes and durable evidence remain future work.
+
+## Default permission matrix
+
+- **Read-only by default:** repository/CI summaries, bounded builder diagnostics, public-site QA, AI routing configuration, sanitized database-health summaries, security posture summaries, tenant-safe funnel counts, and release evidence.
+- **Explicit administrator approval:** source edits, migrations, publishing/unpublishing, DNS/domain changes, external messages, webhook retries, paid AI calls, billing/entitlement actions, role or RLS changes, membership changes, and destructive data operations.
+- **Never granted:** secret reveal, raw service-role credentials, unrestricted SQL/shell, cross-tenant customer exports, policy bypasses, unattended charges/refunds, mass messaging, domain transfers, or destructive migrations.
+- **Draft-first publishing:** create/update draft → render preview → run quality/security checks → obtain explicit approval → publish → retain rollback evidence.
+- **Evidence labels:** observed working, configured, failed, unknown, and needs verification. Never convert missing evidence into a healthy claim.
+
+The access snapshot is an initial visibility layer, not a grant of new connector permissions and not an autonomous executor.
