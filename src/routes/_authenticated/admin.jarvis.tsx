@@ -2,188 +2,123 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
-import { Bot, Mic, MicOff, Send, Trash2, Volume2, VolumeX } from "lucide-react";
 import { toast } from "sonner";
-import { ErrorNote, LoadingRows, SectionHeading } from "@/components/app/Bits";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { MessageResponse } from "@/components/ai-elements/message";
-import { clearJarvisHistory, getJarvisHistory, sendJarvisMessage } from "@/lib/jarvis.functions";
+import { clearJarvisHistory, getJarvisHistory, getJarvisDiagnostics, sendJarvisMessage } from "@/lib/jarvis.functions";
+
+type Recognition = {
+  lang: string; interimResults: boolean;
+  onresult: ((event: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => void) | null;
+  onend: (() => void) | null; onerror: (() => void) | null;
+  start: () => void; stop: () => void;
+};
+type RecognitionConstructor = new () => Recognition;
 
 export const Route = createFileRoute("/_authenticated/admin/jarvis")({
-  head: () => ({
-    meta: [
-      { title: "Jarvis growth assistant — Revora admin" },
-      { name: "description", content: "Talk or type with Jarvis, Revora's free AI growth assistant for customers and Google visibility." },
-      { property: "og:title", content: "Jarvis growth assistant — Revora admin" },
-      { property: "og:description", content: "Free AI growth assistant for the Revora owner." },
-      { property: "og:type", content: "website" },
-      { name: "twitter:card", content: "summary" },
-      { name: "robots", content: "noindex" },
-    ],
-  }),
+  head: () => ({ meta: [{ title: "Jarvis mission control — Revora" }, { name: "robots", content: "noindex" }] }),
   component: Jarvis,
 });
 
-type Msg = { id: string; role: "user" | "assistant"; content: string };
-
-const STARTERS = [
-  "What should I do this week to get my first paying customers?",
-  "Check my site for Google and tell me what to fix.",
-  "Write 3 outreach emails for local service businesses.",
-];
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type SpeechRec = any;
-
-function speakable(text: string) {
-  return text.replace(/[#*_`>|-]+/g, " ").replace(/\[([^\]]+)\]\([^)]+\)/g, "$1").slice(0, 1500);
-}
+const COMMANDS = [
+  ["Platform errors", "Analyze observed error groups. Separate facts, hypotheses, and missing evidence."],
+  ["Builder health", "Analyze build and publish health. Do not guess the cause of stalled progress."],
+  ["SEO readiness", "Explain the HTTP and metadata checks and what still needs Search Console verification."],
+  ["Growth strategy", "Draft a weekly customer-acquisition plan from available figures. Label assumptions."],
+] as const;
 
 function Jarvis() {
+  const qc = useQueryClient();
   const load = useServerFn(getJarvisHistory);
+  const inspect = useServerFn(getJarvisDiagnostics);
   const send = useServerFn(sendJarvisMessage);
   const clear = useServerFn(clearJarvisHistory);
-  const qc = useQueryClient();
-  const history = useQuery({ queryKey: ["jarvis"], queryFn: () => load() });
-  const [pending, setPending] = useState<string | null>(null);
+  const history = useQuery({ queryKey: ["jarvis", "history"], queryFn: () => load() });
+  const diagnostics = useQuery({ queryKey: ["jarvis", "diagnostics"], queryFn: () => inspect(), enabled: false, retry: false });
   const [text, setText] = useState("");
-  const [voiceOn, setVoiceOn] = useState(true);
+  const [voice, setVoice] = useState(false);
   const [listening, setListening] = useState(false);
-  const recRef = useRef<SpeechRec>(null);
-  const inputRef = useRef<HTMLTextAreaElement>(null);
-  const endRef = useRef<HTMLDivElement>(null);
-
+  const recognition = useRef<Recognition | null>(null);
+  const end = useRef<HTMLDivElement>(null);
   const mutation = useMutation({
     mutationFn: (message: string) => send({ data: { message } }),
-    onMutate: (message) => setPending(message),
-    onSuccess: (res) => {
-      if (voiceOn && typeof window !== "undefined" && "speechSynthesis" in window) {
+    onSuccess: async (result) => {
+      qc.setQueryData(["jarvis", "diagnostics"], result.diagnostics);
+      await qc.invalidateQueries({ queryKey: ["jarvis", "history"] });
+      if (voice && "speechSynthesis" in window) {
         window.speechSynthesis.cancel();
-        const u = new SpeechSynthesisUtterance(speakable(res.reply));
-        const voices = window.speechSynthesis.getVoices();
-        u.voice = voices.find((v) => /en/i.test(v.lang) && /(Daniel|Google UK English Male|Alex|Samantha)/i.test(v.name)) ?? voices.find((v) => /^en/i.test(v.lang)) ?? null;
-        u.rate = 1.02;
-        window.speechSynthesis.speak(u);
+        window.speechSynthesis.speak(new SpeechSynthesisUtterance(result.reply.replace(/[#*_`>|]/g, " ").slice(0, 1500)));
       }
     },
-    onError: (e: Error) => toast.error(e.message),
-    onSettled: async () => {
-      await qc.invalidateQueries({ queryKey: ["jarvis"] });
-      setPending(null);
-      inputRef.current?.focus();
-    },
+    onError: (error: Error) => toast.error(error.message),
   });
   const clearing = useMutation({
     mutationFn: () => clear(),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["jarvis"] }),
-    onError: (e: Error) => toast.error(e.message),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["jarvis", "history"] }),
+    onError: (error: Error) => toast.error(error.message),
   });
-
-  const messages: Msg[] = [...(history.data ?? [])];
-  if (pending) messages.push({ id: "pending", role: "user", content: pending });
-
-  useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-  }, [messages.length, mutation.isPending]);
-  useEffect(() => inputRef.current?.focus(), []);
-  useEffect(() => () => recRef.current?.stop?.(), []);
-
-  const submit = (value = text) => {
-    const message = value.trim();
-    if (!message || mutation.isPending) return;
-    // Phones only allow speech that starts from a tap, so unlock it now.
-    if (voiceOn && typeof window !== "undefined" && "speechSynthesis" in window) {
-      const unlock = new SpeechSynthesisUtterance(" ");
-      unlock.volume = 0;
-      window.speechSynthesis.speak(unlock);
+  useEffect(() => { end.current?.scrollIntoView({ block: "end" }); }, [history.data?.length, mutation.isPending]);
+  useEffect(() => () => {
+    if (recognition.current) {
+      recognition.current.onresult = null;
+      recognition.current.onend = null;
+      recognition.current.onerror = null;
+      recognition.current.stop();
     }
+    if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+  }, []);
+  const submit = (message = text) => {
+    if (!message.trim() || mutation.isPending) return;
+    recognition.current?.stop();
     setText("");
-    mutation.mutate(message);
+    mutation.mutate(message.trim());
   };
-
   const toggleMic = () => {
-    const W = window as unknown as { SpeechRecognition?: SpeechRec; webkitSpeechRecognition?: SpeechRec };
-    const Ctor = W.SpeechRecognition ?? W.webkitSpeechRecognition;
-    if (!Ctor) return toast.error("Voice input isn't supported in this browser. Try Chrome or Safari.");
-    if (listening) return recRef.current?.stop();
+    if (listening) { recognition.current?.stop(); return; }
+    const browser = window as unknown as { SpeechRecognition?: RecognitionConstructor; webkitSpeechRecognition?: RecognitionConstructor };
+    const Ctor = browser.SpeechRecognition ?? browser.webkitSpeechRecognition;
+    if (!Ctor) { toast.error("Voice input is unavailable; use text instead."); return; }
     const rec = new Ctor();
-    rec.lang = "en-US";
-    rec.interimResults = false;
-    rec.onresult = (e: SpeechRec) => {
-      const said = String(e.results?.[0]?.[0]?.transcript ?? "");
-      setVoiceOn(true);
-      submit(said);
-    };
+    rec.lang = "en-US"; rec.interimResults = false;
+    rec.onresult = (event) => setText(String(event.results[0]?.[0]?.transcript ?? ""));
     rec.onend = () => setListening(false);
-    rec.onerror = () => setListening(false);
-    recRef.current = rec;
-    setListening(true);
-    rec.start();
+    rec.onerror = () => { setListening(false); toast.error("Voice input failed. You can still type."); };
+    recognition.current = rec;
+    try { rec.start(); setListening(true); } catch { setListening(false); toast.error("Microphone could not start."); }
   };
-
   return (
-    <div className="product-page flex h-[calc(100dvh-7rem)] flex-col gap-4">
-      <div className="flex items-start justify-between gap-3">
-        <SectionHeading title="Jarvis" description="Your free AI growth partner. Ask about customers, Google, outreach — type or talk." />
-        <div className="flex shrink-0 gap-1">
-          <Button variant="ghost" size="icon-sm" aria-label={voiceOn ? "Mute spoken replies" : "Speak replies aloud"} onClick={() => { setVoiceOn((v) => !v); window.speechSynthesis?.cancel(); }}>
-            {voiceOn ? <Volume2 className="size-4" /> : <VolumeX className="size-4" />}
-          </Button>
-          <Button variant="ghost" size="icon-sm" aria-label="Clear chat" disabled={clearing.isPending} onClick={() => { if (confirm("Clear the whole Jarvis chat?")) clearing.mutate(); }}>
-            <Trash2 className="size-4" />
-          </Button>
+    <div className="product-page flex min-h-[70dvh] flex-col gap-4">
+      <header className="flex flex-wrap items-center justify-between gap-3">
+        <div><h1 className="text-2xl font-semibold">Jarvis mission control</h1><p className="text-sm text-muted-foreground">Read-only diagnostics and free-only AI advice. No automatic repairs.</p></div>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" disabled={diagnostics.isFetching} onClick={() => { void diagnostics.refetch(); }}>Refresh diagnostics</Button>
+          <Button variant="outline" aria-pressed={voice} onClick={() => { setVoice(!voice); window.speechSynthesis?.cancel(); }}>{voice ? "Mute replies" : "Speak replies"}</Button>
+          <Button variant="outline" disabled={clearing.isPending || mutation.isPending} onClick={() => { if (window.confirm("Clear your Jarvis history?")) clearing.mutate(); }}>Clear my chat</Button>
         </div>
-      </div>
-      {history.error ? <ErrorNote message={(history.error as Error).message} /> : null}
-      <div className="min-h-0 flex-1 overflow-y-auto rounded-lg border border-border bg-card p-4">
-        {history.isLoading ? (
-          <LoadingRows rows={4} />
-        ) : messages.length === 0 ? (
-          <div className="flex h-full flex-col items-center justify-center gap-4 text-center">
-            <div className="flex size-12 items-center justify-center rounded-full bg-primary/10 text-primary"><Bot className="size-6" /></div>
-            <p className="max-w-sm text-[13px] text-muted-foreground">Jarvis sees your real signups, trials, paying customers and a live Google check of revoragrowthsystems.com.</p>
-            <div className="flex flex-col gap-2">
-              {STARTERS.map((s) => (
-                <Button key={s} variant="outline" size="sm" className="h-auto whitespace-normal text-left" onClick={() => submit(s)}>{s}</Button>
-              ))}
-            </div>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            {messages.map((m) =>
-              m.role === "user" ? (
-                <div key={m.id} className="flex justify-end">
-                  <div className="max-w-[85%] whitespace-pre-wrap rounded-2xl bg-primary px-3.5 py-2 text-[14px] text-primary-foreground">{m.content}</div>
-                </div>
-              ) : (
-                <div key={m.id} className="flex gap-2.5">
-                  <div className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary"><Bot className="size-4" /></div>
-                  <MessageResponse className="min-w-0 flex-1 text-[14px]">{m.content}</MessageResponse>
-                </div>
-              ),
-            )}
-            {mutation.isPending ? <p className="pl-10 text-[13px] text-muted-foreground animate-pulse">Jarvis is thinking…</p> : null}
-            <div ref={endRef} />
-          </div>
-        )}
-      </div>
-      <form className="flex items-end gap-2" onSubmit={(e) => { e.preventDefault(); submit(); }}>
-        <Textarea
-          ref={inputRef}
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); submit(); } }}
-          placeholder="Ask Jarvis anything…"
-          rows={2}
-          className="min-h-[44px] flex-1 resize-none"
-        />
-        <Button type="button" variant={listening ? "signal" : "outline"} size="icon" aria-label={listening ? "Stop listening" : "Talk to Jarvis"} onClick={toggleMic}>
-          {listening ? <MicOff className="size-4" /> : <Mic className="size-4" />}
-        </Button>
-        <Button type="submit" variant="signal" size="icon" aria-label="Send" disabled={!text.trim() || mutation.isPending}>
-          <Send className="size-4" />
-        </Button>
+      </header>
+      <section aria-label="Diagnostic status" className="grid gap-3 sm:grid-cols-3">
+        {["errors", "builds", "schema"].map((name) => {
+          const section = diagnostics.data?.sections[name];
+          return <div key={name} className="rounded-lg border border-border bg-card p-3"><h2 className="font-medium capitalize">{name}</h2><p className="text-sm">{section?.status ?? "not checked"}</p><p className="text-xs text-muted-foreground">{section?.note ?? "Run diagnostics to collect evidence."}</p></div>;
+        })}
+      </section>
+      <p className="text-xs text-muted-foreground">Snapshot: {diagnostics.data?.checkedAt ?? "not collected"}. “Checked” means the query ran—not that the subsystem is healthy.</p>
+      {diagnostics.error ? <p role="alert">Diagnostics unavailable. No healthy verdict can be inferred.</p> : null}
+      <div className="flex flex-wrap gap-2">{COMMANDS.map(([label, prompt]) => <Button key={label} variant="outline" disabled={mutation.isPending} onClick={() => submit(prompt)}>{label}</Button>)}</div>
+      {diagnostics.data ? <details className="rounded-lg border border-border p-3"><summary className="cursor-pointer">Inspect bounded diagnostic evidence</summary><pre className="mt-3 max-h-80 overflow-auto whitespace-pre-wrap break-words text-xs">{JSON.stringify(diagnostics.data, null, 2)}</pre></details> : null}
+      <section aria-label="Jarvis conversation" aria-live="polite" className="min-h-64 max-h-[55dvh] flex-1 space-y-4 overflow-y-auto rounded-lg border border-border bg-card p-4">
+        {history.isLoading ? <p>Loading your conversation…</p> : null}
+        {history.error ? <p role="alert">Your conversation could not be loaded.</p> : null}
+        {(history.data ?? []).map((message) => <article key={message.id} className="min-w-0"><p className="mb-1 text-xs text-muted-foreground">{message.role === "user" ? "You" : "Jarvis"}</p><MessageResponse>{message.content}</MessageResponse></article>)}
+        {mutation.isPending ? <p>Collecting diagnostics and asking the free AI team…</p> : null}
+        <div ref={end} />
+      </section>
+      <form className="flex flex-wrap items-end gap-2" onSubmit={(event) => { event.preventDefault(); submit(); }}>
+        <label htmlFor="jarvis-message" className="sr-only">Message Jarvis</label>
+        <Textarea id="jarvis-message" value={text} maxLength={4000} onChange={(event) => setText(event.target.value)} className="min-w-0 flex-1" rows={3} placeholder="Ask about observed errors, builder health, or growth…" />
+        <Button type="button" variant="outline" aria-pressed={listening} disabled={mutation.isPending} onClick={toggleMic}>{listening ? "Stop microphone" : "Dictate"}</Button>
+        <Button type="submit" disabled={!text.trim() || mutation.isPending}>Send</Button>
       </form>
     </div>
   );
