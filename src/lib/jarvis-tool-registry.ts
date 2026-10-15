@@ -134,8 +134,8 @@ export const JARVIS_DIAGNOSTIC_TOOLS = [
     access: "read",
     risk: "low",
     requiresApproval: false,
-    timeoutMs: 20000,
-    maxOutputBytes: 24000,
+    timeoutMs: 15000,
+    maxOutputBytes: 12000,
   },
   {
     id: "security.posture.summary",
