@@ -1,13 +1,13 @@
 /**
  * Revora's single commercial offer. Every price shown or charged anywhere in
  * the application derives from this module — there is exactly one offer:
- * $350 one-time setup + $100/month.
+ * $750 one-time setup + $100/month.
  */
 export const GROWTH_SYSTEM = {
   planId: "revora_growth_system",
   name: "Revora Growth System",
   setupProductId: "revora_growth_system_setup",
-  setupPrice: 350,
+  setupPrice: 750,
   monthlyPrice: 100,
   /** Stripe lookup keys (stable across test and live). */
   setupPriceKey: "revora_system_setup",
@@ -21,22 +21,22 @@ export const GROWTH_SYSTEM = {
   /** Length of the free platform trial, in days. Mirrors the Stripe trial. */
   trialDays: 30,
   /** Length of the full-system free access window at signup, in days. */
-  fullAccessTrialDays: 3,
+  fullAccessTrialDays: 1,
   /** Human-readable full-access window, e.g. "3 days". */
-  fullAccessWindow: "3 days",
+  fullAccessWindow: "1 day",
   /** Uppercase variant for badges/CTAs, e.g. "3 DAYS". */
-  fullAccessWindowUpper: "3 DAYS",
+  fullAccessWindowUpper: "1 DAY",
   trialBadge: "FIRST MONTH FREE",
-  ctaPrimary: "START MY REVORA SYSTEM — $350 SETUP",
+  ctaPrimary: "START MY REVORA SYSTEM — $750 SETUP",
   ctaSecondary:
-    "$350 one-time setup + first month free + $100/month from month two. Cancel anytime. No hidden fees.",
+    "$750 one-time setup + first month free + $100/month from month two. Cancel anytime. No hidden fees.",
   ctaShort: "START MY REVORA SYSTEM",
   /** The single secondary CTA label used site-wide. */
   ctaDemo: "SEE REVORA IN ACTION",
 
   /** The single canonical offer sentence. Use this verbatim wherever the offer is explained. */
   explainer:
-    "$350 one-time setup, charged today. Your first month of the $100/month platform fee is FREE — your first monthly payment is charged 30 days later (month two) and continues at $100/month unless canceled.",
+    "$750 one-time setup, charged today. Your first month of the $100/month platform fee is FREE — your first monthly payment is charged 30 days later (month two) and continues at $100/month unless canceled.",
   setupIncludes: [
     "Custom website",
     "Domain setup",
