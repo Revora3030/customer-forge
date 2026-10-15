@@ -191,3 +191,27 @@ export const sendJarvisMessage = createServerFn({ method: "POST" })
     if (saved.error) throw new Error("Jarvis answered, but the reply could not be saved. Refresh before retrying.");
     return { reply, diagnostics };
   });
+
+
+/** The only operations exposed here are allowlisted, read-only diagnostics. */
+export const getJarvisDiagnosticTools = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    await guardedAdmin(context);
+    const { getJarvisDiagnosticToolCatalog } = await import("./jarvis-tool-registry");
+    return getJarvisDiagnosticToolCatalog();
+  });
+
+export const runJarvisDiagnosticTool = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((input: { toolId: string }) => {
+    if (typeof input?.toolId !== "string" || input.toolId.length > 120) {
+      throw new Error("Choose a registered Jarvis diagnostic tool.");
+    }
+    return { toolId: input.toolId };
+  })
+  .handler(async ({ context, data }) => {
+    const db = await guardedAdmin(context);
+    const { executeJarvisDiagnosticTool } = await import("./jarvis-diagnostic-tools.server");
+    return executeJarvisDiagnosticTool(db, data.toolId);
+  });
