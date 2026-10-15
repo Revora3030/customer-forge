@@ -64,7 +64,7 @@ describe("Jarvis evidence-backed capability scorecard", () => {
   });
 
   it("rejects malformed evidence rather than granting a green check", () => {
-    const evidence = completeEvidence() as Record<string, unknown>;
+    const evidence = completeEvidence() as unknown as Record<string, unknown>;
     evidence["reliability.rollback"] = { status: "verified", summary: 123 };
     const result = scoreJarvisCapabilities(evidence as never);
     const reliability = result.areas.find((area) => area.id === "reliability");
