@@ -110,9 +110,18 @@ async function publicPageCheck(path: "/" | "/robots.txt" | "/sitemap.xml") {
       ok: response.ok,
       contentType: response.headers.get("content-type")?.slice(0, 120) ?? null,
       ...(path === "/" ? {
-        title: pick(/<title[^>]*>([^<]*)<\/title>/i),
-        description: pick(/<meta[^>]+name=["']description["'][^>]+content=["']([^"']*)/i),
-        canonical: pick(/<link[^>]+rel=["']canonical["'][^>]+href=["']([^"']*)/i),
+        title: redactJarvisSummary(pick(/<title[^>]*>([^<]*)<\/title>/i), 240),
+        description: redactJarvisSummary(pick(/<meta[^>]+name=["']description["'][^>]+content=["']([^"']*)/i), 240),
+        canonicalPath: (() => {
+          const value = pick(/<link[^>]+rel=["']canonical["'][^>]+href=["']([^"']*)/i);
+          if (!value) return null;
+          try {
+            const canonical = new URL(value, SITE_ORIGIN);
+            return canonical.origin === SITE_ORIGIN ? canonical.pathname.slice(0, 240) : null;
+          } catch {
+            return null;
+          }
+        })(),
         h1Count: (body.match(/<h1[\s>]/gi) ?? []).length,
         noindexCandidate: /name=["']robots["'][^>]+noindex/i.test(body),
         inspectionLimitBytes: 36000,
@@ -142,7 +151,7 @@ async function publicWebsiteSmoke() {
     findings.push("One or more public endpoints returned a non-success HTTP status.");
   if (home.ok && "title" in home && !home.title) findings.push("Homepage title was not detected.");
   if (home.ok && "description" in home && !home.description) findings.push("Homepage meta description was not detected.");
-  if (home.ok && "canonicalPath" in home && !home.canonicalPath) findings.push("Homepage canonical URL was not detected.");
+  if (home.ok && "canonicalPath" in home && !home.canonicalPath) findings.push("Homepage canonical URL is missing, invalid, or points to another origin.");
   if (home.ok && "h1Count" in home && home.h1Count !== 1) findings.push("Homepage does not expose exactly one detectable H1.");
   if (home.ok && "noindexCandidate" in home && home.noindexCandidate) findings.push("Homepage includes a noindex candidate.");
   if (robots.ok && "mentionsSitemap" in robots && !robots.mentionsSitemap) findings.push("robots.txt does not mention a sitemap.");
