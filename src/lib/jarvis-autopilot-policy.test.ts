@@ -140,6 +140,16 @@ describe("Jarvis hash-bound single-use approval", () => {
     )).toEqual({ allowed: false, reason });
   });
 
+
+  it("fails closed for malformed proof fields instead of throwing", () => {
+    expect(validateJarvisWriteApproval("website.draft.update", "a".repeat(64), { ...valid, approvalId: null } as never, now))
+      .toEqual({ allowed: false, reason: "approval_id_missing" });
+    expect(validateJarvisWriteApproval("website.draft.update", "a".repeat(64), { ...valid, approvedAt: 1 } as never, now))
+      .toEqual({ allowed: false, reason: "approval_timestamps_missing" });
+    expect(validateJarvisWriteApproval("website.draft.update", "a".repeat(64), valid, now))
+      .toEqual({ allowed: true, reason: "valid_explicit_admin_approval" });
+  });
+
   it("rejects changed or malformed arguments after approval", () => {
     expect(validateJarvisWriteApproval("website.draft.update", "b".repeat(64), valid, now))
       .toEqual({ allowed: false, reason: "requested_input_hash_mismatch" });
