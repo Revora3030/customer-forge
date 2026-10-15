@@ -177,7 +177,9 @@ function Jarvis() {
       if ("speechSynthesis" in window) {
         window.speechSynthesis.cancel();
         window.speechSynthesis.speak(new SpeechSynthesisUtterance(clean));
-        toast.message("Using your browser voice because ElevenLabs was unavailable.");
+        toast.message("Using your browser voice because ElevenLabs was unavailable.", {
+          description: error instanceof Error ? error.message : undefined,
+        });
       } else toast.error(error instanceof Error ? error.message : "Jarvis voice could not be played.");
     }
   };
