@@ -42,7 +42,7 @@ export function useProductionReadiness(organizationId: string | undefined) {
 function blockReason(result: ActivationResult): string {
   const text = `${result.reason} ${result.readiness.blockers.join(" ")}`.toLowerCase();
   if (text.includes("suspend")) return "suspended";
-  if (text.includes("setup") || text.includes("payment") || text.includes("$750"))
+  if (text.includes("setup") || text.includes("payment") || text.includes("$350"))
     return "setup_unpaid";
   if (!result.readiness.unlocked) return "locked";
   if (text.includes("permission") || text.includes("owner") || text.includes("allowed"))
