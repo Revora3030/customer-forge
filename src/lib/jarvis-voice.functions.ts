@@ -22,9 +22,9 @@ export const synthesizeJarvisVoice = createServerFn({ method: "POST" })
       String(context.userId),
     );
 
-    const apiKey = process.env.ELEVENLABS_API_KEY;
+    const apiKey = process.env["ELEVENLABS_API_KEY"];
     if (!apiKey) throw new Error("ElevenLabs is not configured on the server. Add ELEVENLABS_API_KEY to the server runtime secrets.");
-    const voiceId = process.env.ELEVENLABS_VOICE_ID || "JBFqnCBsd6RMkjVDRZzb";
+    const voiceId = process.env["ELEVENLABS_VOICE_ID"] || "JBFqnCBsd6RMkjVDRZzb";
     if (!/^[a-zA-Z0-9_-]{5,100}$/.test(voiceId)) throw new Error("The configured ElevenLabs voice ID is invalid.");
 
     let response: Response;
