@@ -38,10 +38,18 @@ export const synthesizeJarvisVoice = createServerFn({ method: "POST" })
           voice_settings: { stability: 0.48, similarity_boost: 0.78, style: 0.18, use_speaker_boost: true },
         }),
         signal: AbortSignal.timeout(18_000),
-        redirect: "error",
+        // Cloudflare Workers reject redirect: "error"; "manual" plus the
+        // response.ok check below still refuses any redirect.
+        redirect: "manual",
       });
-    } catch {
-      throw new Error("ElevenLabs could not be reached. Check the server deployment and try again.");
+    } catch (error) {
+      const timedOut = error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError");
+      console.error("[jarvis-voice] ElevenLabs request failed", error instanceof Error ? `${error.name}: ${error.message}` : "unknown");
+      throw new Error(
+        timedOut
+          ? "ElevenLabs took too long to respond. Try a shorter reply or try again."
+          : "ElevenLabs could not be reached from the server. Try again in a moment.",
+      );
     }
 
     if (!response.ok) {

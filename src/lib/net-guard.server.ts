@@ -124,7 +124,7 @@ async function resolvePublicAddresses(hostname: string, signal: AbortSignal): Pr
   const query = async (type: "A" | "AAAA") => {
     const response = await fetch(
       `https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(hostname)}&type=${type}`,
-      { headers: { accept: "application/dns-json" }, redirect: "error", signal },
+      { headers: { accept: "application/dns-json" }, redirect: "manual", signal },
     );
     if (!response.ok) throw new Error("DNS lookup temporarily unavailable.");
     const body = (await response.json()) as DnsJson;
