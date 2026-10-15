@@ -121,6 +121,103 @@ describe("Jarvis diagnostic executor", () => {
     expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 
+  it("returns all seven areas with unknowns instead of a false 10/10", async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = new URL(String(input));
+      if (url.hostname === "api.github.com") {
+        return new Response(JSON.stringify({ total_count: 0, workflow_runs: [] }), {
+          status: 200, headers: { "content-type": "application/json" },
+        });
+      }
+      if (url.pathname === "/") {
+        return new Response("<html><head><title>Revora</title><meta name='description' content='Growth systems'></head><body><h1>Revora</h1></body></html>", {
+          status: 200, headers: { "content-type": "text/html" },
+        });
+      }
+      if (url.pathname === "/robots.txt") {
+        return new Response("User-agent: *\nSitemap: https://revoragrowthsystems.com/sitemap.xml", {
+          status: 200, headers: { "content-type": "text/plain" },
+        });
+      }
+      return new Response("<urlset><loc>https://revoragrowthsystems.com/</loc></urlset>", {
+        status: 200, headers: { "content-type": "application/xml" },
+      });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const output = await executeJarvisDiagnosticTool(db, "jarvis.capabilities.scorecard");
+    const serialized = JSON.stringify(output);
+    expect(output.status).toBe("needs_verification");
+    expect(serialized).toContain("Diagnostics and system awareness");
+    expect(serialized).toContain("Development and troubleshooting");
+    expect(serialized).toContain("Business-growth intelligence");
+    expect(serialized).toContain("Lead scoring and acquisition tracking");
+    expect(serialized).toContain("Autonomous execution");
+    expect(serialized).toContain("Safety and access governance");
+    expect(serialized).toContain("Verified production reliability");
+    expect(serialized).toContain("evidence_incomplete");
+    expect(serialized).not.toContain('"verified10Of10Areas":7');
+  });
+
+  it("verifies CI checks only when quality, security, and browser runs match current lovable-sync HEAD", async () => {
+    let currentHead = "a".repeat(40);
+    const runCommit = currentHead;
+    const workflowNames = ["Revora Quality Gate", "Revora Security Gate", "Revora Browser QA"];
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = new URL(String(input));
+      if (url.hostname === "api.github.com" && url.pathname.endsWith("/commits/lovable-sync")) {
+        return new Response(JSON.stringify({ sha: currentHead }), {
+          status: 200, headers: { "content-type": "application/json" },
+        });
+      }
+      if (url.hostname === "api.github.com" && url.pathname.endsWith("/actions/runs")) {
+        return new Response(JSON.stringify({
+          total_count: workflowNames.length,
+          workflow_runs: workflowNames.map((name) => ({
+            name, status: "completed", conclusion: "success", head_sha: runCommit,
+            created_at: "2026-10-15T12:00:00Z", updated_at: "2026-10-15T12:01:00Z",
+            html_url: "https://github.com/Revora3030/customer-forge/actions/runs/123",
+          })),
+        }), { status: 200, headers: { "content-type": "application/json" } });
+      }
+      if (url.pathname === "/") {
+        return new Response("<html><head><title>Revora</title><meta name='description' content='Growth systems'></head><body><h1>Revora</h1></body></html>", {
+          status: 200, headers: { "content-type": "text/html" },
+        });
+      }
+      if (url.pathname === "/robots.txt") {
+        return new Response("User-agent: *\nSitemap: https://revoragrowthsystems.com/sitemap.xml", {
+          status: 200, headers: { "content-type": "text/plain" },
+        });
+      }
+      return new Response("<urlset><loc>https://revoragrowthsystems.com/</loc></urlset>", {
+        status: 200, headers: { "content-type": "application/xml" },
+      });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const output = await executeJarvisDiagnosticTool(db, "jarvis.capabilities.scorecard");
+    const scorecard = output.data as unknown as {
+      areas: Array<{ id: string; checks: Array<{ id: string; status: string; summary: string }> }>;
+    };
+    const engineering = scorecard.areas.find((area) => area.id === "engineering");
+    expect(engineering?.checks.find((check) => check.id === "engineering.typecheck")?.status).toBe("verified");
+    expect(engineering?.checks.find((check) => check.id === "engineering.lint")?.status).toBe("verified");
+    expect(engineering?.checks.find((check) => check.id === "engineering.tests")?.status).toBe("verified");
+    expect(engineering?.checks.find((check) => check.id === "engineering.security")?.status).toBe("verified");
+    expect(engineering?.checks.find((check) => check.id === "engineering.browser")?.status).toBe("verified");
+    expect(scorecard.areas.find((area) => area.id === "diagnostics")?.checks.find((check) => check.id === "diagnostics.redaction")?.status).toBe("verified");
+    expect(scorecard.areas.find((area) => area.id === "growth")?.checks.find((check) => check.id === "growth.offerConsistency")?.status).toBe("verified");
+    expect(JSON.stringify(output)).not.toContain("SECRET_SHOULD_NOT_ESCAPE");
+
+    // Once the branch moves ahead, the same green workflows are stale. They must
+    // no longer count as verification for the new release commit.
+    currentHead = "b".repeat(40);
+    const staleOutput = await executeJarvisDiagnosticTool(db, "jarvis.capabilities.scorecard");
+    const staleScorecard = staleOutput.data as unknown as typeof scorecard;
+    const staleEngineering = staleScorecard.areas.find((area) => area.id === "engineering");
+    expect(staleEngineering?.checks.find((check) => check.id === "engineering.typecheck")?.status).toBe("unknown");
+    expect(staleScorecard.areas.find((area) => area.id === "growth")?.checks.find((check) => check.id === "growth.offerConsistency")?.status).toBe("unknown");
+  });
+
   it("returns partial security evidence rather than a false green security verdict", async () => {
     const output = await executeJarvisDiagnosticTool(db, "security.posture.summary");
     expect(output.status).toBe("needs_verification");

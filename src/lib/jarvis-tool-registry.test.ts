@@ -16,9 +16,9 @@ describe("Jarvis diagnostic tool registry", () => {
       expect(tool.risk).toBe("low");
       expect(tool.requiresApproval).toBe(false);
       expect(tool.timeoutMs).toBeGreaterThan(0);
-      expect(tool.timeoutMs).toBeLessThanOrEqual(15000);
+      expect(tool.timeoutMs).toBeLessThanOrEqual(30000);
       expect(tool.maxOutputBytes).toBeGreaterThan(0);
-      expect(tool.maxOutputBytes).toBeLessThanOrEqual(12000);
+      expect(tool.maxOutputBytes).toBeLessThanOrEqual(30000);
     }
   });
 
@@ -29,6 +29,16 @@ describe("Jarvis diagnostic tool registry", () => {
     expect(isJarvisDiagnosticToolId("")).toBe(false);
     expect(isJarvisDiagnosticToolId(null)).toBe(false);
     expect(getJarvisDiagnosticTool("email.send")).toBeNull();
+  });
+
+  it("registers an evidence-backed capability scorecard as read-only", () => {
+    expect(isJarvisDiagnosticToolId("jarvis.capabilities.scorecard")).toBe(true);
+    expect(getJarvisDiagnosticTool("jarvis.capabilities.scorecard")).toMatchObject({
+      access: "read",
+      risk: "low",
+      requiresApproval: false,
+      implementation: "implemented",
+    });
   });
 
   it("marks security evidence honestly as partial", () => {

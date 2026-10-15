@@ -7,8 +7,10 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { MessageResponse } from "@/components/ai-elements/message";
-import { clearJarvisHistory, getJarvisHistory, getJarvisDiagnostics, regenerateJarvisReply, sendJarvisMessage } from "@/lib/jarvis.functions";
+import { clearJarvisHistory, getJarvisHistory, getJarvisDiagnostics, getJarvisAcquisitionReadiness, getJarvisDiagnosticTools, runJarvisDiagnosticTool, regenerateJarvisReply, sendJarvisMessage } from "@/lib/jarvis.functions";
 import { draftProspectOutreach, type ProspectDraft } from "@/lib/jarvis-prospecting.functions";
+import { formatRevoraOffer } from "@/lib/jarvis-acquisition-policy";
+import { synthesizeJarvisVoice } from "@/lib/jarvis-voice.functions";
 
 type Recognition = {
   lang: string; interimResults: boolean;
@@ -19,6 +21,23 @@ type Recognition = {
 type RecognitionConstructor = new () => Recognition;
 type Mode = "brief" | "balanced" | "deep";
 type ProspectLine = { name: string; website: string; city: string; email: string };
+
+type CapabilityScorePayload = {
+  overallScore: number;
+  verifiedChecks: number;
+  totalChecks: number;
+  verified10Of10Areas: number;
+  areas: Array<{
+    id: string;
+    title: string;
+    score: number;
+    verified: number;
+    total: number;
+    status: "verified_10_of_10" | "gaps_found" | "evidence_incomplete";
+    blockers: string[];
+  }>;
+  nextActions: string[];
+};
 
 export const Route = createFileRoute("/_authenticated/admin/jarvis")({
   head: () => ({ meta: [{ title: "Jarvis mission control — Revora" }, { name: "robots", content: "noindex" }] }),
@@ -35,11 +54,11 @@ const SECTIONS = [["errors", "Errors"], ["builds", "Builds"], ["schema", "Schema
 
 const BRIEFING = "Give me a daily briefing: the top three priorities from the diagnostics, what looks fine, what is at risk, and the single most valuable action today. Label anything not checked.";
 const AUDIT = "Audit my homepage HTTP and metadata checks and give me the exact fixes in priority order. Say what is not proven.";
-const OFFER = "Review my offer ($350 setup, first month free, then $100/month, 3-day trial) for conversion weaknesses and suggest tests sized for low traffic. Do not invent numbers.";
+const OFFER = `Review my offer (${formatRevoraOffer()}) for conversion weaknesses and suggest tests sized for low traffic. Do not invent numbers.`;
 const OUTREACH = "Draft three short cold emails for Raleigh-area local service businesses offering the Revora website and CRM. No phone numbers, no invented results or reviews.";
 const RULES = "Legal and honest only: cold email needs an honest sender, a physical mailing address, and an opt-out; no cold texts or auto-dialed calls without prior consent; no purchased lists, fake reviews, or deceptive subject lines.";
 const AUTOPILOT = `Build my customer-acquisition autopilot plan for this week. Split it into what Jarvis can draft for me, what needs my approval before anything goes out, and what I must do myself. Include the daily routine, the numbers to track (prospects found, emails approved, replies, trials started, paid customers), and a realistic expectation for low volume. ${RULES}`;
-const PROSPECT_IDEAS = `List ten types of Raleigh and Chapel Hill local service businesses most likely to buy a $350 website with built-in quotes, booking and follow-up, and how to find each type legally (Google Maps, chamber directories, Yelp). Do not suggest scraping that breaks a site's terms. ${RULES}`;
+const PROSPECT_IDEAS = `List ten types of Raleigh and Chapel Hill local service businesses most likely to buy a website with this offer: ${formatRevoraOffer()} with built-in quotes, booking and follow-up, and how to find each type legally (Google Maps, chamber directories, Yelp). Do not suggest scraping that breaks a site's terms. ${RULES}`;
 const FOLLOW_UP = `Design a three-touch email follow-up sequence for prospects who did not reply, spaced over two weeks, each under 80 words, each with an easy opt-out. ${RULES}`;
 
 const COMMANDS = [
@@ -62,7 +81,7 @@ const COMMANDS = [
 const STARTERS = [
   ["Daily briefing", "What matters today, ranked by impact", BRIEFING],
   ["Autopilot plan", "This week's customer-acquisition routine", AUTOPILOT],
-  ["Offer review", "Find conversion leaks in the $350 offer", OFFER],
+  ["Offer review", "Find conversion leaks in the $350 setup offer", OFFER],
   ["Outreach drafts", "Three emails for Raleigh-area businesses", OUTREACH],
 ] as const;
 
@@ -87,12 +106,30 @@ function Jarvis() {
   const qc = useQueryClient();
   const load = useServerFn(getJarvisHistory);
   const inspect = useServerFn(getJarvisDiagnostics);
+  const inspectAcquisition = useServerFn(getJarvisAcquisitionReadiness);
+  const loadDiagnosticTools = useServerFn(getJarvisDiagnosticTools);
+  const runDiagnosticTool = useServerFn(runJarvisDiagnosticTool);
   const send = useServerFn(sendJarvisMessage);
   const redo = useServerFn(regenerateJarvisReply);
   const clear = useServerFn(clearJarvisHistory);
+  const synthesizeVoice = useServerFn(synthesizeJarvisVoice);
   const draftFn = useServerFn(draftProspectOutreach);
   const history = useQuery({ queryKey: ["jarvis", "history"], queryFn: () => load() });
   const diagnostics = useQuery({ queryKey: ["jarvis", "diagnostics"], queryFn: () => inspect(), staleTime: 60_000, retry: false });
+  const acquisition = useQuery({ queryKey: ["jarvis", "acquisition-readiness"], queryFn: () => inspectAcquisition(), enabled: false, retry: false });
+  const capabilityScorecard = useQuery({
+    queryKey: ["jarvis", "capability-scorecard"],
+    queryFn: async () => {
+      const tools = await loadDiagnosticTools();
+      if (!tools.some((tool) => tool.id === "jarvis.capabilities.scorecard")) {
+        throw new Error("The capability scorecard is not available on this release.");
+      }
+      return runDiagnosticTool({ data: { toolId: "jarvis.capabilities.scorecard" } });
+    },
+    enabled: false,
+    retry: false,
+    staleTime: 0,
+  });
   const [text, setText] = useState("");
   const [mode, setMode] = useState<Mode>("balanced");
   const [pending, setPending] = useState<string | null>(null);
@@ -110,11 +147,39 @@ function Jarvis() {
   const end = useRef<HTMLDivElement>(null);
   const scroller = useRef<HTMLDivElement>(null);
   const input = useRef<HTMLTextAreaElement>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const audioUrlRef = useRef<string | null>(null);
 
-  const speak = (content: string) => {
-    if (!("speechSynthesis" in window)) { toast.error("Speech is unavailable in this browser."); return; }
-    window.speechSynthesis.cancel();
-    window.speechSynthesis.speak(new SpeechSynthesisUtterance(content.replace(/[#*_`>|]/g, " ").slice(0, 1500)));
+  const stopVoice = () => {
+    audioRef.current?.pause();
+    audioRef.current = null;
+    if (audioUrlRef.current) URL.revokeObjectURL(audioUrlRef.current);
+    audioUrlRef.current = null;
+    if (typeof window !== "undefined" && "speechSynthesis" in window) window.speechSynthesis.cancel();
+  };
+  const speak = async (content: string) => {
+    const clean = content.replace(/<followups>[\s\S]*?<\/followups>/gi, " ").replace(/[#*_\x60>|]/g, " ").replace(/\s+/g, " ").trim().slice(0, 1200);
+    if (!clean) { toast.error("There is no readable text to speak."); return; }
+    stopVoice();
+    try {
+      const result = await synthesizeVoice({ data: { text: clean } });
+      const binary = window.atob(result.audioBase64);
+      const bytes = new Uint8Array(binary.length);
+      for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
+      const url = URL.createObjectURL(new Blob([bytes], { type: result.contentType }));
+      audioUrlRef.current = url;
+      const audio = new Audio(url);
+      audioRef.current = audio;
+      audio.onended = () => { if (audioUrlRef.current === url) { URL.revokeObjectURL(url); audioUrlRef.current = null; audioRef.current = null; } };
+      audio.onerror = () => { if (audioUrlRef.current === url) { URL.revokeObjectURL(url); audioUrlRef.current = null; audioRef.current = null; } };
+      await audio.play();
+    } catch (error) {
+      if ("speechSynthesis" in window) {
+        window.speechSynthesis.cancel();
+        window.speechSynthesis.speak(new SpeechSynthesisUtterance(clean));
+        toast.message("Using your browser voice because ElevenLabs was unavailable.");
+      } else toast.error(error instanceof Error ? error.message : "Jarvis voice could not be played.");
+    }
   };
   const finish = async (result: { reply: string; diagnostics: unknown; followups?: string[] }) => {
     qc.setQueryData(["jarvis", "diagnostics"], result.diagnostics);
@@ -182,7 +247,7 @@ function Jarvis() {
       recognition.current.onerror = null;
       recognition.current.stop();
     }
-    if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+    stopVoice();
   }, []);
 
   const onScroll = () => {
@@ -252,11 +317,85 @@ function Jarvis() {
         </div>
         <div className="flex shrink-0 gap-1">
           <Button type="button" variant="ghost" size="icon" aria-label="Refresh diagnostics" title="Refresh diagnostics" disabled={diagnostics.isFetching} onClick={() => { void diagnostics.refetch(); }}><RefreshCw className={`size-4 ${diagnostics.isFetching ? "animate-spin" : ""}`} /></Button>
-          <Button type="button" variant="ghost" size="icon" aria-label={voice ? "Mute replies" : "Speak replies"} aria-pressed={voice} title={voice ? "Mute replies" : "Speak replies"} onClick={() => { setVoice(!voice); window.speechSynthesis?.cancel(); }}>{voice ? <Volume2 className="size-4" /> : <VolumeX className="size-4" />}</Button>
+          <Button type="button" variant="ghost" size="icon" aria-label={voice ? "Mute replies" : "Speak replies"} aria-pressed={voice} title={voice ? "Mute replies" : "Speak replies"} onClick={() => { const next = !voice; setVoice(next); if (!next) stopVoice(); }}>{voice ? <Volume2 className="size-4" /> : <VolumeX className="size-4" />}</Button>
           <Button type="button" variant="ghost" size="icon" aria-label="Export chat" title="Export chat as Markdown" onClick={exportChat}><Download className="size-4" /></Button>
           <Button type="button" variant="ghost" size="icon" aria-label="Clear my chat" title="Clear my chat" disabled={clearing.isPending || busy} onClick={() => { if (window.confirm("Clear your Jarvis history?")) clearing.mutate(); }}><Trash2 className="size-4" /></Button>
         </div>
       </header>
+      <section aria-label="Jarvis customer acquisition autopilot" className="rounded-xl border border-border bg-card p-3 space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div><h2 className="font-semibold">Customer acquisition autopilot</h2><p className="text-xs text-muted-foreground">Measure → qualify → prepare → approve → verify paid conversion. No guaranteed revenue claims.</p></div>
+          <Button type="button" size="sm" variant="outline" disabled={acquisition.isFetching} onClick={() => { void acquisition.refetch(); }}>{acquisition.isFetching ? "Checking…" : "Check acquisition readiness"}</Button>
+        </div>
+        <p className="text-sm text-muted-foreground">Jarvis can prepare an evidence-backed daily plan and identify missing integrations. This check does not read prospect records, send messages, publish changes, or spend money.</p>
+        {acquisition.data ? <div className="space-y-3">
+          <div className="rounded-md border border-border p-3"><div className="flex flex-wrap items-center justify-between gap-2"><strong>Readiness: {acquisition.data.status.replaceAll("_", " ")}</strong><span className="text-xs text-muted-foreground">Spend authorized: No · Sending enabled: No</span></div><p className="mt-1 text-xs text-muted-foreground">{acquisition.data.note}</p><p className="mt-2 text-xs">Verified signals: analytics {acquisition.data.analyticsVerified ? "yes" : "unknown"}, lead source {acquisition.data.liveLeadSourceVerified ? "yes" : "unknown"}, outbound provider {acquisition.data.outboundProviderVerified ? "yes" : "unknown"}, booking {acquisition.data.bookingVerified ? "yes" : "unknown"}, payment flow {acquisition.data.paymentFlowVerified ? "yes" : "unknown"}.</p><p className="mt-1 text-xs">Server-approved daily spend cap: {(acquisition.data.configuredSpendCapCents / 100).toLocaleString(undefined, { style: "currency", currency: "USD" })}; this run requested $0.</p></div>
+          <div className="space-y-2">
+            <h3 className="text-sm font-semibold">Observed funnel signals</h3>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+              {[
+                ["Organizations", acquisition.data.funnelMetrics.organizationsTotal],
+                ["Trial records", acquisition.data.funnelMetrics.trialRecordsTotal],
+                ["Leads · 7 days", acquisition.data.funnelMetrics.leadsCreatedLast7Days],
+                ["Appointments · 7 days", acquisition.data.funnelMetrics.appointmentsCreatedLast7Days],
+                ["Paid invoices · 30 days", acquisition.data.funnelMetrics.paidInvoicesLast30Days],
+                ["Active subscription records", acquisition.data.funnelMetrics.activeSubscriptionRecords],
+              ].map(([label, value]) => <div key={String(label)} className="rounded-md border border-border p-3"><p className="text-xs text-muted-foreground">{label}</p><p className="mt-1 text-lg font-semibold tabular-nums">{value === null ? "Unknown" : value}</p></div>)}
+            </div>
+            <p className="text-xs text-muted-foreground">{acquisition.data.funnelMetrics.note}</p>
+          </div>
+          <ol className="space-y-2">{acquisition.data.steps.map((step) => <li key={step.id} className="rounded-md border border-border p-3"><div className="flex flex-wrap items-center justify-between gap-2"><strong className="text-sm">{step.title}</strong><span className="text-xs text-muted-foreground">{step.mode.replaceAll("_", " ")}</span></div><p className="mt-1 text-xs text-muted-foreground">{step.reason}</p></li>)}</ol>
+        </div> : acquisition.error ? <p role="alert" className="text-sm text-destructive">Acquisition readiness could not be verified. Treat all live integrations as unavailable.</p> : <p className="text-xs text-muted-foreground">Not checked yet. Jarvis will verify server-side connector evidence when requested.</p>}
+      </section>
+
+
+      <section aria-label="Jarvis seven-area capability scorecard" className="rounded-xl border border-border bg-card p-3 space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h2 className="font-semibold">Jarvis capability scorecard</h2>
+            <p className="text-xs text-muted-foreground">Seven capability areas · evidence-backed · missing proof never counts as a pass.</p>
+          </div>
+          <Button type="button" size="sm" variant="outline" disabled={capabilityScorecard.isFetching} onClick={() => { void capabilityScorecard.refetch(); }}>
+            {capabilityScorecard.isFetching ? "Auditing…" : "Run seven-area audit"}
+          </Button>
+        </div>
+        <p className="text-sm text-muted-foreground">This reads bounded diagnostics, public-site smoke checks, and release-branch CI summaries. It does not enable writes, outreach, publishing, or spend.</p>
+        {capabilityScorecard.data ? (() => {
+          const toolResult = capabilityScorecard.data;
+          const payload = toolResult.data as unknown as CapabilityScorePayload;
+          const valid = payload && typeof payload === "object" && Array.isArray(payload.areas) &&
+            typeof payload.overallScore === "number" && typeof payload.totalChecks === "number";
+          return valid ? (
+            <div className="space-y-3">
+              <div className="rounded-lg border border-border p-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <strong>Overall verified score: {payload.overallScore.toFixed(1)}/10</strong>
+                  <span className="text-xs text-muted-foreground">{payload.verifiedChecks}/{payload.totalChecks} checks verified</span>
+                </div>
+                <p className="mt-1 text-xs text-muted-foreground">{payload.verified10Of10Areas}/7 areas fully verified · status: {toolResult.status.replaceAll("_", " ")}</p>
+                <p className="mt-1 text-xs text-muted-foreground">Checked {clock(toolResult.checkedAt)} · {toolResult.durationMs} ms</p>
+              </div>
+              <div className="space-y-3">
+                {payload.areas.map((area) => (
+                  <article key={area.id} className="space-y-1.5">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="text-sm font-medium">{area.title}</span>
+                      <span className="text-xs tabular-nums">{area.score.toFixed(1)}/10 · {area.verified}/{area.total}</span>
+                    </div>
+                    <div className="h-1.5 overflow-hidden rounded-full bg-muted" role="progressbar" aria-label={area.title} aria-valuemin={0} aria-valuemax={10} aria-valuenow={area.score}>
+                      <div className="h-full rounded-full bg-primary" style={{ width: Math.min(100, Math.max(0, area.score * 10)) + "%" }} />
+                    </div>
+                    <p className="text-xs text-muted-foreground">{area.status.replaceAll("_", " ")}</p>
+                    {area.blockers.length > 0 ? <details className="rounded-md border border-border px-2 py-1.5"><summary className="cursor-pointer text-xs">Show {area.blockers.length} evidence gaps</summary><ul className="mt-2 list-disc space-y-1 pl-4 text-xs text-muted-foreground">{area.blockers.slice(0, 8).map((blocker) => <li key={blocker}>{blocker}</li>)}</ul></details> : <p className="text-xs text-muted-foreground">All required checks verified.</p>}
+                  </article>
+                ))}
+              </div>
+              {payload.nextActions.length > 0 ? <div className="rounded-lg border border-border p-3"><h3 className="text-sm font-semibold">Highest-priority next actions</h3><ol className="mt-2 list-decimal space-y-1 pl-4 text-xs text-muted-foreground">{payload.nextActions.map((action) => <li key={action}>{action}</li>)}</ol></div> : null}
+              <p className="text-xs text-muted-foreground">{toolResult.limitations.join(" ")}</p>
+            </div>
+          ) : <p role="alert" className="text-sm text-destructive">Jarvis returned a result that did not match the capability scorecard contract.</p>;
+        })() : capabilityScorecard.error ? <p role="alert" className="text-sm text-destructive">Capability audit failed: {capabilityScorecard.error.message}. No area should be treated as verified.</p> : <p className="text-xs text-muted-foreground">Run the audit to see evidence, exact gaps, and prioritized next actions.</p>}
+      </section>
 
       <details className="rounded-xl border border-border bg-card">
         <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-2 text-sm">

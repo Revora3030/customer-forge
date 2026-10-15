@@ -3,6 +3,7 @@ import { collectJarvisDiagnostics } from "./jarvis-diagnostics.server";
 import { redactJarvisSummary } from "./jarvis-autopilot-policy";
 import { getJarvisDiagnosticTool, isJarvisDiagnosticToolId, type JarvisDiagnosticToolId } from "./jarvis-tool-registry";
 import { providerSnapshots } from "./integrations/registry.server";
+import { scoreJarvisCapabilities, type JarvisCapabilityCheckId, type JarvisCapabilityEvidence, type JarvisCapabilityEvidenceStatus } from "./jarvis-capability-scorecard";
 
 const SITE_ORIGIN = "https://revoragrowthsystems.com";
 const GITHUB_REPOSITORY = "Revora3030/customer-forge";
@@ -222,27 +223,41 @@ async function providerEvidence() {
 
 async function releaseEvidence() {
   const token = process.env["REVORA_GITHUB_READ_TOKEN"];
-  const url = `https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/runs?branch=${encodeURIComponent(GITHUB_BRANCH)}&per_page=5`;
+  const apiRoot = `https://api.github.com/repos/${GITHUB_REPOSITORY}`;
+  const headers = {
+    Accept: "application/vnd.github+json",
+    "X-GitHub-Api-Version": "2022-11-28",
+    "User-Agent": "Revora-Jarvis-ReadOnly-Diagnostics",
+    ...(token ? { Authorization: "Bearer " + token } : {}),
+  };
   try {
-    const response = await fetch(url, {
-      headers: {
-        Accept: "application/vnd.github+json",
-        "X-GitHub-Api-Version": "2022-11-28",
-        "User-Agent": "Revora-Jarvis-ReadOnly-Diagnostics",
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      redirect: "error",
-      signal: AbortSignal.timeout(7000),
-    });
-    if (!response.ok) {
+    // CI on an old commit is not evidence for the current release. Fetch the
+    // release branch's current commit independently and bind every verdict to it.
+    const [headResponse, runsResponse] = await Promise.all([
+      fetch(apiRoot + "/commits/" + encodeURIComponent(GITHUB_BRANCH), {
+        headers,
+        redirect: "error",
+        signal: AbortSignal.timeout(7000),
+      }),
+      fetch(apiRoot + "/actions/runs?branch=" + encodeURIComponent(GITHUB_BRANCH) + "&per_page=100", {
+        headers,
+        redirect: "error",
+        signal: AbortSignal.timeout(7000),
+      }),
+    ]);
+    if (!headResponse.ok || !runsResponse.ok) {
+      const failedStatus = !headResponse.ok ? headResponse.status : runsResponse.status;
       return {
         status: "needs_verification" as const,
-        httpStatus: response.status,
-        reason: response.status === 401 || response.status === 403 ? "github_access_or_rate_limit" : "github_api_unavailable",
+        httpStatus: failedStatus,
+        reason: failedStatus === 401 || failedStatus === 403 ? "github_access_or_rate_limit" : "github_api_unavailable",
+        branchHeadCommit: null,
         runs: [],
       };
     }
-    const json = await response.json() as {
+    const head = await headResponse.json() as { sha?: string };
+    const currentHead = /^[a-f0-9]{40}$/i.test(head.sha ?? "") ? head.sha! : null;
+    const json = await runsResponse.json() as {
       total_count?: number;
       workflow_runs?: Array<{
         name?: string | null;
@@ -255,7 +270,7 @@ async function releaseEvidence() {
         html_url?: string | null;
       }>;
     };
-    const runs = (json.workflow_runs ?? []).slice(0, 5).map((run) => ({
+    const rawRuns = (json.workflow_runs ?? []).map((run) => ({
       name: (run.name ?? "Unnamed workflow").slice(0, 160),
       status: run.status ?? "unknown",
       conclusion: run.conclusion ?? null,
@@ -265,16 +280,34 @@ async function releaseEvidence() {
       commit: /^[a-f0-9]{40}$/i.test(run.head_sha ?? "") ? run.head_sha : null,
       url: run.html_url?.startsWith("https://github.com/Revora3030/customer-forge/actions/runs/") ? run.html_url : null,
     }));
+    // Keep the newest relevant run per workflow name for the current release
+    // SHA. Include missing evidence as absent so consumers cannot infer a pass.
+    const names = [
+      /revora quality gate/i,
+      /revora security gate/i,
+      /revora browser qa/i,
+    ];
+    const runs = names.flatMap((pattern) => {
+      const relevant = rawRuns.filter((run) => pattern.test(run.name));
+      const current = currentHead ? relevant.find((run) => run.commit === currentHead) : undefined;
+      // Preserve the newest historical result for explanation, but never as a pass.
+      return current ? [current] : relevant.slice(0, 1);
+    });
+    const status = currentHead && runs.length > 0
+      ? "observed" as const
+      : "needs_verification" as const;
     return {
-      status: runs.length ? "observed" as const : "needs_verification" as const,
+      status,
       repository: GITHUB_REPOSITORY,
       branch: GITHUB_BRANCH,
+      branchHeadCommit: currentHead,
+      checkedAt: new Date().toISOString(),
       totalCountReported: Number.isInteger(json.total_count) ? json.total_count : null,
       runs,
-      limitation: "CI evidence is not proof of a deployed production revision.",
+      limitation: "A workflow passes for the current release only when it is completed successfully on the exact current branch commit. CI evidence is not proof of a deployed production revision.",
     };
   } catch {
-    return { status: "unknown" as const, reason: "github_api_unreachable", runs: [] };
+    return { status: "unknown" as const, reason: "github_api_unreachable", branchHeadCommit: null, runs: [] };
   }
 }
 
@@ -291,6 +324,143 @@ export async function executeJarvisDiagnosticTool(
   const checkedAt = new Date().toISOString();
   const started = Date.now();
   try {
+    if (toolId === "jarvis.capabilities.scorecard") {
+      const [diagnostics, website, ci] = await Promise.all([
+        collectJarvisDiagnostics(db),
+        publicWebsiteSmoke(),
+        releaseEvidence(),
+      ]);
+      const evidence: Partial<Record<JarvisCapabilityCheckId, JarvisCapabilityEvidence>> = {};
+      const setEvidence = (
+        id: JarvisCapabilityCheckId,
+        status: JarvisCapabilityEvidenceStatus,
+        summary: string,
+        source: string,
+      ) => {
+        evidence[id] = { status, summary, source, checkedAt };
+      };
+      const sectionStatus = (section: { status?: string } | undefined): JarvisCapabilityEvidenceStatus =>
+        section?.status === "checked" ? "verified" : "unknown";
+      setEvidence("diagnostics.errorSample", sectionStatus(diagnostics.sections["errors"]), "Error event sampling " + (diagnostics.sections["errors"]?.status ?? "unknown") + "; review redacted evidence and sample limits.", "live database diagnostic");
+      setEvidence("diagnostics.builderHealth", sectionStatus(diagnostics.sections["builds"]), "Build/publish/image diagnostic " + (diagnostics.sections["builds"]?.status ?? "unknown") + "; aggregate evidence does not prove a root cause.", "live database diagnostic");
+      setEvidence("diagnostics.schemaProbe", sectionStatus(diagnostics.sections["schema"]), "Read-only schema contract probe " + (diagnostics.sections["schema"]?.status ?? "unknown") + "; does not enumerate RLS or migration history.", "live database diagnostic");
+      setEvidence("diagnostics.redaction", "configured", "Redaction helpers and regression tests exist in code; a production adversarial execution was not performed by this check.", "code configuration only");
+
+      const ciRuns = Array.isArray(ci.runs) ? ci.runs : [];
+      const qualityRun = ciRuns.find((run) => /quality gate/i.test(String(run.name)));
+      const securityRun = ciRuns.find((run) => /security gate|authority validation|codeql/i.test(String(run.name)));
+      const browserRun = ciRuns.find((run) => /browser qa|browser journey/i.test(String(run.name)));
+      const requiredRuns = [qualityRun, securityRun, browserRun];
+      const currentReleaseCommit = typeof ci.branchHeadCommit === "string" && /^[a-f0-9]{40}$/i.test(ci.branchHeadCommit)
+        ? ci.branchHeadCommit
+        : null;
+      const sharedCommit = Boolean(currentReleaseCommit) && requiredRuns.every((run) =>
+        Boolean(run) &&
+        run?.status === "completed" &&
+        run?.conclusion === "success" &&
+        typeof run?.commit === "string" &&
+        run.commit === currentReleaseCommit
+      );
+      const runStatus = (run: (typeof ciRuns)[number] | undefined): JarvisCapabilityEvidenceStatus => {
+        const sameCommit = Boolean(run?.commit && requiredRuns[0]?.commit && run.commit === requiredRuns[0].commit);
+        if (run?.status === "completed" && run.conclusion === "success" && sharedCommit && sameCommit) return "verified";
+        if (run?.status === "completed" && run.conclusion && run.conclusion !== "success" && sameCommit) return "failed";
+        return "unknown";
+      };
+      const qualityStatus = runStatus(qualityRun);
+      setEvidence(
+        "diagnostics.redaction",
+        qualityStatus,
+        "Redaction regression fixtures: " + (qualityRun?.conclusion ?? qualityRun?.status ?? "missing") +
+          "; only a successful Quality Gate on the exact current release commit proves the checked-in adversarial/regression suite ran.",
+        "same-commit GitHub Actions Quality Gate",
+      );
+      const qualityDetail = "Quality Gate: " + (qualityRun?.conclusion ?? qualityRun?.status ?? "missing") +
+        "; run commit " + (qualityRun?.commit ?? "unknown") + ", current release commit " + (currentReleaseCommit ?? "unknown") +
+        "; completed success on the exact current release commit is required.";
+      setEvidence("engineering.typecheck", qualityStatus, qualityDetail, "GitHub Actions");
+      setEvidence("engineering.lint", qualityStatus, qualityDetail, "GitHub Actions");
+      setEvidence("engineering.tests", qualityStatus, qualityDetail, "GitHub Actions");
+      setEvidence("engineering.security", runStatus(securityRun), "Security/authority gate: " + (securityRun?.conclusion ?? securityRun?.status ?? "missing") + ".", "GitHub Actions");
+      setEvidence("engineering.browser", runStatus(browserRun), "Browser QA: " + (browserRun?.conclusion ?? browserRun?.status ?? "missing") + ".", "GitHub Actions");
+      setEvidence("reliability.ciSameHead", sharedCommit ? "verified" : "unknown", sharedCommit ? "Quality, security, and browser gates passed for one shared commit." : "Required gate results were not all verified as successful for the same commit.", "GitHub Actions");
+
+      const siteHasFailure = website.status === "failed";
+      setEvidence("reliability.syntheticHealth", "unknown", siteHasFailure ? "The limited public-site smoke check found issues; full production synthetic journeys still need verification." : "Homepage/robots/sitemap checks are not a full production synthetic journey.", "public HTTP smoke check");
+      setEvidence("reliability.productionRevision", "unknown", "This diagnostic cannot independently prove which commit is deployed.", "deployment evidence unavailable");
+      setEvidence("reliability.migrations", "unknown", "API contract probes do not prove applied migration history or drift status.", "migration verification unavailable");
+      setEvidence("reliability.rollback", "unknown", "A recovery plan does not prove a successful rollback exercise.", "rollback exercise unavailable");
+
+      setEvidence("growth.funnelSignals", "configured", "Aggregate funnel queries are implemented; record counts are not represented as campaign-attributed revenue.", "read-only database query capability");
+      const offerConsistencyStatus = runStatus(securityRun);
+      setEvidence(
+        "growth.offerConsistency",
+        offerConsistencyStatus,
+        "Revora Security Gate: " + (securityRun?.conclusion ?? securityRun?.status ?? "missing") +
+          "; its live Stripe catalog contract must pass on the exact current release commit before the published offer is treated as verified.",
+        "same-commit GitHub Actions Security Gate with live Stripe catalog contract",
+      );
+      setEvidence("growth.attribution", "unknown", "Trusted campaign-to-paid-conversion attribution was not verified.", "attribution evidence unavailable");
+      setEvidence("growth.experiments", "unknown", "Controlled conversion experiments and measured outcomes were not verified.", "experiment evidence unavailable");
+
+      setEvidence("acquisition.scoring", "configured", "Explainable lead scoring is implemented; adversarial runtime payloads were not replayed.", "code configuration only");
+      setEvidence("acquisition.consent", "unknown", "Durable, channel-specific consent provenance was not verified.", "consent evidence unavailable");
+      setEvidence("acquisition.suppression", "configured", "Suppression policy exists; production webhook reconciliation remains separate.", "policy configuration only");
+      setEvidence("acquisition.delivery", "unknown", "Durable provider receipts and bounce/complaint reconciliation were not verified.", "delivery evidence unavailable");
+      setEvidence("acquisition.paidConversion", "unknown", "Lead-to-paid attribution from trusted billing events was not verified.", "conversion evidence unavailable");
+
+      setEvidence("autonomy.killSwitch", "configured", "A server-owned kill-switch policy exists; its live persisted state was not verified.", "policy configuration only");
+      setEvidence("autonomy.approvalConsumption", "configured", "Approval validation exists; atomic one-time consumption under concurrency was not exercised.", "policy configuration only");
+      setEvidence("autonomy.idempotency", "configured", "Idempotency safeguards are defined; duplicate/concurrent production runs were not exercised.", "policy configuration only");
+      setEvidence("autonomy.postconditions", "configured", "Independent verification is required by contract; no production write was executed.", "execution contract only");
+      setEvidence("autonomy.recovery", "unknown", "Lease recovery, bounded retry, and dead-letter recovery were not verified end-to-end.", "recovery evidence unavailable");
+
+      setEvidence("safety.superAdminBoundary", "configured", "Super-admin authorization is enforced server-side; this is not an authorization penetration test.", "server access-control implementation");
+      setEvidence("safety.tenantIsolation", "unknown", "Cross-tenant negative tests were not run by this diagnostic.", "tenant isolation test evidence unavailable");
+      setEvidence("safety.redaction", "configured", "Redaction helpers are present; production output was not adversarially exercised in this run.", "code configuration only");
+      setEvidence("safety.audit", "configured", "Audit storage contracts exist; append-only trigger and grants require migration-level verification.", "database schema design only");
+      setEvidence("safety.secretBoundary", "configured", "Diagnostic outputs exclude credential values by design; full model/tool data-flow verification remains required.", "tool registry and redaction design");
+
+      const scorecard = scoreJarvisCapabilities(evidence, checkedAt);
+      // The scorecard has many explanatory strings and repeated blocker text. Keep
+      // every area and every check queryable while fitting the read-only tool's
+      // strict 12 KB output contract (rather than returning an unhelpful truncated preview).
+      const boundedScorecard = {
+        checkedAt: scorecard.checkedAt,
+        overallScore: scorecard.overallScore,
+        verifiedChecks: scorecard.verifiedChecks,
+        totalChecks: scorecard.totalChecks,
+        verified10Of10Areas: scorecard.verified10Of10Areas,
+        areas: scorecard.areas.map((area) => ({
+          id: area.id,
+          title: area.title,
+          score: area.score,
+          verified: area.verified,
+          total: area.total,
+          status: area.status,
+          checks: area.checks.map((check) => ({
+            id: check.id,
+            label: check.label,
+            status: check.status,
+            summary: check.summary.slice(0, 100),
+          })),
+          blockers: area.blockers.map((blocker) => blocker.split(":")[0] ?? blocker).slice(0, 5),
+        })),
+        nextActions: scorecard.nextActions.slice(0, 5).map((action) => action.slice(0, 180)),
+        policy: scorecard.policy,
+      };
+      return result(toolId, scorecard.verified10Of10Areas === 7 ? "observed" : "needs_verification", boundedScorecard, {
+        checkedAt,
+        durationMs: Date.now() - started,
+        limitations: [
+          "Scores are intentionally conservative: configured-only, missing, stale, or indirect evidence does not pass.",
+          "A 10/10 requires every check in that area to be independently verified.",
+          "Scorecard evidence is compacted to fit the read-only tool's 12 KB output limit; check summaries are shortened and blockers contain labels only.",
+          "This tool does not grant permissions, execute writes, send messages, publish websites, or spend money.",
+        ],
+      });
+    }
+
     if (toolId === "platform.errors.summary" ||
         toolId === "builder.health.summary" ||
         toolId === "database.contracts.probe" ||

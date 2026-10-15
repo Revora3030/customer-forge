@@ -338,3 +338,75 @@ export const getJarvisAutopilotStatus = createServerFn({ method: "GET" })
       };
     }
   });
+
+
+/**
+ * Acquisition readiness planner. It reports only verified connector metadata,
+ * uses a server-owned zero-default spend cap, and never sends or mutates.
+ */
+export const getJarvisAcquisitionReadiness = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const db = await guardedAdmin(context);
+    const [{ providerSnapshots }, { buildAcquisitionPlan }] = await Promise.all([
+      import("@/lib/integrations/registry.server"),
+      import("./jarvis-acquisition-policy"),
+    ]);
+    const providers = providerSnapshots();
+    const serves = (capability: string) => providers.some((provider) =>
+      provider.capabilities.includes(capability as never) &&
+      provider.implemented === true &&
+      provider.status === "ready" &&
+      provider.runtimeVerified === true
+    );
+    const rawBudget = process.env["JARVIS_ACQUISITION_DAILY_BUDGET_CENTS"];
+    const configuredBudget = rawBudget && /^\d{1,9}$/.test(rawBudget) ? Number(rawBudget) : 0;
+    const since7Days = new Date(Date.now() - 7 * 86_400_000).toISOString();
+    const since30Days = new Date(Date.now() - 30 * 86_400_000).toISOString();
+    const [organizations, trials, leads7Days, appointments7Days, paidInvoices30Days, activeSubscriptions] = await Promise.all([
+      count(db, "organizations"),
+      count(db, "platform_trials"),
+      count(db, "leads", since7Days),
+      count(db, "appointments", since7Days),
+      count(db, "invoices", since30Days, "paid"),
+      count(db, "subscriptions", undefined, "active"),
+    ]);
+    const plan = buildAcquisitionPlan({
+      goal: "more_paid_customers",
+      dailyBudgetCents: 0,
+      approvedDailyBudgetCents: configuredBudget,
+      funnelHasVerifiedAnalytics: serves("seo.analytics"),
+      websiteAuditAvailable: true,
+      leadCaptureAvailable: serves("crm.leads"),
+      calendarAvailable: serves("calendar.booking"),
+      paymentFlowVerified: serves("payments"),
+      outboundProviderVerified: serves("email.transactional"),
+    });
+    return {
+      checkedAt: new Date().toISOString(),
+      status: plan.status,
+      goal: plan.goal,
+      steps: plan.steps,
+      requestedBudgetCents: plan.budgetCents,
+      configuredSpendCapCents: configuredBudget,
+      spendAuthorized: false,
+      sendsEnabled: false,
+      liveLeadSourceVerified: serves("crm.leads"),
+      outboundProviderVerified: serves("email.transactional"),
+      analyticsVerified: serves("seo.analytics"),
+      bookingVerified: serves("calendar.booking"),
+      paymentFlowVerified: serves("payments"),
+      funnelMetrics: {
+        windowDays: 7,
+        organizationsTotal: organizations,
+        trialRecordsTotal: trials,
+        leadsCreatedLast7Days: leads7Days,
+        appointmentsCreatedLast7Days: appointments7Days,
+        paidInvoicesLast30Days: paidInvoices30Days,
+        activeSubscriptionRecords: activeSubscriptions,
+        attributionVerified: false,
+        note: "Aggregate database counts only. Paid invoices and active subscription records are not yet attributed to individual acquisition campaigns; null means the source could not be queried.",
+      },
+      note: "Readiness only. No prospect records were read, no messages were sent, no sites were published, and no money was spent. Configure and verify adapters, consent evidence, and approval workflows before execution.",
+    };
+  });
