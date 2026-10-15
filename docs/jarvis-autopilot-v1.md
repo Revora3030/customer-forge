@@ -18,7 +18,7 @@ This is the policy and persistence foundation, not a fully wired autonomous exec
 6. Execute code-owned allowlisted tools with timeouts and bounded inputs/outputs.
 7. Independently verify postconditions; model narrative alone never means success.
 8. Persist state transitions and append audit events; bound retries and stop on failed verification.
-9. Auto-run only low-risk, reversible, idempotent writes when preconditions pass. Require approval for security/RLS findings, migrations, publishing/deployment, billing, customer-data changes, and external messages.
+9. Every mutation requires explicit administrator approval, including low-risk, reversible, idempotent writes. No mutating tool may run unattended.
 10. Stop on kill switch, exhausted budgets, verification failure, or degraded connector.
 
 ## Rollout
