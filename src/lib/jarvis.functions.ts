@@ -227,3 +227,54 @@ export const runJarvisDiagnosticTool = createServerFn({ method: "POST" })
     const { executeJarvisDiagnosticTool } = await import("./jarvis-diagnostic-tools.server");
     return executeJarvisDiagnosticTool(db, data.toolId);
   });
+
+
+/** Read-only inspection of the durable fail-closed control row. */
+export const getJarvisAutopilotStatus = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const db = await guardedAdmin(context);
+    const checkedAt = new Date().toISOString();
+    try {
+      const response = await db.from("jarvis_autopilot_settings")
+        .select("enabled,kill_switch_engaged,max_actions_per_run,max_run_duration_seconds,updated_at")
+        .eq("id", true)
+        .maybeSingle();
+      if (response.error || !response.data) {
+        return {
+          checkedAt,
+          status: "unavailable" as const,
+          enabled: false,
+          killSwitchEngaged: true,
+          maxActionsPerRun: null,
+          maxRunDurationSeconds: null,
+          updatedAt: null,
+          note: "Safety settings could not be verified. Treat autopilot as disabled and the kill switch as engaged.",
+          writeExecutorsAvailable: false,
+        };
+      }
+      return {
+        checkedAt,
+        status: "configured" as const,
+        enabled: response.data.enabled === true,
+        killSwitchEngaged: response.data.kill_switch_engaged !== false,
+        maxActionsPerRun: Number.isInteger(response.data.max_actions_per_run) ? response.data.max_actions_per_run : null,
+        maxRunDurationSeconds: Number.isInteger(response.data.max_run_duration_seconds) ? response.data.max_run_duration_seconds : null,
+        updatedAt: response.data.updated_at ?? null,
+        note: "This is a read-only settings snapshot. The diagnostic toolbench has no mutating executors.",
+        writeExecutorsAvailable: false,
+      };
+    } catch {
+      return {
+        checkedAt,
+        status: "unavailable" as const,
+        enabled: false,
+        killSwitchEngaged: true,
+        maxActionsPerRun: null,
+        maxRunDurationSeconds: null,
+        updatedAt: null,
+        note: "Safety settings could not be verified. Treat autopilot as disabled and the kill switch as engaged.",
+        writeExecutorsAvailable: false,
+      };
+    }
+  });
