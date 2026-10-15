@@ -3,7 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { localListings } from "@/lib/integrations/google.server";
 import { generateStructuredOutput } from "@/lib/ai/router.server";
-import { validateComposition, COMPOSITION_PRIMITIVES, PRIMITIVE_GUIDE } from "@/lib/builder/composition-tree";
+import { validateComposition, COMPOSITION_PRIMITIVES } from "@/lib/builder/composition-tree";
 import {
   candidateForUi,
   readAcquisitionConcept,
@@ -99,7 +99,6 @@ export const saveAcquisitionProspect = createServerFn({ method: "POST" })
     if (!current.name.trim()) throw new Error("The listing has no usable business name.");
 
     const now = new Date();
-    const expiresAt = new Date(now.getTime() + PLACES_TTL_DAYS * 86_400_000).toISOString();
     const candidate = candidateForUi({
       placeId: current.placeId,
       name: current.name,
@@ -113,6 +112,11 @@ export const saveAcquisitionProspect = createServerFn({ method: "POST" })
       category: data.category,
       fetchedAt: current.fetchedAt || now.toISOString(),
     });
+    const sourceTimestamp = new Date(candidate.sourceCheckedAt).getTime();
+    const expiresAt = new Date((Number.isFinite(sourceTimestamp) ? sourceTimestamp : now.getTime()) + PLACES_TTL_DAYS * 86_400_000).toISOString();
+    if (new Date(expiresAt).getTime() <= now.getTime()) {
+      throw new Error("The listing is too old to save. Search again to refresh its source data.");
+    }
 
     const { data: existing, error: existingError } = await db
       .from("jarvis_acquisition_prospects")
