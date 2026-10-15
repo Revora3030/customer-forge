@@ -147,10 +147,12 @@ export function validateJarvisWriteApproval(
   if (!proof || typeof proof !== "object") return denied("approval_proof_missing");
   if (proof.authenticated !== true) return denied("approval_authentication_required");
   if (proof.superAdmin !== true) return denied("approval_super_admin_required");
-  if (!proof.approvalId.trim()) return denied("approval_id_missing");
+  if (typeof proof.approvalId !== "string" || !proof.approvalId.trim()) return denied("approval_id_missing");
   if (proof.status !== "approved") return denied("approval_not_approved");
   if (proof.toolId !== requestedToolId) return denied("approval_tool_mismatch");
-  if (!/^[a-f0-9]{64}$/i.test(inputHash)) return denied("invalid_input_hash");
+  if (typeof requestedToolId !== "string" || !/^[a-z][a-z0-9_.-]{2,100}$/.test(requestedToolId))
+    return denied("invalid_tool_id");
+  if (typeof inputHash !== "string" || !/^[a-f0-9]{64}$/i.test(inputHash)) return denied("invalid_input_hash");
   if (!proof.requestedInputHash || !proof.approvedInputHash) return denied("approval_input_hash_missing");
   if (!/^[a-f0-9]{64}$/i.test(proof.requestedInputHash) || !/^[a-f0-9]{64}$/i.test(proof.approvedInputHash))
     return denied("invalid_approval_input_hash");
@@ -158,10 +160,12 @@ export function validateJarvisWriteApproval(
     return denied("requested_input_hash_mismatch");
   if (proof.approvedInputHash.toLowerCase() !== inputHash.toLowerCase())
     return denied("approved_input_hash_mismatch");
-  if (!proof.approverId || !proof.approvedBy || proof.approverId !== proof.approvedBy)
+  if (typeof proof.approverId !== "string" || typeof proof.approvedBy !== "string" ||
+      !proof.approverId || !proof.approvedBy || proof.approverId !== proof.approvedBy)
     return denied("approval_actor_mismatch");
   if (proof.consumedAt) return denied("approval_already_consumed");
-  if (!proof.approvedAt || !proof.expiresAt) return denied("approval_timestamps_missing");
+  if (typeof proof.approvedAt !== "string" || typeof proof.expiresAt !== "string" ||
+      !proof.approvedAt || !proof.expiresAt) return denied("approval_timestamps_missing");
   const approvedAt = Date.parse(proof.approvedAt);
   const expiresAt = Date.parse(proof.expiresAt);
   if (!Number.isFinite(approvedAt) || !Number.isFinite(expiresAt) || approvedAt > now)
