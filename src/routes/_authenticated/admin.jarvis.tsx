@@ -2,11 +2,12 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
+import { ArrowDown, Bot, Copy, Download, Mic, MicOff, RefreshCw, RotateCcw, Send, Trash2, Volume2, VolumeX } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { MessageResponse } from "@/components/ai-elements/message";
-import { clearJarvisHistory, getJarvisHistory, getJarvisDiagnostics, sendJarvisMessage } from "@/lib/jarvis.functions";
+import { clearJarvisHistory, getJarvisHistory, getJarvisDiagnostics, regenerateJarvisReply, sendJarvisMessage } from "@/lib/jarvis.functions";
 
 type Recognition = {
   lang: string; interimResults: boolean;
@@ -15,6 +16,7 @@ type Recognition = {
   start: () => void; stop: () => void;
 };
 type RecognitionConstructor = new () => Recognition;
+type Mode = "brief" | "balanced" | "deep";
 
 export const Route = createFileRoute("/_authenticated/admin/jarvis")({
   head: () => ({ meta: [{ title: "Jarvis mission control — Revora" }, { name: "robots", content: "noindex" }] }),
@@ -22,60 +24,118 @@ export const Route = createFileRoute("/_authenticated/admin/jarvis")({
 });
 
 const MAX_LENGTH = 4000;
+const DRAFT_KEY = "jarvis:draft";
+const MODE_KEY = "jarvis:mode";
+const MODES = [["brief", "Brief"], ["balanced", "Balanced"], ["deep", "Deep"]] as const;
+const SECTIONS = [["errors", "Errors"], ["builds", "Builds"], ["schema", "Schema"]] as const;
 
-const COMMAND_GROUPS = [
-  { group: "Diagnose", items: [
-    ["Daily briefing", "Give me a daily briefing: the top three priorities from the diagnostics, what looks fine, what is at risk, and the single most valuable action today. Label anything not checked."],
-    ["Platform errors", "Analyze observed error groups. Separate facts, hypotheses, and missing evidence."],
-    ["Builder health", "Analyze build and publish health. Do not guess the cause of stalled progress."],
-    ["SEO readiness", "Explain the HTTP and metadata checks and what still needs Search Console verification."],
-  ] },
-  { group: "Grow", items: [
-    ["Growth strategy", "Draft a weekly customer-acquisition plan from available figures. Label assumptions."],
-    ["Offer review", "Review my offer ($350 setup, first month free, then $100/month, 3-day trial) for conversion weaknesses and suggest A/B tests. Do not invent numbers."],
-    ["Outreach drafts", "Draft three short cold emails for Raleigh-area local service businesses offering the Revora website and CRM. No phone numbers, no invented results or reviews."],
-    ["Reel scripts", "Write five short-form reel scripts that promote Revora to local business owners. No invented testimonials or results."],
-  ] },
-  { group: "Build", items: [
-    ["Lovable fix prompt", "Turn the observed issues into one copy-paste Lovable prompt for my review. Only include fixes supported by the evidence."],
-  ] },
+const BRIEFING = "Give me a daily briefing: the top three priorities from the diagnostics, what looks fine, what is at risk, and the single most valuable action today. Label anything not checked.";
+const AUDIT = "Audit my homepage HTTP and metadata checks and give me the exact fixes in priority order. Say what is not proven.";
+const OFFER = "Review my offer ($350 setup, first month free, then $100/month, 3-day trial) for conversion weaknesses and suggest tests sized for low traffic. Do not invent numbers.";
+const OUTREACH = "Draft three short cold emails for Raleigh-area local service businesses offering the Revora website and CRM. No phone numbers, no invented results or reviews.";
+
+const COMMANDS = [
+  ["Daily briefing", BRIEFING],
+  ["Platform errors", "Analyze observed error groups. Separate facts, hypotheses, and missing evidence."],
+  ["Builder health", "Analyze build and publish health. Do not guess the cause of stalled progress."],
+  ["SEO readiness", "Explain the HTTP and metadata checks and what still needs Search Console verification."],
+  ["Site audit", AUDIT],
+  ["Growth strategy", "Draft a weekly customer-acquisition plan from available figures. Label assumptions."],
+  ["Offer review", OFFER],
+  ["Outreach drafts", OUTREACH],
+  ["Local SEO plan", "Build a 30-day local SEO plan for Revora targeting Raleigh and Chapel Hill service businesses. Use only steps I can verify and label assumptions."],
+  ["Reel scripts", "Write five short-form reel scripts that promote Revora to local business owners. No invented testimonials or results."],
+  ["Lovable fix prompt", "Turn the observed issues into one copy-paste Lovable prompt for my review. Only include fixes supported by the evidence."],
 ] as const;
+
+const STARTERS = [
+  ["Daily briefing", "What matters today, ranked by impact", BRIEFING],
+  ["Site audit", "Metadata, redirects, robots, sitemap", AUDIT],
+  ["Offer review", "Find conversion leaks in the $350 offer", OFFER],
+  ["Outreach drafts", "Three emails for Raleigh-area businesses", OUTREACH],
+] as const;
+
+const clock = (iso: string) => {
+  const date = new Date(iso);
+  return Number.isNaN(date.getTime()) ? "" : date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+};
+const dot = (status?: string) => status === "checked" ? "bg-emerald-500" : status === "unavailable" ? "bg-destructive" : "bg-muted-foreground/50";
 
 function Jarvis() {
   const qc = useQueryClient();
   const load = useServerFn(getJarvisHistory);
   const inspect = useServerFn(getJarvisDiagnostics);
   const send = useServerFn(sendJarvisMessage);
+  const redo = useServerFn(regenerateJarvisReply);
   const clear = useServerFn(clearJarvisHistory);
   const history = useQuery({ queryKey: ["jarvis", "history"], queryFn: () => load() });
-  const diagnostics = useQuery({ queryKey: ["jarvis", "diagnostics"], queryFn: () => inspect(), enabled: false, retry: false });
+  const diagnostics = useQuery({ queryKey: ["jarvis", "diagnostics"], queryFn: () => inspect(), staleTime: 60_000, retry: false });
   const [text, setText] = useState("");
+  const [mode, setMode] = useState<Mode>("balanced");
   const [pending, setPending] = useState<string | null>(null);
   const [followups, setFollowups] = useState<string[]>([]);
   const [voice, setVoice] = useState(false);
   const [listening, setListening] = useState(false);
+  const [atBottom, setAtBottom] = useState(true);
+  const [elapsed, setElapsed] = useState(0);
   const recognition = useRef<Recognition | null>(null);
   const end = useRef<HTMLDivElement>(null);
+  const scroller = useRef<HTMLDivElement>(null);
+  const input = useRef<HTMLTextAreaElement>(null);
+
+  const speak = (content: string) => {
+    if (!("speechSynthesis" in window)) { toast.error("Speech is unavailable in this browser."); return; }
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(new SpeechSynthesisUtterance(content.replace(/[#*_`>|]/g, " ").slice(0, 1500)));
+  };
+  const finish = async (result: { reply: string; diagnostics: unknown; followups?: string[] }) => {
+    qc.setQueryData(["jarvis", "diagnostics"], result.diagnostics);
+    setFollowups(result.followups ?? []);
+    await qc.invalidateQueries({ queryKey: ["jarvis", "history"] });
+    if (voice) speak(result.reply);
+  };
   const mutation = useMutation({
-    mutationFn: (message: string) => send({ data: { message } }),
-    onSuccess: async (result) => {
-      qc.setQueryData(["jarvis", "diagnostics"], result.diagnostics);
-      setFollowups(result.followups ?? []);
-      await qc.invalidateQueries({ queryKey: ["jarvis", "history"] });
-      if (voice && "speechSynthesis" in window) {
-        window.speechSynthesis.cancel();
-        window.speechSynthesis.speak(new SpeechSynthesisUtterance(result.reply.replace(/[#*_`>|]/g, " ").slice(0, 1500)));
-      }
-    },
+    mutationFn: (message: string) => send({ data: { message, mode } }),
+    onSuccess: finish,
     onError: (error: Error, message: string) => { toast.error(error.message); setText((current) => current || message); },
     onSettled: () => setPending(null),
+  });
+  const regen = useMutation({
+    mutationFn: () => redo({ data: { mode } }),
+    onSuccess: finish,
+    onError: (error: Error) => toast.error(error.message),
   });
   const clearing = useMutation({
     mutationFn: () => clear(),
     onSuccess: () => { setFollowups([]); return qc.invalidateQueries({ queryKey: ["jarvis", "history"] }); },
     onError: (error: Error) => toast.error(error.message),
   });
-  useEffect(() => { end.current?.scrollIntoView({ block: "end" }); }, [history.data?.length, mutation.isPending, pending, followups.length]);
+  const busy = mutation.isPending || regen.isPending;
+  const messages = history.data ?? [];
+  const lastMessage = messages[messages.length - 1];
+  const lastAssistantId = lastMessage?.role === "assistant" ? lastMessage.id : null;
+  const empty = !history.isLoading && !history.error && messages.length === 0 && !pending;
+  const stage = elapsed < 3 ? "Collecting diagnostics" : elapsed < 8 ? "Checking the live site" : "Thinking it through";
+
+  useEffect(() => {
+    try {
+      const draft = localStorage.getItem(DRAFT_KEY);
+      if (draft) setText(draft.slice(0, MAX_LENGTH));
+      const saved = localStorage.getItem(MODE_KEY);
+      if (saved === "brief" || saved === "balanced" || saved === "deep") setMode(saved);
+    } catch { /* storage unavailable */ }
+  }, []);
+  useEffect(() => {
+    try { if (text) localStorage.setItem(DRAFT_KEY, text); else localStorage.removeItem(DRAFT_KEY); } catch { /* storage unavailable */ }
+    const el = input.current;
+    if (el) { el.style.height = "auto"; el.style.height = `${Math.min(el.scrollHeight, 160)}px`; }
+  }, [text]);
+  useEffect(() => {
+    if (!busy) { setElapsed(0); return; }
+    const timer = setInterval(() => setElapsed((value) => value + 1), 1000);
+    return () => clearInterval(timer);
+  }, [busy]);
+  useEffect(() => { if (atBottom) end.current?.scrollIntoView({ block: "end" }); }, [history.data?.length, busy, pending, followups.length, atBottom]);
   useEffect(() => () => {
     if (recognition.current) {
       recognition.current.onresult = null;
@@ -85,17 +145,37 @@ function Jarvis() {
     }
     if ("speechSynthesis" in window) window.speechSynthesis.cancel();
   }, []);
+
+  const onScroll = () => {
+    const el = scroller.current;
+    if (el) setAtBottom(el.scrollHeight - el.scrollTop - el.clientHeight < 80);
+  };
+  const chooseMode = (value: Mode) => {
+    setMode(value);
+    try { localStorage.setItem(MODE_KEY, value); } catch { /* storage unavailable */ }
+  };
   const submit = (message = text) => {
     const clean = message.trim();
-    if (!clean || mutation.isPending) return;
+    if (!clean || busy) return;
     recognition.current?.stop();
     setText("");
     setFollowups([]);
+    setAtBottom(true);
     setPending(clean);
     mutation.mutate(clean);
   };
   const copy = async (content: string) => {
     try { await navigator.clipboard.writeText(content); toast.success("Copied."); } catch { toast.error("Copy failed."); }
+  };
+  const exportChat = () => {
+    if (!messages.length) { toast.error("Nothing to export yet."); return; }
+    const markdown = messages.map((message) => `### ${message.role === "user" ? "You" : "Jarvis"} · ${new Date(message.created_at).toLocaleString()}\n\n${message.content}`).join("\n\n---\n\n");
+    const url = URL.createObjectURL(new Blob([markdown], { type: "text/markdown" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `jarvis-${new Date().toISOString().slice(0, 10)}.md`;
+    link.click();
+    URL.revokeObjectURL(url);
   };
   const toggleMic = () => {
     if (listening) { recognition.current?.stop(); return; }
@@ -110,63 +190,118 @@ function Jarvis() {
     recognition.current = rec;
     try { rec.start(); setListening(true); } catch { setListening(false); toast.error("Microphone could not start."); }
   };
-  const messages = history.data ?? [];
-  const empty = !history.isLoading && !history.error && messages.length === 0 && !pending;
+
   return (
-    <div className="product-page flex min-h-[70dvh] flex-col gap-4">
-      <header className="flex flex-wrap items-center justify-between gap-3">
-        <div><h1 className="text-2xl font-semibold">Jarvis mission control</h1><p className="text-sm text-muted-foreground">Read-only diagnostics and free-only AI advice. No automatic repairs.</p></div>
-        <div className="flex flex-wrap gap-2">
-          <Button variant="outline" disabled={diagnostics.isFetching} onClick={() => { void diagnostics.refetch(); }}>Refresh diagnostics</Button>
-          <Button variant="outline" aria-pressed={voice} onClick={() => { setVoice(!voice); window.speechSynthesis?.cancel(); }}>{voice ? "Mute replies" : "Speak replies"}</Button>
-          <Button variant="outline" disabled={clearing.isPending || mutation.isPending} onClick={() => { if (window.confirm("Clear your Jarvis history?")) clearing.mutate(); }}>Clear my chat</Button>
+    <div className="product-page flex min-h-[70dvh] flex-col gap-3">
+      <header className="flex items-center justify-between gap-2">
+        <div className="flex min-w-0 items-center gap-3">
+          <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary"><Bot className="size-5" aria-hidden /></span>
+          <div className="min-w-0">
+            <h1 className="truncate text-xl font-semibold leading-tight">Jarvis</h1>
+            <p className="truncate text-xs text-muted-foreground">Mission control · read-only · free AI · no auto repairs</p>
+          </div>
+        </div>
+        <div className="flex shrink-0 gap-1">
+          <Button type="button" variant="ghost" size="icon" aria-label="Refresh diagnostics" title="Refresh diagnostics" disabled={diagnostics.isFetching} onClick={() => { void diagnostics.refetch(); }}><RefreshCw className={`size-4 ${diagnostics.isFetching ? "animate-spin" : ""}`} /></Button>
+          <Button type="button" variant="ghost" size="icon" aria-label={voice ? "Mute replies" : "Speak replies"} aria-pressed={voice} title={voice ? "Mute replies" : "Speak replies"} onClick={() => { setVoice(!voice); window.speechSynthesis?.cancel(); }}>{voice ? <Volume2 className="size-4" /> : <VolumeX className="size-4" />}</Button>
+          <Button type="button" variant="ghost" size="icon" aria-label="Export chat" title="Export chat as Markdown" onClick={exportChat}><Download className="size-4" /></Button>
+          <Button type="button" variant="ghost" size="icon" aria-label="Clear my chat" title="Clear my chat" disabled={clearing.isPending || busy} onClick={() => { if (window.confirm("Clear your Jarvis history?")) clearing.mutate(); }}><Trash2 className="size-4" /></Button>
         </div>
       </header>
-      <section aria-label="Diagnostic status" className="grid gap-3 sm:grid-cols-3">
-        {["errors", "builds", "schema"].map((name) => {
-          const section = diagnostics.data?.sections[name];
-          return <div key={name} className="rounded-lg border border-border bg-card p-3"><h2 className="font-medium capitalize">{name}</h2><p className="text-sm">{section?.status ?? "not checked"}</p><p className="text-xs text-muted-foreground">{section?.note ?? "Run diagnostics to collect evidence."}</p></div>;
-        })}
-      </section>
-      <p className="text-xs text-muted-foreground">Snapshot: {diagnostics.data?.checkedAt ?? "not collected"}. “Checked” means the query ran—not that the subsystem is healthy.</p>
-      {diagnostics.error ? <p role="alert">Diagnostics unavailable. No healthy verdict can be inferred.</p> : null}
-      <div className="flex flex-col gap-2">
-        {COMMAND_GROUPS.map((section) => (
-          <div key={section.group} className="flex flex-wrap items-center gap-2">
-            <span className="w-16 text-xs font-medium uppercase tracking-wide text-muted-foreground">{section.group}</span>
-            {section.items.map(([label, prompt]) => <Button key={label} variant="outline" size="sm" disabled={mutation.isPending} onClick={() => submit(prompt)}>{label}</Button>)}
-          </div>
+
+      <details className="rounded-xl border border-border bg-card">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-2 text-sm">
+          <span className="flex flex-wrap items-center gap-x-4 gap-y-1">
+            {SECTIONS.map(([name, label]) => (
+              <span key={name} className="flex items-center gap-1.5"><span className={`size-2 rounded-full ${dot(diagnostics.data?.sections[name]?.status)}`} />{label}</span>
+            ))}
+          </span>
+          <span className="text-xs text-muted-foreground">{diagnostics.isFetching ? "Checking…" : "Details"}</span>
+        </summary>
+        <div className="space-y-3 border-t border-border p-3 text-sm">
+          {SECTIONS.map(([name, label]) => {
+            const section = diagnostics.data?.sections[name];
+            const reason = section && section.status === "unavailable" ? section.reason : undefined;
+            return (
+              <div key={name}>
+                <p className="font-medium">{label} · {section?.status ?? "not checked"}</p>
+                <p className="text-xs text-muted-foreground">{section?.note ?? "Run diagnostics to collect evidence."}</p>
+                {reason ? <p className="break-words text-xs text-destructive">Reason: {reason}</p> : null}
+              </div>
+            );
+          })}
+          <p className="text-xs text-muted-foreground">Snapshot: {diagnostics.data?.checkedAt ?? "not collected"}. “Checked” means the query ran—not that the subsystem is healthy.</p>
+          {diagnostics.error ? <p role="alert" className="text-xs text-destructive">Diagnostics unavailable. No healthy verdict can be inferred.</p> : null}
+          {diagnostics.data ? <details className="rounded-lg border border-border p-2"><summary className="cursor-pointer text-xs">Inspect bounded diagnostic evidence</summary><pre className="mt-2 max-h-80 overflow-auto whitespace-pre-wrap break-words text-xs">{JSON.stringify(diagnostics.data, null, 2)}</pre></details> : null}
+        </div>
+      </details>
+
+      <div className="inline-flex w-fit rounded-full border border-border p-0.5" role="radiogroup" aria-label="Response style">
+        {MODES.map(([value, label]) => (
+          <button key={value} type="button" role="radio" aria-checked={mode === value} onClick={() => chooseMode(value)} className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${mode === value ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}>{label}</button>
         ))}
       </div>
-      {diagnostics.data ? <details className="rounded-lg border border-border p-3"><summary className="cursor-pointer">Inspect bounded diagnostic evidence</summary><pre className="mt-3 max-h-80 overflow-auto whitespace-pre-wrap break-words text-xs">{JSON.stringify(diagnostics.data, null, 2)}</pre></details> : null}
-      <section aria-label="Jarvis conversation" aria-live="polite" className="min-h-64 max-h-[55dvh] flex-1 space-y-4 overflow-y-auto rounded-lg border border-border bg-card p-4">
-        {history.isLoading ? <p>Loading your conversation…</p> : null}
-        {history.error ? <p role="alert">Your conversation could not be loaded.</p> : null}
-        {empty ? <div className="space-y-1 py-6 text-center"><p className="text-lg font-medium">What are we working on?</p><p className="text-sm text-muted-foreground">Ask for a briefing, a strategy, copy, a Lovable prompt, or a second opinion. Pick a command above or just type.</p></div> : null}
-        {messages.map((message) => (
-          <article key={message.id} className="min-w-0">
-            <div className="mb-1 flex items-center justify-between gap-2">
-              <p className="text-xs text-muted-foreground">{message.role === "user" ? "You" : "Jarvis"}</p>
-              {message.role === "assistant" ? <Button type="button" variant="ghost" size="sm" onClick={() => { void copy(message.content); }}>Copy</Button> : null}
+      <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1" aria-label="Quick commands">
+        {COMMANDS.map(([label, prompt]) => <Button key={label} type="button" variant="outline" size="sm" className="shrink-0 rounded-full" disabled={busy} onClick={() => submit(prompt)}>{label}</Button>)}
+      </div>
+
+      <div className="relative">
+        <div ref={scroller} onScroll={onScroll} role="log" aria-label="Jarvis conversation" aria-live="polite" className="min-h-[40dvh] max-h-[60dvh] space-y-5 overflow-y-auto rounded-2xl border border-border bg-card p-3 sm:p-4">
+          {history.isLoading ? <p className="text-sm text-muted-foreground">Loading your conversation…</p> : null}
+          {history.error ? <p role="alert" className="text-sm text-destructive">Your conversation could not be loaded.</p> : null}
+          {empty ? (
+            <div className="space-y-4 py-4">
+              <div className="space-y-1 text-center"><p className="text-lg font-medium">What are we working on?</p><p className="text-sm text-muted-foreground">Briefings, strategy, copy, Lovable prompts, code, second opinions.</p></div>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {STARTERS.map(([label, hint, prompt]) => (
+                  <button key={label} type="button" disabled={busy} onClick={() => submit(prompt)} className="rounded-xl border border-border p-3 text-left transition-colors hover:bg-muted disabled:opacity-50"><span className="block text-sm font-medium">{label}</span><span className="block text-xs text-muted-foreground">{hint}</span></button>
+                ))}
+              </div>
             </div>
-            <MessageResponse>{message.content}</MessageResponse>
-          </article>
-        ))}
-        {pending ? <article className="min-w-0"><p className="mb-1 text-xs text-muted-foreground">You</p><MessageResponse>{pending}</MessageResponse></article> : null}
-        {mutation.isPending ? <p className="text-sm text-muted-foreground">Collecting diagnostics and asking the free AI team…</p> : null}
-        {followups.length > 0 && !mutation.isPending ? <div className="flex flex-wrap gap-2">{followups.map((item) => <Button key={item} type="button" variant="secondary" size="sm" onClick={() => submit(item)}>{item}</Button>)}</div> : null}
-        <div ref={end} />
-      </section>
-      <form className="flex flex-wrap items-end gap-2" onSubmit={(event) => { event.preventDefault(); submit(); }}>
-        <label htmlFor="jarvis-message" className="sr-only">Message Jarvis</label>
-        <Textarea
-          id="jarvis-message" value={text} maxLength={MAX_LENGTH} onChange={(event) => setText(event.target.value)}
-          onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); submit(); } }}
-          className="min-w-0 flex-1" rows={3} placeholder="Ask anything: errors, strategy, copy, prompts, code, decisions…"
-        />
-        <Button type="button" variant="outline" aria-pressed={listening} disabled={mutation.isPending} onClick={toggleMic}>{listening ? "Stop microphone" : "Dictate"}</Button>
-        <Button type="submit" disabled={!text.trim() || mutation.isPending}>Send</Button>
-        <p className="w-full text-right text-xs text-muted-foreground">{text.length}/{MAX_LENGTH} · Enter to send, Shift+Enter for a new line</p>
+          ) : null}
+          {messages.map((message) => message.role === "user" ? (
+            <article key={message.id} className="flex min-w-0 flex-col items-end gap-1">
+              <div className="max-w-[88%] rounded-2xl rounded-br-md bg-primary px-3 py-2 text-primary-foreground"><p className="whitespace-pre-wrap break-words text-sm">{message.content}</p></div>
+              <span className="text-[11px] text-muted-foreground">{clock(message.created_at)}</span>
+            </article>
+          ) : (
+            <article key={message.id} className={`flex min-w-0 gap-2 ${regen.isPending && message.id === lastAssistantId ? "opacity-50" : ""}`}>
+              <span className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary"><Bot className="size-4" aria-hidden /></span>
+              <div className="min-w-0 flex-1">
+                <div className="text-sm"><MessageResponse>{message.content}</MessageResponse></div>
+                <div className="mt-1 flex flex-wrap items-center gap-1 text-muted-foreground">
+                  <span className="mr-1 text-[11px]">{clock(message.created_at)}</span>
+                  <Button type="button" variant="ghost" size="sm" className="h-7 gap-1 px-2 text-xs" onClick={() => { void copy(message.content); }}><Copy className="size-3.5" />Copy</Button>
+                  <Button type="button" variant="ghost" size="sm" className="h-7 gap-1 px-2 text-xs" onClick={() => speak(message.content)}><Volume2 className="size-3.5" />Listen</Button>
+                  {message.id === lastAssistantId ? <Button type="button" variant="ghost" size="sm" className="h-7 gap-1 px-2 text-xs" disabled={busy} onClick={() => regen.mutate()}><RotateCcw className="size-3.5" />Regenerate</Button> : null}
+                </div>
+              </div>
+            </article>
+          ))}
+          {pending ? (
+            <article className="flex min-w-0 flex-col items-end gap-1"><div className="max-w-[88%] rounded-2xl rounded-br-md bg-primary px-3 py-2 text-primary-foreground"><p className="whitespace-pre-wrap break-words text-sm">{pending}</p></div></article>
+          ) : null}
+          {busy ? <div role="status" className="flex items-center gap-2 text-sm text-muted-foreground"><Bot className="size-4 animate-pulse" aria-hidden /><span>{stage}… {elapsed}s</span></div> : null}
+          {followups.length > 0 && !busy ? <div className="flex flex-wrap gap-2 pl-9">{followups.map((item) => <Button key={item} type="button" variant="secondary" size="sm" className="h-auto whitespace-normal rounded-full py-1.5 text-left" onClick={() => submit(item)}>{item}</Button>)}</div> : null}
+          <div ref={end} />
+        </div>
+        {!atBottom ? <Button type="button" variant="secondary" size="icon" aria-label="Jump to latest" className="absolute bottom-3 right-3 rounded-full shadow" onClick={() => { setAtBottom(true); end.current?.scrollIntoView({ block: "end", behavior: "smooth" }); }}><ArrowDown className="size-4" /></Button> : null}
+      </div>
+
+      <form className="sticky bottom-0 z-10 -mx-1 bg-background/95 px-1 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 backdrop-blur" onSubmit={(event) => { event.preventDefault(); submit(); }}>
+        <div className="flex items-end gap-2 rounded-2xl border border-border bg-card p-2">
+          <label htmlFor="jarvis-message" className="sr-only">Message Jarvis</label>
+          <Textarea
+            id="jarvis-message" ref={input} value={text} maxLength={MAX_LENGTH} rows={1}
+            onChange={(event) => setText(event.target.value)}
+            onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); submit(); } }}
+            className="max-h-40 min-h-[44px] min-w-0 flex-1 resize-none border-0 bg-transparent shadow-none focus-visible:ring-0"
+            placeholder="Ask anything: errors, strategy, copy, prompts, code…"
+          />
+          <Button type="button" variant="ghost" size="icon" aria-label={listening ? "Stop microphone" : "Dictate"} aria-pressed={listening} disabled={busy} onClick={toggleMic} className={listening ? "animate-pulse text-destructive" : ""}>{listening ? <MicOff className="size-4" /> : <Mic className="size-4" />}</Button>
+          <Button type="submit" size="icon" aria-label="Send" disabled={!text.trim() || busy}><Send className="size-4" /></Button>
+        </div>
+        <p className="mt-1 text-right text-[11px] text-muted-foreground">{text.length > 3000 ? `${text.length}/${MAX_LENGTH} · ` : ""}Enter to send · Shift+Enter for a new line</p>
       </form>
     </div>
   );

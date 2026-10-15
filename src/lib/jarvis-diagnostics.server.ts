@@ -31,7 +31,7 @@ export type SchemaDiagnostics = {
 export type DiagnosticData = ErrorDiagnostics | BuildDiagnostics | SchemaDiagnostics;
 export type DiagnosticSection<T = DiagnosticData> =
   | { status: "checked"; note: string; data: T }
-  | { status: "unavailable"; note: string; data: null };
+  | { status: "unavailable"; note: string; reason?: string; data: null };
 
 export type JarvisDiagnostics = {
   checkedAt: string;
@@ -57,9 +57,23 @@ const CONTRACTS = {
   lead_delivery_logs: ["idempotency_key", "webhook_url", "status_code", "response_body"],
 } as const;
 
+function describeFailure(error: unknown): string {
+  const record = error as { code?: unknown; message?: unknown } | null;
+  const code = typeof record?.code === "string" ? record.code : null;
+  const message = redactDiagnosticText(record?.message ?? error, 300);
+  return code ? `${code}: ${message}` : message;
+}
+
 async function checked<T>(work: () => Promise<T>, note: string): Promise<DiagnosticSection<T>> {
   try { return { status: "checked", note, data: await work() }; }
-  catch { return { status: "unavailable", note: "Check failed; no healthy verdict can be inferred.", data: null }; }
+  catch (error) {
+    return {
+      status: "unavailable",
+      note: "Check failed; no healthy verdict can be inferred.",
+      reason: describeFailure(error),
+      data: null,
+    };
+  }
 }
 
 export async function collectJarvisDiagnostics(db: SupabaseClient): Promise<JarvisDiagnostics> {
@@ -98,7 +112,10 @@ export async function collectJarvisDiagnostics(db: SupabaseClient): Promise<Jarv
         db.from("publish_events").select("smoke_status").gte("created_at", since).limit(5000),
         db.from("image_records").select("status,source").gte("updated_at", since).limit(10000),
       ]);
-      if (jobs.error || publishes.error || images.error) throw new Error("Build health unavailable");
+      const failures = ([["generation_jobs", jobs.error], ["publish_events", publishes.error], ["image_records", images.error]] as const)
+        .filter(([, failure]) => Boolean(failure))
+        .map(([name, failure]) => `${name} ${failure?.code ?? "error"}: ${failure?.message ?? "query failed"}`);
+      if (failures.length) throw new Error(failures.join("; "));
       const { summariseBuilds, summarisePublishes, summariseImages, buildAlerts } = await import("./build-monitoring");
       const raw = summariseBuilds((jobs.data ?? []) as never);
       const builds = {
