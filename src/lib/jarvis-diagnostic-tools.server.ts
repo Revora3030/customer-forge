@@ -10,6 +10,14 @@ const GITHUB_BRANCH = "lovable-sync";
 
 export type JarvisToolEvidenceStatus = "observed" | "failed" | "unknown" | "needs_verification";
 
+export type JarvisSerializableValue =
+  | string
+  | number
+  | boolean
+  | null
+  | JarvisSerializableValue[]
+  | { [key: string]: JarvisSerializableValue };
+
 export type JarvisDiagnosticToolResult = {
   toolId: JarvisDiagnosticToolId;
   title: string;
@@ -17,7 +25,7 @@ export type JarvisDiagnosticToolResult = {
   checkedAt: string;
   durationMs: number;
   evidence: string;
-  data: unknown;
+  data: JarvisSerializableValue | { truncated: true; redactedPreview: string };
   limitations: string[];
 };
 
@@ -30,13 +38,26 @@ function safeProviderFailure(reason: string | null) {
   return "provider_error";
 }
 
-function bounded<T>(value: T, maxBytes: number): T | { truncated: true; redactedPreview: string } {
-  const serialized = JSON.stringify(value ?? null);
-  if (new TextEncoder().encode(serialized).byteLength <= maxBytes) return value;
-  return {
-    truncated: true,
-    redactedPreview: redactJarvisSummary(serialized, Math.min(9000, maxBytes - 500)),
-  };
+function bounded(value: unknown, maxBytes: number): JarvisDiagnosticToolResult["data"] {
+  let serialized: string;
+  try {
+    serialized = JSON.stringify(value ?? null);
+  } catch {
+    return { truncated: true, redactedPreview: "[UNSERIALIZABLE_DIAGNOSTIC_OUTPUT]" };
+  }
+  if (new TextEncoder().encode(serialized).byteLength > maxBytes) {
+    return {
+      truncated: true,
+      redactedPreview: redactJarvisSummary(serialized, Math.min(9000, Math.max(0, maxBytes - 500))),
+    };
+  }
+  try {
+    // JSON round-tripping converts the value to the exact serializable data
+    // contract expected by TanStack server functions; no class instances leak.
+    return JSON.parse(serialized) as JarvisSerializableValue;
+  } catch {
+    return { truncated: true, redactedPreview: "[INVALID_JSON_DIAGNOSTIC_OUTPUT]" };
+  }
 }
 
 function result(
