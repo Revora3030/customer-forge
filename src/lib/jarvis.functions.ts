@@ -133,7 +133,7 @@ function splitFollowups(raw: string): { body: string; followups: string[] } {
   let followups: string[] = [];
   if (match) {
     try {
-      const parsed: unknown = JSON.parse(match[1]);
+      const parsed: unknown = JSON.parse(match[1] ?? "");
       if (Array.isArray(parsed)) {
         followups = parsed
           .filter((item): item is string => typeof item === "string")
@@ -237,4 +237,104 @@ export const regenerateJarvisReply = createServerFn({ method: "POST" })
       if (removed.error) throw new Error("Couldn't replace the last reply.");
     }
     return runJarvis(db, userId, data.mode);
+  });
+
+
+/** Configuration-only connector status. Credential names and values are never returned. */
+export const getJarvisAccessSnapshot = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    await guardedAdmin(context);
+    const { providerSnapshots } = await import("./integrations/registry.server");
+    return {
+      checkedAt: new Date().toISOString(),
+      evidence: "configuration_snapshot_not_live_health_check" as const,
+      providers: providerSnapshots().map((provider) => ({
+        id: provider.id,
+        label: provider.label,
+        scope: provider.scope,
+        cost: provider.cost,
+        implemented: provider.implemented,
+        status: provider.status,
+        runtimeVerifiedInThisProcess: provider.runtimeVerified,
+        lastSuccessAt: provider.lastSuccessAt,
+        permission: provider.permission,
+        missingCredentialCount: provider.missing.length,
+      })),
+    };
+  });
+
+/** Returns only the fixed read-only tool catalogue; it cannot grant permissions. */
+export const getJarvisDiagnosticTools = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    await guardedAdmin(context);
+    const { getJarvisDiagnosticToolCatalog } = await import("./jarvis-tool-registry");
+    return getJarvisDiagnosticToolCatalog();
+  });
+
+/** A caller can select a tool ID only; tool-specific arguments are not accepted. */
+export const runJarvisDiagnosticTool = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((input: { toolId: string }) => {
+    if (typeof input?.toolId !== "string" || input.toolId.length > 120) {
+      throw new Error("Choose a registered Jarvis diagnostic tool.");
+    }
+    return { toolId: input.toolId };
+  })
+  .handler(async ({ context, data }) => {
+    const db = await guardedAdmin(context);
+    const { executeJarvisDiagnosticTool } = await import("./jarvis-diagnostic-tools.server");
+    return executeJarvisDiagnosticTool(db, data.toolId);
+  });
+
+
+/** Read-only inspection of the durable fail-closed control row. */
+export const getJarvisAutopilotStatus = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const db = await guardedAdmin(context);
+    const checkedAt = new Date().toISOString();
+    try {
+      const response = await db.from("jarvis_autopilot_settings")
+        .select("enabled,kill_switch_engaged,max_actions_per_run,max_run_duration_seconds,updated_at")
+        .eq("id", true)
+        .maybeSingle();
+      if (response.error || !response.data) {
+        return {
+          checkedAt,
+          status: "unavailable" as const,
+          enabled: false,
+          killSwitchEngaged: true,
+          maxActionsPerRun: null,
+          maxRunDurationSeconds: null,
+          updatedAt: null,
+          note: "Safety settings could not be verified. Treat autopilot as disabled and the kill switch as engaged.",
+          writeExecutorsAvailable: false,
+        };
+      }
+      return {
+        checkedAt,
+        status: "configured" as const,
+        enabled: response.data.enabled === true,
+        killSwitchEngaged: response.data.kill_switch_engaged !== false,
+        maxActionsPerRun: Number.isInteger(response.data.max_actions_per_run) ? response.data.max_actions_per_run : null,
+        maxRunDurationSeconds: Number.isInteger(response.data.max_run_duration_seconds) ? response.data.max_run_duration_seconds : null,
+        updatedAt: response.data.updated_at ?? null,
+        note: "This is a read-only settings snapshot. The diagnostic toolbench has no mutating executors.",
+        writeExecutorsAvailable: false,
+      };
+    } catch {
+      return {
+        checkedAt,
+        status: "unavailable" as const,
+        enabled: false,
+        killSwitchEngaged: true,
+        maxActionsPerRun: null,
+        maxRunDurationSeconds: null,
+        updatedAt: null,
+        note: "Safety settings could not be verified. Treat autopilot as disabled and the kill switch as engaged.",
+        writeExecutorsAvailable: false,
+      };
+    }
   });
