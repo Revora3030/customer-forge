@@ -2,13 +2,17 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
-import { ArrowDown, Ban, Bot, Copy, Download, Megaphone, Mic, MicOff, RefreshCw, RotateCcw, Send, Trash2, Volume2, VolumeX } from "lucide-react";
+import { ArrowDown, Ban, Bot, Copy, Download, ExternalLink, Globe, MapPin, Megaphone, Mic, MicOff, RefreshCw, RotateCcw, Search, Send, Sparkles, Trash2, Volume2, VolumeX } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { MessageResponse } from "@/components/ai-elements/message";
 import { clearJarvisHistory, getJarvisHistory, getJarvisDiagnostics, regenerateJarvisReply, sendJarvisMessage } from "@/lib/jarvis.functions";
 import { draftProspectOutreach, type ProspectDraft } from "@/lib/jarvis-prospecting.functions";
+import { generateAcquisitionSitePreview, listAcquisitionPipeline, saveAcquisitionProspect, searchAcquisitionCandidates } from "@/lib/jarvis-acquisition-studio.functions";
+import type { AcquisitionCandidate } from "@/lib/jarvis-acquisition-studio";
 
 type Recognition = {
   lang: string; interimResults: boolean;
@@ -19,6 +23,8 @@ type Recognition = {
 type RecognitionConstructor = new () => Recognition;
 type Mode = "brief" | "balanced" | "deep";
 type ProspectLine = { name: string; website: string; city: string; email: string };
+type DiscoveryInput = { category: string; city: string; state: string };
+type SaveCandidateInput = { candidate: AcquisitionCandidate; city: string; state: string };
 
 export const Route = createFileRoute("/_authenticated/admin/jarvis")({
   head: () => ({ meta: [{ title: "Jarvis mission control — Revora" }, { name: "robots", content: "noindex" }] }),
@@ -91,8 +97,13 @@ function Jarvis() {
   const redo = useServerFn(regenerateJarvisReply);
   const clear = useServerFn(clearJarvisHistory);
   const draftFn = useServerFn(draftProspectOutreach);
+  const discoverFn = useServerFn(searchAcquisitionCandidates);
+  const saveCandidateFn = useServerFn(saveAcquisitionProspect);
+  const pipelineFn = useServerFn(listAcquisitionPipeline);
+  const generateSiteFn = useServerFn(generateAcquisitionSitePreview);
   const history = useQuery({ queryKey: ["jarvis", "history"], queryFn: () => load() });
   const diagnostics = useQuery({ queryKey: ["jarvis", "diagnostics"], queryFn: () => inspect(), staleTime: 60_000, retry: false });
+  const acquisitionPipeline = useQuery({ queryKey: ["jarvis", "acquisition-pipeline"], queryFn: () => pipelineFn(), staleTime: 30_000, retry: false });
   const [text, setText] = useState("");
   const [mode, setMode] = useState<Mode>("balanced");
   const [pending, setPending] = useState<string | null>(null);
@@ -102,6 +113,12 @@ function Jarvis() {
   const [atBottom, setAtBottom] = useState(true);
   const [elapsed, setElapsed] = useState(0);
   const [prospectText, setProspectText] = useState("");
+  const [discoveryCategory, setDiscoveryCategory] = useState("pressure washing");
+  const [discoveryCity, setDiscoveryCity] = useState("Raleigh");
+  const [discoveryState, setDiscoveryState] = useState("North Carolina");
+  const [discoveryResults, setDiscoveryResults] = useState<AcquisitionCandidate[]>([]);
+  const [discoveryQuery, setDiscoveryQuery] = useState<string | null>(null);
+  const [generatedAcquisitionPreview, setGeneratedAcquisitionPreview] = useState<{ title: string; previewPath: string; expiresAt: string; notice: string } | null>(null);
   const [drafts, setDrafts] = useState<ProspectDraft[]>([]);
   const [edits, setEdits] = useState<Record<number, string>>({});
   const [dnc, setDnc] = useState<string[]>([]);
@@ -137,6 +154,21 @@ function Jarvis() {
     mutationFn: () => clear(),
     onSuccess: () => { setFollowups([]); return qc.invalidateQueries({ queryKey: ["jarvis", "history"] }); },
     onError: (error: Error) => toast.error(error.message),
+  });
+  const acquisitionSearch = useMutation({
+    mutationFn: (input: DiscoveryInput) => discoverFn({ data: input }),
+    onSuccess: (result) => { setDiscoveryResults(result.candidates); setDiscoveryQuery(result.query); if (!result.candidates.length) toast.message("No suitable listings returned. Try a nearby city or a different category."); },
+    onError: (error: Error) => toast.error(error.message || "Business discovery failed."),
+  });
+  const acquisitionSave = useMutation({
+    mutationFn: ({ candidate, city, state }: SaveCandidateInput) => saveCandidateFn({ data: { placeId: candidate.placeId, category: candidate.category, city, state } }),
+    onSuccess: async (result) => { toast.success(result.alreadySaved ? "Listing refreshed in the acquisition pipeline." : "Business saved to the acquisition pipeline."); await qc.invalidateQueries({ queryKey: ["jarvis", "acquisition-pipeline"] }); },
+    onError: (error: Error) => toast.error(error.message || "Could not save this business."),
+  });
+  const acquisitionGenerate = useMutation({
+    mutationFn: (prospectId: string) => generateSiteFn({ data: { prospectId, confirmation: "GENERATE SITE PREVIEW" } }),
+    onSuccess: async (result) => { setGeneratedAcquisitionPreview({ title: result.title, previewPath: result.previewPath, expiresAt: result.expiresAt, notice: result.notice }); toast.success("The concept passed safety validation and a private preview was created."); await qc.invalidateQueries({ queryKey: ["jarvis", "acquisition-pipeline"] }); },
+    onError: (error: Error) => toast.error(error.message || "Site concept could not be generated."),
   });
   const prospecting = useMutation({
     mutationFn: (prospects: ProspectLine[]) => draftFn({ data: { prospects, suppress: dnc } }),
@@ -284,6 +316,94 @@ function Jarvis() {
           {diagnostics.data ? <details className="rounded-lg border border-border p-2"><summary className="cursor-pointer text-xs">Inspect bounded diagnostic evidence</summary><pre className="mt-2 max-h-80 overflow-auto whitespace-pre-wrap break-words text-xs">{JSON.stringify(diagnostics.data, null, 2)}</pre></details> : null}
         </div>
       </details>
+
+      <section aria-label="Jarvis acquisition studio" className="space-y-4 rounded-xl border border-border bg-card p-3 sm:p-4">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="max-w-2xl">
+            <div className="flex items-center gap-2"><Sparkles className="size-5 text-primary" aria-hidden /><h2 className="text-base font-semibold">Acquisition studio</h2></div>
+            <p className="mt-1 text-xs leading-relaxed text-muted-foreground">Discover local businesses, save listing identifiers, build real AI-authored website concepts, run structural/factual safety checks, and share a private preview. No automated outreach, charges, or production publishing.</p>
+          </div>
+          <Button type="button" variant="outline" size="sm" disabled={acquisitionPipeline.isFetching} onClick={() => { void acquisitionPipeline.refetch(); }}><RefreshCw className={"mr-2 size-3.5 " + (acquisitionPipeline.isFetching ? "animate-spin" : "")} />Refresh pipeline</Button>
+        </div>
+
+        <div className="grid gap-3 rounded-lg border border-border p-3 sm:grid-cols-3">
+          <div className="space-y-1.5"><Label htmlFor="acquisition-category">Business type</Label><Input id="acquisition-category" value={discoveryCategory} maxLength={90} onChange={(event) => setDiscoveryCategory(event.target.value)} placeholder="Pressure washing" /></div>
+          <div className="space-y-1.5"><Label htmlFor="acquisition-city">City</Label><Input id="acquisition-city" value={discoveryCity} maxLength={80} onChange={(event) => setDiscoveryCity(event.target.value)} placeholder="Raleigh" /></div>
+          <div className="space-y-1.5"><Label htmlFor="acquisition-state">State or region</Label><Input id="acquisition-state" value={discoveryState} maxLength={80} onChange={(event) => setDiscoveryState(event.target.value)} placeholder="North Carolina" /></div>
+          <div className="sm:col-span-3 flex flex-wrap items-center gap-2">
+            <Button type="button" disabled={acquisitionSearch.isPending} onClick={() => { setGeneratedAcquisitionPreview(null); acquisitionSearch.mutate({ category: discoveryCategory, city: discoveryCity, state: discoveryState }); }}>
+              <Search className="mr-2 size-4" aria-hidden />{acquisitionSearch.isPending ? "Searching listings…" : "Find businesses"}
+            </Button>
+            <p className="text-xs text-muted-foreground">Up to 5 results per search. Google Maps connector access and its API quota are required.</p>
+          </div>
+        </div>
+
+        {discoveryQuery ? <div className="space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-sm font-medium">Results for “{discoveryQuery}”</p>
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground" aria-label="Google Maps attribution">
+              <img src="https://maps.gstatic.com/mapfiles/api-3/images/google4.png" alt="Google" width={42} height={14} className="h-3.5 w-auto" />
+              <span>Maps results · data may change</span>
+            </div>
+          </div>
+          <p className="rounded-md border border-border bg-muted/30 p-2 text-xs leading-relaxed text-muted-foreground">“Website not listed” means Google did not return a website field. It does not prove the business has no website. Verify before making that claim. Listing data expires and must be refreshed.</p>
+          {discoveryResults.length ? discoveryResults.map((candidate) => (
+            <article key={candidate.placeId} className="space-y-2 rounded-lg border border-border p-3">
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div className="min-w-0 flex-1">
+                  <h3 className="font-medium">{candidate.name}</h3>
+                  <p className="mt-1 flex items-start gap-1.5 text-xs text-muted-foreground"><MapPin className="mt-0.5 size-3.5 shrink-0" aria-hidden />{candidate.address || candidate.city}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">{candidate.category} · Score {candidate.score}/100 · {candidate.phone || "No public phone listed"}</p>
+                </div>
+                <span className="rounded-full border border-border px-2.5 py-1 text-[11px]">{candidate.website ? "Website listed" : "Website not listed"}</span>
+              </div>
+              {candidate.website ? <a className="inline-flex items-center gap-1 text-xs underline" href={candidate.website} target="_blank" rel="noopener noreferrer"><Globe className="size-3.5" aria-hidden />Inspect listed website <ExternalLink className="size-3" aria-hidden /></a> : <p className="text-xs text-muted-foreground">Potential new-site opportunity · status needs verification</p>}
+              <details className="rounded-md bg-muted/20 px-2 py-1.5">
+                <summary className="cursor-pointer text-xs">Why this was scored</summary>
+                <ul className="mt-2 list-disc space-y-1 pl-4 text-xs text-muted-foreground">{candidate.scoreReasons.map((reason, index) => <li key={reason + index}>{reason}</li>)}</ul>
+              </details>
+              <div className="flex flex-wrap gap-2">
+                <Button type="button" size="sm" variant="outline" disabled={acquisitionSave.isPending} onClick={() => acquisitionSave.mutate({ candidate, city: discoveryCity, state: discoveryState })}>{acquisitionSave.isPending ? "Saving…" : "Save opportunity"}</Button>
+                {candidate.mapsUri ? <a className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-3 text-xs hover:bg-muted" href={candidate.mapsUri} target="_blank" rel="noopener noreferrer">Open listing <ExternalLink className="size-3" aria-hidden /></a> : null}
+              </div>
+            </article>
+          )) : <p className="text-xs text-muted-foreground">No candidates with usable Place IDs were returned. Try another category or nearby city.</p>}
+        </div> : null}
+
+        {acquisitionPipeline.error ? <p role="alert" className="text-xs text-destructive">Pipeline unavailable. Verify that the Jarvis acquisition migration has been applied.</p> : null}
+        <div className="space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h3 className="text-sm font-semibold">Saved opportunities</h3>
+            <span className="text-xs text-muted-foreground">{acquisitionPipeline.data?.prospects.length ?? 0} tracked</span>
+          </div>
+          {(acquisitionPipeline.data?.prospects ?? []).length ? (acquisitionPipeline.data?.prospects ?? []).map((prospect) => (
+            <article key={prospect.id} className="space-y-2 rounded-lg border border-border p-3">
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div className="min-w-0 flex-1">
+                  <h4 className="font-medium">{prospect.businessName || "Listing expired — refresh from search"}</h4>
+                  <p className="mt-1 text-xs text-muted-foreground">{[prospect.category, prospect.city].filter(Boolean).join(" · ") || "Source data removed until refreshed"}</p>
+                </div>
+                <span className="rounded-full border border-border px-2.5 py-1 text-[11px]">{prospect.stage.replaceAll("_", " ")}</span>
+              </div>
+              <div className="flex flex-wrap gap-3 text-xs text-muted-foreground"><span>Opportunity score: {prospect.score}/100</span><span>Preview requests: {prospect.interestCount}</span>{prospect.websiteStatus === "needs_refresh" ? <span>Listing refresh required</span> : null}{prospect.activePreviewExpiresAt ? <span>Private preview expires {new Date(prospect.activePreviewExpiresAt).toLocaleDateString()}</span> : null}</div>
+              <div className="flex flex-wrap gap-2">
+                <Button type="button" size="sm" disabled={acquisitionGenerate.isPending || prospect.websiteStatus === "needs_refresh" || !prospect.businessName} onClick={() => { if (window.confirm("Generate a real AI-authored draft website concept for " + prospect.businessName + "? This can use the configured free AI provider, creates a private expiring preview, and does not publish, contact, or charge anyone.")) acquisitionGenerate.mutate(prospect.id); }}>{acquisitionGenerate.isPending ? "Building concept…" : "Build website concept"}</Button>
+                {prospect.website ? <a className="inline-flex h-8 items-center gap-1 rounded-md border border-border px-3 text-xs hover:bg-muted" href={prospect.website} target="_blank" rel="noopener noreferrer">Inspect current site <ExternalLink className="size-3" aria-hidden /></a> : null}
+              </div>
+            </article>
+          )) : <p className="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">{acquisitionPipeline.isLoading ? "Loading saved opportunities…" : "No opportunities saved yet. Search a business category and city to begin."}</p>}
+        </div>
+
+        {generatedAcquisitionPreview ? <div className="space-y-2 rounded-lg border border-primary/30 bg-primary/5 p-3">
+          <p className="font-medium text-sm">Private website concept created: {generatedAcquisitionPreview.title}</p>
+          <p className="text-xs text-muted-foreground">{generatedAcquisitionPreview.notice}</p>
+          <div className="flex flex-wrap gap-2">
+            <a className="inline-flex h-9 items-center gap-2 rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground hover:opacity-90" href={generatedAcquisitionPreview.previewPath} target="_blank" rel="noopener noreferrer">Open preview <ExternalLink className="size-4" aria-hidden /></a>
+            <Button size="sm" variant="outline" onClick={() => { void copy(window.location.origin + generatedAcquisitionPreview.previewPath); }}>Copy private preview link</Button>
+          </div>
+          <p className="text-xs text-muted-foreground">Link expires {new Date(generatedAcquisitionPreview.expiresAt).toLocaleString()}. It is a concept only; production publishing and billing are separate approvals.</p>
+        </div> : null}
+      </section>
 
       <details className="rounded-xl border border-border bg-card">
         <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2 text-sm font-medium"><Megaphone className="size-4" aria-hidden />Prospector · research and draft, you approve every send</summary>
