@@ -12,7 +12,7 @@
  * the same honest failure reporting as before.
  */
 import { announceDraftChange } from "@/lib/builder/preview-bridge";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "@/lib/ui/notify";
@@ -280,6 +280,14 @@ export function useBuilderRequests({
   const actionsRef = useRef(new Map<string, AgentStep>());
   const actionKey = (taskId: string, stepKey: string) => `${taskId}:${stepKey}`;
   const runningRef = useRef(false);
+  // Another writer (the screen check's AI repair) can hold the queue so its
+  // plan+apply never runs alongside an owner's request on the same draft.
+  const [held, setHeld] = useState(false);
+  const heldRef = useRef(false);
+  const holdQueue = useCallback((on: boolean) => {
+    heldRef.current = on;
+    setHeld(on);
+  }, []);
 
   const refresh = async () => {
     setRefreshing(true);
@@ -626,7 +634,7 @@ export function useBuilderRequests({
 
   // Work the queue: one request at a time, in the order they were added.
   useEffect(() => {
-    if (!ready || runningRef.current) return;
+    if (!ready || runningRef.current || held) return;
     const next = nextRunnable(tasks);
     if (!next) return;
     runningRef.current = true;
@@ -635,7 +643,7 @@ export function useBuilderRequests({
       setTasks((current) => [...current]);
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tasks, ready]);
+  }, [tasks, ready, held]);
 
   // A request leaves the pending record once it reaches an end state (or is
   // waiting for the owner's OK — its plan is then shown and saved).
@@ -683,7 +691,14 @@ export function useBuilderRequests({
     brand,
     setBrand,
     queue,
-    apply: (task: QueueTask) => void runBuild(task),
+    apply: (task: QueueTask) => {
+      if (heldRef.current) {
+        toast.warning("Revora is repairing what the screen check found. Approve again in a moment.");
+        return;
+      }
+      void runBuild(task);
+    },
+    holdQueue,
     // A retry is a new attempt: give it a fresh request key, otherwise the
     // server's idempotency check replays the previous result ("already
     // applied") instead of planning and applying again.

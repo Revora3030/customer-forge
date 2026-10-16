@@ -173,3 +173,17 @@ describe("dead in-page buttons are judged per page", () => {
     expect(repairHref("#service_area", sitePages, home, home)).toBe("#service-area");
   });
 });
+
+describe("the screen check's AI repair never runs alongside a chat request", () => {
+  it("holds the chat queue while repairing and stands down when a request is running", () => {
+    const hooks = read("src/lib/builder-requests.hooks.ts");
+    expect(hooks).toContain("if (!ready || runningRef.current || held) return;");
+    expect(hooks).toContain("holdQueue,");
+    const panel = read("src/components/app/VisualCheckPanel.tsx");
+    expect(panel).toContain("holdQueue?.(true);");
+    expect(panel).toContain("holdQueue?.(false);");
+    expect(panel).toContain("if (queueBusyRef.current) return;");
+    const page = read("src/routes/_authenticated/app.website.tsx");
+    expect(page.match(/holdQueue=\{requests\.holdQueue\}/g)).toHaveLength(2);
+  });
+});

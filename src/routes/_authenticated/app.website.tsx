@@ -530,6 +530,8 @@ function WebsitePage() {
                 const done = requests.tasks.filter((t) => t.state === "complete" && (t.applied ?? 0) > 0);
                 return done[done.length - 1]?.snapshotVersion ?? null;
               })()}
+              queueBusy={requests.busy}
+              holdQueue={requests.holdQueue}
             />
             }
             selection={selected}
@@ -945,6 +947,8 @@ function WebsitePage() {
                     slug={org?.slug}
                     publishState={publishState}
                     canManage={manage}
+                    queueBusy={requests.busy}
+                    holdQueue={requests.holdQueue}
                   />
                   <VisionReviewPanel
                     organizationId={orgId}
