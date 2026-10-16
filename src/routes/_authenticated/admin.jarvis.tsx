@@ -13,7 +13,7 @@ import { VoiceWave } from "@/components/app/VoiceWave";
 import { openJarvisPullRequestFn, recoverStalledBuildsFn, clearJarvisHistory, getJarvisHistory, getJarvisDiagnostics, getJarvisAcquisitionReadiness, getJarvisDiagnosticTools, runJarvisDiagnosticTool, regenerateJarvisReply, sendJarvisMessage } from "@/lib/jarvis.functions";
 import { draftProspectOutreach, type ProspectDraft } from "@/lib/jarvis-prospecting.functions";
 import { formatRevoraOffer } from "@/lib/jarvis-acquisition-policy";
-import { synthesizeJarvisVoice } from "@/lib/jarvis-voice.functions";
+import { jarvisVoiceLinks, synthesizeJarvisVoice } from "@/lib/jarvis-voice.functions";
 import { ProspectDemoBuilder } from "@/components/app/ProspectDemoBuilder";
 import { speakableText, splitReplyMeta, type WriteProposal } from "@/lib/jarvis-actions";
 import { startProspectDemoBuild } from "@/lib/jarvis-demo-site.functions";
@@ -126,6 +126,7 @@ function Jarvis() {
   const redo = useServerFn(regenerateJarvisReply);
   const clear = useServerFn(clearJarvisHistory);
   const synthesizeVoice = useServerFn(synthesizeJarvisVoice);
+  const voiceLinks = useServerFn(jarvisVoiceLinks);
   const draftFn = useServerFn(draftProspectOutreach);
   const buildDemo = useServerFn(startProspectDemoBuild);
   const openPr = useServerFn(openJarvisPullRequestFn);
@@ -181,7 +182,11 @@ function Jarvis() {
   const onVoiceFallback = useCallback((reason: string) => {
     toast.message("Using your browser voice because ElevenLabs was unavailable.", { description: reason });
   }, []);
-  const jarvisVoice = useJarvisVoice(voiceSynth, onVoiceFallback);
+  const voiceStream = useCallback(
+    async (text: string) => (await voiceLinks({ data: { texts: [text] } })).urls[0]!,
+    [voiceLinks],
+  );
+  const jarvisVoice = useJarvisVoice(voiceSynth, onVoiceFallback, voiceStream);
 
   const stopVoice = () => jarvisVoice.stop();
   const speak = async (content: string) => {

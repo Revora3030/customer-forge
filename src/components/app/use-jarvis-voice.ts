@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { splitSpeech } from "@/lib/speech-chunks";
 
 type Synthesize = (text: string) => Promise<{ audioBase64: string; contentType: string }>;
+/** Returns a signed link that streams one sentence while it is generated. */
+type StreamLink = (text: string) => Promise<string>;
 
 // 0.1s of silence: played inside a tap so iOS Safari lets later audio play.
 const SILENT_WAV =
@@ -17,16 +19,18 @@ const toBlobUrl = (audioBase64: string, contentType: string) => {
 /**
  * Jarvis's voice: ElevenLabs, sentence by sentence.
  *
- * - The first sentence is synthesized and played while the next one is being
- *   synthesized, so speech starts in about a second instead of after the
- *   whole reply.
+ * - The first sentence is streamed: the audio element plays it while
+ *   ElevenLabs is still generating it, so Jarvis starts talking after the
+ *   first words. Later sentences are synthesized in full while the one before
+ *   plays, so there is no gap between them. A stream that can't play falls
+ *   back to the full download for that sentence.
  * - One audio element is unlocked on the owner's first tap and reused, so
  *   replies that arrive later (Live mode) are allowed to play on phones.
  * - If ElevenLabs fails, the rest of the reply is read by the browser voice.
  * - `level` (0..1) animates the waveform while speaking. Audio is not routed
  *   through Web Audio to measure it: on some iPhones that plays silently.
  */
-export function useJarvisVoice(synthesize: Synthesize, onFallback?: (reason: string) => void) {
+export function useJarvisVoice(synthesize: Synthesize, onFallback?: (reason: string) => void, streamLink?: StreamLink) {
   const audio = useRef<HTMLAudioElement | null>(null);
   const generation = useRef(0);
   const urls = useRef<string[]>([]);
@@ -113,19 +117,37 @@ export function useJarvisVoice(synthesize: Synthesize, onFallback?: (reason: str
       setSpeaking(true);
       meter();
       const pending = new Map<number, Promise<string>>();
-      const fetchChunk = (i: number) => {
-        if (i >= chunks.length || pending.has(i)) return;
-        const job = synthesize(chunks[i]!).then(({ audioBase64, contentType }) => {
+      const buffered = (i: number) =>
+        synthesize(chunks[i]!).then(({ audioBase64, contentType }) => {
           const url = toBlobUrl(audioBase64, contentType);
           urls.current.push(url);
           return url;
         });
+      const fetchChunk = (i: number) => {
+        if (i >= chunks.length || pending.has(i)) return;
+        const job = buffered(i);
         job.catch(() => undefined);
         pending.set(i, job);
       };
       try {
-        fetchChunk(0);
-        for (let i = 0; i < chunks.length; i += 1) {
+        let start = 0;
+        if (streamLink) {
+          // Stream the first sentence; download the second while it plays.
+          fetchChunk(1);
+          let streamed = false;
+          try {
+            const link = await streamLink(chunks[0]!);
+            if (gen !== generation.current) return;
+            await playUrl(link, gen);
+            streamed = true;
+          } catch {
+            // Older deploys or a browser that won't play a live stream: use the
+            // full download for this sentence instead.
+          }
+          if (streamed) start = 1;
+        }
+        if (start === 0) fetchChunk(0);
+        for (let i = start; i < chunks.length; i += 1) {
           if (gen !== generation.current) return;
           fetchChunk(i + 1); // synthesize the next sentence while this one plays
           let url: string;
@@ -153,7 +175,7 @@ export function useJarvisVoice(synthesize: Synthesize, onFallback?: (reason: str
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [synthesize, onFallback, stop, meter, release],
+    [synthesize, onFallback, streamLink, stop, meter, release],
   );
 
   useEffect(() => () => stop(), [stop]);
