@@ -12,6 +12,7 @@
  */
 
 import { siliconflowBaseUrl } from "@/lib/ai/providers/siliconflow";
+import { zaiBaseUrl } from "@/lib/ai/providers/zai";
 import type { ModelRole } from "@/lib/ai/config";
 import {
   isFreeEligibleModel,
@@ -369,7 +370,14 @@ export async function refreshFreeModels(
                                 ? await togetherFreeModels(credentials)
                                 : provider === "pollinations"
                                   ? await pollinationsFreeModels(credentials)
-                                  : [];
+                                  : provider === "zai"
+                                    ? await openAiCompatibleFreeModels("zai", `${zaiBaseUrl().replace(/\/$/, "")}/models`, credentials)
+                                    : provider === "ollama"
+                                      ? await openAiCompatibleFreeModels("ollama", "https://ollama.com/v1/models", credentials)
+                                      : provider === "modelscope"
+                                        ? await openAiCompatibleFreeModels("modelscope", "https://api-inference.modelscope.cn/v1/models", credentials)
+                                        : // OVHcloud, Kilo and GitHub Models run on their verified allowlists.
+                                          [];
   // Cache even an empty answer so a failing discovery endpoint isn't polled on
   // every builder request.
   cache.set(key, { at: Date.now(), models });

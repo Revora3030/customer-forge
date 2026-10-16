@@ -58,6 +58,9 @@ export function stripReasoning(raw: string): string {
   return text.trim();
 }
 
+/** Credential placeholder for keyless free tiers: no authorization header is sent. */
+export const ANONYMOUS_KEY = "anonymous";
+
 export type CompatAdapterOptions = {
   name: ProviderName;
   /** Resolved at call time so an account id can come from the environment. */
@@ -83,7 +86,8 @@ export function createOpenAiCompatibleAdapter(options: CompatAdapterOptions): Pr
   function headers(apiKey: string) {
     return {
       "content-type": "application/json",
-      authorization: `Bearer ${apiKey}`,
+      // Keyless free tiers (OVHcloud, Kilo) get no authorization header at all.
+      ...(apiKey === ANONYMOUS_KEY ? {} : { authorization: `Bearer ${apiKey}` }),
       // Some providers sit behind an edge that refuses requests with no client
       // identity at all (Groq answers 403 "1010" to an unidentified client), so
       // Revora always identifies itself.

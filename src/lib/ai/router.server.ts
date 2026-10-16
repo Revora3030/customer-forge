@@ -54,6 +54,7 @@ import {
   isFreeEligibleModel,
   noteFreeUse,
   type FreeProviderName,
+  ADMIN_ONLY_FREE_PROVIDERS,
 } from "@/lib/ai/free";
 import { PREFERRED_FREE_VISION_MODELS, preferredVisionRank, visionCapableModel } from "@/lib/ai/vision-models";
 import { pickDiscoveredModels, refreshFreeModels } from "@/lib/ai/free-models.server";
@@ -71,6 +72,12 @@ import { sambanovaAdapter } from "@/lib/ai/providers/sambanova";
 import { togetherAdapter } from "@/lib/ai/providers/together";
 import { siliconflowAdapter } from "@/lib/ai/providers/siliconflow";
 import { pollinationsAdapter } from "@/lib/ai/providers/pollinations";
+import { zaiAdapter } from "@/lib/ai/providers/zai";
+import { ollamaAdapter } from "@/lib/ai/providers/ollama";
+import { ovhAdapter } from "@/lib/ai/providers/ovh";
+import { kiloAdapter } from "@/lib/ai/providers/kilo";
+import { modelscopeAdapter } from "@/lib/ai/providers/modelscope";
+import { githubModelsAdapter } from "@/lib/ai/providers/github";
 import { nvidiaAdapter } from "@/lib/ai/providers/nvidia";
 import { openRouterAdapter } from "@/lib/ai/providers/openrouter";
 import {
@@ -112,6 +119,12 @@ const ADAPTERS: Record<ProviderName, ProviderAdapter> = {
   together: togetherAdapter,
   siliconflow: siliconflowAdapter,
   pollinations: pollinationsAdapter,
+  zai: zaiAdapter,
+  ollama: ollamaAdapter,
+  ovh: ovhAdapter,
+  kilo: kiloAdapter,
+  modelscope: modelscopeAdapter,
+  github: githubModelsAdapter,
 };
 
 /* ----------------------------- circuit breaker ----------------------------- */
@@ -264,6 +277,8 @@ export async function freeModelPool(
    * inpainting model, so a text-to-image model must never be dispatched).
    */
   capable?: (model: string) => boolean,
+  /** Admin-only providers (GitHub Models) serve Revora's own admin work only. */
+  audience: "admin" | "customer" = "customer",
 ): Promise<{ provider: FreeProviderName; credentials: { apiKey: string; accountId?: string }; models: string[] }[]> {
   if (!freeAiEnabled()) return [];
   const depth = freeModelPoolDepth();
@@ -274,6 +289,7 @@ export async function freeModelPool(
   }[] = [];
   await refreshDurableRuntime();
   for (const entry of freeProviderChain(role)) {
+    if (audience !== "admin" && ADMIN_ONLY_FREE_PROVIDERS.has(entry.name)) continue;
     // Pictures are metered separately from words: one generated picture costs
     // far more of the free daily allowance than one short answer.
     if (!freeBudgetAllows(entry.name, role)) continue;
@@ -344,7 +360,7 @@ async function buildChain(
   const first: Candidate[] = [];
   const deeper: Candidate[] = [];
 
-  for (const pool of await freeModelPool(role, capable))
+  for (const pool of await freeModelPool(role, capable, caller.task.startsWith("admin.") ? "admin" : "customer"))
     pool.models.forEach((model, index) => {
       const candidate = freeCandidate(pool.provider, pool.credentials.apiKey, model, role);
       if (index === 0) first.push(candidate);

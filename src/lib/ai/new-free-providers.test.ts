@@ -9,9 +9,11 @@ import {
   noteZeroPriceModels,
   resetZeroPriceModels,
 } from "@/lib/ai/free";
+import { ADMIN_ONLY_FREE_PROVIDERS } from "@/lib/ai/free";
+import { ANONYMOUS_KEY } from "@/lib/ai/providers/openai-compatible";
 import { parseActions } from "@/lib/jarvis-actions";
 
-const KEYS = ["SAMBANOVA_API_KEY", "SAMBANOVA_FREE_TIER", "TOGETHER_API_KEY", "SILICONFLOW_API_KEY", "POLLINATIONS_API_KEY", "GEMINI_API_KEY", "GOOGLE_AI_FREE_TIER", "GOOGLE_AI_FREE_API_KEY", "GOOGLE_AI_API_KEY"];
+const KEYS = ["ZAI_API_KEY", "OLLAMA_API_KEY", "MODELSCOPE_API_KEY", "GITHUB_MODELS_TOKEN", "OVH_AI_FREE", "KILO_FREE", "SAMBANOVA_API_KEY", "SAMBANOVA_FREE_TIER", "TOGETHER_API_KEY", "SILICONFLOW_API_KEY", "POLLINATIONS_API_KEY", "GEMINI_API_KEY", "GOOGLE_AI_FREE_TIER", "GOOGLE_AI_FREE_API_KEY", "GOOGLE_AI_API_KEY"];
 
 afterEach(() => {
   for (const name of KEYS) delete process.env[name];
@@ -101,5 +103,53 @@ describe("web search", () => {
 
   it("is a Jarvis read action", () => {
     expect(parseActions([{ id: "web.search", args: { query: "Raleigh HVAC pricing" } }], []).reads).toEqual([{ id: "web.search", query: "Raleigh HVAC pricing" }]);
+  });
+});
+
+describe("second wave of free providers", () => {
+  it("are registered and only use their own keys", () => {
+    for (const provider of ["zai", "ollama", "ovh", "kilo", "modelscope", "github"] as const) {
+      expect(FREE_PROVIDERS).toContain(provider);
+      expect(freeProviderOrder()).toContain(provider);
+      expect(freeProviderCredentials(provider)).toBeNull();
+    }
+    process.env["ZAI_API_KEY"] = "z";
+    process.env["OLLAMA_API_KEY"] = "o";
+    process.env["MODELSCOPE_API_KEY"] = "m";
+    process.env["GITHUB_MODELS_TOKEN"] = "g";
+    expect(freeProviderCredentials("zai")?.apiKey).toBe("z");
+    expect(freeProviderCredentials("ollama")?.apiKey).toBe("o");
+    expect(freeProviderCredentials("modelscope")?.apiKey).toBe("m");
+    expect(freeProviderCredentials("github")?.apiKey).toBe("g");
+  });
+
+  it("keeps keyless tiers opt-in and never sends them a key", () => {
+    process.env["OVH_AI_FREE"] = "true";
+    process.env["KILO_FREE"] = "true";
+    expect(freeProviderCredentials("ovh")?.apiKey).toBe(ANONYMOUS_KEY);
+    expect(freeProviderCredentials("kilo")?.apiKey).toBe(ANONYMOUS_KEY);
+    expect(readFileSync("src/lib/ai/providers/openai-compatible.ts", "utf8")).toContain("apiKey === ANONYMOUS_KEY ? {}");
+  });
+
+  it("only selects each provider's free models", () => {
+    expect(isFreeEligibleModel("zai", "glm-4.6v-flash")).toBe(true);
+    expect(isFreeEligibleModel("zai", "glm-4.7")).toBe(false);
+    expect(isFreeEligibleModel("ovh", "Qwen3.5-397B-A17B")).toBe(true);
+    expect(isFreeEligibleModel("ovh", "DeepSeek-R1")).toBe(false);
+    expect(isFreeEligibleModel("kilo", "nvidia/nemotron-3-ultra-550b-a55b:free")).toBe(true);
+    expect(isFreeEligibleModel("kilo", "kilo-auto/free")).toBe(false);
+    expect(isFreeEligibleModel("kilo", "anthropic/claude-sonnet")).toBe(false);
+    expect(isFreeEligibleModel("github", "openai/gpt-4.1")).toBe(true);
+    expect(isFreeEligibleModel("github", "openai/o3")).toBe(false);
+    expect(isFreeEligibleModel("ollama", "deepseek-v4-pro")).toBe(true);
+    expect(isFreeEligibleModel("ollama", "nomic-embed-text")).toBe(false);
+    expect(freeModelFor("zai", "vision")).toBe("glm-4.6v-flash");
+  });
+
+  it("keeps GitHub Models out of customer builds", () => {
+    expect(ADMIN_ONLY_FREE_PROVIDERS.has("github")).toBe(true);
+    const router = readFileSync("src/lib/ai/router.server.ts", "utf8");
+    expect(router).toContain('if (audience !== "admin" && ADMIN_ONLY_FREE_PROVIDERS.has(entry.name)) continue;');
+    expect(router).toContain('caller.task.startsWith("admin.") ? "admin" : "customer"');
   });
 });

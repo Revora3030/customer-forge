@@ -34,7 +34,13 @@ export type ProviderName =
   | "sambanova"
   | "together"
   | "siliconflow"
-  | "pollinations";
+  | "pollinations"
+  | "zai"
+  | "ollama"
+  | "ovh"
+  | "kilo"
+  | "modelscope"
+  | "github";
 
 /** Providers that bill Revora per call. */
 export type PaidProviderName = "google" | "openai";
