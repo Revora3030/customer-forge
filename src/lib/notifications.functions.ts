@@ -8,6 +8,8 @@
  */
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Database } from "@/integrations/supabase/types";
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[a-z]{2,}$/i;
 
@@ -81,7 +83,48 @@ export const saveLeadWebhook = createServerFn({ method: "POST" })
     if (!rows?.length)
       throw new Error("Set up your website first — there's no site settings to attach the webhook to.");
 
+    // Every saved webhook is signed. The first save creates the secret; later
+    // saves keep it so a receiver that already verifies keeps working.
+    if (normalized) await ensureLeadWebhookSecret(context.supabase, data.organizationId, false);
+
     return { ok: true as const, configured: Boolean(normalized) };
+  });
+
+async function ensureLeadWebhookSecret(
+  db: SupabaseClient<Database>,
+  organizationId: string,
+  rotate: boolean,
+): Promise<string> {
+  if (!rotate) {
+    const { data: existing } = await db
+      .from("lead_webhook_secrets")
+      .select("secret")
+      .eq("organization_id", organizationId)
+      .maybeSingle();
+    if (existing?.secret) return existing.secret;
+  }
+  const { newLeadWebhookSecret } = await import("@/lib/lead-routing.server");
+  const secret = newLeadWebhookSecret();
+  // RLS limits this to managers of the workspace.
+  const { error } = await db
+    .from("lead_webhook_secrets")
+    .upsert(
+      { organization_id: organizationId, secret, rotated_at: new Date().toISOString() },
+      { onConflict: "organization_id" },
+    );
+  if (error) throw new Error("Couldn't save the webhook signing secret.");
+  return secret;
+}
+
+/** Replace the workspace's webhook signing secret; the old one stops verifying at once. */
+export const rotateLeadWebhookSecret = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((input: { organizationId: string }) => ({
+    organizationId: String(input?.organizationId ?? ""),
+  }))
+  .handler(async ({ data, context }) => {
+    const secret = await ensureLeadWebhookSecret(context.supabase, data.organizationId, true);
+    return { ok: true as const, secret };
   });
 
 /** Send a real alert email so the owner can confirm it lands in their inbox. */
@@ -160,5 +203,11 @@ export const getLeadWebhookStatus = createServerFn({ method: "POST" })
     } catch {
       host = null;
     }
-    return { configured: Boolean(url), host };
+    // Only managers can read the secret (RLS); everyone else sees null.
+    const { data: signing } = await context.supabase
+      .from("lead_webhook_secrets")
+      .select("secret")
+      .eq("organization_id", data.organizationId)
+      .maybeSingle();
+    return { configured: Boolean(url), host, signingSecret: signing?.secret ?? null };
   });

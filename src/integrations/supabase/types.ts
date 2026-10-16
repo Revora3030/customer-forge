@@ -1678,6 +1678,35 @@ export type Database = {
           },
         ]
       }
+      lead_webhook_secrets: {
+        Row: {
+          created_at: string
+          organization_id: string
+          rotated_at: string
+          secret: string
+        }
+        Insert: {
+          created_at?: string
+          organization_id: string
+          rotated_at?: string
+          secret: string
+        }
+        Update: {
+          created_at?: string
+          organization_id?: string
+          rotated_at?: string
+          secret?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_webhook_secrets_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       leads: {
         Row: {
           assigned_to: string | null

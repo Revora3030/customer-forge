@@ -118,9 +118,29 @@ export function validateLeadWebhookUrl(value: unknown): string | null {
   }
 }
 
+/** A fresh per-workspace signing secret: "whsec_" + 24 random bytes as hex. */
+export function newLeadWebhookSecret(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(24));
+  return `whsec_${Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("")}`;
+}
+
+/**
+ * Stripe-style signature over the exact body sent: `t=<unix seconds>,v1=<hex>`
+ * where v1 = HMAC-SHA256(secret, `${t}.${body}`). Receivers recompute it with
+ * their secret, compare in constant time and reject timestamps older than five
+ * minutes, which also stops replayed deliveries.
+ */
+export async function signLeadWebhook(secret: string, body: string, timestampSeconds: number): Promise<string> {
+  const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  const signed = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(`${timestampSeconds}.${body}`));
+  const hex = Array.from(new Uint8Array(signed), (b) => b.toString(16).padStart(2, "0")).join("");
+  return `t=${timestampSeconds},v1=${hex}`;
+}
+
 export async function dispatchLeadWebhook(
   webhookUrl: string | null | undefined,
   payload: LeadWebhookPayload,
+  signingSecret?: string | null,
 ): Promise<LeadWebhookResult> {
   const attemptedAt = new Date().toISOString();
   if (!webhookUrl?.trim()) return { ok: true, skipped: true, reason: "not_configured", attemptedAt };
@@ -134,6 +154,10 @@ export async function dispatchLeadWebhook(
   const timer = setTimeout(() => controller.abort(), WEBHOOK_TIMEOUT_MS);
 
   try {
+    const body = JSON.stringify(payload);
+    const signature = signingSecret
+      ? await signLeadWebhook(signingSecret, body, Math.floor(Date.now() / 1000))
+      : null;
     const response = await guardedFetch(url, {
       method: "POST",
       headers: {
@@ -143,8 +167,9 @@ export async function dispatchLeadWebhook(
         // Receivers that dedupe on the header (Stripe-style) see the same key
         // the body carries, so a redelivered lead is never created twice.
         "idempotency-key": payload.idempotency_key,
+        ...(signature ? { "x-revora-signature": signature } : {}),
       },
-      body: JSON.stringify(payload),
+      body,
       signal: controller.signal,
     });
 
