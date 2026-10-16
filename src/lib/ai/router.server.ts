@@ -747,7 +747,15 @@ async function run<T>(
           // about the next free provider. Move on instead of giving up.
           if (error.category === "unauthorized" || error.category === "quota") deadProviders.add(config.name);
           if (error.category === "invalid_request" && options?.nextProviderOnInvalidRequest) break;
-          if (error.category === "too_large") throw error;
+          // Free models have very different context windows (Groq's free tier
+          // is small; NVIDIA, Mistral and others are large), so one model
+          // refusing a long conversation moves on to the next free model.
+          if (error.category === "too_large") {
+            if (!candidate.free) throw error;
+            invalidBy.add(config.name);
+            if (invalidBy.size >= 6) throw error;
+            break;
+          }
           if (error.category === "invalid_request") {
             // Free models differ in what they accept (parameters, message
             // shapes, context size), so one refusal moves on to the next model.
