@@ -9,8 +9,7 @@ import {
   noteZeroPriceModels,
   resetZeroPriceModels,
 } from "@/lib/ai/free";
-import { ADMIN_ONLY_FREE_PROVIDERS } from "@/lib/ai/free";
-import { ANONYMOUS_KEY } from "@/lib/ai/providers/openai-compatible";
+import { ADMIN_ONLY_FREE_PROVIDERS, ANONYMOUS_KEY } from "@/lib/ai/free";
 import { parseActions } from "@/lib/jarvis-actions";
 
 const KEYS = ["ZAI_API_KEY", "OLLAMA_API_KEY", "MODELSCOPE_API_KEY", "GITHUB_MODELS_TOKEN", "OVH_AI_FREE", "KILO_FREE", "SAMBANOVA_API_KEY", "SAMBANOVA_FREE_TIER", "TOGETHER_API_KEY", "SILICONFLOW_API_KEY", "POLLINATIONS_API_KEY", "GEMINI_API_KEY", "GOOGLE_AI_FREE_TIER", "GOOGLE_AI_FREE_API_KEY", "GOOGLE_AI_API_KEY"];

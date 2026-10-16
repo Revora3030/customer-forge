@@ -12,7 +12,9 @@
  */
 
 import type { ModelRole, ProviderName } from "@/lib/ai/config";
-import { ANONYMOUS_KEY } from "@/lib/ai/providers/openai-compatible";
+
+/** Credential placeholder for keyless free tiers: the adapter sends no authorization header. */
+export const ANONYMOUS_KEY = "anonymous";
 
 export type FreeProviderName =
   | "openai"

@@ -11,6 +11,7 @@
 
 import type { ProviderName } from "@/lib/ai/config";
 import { RevoraAiError } from "@/lib/ai/errors";
+import { ANONYMOUS_KEY } from "@/lib/ai/free";
 import { toImageDataUrl } from "@/lib/ai/data-url";
 import { providerHttpError } from "@/lib/ai/providers/shared";
 import type { AiPart, AiUsage, ProviderAdapter } from "@/lib/ai/types";
@@ -57,9 +58,6 @@ export function stripReasoning(raw: string): string {
   text = text.replace(/^\s*<(think|thinking|reasoning)>[\s\S]*$/i, "");
   return text.trim();
 }
-
-/** Credential placeholder for keyless free tiers: no authorization header is sent. */
-export const ANONYMOUS_KEY = "anonymous";
 
 export type CompatAdapterOptions = {
   name: ProviderName;
