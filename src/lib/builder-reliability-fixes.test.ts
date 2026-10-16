@@ -121,3 +121,19 @@ describe("plans never use a stale picture of the site", () => {
     expect(read("src/lib/agent/workspace-context.server.ts")).toContain("if (!context.pages.length) {");
   });
 });
+
+describe("standing briefs survive long chats", () => {
+  it("passes design memory, recall and the creative brief ahead of the trimmed conversation", () => {
+    const fn = read("src/lib/site-agent.functions.ts");
+    expect(fn).toContain("...data.history.slice(0, standingBriefs).map((turn) => turn.content),");
+    expect(fn.match(/standingBriefs \+= 1;/g)).toHaveLength(3);
+  });
+});
+
+describe("a dropped connection recovers every kind of planner reply", () => {
+  it("saves chat answers, deferrals and unavailable replies under the request id", () => {
+    const fn = read("src/lib/site-agent.functions.ts");
+    for (const model of ['"chat-answer"', '"deferred"', '"unavailable"']) expect(fn).toContain(`}, ${model});`);
+    expect(fn).toContain("result: { ...result, requestId: runId } as unknown as never,");
+  });
+});

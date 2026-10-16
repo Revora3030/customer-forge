@@ -297,6 +297,24 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
     const { noteStage } = await import("@/lib/builder/progress.server");
     const runId = data.requestId || crypto.randomUUID();
     noteStage(orgId, runId, "reading your business");
+    // Every reply the planner gives is saved under the request id, so a phone
+    // that lost the connection picks up chat answers, deferrals and "design
+    // team unavailable" replies too, not only full plans (recoverPlan).
+    const settle = async <T extends Record<string, unknown>>(result: T, model: string): Promise<T> => {
+      try {
+        await supabase.from("ai_generations").insert({
+          organization_id: orgId,
+          kind: "agent_plan",
+          model,
+          instruction: data.instruction.slice(0, 4000),
+          result: { ...result, requestId: runId } as unknown as never,
+          created_by: userId,
+        });
+      } catch (error) {
+        console.error("[site-agent] could not save the reply for recovery", error);
+      }
+      return result;
+    };
 
     const { getWorkspaceContext } = await import("@/lib/agent/workspace-context.server");
 
@@ -441,7 +459,7 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
       siteDetail: (await import("@/lib/site-agent.server")).siteMap(agentContext),
     });
     if (decision.mode === "answer") {
-      return {
+      return settle({
         reply: decision.reply,
         summary: "",
         steps: [] as AgentStep[],
@@ -453,7 +471,7 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
         unavailable: null as { reason: string; retryable: boolean; instruction: string } | null,
         composition: null as import("@/lib/builder/composition-preview").CompositionPreview | null,
         conversational: true,
-      };
+      }, "chat-answer");
     }
 
     // A first build and chat can run at the same time. There is no page to edit
@@ -486,7 +504,7 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
       invalidateWorkspaceContext(orgId);
       const reply =
         "Got it — your AI team is finishing the first website now. Keep this window open and I’ll apply this change as soon as the build finishes (usually a few minutes).";
-      return {
+      return settle({
         reply,
         summary: "",
         steps: [] as AgentStep[],
@@ -499,7 +517,7 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
         composition: null as import("@/lib/builder/composition-preview").CompositionPreview | null,
         conversational: true,
         deferred: true,
-      };
+      }, "deferred");
     }
 
     const instruction =
@@ -523,7 +541,14 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
       (settingsRow.data as { generation?: unknown } | null)?.generation,
     );
     const brief = designMemoryBrief(priorMemory);
-    if (brief) data.history = [{ role: "user" as const, content: brief }, ...data.history];
+    // Standing briefs (design memory, session recall, saved creative brief) are
+    // prepended to the history and counted, so trimming the conversation for
+    // the planner can never cut them off a long chat.
+    let standingBriefs = 0;
+    if (brief) {
+      data.history = [{ role: "user" as const, content: brief }, ...data.history];
+      standingBriefs += 1;
+    }
 
     // LONG-SESSION MEMORY: the durable journal for this website — standing
     // rules, earlier requests, what was already done and what did not work — is
@@ -533,7 +558,10 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
     // a recall failure simply means no brief.
     const { recallBrief } = await import("@/lib/builder/session-memory.server");
     const recall = await recallBrief(supabase as never, orgId);
-    if (recall) data.history = [{ role: "user" as const, content: recall }, ...data.history];
+    if (recall) {
+      data.history = [{ role: "user" as const, content: recall }, ...data.history];
+      standingBriefs += 1;
+    }
     const nextMemory = mergeDesignMemory(priorMemory, data.instruction);
 
     const storedGeneration = ((settingsRow.data as { generation?: unknown } | null)?.generation ??
@@ -547,6 +575,7 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
         },
         ...data.history,
       ];
+      standingBriefs += 1;
     }
 
     const memoryChanged = nextMemory !== priorMemory;
@@ -621,10 +650,14 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
       const authored = await planWebsiteChangesWithAi({
         organizationId: orgId,
         instruction: normalizeBuilderInstruction(instruction),
-        history: data.history
-          .filter((turn) => turn.role === "user")
-          .map((turn) => turn.content)
-          .slice(-6),
+        history: [
+          ...data.history.slice(0, standingBriefs).map((turn) => turn.content),
+          ...data.history
+            .slice(standingBriefs)
+            .filter((turn) => turn.role === "user")
+            .map((turn) => turn.content)
+            .slice(-6),
+        ],
         context: agentContext,
         attachments: data.attachments.map((attachment) => {
           const saved = ownerUploads.find((upload) => upload.name === attachment.name);
@@ -638,7 +671,7 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
       });
 
       if (!authored.ok) {
-        return {
+        return settle({
           reply:
             authored.reason === "review_rejected"
               ? `I left your website unchanged because this change would need details you haven't given me yet${authored.detail ? ` (${authored.detail.replace(/^the review removed every proposed change — ?/, "")})` : ""}. Tell me the real details — for example exactly what each service includes — and I'll add them.`
@@ -659,7 +692,7 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
           } as { reason: string; retryable: boolean; instruction: string } | null,
           composition:
             null as import("@/lib/builder/composition-preview").CompositionPreview | null,
-        };
+        }, "unavailable");
       }
 
       requirements = authored.requirements;
