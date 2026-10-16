@@ -14,7 +14,7 @@ import { parseActions } from "@/lib/jarvis-actions";
 
 // Every key that turns on a free model or a web search provider. The ambient
 // environment (a developer's .env, a CI secret) must never decide a result.
-const SEARCH_KEYS = ["LOVABLE_API_KEY", "PERPLEXITY_API_KEY", "TAVILY_API_KEY", "BRAVE_SEARCH_API_KEY", "BRAVE_API_KEY", "EXA_API_KEY", "JINA_API_KEY"];
+const SEARCH_KEYS = ["PERPLEXITY_API_KEY", "TAVILY_API_KEY", "BRAVE_SEARCH_API_KEY", "BRAVE_API_KEY", "EXA_API_KEY", "JINA_API_KEY"];
 const KEYS = [...SEARCH_KEYS, "ZAI_API_KEY", "OLLAMA_API_KEY", "MODELSCOPE_API_KEY", "GITHUB_MODELS_TOKEN", "OVH_AI_FREE", "KILO_FREE", "SAMBANOVA_API_KEY", "SAMBANOVA_FREE_TIER", "TOGETHER_API_KEY", "SILICONFLOW_API_KEY", "POLLINATIONS_API_KEY", "GEMINI_API_KEY", "GOOGLE_AI_FREE_TIER", "GOOGLE_AI_FREE_API_KEY", "GOOGLE_AI_API_KEY"];
 
 const ambient = new Map<string, string | undefined>();
