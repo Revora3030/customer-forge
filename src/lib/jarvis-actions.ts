@@ -19,7 +19,8 @@ export type ReadAction =
   | { id: "diagnostic.run"; toolId: string }
   | { id: "code.read"; paths: string[]; line: number }
   | { id: "code.list"; page: number }
-  | { id: "demos.list" };
+  | { id: "demos.list" }
+  | { id: "prospects.find"; niche: string; city: string; state: string | null };
 
 export type CodeChange =
   | { path: string; edits: { find: string; replace: string }[] }
@@ -103,6 +104,7 @@ export function actionCatalogPrompt(diagnosticToolIds: string[]): string {
     '- {"id":"code.list","args":{"page":1}}: list source files in the live repository branch (200 per page).',
     '- {"id":"code.read","args":{"paths":["src/..."],"line":1}}: read up to 2 source files, 120 lines each, starting at line. Use code.list first if unsure of a path.',
     '- {"id":"demos.list","args":{}}: list prospect demo sites with build status and preview links.',
+    '- {"id":"prospects.find","args":{"niche":"mobile detailing","city":"Raleigh","state":"NC"}}: search Google Places for businesses in a niche and city that have no real website (none, or only a social/directory page). Costs a little per search and is capped daily, so search only when the owner asks for prospects. Then propose demo.build for the best ones, using only the facts returned (name, category, city, state, phone); for services use none and set description to "<category> serving <city, state>."',
     '- {"id":"demo.build","args":{"businessName":"","industry":"","city":"","state":"","phone":"","email":"","services":["..."],"description":""}}: PROPOSE building a private demo website for a real business with no website. Only facts the owner gave you; never invent phone numbers, emails or services. The owner approves with one tap; you do not run it.',
     '- {"id":"code.pr","args":{"title":"","summary":"","changes":[{"path":"src/...","edits":[{"find":"exact existing text","replace":"new text"}]},{"path":"src/new-file.ts","content":"full file"}]}}: PROPOSE a GitHub pull request into lovable-sync. Read every file you edit with code.read first in this conversation; "find" must be copied exactly from it and appear once. Use "content" only for new files. Up to 6 files. Keep changes minimal, complete and type-safe; never touch auth, RLS, billing or tenant isolation unless the owner asked; never add secrets. The owner approves with one tap and reviews before merging.',
     '- {"id":"builds.recover","args":{}}: PROPOSE recovering stalled website builds: closes builds whose worker died, re-queues orphaned ones and restarts the build worker. Suggest it when builder.health.summary shows stuck or long-running builds. The owner approves with one tap.',
@@ -149,6 +151,11 @@ export function parseActions(requested: unknown[], diagnosticToolIds: string[]):
       out.reads.push({ id, page: Math.min(1000, Math.max(1, Math.floor(Number(args["page"]) || 1))) });
     } else if (id === "demos.list") {
       out.reads.push({ id });
+    } else if (id === "prospects.find") {
+      const niche = str(args["niche"], 80);
+      const city = str(args["city"], 80);
+      if (niche.length >= 3 && city.length >= 2) out.reads.push({ id, niche, city, state: str(args["state"], 40) || null });
+      else out.rejected.push("prospects.find: needs a niche and a city");
     } else if (id === "code.pr") {
       try {
         out.proposals.push({ id, pr: parsePullRequestProposal(args) });
@@ -181,6 +188,8 @@ export function describeRead(action: ReadAction): string {
       return `Listed source files (page ${action.page})`;
     case "demos.list":
       return "Listed demo sites";
+    case "prospects.find":
+      return `Searched Google for ${action.niche} in ${action.city}${action.state ? `, ${action.state}` : ""}`;
   }
 }
 

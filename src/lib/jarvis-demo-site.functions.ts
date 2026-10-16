@@ -149,3 +149,25 @@ export const draftDemoOutreach = createServerFn({ method: "POST" })
       aiWritten: Boolean(draft),
     };
   });
+
+/**
+ * Super-admin only: finds businesses in a niche and city that have no real
+ * website (none, or only a social/directory page) on Google Places, skipping
+ * ones that already have a demo. Read-only; capped per day to bound cost.
+ */
+export const findProspectsFn = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((input: { niche?: unknown; city?: unknown; state?: unknown }) => {
+    const clean = (value: unknown, max: number) => (typeof value === "string" ? value.replace(/\s+/g, " ").trim().slice(0, max) : "");
+    const niche = clean(input?.niche, 80);
+    const city = clean(input?.city, 80);
+    const state = clean(input?.state, 40);
+    if (niche.length < 3) throw new Error("Enter the kind of business to look for, like \"mobile detailing\".");
+    if (city.length < 2) throw new Error("Enter the city to search.");
+    return { niche, city, state };
+  })
+  .handler(async ({ context, data }) => {
+    const db = await guardedAdmin(context);
+    const { findProspects } = await import("./jarvis-demo-site.server");
+    return findProspects(db, String(context.userId), data);
+  });

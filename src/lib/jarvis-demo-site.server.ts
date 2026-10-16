@@ -211,3 +211,40 @@ function newPreviewToken() {
     .join("")
     .slice(0, 40);
 }
+
+/**
+ * Finds businesses in a niche and city with no real website (Google Places),
+ * skipping ones that already have a demo. Capped per day and audit-logged so
+ * the panel and Jarvis share one budget. Caller must be a verified super-admin.
+ */
+export async function findProspects(
+  db: SupabaseClient,
+  actorId: string,
+  input: { niche: string; city: string; state?: string | null },
+) {
+  const { MAX_SEARCHES_PER_DAY, selectProspects } = await import("@/lib/prospect-finder");
+  const since = new Date();
+  since.setUTCHours(0, 0, 0, 0);
+  const { count } = await db
+    .from("audit_logs")
+    .select("id", { count: "exact", head: true })
+    .eq("action", "jarvis.prospects.search")
+    .gte("created_at", since.toISOString());
+  if ((count ?? 0) >= MAX_SEARCHES_PER_DAY)
+    throw new Error(`Daily search limit reached (${MAX_SEARCHES_PER_DAY}). It resets at midnight UTC, so Google Places costs stay bounded.`);
+
+  const query = `${input.niche} in ${input.city}${input.state ? `, ${input.state}` : ""}`;
+  const { searchPlacesForProspects } = await import("@/lib/integrations/google.server");
+  const places = await searchPlacesForProspects(query, 20);
+  const existing = (await listProspectDemos(db, 100)).map((demo) => demo.name);
+  const prospects = selectProspects(places, existing);
+  await db.from("audit_logs").insert({
+    organization_id: null,
+    actor_id: actorId,
+    action: "jarvis.prospects.search",
+    entity: "google_places",
+    entity_id: null,
+    metadata: { query, results: places.length, prospects: prospects.length },
+  });
+  return { query, searched: places.length, prospects };
+}

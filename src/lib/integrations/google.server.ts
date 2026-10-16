@@ -284,3 +284,47 @@ export async function localListings(query: string): Promise<LocalListing[]> {
 export function resetLocalListingCache() {
   listingCache.clear();
 }
+
+/* ------------------------------------------------------------------ *
+ * Prospect search (super-admin only, called from the prospect finder)
+ * ------------------------------------------------------------------ */
+
+const PROSPECT_FIELDS =
+  "places.id,places.displayName,places.formattedAddress,places.addressComponents,places.nationalPhoneNumber,places.websiteUri,places.primaryTypeDisplayName,places.businessStatus,places.rating,places.userRatingCount,places.googleMapsUri";
+
+/**
+ * One Places text search for the prospect finder. Uses the owner's own
+ * GOOGLE_PLACES_API_KEY when set (billed to their Google Cloud project), else
+ * the connected Google Maps connector. Returns the raw place objects.
+ */
+export async function searchPlacesForProspects(textQuery: string, maxResultCount = 20): Promise<Record<string, unknown>[]> {
+  const body = { textQuery: textQuery.slice(0, 200), maxResultCount: Math.min(20, Math.max(1, maxResultCount)), languageCode: "en" };
+  const ownKey = process.env["GOOGLE_PLACES_API_KEY"]?.trim();
+  if (ownKey) {
+    const response = await fetch("https://places.googleapis.com/v1/places:searchText", {
+      method: "POST",
+      headers: { "X-Goog-Api-Key": ownKey, "X-Goog-FieldMask": PROSPECT_FIELDS, "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      // Workers reject redirect: "error"; a 3xx fails the ok check below.
+      redirect: "manual",
+      signal: AbortSignal.timeout(15_000),
+    });
+    if (response.status === 403)
+      throw new GoogleDataError(
+        "Google rejected GOOGLE_PLACES_API_KEY. Check that Places API (New) is enabled for the key's project and the key isn't restricted away from it.",
+        "no_access",
+      );
+    if (response.status === 429)
+      throw new GoogleDataError("Google's Places quota for this key is used up for now. Try again later or raise the quota.", "rate_limited");
+    if (!response.ok)
+      throw new GoogleDataError(`Google Places couldn't answer (${response.status}). ${(await response.text()).slice(0, 200)}`.trim(), "provider_error");
+    const payload = (await response.json()) as { places?: Record<string, unknown>[] };
+    return Array.isArray(payload.places) ? payload.places : [];
+  }
+  const payload = (await callGateway("google_maps", "/places/v1/places:searchText", {
+    method: "POST",
+    body,
+    headers: { "X-Goog-FieldMask": PROSPECT_FIELDS },
+  })) as { places?: Record<string, unknown>[] } | null;
+  return Array.isArray(payload?.places) ? payload!.places! : [];
+}

@@ -217,7 +217,7 @@ async function runJarvis(db: SupabaseClient, userId: string, mode: Mode) {
         followups = final.followups;
         break;
       }
-      const results = await runReadActions(db, parsed.reads);
+      const results = await runReadActions(db, parsed.reads, userId);
       ran.push(...results.map((item) => (item.ok ? item.label : `${item.label} (failed)`)));
       conversation.push(
         { role: "assistant", content: result.text.slice(0, 8000) },
