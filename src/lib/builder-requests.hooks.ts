@@ -274,7 +274,11 @@ export function useBuilderRequests({
     });
   };
   /** Full plan actions kept out of React state: only the labels are editable. */
+  // Plans number their steps from 0, so step keys repeat across requests.
+  // Actions are stored per request (`${task.id}:${step.key}`); otherwise a plan
+  // made while an older one waits for approval would overwrite its actions.
   const actionsRef = useRef(new Map<string, AgentStep>());
+  const actionKey = (taskId: string, stepKey: string) => `${taskId}:${stepKey}`;
   const runningRef = useRef(false);
 
   const refresh = async () => {
@@ -307,7 +311,7 @@ export function useBuilderRequests({
     patch(task.id, { state: "building", applied: 0, notice: "", details: [] });
     try {
       const allActions = steps
-        .map((step) => actionsRef.current.get(step.key)?.action)
+        .map((step) => actionsRef.current.get(actionKey(task.id, step.key))?.action)
         .filter((action): action is AgentStep["action"] => Boolean(action));
       const label = (task.summary || task.instruction).slice(0, 110) || "Before Revora changes";
       // A big request is installed in safe batches instead of being refused: the
@@ -540,7 +544,7 @@ export function useBuilderRequests({
         return;
       }
       const steps = result.steps as AgentStep[];
-      for (const step of steps) actionsRef.current.set(step.key, step);
+      for (const step of steps) actionsRef.current.set(actionKey(task.id, step.key), step);
       const plannedSteps = toPlanSteps(steps);
       const questions = result.questions ?? [];
       const requirements = result.requirements ?? [];

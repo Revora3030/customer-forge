@@ -836,20 +836,44 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
     // result of that run instead of writing everything a second time. This is
     // what stops a double press, an impatient retry or a reconnect from
     // duplicating sections.
-    if (data.operationKey) {
+    // A run first CLAIMS its key and only records "agent_apply" once its
+    // changes have passed verification, so a retry never reports a rolled-back
+    // change as applied, and a retry that arrives while the first run is still
+    // writing waits for that run's outcome instead of applying a second time.
+    const findOutcome = async (key: string) => {
       const { data: recent } = await supabase
         .from("ai_generations")
-        .select("result, created_at")
+        .select("kind, result, created_at")
         .eq("organization_id", orgId)
-        .eq("kind", "agent_apply")
+        .in("kind", ["agent_apply", "agent_apply_claim", "agent_apply_rolled_back", "agent_apply_failed_verification"])
         .order("created_at", { ascending: false })
-        .limit(20);
+        .limit(40);
       const cutoff = Date.now() - 15 * 60 * 1000;
-      const previous = (recent ?? []).find((row) => {
+      const mine = (recent ?? []).filter((row) => {
         const result = row?.["result"] as { operationKey?: unknown } | null;
         const at = Date.parse(String(row?.["created_at"] ?? ""));
-        return result?.operationKey === data.operationKey && Number.isFinite(at) && at >= cutoff;
+        return result?.operationKey === key && Number.isFinite(at) && at >= cutoff;
       });
+      const of = (kind: string) => mine.find((row) => row?.["kind"] === kind) ?? null;
+      return {
+        applied: of("agent_apply"),
+        undone: of("agent_apply_rolled_back") ?? of("agent_apply_failed_verification"),
+        claimed: of("agent_apply_claim"),
+      };
+    };
+    if (data.operationKey) {
+      let outcome = await findOutcome(data.operationKey);
+      // The first run is still writing: wait for it (up to ~100 s) rather than
+      // starting a second, overlapping run of the same changes.
+      for (let wait = 0; outcome.claimed && !outcome.applied && !outcome.undone && wait < 33; wait += 1) {
+        await new Promise((resolve) => setTimeout(resolve, 3000));
+        outcome = await findOutcome(data.operationKey);
+      }
+      if (outcome.claimed && !outcome.applied && outcome.undone)
+        throw new Error("Those changes couldn't be kept, so Revora put your website back as it was. Nothing changed — please try again.");
+      if (outcome.claimed && !outcome.applied)
+        throw new Error("Revora is still saving those changes. Give it a moment, then refresh before trying again.");
+      const previous = outcome.applied;
       if (previous) {
         const result = previous["result"] as Record<string, unknown>;
         const labels = (key: string) =>
@@ -993,6 +1017,24 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
     }
 
     noteApplyStage(orgId, applyRunId, "writing the pages");
+    // Claimed right before the first write: checks above that refuse the batch
+    // leave nothing behind, and every exit below records an outcome (applied,
+    // rolled back or failed verification) for a waiting retry to read.
+    if (data.operationKey) {
+      try {
+        await supabase.from("ai_generations").insert({
+          organization_id: orgId,
+          kind: "agent_apply_claim",
+          model: "applied",
+          instruction: "apply in progress",
+          result: { operationId, operationKey: data.operationKey } as unknown as never,
+          created_by: userId,
+        });
+      } catch (error) {
+        console.error("[site-agent] could not claim apply key", error);
+      }
+    }
+
     const sortOf = new Map(site.sections.map((section) => [section.id, section.sort_order]));
     const applied: string[] = [];
     const failed: string[] = [];
@@ -1868,6 +1910,7 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
           instruction: snapshotLabel,
           result: {
             operationId,
+            operationKey: data.operationKey || null,
             applied,
             failed,
             reversal,
@@ -1884,37 +1927,6 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
           ? "One of those steps couldn't be saved, so Revora put your website back exactly as it was. Nothing changed — please try again."
           : `One of those steps couldn't be saved. Revora undid what it could and saved the restore point "${snapshotLabel}" — open Version history to return your website to it.`,
       );
-    }
-
-    // Recording the apply is observability, never a gate: the changes are
-    // already written, so a failed insert here must not undo them or report
-    // the apply as failed.
-    try {
-      await supabase.from("ai_generations").insert({
-        organization_id: orgId,
-        kind: "agent_apply",
-        model: "applied",
-        instruction: snapshotLabel,
-        result: {
-          operationId,
-          operationKey: data.operationKey || null,
-          applied: applied.length,
-          failed: failed.length,
-          stale: preflight.stale.length,
-          unchanged: settled.unchanged,
-          duplicates: preflight.duplicates,
-          staleNotice,
-          appliedLabels: applied,
-          skippedLabels: failed,
-          snapshotLabel,
-          snapshotVersion,
-          mutations: undoSteps.length,
-        } as unknown as never,
-
-        created_by: userId,
-      });
-    } catch (error) {
-      console.error("[site-agent] could not record apply result", error);
     }
 
     invalidateWorkspaceContext(orgId);
@@ -1947,6 +1959,7 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
             instruction: snapshotLabel,
             result: {
               operationId,
+              operationKey: data.operationKey || null,
               applied,
               verification,
               reversal,
@@ -1968,6 +1981,38 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
             : `Revora found a problem after saving (${worst}) and undid what it could. Open Version history and return to "${snapshotLabel}".`,
         );
       }
+    }
+
+    // Recorded only now, after the live pages passed verification, because this
+    // row is also the idempotency answer for a retry with the same key. It is
+    // still observability, never a gate: a failed insert must not undo good
+    // changes or report the apply as failed.
+    try {
+      await supabase.from("ai_generations").insert({
+        organization_id: orgId,
+        kind: "agent_apply",
+        model: "applied",
+        instruction: snapshotLabel,
+        result: {
+          operationId,
+          operationKey: data.operationKey || null,
+          applied: applied.length,
+          failed: failed.length,
+          stale: preflight.stale.length,
+          unchanged: settled.unchanged,
+          duplicates: preflight.duplicates,
+          staleNotice,
+          appliedLabels: applied,
+          skippedLabels: failed,
+          snapshotLabel,
+          snapshotVersion,
+          mutations: undoSteps.length,
+        } as unknown as never,
+
+        created_by: userId,
+      });
+    } catch (error) {
+      console.error("[site-agent] could not record apply result", error);
     }
 
     // VERIFY BEFORE CLAIMING. Re-read every row this run wrote and confirm the
