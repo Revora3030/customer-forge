@@ -598,6 +598,56 @@ export function openAiSharedTrafficModels(): string[] {
   return [...OPENAI_SHARED_TRAFFIC_FREE];
 }
 
+/**
+ * OpenAI meters the shared-traffic allowance in TOKENS per day, per pool, and
+ * bills anything beyond it at standard rates without refusing the call, so a
+ * request counter alone lets "free" calls get billed. Revora counts the tokens
+ * every free OpenAI answer used and stops offering a pool's models once 90% of
+ * its published allowance is spent (override the allowance with
+ * OPENAI_FREE_FLAGSHIP_TOKENS_DAILY / OPENAI_FREE_MINI_TOKENS_DAILY).
+ */
+export type OpenAiTokenPool = "flagship" | "mini";
+const OPENAI_POOL_TOKENS: Record<OpenAiTokenPool, number> = { flagship: 250_000, mini: 2_500_000 };
+const OPENAI_POOL_SAFETY = 0.9;
+/** Counted when a provider reports no usage, so an unknown call never counts as free. */
+export const OPENAI_UNKNOWN_USAGE_TOKENS = 8_000;
+
+export function openAiTokenPool(model: string): OpenAiTokenPool {
+  return /mini|nano/i.test(model) ? "mini" : "flagship";
+}
+
+/** Shared counter key in ai_provider_runtime. */
+export function openAiTokenPoolKey(pool: OpenAiTokenPool) {
+  return `openai:tokens:${pool}`;
+}
+
+export function openAiTokenPoolCap(pool: OpenAiTokenPool): number {
+  const override = Number(env(`OPENAI_FREE_${pool.toUpperCase()}_TOKENS_DAILY`));
+  const allowance = Number.isFinite(override) && override > 0 ? Math.floor(override) : OPENAI_POOL_TOKENS[pool];
+  return Math.floor(allowance * OPENAI_POOL_SAFETY);
+}
+
+const openAiTokenUse = new Map<OpenAiTokenPool, { day: string; used: number }>();
+
+/** This worker's own count, kept even when the shared counter can't be reached. */
+export function noteOpenAiTokens(model: string, tokens: number) {
+  const pool = openAiTokenPool(model);
+  const day = today();
+  const entry = openAiTokenUse.get(pool);
+  const add = Math.max(0, Math.floor(tokens));
+  openAiTokenUse.set(pool, entry && entry.day === day ? { day, used: entry.used + add } : { day, used: add });
+}
+
+export function openAiTokensLocallyExhausted(model: string): boolean {
+  const pool = openAiTokenPool(model);
+  const entry = openAiTokenUse.get(pool);
+  return Boolean(entry && entry.day === today() && entry.used >= openAiTokenPoolCap(pool));
+}
+
+export function resetOpenAiTokenUse() {
+  openAiTokenUse.clear();
+}
+
 /** SiliconFlow's free models. Its catalogue doesn't show prices, so only these are used. */
 const SILICONFLOW_FREE = new Set(
   [
@@ -821,8 +871,9 @@ export function freeModelFor(provider: FreeProviderName, role: ModelRole): strin
 
 const DEFAULT_ORDER: FreeProviderName[] = [
   // OpenAI's shared-traffic allowance first: it is the strongest free pool
-  // available to this account, and it costs nothing until the daily token
-  // allowance is used up, after which OpenAI's own limits push the chain on.
+  // available to this account. It costs nothing until the daily token
+  // allowance is used up and OpenAI bills past it instead of refusing, so the
+  // router meters tokens per pool and stops offering a pool before that point.
   "openai",
   "cloudflare",
   "groq",

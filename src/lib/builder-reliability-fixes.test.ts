@@ -49,3 +49,28 @@ describe("the free picture lane never bills the paid image model", () => {
     expect(imageLane).toContain("freeOnly: true");
   });
 });
+
+describe("OpenAI's free lane is metered in tokens", () => {
+  it("splits flagship and mini/nano pools and stops at 90% of the allowance", async () => {
+    const free = await import("@/lib/ai/free");
+    free.resetOpenAiTokenUse();
+    expect(free.openAiTokenPool("gpt-5.4")).toBe("flagship");
+    expect(free.openAiTokenPool("gpt-4.1-nano")).toBe("mini");
+    expect(free.openAiTokenPoolCap("flagship")).toBe(225_000);
+    expect(free.openAiTokenPoolCap("mini")).toBe(2_250_000);
+    free.noteOpenAiTokens("gpt-5.4", 224_999);
+    expect(free.openAiTokensLocallyExhausted("gpt-5")).toBe(false);
+    free.noteOpenAiTokens("gpt-5", 1);
+    expect(free.openAiTokensLocallyExhausted("gpt-4o")).toBe(true);
+    expect(free.openAiTokensLocallyExhausted("gpt-5-mini")).toBe(false);
+    free.resetOpenAiTokenUse();
+  });
+
+  it("counts every free OpenAI answer and skips a spent pool", () => {
+    const router = read("src/lib/ai/router.server.ts");
+    expect(router).toContain('if (entry.name === "openai" && openAiPoolSpent(model)) return;');
+    expect(router).toContain("void noteDurableFreeTokens(openAiTokenPoolKey(openAiTokenPool(model)), tokens);");
+    const sql = read("supabase/migrations/20261016180000_openai_free_token_meter.sql");
+    expect(sql).toContain("GRANT EXECUTE ON FUNCTION public.ai_note_free_tokens(text, integer) TO service_role;");
+  });
+});

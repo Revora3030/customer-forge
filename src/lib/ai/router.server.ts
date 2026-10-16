@@ -35,6 +35,7 @@ import { RevoraAiError, freeAiUnavailable, providerUnavailable } from "@/lib/ai/
 import {
   durableBudgetExhausted,
   durableProviderResting,
+  noteDurableFreeTokens,
   noteDurableFreeUse,
   noteDurableProviderResult,
   refreshDurableRuntime,
@@ -53,6 +54,12 @@ import {
   imageEditCapableModel,
   isFreeEligibleModel,
   noteFreeUse,
+  noteOpenAiTokens,
+  openAiTokenPool,
+  openAiTokenPoolCap,
+  openAiTokenPoolKey,
+  openAiTokensLocallyExhausted,
+  OPENAI_UNKNOWN_USAGE_TOKENS,
   type FreeProviderName,
   ADMIN_ONLY_FREE_PROVIDERS,
 } from "@/lib/ai/free";
@@ -266,6 +273,15 @@ export function freeModelPoolDepth(): number {
   return Number.isFinite(raw) && raw > 0 ? Math.floor(raw) : Number.POSITIVE_INFINITY;
 }
 
+/** True once an OpenAI shared-traffic pool's tokens for today are spent, on this worker or shared. */
+function openAiPoolSpent(model: string) {
+  const pool = openAiTokenPool(model);
+  return (
+    openAiTokensLocallyExhausted(model) ||
+    durableBudgetExhausted(openAiTokenPoolKey(pool), openAiTokenPoolCap(pool))
+  );
+}
+
 /**
  * Every verified free model available for one role, grouped by provider and in
  * preference order. This is the authoritative pool: no fixed per-provider cap.
@@ -304,6 +320,9 @@ export async function freeModelPool(
       // Belt and braces: never dispatch a model that isn't free-eligible.
       if (models.length >= depth) return;
       if (capable && !capable(model)) return;
+      // OpenAI bills past its shared-traffic token allowance instead of
+      // refusing, so a pool whose tokens are spent is never offered as free.
+      if (entry.name === "openai" && openAiPoolSpent(model)) return;
       if (!models.includes(model) && isFreeEligibleModel(entry.name, model)) models.push(model);
     };
     const configuredModel = entry.model;
@@ -654,6 +673,12 @@ async function run<T>(
           }
           const result = await execute({ adapter, config, model, signal: controller.signal, compaction });
           noteSuccess(breakerScope);
+          if (candidate.free === "openai") {
+            const used = (result.inputTokens ?? 0) + (result.outputTokens ?? 0);
+            const tokens = used > 0 ? used : OPENAI_UNKNOWN_USAGE_TOKENS;
+            noteOpenAiTokens(model, tokens);
+            void noteDurableFreeTokens(openAiTokenPoolKey(openAiTokenPool(model)), tokens);
+          }
           if (!candidate.free) noteProviderSuccess(config.name);
           if (candidate.free)
             void noteDurableProviderResult({

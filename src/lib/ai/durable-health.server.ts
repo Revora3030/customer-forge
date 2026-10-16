@@ -177,6 +177,30 @@ export async function noteDurableFreeUse(
   }
 }
 
+/**
+ * Add the tokens one free answer used to a shared token counter (OpenAI's
+ * shared-traffic allowance is metered in tokens, not requests). The counter
+ * lives in the same runtime table under its own key, so durableBudgetExhausted
+ * can check it against the token cap like any other allowance.
+ */
+export async function noteDurableFreeTokens(key: string, tokens: number): Promise<void> {
+  const amount = Math.max(0, Math.floor(tokens));
+  if (!amount) return;
+  const today = new Date().toISOString().slice(0, 10);
+  const state = snapshot.get(key);
+  if (state) {
+    state.used = state.day === today ? state.used + amount : amount;
+    state.day = today;
+  }
+  try {
+    const client = await admin();
+    if (!client) return;
+    await client.rpc("ai_note_free_tokens" as never, { _provider: key, _amount: amount } as never);
+  } catch {
+    // Never breaks a model call; the in-process counter still applies.
+  }
+}
+
 /** Record one provider outcome in the shared circuit state. */
 export async function noteDurableProviderResult(input: {
   provider: FreeProviderName | string;
