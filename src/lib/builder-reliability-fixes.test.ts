@@ -187,3 +187,11 @@ describe("the screen check's AI repair never runs alongside a chat request", () 
     expect(page.match(/holdQueue=\{requests\.holdQueue\}/g)).toHaveLength(2);
   });
 });
+
+describe("recovery after a deferral never returns the old 'still building' reply", () => {
+  it("skips deferred rows once the request has been deferred", () => {
+    const hooks = read("src/lib/builder-requests.hooks.ts");
+    expect(hooks).toContain("skipDeferred: (deferRef.current.get(task.id) ?? 0) > 0,");
+    expect(hooks).toContain("!(options.skipDeferred && (row.result as { deferred?: unknown }).deferred === true)");
+  });
+});

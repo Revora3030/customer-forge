@@ -117,7 +117,11 @@ function isDroppedConnection(error: unknown): boolean {
  * The server stores every finished plan with its request id; this reads it
  * back for up to ~4 minutes.
  */
-async function recoverPlan(organizationId: string, requestId: string): Promise<unknown | null> {
+async function recoverPlan(
+  organizationId: string,
+  requestId: string,
+  options: { skipDeferred?: boolean } = {},
+): Promise<unknown | null> {
   const deadline = Date.now() + 4 * 60 * 1000;
   while (Date.now() < deadline) {
     await new Promise((resolve) => setTimeout(resolve, 5000));
@@ -129,9 +133,13 @@ async function recoverPlan(organizationId: string, requestId: string): Promise<u
         .eq("kind", "agent_plan")
         .contains("result", { requestId } as never)
         .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      if (data?.result) return data.result;
+        .limit(5);
+      // A re-plan after a first-build deferral shares the request id with the
+      // earlier "still building" reply: never hand that old reply back.
+      const found = ((data ?? []) as { result: unknown }[]).find(
+        (row) => row.result && !(options.skipDeferred && (row.result as { deferred?: unknown }).deferred === true),
+      );
+      if (found) return found.result;
     } catch {
       // Still offline: keep waiting.
     }
@@ -492,7 +500,9 @@ export function useBuilderRequests({
         // working on the server. The finished plan is saved under this
         // request's id, so wait for it instead of failing the request.
         if (!isDroppedConnection(error)) throw error;
-        const recovered = await recoverPlan(organizationId!, task.id);
+        const recovered = await recoverPlan(organizationId!, task.id, {
+          skipDeferred: (deferRef.current.get(task.id) ?? 0) > 0,
+        });
         if (!recovered) throw error;
         result = recovered as Awaited<ReturnType<typeof planFn>>;
       }
