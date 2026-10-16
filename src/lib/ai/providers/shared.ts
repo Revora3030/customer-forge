@@ -8,6 +8,10 @@ import { RevoraAiError, categoryForStatus } from "@/lib/ai/errors";
 import { BILLING_EXHAUSTED_TEXT } from "@/lib/ai/provider-backoff";
 import type { ProviderName } from "@/lib/ai/config";
 
+/** Provider wording for "the conversation doesn't fit this model's context". */
+export const CONTEXT_TOO_LONG_TEXT =
+  /context[_ ]length|maximum context|context window|too many (?:input )?tokens|reduce the length|prompt is too long|input is too long|exceeds? the (?:model'?s? )?(?:maximum|max)(?:imum)? (?:context|token|input)|request too large/i;
+
 export function base64FromDataUrl(dataUrl: string) {
   const comma = dataUrl.indexOf(",");
   return comma >= 0 ? dataUrl.slice(comma + 1) : dataUrl;
@@ -51,10 +55,16 @@ export async function providerHttpError(
   // It is an account fact, not a busy moment: classify it as quota so the
   // provider is skipped and backed off instead of retried.
   const billingExhausted = response.status !== 401 && BILLING_EXHAUSTED_TEXT.test(detail);
+  // Most providers report an over-long conversation as a plain 400. It is a
+  // fact about this model's context window, so it is "too_large": the router
+  // then hands a shortened conversation to the next free model.
+  const contextTooLong = [400, 413, 422].includes(response.status) && CONTEXT_TOO_LONG_TEXT.test(detail);
   const category = keyRejected
     ? "unauthorized"
     : billingExhausted
       ? "quota"
+    : contextTooLong
+      ? "too_large"
     : modelMissing && response.status !== 429 && response.status < 500
       ? "bad_response"
       : categoryForStatus(response.status);
@@ -65,7 +75,9 @@ export async function providerHttpError(
       : category === "quota" || category === "policy"
         ? `Revora's AI provider (${provider}) refused this request. Check the provider account for this workspace.`
         : category === "too_large"
-          ? "That attachment is too large for Revora AI. Try a smaller file."
+          ? contextTooLong
+            ? "That conversation is too long for this AI model."
+            : "That attachment is too large for Revora AI. Try a smaller file."
           : category === "invalid_request"
             ? "Revora AI could not process that request."
             : category === "bad_response"
