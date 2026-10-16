@@ -58,3 +58,27 @@ describe("saved builder conversation", () => {
     });
   });
 });
+
+describe("saved builder conversation keyed by request id", () => {
+  it("attaches a late result to the request it belongs to, not the newest one", () => {
+    const turns = toTurns([
+      { role: "user", content: "Remove the gallery", created_at: "1", request_id: "req-a" },
+      { role: "assistant", content: "Approve to remove it?", created_at: "2", request_id: "req-a" },
+      { role: "user", content: "Make headlines shorter", created_at: "3", request_id: "req-b" },
+      { role: "assistant", content: "Gallery removed.", created_at: "4", request_id: "req-a" },
+    ] as never);
+    const pairs = pairTurns(turns);
+    expect(pairs).toHaveLength(2);
+    expect(pairs[0]?.reply).toBe("Approve to remove it?\n\nGallery removed.");
+    expect(pairs[1]?.reply).toBe("");
+  });
+
+  it("keeps a re-planned request as one entry", () => {
+    const turns = toTurns([
+      { role: "user", content: "Add pricing", created_at: "1", request_id: "req-a" },
+      { role: "user", content: "Add pricing", created_at: "5", request_id: "req-a" },
+      { role: "assistant", content: "Added it.", created_at: "6", request_id: "req-a" },
+    ] as never);
+    expect(pairTurns(turns)).toEqual([{ instruction: "Add pricing", reply: "Added it.", at: "1", requestId: "req-a" }]);
+  });
+});

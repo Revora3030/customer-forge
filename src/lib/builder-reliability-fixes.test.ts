@@ -195,3 +195,12 @@ describe("recovery after a deferral never returns the old 'still building' reply
     expect(hooks).toContain("!(options.skipDeferred && (row.result as { deferred?: unknown }).deferred === true)");
   });
 });
+
+describe("leaving the builder never loses or duplicates a request", () => {
+  it("keeps plans awaiting approval pending, and never shows a resumed request twice or as 'Done.'", () => {
+    const hooks = read("src/lib/builder-requests.hooks.ts");
+    expect(hooks).toContain('if (task.state === "complete" || task.state === "failed" || task.state === "skipped")\n        clearPending(organizationId, task.id);');
+    expect(hooks).toContain(".filter((pair) => !(pair.requestId && resumedIds.has(pair.requestId.split(\"~\")[0])))");
+    expect(hooks).toContain("Revora didn't save how this request ended.");
+  });
+});
