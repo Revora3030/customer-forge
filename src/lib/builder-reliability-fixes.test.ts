@@ -74,3 +74,40 @@ describe("OpenAI's free lane is metered in tokens", () => {
     expect(sql).toContain("GRANT EXECUTE ON FUNCTION public.ai_note_free_tokens(text, integer) TO service_role;");
   });
 });
+
+describe("the free picture-edit mask is a valid PNG", () => {
+  it("decodes to a full 512x512 white greyscale image with valid chunk CRCs", async () => {
+    const { inflateSync } = await import("node:zlib");
+    const crc32 = (bytes: Uint8Array) => {
+      let crc = 0xffffffff;
+      for (const byte of bytes) {
+        crc ^= byte;
+        for (let bit = 0; bit < 8; bit += 1) crc = crc & 1 ? (crc >>> 1) ^ 0xedb88320 : crc >>> 1;
+      }
+      return (crc ^ 0xffffffff) >>> 0;
+    };
+    const { FULL_COVERAGE_MASK_PNG_BASE64 } = await import("@/lib/ai/providers/cloudflare-image");
+    const png = Buffer.from(FULL_COVERAGE_MASK_PNG_BASE64, "base64");
+    expect(png.subarray(0, 8).toString("hex")).toBe("89504e470d0a1a0a");
+    const idat: Buffer[] = [];
+    let pos = 8;
+    let width = 0;
+    let height = 0;
+    while (pos < png.length) {
+      const length = png.readUInt32BE(pos);
+      const type = png.subarray(pos + 4, pos + 8);
+      const data = png.subarray(pos + 8, pos + 8 + length);
+      expect(png.readUInt32BE(pos + 8 + length)).toBe(crc32(Buffer.concat([type, data])));
+      if (type.toString() === "IHDR") {
+        width = data.readUInt32BE(0);
+        height = data.readUInt32BE(4);
+      }
+      if (type.toString() === "IDAT") idat.push(data);
+      pos += 12 + length;
+    }
+    expect([width, height]).toEqual([512, 512]);
+    const pixels = inflateSync(Buffer.concat(idat));
+    expect(pixels.length).toBe(512 * 513);
+    expect(pixels.every((byte, i) => (i % 513 === 0 ? byte === 0 : byte === 255))).toBe(true);
+  });
+});

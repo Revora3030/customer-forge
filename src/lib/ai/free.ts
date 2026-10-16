@@ -719,7 +719,8 @@ export function isFreeEligibleModel(provider: FreeProviderName, model: string): 
     // Groq's free tier serves gpt-oss models under the openai/ namespace.
     // DeepSeek's free tier serves deepseek-chat and deepseek-coder directly.
     // Both would otherwise be rejected by the paid-name patterns above.
-    const groqException = provider === "groq" && /^gpt-oss/i.test(unprefixed);
+    // Cerebras serves the same open-weight gpt-oss models on its free tier.
+    const groqException = (provider === "groq" || provider === "cerebras") && /^gpt-oss/i.test(unprefixed);
     const deepseekException =
       provider === "deepseek" && /^(deepseek-flash|deepseek-v4-pro|deepseek-chat|deepseek-coder|deepseek-reasoner)/i.test(unprefixed);
     if (!groqException && !deepseekException) return false;

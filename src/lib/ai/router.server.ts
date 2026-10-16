@@ -428,7 +428,13 @@ async function buildChain(
   // FREE-FIRST AUTO-SWITCH: a paid provider that recently answered 402/quota/
   // key-rejected/rate-limited moves behind the free pool until its backoff
   // lapses, so an unfunded account never adds latency to every build step.
-  const ordered = demoteDegradedPaid(overridden);
+  const backedOff = demoteDegradedPaid(overridden);
+  // OPEN BREAKER: a paid model that just failed three times (timeouts, 5xx)
+  // also waits behind the free pool until its cooldown ends, so a hanging paid
+  // provider can't spend every request's deadline before a free model is tried.
+  const cooling = (entry: Candidate) =>
+    entry.free === null && !providerHealthy({ caller, provider: entry.config.name, model: entry.model });
+  const ordered = [...backedOff.filter((entry) => !cooling(entry)), ...backedOff.filter(cooling)];
   // The POOL is unlimited; one single request's FAILOVER depth is not, so a
   // simple call can never turn into a 60-model latency wall. The ensemble
   // orchestrator uses the full pool in parallel instead.
@@ -643,6 +649,10 @@ async function run<T>(
     // A request the pool keeps calling malformed really is malformed; stop
     // after a few different providers agree instead of walking all of them.
     const invalidBy = new Set<string>();
+    // Context-window refusals are counted apart: a long conversation that two
+    // small models refuse is not "malformed", and must not use up the three
+    // strikes reserved for requests the pool genuinely rejects.
+    const tooLargeBy = new Set<string>();
     // Each free model that refuses the request as too large makes the next
     // one receive a shorter version of the conversation (context-compaction).
     let compaction = 0;
@@ -783,8 +793,8 @@ async function run<T>(
           // refusing a long conversation moves on to the next free model.
           if (error.category === "too_large") {
             if (!candidate.free) throw error;
-            invalidBy.add(config.name);
-            if (invalidBy.size >= 6) throw error;
+            tooLargeBy.add(config.name);
+            if (tooLargeBy.size >= 6) throw error;
             compaction += 1;
             break;
           }
@@ -1348,6 +1358,11 @@ export async function callPinnedFreeModel(
     });
   if (durableProviderResting(call.provider))
     throw providerUnavailable(call.provider, "cooling down after repeated failures");
+  if (call.provider === "openai" && openAiPoolSpent(call.model))
+    throw new RevoraAiError(429, "OpenAI's free daily token allowance for that model is used up.", {
+      category: "rate_limited",
+      provider: call.provider,
+    });
   const credentials = freeProviderCredentials(call.provider);
   if (!credentials) throw freeAiUnavailable(`${call.provider} has no credentials configured`);
 
@@ -1381,6 +1396,12 @@ export async function callPinnedFreeModel(
       signal: controller.signal,
     });
     noteSuccess(breakerScope);
+    if (call.provider === "openai") {
+      const used = (result.usage.inputTokens ?? 0) + (result.usage.outputTokens ?? 0);
+      const tokens = used > 0 ? used : OPENAI_UNKNOWN_USAGE_TOKENS;
+      noteOpenAiTokens(call.model, tokens);
+      void noteDurableFreeTokens(openAiTokenPoolKey(openAiTokenPool(call.model)), tokens);
+    }
     const latencyMs = Date.now() - started;
     void noteDurableProviderResult({ provider: call.provider, ok: true, latencyMs });
     void recordAiEvent({
