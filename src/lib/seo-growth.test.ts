@@ -164,3 +164,18 @@ describe("Search Console feedback loop", () => {
     expect(kinds).toContain("growing_impressions");
   });
 });
+
+describe("noindex pages and publisher identity", () => {
+  it("every inventory noindex page emits the noindex tag", async () => {
+    const { readFileSync } = await import("node:fs");
+    for (const file of ["share.tsx", "demo.index.tsx", "demo.dashboard.tsx"]) {
+      expect(readFileSync(`src/routes/${file}`, "utf8")).toContain('content: "noindex, follow"');
+    }
+  });
+
+  it("gives Google a large enough logo and business image", async () => {
+    const { ORGANIZATION_SCHEMA, LOCAL_BUSINESS_SCHEMA } = await import("@/lib/seo");
+    expect(ORGANIZATION_SCHEMA.logo.width).toBeGreaterThanOrEqual(112);
+    expect(LOCAL_BUSINESS_SCHEMA.image).toBe("https://revoragrowthsystems.com/og.jpg");
+  });
+});

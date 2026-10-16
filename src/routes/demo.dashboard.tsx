@@ -57,6 +57,8 @@ export const Route = createFileRoute("/demo/dashboard")({
       { property: "og:type", content: "website" },
       { property: "og:url", content: "https://revoragrowthsystems.com/demo/dashboard" },
       { name: "twitter:card", content: "summary_large_image" },
+      // Kept out of search (see seoInventory); links on it still pass value.
+      { name: "robots", content: "noindex, follow" },
     ],
     links: [{ rel: "canonical", href: "https://revoragrowthsystems.com/demo/dashboard" }],
   }),

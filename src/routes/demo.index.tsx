@@ -31,6 +31,8 @@ export const Route = createFileRoute("/demo/")({
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
       ogUrl("/demo"),
+      // Kept out of search (see seoInventory); links on it still pass value.
+      { name: "robots", content: "noindex, follow" },
     ],
     links: [canonicalLink("/demo")],
   }),
