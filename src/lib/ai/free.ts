@@ -25,7 +25,11 @@ export type FreeProviderName =
   | "huggingface"
   | "deepseek"
   | "cerebras"
-  | "cohere";
+  | "cohere"
+  | "sambanova"
+  | "together"
+  | "siliconflow"
+  | "pollinations";
 
 export const FREE_PROVIDERS: FreeProviderName[] = [
   "openai",
@@ -40,6 +44,10 @@ export const FREE_PROVIDERS: FreeProviderName[] = [
   "deepseek",
   "cerebras",
   "cohere",
+  "sambanova",
+  "together",
+  "siliconflow",
+  "pollinations",
 ];
 
 
@@ -120,6 +128,26 @@ export const FREE_ALLOWANCE: Record<
     label: "Cohere trial API",
     allowance: "Trial keys: free until rate limits reached for Command A+, North, and Embed models.",
     dailyRequestCap: null,
+  },
+  sambanova: {
+    label: "SambaNova Cloud free tier",
+    allowance: "Free tier: about 20 requests per minute and 20 per day, 200K tokens per day. Revora caps its own use to match.",
+    dailyRequestCap: 20,
+  },
+  together: {
+    label: "Together AI free endpoints",
+    allowance: "Free endpoints only (model ids ending in -Free, or priced at zero in Together's catalogue). Every other Together model is billed and never used.",
+    dailyRequestCap: 200,
+  },
+  siliconflow: {
+    label: "SiliconFlow free models",
+    allowance: "Free small models only (an allowlist: Qwen 7B/8B, GLM-4 9B, DeepSeek R1 distills), rate-limited. Larger SiliconFlow models are billed and never used.",
+    dailyRequestCap: 500,
+  },
+  pollinations: {
+    label: "Pollinations free daily grant",
+    allowance: "Text models Pollinations does not mark paid-only, inside its free daily pollen grant. Revora caps its own use.",
+    dailyRequestCap: 150,
   },
 };
 
@@ -252,6 +280,36 @@ const FREE_MODEL_DEFAULTS: Record<FreeProviderName, Partial<Record<ModelRole, st
     fast: "command-r7b-12-2024",
     coding: "north-mini-code",
     conversation: "command-a-plus-05-2026",
+  },
+  // Starting points only: live discovery (/v1/models) supplies the ids this
+  // account actually serves, and a retired id just fails over.
+  sambanova: {
+    primary: "DeepSeek-V3.1",
+    design: "DeepSeek-V3.1",
+    fast: "Meta-Llama-3.1-8B-Instruct",
+    coding: "DeepSeek-V3.1",
+    conversation: "Meta-Llama-3.3-70B-Instruct",
+  },
+  together: {
+    primary: "meta-llama/Llama-3.3-70B-Instruct-Turbo-Free",
+    design: "meta-llama/Llama-3.3-70B-Instruct-Turbo-Free",
+    fast: "meta-llama/Llama-3.3-70B-Instruct-Turbo-Free",
+    coding: "deepseek-ai/DeepSeek-R1-Distill-Llama-70B-free",
+    conversation: "meta-llama/Llama-3.3-70B-Instruct-Turbo-Free",
+  },
+  siliconflow: {
+    primary: "Qwen/Qwen3-8B",
+    design: "Qwen/Qwen3-8B",
+    fast: "Qwen/Qwen2.5-7B-Instruct",
+    coding: "Qwen/Qwen2.5-Coder-7B-Instruct",
+    conversation: "THUDM/GLM-4-9B-0414",
+  },
+  pollinations: {
+    primary: "openai",
+    design: "openai",
+    fast: "openai-fast",
+    coding: "qwen-coder",
+    conversation: "openai",
   },
 };
 
@@ -449,6 +507,40 @@ export function openAiSharedTrafficModels(): string[] {
   return [...OPENAI_SHARED_TRAFFIC_FREE];
 }
 
+/** SiliconFlow's free models. Its catalogue doesn't show prices, so only these are used. */
+const SILICONFLOW_FREE = new Set(
+  [
+    "Qwen/Qwen3-8B",
+    "Qwen/Qwen2.5-7B-Instruct",
+    "Qwen/Qwen2.5-Coder-7B-Instruct",
+    "Qwen/Qwen2-7B-Instruct",
+    "THUDM/GLM-4-9B-0414",
+    "THUDM/GLM-Z1-9B-0414",
+    "THUDM/glm-4-9b-chat",
+    "deepseek-ai/DeepSeek-R1-0528-Qwen3-8B",
+    "deepseek-ai/DeepSeek-R1-Distill-Qwen-7B",
+    "internlm/internlm2_5-7b-chat",
+  ].map((id) => id.toLowerCase()),
+);
+
+/** Together and Pollinations ids live discovery saw priced at zero / not paid-only. */
+const discoveredZeroPrice: Record<"together" | "pollinations", Set<string>> = {
+  together: new Set(),
+  pollinations: new Set(),
+};
+
+export function noteZeroPriceModels(provider: "together" | "pollinations", ids: string[]) {
+  for (const id of ids) discoveredZeroPrice[provider].add(id.trim().toLowerCase());
+}
+
+export function resetZeroPriceModels() {
+  discoveredZeroPrice.together.clear();
+  discoveredZeroPrice.pollinations.clear();
+}
+
+/** Pollinations' basic text models; anything else must be confirmed by discovery. */
+const POLLINATIONS_BASIC = new Set(["openai", "openai-fast", "mistral", "qwen-coder"]);
+
 export function isFreeEligibleModel(provider: FreeProviderName, model: string): boolean {
   const name = model.trim();
   if (name.length === 0) return false;
@@ -456,6 +548,12 @@ export function isFreeEligibleModel(provider: FreeProviderName, model: string): 
   // covers, so this is checked before the generic paid-name rules below (which
   // reject every `gpt-`/`o<n>` name).
   if (provider === "openai") return openAiSharedTrafficFree(name);
+  // Exact allowlists / catalogue evidence, checked before the generic name rules.
+  if (provider === "siliconflow") return SILICONFLOW_FREE.has(name.toLowerCase());
+  if (provider === "together")
+    return !NON_CHAT_MODEL.test(name) && (/-free$/i.test(name) || discoveredZeroPrice.together.has(name.toLowerCase()));
+  if (provider === "pollinations")
+    return !NON_CHAT_MODEL.test(name) && (POLLINATIONS_BASIC.has(name.toLowerCase()) || discoveredZeroPrice.pollinations.has(name.toLowerCase()));
   const unprefixed = provider === "groq" ? name.replace(/^openai\/(?=gpt-oss)/i, "") : name;
   if (PAID_MODEL_PATTERNS.some((pattern) => pattern.test(unprefixed))) {
     // Groq's free tier serves gpt-oss models under the openai/ namespace.
@@ -480,6 +578,8 @@ export function isFreeEligibleModel(provider: FreeProviderName, model: string): 
     return /^(deepseek-flash|deepseek-v4-pro|deepseek-chat|deepseek-reasoner|deepseek-coder)/i.test(name);
   if (provider === "cerebras")
     return /^(gpt-oss|qwen|llama|deepseek)/i.test(name);
+  // SambaNova's free tier serves its hosted chat models under a daily cap.
+  if (provider === "sambanova") return !NON_CHAT_MODEL.test(name) && !/e5-|bge|clip|audio|tts/i.test(name);
   if (provider === "cohere")
     // Embed models turn text into numbers; they can never write an answer.
     return /^(command|north|c4ai-aya)/i.test(name) && !NON_CHAT_MODEL.test(name);
@@ -553,12 +653,30 @@ export function freeProviderCredentials(
     const apiKey = env("COHERE_API_KEY") ?? env("Cohere");
     return apiKey ? { apiKey } : null;
   }
+  if (provider === "sambanova") {
+    // SambaNova bills once an account is upgraded; operators can turn it off.
+    if (env("SAMBANOVA_FREE_TIER")?.toLowerCase() === "false") return null;
+    const apiKey = env("SAMBANOVA_API_KEY");
+    return apiKey ? { apiKey } : null;
+  }
+  if (provider === "together") {
+    const apiKey = env("TOGETHER_API_KEY");
+    return apiKey ? { apiKey } : null;
+  }
+  if (provider === "siliconflow") {
+    const apiKey = env("SILICONFLOW_API_KEY");
+    return apiKey ? { apiKey } : null;
+  }
+  if (provider === "pollinations") {
+    const apiKey = env("POLLINATIONS_API_KEY");
+    return apiKey ? { apiKey } : null;
+  }
   // Gemini needs its OWN free-tier key. A general Google key may sit on a
   // billing-enabled project, where the same models are charged — so it is only
   // treated as free when an operator opts in explicitly.
   const apiKey =
     env("GOOGLE_AI_FREE_API_KEY") ??
-    (env("GOOGLE_AI_FREE_TIER") === "true" ? env("GOOGLE_AI_API_KEY") : null);
+    (env("GOOGLE_AI_FREE_TIER") === "true" ? (env("GOOGLE_AI_API_KEY") ?? env("GEMINI_API_KEY")) : null);
   return apiKey ? { apiKey } : null;
 }
 
@@ -587,6 +705,10 @@ const DEFAULT_ORDER: FreeProviderName[] = [
   "deepseek",
   "cerebras",
   "cohere",
+  "sambanova",
+  "together",
+  "siliconflow",
+  "pollinations",
 ];
 
 

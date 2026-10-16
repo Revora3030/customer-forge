@@ -67,6 +67,10 @@ import { huggingfaceAdapter } from "@/lib/ai/providers/huggingface";
 import { deepseekAdapter } from "@/lib/ai/providers/deepseek";
 import { cerebrasAdapter } from "@/lib/ai/providers/cerebras";
 import { cohereAdapter } from "@/lib/ai/providers/cohere";
+import { sambanovaAdapter } from "@/lib/ai/providers/sambanova";
+import { togetherAdapter } from "@/lib/ai/providers/together";
+import { siliconflowAdapter } from "@/lib/ai/providers/siliconflow";
+import { pollinationsAdapter } from "@/lib/ai/providers/pollinations";
 import { nvidiaAdapter } from "@/lib/ai/providers/nvidia";
 import { openRouterAdapter } from "@/lib/ai/providers/openrouter";
 import {
@@ -104,6 +108,10 @@ const ADAPTERS: Record<ProviderName, ProviderAdapter> = {
   deepseek: deepseekAdapter,
   cerebras: cerebrasAdapter,
   cohere: cohereAdapter,
+  sambanova: sambanovaAdapter,
+  together: togetherAdapter,
+  siliconflow: siliconflowAdapter,
+  pollinations: pollinationsAdapter,
 };
 
 /* ----------------------------- circuit breaker ----------------------------- */

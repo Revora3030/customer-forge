@@ -30,7 +30,11 @@ export type ProviderName =
   | "huggingface"
   | "deepseek"
   | "cerebras"
-  | "cohere";
+  | "cohere"
+  | "sambanova"
+  | "together"
+  | "siliconflow"
+  | "pollinations";
 
 /** Providers that bill Revora per call. */
 export type PaidProviderName = "google" | "openai";

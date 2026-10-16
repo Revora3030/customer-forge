@@ -63,6 +63,8 @@ export type CompatAdapterOptions = {
   /** Resolved at call time so an account id can come from the environment. */
   baseUrl: () => string | null;
   extraHeaders?: () => Record<string, string>;
+  /** Some hosts reject temperatures above 1 (SambaNova); requests are clamped. */
+  maxTemperature?: number;
 };
 
 export function createOpenAiCompatibleAdapter(options: CompatAdapterOptions): ProviderAdapter {
@@ -115,7 +117,9 @@ export function createOpenAiCompatibleAdapter(options: CompatAdapterOptions): Pr
             })),
             ...(maxTokens ? { max_tokens: maxTokens } : {}),
             ...(jsonMode ? { response_format: { type: "json_object" } } : {}),
-            ...(typeof temperature === "number" ? { temperature } : {}),
+            ...(typeof temperature === "number"
+              ? { temperature: options.maxTemperature === undefined ? temperature : Math.min(temperature, options.maxTemperature) }
+              : {}),
           }),
           signal,
         });
