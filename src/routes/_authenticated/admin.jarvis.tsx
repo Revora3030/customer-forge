@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { JarvisMarkdown } from "@/components/app/JarvisMarkdown";
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { useJarvisVoice } from "@/components/app/use-jarvis-voice";
 import { VoiceWave } from "@/components/app/VoiceWave";
 import { openJarvisPullRequestFn, recoverStalledBuildsFn, clearJarvisHistory, getJarvisHistory, getJarvisDiagnostics, getJarvisAcquisitionReadiness, getJarvisDiagnosticTools, runJarvisDiagnosticTool, regenerateJarvisReply, sendJarvisMessage } from "@/lib/jarvis.functions";
@@ -154,6 +155,15 @@ function Jarvis() {
   const [live, setLive] = useState(false);
   const liveRef = useRef(false);
   const [showTools, setShowTools] = useState(false);
+  // Wide screens show the operations panel beside the chat; phones use a sheet.
+  const [wide, setWide] = useState(false);
+  useEffect(() => {
+    const query = window.matchMedia("(min-width: 1280px)");
+    const update = () => setWide(query.matches);
+    update();
+    query.addEventListener?.("change", update);
+    return () => query.removeEventListener?.("change", update);
+  }, []);
   const [approved, setApproved] = useState<Record<string, "building" | "done">>({});
   const [listening, setListening] = useState(false);
   const [atBottom, setAtBottom] = useState(true);
@@ -365,31 +375,9 @@ function Jarvis() {
     }
   };
 
-  return (
-    <div className="product-page flex min-h-[70dvh] flex-col gap-3">
-      <header className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex min-w-[12rem] flex-1 items-center gap-3">
-          {live || jarvisVoice.speaking ? (
-            <VoiceWave state={jarvisVoice.speaking ? "speaking" : listening ? "listening" : busy ? "thinking" : "idle"} level={jarvisVoice.level} />
-          ) : (
-            <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary"><Bot className="size-5" aria-hidden /></span>
-          )}
-          <div className="min-w-0">
-            <h1 className="truncate text-xl font-semibold leading-tight">Jarvis</h1>
-            <p className="truncate text-xs text-muted-foreground">{live || jarvisVoice.speaking ? (jarvisVoice.speaking ? "Speaking…" : listening ? "Listening…" : busy ? "Thinking…" : "Live") : "Checks, reads code, opens PRs, builds demos · you approve every change"}</p>
-          </div>
-        </div>
-        {/* On phones the controls get their own row so the title keeps its width. */}
-        <div className="flex w-full items-center justify-between gap-1 sm:w-auto sm:justify-end">
-          <Button type="button" variant={live ? "default" : "outline"} size="sm" aria-pressed={live} className={`gap-1.5 ${live ? "animate-pulse" : ""}`} onClick={toggleLive}><Radio className="size-4" aria-hidden />Live</Button>
-          <Button type="button" variant={showTools ? "secondary" : "ghost"} size="icon" aria-label={showTools ? "Hide tools" : "Show tools"} aria-pressed={showTools} title="Tools" onClick={() => setShowTools((value) => !value)}><Wrench className="size-4" /></Button>
-          <Button type="button" variant="ghost" size="icon" aria-label="Refresh diagnostics" title="Refresh diagnostics" disabled={diagnostics.isFetching} onClick={() => { void diagnostics.refetch(); }}><RefreshCw className={`size-4 ${diagnostics.isFetching ? "animate-spin" : ""}`} /></Button>
-          <Button type="button" variant="ghost" size="icon" aria-label={voice ? "Mute replies" : "Speak replies"} aria-pressed={voice} title={voice ? "Mute replies" : "Speak replies"} onClick={() => { const next = !voice; setVoice(next); if (next) jarvisVoice.unlock(); else stopVoice(); }}>{voice ? <Volume2 className="size-4" /> : <VolumeX className="size-4" />}</Button>
-          <Button type="button" variant="ghost" size="icon" aria-label="Export chat" title="Export chat as Markdown" onClick={exportChat}><Download className="size-4" /></Button>
-          <Button type="button" variant="ghost" size="icon" aria-label="Clear my chat" title="Clear my chat" disabled={clearing.isPending || busy} onClick={() => { if (window.confirm("Clear your Jarvis history?")) clearing.mutate(); }}><Trash2 className="size-4" /></Button>
-        </div>
-      </header>
-      {showTools ? <div className="space-y-3">
+  // One operations panel: a sticky column on wide screens, a bottom sheet on phones.
+  const toolsPanel = (
+    <div className="space-y-3">
       <section aria-label="Jarvis customer acquisition autopilot" className="rounded-xl border border-border bg-card p-3 space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div><h2 className="font-semibold">Customer acquisition autopilot</h2><p className="text-xs text-muted-foreground">Measure → qualify → prepare → approve → verify paid conversion. No guaranteed revenue claims.</p></div>
@@ -531,7 +519,34 @@ function Jarvis() {
       </details>
 
       <ProspectDemoBuilder />
-      </div> : null}
+    </div>
+  );
+
+  return (
+    <div className="product-page xl:grid xl:grid-cols-[minmax(0,1fr)_minmax(340px,420px)] xl:items-start xl:gap-5">
+    <div className="flex min-h-[70dvh] min-w-0 flex-col gap-3">
+      <header className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex min-w-[12rem] flex-1 items-center gap-3">
+          {live || jarvisVoice.speaking ? (
+            <VoiceWave state={jarvisVoice.speaking ? "speaking" : listening ? "listening" : busy ? "thinking" : "idle"} level={jarvisVoice.level} />
+          ) : (
+            <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary"><Bot className="size-5" aria-hidden /></span>
+          )}
+          <div className="min-w-0">
+            <h1 className="truncate text-xl font-semibold leading-tight">Jarvis</h1>
+            <p className="truncate text-xs text-muted-foreground">{live || jarvisVoice.speaking ? (jarvisVoice.speaking ? "Speaking…" : listening ? "Listening…" : busy ? "Thinking…" : "Live") : "Checks, reads code, opens PRs, builds demos · you approve every change"}</p>
+          </div>
+        </div>
+        {/* On phones the controls get their own row so the title keeps its width. */}
+        <div className="flex w-full items-center justify-between gap-1 sm:w-auto sm:justify-end">
+          <Button type="button" variant={live ? "default" : "outline"} size="sm" aria-pressed={live} className={`gap-1.5 ${live ? "animate-pulse" : ""}`} onClick={toggleLive}><Radio className="size-4" aria-hidden />Live</Button>
+          <Button type="button" variant={showTools ? "secondary" : "ghost"} size="icon" className="xl:hidden" aria-label="Open operations" aria-expanded={showTools} title="Operations" onClick={() => setShowTools(true)}><Wrench className="size-4" /></Button>
+          <Button type="button" variant="ghost" size="icon" aria-label="Refresh diagnostics" title="Refresh diagnostics" disabled={diagnostics.isFetching} onClick={() => { void diagnostics.refetch(); }}><RefreshCw className={`size-4 ${diagnostics.isFetching ? "animate-spin" : ""}`} /></Button>
+          <Button type="button" variant="ghost" size="icon" aria-label={voice ? "Mute replies" : "Speak replies"} aria-pressed={voice} title={voice ? "Mute replies" : "Speak replies"} onClick={() => { const next = !voice; setVoice(next); if (next) jarvisVoice.unlock(); else stopVoice(); }}>{voice ? <Volume2 className="size-4" /> : <VolumeX className="size-4" />}</Button>
+          <Button type="button" variant="ghost" size="icon" aria-label="Export chat" title="Export chat as Markdown" onClick={exportChat}><Download className="size-4" /></Button>
+          <Button type="button" variant="ghost" size="icon" aria-label="Clear my chat" title="Clear my chat" disabled={clearing.isPending || busy} onClick={() => { if (window.confirm("Clear your Jarvis history?")) clearing.mutate(); }}><Trash2 className="size-4" /></Button>
+        </div>
+      </header>
 
       <div className="inline-flex w-fit rounded-full border border-border p-0.5" role="radiogroup" aria-label="Response style">
         {MODES.map(([value, label]) => (
@@ -663,6 +678,24 @@ function Jarvis() {
         </div>
         <p className="mt-1 text-right text-[11px] text-muted-foreground">{text.length > 3000 ? `${text.length}/${MAX_LENGTH} · ` : ""}Enter to send · Shift+Enter for a new line</p>
       </form>
+    </div>
+
+    {wide ? (
+      <aside aria-label="Operations" className="sticky top-4 max-h-[calc(100dvh-2rem)] min-w-0 space-y-3 overflow-y-auto overscroll-contain pb-4">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Operations</h2>
+        {toolsPanel}
+      </aside>
+    ) : (
+      <Sheet open={showTools} onOpenChange={setShowTools}>
+        <SheetContent side="bottom" className="max-h-[88dvh] overflow-y-auto rounded-t-2xl pb-[max(1rem,env(safe-area-inset-bottom))]">
+          <SheetHeader>
+            <SheetTitle>Operations</SheetTitle>
+            <SheetDescription>Demo sites, prospects, platform health, autopilot and scorecard.</SheetDescription>
+          </SheetHeader>
+          <div className="mt-3">{toolsPanel}</div>
+        </SheetContent>
+      </Sheet>
+    )}
     </div>
   );
 }
