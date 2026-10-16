@@ -84,10 +84,20 @@ export const saveLeadWebhook = createServerFn({ method: "POST" })
       throw new Error("Set up your website first — there's no site settings to attach the webhook to.");
 
     // Every saved webhook is signed. The first save creates the secret; later
-    // saves keep it so a receiver that already verifies keeps working.
-    if (normalized) await ensureLeadWebhookSecret(context.supabase, data.organizationId, false);
+    // saves keep it so a receiver that already verifies keeps working. The
+    // webhook itself is already saved, so a signing problem (for example the
+    // secrets table not migrated yet) never undoes it: delivery stays unsigned.
+    let signing = false;
+    if (normalized) {
+      try {
+        await ensureLeadWebhookSecret(context.supabase, data.organizationId, false);
+        signing = true;
+      } catch (error) {
+        console.error("[lead-webhook] signing secret unavailable", error instanceof Error ? error.message : error);
+      }
+    }
 
-    return { ok: true as const, configured: Boolean(normalized) };
+    return { ok: true as const, configured: Boolean(normalized), signing };
   });
 
 async function ensureLeadWebhookSecret(

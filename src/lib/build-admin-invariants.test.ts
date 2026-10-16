@@ -65,6 +65,14 @@ describe("super_admin is bound to the platform owner", () => {
   it("matches the single owner email used by the application", () => {
     expect(PLATFORM_OWNER_EMAIL).toBe("revorabusiness0@gmail.com");
   });
+
+  it("later allows exactly the owner's two accounts, and nobody else", () => {
+    const owners = readFileSync("supabase/migrations/20261016170000_super_admin_owner_accounts.sql", "utf8");
+    expect(owners).toContain(`NOT IN ('${PLATFORM_OWNER_EMAIL}', 'godbody4040@gmail.com')`);
+    expect(owners).toContain("_email IS NULL OR");
+    expect(owners).toContain("BEFORE INSERT OR UPDATE ON public.user_roles");
+    expect(owners).toContain("SET search_path = ''");
+  });
 });
 
 describe("customer lead alerts stay in the customer's workspace", () => {

@@ -66,4 +66,9 @@ describe("lead webhook signing", () => {
     expect(sql).not.toMatch(/GRANT[^;]*lead_webhook_secrets[^;]*\banon\b/i);
     expect(sql.match(/org_role_at_least\(organization_id, 'manager'\)/g)?.length).toBe(4);
   });
+
+  it("never fails a webhook save because the secret couldn't be created", () => {
+    const fn = readFileSync("src/lib/notifications.functions.ts", "utf8");
+    expect(fn).toMatch(/try \{\s*await ensureLeadWebhookSecret\(context\.supabase, data\.organizationId, false\);/);
+  });
 });
