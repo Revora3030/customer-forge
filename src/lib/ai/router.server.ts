@@ -1076,6 +1076,11 @@ async function imageCall(
       // role. A model rejecting the request shape must hand off to the next
       // capability-matched model instead of aborting the whole picture request.
       nextProviderOnInvalidRequest: true,
+      // This is the FREE picture lane. Paid pictures go only through the capped
+      // lane in paid-image.server.ts (callPinnedPaidImage), which reserves
+      // against the durable monthly cap; letting the paid image model into this
+      // chain billed every "free" picture outside that cap.
+      freeOnly: true,
     },
   );
   return {

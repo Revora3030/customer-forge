@@ -41,3 +41,11 @@ describe("apply idempotency only answers with verified outcomes", () => {
     expect(fn).toContain("outcome.claimed && !outcome.applied && !outcome.undone && wait < 33");
   });
 });
+
+describe("the free picture lane never bills the paid image model", () => {
+  it("runs the router's picture chain free-only", () => {
+    const router = read("src/lib/ai/router.server.ts");
+    const imageLane = router.slice(router.indexOf("async function imageCall("), router.indexOf("export async function callPinnedPaidImage"));
+    expect(imageLane).toContain("freeOnly: true");
+  });
+});
