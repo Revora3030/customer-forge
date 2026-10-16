@@ -84,6 +84,7 @@ describe("new free providers", () => {
 
 describe("web search", () => {
   it("falls through to the next provider with a key", async () => {
+    for (const name of ["PERPLEXITY_API_KEY", "EXA_API_KEY", "BRAVE_SEARCH_API_KEY", "FIRECRAWL_API_KEY", "SERPER_API_KEY"]) vi.stubEnv(name, "");
     process.env["TAVILY_API_KEY"] = "tv";
     process.env["JINA_API_KEY"] = "jn";
     const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
