@@ -12,7 +12,7 @@ const bounded = (value: unknown) => {
  * Runs Jarvis's read actions. Every action maps to existing, code-owned,
  * read-only server logic; the caller has already been verified as super-admin.
  */
-export async function runReadActions(db: SupabaseClient, reads: ReadAction[]) {
+export async function runReadActions(db: SupabaseClient, reads: ReadAction[], actorId: string) {
   return Promise.all(
     reads.map(async (action) => {
       const label = describeRead(action);
@@ -30,6 +30,9 @@ export async function runReadActions(db: SupabaseClient, reads: ReadAction[]) {
           const { inspectRepository } = await import("./builder/repository-inspection.server");
           const inspection = await inspectRepository(true, `inventory page ${action.page}`);
           result = "inventory" in inspection ? { status: inspection.status, sha: inspection.sha, inventory: inspection.inventory } : inspection;
+        } else if (action.id === "prospects.find") {
+          const { findProspects } = await import("./jarvis-demo-site.server");
+          result = await findProspects(db, actorId, action);
         } else {
           const { listProspectDemos } = await import("./jarvis-demo-site.server");
           result = await listProspectDemos(db);

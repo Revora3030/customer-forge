@@ -1,13 +1,14 @@
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-import { Copy, ExternalLink, Hammer, Mail } from "lucide-react";
+import { Copy, ExternalLink, Hammer, Mail, Search } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { draftDemoOutreach, listProspectDemoBuilds, startProspectDemoBuild, type DemoOutreachDraft } from "@/lib/jarvis-demo-site.functions";
+import { draftDemoOutreach, findProspectsFn, listProspectDemoBuilds, startProspectDemoBuild, type DemoOutreachDraft } from "@/lib/jarvis-demo-site.functions";
+import { prospectDemoInput, type FoundProspect } from "@/lib/prospect-finder";
 import { pumpSiteEngineQueue } from "@/lib/site-engine.functions";
 
 const EMPTY = { businessName: "", industry: "", city: "", state: "", phone: "", email: "", services: "", description: "" };
@@ -35,6 +36,30 @@ export function ProspectDemoBuilder() {
   const list = useServerFn(listProspectDemoBuilds);
   const pump = useServerFn(pumpSiteEngineQueue);
   const draftFn = useServerFn(draftDemoOutreach);
+  const findFn = useServerFn(findProspectsFn);
+  const [search, setSearch] = useState({ niche: "", city: "", state: "" });
+  const [found, setFound] = useState<{ query: string; searched: number; prospects: FoundProspect[] } | null>(null);
+  const [builtIds, setBuiltIds] = useState<Record<string, "building" | "done">>({});
+  const finding = useMutation({
+    mutationFn: () => findFn({ data: search }),
+    onSuccess: (result) => {
+      setFound(result);
+      if (!result.prospects.length) toast.message(`No businesses without a website found for "${result.query}".`);
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+  const buildFound = async (prospect: FoundProspect) => {
+    setBuiltIds((current) => ({ ...current, [prospect.placeId]: "building" }));
+    try {
+      await start({ data: prospectDemoInput(prospect, search.niche) });
+      setBuiltIds((current) => ({ ...current, [prospect.placeId]: "done" }));
+      toast.success(`Building a demo for ${prospect.name}.`);
+      void qc.invalidateQueries({ queryKey: ["jarvis", "prospect-demos"] });
+    } catch (error) {
+      setBuiltIds((current) => { const next = { ...current }; delete next[prospect.placeId]; return next; });
+      toast.error(error instanceof Error ? error.message : "Couldn't start the build.");
+    }
+  };
   const [form, setForm] = useState(EMPTY);
   const [drafts, setDrafts] = useState<Record<string, DemoOutreachDraft>>({});
   const [bodies, setBodies] = useState<Record<string, string>>({});
@@ -101,6 +126,56 @@ export function ProspectDemoBuilder() {
           builds the site on your free model pool. Missing facts are left out, never invented. The site is not
           published; you get a private 30-day preview link to share.
         </p>
+        <section aria-label="Find businesses without a website" className="space-y-2 rounded-lg border border-border p-3">
+          <h3 className="flex items-center gap-1.5 text-sm font-semibold"><Search className="size-4" aria-hidden />Find businesses without a website</h3>
+          <p className="text-xs text-muted-foreground">Searches Google Places and keeps only businesses with no website or just a social/directory page. Up to 20 results per search, 40 searches a day.</p>
+          <form
+            className="grid gap-2 sm:grid-cols-[1fr_1fr_5rem_auto]"
+            onSubmit={(event) => {
+              event.preventDefault();
+              finding.mutate();
+            }}
+          >
+            <Input aria-label="Kind of business" placeholder="Mobile detailing" value={search.niche} required onChange={(event) => setSearch((current) => ({ ...current, niche: event.target.value }))} />
+            <Input aria-label="City" placeholder="Raleigh" value={search.city} required onChange={(event) => setSearch((current) => ({ ...current, city: event.target.value }))} />
+            <Input aria-label="State" placeholder="NC" value={search.state} onChange={(event) => setSearch((current) => ({ ...current, state: event.target.value }))} />
+            <Button type="submit" size="sm" className="h-9" disabled={finding.isPending}>{finding.isPending ? "Searching…" : "Find"}</Button>
+          </form>
+          {found ? (
+            <div className="space-y-2">
+              <p className="text-xs text-muted-foreground">
+                {found.prospects.length} of {found.searched} results for "{found.query}" have no real website.
+              </p>
+              {found.prospects.map((prospect) => {
+                const state = builtIds[prospect.placeId];
+                return (
+                  <article key={prospect.placeId} className="rounded-md border border-border p-2.5 text-sm">
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="font-medium">{prospect.name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {[prospect.category, prospect.address, prospect.phone].filter(Boolean).join(" · ")}
+                        </p>
+                        <p className="mt-0.5 text-xs">
+                          {prospect.presence === "none" ? "No website listed" : `Only a social/directory page: ${prospect.website}`}
+                          {prospect.rating !== null ? ` · ${prospect.rating}★ (${prospect.reviewCount ?? 0} reviews)` : ""}
+                        </p>
+                      </div>
+                      <div className="flex shrink-0 gap-2">
+                        {prospect.mapsUri ? (
+                          <a href={prospect.mapsUri} target="_blank" rel="noreferrer" className="inline-flex h-8 items-center rounded-md border border-border px-2.5 text-xs hover:bg-muted">Maps</a>
+                        ) : null}
+                        <Button type="button" size="sm" disabled={Boolean(state)} onClick={() => { void buildFound(prospect); }}>
+                          {state === "building" ? "Starting…" : state === "done" ? "Building" : "Build demo"}
+                        </Button>
+                      </div>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          ) : null}
+        </section>
         <form
           className="space-y-3"
           onSubmit={(event) => {
