@@ -480,6 +480,10 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
     const activeBuild = ((buildRows ?? []) as { status: string; lease_expires_at: string | null; updated_at: string | null }[])
       .some((row) => jobIsActive(row));
     if (!agentContext.pages.length || activeBuild) {
+      // The re-plan sent once the build settles must see the finished site,
+      // not this mid-build picture.
+      const { invalidateWorkspaceContext } = await import("@/lib/agent/workspace-context.server");
+      invalidateWorkspaceContext(orgId);
       const reply =
         "Got it — your AI team is finishing the first website now. Keep this window open and I’ll apply this change as soon as the build finishes (usually a few minutes).";
       return {

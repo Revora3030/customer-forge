@@ -111,3 +111,13 @@ describe("the free picture-edit mask is a valid PNG", () => {
     expect(pixels.every((byte, i) => (i % 513 === 0 ? byte === 0 : byte === 255))).toBe(true);
   });
 });
+
+describe("plans never use a stale picture of the site", () => {
+  it("drops the cached context after inline edits and deferrals, and never caches an empty site", () => {
+    expect(read("src/lib/builder/inline-edit.functions.ts")).toContain("invalidateWorkspaceContext(data.organizationId)");
+    const fn = read("src/lib/site-agent.functions.ts");
+    const defer = fn.indexOf("if (!agentContext.pages.length || activeBuild) {");
+    expect(fn.slice(defer, defer + 300)).toContain("invalidateWorkspaceContext(orgId)");
+    expect(read("src/lib/agent/workspace-context.server.ts")).toContain("if (!context.pages.length) {");
+  });
+});

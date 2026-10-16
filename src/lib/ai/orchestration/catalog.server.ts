@@ -166,7 +166,15 @@ async function persistRegistry(records: ModelRecord[]) {
   try {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const now = new Date().toISOString();
-    const rows = records.map((r) => ({
+    // One row per (provider, model): the specialists are also in the OpenAI
+    // roster, and Postgres rejects an upsert that touches the same key twice,
+    // which used to drop the whole chunk. The first record (specialist) wins.
+    const unique = new Map<string, ModelRecord>();
+    for (const record of records) {
+      const key = `${record.provider}/${record.id}`;
+      if (!unique.has(key)) unique.set(key, record);
+    }
+    const rows = [...unique.values()].map((r) => ({
       provider: r.provider,
       model: r.id,
       display_name: r.displayName,
@@ -187,10 +195,19 @@ async function persistRegistry(records: ModelRecord[]) {
       retired: false,
       updated_at: now,
     }));
-    for (let i = 0; i < rows.length; i += 200)
-      await supabaseAdmin.from("ai_model_registry").upsert(rows.slice(i, i + 200) as never);
+    let failed = false;
+    for (let i = 0; i < rows.length; i += 200) {
+      const { error } = await supabaseAdmin.from("ai_model_registry").upsert(rows.slice(i, i + 200) as never);
+      if (error) {
+        failed = true;
+        console.error("[revora-ai] model registry upsert failed", error.message);
+      }
+    }
     // Models no longer listed by any provider are marked retired, never deleted.
-    await supabaseAdmin.from("ai_model_registry").update({ retired: true } as never).lt("last_seen_at", now);
+    // Skipped when a chunk failed, or rows that were never refreshed would be
+    // retired by mistake.
+    if (!failed)
+      await supabaseAdmin.from("ai_model_registry").update({ retired: true } as never).lt("last_seen_at", now);
   } catch (error) {
     console.error("[revora-ai] model registry write failed", (error as Error).message);
   }
