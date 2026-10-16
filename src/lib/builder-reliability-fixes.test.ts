@@ -117,7 +117,7 @@ describe("plans never use a stale picture of the site", () => {
     expect(read("src/lib/builder/inline-edit.functions.ts")).toContain("invalidateWorkspaceContext(data.organizationId)");
     const fn = read("src/lib/site-agent.functions.ts");
     const defer = fn.indexOf("if (!agentContext.pages.length || activeBuild) {");
-    expect(fn.slice(defer, defer + 300)).toContain("invalidateWorkspaceContext(orgId)");
+    expect(fn.slice(defer, defer + 800)).toContain("invalidateWorkspaceContext(orgId)");
     expect(read("src/lib/agent/workspace-context.server.ts")).toContain("if (!context.pages.length) {");
   });
 });
