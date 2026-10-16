@@ -70,6 +70,8 @@ export function repairHref(
   href: string,
   pages: SitePage[],
   anchors: ReadonlySet<string> = new Set(),
+  /** Anchors on the home page, for "/#x" links. Defaults to `anchors`. */
+  homeAnchors: ReadonlySet<string> = anchors,
 ): string | null {
   const value = href.trim();
   if (/^https:\/\//i.test(value)) return null;
@@ -83,7 +85,12 @@ export function repairHref(
   const anchorOnly = /^\/?#([\w-]+)$/.exec(value);
   if (anchorOnly) {
     const id = anchorOnly[1]!;
-    if (anchors.has(id)) return null;
+    // "#x" scrolls within the page it is on; "/#x" goes to the home page.
+    const reachable = value.startsWith("/") ? homeAnchors : anchors;
+    if (reachable.has(id)) return null;
+    // The renderer writes "service-area" for a "service_area" section.
+    const hyphenated = id.replace(/_/g, "-");
+    if (hyphenated !== id && reachable.has(hyphenated)) return `${value.startsWith("/") ? "/" : ""}#${hyphenated}`;
     if (pages.some((p) => p.slug === id)) return `/${id}`;
     return closestPage(id, pages) ?? fallback;
   }
@@ -97,6 +104,41 @@ export function repairHref(
     return closestPage(slug, pages) ?? fallback;
   }
   return null;
+}
+
+/** The id SiteSection renders for a section: its role (or kind), with "_" as "-". */
+export function sectionAnchor(section: { kind: string; settings?: unknown }): string | null {
+  const stored = (section.settings as Record<string, unknown> | null)?.["role"];
+  const role = typeof stored === "string" && /^[a-z][a-z0-9_-]{0,40}$/.test(stored) ? stored : section.kind;
+  return role && role !== "composition" ? role.replace(/_/g, "-") : null;
+}
+
+/**
+ * The anchors a visitor can actually reach, per page slug: only VISIBLE
+ * sections, only on the page they sit on, with exactly the ids the renderer
+ * emits, plus the fixed ids of built-in blocks (#quote, #book, #contact-form).
+ * A site-wide set let a "#quote" button on /services pass even though the quote
+ * section lives on the home page, so the button did nothing.
+ */
+export function collectPageAnchors(
+  sections: { page_id: string | null; kind: string; settings?: unknown; is_visible?: boolean | null }[],
+  pages: { id: string; slug: string }[],
+): Map<string, Set<string>> {
+  const slugById = new Map(pages.map((page) => [page.id, page.slug]));
+  const out = new Map<string, Set<string>>();
+  for (const section of sections) {
+    if (section.is_visible === false || !section.page_id) continue;
+    const slug = slugById.get(section.page_id);
+    if (!slug) continue;
+    const set = out.get(slug) ?? new Set<string>();
+    const anchor = sectionAnchor(section);
+    if (anchor) set.add(anchor);
+    if (section.kind === "quote") set.add("quote");
+    if (section.kind === "booking") set.add("book");
+    if (JSON.stringify(section.settings ?? null).includes('"enquiry_form"')) set.add("contact-form");
+    out.set(slug, set);
+  }
+  return out;
 }
 
 /** Every in-page anchor id the site's layouts define (`style.id`-free: section kinds and ids). */
@@ -124,12 +166,13 @@ export function repairTreeLinks(
   tree: CompositionTree,
   pages: SitePage[],
   anchors: ReadonlySet<string> = new Set(),
+  homeAnchors: ReadonlySet<string> = anchors,
 ): { tree: CompositionTree; fixes: LinkFix[] } {
   const fixes: LinkFix[] = [];
   const visit = (node: CompositionNode, path: string): CompositionNode => {
     const next: CompositionNode = { ...node };
     if (typeof node.href === "string") {
-      const to = repairHref(node.href, pages, anchors);
+      const to = repairHref(node.href, pages, anchors, homeAnchors);
       if (to && to !== node.href) {
         fixes.push({ path: `${path}.href`, from: node.href, to });
         next.href = to;
@@ -138,7 +181,7 @@ export function repairTreeLinks(
     for (const key of ["primaryCta", "secondaryCta"] as const) {
       const cta = node[key];
       if (cta?.href) {
-        const to = repairHref(cta.href, pages, anchors);
+        const to = repairHref(cta.href, pages, anchors, homeAnchors);
         if (to && to !== cta.href) {
           fixes.push({ path: `${path}.${key}.href`, from: cta.href, to });
           next[key] = { ...cta, href: to };

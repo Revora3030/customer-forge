@@ -137,3 +137,39 @@ describe("a dropped connection recovers every kind of planner reply", () => {
     expect(fn).toContain("result: { ...result, requestId: runId } as unknown as never,");
   });
 });
+
+describe("an inline save doesn't reload the preview that made it", () => {
+  it("tags the draft ping with the preview's id and skips its own", async () => {
+    const { readDraftPing } = await import("@/lib/builder/preview-bridge");
+    const org = "11111111-1111-4111-8111-111111111111";
+    expect(readDraftPing({ type: "draft-changed", organizationId: org, at: 1, origin: "preview-abc" })?.origin).toBe("preview-abc");
+    const preview = read("src/components/app/BuilderPreview.tsx");
+    expect(preview).toContain("if (ping?.origin === previewId.current) return;");
+    expect(preview).toContain("announceDraftChange(organizationId, previewId.current);");
+  });
+});
+
+describe("dead in-page buttons are judged per page", () => {
+  it("only counts visible sections on the link's own page, with the renderer's ids", async () => {
+    const { collectPageAnchors, repairHref } = await import("@/lib/builder/link-integrity");
+    const pages = [{ id: "p-home", slug: "home" }, { id: "p-services", slug: "services" }, { id: "p-contact", slug: "contact" }];
+    const anchors = collectPageAnchors(
+      [
+        { page_id: "p-home", kind: "quote", settings: {} },
+        { page_id: "p-home", kind: "composition", settings: { role: "service_area", tree: { widget: "enquiry_form" } } },
+        { page_id: "p-services", kind: "services", settings: {} },
+        { page_id: "p-services", kind: "faq", settings: {}, is_visible: false },
+      ],
+      pages,
+    );
+    expect([...anchors.get("home")!].sort()).toEqual(["contact-form", "quote", "service-area"]);
+    expect(anchors.get("services")!.has("faq")).toBe(false);
+    const sitePages = pages.map(({ slug }) => ({ slug }));
+    const home = anchors.get("home")!;
+    // A "#quote" button on /services points nowhere there; "/#quote" works.
+    expect(repairHref("#quote", sitePages, anchors.get("services")!, home)).not.toBeNull();
+    expect(repairHref("/#quote", sitePages, anchors.get("services")!, home)).toBeNull();
+    // The underscore form is pointed at the id the renderer writes.
+    expect(repairHref("#service_area", sitePages, home, home)).toBe("#service-area");
+  });
+});

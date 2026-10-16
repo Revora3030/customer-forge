@@ -218,11 +218,15 @@ function BuilderPreviewFrame({
   }, [liveStatus, selectedId, tell]);
 
   // Another tab (or the canvas editor) changed this draft: reload this preview.
+  // Pings this preview sent itself (inline saves) are skipped: it already shows
+  // the new words, and a reload would discard an edit in progress.
+  const previewId = useRef(`preview-${Math.random().toString(36).slice(2)}`);
   useEffect(() => {
     if (typeof BroadcastChannel === "undefined" || !organizationId) return;
     const channel = new BroadcastChannel(DRAFT_CHANNEL);
     channel.onmessage = (event) => {
       const ping = readDraftPing(event.data);
+      if (ping?.origin === previewId.current) return;
       if (ping?.organizationId === organizationId) setTabRevision((value) => value + 1);
     };
     return () => channel.close();
@@ -236,7 +240,7 @@ function BuilderPreviewFrame({
         if (result.unchanged) return;
         // The preview already shows the new words; no reload needed.
         onInlineSaved?.({ sectionId: edit.id, path: edit.path, before: result.before, after: result.after });
-        announceDraftChange(organizationId);
+        announceDraftChange(organizationId, previewId.current);
         toast.success("Saved to draft");
       } catch (error) {
         toast.error(error instanceof Error ? error.message : "Couldn't save that change.");
