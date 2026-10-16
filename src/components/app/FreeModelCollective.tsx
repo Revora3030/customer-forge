@@ -27,6 +27,16 @@ const PROVIDER_LABEL: Record<string, string> = {
   deepseek: "DeepSeek",
   cerebras: "Cerebras",
   cohere: "Cohere",
+  sambanova: "SambaNova",
+  together: "Together AI",
+  siliconflow: "SiliconFlow",
+  pollinations: "Pollinations",
+  zai: "Z.ai GLM",
+  ollama: "Ollama Cloud",
+  ovh: "OVHcloud",
+  kilo: "Kilo Code",
+  modelscope: "ModelScope",
+  github: "GitHub Models",
 };
 
 const label = (name: string) => PROVIDER_LABEL[name] ?? name;

@@ -30,6 +30,9 @@ export async function runReadActions(db: SupabaseClient, reads: ReadAction[], ac
           const { inspectRepository } = await import("./builder/repository-inspection.server");
           const inspection = await inspectRepository(true, `inventory page ${action.page}`);
           result = "inventory" in inspection ? { status: inspection.status, sha: inspection.sha, inventory: inspection.inventory } : inspection;
+        } else if (action.id === "web.search") {
+          const { searchWeb } = await import("./integrations/research.server");
+          result = await searchWeb(action.query, 6);
         } else if (action.id === "prospects.find") {
           const { findProspects } = await import("./jarvis-demo-site.server");
           result = await findProspects(db, actorId, action);

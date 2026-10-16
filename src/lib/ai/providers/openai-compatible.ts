@@ -11,6 +11,7 @@
 
 import type { ProviderName } from "@/lib/ai/config";
 import { RevoraAiError } from "@/lib/ai/errors";
+import { ANONYMOUS_KEY } from "@/lib/ai/free";
 import { toImageDataUrl } from "@/lib/ai/data-url";
 import { providerHttpError } from "@/lib/ai/providers/shared";
 import type { AiPart, AiUsage, ProviderAdapter } from "@/lib/ai/types";
@@ -63,6 +64,8 @@ export type CompatAdapterOptions = {
   /** Resolved at call time so an account id can come from the environment. */
   baseUrl: () => string | null;
   extraHeaders?: () => Record<string, string>;
+  /** Some hosts reject temperatures above 1 (SambaNova); requests are clamped. */
+  maxTemperature?: number;
 };
 
 export function createOpenAiCompatibleAdapter(options: CompatAdapterOptions): ProviderAdapter {
@@ -81,7 +84,8 @@ export function createOpenAiCompatibleAdapter(options: CompatAdapterOptions): Pr
   function headers(apiKey: string) {
     return {
       "content-type": "application/json",
-      authorization: `Bearer ${apiKey}`,
+      // Keyless free tiers (OVHcloud, Kilo) get no authorization header at all.
+      ...(apiKey === ANONYMOUS_KEY ? {} : { authorization: `Bearer ${apiKey}` }),
       // Some providers sit behind an edge that refuses requests with no client
       // identity at all (Groq answers 403 "1010" to an unidentified client), so
       // Revora always identifies itself.
@@ -115,7 +119,9 @@ export function createOpenAiCompatibleAdapter(options: CompatAdapterOptions): Pr
             })),
             ...(maxTokens ? { max_tokens: maxTokens } : {}),
             ...(jsonMode ? { response_format: { type: "json_object" } } : {}),
-            ...(typeof temperature === "number" ? { temperature } : {}),
+            ...(typeof temperature === "number"
+              ? { temperature: options.maxTemperature === undefined ? temperature : Math.min(temperature, options.maxTemperature) }
+              : {}),
           }),
           signal,
         });

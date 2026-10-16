@@ -133,49 +133,145 @@ export type WebSearchOutcome =
   | { ok: true; results: WebSearchResult[] }
   | { ok: false; reason: string; detail: string };
 
+type SearchProvider = {
+  id: "perplexity" | "tavily" | "brave" | "exa" | "jina";
+  configured: () => boolean;
+  run: (query: string, max: number, signal: AbortSignal) => Promise<{ title?: unknown; url?: unknown; snippet?: unknown; date?: unknown }[]>;
+};
+
+const key = (...names: string[]) => names.map((name) => process.env[name]?.trim()).find(Boolean) ?? null;
+
+async function json(response: Response, provider: string) {
+  if (!response.ok) throw new Error(`${provider}_${response.status}: ${(await response.text()).slice(0, 200)}`);
+  return (await response.json()) as Record<string, unknown>;
+}
+
 /**
- * Live web search through the linked Perplexity connection (Search API only).
+ * Search providers in order. Each is used only when its own key is set; the
+ * first one that answers wins. Every request uses redirect: "manual" (Workers
+ * reject "error"), and a 3xx fails the ok check.
+ */
+const SEARCH_PROVIDERS: SearchProvider[] = [
+  {
+    id: "perplexity",
+    configured: () => Boolean(key("LOVABLE_API_KEY") && key("PERPLEXITY_API_KEY")),
+    run: async (query, max, signal) => {
+      const payload = await json(
+        await fetch("https://connector-gateway.lovable.dev/perplexity/search", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${key("LOVABLE_API_KEY")}`, "X-Connection-Api-Key": key("PERPLEXITY_API_KEY")!, "Content-Type": "application/json" },
+          body: JSON.stringify({ query, max_results: max }),
+          redirect: "manual",
+          signal,
+        }),
+        "perplexity",
+      );
+      return (payload["results"] as Record<string, unknown>[] | undefined) ?? [];
+    },
+  },
+  {
+    id: "tavily",
+    configured: () => Boolean(key("TAVILY_API_KEY")),
+    run: async (query, max, signal) => {
+      const payload = await json(
+        await fetch("https://api.tavily.com/search", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${key("TAVILY_API_KEY")}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ query, max_results: max, search_depth: "basic" }),
+          redirect: "manual",
+          signal,
+        }),
+        "tavily",
+      );
+      return ((payload["results"] as Record<string, unknown>[] | undefined) ?? []).map((r) => ({ title: r["title"], url: r["url"], snippet: r["content"], date: r["published_date"] }));
+    },
+  },
+  {
+    id: "brave",
+    configured: () => Boolean(key("BRAVE_SEARCH_API_KEY", "BRAVE_API_KEY")),
+    run: async (query, max, signal) => {
+      const payload = await json(
+        await fetch(`https://api.search.brave.com/res/v1/web/search?q=${encodeURIComponent(query)}&count=${max}`, {
+          headers: { Accept: "application/json", "X-Subscription-Token": key("BRAVE_SEARCH_API_KEY", "BRAVE_API_KEY")! },
+          redirect: "manual",
+          signal,
+        }),
+        "brave",
+      );
+      const web = payload["web"] as { results?: Record<string, unknown>[] } | undefined;
+      return (web?.results ?? []).map((r) => ({ title: r["title"], url: r["url"], snippet: r["description"], date: r["page_age"] ?? r["age"] }));
+    },
+  },
+  {
+    id: "exa",
+    configured: () => Boolean(key("EXA_API_KEY")),
+    run: async (query, max, signal) => {
+      const payload = await json(
+        await fetch("https://api.exa.ai/search", {
+          method: "POST",
+          headers: { "x-api-key": key("EXA_API_KEY")!, "Content-Type": "application/json" },
+          body: JSON.stringify({ query, numResults: max, contents: { text: { maxCharacters: 600 } } }),
+          redirect: "manual",
+          signal,
+        }),
+        "exa",
+      );
+      return ((payload["results"] as Record<string, unknown>[] | undefined) ?? []).map((r) => ({ title: r["title"], url: r["url"], snippet: r["text"], date: r["publishedDate"] }));
+    },
+  },
+  {
+    id: "jina",
+    configured: () => Boolean(key("JINA_API_KEY")),
+    run: async (query, max, signal) => {
+      const payload = await json(
+        await fetch(`https://s.jina.ai/?q=${encodeURIComponent(query)}`, {
+          headers: { Authorization: `Bearer ${key("JINA_API_KEY")}`, Accept: "application/json", "X-Respond-With": "no-content" },
+          redirect: "manual",
+          signal,
+        }),
+        "jina",
+      );
+      return ((payload["data"] as Record<string, unknown>[] | undefined) ?? []).slice(0, max).map((r) => ({ title: r["title"], url: r["url"], snippet: r["description"] ?? r["content"], date: r["date"] }));
+    },
+  },
+];
+
+/** Search providers with a key set, in the order they are tried. */
+export function configuredSearchProviders(): string[] {
+  return SEARCH_PROVIDERS.filter((provider) => provider.configured()).map((provider) => provider.id);
+}
+
+/**
+ * Live web search. Tries Perplexity (Lovable connector), then Tavily, Brave,
+ * Exa and Jina, each only when its key is set; the first that answers wins.
  * Results are third-party research, never business facts about a customer.
  */
 export async function searchWeb(query: string, maxResults = 5): Promise<WebSearchOutcome> {
-  const lovableKey = process.env["LOVABLE_API_KEY"];
-  const connectionKey = process.env["PERPLEXITY_API_KEY"];
   const trimmed = query.trim().slice(0, 400);
   if (!trimmed) return { ok: false, reason: "invalid", detail: "Nothing to search for." };
-  if (!lovableKey || !connectionKey)
-    return { ok: false, reason: "not_configured", detail: "Web search isn't connected." };
-  try {
-    const response = await fetch("https://connector-gateway.lovable.dev/perplexity/search", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${lovableKey}`,
-        "X-Connection-Api-Key": connectionKey,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ query: trimmed, max_results: Math.min(Math.max(maxResults, 1), 10) }),
-      signal: AbortSignal.timeout(15_000),
-    });
-    if (!response.ok) {
-      const body = await response.text();
-      console.error(`[research] search failed [${response.status}]: ${body.slice(0, 500)}`);
-      return { ok: false, reason: `http_${response.status}`, detail: body.slice(0, 300) };
+  const providers = SEARCH_PROVIDERS.filter((provider) => provider.configured());
+  if (!providers.length) return { ok: false, reason: "not_configured", detail: "Web search isn't connected." };
+  const max = Math.min(Math.max(maxResults, 1), 10);
+  const failures: string[] = [];
+  for (const provider of providers) {
+    try {
+      const rows = await provider.run(trimmed, max, AbortSignal.timeout(15_000));
+      const fetchedAt = new Date().toISOString();
+      const results = rows
+        .filter((r) => typeof r.url === "string" && /^https?:\/\//.test(r.url))
+        .slice(0, max)
+        .map((r) => ({
+          title: String(r.title ?? "").slice(0, 200),
+          url: r.url as string,
+          snippet: String(r.snippet ?? "").replace(/\s+/g, " ").slice(0, 1_000),
+          date: typeof r.date === "string" ? r.date : null,
+          source: { url: r.url as string, fetchedAt, provider: provider.id, trust: "research" as const },
+        }));
+      return { ok: true, results };
+    } catch (error) {
+      failures.push(`${provider.id}: ${error instanceof Error ? error.message.slice(0, 160) : "failed"}`);
     }
-    const payload = (await response.json()) as {
-      results?: Array<{ title?: string; url?: string; snippet?: string; date?: string }>;
-    };
-    const fetchedAt = new Date().toISOString();
-    const results = (payload.results ?? [])
-      .filter((r) => typeof r.url === "string" && /^https?:\/\//.test(r.url))
-      .map((r) => ({
-        title: String(r.title ?? "").slice(0, 200),
-        url: r.url!,
-        snippet: String(r.snippet ?? "").slice(0, 1_000),
-        date: r.date ?? null,
-        source: { url: r.url!, fetchedAt, provider: "perplexity", trust: "research" as const },
-      }));
-    return { ok: true, results };
-  } catch (error) {
-    console.error("[research] search error", error);
-    return { ok: false, reason: "network", detail: "Search didn't answer in time." };
   }
+  console.error("[research] every search provider failed", failures.join(" | "));
+  return { ok: false, reason: "unavailable", detail: failures.join("; ").slice(0, 300) };
 }

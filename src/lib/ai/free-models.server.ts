@@ -11,10 +11,13 @@
  * Server-only.
  */
 
+import { siliconflowBaseUrl } from "@/lib/ai/providers/siliconflow";
+import { zaiBaseUrl } from "@/lib/ai/providers/zai";
 import type { ModelRole } from "@/lib/ai/config";
 import {
   isFreeEligibleModel,
   noteLlm7FreeModels,
+  noteZeroPriceModels,
   type FreeProviderCredentials,
   type FreeProviderName,
 } from "@/lib/ai/free";
@@ -254,6 +257,44 @@ async function cloudflareFreeImageModels(credentials: FreeProviderCredentials) {
  * list until the TTL expires and swallows every provider failure. Pass
  * `role: "image"` to refresh the text-to-image pool instead of the text pool.
  */
+/**
+ * Together: its catalogue carries per-model pricing, so a model counts as free
+ * only when Together prices it at zero (or names it "-Free"). Chat models only.
+ */
+async function togetherFreeModels(credentials: FreeProviderCredentials) {
+  const payload = await fetchJson("https://api.together.xyz/v1/models", { authorization: `Bearer ${credentials.apiKey}` });
+  const rows = Array.isArray(payload) ? payload : ((payload as { data?: unknown[] } | null)?.data ?? []);
+  const zero: string[] = [];
+  for (const raw of rows as Record<string, unknown>[]) {
+    if (typeof raw?.["id"] !== "string") continue;
+    if (raw["type"] !== undefined && raw["type"] !== "chat") continue;
+    const pricing = raw["pricing"] as { input?: unknown; output?: unknown } | undefined;
+    if (pricing && Number(pricing.input) === 0 && Number(pricing.output) === 0) zero.push(raw["id"]);
+  }
+  noteZeroPriceModels("together", zero);
+  const ids = (rows as Record<string, unknown>[]).map((row) => row?.["id"]).filter((id): id is string => typeof id === "string");
+  return ids.filter((id) => isFreeEligibleModel("together", id));
+}
+
+/**
+ * Pollinations: only models its catalogue explicitly marks as not paid-only
+ * are added to the basic allowlist.
+ */
+async function pollinationsFreeModels(credentials: FreeProviderCredentials) {
+  const payload = await fetchJson("https://gen.pollinations.ai/v1/models", { authorization: `Bearer ${credentials.apiKey}` });
+  const rows = Array.isArray(payload) ? payload : ((payload as { data?: unknown[] } | null)?.data ?? []);
+  const free: string[] = [];
+  for (const raw of rows as Record<string, unknown>[]) {
+    const id = typeof raw?.["id"] === "string" ? raw["id"] : typeof raw?.["name"] === "string" ? raw["name"] : null;
+    if (id && raw["paid_only"] === false) free.push(id);
+  }
+  noteZeroPriceModels("pollinations", free);
+  const ids = (rows as Record<string, unknown>[])
+    .map((row) => (typeof row?.["id"] === "string" ? row["id"] : row?.["name"]))
+    .filter((id): id is string => typeof id === "string");
+  return ids.filter((id) => isFreeEligibleModel("pollinations", id));
+}
+
 export async function refreshFreeModels(
   provider: FreeProviderName,
   credentials: FreeProviderCredentials,
@@ -321,7 +362,22 @@ export async function refreshFreeModels(
                           )
                         : provider === "cohere"
                           ? await cohereFreeModels(credentials)
-                          : [];
+                          : provider === "sambanova"
+                            ? await openAiCompatibleFreeModels("sambanova", "https://api.sambanova.ai/v1/models", credentials)
+                            : provider === "siliconflow"
+                              ? await openAiCompatibleFreeModels("siliconflow", `${siliconflowBaseUrl().replace(/\/$/, "")}/models?type=text`, credentials)
+                              : provider === "together"
+                                ? await togetherFreeModels(credentials)
+                                : provider === "pollinations"
+                                  ? await pollinationsFreeModels(credentials)
+                                  : provider === "zai"
+                                    ? await openAiCompatibleFreeModels("zai", `${zaiBaseUrl().replace(/\/$/, "")}/models`, credentials)
+                                    : provider === "ollama"
+                                      ? await openAiCompatibleFreeModels("ollama", "https://ollama.com/v1/models", credentials)
+                                      : provider === "modelscope"
+                                        ? await openAiCompatibleFreeModels("modelscope", "https://api-inference.modelscope.cn/v1/models", credentials)
+                                        : // OVHcloud, Kilo and GitHub Models run on their verified allowlists.
+                                          [];
   // Cache even an empty answer so a failing discovery endpoint isn't polled on
   // every builder request.
   cache.set(key, { at: Date.now(), models });

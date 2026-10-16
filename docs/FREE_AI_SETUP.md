@@ -42,6 +42,21 @@ Tests enforce the boundary (`src/lib/ai/free-runtime.test.ts`).
 | `DEEPSEEK_API_KEY` | DeepSeek API free developer tier | Rate-limited access to deepseek-chat and deepseek-coder |
 | `CEREBRAS_API_KEY` | Cerebras free inference | Ultra-fast inference on Llama and Qwen models |
 | `COHERE_API_KEY` | Cohere trial API | Free until rate limits reached for Command A+, North, Embed |
+| `SAMBANOVA_API_KEY` | SambaNova Cloud free tier | About 20 requests/day; Revora caps its own use at 20. Set `SAMBANOVA_FREE_TIER=false` if the account is upgraded to paid |
+| `TOGETHER_API_KEY` | Together AI free endpoints | Only ids ending in `-Free` or priced at $0 in Together's catalogue |
+| `SILICONFLOW_API_KEY` | SiliconFlow free models | Allowlist of its free small models only. China-region keys: set `SILICONFLOW_BASE_URL=https://api.siliconflow.cn/v1` |
+| `POLLINATIONS_API_KEY` | Pollinations free daily grant | Secret `sk_` key; basic text models plus ones its catalogue marks not paid-only |
+| `GEMINI_API_KEY` | Gemini API free tier | Used only with `GOOGLE_AI_FREE_TIER=true`; prefer `GOOGLE_AI_FREE_API_KEY` |
+| `ZAI_API_KEY` | Z.ai GLM free Flash models | GLM-4.7-Flash (text) and GLM-4.6V-Flash (vision); one request at a time. `ZAI_BASE_URL` for open.bigmodel.cn keys |
+| `OLLAMA_API_KEY` | Ollama Cloud free tier | Session and weekly limits; DeepSeek V4, Kimi, Qwen3.5 397B, gpt-oss |
+| `MODELSCOPE_API_KEY` | ModelScope API-Inference | About 2,000 requests/day; needs Alibaba Cloud real-name verification |
+| `GITHUB_MODELS_TOKEN` | GitHub Models free tier | GPT-4.1/4o, prototyping tier: used only for Jarvis, never customer sites |
+| `OVH_AI_FREE=true` | OVHcloud anonymous tier | No key (a key would bill); 2 requests/minute per model; EU-hosted |
+| `KILO_FREE=true` | Kilo Code free models | No key; `:free` models only, auto-routers excluded. NVIDIA models log prompts |
+
+Web search (builder research and Jarvis `web.search`) tries, in order, each
+provider whose key is set: Perplexity (Lovable connector), `TAVILY_API_KEY`,
+`BRAVE_SEARCH_API_KEY` (or `BRAVE_API_KEY`), `EXA_API_KEY`, `JINA_API_KEY`.
 
 Half a provider's credentials simply marks that provider unavailable — it never
 throws and never blocks the builder.
