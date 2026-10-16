@@ -684,7 +684,7 @@ export const submitPublicLead = createServerFn({ method: "POST" })
     try {
       // Owner alert + customer follow-ups. Delivery happens here (server side) so
       // "sent" always means a provider accepted the message.
-      const [{ data: profile }, { data: routingSettings }] = await Promise.all([
+      const [{ data: profile }, { data: routingSettings }, { data: signing }] = await Promise.all([
         supabase
           .from("business_profiles")
           .select("email, owner_email, notification_email, notify_on_lead, phone")
@@ -693,6 +693,12 @@ export const submitPublicLead = createServerFn({ method: "POST" })
         supabase
           .from("website_settings")
           .select("lead_webhook_url")
+          .eq("organization_id", orgId)
+          .maybeSingle(),
+        // Service-role read: the signing secret is never visible to visitors.
+        supabase
+          .from("lead_webhook_secrets")
+          .select("secret")
           .eq("organization_id", orgId)
           .maybeSingle(),
       ]);
@@ -757,7 +763,7 @@ export const submitPublicLead = createServerFn({ method: "POST" })
         message: data.message || null,
         sourceUrl: source.sourceUrl,
       });
-      const webhook = dispatchLeadWebhook(webhookUrl, webhookPayload);
+      const webhook = dispatchLeadWebhook(webhookUrl, webhookPayload, signing?.secret ?? null);
 
       const [alert, confirmation, webhookResult] = await Promise.all([
         alertEmail

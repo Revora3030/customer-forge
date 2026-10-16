@@ -88,6 +88,7 @@ import {
 } from "@/lib/ai/providers/openai";
 
 import { base64ByteLength } from "@/lib/ai/providers/shared";
+import { compactMessages } from "@/lib/ai/context-compaction";
 import { demoteDegradedPaid, noteProviderFailure, noteProviderSuccess } from "@/lib/ai/provider-backoff";
 import { checkAiLimits, recordAiEvent } from "@/lib/ai/telemetry.server";
 import type {
@@ -562,6 +563,8 @@ async function run<T>(
     config: ProviderConfig;
     model: string;
     signal: AbortSignal;
+    /** How many free models have refused this request as too large so far. */
+    compaction: number;
   }) => Promise<{ value: T; inputTokens?: number | null; outputTokens?: number | null }>,
   options?: {
     capable?: (model: string) => boolean;
@@ -621,6 +624,9 @@ async function run<T>(
     // A request the pool keeps calling malformed really is malformed; stop
     // after a few different providers agree instead of walking all of them.
     const invalidBy = new Set<string>();
+    // Each free model that refuses the request as too large makes the next
+    // one receive a shorter version of the conversation (context-compaction).
+    let compaction = 0;
 
     for (let index = 0; index < ordered.length; index += 1) {
       const candidate = ordered[index]!;
@@ -646,7 +652,7 @@ async function run<T>(
             const durableCap = role === "image" ? freeImageBudgetCap(candidate.free) : freeBudgetCap(candidate.free);
             void noteDurableFreeUse(durableKey, durableCap);
           }
-          const result = await execute({ adapter, config, model, signal: controller.signal });
+          const result = await execute({ adapter, config, model, signal: controller.signal, compaction });
           noteSuccess(breakerScope);
           if (!candidate.free) noteProviderSuccess(config.name);
           if (candidate.free)
@@ -754,6 +760,7 @@ async function run<T>(
             if (!candidate.free) throw error;
             invalidBy.add(config.name);
             if (invalidBy.size >= 6) throw error;
+            compaction += 1;
             break;
           }
           if (error.category === "invalid_request") {
@@ -840,11 +847,11 @@ export async function generateText(caller: AiCaller, request: AiRequest): Promis
   const outcome = await run(
     caller,
     request.role ?? "primary",
-    async ({ adapter, config, model, signal }) => {
+    async ({ adapter, config, model, signal, compaction }) => {
       const result = await adapter.chat({
         apiKey: config.apiKey,
         model,
-        messages: request.messages,
+        messages: compactMessages(request.messages, compaction),
         json: request.json === true,
         maxOutputTokens: Math.min(
           request.maxOutputTokens ?? limits.maxOutputTokens,
@@ -885,11 +892,11 @@ export async function generateStructuredOutput(
   const outcome = await run(
     caller,
     request.role ?? "primary",
-    async ({ adapter, config, model, signal }) => {
+    async ({ adapter, config, model, signal, compaction }) => {
       const result = await adapter.chat({
         apiKey: config.apiKey,
         model,
-        messages: request.messages,
+        messages: compactMessages(request.messages, compaction),
         json: true,
         maxOutputTokens: Math.min(
           request.maxOutputTokens ?? limits.maxOutputTokens,

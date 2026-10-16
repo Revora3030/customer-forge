@@ -10,7 +10,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "@/lib/ui/notify";
 import { friendlyError } from "@/lib/user-error";
-import { BellRing, CheckCircle2, Loader2, Mail, Send, XCircle } from "lucide-react";
+import { BellRing, CheckCircle2, Copy, KeyRound, Loader2, Mail, Send, XCircle } from "lucide-react";
 import { Panel, Pill, SectionHeading } from "@/components/app/Bits";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,6 +19,7 @@ import { Switch } from "@/components/ui/switch";
 import { supabase } from "@/integrations/supabase/client";
 import {
   getLeadWebhookStatus,
+  rotateLeadWebhookSecret,
   saveLeadNotifications,
   saveLeadWebhook,
   sendTestLeadAlert,
@@ -44,6 +45,8 @@ export function LeadNotifications({
   const testFn = useServerFn(sendTestLeadAlert);
   const saveWebhookFn = useServerFn(saveLeadWebhook);
   const webhookStatusFn = useServerFn(getLeadWebhookStatus);
+  const rotateSecretFn = useServerFn(rotateLeadWebhookSecret);
+  const [showSecret, setShowSecret] = React.useState(false);
 
   const webhookStatus = useQuery({
     queryKey: ["lead_webhook_status", organizationId],
@@ -112,6 +115,25 @@ export function LeadNotifications({
     },
     onError: (error: Error) => toast.error(friendlyError(error, "Couldn't save the lead webhook.")),
   });
+
+  const rotateSecret = useMutation({
+    mutationFn: () => rotateSecretFn({ data: { organizationId: organizationId! } }),
+    onSuccess: () => {
+      toast.success("New signing secret created. Update it in your receiver.");
+      setShowSecret(true);
+      void queryClient.invalidateQueries({ queryKey: ["lead_webhook_status", organizationId] });
+    },
+    onError: (error: Error) => toast.error(friendlyError(error, "Couldn't rotate the signing secret.")),
+  });
+
+  const copySecret = async (secret: string) => {
+    try {
+      await navigator.clipboard.writeText(secret);
+      toast.success("Signing secret copied");
+    } catch {
+      toast.error("Couldn't copy. Select the secret and copy it by hand.");
+    }
+  };
 
   const test = useMutation({
     mutationFn: () => testFn({ data: { organizationId: organizationId! } }),
@@ -253,6 +275,44 @@ export function LeadNotifications({
           After a lead is saved, Revora sends a standard POST event to this URL. A slow or failed
           webhook never blocks the visitor's submission.
         </p>
+        {webhookStatus.data?.configured && webhookStatus.data.signingSecret ? (
+          <div className="mt-3 rounded-lg border border-border/60 p-3">
+            <p className="flex items-center gap-1.5 text-[12px] font-medium">
+              <KeyRound className="size-3.5" aria-hidden /> Signing secret
+            </p>
+            <div className="mt-1.5 flex flex-wrap items-center gap-2">
+              <code className="min-w-0 flex-1 truncate rounded bg-muted px-2 py-1 font-mono text-[11px]">
+                {showSecret ? webhookStatus.data.signingSecret : "whsec_••••••••••••••••"}
+              </code>
+              <Button variant="ghost" size="sm" onClick={() => setShowSecret((v) => !v)}>
+                {showSecret ? "Hide" : "Reveal"}
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => void copySecret(webhookStatus.data!.signingSecret!)}
+                aria-label="Copy signing secret"
+              >
+                <Copy className="size-3.5" aria-hidden />
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={!canManage || rotateSecret.isPending}
+                onClick={() => rotateSecret.mutate()}
+              >
+                {rotateSecret.isPending ? <Loader2 className="size-3.5 animate-spin" /> : null}
+                Rotate
+              </Button>
+            </div>
+            <p className="mt-1.5 text-[11px] text-muted-foreground">
+              Every delivery carries an <span className="font-mono">x-revora-signature</span> header:{" "}
+              <span className="font-mono">t=&lt;unix time&gt;,v1=&lt;hex&gt;</span>, where v1 is
+              HMAC-SHA256 of <span className="font-mono">t.body</span> with this secret. Reject
+              requests whose signature doesn't match or whose time is more than five minutes old.
+            </p>
+          </div>
+        ) : null}
       </div>
 
       <div>

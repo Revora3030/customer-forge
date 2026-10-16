@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   FREE_PROVIDERS,
   freeModelFor,
@@ -12,10 +12,26 @@ import {
 import { ADMIN_ONLY_FREE_PROVIDERS, ANONYMOUS_KEY } from "@/lib/ai/free";
 import { parseActions } from "@/lib/jarvis-actions";
 
-const KEYS = ["ZAI_API_KEY", "OLLAMA_API_KEY", "MODELSCOPE_API_KEY", "GITHUB_MODELS_TOKEN", "OVH_AI_FREE", "KILO_FREE", "SAMBANOVA_API_KEY", "SAMBANOVA_FREE_TIER", "TOGETHER_API_KEY", "SILICONFLOW_API_KEY", "POLLINATIONS_API_KEY", "GEMINI_API_KEY", "GOOGLE_AI_FREE_TIER", "GOOGLE_AI_FREE_API_KEY", "GOOGLE_AI_API_KEY"];
+// Every key that turns on a free model or a web search provider. The ambient
+// environment (a developer's .env, a CI secret) must never decide a result.
+const SEARCH_KEYS = ["PERPLEXITY_API_KEY", "TAVILY_API_KEY", "BRAVE_SEARCH_API_KEY", "BRAVE_API_KEY", "EXA_API_KEY", "JINA_API_KEY"];
+const KEYS = [...SEARCH_KEYS, "ZAI_API_KEY", "OLLAMA_API_KEY", "MODELSCOPE_API_KEY", "GITHUB_MODELS_TOKEN", "OVH_AI_FREE", "KILO_FREE", "SAMBANOVA_API_KEY", "SAMBANOVA_FREE_TIER", "TOGETHER_API_KEY", "SILICONFLOW_API_KEY", "POLLINATIONS_API_KEY", "GEMINI_API_KEY", "GOOGLE_AI_FREE_TIER", "GOOGLE_AI_FREE_API_KEY", "GOOGLE_AI_API_KEY"];
+
+const ambient = new Map<string, string | undefined>();
+
+beforeEach(() => {
+  for (const name of KEYS) {
+    ambient.set(name, process.env[name]);
+    delete process.env[name];
+  }
+});
 
 afterEach(() => {
-  for (const name of KEYS) delete process.env[name];
+  for (const name of KEYS) {
+    const value = ambient.get(name);
+    if (value === undefined) delete process.env[name];
+    else process.env[name] = value;
+  }
   resetZeroPriceModels();
   vi.restoreAllMocks();
 });
@@ -96,8 +112,6 @@ describe("web search", () => {
     expect(outcome.ok).toBe(true);
     if (outcome.ok) expect(outcome.results[0]?.source.provider).toBe("jina");
     expect(fetchMock.mock.calls.every(([, init]) => (init as RequestInit | undefined)?.redirect === "manual")).toBe(true);
-    delete process.env["TAVILY_API_KEY"];
-    delete process.env["JINA_API_KEY"];
   });
 
   it("is a Jarvis read action", () => {
