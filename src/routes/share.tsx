@@ -26,6 +26,8 @@ export const Route = createFileRoute("/share")({
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
       ogUrl("/share"),
+      // Kept out of search (see seoInventory); links on it still pass value.
+      { name: "robots", content: "noindex, follow" },
     ],
     links: [canonicalLink("/share")],
     scripts: [

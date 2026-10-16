@@ -43,6 +43,8 @@ export const ORGANIZATION_SCHEMA = {
   name: BUSINESS.legalName,
   legalName: BUSINESS.legalName,
   url: SITE_URL,
+  // Google needs a crawlable, at least 112px square logo for the knowledge panel.
+  logo: { "@type": "ImageObject", url: absoluteUrl("/apple-touch-icon.png"), width: 180, height: 180 },
   telephone: BUSINESS.tel,
   email: BUSINESS.email,
   description:
@@ -84,7 +86,9 @@ export const LOCAL_BUSINESS_SCHEMA = {
   url: SITE_URL,
   telephone: BUSINESS.tel,
   email: BUSINESS.email,
-  image: `${SITE_URL}/favicon.png`,
+  // The 1200x630 social card; the 64px favicon is too small for rich results.
+  image: OG_IMAGE.url,
+  logo: absoluteUrl("/apple-touch-icon.png"),
   priceRange: BUSINESS.priceRange,
   currenciesAccepted: "USD",
   paymentAccepted: "Credit Card, Debit Card, Apple Pay, Google Pay",
