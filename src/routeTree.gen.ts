@@ -20,6 +20,7 @@ import { Route as DemoRouteImport } from './routes/demo'
 import { Route as GetStartedRouteImport } from './routes/get-started'
 import { Route as GrowthAssessmentRouteImport } from './routes/growth-assessment'
 import { Route as IndustriesRouteImport } from './routes/industries'
+import { Route as IndexnowKeyDottxtRouteImport } from './routes/indexnow-key[.]txt'
 import { Route as LlmsDottxtRouteImport } from './routes/llms[.]txt'
 import { Route as ManifestDotwebmanifestRouteImport } from './routes/manifest[.]webmanifest'
 import { Route as PortalRouteImport } from './routes/portal'
@@ -161,6 +162,11 @@ const GrowthAssessmentRoute = GrowthAssessmentRouteImport.update({
 const IndustriesRoute = IndustriesRouteImport.update({
   id: '/industries',
   path: '/industries',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const IndexnowKeyDottxtRoute = IndexnowKeyDottxtRouteImport.update({
+  id: '/indexnow-key.txt',
+  path: '/indexnow-key.txt',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LlmsDottxtRoute = LlmsDottxtRouteImport.update({
@@ -641,6 +647,7 @@ export interface FileRoutesByFullPath {
   '/get-started': typeof GetStartedRoute
   '/growth-assessment': typeof GrowthAssessmentRoute
   '/industries': typeof IndustriesRouteWithChildren
+  '/indexnow-key.txt': typeof IndexnowKeyDottxtRoute
   '/llms.txt': typeof LlmsDottxtRoute
   '/manifest.webmanifest': typeof ManifestDotwebmanifestRoute
   '/portal': typeof PortalRoute
@@ -739,6 +746,7 @@ export interface FileRoutesByTo {
   '/crm-for-contractors': typeof CrmForContractorsRoute
   '/get-started': typeof GetStartedRoute
   '/growth-assessment': typeof GrowthAssessmentRoute
+  '/indexnow-key.txt': typeof IndexnowKeyDottxtRoute
   '/llms.txt': typeof LlmsDottxtRoute
   '/manifest.webmanifest': typeof ManifestDotwebmanifestRoute
   '/portal': typeof PortalRoute
@@ -838,6 +846,7 @@ export interface FileRoutesById {
   '/get-started': typeof GetStartedRoute
   '/growth-assessment': typeof GrowthAssessmentRoute
   '/industries': typeof IndustriesRouteWithChildren
+  '/indexnow-key.txt': typeof IndexnowKeyDottxtRoute
   '/llms.txt': typeof LlmsDottxtRoute
   '/manifest.webmanifest': typeof ManifestDotwebmanifestRoute
   '/portal': typeof PortalRoute
@@ -940,6 +949,7 @@ export interface FileRouteTypes {
     | '/get-started'
     | '/growth-assessment'
     | '/industries'
+    | '/indexnow-key.txt'
     | '/llms.txt'
     | '/manifest.webmanifest'
     | '/portal'
@@ -1038,6 +1048,7 @@ export interface FileRouteTypes {
     | '/crm-for-contractors'
     | '/get-started'
     | '/growth-assessment'
+    | '/indexnow-key.txt'
     | '/llms.txt'
     | '/manifest.webmanifest'
     | '/portal'
@@ -1136,6 +1147,7 @@ export interface FileRouteTypes {
     | '/get-started'
     | '/growth-assessment'
     | '/industries'
+    | '/indexnow-key.txt'
     | '/llms.txt'
     | '/manifest.webmanifest'
     | '/portal'
@@ -1238,6 +1250,7 @@ export interface RootRouteChildren {
   GetStartedRoute: typeof GetStartedRoute
   GrowthAssessmentRoute: typeof GrowthAssessmentRoute
   IndustriesRoute: typeof IndustriesRouteWithChildren
+  IndexnowKeyDottxtRoute: typeof IndexnowKeyDottxtRoute
   LlmsDottxtRoute: typeof LlmsDottxtRoute
   ManifestDotwebmanifestRoute: typeof ManifestDotwebmanifestRoute
   PortalRoute: typeof PortalRoute
@@ -1358,6 +1371,13 @@ declare module '@tanstack/react-router' {
       path: '/industries'
       fullPath: '/industries'
       preLoaderRoute: typeof IndustriesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/indexnow-key.txt': {
+      id: '/indexnow-key.txt'
+      path: '/indexnow-key.txt'
+      fullPath: '/indexnow-key.txt'
+      preLoaderRoute: typeof IndexnowKeyDottxtRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/llms.txt': {
@@ -2172,6 +2192,7 @@ const rootRouteChildren: RootRouteChildren = {
   GetStartedRoute: GetStartedRoute,
   GrowthAssessmentRoute: GrowthAssessmentRoute,
   IndustriesRoute: IndustriesRouteWithChildren,
+  IndexnowKeyDottxtRoute: IndexnowKeyDottxtRoute,
   LlmsDottxtRoute: LlmsDottxtRoute,
   ManifestDotwebmanifestRoute: ManifestDotwebmanifestRoute,
   PortalRoute: PortalRoute,

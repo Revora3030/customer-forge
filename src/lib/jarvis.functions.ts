@@ -513,3 +513,36 @@ export const recoverStalledBuildsFn = createServerFn({ method: "POST" })
     });
     return { restartedWorkspaces: orgIds.length };
   });
+
+/** Hands a coding request to Claude Code (see jarvis-claude-code.server.ts). */
+export const sendClaudeCodeRequestFn = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((input: { request: unknown }) => {
+    const request = typeof input?.request === "string" ? input.request.trim() : "";
+    if (request.length < 10) throw new Error("Describe the change in a sentence or two.");
+    if (request.length > 8000) throw new Error("Keep the request under 8,000 characters.");
+    return { request };
+  })
+  .handler(async ({ context, data }) => {
+    const db = await guardedAdmin(context);
+    const { sendClaudeCodeRequest } = await import("./jarvis-claude-code.server");
+    const email = (context as { claims?: { email?: unknown } }).claims?.email;
+    const result = await sendClaudeCodeRequest(data.request, typeof email === "string" && email ? email : "the platform owner");
+    await db.from("audit_logs").insert({
+      organization_id: null,
+      actor_id: String(context.userId),
+      action: "jarvis.claude_code.requested",
+      entity: "github_issue",
+      entity_id: String(result.number),
+      metadata: { request: data.request.slice(0, 500) },
+    });
+    return result;
+  });
+
+export const listClaudeCodeRequestsFn = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    await guardedAdmin(context);
+    const { listClaudeCodeRequests } = await import("./jarvis-claude-code.server");
+    return listClaudeCodeRequests();
+  });

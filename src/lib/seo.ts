@@ -201,6 +201,15 @@ export const GROWTH_SYSTEM_SCHEMA = {
     },
     {
       "@type": "Offer",
+      name: "First month free",
+      description: `The platform subscription costs nothing for the first ${GROWTH_SYSTEM.trialDays} days after setup.`,
+      price: 0,
+      priceCurrency: "USD",
+      availability: "https://schema.org/InStock",
+      url: absoluteUrl("/pricing"),
+    },
+    {
+      "@type": "Offer",
       name: "Platform subscription",
       priceCurrency: "USD",
       availability: "https://schema.org/InStock",

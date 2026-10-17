@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 
 import { COMPARISONS } from "@/lib/compare";
+import { CRM_SOLUTIONS } from "@/lib/crm-solutions";
 import { GUIDES } from "@/lib/guides";
 import { LOCAL_INDUSTRIES } from "@/lib/local-pages";
 import { BUSINESS } from "@/lib/business-identity";
@@ -26,6 +27,11 @@ function body() {
     ["Home", "/"],
     ["Pricing", "/pricing"],
     ["Get started", "/get-started"],
+    ["CRM for contractors", "/crm-for-contractors"],
+    ["CRM by trade", "/crm"],
+    ["Industries served", "/industries"],
+    ["About", "/about"],
+    ["Contact", "/contact"],
     ["Free website audit", "/website-audit"],
     ["Growth assessment", "/growth-assessment"],
     ["Free calculators", "/tools"],
@@ -39,6 +45,11 @@ function body() {
   lines.push("## Guides");
   for (const guide of GUIDES) {
     lines.push(`- [${guide.title}](${SITE_URL}/guides/${guide.slug}): ${guide.description}`);
+  }
+  lines.push("");
+  lines.push("## CRM by trade");
+  for (const solution of CRM_SOLUTIONS) {
+    lines.push(`- [${solution.metaTitle}](${SITE_URL}/crm/${solution.slug}): ${solution.description}`);
   }
   lines.push("");
   lines.push("## Comparisons");

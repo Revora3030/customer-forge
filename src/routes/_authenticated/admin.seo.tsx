@@ -8,7 +8,8 @@
  */
 import { useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { Search } from "lucide-react";
+import { useServerFn } from "@tanstack/react-start";
+import { Search, Send } from "lucide-react";
 import { EmptyState, MetricCard, Panel, Pill, SectionHeading } from "@/components/app/Bits";
 import { GoogleLocalListing, GoogleSearchGrowth } from "@/components/app/GoogleSearchGrowth";
 import { Button } from "@/components/ui/button";
@@ -16,6 +17,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { seoAuditSummary } from "@/lib/seo-audit";
 import { consoleCoverage, parseConsoleRows, seoOpportunities } from "@/lib/seo-console";
 import { number } from "@/lib/format";
+import { submitPlatformToIndexNow } from "@/lib/indexnow.functions";
+import { toast } from "@/lib/ui/notify";
 
 export const Route = createFileRoute("/_authenticated/admin/seo")({
   head: () => ({
@@ -94,6 +97,8 @@ function AdminSeo() {
           </ul>
         )}
       </Panel>
+
+      <SubmitToSearchEngines />
 
       <GoogleSearchGrowth />
       <GoogleLocalListing />
@@ -180,5 +185,50 @@ function AdminSeo() {
         ) : null}
       </Panel>
     </div>
+  );
+}
+
+/** One click sends every page in the sitemap to Bing and the other IndexNow engines. */
+function SubmitToSearchEngines() {
+  const submit = useServerFn(submitPlatformToIndexNow);
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<{ ok: boolean; message: string; submitted: number } | null>(null);
+
+  return (
+    <Panel className="p-4">
+      <p className="font-display text-[15px] font-semibold">Tell Bing about every page now</p>
+      <p className="mt-1 text-[12px] text-muted-foreground">
+        Sends every page in revoragrowthsystems.com/sitemap.xml to IndexNow, which Bing, ChatGPT
+        search and Copilot use, so new and changed pages are picked up within minutes. Google
+        reads the same sitemap from Search Console. Use it after you publish changes.
+      </p>
+      <div className="mt-3 flex flex-wrap items-center gap-3">
+        <Button
+          size="sm"
+          variant="signal"
+          disabled={busy}
+          onClick={async () => {
+            setBusy(true);
+            try {
+              const next = await submit();
+              setResult(next);
+              if (!next.ok) toast.error(next.message);
+            } catch {
+              toast.error("Revora couldn't send the pages just now. Try again in a moment.");
+            } finally {
+              setBusy(false);
+            }
+          }}
+        >
+          <Send className="mr-1.5 size-4" aria-hidden /> {busy ? "Sending…" : "Send every page"}
+        </Button>
+        {result ? (
+          <p className="text-[12.5px]">
+            {result.ok ? `${number(result.submitted)} pages sent. ` : ""}
+            {result.message}
+          </p>
+        ) : null}
+      </div>
+    </Panel>
   );
 }

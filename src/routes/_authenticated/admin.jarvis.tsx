@@ -15,6 +15,7 @@ import { draftProspectOutreach, type ProspectDraft } from "@/lib/jarvis-prospect
 import { formatRevoraOffer } from "@/lib/jarvis-acquisition-policy";
 import { jarvisVoiceLinks, synthesizeJarvisVoice } from "@/lib/jarvis-voice.functions";
 import { ProspectDemoBuilder } from "@/components/app/ProspectDemoBuilder";
+import { ClaudeCodePanel } from "@/components/app/ClaudeCodePanel";
 import { speakableText, splitReplyMeta, type WriteProposal } from "@/lib/jarvis-actions";
 import { startProspectDemoBuild } from "@/lib/jarvis-demo-site.functions";
 
@@ -523,6 +524,7 @@ function Jarvis() {
         </div>
       </details>
 
+      <ClaudeCodePanel />
       <ProspectDemoBuilder />
     </div>
   );
