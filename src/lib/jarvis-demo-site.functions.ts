@@ -171,3 +171,39 @@ export const findProspectsFn = createServerFn({ method: "POST" })
     const { findProspects } = await import("./jarvis-demo-site.server");
     return findProspects(db, String(context.userId), data);
   });
+
+/**
+ * Super-admin only: prefills the demo form from a Google Maps link (or
+ * "name, city" text). Read-only; shares the prospect finder's daily budget.
+ */
+export const prospectFromMapsFn = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((input: { input?: unknown }) => {
+    const value = typeof input?.input === "string" ? input.input.trim().slice(0, 2000) : "";
+    if (value.length < 3) throw new Error("Paste a Google Maps link, or type the business name and city.");
+    return { input: value };
+  })
+  .handler(async ({ context, data }) => {
+    const db = await guardedAdmin(context);
+    const { prospectFromMaps } = await import("./jarvis-demo-site.server");
+    return prospectFromMaps(db, String(context.userId), data.input);
+  });
+
+/**
+ * Super-admin only: prefills the demo form from a picture (Maps screenshot,
+ * business card, flyer, sign) using a free vision model. The picture is not
+ * stored.
+ */
+export const prospectFromImageFn = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((input: { dataUrl?: unknown }) => {
+    const dataUrl = typeof input?.dataUrl === "string" ? input.dataUrl : "";
+    if (!dataUrl.startsWith("data:image/")) throw new Error("Choose a picture first.");
+    if (dataUrl.length > 6_000_000) throw new Error("That picture is too large. Use one under 4 MB.");
+    return { dataUrl };
+  })
+  .handler(async ({ context, data }) => {
+    const db = await guardedAdmin(context);
+    const { prospectFromImage } = await import("./jarvis-demo-site.server");
+    return prospectFromImage(db, String(context.userId), data.dataUrl);
+  });

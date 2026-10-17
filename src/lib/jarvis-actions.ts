@@ -22,6 +22,7 @@ export type ReadAction =
   | { id: "code.search"; query: string }
   | { id: "demos.list" }
   | { id: "prospects.find"; niche: string; city: string; state: string | null }
+  | { id: "prospect.lookup"; input: string }
   | { id: "web.search"; query: string };
 
 export type CodeChange =
@@ -113,6 +114,7 @@ export function actionCatalogPrompt(diagnosticToolIds: string[]): string {
     '- {"id":"demos.list","args":{}}: list prospect demo sites with build status and preview links.',
     '- {"id":"web.search","args":{"query":"..."}}: search the live web (Perplexity, Tavily, Brave, Exa or Jina, whichever is connected) for current facts: competitors, pricing in a market, a provider\'s docs or an error message. Results are third-party research; cite the URLs and never present them as facts about a customer.',
     '- {"id":"prospects.find","args":{"niche":"mobile detailing","city":"Raleigh","state":"NC"}}: search Google Places for businesses in a niche and city that have no real website (none, or only a social/directory page). Costs a little per search and is capped daily, so search only when the owner asks for prospects. Then propose demo.build for the best ones, using only the facts returned (name, category, city, state, phone); for services use none and set description to "<category> serving <city, state>."',
+    '- {"id":"prospect.lookup","args":{"input":"https://maps.app.goo.gl/... or Joe\'s Plumbing Raleigh NC"}}: look up ONE business from a Google Maps link (place, search or share link) or its name and city, and get its public listing facts (name, category, city, state, phone, website). Use it whenever the owner pastes a Maps link or names a business to build for, then propose demo.build with only those facts plus any the owner gave you or that are visible in a picture they attached. If the listing shows a real website, say so before proposing.',
     '- {"id":"demo.build","args":{"businessName":"","industry":"","city":"","state":"","phone":"","email":"","services":["..."],"description":""}}: PROPOSE building a private demo website for a real business with no website. Only facts the owner gave you; never invent phone numbers, emails or services. The owner approves with one tap; you do not run it.',
     '- {"id":"code.pr","args":{"title":"","summary":"","changes":[{"path":"src/...","edits":[{"find":"exact existing text","replace":"new text"}]},{"path":"src/new-file.ts","content":"full file"}]}}: PROPOSE a GitHub pull request into lovable-sync. Read every file you edit with code.read first in this conversation; "find" must be copied exactly from it and appear once. Use "content" only for new files. Up to 6 files. Keep changes minimal, complete and type-safe; never touch auth, RLS, billing or tenant isolation unless the owner asked; never add secrets. The owner approves with one tap and reviews before merging.',
     '- {"id":"claude.code","args":{"request":"what to build or fix, with the files and acceptance checks you found"}}: PROPOSE handing a larger coding task to Claude Code, which reads the whole repository, edits any number of files, runs the checks and opens a pull request. Use it instead of code.pr when a change spans more than 6 files, needs new tests run, or is too big to write exactly here. The owner approves with one tap.',
@@ -178,6 +180,10 @@ export function parseActions(requested: unknown[], diagnosticToolIds: string[]):
       const city = str(args["city"], 80);
       if (niche.length >= 3 && city.length >= 2) out.reads.push({ id, niche, city, state: str(args["state"], 40) || null });
       else out.rejected.push("prospects.find: needs a niche and a city");
+    } else if (id === "prospect.lookup") {
+      const input = str(args["input"], 2000);
+      if (input.length >= 3) out.reads.push({ id, input });
+      else out.rejected.push("prospect.lookup: needs a Google Maps link or a business name and city");
     } else if (id === "code.pr") {
       try {
         out.proposals.push({ id, pr: parsePullRequestProposal(args) });
@@ -218,6 +224,8 @@ export function describeRead(action: ReadAction): string {
       return "Listed demo sites";
     case "web.search":
       return `Searched the web for "${action.query.slice(0, 60)}"`;
+    case "prospect.lookup":
+      return "Looked up the business on Google Maps";
     case "prospects.find":
       return `Searched Google for ${action.niche} in ${action.city}${action.state ? `, ${action.state}` : ""}`;
   }

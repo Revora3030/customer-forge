@@ -39,6 +39,9 @@ export async function runReadActions(db: SupabaseClient, reads: ReadAction[], ac
         } else if (action.id === "prospects.find") {
           const { findProspects } = await import("./jarvis-demo-site.server");
           result = await findProspects(db, actorId, action);
+        } else if (action.id === "prospect.lookup") {
+          const { prospectFromMaps } = await import("./jarvis-demo-site.server");
+          result = await prospectFromMaps(db, actorId, action.input);
         } else {
           const { listProspectDemos } = await import("./jarvis-demo-site.server");
           result = await listProspectDemos(db);

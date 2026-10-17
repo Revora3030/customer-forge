@@ -1,14 +1,23 @@
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
-import { Copy, ExternalLink, Hammer, Mail, Search } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Copy, ExternalLink, Hammer, ImageUp, Mail, MapPin, Search } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { draftDemoOutreach, findProspectsFn, listProspectDemoBuilds, startProspectDemoBuild, type DemoOutreachDraft } from "@/lib/jarvis-demo-site.functions";
+import {
+  draftDemoOutreach,
+  findProspectsFn,
+  listProspectDemoBuilds,
+  prospectFromImageFn,
+  prospectFromMapsFn,
+  startProspectDemoBuild,
+  type DemoOutreachDraft,
+} from "@/lib/jarvis-demo-site.functions";
 import { prospectDemoInput, type FoundProspect } from "@/lib/prospect-finder";
+import { pictureDataUrl } from "@/lib/picture-data-url";
 import { pumpSiteEngineQueue } from "@/lib/site-engine.functions";
 
 const EMPTY = { businessName: "", industry: "", city: "", state: "", phone: "", email: "", services: "", description: "" };
@@ -24,6 +33,8 @@ const FIELDS: { key: Field; label: string; placeholder: string; required?: boole
 ];
 
 const ACTIVE = new Set(["queued", "processing"]);
+
+type Prefill = Awaited<ReturnType<typeof prospectFromMapsFn>>;
 
 /**
  * Jarvis panel: build a private demo website for a business with no website.
@@ -61,6 +72,30 @@ export function ProspectDemoBuilder() {
     }
   };
   const [form, setForm] = useState(EMPTY);
+  const mapsFn = useServerFn(prospectFromMapsFn);
+  const imageFn = useServerFn(prospectFromImageFn);
+  const [sourceInput, setSourceInput] = useState("");
+  const [prefilled, setPrefilled] = useState<Prefill | null>(null);
+  const formRef = useRef<HTMLFormElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const applyPrefill = (result: Prefill) => {
+    // Replace the form: these are facts for one specific business.
+    setForm({ ...EMPTY, ...result.prefill });
+    setPrefilled(result);
+    toast.success("Form filled. Check the facts, then build.");
+    window.setTimeout(() => formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
+  };
+  const fromMaps = useMutation({
+    mutationFn: () => mapsFn({ data: { input: sourceInput } }),
+    onSuccess: applyPrefill,
+    onError: (error: Error) => toast.error(error.message),
+  });
+  const fromImage = useMutation({
+    mutationFn: async (file: File) => imageFn({ data: { dataUrl: await pictureDataUrl(file) } }),
+    onSuccess: applyPrefill,
+    onError: (error: Error) => toast.error(error.message),
+  });
+  const reading = fromMaps.isPending || fromImage.isPending;
   const [drafts, setDrafts] = useState<Record<string, DemoOutreachDraft>>({});
   const [bodies, setBodies] = useState<Record<string, string>>({});
   const drafting = useMutation({
@@ -106,6 +141,7 @@ export function ProspectDemoBuilder() {
     onSuccess: () => {
       toast.success("Demo build started. The AI team is writing the site now.");
       setForm(EMPTY);
+      setPrefilled(null);
       void qc.invalidateQueries({ queryKey: ["jarvis", "prospect-demos"] });
     },
     onError: (error: Error) => toast.error(error.message),
@@ -176,7 +212,70 @@ export function ProspectDemoBuilder() {
             </div>
           ) : null}
         </section>
+        <section aria-label="Start from Google Maps or a picture" className="space-y-2 rounded-lg border border-primary/30 bg-primary/5 p-3">
+          <h3 className="flex items-center gap-1.5 text-sm font-semibold"><MapPin className="size-4" aria-hidden />Start from Google Maps or a picture</h3>
+          <p className="text-xs text-muted-foreground">
+            Paste the business's Google Maps link (Share → Copy link) or its name and city, or add a screenshot of the
+            listing, a business card, flyer or sign. Jarvis fills the form from what's really there; you check it, then
+            build.
+          </p>
+          <form
+            className="flex flex-col gap-2 sm:flex-row"
+            onSubmit={(event) => {
+              event.preventDefault();
+              fromMaps.mutate();
+            }}
+          >
+            <Input
+              aria-label="Google Maps link or business name and city"
+              value={sourceInput}
+              placeholder="https://maps.app.goo.gl/… or Joe's Plumbing Raleigh NC"
+              onChange={(event) => setSourceInput(event.target.value)}
+              className="min-w-0 flex-1"
+            />
+            <div className="flex gap-2">
+              <Button type="submit" size="sm" className="h-9 flex-1 sm:flex-none" disabled={reading || sourceInput.trim().length < 3}>
+                <MapPin className="mr-1 size-3.5" aria-hidden />
+                {fromMaps.isPending ? "Looking up…" : "Fill from Maps"}
+              </Button>
+              <Button type="button" size="sm" variant="outline" className="h-9 flex-1 sm:flex-none" disabled={reading} onClick={() => fileRef.current?.click()}>
+                <ImageUp className="mr-1 size-3.5" aria-hidden />
+                {fromImage.isPending ? "Reading picture…" : "From a picture"}
+              </Button>
+            </div>
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/*"
+              className="sr-only"
+              tabIndex={-1}
+              aria-hidden
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                event.target.value = "";
+                if (file) fromImage.mutate(file);
+              }}
+            />
+          </form>
+          {prefilled ? (
+            <div className="space-y-1 text-xs" role="status">
+              <p className="text-muted-foreground">{prefilled.note}</p>
+              {prefilled.hasRealWebsite && prefilled.website ? (
+                <p className="text-accent">
+                  This business already lists a website ({prefilled.website}). A demo still works, but pitching an
+                  upgrade of their current site may land better.
+                </p>
+              ) : null}
+              {prefilled.mapsUri ? (
+                <a href={prefilled.mapsUri} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-primary underline-offset-2 hover:underline">
+                  <ExternalLink className="size-3" aria-hidden />Check the listing on Google Maps
+                </a>
+              ) : null}
+            </div>
+          ) : null}
+        </section>
         <form
+          ref={formRef}
           className="space-y-3"
           onSubmit={(event) => {
             event.preventDefault();
