@@ -15,7 +15,12 @@ describe("homepage starter truthfulness", () => {
 
   it("presents the free access duration without a currency symbol", () => {
     const html = renderToStaticMarkup(<HeroStarter />);
-    expect(html).toContain(`Start your ${GROWTH_SYSTEM.fullAccessWindow} free`);
+    expect(html).toContain(`Start free — ${GROWTH_SYSTEM.fullAccessWindow}, no card`);
     expect(html).not.toContain(`$${GROWTH_SYSTEM.fullAccessWindow}`);
+  });
+
+  it("never disables its main button, so the first tap always works", () => {
+    const html = renderToStaticMarkup(<HeroStarter />);
+    expect(html).toMatch(/<button[^>]*type="submit"(?![^>]*disabled)[^>]*>/);
   });
 });

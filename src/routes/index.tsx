@@ -13,7 +13,7 @@ import {
   Users,
 } from "lucide-react";
 import { SiteFooter, SiteHeader } from "@/components/marketing/Chrome";
-import { AuthActions, AuthHint } from "@/components/marketing/AuthButtons";
+import { AuthHint } from "@/components/marketing/AuthButtons";
 import { HeroStarter } from "@/components/marketing/HeroStarter";
 import { DashboardPreview } from "@/components/marketing/DashboardPreview";
 import { WithoutWith } from "@/components/marketing/Journey";
@@ -303,15 +303,16 @@ function PrimaryCta({ className = "" }: { className?: string }) {
 function PriceLine({ className = "" }: { className?: string }) {
   return (
     <p className={`text-[12.5px] text-muted-foreground ${className}`}>
-      <span className="gold-hl">{GROWTH_SYSTEM.fullAccessWindow} free full access</span> ·{" "}
+      <span className="gold-hl">Try everything free for {GROWTH_SYSTEM.fullAccessWindow}, no card.</span>{" "}
+      When you launch:{" "}
       <span className="font-medium text-foreground whitespace-nowrap">
-        {usd(GROWTH_SYSTEM.setupPrice)} one-time setup
-      </span>{" "}
-      · <span className="gold-hl">first month free</span> · then{" "}
+        {usd(GROWTH_SYSTEM.setupPrice)} setup
+      </span>
+      , the first month free, then{" "}
       <span className="font-medium text-foreground whitespace-nowrap">
         {usd(GROWTH_SYSTEM.monthlyPrice)}/month
-      </span> ·
-      Cancel anytime
+      </span>
+      . Cancel anytime.
     </p>
   );
 }
@@ -338,24 +339,18 @@ function Landing() {
                 <span className="gold-text">while you work, and while you sleep</span>.
               </h1>
               <p className="mt-4 max-w-xl text-[15px] leading-relaxed text-muted-foreground">
-                Revora's AI runs your{" "}
-                <span className="text-foreground">
-                  website, quotes, booking, follow-up, reviews and SEO
-                </span>{" "}
-                — for any industry, in any city, anywhere in the world. The work finds you and books itself while you work.{" "}
-                <span className="text-foreground">
-                  $350 one-time setup, your first month free, then $100/month.
-                </span>
+                Revora's AI builds and runs your{" "}
+                <span className="text-foreground">website, quotes, booking, follow-up and reviews</span> — so
+                more of the people who find you become paying customers.
               </p>
 
               {/* The two doors, right in the hero: create an account, or sign
                   back into an existing one. Signed-in visitors see their
                   dashboard here instead. One CTA stack only — the repeated
                   banner and price block live further down the page. */}
-              <HeroStarter className="mt-7 max-w-xl" />
-              <AuthActions className="mt-5" />
-              <AuthHint className="mt-3" />
+              <HeroStarter className="mt-6 max-w-xl" />
               <PriceLine className="mt-4" />
+              <AuthHint className="mt-2" />
 
               <dl className="mt-9 grid grid-cols-1 gap-x-6 gap-y-5 border-t border-border pt-6 sm:max-w-lg sm:grid-cols-3">
                 {HERO_PROOF.map(([value, label]) => (
@@ -392,11 +387,11 @@ function Landing() {
                 <span className="preview-orbit-dot" />
               </div>
               <DashboardPreview />
-              <div className="hero-live-badge" aria-label="Live system preview">
+              <div className="hero-live-badge" aria-label="Example dashboard">
                 <span className="hero-live-dot" aria-hidden="true" />
-                <span>LIVE SYSTEM</span>
+                <span>EXAMPLE DASHBOARD</span>
                 <span className="hero-live-divider" aria-hidden="true" />
-                <span className="text-muted-foreground">updated just now</span>
+                <span className="text-muted-foreground">sample numbers</span>
               </div>
             </div>
           </div>

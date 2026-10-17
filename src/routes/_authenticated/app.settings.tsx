@@ -14,6 +14,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { MemberControls, TeamInvites } from "@/components/app/TeamInvites";
 import { PortalAccess } from "@/components/app/PortalAccess";
 import { LeadNotifications } from "@/components/app/LeadNotifications";
+import { UpgradeFromWebsite } from "@/components/app/UpgradeFromWebsite";
 import { metaDescription } from "@/lib/seo";
 
 export const Route = createFileRoute("/_authenticated/app/settings")({
@@ -57,6 +58,8 @@ function SettingsPage() {
       />
 
       <IntegrationCenter organizationId={orgId} />
+
+      <UpgradeFromWebsite organizationId={orgId ?? null} />
 
       <Panel className="p-5">
         <SectionHeading eyebrow="You" title="Your account" />

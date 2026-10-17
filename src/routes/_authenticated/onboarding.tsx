@@ -1,6 +1,8 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { GoogleListingImport } from "@/components/onboarding/GoogleListingImport";
+import { ExistingSiteImport } from "@/components/onboarding/ExistingSiteImport";
+import type { ImportedFacts } from "@/lib/site-import";
 import { OwnerPhotoUpload } from "@/components/onboarding/OwnerPhotoUpload";
 import { saveOwnerLogo, saveOwnerPhotos, type PendingPhoto } from "@/components/onboarding/owner-photos";
 import { toast } from "@/lib/ui/notify";
@@ -160,6 +162,8 @@ function Onboarding() {
   });
 
   // Words typed on the homepage starter fill empty fields only, then are cleared.
+  // Arriving from "upgrade my existing website" imports that site straight away.
+  const [importOnArrival, setImportOnArrival] = useState(false);
   useEffect(() => {
     const starter = readStarter();
     if (!starter) return;
@@ -167,7 +171,9 @@ function Onboarding() {
       ...prev,
       businessName: prev.businessName.trim() ? prev.businessName : starter.businessName,
       about: prev.about.trim() ? prev.about : starter.about,
+      website: prev.website.trim() ? prev.website : starter.website,
     }));
+    if (starter.wantsImport) setImportOnArrival(true);
     clearStarter();
   }, []);
 
@@ -341,6 +347,37 @@ function Onboarding() {
     }, 800);
     return () => clearTimeout(timer);
   }, [draft, step, restored, ws?.workspace?.organization.onboarding_completed]);
+
+  // Facts from the owner's current website fill only fields still empty, so
+  // nothing the owner typed is overwritten; services are added only when none
+  // were entered yet.
+  const applyImportedFacts = (facts: ImportedFacts, url: string) =>
+    setDraft((prev) => {
+      const keep = (current: string, next: string) => (current.trim() ? current : next);
+      const typedServices = prev.services.some((service) => service.name.trim());
+      return {
+        ...prev,
+        website: keep(prev.website, url),
+        businessName: keep(prev.businessName, facts.businessName),
+        about: keep(prev.about, facts.about),
+        city: keep(prev.city, facts.city),
+        state: keep(prev.state, facts.state),
+        phone: keep(prev.phone, facts.phone),
+        email: keep(prev.email, facts.email),
+        address: keep(prev.address, facts.address),
+        hours: keep(prev.hours, facts.hours),
+        logoUrl: keep(prev.logoUrl, facts.logoUrl),
+        heroImageUrl: keep(prev.heroImageUrl, facts.heroImageUrl),
+        primaryColor: keep(prev.primaryColor, facts.primaryColor),
+        instagram: keep(prev.instagram, facts.instagram),
+        facebook: keep(prev.facebook, facts.facebook),
+        google: keep(prev.google, facts.google),
+        services:
+          typedServices || !facts.services.length
+            ? prev.services
+            : facts.services.map((service) => ({ name: service.name, description: service.description, price: "" })),
+      };
+    });
 
   const set = <K extends keyof Draft>(key: K, value: Draft[K]) =>
     setDraft((prev) => ({ ...prev, [key]: value }));
@@ -664,6 +701,11 @@ function Onboarding() {
                   Revora uses only what you enter here — nothing is invented.
                 </p>
               </div>
+              <ExistingSiteImport
+                initialUrl={draft.website}
+                autoStart={importOnArrival}
+                onImported={applyImportedFacts}
+              />
               <div className="space-y-1.5">
                 <Label htmlFor="o-name">Business name</Label>
                 <Input

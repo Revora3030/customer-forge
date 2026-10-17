@@ -21,6 +21,8 @@ import { canonicalLink, ogUrl } from "@/lib/seo";
 import { useServerFn } from "@tanstack/react-start";
 import { claimProspectDemo, getProspectClaim } from "@/lib/prospect-claim.functions";
 import { CLAIM_STORAGE_KEY, isClaimToken } from "@/lib/prospect-claim";
+import { readStarter } from "@/components/marketing/hero-starter-utils";
+import { applyImportedFacts, importExistingWebsite } from "@/lib/site-import.functions";
 
 export const Route = createFileRoute("/get-started")({
   validateSearch: (search: Record<string, unknown>): { claim?: string } =>
@@ -196,6 +198,31 @@ function GetStarted() {
     if (session.data?.organizationId) setOrganizationId(session.data.organizationId);
   }, [session.data?.organizationId]);
 
+  // What the visitor typed on the homepage (or told Jarvis) and the name they
+  // signed up with fill empty fields, so nobody types the same thing twice.
+  // The starter stays saved for onboarding, which clears it.
+  useEffect(() => {
+    const starter = readStarter();
+    let cancelled = false;
+    void supabase.auth.getUser().then(({ data }) => {
+      if (cancelled) return;
+      const meta = (data.user?.user_metadata ?? {}) as Record<string, unknown>;
+      const signupName = typeof meta["full_name"] === "string" ? meta["full_name"].slice(0, 120) : "";
+      setIntake((prev) => ({
+        ...prev,
+        fullName: prev.fullName || signupName,
+        email: prev.email || data.user?.email || "",
+        businessName: prev.businessName || starter?.businessName || "",
+        businessType: prev.businessType || starter?.industry || "",
+        website: prev.website || starter?.website || "",
+        services: prev.services || starter?.about || "",
+      }));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   // Fill in anything the org already has on file — never overwrite something
   // the client already typed (or restored from a saved draft) this session.
   useEffect(() => {
@@ -325,6 +352,24 @@ function GetStarted() {
   }
 
   /** Start the free full-access trial: provision the workspace, then open the app. */
+  // A visitor who gave their current website gets its details (contact,
+  // hours, services, logo, photo) added to the new workspace, into empty
+  // fields only, without waiting on it.
+  const readSite = useServerFn(importExistingWebsite);
+  const saveSiteFacts = useServerFn(applyImportedFacts);
+  function importWebsiteInBackground(orgId: string) {
+    const website = intake.website?.trim() ?? "";
+    if (website.length < 4) return;
+    void (async () => {
+      try {
+        const result = await readSite({ data: { url: website } });
+        if (result.ok) await saveSiteFacts({ data: { organizationId: orgId, url: result.url, facts: result.facts } });
+      } catch {
+        /* the owner can import it later from Settings */
+      }
+    })();
+  }
+
   async function startFreeAccess() {
     setError(null);
     if (!signedIn) {
@@ -334,7 +379,8 @@ function GetStarted() {
     setStartingTrial(true);
     try {
       const wasClaim = claiming;
-      await ensureWorkspace();
+      const orgId = await ensureWorkspace();
+      if (!wasClaim && orgId) importWebsiteInBackground(orgId);
       // The trial genuinely starts here — tell Google Ads the ad worked.
       void trackTrialStarted();
       // A claimed demo already has a website: open it in the builder.
@@ -354,7 +400,8 @@ function GetStarted() {
     setError(null);
     setProvisioning(true);
     try {
-      await ensureWorkspace();
+      const orgId = await ensureWorkspace();
+      if (!claiming && orgId) importWebsiteInBackground(orgId);
       setPayNow(true);
     } catch (cause) {
       setError(

@@ -927,6 +927,12 @@ a[href*="lovable.app"][target="_blank"][class*="fixed"],
   & > *:nth-child(8) {
     animation-delay: 530ms;
   }
+  /* The headline and the signup form are the page's largest paint and its
+     main action: they show at once instead of fading in. */
+  & > h1,
+  & > form {
+    animation: none;
+  }
 }
 
 /* Stage for the hero product preview: entrance rise, soft lift shadow and a
@@ -2532,4 +2538,15 @@ body { padding-bottom: env(safe-area-inset-bottom); }
 .rv-site-section input[type="date"]::-webkit-date-and-time-value,
 [data-widget] input[type="date"]::-webkit-date-and-time-value {
   text-align: left;
+}
+
+/* While the cookie banner is open, the offer bar hides and the visitor
+   Jarvis launcher hides on phones, so the banner never stacks over them. */
+html[data-cookie-banner="open"] .sticky-cta-bar {
+  display: none;
+}
+@media (max-width: 639px) {
+  html[data-cookie-banner="open"] .jarvis-launcher {
+    display: none;
+  }
 }

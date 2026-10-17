@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/select";
 import { useSession } from "@/lib/auth-session";
 import { SIGN_UP_SEARCH } from "@/components/marketing/AuthButtons";
-import { STARTER_KEY } from "@/components/marketing/hero-starter-utils";
+import { saveStarter } from "@/components/marketing/hero-starter-utils";
 import { GROWTH_SYSTEM } from "@/lib/offer";
 
 const INDUSTRY_OPTIONS = [
@@ -29,6 +29,7 @@ const INDUSTRY_OPTIONS = [
   "Cleaning Service",
   "Restaurant",
   "Real Estate",
+  "Other",
 ] as const;
 
 const SERVICE_BY_INDUSTRY: Record<string, readonly string[]> = {
@@ -138,23 +139,20 @@ export function HeroStarter({ className = "" }: { className?: string }) {
   const [businessName, setBusinessName] = useState("");
   const [industry, setIndustry] = useState("");
   const [about, setAbout] = useState("");
-  const ready = about.trim().length >= 10 || (businessName.trim().length >= 2 && industry.length > 0);
+  const [website, setWebsite] = useState("");
 
+  // The button always works: whatever the visitor typed is carried into
+  // signup and onboarding, and nothing typed is required to start.
   const start = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!ready) return;
-    try {
-      window.localStorage.setItem(
-        STARTER_KEY,
-        JSON.stringify({
-          businessName: businessName.trim(),
-          about: about.trim(),
-          industry,
-        }),
-      );
-    } catch {
-      /* private mode — onboarding simply asks again */
-    }
+    const site = website.trim();
+    saveStarter({
+      businessName: businessName.trim(),
+      about: about.trim(),
+      industry: industry === "Other" ? "" : industry,
+      website: site,
+      wantsImport: site.length > 3,
+    });
     if (user) void navigate({ to: "/get-started" });
     else void navigate({ to: "/auth", search: SIGN_UP_SEARCH });
   };
@@ -189,7 +187,7 @@ export function HeroStarter({ className = "" }: { className?: string }) {
         <div>
           <label className="sr-only" htmlFor="starter-industry">Industry</label>
           <Select value={industry} onValueChange={setIndustry}>
-            <SelectTrigger id="starter-industry" className="w-full">
+            <SelectTrigger id="starter-industry" className="h-11 w-full">
               <SelectValue placeholder="Select an industry" />
             </SelectTrigger>
             <SelectContent>
@@ -202,24 +200,37 @@ export function HeroStarter({ className = "" }: { className?: string }) {
           </Select>
         </div>
       </div>
+      <div className="mt-2">
+        <label className="sr-only" htmlFor="starter-website">Your current website (optional)</label>
+        <Input
+          id="starter-website"
+          value={website}
+          onChange={(e) => setWebsite(e.target.value)}
+          placeholder="Have a website? Paste it to upgrade it (optional)"
+          maxLength={200}
+          inputMode="url"
+          autoComplete="url"
+        />
+      </div>
+      <Button type="submit" variant="signal" size="lg" className="mt-3 w-full">
+        {website.trim().length > 3 ? "Upgrade my website free" : "Start free"} — {GROWTH_SYSTEM.fullAccessWindow}, no card{" "}
+        <ArrowRight className="size-4" aria-hidden="true" />
+      </Button>
+      <p className="mt-2 text-center text-[11.5px] text-muted-foreground">
+        No card to start · you review everything before it goes live
+      </p>
       <label className="sr-only" htmlFor="starter-about">What your business does</label>
       <Textarea
         id="starter-about"
         value={about}
         onChange={(e) => setAbout(e.target.value)}
-        placeholder="What you do, who you serve and where — e.g. a family dental clinic in Austin taking new patients"
+        placeholder="Optional: what you do, who you serve and where"
         maxLength={1000}
-        rows={3}
-        className="mt-2 resize-none"
+        rows={2}
+        className="mt-3 resize-none"
       />
-      {/* Live instant preview canvas */}
-      <div className="mt-3">{preview}</div>
-      <Button type="submit" variant="signal" size="lg" className="mt-3 w-full" disabled={!ready}>
-        Start your {GROWTH_SYSTEM.fullAccessWindow} free <ArrowRight className="size-4" aria-hidden="true" />
-      </Button>
-      <p className="mt-2 text-center text-[11.5px] text-muted-foreground">
-        No card to start · you review everything before it goes live
-      </p>
+      {/* Live instant preview canvas: below the button so the button stays above the fold. */}
+      <div className="mt-3 hidden sm:block">{preview}</div>
     </form>
   );
 }
