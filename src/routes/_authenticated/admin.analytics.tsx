@@ -54,19 +54,23 @@ function AdminAnalytics() {
 
   const traffic = useQuery({
     queryKey: ["admin", "traffic", days],
+    refetchInterval: 120_000,
     queryFn: () => trafficFn({ data: { days } }),
   });
   const builder = useQuery({
     queryKey: ["admin", "builder-publish", days],
+    refetchInterval: 120_000,
     queryFn: () => builderFn({ data: { days } }),
   });
 
   const funnel = useQuery({
     queryKey: ["admin", "funnel", days],
+    refetchInterval: 120_000,
     queryFn: () => funnelFn({ data: { days } }),
   });
   const details = useQuery({
     queryKey: ["admin", "funnel-details", days],
+    refetchInterval: 120_000,
     queryFn: () => detailsFn({ data: { days } }),
     enabled: openStage !== null,
   });

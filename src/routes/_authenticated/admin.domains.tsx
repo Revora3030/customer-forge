@@ -21,7 +21,7 @@ function AdminDomains() {
   const clientsFn = useServerFn(listClients);
   const verify = useServerFn(verifyClientDomain);
   const queryClient = useQueryClient();
-  const clients = useQuery({ queryKey: ["admin", "clients"], queryFn: () => clientsFn({}) });
+  const clients = useQuery({ queryKey: ["admin", "clients"], queryFn: () => clientsFn({}), refetchInterval: 120_000 });
 
   const recheck = useMutation({
     mutationFn: (organizationId: string) => verify({ data: { organizationId } }),

@@ -66,3 +66,38 @@ describe("monitoring totals", () => {
     expect(monitoring).toContain("last7d: week.error ? rows.length : (week.count ?? 0)");
   });
 });
+
+describe("live activity feed", () => {
+  const activity = slice("export const getPlatformActivity", "\nexport const");
+
+  it("names every business in the feed and counts the whole window", () => {
+    expect(activity).toContain('.select("id, name, is_demo").in("id", referenced)');
+    expect(activity).toContain('.eq("is_demo", true)');
+    expect(activity).toContain("leads: exactOr(leadTotal,");
+  });
+});
+
+describe("funnel paid stage", () => {
+  it("never divides all-time customers by this period's trials", () => {
+    const funnel = read("src/lib/platform-funnel.functions.ts");
+    expect(funnel).toContain("rate: pct(convertedTrials, trialsStarted),");
+    expect(funnel).toContain("visitorsToPaid: pct(convertedTrials, visitors),");
+    expect(funnel).not.toContain("pct(paid, trialsStarted)");
+  });
+});
+
+describe("client detail", () => {
+  it("reads every lead and booking for the client", () => {
+    const detail = slice("export const getClientDetail", "\nexport const");
+    expect(detail).toContain('supabaseAdmin.from("leads").select("id, status, created_at").eq("organization_id", id).order("id").range(from, to)');
+    expect(detail).not.toContain(".limit(5000)");
+  });
+});
+
+describe("admin pages stay live", () => {
+  it("refreshes operational pages on their own", () => {
+    for (const page of ["index", "clients", "domains", "backups", "websites", "analytics", "monthly", "monitoring", "ai"]) {
+      expect(read(`src/routes/_authenticated/admin.${page}.tsx`), page).toContain("refetchInterval");
+    }
+  });
+});

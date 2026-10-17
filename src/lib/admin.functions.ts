@@ -256,7 +256,9 @@ export const getClientDetail = createServerFn({ method: "GET" })
       supabaseAdmin.from("website_settings").select("*").eq("organization_id", id).maybeSingle(),
       supabaseAdmin.from("social_profiles").select("*").eq("organization_id", id).maybeSingle(),
       supabaseAdmin.from("services").select("*").eq("organization_id", id).order("sort_order"),
-      supabaseAdmin.from("media").select("id, url").eq("organization_id", id),
+      fetchAllRows<{ id: string; url: string }>((from, to) =>
+        supabaseAdmin.from("media").select("id, url").eq("organization_id", id).order("id").range(from, to),
+      ),
       supabaseAdmin
         .from("website_pages")
         .select("id, slug, title, kind, is_visible")
@@ -269,14 +271,17 @@ export const getClientDetail = createServerFn({ method: "GET" })
         .eq("organization_id", id)
         .order("version", { ascending: false })
         .limit(5),
-      supabaseAdmin
-        .from("quote_requests")
-        .select("id, created_at")
-        .eq("organization_id", id)
-        .limit(5000),
+      fetchAllRows<{ id: string; created_at: string }>((from, to) =>
+        supabaseAdmin.from("quote_requests").select("id, created_at").eq("organization_id", id).order("id").range(from, to),
+      ),
       supabaseAdmin.from("quote_forms").select("id, is_active").eq("organization_id", id),
-      supabaseAdmin.from("leads").select("id, status, created_at").eq("organization_id", id),
-      supabaseAdmin.from("appointments").select("id, status, starts_at").eq("organization_id", id),
+      // Every lead and booking: a client past 1,000 must not read "1000".
+      fetchAllRows<{ id: string; status: string; created_at: string }>((from, to) =>
+        supabaseAdmin.from("leads").select("id, status, created_at").eq("organization_id", id).order("id").range(from, to),
+      ),
+      fetchAllRows<{ id: string; status: string; starts_at: string }>((from, to) =>
+        supabaseAdmin.from("appointments").select("id, status, starts_at").eq("organization_id", id).order("id").range(from, to),
+      ),
       fetchAllRows<{ id: string; event_type: string; created_at: string }>((from, to) =>
         supabaseAdmin
           .from("analytics_events")
@@ -304,7 +309,10 @@ export const getClientDetail = createServerFn({ method: "GET" })
         .limit(20),
     ]);
 
+    if (org.error) throw new Error("Couldn't load this client just now. Refresh in a moment.");
     if (!org.data) throw new Error("That client no longer exists.");
+    if ([media, quoteRequests, leads, appts, events].some((result) => result.error))
+      throw new Error("Couldn't read all of this client's activity just now. Refresh in a moment.");
 
     return {
       org: org.data,
@@ -312,15 +320,15 @@ export const getClientDetail = createServerFn({ method: "GET" })
       settings: settings.data,
       social: social.data,
       services: services.data ?? [],
-      mediaCount: (media.data ?? []).length,
+      mediaCount: media.rows.length,
       quoteFormCount: (forms.data ?? []).filter((f) => f.is_active).length,
-      leads: leads.data ?? [],
-      appointments: appts.data ?? [],
+      leads: leads.rows ?? [],
+      appointments: appts.rows ?? [],
       analyticsCount: events.rows.length,
       usage: (() => {
         const eventRows = events.rows;
-        const leadRows = leads.data ?? [];
-        const apptRows = appts.data ?? [];
+        const leadRows = leads.rows ?? [];
+        const apptRows = appts.rows ?? [];
         const days = Array.from({ length: 30 }, (_, i) =>
           new Date(Date.now() - (29 - i) * 86_400_000).toISOString().slice(0, 10),
         );
@@ -342,10 +350,10 @@ export const getClientDetail = createServerFn({ method: "GET" })
             sections: (sectionRows.data ?? []).filter((s) => s.page_id === page.id).length,
           })),
           versions: versions.data ?? [],
-          quoteRequests30d: (quoteRequests.data ?? []).filter(
+          quoteRequests30d: quoteRequests.rows.filter(
             (row) => new Date(row.created_at).getTime() >= now - 30 * 86_400_000,
           ).length,
-          quoteRequestsTotal: (quoteRequests.data ?? []).length,
+          quoteRequestsTotal: quoteRequests.rows.length,
           leads30d: leadRows.filter(
             (row) => new Date(row.created_at).getTime() >= now - 30 * 86_400_000,
           ).length,
@@ -862,9 +870,55 @@ export const getPlatformActivity = createServerFn({ method: "GET" })
         .limit(cap),
     ]);
 
+    if ([orgs, leads, appts, payments, versions].some((result) => result.error))
+      throw new Error("Couldn't load recent activity just now.");
     const orgRows = orgs.data ?? [];
-    const demoIds = new Set(orgRows.filter((o) => o.is_demo).map((o) => o.id));
-    const names = new Map(orgRows.map((o) => [o.id, o.name]));
+
+    // Names and demo flags for every workspace that appears in the feed, not
+    // only workspaces created in the window, so older clients aren't
+    // "Unknown business" and old demo workspaces stay filtered out.
+    const referenced = [
+      ...new Set(
+        [...(leads.data ?? []), ...(appts.data ?? []), ...(payments.data ?? []), ...(versions.data ?? [])]
+          .map((row) => row.organization_id)
+          .filter((value): value is string => Boolean(value)),
+      ),
+    ];
+    const [owners, demos] = await Promise.all([
+      referenced.length
+        ? supabaseAdmin.from("organizations").select("id, name, is_demo").in("id", referenced)
+        : Promise.resolve({ data: [] as { id: string; name: string; is_demo: boolean }[], error: null }),
+      fetchAllRows<{ id: string }>((from, to) =>
+        supabaseAdmin.from("organizations").select("id").eq("is_demo", true).order("id").range(from, to),
+      ),
+    ]);
+    if (owners.error || demos.error) throw new Error("Couldn't load recent activity just now.");
+    const demoIds = new Set<string>([
+      ...orgRows.filter((o) => o.is_demo).map((o) => o.id),
+      ...demos.rows.map((o) => o.id),
+    ]);
+    const names = new Map<string, string>([
+      ...orgRows.map((o) => [o.id, o.name] as [string, string]),
+      ...(owners.data ?? []).map((o) => [o.id, o.name] as [string, string]),
+    ]);
+
+    // Window totals are exact counts over the 14 days, excluding demo
+    // workspaces, not a count of the rows that fit in the feed.
+    const demoList = demos.rows.map((o) => o.id);
+    const windowCount = (table: "leads" | "appointments" | "payments" | "website_versions", extra?: (q: any) => any) => {
+      let query: any = supabaseAdmin.from(table).select("id", { count: "exact", head: true }).gte("created_at", since);
+      if (demoList.length) query = query.not("organization_id", "in", `(${demoList.join(",")})`);
+      return extra ? extra(query) : query;
+    };
+    const [leadTotal, bookingTotal, paymentTotal, versionTotal, signupTotal] = await Promise.all([
+      windowCount("leads"),
+      windowCount("appointments"),
+      windowCount("payments", (q) => q.eq("status", "completed").eq("environment", "live")),
+      windowCount("website_versions"),
+      supabaseAdmin.from("organizations").select("id", { count: "exact", head: true }).gte("created_at", since).eq("is_demo", false),
+    ]);
+    const exactOr = (result: { count: number | null; error: unknown }, fallback: number) =>
+      result.error ? fallback : (result.count ?? 0);
 
     type Item = {
       id: string;
@@ -929,11 +983,11 @@ export const getPlatformActivity = createServerFn({ method: "GET" })
       items,
       windowDays: 14,
       counts: {
-        signups: items.filter((i) => i.kind === "signup").length,
-        leads: items.filter((i) => i.kind === "lead").length,
-        bookings: items.filter((i) => i.kind === "booking").length,
-        payments: items.filter((i) => i.kind === "payment").length,
-        websiteChanges: items.filter((i) => i.kind === "website").length,
+        signups: exactOr(signupTotal, items.filter((i) => i.kind === "signup").length),
+        leads: exactOr(leadTotal, items.filter((i) => i.kind === "lead").length),
+        bookings: exactOr(bookingTotal, items.filter((i) => i.kind === "booking").length),
+        payments: exactOr(paymentTotal, items.filter((i) => i.kind === "payment").length),
+        websiteChanges: exactOr(versionTotal, items.filter((i) => i.kind === "website").length),
       },
     };
   });

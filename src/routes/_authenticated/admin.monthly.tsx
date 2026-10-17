@@ -72,6 +72,7 @@ function MonthlyReport() {
 
   const report = useQuery({
     queryKey: ["admin", "monthly", months],
+    refetchInterval: 300_000,
     queryFn: () => reportFn({ data: { months } }),
   });
 
