@@ -42,6 +42,8 @@ export function VisualCheckPanel({
   changeKey,
   revertVersion = null,
   compact = false,
+  queueBusy = false,
+  holdQueue,
 }: {
   organizationId: string | undefined;
   slug: string | undefined;
@@ -53,7 +55,13 @@ export function VisualCheckPanel({
   revertVersion?: number | null;
   /** Slim status strip for the chat instead of the full panel. */
   compact?: boolean;
+  /** True while the chat queue is planning or applying an owner's request. */
+  queueBusy?: boolean;
+  /** Holds the chat queue while the AI repair writes, so the two never overlap. */
+  holdQueue?: (on: boolean) => void;
 }) {
+  const queueBusyRef = useRef(queueBusy);
+  queueBusyRef.current = queueBusy;
   const queryClient = useQueryClient();
   const { data: links } = usePreviewLinks(organizationId);
   const { data: content } = useWebsiteContent(organizationId);
@@ -78,9 +86,16 @@ export function VisualCheckPanel({
     async (start: VisualReport, measure: () => Promise<VisualReport | null>) => {
       if (!organizationId) return start;
       let current = start;
+      // The repair is a full plan+apply on the same draft as the chat queue:
+      // hold the queue first, and stand down if an owner's request is running.
+      holdQueue?.(true);
       setAiRepairing(true);
       try {
         for (let round = 1; round <= MAX_AI_REPAIR_ROUNDS && !current.passed; round++) {
+          if (queueBusyRef.current) {
+            setRepair("Your next request is being worked on, so the automatic repair waits for it.");
+            return current;
+          }
           setRepair(`The AI team is repairing what the check found (round ${round})…`);
           await runTask({ data: { organizationId, instruction: repairBriefFrom(current) } });
           const next = await measure();
@@ -96,10 +111,11 @@ export function VisualCheckPanel({
         setRepair(friendlyError(error, "The AI repair couldn't run, so the failing result stands."));
       } finally {
         setAiRepairing(false);
+        holdQueue?.(false);
       }
       return current;
     },
-    [organizationId, runTask],
+    [organizationId, runTask, holdQueue],
   );
 
   const run = useCallback(async (automatic = false): Promise<VisualReport | null> => {
@@ -222,7 +238,7 @@ export function VisualCheckPanel({
   // repair anything that broke. One run per applied change.
   const changeRef = useRef<string | null>(null);
   useEffect(() => {
-    if (!changeKey || !canManage || !organizationId || !slug || running || aiRepairing) return;
+    if (!changeKey || !canManage || !organizationId || !slug || running || aiRepairing || queueBusy) return;
     if (changeRef.current === changeKey) return;
     changeRef.current = changeKey;
     const timer = window.setTimeout(() => {
@@ -233,6 +249,9 @@ export function VisualCheckPanel({
         // VISUAL QA GATE: a clearly-worse result after AI repair is rolled back.
         const gate = await loadGate().catch(() => null);
         if (!gate?.autoRevert || final.passed || final.score >= gate.minScore || !revertVersion || !organizationId) return;
+        // Never restore an old version while the owner's next request is being
+        // applied: it would wipe that change too.
+        if (queueBusyRef.current) return;
         const { data: version } = await supabase
           .from("website_versions")
           .select("id")
@@ -246,7 +265,7 @@ export function VisualCheckPanel({
       })();
     }, 2500); // let the draft save and the preview refresh first
     return () => window.clearTimeout(timer);
-  }, [aiRepairLoop, aiRepairing, canManage, changeKey, loadGate, organizationId, restoreVersion, revertVersion, run, running, slug]);
+  }, [aiRepairLoop, aiRepairing, canManage, changeKey, loadGate, organizationId, queueBusy, restoreVersion, revertVersion, run, running, slug]);
 
   if (compact) {
     const text = progress

@@ -212,6 +212,23 @@ export const runSiteGeneration = createServerFn({ method: "POST" })
       throw new Error(error?.message ?? "Couldn't queue the build.");
     }
 
+    // Tie the fresh-rebuild marker to this build, so a later build can tell a
+    // leftover marker (from a cancelled or failed rebuild) from its own.
+    if (data.mode === "fresh_replace") {
+      const { data: tagged } = await supabase
+        .from("website_settings")
+        .select("generation")
+        .eq("organization_id", orgId)
+        .maybeSingle();
+      const generation = (tagged?.generation ?? {}) as Record<string, unknown>;
+      const marker = generation["pendingBuild"];
+      if (marker && typeof marker === "object" && !Array.isArray(marker))
+        await supabase
+          .from("website_settings")
+          .update({ generation: { ...generation, pendingBuild: { ...(marker as Record<string, unknown>), jobId: job.id } } } as never)
+          .eq("organization_id", orgId);
+    }
+
     // Non-blocking kick so the worker usually starts immediately; the scheduled
     // run and the client's pump call are the fallbacks.
     {

@@ -63,16 +63,28 @@ export function toTurns(
 }
 
 /** Pairs saved turns back into finished chat entries: each request with its reply. */
-export function pairTurns(turns: SavedTurn[]): Array<{ instruction: string; reply: string; at: string; taskResult?: SavedTaskResult }> {
-  const pairs: Array<{ instruction: string; reply: string; at: string; taskResult?: SavedTaskResult }> = [];
+export function pairTurns(
+  turns: SavedTurn[],
+): Array<{ instruction: string; reply: string; at: string; requestId?: string; taskResult?: SavedTaskResult }> {
+  const pairs: Array<{ instruction: string; reply: string; at: string; requestId?: string; taskResult?: SavedTaskResult }> = [];
   for (const turn of turns) {
-    if (turn.role === "user") pairs.push({ instruction: turn.content, reply: "", at: turn.at });
-    else if (pairs.length) {
-      const pair = pairs[pairs.length - 1];
-      if (!pair) continue;
-      pair.reply = pair.reply ? `${pair.reply}\n\n${turn.content}` : turn.content;
-      if (turn.taskResult) pair.taskResult = turn.taskResult;
+    if (turn.role === "user") {
+      // A request planned again after a reload is saved again under the same
+      // id: it stays one request, not two.
+      if (turn.requestId && pairs.some((pair) => pair.requestId === turn.requestId)) continue;
+      pairs.push({ instruction: turn.content, reply: "", at: turn.at, ...(turn.requestId ? { requestId: turn.requestId } : {}) });
+      continue;
     }
+    // A reply belongs to the request it answers: an older plan approved after
+    // a newer request was sent saves its result later in the thread, so
+    // pairing by position would attach it to the wrong request.
+    const owner = turn.requestId
+      ? [...pairs].reverse().find((pair) => pair.requestId === turn.requestId) ?? null
+      : null;
+    const pair = owner ?? pairs[pairs.length - 1];
+    if (!pair) continue;
+    pair.reply = pair.reply ? `${pair.reply}\n\n${turn.content}` : turn.content;
+    if (turn.taskResult) pair.taskResult = turn.taskResult;
   }
   return pairs;
 }

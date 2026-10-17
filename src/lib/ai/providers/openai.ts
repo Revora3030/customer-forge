@@ -59,6 +59,18 @@ function reasoningEffortFor(model: string): Record<string, string> {
 }
 
 
+/**
+ * An empty answer (reasoning used the whole token budget, a refusal or a safety
+ * block) is a failure, not a success: throwing lets the router try the next
+ * model, exactly as the OpenAI-compatible adapter does.
+ */
+function answerOrThrow(text: string) {
+  const trimmed = text.trim();
+  if (!trimmed)
+    throw new RevoraAiError(502, "Revora's OpenAI model returned nothing.", { category: "bad_response", provider: "openai" });
+  return trimmed;
+}
+
 /** Pro-tier models (gpt-5.x-pro, o1-pro, o3-pro) answer only on `/v1/responses`. */
 export function isResponsesOnlyModel(model: string) {
   return /(^o\d+-pro$)|(^gpt-5(\.\d+)?-pro$)/i.test(model);
@@ -143,7 +155,7 @@ export const openAiAdapter: ProviderAdapter = {
       let text = "";
       for (;;) {
         const next = await deltas.next();
-        if (next.done) return { text: text.trim(), usage: next.value };
+        if (next.done) return { text: answerOrThrow(text), usage: next.value };
         text += next.value;
       }
     }
@@ -174,7 +186,7 @@ export const openAiAdapter: ProviderAdapter = {
     const payload = (await response.json()) as {
       choices?: { message?: { content?: string } }[];
     };
-    return { text: (payload.choices?.[0]?.message?.content ?? "").trim(), usage: usageOf(payload) };
+    return { text: answerOrThrow(payload.choices?.[0]?.message?.content ?? ""), usage: usageOf(payload) };
   },
 
   async stream({ apiKey, model, messages, maxOutputTokens, signal }) {

@@ -604,6 +604,14 @@ async function runJob(
     .eq("organization_id", orgId)
     .maybeSingle();
   const priorGeneration = (priorSettings.data?.generation ?? {}) as Record<string, unknown>;
+  // A marker tagged with another build's id is left over from a fresh rebuild
+  // that was cancelled or failed: it must never turn this build into a full
+  // replace of the draft. It is cleared and this build runs as requested.
+  const markerJobId = (priorGeneration["pendingBuild"] as { jobId?: unknown } | null | undefined)?.jobId;
+  if (typeof markerJobId === "string" && markerJobId !== job.id) {
+    await clearPendingBuild(db, orgId);
+    delete priorGeneration["pendingBuild"];
+  }
   const pendingBuild = readPendingBuild(priorGeneration["pendingBuild"], job);
   if ("pendingBuild" in priorGeneration && !pendingBuild) {
     await clearPendingBuild(db, orgId);

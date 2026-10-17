@@ -42,6 +42,13 @@ export async function getWorkspaceContext(
     return { context: existing.context, cached: true };
 
   const context = await load();
+  // A site with no pages yet is mid first build: caching that would make the
+  // next request (sent once the build finishes) see the empty site again and
+  // be deferred a second time, which fails it.
+  if (!context.pages.length) {
+    cache.delete(organizationId);
+    return { context, cached: false };
+  }
   if (cache.size >= MAX_ENTRIES) {
     const oldest = [...cache.entries()].sort((a, b) => a[1].at - b[1].at)[0];
     if (oldest) cache.delete(oldest[0]);

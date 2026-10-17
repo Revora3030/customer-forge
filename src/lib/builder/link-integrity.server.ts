@@ -20,7 +20,7 @@ import { safeLinkUrl, pageNavLabel } from "@/lib/website-content";
 import { ensureHeaderAction } from "@/lib/builder/chrome-repair";
 import {
   addMissingNavLinks,
-  collectAnchors,
+  collectPageAnchors,
   enquiryPage,
   repairHref,
   repairTreeLinks,
@@ -59,9 +59,9 @@ export async function ensureLinkIntegrity(
         .order("sort_order"),
       db
         .from("website_sections")
-        .select("id,page_id,kind,settings")
+        .select("id,page_id,kind,settings,is_visible")
         .eq("organization_id", organizationId),
-      db.from("website_components").select("id,link_url").eq("organization_id", organizationId),
+      db.from("website_components").select("id,section_id,link_url").eq("organization_id", organizationId),
       db
         .from("website_settings")
         .select("generation")
@@ -86,14 +86,22 @@ export async function ensureLinkIntegrity(
       page_id: string;
       kind: string;
       settings: unknown;
+      is_visible?: boolean | null;
     }[];
-    const anchors = collectAnchors(sections);
+    // Anchors are checked against the page a link is on ("#x") or the home
+    // page ("/#x"), using only what the renderer really puts on that page.
+    const pageAnchors = collectPageAnchors(sections, pageRows);
+    const none = new Set<string>();
+    const anchorsOn = (pageId: string | null | undefined) =>
+      pageAnchors.get(pageRows.find((page) => page.id === pageId)?.slug ?? "") ?? none;
+    const homeAnchors = pageAnchors.get("home") ?? none;
+    const pageOfSection = new Map(sections.map((section) => [section.id, section.page_id]));
 
     // 1. Buttons and links inside every AI layout.
     for (const section of sections) {
       const tree = readComposition(section.settings);
       if (!tree) continue;
-      const { tree: fixed, fixes } = repairTreeLinks(tree, pages, anchors);
+      const { tree: fixed, fixes } = repairTreeLinks(tree, pages, anchorsOn(section.page_id), homeAnchors);
       if (!fixes.length) continue;
       if (!validateComposition(fixed, { lenient: true }).ok) continue;
       const { error } = await db
@@ -108,10 +116,16 @@ export async function ensureLinkIntegrity(
     // 2. Old-style link components.
     for (const component of (componentsRes.data ?? []) as {
       id: string;
+      section_id: string | null;
       link_url: string | null;
     }[]) {
       if (!component.link_url) continue;
-      const to = repairHref(component.link_url, pages, anchors);
+      const to = repairHref(
+        component.link_url,
+        pages,
+        anchorsOn(component.section_id ? pageOfSection.get(component.section_id) : null),
+        homeAnchors,
+      );
       if (!to || to === component.link_url) continue;
       const { error } = await db
         .from("website_components")
@@ -135,8 +149,10 @@ export async function ensureLinkIntegrity(
         }));
       let header = chrome.header;
       let footer = chrome.footer;
-      const h1 = repairTreeLinks(header, pages, anchors);
-      const f1 = repairTreeLinks(footer, pages, anchors);
+      // The menu and footer appear on every page, so their anchors are checked
+      // against the home page, where "#x" and "/#x" both land from the menu.
+      const h1 = repairTreeLinks(header, pages, homeAnchors, homeAnchors);
+      const f1 = repairTreeLinks(footer, pages, homeAnchors, homeAnchors);
       header = h1.tree;
       footer = f1.tree;
       report.chromeLinksFixed = h1.fixes.length + f1.fixes.length;

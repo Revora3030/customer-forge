@@ -297,6 +297,24 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
     const { noteStage } = await import("@/lib/builder/progress.server");
     const runId = data.requestId || crypto.randomUUID();
     noteStage(orgId, runId, "reading your business");
+    // Every reply the planner gives is saved under the request id, so a phone
+    // that lost the connection picks up chat answers, deferrals and "design
+    // team unavailable" replies too, not only full plans (recoverPlan).
+    const settle = async <T extends Record<string, unknown>>(result: T, model: string): Promise<T> => {
+      try {
+        await supabase.from("ai_generations").insert({
+          organization_id: orgId,
+          kind: "agent_plan",
+          model,
+          instruction: data.instruction.slice(0, 4000),
+          result: { ...result, requestId: runId } as unknown as never,
+          created_by: userId,
+        });
+      } catch (error) {
+        console.error("[site-agent] could not save the reply for recovery", error);
+      }
+      return result;
+    };
 
     const { getWorkspaceContext } = await import("@/lib/agent/workspace-context.server");
 
@@ -441,7 +459,7 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
       siteDetail: (await import("@/lib/site-agent.server")).siteMap(agentContext),
     });
     if (decision.mode === "answer") {
-      return {
+      return settle({
         reply: decision.reply,
         summary: "",
         steps: [] as AgentStep[],
@@ -453,7 +471,7 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
         unavailable: null as { reason: string; retryable: boolean; instruction: string } | null,
         composition: null as import("@/lib/builder/composition-preview").CompositionPreview | null,
         conversational: true,
-      };
+      }, "chat-answer");
     }
 
     // A first build and chat can run at the same time. There is no page to edit
@@ -480,9 +498,13 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
     const activeBuild = ((buildRows ?? []) as { status: string; lease_expires_at: string | null; updated_at: string | null }[])
       .some((row) => jobIsActive(row));
     if (!agentContext.pages.length || activeBuild) {
+      // The re-plan sent once the build settles must see the finished site,
+      // not this mid-build picture.
+      const { invalidateWorkspaceContext } = await import("@/lib/agent/workspace-context.server");
+      invalidateWorkspaceContext(orgId);
       const reply =
         "Got it — your AI team is finishing the first website now. Keep this window open and I’ll apply this change as soon as the build finishes (usually a few minutes).";
-      return {
+      return settle({
         reply,
         summary: "",
         steps: [] as AgentStep[],
@@ -495,7 +517,7 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
         composition: null as import("@/lib/builder/composition-preview").CompositionPreview | null,
         conversational: true,
         deferred: true,
-      };
+      }, "deferred");
     }
 
     const instruction =
@@ -519,7 +541,14 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
       (settingsRow.data as { generation?: unknown } | null)?.generation,
     );
     const brief = designMemoryBrief(priorMemory);
-    if (brief) data.history = [{ role: "user" as const, content: brief }, ...data.history];
+    // Standing briefs (design memory, session recall, saved creative brief) are
+    // prepended to the history and counted, so trimming the conversation for
+    // the planner can never cut them off a long chat.
+    let standingBriefs = 0;
+    if (brief) {
+      data.history = [{ role: "user" as const, content: brief }, ...data.history];
+      standingBriefs += 1;
+    }
 
     // LONG-SESSION MEMORY: the durable journal for this website — standing
     // rules, earlier requests, what was already done and what did not work — is
@@ -529,7 +558,10 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
     // a recall failure simply means no brief.
     const { recallBrief } = await import("@/lib/builder/session-memory.server");
     const recall = await recallBrief(supabase as never, orgId);
-    if (recall) data.history = [{ role: "user" as const, content: recall }, ...data.history];
+    if (recall) {
+      data.history = [{ role: "user" as const, content: recall }, ...data.history];
+      standingBriefs += 1;
+    }
     const nextMemory = mergeDesignMemory(priorMemory, data.instruction);
 
     const storedGeneration = ((settingsRow.data as { generation?: unknown } | null)?.generation ??
@@ -543,6 +575,7 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
         },
         ...data.history,
       ];
+      standingBriefs += 1;
     }
 
     const memoryChanged = nextMemory !== priorMemory;
@@ -617,10 +650,14 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
       const authored = await planWebsiteChangesWithAi({
         organizationId: orgId,
         instruction: normalizeBuilderInstruction(instruction),
-        history: data.history
-          .filter((turn) => turn.role === "user")
-          .map((turn) => turn.content)
-          .slice(-6),
+        history: [
+          ...data.history.slice(0, standingBriefs).map((turn) => turn.content),
+          ...data.history
+            .slice(standingBriefs)
+            .filter((turn) => turn.role === "user")
+            .map((turn) => turn.content)
+            .slice(-6),
+        ],
         context: agentContext,
         attachments: data.attachments.map((attachment) => {
           const saved = ownerUploads.find((upload) => upload.name === attachment.name);
@@ -634,7 +671,7 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
       });
 
       if (!authored.ok) {
-        return {
+        return settle({
           reply:
             authored.reason === "review_rejected"
               ? `I left your website unchanged because this change would need details you haven't given me yet${authored.detail ? ` (${authored.detail.replace(/^the review removed every proposed change — ?/, "")})` : ""}. Tell me the real details — for example exactly what each service includes — and I'll add them.`
@@ -655,7 +692,7 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
           } as { reason: string; retryable: boolean; instruction: string } | null,
           composition:
             null as import("@/lib/builder/composition-preview").CompositionPreview | null,
-        };
+        }, "unavailable");
       }
 
       requirements = authored.requirements;
@@ -836,20 +873,44 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
     // result of that run instead of writing everything a second time. This is
     // what stops a double press, an impatient retry or a reconnect from
     // duplicating sections.
-    if (data.operationKey) {
+    // A run first CLAIMS its key and only records "agent_apply" once its
+    // changes have passed verification, so a retry never reports a rolled-back
+    // change as applied, and a retry that arrives while the first run is still
+    // writing waits for that run's outcome instead of applying a second time.
+    const findOutcome = async (key: string) => {
       const { data: recent } = await supabase
         .from("ai_generations")
-        .select("result, created_at")
+        .select("kind, result, created_at")
         .eq("organization_id", orgId)
-        .eq("kind", "agent_apply")
+        .in("kind", ["agent_apply", "agent_apply_claim", "agent_apply_rolled_back", "agent_apply_failed_verification"])
         .order("created_at", { ascending: false })
-        .limit(20);
+        .limit(40);
       const cutoff = Date.now() - 15 * 60 * 1000;
-      const previous = (recent ?? []).find((row) => {
+      const mine = (recent ?? []).filter((row) => {
         const result = row?.["result"] as { operationKey?: unknown } | null;
         const at = Date.parse(String(row?.["created_at"] ?? ""));
-        return result?.operationKey === data.operationKey && Number.isFinite(at) && at >= cutoff;
+        return result?.operationKey === key && Number.isFinite(at) && at >= cutoff;
       });
+      const of = (kind: string) => mine.find((row) => row?.["kind"] === kind) ?? null;
+      return {
+        applied: of("agent_apply"),
+        undone: of("agent_apply_rolled_back") ?? of("agent_apply_failed_verification"),
+        claimed: of("agent_apply_claim"),
+      };
+    };
+    if (data.operationKey) {
+      let outcome = await findOutcome(data.operationKey);
+      // The first run is still writing: wait for it (up to ~100 s) rather than
+      // starting a second, overlapping run of the same changes.
+      for (let wait = 0; outcome.claimed && !outcome.applied && !outcome.undone && wait < 33; wait += 1) {
+        await new Promise((resolve) => setTimeout(resolve, 3000));
+        outcome = await findOutcome(data.operationKey);
+      }
+      if (outcome.claimed && !outcome.applied && outcome.undone)
+        throw new Error("Those changes couldn't be kept, so Revora put your website back as it was. Nothing changed — please try again.");
+      if (outcome.claimed && !outcome.applied)
+        throw new Error("Revora is still saving those changes. Give it a moment, then refresh before trying again.");
+      const previous = outcome.applied;
       if (previous) {
         const result = previous["result"] as Record<string, unknown>;
         const labels = (key: string) =>
@@ -946,7 +1007,7 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
     // Snapshot first, so an unwanted change can always be rolled back.
     const snapshotLabel = data.label || "Before assistant changes";
     const { buildFullSnapshot } = await import("@/lib/site-restore");
-    const [{ data: latest }, contentTree] = await Promise.all([
+    const [{ data: latest }, contentTree, { data: lookRow }] = await Promise.all([
       supabase
         .from("website_versions")
         .select("version")
@@ -959,6 +1020,10 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
         site.sections as unknown as Record<string, unknown>[],
         site.components as unknown as Record<string, unknown>[],
       )),
+      // Theme, design tokens and backdrop live in website_settings.generation:
+      // the restore point keeps them too, so "Undo or restore" also puts back
+      // a change to the look, not only the pages.
+      supabase.from("website_settings").select("generation, seo").eq("organization_id", orgId).maybeSingle(),
     ]);
     // The restore point must exist BEFORE anything is written, and it must be
     // verified — a failed snapshot insert used to be ignored, which meant a
@@ -978,6 +1043,10 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
           version: snapshotVersion,
           label: snapshotLabel,
           pages: snapshotPages,
+          ...((lookRow as { generation?: unknown } | null)?.generation
+            ? { generation: (lookRow as { generation: unknown }).generation as never }
+            : {}),
+          ...((lookRow as { seo?: unknown } | null)?.seo ? { seo: (lookRow as { seo: unknown }).seo as never } : {}),
           created_by: userId,
         })
         .select("id")
@@ -993,6 +1062,24 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
     }
 
     noteApplyStage(orgId, applyRunId, "writing the pages");
+    // Claimed right before the first write: checks above that refuse the batch
+    // leave nothing behind, and every exit below records an outcome (applied,
+    // rolled back or failed verification) for a waiting retry to read.
+    if (data.operationKey) {
+      try {
+        await supabase.from("ai_generations").insert({
+          organization_id: orgId,
+          kind: "agent_apply_claim",
+          model: "applied",
+          instruction: "apply in progress",
+          result: { operationId, operationKey: data.operationKey } as unknown as never,
+          created_by: userId,
+        });
+      } catch (error) {
+        console.error("[site-agent] could not claim apply key", error);
+      }
+    }
+
     const sortOf = new Map(site.sections.map((section) => [section.id, section.sort_order]));
     const applied: string[] = [];
     const failed: string[] = [];
@@ -1868,6 +1955,7 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
           instruction: snapshotLabel,
           result: {
             operationId,
+            operationKey: data.operationKey || null,
             applied,
             failed,
             reversal,
@@ -1884,37 +1972,6 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
           ? "One of those steps couldn't be saved, so Revora put your website back exactly as it was. Nothing changed — please try again."
           : `One of those steps couldn't be saved. Revora undid what it could and saved the restore point "${snapshotLabel}" — open Version history to return your website to it.`,
       );
-    }
-
-    // Recording the apply is observability, never a gate: the changes are
-    // already written, so a failed insert here must not undo them or report
-    // the apply as failed.
-    try {
-      await supabase.from("ai_generations").insert({
-        organization_id: orgId,
-        kind: "agent_apply",
-        model: "applied",
-        instruction: snapshotLabel,
-        result: {
-          operationId,
-          operationKey: data.operationKey || null,
-          applied: applied.length,
-          failed: failed.length,
-          stale: preflight.stale.length,
-          unchanged: settled.unchanged,
-          duplicates: preflight.duplicates,
-          staleNotice,
-          appliedLabels: applied,
-          skippedLabels: failed,
-          snapshotLabel,
-          snapshotVersion,
-          mutations: undoSteps.length,
-        } as unknown as never,
-
-        created_by: userId,
-      });
-    } catch (error) {
-      console.error("[site-agent] could not record apply result", error);
     }
 
     invalidateWorkspaceContext(orgId);
@@ -1947,6 +2004,7 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
             instruction: snapshotLabel,
             result: {
               operationId,
+              operationKey: data.operationKey || null,
               applied,
               verification,
               reversal,
@@ -1968,6 +2026,38 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
             : `Revora found a problem after saving (${worst}) and undid what it could. Open Version history and return to "${snapshotLabel}".`,
         );
       }
+    }
+
+    // Recorded only now, after the live pages passed verification, because this
+    // row is also the idempotency answer for a retry with the same key. It is
+    // still observability, never a gate: a failed insert must not undo good
+    // changes or report the apply as failed.
+    try {
+      await supabase.from("ai_generations").insert({
+        organization_id: orgId,
+        kind: "agent_apply",
+        model: "applied",
+        instruction: snapshotLabel,
+        result: {
+          operationId,
+          operationKey: data.operationKey || null,
+          applied: applied.length,
+          failed: failed.length,
+          stale: preflight.stale.length,
+          unchanged: settled.unchanged,
+          duplicates: preflight.duplicates,
+          staleNotice,
+          appliedLabels: applied,
+          skippedLabels: failed,
+          snapshotLabel,
+          snapshotVersion,
+          mutations: undoSteps.length,
+        } as unknown as never,
+
+        created_by: userId,
+      });
+    } catch (error) {
+      console.error("[site-agent] could not record apply result", error);
     }
 
     // VERIFY BEFORE CLAIMING. Re-read every row this run wrote and confirm the

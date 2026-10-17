@@ -233,7 +233,12 @@ export function actionPrompt(action: PreviewAction, selection: { label: string |
 /** Channel name for "the draft changed" pings between open builder/preview tabs. */
 export const DRAFT_CHANNEL = "revora-draft";
 
-export type DraftChangePing = { type: "draft-changed"; organizationId: string; at: number };
+/**
+ * `origin` names the preview that saved the change, so that preview can skip
+ * its own ping: BroadcastChannel delivers to every other channel object in the
+ * same tab too, and reloading would throw away an inline edit in progress.
+ */
+export type DraftChangePing = { type: "draft-changed"; organizationId: string; at: number; origin?: string };
 
 export function readDraftPing(data: unknown): DraftChangePing | null {
   if (!data || typeof data !== "object") return null;
@@ -241,15 +246,16 @@ export function readDraftPing(data: unknown): DraftChangePing | null {
   if (record["type"] !== "draft-changed") return null;
   const organizationId = typeof record["organizationId"] === "string" ? record["organizationId"] : "";
   if (!/^[0-9a-f-]{36}$/i.test(organizationId)) return null;
-  return { type: "draft-changed", organizationId, at: Number(record["at"]) || Date.now() };
+  const origin = typeof record["origin"] === "string" ? record["origin"].slice(0, 64) : undefined;
+  return { type: "draft-changed", organizationId, at: Number(record["at"]) || Date.now(), ...(origin ? { origin } : {}) };
 }
 
 /** Tells every other open tab of this browser that the draft changed. Never throws. */
-export function announceDraftChange(organizationId: string): void {
+export function announceDraftChange(organizationId: string, origin?: string): void {
   try {
     if (typeof BroadcastChannel === "undefined") return;
     const channel = new BroadcastChannel(DRAFT_CHANNEL);
-    channel.postMessage({ type: "draft-changed", organizationId, at: Date.now() } satisfies DraftChangePing);
+    channel.postMessage({ type: "draft-changed", organizationId, at: Date.now(), ...(origin ? { origin } : {}) } satisfies DraftChangePing);
     channel.close();
   } catch {
     /* not supported: other tabs refresh on their own schedule */

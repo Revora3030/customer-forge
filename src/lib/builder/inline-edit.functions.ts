@@ -52,6 +52,10 @@ export const saveInlineText = createServerFn({ method: "POST" })
       .eq("id", data.sectionId)
       .eq("organization_id", data.organizationId);
     if (writeError) throw new Error("Couldn't save that change. Try again.");
+    // The planner reuses a short-lived picture of the site; drop it so the
+    // next chat request plans from the words the owner just typed.
+    const { invalidateWorkspaceContext } = await import("@/lib/agent/workspace-context.server");
+    invalidateWorkspaceContext(data.organizationId);
 
     return {
       ok: true as const,

@@ -12,7 +12,7 @@
  * the same honest failure reporting as before.
  */
 import { announceDraftChange } from "@/lib/builder/preview-bridge";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "@/lib/ui/notify";
@@ -117,7 +117,11 @@ function isDroppedConnection(error: unknown): boolean {
  * The server stores every finished plan with its request id; this reads it
  * back for up to ~4 minutes.
  */
-async function recoverPlan(organizationId: string, requestId: string): Promise<unknown | null> {
+async function recoverPlan(
+  organizationId: string,
+  requestId: string,
+  options: { skipDeferred?: boolean } = {},
+): Promise<unknown | null> {
   const deadline = Date.now() + 4 * 60 * 1000;
   while (Date.now() < deadline) {
     await new Promise((resolve) => setTimeout(resolve, 5000));
@@ -129,9 +133,13 @@ async function recoverPlan(organizationId: string, requestId: string): Promise<u
         .eq("kind", "agent_plan")
         .contains("result", { requestId } as never)
         .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      if (data?.result) return data.result;
+        .limit(5);
+      // A re-plan after a first-build deferral shares the request id with the
+      // earlier "still building" reply: never hand that old reply back.
+      const found = ((data ?? []) as { result: unknown }[]).find(
+        (row) => row.result && !(options.skipDeferred && (row.result as { deferred?: unknown }).deferred === true),
+      );
+      if (found) return found.result;
     } catch {
       // Still offline: keep waiting.
     }
@@ -194,11 +202,32 @@ export function useBuilderRequests({
         setSavedTurns(turns);
         const mainTurns = turnsForBranch(turns, MAIN_BRANCH);
         setConversation(mainTurns.map(({ role, content }) => ({ role, content })).slice(-24));
-        const past = pairTurns(mainTurns).map((pair) => ({
+        // Requests sent before the owner left the builder (dashboard, preview,
+        // reload) and not finished yet come back as queued work under their
+        // original request id, so nothing they typed is lost. Planning has no
+        // side effects; building still needs the same approval as before.
+        const resumed = unresolvedPending(
+          readPending(organizationId),
+          mainTurns.filter((turn) => turn.role === "user"),
+        );
+        // A saved request that is about to be resumed is not also shown as a
+        // finished one.
+        const resumedIds = new Set(resumed.map((request) => request.id.split("~")[0]));
+        const past = pairTurns(mainTurns)
+          .filter((pair) => !(pair.requestId && resumedIds.has(pair.requestId.split("~")[0])))
+          .map((pair) => ({
           ...newTask(pair.instruction),
-          state: pair.taskResult?.state ?? ("complete" as const),
-          reply: pair.reply || "Done.",
-          answered: !pair.taskResult,
+          state: pair.taskResult?.state ?? (pair.reply ? ("complete" as const) : ("failed" as const)),
+          reply: pair.reply,
+          // No reply and no saved outcome: the result was never recorded, so it
+          // is never shown as "Done." — the owner can check and send it again.
+          ...(!pair.reply && !pair.taskResult
+            ? {
+                error: "Revora didn't save how this request ended. Check your website, then send it again if nothing changed.",
+                retryable: true,
+              }
+            : {}),
+          answered: Boolean(pair.reply) && !pair.taskResult,
           restored: true,
           ...(pair.taskResult?.applied !== undefined ? { applied: pair.taskResult.applied } : {}),
           ...(pair.taskResult?.failedCount !== undefined ? { failedCount: pair.taskResult.failedCount } : {}),
@@ -208,14 +237,6 @@ export function useBuilderRequests({
             : {}),
           ...(pair.taskResult?.notice ? { notice: pair.taskResult.notice } : {}),
         }));
-        // Requests sent before the owner left the builder (dashboard, preview,
-        // reload) and not finished yet come back as queued work under their
-        // original request id, so nothing they typed is lost. Planning has no
-        // side effects; building still needs the same approval as before.
-        const resumed = unresolvedPending(
-          readPending(organizationId),
-          mainTurns.filter((turn) => turn.role === "user"),
-        );
         setTasks((current) => {
           const known = new Set(current.map((task) => task.id.split("~")[0]));
           const restoredQueue = resumed
@@ -274,8 +295,20 @@ export function useBuilderRequests({
     });
   };
   /** Full plan actions kept out of React state: only the labels are editable. */
+  // Plans number their steps from 0, so step keys repeat across requests.
+  // Actions are stored per request (`${task.id}:${step.key}`); otherwise a plan
+  // made while an older one waits for approval would overwrite its actions.
   const actionsRef = useRef(new Map<string, AgentStep>());
+  const actionKey = (taskId: string, stepKey: string) => `${taskId}:${stepKey}`;
   const runningRef = useRef(false);
+  // Another writer (the screen check's AI repair) can hold the queue so its
+  // plan+apply never runs alongside an owner's request on the same draft.
+  const [held, setHeld] = useState(false);
+  const heldRef = useRef(false);
+  const holdQueue = useCallback((on: boolean) => {
+    heldRef.current = on;
+    setHeld(on);
+  }, []);
 
   const refresh = async () => {
     setRefreshing(true);
@@ -307,7 +340,7 @@ export function useBuilderRequests({
     patch(task.id, { state: "building", applied: 0, notice: "", details: [] });
     try {
       const allActions = steps
-        .map((step) => actionsRef.current.get(step.key)?.action)
+        .map((step) => actionsRef.current.get(actionKey(task.id, step.key))?.action)
         .filter((action): action is AgentStep["action"] => Boolean(action));
       const label = (task.summary || task.instruction).slice(0, 110) || "Before Revora changes";
       // A big request is installed in safe batches instead of being refused: the
@@ -480,7 +513,9 @@ export function useBuilderRequests({
         // working on the server. The finished plan is saved under this
         // request's id, so wait for it instead of failing the request.
         if (!isDroppedConnection(error)) throw error;
-        const recovered = await recoverPlan(organizationId!, task.id);
+        const recovered = await recoverPlan(organizationId!, task.id, {
+          skipDeferred: (deferRef.current.get(task.id) ?? 0) > 0,
+        });
         if (!recovered) throw error;
         result = recovered as Awaited<ReturnType<typeof planFn>>;
       }
@@ -540,7 +575,7 @@ export function useBuilderRequests({
         return;
       }
       const steps = result.steps as AgentStep[];
-      for (const step of steps) actionsRef.current.set(step.key, step);
+      for (const step of steps) actionsRef.current.set(actionKey(task.id, step.key), step);
       const plannedSteps = toPlanSteps(steps);
       const questions = result.questions ?? [];
       const requirements = result.requirements ?? [];
@@ -622,7 +657,7 @@ export function useBuilderRequests({
 
   // Work the queue: one request at a time, in the order they were added.
   useEffect(() => {
-    if (!ready || runningRef.current) return;
+    if (!ready || runningRef.current || held) return;
     const next = nextRunnable(tasks);
     if (!next) return;
     runningRef.current = true;
@@ -631,15 +666,18 @@ export function useBuilderRequests({
       setTasks((current) => [...current]);
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tasks, ready]);
+  }, [tasks, ready, held]);
 
-  // A request leaves the pending record once it reaches an end state (or is
-  // waiting for the owner's OK — its plan is then shown and saved).
+  // A request leaves the pending record once it reaches an end state.
   useEffect(() => {
     if (!organizationId) return;
     for (const task of tasks) {
       if (task.restored || task.awaitingReattach) continue;
-      if (task.state === "complete" || task.state === "failed" || task.state === "skipped" || task.state === "waiting_for_approval")
+      // A plan waiting for the owner's OK keeps its pending record: its steps
+      // live only in this page, so after a reload it is planned again (no side
+      // effects) and waits for approval again, instead of reappearing as a
+      // finished chat reply with no way to apply it.
+      if (task.state === "complete" || task.state === "failed" || task.state === "skipped")
         clearPending(organizationId, task.id);
     }
   }, [tasks, organizationId]);
@@ -679,7 +717,14 @@ export function useBuilderRequests({
     brand,
     setBrand,
     queue,
-    apply: (task: QueueTask) => void runBuild(task),
+    apply: (task: QueueTask) => {
+      if (heldRef.current) {
+        toast.warning("Revora is repairing what the screen check found. Approve again in a moment.");
+        return;
+      }
+      void runBuild(task);
+    },
+    holdQueue,
     // A retry is a new attempt: give it a fresh request key, otherwise the
     // server's idempotency check replays the previous result ("already
     // applied") instead of planning and applying again.

@@ -98,7 +98,12 @@ export const googleAdapter: ProviderAdapter = {
       },
       signal,
     );
-    return { text: textOf(payload), usage: usageOf(payload) };
+    const text = textOf(payload);
+    // Thinking can spend the whole output budget, and a safety block returns no
+    // parts: either way an empty answer must hand off to the next model.
+    if (!text.trim())
+      throw new RevoraAiError(502, "Revora's Google model returned nothing.", { category: "bad_response", provider: "google" });
+    return { text, usage: usageOf(payload) };
   },
 
   async stream({ apiKey, model, messages, maxOutputTokens, signal }) {

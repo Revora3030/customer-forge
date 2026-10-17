@@ -28,7 +28,8 @@ describe("attachment failover", () => {
   });
 
   it("moves an oversized free request to a model with a larger context, six at most", () => {
-    expect(source).toContain("if (invalidBy.size >= 6) throw error;");
+    expect(source).toContain("if (tooLargeBy.size >= 6) throw error;");
+    expect(source).toContain("if (invalidBy.size >= 3) throw error;");
   });
 
   it("stops a plain text bad request once three free providers agree it is malformed", () => {
