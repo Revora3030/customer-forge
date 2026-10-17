@@ -35,7 +35,8 @@ DECLARE
 BEGIN
   INSERT INTO public.ai_paid_daily_budget AS b (day, cap_microcents)
   VALUES (_day, _cap)
-  ON CONFLICT (day) DO UPDATE SET cap_microcents = _cap, updated_at = now();
+  -- By constraint name: a bare (day) would clash with the "day" output column.
+  ON CONFLICT ON CONSTRAINT ai_paid_daily_budget_pkey DO UPDATE SET cap_microcents = _cap, updated_at = now();
 
   SELECT b.spent_microcents INTO _spent
   FROM public.ai_paid_daily_budget b

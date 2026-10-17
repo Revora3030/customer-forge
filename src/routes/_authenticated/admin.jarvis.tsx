@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ArrowDown, Ban, Bot, Check, Copy, Download, ExternalLink, GitPullRequest, Hammer, Megaphone, Mic, MicOff, Radio, RefreshCw, RotateCcw, Send, Trash2, Volume2, VolumeX, Wrench } from "lucide-react";
+import { ArrowDown, Ban, Bot, Check, Copy, Download, ExternalLink, GitPullRequest, Hammer, ImageUp, Megaphone, Mic, MicOff, Radio, RefreshCw, RotateCcw, Send, Trash2, Volume2, VolumeX, Wrench } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -17,7 +17,8 @@ import { jarvisVoiceLinks, synthesizeJarvisVoice } from "@/lib/jarvis-voice.func
 import { ProspectDemoBuilder } from "@/components/app/ProspectDemoBuilder";
 import { ClaudeCodePanel } from "@/components/app/ClaudeCodePanel";
 import { speakableText, splitReplyMeta, type WriteProposal } from "@/lib/jarvis-actions";
-import { startProspectDemoBuild } from "@/lib/jarvis-demo-site.functions";
+import { prospectFromImageFn, startProspectDemoBuild } from "@/lib/jarvis-demo-site.functions";
+import { pictureDataUrl } from "@/lib/picture-data-url";
 
 type Recognition = {
   lang: string; interimResults: boolean;
@@ -91,7 +92,10 @@ const COMMANDS = [
   ["Lovable fix prompt", "Turn the observed issues into one copy-paste Lovable prompt for my review. Only include fixes supported by the evidence."],
 ] as const;
 
+const DEMO_FROM_MAPS = "I want a demo site for a business on Google Maps. Ask me for the Maps link (or its name and city) if I haven't pasted it, look it up with prospect.lookup, tell me what the listing shows, then propose demo.build with only those facts.";
+
 const STARTERS = [
+  ["Demo from Google Maps", "Paste a Maps link, Jarvis drafts the site", DEMO_FROM_MAPS],
   ["Fix top error", "Find it, read the code, open a fix PR", FIX_TOP_ERROR],
   ["Daily briefing", "What matters today, ranked by impact", BRIEFING],
   ["Autopilot plan", "This week's customer-acquisition routine", AUTOPILOT],
@@ -133,6 +137,9 @@ function Jarvis() {
   const openPr = useServerFn(openJarvisPullRequestFn);
   const sendToClaudeCode = useServerFn(sendClaudeCodeRequestFn);
   const recoverBuilds = useServerFn(recoverStalledBuildsFn);
+  const readPicture = useServerFn(prospectFromImageFn);
+  const pictureInput = useRef<HTMLInputElement>(null);
+  const [readingPicture, setReadingPicture] = useState(false);
   const [openedPrs, setOpenedPrs] = useState<Record<string, string>>({});
   const history = useQuery({ queryKey: ["jarvis", "history"], queryFn: () => load() });
   const diagnostics = useQuery({ queryKey: ["jarvis", "diagnostics"], queryFn: () => inspect(), staleTime: 60_000, retry: false });
@@ -294,6 +301,29 @@ function Jarvis() {
     setAtBottom(true);
     setPending(clean);
     mutation.mutate(clean);
+  };
+  // A picture of a business (Maps screenshot, card, flyer, sign) becomes a demo request with only the facts read from it.
+  const attachPicture = async (file: File) => {
+    setReadingPicture(true);
+    try {
+      const result = await readPicture({ data: { dataUrl: await pictureDataUrl(file) } });
+      const facts = [
+        ["Business name", result.prefill.businessName],
+        ["Trade", result.prefill.industry],
+        ["City", result.prefill.city],
+        ["State", result.prefill.state],
+        ["Phone", result.prefill.phone],
+        ["Email", result.prefill.email],
+        ["Website", result.website ?? ""],
+        ["Services", result.prefill.services.replace(/\n/g, ", ")],
+        ["Description", result.prefill.description],
+      ].filter(([, value]) => value).map(([label, value]) => `${label}: ${value}`);
+      submit(`I added a picture of a business. ${result.note}\n${facts.join("\n")}${result.hasRealWebsite ? "\nNote: its Google listing shows a real website." : ""}\nPropose demo.build with only these facts.`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Couldn't read that picture.");
+    } finally {
+      setReadingPicture(false);
+    }
   };
   const copy = async (content: string) => {
     try { await navigator.clipboard.writeText(content); toast.success("Copied."); } catch { toast.error("Copy failed."); }
@@ -706,8 +736,10 @@ function Jarvis() {
             onChange={(event) => setText(event.target.value)}
             onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); submit(); } }}
             className="max-h-40 min-h-[44px] min-w-0 flex-1 resize-none border-0 bg-transparent shadow-none focus-visible:ring-0"
-            placeholder="Ask anything: errors, strategy, copy, prompts, code…"
+            placeholder="Ask anything, or paste a Google Maps link to draft a site…"
           />
+          <Button type="button" variant="ghost" size="icon" aria-label="Build a demo from a picture" title="Build a demo from a picture (Maps screenshot, card, flyer, sign)" disabled={busy || readingPicture} onClick={() => pictureInput.current?.click()} className={readingPicture ? "animate-pulse" : ""}><ImageUp className="size-4" /></Button>
+          <input ref={pictureInput} type="file" accept="image/*" className="sr-only" tabIndex={-1} aria-hidden onChange={(event) => { const file = event.target.files?.[0]; event.target.value = ""; if (file) void attachPicture(file); }} />
           <Button type="button" variant="ghost" size="icon" aria-label={listening ? "Stop microphone" : "Dictate"} aria-pressed={listening} disabled={busy} onClick={toggleMic} className={listening ? "animate-pulse text-destructive" : ""}>{listening ? <MicOff className="size-4" /> : <Mic className="size-4" />}</Button>
           <Button type="submit" size="icon" aria-label="Send" disabled={!text.trim() || busy}><Send className="size-4" /></Button>
         </div>

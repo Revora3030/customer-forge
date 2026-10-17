@@ -248,3 +248,177 @@ export async function findProspects(
   });
   return { query, searched: places.length, prospects };
 }
+
+/** The demo form, prefilled from a Google Maps link or a picture. Empty means unknown. */
+export type ProspectPrefill = {
+  businessName: string;
+  industry: string;
+  city: string;
+  state: string;
+  phone: string;
+  email: string;
+  services: string;
+  description: string;
+};
+
+export type ProspectSourceResult = {
+  prefill: ProspectPrefill;
+  source: "google_maps" | "image" | "image_and_google_maps";
+  /** Where the facts came from, shown to the operator. */
+  note: string;
+  website: string | null;
+  hasRealWebsite: boolean;
+  mapsUri: string | null;
+};
+
+const MAX_SHORT_LINK_HOPS = 4;
+
+async function resolveShortLink(url: string): Promise<string> {
+  const { guardedFetch } = await import("@/lib/net-guard.server");
+  const { mapsRedirectTarget } = await import("@/lib/prospect-source");
+  let current = url;
+  for (let hop = 0; hop < MAX_SHORT_LINK_HOPS; hop += 1) {
+    const response = await guardedFetch(current, { signal: AbortSignal.timeout(8_000), headers: { "user-agent": "RevoraProspectLookup/1.0" } });
+    await response.body?.cancel().catch(() => undefined);
+    const next = mapsRedirectTarget(response.headers.get("location"), current);
+    if (!next) break;
+    const host = new URL(next).hostname.toLowerCase();
+    if (!["maps.app.goo.gl", "goo.gl", "g.co", "g.page", "consent.google.com"].includes(host)) return next;
+    current = next;
+  }
+  throw new Error("Couldn't open that share link. Open the business in Google Maps and paste the full address from the browser bar instead.");
+}
+
+async function assertSearchBudget(db: SupabaseClient) {
+  const { MAX_SEARCHES_PER_DAY } = await import("@/lib/prospect-finder");
+  const since = new Date();
+  since.setUTCHours(0, 0, 0, 0);
+  const { count } = await db
+    .from("audit_logs")
+    .select("id", { count: "exact", head: true })
+    .eq("action", "jarvis.prospects.search")
+    .gte("created_at", since.toISOString());
+  if ((count ?? 0) >= MAX_SEARCHES_PER_DAY)
+    throw new Error(`Daily Google Places limit reached (${MAX_SEARCHES_PER_DAY}). It resets at midnight UTC.`);
+}
+
+/**
+ * Google Places facts for one business from a Maps link or "name, city" text.
+ * Shares the prospect finder's daily search budget. Caller must be a verified
+ * super-admin.
+ */
+export async function prospectFromMaps(db: SupabaseClient, actorId: string, input: string): Promise<ProspectSourceResult> {
+  const { mapsLookupFrom } = await import("@/lib/prospect-source");
+  let lookup = mapsLookupFrom(input);
+  if (lookup.kind === "short_link") lookup = mapsLookupFrom(await resolveShortLink(lookup.url));
+  if (lookup.kind !== "query") throw new Error("Couldn't read the business from that link.");
+  await assertSearchBudget(db);
+  const { searchPlacesForProspects } = await import("@/lib/integrations/google.server");
+  const near = lookup.lat !== null && lookup.lng !== null ? { lat: lookup.lat, lng: lookup.lng } : null;
+  const places = await searchPlacesForProspects(lookup.query, 3, near);
+  await db.from("audit_logs").insert({
+    organization_id: null,
+    actor_id: actorId,
+    action: "jarvis.prospects.search",
+    entity: "google_places_lookup",
+    entity_id: null,
+    metadata: { query: lookup.query, results: places.length },
+  });
+  const { normalizePlace } = await import("@/lib/prospect-finder");
+  const place = places.map(normalizePlace).find(Boolean);
+  if (!place) throw new Error(`Google Maps has no open business matching "${lookup.query}". Check the link, or type the name and city.`);
+  return {
+    prefill: {
+      businessName: place.name,
+      industry: place.category ?? "",
+      city: place.city ?? "",
+      state: place.state ?? "",
+      phone: place.phone ?? "",
+      email: "",
+      services: "",
+      description: "",
+    },
+    source: "google_maps",
+    note: `From the Google Maps listing: ${[place.name, place.address].filter(Boolean).join(", ")}.`,
+    website: place.website,
+    hasRealWebsite: place.presence === "has_website",
+    mapsUri: place.mapsUri,
+  };
+}
+
+const IMAGE_MIME = /^data:(image\/(?:png|jpeg|webp));base64,([A-Za-z0-9+/=]+)$/;
+export const MAX_SOURCE_IMAGE_BYTES = 4 * 1024 * 1024;
+
+/**
+ * Facts visible in a picture of a business (Maps screenshot, card, flyer,
+ * sign), read by a free vision model. If the picture names the business, the
+ * Google Maps listing fills what the picture didn't show. The picture itself
+ * is not stored or used on the site.
+ */
+export async function prospectFromImage(db: SupabaseClient, actorId: string, dataUrl: string): Promise<ProspectSourceResult> {
+  const match = IMAGE_MIME.exec(dataUrl);
+  if (!match) throw new Error("Use a PNG, JPEG or WebP picture.");
+  if (Math.floor((match[2]!.length * 3) / 4) > MAX_SOURCE_IMAGE_BYTES) throw new Error("That picture is too large. Use one under 4 MB.");
+  const { IMAGE_FACTS_PROMPT, parseImageFacts } = await import("@/lib/prospect-source");
+  const { analyzeImage } = await import("@/lib/ai/router.server");
+  let text = "";
+  try {
+    const result = await analyzeImage({ userId: actorId, task: "admin.jarvis.prospect_image" }, {
+      freeOnly: true,
+      maxOutputTokens: 600,
+      temperature: 0,
+      messages: [
+        { role: "system", content: "You extract business facts from pictures. You output only JSON. You never guess." },
+        {
+          role: "user",
+          content: [
+            { type: "text", text: IMAGE_FACTS_PROMPT },
+            { type: "image", dataUrl, mimeType: match[1]! },
+          ],
+        },
+      ],
+    });
+    text = result.text;
+  } catch {
+    throw new Error("No free vision model could read the picture right now. Try again in a minute, or paste a Google Maps link.");
+  }
+  const facts = parseImageFacts(text);
+  if (!facts.businessName && !facts.phone && !facts.city)
+    throw new Error("Couldn't read a business name, phone or city in that picture. Try a clearer screenshot, or paste the Google Maps link.");
+
+  const prefill: ProspectPrefill = {
+    businessName: facts.businessName,
+    industry: facts.industry,
+    city: facts.city,
+    state: facts.state,
+    phone: facts.phone,
+    email: facts.email,
+    services: facts.services.join("\n"),
+    description: facts.description,
+  };
+  const base: ProspectSourceResult = {
+    prefill,
+    source: "image",
+    note: "Read from the picture. Check every field before building.",
+    website: facts.website || null,
+    hasRealWebsite: false,
+    mapsUri: null,
+  };
+  if (!facts.businessName) return base;
+  // Fill the gaps from the business's own Google listing; the picture wins where both have a value.
+  try {
+    const maps = await prospectFromMaps(db, actorId, [facts.businessName, facts.city, facts.state].filter(Boolean).join(" "));
+    const merged = { ...prefill };
+    for (const key of Object.keys(merged) as (keyof ProspectPrefill)[]) if (!merged[key]) merged[key] = maps.prefill[key];
+    return {
+      prefill: merged,
+      source: "image_and_google_maps",
+      note: `Read from the picture, gaps filled from Google Maps (${maps.note.replace(/^From the Google Maps listing: /, "").replace(/\.$/, "")}). Check every field before building.`,
+      website: base.website ?? maps.website,
+      hasRealWebsite: maps.hasRealWebsite,
+      mapsUri: maps.mapsUri,
+    };
+  } catch {
+    return base;
+  }
+}

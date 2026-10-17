@@ -297,8 +297,14 @@ const PROSPECT_FIELDS =
  * GOOGLE_PLACES_API_KEY when set (billed to their Google Cloud project), else
  * the connected Google Maps connector. Returns the raw place objects.
  */
-export async function searchPlacesForProspects(textQuery: string, maxResultCount = 20): Promise<Record<string, unknown>[]> {
-  const body = { textQuery: textQuery.slice(0, 200), maxResultCount: Math.min(20, Math.max(1, maxResultCount)), languageCode: "en" };
+export async function searchPlacesForProspects(
+  textQuery: string,
+  maxResultCount = 20,
+  near?: { lat: number; lng: number } | null,
+): Promise<Record<string, unknown>[]> {
+  const body: Record<string, unknown> = { textQuery: textQuery.slice(0, 200), maxResultCount: Math.min(20, Math.max(1, maxResultCount)), languageCode: "en" };
+  // A Maps link carries the map's center: prefer the listing the owner was looking at.
+  if (near) body["locationBias"] = { circle: { center: { latitude: near.lat, longitude: near.lng }, radius: 5000 } };
   const ownKey = process.env["GOOGLE_PLACES_API_KEY"]?.trim();
   if (ownKey) {
     const response = await fetch("https://places.googleapis.com/v1/places:searchText", {
