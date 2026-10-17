@@ -7,6 +7,7 @@ describe("Jarvis for visitors", () => {
   it("separates the reply from one next-step action and strips markup", () => {
     expect(parseVisitorReply("You can bring your current site.\n[[upgrade]]")).toEqual({ reply: "You can bring your current site.", action: "upgrade" });
     expect(parseVisitorReply("Sure <b>thing</b> [[pricing]] [[start]]").action).toBe("pricing");
+    expect(parseVisitorReply("Hi <scr<script>ipt>alert(1)").reply).not.toMatch(/[<>]/);
     expect(parseVisitorReply("[[delete everything]]")).toEqual({ reply: "Happy to help. What kind of business do you run?", action: null });
   });
 
