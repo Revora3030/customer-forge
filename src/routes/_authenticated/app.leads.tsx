@@ -1,5 +1,5 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useEffect, useMemo, useState } from "react";
 import {
   CalendarPlus,
   Download,
@@ -48,7 +48,16 @@ import { groupByStage, leadsToCsv } from "@/lib/crm";
 import { DueTasksStrip, LeadTasks } from "@/components/app/LeadTasks";
 import { currency, relative } from "@/lib/format";
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export const Route = createFileRoute("/_authenticated/app/leads")({
+  // ?lead=<id> (the "Open this lead" link in alert emails) opens that lead.
+  // Only leads already loaded for this workspace can open, so another
+  // workspace's id simply shows nothing.
+  validateSearch: (search: Record<string, unknown>): { lead?: string } => {
+    const lead = search["lead"];
+    return typeof lead === "string" && UUID.test(lead) ? { lead } : {};
+  },
   head: () => ({
     meta: [
       { title: "Lead pipeline — Revora" },
@@ -83,7 +92,12 @@ function LeadsPage() {
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<CrmStageKey | "all">("all");
   const [addOpen, setAddOpen] = useState(false);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const search = Route.useSearch();
+  const navigate = useNavigate();
+  const [selectedId, setSelectedId] = useState<string | null>(search.lead ?? null);
+  useEffect(() => {
+    if (search.lead) setSelectedId(search.lead);
+  }, [search.lead]);
   const [note, setNote] = useState("");
   const [bookOpen, setBookOpen] = useState(false);
 
@@ -334,7 +348,11 @@ function LeadsPage() {
       <Dialog
         open={!!selected}
         onOpenChange={(open) => {
-          if (!open) setSelectedId(null);
+          if (!open) {
+            setSelectedId(null);
+            // Drop ?lead so a refresh doesn't reopen the drawer.
+            if (search.lead) void navigate({ to: "/app/leads", search: {}, replace: true });
+          }
         }}
       >
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">

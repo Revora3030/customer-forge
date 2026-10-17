@@ -128,22 +128,49 @@ export async function sendLeadConfirmation(
 }
 
 
-/** Owner-facing alert when a new lead / quote / booking lands. */
+const ALERT_EMAIL = /^[^\s@]+@[^\s@]+\.[a-z]{2,}$/i;
+const LEAD_ALERT_KEY = /^lead-alert-([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i;
+
+/** Where an owner lands to open a lead from the alert email. */
+export function leadUrlFor(leadId: string): string {
+  return `https://revoragrowthsystems.com/app/leads?lead=${encodeURIComponent(leadId)}`;
+}
+
+/**
+ * Owner-facing alert when a new lead / quote / booking lands.
+ *
+ * Reply-to is the visitor (explicit `replyTo`, else the alert's validated
+ * `leadEmail`), so hitting Reply answers the customer instead of noreply@. A
+ * per-lead key (`lead-alert-<uuid>`) also adds an "Open this lead" link.
+ */
 export async function sendLeadAlert(
   to: string,
   data: Record<string, unknown>,
   idempotencyKey: string,
+  replyTo?: string | null,
 ): Promise<DeliveryResult> {
   if (!to) return { ok: false, retry: false, reason: "no_email_address" };
+  const candidates = [replyTo, data["leadEmail"]].map((value) =>
+    typeof value === "string" ? value.trim() : "",
+  );
+  const reply = candidates.find((value) => ALERT_EMAIL.test(value));
+  const leadId = LEAD_ALERT_KEY.exec(idempotencyKey)?.[1];
+  const templateData =
+    leadId && typeof data["leadUrl"] !== "string" ? { ...data, leadUrl: leadUrlFor(leadId) } : data;
   try {
     const result = await sendTemplateEmail("lead-alert", to, {
       idempotencyKey,
-      templateData: data,
+      templateData,
+      ...(reply ? { replyTo: reply } : {}),
     });
     return result.sent ? { ok: true } : { ok: false, retry: false, reason: result.reason };
   } catch (error) {
     if (error instanceof EmailAPIError) {
-      return { ok: false, retry: error.status === 429, reason: error.code ?? "email_error" };
+      return {
+        ok: false,
+        retry: error.status === 429,
+        reason: error.code ?? (error.status === 429 ? "rate_limited" : "email_error"),
+      };
     }
     console.error("lead alert failed", error);
     return { ok: false, retry: true, reason: "email_transport_error" };

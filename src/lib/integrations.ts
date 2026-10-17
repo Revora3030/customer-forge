@@ -17,8 +17,12 @@ export type IntegrationFacts = {
   /** A verified alert destination exists for new enquiries. */
   leadAlertsEmail: string | null;
   leadAlertsEnabled: boolean;
-  /** Last successful lead alert delivery, if any. */
+  /** When the newest lead alert attempt was made, if any. */
   lastLeadAlertAt: string | null;
+  /** lead_alert_log.status of the newest attempt ("sent" | "failed"). */
+  lastLeadAlertStatus?: string | null;
+  /** lead_alert_log.reason of the newest attempt, when it failed. */
+  lastLeadAlertReason?: string | null;
   customDomain: string | null;
   domainVerified: boolean;
   dnsOk: boolean;
@@ -108,14 +112,38 @@ export function buildIntegrationCards(facts: IntegrationFacts): IntegrationCard[
       detail: `Alerts to ${facts.leadAlertsEmail} are switched off.`,
       action: { label: "Turn alerts on", to: "/app/settings" },
     });
+  } else if (
+    facts.lastLeadAlertStatus === "failed" &&
+    facts.lastLeadAlertReason === "recipient_suppressed"
+  ) {
+    // The inbox itself refuses mail; retrying the same address can't help.
+    cards.push({
+      key: "lead_alerts",
+      name: "Enquiry email alerts",
+      status: "action_needed",
+      detail: `Alerts to ${facts.leadAlertsEmail} are being refused by that inbox. Add a different notification email.`,
+      action: { label: "Change alert email", to: "/app/settings" },
+    });
+  } else if (facts.lastLeadAlertStatus === "failed") {
+    cards.push({
+      key: "lead_alerts",
+      name: "Enquiry email alerts",
+      status: "action_needed",
+      detail: `Sending to ${facts.leadAlertsEmail}. Last alert failed (${facts.lastLeadAlertReason || "unknown reason"}).`,
+      action: { label: "Open settings", to: "/app/settings" },
+    });
   } else {
+    // "Delivered" is claimed only when the newest attempt was accepted.
+    const delivered = facts.lastLeadAlertStatus === "sent";
     cards.push({
       key: "lead_alerts",
       name: "Enquiry email alerts",
       status: "connected",
-      detail: facts.lastLeadAlertAt
+      detail: delivered
         ? `Sending to ${facts.leadAlertsEmail}. Last alert delivered successfully.`
-        : `Sending to ${facts.leadAlertsEmail}. No enquiry has come in yet, so nothing has been sent.`,
+        : facts.lastLeadAlertAt
+          ? `Sending to ${facts.leadAlertsEmail}.`
+          : `Sending to ${facts.leadAlertsEmail}. No enquiry has come in yet, so nothing has been sent.`,
     });
   }
 

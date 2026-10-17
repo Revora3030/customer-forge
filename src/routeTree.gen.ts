@@ -99,6 +99,7 @@ import { Route as SSlugPageRouteImport } from './routes/s.$slug.$page'
 import { Route as AuthenticatedAdminClientsOrgIdRouteImport } from './routes/_authenticated/admin.clients.$orgId'
 import { Route as AuthenticatedDraftSlugPageRouteImport } from './routes/_authenticated/draft.$slug.$page'
 import { Route as ApiPublicJobsBackupRouteImport } from './routes/api/public/jobs/backup'
+import { Route as ApiPublicJobsLeadAlertRetryRouteImport } from './routes/api/public/jobs/lead-alert-retry'
 import { Route as ApiPublicJobsLeadReminderRouteImport } from './routes/api/public/jobs/lead-reminder'
 import { Route as ApiPublicJobsLifecycleEmailRouteImport } from './routes/api/public/jobs/lifecycle-email'
 import { Route as ApiPublicJobsMediaCleanupRouteImport } from './routes/api/public/jobs/media-cleanup'
@@ -578,6 +579,12 @@ const ApiPublicJobsBackupRoute = ApiPublicJobsBackupRouteImport.update({
   path: '/api/public/jobs/backup',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicJobsLeadAlertRetryRoute =
+  ApiPublicJobsLeadAlertRetryRouteImport.update({
+    id: '/api/public/jobs/lead-alert-retry',
+    path: '/api/public/jobs/lead-alert-retry',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicJobsLeadReminderRoute =
   ApiPublicJobsLeadReminderRouteImport.update({
     id: '/api/public/jobs/lead-reminder',
@@ -725,6 +732,7 @@ export interface FileRoutesByFullPath {
   '/admin/clients/$orgId': typeof AuthenticatedAdminClientsOrgIdRoute
   '/draft/$slug/$page': typeof AuthenticatedDraftSlugPageRoute
   '/api/public/jobs/backup': typeof ApiPublicJobsBackupRoute
+  '/api/public/jobs/lead-alert-retry': typeof ApiPublicJobsLeadAlertRetryRoute
   '/api/public/jobs/lead-reminder': typeof ApiPublicJobsLeadReminderRoute
   '/api/public/jobs/lifecycle-email': typeof ApiPublicJobsLifecycleEmailRoute
   '/api/public/jobs/media-cleanup': typeof ApiPublicJobsMediaCleanupRoute
@@ -821,6 +829,7 @@ export interface FileRoutesByTo {
   '/admin/clients/$orgId': typeof AuthenticatedAdminClientsOrgIdRoute
   '/draft/$slug/$page': typeof AuthenticatedDraftSlugPageRoute
   '/api/public/jobs/backup': typeof ApiPublicJobsBackupRoute
+  '/api/public/jobs/lead-alert-retry': typeof ApiPublicJobsLeadAlertRetryRoute
   '/api/public/jobs/lead-reminder': typeof ApiPublicJobsLeadReminderRoute
   '/api/public/jobs/lifecycle-email': typeof ApiPublicJobsLifecycleEmailRoute
   '/api/public/jobs/media-cleanup': typeof ApiPublicJobsMediaCleanupRoute
@@ -924,6 +933,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/clients/$orgId': typeof AuthenticatedAdminClientsOrgIdRoute
   '/_authenticated/draft/$slug/$page': typeof AuthenticatedDraftSlugPageRoute
   '/api/public/jobs/backup': typeof ApiPublicJobsBackupRoute
+  '/api/public/jobs/lead-alert-retry': typeof ApiPublicJobsLeadAlertRetryRoute
   '/api/public/jobs/lead-reminder': typeof ApiPublicJobsLeadReminderRoute
   '/api/public/jobs/lifecycle-email': typeof ApiPublicJobsLifecycleEmailRoute
   '/api/public/jobs/media-cleanup': typeof ApiPublicJobsMediaCleanupRoute
@@ -1027,6 +1037,7 @@ export interface FileRouteTypes {
     | '/admin/clients/$orgId'
     | '/draft/$slug/$page'
     | '/api/public/jobs/backup'
+    | '/api/public/jobs/lead-alert-retry'
     | '/api/public/jobs/lead-reminder'
     | '/api/public/jobs/lifecycle-email'
     | '/api/public/jobs/media-cleanup'
@@ -1123,6 +1134,7 @@ export interface FileRouteTypes {
     | '/admin/clients/$orgId'
     | '/draft/$slug/$page'
     | '/api/public/jobs/backup'
+    | '/api/public/jobs/lead-alert-retry'
     | '/api/public/jobs/lead-reminder'
     | '/api/public/jobs/lifecycle-email'
     | '/api/public/jobs/media-cleanup'
@@ -1225,6 +1237,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/clients/$orgId'
     | '/_authenticated/draft/$slug/$page'
     | '/api/public/jobs/backup'
+    | '/api/public/jobs/lead-alert-retry'
     | '/api/public/jobs/lead-reminder'
     | '/api/public/jobs/lifecycle-email'
     | '/api/public/jobs/media-cleanup'
@@ -1281,6 +1294,7 @@ export interface RootRouteChildren {
   PTokenPageRoute: typeof PTokenPageRoute
   LocalIndustryIndexRoute: typeof LocalIndustryIndexRoute
   ApiPublicJobsBackupRoute: typeof ApiPublicJobsBackupRoute
+  ApiPublicJobsLeadAlertRetryRoute: typeof ApiPublicJobsLeadAlertRetryRoute
   ApiPublicJobsLeadReminderRoute: typeof ApiPublicJobsLeadReminderRoute
   ApiPublicJobsLifecycleEmailRoute: typeof ApiPublicJobsLifecycleEmailRoute
   ApiPublicJobsMediaCleanupRoute: typeof ApiPublicJobsMediaCleanupRoute
@@ -1925,6 +1939,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicJobsBackupRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/jobs/lead-alert-retry': {
+      id: '/api/public/jobs/lead-alert-retry'
+      path: '/api/public/jobs/lead-alert-retry'
+      fullPath: '/api/public/jobs/lead-alert-retry'
+      preLoaderRoute: typeof ApiPublicJobsLeadAlertRetryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/jobs/lead-reminder': {
       id: '/api/public/jobs/lead-reminder'
       path: '/api/public/jobs/lead-reminder'
@@ -2223,6 +2244,7 @@ const rootRouteChildren: RootRouteChildren = {
   PTokenPageRoute: PTokenPageRoute,
   LocalIndustryIndexRoute: LocalIndustryIndexRoute,
   ApiPublicJobsBackupRoute: ApiPublicJobsBackupRoute,
+  ApiPublicJobsLeadAlertRetryRoute: ApiPublicJobsLeadAlertRetryRoute,
   ApiPublicJobsLeadReminderRoute: ApiPublicJobsLeadReminderRoute,
   ApiPublicJobsLifecycleEmailRoute: ApiPublicJobsLifecycleEmailRoute,
   ApiPublicJobsMediaCleanupRoute: ApiPublicJobsMediaCleanupRoute,

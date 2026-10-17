@@ -1,6 +1,55 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { claimErrorMessage, isClaimToken } from "./prospect-claim";
+import { claimAwareRedirect, claimErrorMessage, isClaimToken, isSafeRedirect } from "./prospect-claim";
+
+describe("claim token survives sign-up", () => {
+  const token = "abcdefghij0123456789";
+
+  it("keeps ?claim in the post-auth redirect", () => {
+    expect(claimAwareRedirect(token)).toBe(`/get-started?claim=${token}`);
+    expect(isSafeRedirect(claimAwareRedirect(token))).toBe(true);
+  });
+
+  it("falls back to /get-started without a valid token", () => {
+    expect(claimAwareRedirect(null)).toBe("/get-started");
+    expect(claimAwareRedirect(undefined)).toBe("/get-started");
+    expect(claimAwareRedirect("short")).toBe("/get-started");
+    expect(claimAwareRedirect("abcdefghij0123456789&next=//evil")).toBe("/get-started");
+  });
+
+  it("isSafeRedirect only allows same-site paths", () => {
+    expect(isSafeRedirect("/app")).toBe(true);
+    expect(isSafeRedirect("/get-started?claim=abc")).toBe(true);
+    expect(isSafeRedirect("//evil")).toBe(false);
+    expect(isSafeRedirect("//evil.com/app")).toBe(false);
+    expect(isSafeRedirect("/\\evil")).toBe(false);
+    expect(isSafeRedirect("/\\\\evil.com")).toBe(false);
+    expect(isSafeRedirect("https://evil.com")).toBe(false);
+    expect(isSafeRedirect("javascript:alert(1)")).toBe(false);
+    expect(isSafeRedirect("/javascript:alert(1)")).toBe(false);
+    expect(isSafeRedirect("/\tevil")).toBe(false);
+    expect(isSafeRedirect("app")).toBe(false);
+    expect(isSafeRedirect(null)).toBe(false);
+  });
+
+  it("get-started and auth carry the full redirect", () => {
+    const getStarted = readFileSync("src/routes/get-started.tsx", "utf8");
+    expect(getStarted).toContain('redirect: claimAwareRedirect(claimToken)');
+    expect(getStarted).not.toContain('redirect: "/get-started"');
+    const auth = readFileSync("src/routes/auth.tsx", "utf8");
+    expect(auth).toContain("navigate({ href: redirect, replace: true })");
+    expect(auth).toContain("isSafeRedirect(redirect)");
+    expect(auth).toContain('emailRedirectTo: `${window.location.origin}${redirect ?? "/app"}`');
+    expect(auth).toContain("?redirect=${encodeURIComponent(redirect)}");
+  });
+
+  it("the claim bar names the free trial and needs no card", () => {
+    const bar = readFileSync("src/components/site/ProspectClaimBar.tsx", "utf8");
+    expect(bar).toContain("Claim your website — start free trial");
+    expect(bar).toContain("{`${GROWTH_SYSTEM.fullAccessWindow} free, no card needed`}");
+    expect(bar).toMatch(/h-11 w-full[^"]*sm:w-auto/);
+  });
+});
 
 const migration = readFileSync("supabase/migrations/20261016090000_claim_prospect_demo.sql", "utf8");
 
