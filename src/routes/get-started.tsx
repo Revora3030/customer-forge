@@ -22,6 +22,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { claimProspectDemo, getProspectClaim } from "@/lib/prospect-claim.functions";
 import { CLAIM_STORAGE_KEY, isClaimToken } from "@/lib/prospect-claim";
 import { readStarter } from "@/components/marketing/hero-starter-utils";
+import { applyImportedFacts, importExistingWebsite } from "@/lib/site-import.functions";
 
 export const Route = createFileRoute("/get-started")({
   validateSearch: (search: Record<string, unknown>): { claim?: string } =>
@@ -351,6 +352,24 @@ function GetStarted() {
   }
 
   /** Start the free full-access trial: provision the workspace, then open the app. */
+  // A visitor who gave their current website gets its details (contact,
+  // hours, services, logo, photo) added to the new workspace, into empty
+  // fields only, without waiting on it.
+  const readSite = useServerFn(importExistingWebsite);
+  const saveSiteFacts = useServerFn(applyImportedFacts);
+  function importWebsiteInBackground(orgId: string) {
+    const website = intake.website?.trim() ?? "";
+    if (website.length < 4) return;
+    void (async () => {
+      try {
+        const result = await readSite({ data: { url: website } });
+        if (result.ok) await saveSiteFacts({ data: { organizationId: orgId, url: result.url, facts: result.facts } });
+      } catch {
+        /* the owner can import it later from Settings */
+      }
+    })();
+  }
+
   async function startFreeAccess() {
     setError(null);
     if (!signedIn) {
@@ -360,7 +379,8 @@ function GetStarted() {
     setStartingTrial(true);
     try {
       const wasClaim = claiming;
-      await ensureWorkspace();
+      const orgId = await ensureWorkspace();
+      if (!wasClaim && orgId) importWebsiteInBackground(orgId);
       // The trial genuinely starts here — tell Google Ads the ad worked.
       void trackTrialStarted();
       // A claimed demo already has a website: open it in the builder.
@@ -380,7 +400,8 @@ function GetStarted() {
     setError(null);
     setProvisioning(true);
     try {
-      await ensureWorkspace();
+      const orgId = await ensureWorkspace();
+      if (!claiming && orgId) importWebsiteInBackground(orgId);
       setPayNow(true);
     } catch (cause) {
       setError(
