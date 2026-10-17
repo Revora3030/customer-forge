@@ -59,7 +59,7 @@ function StickyCtaBar() {
   if (loading || user || !show) return null;
 
   return (
-    <div className="animate-in fade-in slide-in-from-bottom-4 fixed inset-x-0 bottom-0 z-40 border-t border-primary/35 bg-background/95 px-3 py-2.5 pb-[calc(0.625rem+env(safe-area-inset-bottom))] backdrop-blur-sm duration-500 sm:px-4">
+    <div className="sticky-cta-bar animate-in fade-in slide-in-from-bottom-4 fixed inset-x-0 bottom-0 z-40 border-t border-primary/35 bg-background/95 px-3 py-2.5 pb-[calc(0.625rem+env(safe-area-inset-bottom))] backdrop-blur-sm duration-500 sm:px-4">
       <div className="mx-auto flex max-w-6xl items-center gap-3">
         <div className="min-w-0 flex-1">
           <p className="text-[12.5px] leading-snug">
@@ -82,7 +82,7 @@ function StickyCtaBar() {
         <button
           type="button"
           aria-label="Hide the free access bar"
-          className="grid size-8 shrink-0 cursor-pointer place-items-center rounded-md border border-border text-muted-foreground"
+          className="grid size-11 shrink-0 cursor-pointer place-items-center rounded-md border border-border text-muted-foreground"
           onClick={() => {
             writeFlag(BAR_KEY);
             setShow(false);
@@ -109,8 +109,11 @@ function ExitIntentOffer() {
       writeFlag(EXIT_KEY);
       setOpen(true);
     };
+    // Moving to the tab bar in the first seconds isn't leaving; arm the
+    // reminder only after the visitor has spent real time on the page.
+    const armedAt = Date.now() + 20_000;
     const onLeave = (event: MouseEvent) => {
-      if (event.clientY <= 4) fire();
+      if (event.clientY <= 4 && Date.now() >= armedAt) fire();
     };
     document.addEventListener("mouseleave", onLeave);
     // Mobile has no exit intent — use sustained engagement without a signup.
@@ -122,6 +125,15 @@ function ExitIntentOffer() {
       window.clearTimeout(timer);
     };
   }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [open]);
 
   if (loading || user || !open) return null;
 
@@ -140,7 +152,8 @@ function ExitIntentOffer() {
         <button
           type="button"
           aria-label="Close"
-          className="absolute top-3 right-3 grid size-8 cursor-pointer place-items-center rounded-md border border-border text-muted-foreground"
+          autoFocus
+          className="absolute top-3 right-3 grid size-11 cursor-pointer place-items-center rounded-md border border-border text-muted-foreground"
           onClick={() => setOpen(false)}
         >
           <X className="size-3.5" aria-hidden="true" />

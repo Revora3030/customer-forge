@@ -77,6 +77,16 @@ export function updateConsent(decision: "granted" | "denied") {
   } catch {
     /* private-mode browsers simply lose the stored choice */
   }
+  pushConsentSignal(decision);
+}
+
+/**
+ * Tells Google's tags the current consent state WITHOUT recording a choice.
+ * Used when the visitor hasn't decided: storing a default would hide the
+ * banner on the next page and claim a decision nobody made.
+ */
+export function pushConsentSignal(decision: "granted" | "denied") {
+  if (typeof window === "undefined") return;
   if (decision === "denied") window.gtag?.("set", "user_data", null);
   window.gtag?.("consent", "update", {
     ad_storage: decision,

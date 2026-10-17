@@ -54,6 +54,14 @@ export function CookieConsent() {
     setVisible(false);
   };
 
+  // Other bottom overlays (the offer bar, Jarvis on phones) step aside while
+  // the banner is open, so the screen isn't stacked with three of them.
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    if (visible) document.documentElement.dataset["cookieBanner"] = "open";
+    else delete document.documentElement.dataset["cookieBanner"];
+  }, [visible]);
+
   if (!visible) return null;
 
   return (
@@ -61,32 +69,30 @@ export function CookieConsent() {
       role="dialog"
       aria-modal="false"
       aria-label="Cookie preferences"
-      className="fixed inset-x-3 bottom-3 z-[100] mx-auto max-w-xl rounded-xl border border-border bg-card p-4 shadow-lg sm:inset-x-6 sm:bottom-6"
+      className="fixed inset-x-3 bottom-3 z-[100] rounded-xl border border-border bg-card p-3 shadow-lg sm:inset-x-auto sm:left-6 sm:bottom-6 sm:max-w-sm sm:p-4"
     >
       <div className="flex items-start gap-3">
         <div className="flex-1">
-          <h2 className="text-[14px] font-semibold">Cookies for measurement</h2>
-          <p className="mt-1.5 text-[12.5px] leading-relaxed text-muted-foreground">
-            We use cookies to measure whether our advertising leads to trial
-            signups. This never changes how the site works for you. Read more in
-            our{" "}
+          <h2 className="text-[13.5px] font-semibold">Cookies for measurement</h2>
+          <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">
+            We measure whether our ads lead to signups. It never changes how the site works. See our{" "}
             <a href="/privacy" className="underline underline-offset-2 hover:text-primary">
               privacy policy
             </a>
             .
           </p>
-          <div className="mt-3 flex flex-wrap gap-2">
+          <div className="mt-2.5 flex flex-wrap gap-2">
             <button
               type="button"
               onClick={() => decide("granted")}
-              className="min-h-10 rounded-md bg-primary px-4 text-[13px] font-medium text-primary-foreground transition-opacity hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+              className="min-h-11 rounded-md bg-primary px-4 text-[13px] font-medium text-primary-foreground transition-opacity hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
             >
               Accept
             </button>
             <button
               type="button"
               onClick={() => decide("denied")}
-              className="min-h-10 rounded-md border border-border px-4 text-[13px] font-medium text-foreground transition-colors hover:bg-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+              className="min-h-11 rounded-md border border-border px-4 text-[13px] font-medium text-foreground transition-colors hover:bg-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
             >
               Reject
             </button>
@@ -96,7 +102,7 @@ export function CookieConsent() {
           type="button"
           aria-label="Dismiss without deciding"
           onClick={() => setVisible(false)}
-          className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+          className="grid size-11 shrink-0 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
         >
           <X className="size-4" aria-hidden="true" />
         </button>

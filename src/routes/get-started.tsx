@@ -21,6 +21,7 @@ import { canonicalLink, ogUrl } from "@/lib/seo";
 import { useServerFn } from "@tanstack/react-start";
 import { claimProspectDemo, getProspectClaim } from "@/lib/prospect-claim.functions";
 import { CLAIM_STORAGE_KEY, isClaimToken } from "@/lib/prospect-claim";
+import { readStarter } from "@/components/marketing/hero-starter-utils";
 
 export const Route = createFileRoute("/get-started")({
   validateSearch: (search: Record<string, unknown>): { claim?: string } =>
@@ -195,6 +196,31 @@ function GetStarted() {
   useEffect(() => {
     if (session.data?.organizationId) setOrganizationId(session.data.organizationId);
   }, [session.data?.organizationId]);
+
+  // What the visitor typed on the homepage (or told Jarvis) and the name they
+  // signed up with fill empty fields, so nobody types the same thing twice.
+  // The starter stays saved for onboarding, which clears it.
+  useEffect(() => {
+    const starter = readStarter();
+    let cancelled = false;
+    void supabase.auth.getUser().then(({ data }) => {
+      if (cancelled) return;
+      const meta = (data.user?.user_metadata ?? {}) as Record<string, unknown>;
+      const signupName = typeof meta["full_name"] === "string" ? meta["full_name"].slice(0, 120) : "";
+      setIntake((prev) => ({
+        ...prev,
+        fullName: prev.fullName || signupName,
+        email: prev.email || data.user?.email || "",
+        businessName: prev.businessName || starter?.businessName || "",
+        businessType: prev.businessType || starter?.industry || "",
+        website: prev.website || starter?.website || "",
+        services: prev.services || starter?.about || "",
+      }));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Fill in anything the org already has on file — never overwrite something
   // the client already typed (or restored from a saved draft) this session.

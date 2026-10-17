@@ -11,7 +11,7 @@
  * - "Free trial started" — AW-18474339242/mP7GCMvYgIUdEKqXoOlE
  */
 
-import { canTrackAds, updateConsent } from "@/lib/consent";
+import { canTrackAds, pushConsentSignal } from "@/lib/consent";
 
 const GOOGLE_ADS_ID = "AW-18474339242";
 
@@ -26,8 +26,9 @@ export async function loadGoogleAds(consentModeRoute = true): Promise<void> {
 
     const allowed = await canTrackAds();
     if (!consentModeRoute && !allowed) return;
-    // Keep Google's consent signals aligned with the visitor's actual choice.
-    updateConsent(allowed ? "granted" : "denied");
+    // Keep Google's consent signals aligned with the visitor's state, without
+    // recording a choice the visitor never made.
+    pushConsentSignal(allowed ? "granted" : "denied");
 
     window.dataLayer ??= [];
     window.gtag = window.gtag || function gtag(...args: [string, ...unknown[]]) {
