@@ -33,7 +33,7 @@ describe("mapsLookupFrom", () => {
 describe("mapsRedirectTarget", () => {
   it("follows only https Google Maps redirects", () => {
     expect(mapsRedirectTarget("https://www.google.com/maps/place/X", "https://maps.app.goo.gl/a")).toBe("https://www.google.com/maps/place/X");
-    expect(mapsRedirectTarget("http://www.google.com/maps/place/X", "https://maps.app.goo.gl/a")).toBeNull();
+    expect(mapsRedirectTarget("http://www.google.com/maps/place/X", "https://maps.app.goo.gl/a")).toBeNull(); // DevSkim: ignore DS137138 -- Negative fixture: plaintext redirects must be refused; no request is sent.
     expect(mapsRedirectTarget("https://169.254.169.254/latest", "https://maps.app.goo.gl/a")).toBeNull();
     expect(
       mapsRedirectTarget(
