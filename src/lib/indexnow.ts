@@ -5,10 +5,9 @@
  *
  * The key is not a secret. IndexNow proves ownership by fetching it from
  * `keyLocation` on the same host, so it is published at /indexnow-key.txt.
- * INDEXNOW_KEY overrides it if the key is ever rotated.
+ * It is derived from the host, so the key file and the submission always
+ * agree without any setup; INDEXNOW_KEY overrides it if it is ever rotated.
  */
-
-export const DEFAULT_INDEXNOW_KEY = "c6a3183f7022df00f2483cd7714f0cc8";
 
 export const INDEXNOW_KEY_PATH = "/indexnow-key.txt";
 
@@ -19,9 +18,17 @@ export const INDEXNOW_MAX_URLS = 10_000;
 
 const KEY_PATTERN = /^[a-zA-Z0-9-]{8,128}$/;
 
-export function indexNowKey(override?: string | null): string {
+export async function indexNowKey(host: string, override?: string | null): Promise<string> {
   const key = override?.trim();
-  return key && KEY_PATTERN.test(key) ? key : DEFAULT_INDEXNOW_KEY;
+  if (key && KEY_PATTERN.test(key)) return key;
+  const digest = await crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode(`revora-indexnow:${host.toLowerCase().split(":")[0]}`),
+  );
+  return [...new Uint8Array(digest)]
+    .slice(0, 16)
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("");
 }
 
 /**

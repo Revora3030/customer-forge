@@ -19,7 +19,7 @@ export const submitPlatformToIndexNow = createServerFn({ method: "POST" })
     const payload = indexNowPayload(
       SITE_URL,
       sitemapUrls(null, SITE_URL).map((entry) => entry.loc),
-      indexNowKey(process.env.INDEXNOW_KEY),
+      await indexNowKey(new URL(SITE_URL).host, process.env["INDEXNOW_KEY"]),
     );
     try {
       const response = await fetch(INDEXNOW_ENDPOINT, {

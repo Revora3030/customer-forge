@@ -1,6 +1,8 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { DEFAULT_INDEXNOW_KEY, describeIndexNowStatus, indexNowKey, indexNowPayload } from "@/lib/indexnow";
+import { describeIndexNowStatus, indexNowKey, indexNowPayload } from "@/lib/indexnow";
+
+const KEY = "example-indexnow-value";
 
 describe("IndexNow submissions for revoragrowthsystems.com", () => {
   it("only sends pages on Revora's own host, once each, with the published key file", () => {
@@ -13,20 +15,23 @@ describe("IndexNow submissions for revoragrowthsystems.com", () => {
         "https://evil.example/pricing",
         "not a url",
       ],
-      DEFAULT_INDEXNOW_KEY,
+      KEY,
     );
     expect(payload).toEqual({
       host: "revoragrowthsystems.com",
-      key: DEFAULT_INDEXNOW_KEY,
+      key: KEY,
       keyLocation: "https://revoragrowthsystems.com/indexnow-key.txt",
       urlList: ["https://revoragrowthsystems.com", "https://revoragrowthsystems.com/pricing"],
     });
   });
 
-  it("uses a valid override key and ignores a malformed one", () => {
-    expect(indexNowKey("abcdef12-3456")).toBe("abcdef12-3456");
-    expect(indexNowKey("bad key!")).toBe(DEFAULT_INDEXNOW_KEY);
-    expect(indexNowKey(undefined)).toBe(DEFAULT_INDEXNOW_KEY);
+  it("derives a stable key per host and honours a valid override", async () => {
+    const derived = await indexNowKey("revoragrowthsystems.com");
+    expect(derived).toMatch(/^[0-9a-f]{32}$/);
+    expect(await indexNowKey("RevoraGrowthSystems.com")).toBe(derived);
+    expect(await indexNowKey("other.example")).not.toBe(derived);
+    expect(await indexNowKey("revoragrowthsystems.com", "abcdef12-3456")).toBe("abcdef12-3456");
+    expect(await indexNowKey("revoragrowthsystems.com", "bad key!")).toBe(derived);
   });
 
   it("reports acceptance honestly", () => {
@@ -35,7 +40,7 @@ describe("IndexNow submissions for revoragrowthsystems.com", () => {
   });
 
   it("serves the key file and keeps the submit action super-admin only", () => {
-    expect(readFileSync("src/routes/indexnow-key[.]txt.ts", "utf8")).toContain("indexNowKey(process.env.INDEXNOW_KEY)");
+    expect(readFileSync("src/routes/indexnow-key[.]txt.ts", "utf8")).toContain('await indexNowKey(host, process.env["INDEXNOW_KEY"])');
     expect(readFileSync("src/lib/indexnow.functions.ts", "utf8")).toContain("await assertSuperAdmin(context.supabase, context.userId);");
   });
 });

@@ -5,13 +5,15 @@ import { indexNowKey } from "@/lib/indexnow";
 export const Route = createFileRoute("/indexnow-key.txt")({
   server: {
     handlers: {
-      GET: () =>
-        new Response(indexNowKey(process.env.INDEXNOW_KEY), {
+      GET: async ({ request }) => {
+        const host = request.headers.get("x-forwarded-host") ?? request.headers.get("host") ?? new URL(request.url).host;
+        return new Response(await indexNowKey(host, process.env["INDEXNOW_KEY"]), {
           headers: {
             "content-type": "text/plain; charset=utf-8",
             "cache-control": "public, max-age=3600",
           },
-        }),
+        });
+      },
     },
   },
 });
