@@ -18,7 +18,8 @@ export const MAX_ACTION_STEPS = 3;
 export type ReadAction =
   | { id: "diagnostic.run"; toolId: string }
   | { id: "code.read"; paths: string[]; line: number }
-  | { id: "code.list"; page: number }
+  | { id: "code.list"; page: number; dir: string | null }
+  | { id: "code.search"; query: string }
   | { id: "demos.list" }
   | { id: "prospects.find"; niche: string; city: string; state: string | null }
   | { id: "web.search"; query: string };
@@ -32,14 +33,18 @@ export type PullRequestProposal = { title: string; summary: string; changes: Cod
 export type WriteProposal =
   | { id: "demo.build"; input: ProspectDemoInput }
   | { id: "code.pr"; pr: PullRequestProposal }
+  | { id: "claude.code"; request: string }
   | { id: "builds.recover" };
 
 export const MAX_PR_FILES = 6;
 export const MAX_PR_CHARS = 60_000;
 
-/** Paths Jarvis may change. CI workflows, generated files and secrets are off limits. */
+/**
+ * Paths Jarvis may change: app source, scripts, docs and new migrations. CI
+ * workflows, root config, generated files and secrets are read-only to it.
+ */
 export function writablePath(path: string): boolean {
-  return safeInspectionPath(path) && !path.startsWith(".github/");
+  return safeInspectionPath(path) && /^(src|scripts|docs|supabase\/migrations)\//.test(path);
 }
 
 /** Validates a pull-request proposal; throws a plain-language reason. */
@@ -102,13 +107,15 @@ export function actionCatalogPrompt(diagnosticToolIds: string[]): string {
   return [
     "ACTIONS. You can act, not just advise. To use one, end your reply with <actions>[...]</actions> holding up to 3 JSON objects, and nothing after it. You will get the results and can then answer or act again.",
     `- {"id":"diagnostic.run","args":{"toolId":ONE_OF ${JSON.stringify(diagnosticToolIds)}}}: run a read-only platform check (errors, builds, schema, SEO, AI providers, connectors, funnel, CI, security, capability scorecard).`,
-    '- {"id":"code.list","args":{"page":1}}: list source files in the live repository branch (200 per page).',
-    '- {"id":"code.read","args":{"paths":["src/..."],"line":1}}: read up to 2 source files, 120 lines each, starting at line. Use code.list first if unsure of a path.',
+    '- {"id":"code.search","args":{"query":"getPlatformMetrics"}}: find files whose path or contents match (a function, component, table, route or error text). Use it first instead of guessing paths.',
+    '- {"id":"code.list","args":{"dir":"src/lib","page":1}}: list files in a folder of the live lovable-sync branch (300 per page). Without dir it lists everything plus a folder map.',
+    '- {"id":"code.read","args":{"paths":["src/..."],"line":1}}: read up to 3 files, 300 numbered lines each, from line. A missing path comes back with didYouMean suggestions; to keep reading a long file, call again with the line it gives.',
     '- {"id":"demos.list","args":{}}: list prospect demo sites with build status and preview links.',
     '- {"id":"web.search","args":{"query":"..."}}: search the live web (Perplexity, Tavily, Brave, Exa or Jina, whichever is connected) for current facts: competitors, pricing in a market, a provider\'s docs or an error message. Results are third-party research; cite the URLs and never present them as facts about a customer.',
     '- {"id":"prospects.find","args":{"niche":"mobile detailing","city":"Raleigh","state":"NC"}}: search Google Places for businesses in a niche and city that have no real website (none, or only a social/directory page). Costs a little per search and is capped daily, so search only when the owner asks for prospects. Then propose demo.build for the best ones, using only the facts returned (name, category, city, state, phone); for services use none and set description to "<category> serving <city, state>."',
     '- {"id":"demo.build","args":{"businessName":"","industry":"","city":"","state":"","phone":"","email":"","services":["..."],"description":""}}: PROPOSE building a private demo website for a real business with no website. Only facts the owner gave you; never invent phone numbers, emails or services. The owner approves with one tap; you do not run it.',
     '- {"id":"code.pr","args":{"title":"","summary":"","changes":[{"path":"src/...","edits":[{"find":"exact existing text","replace":"new text"}]},{"path":"src/new-file.ts","content":"full file"}]}}: PROPOSE a GitHub pull request into lovable-sync. Read every file you edit with code.read first in this conversation; "find" must be copied exactly from it and appear once. Use "content" only for new files. Up to 6 files. Keep changes minimal, complete and type-safe; never touch auth, RLS, billing or tenant isolation unless the owner asked; never add secrets. The owner approves with one tap and reviews before merging.',
+    '- {"id":"claude.code","args":{"request":"what to build or fix, with the files and acceptance checks you found"}}: PROPOSE handing a larger coding task to Claude Code, which reads the whole repository, edits any number of files, runs the checks and opens a pull request. Use it instead of code.pr when a change spans more than 6 files, needs new tests run, or is too big to write exactly here. The owner approves with one tap.',
     '- {"id":"builds.recover","args":{}}: PROPOSE recovering stalled website builds: closes builds whose worker died, re-queues orphaned ones and restarts the build worker. Suggest it when builder.health.summary shows stuck or long-running builds. The owner approves with one tap.',
     "Use actions whenever they would make your answer more accurate. Prefer checking over guessing. Never claim an action ran unless you received its result.",
   ].join("\n");
@@ -145,12 +152,21 @@ export function parseActions(requested: unknown[], diagnosticToolIds: string[]):
       const paths = (Array.isArray(args["paths"]) ? args["paths"] : [])
         .map((path) => str(path, 240))
         .filter((path) => /^[A-Za-z0-9_./[\]$@-]+$/.test(path))
-        .slice(0, 2);
+        .slice(0, 3);
       const line = Math.min(100000, Math.max(1, Math.floor(Number(args["line"]) || 1)));
       if (paths.length) out.reads.push({ id, paths, line });
       else out.rejected.push("code.read: no valid paths");
     } else if (id === "code.list") {
-      out.reads.push({ id, page: Math.min(1000, Math.max(1, Math.floor(Number(args["page"]) || 1))) });
+      const dir = str(args["dir"], 200).replace(/^\/+|\/+$/g, "");
+      out.reads.push({
+        id,
+        page: Math.min(1000, Math.max(1, Math.floor(Number(args["page"]) || 1))),
+        dir: dir && /^[A-Za-z0-9_./[\]$@-]+$/.test(dir) && !dir.split("/").includes("..") ? dir : null,
+      });
+    } else if (id === "code.search") {
+      const query = str(args["query"], 120);
+      if (query.length >= 2) out.reads.push({ id, query });
+      else out.rejected.push("code.search: needs a query");
     } else if (id === "demos.list") {
       out.reads.push({ id });
     } else if (id === "web.search") {
@@ -168,6 +184,10 @@ export function parseActions(requested: unknown[], diagnosticToolIds: string[]):
       } catch (error) {
         out.rejected.push(`code.pr ${error instanceof Error ? error.message : "is invalid"}`);
       }
+    } else if (id === "claude.code") {
+      const request = str(args["request"], 8000);
+      if (request.length >= 20) out.proposals.push({ id, request });
+      else out.rejected.push("claude.code: describe the task in at least a sentence");
     } else if (id === "builds.recover") {
       if (!out.proposals.some((proposal) => proposal.id === "builds.recover")) out.proposals.push({ id });
     } else if (id === "demo.build") {
@@ -191,7 +211,9 @@ export function describeRead(action: ReadAction): string {
     case "code.read":
       return `Read ${action.paths.join(", ")} from line ${action.line}`;
     case "code.list":
-      return `Listed source files (page ${action.page})`;
+      return `Listed ${action.dir ?? "all"} files (page ${action.page})`;
+    case "code.search":
+      return `Searched the code for "${action.query.slice(0, 60)}"`;
     case "demos.list":
       return "Listed demo sites";
     case "web.search":
@@ -225,6 +247,8 @@ export function splitReplyMeta(content: string): { body: string; meta: JarvisRep
         if (proposal?.id === "demo.build") proposals.push({ id: "demo.build", input: parseProspectDemoInput(proposal.input) });
         else if (proposal?.id === "code.pr") proposals.push({ id: "code.pr", pr: parsePullRequestProposal(proposal.pr) });
         else if (proposal?.id === "builds.recover") proposals.push({ id: "builds.recover" });
+        else if (proposal?.id === "claude.code" && typeof proposal.request === "string" && proposal.request.trim().length >= 20)
+          proposals.push({ id: "claude.code", request: proposal.request.trim().slice(0, 8000) });
       } catch {
         /* drop anything that no longer validates */
       }

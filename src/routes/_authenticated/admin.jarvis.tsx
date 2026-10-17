@@ -10,7 +10,7 @@ import { JarvisMarkdown } from "@/components/app/JarvisMarkdown";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { useJarvisVoice } from "@/components/app/use-jarvis-voice";
 import { VoiceWave } from "@/components/app/VoiceWave";
-import { openJarvisPullRequestFn, recoverStalledBuildsFn, clearJarvisHistory, getJarvisHistory, getJarvisDiagnostics, getJarvisAcquisitionReadiness, getJarvisDiagnosticTools, runJarvisDiagnosticTool, regenerateJarvisReply, sendJarvisMessage } from "@/lib/jarvis.functions";
+import { openJarvisPullRequestFn, recoverStalledBuildsFn, sendClaudeCodeRequestFn, clearJarvisHistory, getJarvisHistory, getJarvisDiagnostics, getJarvisAcquisitionReadiness, getJarvisDiagnosticTools, runJarvisDiagnosticTool, regenerateJarvisReply, sendJarvisMessage } from "@/lib/jarvis.functions";
 import { draftProspectOutreach, type ProspectDraft } from "@/lib/jarvis-prospecting.functions";
 import { formatRevoraOffer } from "@/lib/jarvis-acquisition-policy";
 import { jarvisVoiceLinks, synthesizeJarvisVoice } from "@/lib/jarvis-voice.functions";
@@ -131,6 +131,7 @@ function Jarvis() {
   const draftFn = useServerFn(draftProspectOutreach);
   const buildDemo = useServerFn(startProspectDemoBuild);
   const openPr = useServerFn(openJarvisPullRequestFn);
+  const sendToClaudeCode = useServerFn(sendClaudeCodeRequestFn);
   const recoverBuilds = useServerFn(recoverStalledBuildsFn);
   const [openedPrs, setOpenedPrs] = useState<Record<string, string>>({});
   const history = useQuery({ queryKey: ["jarvis", "history"], queryFn: () => load() });
@@ -355,6 +356,19 @@ function Jarvis() {
       } catch (error) {
         setApproved((current) => { const next = { ...current }; delete next[key]; return next; });
         toast.error(error instanceof Error ? error.message : "Couldn't recover the builds.");
+      }
+      return;
+    }
+    if (proposal.id === "claude.code") {
+      try {
+        const result = await sendToClaudeCode({ data: { request: proposal.request } });
+        setOpenedPrs((current) => ({ ...current, [key]: result.url }));
+        setApproved((current) => ({ ...current, [key]: "done" }));
+        toast.success(`Sent to Claude Code as issue #${result.number}. It posts progress and the pull request there.`);
+        void qc.invalidateQueries({ queryKey: ["jarvis", "claude-code"] });
+      } catch (error) {
+        setApproved((current) => { const next = { ...current }; delete next[key]; return next; });
+        toast.error(error instanceof Error ? error.message : "Couldn't send the task to Claude Code.");
       }
       return;
     }
@@ -626,6 +640,20 @@ function Jarvis() {
                                 <Button type="button" size="sm" className="mt-2" disabled={Boolean(state)} onClick={() => { void approveProposal(key, proposal); }}>{state === "building" ? "Opening…" : "Approve and open pull request"}</Button>
                               )}
                               <p className="mt-1 text-[11px] text-muted-foreground">Opens a pull request into lovable-sync. Nothing merges until you merge it on GitHub.</p>
+                            </div>
+                          );
+                        }
+                        if (proposal.id === "claude.code") {
+                          return (
+                            <div key={key} className="mt-2 rounded-xl border border-primary/40 bg-primary/5 p-3">
+                              <p className="flex items-center gap-1.5 text-sm font-medium"><GitPullRequest className="size-4 text-primary" aria-hidden />Hand this to Claude Code</p>
+                              <p className="mt-1 whitespace-pre-wrap text-xs text-muted-foreground">{proposal.request.length > 600 ? `${proposal.request.slice(0, 600)}…` : proposal.request}</p>
+                              {openedPrs[key] ? (
+                                <a href={openedPrs[key]} target="_blank" rel="noreferrer" className="mt-2 inline-flex items-center gap-1 text-xs text-primary hover:underline">Follow it on GitHub <ExternalLink className="size-3" aria-hidden /></a>
+                              ) : (
+                                <Button type="button" size="sm" className="mt-2" disabled={Boolean(state)} onClick={() => { void approveProposal(key, proposal); }}>{state === "building" ? "Sending…" : "Approve and send to Claude Code"}</Button>
+                              )}
+                              <p className="mt-1 text-[11px] text-muted-foreground">Claude Code works on its own branch and opens a pull request. Nothing merges until you merge it.</p>
                             </div>
                           );
                         }

@@ -43,7 +43,38 @@ describe("parseActions", () => {
       [{ id: "code.read", args: { paths: ["src/a.ts", "src/b.ts", "src/c.ts", "bad path;rm"], line: -5 } }],
       TOOLS,
     );
-    expect(parsed.reads).toEqual([{ id: "code.read", paths: ["src/a.ts", "src/b.ts"], line: 1 }]);
+    expect(parsed.reads).toEqual([{ id: "code.read", paths: ["src/a.ts", "src/b.ts", "src/c.ts"], line: 1 }]);
+  });
+
+  it("searches code and lists folders without traversal", () => {
+    const parsed = parseActions(
+      [
+        { id: "code.search", args: { query: "getPlatformMetrics" } },
+        { id: "code.list", args: { dir: "/src/lib/", page: 2 } },
+        { id: "code.list", args: { dir: "src/../.." } },
+      ],
+      TOOLS,
+    );
+    expect(parsed.reads).toEqual([
+      { id: "code.search", query: "getPlatformMetrics" },
+      { id: "code.list", page: 2, dir: "src/lib" },
+      { id: "code.list", page: 1, dir: null },
+    ]);
+  });
+
+  it("hands large tasks to Claude Code only as an approvable proposal", () => {
+    const parsed = parseActions(
+      [
+        { id: "claude.code", args: { request: "Add a pricing FAQ with FAQPage schema to /pricing and test it." } },
+        { id: "claude.code", args: { request: "fix" } },
+      ],
+      TOOLS,
+    );
+    expect(parsed.reads).toEqual([]);
+    expect(parsed.proposals).toEqual([{ id: "claude.code", request: "Add a pricing FAQ with FAQPage schema to /pricing and test it." }]);
+    expect(parsed.rejected[0]).toMatch(/claude.code/);
+    const stored = appendReplyMeta("Sure.", { ran: [], proposals: parsed.proposals });
+    expect(splitReplyMeta(stored).meta.proposals).toEqual(parsed.proposals);
   });
 
   it("never runs writes: demo builds become validated proposals", () => {
@@ -103,7 +134,7 @@ describe("pull request proposals", () => {
   });
 
   it("refuses CI workflows, generated files, secrets and traversal", () => {
-    for (const path of [".github/workflows/ci.yml", "src/routeTree.gen.ts", ".env", "src/../.env", "package.json"]) {
+    for (const path of [".github/workflows/ci.yml", "src/routeTree.gen.ts", ".env", "src/../.env", "package.json", "vite.config.ts", "cloudflare/worker.ts"]) {
       expect(() => parsePullRequestProposal({ ...valid, changes: [{ path, content: "x" }] })).toThrow(/can't change/);
     }
   });

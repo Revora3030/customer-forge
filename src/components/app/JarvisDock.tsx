@@ -63,7 +63,7 @@ export function JarvisDock() {
   const [open, setOpen] = useState(false);
   const [prefs, setPrefs] = useState<Prefs>({ voice: false, autoBrief: false });
   const [text, setText] = useState("");
-  const [reply, setReply] = useState<{ body: string; followups: string[] } | null>(null);
+  const [reply, setReply] = useState<{ body: string; followups: string[]; proposals: number } | null>(null);
   const [listening, setListening] = useState(false);
   const recognition = useRef<Recognition | null>(null);
   const unlocked = useRef(false);
@@ -116,8 +116,8 @@ export function JarvisDock() {
   const ask = useMutation({
     mutationFn: (message: string) => send({ data: { message, mode: "brief", page } }),
     onSuccess: async (result) => {
-      const body = splitReplyMeta(result.reply).body;
-      setReply({ body, followups: result.followups ?? [] });
+      const { body, meta } = splitReplyMeta(result.reply);
+      setReply({ body, followups: result.followups ?? [], proposals: meta.proposals.length });
       void qc.invalidateQueries({ queryKey: ["jarvis", "history"] });
       if (prefs.voice) {
         const clean = speakableText(body);
@@ -288,6 +288,14 @@ export function JarvisDock() {
                 <div className="text-[13px]">
                   <JarvisMarkdown>{reply.body}</JarvisMarkdown>
                 </div>
+                {reply.proposals ? (
+                  <Link
+                    to="/admin/jarvis"
+                    className="block rounded-md border border-primary/40 bg-primary/5 px-2.5 py-1.5 text-[12px] font-medium text-primary hover:underline"
+                  >
+                    Jarvis proposed {reply.proposals === 1 ? "an action" : `${reply.proposals} actions`} (a pull request, Claude Code task or build). Open full Jarvis to review and approve.
+                  </Link>
+                ) : null}
                 {reply.followups.length ? (
                   <div className="flex flex-wrap gap-1.5">
                     {reply.followups.map((followup) => (
