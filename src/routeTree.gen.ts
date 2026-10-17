@@ -90,6 +90,7 @@ import { Route as AuthenticatedMyIndexRouteImport } from './routes/_authenticate
 import { Route as AuthenticatedMyActivityRouteImport } from './routes/_authenticated/my.activity'
 import { Route as AuthenticatedMySiteRouteImport } from './routes/_authenticated/my.site'
 import { Route as AuthenticatedMyStartRouteImport } from './routes/_authenticated/my.start'
+import { Route as ApiPublicJarvisVoiceRouteImport } from './routes/api/public/jarvis-voice'
 import { Route as LocalIndustryIndexRouteImport } from './routes/local.$industry.index'
 import { Route as LocalIndustryStateRouteImport } from './routes/local.$industry.$state'
 import { Route as PTokenPageRouteImport } from './routes/p.$token_.$page'
@@ -100,7 +101,6 @@ import { Route as ApiPublicJobsBackupRouteImport } from './routes/api/public/job
 import { Route as ApiPublicJobsLeadReminderRouteImport } from './routes/api/public/jobs/lead-reminder'
 import { Route as ApiPublicJobsLifecycleEmailRouteImport } from './routes/api/public/jobs/lifecycle-email'
 import { Route as ApiPublicJobsMediaCleanupRouteImport } from './routes/api/public/jobs/media-cleanup'
-import { Route as ApiPublicJarvisVoiceRouteImport } from './routes/api/public/jarvis-voice'
 import { Route as ApiPublicJobsSiteEngineRouteImport } from './routes/api/public/jobs/site-engine'
 import { Route as ApiPublicJobsSiteHealthRouteImport } from './routes/api/public/jobs/site-health'
 import { Route as ApiPublicJobsWeeklyReportRouteImport } from './routes/api/public/jobs/weekly-report'
@@ -530,6 +530,11 @@ const AuthenticatedMyStartRoute = AuthenticatedMyStartRouteImport.update({
   path: '/start',
   getParentRoute: () => AuthenticatedMyRoute,
 } as any)
+const ApiPublicJarvisVoiceRoute = ApiPublicJarvisVoiceRouteImport.update({
+  id: '/api/public/jarvis-voice',
+  path: '/api/public/jarvis-voice',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LocalIndustryIndexRoute = LocalIndustryIndexRouteImport.update({
   id: '/local/$industry/',
   path: '/local/$industry/',
@@ -583,12 +588,6 @@ const ApiPublicJobsMediaCleanupRoute =
   ApiPublicJobsMediaCleanupRouteImport.update({
     id: '/api/public/jobs/media-cleanup',
     path: '/api/public/jobs/media-cleanup',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const ApiPublicJarvisVoiceRoute =
-  ApiPublicJarvisVoiceRouteImport.update({
-    id: '/api/public/jarvis-voice',
-    path: '/api/public/jarvis-voice',
     getParentRoute: () => rootRouteImport,
   } as any)
 const ApiPublicJobsSiteEngineRoute = ApiPublicJobsSiteEngineRouteImport.update({
@@ -708,6 +707,7 @@ export interface FileRoutesByFullPath {
   '/my/activity': typeof AuthenticatedMyActivityRoute
   '/my/site': typeof AuthenticatedMySiteRoute
   '/my/start': typeof AuthenticatedMyStartRoute
+  '/api/public/jarvis-voice': typeof ApiPublicJarvisVoiceRoute
   '/local/$industry/$state': typeof LocalIndustryStateRoute
   '/p/$token/$page': typeof PTokenPageRoute
   '/s/$slug/$page': typeof SSlugPageRoute
@@ -721,7 +721,6 @@ export interface FileRoutesByFullPath {
   '/api/public/jobs/lead-reminder': typeof ApiPublicJobsLeadReminderRoute
   '/api/public/jobs/lifecycle-email': typeof ApiPublicJobsLifecycleEmailRoute
   '/api/public/jobs/media-cleanup': typeof ApiPublicJobsMediaCleanupRoute
-  '/api/public/jarvis-voice': typeof ApiPublicJarvisVoiceRoute
   '/api/public/jobs/site-engine': typeof ApiPublicJobsSiteEngineRoute
   '/api/public/jobs/site-health': typeof ApiPublicJobsSiteHealthRoute
   '/api/public/jobs/weekly-report': typeof ApiPublicJobsWeeklyReportRoute
@@ -803,6 +802,7 @@ export interface FileRoutesByTo {
   '/my/activity': typeof AuthenticatedMyActivityRoute
   '/my/site': typeof AuthenticatedMySiteRoute
   '/my/start': typeof AuthenticatedMyStartRoute
+  '/api/public/jarvis-voice': typeof ApiPublicJarvisVoiceRoute
   '/local/$industry/$state': typeof LocalIndustryStateRoute
   '/p/$token/$page': typeof PTokenPageRoute
   '/s/$slug/$page': typeof SSlugPageRoute
@@ -816,7 +816,6 @@ export interface FileRoutesByTo {
   '/api/public/jobs/lead-reminder': typeof ApiPublicJobsLeadReminderRoute
   '/api/public/jobs/lifecycle-email': typeof ApiPublicJobsLifecycleEmailRoute
   '/api/public/jobs/media-cleanup': typeof ApiPublicJobsMediaCleanupRoute
-  '/api/public/jarvis-voice': typeof ApiPublicJarvisVoiceRoute
   '/api/public/jobs/site-engine': typeof ApiPublicJobsSiteEngineRoute
   '/api/public/jobs/site-health': typeof ApiPublicJobsSiteHealthRoute
   '/api/public/jobs/weekly-report': typeof ApiPublicJobsWeeklyReportRoute
@@ -905,6 +904,7 @@ export interface FileRoutesById {
   '/_authenticated/my/activity': typeof AuthenticatedMyActivityRoute
   '/_authenticated/my/site': typeof AuthenticatedMySiteRoute
   '/_authenticated/my/start': typeof AuthenticatedMyStartRoute
+  '/api/public/jarvis-voice': typeof ApiPublicJarvisVoiceRoute
   '/local/$industry/$state': typeof LocalIndustryStateRoute
   '/p/$token_/$page': typeof PTokenPageRoute
   '/s/$slug/$page': typeof SSlugPageRoute
@@ -918,7 +918,6 @@ export interface FileRoutesById {
   '/api/public/jobs/lead-reminder': typeof ApiPublicJobsLeadReminderRoute
   '/api/public/jobs/lifecycle-email': typeof ApiPublicJobsLifecycleEmailRoute
   '/api/public/jobs/media-cleanup': typeof ApiPublicJobsMediaCleanupRoute
-  '/api/public/jarvis-voice': typeof ApiPublicJarvisVoiceRoute
   '/api/public/jobs/site-engine': typeof ApiPublicJobsSiteEngineRoute
   '/api/public/jobs/site-health': typeof ApiPublicJobsSiteHealthRoute
   '/api/public/jobs/weekly-report': typeof ApiPublicJobsWeeklyReportRoute
@@ -1007,6 +1006,7 @@ export interface FileRouteTypes {
     | '/my/activity'
     | '/my/site'
     | '/my/start'
+    | '/api/public/jarvis-voice'
     | '/local/$industry/$state'
     | '/p/$token/$page'
     | '/s/$slug/$page'
@@ -1020,7 +1020,6 @@ export interface FileRouteTypes {
     | '/api/public/jobs/lead-reminder'
     | '/api/public/jobs/lifecycle-email'
     | '/api/public/jobs/media-cleanup'
-    | '/api/public/jarvis-voice'
     | '/api/public/jobs/site-engine'
     | '/api/public/jobs/site-health'
     | '/api/public/jobs/weekly-report'
@@ -1102,6 +1101,7 @@ export interface FileRouteTypes {
     | '/my/activity'
     | '/my/site'
     | '/my/start'
+    | '/api/public/jarvis-voice'
     | '/local/$industry/$state'
     | '/p/$token/$page'
     | '/s/$slug/$page'
@@ -1115,7 +1115,6 @@ export interface FileRouteTypes {
     | '/api/public/jobs/lead-reminder'
     | '/api/public/jobs/lifecycle-email'
     | '/api/public/jobs/media-cleanup'
-    | '/api/public/jarvis-voice'
     | '/api/public/jobs/site-engine'
     | '/api/public/jobs/site-health'
     | '/api/public/jobs/weekly-report'
@@ -1203,6 +1202,7 @@ export interface FileRouteTypes {
     | '/_authenticated/my/activity'
     | '/_authenticated/my/site'
     | '/_authenticated/my/start'
+    | '/api/public/jarvis-voice'
     | '/local/$industry/$state'
     | '/p/$token_/$page'
     | '/s/$slug/$page'
@@ -1216,7 +1216,6 @@ export interface FileRouteTypes {
     | '/api/public/jobs/lead-reminder'
     | '/api/public/jobs/lifecycle-email'
     | '/api/public/jobs/media-cleanup'
-    | '/api/public/jarvis-voice'
     | '/api/public/jobs/site-engine'
     | '/api/public/jobs/site-health'
     | '/api/public/jobs/weekly-report'
@@ -1264,6 +1263,7 @@ export interface RootRouteChildren {
   LocalIndexRoute: typeof LocalIndexRoute
   LocationsIndexRoute: typeof LocationsIndexRoute
   StatesIndexRoute: typeof StatesIndexRoute
+  ApiPublicJarvisVoiceRoute: typeof ApiPublicJarvisVoiceRoute
   LocalIndustryStateRoute: typeof LocalIndustryStateRoute
   PTokenPageRoute: typeof PTokenPageRoute
   LocalIndustryIndexRoute: typeof LocalIndustryIndexRoute
@@ -1271,7 +1271,6 @@ export interface RootRouteChildren {
   ApiPublicJobsLeadReminderRoute: typeof ApiPublicJobsLeadReminderRoute
   ApiPublicJobsLifecycleEmailRoute: typeof ApiPublicJobsLifecycleEmailRoute
   ApiPublicJobsMediaCleanupRoute: typeof ApiPublicJobsMediaCleanupRoute
-  ApiPublicJarvisVoiceRoute: typeof ApiPublicJarvisVoiceRoute
   ApiPublicJobsSiteEngineRoute: typeof ApiPublicJobsSiteEngineRoute
   ApiPublicJobsSiteHealthRoute: typeof ApiPublicJobsSiteHealthRoute
   ApiPublicJobsWeeklyReportRoute: typeof ApiPublicJobsWeeklyReportRoute
@@ -1850,6 +1849,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedMyStartRouteImport
       parentRoute: typeof AuthenticatedMyRoute
     }
+    '/api/public/jarvis-voice': {
+      id: '/api/public/jarvis-voice'
+      path: '/api/public/jarvis-voice'
+      fullPath: '/api/public/jarvis-voice'
+      preLoaderRoute: typeof ApiPublicJarvisVoiceRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/local/$industry/': {
       id: '/local/$industry/'
       path: '/local/$industry'
@@ -1918,13 +1924,6 @@ declare module '@tanstack/react-router' {
       path: '/api/public/jobs/media-cleanup'
       fullPath: '/api/public/jobs/media-cleanup'
       preLoaderRoute: typeof ApiPublicJobsMediaCleanupRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/public/jarvis-voice': {
-      id: '/api/public/jarvis-voice'
-      path: '/api/public/jarvis-voice'
-      fullPath: '/api/public/jarvis-voice'
-      preLoaderRoute: typeof ApiPublicJarvisVoiceRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/public/jobs/site-engine': {
@@ -2198,6 +2197,7 @@ const rootRouteChildren: RootRouteChildren = {
   LocalIndexRoute: LocalIndexRoute,
   LocationsIndexRoute: LocationsIndexRoute,
   StatesIndexRoute: StatesIndexRoute,
+  ApiPublicJarvisVoiceRoute: ApiPublicJarvisVoiceRoute,
   LocalIndustryStateRoute: LocalIndustryStateRoute,
   PTokenPageRoute: PTokenPageRoute,
   LocalIndustryIndexRoute: LocalIndustryIndexRoute,
@@ -2205,7 +2205,6 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicJobsLeadReminderRoute: ApiPublicJobsLeadReminderRoute,
   ApiPublicJobsLifecycleEmailRoute: ApiPublicJobsLifecycleEmailRoute,
   ApiPublicJobsMediaCleanupRoute: ApiPublicJobsMediaCleanupRoute,
-  ApiPublicJarvisVoiceRoute: ApiPublicJarvisVoiceRoute,
   ApiPublicJobsSiteEngineRoute: ApiPublicJobsSiteEngineRoute,
   ApiPublicJobsSiteHealthRoute: ApiPublicJobsSiteHealthRoute,
   ApiPublicJobsWeeklyReportRoute: ApiPublicJobsWeeklyReportRoute,
