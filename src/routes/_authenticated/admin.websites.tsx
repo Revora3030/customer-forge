@@ -27,6 +27,7 @@ export const Route = createFileRoute("/_authenticated/admin/websites")({
 function useAllRequests() {
   return useQuery({
     queryKey: ["website_requests", "all"],
+    refetchInterval: 60_000,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("website_requests")
@@ -41,6 +42,7 @@ function useAllRequests() {
 function useWebsiteStates() {
   return useQuery({
     queryKey: ["admin_website_states"],
+    refetchInterval: 60_000,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("website_settings")

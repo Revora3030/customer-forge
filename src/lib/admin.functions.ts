@@ -3,9 +3,15 @@ import type { Database } from "@/integrations/supabase/types";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { NewClientInput } from "@/lib/admin-types";
 import { fetchAllRows } from "@/lib/paginate";
+import { netRevenue } from "@/lib/monthly-report";
 
 type SubscriptionStatus = Database["public"]["Enums"]["subscription_status"];
 type PublishState = Database["public"]["Enums"]["publish_state"];
+
+// Untyped query builder for helpers that page through several tables the
+// same way.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type LooseQuery = any;
 
 /** Platform-wide metrics for the super admin dashboard. */
 export const getPlatformMetrics = createServerFn({ method: "GET" })
@@ -16,9 +22,24 @@ export const getPlatformMetrics = createServerFn({ method: "GET" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const since = new Date(Date.now() - 30 * 86_400_000).toISOString();
 
-    const [orgs, sites, leads, appts, plans] = await Promise.all([
-      supabaseAdmin.from("organizations").select("id, subscription_status, is_suspended, plan_id"),
-      supabaseAdmin.from("website_settings").select("publish_state, domain_status"),
+    // Every row is read (no silent 1,000-row cap), demo workspaces are left
+    // out, and a failed read throws so the page says so instead of showing 0.
+    const [orgs, sites, leads, appts, plans, subs] = await Promise.all([
+      fetchAllRows<{ id: string; subscription_status: string; is_suspended: boolean; is_demo: boolean; plan_id: string | null }>(
+        (from, to) =>
+          supabaseAdmin
+            .from("organizations")
+            .select("id, subscription_status, is_suspended, is_demo, plan_id")
+            .order("id")
+            .range(from, to),
+      ),
+      fetchAllRows<{ organization_id: string; publish_state: string; domain_status: string | null }>((from, to) =>
+        supabaseAdmin
+          .from("website_settings")
+          .select("organization_id, publish_state, domain_status")
+          .order("organization_id")
+          .range(from, to),
+      ),
       supabaseAdmin
         .from("leads")
         .select("id", { count: "exact", head: true })
@@ -27,27 +48,53 @@ export const getPlatformMetrics = createServerFn({ method: "GET" })
         .from("appointments")
         .select("id", { count: "exact", head: true })
         .gte("created_at", since),
-      supabaseAdmin.from("plans").select("id, monthly_price"),
+      supabaseAdmin.from("plans").select("id, monthly_price, annual_price"),
+      // Recurring revenue is what live Stripe subscriptions bill, not what an
+      // organization's status field says.
+      fetchAllRows<{ organization_id: string; plan_id: string | null; billing_interval: string | null; cancel_at_period_end: boolean | null }>(
+        (from, to) =>
+          supabaseAdmin
+            .from("subscriptions")
+            .select("organization_id, plan_id, billing_interval, cancel_at_period_end")
+            .eq("environment", "live")
+            .eq("status", "active")
+            .order("organization_id")
+            .range(from, to),
+      ),
     ]);
+    const failed = [orgs.error, sites.error, leads.error, appts.error, plans.error, subs.error].find(Boolean);
+    if (failed) throw new Error("Couldn't read the platform numbers just now. Refresh in a moment.");
 
-    const orgRows = orgs.data ?? [];
-    const priceOf = (id: string | null) =>
-      Number((plans.data ?? []).find((p) => p.id === id)?.monthly_price ?? 0);
+    const orgRows = orgs.rows.filter((o) => !o.is_demo);
+    const real = new Map(orgRows.map((o) => [o.id, o]));
+    const siteRows = sites.rows.filter((s) => real.has(s.organization_id));
+    const plan = (id: string | null) => (plans.data ?? []).find((p) => p.id === id);
+    const monthlyValue = (sub: { plan_id: string | null; billing_interval: string | null }, orgPlan: string | null) => {
+      const row = plan(sub.plan_id) ?? plan(orgPlan);
+      if (!row) return 0;
+      return /year|annual/i.test(sub.billing_interval ?? "") ? Number(row.annual_price ?? 0) / 12 : Number(row.monthly_price ?? 0);
+    };
+    // One paying subscription per workspace; a subscription set to cancel at
+    // period end is no longer recurring.
+    const paying = new Map<string, number>();
+    for (const sub of subs.rows) {
+      const org = real.get(sub.organization_id);
+      if (!org || org.is_suspended || sub.cancel_at_period_end || paying.has(sub.organization_id)) continue;
+      paying.set(sub.organization_id, monthlyValue(sub, org.plan_id));
+    }
 
     return {
       clients: orgRows.length,
-      active: orgRows.filter((o) => o.subscription_status === "active" && !o.is_suspended).length,
+      active: paying.size,
       suspended: orgRows.filter((o) => o.is_suspended).length,
       trialing: orgRows.filter((o) => o.subscription_status === "trialing").length,
-      published: (sites.data ?? []).filter((s) => s.publish_state === "published").length,
-      domainsLive: (sites.data ?? []).filter(
+      published: siteRows.filter((s) => s.publish_state === "published").length,
+      domainsLive: siteRows.filter(
         (s) => s.domain_status === "connected" || s.domain_status === "ssl_active",
       ).length,
       leads30d: leads.count ?? 0,
       bookings30d: appts.count ?? 0,
-      mrr: orgRows
-        .filter((o) => o.subscription_status === "active" && !o.is_suspended)
-        .reduce((sum, o) => sum + priceOf(o.plan_id), 0),
+      mrr: Math.round([...paying.values()].reduce((sum, value) => sum + value, 0) * 100) / 100,
     };
   });
 
@@ -71,69 +118,72 @@ export const listClients = createServerFn({ method: "GET" })
     const ids = (orgs ?? []).map((o) => o.id);
     if (!ids.length) return [];
 
+    // `ids` is every workspace, so each table is read whole, page by page.
+    // An unpaged read stops at 1,000 rows shared by ALL clients and quietly
+    // undercounts most of them.
+    const all = <T,>(table: string, columns: string, filter: (q: LooseQuery) => LooseQuery = (q) => q) =>
+      fetchAllRows<T>((from, to) =>
+        filter((supabaseAdmin as LooseQuery).from(table).select(columns)).order("id").range(from, to),
+      );
     const [profiles, sites, services, media, forms, leads, appts, events, subs, pays] =
       await Promise.all([
-        supabaseAdmin.from("business_profiles").select("*").in("organization_id", ids),
-        supabaseAdmin.from("website_settings").select("*").in("organization_id", ids),
-        supabaseAdmin
-          .from("services")
-          .select("organization_id, bookable, is_active")
-          .in("organization_id", ids),
-        supabaseAdmin.from("media").select("organization_id").in("organization_id", ids),
-        supabaseAdmin
-          .from("quote_forms")
-          .select("organization_id, is_active")
-          .in("organization_id", ids),
-        supabaseAdmin.from("leads").select("organization_id").in("organization_id", ids),
-        supabaseAdmin.from("appointments").select("organization_id").in("organization_id", ids),
-        // Read every event: a fixed ceiling silently understates readiness.
-        fetchAllRows<{ organization_id: string }>((from, to) =>
-          supabaseAdmin
-            .from("analytics_events")
-            .select("organization_id")
-            .in("organization_id", ids)
-            .range(from, to),
+        all<LooseQuery>("business_profiles", "*"),
+        all<LooseQuery>("website_settings", "*"),
+        all<{ organization_id: string; bookable: boolean; is_active: boolean }>(
+          "services",
+          "organization_id, bookable, is_active",
         ),
+        all<{ organization_id: string }>("media", "organization_id"),
+        all<{ organization_id: string; is_active: boolean }>("quote_forms", "organization_id, is_active"),
+        all<{ organization_id: string }>("leads", "organization_id"),
+        all<{ organization_id: string }>("appointments", "organization_id"),
+        all<{ organization_id: string }>("analytics_events", "organization_id"),
         // Financial truth is LIVE Stripe only.
-        supabaseAdmin
-          .from("subscriptions")
-          .select(
-            "organization_id, status, provider_customer_id, provider_subscription_id, current_period_end, cancel_at_period_end, price_id",
-          )
-          .in("organization_id", ids)
-          .eq("payment_provider", "stripe")
-          .eq("environment", "live"),
-        supabaseAdmin
-          .from("payments")
-          .select("organization_id, amount, status")
-          .in("organization_id", ids)
-          .eq("environment", "live"),
+        all<{
+          organization_id: string;
+          status: string;
+          provider_customer_id: string | null;
+          provider_subscription_id: string | null;
+          current_period_end: string | null;
+          cancel_at_period_end: boolean | null;
+          price_id: string | null;
+        }>(
+          "subscriptions",
+          "organization_id, status, provider_customer_id, provider_subscription_id, current_period_end, cancel_at_period_end, price_id",
+          (q) => q.eq("payment_provider", "stripe").eq("environment", "live"),
+        ),
+        all<{ organization_id: string; amount: number; status: string; refunded_amount: number | null; created_at: string }>(
+          "payments",
+          "organization_id, amount, status, refunded_amount, created_at",
+          (q) => q.eq("environment", "live"),
+        ),
       ]);
+    if ([profiles, sites, services, media, forms, leads, appts, events, subs, pays].some((r) => r.error))
+      throw new Error("Couldn't read every client's numbers just now. Refresh in a moment.");
 
     const countBy = (rows: { organization_id: string }[] | null, id: string) =>
       (rows ?? []).filter((r) => r.organization_id === id).length;
 
     return (orgs ?? []).map((org) => {
-      const profile = (profiles.data ?? []).find((p) => p.organization_id === org.id) ?? null;
-      const settings = (sites.data ?? []).find((s) => s.organization_id === org.id) ?? null;
-      const orgServices = (services.data ?? []).filter((s) => s.organization_id === org.id);
+      const profile = profiles.rows.find((p) => p.organization_id === org.id) ?? null;
+      const settings = sites.rows.find((s) => s.organization_id === org.id) ?? null;
+      const orgServices = services.rows.filter((s) => s.organization_id === org.id);
       const score = readiness({
         profile,
         settings,
         servicesCount: orgServices.filter((s) => s.is_active).length,
         bookableCount: orgServices.filter((s) => s.bookable && s.is_active).length,
-        mediaCount: countBy(media.data, org.id),
-        quoteFormCount: (forms.data ?? []).filter(
+        mediaCount: countBy(media.rows, org.id),
+        quoteFormCount: forms.rows.filter(
           (f) => f.organization_id === org.id && f.is_active,
         ).length,
         analyticsCount: countBy(events.rows, org.id),
       }).score;
 
-      const sub = (subs.data ?? []).find((s) => s.organization_id === org.id) ?? null;
-      const orgPayments = (pays.data ?? []).filter((p) => p.organization_id === org.id);
-      const paidTotal = orgPayments
-        .filter((p) => p.status === "completed")
-        .reduce((sum, p) => sum + Number(p.amount), 0);
+      const sub = subs.rows.find((s) => s.organization_id === org.id) ?? null;
+      const orgPayments = pays.rows.filter((p) => p.organization_id === org.id);
+      // Money kept: collected payments minus refunds (partial ones too).
+      const paidTotal = orgPayments.reduce((sum, p) => sum + netRevenue(p).net, 0);
 
       return {
         id: org.id,
@@ -166,8 +216,8 @@ export const listClients = createServerFn({ method: "GET" })
         paid_total: paidTotal,
         payment_count: orgPayments.length,
 
-        leads: countBy(leads.data, org.id),
-        appointments: countBy(appts.data, org.id),
+        leads: countBy(leads.rows, org.id),
+        appointments: countBy(appts.rows, org.id),
         readinessScore: score,
       };
     });
@@ -211,7 +261,9 @@ export const getClientDetail = createServerFn({ method: "GET" })
       supabaseAdmin.from("website_settings").select("*").eq("organization_id", id).maybeSingle(),
       supabaseAdmin.from("social_profiles").select("*").eq("organization_id", id).maybeSingle(),
       supabaseAdmin.from("services").select("*").eq("organization_id", id).order("sort_order"),
-      supabaseAdmin.from("media").select("id, url").eq("organization_id", id),
+      fetchAllRows<{ id: string; url: string }>((from, to) =>
+        supabaseAdmin.from("media").select("id, url").eq("organization_id", id).order("id").range(from, to),
+      ),
       supabaseAdmin
         .from("website_pages")
         .select("id, slug, title, kind, is_visible")
@@ -224,14 +276,17 @@ export const getClientDetail = createServerFn({ method: "GET" })
         .eq("organization_id", id)
         .order("version", { ascending: false })
         .limit(5),
-      supabaseAdmin
-        .from("quote_requests")
-        .select("id, created_at")
-        .eq("organization_id", id)
-        .limit(5000),
+      fetchAllRows<{ id: string; created_at: string }>((from, to) =>
+        supabaseAdmin.from("quote_requests").select("id, created_at").eq("organization_id", id).order("id").range(from, to),
+      ),
       supabaseAdmin.from("quote_forms").select("id, is_active").eq("organization_id", id),
-      supabaseAdmin.from("leads").select("id, status, created_at").eq("organization_id", id),
-      supabaseAdmin.from("appointments").select("id, status, starts_at").eq("organization_id", id),
+      // Every lead and booking: a client past 1,000 must not read "1000".
+      fetchAllRows<{ id: string; status: string; created_at: string }>((from, to) =>
+        supabaseAdmin.from("leads").select("id, status, created_at").eq("organization_id", id).order("id").range(from, to),
+      ),
+      fetchAllRows<{ id: string; status: string; starts_at: string }>((from, to) =>
+        supabaseAdmin.from("appointments").select("id, status, starts_at").eq("organization_id", id).order("id").range(from, to),
+      ),
       fetchAllRows<{ id: string; event_type: string; created_at: string }>((from, to) =>
         supabaseAdmin
           .from("analytics_events")
@@ -259,7 +314,10 @@ export const getClientDetail = createServerFn({ method: "GET" })
         .limit(20),
     ]);
 
+    if (org.error) throw new Error("Couldn't load this client just now. Refresh in a moment.");
     if (!org.data) throw new Error("That client no longer exists.");
+    if ([media, quoteRequests, leads, appts, events].some((result) => result.error))
+      throw new Error("Couldn't read all of this client's activity just now. Refresh in a moment.");
 
     return {
       org: org.data,
@@ -267,15 +325,15 @@ export const getClientDetail = createServerFn({ method: "GET" })
       settings: settings.data,
       social: social.data,
       services: services.data ?? [],
-      mediaCount: (media.data ?? []).length,
+      mediaCount: media.rows.length,
       quoteFormCount: (forms.data ?? []).filter((f) => f.is_active).length,
-      leads: leads.data ?? [],
-      appointments: appts.data ?? [],
+      leads: leads.rows ?? [],
+      appointments: appts.rows ?? [],
       analyticsCount: events.rows.length,
       usage: (() => {
         const eventRows = events.rows;
-        const leadRows = leads.data ?? [];
-        const apptRows = appts.data ?? [];
+        const leadRows = leads.rows ?? [];
+        const apptRows = appts.rows ?? [];
         const days = Array.from({ length: 30 }, (_, i) =>
           new Date(Date.now() - (29 - i) * 86_400_000).toISOString().slice(0, 10),
         );
@@ -297,10 +355,10 @@ export const getClientDetail = createServerFn({ method: "GET" })
             sections: (sectionRows.data ?? []).filter((s) => s.page_id === page.id).length,
           })),
           versions: versions.data ?? [],
-          quoteRequests30d: (quoteRequests.data ?? []).filter(
+          quoteRequests30d: quoteRequests.rows.filter(
             (row) => new Date(row.created_at).getTime() >= now - 30 * 86_400_000,
           ).length,
-          quoteRequestsTotal: (quoteRequests.data ?? []).length,
+          quoteRequestsTotal: quoteRequests.rows.length,
           leads30d: leadRows.filter(
             (row) => new Date(row.created_at).getTime() >= now - 30 * 86_400_000,
           ).length,
@@ -625,39 +683,57 @@ export const getMonthlyBusinessReport = createServerFn({ method: "GET" })
     const months = recentMonths(data.months);
     const since = windowStart(months);
 
+    // Every row in the window is read, live money only, and a failed read
+    // throws so the report says it couldn't load instead of showing $0.
+    const page = <T,>(build: () => LooseQuery) =>
+      fetchAllRows<T>((from, to) => build().order("id").range(from, to));
     const [payments, leads, bookings, traffic, orgs, sites] = await Promise.all([
-      supabaseAdmin
-        .from("payments")
-        .select("organization_id, amount, status, refunded_amount, completed_at, created_at")
-        .gte("created_at", since),
-      supabaseAdmin.from("leads").select("organization_id, created_at").gte("created_at", since),
-      supabaseAdmin
-        .from("appointments")
-        .select("organization_id, created_at")
-        .gte("created_at", since),
-      supabaseAdmin
-        .from("analytics_events")
-        .select("organization_id, created_at, session_id, event_type")
-        .eq("event_type", "page_view")
-        .gte("created_at", since),
-      supabaseAdmin
-        .from("organizations")
-        .select("id, name, slug, industry, subscription_status, is_suspended, is_demo, created_at"),
-      supabaseAdmin
-        .from("website_settings")
-        .select("organization_id, publish_state, custom_domain"),
+      // Bucketed by completion month, so a checkout created just before the
+      // window but completed inside it still counts.
+      page<{ organization_id: string | null; amount: number; status: string; refunded_amount: number | null; completed_at: string | null; created_at: string }>(
+        () =>
+          supabaseAdmin
+            .from("payments")
+            .select("id, organization_id, amount, status, refunded_amount, completed_at, created_at")
+            .eq("environment", "live")
+            .or(`created_at.gte.${since},completed_at.gte.${since}`),
+      ),
+      page<{ organization_id: string | null; created_at: string }>(() =>
+        supabaseAdmin.from("leads").select("id, organization_id, created_at").gte("created_at", since),
+      ),
+      page<{ organization_id: string | null; created_at: string }>(() =>
+        supabaseAdmin.from("appointments").select("id, organization_id, created_at").gte("created_at", since),
+      ),
+      page<{ organization_id: string | null; created_at: string; session_id: string | null; event_type: string }>(() =>
+        supabaseAdmin
+          .from("analytics_events")
+          .select("id, organization_id, created_at, session_id, event_type")
+          .eq("event_type", "page_view")
+          .gte("created_at", since),
+      ),
+      page<{ id: string; name: string; slug: string; industry: string | null; subscription_status: string; is_suspended: boolean; is_demo: boolean; created_at: string }>(
+        () =>
+          supabaseAdmin
+            .from("organizations")
+            .select("id, name, slug, industry, subscription_status, is_suspended, is_demo, created_at"),
+      ),
+      page<{ organization_id: string; publish_state: string; custom_domain: string | null }>(() =>
+        supabaseAdmin.from("website_settings").select("id, organization_id, publish_state, custom_domain"),
+      ),
     ]);
+    if ([payments, leads, bookings, traffic, orgs, sites].some((result) => result.error))
+      throw new Error("Couldn't read the monthly numbers just now. Refresh in a moment.");
 
     const report = buildMonthlyReport({
       months,
-      payments: payments.data ?? [],
-      leads: leads.data ?? [],
-      bookings: bookings.data ?? [],
-      traffic: traffic.data ?? [],
+      payments: payments.rows,
+      leads: leads.rows,
+      bookings: bookings.rows,
+      traffic: traffic.rows,
     });
 
-    const orgRows = orgs.data ?? [];
-    const siteRows = sites.data ?? [];
+    const orgRows = orgs.rows;
+    const siteRows = sites.rows;
     const workspaces = Object.fromEntries(
       orgRows.map((org) => {
         const site = siteRows.find((s) => s.organization_id === org.id);
@@ -799,9 +875,55 @@ export const getPlatformActivity = createServerFn({ method: "GET" })
         .limit(cap),
     ]);
 
+    if ([orgs, leads, appts, payments, versions].some((result) => result.error))
+      throw new Error("Couldn't load recent activity just now.");
     const orgRows = orgs.data ?? [];
-    const demoIds = new Set(orgRows.filter((o) => o.is_demo).map((o) => o.id));
-    const names = new Map(orgRows.map((o) => [o.id, o.name]));
+
+    // Names and demo flags for every workspace that appears in the feed, not
+    // only workspaces created in the window, so older clients aren't
+    // "Unknown business" and old demo workspaces stay filtered out.
+    const referenced = [
+      ...new Set(
+        [...(leads.data ?? []), ...(appts.data ?? []), ...(payments.data ?? []), ...(versions.data ?? [])]
+          .map((row) => row.organization_id)
+          .filter((value): value is string => Boolean(value)),
+      ),
+    ];
+    const [owners, demos] = await Promise.all([
+      referenced.length
+        ? supabaseAdmin.from("organizations").select("id, name, is_demo").in("id", referenced)
+        : Promise.resolve({ data: [] as { id: string; name: string; is_demo: boolean }[], error: null }),
+      fetchAllRows<{ id: string }>((from, to) =>
+        supabaseAdmin.from("organizations").select("id").eq("is_demo", true).order("id").range(from, to),
+      ),
+    ]);
+    if (owners.error || demos.error) throw new Error("Couldn't load recent activity just now.");
+    const demoIds = new Set<string>([
+      ...orgRows.filter((o) => o.is_demo).map((o) => o.id),
+      ...demos.rows.map((o) => o.id),
+    ]);
+    const names = new Map<string, string>([
+      ...orgRows.map((o) => [o.id, o.name] as [string, string]),
+      ...(owners.data ?? []).map((o) => [o.id, o.name] as [string, string]),
+    ]);
+
+    // Window totals are exact counts over the 14 days, excluding demo
+    // workspaces, not a count of the rows that fit in the feed.
+    const demoList = demos.rows.map((o) => o.id);
+    const windowCount = (table: "leads" | "appointments" | "payments" | "website_versions", extra?: (q: LooseQuery) => LooseQuery) => {
+      let query: LooseQuery = supabaseAdmin.from(table).select("id", { count: "exact", head: true }).gte("created_at", since);
+      if (demoList.length) query = query.not("organization_id", "in", `(${demoList.join(",")})`);
+      return extra ? extra(query) : query;
+    };
+    const [leadTotal, bookingTotal, paymentTotal, versionTotal, signupTotal] = await Promise.all([
+      windowCount("leads"),
+      windowCount("appointments"),
+      windowCount("payments", (q) => q.eq("status", "completed").eq("environment", "live")),
+      windowCount("website_versions"),
+      supabaseAdmin.from("organizations").select("id", { count: "exact", head: true }).gte("created_at", since).eq("is_demo", false),
+    ]);
+    const exactOr = (result: { count: number | null; error: unknown }, fallback: number) =>
+      result.error ? fallback : (result.count ?? 0);
 
     type Item = {
       id: string;
@@ -866,11 +988,11 @@ export const getPlatformActivity = createServerFn({ method: "GET" })
       items,
       windowDays: 14,
       counts: {
-        signups: items.filter((i) => i.kind === "signup").length,
-        leads: items.filter((i) => i.kind === "lead").length,
-        bookings: items.filter((i) => i.kind === "booking").length,
-        payments: items.filter((i) => i.kind === "payment").length,
-        websiteChanges: items.filter((i) => i.kind === "website").length,
+        signups: exactOr(signupTotal, items.filter((i) => i.kind === "signup").length),
+        leads: exactOr(leadTotal, items.filter((i) => i.kind === "lead").length),
+        bookings: exactOr(bookingTotal, items.filter((i) => i.kind === "booking").length),
+        payments: exactOr(paymentTotal, items.filter((i) => i.kind === "payment").length),
+        websiteChanges: exactOr(versionTotal, items.filter((i) => i.kind === "website").length),
       },
     };
   });

@@ -427,12 +427,15 @@ export const getPlatformFunnel = createServerFn({ method: "GET" })
       },
       {
         key: "paid",
-        label: "Paid customers",
+        label: "Paid customers (all time)",
         count: paid,
-        rate: pct(paid, trialsStarted),
-        rateLabel: "of trials",
+        // The count is all-time, so the rate uses only this window's trials
+        // that converted; dividing all-time customers by windowed trials can
+        // exceed 100%.
+        rate: pct(convertedTrials, trialsStarted),
+        rateLabel: "of this period's trials converted",
         source: "database",
-        note: "Confirmed paid subscriptions written only by the verified payment webhook — never checkout starts.",
+        note: "Every real workspace with a live Stripe subscription or completed live setup payment, written only by the verified payment webhook — never checkout starts.",
       },
     ];
 
@@ -444,8 +447,8 @@ export const getPlatformFunnel = createServerFn({ method: "GET" })
       rates: {
         visitorsToAccounts: pct(accounts, visitors),
         accountsToTrials: pct(trialsStarted, accounts),
-        trialsToPaid: pct(convertedTrials ?? paid, trialsStarted),
-        visitorsToPaid: pct(paid, visitors),
+        trialsToPaid: pct(convertedTrials, trialsStarted),
+        visitorsToPaid: pct(convertedTrials, visitors),
       },
       convertedTrials,
       errors,

@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { JarvisDiagnostics } from "./jarvis-diagnostics.server";
 import { parsePullRequestProposal } from "./jarvis-actions";
+import { adminPath } from "./jarvis-page-context";
 
 type Turn = { role: "user" | "assistant"; content: string };
 type Mode = "brief" | "balanced" | "deep";
@@ -147,16 +148,18 @@ function splitFollowups(raw: string): { body: string; followups: string[] } {
   return { body, followups };
 }
 
-async function runJarvis(db: SupabaseClient, userId: string, mode: Mode) {
+async function runJarvis(db: SupabaseClient, userId: string, mode: Mode, page: string | null = null) {
   const history = await db.from("jarvis_messages").select("role,content")
     .eq("user_id", userId).order("created_at", { ascending: false }).limit(30);
   if (history.error) throw new Error("Your message was saved, but chat history could not be loaded.");
   const turns = ((history.data ?? []) as Turn[]).reverse();
   const { collectJarvisDiagnostics } = await import("./jarvis-diagnostics.server");
   const since = new Date(Date.now() - 7 * 86_400_000).toISOString();
-  const [diagnostics, accounts, trials, activeSubscriptions, leadsWeek, http] = await Promise.all([
+  const { collectPageBrief } = await import("./jarvis-page-context.server");
+  const [diagnostics, accounts, trials, activeSubscriptions, leadsWeek, http, pageBrief] = await Promise.all([
     collectJarvisDiagnostics(db), count(db, "platform_accounts"), count(db, "platform_trials"),
     count(db, "subscriptions", undefined, "active"), count(db, "leads", since), siteCheck(),
+    page ? collectPageBrief(db, page).catch(() => null) : Promise.resolve(null),
   ]);
   const { actionCatalogPrompt, extractActionBlock, parseActions, appendReplyMeta, MAX_ACTION_STEPS } = await import("./jarvis-actions");
   const { getJarvisDiagnosticToolCatalog } = await import("./jarvis-tool-registry");
@@ -185,8 +188,13 @@ async function runJarvis(db: SupabaseClient, userId: string, mode: Mode) {
     "Changes are review drafts only. Never suggest bypassing authentication, RLS, tenant isolation, publishing checks, or paid-model exclusions.",
     "After your answer, on a new final line, add up to three short follow-up questions or commands the owner might want next, formatted exactly as <followups>[\"first\",\"second\",\"third\"]</followups> (valid JSON array of strings, each under 120 characters). Omit the tag if nothing useful comes to mind.",
     actionCatalogPrompt(toolIds),
+    ...(pageBrief
+      ? [
+          `The owner is asking from the ${pageBrief.title} admin page (${page}). Answer about what is on that page first when the question allows it, using the currentPage facts below. A null fact could not be read: say so, never treat it as zero.`,
+        ]
+      : []),
     "BEGIN UNTRUSTED DIAGNOSTICS JSON",
-    JSON.stringify({ accounts, trials, activeSubscriptions, leadsWeek, http, diagnostics }),
+    JSON.stringify({ accounts, trials, activeSubscriptions, leadsWeek, http, diagnostics, ...(pageBrief ? { currentPage: { path: page, title: pageBrief.title, facts: pageBrief.facts } } : {}) }),
     "END UNTRUSTED DIAGNOSTICS JSON",
   ].join("\n");
   const { generateText } = await import("@/lib/ai/router.server");
@@ -245,19 +253,19 @@ async function runJarvis(db: SupabaseClient, userId: string, mode: Mode) {
 
 export const sendJarvisMessage = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .validator((input: { message: string; mode?: Mode }) => {
+  .validator((input: { message: string; mode?: Mode; page?: string }) => {
     if (typeof input?.message !== "string") throw new Error("Type a message first.");
     const message = input.message.trim();
     if (!message) throw new Error("Type a message first.");
     if (message.length > 4000) throw new Error("Keep your message under 4,000 characters.");
-    return { message, mode: parseMode(input.mode) };
+    return { message, mode: parseMode(input.mode), page: adminPath(input.page) };
   })
   .handler(async ({ context, data }) => {
     const db = await guardedAdmin(context);
     const userId = String(context.userId);
     const inserted = await db.from("jarvis_messages").insert({ user_id: userId, role: "user", content: data.message });
     if (inserted.error) throw new Error("Couldn't save your message.");
-    return runJarvis(db, userId, data.mode);
+    return runJarvis(db, userId, data.mode, data.page);
   });
 
 export const regenerateJarvisReply = createServerFn({ method: "POST" })
@@ -545,4 +553,14 @@ export const listClaudeCodeRequestsFn = createServerFn({ method: "GET" })
     await guardedAdmin(context);
     const { listClaudeCodeRequests } = await import("./jarvis-claude-code.server");
     return listClaudeCodeRequests();
+  });
+
+/** Live facts and a spoken summary for the admin page the owner is on. */
+export const getJarvisPageBrief = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .validator((input: { page?: string } | undefined) => ({ page: adminPath(input?.page) ?? "/admin" }))
+  .handler(async ({ context, data }) => {
+    const db = await guardedAdmin(context);
+    const { collectPageBrief } = await import("./jarvis-page-context.server");
+    return collectPageBrief(db, data.page);
   });

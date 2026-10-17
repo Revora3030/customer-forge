@@ -36,8 +36,8 @@ function AdminOverview() {
   const metricsFn = useServerFn(getPlatformMetrics);
   const conversionsFn = useServerFn(getConversionReport);
   const clientsFn = useServerFn(listClients);
-  const metrics = useQuery({ queryKey: ["admin", "metrics"], queryFn: () => metricsFn({}) });
-  const clients = useQuery({ queryKey: ["admin", "clients"], queryFn: () => clientsFn({}) });
+  const metrics = useQuery({ queryKey: ["admin", "metrics"], queryFn: () => metricsFn({}), refetchInterval: 60_000 });
+  const clients = useQuery({ queryKey: ["admin", "clients"], queryFn: () => clientsFn({}), refetchInterval: 120_000 });
   const activityFn = useServerFn(getPlatformActivity);
   const activity = useQuery({
     queryKey: ["admin", "activity"],
@@ -61,6 +61,13 @@ function AdminOverview() {
         }
       />
 
+      {metrics.isError || clients.isError ? (
+        <p role="alert" className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-[13px]">
+          Some platform numbers couldn&apos;t be loaded, so the cards below may read zero when they
+          aren&apos;t. They retry every minute.
+        </p>
+      ) : null}
+
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <MetricCard
           label="Client businesses"
@@ -82,7 +89,7 @@ function AdminOverview() {
         <MetricCard
           label="Recurring revenue"
           value={currency(metrics.data?.mrr ?? 0)}
-          hint={`${metrics.data?.trialing ?? 0} on trial · ${metrics.data?.suspended ?? 0} suspended`}
+          hint={`${metrics.data?.active ?? 0} paying · ${metrics.data?.trialing ?? 0} on trial · ${metrics.data?.suspended ?? 0} suspended`}
         />
       </div>
 

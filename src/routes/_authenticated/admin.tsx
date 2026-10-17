@@ -24,6 +24,7 @@ import { Logo } from "@/components/brand/Logo";
 import { Button } from "@/components/ui/button";
 import { EmptyState, Pill } from "@/components/app/Bits";
 import { WorkspaceNav, type WorkspaceNavItem } from "@/components/app/WorkspaceNav";
+import { JarvisDock } from "@/components/app/JarvisDock";
 import { useSignOut, useWorkspace } from "@/lib/use-tenant";
 
 export const Route = createFileRoute("/_authenticated/admin")({
@@ -113,6 +114,7 @@ function AdminShell() {
         </header>
         <main className="product-canvas px-4 py-5 sm:px-6 sm:py-6"><Outlet /></main>
       </div>
+      <JarvisDock />
     </div>
   );
 }

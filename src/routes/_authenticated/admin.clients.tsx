@@ -30,7 +30,7 @@ const FILTERS = [
 function AdminClients() {
   const clientsFn = useServerFn(listClients);
   const queryClient = useQueryClient();
-  const clients = useQuery({ queryKey: ["admin", "clients"], queryFn: () => clientsFn({}) });
+  const clients = useQuery({ queryKey: ["admin", "clients"], queryFn: () => clientsFn({}), refetchInterval: 120_000 });
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<(typeof FILTERS)[number]["value"]>("all");
   const [creating, setCreating] = useState(false);

@@ -176,7 +176,7 @@ function BackupHistory({ organizationId }: { organizationId: string }) {
 
 function AdminBackups() {
   const load = useServerFn(getBackupOverview);
-  const overview = useQuery({ queryKey: ["admin-backup-overview"], queryFn: () => load({}) });
+  const overview = useQuery({ queryKey: ["admin-backup-overview"], queryFn: () => load({}), refetchInterval: 300_000 });
   const [selected, setSelected] = useState<string | null>(null);
 
   const orgs = useMemo(() => overview.data?.organizations ?? [], [overview.data]);

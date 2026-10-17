@@ -13,6 +13,7 @@ import {
 } from "@/components/app/Bits";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { netRevenue } from "@/lib/monthly-report";
 import { useAllPayments, usePaymentEvents } from "@/lib/payments.hooks";
 import { refundPayment } from "@/lib/payments.functions";
 import { useWorkspace } from "@/lib/use-tenant";
@@ -44,7 +45,7 @@ const STATUS_TONE = (status: string) =>
 function AdminPayments() {
   const { data: ws } = useWorkspace();
   const isSuperAdmin = !!ws?.isSuperAdmin;
-  const { data: payments, isLoading } = useAllPayments(isSuperAdmin);
+  const { data: payments, isLoading, isError } = useAllPayments(isSuperAdmin);
   const [openId, setOpenId] = useState<string | null>(null);
   const [amount, setAmount] = useState("");
   const [note, setNote] = useState("");
@@ -54,12 +55,16 @@ function AdminPayments() {
   const { data: events } = usePaymentEvents(openId);
 
   const rows = useMemo(() => payments ?? [], [payments]);
+  // Totals are live Stripe money only. A refunded payment still counts in
+  // gross (the money was collected) and its refund is subtracted once.
   const stats = useMemo(() => {
-    const completed = rows.filter((p) => p.status === "completed");
-    const gross = completed.reduce((s, p) => s + Number(p.amount), 0);
-    const refunded = rows.reduce((s, p) => s + Number(p.refunded_amount ?? 0), 0);
-    const failed = rows.filter((p) => p.status === "failed").length;
-    return { gross, refunded, net: gross - refunded, count: completed.length, failed };
+    const live = rows.filter((p) => p.environment === "live");
+    const totals = live.map((p) => netRevenue(p));
+    const gross = totals.reduce((s, t) => s + t.gross, 0);
+    const refunded = totals.reduce((s, t) => s + t.refunded, 0);
+    const count = totals.filter((t) => t.gross > 0).length;
+    const failed = live.filter((p) => p.status === "failed").length;
+    return { gross, refunded, net: gross - refunded, count, failed };
   }, [rows]);
 
   if (!isSuperAdmin) {
@@ -103,7 +108,7 @@ function AdminPayments() {
         <MetricCard
           label="Gross collected"
           value={money(stats.gross)}
-          hint={`${stats.count} confirmed`}
+          hint={`${stats.count} confirmed · live Stripe only`}
           tone="signal"
         />
         <MetricCard label="Refunded" value={money(stats.refunded)} />
@@ -119,6 +124,10 @@ function AdminPayments() {
         <SectionHeading eyebrow="Ledger" title="All payments" />
         {isLoading ? (
           <LoadingRows rows={4} />
+        ) : isError ? (
+          <p className="mt-4 text-[13px]">
+            Payments couldn&apos;t be loaded just now, so the totals above aren&apos;t real. Refresh in a moment.
+          </p>
         ) : rows.length === 0 ? (
           <div className="mt-4">
             <EmptyState

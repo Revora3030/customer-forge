@@ -55,6 +55,8 @@ export function useAllPayments(enabled: boolean) {
   return useQuery({
     queryKey: ["payments", "all"],
     enabled,
+    // Webhooks write payments in the background, so keep the ledger live.
+    refetchInterval: 60_000,
     queryFn: async () => {
       // Every payment is listed — no arbitrary ceiling hiding real money.
       const { rows, error } = await fetchAllRows((from, to) =>
