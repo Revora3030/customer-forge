@@ -204,3 +204,11 @@ describe("leaving the builder never loses or duplicates a request", () => {
     expect(hooks).toContain("Revora didn't save how this request ended.");
   });
 });
+
+describe("undoing an AI change also undoes its look changes", () => {
+  it("saves the theme/tokens/backdrop and SEO settings in the apply's restore point", () => {
+    const fn = read("src/lib/site-agent.functions.ts");
+    expect(fn).toContain('supabase.from("website_settings").select("generation, seo").eq("organization_id", orgId).maybeSingle(),');
+    expect(fn).toContain("? { generation: (lookRow as { generation: unknown }).generation as never }");
+  });
+});

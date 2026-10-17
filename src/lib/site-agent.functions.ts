@@ -1007,7 +1007,7 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
     // Snapshot first, so an unwanted change can always be rolled back.
     const snapshotLabel = data.label || "Before assistant changes";
     const { buildFullSnapshot } = await import("@/lib/site-restore");
-    const [{ data: latest }, contentTree] = await Promise.all([
+    const [{ data: latest }, contentTree, { data: lookRow }] = await Promise.all([
       supabase
         .from("website_versions")
         .select("version")
@@ -1020,6 +1020,10 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
         site.sections as unknown as Record<string, unknown>[],
         site.components as unknown as Record<string, unknown>[],
       )),
+      // Theme, design tokens and backdrop live in website_settings.generation:
+      // the restore point keeps them too, so "Undo or restore" also puts back
+      // a change to the look, not only the pages.
+      supabase.from("website_settings").select("generation, seo").eq("organization_id", orgId).maybeSingle(),
     ]);
     // The restore point must exist BEFORE anything is written, and it must be
     // verified — a failed snapshot insert used to be ignored, which meant a
@@ -1039,6 +1043,10 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
           version: snapshotVersion,
           label: snapshotLabel,
           pages: snapshotPages,
+          ...((lookRow as { generation?: unknown } | null)?.generation
+            ? { generation: (lookRow as { generation: unknown }).generation as never }
+            : {}),
+          ...((lookRow as { seo?: unknown } | null)?.seo ? { seo: (lookRow as { seo: unknown }).seo as never } : {}),
           created_by: userId,
         })
         .select("id")
