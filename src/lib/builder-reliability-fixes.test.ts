@@ -212,3 +212,11 @@ describe("undoing an AI change also undoes its look changes", () => {
     expect(fn).toContain("? { generation: (lookRow as { generation: unknown }).generation as never }");
   });
 });
+
+describe("a leftover fresh-rebuild marker never replaces a later build's draft", () => {
+  it("tags the marker with its build and clears markers from other builds", () => {
+    expect(read("src/lib/site-engine.functions.ts")).toContain("pendingBuild: { ...(marker as Record<string, unknown>), jobId: job.id }");
+    const worker = read("src/lib/site-engine.worker.server.ts");
+    expect(worker).toContain('if (typeof markerJobId === "string" && markerJobId !== job.id) {');
+  });
+});
