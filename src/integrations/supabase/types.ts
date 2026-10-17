@@ -856,31 +856,40 @@ export type Database = {
       }
       builder_messages: {
         Row: {
+          branch: string
           content: string
           created_at: string
           id: string
+          kind: string
           organization_id: string
           plan: Json | null
+          request_id: string | null
           restore_version_id: string | null
           role: string
           user_id: string
         }
         Insert: {
+          branch?: string
           content: string
           created_at?: string
           id?: string
+          kind?: string
           organization_id: string
           plan?: Json | null
+          request_id?: string | null
           restore_version_id?: string | null
           role: string
           user_id?: string
         }
         Update: {
+          branch?: string
           content?: string
           created_at?: string
           id?: string
+          kind?: string
           organization_id?: string
           plan?: Json | null
+          request_id?: string | null
           restore_version_id?: string | null
           role?: string
           user_id?: string
@@ -1307,15 +1316,20 @@ export type Database = {
       generation_jobs: {
         Row: {
           attempts: number
+          cancel_requested_at: string | null
+          cancelled_by: string | null
           completed_at: string | null
           created_at: string
           created_by: string | null
           current_step: string | null
           error_message: string | null
+          failed_stage: string | null
+          failure_kind: string | null
           id: string
           lease_expires_at: string | null
           organization_id: string
           progress: number
+          stage_timings: Json
           started_at: string | null
           status: string
           steps: Json
@@ -1323,15 +1337,20 @@ export type Database = {
         }
         Insert: {
           attempts?: number
+          cancel_requested_at?: string | null
+          cancelled_by?: string | null
           completed_at?: string | null
           created_at?: string
           created_by?: string | null
           current_step?: string | null
           error_message?: string | null
+          failed_stage?: string | null
+          failure_kind?: string | null
           id?: string
           lease_expires_at?: string | null
           organization_id: string
           progress?: number
+          stage_timings?: Json
           started_at?: string | null
           status?: string
           steps?: Json
@@ -1339,15 +1358,20 @@ export type Database = {
         }
         Update: {
           attempts?: number
+          cancel_requested_at?: string | null
+          cancelled_by?: string | null
           completed_at?: string | null
           created_at?: string
           created_by?: string | null
           current_step?: string | null
           error_message?: string | null
+          failed_stage?: string | null
+          failure_kind?: string | null
           id?: string
           lease_expires_at?: string | null
           organization_id?: string
           progress?: number
+          stage_timings?: Json
           started_at?: string | null
           status?: string
           steps?: Json
@@ -1363,6 +1387,91 @@ export type Database = {
           },
           {
             foreignKeyName: "generation_jobs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "public_organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      image_records: {
+        Row: {
+          alt_text: string | null
+          created_at: string
+          decided_at: string | null
+          decided_by: string | null
+          direction: string
+          generation: number
+          id: string
+          media_id: string | null
+          model: string | null
+          organization_id: string
+          provider: string | null
+          rejection_reason: string | null
+          rendered_url: string | null
+          rendered_verified_at: string | null
+          slot: string
+          source: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          alt_text?: string | null
+          created_at?: string
+          decided_at?: string | null
+          decided_by?: string | null
+          direction?: string
+          generation?: number
+          id?: string
+          media_id?: string | null
+          model?: string | null
+          organization_id: string
+          provider?: string | null
+          rejection_reason?: string | null
+          rendered_url?: string | null
+          rendered_verified_at?: string | null
+          slot: string
+          source?: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          alt_text?: string | null
+          created_at?: string
+          decided_at?: string | null
+          decided_by?: string | null
+          direction?: string
+          generation?: number
+          id?: string
+          media_id?: string | null
+          model?: string | null
+          organization_id?: string
+          provider?: string | null
+          rejection_reason?: string | null
+          rendered_url?: string | null
+          rendered_verified_at?: string | null
+          slot?: string
+          source?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "image_records_media_id_fkey"
+            columns: ["media_id"]
+            isOneToOne: false
+            referencedRelation: "media"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "image_records_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "image_records_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "public_organizations"
@@ -1433,6 +1542,274 @@ export type Database = {
           },
         ]
       }
+      jarvis_attachments: {
+        Row: {
+          analysis_status: string
+          created_at: string
+          extracted_summary: string
+          file_size_bytes: number
+          id: string
+          kind: string
+          message_id: string | null
+          mime_type: string
+          original_name: string
+          storage_path: string
+          user_id: string
+        }
+        Insert: {
+          analysis_status: string
+          created_at?: string
+          extracted_summary?: string
+          file_size_bytes: number
+          id?: string
+          kind: string
+          message_id?: string | null
+          mime_type: string
+          original_name?: string
+          storage_path: string
+          user_id: string
+        }
+        Update: {
+          analysis_status?: string
+          created_at?: string
+          extracted_summary?: string
+          file_size_bytes?: number
+          id?: string
+          kind?: string
+          message_id?: string | null
+          mime_type?: string
+          original_name?: string
+          storage_path?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "jarvis_attachments_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "jarvis_messages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      jarvis_autopilot_actions: {
+        Row: {
+          access: string
+          approval_expires_at: string | null
+          approval_status: string
+          approved_at: string | null
+          approved_by: string | null
+          approved_input_hash: string | null
+          created_at: string
+          evidence: Json
+          failure_category: string | null
+          finished_at: string | null
+          id: string
+          idempotency_key: string
+          input_hash: string | null
+          input_summary: string
+          output_summary: string
+          rationale: string
+          risk: string
+          run_id: string
+          started_at: string | null
+          status: string
+          tool_id: string
+          updated_at: string
+          verification_status: string
+          verification_summary: string
+        }
+        Insert: {
+          access: string
+          approval_expires_at?: string | null
+          approval_status?: string
+          approved_at?: string | null
+          approved_by?: string | null
+          approved_input_hash?: string | null
+          created_at?: string
+          evidence?: Json
+          failure_category?: string | null
+          finished_at?: string | null
+          id?: string
+          idempotency_key: string
+          input_hash?: string | null
+          input_summary?: string
+          output_summary?: string
+          rationale?: string
+          risk: string
+          run_id: string
+          started_at?: string | null
+          status?: string
+          tool_id: string
+          updated_at?: string
+          verification_status?: string
+          verification_summary?: string
+        }
+        Update: {
+          access?: string
+          approval_expires_at?: string | null
+          approval_status?: string
+          approved_at?: string | null
+          approved_by?: string | null
+          approved_input_hash?: string | null
+          created_at?: string
+          evidence?: Json
+          failure_category?: string | null
+          finished_at?: string | null
+          id?: string
+          idempotency_key?: string
+          input_hash?: string | null
+          input_summary?: string
+          output_summary?: string
+          rationale?: string
+          risk?: string
+          run_id?: string
+          started_at?: string | null
+          status?: string
+          tool_id?: string
+          updated_at?: string
+          verification_status?: string
+          verification_summary?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "jarvis_autopilot_actions_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "jarvis_autopilot_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      jarvis_autopilot_audit_events: {
+        Row: {
+          action_id: string | null
+          actor_id: string | null
+          created_at: string
+          event_type: string
+          id: number
+          metadata: Json
+          outcome: string
+          run_id: string | null
+          summary: string
+        }
+        Insert: {
+          action_id?: string | null
+          actor_id?: string | null
+          created_at?: string
+          event_type: string
+          id?: never
+          metadata?: Json
+          outcome: string
+          run_id?: string | null
+          summary?: string
+        }
+        Update: {
+          action_id?: string | null
+          actor_id?: string | null
+          created_at?: string
+          event_type?: string
+          id?: never
+          metadata?: Json
+          outcome?: string
+          run_id?: string | null
+          summary?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "jarvis_autopilot_audit_events_action_id_fkey"
+            columns: ["action_id"]
+            isOneToOne: false
+            referencedRelation: "jarvis_autopilot_actions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "jarvis_autopilot_audit_events_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "jarvis_autopilot_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      jarvis_autopilot_runs: {
+        Row: {
+          actions_completed: number
+          actions_planned: number
+          created_at: string
+          evidence: Json
+          finished_at: string | null
+          id: string
+          idempotency_key: string
+          mode: string
+          requested_by: string
+          started_at: string
+          status: string
+          summary: string
+          updated_at: string
+        }
+        Insert: {
+          actions_completed?: number
+          actions_planned?: number
+          created_at?: string
+          evidence?: Json
+          finished_at?: string | null
+          id?: string
+          idempotency_key: string
+          mode?: string
+          requested_by: string
+          started_at?: string
+          status?: string
+          summary?: string
+          updated_at?: string
+        }
+        Update: {
+          actions_completed?: number
+          actions_planned?: number
+          created_at?: string
+          evidence?: Json
+          finished_at?: string | null
+          id?: string
+          idempotency_key?: string
+          mode?: string
+          requested_by?: string
+          started_at?: string
+          status?: string
+          summary?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      jarvis_autopilot_settings: {
+        Row: {
+          enabled: boolean
+          id: boolean
+          kill_switch_engaged: boolean
+          max_actions_per_run: number
+          max_run_duration_seconds: number
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          enabled?: boolean
+          id?: boolean
+          kill_switch_engaged?: boolean
+          max_actions_per_run?: number
+          max_run_duration_seconds?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          enabled?: boolean
+          id?: boolean
+          kill_switch_engaged?: boolean
+          max_actions_per_run?: number
+          max_run_duration_seconds?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       jarvis_messages: {
         Row: {
           content: string
@@ -1453,6 +1830,30 @@ export type Database = {
           created_at?: string
           id?: string
           role?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      jarvis_upload_quotas: {
+        Row: {
+          monthly_limit: number
+          period_start: string
+          updated_at: string
+          uploads_used: number
+          user_id: string
+        }
+        Insert: {
+          monthly_limit?: number
+          period_start: string
+          updated_at?: string
+          uploads_used?: number
+          user_id: string
+        }
+        Update: {
+          monthly_limit?: number
+          period_start?: string
+          updated_at?: string
+          uploads_used?: number
           user_id?: string
         }
         Relationships: []
@@ -1627,6 +2028,7 @@ export type Database = {
           delivery_status: string
           http_status: number | null
           id: string
+          idempotency_key: string | null
           lead_id: string
           organization_id: string
           reason: string | null
@@ -1638,6 +2040,7 @@ export type Database = {
           delivery_status: string
           http_status?: number | null
           id?: string
+          idempotency_key?: string | null
           lead_id: string
           organization_id: string
           reason?: string | null
@@ -1649,6 +2052,7 @@ export type Database = {
           delivery_status?: string
           http_status?: number | null
           id?: string
+          idempotency_key?: string | null
           lead_id?: string
           organization_id?: string
           reason?: string | null
@@ -1671,6 +2075,67 @@ export type Database = {
           },
           {
             foreignKeyName: "lead_delivery_logs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "public_organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lead_tasks: {
+        Row: {
+          assigned_to: string | null
+          created_at: string
+          created_by: string | null
+          done_at: string | null
+          due_at: string | null
+          id: string
+          lead_id: string
+          organization_id: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          assigned_to?: string | null
+          created_at?: string
+          created_by?: string | null
+          done_at?: string | null
+          due_at?: string | null
+          id?: string
+          lead_id: string
+          organization_id: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          assigned_to?: string | null
+          created_at?: string
+          created_by?: string | null
+          done_at?: string | null
+          due_at?: string | null
+          id?: string
+          lead_id?: string
+          organization_id?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_tasks_lead_same_org"
+            columns: ["lead_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id", "organization_id"]
+          },
+          {
+            foreignKeyName: "lead_tasks_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_tasks_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "public_organizations"
@@ -1703,6 +2168,13 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: true
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_webhook_secrets_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: true
+            referencedRelation: "public_organizations"
             referencedColumns: ["id"]
           },
         ]
@@ -2824,6 +3296,54 @@ export type Database = {
           },
           {
             foreignKeyName: "public_submission_attempts_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "public_organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      publish_events: {
+        Row: {
+          created_at: string
+          id: string
+          organization_id: string
+          published_by: string | null
+          smoke_report: Json
+          smoke_status: string
+          source_version: number | null
+          version: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          organization_id: string
+          published_by?: string | null
+          smoke_report?: Json
+          smoke_status?: string
+          source_version?: number | null
+          version: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          organization_id?: string
+          published_by?: string | null
+          smoke_report?: Json
+          smoke_status?: string
+          source_version?: number | null
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "publish_events_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "publish_events_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "public_organizations"
@@ -4513,6 +5033,10 @@ export type Database = {
       }
     }
     Functions: {
+      ai_note_free_tokens: {
+        Args: { _amount: number; _provider: string }
+        Returns: number
+      }
       ai_note_free_use: {
         Args: { _cap?: number; _provider: string }
         Returns: number
@@ -4572,11 +5096,22 @@ export type Database = {
         Args: { path: string; timeout_ms?: number }
         Returns: number
       }
+      claim_prospect_demo_server: {
+        Args: { _token: string; _trial_days?: number; _user_id: string }
+        Returns: string
+      }
       current_site_revision: {
         Args: { _organization_id: string }
         Returns: string
       }
       is_safe_link_url: { Args: { value: string }; Returns: boolean }
+      jarvis_consume_upload: {
+        Args: { p_user: string }
+        Returns: {
+          limit_count: number
+          used_count: number
+        }[]
+      }
       luna_budget_reserve: {
         Args: { _cap_microcents?: number; _estimate_microcents: number }
         Returns: {
