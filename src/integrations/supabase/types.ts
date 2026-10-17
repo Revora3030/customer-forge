@@ -175,6 +175,30 @@ export type Database = {
         }
         Relationships: []
       }
+      ai_paid_daily_budget: {
+        Row: {
+          calls: number
+          cap_microcents: number
+          day: string
+          spent_microcents: number
+          updated_at: string
+        }
+        Insert: {
+          calls?: number
+          cap_microcents?: number
+          day: string
+          spent_microcents?: number
+          updated_at?: string
+        }
+        Update: {
+          calls?: number
+          cap_microcents?: number
+          day?: string
+          spent_microcents?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       ai_provider_runtime: {
         Row: {
           created_at: string
@@ -5069,6 +5093,23 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      ai_paid_budget_reserve: {
+        Args: { _cap_microcents: number; _estimate_microcents: number }
+        Returns: {
+          allowed: boolean
+          cap_microcents: number
+          day: string
+          spent_microcents: number
+        }[]
+      }
+      ai_paid_budget_settle: {
+        Args: {
+          _actual_microcents: number
+          _day: string
+          _estimate_microcents: number
+        }
+        Returns: undefined
       }
       ai_runtime_snapshot: {
         Args: never
