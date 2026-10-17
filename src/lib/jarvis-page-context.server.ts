@@ -11,7 +11,10 @@ import { JARVIS_PAGES, pageKey, speakBrief, type JarvisPageKey, type PageBrief, 
 const DAY = 86_400_000;
 const ago = (ms: number) => new Date(Date.now() - ms).toISOString();
 
-type Filter = (query: any) => any;
+// Untyped query builder: one helper counts rows on many tables.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type LooseQuery = any;
+type Filter = (query: LooseQuery) => LooseQuery;
 
 async function exact(db: SupabaseClient, table: string, filter: Filter = (q) => q): Promise<number | null> {
   try {

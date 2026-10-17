@@ -8,6 +8,11 @@ import { netRevenue } from "@/lib/monthly-report";
 type SubscriptionStatus = Database["public"]["Enums"]["subscription_status"];
 type PublishState = Database["public"]["Enums"]["publish_state"];
 
+// Untyped query builder for helpers that page through several tables the
+// same way.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type LooseQuery = any;
+
 /** Platform-wide metrics for the super admin dashboard. */
 export const getPlatformMetrics = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
@@ -116,14 +121,14 @@ export const listClients = createServerFn({ method: "GET" })
     // `ids` is every workspace, so each table is read whole, page by page.
     // An unpaged read stops at 1,000 rows shared by ALL clients and quietly
     // undercounts most of them.
-    const all = <T,>(table: string, columns: string, filter: (q: any) => any = (q) => q) =>
+    const all = <T,>(table: string, columns: string, filter: (q: LooseQuery) => LooseQuery = (q) => q) =>
       fetchAllRows<T>((from, to) =>
-        filter((supabaseAdmin as any).from(table).select(columns)).order("id").range(from, to),
+        filter((supabaseAdmin as LooseQuery).from(table).select(columns)).order("id").range(from, to),
       );
     const [profiles, sites, services, media, forms, leads, appts, events, subs, pays] =
       await Promise.all([
-        all<any>("business_profiles", "*"),
-        all<any>("website_settings", "*"),
+        all<LooseQuery>("business_profiles", "*"),
+        all<LooseQuery>("website_settings", "*"),
         all<{ organization_id: string; bookable: boolean; is_active: boolean }>(
           "services",
           "organization_id, bookable, is_active",
@@ -680,7 +685,7 @@ export const getMonthlyBusinessReport = createServerFn({ method: "GET" })
 
     // Every row in the window is read, live money only, and a failed read
     // throws so the report says it couldn't load instead of showing $0.
-    const page = <T,>(build: () => any) =>
+    const page = <T,>(build: () => LooseQuery) =>
       fetchAllRows<T>((from, to) => build().order("id").range(from, to));
     const [payments, leads, bookings, traffic, orgs, sites] = await Promise.all([
       // Bucketed by completion month, so a checkout created just before the
@@ -905,8 +910,8 @@ export const getPlatformActivity = createServerFn({ method: "GET" })
     // Window totals are exact counts over the 14 days, excluding demo
     // workspaces, not a count of the rows that fit in the feed.
     const demoList = demos.rows.map((o) => o.id);
-    const windowCount = (table: "leads" | "appointments" | "payments" | "website_versions", extra?: (q: any) => any) => {
-      let query: any = supabaseAdmin.from(table).select("id", { count: "exact", head: true }).gte("created_at", since);
+    const windowCount = (table: "leads" | "appointments" | "payments" | "website_versions", extra?: (q: LooseQuery) => LooseQuery) => {
+      let query: LooseQuery = supabaseAdmin.from(table).select("id", { count: "exact", head: true }).gte("created_at", since);
       if (demoList.length) query = query.not("organization_id", "in", `(${demoList.join(",")})`);
       return extra ? extra(query) : query;
     };
