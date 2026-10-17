@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { JarvisMarkdown } from "@/components/app/JarvisMarkdown";
 import { useJarvisVoice } from "@/components/app/use-jarvis-voice";
 import { getJarvisPageBrief, sendJarvisMessage } from "@/lib/jarvis.functions";
-import { jarvisVoiceLinks, synthesizeJarvisVoice } from "@/lib/jarvis-voice.functions";
+import { jarvisVoiceLinks, jarvisVoiceStatus, synthesizeJarvisVoice } from "@/lib/jarvis-voice.functions";
 import { speakableText, splitReplyMeta } from "@/lib/jarvis-actions";
 import { adminPath } from "@/lib/jarvis-page-context";
 
@@ -93,6 +93,15 @@ export function JarvisDock() {
     unlocked.current = true;
     voice.unlock();
   };
+
+  const voiceStatusFn = useServerFn(jarvisVoiceStatus);
+  const voiceStatus = useQuery({
+    queryKey: ["jarvis", "voice-status"],
+    queryFn: () => voiceStatusFn(),
+    enabled: open && !onJarvisPage,
+    staleTime: 10 * 60_000,
+    retry: false,
+  });
 
   const brief = useQuery({
     queryKey: ["jarvis", "page-brief", page],
@@ -282,6 +291,13 @@ export function JarvisDock() {
               </div>
             </div>
 
+            {voiceStatus.data ? (
+              <p className="text-[11px] text-muted-foreground" role="status">
+                {voiceStatus.data.connected
+                  ? `Voice: ElevenLabs · ${voiceStatus.data.voiceName}${voiceStatus.data.customVoice ? "" : " (default voice; set ELEVENLABS_VOICE_ID for yours)"}`
+                  : `Voice: browser fallback. ${voiceStatus.data.reason}`}
+              </p>
+            ) : null}
             {ask.isPending ? <p className="text-xs text-muted-foreground">Jarvis is thinking…</p> : null}
             {reply ? (
               <div className="space-y-2">

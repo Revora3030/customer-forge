@@ -4,7 +4,14 @@ export type VisitorTurn = { role: "user" | "assistant"; content: string };
 
 export type VisitorAction = "start" | "upgrade" | "audit" | "pricing";
 
-export type VisitorReply = { reply: string; action: VisitorAction | null };
+/**
+ * `voice` is present when the visitor turned sound on and ElevenLabs is set
+ * up: `text` is exactly what to read aloud and `links` maps each spoken
+ * chunk (splitSpeech of `text`) to a signed two-minute ElevenLabs link.
+ */
+export type VisitorVoice = { text: string; links: Record<string, string> };
+
+export type VisitorReply = { reply: string; action: VisitorAction | null; voice?: VisitorVoice };
 
 const ACTIONS: VisitorAction[] = ["start", "upgrade", "audit", "pricing"];
 
