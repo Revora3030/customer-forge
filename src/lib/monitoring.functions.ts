@@ -91,6 +91,16 @@ export const getErrorFeed = createServerFn({ method: "GET" })
       .limit(1000);
     if (error) throw new Error("Couldn't load the error feed.");
 
+    // The feed samples the newest 1,000 rows; the totals are exact counts so
+    // an error storm never plateaus at 1,000.
+    const dayAgoIso = new Date(Date.now() - 86_400_000).toISOString();
+    const exact = (from: string, forwardedOnly = false) => {
+      let query = supabaseAdmin.from("error_events").select("id", { count: "exact", head: true }).gte("created_at", from);
+      if (forwardedOnly) query = query.eq("forwarded", true);
+      return query;
+    };
+    const [day, week, forwarded] = await Promise.all([exact(dayAgoIso), exact(since), exact(since, true)]);
+
     const rows = (data ?? []).map((row) => ({
       id: row.id as string,
       fingerprint: row.fingerprint as string,
@@ -129,9 +139,9 @@ export const getErrorFeed = createServerFn({ method: "GET" })
       groups: [...byFingerprint.values()].sort((a, b) => b.count - a.count).slice(0, 50),
       recent: rows.slice(0, 100),
       totals: {
-        last24h: rows.filter((row) => new Date(row.createdAt).getTime() >= dayAgo).length,
-        last7d: rows.length,
-        forwarded: rows.filter((row) => row.forwarded).length,
+        last24h: day.error ? rows.filter((row) => new Date(row.createdAt).getTime() >= dayAgo).length : (day.count ?? 0),
+        last7d: week.error ? rows.length : (week.count ?? 0),
+        forwarded: forwarded.error ? rows.filter((row) => row.forwarded).length : (forwarded.count ?? 0),
       },
       sentryConfigured: Boolean(process.env["SENTRY_DSN"]),
     };
