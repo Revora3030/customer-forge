@@ -2,10 +2,13 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { describeRead, type ReadAction } from "./jarvis-actions";
 
 const MAX_RESULT_CHARS = 8_000;
+// Source reads carry up to 3 x 300 numbered lines; cutting them at 8,000
+// characters left Jarvis editing code it never saw.
+const MAX_CODE_RESULT_CHARS = 48_000;
 
-const bounded = (value: unknown) => {
+const bounded = (value: unknown, max = MAX_RESULT_CHARS) => {
   const text = JSON.stringify(value);
-  return text.length > MAX_RESULT_CHARS ? `${text.slice(0, MAX_RESULT_CHARS)}…[truncated]` : text;
+  return text.length > max ? `${text.slice(0, max)}…[truncated]` : text;
 };
 
 /**
@@ -22,14 +25,14 @@ export async function runReadActions(db: SupabaseClient, reads: ReadAction[], ac
           const { executeJarvisDiagnosticTool } = await import("./jarvis-diagnostic-tools.server");
           result = await executeJarvisDiagnosticTool(db, action.toolId);
         } else if (action.id === "code.read") {
-          const { inspectRepository } = await import("./builder/repository-inspection.server");
-          const inspection = await inspectRepository(true, `${action.paths.join(" ")} lines ${action.line}`);
-          // The inventory is large; code.list is the way to browse it.
-          result = "files" in inspection ? { status: inspection.status, sha: inspection.sha, files: inspection.files } : inspection;
+          const { readFiles } = await import("./jarvis-repo.server");
+          return { label, ok: true, result: bounded(await readFiles(action.paths, action.line), MAX_CODE_RESULT_CHARS) };
         } else if (action.id === "code.list") {
-          const { inspectRepository } = await import("./builder/repository-inspection.server");
-          const inspection = await inspectRepository(true, `inventory page ${action.page}`);
-          result = "inventory" in inspection ? { status: inspection.status, sha: inspection.sha, inventory: inspection.inventory } : inspection;
+          const { listFiles } = await import("./jarvis-repo.server");
+          return { label, ok: true, result: bounded(await listFiles(action.dir, action.page), MAX_CODE_RESULT_CHARS) };
+        } else if (action.id === "code.search") {
+          const { searchCode } = await import("./jarvis-repo.server");
+          result = await searchCode(action.query);
         } else if (action.id === "web.search") {
           const { searchWeb } = await import("./integrations/research.server");
           result = await searchWeb(action.query, 6);

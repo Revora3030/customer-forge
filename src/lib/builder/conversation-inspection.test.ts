@@ -45,3 +45,12 @@ describe("chat inspection integration contract", () => {
     expect(conversation).toContain("Do not promise immediate live publication");
   });
 });
+
+describe("Jarvis can read the whole project", () => {
+  it("reads root config and project folders but never secrets or lockfiles", () => {
+    for (const path of ["package.json", "AGENTS.md", "vite.config.ts", "supabase/config.toml", "cloudflare/worker.ts", ".github/workflows/claude-code.yml"])
+      expect(safeInspectionPath(path), path).toBe(true);
+    for (const path of [".env.local", "bun.lock", "node_modules/x/index.js", "src/.env", "public/og.jpg"])
+      expect(safeInspectionPath(path), path).toBe(false);
+  });
+});

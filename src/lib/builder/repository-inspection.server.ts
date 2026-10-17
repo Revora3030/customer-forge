@@ -8,7 +8,7 @@ export function redactInspectionSource(source: string): string {
   return source.replace(/-----BEGIN [^-]*PRIVATE KEY-----[\s\S]*?-----END [^-]*PRIVATE KEY-----/g, "[REDACTED PRIVATE KEY]").split("\n").map((line) => /(?:sk-[A-Za-z0-9_-]{20,}|gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]+|AIza[A-Za-z0-9_-]{20,})/.test(line) || /(?:password|secret|api[_-]?key|access[_-]?token)\s*[=:]\s*["'][^"']+["']/i.test(line) ? "[REDACTED SENSITIVE LINE]" : line).join("\n");
 }
 async function github<T>(path: string): Promise<T> {
-  const token = process.env["REVORA_GITHUB_READ_TOKEN"];
+  const token = process.env["REVORA_GITHUB_READ_TOKEN"] ?? process.env["REVORA_GITHUB_WRITE_TOKEN"];
   const response = await fetch(`https://api.github.com/repos/${REPO}/${path}`, { headers: { Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28", ...(token ? { Authorization: `Bearer ${token}` } : {}) }, signal: AbortSignal.timeout(6000), redirect: "manual" });
   if (!response.ok) throw new Error("Repository inspection unavailable.");
   return await response.json() as T;
