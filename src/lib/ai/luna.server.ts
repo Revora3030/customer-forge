@@ -255,6 +255,19 @@ export async function reserveBudget(
   });
   if (error || !Array.isArray(data) || !data.length) return null;
   const row = data[0] as ReserveRow;
+  // The owner's daily paid cap applies on top of the monthly ledger: a call
+  // the month allows but today's cap doesn't is released and refused.
+  if (row.allowed) {
+    const { reservePaidSpend } = await import("@/lib/ai/paid-budget.server");
+    if (!(await reservePaidSpend(estimate))) {
+      await client.rpc("luna_budget_settle_tenant", {
+        _organization_id: organizationId,
+        _estimate_microcents: estimate,
+        _actual_microcents: 0,
+      });
+      row.allowed = false;
+    }
+  }
   return {
     allowed: Boolean(row.allowed),
     spent: Number(row.spent_microcents) || 0,
@@ -278,6 +291,8 @@ export async function settleBudget(
     _estimate_microcents: estimate,
     _actual_microcents: actual,
   });
+  const { settlePaidSpend } = await import("@/lib/ai/paid-budget.server");
+  await settlePaidSpend({ day: new Date().toISOString().slice(0, 10), estimate }, actual);
 }
 
 export async function recordUsage(row: {

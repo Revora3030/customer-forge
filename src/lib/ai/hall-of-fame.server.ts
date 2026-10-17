@@ -7,7 +7,7 @@ import { selectTier, type CollectivePurpose, type CollectiveTier, type TaskCompl
 import { DEFAULT_SQUAD_SIZE, capabilityForPurpose, rankHallOfFame, roleForPurpose, type HallOfFameCandidate } from "@/lib/ai/hall-of-fame";
 import { freeModelForm, recordFreeModelOutcome } from "@/lib/ai/free-reputation";
 import { callCollective, type LunaSkipReason } from "@/lib/ai/luna.server";
-import { freeAiOnly } from "@/lib/ai/free-only-policy.server";
+import { freeAiOnly, paidCollectiveAllowed } from "@/lib/ai/free-only-policy.server";
 
 export type HallOfFameAttempt = {
   provider: string;
@@ -209,7 +209,9 @@ async function callBestThinkerInner(request: {
   signal?: AbortSignal;
   onAttempt?: (provider: string, model: string) => void;
 }): Promise<ThinkerOutcome> {
-  const strictFreeOnly = freeAiOnly();
+  // Paid runs for the hardest steps within the daily cap (owner's choice);
+  // everything else, or an explicit free-only flag, stays on the free pool.
+  const strictFreeOnly = !paidCollectiveAllowed(request.purpose);
   const paid = strictFreeOnly
     ? {
         ok: false as const,
