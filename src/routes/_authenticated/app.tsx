@@ -27,7 +27,7 @@ import {
 } from "lucide-react";
 import { Logo, LogoMark } from "@/components/brand/Logo";
 import { Button } from "@/components/ui/button";
-import { Pill } from "@/components/app/Bits";
+import { LiveDot, Pill } from "@/components/app/Bits";
 import { WorkspaceNav, type WorkspaceNavItem } from "@/components/app/WorkspaceNav";
 import { useNotifications, useWorkspaceRealtime } from "@/lib/queries";
 import { useSignOut, useWorkspace } from "@/lib/use-tenant";
@@ -380,8 +380,9 @@ function AppShell() {
               <p className="truncate text-[13px] font-medium">
                 {currentPage?.label ?? "Workspace"}
               </p>
-              <p className="text-[11px] text-muted-foreground">
+              <p className="flex items-center gap-2 text-[11px] text-muted-foreground">
                 {supporting ? "Support session" : (org?.name ?? "Your business")}
+                <LiveDot label="Live" />
               </p>
             </div>
           </div>
@@ -410,7 +411,7 @@ function AppShell() {
               >
                 <Bell className="size-4" />
                 {unread > 0 ? (
-                  <span className="tnum absolute -top-1 -right-1 grid size-4 place-items-center rounded-full bg-primary text-[9px] font-bold text-primary-foreground">
+                  <span className="tnum absolute -top-1 -right-1 grid size-4 place-items-center rounded-full bg-primary text-[11px] font-bold text-primary-foreground">
                     {unread > 9 ? "9+" : unread}
                   </span>
                 ) : null}

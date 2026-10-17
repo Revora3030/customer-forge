@@ -269,7 +269,7 @@ function LeadsPage() {
                 <section key={stage.key} className="w-64 shrink-0" aria-label={`${stage.label} leads`}>
                   <div className="mb-2 flex items-center justify-between">
                     <span className="eyebrow">{stage.label}</span>
-                    <span className="tnum rounded-full bg-elevated px-1.5 py-0.5 text-[10px] font-semibold">
+                    <span className="tnum rounded-full bg-elevated px-1.5 py-0.5 text-[11px] font-semibold">
                       {column.length} · {currency(value)}
                     </span>
                   </div>
@@ -294,12 +294,12 @@ function LeadsPage() {
                           <span className="tnum text-[11px] text-muted-foreground">
                             {currency(Number(lead.estimated_value ?? 0))}
                           </span>
-                          <span className="text-[10px] text-muted-foreground">
+                          <span className="text-[11px] text-muted-foreground">
                             {relative(lead.created_at)}
                           </span>
                         </div>
                         {lead.next_follow_up_at ? (
-                          <p className="mt-1.5 text-[10px] text-accent">
+                          <p className="mt-1.5 text-[11px] text-accent">
                             Follow up {relative(lead.next_follow_up_at)}
                           </p>
                         ) : null}

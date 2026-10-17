@@ -187,7 +187,7 @@ export function JarvisDock() {
       >
         {voice.speaking ? <Volume2 className="size-5 animate-pulse" aria-hidden /> : <Bot className="size-5" aria-hidden />}
         {attention > 0 && !open ? (
-          <span className="absolute -right-0.5 -top-0.5 flex min-w-5 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-semibold text-destructive-foreground">
+          <span className="absolute -right-0.5 -top-0.5 flex min-w-5 items-center justify-center rounded-full bg-destructive px-1 text-[11px] font-semibold text-destructive-foreground">
             {attention}
           </span>
         ) : null}

@@ -1,4 +1,4 @@
-import type { HTMLAttributes, ReactNode, Ref } from "react";
+import { useEffect, useRef, useState, type HTMLAttributes, type ReactNode, type Ref } from "react";
 import { cn } from "@/lib/utils";
 import type { Tone } from "@/lib/domain";
 
@@ -25,7 +25,7 @@ export function Pill({
   return (
     <span
       className={cn(
-        "inline-flex max-w-full items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10.5px] font-semibold tracking-[0.08em] uppercase",
+        "inline-flex max-w-full items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px] font-semibold tracking-[0.08em] uppercase",
         toneClasses[tone],
         className,
       )}
@@ -41,7 +41,7 @@ export function KeyLabel({ children, className }: { children: ReactNode; classNa
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1.5 rounded-full border border-primary/40 bg-primary/10 px-2 py-0.5 text-[10.5px] font-semibold tracking-[0.1em] text-primary uppercase",
+        "inline-flex items-center gap-1.5 rounded-full border border-primary/40 bg-primary/10 px-2 py-0.5 text-[11px] font-semibold tracking-[0.1em] text-primary uppercase",
         className,
       )}
     >
@@ -199,6 +199,7 @@ export function MetricCard({
     neutral: "bg-muted-foreground",
     danger: "bg-destructive",
   };
+  const flashKey = useValueFlash(value);
   return (
     <div
       className={cn(
@@ -215,9 +216,11 @@ export function MetricCard({
         {badge ? <KeyLabel className="shrink-0">{badge}</KeyLabel> : null}
       </div>
       <p
+        key={flashKey}
         className={cn(
           "tnum mt-2 font-display text-[26px] leading-none font-semibold",
           tone === "signal" ? "text-primary" : null,
+          flashKey > 0 ? "value-flash" : null,
         )}
       >
         {value}
@@ -232,6 +235,32 @@ export function MetricCard({
         </div>
       ) : null}
     </div>
+  );
+}
+
+/**
+ * Counts changes to a displayed value after the first render. Keying the
+ * value's element with it replays the gold "just updated" flash, so numbers
+ * that refresh on their own visibly come alive. 0 means unchanged so far.
+ */
+function useValueFlash(value: string): number {
+  const first = useRef(value);
+  const [changes, setChanges] = useState(0);
+  useEffect(() => {
+    if (value === first.current) return;
+    first.current = value;
+    setChanges((count) => count + 1);
+  }, [value]);
+  return changes;
+}
+
+/** "Live" marker for anything that refreshes on its own. */
+export function LiveDot({ label = "Live", className }: { label?: string; className?: string }) {
+  return (
+    <span className={cn("inline-flex items-center gap-1.5 text-[11px] text-muted-foreground", className)}>
+      <span className="live-dot" aria-hidden="true" />
+      {label}
+    </span>
   );
 }
 

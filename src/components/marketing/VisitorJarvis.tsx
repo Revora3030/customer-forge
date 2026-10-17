@@ -263,7 +263,7 @@ export function VisitorJarvis() {
               <Send className="size-4" />
             </Button>
           </form>
-          <p className="border-t border-border px-3 py-1.5 text-[10.5px] text-muted-foreground">
+          <p className="border-t border-border px-3 py-1.5 text-[11px] text-muted-foreground">
             AI answers about Revora. Don't share passwords or card details here.
           </p>
         </section>

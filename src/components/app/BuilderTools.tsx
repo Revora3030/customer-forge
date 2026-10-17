@@ -40,7 +40,7 @@ export function Disclosure({
         </span>
         <span className="flex shrink-0 items-center gap-2">
           {badge ? (
-            <span className="rounded-full bg-accent/15 px-1.5 text-[10px] text-accent">
+            <span className="rounded-full bg-accent/15 px-1.5 text-[11px] text-accent">
               {badge}
             </span>
           ) : null}

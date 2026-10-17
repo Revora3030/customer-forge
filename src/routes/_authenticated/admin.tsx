@@ -22,7 +22,7 @@ import {
 } from "lucide-react";
 import { Logo } from "@/components/brand/Logo";
 import { Button } from "@/components/ui/button";
-import { EmptyState, Pill } from "@/components/app/Bits";
+import { EmptyState, LiveDot, Pill } from "@/components/app/Bits";
 import { WorkspaceNav, type WorkspaceNavItem } from "@/components/app/WorkspaceNav";
 import { JarvisDock } from "@/components/app/JarvisDock";
 import { useSignOut, useWorkspace } from "@/lib/use-tenant";
@@ -110,6 +110,7 @@ function AdminShell() {
         <header className="sticky top-0 z-30 flex h-[calc(3.5rem+env(safe-area-inset-top))] pt-[env(safe-area-inset-top)] items-center gap-3 border-b border-border bg-background/95 px-4 backdrop-blur">
           <Button variant="ghost" size="icon-sm" onClick={() => setNavOpen(true)} className="lg:hidden" aria-label="Open navigation"><Menu className="size-4" /></Button>
           <p className="text-[13px] font-medium">Platform workspace</p>
+          <LiveDot label="Live data" />
           <span className="ml-auto hidden items-center gap-1.5 text-[11px] text-muted-foreground sm:flex"><LifeBuoy className="size-3.5" /> Support access is audited</span>
         </header>
         <main className="product-canvas px-4 py-5 sm:px-6 sm:py-6"><Outlet /></main>

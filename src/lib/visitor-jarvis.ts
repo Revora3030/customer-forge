@@ -13,9 +13,8 @@ export function parseVisitorReply(raw: string): VisitorReply {
   const tags = [...raw.matchAll(/\[\[\s*(start|upgrade|audit|pricing)\s*\]\]/gi)].map((match) => match[1]!.toLowerCase() as VisitorAction);
   const reply = raw
     .replace(/\[\[[^\]]*\]\]/g, "")
-    // Replies render as plain text; removing every angle bracket (not only
-    // whole tags) leaves nothing that could become markup anywhere.
-    .replace(/<[^>]*>/g, "")
+    // Replies render as plain text; removing every angle bracket leaves
+    // nothing that could become markup anywhere.
     .replace(/[<>]/g, "")
     .replace(/\n{3,}/g, "\n\n")
     .trim()

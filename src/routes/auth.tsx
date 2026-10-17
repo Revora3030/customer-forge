@@ -288,7 +288,7 @@ function AuthPage() {
                 `Launch when ready — ${usd(GROWTH_SYSTEM.setupPrice)} setup, first month free`,
               ].map((step, index) => (
                 <li key={step} className="flex items-start gap-2.5">
-                  <span className="tnum mt-0.5 grid size-5 shrink-0 place-items-center rounded-full border border-primary/40 bg-primary/10 text-[10px] font-semibold text-primary">
+                  <span className="tnum mt-0.5 grid size-5 shrink-0 place-items-center rounded-full border border-primary/40 bg-primary/10 text-[11px] font-semibold text-primary">
                     {index + 1}
                   </span>
                   <span className={index === 0 ? "text-foreground" : undefined}>{step}</span>

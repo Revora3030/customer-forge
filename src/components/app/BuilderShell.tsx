@@ -157,7 +157,7 @@ export function BuilderShell({ projectName, statusLabel, statusTone = "draft", s
                     onClick={() => setActive(section.key)}
                     className={cn("min-h-11 min-w-20 flex-1 shrink-0 cursor-pointer rounded-lg px-3 py-2 text-[12px] font-medium transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none", section.key === current?.key ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-elevated hover:text-foreground")}>
                     <span className="block whitespace-nowrap">{section.label}</span>
-                    {section.badge ? <span className="mt-0.5 block text-[10px] text-accent">{section.badge}</span> : null}
+                    {section.badge ? <span className="mt-0.5 block text-[11px] text-accent">{section.badge}</span> : null}
                   </button>
                 ))}
               </nav>
@@ -175,7 +175,7 @@ function NavItem({ section, active, onSelect, showHint }: { section: BuilderSect
       className={cn("min-h-11 w-full cursor-pointer rounded-lg border px-3 py-3 text-left transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none", active ? "border-primary/50 bg-primary/10" : "border-transparent hover:border-border hover:bg-elevated")}>
       <span className="flex items-center justify-between gap-2">
         <span className={cn("text-[13px] font-medium", active ? "text-primary" : "text-foreground")}>{section.label}</span>
-        {section.badge ? <span className="rounded-full bg-accent/15 px-1.5 text-[10px] text-accent">{section.badge}</span> : null}
+        {section.badge ? <span className="rounded-full bg-accent/15 px-1.5 text-[11px] text-accent">{section.badge}</span> : null}
       </span>
       {showHint && section.hint ? <span className="mt-0.5 block text-[11px] text-muted-foreground">{section.hint}</span> : null}
     </button>

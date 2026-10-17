@@ -838,7 +838,7 @@ export function BuilderCanvas({
                     >
                       <span className="truncate">{node.label}</span>
                       {node.children ? (
-                        <span className="ml-auto text-[10px] text-muted-foreground">
+                        <span className="ml-auto text-[11px] text-muted-foreground">
                           {node.children}
                         </span>
                       ) : null}
