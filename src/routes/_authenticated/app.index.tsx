@@ -480,7 +480,7 @@ function Dashboard() {
             />
           ))}
         </div>
-        <div className="mt-2 flex justify-between text-[10.5px] text-muted-foreground">
+        <div className="mt-2 flex justify-between text-[11px] text-muted-foreground">
           <span>{dateShort(window.from.toISOString())}</span>
           <span>{dateShort(window.to.toISOString())}</span>
         </div>

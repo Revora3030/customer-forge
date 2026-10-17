@@ -224,7 +224,7 @@ export function StatusCenter({ organizationId }: { organizationId: string | unde
               to={tile.to}
               className="flex h-full flex-col gap-2 rounded-xl border border-border bg-elevated/60 p-3 transition-colors hover:border-primary/40 focus-visible:border-primary/60 focus-visible:outline-none"
             >
-              <span className="text-[10.5px] font-semibold tracking-[0.1em] text-muted-foreground uppercase">
+              <span className="text-[11px] font-semibold tracking-[0.1em] text-muted-foreground uppercase">
                 {tile.label}
               </span>
               <Pill tone={tile.tone} dot>

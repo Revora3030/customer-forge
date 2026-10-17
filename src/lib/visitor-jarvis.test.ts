@@ -26,3 +26,22 @@ describe("Jarvis for visitors", () => {
     expect(readFileSync("src/components/marketing/Chrome.tsx", "utf8")).toContain("<VisitorJarvis />");
   });
 });
+
+describe("visitor Jarvis speaks in the ElevenLabs voice", () => {
+  it("signs links only for its own reply, under an hourly allowance, and falls back to the browser voice", () => {
+    const fns = readFileSync("src/lib/visitor-jarvis.functions.ts", "utf8");
+    expect(fns).toContain("const voice = data.voice ? await replyVoice(parsed.reply).catch(() => undefined) : undefined;");
+    expect(fns).toContain("const VOICE_CHARS_PER_HOUR = 30_000;");
+    expect(fns).toContain('if (!apiKey) return undefined;');
+    const widget = readFileSync("src/components/marketing/VisitorJarvis.tsx", "utf8");
+    expect(widget).toContain("useJarvisVoice(synthesize, undefined, streamLink)");
+    expect(widget).toContain("jarvisVoice.unlock();");
+  });
+
+  it("lets the owner see whether their own ElevenLabs voice is connected", () => {
+    const voice = readFileSync("src/lib/jarvis-voice.functions.ts", "utf8");
+    expect(voice).toContain("https://api.elevenlabs.io/v1/voices/${encodeURIComponent(voiceId)}");
+    expect(voice).toContain("await assertAdmin(context);");
+    expect(readFileSync("src/components/app/JarvisDock.tsx", "utf8")).toContain("Voice: ElevenLabs · ");
+  });
+});

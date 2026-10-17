@@ -57,7 +57,9 @@ export function decodeEntities(text: string): string {
 }
 
 const clean = (text: string, max = 400) =>
-  decodeEntities(text.replace(/<[^>]*>/g, " ")).replace(/\s+/g, " ").trim().slice(0, max);
+  // Imported text is plain facts: after decoding entities, any angle bracket
+  // left over (including a decoded "&lt;") is removed, never kept as markup.
+  decodeEntities(text.replace(/<[^>]*>/g, " ")).replace(/[<>]/g, " ").replace(/\s+/g, " ").trim().slice(0, max);
 
 function attr(tag: string, name: string): string {
   const match = tag.match(new RegExp(`\\b${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)'|([^\\s>]+))`, "i"));

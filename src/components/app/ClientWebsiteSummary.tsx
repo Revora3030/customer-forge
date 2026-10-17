@@ -71,7 +71,7 @@ export function ClientWebsiteSummary({
         </div>
         <span
           className={cn(
-            "rounded-full border px-2 py-0.5 text-[10.5px] tracking-wide uppercase",
+            "rounded-full border px-2 py-0.5 text-[11px] tracking-wide uppercase",
             live ? "border-primary/40 text-primary" : "border-border text-muted-foreground",
           )}
         >

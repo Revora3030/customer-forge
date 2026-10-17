@@ -1,6 +1,6 @@
 import { Link, useLocation } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowRight, Bot, Mic, MicOff, Send, Volume2, VolumeX, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { askVisitorJarvis } from "@/lib/visitor-jarvis.functions";
@@ -10,6 +10,7 @@ import { saveStarter } from "@/components/marketing/hero-starter-utils";
 import { useSession } from "@/lib/auth-session";
 import { FREE_ACCESS_SEARCH, FREE_ACCESS_TO } from "@/components/marketing/FreeAccess";
 import { GROWTH_SYSTEM } from "@/lib/offer";
+import { useJarvisVoice } from "@/components/app/use-jarvis-voice";
 
 type Recognition = {
   lang: string;
@@ -30,8 +31,10 @@ type Message = VisitorTurn & { action?: VisitorAction | null };
 
 /**
  * Jarvis for every visitor to Revora's marketing pages. Answers questions from
- * the real offer, speaks replies aloud when the visitor turns sound on (the
- * browser's own voice, so it costs nothing), listens through the microphone,
+ * the real offer, speaks replies aloud in the ElevenLabs voice when the
+ * visitor turns sound on (the server signs links only for Jarvis's own reply,
+ * under an hourly allowance; otherwise the browser voice reads it), listens
+ * through the microphone,
  * and offers the right next step: start free, upgrade an existing site, a free
  * audit, or pricing.
  */
@@ -72,31 +75,42 @@ export function VisitorJarvis() {
     end.current?.scrollIntoView({ block: "end" });
   }, [messages, busy]);
 
+  // ElevenLabs links for the latest reply, keyed by spoken chunk. The voice
+  // hook streams the first chunk and fetches the rest while it plays.
+  const voiceLinks = useRef<Record<string, string>>({});
+  const streamLink = useCallback(async (chunk: string) => {
+    const link = voiceLinks.current[chunk];
+    if (!link) throw new Error("No ElevenLabs link for this sentence.");
+    return link;
+  }, []);
+  const synthesize = useCallback(async (chunk: string) => {
+    const link = voiceLinks.current[chunk];
+    if (!link) throw new Error("No ElevenLabs link for this sentence.");
+    const response = await fetch(link);
+    if (!response.ok) throw new Error("ElevenLabs was unavailable.");
+    const bytes = new Uint8Array(await response.arrayBuffer());
+    let binary = "";
+    for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+    return { audioBase64: window.btoa(binary), contentType: response.headers.get("content-type") || "audio/mpeg" };
+  }, []);
+  const jarvisVoice = useJarvisVoice(synthesize, undefined, streamLink);
+
   useEffect(() => () => {
     recognition.current?.stop();
-    try {
-      window.speechSynthesis?.cancel();
-    } catch {
-      /* no speech support */
-    }
+    jarvisVoice.stop();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const speak = (content: string) => {
-    try {
-      const synth = window.speechSynthesis;
-      if (!synth) return;
-      synth.cancel();
-      const utterance = new SpeechSynthesisUtterance(content.replace(/https?:\/\/\S+/g, "").slice(0, 900));
-      utterance.rate = 1.03;
-      synth.speak(utterance);
-    } catch {
-      /* speech unavailable: the reply is on screen */
-    }
+  /** ElevenLabs when the server sent links for this reply, the browser voice otherwise. */
+  const speak = (content: string, voice?: { text: string; links: Record<string, string> }) => {
+    voiceLinks.current = voice?.links ?? {};
+    void jarvisVoice.speak((voice?.text ?? content).replace(/https?:\/\/\S+/g, "").slice(0, 900));
   };
 
   const send = async (raw: string) => {
     const value = raw.trim();
     if (!value || busy) return;
+    if (voice) jarvisVoice.unlock();
     setText("");
     if (/already have a (web)?site|existing (web)?site|my (current|own) (web)?site|redo my site|upgrade my site/i.test(value))
       saveStarter({ wantsImport: true });
@@ -105,10 +119,10 @@ export function VisitorJarvis() {
     setBusy(true);
     try {
       const result = await ask({
-        data: { turns: next.map(({ role, content }) => ({ role, content })), page: location.pathname },
+        data: { turns: next.map(({ role, content }) => ({ role, content })), page: location.pathname, voice },
       });
       setMessages((current) => [...current, { role: "assistant", content: result.reply, action: result.action }]);
-      if (voice) speak(result.reply);
+      if (voice) speak(result.reply, result.voice);
     } catch {
       setMessages((current) => [
         ...current,
@@ -145,6 +159,7 @@ export function VisitorJarvis() {
     rec.onerror = () => setListening(false);
     recognition.current = rec;
     try {
+      jarvisVoice.unlock();
       rec.start();
       setListening(true);
       setVoice(true);
@@ -204,7 +219,9 @@ export function VisitorJarvis() {
               aria-label={voice ? "Stop reading replies aloud" : "Read replies aloud"}
               aria-pressed={voice}
               onClick={() => {
-                if (voice) window.speechSynthesis?.cancel();
+                // Unlock audio inside this tap so later replies may play on phones.
+                if (voice) jarvisVoice.stop();
+                else jarvisVoice.unlock();
                 setVoice(!voice);
               }}
             >
@@ -263,7 +280,7 @@ export function VisitorJarvis() {
               <Send className="size-4" />
             </Button>
           </form>
-          <p className="border-t border-border px-3 py-1.5 text-[10.5px] text-muted-foreground">
+          <p className="border-t border-border px-3 py-1.5 text-[11px] text-muted-foreground">
             AI answers about Revora. Don't share passwords or card details here.
           </p>
         </section>

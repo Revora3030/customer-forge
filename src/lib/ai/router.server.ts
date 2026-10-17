@@ -23,6 +23,7 @@
  * Server-only.
  */
 
+import { reservePaidSpend, routerActual, routerEstimate, settlePaidSpend, type PaidReservation } from "@/lib/ai/paid-budget.server";
 import {
   aiLimits,
   providerChain,
@@ -667,6 +668,18 @@ async function run<T>(
       const breakerScope = { caller, provider: config.name, model };
       const fallbackUsed = index > 0;
 
+      // DAILY PAID CAP. A paid model is only called with today's paid budget
+      // reserved; over the cap (or with the ledger unreachable) it is skipped
+      // and the free pool answers instead. The reservation is settled to the
+      // real cost on success and released on failure.
+      let paidReservation: PaidReservation | null = null;
+      let paidSettled = false;
+      if (!candidate.free) {
+        paidReservation = await reservePaidSpend(routerEstimate(model, limits.maxOutputTokens));
+        if (!paidReservation) continue;
+      }
+
+      try {
       for (let attempt = 1; attempt <= limits.maxAttemptsPerProvider; attempt += 1) {
         if (attempt > 1 && Date.now() >= chainDeadline) break;
         const started = Date.now();
@@ -722,6 +735,13 @@ async function run<T>(
             fallbackUsed,
             toolCalls: 0,
           });
+          if (paidReservation) {
+            paidSettled = true;
+            void settlePaidSpend(
+              paidReservation,
+              routerActual(model, result.inputTokens ?? null, result.outputTokens ?? null, paidReservation.estimate),
+            );
+          }
           return {
             value: result.value,
             provider: config.name,
@@ -821,6 +841,9 @@ async function run<T>(
         } finally {
           clearTimeout(timer);
         }
+      }
+      } finally {
+        if (paidReservation && !paidSettled) void settlePaidSpend(paidReservation, 0);
       }
     }
 

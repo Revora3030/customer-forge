@@ -86,7 +86,7 @@ export function MemoryPanel({
               className="bg-muted/40 flex items-start gap-2 rounded-lg border p-2.5"
             >
               <div className="min-w-0 flex-1 space-y-1">
-                <Badge variant="secondary" className="text-[10px]">
+                <Badge variant="secondary" className="text-[11px]">
                   {KIND_LABEL[entry.kind]}
                 </Badge>
                 <p className="text-sm break-words">{entry.text}</p>

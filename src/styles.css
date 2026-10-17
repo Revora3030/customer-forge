@@ -96,7 +96,8 @@
   --secondary: oklch(0.2149 0.0044 286);
   --secondary-foreground: oklch(0.9842 0 0);
   --muted: oklch(0.2149 0.0044 286);
-  --muted-foreground: oklch(0.7211 0.0093 286);
+  /* Secondary text: brighter for comfortable reading on the dark surface. */
+  --muted-foreground: oklch(0.765 0.0095 286);
   --accent: var(--gold-soft);
   --accent-foreground: oklch(0.1421 0.0032 286);
   --destructive: oklch(0.645 0.2154 16.44);
@@ -106,8 +107,9 @@
   --info: oklch(0.7535 0.139 232.66);
   --info-foreground: oklch(0.1421 0.0032 286);
 
-  --border: oklch(0.2582 0.006 286);
-  --input: oklch(0.2582 0.006 286);
+  /* Edges a touch more defined so cards and fields read as separate surfaces. */
+  --border: oklch(0.285 0.007 286);
+  --input: oklch(0.3 0.008 286);
   --ring: var(--gold);
 
   --chart-1: var(--gold);
@@ -128,7 +130,7 @@
   --sidebar-primary-foreground: oklch(0.1421 0.0032 286);
   --sidebar-accent: oklch(0.2149 0.0044 286);
   --sidebar-accent-foreground: oklch(0.9842 0 0);
-  --sidebar-border: oklch(0.2582 0.006 286);
+  --sidebar-border: oklch(0.285 0.007 286);
   --sidebar-ring: var(--gold);
 }
 
@@ -300,6 +302,10 @@
   background-color: color-mix(in oklab, var(--card) 62%, transparent);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
+  transition:
+    border-color 180ms ease,
+    background-color 180ms ease,
+    box-shadow 180ms ease;
 }
 
 @utility panel-inset {
@@ -320,6 +326,8 @@
 .product-page {
   display: grid;
   gap: 1.25rem;
+  /* Each workspace page settles in instead of snapping. */
+  animation: revora-reveal 260ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 .product-page > .panel + .panel,
 .product-page > div + .panel,
@@ -2549,4 +2557,65 @@ html[data-cookie-banner="open"] .sticky-cta-bar {
   html[data-cookie-banner="open"] .jarvis-launcher {
     display: none;
   }
+}
+
+/* ---------------------------------------------------------------------------
+   Bringing the platform to life. All of this is removed by the global
+   prefers-reduced-motion rule.
+   ------------------------------------------------------------------------- */
+
+/* Interactive cards lift slightly under the pointer. */
+@media (hover: hover) {
+  a.panel:hover,
+  button.panel:hover,
+  .panel[data-interactive]:hover {
+    border-color: color-mix(in oklab, var(--primary) 35%, var(--border));
+    box-shadow: var(--shadow-lift);
+  }
+}
+
+/* A number that just changed glows gold for a moment, so live data visibly updates. */
+@keyframes revora-value-flash {
+  0% {
+    color: var(--gold-soft);
+    text-shadow: 0 0 18px color-mix(in oklab, var(--gold) 55%, transparent);
+  }
+  100% {
+    text-shadow: 0 0 0 transparent;
+  }
+}
+.value-flash {
+  animation: revora-value-flash 1200ms ease-out;
+}
+
+/* Small pulsing dot for anything that refreshes on its own. */
+@keyframes revora-live-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in oklab, var(--success) 55%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 0 5px transparent;
+  }
+}
+.live-dot {
+  display: inline-block;
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 9999px;
+  background: var(--success);
+  animation: revora-live-pulse 2.4s ease-in-out infinite;
+}
+
+/* Marketing sections below the fold rise in as they scroll into view. Only
+   applied once JavaScript has marked the page, so content is never hidden
+   from crawlers or visitors without JS. */
+html.reveal-ready [data-reveal]:not([data-revealed]) {
+  opacity: 0;
+  transform: translateY(14px);
+}
+html.reveal-ready [data-reveal] {
+  transition:
+    opacity 600ms cubic-bezier(0.22, 1, 0.36, 1),
+    transform 600ms cubic-bezier(0.22, 1, 0.36, 1);
 }

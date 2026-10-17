@@ -2,8 +2,9 @@ import { createFileRoute } from "@tanstack/react-router";
 
 /**
  * Streams one sentence of Jarvis's ElevenLabs voice to an <audio> element.
- * Access is a signed two-minute link minted by a super-admin's server call
- * (jarvisVoiceLinks); the link can only speak the text it was signed for.
+ * Access is a signed two-minute link minted on the server: by a super-admin's
+ * call (jarvisVoiceLinks), or for the visitor Jarvis's own reply under an
+ * hourly character allowance. A link can only speak the text it was signed for.
  */
 async function handle(request: Request): Promise<Response> {
   const fail = (status: number, error: string) =>

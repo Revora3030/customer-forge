@@ -67,3 +67,48 @@ export const jarvisVoiceLinks = createServerFn({ method: "POST" })
     const { apiKey } = voiceConfig();
     return { urls: await Promise.all(data.texts.map((text) => signVoiceLink(apiKey, text))) };
   });
+
+export type JarvisVoiceStatus =
+  | { connected: true; voiceId: string; voiceName: string; customVoice: boolean }
+  | { connected: false; reason: string };
+
+/**
+ * Is Jarvis really speaking in the owner's ElevenLabs voice? Looks the voice
+ * up with the server's key (no speech is generated, so it costs nothing) and
+ * says plainly what's missing when it isn't.
+ */
+export const jarvisVoiceStatus = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }): Promise<JarvisVoiceStatus> => {
+    await assertAdmin(context);
+    const apiKey = process.env["ELEVENLABS_API_KEY"];
+    if (!apiKey) return { connected: false, reason: "ELEVENLABS_API_KEY isn't set in the server secrets, so Jarvis uses the browser voice." };
+    const configured = process.env["ELEVENLABS_VOICE_ID"]?.trim() ?? "";
+    const { voiceConfig } = await import("./jarvis-voice.server");
+    let voiceId: string;
+    try {
+      voiceId = voiceConfig().voiceId;
+    } catch (error) {
+      return { connected: false, reason: error instanceof Error ? error.message : "The voice settings are invalid." };
+    }
+    try {
+      const response = await fetch(`https://api.elevenlabs.io/v1/voices/${encodeURIComponent(voiceId)}`, {
+        headers: { "xi-api-key": apiKey, accept: "application/json" },
+        signal: AbortSignal.timeout(8000),
+        redirect: "manual",
+      });
+      if (response.status === 401) return { connected: false, reason: "ElevenLabs rejected the API key. Check ELEVENLABS_API_KEY." };
+      if (response.status === 404 || response.status === 400)
+        return { connected: false, reason: `ElevenLabs has no voice ${voiceId} on this account. Set ELEVENLABS_VOICE_ID to your voice's ID.` };
+      if (!response.ok) return { connected: false, reason: `ElevenLabs answered ${response.status}. Try again shortly.` };
+      const voice = (await response.json()) as { name?: unknown };
+      return {
+        connected: true,
+        voiceId,
+        voiceName: typeof voice.name === "string" ? voice.name : voiceId,
+        customVoice: Boolean(configured),
+      };
+    } catch {
+      return { connected: false, reason: "Couldn't reach ElevenLabs just now." };
+    }
+  });
