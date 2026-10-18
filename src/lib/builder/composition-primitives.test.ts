@@ -4,6 +4,20 @@ import { validateComposition } from "./composition-tree";
 const m = (src: string) => ({ type: "media", src, alt: "photo" });
 const tree = (root: unknown) => ({ version: 1, root });
 
+describe("before/after slider with the website's own pictures", () => {
+  const ref = "22222222-2222-4222-8222-222222222222";
+  const other = "33333333-3333-4333-8333-333333333333";
+  const slider = (before: Record<string, unknown>) => tree({ type: "before_after_slider", beforeImage: before, afterImage: { mediaRef: other, alt: "After", label: "After" } });
+  it("accepts a mediaRef in place of src", () => {
+    const result = validateComposition(slider({ mediaRef: ref, alt: "Before", label: "Before" }), { allowedMediaRefs: new Set([ref, other]), requiredMediaRefs: new Set([ref, other]) });
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.tree.root.beforeImage).toEqual({ mediaRef: ref, alt: "Before", label: "Before" });
+  });
+  it("refuses a mediaRef that does not belong to the section", () => {
+    expect(validateComposition(slider({ mediaRef: ref, alt: "Before", label: "Before" }), { allowedMediaRefs: new Set([other]) }).ok).toBe(false);
+  });
+});
+
 describe("interactive building blocks", () => {
   it("accepts valid tabs, accordion, compare, gallery, marquee, quote", () => {
     const r = validateComposition(tree({ type: "stack", children: [

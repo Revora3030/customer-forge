@@ -13,6 +13,7 @@ import { readComposition, type WidgetPresentation } from "@/lib/builder/composit
 import { legacySectionToComposition } from "@/lib/builder/legacy-composition";
 import { blockCss, readBlockStyle, readComponentVisual } from "@/lib/site-style";
 import { premiumSurface } from "@/lib/site-theme";
+import { readSectionEffect, sectionFxClassName } from "@/lib/site-effects";
 import { SitePageLink } from "@/components/site/site-links";
 import { Mail, MapPin, Phone } from "lucide-react";
 import { BookingForm, EnquiryForm, QuoteCalculator } from "@/components/site/SiteForms";
@@ -82,7 +83,8 @@ const Heading = ({ section, lead = false }: { section: Section; lead?: boolean }
 /**
  * Public section renderer. Only AI-designed layouts and working features
  * render; no built-in variant, style family or layout class is applied.
- * The owner's own block edits still apply; old named effects are no longer drawn.
+ * The owner's own block edits still apply, and the AI-authored section effect
+ * (settings.effect) is drawn as a bounded, reduced-motion-safe class.
  */
 export function SiteSection({ site, section, lead = false, first = false }: { site: Site; section: Section; lead?: boolean; first?: boolean }) {
   const block = readBlockStyle(section.settings);
@@ -96,13 +98,14 @@ export function SiteSection({ site, section, lead = false, first = false }: { si
   const storedRole = (section.settings as Record<string, unknown> | null)?.["role"];
   const role = typeof storedRole === "string" && /^[a-z][a-z0-9_-]{0,40}$/.test(storedRole) ? storedRole : section.kind;
   const anchor = role && role !== "composition" ? role.replace(/_/g, "-") : undefined;
+  const fx = sectionFxClassName(readSectionEffect(section.settings));
   return (
     <div
       id={anchor}
       data-rvb={section.id}
       data-rvb-kind={section.kind}
       data-rvb-label={sectionLabel(section.kind)}
-      className="rv-site-section scroll-mt-20"
+      className={fx ? `rv-site-section scroll-mt-20 ${fx}` : "rv-site-section scroll-mt-20"}
       style={{ ...css, minWidth: 0, maxWidth: "100%" }}
     >
       <SiteSectionBody site={site} section={section} lead={lead} first={first} surface={ownBg} />

@@ -77,8 +77,10 @@ function action(component: LegacyComponent, primary: boolean): CompositionNode |
     type: "button",
     text: label,
     href,
+    // A neutral currentColor outline only, so the primary action reads as a
+    // button rather than a word; no fill colour, size or label is chosen.
     style: primary
-      ? { paddingX: 24, paddingY: 14, radius: 999, weight: 600, size: 15 }
+      ? { paddingX: 24, paddingY: 14, radius: 999, weight: 600, size: 15, borderWidth: 2 }
       : { paddingX: 24, paddingY: 14, radius: 999, weight: 600, size: 15, borderWidth: 1 },
   };
 }

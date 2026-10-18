@@ -87,3 +87,20 @@ describe("gradient backgrounds", () => {
     expect(css).toContain("linear-gradient(135deg,#0a0a0a,#ffffff)");
   });
 });
+
+describe("device layers beat the inline desktop layer", () => {
+  it("emits the phone padding as !important inside the phone media query (live hero 7942d166)", () => {
+    const css = blockRules("abc123", { style: { padTop: 80, padLeft: 48, mobile: { padTop: 40, padLeft: 24 } } });
+    const phone = css.slice(css.indexOf("@media (max-width:639px)"));
+    expect(css).toContain("@media (max-width:639px)");
+    expect(phone).toContain("padding-top:40px !important");
+    expect(phone).toContain("padding-left:24px !important");
+    // The desktop value stays inline only; it is never written into the phone layer.
+    expect(phone).not.toContain("80px");
+  });
+
+  it("really hides a hidden-on-phone block and can bring one back on tablet", () => {
+    expect(blockRules("abc123", { style: { mobile: { hidden: true } } })).toContain('[data-rvb="abc123"]{display:none !important}');
+    expect(blockRules("abc123", { style: { hidden: true, tablet: { hidden: false } } })).toContain("display:revert !important");
+  });
+});

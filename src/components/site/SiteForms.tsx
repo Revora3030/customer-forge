@@ -12,6 +12,7 @@ import { submitPublicLead, trackPublicEvent, type PublicSite } from "@/lib/publi
 import { readAttribution } from "@/lib/attribution";
 import { visitToken } from "@/lib/performance/web-vitals";
 import { currency } from "@/lib/format";
+import { estimateQuote, isUsableQuote } from "@/lib/quote-estimate";
 import { cn } from "@/lib/utils";
 import { useStepScroll } from "@/lib/use-step-scroll";
 import { DirectContact } from "@/components/site/ContactDetails";
@@ -121,7 +122,8 @@ export function QuoteCalculator({ site, presentation }: { site: Site; presentati
   const [done, setDone] = useState(false);
   const [confirmationEmail, setConfirmationEmail] = useState("");
 
-  if (!quote) return null;
+  // A form with no choosable options can never produce an estimate: show nothing rather than a dead widget.
+  if (!quote || !isUsableQuote(quote.questions)) return null;
   if (done) {
     return (
       <div ref={stepRef}>
@@ -138,33 +140,28 @@ export function QuoteCalculator({ site, presentation }: { site: Site; presentati
     );
   }
 
-  const base = Number(quote.form.base_price ?? 0);
-  const selected = quote.questions.map((question) => {
+  // Only questions with options can be answered (the server ignores the rest too).
+  const questions = quote.questions.filter((question) => question.options.length > 0);
+  const selected = questions.map((question) => {
     const optionId = answers[question.id];
     const option = question.options.find((o) => o.id === optionId);
     return { question, option };
   });
-
-  let total = base;
-  for (const { option } of selected) {
-    if (!option) continue;
-    total =
-      option.modifier_type === "multiply"
-        ? total * option.price_modifier
-        : total + option.price_modifier;
-  }
   const addons = quote.addons ?? [];
   const chosenAddons = addons.filter((a) => picked.includes(a.id));
-  total += chosenAddons.reduce((sum, a) => sum + Number(a.price), 0);
-  const min = Math.max(Number(quote.form.min_price ?? 0), Math.round(total * 0.9));
-  const max = Math.max(
-    min,
-    Math.round(
-      Math.min(Number(quote.form.max_price ?? total * 1.15) || total * 1.15, total * 1.15),
-    ),
-  );
+  // Same arithmetic as the server recompute (quote-estimate.ts).
+  const { min, max } = estimateQuote({
+    base: quote.form.base_price,
+    min: quote.form.min_price,
+    max: quote.form.max_price,
+    picks: selected.flatMap(({ option }) => (option ? [{ modifier: option.price_modifier, type: option.modifier_type }] : [])),
+    addons: chosenAddons.map((a) => a.price),
+  });
   const answered = selected.filter((s) => s.option).length;
-  const complete = answered === quote.questions.length && quote.questions.length > 0;
+  const complete = answered === questions.length && questions.length > 0;
+  // A floor the owner set is a fact; a partial total is not (later answers can multiply it).
+  const floor = Number(quote.form.min_price ?? 0);
+  const fromPrice = Number.isFinite(floor) && floor > 0 ? floor : null;
 
   return (
     <div ref={stepRef} className="panel overflow-hidden" style={widgetPresentationStyle(presentation)}>
@@ -176,7 +173,7 @@ export function QuoteCalculator({ site, presentation }: { site: Site; presentati
 
       {step === "questions" ? (
         <div className="space-y-6 px-5 py-5">
-          {quote.questions.map((question) => (
+          {questions.map((question) => (
             <fieldset key={question.id}>
               <legend className="text-[14px] font-medium">{question.label}</legend>
               {question.helper_text ? (
@@ -260,9 +257,15 @@ export function QuoteCalculator({ site, presentation }: { site: Site; presentati
                   {currency(min)} – {currency(max)}
                 </p>
               ) : (
-                <p className="mt-1 text-[14px] text-muted-foreground">
-                  {presentation?.optionPrompt ?? "Choose your options to see your price"}
-                </p>
+                <>
+                  <p className="mt-1 text-[14px] text-muted-foreground">
+                    {presentation?.optionPrompt ?? "Choose your options to see your price"}
+                  </p>
+                  <p className="tnum mt-1 text-[14px] text-muted-foreground" aria-live="polite">
+                    {answered} of {questions.length} answered
+                    {fromPrice !== null ? <> · From {currency(fromPrice)}</> : null}
+                  </p>
+                </>
               )}
             </div>
             <Button
@@ -274,7 +277,7 @@ export function QuoteCalculator({ site, presentation }: { site: Site; presentati
                 setStep("contact");
               }}
             >
-              {presentation?.actionLabel ?? "Lock in this price"}
+              {presentation?.actionLabel ?? "Continue"}
             </Button>
           </div>
         </div>
@@ -361,7 +364,7 @@ export function QuoteCalculator({ site, presentation }: { site: Site; presentati
           </div>
           <div className="flex gap-2">
             <Button type="submit" variant="signal" disabled={pending}>
-              {pending ? <Loader2 className="size-4 animate-spin" /> : null} {presentation?.actionLabel ?? "Send my quote request"}
+              {pending ? <Loader2 className="size-4 animate-spin" /> : null} {presentation?.submitLabel ?? "Send request"}
             </Button>
             <Button type="button" variant="ghost" onClick={() => setStep("questions")}>
               {presentation?.backLabel ?? "Back"}
