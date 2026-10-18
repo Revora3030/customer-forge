@@ -30,10 +30,14 @@ function database(jobs: Row[], options: { queueReadError?: boolean } = {}) {
         select: () => query,
         update: (value: Row) => { patch = value; return query; },
         upsert: (value: Row) => { upsert = value; return query; },
+        insert: (value: Row) => { rows.push({ ...value }); executeOnceData = [{ ...value }]; return query; },
         eq: (key: string, value: unknown) => { predicates.push(row => row[key] === value); return query; },
         neq: (key: string, value: unknown) => { predicates.push(row => row[key] !== value); return query; },
         in: (key: string, values: unknown[]) => { predicates.push(row => values.includes(row[key])); return query; },
         is: (key: string, value: unknown) => { predicates.push(row => row[key] === value); return query; },
+        // JSON-path filters (fresh-rebuild markers): no row in these fixtures carries one.
+        not: () => { predicates.push(() => false); return query; },
+        filter: () => { predicates.push(() => false); return query; },
         lt: (key: string, value: string | number) => { predicates.push(row => row[key] != null && row[key] < value); return query; },
         gte: (key: string, value: string | number) => { predicates.push(row => row[key] != null && row[key] >= value); return query; },
         or: (filter: string) => {
@@ -146,6 +150,34 @@ describe("worker queue behavior", () => {
       expect(row).toMatchObject(change);
       expect(row["error_message"]).toBeUndefined();
     }
+  });
+
+  it("a reclaim records which attempt was lost, when, and who was invoking", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const lease = "2026-10-17T11:49:55.000Z";
+    const dead = queued("dead", "tenant-a", { status: "processing", attempts: 1, lease_expires_at: lease, current_step: "pictures" });
+    const { db, tables } = database([dead]);
+    expect((await claimJob(db, "tenant-a", "pg_net"))?.id).toBe("dead");
+    expect(dead["attempts"]).toBe(2);
+    const lost = (tables["ai_generations"] ?? []).filter((row) => row["kind"] === "build_attempt_lost");
+    expect(lost).toHaveLength(1);
+    expect(lost[0]).toMatchObject({
+      job_id: "dead",
+      organization_id: "tenant-a",
+      result: {
+        previousAttempt: 1,
+        previousLeaseExpiresAt: lease,
+        approxDeathAt: new Date(Date.parse(lease) - LEASE_SECONDS * 1000).toISOString(),
+        current_step: "pictures",
+        invoker: "pg_net",
+      },
+    });
+  });
+
+  it("a fresh claim of a queued job records no lost attempt", async () => {
+    const { db, tables } = database([queued("new")]);
+    await claimJob(db);
+    expect(tables["ai_generations"] ?? []).toHaveLength(0);
   });
 
   it("renews for 300 seconds and refuses a stale/cancelled attempt", async () => {

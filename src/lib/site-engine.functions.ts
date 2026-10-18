@@ -3,6 +3,7 @@ import { getRequest } from "@tanstack/react-start/server";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
+import { normaliseRequestId } from "@/lib/builder/chat-thread";
 
 /**
  * Revora Site Engine server functions.
@@ -20,16 +21,37 @@ export type RunResult = {
   queued: boolean;
   mode: RunMode;
   backupId?: string;
+  /** The chat request this build reports its progress under, when it has one. */
+  requestId?: string | null;
 };
+
+/**
+ * Validates the optional chat request id a build is started with. Absent or
+ * empty means none; anything else must be a valid request id or is refused.
+ */
+export function parseRunRequestId(value: unknown): string | null {
+  if (value === undefined || value === null || value === "") return null;
+  const requestId = normaliseRequestId(value);
+  if (!requestId) throw new Error("Invalid request id");
+  return requestId;
+}
+
+/** True when an error says a column is not there yet (the migration has not run). */
+function isMissingColumn(error: { code?: string; message?: string } | null | undefined): boolean {
+  if (!error) return false;
+  if (error.code === "42703" || error.code === "PGRST204") return true;
+  return typeof error.message === "string" && /column .* does not exist|could not find the '.*' column/i.test(error.message);
+}
 
 export const runSiteGeneration = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .validator((input: { organizationId: string; mode?: RunMode; confirmation?: string }) => {
+  .validator((input: { organizationId: string; mode?: RunMode; confirmation?: string; requestId?: string }) => {
     const organizationId = String(input?.organizationId ?? "");
     if (!/^[0-9a-f-]{36}$/i.test(organizationId)) throw new Error("Invalid workspace");
     const mode: RunMode = input?.mode === "fresh_replace" ? "fresh_replace" : "safe";
     const confirmation = String(input?.confirmation ?? "").trim();
-    return { organizationId, mode, confirmation };
+    const requestId = parseRunRequestId(input?.requestId);
+    return { organizationId, mode, confirmation, requestId };
   })
   .handler(async ({ data, context }): Promise<RunResult> => {
     const { supabase, userId } = context;
@@ -87,13 +109,27 @@ export const runSiteGeneration = createServerFn({ method: "POST" })
     // once so the owner's new build actually starts.
     const { STALLED_LEASE_GRACE_MS, INTERRUPTED_BUILD_MESSAGE } = await import("@/lib/builder/job-liveness");
     const deadBefore = new Date(now.getTime() - STALLED_LEASE_GRACE_MS).toISOString();
-    await supabase
+    const { data: deadJobs } = await supabase
       .from("generation_jobs")
       .update({ status: "failed", error_message: INTERRUPTED_BUILD_MESSAGE, completed_at: now.toISOString(), lease_expires_at: null })
       .eq("organization_id", orgId)
       .eq("status", "processing")
       .lt("lease_expires_at", deadBefore)
-      .lt("updated_at", deadBefore);
+      .lt("updated_at", deadBefore)
+      .select("id, organization_id, created_by, created_at");
+    // A dead fresh rebuild gets its previous website back (website only)
+    // before the new build reads the site.
+    if (deadJobs?.length) {
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      const { settleAbandonedFreshRebuild } = await import("@/lib/site-engine.worker.server");
+      for (const dead of deadJobs.slice(0, 2)) {
+        try {
+          await settleAbandonedFreshRebuild(supabaseAdmin as never, dead);
+        } catch (error) {
+          console.warn(`[site-engine] settling dead fresh rebuild ${dead.id} failed`, error);
+        }
+      }
+    }
     const { data: existing } = await supabase
       .from("generation_jobs")
       .select("id, status, progress")
@@ -121,11 +157,26 @@ export const runSiteGeneration = createServerFn({ method: "POST" })
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
       const { createBackup } = await import("@/lib/backup.server");
       await requireOrgRole(supabase, orgId, userId, "admin");
-      const backup = await createBackup(supabaseAdmin as never, orgId, {
-        kind: "pre_restore",
-        label: `Before fresh AI rebuild ${new Date().toISOString()}`,
-        userId,
-      });
+      const unrestorable = "We couldn't make a restorable backup, so the fresh rebuild did not start";
+      let backup: Awaited<ReturnType<typeof createBackup>>;
+      try {
+        backup = await createBackup(supabaseAdmin as never, orgId, {
+          kind: "pre_restore",
+          label: `Before fresh AI rebuild ${new Date().toISOString()}`,
+          userId,
+        });
+      } catch {
+        throw new Error(unrestorable);
+      }
+      // A fresh rebuild only starts when its restore point can really put the
+      // website back: the stored snapshot must hold the page tree.
+      const { data: stored } = await supabaseAdmin
+        .from("data_backups")
+        .select("id, pages:snapshot->website->pages")
+        .eq("id", backup.id)
+        .eq("organization_id", orgId)
+        .maybeSingle();
+      if (!Array.isArray((stored as { pages?: unknown } | null)?.pages)) throw new Error(unrestorable);
       backupId = backup.id;
     }
 
@@ -176,18 +227,25 @@ export const runSiteGeneration = createServerFn({ method: "POST" })
       }
     }
 
-    const { data: job, error } = await supabase
+    const jobRow = {
+      organization_id: orgId,
+      status: "queued",
+      progress: 0,
+      current_step: null,
+      created_by: userId,
+      steps: [],
+    };
+    let inserted = await supabase
       .from("generation_jobs")
-      .insert({
-        organization_id: orgId,
-        status: "queued",
-        progress: 0,
-        current_step: null,
-        created_by: userId,
-        steps: [],
-      })
+      .insert({ ...jobRow, ...(data.requestId ? { request_id: data.requestId } : {}) })
       .select("id")
       .single();
+    // Before the request_id migration runs, the build still queues; its
+    // progress is then recorded under the job id.
+    if (inserted.error && data.requestId && isMissingColumn(inserted.error)) {
+      inserted = await supabase.from("generation_jobs").insert(jobRow).select("id").single();
+    }
+    const { data: job, error } = inserted;
     if (error || !job) {
       await cleanupFreshQueue();
       // The database allows one active build per workspace
@@ -244,6 +302,7 @@ export const runSiteGeneration = createServerFn({ method: "POST" })
       queued: true,
       mode: data.mode,
       ...(backupId ? { backupId } : {}),
+      requestId: data.requestId,
     };
   });
 
@@ -274,7 +333,7 @@ export async function kickWorker(origin: string, organizationId: string) {
     try {
       const response = await fetch(`${base.replace(/\/$/, "")}/api/public/jobs/site-engine?organizationId=${encodeURIComponent(organizationId)}`, {
         method: "POST",
-        headers: { authorization: `Bearer ${secret}` },
+        headers: { authorization: `Bearer ${secret}`, "x-revora-invoker": "kick" },
         redirect: "manual",
       });
       if (response.ok) return;
@@ -290,7 +349,7 @@ export async function kickWorker(origin: string, organizationId: string) {
   try {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { drainSiteEngineQueue } = await import("@/lib/site-engine.worker.server");
-    await drainSiteEngineQueue(supabaseAdmin as never, { max: 1, organizationId });
+    await drainSiteEngineQueue(supabaseAdmin as never, { max: 1, organizationId, invoker: "kick" });
   } catch {
     // The client pump and the scheduled run still pick the job up.
   }
@@ -323,6 +382,7 @@ export const pumpSiteEngineQueue = createServerFn({ method: "POST" })
     return drainSiteEngineQueue(supabaseAdmin as never, {
       max: 1,
       organizationId: data.organizationId,
+      invoker: "pump",
     });
   });
 

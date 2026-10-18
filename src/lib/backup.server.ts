@@ -254,6 +254,109 @@ async function applyTenantSnapshot(
   return siteResult;
 }
 
+/** website_settings columns a website-only restore may write. Never publish or domain fields. */
+const WEBSITE_SETTINGS_RESTORE_COLUMNS = ["generation", "seo", "template"] as const;
+/** business_profiles columns that are part of the website's look. Nothing else is touched. */
+const BRAND_RESTORE_COLUMNS = ["primary_color", "secondary_color", "accent_color", "font_preference"] as const;
+
+function pickColumns(
+  row: Record<string, unknown> | undefined,
+  columns: readonly string[],
+): Record<string, unknown> | null {
+  if (!row || typeof row !== "object") return null;
+  const picked: Record<string, unknown> = {};
+  for (const column of columns) if (column in row) picked[column] = row[column];
+  return Object.keys(picked).length ? picked : null;
+}
+
+/**
+ * Restores ONLY the website from a backup: the page → section → component
+ * tree (through the atomic restore_website_state RPC), the website settings'
+ * generation/seo/template, and the brand colours and font. Used when a fresh
+ * rebuild stops part-way, so the owner gets their previous website back.
+ *
+ * It never writes publish_state, published, custom_domain or domain_verified
+ * (the publishing boundary), and never touches leads, customers, appointments,
+ * quote requests, lead activities or media: anything that arrived after the
+ * backup was taken stays exactly as it is. Every write is scoped to `orgId`,
+ * and the backup must belong to that same workspace.
+ */
+export async function restoreWebsiteFromBackup(
+  admin: Admin,
+  backupId: string,
+  orgId: string,
+): Promise<{ restored: boolean; reason?: string }> {
+  const { data: backup, error } = await admin
+    .from("data_backups")
+    .select("id, organization_id, snapshot")
+    .eq("id", backupId)
+    .eq("organization_id", orgId)
+    .maybeSingle();
+  if (error) return { restored: false, reason: `Couldn't read that backup: ${error.message}` };
+  if (!backup) return { restored: false, reason: "That backup no longer exists." };
+
+  const snapshot = (backup as { snapshot?: unknown }).snapshot as
+    | (Partial<TenantSnapshot> & { organizationId?: unknown })
+    | null
+    | undefined;
+  const snapshotOrg = snapshot?.organization_id ?? snapshot?.organizationId;
+  if (
+    !snapshot ||
+    typeof snapshot !== "object" ||
+    snapshot.format !== 1 ||
+    (snapshotOrg !== undefined && snapshotOrg !== orgId) ||
+    !Array.isArray(snapshot.website?.pages)
+  ) {
+    return { restored: false, reason: "That backup is not in a restorable format." };
+  }
+
+  const { error: siteError } = await admin.rpc("restore_website_state", {
+    _organization_id: orgId,
+    _snapshot: snapshot.website as never,
+  });
+  if (siteError) return { restored: false, reason: `Website restore failed: ${siteError.message}` };
+
+  const settings = pickColumns(snapshot.tables?.["website_settings"]?.[0], WEBSITE_SETTINGS_RESTORE_COLUMNS);
+  const restoredGeneration = settings?.["generation"];
+  if (settings && restoredGeneration && typeof restoredGeneration === "object" && !Array.isArray(restoredGeneration)) {
+    // Build bookkeeping from the moment of the backup is never brought back:
+    // it would point a later build at a rebuild that has already settled.
+    const { pendingBuild: _pending, buildState: _state, buildStartedAt: _started, ...rest } =
+      restoredGeneration as Record<string, unknown>;
+    void _pending;
+    void _state;
+    void _started;
+    settings["generation"] = rest;
+  }
+  if (settings) {
+    const { error: settingsError } = await admin
+      .from("website_settings")
+      .update(settings as never)
+      .eq("organization_id", orgId);
+    if (settingsError)
+      return { restored: false, reason: `Website settings restore failed: ${settingsError.message}` };
+  }
+
+  const brand = pickColumns(snapshot.tables?.["business_profiles"]?.[0], BRAND_RESTORE_COLUMNS);
+  if (brand) {
+    const { error: brandError } = await admin
+      .from("business_profiles")
+      .update(brand as never)
+      .eq("organization_id", orgId);
+    if (brandError) return { restored: false, reason: `Brand restore failed: ${brandError.message}` };
+  }
+
+  const { error: markError } = await admin
+    .from("data_backups")
+    .update({ restored_at: new Date().toISOString() })
+    .eq("id", backupId)
+    .eq("organization_id", orgId);
+  if (markError) {
+    console.warn(`[backup] website restore of ${backupId} finished but couldn't be stamped: ${markError.message}`);
+  }
+  return { restored: true };
+}
+
 export async function restoreBackup(
   admin: Admin,
   backupId: string,
