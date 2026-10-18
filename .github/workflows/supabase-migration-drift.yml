@@ -23,7 +23,21 @@ jobs:
       - name: Install dependencies
         run: npm install --no-audit --no-fund --prefer-online
 
-      - name: Compare applied migrations with source
+      - name: Object checks are configured
+        run: |
+          node --input-type=module -e '
+            import { OBJECT_CHECKS } from "./scripts/supabase-migration-drift-audit.mjs";
+            const ids = OBJECT_CHECKS.map((c) => c.id).join("\n");
+            for (const need of ["builder_messages.request_id/kind/branch", "lead_tasks", "image_records", "ai_paid_daily_budget", "no anon TRUNCATE"])
+              if (!ids.includes(need)) { console.error(`missing object check: ${need}`); process.exit(1); }
+            console.log(ids);
+          '
+
+      # History rows AND key objects (builder_messages columns, lead_tasks,
+      # image_records, ai_paid_daily_budget). Anon TRUNCATE on billing/platform
+      # tables is reported as a warning ("pending 20261018090400") until that
+      # migration is applied by the owner.
+      - name: Compare applied migrations and key objects with source
         env:
           SUPABASE_DB_URL: ${{ secrets.REVORA_SUPABASE_DB_URL }}
         run: npm run supabase:drift

@@ -134,82 +134,130 @@ REVOKE ALL ON FUNCTION public.provision_workspace_server(uuid, text, text, jsonb
 GRANT EXECUTE ON FUNCTION public.provision_workspace_server(uuid, text, text, jsonb, integer)
   TO service_role;
 
--- 3) Cover the three currently reported foreign keys.
-CREATE INDEX IF NOT EXISTS improvement_recommendations_created_by_idx
-  ON public.improvement_recommendations (created_by);
-CREATE INDEX IF NOT EXISTS outcome_evidence_created_by_idx
-  ON public.outcome_evidence (created_by);
-CREATE INDEX IF NOT EXISTS outcome_snapshots_created_by_idx
-  ON public.outcome_snapshots (created_by);
+-- Sections below touch outcome_snapshots / outcome_evidence /
+-- improvement_recommendations, which do not exist in production (verified
+-- 2026-10-17). They are guarded so this file can be replayed without 42P01;
+-- when the tables are absent the block is a no-op.
+DO $$
+BEGIN
+  IF to_regclass('public.outcome_snapshots') IS NOT NULL
+     AND to_regclass('public.outcome_evidence') IS NOT NULL
+     AND to_regclass('public.improvement_recommendations') IS NOT NULL THEN
+    -- 3) Cover the three currently reported foreign keys.
+    EXECUTE $ddl$
+      CREATE INDEX IF NOT EXISTS improvement_recommendations_created_by_idx
+        ON public.improvement_recommendations (created_by)
+    $ddl$;
+    EXECUTE $ddl$
+      CREATE INDEX IF NOT EXISTS outcome_evidence_created_by_idx
+        ON public.outcome_evidence (created_by)
+    $ddl$;
+    EXECUTE $ddl$
+      CREATE INDEX IF NOT EXISTS outcome_snapshots_created_by_idx
+        ON public.outcome_snapshots (created_by)
+    $ddl$;
 
--- 4) Fix the seven RLS init-plan warnings without changing tenant semantics.
-DROP POLICY IF EXISTS "members can read outcome snapshots" ON public.outcome_snapshots;
-CREATE POLICY "members can read outcome snapshots"
-  ON public.outcome_snapshots FOR SELECT
-  USING (EXISTS (
-    SELECT 1 FROM public.memberships
-    WHERE memberships.organization_id = outcome_snapshots.organization_id
-      AND memberships.user_id = (SELECT auth.uid())
-  ));
+    -- 4) Fix the seven RLS init-plan warnings without changing tenant semantics.
+    EXECUTE $ddl$
+      DROP POLICY IF EXISTS "members can read outcome snapshots" ON public.outcome_snapshots
+    $ddl$;
+    EXECUTE $ddl$
+      CREATE POLICY "members can read outcome snapshots"
+        ON public.outcome_snapshots FOR SELECT
+        USING (EXISTS (
+          SELECT 1 FROM public.memberships
+          WHERE memberships.organization_id = outcome_snapshots.organization_id
+            AND memberships.user_id = (SELECT auth.uid())
+        ))
+    $ddl$;
 
-DROP POLICY IF EXISTS "members can create outcome snapshots" ON public.outcome_snapshots;
-CREATE POLICY "members can create outcome snapshots"
-  ON public.outcome_snapshots FOR INSERT
-  WITH CHECK (EXISTS (
-    SELECT 1 FROM public.memberships
-    WHERE memberships.organization_id = outcome_snapshots.organization_id
-      AND memberships.user_id = (SELECT auth.uid())
-  ));
+    EXECUTE $ddl$
+      DROP POLICY IF EXISTS "members can create outcome snapshots" ON public.outcome_snapshots
+    $ddl$;
+    EXECUTE $ddl$
+      CREATE POLICY "members can create outcome snapshots"
+        ON public.outcome_snapshots FOR INSERT
+        WITH CHECK (EXISTS (
+          SELECT 1 FROM public.memberships
+          WHERE memberships.organization_id = outcome_snapshots.organization_id
+            AND memberships.user_id = (SELECT auth.uid())
+        ))
+    $ddl$;
 
-DROP POLICY IF EXISTS "members can read outcome evidence" ON public.outcome_evidence;
-CREATE POLICY "members can read outcome evidence"
-  ON public.outcome_evidence FOR SELECT
-  USING (EXISTS (
-    SELECT 1 FROM public.memberships
-    WHERE memberships.organization_id = outcome_evidence.organization_id
-      AND memberships.user_id = (SELECT auth.uid())
-  ));
+    EXECUTE $ddl$
+      DROP POLICY IF EXISTS "members can read outcome evidence" ON public.outcome_evidence
+    $ddl$;
+    EXECUTE $ddl$
+      CREATE POLICY "members can read outcome evidence"
+        ON public.outcome_evidence FOR SELECT
+        USING (EXISTS (
+          SELECT 1 FROM public.memberships
+          WHERE memberships.organization_id = outcome_evidence.organization_id
+            AND memberships.user_id = (SELECT auth.uid())
+        ))
+    $ddl$;
 
-DROP POLICY IF EXISTS "members can create outcome evidence" ON public.outcome_evidence;
-CREATE POLICY "members can create outcome evidence"
-  ON public.outcome_evidence FOR INSERT
-  WITH CHECK (EXISTS (
-    SELECT 1 FROM public.memberships
-    WHERE memberships.organization_id = outcome_evidence.organization_id
-      AND memberships.user_id = (SELECT auth.uid())
-  ));
+    EXECUTE $ddl$
+      DROP POLICY IF EXISTS "members can create outcome evidence" ON public.outcome_evidence
+    $ddl$;
+    EXECUTE $ddl$
+      CREATE POLICY "members can create outcome evidence"
+        ON public.outcome_evidence FOR INSERT
+        WITH CHECK (EXISTS (
+          SELECT 1 FROM public.memberships
+          WHERE memberships.organization_id = outcome_evidence.organization_id
+            AND memberships.user_id = (SELECT auth.uid())
+        ))
+    $ddl$;
 
-DROP POLICY IF EXISTS "members can read improvement recommendations" ON public.improvement_recommendations;
-CREATE POLICY "members can read improvement recommendations"
-  ON public.improvement_recommendations FOR SELECT
-  USING (EXISTS (
-    SELECT 1 FROM public.memberships
-    WHERE memberships.organization_id = improvement_recommendations.organization_id
-      AND memberships.user_id = (SELECT auth.uid())
-  ));
+    EXECUTE $ddl$
+      DROP POLICY IF EXISTS "members can read improvement recommendations" ON public.improvement_recommendations
+    $ddl$;
+    EXECUTE $ddl$
+      CREATE POLICY "members can read improvement recommendations"
+        ON public.improvement_recommendations FOR SELECT
+        USING (EXISTS (
+          SELECT 1 FROM public.memberships
+          WHERE memberships.organization_id = improvement_recommendations.organization_id
+            AND memberships.user_id = (SELECT auth.uid())
+        ))
+    $ddl$;
 
-DROP POLICY IF EXISTS "members can create improvement recommendations" ON public.improvement_recommendations;
-CREATE POLICY "members can create improvement recommendations"
-  ON public.improvement_recommendations FOR INSERT
-  WITH CHECK (EXISTS (
-    SELECT 1 FROM public.memberships
-    WHERE memberships.organization_id = improvement_recommendations.organization_id
-      AND memberships.user_id = (SELECT auth.uid())
-  ));
+    EXECUTE $ddl$
+      DROP POLICY IF EXISTS "members can create improvement recommendations" ON public.improvement_recommendations
+    $ddl$;
+    EXECUTE $ddl$
+      CREATE POLICY "members can create improvement recommendations"
+        ON public.improvement_recommendations FOR INSERT
+        WITH CHECK (EXISTS (
+          SELECT 1 FROM public.memberships
+          WHERE memberships.organization_id = improvement_recommendations.organization_id
+            AND memberships.user_id = (SELECT auth.uid())
+        ))
+    $ddl$;
 
-DROP POLICY IF EXISTS "members can update improvement recommendations" ON public.improvement_recommendations;
-CREATE POLICY "members can update improvement recommendations"
-  ON public.improvement_recommendations FOR UPDATE
-  USING (EXISTS (
-    SELECT 1 FROM public.memberships
-    WHERE memberships.organization_id = improvement_recommendations.organization_id
-      AND memberships.user_id = (SELECT auth.uid())
-  ))
-  WITH CHECK (EXISTS (
-    SELECT 1 FROM public.memberships
-    WHERE memberships.organization_id = improvement_recommendations.organization_id
-      AND memberships.user_id = (SELECT auth.uid())
-  ));
+    EXECUTE $ddl$
+      DROP POLICY IF EXISTS "members can update improvement recommendations" ON public.improvement_recommendations
+    $ddl$;
+    EXECUTE $ddl$
+      CREATE POLICY "members can update improvement recommendations"
+        ON public.improvement_recommendations FOR UPDATE
+        USING (EXISTS (
+          SELECT 1 FROM public.memberships
+          WHERE memberships.organization_id = improvement_recommendations.organization_id
+            AND memberships.user_id = (SELECT auth.uid())
+        ))
+        WITH CHECK (EXISTS (
+          SELECT 1 FROM public.memberships
+          WHERE memberships.organization_id = improvement_recommendations.organization_id
+            AND memberships.user_id = (SELECT auth.uid())
+        ))
+    $ddl$;
+  ELSE
+    RAISE NOTICE 'outcome tables absent; skipping their indexes and policies';
+  END IF;
+END
+$$;
 
 COMMIT;
 

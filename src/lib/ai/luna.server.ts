@@ -319,6 +319,97 @@ export async function recordUsage(row: {
   });
 }
 
+/** Most of an error body Revora will read: enough for OpenAI's error object. */
+export const ERROR_BODY_LIMIT_BYTES = 2048;
+/** Longest usage-row reason written for a failed HTTP call. */
+export const ERROR_REASON_MAX_CHARS = 200;
+
+/**
+ * Reads at most ERROR_BODY_LIMIT_BYTES of a failed response, bounded in time,
+ * and returns OpenAI's `error.message` (or the raw text when the body is not
+ * that shape). Never throws; an unreadable body yields null.
+ */
+export async function readProviderErrorMessage(response: Response, timeoutMs = 3_000): Promise<string | null> {
+  const body = response.body;
+  if (!body) return null;
+  let reader: ReadableStreamDefaultReader<Uint8Array> | null = null;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    reader = body.getReader();
+    const activeReader = reader;
+    const chunks: Uint8Array[] = [];
+    let total = 0;
+    const read = (async () => {
+      while (total < ERROR_BODY_LIMIT_BYTES) {
+        const { done, value } = await activeReader.read();
+        if (done || !value) break;
+        chunks.push(value);
+        total += value.byteLength;
+      }
+    })();
+    const expired = new Promise<void>((resolve) => {
+      timer = setTimeout(resolve, timeoutMs);
+    });
+    await Promise.race([read, expired]);
+    const bytes = new Uint8Array(Math.min(total, ERROR_BODY_LIMIT_BYTES));
+    let offset = 0;
+    for (const chunk of chunks) {
+      if (offset >= bytes.length) break;
+      const part = chunk.subarray(0, bytes.length - offset);
+      bytes.set(part, offset);
+      offset += part.byteLength;
+    }
+    return extractProviderErrorMessage(new TextDecoder().decode(bytes));
+  } catch {
+    return null;
+  } finally {
+    if (timer) clearTimeout(timer);
+    void reader?.cancel().catch(() => undefined);
+  }
+}
+
+/** Pulls `error.message` out of an OpenAI-style body, tolerating truncation. */
+export function extractProviderErrorMessage(text: string): string | null {
+  const trimmed = text.trim();
+  if (!trimmed) return null;
+  try {
+    const parsed = JSON.parse(trimmed) as { error?: { message?: unknown } | string } | null;
+    const error = parsed?.error;
+    if (typeof error === "string") return error;
+    if (error && typeof error.message === "string") return error.message;
+  } catch {
+    // Truncated at the read limit, or not JSON at all.
+  }
+  const quoted = /"message"\s*:\s*"((?:[^"\\]|\\.)*)/.exec(trimmed);
+  if (quoted?.[1] !== undefined) {
+    try {
+      return JSON.parse(`"${quoted[1]}"`) as string;
+    } catch {
+      return quoted[1];
+    }
+  }
+  return trimmed;
+}
+
+/** Removes anything secret-shaped or addressable from a provider message. */
+export function sanitizeProviderMessage(message: string): string {
+  return message
+    .replace(/\bBearer\s+\S+/gi, "Bearer [redacted]")
+    .replace(/\b(?:sk|pk|rk)-[A-Za-z0-9_-]{6,}/g, "[key]")
+    .replace(/\bhttps?:\/\/\S+/gi, "[url]")
+    .replace(/\b[\w.+-]+@[\w-]+\.[\w.-]+\b/g, "[email]")
+    .replace(/\b[A-Za-z0-9_-]{32,}\b/g, "[redacted]")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/** The usage-row reason for a failed HTTP call: status plus a safe excerpt. */
+export function httpFailureReason(status: number, providerMessage: string | null): string {
+  const base = `http ${status}`;
+  const clean = providerMessage ? sanitizeProviderMessage(providerMessage) : "";
+  return (clean ? `${base}: ${clean}` : base).slice(0, ERROR_REASON_MAX_CHARS);
+}
+
 function skip(reason: LunaSkipReason, detail: string | null = null): LunaResult {
   return { ok: false, reason, detail };
 }
@@ -460,6 +551,10 @@ export async function callLuna(request: LunaRequest): Promise<LunaResult> {
           ? "rate_limited"
           : "provider_unavailable";
     const detail = `${response.status}`;
+    // The provider's own explanation (e.g. an unsupported parameter) is the
+    // only way to diagnose a repeated 400, so a sanitised, bounded excerpt of
+    // it is kept on the usage row. The request shape is unchanged here.
+    const providerMessage = await readProviderErrorMessage(response);
     await recordUsage({
       organizationId,
       purpose: request.purpose,
@@ -467,7 +562,7 @@ export async function callLuna(request: LunaRequest): Promise<LunaResult> {
       usage: { inputTokens: 0, cachedInputTokens: 0, outputTokens: 0 },
       cost: 0,
       outcome: "failed",
-      reason: `http ${detail}`,
+      reason: httpFailureReason(response.status, providerMessage),
     });
     return skip(reason, detail);
   }

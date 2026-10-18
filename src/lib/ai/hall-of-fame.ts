@@ -98,7 +98,10 @@ export function capabilityForPurpose(purpose: CollectivePurpose): string {
     case "repair_plan":
       return "reasoning";
     case "metadata":
-      return "metadata";
+      // Meta titles and descriptions are search copy. The registry grants
+      // "seo" to every reachable chat model; there is no "metadata" label, so
+      // asking for one left the metadata squad permanently empty.
+      return "seo";
     default:
       return "reasoning";
   }
@@ -110,6 +113,17 @@ export function capabilityForPurpose(purpose: CollectivePurpose): string {
  * spend an entire day's allowance.
  */
 export const DEFAULT_SQUAD_SIZE = 8;
+
+/**
+ * Bounds for one live squad walk. The runner ranks every capable model and
+ * keeps going until one answers usefully, but never past this many attempts
+ * or this much wall-clock time (both overridable by environment).
+ */
+export const DEFAULT_MAX_ATTEMPTS = 16;
+export const DEFAULT_CHAIN_MS = 150_000;
+
+/** Ranks every capable candidate (no squad cap). */
+export const UNLIMITED_SQUAD = Number.MAX_SAFE_INTEGER;
 
 function readiness(candidate: HallOfFameCandidate): number {
   if (!candidate.healthy) return 0;
