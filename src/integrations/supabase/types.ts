@@ -1353,6 +1353,7 @@ export type Database = {
           lease_expires_at: string | null
           organization_id: string
           progress: number
+          request_id: string | null
           stage_timings: Json
           started_at: string | null
           status: string
@@ -1374,6 +1375,7 @@ export type Database = {
           lease_expires_at?: string | null
           organization_id: string
           progress?: number
+          request_id?: string | null
           stage_timings?: Json
           started_at?: string | null
           status?: string
@@ -1395,6 +1397,7 @@ export type Database = {
           lease_expires_at?: string | null
           organization_id?: string
           progress?: number
+          request_id?: string | null
           stage_timings?: Json
           started_at?: string | null
           status?: string

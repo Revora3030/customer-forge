@@ -13,6 +13,11 @@ async function handle(request: Request): Promise<Response> {
   if (organizationId && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(organizationId))
     return Response.json({ error: "Invalid workspace" }, { status: 400 });
 
+  // Who is holding this request open, recorded when a later attempt finds
+  // this one dead. Only known invokers are kept; anything else is "unknown".
+  const invokerHeader = (request.headers.get("x-revora-invoker") ?? "").trim().toLowerCase();
+  const invoker = (["pg_net", "kick", "pump", "runner"] as const).find((name) => name === invokerHeader) ?? "unknown";
+
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { drainSiteEngineQueue } = await import("@/lib/site-engine.worker.server");
 
@@ -21,6 +26,7 @@ async function handle(request: Request): Promise<Response> {
       // One long-lived request per build; do not pile several multi-minute
       // builds behind the same HTTP request or override an operator pause.
       max: 1,
+      invoker,
       ...(organizationId ? { organizationId } : {}),
     });
     return Response.json(result);

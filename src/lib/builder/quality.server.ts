@@ -10,6 +10,7 @@ import { businessFacts } from "./facts";
 import { auditWebsite, type QualityInput, type QualityReport } from "./quality";
 import { gradeSite, gradeVisual, VIEWPORTS, type VisualFinding, type VisualReport } from "./visual";
 import { inspectRenderedEvidence } from "./rendered-evidence.mjs";
+import { usableQuoteFormIds } from "@/lib/quote-usable.server";
 
 type Db = SupabaseClient<never>;
 
@@ -141,7 +142,11 @@ export async function auditWorkspaceWebsite(db: Db, orgId: string): Promise<Qual
         .eq("organization_id", orgId),
       client.from("reviews").select("id").eq("organization_id", orgId).eq("is_published", true),
       client.from("media").select("id").eq("organization_id", orgId),
-      client.from("quote_forms").select("id").eq("organization_id", orgId).eq("is_active", true),
+      // Only a calculator a visitor can actually answer counts as quote capture.
+      usableQuoteFormIds(db as unknown as Parameters<typeof usableQuoteFormIds>[0], orgId).then(
+        (ids) => ({ data: ids as unknown[] | null, error: null as unknown }),
+        (error: unknown) => ({ data: null as unknown[] | null, error }),
+      ),
       client.from("services").select("id").eq("organization_id", orgId).eq("bookable", true),
       // Every page's most recent check, newest first.
       client

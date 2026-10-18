@@ -8,7 +8,9 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
  * generation_jobs_update RLS policy). A queued job never starts. A processing
  * job is fenced: the worker's next stage write matches no row (it requires
  * status = processing), so it stops at the next stage boundary and its
- * cleanup runs (AI pictures removed; a fresh rebuild restores its backup).
+ * cleanup runs (AI pictures removed; a fresh rebuild restores your previous
+ * website (not your leads or bookings) when it stops). If the worker is gone,
+ * the cancelled-rebuild sweep does the same restore once the lease grace passes.
  * `cancelled` is terminal and outside the one-active-build index, so the
  * owner can press Build again immediately. Nothing is published.
  */

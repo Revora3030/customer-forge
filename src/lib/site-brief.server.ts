@@ -10,6 +10,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { CopyFacts } from "@/lib/site-engine.server";
 import type { CaptureQaInput, FactInput } from "@/lib/launch-qa";
+import { usableQuoteFormIds } from "@/lib/quote-usable.server";
 
 type Db = {
   from: SupabaseClient["from"];
@@ -71,7 +72,8 @@ export async function gatherBriefFacts(
       .order("sort_order"),
     db.from("media").select("id").eq("organization_id", orgId),
     db.from("social_profiles").select("*").eq("organization_id", orgId).maybeSingle(),
-    db.from("quote_forms").select("id").eq("organization_id", orgId).eq("is_active", true),
+    // Only a calculator a visitor can actually answer counts as a quote form.
+    usableQuoteFormIds(db, orgId).then((ids) => ({ data: ids })),
     db.from("quote_questions").select("id").eq("organization_id", orgId),
     db.from("services").select("id").eq("organization_id", orgId).eq("bookable", true),
     db
