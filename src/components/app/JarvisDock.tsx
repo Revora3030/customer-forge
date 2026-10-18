@@ -7,7 +7,10 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { JarvisMarkdown } from "@/components/app/JarvisMarkdown";
-import { useJarvisVoice } from "@/components/app/use-jarvis-voice";
+import { useJarvisVoice, type VoiceFallbackCode } from "@/components/app/use-jarvis-voice";
+import { JarvisVoiceStatus } from "@/components/app/JarvisVoiceStatus";
+import { firstFallbackThisPage } from "@/components/app/jarvis-voice-gate";
+import { reportClientError } from "@/lib/monitoring.functions";
 import { getJarvisPageBrief, sendJarvisMessage } from "@/lib/jarvis.functions";
 import { jarvisVoiceLinks, jarvisVoiceStatus, synthesizeJarvisVoice } from "@/lib/jarvis-voice.functions";
 import { speakableText, splitReplyMeta } from "@/lib/jarvis-actions";
@@ -78,8 +81,11 @@ export function JarvisDock() {
     });
 
   const voiceSynth = useCallback((value: string) => synthesize({ data: { text: value } }), [synthesize]);
-  const onFallback = useCallback(() => {
-    toast.message("Using your browser voice because ElevenLabs was unavailable.");
+  const onFallback = useCallback((reason: string, code: VoiceFallbackCode) => {
+    toast.message("Using your browser voice because ElevenLabs was unavailable.", { description: reason });
+    // Only the code is reported, never what Jarvis was saying.
+    if (firstFallbackThisPage(code))
+      void reportClientError({ data: { level: "warning", mechanism: "jarvis-voice-fallback", message: code } }).catch(() => undefined);
   }, []);
   const voiceStream = useCallback(
     async (value: string) => (await voiceLinks({ data: { texts: [value] } })).urls[0]!,
@@ -150,6 +156,8 @@ export function JarvisDock() {
       return;
     }
     unlock();
+    // Barge-in: stop Jarvis talking in this same tap so the mic doesn't hear it.
+    voice.stop();
     const browser = window as unknown as { SpeechRecognition?: RecognitionConstructor; webkitSpeechRecognition?: RecognitionConstructor };
     const Ctor = browser.SpeechRecognition ?? browser.webkitSpeechRecognition;
     if (!Ctor) {
@@ -292,11 +300,14 @@ export function JarvisDock() {
             </div>
 
             {voiceStatus.data ? (
-              <p className="text-[11px] text-muted-foreground" role="status">
-                {voiceStatus.data.connected
-                  ? `Voice: ElevenLabs · ${voiceStatus.data.voiceName}${voiceStatus.data.customVoice ? "" : " (default voice; set ELEVENLABS_VOICE_ID for yours)"}`
-                  : `Voice: browser fallback. ${voiceStatus.data.reason}`}
-              </p>
+              <JarvisVoiceStatus
+                status={voiceStatus.data}
+                line={
+                  voiceStatus.data.connected
+                    ? `Voice: ElevenLabs · ${voiceStatus.data.voiceName}${voiceStatus.data.customVoice ? "" : " (default voice; set ELEVENLABS_VOICE_ID for yours)"}`
+                    : undefined
+                }
+              />
             ) : null}
             {ask.isPending ? <p className="text-xs text-muted-foreground">Jarvis is thinking…</p> : null}
             {reply ? (

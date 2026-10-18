@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { getRequest } from "@tanstack/react-start/server";
 import { GROWTH_SYSTEM, usdExact } from "./offer";
 import { BUSINESS } from "./business-identity";
-import { parseVisitorReply, type VisitorTurn, type VisitorReply, type VisitorVoice } from "./visitor-jarvis";
+import { parseVisitorReply, visitorSpokenText, type VisitorTurn, type VisitorReply, type VisitorVoice } from "./visitor-jarvis";
 
 /**
  * Jarvis for visitors to revoragrowthsystems.com: answers questions about
@@ -41,20 +41,26 @@ function visitorKey(): string {
   }
 }
 
-// ElevenLabs costs per character: visitors share one hourly allowance per
-// server. Past it, replies come back without links and the browser voice reads
-// them instead.
+// ElevenLabs costs per character. The real cap is the database's daily
+// 'visitor' budget, charged by the stream route when a link is played; this
+// per-isolate hourly allowance is only a cheap pre-filter. Past either, the
+// browser voice reads the reply instead.
 const VOICE_CHARS_PER_HOUR = 30_000;
 let voiceUse: { at: number; chars: number }[] = [];
 
 /** Signed ElevenLabs links for this reply only, so the voice can never be used to read arbitrary text. */
 async function replyVoice(reply: string): Promise<VisitorVoice | undefined> {
-  const apiKey = process.env["ELEVENLABS_API_KEY"];
+  // voiceConfig() is the one source of the (trimmed) key that also verifies links.
+  let apiKey: string | undefined;
+  try {
+    apiKey = (await import("./jarvis-voice.server")).voiceConfig().apiKey;
+  } catch {
+    apiKey = undefined;
+  }
   if (!apiKey) return undefined;
-  const { speakableText } = await import("./jarvis-actions");
   const { splitSpeech } = await import("./speech-chunks");
   const { signVoiceLink } = await import("./jarvis-voice-token.server");
-  const text = speakableText(reply).slice(0, 700);
+  const text = visitorSpokenText(reply);
   const chunks = splitSpeech(text);
   const chars = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
   const now = Date.now();
@@ -62,7 +68,7 @@ async function replyVoice(reply: string): Promise<VisitorVoice | undefined> {
   if (!chunks.length || voiceUse.reduce((sum, entry) => sum + entry.chars, 0) + chars > VOICE_CHARS_PER_HOUR) return undefined;
   voiceUse.push({ at: now, chars });
   const links: Record<string, string> = {};
-  for (const chunk of chunks) links[chunk] = await signVoiceLink(apiKey, chunk);
+  for (const chunk of chunks) links[chunk] = await signVoiceLink(apiKey, chunk, "visitor");
   return { text, links };
 }
 

@@ -4,13 +4,15 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowRight, Bot, Mic, MicOff, Send, Volume2, VolumeX, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { askVisitorJarvis } from "@/lib/visitor-jarvis.functions";
-import { VISITOR_ACTION_LABEL, type VisitorAction, type VisitorTurn } from "@/lib/visitor-jarvis";
+import { VISITOR_ACTION_LABEL, visitorSpokenText, type VisitorAction, type VisitorTurn } from "@/lib/visitor-jarvis";
 import { trackConversion } from "@/lib/conversion";
 import { saveStarter } from "@/components/marketing/hero-starter-utils";
 import { useSession } from "@/lib/auth-session";
 import { FREE_ACCESS_SEARCH, FREE_ACCESS_TO } from "@/components/marketing/FreeAccess";
 import { GROWTH_SYSTEM } from "@/lib/offer";
 import { useJarvisVoice } from "@/components/app/use-jarvis-voice";
+import { firstFallbackThisPage } from "@/components/app/jarvis-voice-gate";
+import { reportClientError } from "@/lib/monitoring.functions";
 
 type Recognition = {
   lang: string;
@@ -87,7 +89,11 @@ export function VisitorJarvis() {
     const link = voiceLinks.current[chunk];
     if (!link) throw new Error("No ElevenLabs link for this sentence.");
     const response = await fetch(link);
-    if (!response.ok) throw new Error("ElevenLabs was unavailable.");
+    if (!response.ok) {
+      // The route answers with its own mapped reason (never the spoken text).
+      const body = (await response.json().catch(() => null)) as { error?: unknown } | null;
+      throw new Error(typeof body?.error === "string" ? body.error.slice(0, 200) : "ElevenLabs was unavailable.");
+    }
     const bytes = new Uint8Array(await response.arrayBuffer());
     let binary = "";
     for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
@@ -101,10 +107,19 @@ export function VisitorJarvis() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  /** ElevenLabs when the server sent links for this reply, the browser voice otherwise. */
+  /**
+   * ElevenLabs when the server sent links for this reply, the browser voice
+   * otherwise. voice.text is spoken verbatim: it is exactly the text the links
+   * were signed for, so every chunk finds its link.
+   */
   const speak = (content: string, voice?: { text: string; links: Record<string, string> }) => {
     voiceLinks.current = voice?.links ?? {};
-    void jarvisVoice.speak((voice?.text ?? content).replace(/https?:\/\/\S+/g, "").slice(0, 900));
+    void jarvisVoice.speak(voice ? voice.text : visitorSpokenText(content)).then((outcome) => {
+      // Report only a real ElevenLabs fallback (not a reply sent without links), and only its code.
+      const fallback = voice && outcome === "fallback" ? jarvisVoice.lastFallback() : null;
+      if (fallback && firstFallbackThisPage(fallback.code))
+        void reportClientError({ data: { level: "warning", mechanism: "jarvis-voice-fallback", message: fallback.code } }).catch(() => undefined);
+    });
   };
 
   const send = async (raw: string) => {
@@ -160,6 +175,8 @@ export function VisitorJarvis() {
     recognition.current = rec;
     try {
       jarvisVoice.unlock();
+      // Barge-in: stop Jarvis talking in this same tap so the mic doesn't hear it.
+      jarvisVoice.stop();
       rec.start();
       setListening(true);
       setVoice(true);

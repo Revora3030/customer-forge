@@ -51,6 +51,18 @@ Totals: NOT_TESTED 5, PASS 20
 | ext_email | NOT_TESTED | Live transactional email delivery |
 | ext_crm | NOT_TESTED | Live CRM hand-off |
 
+## Voice on devices
+
+Jarvis voice behaviour on phones is a runtime claim. It counts as verified only after these checks pass on real devices. Until then every result stays PENDING. Check both the admin dock and the homepage visitor Jarvis, with ElevenLabs set up, and again with ElevenLabs failing so the browser voice takes over.
+
+| Device | ElevenLabs reply plays after a tap | Browser-voice fallback is audible | Stop / mic tap interrupts speech | Long reply finishes (no hang) | Result |
+| --- | --- | --- | --- | --- | --- |
+| iPhone Safari | PENDING | PENDING | PENDING | PENDING | PENDING |
+| iPhone Chrome | PENDING | PENDING | PENDING | PENDING | PENDING |
+| Android Chrome | PENDING | PENDING | PENDING | PENDING | PENDING |
+
+Also confirm that streamed links still play with `accept-ranges: none` on iPhone Safari, and that "Test voice" in the dock shows a pass.
+
 ## Not verified here
 
 - Live payment, email and CRM delivery need real sandbox credentials; run `bun run test:integrations` once they are configured.

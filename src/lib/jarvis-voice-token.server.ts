@@ -5,7 +5,9 @@
  * server call mints one link per sentence. The link carries the text and an
  * expiry, signed with a key derived from the server's ElevenLabs secret: it
  * can only speak the exact text Jarvis was asked to say, and only for two
- * minutes. The key itself never leaves the server.
+ * minutes. It also carries a random nonce (the stream route allows only a few
+ * uses of each) and the budget scope it spends. The key itself never leaves
+ * the server.
  */
 
 export const VOICE_LINK_TTL_MS = 120_000;
@@ -34,19 +36,39 @@ function same(a: string, b: string) {
   return diff === 0;
 }
 
-export async function signVoiceLink(secret: string, text: string, now = Date.now()): Promise<string> {
-  const payload = base64url(encoder.encode(JSON.stringify({ t: text, e: now + VOICE_LINK_TTL_MS })));
+/** Whose daily ElevenLabs budget a link spends: the public visitor Jarvis or a super-admin. */
+export type VoiceScope = "visitor" | "admin";
+
+export type VerifiedVoiceLink = { text: string; nonce: string; scope: VoiceScope; expiresAt: number };
+
+/** A random, single-link identifier; the stream route counts its uses so a link can't be replayed. */
+function newNonce(): string {
+  return base64url(crypto.getRandomValues(new Uint8Array(16)));
+}
+
+export async function signVoiceLink(secret: string, text: string, scope: VoiceScope, now = Date.now()): Promise<string> {
+  const payload = base64url(encoder.encode(JSON.stringify({ t: text, e: now + VOICE_LINK_TTL_MS, n: newNonce(), k: scope })));
   return `${VOICE_STREAM_PATH}?p=${payload}&s=${await mac(secret, payload)}`;
 }
 
-/** The text a link may speak, or null when it is forged, altered or expired. */
-export async function verifyVoiceLink(secret: string, payload: string | null, signature: string | null, now = Date.now()): Promise<string | null> {
+/**
+ * The text, nonce and budget scope a link carries, or null when it is forged,
+ * altered, expired or from before links carried a nonce.
+ */
+export async function verifyVoiceLink(
+  secret: string,
+  payload: string | null,
+  signature: string | null,
+  now = Date.now(),
+): Promise<VerifiedVoiceLink | null> {
   if (!payload || !signature || payload.length > 4_000) return null;
   if (!same(await mac(secret, payload), signature)) return null;
   try {
-    const parsed = JSON.parse(new TextDecoder().decode(fromBase64url(payload))) as { t?: unknown; e?: unknown };
+    const parsed = JSON.parse(new TextDecoder().decode(fromBase64url(payload))) as { t?: unknown; e?: unknown; n?: unknown; k?: unknown };
     if (typeof parsed.t !== "string" || typeof parsed.e !== "number" || parsed.e < now) return null;
-    return parsed.t;
+    if (typeof parsed.n !== "string" || !/^[A-Za-z0-9_-]{16,64}$/.test(parsed.n)) return null;
+    if (parsed.k !== "visitor" && parsed.k !== "admin") return null;
+    return { text: parsed.t, nonce: parsed.n, scope: parsed.k, expiresAt: parsed.e };
   } catch {
     return null;
   }

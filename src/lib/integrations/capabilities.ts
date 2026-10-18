@@ -313,7 +313,8 @@ export const PROVIDERS: ProviderDefinition[] = [
     cost: "paid",
     scope: "platform",
     implemented: false,
-    permission: "Voice rendering only. Blocked while free-only mode is on.",
+    permission:
+      "Customer-site media (voice rendering for customer websites) only; blocked there while free-only mode is on. Jarvis's own voice is separate: it uses the same key server-side under its own daily character caps.",
   },
   {
     id: "canva",

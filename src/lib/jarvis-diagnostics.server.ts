@@ -28,7 +28,15 @@ export type SchemaDiagnostics = {
   limitation: string;
 };
 
-export type DiagnosticData = ErrorDiagnostics | BuildDiagnostics | SchemaDiagnostics;
+/** Voice fallbacks in the last 24h, by text-free code (server ElevenLabs failures and browser fallbacks). */
+export type VoiceDiagnostics = {
+  label: string;
+  sampledRows: number;
+  possiblyTruncated: boolean;
+  byCode: { code: string; count: number }[];
+};
+
+export type DiagnosticData = ErrorDiagnostics | BuildDiagnostics | SchemaDiagnostics | VoiceDiagnostics;
 export type DiagnosticSection<T = DiagnosticData> =
   | { status: "checked"; note: string; data: T }
   | { status: "unavailable"; note: string; reason?: string; data: null };
@@ -139,6 +147,32 @@ export async function collectJarvisDiagnostics(db: SupabaseClient): Promise<Jarv
       }
       return { contracts, limitation: "API contract probes only; failures can reflect permissions, schema cache, project identity or migrations. Do not generate additive DDL from this alone." };
     }, "Read-only API contract probes; not a migration-history or RLS audit."),
+    checked<VoiceDiagnostics>(async () => {
+      const voiceSince = new Date(Date.now() - 86_400_000).toISOString();
+      const { data, error } = await db.from("error_events")
+        .select("message,route,context")
+        .gte("created_at", voiceSince)
+        .or('route.eq."jarvis.voice",context->>mechanism.eq.jarvis-voice-fallback')
+        .order("created_at", { ascending: false }).limit(1000);
+      if (error) throw error;
+      const counts = new Map<string, number>();
+      for (const row of data ?? []) {
+        const context = (row.context ?? {}) as { code?: unknown };
+        // Server rows carry context.code; browser rows carry the code as the message.
+        const raw = typeof context.code === "string" ? context.code : String(row.message ?? "");
+        const code = /^[a-z_]{1,40}$/.test(raw) ? raw : redactDiagnosticText(raw.replace(/^Jarvis voice: /, ""), 40);
+        counts.set(code, (counts.get(code) ?? 0) + 1);
+      }
+      return {
+        label: "voice fallbacks in last 24h by code",
+        sampledRows: data?.length ?? 0,
+        possiblyTruncated: (data?.length ?? 0) >= 1000,
+        byCode: [...counts.entries()].map(([code, count]) => ({ code, count })).sort((a, b) => b.count - a.count).slice(0, 20),
+      };
+    }, "Voice fallbacks in the last 24h by code, from error_events (route jarvis.voice or mechanism jarvis-voice-fallback). Spoken text is never stored."),
   ]);
-  return { checkedAt: new Date().toISOString(), sections: { errors: entries[0]!, builds: entries[1]!, schema: entries[2]! } };
+  return {
+    checkedAt: new Date().toISOString(),
+    sections: { errors: entries[0]!, builds: entries[1]!, schema: entries[2]!, voice: entries[3]! },
+  };
 }
