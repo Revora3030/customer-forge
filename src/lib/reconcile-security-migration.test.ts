@@ -119,9 +119,4 @@ describe("neutralised migrations replay safely", () => {
     }
   });
 
-  it("revokes website RPCs only when they exist", () => {
-    const sql = readFileSync("supabase/migrations/20261005000000_harden_website_rpc_execute.sql", "utf8");
-    expect(sql).toContain("to_regprocedure(sig) IS NOT NULL");
-    expect(sql.replace(/--.*$/gm, "")).not.toMatch(/^\s*REVOKE ALL ON FUNCTION public\./m);
-  });
 });

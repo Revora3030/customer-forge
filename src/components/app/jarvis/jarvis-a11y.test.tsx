@@ -33,7 +33,7 @@ const composer = (overrides: Partial<Parameters<typeof JarvisComposer>[0]> = {})
 function unnamedButtons(html: string) {
   return [...html.matchAll(/<button\b([^>]*)>([\s\S]*?)<\/button>/g)].filter(([, attrs, inner]) => {
     if (/aria-label="[^"]+"/.test(attrs ?? "")) return false;
-    const visible = (inner ?? "").replace(/<[^>]+aria-hidden="true"[^>]*>[\s\S]*?<\/[^>]+>/g, "").replace(/<[^>]+>/g, "").trim();
+    const visible = (inner ?? "").replace(/<[^>]+aria-hidden="true"[^>]*>[\s\S]*?<\/[^>]+>/g, "").replace(/<[^>]+>/g, "").replace(/[<>]/g, "").trim();
     return !visible;
   });
 }

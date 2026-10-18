@@ -83,7 +83,7 @@ export function JarvisComposer({ value, onChange, onSubmit, maxLength, busy, coa
           onClick={() => pictureInput.current?.click()}
           className="h-9 min-h-9 shrink-0 gap-1.5 rounded-full px-2 text-sm sm:h-9 sm:min-h-9 sm:px-2.5"
         >
-          {picturePreview ? (
+          {picturePreview && picturePreview.startsWith("blob:") ? (
             <span className="relative size-6 overflow-hidden rounded">
               <img src={picturePreview} alt="" className="size-full object-cover" />
               {readingPicture ? <span className="absolute inset-0 flex items-center justify-center bg-background/60"><Loader2 className="size-3.5 animate-spin" aria-hidden /></span> : null}
