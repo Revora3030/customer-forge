@@ -41,12 +41,31 @@ export const getTrafficReport = createServerFn({ method: "POST" })
         .select("publish_state, custom_domain, dns_ok, ssl_ok, traffic_alerts_enabled")
         .eq("organization_id", data.organizationId)
         .maybeSingle(),
-      context.supabase
-        .from("quote_forms")
-        .select("id, is_active")
-        .eq("organization_id", data.organizationId)
-        .eq("is_active", true)
-        .limit(1),
+      // A quote form only counts when a visitor can actually use it: at least
+      // one question with at least one option. An empty active form renders a
+      // calculator that can never produce a price.
+      (async (): Promise<boolean> => {
+        const forms = await context.supabase
+          .from("quote_forms")
+          .select("id")
+          .eq("organization_id", data.organizationId)
+          .eq("is_active", true);
+        const formIds = (forms.data ?? []).map((row) => row.id);
+        if (forms.error || !formIds.length) return false;
+        const questions = await context.supabase
+          .from("quote_questions")
+          .select("id")
+          .eq("organization_id", data.organizationId)
+          .in("form_id", formIds);
+        const questionIds = (questions.data ?? []).map((row) => row.id);
+        if (questions.error || !questionIds.length) return false;
+        const options = await context.supabase
+          .from("quote_options")
+          .select("id", { count: "exact", head: true })
+          .eq("organization_id", data.organizationId)
+          .in("question_id", questionIds);
+        return !options.error && (options.count ?? 0) > 0;
+      })(),
       context.supabase
         .from("services")
         .select("id, bookable")
@@ -70,7 +89,7 @@ export const getTrafficReport = createServerFn({ method: "POST" })
     const issues = detectTrafficIssues({
       summary,
       published: settings.data?.publish_state === "published",
-      hasQuoteForm: (quote.data ?? []).length > 0,
+      hasQuoteForm: quote,
       bookableServices: (services.data ?? []).length,
       reviewCount: reviews.count ?? 0,
       domainLive: !!settings.data?.dns_ok && !!settings.data?.ssl_ok,

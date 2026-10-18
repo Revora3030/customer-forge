@@ -7,6 +7,7 @@ import {
   Heading,
   Hr,
   Html,
+  Link,
   Preview,
   Row,
   Column,
@@ -26,7 +27,24 @@ interface Props {
   budget?: string;
   message?: string;
   when?: string;
+  /** Deep link to this lead in the workspace, e.g. https://revoragrowthsystems.com/app/leads?lead=<id>. */
+  leadUrl?: string;
 }
+
+/** Digits (and a leading +) only, so the tel: link dials what was typed. */
+const telHref = (phone: string) => {
+  const digits = phone.trim().replace(/(?!^\+)[^0-9]/g, "");
+  return digits.replace(/\D/g, "").length >= 7 ? `tel:${digits}` : null;
+};
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[a-z]{2,}$/i;
+const mailHref = (email: string) => (EMAIL_RE.test(email.trim()) ? `mailto:${email.trim()}` : null);
+
+/** Only an https link is rendered as a button; anything else is dropped. */
+const safeLeadUrl = (url?: string) => (url && /^https:\/\/[^\s]+$/.test(url) ? url : null);
+
+const linkFor = (label: string, value: string) =>
+  label === "Email" ? mailHref(value) : label === "Phone" ? telHref(value) : null;
 
 const rowsOf = (p: Props) =>
   [
@@ -50,16 +68,35 @@ const Email = (props: Props) => (
         <Heading
           style={h1}
         >{`${props.kind || "New lead"}: ${props.leadName || "someone"}`}</Heading>
-        {rowsOf(props).map(([label, value]) => (
-          <Row key={label} style={row}>
-            <Column style={labelCol}>{label}</Column>
-            <Column style={valueCol}>{value}</Column>
-          </Row>
-        ))}
+        {rowsOf(props).map(([label, value]) => {
+          const href = linkFor(label, value);
+          return (
+            <Row key={label} style={row}>
+              <Column style={labelCol}>{label}</Column>
+              <Column style={valueCol}>
+                {href ? (
+                  <Link href={href} style={valueLink}>
+                    {value}
+                  </Link>
+                ) : (
+                  value
+                )}
+              </Column>
+            </Row>
+          );
+        })}
         {props.message ? (
           <>
             <Hr style={hr} />
             <Text style={text}>{props.message}</Text>
+          </>
+        ) : null}
+        {safeLeadUrl(props.leadUrl) ? (
+          <>
+            <Hr style={hr} />
+            <Link href={safeLeadUrl(props.leadUrl) ?? undefined} style={button}>
+              Open this lead
+            </Link>
           </>
         ) : null}
         <Hr style={hr} />
@@ -84,6 +121,7 @@ export const template = {
     service: "Full interior detail",
     estimate: "$240–$320",
     budget: "$240–$320",
+    leadUrl: "https://revoragrowthsystems.com/app/leads?lead=00000000-0000-4000-8000-000000000000",
   },
 } satisfies TemplateEntry;
 
@@ -101,6 +139,17 @@ const h1 = { margin: "0 0 18px", fontSize: "21px", lineHeight: "1.3", color: "#1
 const row = { marginBottom: "6px" };
 const labelCol = { width: "130px", fontSize: "13px", color: "#6b6d78" };
 const valueCol = { fontSize: "14px", color: "#12131a", fontWeight: 600 };
+const valueLink = { color: "#12131a", textDecoration: "underline" };
+const button = {
+  display: "inline-block",
+  backgroundColor: "#12131a",
+  color: "#f5d67b",
+  padding: "12px 22px",
+  borderRadius: "10px",
+  fontSize: "14px",
+  fontWeight: 700,
+  textDecoration: "none",
+};
 const text = { margin: "0 0 14px", fontSize: "15px", lineHeight: "1.6", color: "#33353f" };
 const hr = { borderColor: "#e7e5df", margin: "20px 0 14px" };
 const footer = { margin: 0, fontSize: "13px", color: "#6b6d78" };

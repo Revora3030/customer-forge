@@ -5,6 +5,30 @@ export const CLAIM_STORAGE_KEY = "revora.getstarted.claim";
 export const isClaimToken = (value: unknown): value is string =>
   typeof value === "string" && /^[A-Za-z0-9_-]{16,120}$/.test(value);
 
+/**
+ * True only for a same-site path: it must start with a single "/", and
+ * protocol-relative ("//evil.com"), backslash ("/\\evil.com") and absolute
+ * ("https://evil.com", "javascript:") forms are rejected because browsers send
+ * them to another site.
+ */
+export function isSafeRedirect(path: unknown): path is string {
+  if (typeof path !== "string" || !path.startsWith("/")) return false;
+  if (path.startsWith("//") || path.includes("\\")) return false;
+  if (/^\/[^/?#]*:/.test(path)) return false;
+  // eslint-disable-next-line no-control-regex -- control characters are exactly what's being rejected.
+  if (/[\u0000-\u001f\u007f]/.test(path)) return false;
+  return true;
+}
+
+/**
+ * Where /auth should send someone after sign-up or sign-in. The claim token
+ * rides in the redirect itself, so it survives email confirmation or a magic
+ * link opened in another browser, where localStorage is empty.
+ */
+export function claimAwareRedirect(token: string | null | undefined): string {
+  return isClaimToken(token) ? `/get-started?claim=${encodeURIComponent(token)}` : "/get-started";
+}
+
 export type ProspectClaimInfo = {
   claimable: boolean;
   businessName: string | null;

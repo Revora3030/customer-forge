@@ -32,7 +32,7 @@ export function ProspectClaimBar({ token }: { token: string }) {
 
   return (
     <>
-      <div className="h-24 sm:h-20" aria-hidden />
+      <div className="h-36 sm:h-20" aria-hidden />
       <div
         role="region"
         aria-label="Website preview"
@@ -40,7 +40,7 @@ export function ProspectClaimBar({ token }: { token: string }) {
       >
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-semibold">Preview for {name}</p>
-          <p className="truncate text-xs text-white/70">Built by Revora Growth Systems · {GROWTH_SYSTEM.fullAccessWindow} free to try</p>
+          <p className="truncate text-xs text-white/70">Built by Revora Growth Systems · {`${GROWTH_SYSTEM.fullAccessWindow} free, no card needed`}</p>
         </div>
         <button
           type="button"
@@ -53,9 +53,9 @@ export function ProspectClaimBar({ token }: { token: string }) {
         <Link
           to="/get-started"
           search={{ claim: token }}
-          className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-white px-4 text-sm font-semibold text-neutral-950 hover:bg-white/90"
+          className="inline-flex h-11 w-full items-center justify-center gap-1.5 rounded-lg bg-white px-4 text-sm font-semibold text-neutral-950 hover:bg-white/90 sm:w-auto sm:shrink-0"
         >
-          Claim this website
+          Claim your website — start free trial
           <ArrowRight className="size-4" aria-hidden />
         </Link>
       </div>

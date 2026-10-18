@@ -146,50 +146,69 @@ export type ProspectDemoSummary = {
   industry: string | null;
   createdAt: string;
   previewToken: string;
+  /** Set once the business claimed the demo (marker.claimedAt). */
+  claimedAt?: string | null;
   build: { status: string; progress: number; step: string | null; error: string | null } | null;
 };
 
-/** Lists prospect demos newest first, with the latest build state of each. */
+/**
+ * Lists prospect demos newest first, with the latest build state of each.
+ * Selected by the generation->prospectDemo marker rather than is_demo, so a
+ * claimed demo (is_demo flips to false) stays visible as "Claimed".
+ */
 export async function listProspectDemos(admin: SupabaseClient, limit = 20): Promise<ProspectDemoSummary[]> {
-  const { data: orgs, error } = await admin
-    .from("organizations")
-    .select("id, name, industry, created_at")
-    .eq("is_demo", true)
-    .order("created_at", { ascending: false })
-    .limit(100);
+  const { data: settings, error } = await admin
+    .from("website_settings")
+    .select("organization_id, generation")
+    .not("generation->prospectDemo", "is", null)
+    .limit(500);
   if (error) throw new Error(error.message);
-  const ids = (orgs ?? []).map((org) => org.id as string);
+
+  const markers = new Map<string, { marker: ProspectDemoMarker; claimedAt: string | null }>();
+  for (const row of settings ?? []) {
+    const raw = (row.generation as Record<string, unknown> | null)?.["prospectDemo"];
+    const marker = readProspectDemoMarker(raw);
+    if (!marker) continue; // Other demo workspaces (the public product demo) are not prospects.
+    const claimedRaw = (raw as Record<string, unknown>)["claimedAt"];
+    markers.set(row.organization_id as string, {
+      marker,
+      claimedAt: typeof claimedRaw === "string" && claimedRaw ? claimedRaw : null,
+    });
+  }
+  const ids = [...markers.entries()]
+    .sort((a, b) => Date.parse(b[1].marker.createdAt) - Date.parse(a[1].marker.createdAt))
+    .slice(0, 100)
+    .map(([id]) => id);
   if (!ids.length) return [];
 
-  const [settings, jobs] = await Promise.all([
-    admin.from("website_settings").select("organization_id, generation").in("organization_id", ids),
+  const [orgs, jobs] = await Promise.all([
+    admin.from("organizations").select("id, name, industry").in("id", ids),
     admin
       .from("generation_jobs")
       .select("organization_id, status, progress, current_step, error_message, created_at")
       .in("organization_id", ids)
       .order("created_at", { ascending: false }),
   ]);
-  const markers = new Map<string, ProspectDemoMarker>();
-  for (const row of settings.data ?? []) {
-    const marker = readProspectDemoMarker((row.generation as Record<string, unknown> | null)?.["prospectDemo"]);
-    if (marker) markers.set(row.organization_id as string, marker);
-  }
+  if (orgs.error) throw new Error(orgs.error.message);
+  const orgById = new Map((orgs.data ?? []).map((org) => [org.id as string, org]));
   const latestJob = new Map<string, NonNullable<typeof jobs.data>[number]>();
   for (const job of jobs.data ?? []) {
     if (!latestJob.has(job.organization_id as string)) latestJob.set(job.organization_id as string, job);
   }
 
   const out: ProspectDemoSummary[] = [];
-  for (const org of orgs ?? []) {
-    const marker = markers.get(org.id as string);
-    if (!marker) continue; // Other demo workspaces (the public product demo) are not prospects.
-    const job = latestJob.get(org.id as string);
+  for (const id of ids) {
+    const org = orgById.get(id);
+    const entry = markers.get(id);
+    if (!org || !entry) continue;
+    const job = latestJob.get(id);
     out.push({
-      organizationId: org.id as string,
+      organizationId: id,
       name: org.name as string,
       industry: (org.industry as string | null) ?? null,
-      createdAt: marker.createdAt,
-      previewToken: marker.previewToken,
+      createdAt: entry.marker.createdAt,
+      previewToken: entry.marker.previewToken,
+      claimedAt: entry.claimedAt,
       build: job
         ? {
             status: job.status as string,

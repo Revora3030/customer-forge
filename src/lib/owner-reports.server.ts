@@ -1,7 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { EmailAPIError } from "@lovable.dev/email-js";
 import { sendTemplateEmail } from "@/lib/email-templates/send-email";
-import { alertRecipient } from "@/lib/notifications.functions";
+import { alertRecipient } from "@/lib/lead-alert-recipient";
+import { sendLeadAlert } from "@/lib/messaging.server";
 import { REVORA } from "@/lib/brand";
 import { PLATFORM_OWNER_ORG_ID } from "@/lib/platform-owner";
 
@@ -13,6 +14,7 @@ import { PLATFORM_OWNER_ORG_ID } from "@/lib/platform-owner";
  *   lead-reminder   — daily: leads still "new" 24h+ after arriving, per workspace
  *   weekly-report   — weekly: last 7 days of leads and appointments, per workspace
  *   site-health     — hourly: every published custom domain plus the main site
+ *   lead-alert-retry — hourly: re-sends new-lead alerts that failed for a transient reason
  *
  * Each workspace's report goes to that workspace's own alert inbox (the same
  * one new-lead alerts use). Every send claims a row in lifecycle_email_log
@@ -229,6 +231,184 @@ export async function runWeeklyReports(db: Db, now = Date.now()): Promise<Report
       heading: `Weekly report: ${counts.leads} lead${counts.leads === 1 ? "" : "s"}, ${counts.appointments} appointment${counts.appointments === 1 ? "" : "s"}`,
       message: weeklyReportMessage(workspace.name, counts),
     });
+  }
+  return run;
+}
+
+/* ---------------------------- lead alert retry ---------------------------- */
+
+/**
+ * Failure reasons worth sending again: provider blips, rate limits and
+ * sender-side states that clear on their own. A suppressed inbox is NOT here;
+ * re-sending to an address that refuses mail can't help, so the Integration
+ * Center asks the owner for a different one instead.
+ */
+export const RETRYABLE_ALERT_REASONS = new Set([
+  "email_transport_error",
+  "rate_limited",
+  "429",
+  "emails_disabled",
+  "domain_not_verified",
+]);
+
+/** A lead is retried only while it has at most this many logged attempts. */
+export const MAX_ALERT_ATTEMPTS = 3;
+
+export type AlertLogRow = {
+  organization_id: string;
+  lead_id: string | null;
+  kind: string;
+  status: string;
+  reason: string | null;
+  created_at: string;
+};
+
+export type AlertRetryCandidate = { organizationId: string; leadId: string; kind: string };
+
+/**
+ * Picks the leads whose newest alert failed for a retryable reason in the last
+ * 24h, that never had an accepted alert and have at most MAX_ALERT_ATTEMPTS
+ * attempts. Rows are grouped per (organization, lead), so one workspace's log
+ * can never decide another's retry. Exported for tests.
+ */
+export function pickLeadAlertRetries(rows: AlertLogRow[], now = Date.now()): AlertRetryCandidate[] {
+  const groups = new Map<string, AlertLogRow[]>();
+  for (const row of rows) {
+    if (!row.lead_id || !row.organization_id || row.kind === "test") continue;
+    const key = `${row.organization_id}|${row.lead_id}`;
+    const list = groups.get(key) ?? [];
+    list.push(row);
+    groups.set(key, list);
+  }
+  const since = now - DAY;
+  const picked: AlertRetryCandidate[] = [];
+  for (const list of groups.values()) {
+    if (list.some((row) => row.status === "sent")) continue;
+    if (list.length > MAX_ALERT_ATTEMPTS) continue;
+    const newest = [...list].sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at))[0];
+    if (!newest || newest.status !== "failed") continue;
+    if (!RETRYABLE_ALERT_REASONS.has(newest.reason ?? "")) continue;
+    if (!(Date.parse(newest.created_at) >= since)) continue;
+    picked.push({ organizationId: newest.organization_id, leadId: newest.lead_id!, kind: newest.kind });
+  }
+  return picked;
+}
+
+const ALERT_TITLES: Record<string, string> = {
+  inquiry: "New lead",
+  contact: "New message",
+  quote: "Quote request",
+  booking: "New booking request",
+  consultation: "Consultation request",
+};
+
+type RetryLead = {
+  id: string;
+  organization_id: string;
+  name: string | null;
+  email: string | null;
+  phone: string | null;
+  city: string | null;
+  service_interest: string | null;
+  message: string | null;
+  estimated_value: number | null;
+};
+
+/**
+ * Re-sends lead alerts that failed for a transient reason. Each lead is
+ * reloaded by id AND its log row's organization, the recipient is recomputed
+ * from that workspace's own profile, and the resend reuses the original
+ * `lead-alert-<id>` key so the provider can never deliver it twice. Every
+ * outcome is logged; nothing is marked sent unless the provider accepted it.
+ */
+export async function runLeadAlertRetries(db: Db, now = Date.now()): Promise<ReportRun> {
+  const run: ReportRun = { job: "lead-alert-retry", scanned: 0, sent: 0, skipped: 0, failed: 0, details: [] };
+  // Look back a little further than 24h so older attempts still count toward
+  // the per-lead limit and an earlier success still blocks a resend.
+  const { data, error } = await db
+    .from("lead_alert_log")
+    .select("organization_id, lead_id, kind, status, reason, created_at")
+    .gte("created_at", new Date(now - 2 * DAY).toISOString())
+    .order("created_at", { ascending: true })
+    .limit(5000);
+  if (error) throw new Error(`lead_alert_log: ${error.message}`);
+  const candidates = pickLeadAlertRetries((data ?? []) as AlertLogRow[], now);
+
+  for (const candidate of candidates) {
+    run.scanned += 1;
+    const skip = (reason: string) => {
+      run.skipped += 1;
+      run.details.push({ organizationId: candidate.organizationId, status: "skipped", reason });
+    };
+
+    const { data: org } = await db
+      .from("organizations")
+      .select("id, name, is_suspended")
+      .eq("id", candidate.organizationId)
+      .maybeSingle();
+    if (!org?.id || org.is_suspended === true) {
+      skip("workspace_unavailable");
+      continue;
+    }
+
+    const { data: leadRow } = await db
+      .from("leads")
+      .select("id, organization_id, name, email, phone, city, service_interest, message, estimated_value")
+      .eq("id", candidate.leadId)
+      .eq("organization_id", candidate.organizationId)
+      .maybeSingle();
+    const lead = (leadRow ?? null) as RetryLead | null;
+    if (!lead || lead.id !== candidate.leadId || lead.organization_id !== candidate.organizationId) {
+      skip("lead_missing");
+      continue;
+    }
+
+    const { data: profile } = await db
+      .from("business_profiles")
+      .select("notification_email, email, owner_email, notify_on_lead")
+      .eq("organization_id", candidate.organizationId)
+      .maybeSingle();
+    const recipient = profile ? alertRecipient(profile as never) : null;
+    if (!recipient) {
+      skip("no_alert_recipient");
+      continue;
+    }
+
+    const result = await sendLeadAlert(
+      recipient,
+      {
+        businessName: String(org.name ?? "") || "Your business",
+        kind: ALERT_TITLES[candidate.kind] ?? "New lead",
+        leadName: lead.name ?? "someone",
+        leadEmail: lead.email || undefined,
+        leadPhone: lead.phone || undefined,
+        city: lead.city || undefined,
+        service: lead.service_interest || undefined,
+        estimate: lead.estimated_value ? `$${lead.estimated_value}` : undefined,
+        message: lead.message || undefined,
+      },
+      // The SAME key as the first attempt: provider-side dedupe means a retry
+      // can never become a second alert for one lead.
+      `lead-alert-${lead.id}`,
+    );
+
+    const { error: logError } = await db.from("lead_alert_log").insert({
+      organization_id: candidate.organizationId,
+      lead_id: lead.id,
+      recipient,
+      kind: candidate.kind,
+      status: result.ok ? "sent" : "failed",
+      reason: result.ok ? null : result.reason,
+    });
+    if (logError) console.error("[lead-alert-retry] log failed", logError.message);
+
+    if (result.ok) {
+      run.sent += 1;
+      run.details.push({ organizationId: candidate.organizationId, status: "sent" });
+    } else {
+      run.failed += 1;
+      run.details.push({ organizationId: candidate.organizationId, status: "failed", reason: result.reason });
+    }
   }
   return run;
 }
