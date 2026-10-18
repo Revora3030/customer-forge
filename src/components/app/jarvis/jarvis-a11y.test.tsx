@@ -45,7 +45,8 @@ function textOutsideTags(html: string) {
 function unnamedButtons(html: string) {
   return [...html.matchAll(/<button\b([^>]*)>([\s\S]*?)<\/button>/g)].filter(([, attrs, inner]) => {
     if (/aria-label="[^"]+"/.test(attrs ?? "")) return false;
-    const visible = textOutsideTags((inner ?? "").replace(/<[^>]+aria-hidden="true"[^>]*>[\s\S]*?<\/[^>]+>/g, "")).trim();
+    // Decorative icons are aria-hidden SVGs with no text, so text outside tags is the visible name.
+    const visible = textOutsideTags(inner ?? "").trim();
     return !visible;
   });
 }
