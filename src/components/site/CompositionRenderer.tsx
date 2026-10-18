@@ -119,7 +119,11 @@ const mediaVisual = (media: ResolvedMedia | null): PersistedComponentVisual | un
  * shown as a before/after result — that would present AI work as the
  * business's real job.
  */
-const isGeneratedMedia = (media: ResolvedMedia | null): boolean => mediaVisual(media)?.source === "generated";
+const isGeneratedMedia = (media: ResolvedMedia | null): boolean => {
+  // Licensed stock is not the business's work either.
+  const source = mediaVisual(media)?.source;
+  return source === "generated" || source === "stock";
+};
 
 function widgetThemeStyle(theme: WidgetPresentation["theme"] | undefined): CSSProperties {
   if (!theme) return {};

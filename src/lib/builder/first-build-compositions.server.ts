@@ -113,7 +113,7 @@ const RULES = [
   "For services sections, prefer a service_menu widget so prices and services stay in sync with the owner's Services tool; for social_proof sections, a review_wall widget shows the owner's published reviews (it hides itself when none exist). Never retype prices or reviews.",
   "For quote sections, the composition MUST contain one quote_calculator widget; for booking sections, one booking_form widget; for contact sections, one enquiry_form widget (the working message form) AND one contact_details widget. These widgets are the only application-owned mechanics — you own their entire surrounding layout and their widgetPresentation.",
   "Every working widget in a first build MUST include widgetPresentation with an AI-authored title, actionLabel when actionable, successTitle/successBody when it submits, appropriate fieldLabels, and a local theme using surface, text, muted, border, action and actionText. Choose the palette yourself for this specific site; do not reuse a generic form palette.",
-  'widgetPresentation shape: {"eyebrow":"...","title":"...","description":"...","optionPrompt":"...","estimateLabel":"...","extraLabel":"...","actionLabel":"...","backLabel":"...","successTitle":"...","successBody":"...","contactLabel":"...","fieldLabels":{"service":"...","name":"...","phone":"...","email":"...","location":"...","date":"...","time":"...","details":"..."},"theme":{"surface":"#RRGGBB","text":"#RRGGBB","muted":"#RRGGBB","border":"#RRGGBB","action":"#RRGGBB","actionText":"#RRGGBB","selected":"#RRGGBB","selectedText":"#RRGGBB"}}',
+  'widgetPresentation shape: {"eyebrow":"...","title":"...","description":"...","optionPrompt":"...","estimateLabel":"...","extraLabel":"...","actionLabel":"...","submitLabel":"...","backLabel":"...","successTitle":"...","successBody":"...","contactLabel":"...","fieldLabels":{"service":"...","name":"...","phone":"...","email":"...","location":"...","date":"...","time":"...","details":"..."},"theme":{"surface":"#RRGGBB","text":"#RRGGBB","muted":"#RRGGBB","border":"#RRGGBB","action":"#RRGGBB","actionText":"#RRGGBB","selected":"#RRGGBB","selectedText":"#RRGGBB"}}',
   "Widget presentation copy must be specific to the supplied business and the section's role. Avoid stock phrases and generic filler such as 'choose your options', 'request your appointment', 'lock in this price', 'anything we should know', 'before you request a time', or 'without the guesswork' unless those exact words are genuinely appropriate to the supplied business.",
   "Use any validated composition, depth, hierarchy, spacing, media treatment, and motion the authored brief calls for. On mobile, provide responsive overrides wherever needed so nothing collides at 320px.",
   // MEASURABLE CRAFT BAR (checked automatically after you answer; misses come back to you):
@@ -247,8 +247,6 @@ export async function composeFirstBuildSections(input: {
 }): Promise<CompositionPassResult> {
   const { db, organizationId, facts } = input;
   const direction = input.depthDirection ?? depthDirectionFromLook(input.lookSummary);
-  // T2 follow-up: once composition-tree's firstBuild validation option lands,
-  // pass { firstBuild: true } to the validateComposition calls in this pass.
   const withinBudget = () => input.optionalPassDeadline === undefined || Date.now() < input.optionalPassDeadline;
   const [{ data: sections, error }, { data: components }] = await Promise.all([
     db.from("website_sections").select("id,page_id,kind,heading,subheading,body,settings").eq("organization_id", organizationId).order("sort_order"),
@@ -378,6 +376,7 @@ export async function composeFirstBuildSections(input: {
       for (const section of batch) {
         const mediaRefs = mediaRefsFor(section, parts);
         const checked = validateComposition(fixContacts(trees[section.id]), {
+          firstBuild: true,
           screenText: screen,
           allowedMediaRefs: mediaRefs,
           requiredMediaRefs: mediaRefs,
@@ -432,6 +431,7 @@ export async function composeFirstBuildSections(input: {
         const trees = parseTrees(call.text) ?? {};
         const mediaRefs = mediaRefsFor(section, parts);
         const checked = validateComposition(fixContacts(trees[section.id] ?? Object.values(trees)[0]), {
+          firstBuild: true,
           screenText: screen,
           allowedMediaRefs: mediaRefs,
           requiredMediaRefs: mediaRefs,
@@ -579,6 +579,7 @@ async function repairDesignQuality(input: {
     for (const section of failing) {
       const mediaRefs = mediaRefsFor(section, input.parts);
       const checked = validateComposition(trees[section.id], {
+        firstBuild: true,
         screenText: input.screen,
         allowedMediaRefs: mediaRefs,
         requiredMediaRefs: mediaRefs,
@@ -686,6 +687,7 @@ async function improveWithTeam(input: {
         const section = input.sections.find((candidate) => candidate.id === id);
         const mediaRefs = section ? mediaRefsFor(section, input.parts) : new Set<string>();
         const checked = validateComposition(trees[id], {
+          firstBuild: true,
           screenText: input.screen,
           allowedMediaRefs: mediaRefs,
           requiredMediaRefs: mediaRefs,
@@ -722,6 +724,7 @@ async function improveWithTeam(input: {
         const section = input.sections.find((candidate) => candidate.id === id);
         const mediaRefs = section ? mediaRefsFor(section, input.parts) : new Set<string>();
         const finalCheck = validateComposition(tree, {
+          firstBuild: true,
           screenText: input.screen,
           allowedMediaRefs: mediaRefs,
           requiredMediaRefs: mediaRefs,
