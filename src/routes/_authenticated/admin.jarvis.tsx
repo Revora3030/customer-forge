@@ -1,51 +1,44 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useCallback, useEffect, useRef, useState } from "react";
-import { ArrowDown, Ban, Bot, Check, Copy, Download, ExternalLink, GitPullRequest, Hammer, ImageUp, Megaphone, Mic, MicOff, Radio, RefreshCw, RotateCcw, Send, Trash2, Volume2, VolumeX, Wrench } from "lucide-react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { StickToBottomContext } from "use-stick-to-bottom";
+import { RotateCcw, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
-import { JarvisMarkdown } from "@/components/app/JarvisMarkdown";
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Sheet, SheetClose, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import { Conversation, ConversationContent, ConversationScrollButton } from "@/components/ai-elements/conversation";
+import { TypingDots } from "@/components/ai-elements/shimmer";
 import { useJarvisVoice } from "@/components/app/use-jarvis-voice";
-import { VoiceWave } from "@/components/app/VoiceWave";
-import { openJarvisPullRequestFn, recoverStalledBuildsFn, sendClaudeCodeRequestFn, clearJarvisHistory, getJarvisHistory, getJarvisDiagnostics, getJarvisAcquisitionReadiness, getJarvisDiagnosticTools, runJarvisDiagnosticTool, regenerateJarvisReply, sendJarvisMessage } from "@/lib/jarvis.functions";
+import { useProspectDemoPump } from "@/components/app/ProspectDemoBuilder";
+import { JarvisHeader, type ChecksSummary } from "@/components/app/jarvis/JarvisHeader";
+import { JarvisComposer, type JarvisMode } from "@/components/app/jarvis/JarvisComposer";
+import { AssistantMessage, UserMessage, type JarvisRow } from "@/components/app/jarvis/JarvisMessage";
+import { OperationsPanel, DIAGNOSTIC_SECTIONS, type ProspectorState } from "@/components/app/jarvis/OperationsPanel";
+import { CommandPalette } from "@/components/app/jarvis/CommandPalette";
+import { LiveSurface, type VoiceState } from "@/components/app/jarvis/LiveSurface";
+import { useJarvisHeight } from "@/components/app/jarvis/use-jarvis-height";
+import { readApprovals, rememberApproval, type Approvals } from "@/components/app/jarvis/jarvis-approvals";
+import "@/components/app/jarvis/jarvis.css";
+import { openJarvisPullRequestFn, recoverStalledBuildsFn, sendClaudeCodeRequestFn, clearJarvisHistory, getJarvisHistory, getJarvisDiagnostics, getJarvisAcquisitionReadiness, getJarvisDiagnosticTools, runJarvisDiagnosticTool, regenerateJarvisReply, sendJarvisMessage, JARVIS_HISTORY_PAGE } from "@/lib/jarvis.functions";
 import { draftProspectOutreach, type ProspectDraft } from "@/lib/jarvis-prospecting.functions";
 import { formatRevoraOffer } from "@/lib/jarvis-acquisition-policy";
 import { jarvisVoiceLinks, synthesizeJarvisVoice } from "@/lib/jarvis-voice.functions";
-import { ProspectDemoBuilder } from "@/components/app/ProspectDemoBuilder";
-import { ClaudeCodePanel } from "@/components/app/ClaudeCodePanel";
-import { speakableText, splitReplyMeta, type WriteProposal } from "@/lib/jarvis-actions";
+import { speakableText, type WriteProposal } from "@/lib/jarvis-actions";
 import { prospectFromImageFn, startProspectDemoBuild } from "@/lib/jarvis-demo-site.functions";
 import { pictureDataUrl } from "@/lib/picture-data-url";
 
+type RecognitionResult = ArrayLike<{ transcript: string }> & { isFinal?: boolean };
 type Recognition = {
   lang: string; interimResults: boolean;
-  onresult: ((event: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => void) | null;
+  onresult: ((event: { resultIndex?: number; results: ArrayLike<RecognitionResult> }) => void) | null;
   onend: (() => void) | null; onerror: (() => void) | null;
   start: () => void; stop: () => void;
 };
 type RecognitionConstructor = new () => Recognition;
-type Mode = "brief" | "balanced" | "deep";
+type Mode = JarvisMode;
 type ProspectLine = { name: string; website: string; city: string; email: string };
-
-type CapabilityScorePayload = {
-  overallScore: number;
-  verifiedChecks: number;
-  totalChecks: number;
-  verified10Of10Areas: number;
-  areas: Array<{
-    id: string;
-    title: string;
-    score: number;
-    verified: number;
-    total: number;
-    status: "verified_10_of_10" | "gaps_found" | "evidence_incomplete";
-    blockers: string[];
-  }>;
-  nextActions: string[];
-};
 
 export const Route = createFileRoute("/_authenticated/admin/jarvis")({
   head: () => ({ meta: [{ title: "Jarvis mission control — Revora" }, { name: "robots", content: "noindex" }] }),
@@ -57,8 +50,6 @@ const DRAFT_KEY = "jarvis:draft";
 const MODE_KEY = "jarvis:mode";
 const DNC_KEY = "jarvis:dnc";
 const ADDRESS_PLACEHOLDER = "[ADD YOUR PHYSICAL MAILING ADDRESS";
-const MODES = [["brief", "Brief"], ["balanced", "Balanced"], ["deep", "Deep"]] as const;
-const SECTIONS = [["errors", "Errors"], ["builds", "Builds"], ["schema", "Schema"]] as const;
 
 const BRIEFING = "Give me a daily briefing: the top three priorities from the diagnostics, what looks fine, what is at risk, and the single most valuable action today. Label anything not checked.";
 const AUDIT = "Audit my homepage HTTP and metadata checks and give me the exact fixes in priority order. Say what is not proven.";
@@ -114,11 +105,26 @@ const hostFromUrl = (value: string | null) => {
   try { return new URL(value).hostname.replace(/^www\./, "").toLowerCase(); } catch { return null; }
 };
 
-const clock = (iso: string) => {
-  const date = new Date(iso);
-  return Number.isNaN(date.getTime()) ? "" : date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+/** Older rows first, then the latest page; a row present in both is kept once. */
+const mergeRows = (older: JarvisRow[], newer: JarvisRow[]) => {
+  const ids = new Set(newer.map((row) => row.id));
+  return [...older.filter((row) => !ids.has(row.id)), ...newer];
 };
-const dot = (status?: string) => status === "checked" ? "bg-emerald-500" : status === "unavailable" ? "bg-destructive" : "bg-muted-foreground/50";
+
+const dayKey = (iso: string) => {
+  const date = new Date(iso);
+  return Number.isNaN(date.getTime()) ? "" : date.toDateString();
+};
+const dayLabel = (iso: string) => {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "";
+  const today = new Date();
+  const yesterday = new Date(today);
+  yesterday.setDate(today.getDate() - 1);
+  if (date.toDateString() === today.toDateString()) return "Today";
+  if (date.toDateString() === yesterday.toDateString()) return "Yesterday";
+  return date.toLocaleDateString([], { weekday: "long", month: "long", day: "numeric", ...(date.getFullYear() === today.getFullYear() ? {} : { year: "numeric" }) });
+};
 
 function Jarvis() {
   const qc = useQueryClient();
@@ -138,10 +144,14 @@ function Jarvis() {
   const sendToClaudeCode = useServerFn(sendClaudeCodeRequestFn);
   const recoverBuilds = useServerFn(recoverStalledBuildsFn);
   const readPicture = useServerFn(prospectFromImageFn);
-  const pictureInput = useRef<HTMLInputElement>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
+  useJarvisHeight(rootRef);
+  // Active demo builds keep moving while this page is open, sheet or not.
+  useProspectDemoPump(true);
   const [readingPicture, setReadingPicture] = useState(false);
+  const [picturePreview, setPicturePreview] = useState<string | null>(null);
   const [openedPrs, setOpenedPrs] = useState<Record<string, string>>({});
-  const history = useQuery({ queryKey: ["jarvis", "history"], queryFn: () => load() });
+  const history = useQuery({ queryKey: ["jarvis", "history"], queryFn: () => load({ data: {} }) });
   const diagnostics = useQuery({ queryKey: ["jarvis", "diagnostics"], queryFn: () => inspect(), staleTime: 60_000, retry: false });
   const acquisition = useQuery({ queryKey: ["jarvis", "acquisition-readiness"], queryFn: () => inspectAcquisition(), enabled: false, retry: false });
   const capabilityScorecard = useQuery({
@@ -164,56 +174,96 @@ function Jarvis() {
   const [voice, setVoice] = useState(false);
   const [live, setLive] = useState(false);
   const liveRef = useRef(false);
+  // Set when the owner stops playback (Stop, mute, Tap to talk) so a finishing reply doesn't restart listening twice.
+  const userStoppedRef = useRef(false);
   const [showTools, setShowTools] = useState(false);
   // Wide screens show the operations panel beside the chat; phones use a sheet.
-  const [wide, setWide] = useState(false);
+  // null until measured, so the first paint never swaps one for the other.
+  const [wide, setWide] = useState<boolean | null>(null);
+  const [coarse, setCoarse] = useState(false);
   useEffect(() => {
     const query = window.matchMedia("(min-width: 1280px)");
-    const update = () => setWide(query.matches);
+    const touch = window.matchMedia("(pointer: coarse)");
+    const update = () => { setWide(query.matches); setCoarse(touch.matches); };
     update();
     query.addEventListener?.("change", update);
-    return () => query.removeEventListener?.("change", update);
+    touch.addEventListener?.("change", update);
+    return () => { query.removeEventListener?.("change", update); touch.removeEventListener?.("change", update); };
   }, []);
   const [approved, setApproved] = useState<Record<string, "building" | "done">>({});
+  const [remembered, setRemembered] = useState<Approvals>({});
   const [listening, setListening] = useState(false);
-  const [atBottom, setAtBottom] = useState(true);
+  const [interim, setInterim] = useState("");
   const [elapsed, setElapsed] = useState(0);
   const [prospectText, setProspectText] = useState("");
   const [drafts, setDrafts] = useState<ProspectDraft[]>([]);
   const [edits, setEdits] = useState<Record<number, string>>({});
   const [dnc, setDnc] = useState<string[]>([]);
   const [addressConfigured, setAddressConfigured] = useState(true);
+  const [older, setOlder] = useState<JarvisRow[]>([]);
+  const [moreEarlier, setMoreEarlier] = useState(true);
+  const [loadingEarlier, setLoadingEarlier] = useState(false);
+  const [commandsOpen, setCommandsOpen] = useState(false);
+  const [focusDiagnostics, setFocusDiagnostics] = useState(0);
+  const [announcement, setAnnouncement] = useState("");
+  const [speakingId, setSpeakingId] = useState<string | null>(null);
   const recognition = useRef<Recognition | null>(null);
-  const end = useRef<HTMLDivElement>(null);
-  const scroller = useRef<HTMLDivElement>(null);
+  const conversation = useRef<StickToBottomContext>(null);
   const input = useRef<HTMLTextAreaElement>(null);
-  const voiceSynth = useCallback((text: string) => synthesizeVoice({ data: { text } }), [synthesizeVoice]);
+  const voiceSynth = useCallback((value: string) => synthesizeVoice({ data: { text: value } }), [synthesizeVoice]);
   const onVoiceFallback = useCallback((reason: string) => {
     toast.message("Using your browser voice because ElevenLabs was unavailable.", { description: reason });
   }, []);
   const voiceStream = useCallback(
-    async (text: string) => (await voiceLinks({ data: { texts: [text] } })).urls[0]!,
+    async (value: string) => (await voiceLinks({ data: { texts: [value] } })).urls[0]!,
     [voiceLinks],
   );
   const jarvisVoice = useJarvisVoice(voiceSynth, onVoiceFallback, voiceStream);
+  const { stop: stopVoice } = jarvisVoice;
 
-  const stopVoice = () => jarvisVoice.stop();
-  const speak = async (content: string) => {
+  const announce = (message: string) => {
+    setAnnouncement("");
+    window.setTimeout(() => setAnnouncement(message), 60);
+  };
+  const latestAssistantId = () => {
+    const rows = qc.getQueryData<JarvisRow[]>(["jarvis", "history"]) ?? [];
+    const last = rows[rows.length - 1];
+    return last?.role === "assistant" ? last.id : null;
+  };
+  const speak = async (content: string, id: string | null = null) => {
     const clean = speakableText(content);
     if (!clean) { toast.error("There is no readable text to speak."); resumeLive(); return; }
+    userStoppedRef.current = false;
+    setSpeakingId(id);
     await jarvisVoice.speak(clean);
+    // A stop already resumed Live itself; only a reply that played to the end resumes it here.
+    if (liveRef.current && !userStoppedRef.current) resumeLive();
+  };
+  /** Stops playback now. In Live mode Jarvis goes straight back to listening. */
+  const stopSpeaking = () => {
+    userStoppedRef.current = true;
+    stopVoice();
     resumeLive();
   };
   const finish = async (result: { reply: string; diagnostics: unknown; followups?: string[] }) => {
     qc.setQueryData(["jarvis", "diagnostics"], result.diagnostics);
     setFollowups(result.followups ?? []);
     await qc.invalidateQueries({ queryKey: ["jarvis", "history"] });
-    if (voice || liveRef.current) void speak(result.reply);
+    announce("Jarvis replied");
+    if (voice || liveRef.current) void speak(result.reply, latestAssistantId());
   };
   const mutation = useMutation({
     mutationFn: (message: string) => send({ data: { message, mode } }),
     onSuccess: finish,
-    onError: (error: Error, message: string) => { toast.error(error.message); setText((current) => current || message); resumeLive(); },
+    onError: async (error: Error, message: string) => {
+      toast.error(error.message);
+      // The server saves the message before answering, so it may already be in the chat.
+      await qc.invalidateQueries({ queryKey: ["jarvis", "history"] }).catch(() => undefined);
+      const rows = qc.getQueryData<JarvisRow[]>(["jarvis", "history"]) ?? [];
+      const lastUser = [...rows].reverse().find((row) => row.role === "user");
+      if (lastUser?.content !== message) setText((current) => current || message);
+      resumeLive();
+    },
     onSettled: () => setPending(null),
   });
   const regen = useMutation({
@@ -223,7 +273,12 @@ function Jarvis() {
   });
   const clearing = useMutation({
     mutationFn: () => clear(),
-    onSuccess: () => { setFollowups([]); return qc.invalidateQueries({ queryKey: ["jarvis", "history"] }); },
+    onSuccess: () => {
+      setFollowups([]);
+      setOlder([]);
+      setMoreEarlier(true);
+      return qc.invalidateQueries({ queryKey: ["jarvis", "history"] });
+    },
     onError: (error: Error) => toast.error(error.message),
   });
   const prospecting = useMutation({
@@ -232,11 +287,12 @@ function Jarvis() {
     onError: (error: Error) => toast.error(error.message),
   });
   const busy = mutation.isPending || regen.isPending;
-  const messages = history.data ?? [];
+  const latest = useMemo(() => history.data ?? [], [history.data]);
+  const messages = useMemo(() => mergeRows(older, latest), [older, latest]);
   const lastMessage = messages[messages.length - 1];
   const lastAssistantId = lastMessage?.role === "assistant" ? lastMessage.id : null;
   const empty = !history.isLoading && !history.error && messages.length === 0 && !pending;
-  const stage = elapsed < 3 ? "Collecting diagnostics" : elapsed < 8 ? "Checking the live site" : elapsed < 20 ? "Thinking and running checks" : "Reading results and writing the answer";
+  const canLoadEarlier = messages.length > 0 && (older.length ? moreEarlier : latest.length >= JARVIS_HISTORY_PAGE);
   const prospectLines = parseProspects(prospectText);
 
   useEffect(() => {
@@ -251,6 +307,7 @@ function Jarvis() {
         if (Array.isArray(parsed)) setDnc(parsed.filter((item): item is string => typeof item === "string").slice(0, 500));
       }
     } catch { /* storage unavailable */ }
+    setRemembered(readApprovals());
   }, []);
   useEffect(() => {
     try { if (text) localStorage.setItem(DRAFT_KEY, text); else localStorage.removeItem(DRAFT_KEY); } catch { /* storage unavailable */ }
@@ -262,7 +319,18 @@ function Jarvis() {
     const timer = setInterval(() => setElapsed((value) => value + 1), 1000);
     return () => clearInterval(timer);
   }, [busy]);
-  useEffect(() => { if (atBottom) end.current?.scrollIntoView({ block: "end" }); }, [history.data?.length, busy, pending, followups.length, atBottom]);
+  // When new messages push the oldest rows out of the latest page, keep them with the
+  // earlier pages already loaded, so "Load earlier" never leaves a gap.
+  const previousLatest = useRef<JarvisRow[]>([]);
+  useEffect(() => {
+    const previous = previousLatest.current;
+    const next = history.data ?? [];
+    previousLatest.current = next;
+    if (next.length < JARVIS_HISTORY_PAGE || !next[0]) return;
+    const cutoff = next[0].created_at;
+    const dropped = previous.filter((row) => row.created_at < cutoff);
+    if (dropped.length) setOlder((current) => (current.length ? mergeRows(current, dropped) : current));
+  }, [history.data]);
   useEffect(() => () => {
     if (recognition.current) {
       recognition.current.onresult = null;
@@ -271,12 +339,8 @@ function Jarvis() {
       recognition.current.stop();
     }
     stopVoice();
-  }, []);
+  }, [stopVoice]);
 
-  const onScroll = () => {
-    const el = scroller.current;
-    if (el) setAtBottom(el.scrollHeight - el.scrollTop - el.clientHeight < 80);
-  };
   const chooseMode = (value: Mode) => {
     setMode(value);
     try { localStorage.setItem(MODE_KEY, value); } catch { /* storage unavailable */ }
@@ -291,20 +355,38 @@ function Jarvis() {
     if (!dnc.includes(entry)) saveDnc([...dnc, entry]);
     toast.success(`${entry} added to do-not-contact.`);
   };
+  /** Detaches and stops the current recognizer so it can't write into the draft afterwards. */
+  const detachRecognition = () => {
+    const rec = recognition.current;
+    recognition.current = null;
+    if (rec) {
+      rec.onresult = null;
+      rec.onend = null;
+      rec.onerror = null;
+      try { rec.stop(); } catch { /* already stopped */ }
+    }
+    setListening(false);
+    setInterim("");
+  };
   const submit = (message = text) => {
     const clean = message.trim();
     if (!clean || busy) return;
     jarvisVoice.unlock();
-    recognition.current?.stop();
+    detachRecognition();
     setText("");
     setFollowups([]);
-    setAtBottom(true);
+    void conversation.current?.scrollToBottom();
     setPending(clean);
     mutation.mutate(clean);
   };
+  // Recognition callbacks outlive the render that created them; they always submit with the latest state.
+  const submitRef = useRef(submit);
+  submitRef.current = submit;
   // A picture of a business (Maps screenshot, card, flyer, sign) becomes a demo request with only the facts read from it.
   const attachPicture = async (file: File) => {
     setReadingPicture(true);
+    const preview = URL.createObjectURL(file);
+    setPicturePreview(preview);
     try {
       const result = await readPicture({ data: { dataUrl: await pictureDataUrl(file) } });
       const facts = [
@@ -323,6 +405,8 @@ function Jarvis() {
       toast.error(error instanceof Error ? error.message : "Couldn't read that picture.");
     } finally {
       setReadingPicture(false);
+      setPicturePreview(null);
+      URL.revokeObjectURL(preview);
     }
   };
   const copy = async (content: string) => {
@@ -335,10 +419,30 @@ function Jarvis() {
     const link = document.createElement("a");
     link.href = url;
     link.download = `jarvis-${new Date().toISOString().slice(0, 10)}.md`;
+    // iOS Safari only downloads from an attached link, and needs the URL alive briefly.
+    document.body.append(link);
     link.click();
-    URL.revokeObjectURL(url);
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
+  const loadEarlier = async () => {
+    const oldest = messages[0];
+    if (!oldest || loadingEarlier) return;
+    setLoadingEarlier(true);
+    try {
+      const rows = await load({ data: { before: oldest.created_at } });
+      setOlder((current) => mergeRows(rows, current));
+      setMoreEarlier(rows.length >= JARVIS_HISTORY_PAGE);
+      if (!rows.length) toast.message("That's the start of your Jarvis chat.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Couldn't load earlier messages.");
+    } finally {
+      setLoadingEarlier(false);
+    }
   };
   const toggleMic = () => {
+    // In Live mode the mic is the same as Tap to talk, so the hands-free loop keeps going.
+    if (liveRef.current) { tapToTalk(); return; }
     if (listening) { recognition.current?.stop(); return; }
     listen(false);
   };
@@ -348,7 +452,22 @@ function Jarvis() {
     liveRef.current = next;
     setLive(next);
     if (next) { jarvisVoice.unlock(); setVoice(true); toast.message("Live mode on. Talk to Jarvis: it answers out loud, then keeps listening."); listen(true); }
-    else { recognition.current?.stop(); stopVoice(); }
+    else { detachRecognition(); userStoppedRef.current = true; stopVoice(); }
+  };
+  /** Tap to talk: interrupt Jarvis and listen, all inside the owner's tap. */
+  const tapToTalk = () => {
+    userStoppedRef.current = true;
+    jarvisVoice.unlock();
+    listen(true);
+  };
+  const toggleVoice = () => {
+    const next = !voice;
+    setVoice(next);
+    if (next) { jarvisVoice.unlock(); return; }
+    // Muting stops playback now; in Live mode Jarvis goes straight back to listening.
+    userStoppedRef.current = true;
+    stopVoice();
+    resumeLive();
   };
   function resumeLive() {
     if (liveRef.current) window.setTimeout(() => { if (liveRef.current) listen(true); }, 350);
@@ -357,34 +476,63 @@ function Jarvis() {
     const browser = window as unknown as { SpeechRecognition?: RecognitionConstructor; webkitSpeechRecognition?: RecognitionConstructor };
     const Ctor = browser.SpeechRecognition ?? browser.webkitSpeechRecognition;
     if (!Ctor) { toast.error("Voice input is unavailable; use text instead."); return; }
+    // Barge-in: stop Jarvis talking in the same tap, so the mic doesn't hear Jarvis.
+    stopVoice();
+    detachRecognition();
     const rec = new Ctor();
-    rec.lang = "en-US"; rec.interimResults = false;
+    rec.lang = "en-US"; rec.interimResults = true;
     let heard = false;
-    rec.onresult = (event) => {
-      const transcript = String(event.results[0]?.[0]?.transcript ?? "").trim();
-      if (!transcript) return;
+    let lastInterim = "";
+    const commit = (transcript: string) => {
       heard = true;
-      if (autoSend) submit(transcript); else setText(transcript);
+      lastInterim = "";
+      setInterim("");
+      if (autoSend) submitRef.current(transcript);
+      else setText((prev) => (prev ? prev + " " + transcript : transcript).slice(0, MAX_LENGTH));
+    };
+    rec.onresult = (event) => {
+      let finalText = "";
+      let interimText = "";
+      for (let i = event.resultIndex ?? 0; i < event.results.length; i += 1) {
+        const result = event.results[i];
+        const transcript = String(result?.[0]?.transcript ?? "");
+        if (result?.isFinal) finalText += transcript; else interimText += transcript;
+      }
+      if (finalText.trim()) commit(finalText.trim());
+      else { lastInterim = interimText.trim(); setInterim(lastInterim); }
     };
     // Silence in live mode just means keep listening.
-    rec.onend = () => { setListening(false); if (autoSend && !heard) resumeLive(); };
+    rec.onend = () => {
+      if (recognition.current === rec) recognition.current = null;
+      setListening(false);
+      setInterim("");
+      // Some browsers end without marking the last words final; keep them.
+      if (!heard && lastInterim) commit(lastInterim);
+      else if (autoSend && !heard) resumeLive();
+    };
     rec.onerror = () => {
       setListening(false);
       if (!autoSend) toast.error("Voice input failed. You can still type.");
     };
     recognition.current = rec;
-    try { rec.start(); setListening(true); } catch { setListening(false); if (!autoSend) toast.error("Microphone could not start."); }
+    try { rec.start(); setListening(true); } catch { recognition.current = null; setListening(false); if (!autoSend) toast.error("Microphone could not start."); }
   }
+  const forget = (key: string) => setApproved((current) => { const next = { ...current }; delete next[key]; return next; });
+  const markDone = (key: string, url?: string) => {
+    setApproved((current) => ({ ...current, [key]: "done" }));
+    if (url) setOpenedPrs((current) => ({ ...current, [key]: url }));
+    setRemembered(rememberApproval(key, { state: "done", url }));
+  };
   const approveProposal = async (key: string, proposal: WriteProposal) => {
     setApproved((current) => ({ ...current, [key]: "building" }));
     if (proposal.id === "builds.recover") {
       try {
         const result = await recoverBuilds();
-        setApproved((current) => ({ ...current, [key]: "done" }));
+        markDone(key);
         toast.success(result.restartedWorkspaces ? `Stalled builds cleared. Restarted the worker for ${result.restartedWorkspaces} queued build${result.restartedWorkspaces === 1 ? "" : "s"}.` : "Stalled builds cleared. Nothing was waiting in the queue.");
         void qc.invalidateQueries({ queryKey: ["jarvis", "diagnostics"] });
       } catch (error) {
-        setApproved((current) => { const next = { ...current }; delete next[key]; return next; });
+        forget(key);
         toast.error(error instanceof Error ? error.message : "Couldn't recover the builds.");
       }
       return;
@@ -392,12 +540,11 @@ function Jarvis() {
     if (proposal.id === "claude.code") {
       try {
         const result = await sendToClaudeCode({ data: { request: proposal.request } });
-        setOpenedPrs((current) => ({ ...current, [key]: result.url }));
-        setApproved((current) => ({ ...current, [key]: "done" }));
+        markDone(key, result.url);
         toast.success(`Sent to Claude Code as issue #${result.number}. It posts progress and the pull request there.`);
         void qc.invalidateQueries({ queryKey: ["jarvis", "claude-code"] });
       } catch (error) {
-        setApproved((current) => { const next = { ...current }; delete next[key]; return next; });
+        forget(key);
         toast.error(error instanceof Error ? error.message : "Couldn't send the task to Claude Code.");
       }
       return;
@@ -405,364 +552,236 @@ function Jarvis() {
     if (proposal.id === "code.pr") {
       try {
         const result = await openPr({ data: { pr: proposal.pr } });
-        setOpenedPrs((current) => ({ ...current, [key]: result.url }));
-        setApproved((current) => ({ ...current, [key]: "done" }));
+        markDone(key, result.url);
         toast.success(`Pull request #${result.number} opened. Review and merge it on GitHub.`);
       } catch (error) {
-        setApproved((current) => { const next = { ...current }; delete next[key]; return next; });
+        forget(key);
         toast.error(error instanceof Error ? error.message : "Couldn't open the pull request.");
       }
       return;
     }
     try {
       await buildDemo({ data: proposal.input });
-      setApproved((current) => ({ ...current, [key]: "done" }));
-      toast.success(`Building the demo site for ${proposal.input.businessName}. Track it under Tools → Demo sites.`);
+      markDone(key);
+      toast.success(`Building the demo site for ${proposal.input.businessName}. Track it under Operations → Demo sites.`);
       void qc.invalidateQueries({ queryKey: ["jarvis", "prospect-demos"] });
     } catch (error) {
-      setApproved((current) => { const next = { ...current }; delete next[key]; return next; });
+      forget(key);
       toast.error(error instanceof Error ? error.message : "Couldn't start the build.");
     }
   };
 
-  // One operations panel: a sticky column on wide screens, a bottom sheet on phones.
-  const toolsPanel = (
-    <div className="space-y-3">
-      <section aria-label="Jarvis customer acquisition autopilot" className="rounded-xl border border-border bg-card p-3 space-y-3">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div><h2 className="font-semibold">Customer acquisition autopilot</h2><p className="text-xs text-muted-foreground">Measure → qualify → prepare → approve → verify paid conversion. No guaranteed revenue claims.</p></div>
-          <Button type="button" size="sm" variant="outline" disabled={acquisition.isFetching} onClick={() => { void acquisition.refetch(); }}>{acquisition.isFetching ? "Checking…" : "Check acquisition readiness"}</Button>
-        </div>
-        <p className="text-sm text-muted-foreground">Jarvis can prepare an evidence-backed daily plan and identify missing integrations. This check does not read prospect records, send messages, publish changes, or spend money.</p>
-        {acquisition.data ? <div className="space-y-3">
-          <div className="rounded-md border border-border p-3"><div className="flex flex-wrap items-center justify-between gap-2"><strong>Readiness: {acquisition.data.status.replaceAll("_", " ")}</strong><span className="text-xs text-muted-foreground">Spend authorized: No · Sending enabled: No</span></div><p className="mt-1 text-xs text-muted-foreground">{acquisition.data.note}</p><p className="mt-2 text-xs">Verified signals: analytics {acquisition.data.analyticsVerified ? "yes" : "unknown"}, lead source {acquisition.data.liveLeadSourceVerified ? "yes" : "unknown"}, outbound provider {acquisition.data.outboundProviderVerified ? "yes" : "unknown"}, booking {acquisition.data.bookingVerified ? "yes" : "unknown"}, payment flow {acquisition.data.paymentFlowVerified ? "yes" : "unknown"}.</p><p className="mt-1 text-xs">Server-approved daily spend cap: {(acquisition.data.configuredSpendCapCents / 100).toLocaleString(undefined, { style: "currency", currency: "USD" })}; this run requested $0.</p></div>
-          <div className="space-y-2">
-            <h3 className="text-sm font-semibold">Observed funnel signals</h3>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-              {[
-                ["Organizations", acquisition.data.funnelMetrics.organizationsTotal],
-                ["Trial records", acquisition.data.funnelMetrics.trialRecordsTotal],
-                ["Leads · 7 days", acquisition.data.funnelMetrics.leadsCreatedLast7Days],
-                ["Appointments · 7 days", acquisition.data.funnelMetrics.appointmentsCreatedLast7Days],
-                ["Paid invoices · 30 days", acquisition.data.funnelMetrics.paidInvoicesLast30Days],
-                ["Active subscription records", acquisition.data.funnelMetrics.activeSubscriptionRecords],
-              ].map(([label, value]) => <div key={String(label)} className="rounded-md border border-border p-3"><p className="text-xs text-muted-foreground">{label}</p><p className="mt-1 text-lg font-semibold tabular-nums">{value === null ? "Unknown" : value}</p></div>)}
-            </div>
-            <p className="text-xs text-muted-foreground">{acquisition.data.funnelMetrics.note}</p>
-          </div>
-          <ol className="space-y-2">{acquisition.data.steps.map((step) => <li key={step.id} className="rounded-md border border-border p-3"><div className="flex flex-wrap items-center justify-between gap-2"><strong className="text-sm">{step.title}</strong><span className="text-xs text-muted-foreground">{step.mode.replaceAll("_", " ")}</span></div><p className="mt-1 text-xs text-muted-foreground">{step.reason}</p></li>)}</ol>
-        </div> : acquisition.error ? <p role="alert" className="text-sm text-destructive">Acquisition readiness could not be verified. Treat all live integrations as unavailable.</p> : <p className="text-xs text-muted-foreground">Not checked yet. Jarvis will verify server-side connector evidence when requested.</p>}
-      </section>
-
-
-      <section aria-label="Jarvis seven-area capability scorecard" className="rounded-xl border border-border bg-card p-3 space-y-3">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <h2 className="font-semibold">Jarvis capability scorecard</h2>
-            <p className="text-xs text-muted-foreground">Seven capability areas · evidence-backed · missing proof never counts as a pass.</p>
-          </div>
-          <Button type="button" size="sm" variant="outline" disabled={capabilityScorecard.isFetching} onClick={() => { void capabilityScorecard.refetch(); }}>
-            {capabilityScorecard.isFetching ? "Auditing…" : "Run seven-area audit"}
-          </Button>
-        </div>
-        <p className="text-sm text-muted-foreground">This reads bounded diagnostics, public-site smoke checks, and release-branch CI summaries. It does not enable writes, outreach, publishing, or spend.</p>
-        {capabilityScorecard.data ? (() => {
-          const toolResult = capabilityScorecard.data;
-          const payload = toolResult.data as unknown as CapabilityScorePayload;
-          const valid = payload && typeof payload === "object" && Array.isArray(payload.areas) &&
-            typeof payload.overallScore === "number" && typeof payload.totalChecks === "number";
-          return valid ? (
-            <div className="space-y-3">
-              <div className="rounded-lg border border-border p-3">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <strong>Overall verified score: {payload.overallScore.toFixed(1)}/10</strong>
-                  <span className="text-xs text-muted-foreground">{payload.verifiedChecks}/{payload.totalChecks} checks verified</span>
-                </div>
-                <p className="mt-1 text-xs text-muted-foreground">{payload.verified10Of10Areas}/7 areas fully verified · status: {toolResult.status.replaceAll("_", " ")}</p>
-                <p className="mt-1 text-xs text-muted-foreground">Checked {clock(toolResult.checkedAt)} · {toolResult.durationMs} ms</p>
-              </div>
-              <div className="space-y-3">
-                {payload.areas.map((area) => (
-                  <article key={area.id} className="space-y-1.5">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <span className="text-sm font-medium">{area.title}</span>
-                      <span className="text-xs tabular-nums">{area.score.toFixed(1)}/10 · {area.verified}/{area.total}</span>
-                    </div>
-                    <div className="h-1.5 overflow-hidden rounded-full bg-muted" role="progressbar" aria-label={area.title} aria-valuemin={0} aria-valuemax={10} aria-valuenow={area.score}>
-                      <div className="h-full rounded-full bg-primary" style={{ width: Math.min(100, Math.max(0, area.score * 10)) + "%" }} />
-                    </div>
-                    <p className="text-xs text-muted-foreground">{area.status.replaceAll("_", " ")}</p>
-                    {area.blockers.length > 0 ? <details className="rounded-md border border-border px-2 py-1.5"><summary className="cursor-pointer text-xs">Show {area.blockers.length} evidence gaps</summary><ul className="mt-2 list-disc space-y-1 pl-4 text-xs text-muted-foreground">{area.blockers.slice(0, 8).map((blocker) => <li key={blocker}>{blocker}</li>)}</ul></details> : <p className="text-xs text-muted-foreground">All required checks verified.</p>}
-                  </article>
-                ))}
-              </div>
-              {payload.nextActions.length > 0 ? <div className="rounded-lg border border-border p-3"><h3 className="text-sm font-semibold">Highest-priority next actions</h3><ol className="mt-2 list-decimal space-y-1 pl-4 text-xs text-muted-foreground">{payload.nextActions.map((action) => <li key={action}>{action}</li>)}</ol></div> : null}
-              <p className="text-xs text-muted-foreground">{toolResult.limitations.join(" ")}</p>
-            </div>
-          ) : <p role="alert" className="text-sm text-destructive">Jarvis returned a result that did not match the capability scorecard contract.</p>;
-        })() : capabilityScorecard.error ? <p role="alert" className="text-sm text-destructive">Capability audit failed: {capabilityScorecard.error.message}. No area should be treated as verified.</p> : <p className="text-xs text-muted-foreground">Run the audit to see evidence, exact gaps, and prioritized next actions.</p>}
-      </section>
-
-      <details className="rounded-xl border border-border bg-card">
-        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-2 text-sm">
-          <span className="flex flex-wrap items-center gap-x-4 gap-y-1">
-            {SECTIONS.map(([name, label]) => (
-              <span key={name} className="flex items-center gap-1.5"><span className={`size-2 rounded-full ${dot(diagnostics.data?.sections[name]?.status)}`} />{label}</span>
-            ))}
-          </span>
-          <span className="text-xs text-muted-foreground">{diagnostics.isFetching ? "Checking…" : "Details"}</span>
-        </summary>
-        <div className="space-y-3 border-t border-border p-3 text-sm">
-          {SECTIONS.map(([name, label]) => {
-            const section = diagnostics.data?.sections[name];
-            const reason = section && section.status === "unavailable" ? section.reason : undefined;
-            return (
-              <div key={name}>
-                <p className="font-medium">{label} · {section?.status ?? "not checked"}</p>
-                <p className="text-xs text-muted-foreground">{section?.note ?? "Run diagnostics to collect evidence."}</p>
-                {reason ? <p className="break-words text-xs text-destructive">Reason: {reason}</p> : null}
-              </div>
-            );
-          })}
-          <p className="text-xs text-muted-foreground">Snapshot: {diagnostics.data?.checkedAt ?? "not collected"}. “Checked” means the query ran—not that the subsystem is healthy.</p>
-          {diagnostics.error ? <p role="alert" className="text-xs text-destructive">Diagnostics unavailable. No healthy verdict can be inferred.</p> : null}
-          {diagnostics.data ? <details className="rounded-lg border border-border p-2"><summary className="cursor-pointer text-xs">Inspect bounded diagnostic evidence</summary><pre className="mt-2 max-h-80 overflow-auto whitespace-pre-wrap break-words text-xs">{JSON.stringify(diagnostics.data, null, 2)}</pre></details> : null}
-        </div>
-      </details>
-
-      <details className="rounded-xl border border-border bg-card">
-        <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2 text-sm font-medium"><Megaphone className="size-4" aria-hidden />Prospector · research and draft, you approve every send</summary>
-        <div className="space-y-3 border-t border-border p-3">
-          <p className="text-xs text-muted-foreground">One business per line: name | website | city | email. Website and email are optional; up to 5 at a time. Jarvis reads each public homepage, writes a short honest email from what it actually sees, adds your opt-out line and mailing address, then stops. You review and send. Email only: cold texts and auto-dialed calls need prior consent.</p>
-          <Textarea value={prospectText} rows={4} onChange={(event) => setProspectText(event.target.value)} placeholder="Triangle Comfort HVAC | triangle-comfort.com | Raleigh | owner@triangle-comfort.com" />
-          <div className="flex flex-wrap items-center gap-2">
-            <Button type="button" size="sm" disabled={prospecting.isPending || prospectLines.length === 0} onClick={() => prospecting.mutate(prospectLines)}>{prospecting.isPending ? "Reading sites and drafting…" : `Draft outreach${prospectLines.length ? ` (${prospectLines.length})` : ""}`}</Button>
-            {dnc.length > 0 ? <span className="text-xs text-muted-foreground">{dnc.length} on do-not-contact (this device) <button type="button" className="underline" onClick={() => saveDnc([])}>clear</button></span> : null}
-          </div>
-          {drafts.length > 0 && !addressConfigured ? <p role="alert" className="text-xs text-destructive">Your mailing address isn't configured. Set REVORA_MAILING_ADDRESS (a real street address or PO box) in your server environment. Until then every draft carries a placeholder and the mail button stays off.</p> : null}
-          {drafts.map((draft, index) => {
-            const body = edits[index] ?? draft.body;
-            const blocked = body.includes(ADDRESS_PLACEHOLDER);
-            return (
-              <article key={`${draft.name}-${index}`} className="space-y-2 rounded-lg border border-border p-3">
-                <div className="min-w-0">
-                  <p className="truncate font-medium">{draft.name}</p>
-                  <p className="truncate text-xs text-muted-foreground">{draft.website ?? "No website"}{draft.email ? ` · ${draft.email}` : " · no email yet"}</p>
-                </div>
-                {draft.skipped ? <p className="text-xs text-destructive">{draft.skipped}</p> : (
-                  <>
-                    <p className="text-xs text-muted-foreground">{draft.notes.join(" · ")}</p>
-                    <p className="break-words text-sm font-medium">Subject: {draft.subject}</p>
-                    <Textarea rows={9} value={body} onChange={(event) => setEdits((current) => ({ ...current, [index]: event.target.value }))} />
-                    <div className="flex flex-wrap gap-2">
-                      <Button type="button" size="sm" variant="outline" onClick={() => { void copy(`Subject: ${draft.subject}\n\n${body}`); }}><Copy className="mr-1 size-3.5" />Copy</Button>
-                      {draft.email && !blocked ? <a className="inline-flex h-8 items-center rounded-md border border-border px-3 text-xs font-medium hover:bg-muted" href={`mailto:${draft.email}?subject=${encodeURIComponent(draft.subject)}&body=${encodeURIComponent(body)}`}>Open in mail app</a> : null}
-                      <Button type="button" size="sm" variant="ghost" onClick={() => suppressDraft(draft)}><Ban className="mr-1 size-3.5" />Do not contact</Button>
-                    </div>
-                    {blocked ? <p className="text-xs text-destructive">Add your mailing address to the footer before sending.</p> : null}
-                  </>
-                )}
-              </article>
-            );
-          })}
-        </div>
-      </details>
-
-      <ClaudeCodePanel />
-      <ProspectDemoBuilder />
-    </div>
-  );
+  const voiceState: VoiceState = jarvisVoice.speaking ? "speaking" : listening ? "listening" : busy ? "thinking" : "idle";
+  const status = jarvisVoice.speaking ? "Speaking…" : listening ? (live ? "Live · listening" : "Listening…") : busy ? "Thinking…" : live ? "Live" : "Ready";
+  const sectionStatuses = DIAGNOSTIC_SECTIONS.map(([name]) => diagnostics.data?.sections[name]?.status);
+  const unavailable = sectionStatuses.filter((value) => value === "unavailable").length;
+  const checks: ChecksSummary = diagnostics.error
+    ? { tone: "unavailable", label: "Checks unavailable" }
+    : !diagnostics.data
+      ? { tone: "unknown", label: diagnostics.isFetching ? "Checking…" : "Not checked" }
+      : unavailable
+        ? { tone: "unavailable", label: `${unavailable} check${unavailable === 1 ? "" : "s"} unavailable` }
+        : sectionStatuses.every((value) => value === "checked")
+          ? { tone: "ran", label: "Checks ran" }
+          : { tone: "unknown", label: "Checks incomplete" };
+  const openChecks = () => {
+    setFocusDiagnostics((value) => value + 1);
+    if (wide === false) setShowTools(true);
+  };
+  const prospector: ProspectorState = {
+    text: prospectText,
+    onTextChange: setProspectText,
+    lineCount: prospectLines.length,
+    drafting: prospecting.isPending,
+    onDraft: () => prospecting.mutate(prospectLines),
+    drafts,
+    edits,
+    onEdit: (index, value) => setEdits((current) => ({ ...current, [index]: value })),
+    dncCount: dnc.length,
+    onClearDnc: () => saveDnc([]),
+    addressConfigured,
+    onSuppress: suppressDraft,
+    onCopy: (value) => { void copy(value); },
+    addressPlaceholder: ADDRESS_PLACEHOLDER,
+  };
+  const panel = <OperationsPanel diagnostics={diagnostics} acquisition={acquisition} scorecard={capabilityScorecard} prospector={prospector} focusDiagnostics={focusDiagnostics} />;
 
   return (
-    <div className="product-page xl:grid xl:grid-cols-[minmax(0,1fr)_minmax(340px,420px)] xl:items-start xl:gap-5">
-    <div className="flex min-h-[70dvh] min-w-0 flex-col gap-3">
-      <header className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex min-w-[12rem] flex-1 items-center gap-3">
-          {live || jarvisVoice.speaking ? (
-            <VoiceWave state={jarvisVoice.speaking ? "speaking" : listening ? "listening" : busy ? "thinking" : "idle"} level={jarvisVoice.level} />
-          ) : (
-            <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary"><Bot className="size-5" aria-hidden /></span>
-          )}
-          <div className="min-w-0">
-            <h1 className="truncate text-xl font-semibold leading-tight">Jarvis</h1>
-            <p className="truncate text-xs text-muted-foreground">{live || jarvisVoice.speaking ? (jarvisVoice.speaking ? "Speaking…" : listening ? "Listening…" : busy ? "Thinking…" : "Live") : "Checks, reads code, opens PRs, builds demos · you approve every change"}</p>
+    <TooltipProvider delayDuration={300}>
+      <div
+        ref={rootRef}
+        data-revora-jarvis=""
+        className="-mx-4 -mb-5 -mt-5 flex flex-col sm:-mx-6 sm:-mb-6 sm:-mt-6 lg:mx-0 xl:grid xl:grid-cols-[minmax(0,1fr)_380px] xl:gap-6"
+      >
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col xl:h-full">
+          <JarvisHeader
+            voiceState={voiceState}
+            level={jarvisVoice.level}
+            status={status}
+            checks={checks}
+            onOpenChecks={openChecks}
+            speaking={jarvisVoice.speaking}
+            onStopSpeaking={stopSpeaking}
+            live={live}
+            onToggleLive={toggleLive}
+            voice={voice}
+            onToggleVoice={toggleVoice}
+            refreshing={diagnostics.isFetching}
+            onRefreshDiagnostics={() => { void diagnostics.refetch(); }}
+            onExport={exportChat}
+            showOperationsItem={wide === false}
+            onOpenOperations={() => setShowTools(true)}
+            clearDisabled={clearing.isPending || busy}
+            onClear={() => clearing.mutate()}
+          />
+
+          <Conversation contextRef={conversation} className="min-h-0 flex-1" aria-label="Jarvis conversation" aria-live="off">
+            <ConversationContent scrollClassName="overscroll-contain" className="mx-auto w-full max-w-[var(--jarvis-measure)] gap-6 px-3 py-4 sm:px-6">
+              {history.isLoading ? <p className="text-sm text-muted-foreground">Loading your conversation…</p> : null}
+              {history.error ? <p role="alert" className="text-sm text-destructive">Your conversation could not be loaded.</p> : null}
+              {canLoadEarlier ? (
+                <div className="flex justify-center">
+                  <Button type="button" variant="outline" size="sm" data-jarvis-tap="" className="rounded-full" disabled={loadingEarlier} onClick={() => { void loadEarlier(); }}>
+                    {loadingEarlier ? "Loading…" : "Load earlier messages"}
+                  </Button>
+                </div>
+              ) : null}
+              {empty ? (
+                <div className="flex flex-col gap-5 py-6">
+                  <div className="space-y-1.5">
+                    <p className="text-xl font-semibold">What are we working on?</p>
+                    <p className="text-sm text-muted-foreground">Ask anything. Jarvis runs platform checks, reads your code, and proposes fixes as pull requests and demo sites for you to approve. Tap Live to just talk.</p>
+                  </div>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {STARTERS.map(([label, hint, prompt]) => (
+                      <button key={label} type="button" disabled={busy} onClick={() => submit(prompt)} className="min-h-16 rounded-xl border border-border bg-card/60 p-3 text-left transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50">
+                        <span className="block text-sm font-medium">{label}</span>
+                        <span className="mt-0.5 block text-xs text-muted-foreground">{hint}</span>
+                      </button>
+                    ))}
+                  </div>
+                  <Button type="button" variant="ghost" data-jarvis-tap="" className="self-start" onClick={() => setCommandsOpen(true)}>All commands</Button>
+                </div>
+              ) : null}
+              {messages.map((message, index) => {
+                const day = dayKey(message.created_at);
+                const newDay = index === 0 || day !== dayKey(messages[index - 1]!.created_at);
+                return (
+                  <Fragment key={message.id}>
+                    {newDay && day ? (
+                      <div role="separator" aria-label={dayLabel(message.created_at)} className="flex items-center gap-3 text-xs text-muted-foreground">
+                        <span className="h-px flex-1 bg-border/70" aria-hidden />
+                        <span aria-hidden>{dayLabel(message.created_at)}</span>
+                        <span className="h-px flex-1 bg-border/70" aria-hidden />
+                      </div>
+                    ) : null}
+                    {message.role === "user" ? (
+                      <UserMessage content={message.content} createdAt={message.created_at} />
+                    ) : (
+                      <AssistantMessage
+                        message={message}
+                        isLast={message.id === lastAssistantId}
+                        busy={busy}
+                        regenerating={regen.isPending && message.id === lastAssistantId}
+                        speakingThis={jarvisVoice.speaking && speakingId === message.id}
+                        approvalState={(key) => approved[key] ?? remembered[key]?.state}
+                        approvalUrl={(key) => openedPrs[key] ?? remembered[key]?.url}
+                        onApprove={(key, proposal) => { void approveProposal(key, proposal); }}
+                        onCopy={(body) => { void copy(body); }}
+                        onListen={() => { jarvisVoice.unlock(); void speak(message.content, message.id); }}
+                        onStopListening={stopSpeaking}
+                        onRegenerate={() => regen.mutate()}
+                      />
+                    )}
+                  </Fragment>
+                );
+              })}
+              {pending ? <UserMessage content={pending} /> : null}
+              {busy ? (
+                <div className="flex items-center gap-3 text-sm text-muted-foreground">
+                  <span aria-hidden><TypingDots /></span>
+                  <span>Working<span aria-hidden> · {elapsed}s</span></span>
+                </div>
+              ) : null}
+              {!busy && !pending && lastMessage?.role === "user" ? (
+                <div>
+                  <Button type="button" variant="outline" size="sm" data-jarvis-tap="" className="gap-1.5 rounded-full" onClick={() => regen.mutate()}>
+                    <RotateCcw className="size-4" aria-hidden />Get a reply
+                  </Button>
+                </div>
+              ) : null}
+            </ConversationContent>
+            <ConversationScrollButton aria-label="Jump to latest" className="bottom-3 right-3" />
+          </Conversation>
+          <div role="status" className="sr-only">{announcement}</div>
+
+          <div className="shrink-0 border-t border-border/60 bg-background/95 px-3 pb-2 pt-2 backdrop-blur">
+            <div className="mx-auto w-full max-w-[var(--jarvis-measure)]">
+              {live ? (
+                <LiveSurface
+                  state={voiceState}
+                  level={jarvisVoice.level}
+                  label={jarvisVoice.speaking ? "Speaking…" : listening ? "Listening…" : busy ? "Thinking…" : "Ready"}
+                  busy={busy}
+                  onTapToTalk={tapToTalk}
+                  onEnd={toggleLive}
+                />
+              ) : null}
+              {followups.length > 0 && !busy ? (
+                <div data-jarvis-chips="" aria-label="Suggested follow-ups" className="-mx-3 mb-2 flex gap-2 overflow-x-auto px-3">
+                  {followups.map((item) => (
+                    <button key={item} type="button" onClick={() => submit(item)} className="h-9 shrink-0 whitespace-nowrap rounded-full border border-border bg-card px-3 text-sm hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">{item}</button>
+                  ))}
+                </div>
+              ) : null}
+              <JarvisComposer
+                value={text}
+                onChange={setText}
+                onSubmit={() => submit()}
+                maxLength={MAX_LENGTH}
+                busy={busy}
+                coarse={coarse}
+                listening={listening && !live}
+                interim={live ? "" : interim}
+                onToggleMic={toggleMic}
+                readingPicture={readingPicture}
+                picturePreview={picturePreview}
+                onPicture={(file) => { void attachPicture(file); }}
+                mode={mode}
+                onModeChange={chooseMode}
+                onOpenCommands={() => setCommandsOpen(true)}
+                inputRef={input}
+              />
+              <p className="mt-1.5 hidden text-right text-xs text-muted-foreground md:block">Enter to send · Shift+Enter for a new line · / for commands</p>
+            </div>
           </div>
         </div>
-        {/* On phones the controls get their own row so the title keeps its width. */}
-        <div className="flex w-full items-center justify-between gap-1 sm:w-auto sm:justify-end">
-          <Button type="button" variant={live ? "default" : "outline"} size="sm" aria-pressed={live} className={`gap-1.5 ${live ? "animate-pulse" : ""}`} onClick={toggleLive}><Radio className="size-4" aria-hidden />Live</Button>
-          <Button type="button" variant={showTools ? "secondary" : "ghost"} size="icon" className="xl:hidden" aria-label="Open operations" aria-expanded={showTools} title="Operations" onClick={() => setShowTools(true)}><Wrench className="size-4" /></Button>
-          <Button type="button" variant="ghost" size="icon" aria-label="Refresh diagnostics" title="Refresh diagnostics" disabled={diagnostics.isFetching} onClick={() => { void diagnostics.refetch(); }}><RefreshCw className={`size-4 ${diagnostics.isFetching ? "animate-spin" : ""}`} /></Button>
-          <Button type="button" variant="ghost" size="icon" aria-label={voice ? "Mute replies" : "Speak replies"} aria-pressed={voice} title={voice ? "Mute replies" : "Speak replies"} onClick={() => { const next = !voice; setVoice(next); if (next) jarvisVoice.unlock(); else stopVoice(); }}>{voice ? <Volume2 className="size-4" /> : <VolumeX className="size-4" />}</Button>
-          <Button type="button" variant="ghost" size="icon" aria-label="Export chat" title="Export chat as Markdown" onClick={exportChat}><Download className="size-4" /></Button>
-          <Button type="button" variant="ghost" size="icon" aria-label="Clear my chat" title="Clear my chat" disabled={clearing.isPending || busy} onClick={() => { if (window.confirm("Clear your Jarvis history?")) clearing.mutate(); }}><Trash2 className="size-4" /></Button>
-        </div>
-      </header>
 
-      <div className="inline-flex w-fit rounded-full border border-border p-0.5" role="radiogroup" aria-label="Response style">
-        {MODES.map(([value, label]) => (
-          <button key={value} type="button" role="radio" aria-checked={mode === value} onClick={() => chooseMode(value)} className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${mode === value ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}>{label}</button>
-        ))}
-      </div>
-      <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1" aria-label="Quick commands">
-        {COMMANDS.map(([label, prompt]) => <Button key={label} type="button" variant="outline" size="sm" className="shrink-0 rounded-full" disabled={busy} onClick={() => submit(prompt)}>{label}</Button>)}
-      </div>
-
-      <div className="relative">
-        <div ref={scroller} onScroll={onScroll} role="log" aria-label="Jarvis conversation" aria-live="polite" className="min-h-[40dvh] max-h-[60dvh] space-y-5 overflow-y-auto rounded-2xl border border-border bg-card p-3 sm:p-4">
-          {history.isLoading ? <p className="text-sm text-muted-foreground">Loading your conversation…</p> : null}
-          {history.error ? <p role="alert" className="text-sm text-destructive">Your conversation could not be loaded.</p> : null}
-          {empty ? (
-            <div className="space-y-4 py-4">
-              <div className="space-y-1 text-center"><p className="text-lg font-medium">What are we working on?</p><p className="text-sm text-muted-foreground">Ask anything. Jarvis runs platform checks, reads your code, and proposes fixes as pull requests and demo sites for you to approve. Tap Live to just talk.</p></div>
-              <div className="grid gap-2 sm:grid-cols-2">
-                {STARTERS.map(([label, hint, prompt]) => (
-                  <button key={label} type="button" disabled={busy} onClick={() => submit(prompt)} className="rounded-xl border border-border p-3 text-left transition-colors hover:bg-muted disabled:opacity-50"><span className="block text-sm font-medium">{label}</span><span className="block text-xs text-muted-foreground">{hint}</span></button>
-                ))}
+        {wide === true ? (
+          <aside aria-label="Operations" className="hidden min-h-0 min-w-0 space-y-3 overflow-y-auto overscroll-contain py-4 pr-1 xl:block">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Operations</h2>
+            {panel}
+          </aside>
+        ) : wide === false ? (
+          <Sheet open={showTools} onOpenChange={setShowTools}>
+            <SheetContent side="bottom" data-jarvis-sheet="" className="h-[85dvh] max-h-[85dvh] gap-0 overflow-hidden rounded-t-2xl p-0 [&>button:first-child]:hidden">
+              <div className="mx-auto mt-2 h-1.5 w-10 shrink-0 rounded-full bg-muted" aria-hidden />
+              <div className="flex shrink-0 items-start justify-between gap-3 border-b border-border/60 py-1 pl-4 pr-2">
+                <SheetHeader className="min-w-0 space-y-0.5 pt-2 text-left sm:text-left">
+                  <SheetTitle>Operations</SheetTitle>
+                  <SheetDescription>Demo sites, prospects, platform health, autopilot and scorecard.</SheetDescription>
+                </SheetHeader>
+                <SheetClose asChild>
+                  <Button type="button" variant="ghost" size="icon" className="size-11 shrink-0 sm:size-11" aria-label="Close operations"><X className="size-5" aria-hidden /></Button>
+                </SheetClose>
               </div>
-            </div>
-          ) : null}
-          {messages.map((message) => message.role === "user" ? (
-            <article key={message.id} className="flex min-w-0 flex-col items-end gap-1">
-              <div className="max-w-[88%] rounded-2xl rounded-br-md bg-primary px-3 py-2 text-primary-foreground"><p className="whitespace-pre-wrap break-words text-sm">{message.content}</p></div>
-              <span className="text-[11px] text-muted-foreground">{clock(message.created_at)}</span>
-            </article>
-          ) : (
-            <article key={message.id} className={`flex min-w-0 gap-2 ${regen.isPending && message.id === lastAssistantId ? "opacity-50" : ""}`}>
-              <span className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary"><Bot className="size-4" aria-hidden /></span>
-              <div className="min-w-0 flex-1">
-                {(() => {
-                  const { body, meta } = splitReplyMeta(message.content);
-                  return (
-                    <>
-                      {meta.ran.length ? <div className="mb-1.5 flex flex-wrap gap-1">{meta.ran.map((item) => <span key={item} className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[11px] text-muted-foreground"><Check className="size-3" aria-hidden />{item}</span>)}</div> : null}
-                      <div className="text-sm"><JarvisMarkdown>{body}</JarvisMarkdown></div>
-                      {meta.proposals.map((proposal, index) => {
-                        const key = `${message.id}:${index}`;
-                        const state = approved[key];
-                        if (proposal.id === "code.pr") {
-                          const url = openedPrs[key];
-                          return (
-                            <div key={key} className="mt-2 rounded-xl border border-primary/40 bg-primary/5 p-3">
-                              <p className="flex items-center gap-1.5 text-sm font-medium"><GitPullRequest className="size-4 text-primary" aria-hidden />Pull request: {proposal.pr.title}</p>
-                              <p className="mt-1 whitespace-pre-wrap text-xs text-muted-foreground">{proposal.pr.summary}</p>
-                              <details className="mt-2 rounded-md border border-border bg-background/60 p-2">
-                                <summary className="cursor-pointer text-xs">{proposal.pr.changes.length} file{proposal.pr.changes.length === 1 ? "" : "s"} · review the exact changes</summary>
-                                <div className="mt-2 space-y-3">
-                                  {proposal.pr.changes.map((change) => (
-                                    <div key={change.path} className="space-y-1">
-                                      <p className="break-all font-mono text-[11px] font-semibold">{change.path} {"content" in change ? "(new file)" : ""}</p>
-                                      {"content" in change ? (
-                                        <pre className="max-h-60 overflow-auto rounded bg-muted p-2 text-[11px]">{change.content}</pre>
-                                      ) : change.edits.map((edit, editIndex) => (
-                                        <div key={editIndex} className="grid gap-1">
-                                          <pre className="max-h-40 overflow-auto rounded bg-destructive/10 p-2 text-[11px]">{edit.find}</pre>
-                                          <pre className="max-h-40 overflow-auto rounded bg-emerald-500/10 p-2 text-[11px]">{edit.replace}</pre>
-                                        </div>
-                                      ))}
-                                    </div>
-                                  ))}
-                                </div>
-                              </details>
-                              {url ? (
-                                <a href={url} target="_blank" rel="noreferrer" className="mt-2 inline-flex h-8 items-center gap-1 rounded-md border border-border px-3 text-xs font-medium hover:bg-muted"><ExternalLink className="size-3.5" aria-hidden />View on GitHub</a>
-                              ) : (
-                                <Button type="button" size="sm" className="mt-2" disabled={Boolean(state)} onClick={() => { void approveProposal(key, proposal); }}>{state === "building" ? "Opening…" : "Approve and open pull request"}</Button>
-                              )}
-                              <p className="mt-1 text-[11px] text-muted-foreground">Opens a pull request into lovable-sync. Nothing merges until you merge it on GitHub.</p>
-                            </div>
-                          );
-                        }
-                        if (proposal.id === "claude.code") {
-                          return (
-                            <div key={key} className="mt-2 rounded-xl border border-primary/40 bg-primary/5 p-3">
-                              <p className="flex items-center gap-1.5 text-sm font-medium"><GitPullRequest className="size-4 text-primary" aria-hidden />Hand this to Claude Code</p>
-                              <p className="mt-1 whitespace-pre-wrap text-xs text-muted-foreground">{proposal.request.length > 600 ? `${proposal.request.slice(0, 600)}…` : proposal.request}</p>
-                              {openedPrs[key] ? (
-                                <a href={openedPrs[key]} target="_blank" rel="noreferrer" className="mt-2 inline-flex items-center gap-1 text-xs text-primary hover:underline">Follow it on GitHub <ExternalLink className="size-3" aria-hidden /></a>
-                              ) : (
-                                <Button type="button" size="sm" className="mt-2" disabled={Boolean(state)} onClick={() => { void approveProposal(key, proposal); }}>{state === "building" ? "Sending…" : "Approve and send to Claude Code"}</Button>
-                              )}
-                              <p className="mt-1 text-[11px] text-muted-foreground">Claude Code works on its own branch and opens a pull request. Nothing merges until you merge it.</p>
-                            </div>
-                          );
-                        }
-                        if (proposal.id === "builds.recover") {
-                          return (
-                            <div key={key} className="mt-2 rounded-xl border border-primary/40 bg-primary/5 p-3">
-                              <p className="flex items-center gap-1.5 text-sm font-medium"><RefreshCw className="size-4 text-primary" aria-hidden />Recover stalled builds</p>
-                              <p className="mt-0.5 text-xs text-muted-foreground">Closes builds whose worker died, re-queues orphaned ones and restarts the build worker. Builds that are still running are left alone.</p>
-                              <Button type="button" size="sm" className="mt-2" disabled={Boolean(state)} onClick={() => { void approveProposal(key, proposal); }}>{state === "building" ? "Recovering…" : state === "done" ? "Done" : "Approve and recover"}</Button>
-                            </div>
-                          );
-                        }
-                        const facts = [proposal.input.industry, [proposal.input.city, proposal.input.state].filter(Boolean).join(", "), proposal.input.phone, proposal.input.email].filter(Boolean).join(" · ");
-                        return (
-                          <div key={key} className="mt-2 rounded-xl border border-primary/40 bg-primary/5 p-3">
-                            <p className="flex items-center gap-1.5 text-sm font-medium"><Hammer className="size-4 text-primary" aria-hidden />Build demo site: {proposal.input.businessName}</p>
-                            <p className="mt-0.5 text-xs text-muted-foreground">{facts}</p>
-                            {proposal.input.services.length ? <p className="mt-0.5 text-xs text-muted-foreground">Services: {proposal.input.services.join(", ")}</p> : null}
-                            <Button type="button" size="sm" className="mt-2" disabled={Boolean(state)} onClick={() => { void approveProposal(key, proposal); }}>{state === "building" ? "Starting…" : state === "done" ? "Build started" : "Approve and build"}</Button>
-                          </div>
-                        );
-                      })}
-                    </>
-                  );
-                })()}
-                <div className="mt-1 flex flex-wrap items-center gap-1 text-muted-foreground">
-                  <span className="mr-1 text-[11px]">{clock(message.created_at)}</span>
-                  <Button type="button" variant="ghost" size="sm" className="h-7 gap-1 px-2 text-xs" onClick={() => { void copy(splitReplyMeta(message.content).body); }}><Copy className="size-3.5" />Copy</Button>
-                  <Button type="button" variant="ghost" size="sm" className="h-7 gap-1 px-2 text-xs" onClick={() => { jarvisVoice.unlock(); void speak(message.content); }}><Volume2 className="size-3.5" />Listen</Button>
-                  {message.id === lastAssistantId ? <Button type="button" variant="ghost" size="sm" className="h-7 gap-1 px-2 text-xs" disabled={busy} onClick={() => regen.mutate()}><RotateCcw className="size-3.5" />Regenerate</Button> : null}
-                </div>
-              </div>
-            </article>
-          ))}
-          {pending ? (
-            <article className="flex min-w-0 flex-col items-end gap-1"><div className="max-w-[88%] rounded-2xl rounded-br-md bg-primary px-3 py-2 text-primary-foreground"><p className="whitespace-pre-wrap break-words text-sm">{pending}</p></div></article>
-          ) : null}
-          {busy ? <div role="status" className="flex items-center gap-2 text-sm text-muted-foreground"><Bot className="size-4 animate-pulse" aria-hidden /><span>{stage}… {elapsed}s</span></div> : null}
-          {followups.length > 0 && !busy ? <div className="flex flex-wrap gap-2 pl-9">{followups.map((item) => <Button key={item} type="button" variant="secondary" size="sm" className="h-auto whitespace-normal rounded-full py-1.5 text-left" onClick={() => submit(item)}>{item}</Button>)}</div> : null}
-          <div ref={end} />
-        </div>
-        {!atBottom ? <Button type="button" variant="secondary" size="icon" aria-label="Jump to latest" className="absolute bottom-3 right-3 rounded-full shadow" onClick={() => { setAtBottom(true); end.current?.scrollIntoView({ block: "end", behavior: "smooth" }); }}><ArrowDown className="size-4" /></Button> : null}
+              <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">{panel}</div>
+            </SheetContent>
+          </Sheet>
+        ) : null}
+
+        <CommandPalette open={commandsOpen} onOpenChange={setCommandsOpen} desktop={!coarse} commands={COMMANDS} disabled={busy} onRun={(prompt) => submit(prompt)} />
       </div>
-
-      <form className="sticky bottom-0 z-10 -mx-1 bg-background/95 px-1 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 backdrop-blur" onSubmit={(event) => { event.preventDefault(); submit(); }}>
-        <div className="flex items-end gap-2 rounded-2xl border border-border bg-card p-2">
-          <label htmlFor="jarvis-message" className="sr-only">Message Jarvis</label>
-          <Textarea
-            id="jarvis-message" ref={input} value={text} maxLength={MAX_LENGTH} rows={1}
-            onChange={(event) => setText(event.target.value)}
-            onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); submit(); } }}
-            className="max-h-40 min-h-[44px] min-w-0 flex-1 resize-none border-0 bg-transparent shadow-none focus-visible:ring-0"
-            placeholder="Ask anything, or paste a Google Maps link to draft a site…"
-          />
-          <Button type="button" variant="ghost" size="icon" aria-label="Build a demo from a picture" title="Build a demo from a picture (Maps screenshot, card, flyer, sign)" disabled={busy || readingPicture} onClick={() => pictureInput.current?.click()} className={readingPicture ? "animate-pulse" : ""}><ImageUp className="size-4" /></Button>
-          <input ref={pictureInput} type="file" accept="image/*" className="sr-only" tabIndex={-1} aria-hidden onChange={(event) => { const file = event.target.files?.[0]; event.target.value = ""; if (file) void attachPicture(file); }} />
-          <Button type="button" variant="ghost" size="icon" aria-label={listening ? "Stop microphone" : "Dictate"} aria-pressed={listening} disabled={busy} onClick={toggleMic} className={listening ? "animate-pulse text-destructive" : ""}>{listening ? <MicOff className="size-4" /> : <Mic className="size-4" />}</Button>
-          <Button type="submit" size="icon" aria-label="Send" disabled={!text.trim() || busy}><Send className="size-4" /></Button>
-        </div>
-        <p className="mt-1 text-right text-[11px] text-muted-foreground">{text.length > 3000 ? `${text.length}/${MAX_LENGTH} · ` : ""}Enter to send · Shift+Enter for a new line</p>
-      </form>
-    </div>
-
-    {wide ? (
-      <aside aria-label="Operations" className="sticky top-4 max-h-[calc(100dvh-2rem)] min-w-0 space-y-3 overflow-y-auto overscroll-contain pb-4">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Operations</h2>
-        {toolsPanel}
-      </aside>
-    ) : (
-      <Sheet open={showTools} onOpenChange={setShowTools}>
-        <SheetContent side="bottom" className="max-h-[88dvh] overflow-y-auto rounded-t-2xl pb-[max(1rem,env(safe-area-inset-bottom))]">
-          <SheetHeader>
-            <SheetTitle>Operations</SheetTitle>
-            <SheetDescription>Demo sites, prospects, platform health, autopilot and scorecard.</SheetDescription>
-          </SheetHeader>
-          <div className="mt-3">{toolsPanel}</div>
-        </SheetContent>
-      </Sheet>
-    )}
-    </div>
+    </TooltipProvider>
   );
 }

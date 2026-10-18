@@ -73,6 +73,24 @@ if (!/requires_session\(key\) and not self\.signed_in/.test(driver) || !driver.i
 if (!driver.includes("self.page = None")) {
   failures.push("The closed signed-out page must never be reused by later steps.");
 }
+// The optional admin Jarvis step: env-gated, skips (never fails) without admin credentials,
+// checks both widths, the conversation log, the composer and horizontal overflow.
+if (!driver.includes('"opt_admin_jarvis"') || !driver.includes("journey.step_admin_jarvis")) {
+  failures.push("The optional opt_admin_jarvis step must be declared and run.");
+}
+const jarvisStep = driver.slice(driver.indexOf("async def step_admin_jarvis"), driver.indexOf("def render_html"));
+if (!jarvisStep.includes("JARVIS_ADMIN_STORAGE_STATE") || !jarvisStep.includes("skipped: no admin storage state") || !/if not JARVIS_ADMIN_STORAGE_STATE:[\s\S]*?raise Skip\(/.test(jarvisStep)) {
+  failures.push("The admin Jarvis step must skip with 'skipped: no admin storage state' when JARVIS_ADMIN_STORAGE_STATE is unset.");
+}
+if (!driver.includes("JARVIS_WIDTHS = [(390, 844), (1440, 900)]")) {
+  failures.push("The admin Jarvis step must check 390px and 1440px.");
+}
+for (const needle of ['get_by_role("log", name="Jarvis conversation")', 'get_by_role("textbox", name="Message Jarvis")', "scrollWidth - window.innerWidth"]) {
+  if (!jarvisStep.includes(needle)) failures.push(`The admin Jarvis step must assert ${needle}.`);
+}
+if (/\.(click|fill|press)\(/.test(jarvisStep)) {
+  failures.push("The admin Jarvis step must stay read-only (no clicks, typing or sends).");
+}
 if (driver.includes("publish.click()")) {
   failures.push("The suite must never press Publish.");
 }
