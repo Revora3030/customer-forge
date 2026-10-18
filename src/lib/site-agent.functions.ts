@@ -32,6 +32,7 @@ import {
 import type { VerificationReport } from "@/lib/agent/verify";
 import type { QaLoopResult } from "@/lib/builder/qa-loop.server";
 import { normalizeBuilderInstruction } from "@/lib/builder/request-coverage";
+import { normaliseRequestId } from "@/lib/builder/chat-thread";
 
 import { safeLinkUrl } from "@/lib/website-content";
 import { MEDIA_BUCKET, buildObjectPath, isStoragePath } from "@/lib/media";
@@ -2314,12 +2315,17 @@ export const runWebsiteTask = createServerFn({ method: "POST" })
       instruction: string;
       history?: { role: string; content: string }[];
       attachments?: unknown;
+      /** One id for the whole run, so its live progress stays on one request. */
+      requestId?: string;
     }) => {
       const organizationId = orgIdOf(input);
       const instruction = str(input?.instruction, PLAN_INSTRUCTION_LIMIT);
       const attachments = readAttachments(input?.attachments);
       if (instruction.length < 3 && !attachments.length)
         throw new Error("Tell Revora what you'd like done — in your own words.");
+      // Same shape the chat stores (^[A-Za-z0-9_-]{4,80}$); anything else is
+      // dropped and the server picks its own id below.
+      const requestId = normaliseRequestId(input?.requestId);
       const history: AgentTurn[] = Array.isArray(input?.history)
         ? input.history
             .slice(-24)
@@ -2329,20 +2335,26 @@ export const runWebsiteTask = createServerFn({ method: "POST" })
             }))
             .filter((turn) => turn.content.length > 0)
         : [];
-      return { organizationId, instruction, history, attachments };
+      return { organizationId, instruction, history, attachments, requestId };
     },
   )
   .handler(async ({ data, context }) => {
     const supabase = context.supabase as unknown as SupabaseLike;
     const userId = String(context.userId);
     const trail: string[] = [];
+    // Planning and applying record their progress under this one id (apply
+    // reads it back from the operation key), as the chat does.
+    const runId = data.requestId ?? crypto.randomUUID();
+    let attemptNumber = 0;
 
     const attempt = async (instruction: string, label: string) => {
+      attemptNumber += 1;
       const plan = await planImpl(supabase, userId, {
         organizationId: data.organizationId,
         instruction,
         history: data.history,
         attachments: data.attachments,
+        requestId: runId,
       });
       const safe = plan.steps.filter((step: AgentStep) => !step.destructive);
       const needsApproval = plan.steps.filter((step: AgentStep) => step.destructive);
@@ -2357,6 +2369,9 @@ export const runWebsiteTask = createServerFn({ method: "POST" })
         actions: safe.map((step: AgentStep) => step.action),
         label,
         verify: true,
+        // A distinct key per attempt: the repaired attempt must really write,
+        // not replay the reversed first attempt's idempotent result.
+        operationKey: `${runId}:${attemptNumber}`,
       });
       return { plan, needsApproval, applied };
     };

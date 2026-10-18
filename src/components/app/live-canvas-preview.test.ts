@@ -25,6 +25,17 @@ describe("first-build preview canvas", () => {
     expect(route).not.toMatch(/\{!firstRun \? \(\s*<div className="mb-2 flex justify-center lg:hidden">/);
   });
 
+  it("never drops into first-build mode while a fresh rebuild re-creates the pages", () => {
+    expect(route).toContain("const firstRun = !freshRebuildActive && (pages ?? []).length === 0;");
+    expect(route).toContain('pendingBuild?.mode === "fresh_replace"');
+    expect(route).toContain("pages={shownPages}");
+    expect(route).toContain("lastNonEmptyPages.current = pages");
+  });
+
+  it("filters the skeleton's progress to the active build's own run", () => {
+    expect(read("src/components/app/LiveCanvasSkeleton.tsx")).toContain("useBuildProgress(organizationId, active, row?.request_id ?? row?.id ?? null)");
+  });
+
   it("renders the live canvas skeleton instead of an empty frame when there are no pages", () => {
     expect(preview).toContain("if (firstRun || props.pages.length === 0)");
     expect(preview).toContain("<LiveCanvasSkeleton");

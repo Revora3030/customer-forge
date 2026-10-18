@@ -35,6 +35,14 @@ describe("page names in menus and tabs", () => {
     expect(pageNavLabel("Pricing", "Acme", "pricing")).toBe("Pricing");
     expect(pageNavLabel("", "Acme", "book-now")).toBe("Book Now");
   });
+  it("cleans search titles with the name or place in the middle (live DB titles)", () => {
+    expect(pageNavLabel("About Elite mobile detail | Raleigh, NC", "Elite mobile detail", "about")).toBe("About");
+    expect(pageNavLabel("Auto detailing gallery | Elite mobile detail", "Elite mobile detail", "gallery")).toBe("Auto detailing gallery");
+    expect(pageNavLabel("Contact Elite mobile detail", "Elite mobile detail", "contact")).toBe("Contact");
+    expect(stripBusinessSuffix("Contact Elite mobile detail", "Elite mobile detail")).toBe("Contact");
+    // Never adds words, and keeps ordinary titles.
+    expect(pageNavLabel("Full detailing", "Elite mobile detail", "full")).toBe("Full detailing");
+  });
   it("keeps the logo link text", () => {
     expect(stripBusinessSuffix("Acme", "Acme")).toBe("Acme");
     expect(stripBusinessSuffix("Book — Acme", "Acme")).toBe("Book");

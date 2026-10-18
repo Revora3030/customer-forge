@@ -4,6 +4,7 @@ import {
   Maximize2,
   Minimize2,
   Monitor,
+  MoreHorizontal,
   MousePointerClick,
   RefreshCw,
   Smartphone,
@@ -15,6 +16,16 @@ import {
   Accessibility,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   BUILDER_VIEWPORTS,
   compareScale,
@@ -155,7 +166,9 @@ function BuilderPreviewFrame({
     return () => ro.disconnect();
   }, []);
   const page = ordered.find((item) => item.id === pageId) ?? ordered[0];
-  const viewportWidth = BUILDER_VIEWPORTS.find((item) => item.key === viewport)?.width ?? 1280;
+  const currentViewport = BUILDER_VIEWPORTS.find((item) => item.key === viewport);
+  const viewportWidth = currentViewport?.width ?? 1280;
+  const CurrentViewportIcon = VIEWPORT_ICONS[viewport];
   // Fit the chosen device to the space available, so a phone view fills the
   // frame instead of shrinking into a corner; the zoom picker still caps it.
   const fit = stageWidth > 0 ? (stageWidth - 24) / viewportWidth : zoom;
@@ -333,6 +346,27 @@ function BuilderPreviewFrame({
               <MousePointerClick className="size-4" aria-hidden />
             </Button>
           ) : null}
+          {/* Phones: one viewport menu instead of six icons in a row. */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button type="button" size="icon-sm" variant="ghost" className="sm:hidden" aria-label={`Preview size: ${currentViewport?.label ?? "Desktop"}, ${viewportWidth} pixels`}>
+                <CurrentViewportIcon className="size-4" aria-hidden />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuLabel>Preview size</DropdownMenuLabel>
+              <DropdownMenuRadioGroup value={viewport} onValueChange={(key) => setViewport(key as BuilderViewportKey)}>
+                {BUILDER_VIEWPORTS.map((option) => {
+                  const Icon = VIEWPORT_ICONS[option.key];
+                  return (
+                    <DropdownMenuRadioItem key={option.key} value={option.key}>
+                      <Icon className="size-4" aria-hidden /> {option.label} · {option.width}px
+                    </DropdownMenuRadioItem>
+                  );
+                })}
+              </DropdownMenuRadioGroup>
+            </DropdownMenuContent>
+          </DropdownMenu>
           {BUILDER_VIEWPORTS.map((option) => {
             const Icon = VIEWPORT_ICONS[option.key];
             return (
@@ -341,6 +375,7 @@ function BuilderPreviewFrame({
                 type="button"
                 size="icon-sm"
                 variant={viewport === option.key ? "secondary" : "ghost"}
+                className="hidden sm:inline-flex"
                 aria-label={`${option.label} preview, ${option.width} pixels`}
                 aria-pressed={viewport === option.key}
                 title={`${option.label} · ${option.width}px`}
@@ -353,6 +388,7 @@ function BuilderPreviewFrame({
           <Button
             type="button"
             size="icon-sm"
+            className="hidden sm:inline-flex"
             variant={compare ? "secondary" : "ghost"}
             aria-pressed={compare}
             data-testid="builder-preview-compare"
@@ -373,7 +409,7 @@ function BuilderPreviewFrame({
               setFitMode(false);
               setZoom(previewZoom(Number(event.target.value)));
             }}
-            className="h-8 rounded-md border border-border bg-background px-2 text-[12px]"
+            className="hidden h-8 rounded-md border border-border bg-background px-2 text-[12px] sm:block"
           >
             <option value="fit">Fit</option>
             <option value={0.5}>50%</option>
@@ -399,12 +435,46 @@ function BuilderPreviewFrame({
             type="button"
             size="icon-sm"
             variant="ghost"
+            className="hidden sm:inline-flex"
             aria-label={fullscreen ? "Exit fullscreen preview" : "Open fullscreen preview"}
             title={fullscreen ? "Exit fullscreen" : "Fullscreen"}
             onClick={() => setFullscreen((value) => !value)}
           >
             {fullscreen ? <Minimize2 className="size-4" aria-hidden /> : <Maximize2 className="size-4" aria-hidden />}
           </Button>
+          {/* Phones: compare, zoom and fullscreen in one menu. */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button type="button" size="icon-sm" variant="ghost" className="sm:hidden" aria-label="Preview options">
+                <MoreHorizontal className="size-4" aria-hidden />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="min-w-56">
+              <DropdownMenuItem onSelect={() => setCompareMode((mode) => nextCompareMode(mode))}>
+                {compareMode === "overlay" ? <SplitSquareHorizontal aria-hidden /> : <Columns2 aria-hidden />}
+                {compareMode === "off" ? "Compare live with draft" : compareMode === "side" ? "Switch to overlay compare" : "Close compare"}
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => setFullscreen((value) => !value)}>
+                {fullscreen ? <Minimize2 aria-hidden /> : <Maximize2 aria-hidden />}
+                {fullscreen ? "Exit fullscreen" : "Fullscreen"}
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel>Zoom</DropdownMenuLabel>
+              <DropdownMenuRadioGroup
+                value={fitMode ? "fit" : String(zoom)}
+                onValueChange={(next) => {
+                  if (next === "fit") return setFitMode(true);
+                  setFitMode(false);
+                  setZoom(previewZoom(Number(next)));
+                }}
+              >
+                <DropdownMenuRadioItem value="fit">Fit</DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="0.5">50%</DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="0.75">75%</DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="1">100%</DropdownMenuRadioItem>
+              </DropdownMenuRadioGroup>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </header>
 

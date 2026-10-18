@@ -26,6 +26,8 @@ JOURNEY_ALLOW_MUTATE=1      run the edit / persistence / rollback steps
 JOURNEY_ALLOW_BUILD=1       submit a real AI-authored build request
 JOURNEY_FIXTURE_WORKSPACE   expected workspace name (asserted when provided)
 JOURNEY_CHROMIUM            optional path to a local Chromium binary
+JARVIS_ADMIN_STORAGE_STATE  optional super-admin Playwright storage state; enables the
+                            read-only /admin/jarvis step (otherwise NOT_TESTED, skipped)
 
 Without a session, step 03 still asserts the signed-out gate and is reported
 NOT_TESTED; steps 04-22 (which need the signed-in workspace) are reported
@@ -59,6 +61,9 @@ SESSION_FILE = os.environ.get(
 ALLOW_MUTATE = os.environ.get("JOURNEY_ALLOW_MUTATE") == "1"
 ALLOW_BUILD = os.environ.get("JOURNEY_ALLOW_BUILD") == "1"
 EXPECTED_WORKSPACE = os.environ.get("JOURNEY_FIXTURE_WORKSPACE", "").strip()
+# Optional Playwright storage state for a super-admin; enables the /admin/jarvis step.
+JARVIS_ADMIN_STORAGE_STATE = os.environ.get("JARVIS_ADMIN_STORAGE_STATE", "").strip()
+JARVIS_WIDTHS = [(390, 844), (1440, 900)]
 
 ARTIFACTS = pathlib.Path("browser-qa-artifacts")
 MOBILE_WIDTHS = [320, 375, 390, 414]
@@ -688,6 +693,45 @@ class Journey:
             raise AssertionError(f"Returning to the dashboard reported {problems}")
         return {"note": "Returned to the dashboard cleanly.", "screenshot": await self.shot("dashboard-return")}
 
+    async def step_admin_jarvis(self) -> dict[str, Any]:
+        """Optional: the owner's Jarvis page at phone and desktop width.
+
+        Runs only when JARVIS_ADMIN_STORAGE_STATE points at a Playwright storage
+        state for a super-admin. It reads the page and never sends a message.
+        """
+        if not JARVIS_ADMIN_STORAGE_STATE:
+            print("  opt_admin_jarvis skipped: no admin storage state")
+            raise Skip("skipped: no admin storage state (set JARVIS_ADMIN_STORAGE_STATE)")
+        if not pathlib.Path(JARVIS_ADMIN_STORAGE_STATE).exists():
+            raise Skip(f"skipped: no admin storage state at {JARVIS_ADMIN_STORAGE_STATE}")
+        measurements = []
+        for width, height in JARVIS_WIDTHS:
+            context = await self.browser.new_context(
+                viewport={"width": width, "height": height},
+                storage_state=JARVIS_ADMIN_STORAGE_STATE,
+                has_touch=width < 768,
+            )
+            try:
+                page = await context.new_page()
+                await page.goto(f"{BASE}/admin/jarvis", wait_until="domcontentloaded")
+                log = page.get_by_role("log", name="Jarvis conversation")
+                await log.wait_for(state="visible", timeout=40000)
+                composer = page.get_by_role("textbox", name="Message Jarvis")
+                await composer.wait_for(state="visible", timeout=20000)
+                if not await composer.is_visible():
+                    raise AssertionError(f"The 'Message Jarvis' composer is not visible at {width}px")
+                overflow = await page.evaluate(
+                    "() => document.documentElement.scrollWidth - window.innerWidth"
+                )
+                if overflow > 0:
+                    raise AssertionError(f"Horizontal overflow of {overflow}px on /admin/jarvis at {width}px")
+                path = ARTIFACTS / f"journey-admin-jarvis-{width}.png"
+                await page.screenshot(path=str(path), caret="initial")
+                measurements.append({"width": width, "overflowPx": overflow, "screenshot": str(path)})
+            finally:
+                await context.close()
+        return {"measurements": measurements, "note": "Jarvis log and composer visible; no horizontal overflow."}
+
 
 def render_html(report: dict[str, Any]) -> str:
     rows = []
@@ -759,6 +803,13 @@ async def main() -> int:
         ]
         for key, title, fn in plan:
             await journey.run_step(key, title, fn)
+
+        # Optional and env-gated: skipped (NOT_TESTED) without an admin storage state.
+        await journey.run_step(
+            "opt_admin_jarvis",
+            "Admin Jarvis page renders its log and composer at 390/1440px",
+            journey.step_admin_jarvis,
+        )
 
         journey.not_tested(
             "ext_stripe",

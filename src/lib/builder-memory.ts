@@ -15,6 +15,10 @@ export type SavedTaskResult = {
   staleCount?: number;
   snapshotVersion?: number;
   notice?: string;
+  /** Why skipped changes didn't go through, already in the owner's words. */
+  reasons?: string[];
+  /** Titles of the planned changes that were written, for the result card. */
+  titles?: string[];
 };
 
 export type SavedTurn = {
@@ -83,7 +87,10 @@ export function pairTurns(
       : null;
     const pair = owner ?? pairs[pairs.length - 1];
     if (!pair) continue;
-    pair.reply = pair.reply ? `${pair.reply}\n\n${turn.content}` : turn.content;
+    // A completed apply's turn is the result card's text; the card is drawn
+    // again from its counts, so it is not repeated inside the reply.
+    const isApplyResult = turn.taskResult?.state === "complete" && turn.taskResult.applied !== undefined;
+    if (!isApplyResult) pair.reply = pair.reply ? `${pair.reply}\n\n${turn.content}` : turn.content;
     if (turn.taskResult) pair.taskResult = turn.taskResult;
   }
   return pairs;
@@ -199,34 +206,152 @@ export function mergeTurns(saved: SavedTurn[], cached: SavedTurn[]): SavedTurn[]
 
 type MessageRow = Parameters<typeof toTurns>[0][number];
 
-async function selectRows(organizationId: string, columns: string) {
-  return (supabase as unknown as SupabaseClient)
-    .from("builder_messages")
-    .select(columns)
-    .eq("organization_id", organizationId)
-    .order("created_at", { ascending: false })
-    .limit(MEMORY_TURNS);
+const MISSING_COLUMN_FLAG = "rv-builder-memory-missing-column";
+let missingColumnReported = false;
+let columnsMissing = false;
+
+/**
+ * True once this page has seen builder_messages without the thread columns
+ * (request_id, kind, branch). Callers then avoid what only works with them:
+ * saving an owner message before its reply, or reading a non-main branch.
+ */
+export function threadColumnsMissing(): boolean {
+  return columnsMissing;
 }
 
-export async function loadTurns(organizationId: string): Promise<SavedTurn[]> {
-  const cached = readCachedTurns(organizationId);
+/**
+ * The 42703 fallback keeps the chat working, but it means an environment is
+ * missing migration 20261005140000 (request ids, kinds and branches are then
+ * not saved). Report it to monitoring once per browser session instead of
+ * only to the console, so the gap is visible.
+ */
+export function reportMissingThreadColumns(error: { message?: string } | null | undefined, operation: "load" | "save"): void {
+  console.warn(`[builder-memory] thread columns missing; ${operation === "load" ? "loading" : "saving"} core chat columns only`, error?.message);
+  columnsMissing = true;
+  if (missingColumnReported) return;
+  missingColumnReported = true;
+  try {
+    if (typeof window !== "undefined") {
+      if (window.sessionStorage.getItem(MISSING_COLUMN_FLAG)) return;
+      window.sessionStorage.setItem(MISSING_COLUMN_FLAG, "1");
+    }
+  } catch {
+    /* storage blocked: the module flag still limits this to once per page */
+  }
+  void import("@/lib/monitoring.functions")
+    .then(({ reportClientError }) =>
+      reportClientError({
+        data: {
+          message: `builder_messages thread columns missing on ${operation}: ${String(error?.message ?? "").slice(0, 200)}`,
+          mechanism: "builder-memory-missing-column",
+          level: "warning",
+          route: typeof window === "undefined" ? "" : window.location.pathname.slice(0, 300),
+        },
+      }),
+    )
+    .catch(() => undefined);
+}
+
+async function selectRows(
+  organizationId: string,
+  columns: string,
+  options: { branch?: string; before?: string } = {},
+) {
+  let query = (supabase as unknown as SupabaseClient)
+    .from("builder_messages")
+    .select(columns)
+    .eq("organization_id", organizationId);
+  if (options.branch) query = query.eq("branch", options.branch);
+  if (options.before) query = query.lt("created_at", options.before);
+  return query.order("created_at", { ascending: false }).limit(MEMORY_TURNS);
+}
+
+/**
+ * One page (the newest MEMORY_TURNS rows) of a branch, newest last. `full` is
+ * true when the page came back full, so there may be earlier messages.
+ */
+async function readPage(
+  organizationId: string,
+  branch: string,
+  before?: string,
+): Promise<{ turns: SavedTurn[]; full: boolean }> {
+  const key = normaliseBranch(branch);
   // request_id/kind/branch were added by migration 20261005140000; read them
   // through an untyped client until the generated types are refreshed, and
-  // fall back to the core columns where that migration is not applied yet.
-  let result = await selectRows(organizationId, `${CORE_COLUMNS}, ${THREAD_COLUMNS}`);
+  // fall back to the core columns where that migration is not applied yet
+  // (there every row is on the main branch, so no branch filter is possible).
+  let result = await selectRows(organizationId, `${CORE_COLUMNS}, ${THREAD_COLUMNS}`, {
+    branch: key,
+    ...(before ? { before } : {}),
+  });
   if (result.error && isMissingColumnError(result.error)) {
-    console.warn("[builder-memory] thread columns missing; loading core chat columns only", result.error.message);
-    result = await selectRows(organizationId, CORE_COLUMNS);
+    reportMissingThreadColumns(result.error, "load");
+    // Without the branch column every saved row belongs to the main thread;
+    // an alternate branch has nothing of its own to show (never main's rows).
+    if (key !== MAIN_BRANCH) return { turns: [], full: false };
+    result = await selectRows(organizationId, CORE_COLUMNS, before ? { before } : {});
   }
-  if (result.error) {
+  if (result.error) throw result.error;
+  const rows = (result.data ?? []) as unknown as MessageRow[];
+  return { turns: toTurns([...rows].reverse()), full: rows.length >= MEMORY_TURNS };
+}
+
+/** The newest turns of one branch, merged with this device's unsaved ones. */
+export async function loadTurnsPage(
+  organizationId: string,
+  branch: string = MAIN_BRANCH,
+): Promise<{ turns: SavedTurn[]; full: boolean }> {
+  const key = normaliseBranch(branch);
+  const cachedAll = readCachedTurns(organizationId);
+  const cached = cachedAll.filter((turn) => (turn.branch ?? MAIN_BRANCH) === key);
+  let page: { turns: SavedTurn[]; full: boolean };
+  try {
+    page = await readPage(organizationId, key);
+  } catch (error) {
     // Network blip or permission error: show what this session already has.
-    if (cached.length) return cached;
-    throw result.error;
+    if (cached.length) return { turns: cached, full: false };
+    throw error;
   }
-  const saved = toTurns([...((result.data ?? []) as unknown as MessageRow[])].reverse());
-  const merged = mergeTurns(saved, cached);
-  writeCachedTurns(organizationId, merged);
-  return merged;
+  const merged = mergeTurns(page.turns, cached);
+  // Other branches' cached turns stay cached; this branch is replaced.
+  writeCachedTurns(organizationId, [
+    ...cachedAll.filter((turn) => (turn.branch ?? MAIN_BRANCH) !== key),
+    ...merged,
+  ].sort((a, b) => a.at.localeCompare(b.at)));
+  return { turns: merged, full: page.full };
+}
+
+export async function loadTurns(organizationId: string, branch: string = MAIN_BRANCH): Promise<SavedTurn[]> {
+  return (await loadTurnsPage(organizationId, branch)).turns;
+}
+
+/** The page of turns saved before `beforeIso` on one branch ("Load earlier messages"). */
+export async function loadEarlierTurns(
+  organizationId: string,
+  branch: string,
+  beforeIso: string,
+): Promise<{ turns: SavedTurn[]; full: boolean }> {
+  return readPage(organizationId, branch, beforeIso);
+}
+
+/**
+ * Alternate branches saved for this business, so the branch picker still lists
+ * them now that a load only reads one branch. Best effort: [] on any error.
+ */
+export async function listSavedBranches(organizationId: string): Promise<string[]> {
+  const { data, error } = await (supabase as unknown as SupabaseClient)
+    .from("builder_messages")
+    .select("branch")
+    .eq("organization_id", organizationId)
+    .neq("branch", MAIN_BRANCH)
+    .order("created_at", { ascending: false })
+    .limit(200);
+  if (error || !Array.isArray(data)) return [];
+  const seen = new Set<string>();
+  for (const row of data as Array<{ branch?: unknown }>) {
+    if (typeof row.branch === "string" && row.branch) seen.add(row.branch);
+  }
+  return [...seen];
 }
 
 export async function saveTurns(organizationId: string, turns: Array<Omit<SavedTurn, "at">>): Promise<void> {
@@ -255,7 +380,7 @@ export async function saveTurns(organizationId: string, turns: Array<Omit<SavedT
   const { error } = await supabase.from("builder_messages").insert(full as never);
   if (!error) return;
   if (!isMissingColumnError(error)) throw error;
-  console.warn("[builder-memory] thread columns missing; saving core chat columns only", error.message);
+  reportMissingThreadColumns(error, "save");
   const retry = await supabase.from("builder_messages").insert(core as never);
   if (retry.error) throw retry.error;
 }

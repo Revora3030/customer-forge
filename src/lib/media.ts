@@ -17,6 +17,8 @@ export const MEDIA_CATEGORIES = [
   { id: "work", label: "Completed work" },
   { id: "team", label: "Team" },
   { id: "premises", label: "Shop or vehicle" },
+  { id: "before", label: "Before (your real job)" },
+  { id: "after", label: "After (your real job)" },
   { id: "logo", label: "Logo" },
   { id: "other", label: "Other" },
 ] as const;

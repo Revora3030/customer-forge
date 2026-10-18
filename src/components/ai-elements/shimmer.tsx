@@ -2,7 +2,7 @@
 
 import { cn } from "@/lib/utils";
 import type { MotionProps } from "motion/react";
-import { motion } from "motion/react";
+import { motion, useReducedMotion } from "motion/react";
 import type { CSSProperties, ElementType, JSX } from "react";
 import { memo, useMemo } from "react";
 
@@ -41,11 +41,17 @@ const ShimmerComponent = ({
   const MotionComponent = getMotionComponent(
     Component as keyof JSX.IntrinsicElements
   );
+  // Owners who ask for less motion get the same words, held still.
+  const reduced = useReducedMotion();
 
   const dynamicSpread = useMemo(
     () => (children?.length ?? 0) * spread,
     [children, spread]
   );
+
+  if (reduced) {
+    return <Component className={cn("inline-block text-muted-foreground", className)}>{children}</Component>;
+  }
 
   return (
     <MotionComponent
@@ -83,7 +89,7 @@ export function TypingDots({ className }: { className?: string }) {
       {[0, 1, 2].map((i) => (
         <span
           key={i}
-          className="size-2 animate-bounce rounded-full bg-muted-foreground"
+          className="size-2 animate-bounce rounded-full bg-muted-foreground motion-reduce:animate-none"
           style={{ animationDelay: `${i * 0.15}s`, animationDuration: "0.8s" }}
         />
       ))}

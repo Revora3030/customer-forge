@@ -7,6 +7,7 @@
  * list of issues for the AI to repair. It NEVER returns a substitute design.
  */
 import { contrastRatio } from "@/lib/readable-color";
+import { widgetPresentationProblems } from "@/lib/builder/presentation";
 
 export const COMPOSITION_PRIMITIVES = [
   "stack", "grid", "row", "text", "heading", "media", "button", "link",
@@ -33,6 +34,8 @@ export type WidgetPresentation = {
   estimateLabel?: string;
   extraLabel?: string;
   actionLabel?: string;
+  /** Final submit button label (max 40 characters); actionLabel is the step-forward label. */
+  submitLabel?: string;
   backLabel?: string;
   successTitle?: string;
   successBody?: string;
@@ -58,7 +61,7 @@ export const PRIMITIVE_GUIDE =
   "marquee (children scroll sideways in a loop; stops for reduced motion), " +
   "gallery (media children in a grid; tap opens full size), " +
   "quote (text is the quoted words; items[0] optional attribution — only real, supplied quotes). " +
-  "before_after_slider (beforeImage + afterImage with a 0-100 split; use for genuine transformation work such as renovation, roofing or detailing). " +
+  "before_after_slider (beforeImage + afterImage, each {src or mediaRef, alt, label}, with a 0-100 split; use for genuine transformation work such as renovation, roofing or detailing). " +
   "faq_accordion (items are question/answer pairs; defaultOpen is optional and at most the supplied FAQ content may be used). " +
   "tab_group (tabs are labelled panels; each tab owns child nodes and only the active panel is rendered). " +
   "mobile_sticky_bar (primaryCta and optional secondaryCta; conversion actions only, hidden above the mobile breakpoint). " +
@@ -133,8 +136,10 @@ export type NodeStyle = {
   area?: string;
 };
 
+/** One side of a before/after slider: a safe https src or a tenant picture reference. */
 export type CompositionImage = {
-  src: string;
+  src?: string;
+  mediaRef?: string;
   alt: string;
   label: string;
 };
@@ -257,6 +262,16 @@ export function normalizeAspect(value: unknown): string | null {
     if (a > 0 && a <= 99 && scale <= 99) return `${a}:${scale}`;
   }
   return null;
+}
+const FIRST_BUILD_SRC_PROBLEM = "use a mediaRef: first-build pictures come from the website's own media (only real company logos may use https://img.logo.dev)";
+/** A real company logo address (img.logo.dev over https). */
+function isLogoSource(src: string): boolean {
+  try {
+    const url = new URL(src.trim());
+    return url.protocol === "https:" && url.hostname.toLowerCase() === "img.logo.dev";
+  } catch {
+    return false;
+  }
 }
 const SAFE_MEDIA_REF = /^(?:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|temp_[a-z0-9_]{1,30})$/i;
 const UNSAFE_TEXT = /<\s*\/?\s*(script|iframe|object|embed|style)|javascript:|on\w+\s*=/i;
@@ -392,6 +407,11 @@ function checkWidgetPresentation(value: unknown, path: string, issues: Compositi
     const checked = checkText(raw[key], `${path}.${key}`, issues, screen);
     if (checked !== undefined) out[key] = checked.slice(0, 240);
   }
+  const submitLabel = checkText(raw["submitLabel"], `${path}.submitLabel`, issues, screen);
+  if (submitLabel !== undefined) {
+    if (submitLabel.length > 40) issues.push({ path: `${path}.submitLabel`, problem: "submitLabel must be 40 characters or fewer" });
+    out.submitLabel = submitLabel.slice(0, 40);
+  }
   if (raw["fieldLabels"] != null) {
     const labels = raw["fieldLabels"];
     if (!labels || typeof labels !== "object" || Array.isArray(labels)) {
@@ -478,9 +498,15 @@ export type ValidateOptions = {
    * still repairs those findings before anything is saved.
    */
   lenient?: boolean;
+  /**
+   * First-build generation: pictures must come from the website's own media
+   * (a mediaRef). The only external source allowed is a real company logo on
+   * img.logo.dev in a media node. Default false keeps the general behaviour.
+   */
+  firstBuild?: boolean;
 };
 
-const SOFT_PROBLEM = /contrast|unknown style property|button text below 14px|text is too long|label must be 120|must be one of|must be a number between|must be true or false|font name contains|aspect must look like|area must be a simple name|gridAreas must look like|must be 0-3000|must be 150-4000|unknown motion|unknown hover property|must be none, subtle|from is only used|custom motion needs|ariaLabel must be text/;
+const SOFT_PROBLEM = /submitLabel must be 40|quote gives an estimate range|contrast|unknown style property|button text below 14px|text is too long|label must be 120|must be one of|must be a number between|must be true or false|font name contains|aspect must look like|area must be a simple name|gridAreas must look like|must be 0-3000|must be 150-4000|unknown motion|unknown hover property|must be none, subtle|from is only used|custom motion needs|ariaLabel must be text/;
 
 export function validateComposition(input: unknown, options: ValidateOptions = {}): CompositionResult {
   const issues: CompositionIssue[] = [];
@@ -528,13 +554,22 @@ export function validateComposition(input: unknown, options: ValidateOptions = {
         usedMediaRefs.add(mediaRef);
       }
     }
+    if (options.firstBuild && node.type === "media" && node.src && !isLogoSource(node.src))
+      issues.push({ path: `${path}.src`, problem: FIRST_BUILD_SRC_PROBLEM });
     if (node.type === "media" && !node.src && !node.mediaRef) issues.push({ path, problem: "images need a source or website picture reference" });
     if (node.type === "media" && (node.src || node.mediaRef) && !node.alt) issues.push({ path: `${path}.alt`, problem: "images need alt text" });
     if ((node.type === "button" || node.type === "link") && !node.href) issues.push({ path: `${path}.href`, problem: "buttons and links need a destination" });
     if (node.type === "widget" && !COMPOSITION_WIDGETS.includes(node.text as CompositionWidget)) issues.push({ path: `${path}.text`, problem: `widget must be one of ${COMPOSITION_WIDGETS.join(", ")}` });
     if (row["widgetPresentation"] != null) {
       if (node.type !== "widget") issues.push({ path: `${path}.widgetPresentation`, problem: "widgetPresentation is only valid on widget nodes" });
-      else { const presentation = checkWidgetPresentation(row["widgetPresentation"], `${path}.widgetPresentation`, issues, options.screenText); if (presentation !== undefined) node.widgetPresentation = presentation; }
+      else {
+        const presentation = checkWidgetPresentation(row["widgetPresentation"], `${path}.widgetPresentation`, issues, options.screenText);
+        if (presentation !== undefined) {
+          node.widgetPresentation = presentation;
+          for (const finding of widgetPresentationProblems(node.text, presentation))
+            issues.push({ path: `${path}.widgetPresentation.${finding.key}`, problem: finding.problem });
+        }
+      }
     }
     if (node.type === "quote" && !node.text) issues.push({ path: `${path}.text`, problem: "quote needs its words in text" });
 
@@ -545,17 +580,37 @@ export function validateComposition(input: unknown, options: ValidateOptions = {
       }
       const image = value as Record<string, unknown>;
       const src = image["src"];
+      const ref = image["mediaRef"];
       const alt = checkText(image["alt"], `${imagePath}.alt`, issues, options.screenText);
       const label = checkText(image["label"], `${imagePath}.label`, issues, options.screenText);
-      if (typeof src !== "string" || !isSafeHref(src)) {
+      let mediaRef: string | undefined;
+      if (ref != null) {
+        // Same rules as a media node's mediaRef (compare uses those).
+        if (typeof ref !== "string" || !SAFE_MEDIA_REF.test(ref)) {
+          issues.push({ path: `${imagePath}.mediaRef`, problem: "invalid website picture reference" });
+          return undefined;
+        }
+        if (options.allowedMediaRefs && !options.allowedMediaRefs.has(ref)) {
+          issues.push({ path: `${imagePath}.mediaRef`, problem: "website picture reference does not belong to this section" });
+          return undefined;
+        }
+        mediaRef = ref;
+      } else if (typeof src !== "string" || !isSafeHref(src)) {
         issues.push({ path: `${imagePath}.src`, problem: "image source must be a safe https address" });
+        return undefined;
+      } else if (options.firstBuild) {
+        issues.push({ path: `${imagePath}.src`, problem: FIRST_BUILD_SRC_PROBLEM });
         return undefined;
       }
       if (!alt || !label) {
         issues.push({ path: imagePath, problem: "image needs alt text and a visible label" });
         return undefined;
       }
-      return { src, alt, label };
+      if (mediaRef) {
+        usedMediaRefs.add(mediaRef);
+        return { mediaRef, alt, label };
+      }
+      return { src: src as string, alt, label };
     };
 
     if (row["beforeImage"] != null) {

@@ -1,10 +1,39 @@
-[data-revora-builder-workspace] { min-width: 0; isolation: isolate; }
+[data-revora-builder-workspace] {
+  min-width: 0;
+  isolation: isolate;
+  /* Chat tokens (Revora app chrome only; never applied to a customer site). */
+  --chat-user-bg: color-mix(in oklab, var(--primary) 16%, var(--card));
+  --chat-measure: 68ch;
+}
 [data-revora-builder-workspace] [data-testid="builder-preview"] { min-width: 0; max-width: 100%; }
 [data-revora-builder-workspace] [data-testid="builder-preview"] > header { min-width: 0; }
 [data-revora-builder-workspace] [data-testid="builder-preview-page"] { max-width: 22ch; overflow: hidden; text-overflow: ellipsis; }
 [data-revora-builder-workspace] #website-assistant { min-width: 0; }
 [data-revora-builder-workspace] #website-assistant textarea { scroll-margin-bottom: 5rem; }
+/* One scroll region: the transcript never drags the page behind it. */
+[data-revora-builder-workspace] #website-assistant [role="log"],
+[data-revora-builder-workspace] #website-assistant [role="log"] > div { overscroll-behavior: contain; }
 [data-revora-builder-workspace] [data-testid="builder-project-actions"] { scrollbar-width: thin; }
+
+/* The global mobile rule (styles.css) unsets truncation and line clamps on
+   every app page below 1024px; inside the builder they are needed so one-line
+   titles, chips and snippets stay one line. */
+.product-canvas [data-revora-builder-workspace] .truncate,
+[data-revora-builder-workspace] .truncate { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.product-canvas [data-revora-builder-workspace] .line-clamp-1,
+[data-revora-builder-workspace] .line-clamp-1 { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 1; overflow: hidden; }
+.product-canvas [data-revora-builder-workspace] .line-clamp-2,
+[data-revora-builder-workspace] .line-clamp-2 { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+
+@media (max-width: 1023px) {
+  /* The chat fills exactly what is left of the visible screen below the
+     chrome above it (measured by useChatTop), so the composer is on screen
+     on load and only the transcript scrolls. */
+  [data-revora-builder-workspace] #website-assistant {
+    height: max(18rem, calc(var(--builder-visual-height, 100dvh) - var(--builder-chat-top, 12rem)));
+    min-height: 18rem;
+  }
+}
 @media (max-width: 767px) {
   [data-revora-builder-workspace] [data-testid="builder-preview"] > header { display: grid; grid-template-columns: minmax(0, 1fr); gap: .5rem; }
   [data-revora-builder-workspace] [data-testid="builder-preview"] > header > div { min-width: 0; max-width: 100%; }
@@ -12,14 +41,17 @@
   [data-revora-builder-workspace] [data-testid="builder-preview"] > header button,
   [data-revora-builder-workspace] [data-testid="builder-preview"] > header a { min-width: 44px; min-height: 44px; flex-shrink: 0; }
   [data-revora-builder-workspace] [data-testid="builder-preview"] > header select { min-height: 44px; flex-shrink: 0; }
-  [data-revora-builder-workspace] #website-assistant { height: max(16rem, calc(var(--builder-visual-height, 100dvh) - 12rem)); min-height: 16rem; }
-  [data-revora-builder-workspace] #website-assistant button { min-height: 44px; }
-  [data-revora-builder-workspace] #website-assistant textarea { font-size: 16px; }
-  [data-revora-builder-workspace] .builder-prompt { border-radius: 1rem; }
+  /* Full-size targets for the composer and primary actions only; secondary
+     controls keep their size and get an enlarged hit area instead. */
+  [data-revora-builder-workspace] #website-assistant :is(.builder-prompt button, [data-tap="primary"]) { min-height: 44px; }
+  [data-revora-builder-workspace] #website-assistant .builder-prompt button { min-width: 44px; }
+  [data-revora-builder-workspace] [data-testid="builder-project-actions"] > :is(a, button) { min-height: 44px; min-width: 44px; }  [data-revora-builder-workspace] #website-assistant textarea { font-size: 16px; }
+  [data-revora-builder-workspace] .builder-prompt { border-radius: 1.25rem; }
 }
 @media (prefers-reduced-motion: reduce) {
   [data-revora-builder-workspace] .chat-rise,
   [data-revora-builder-workspace] .animate-pulse,
+  [data-revora-builder-workspace] .animate-ping,
   [data-revora-builder-workspace] .is-thinking { animation: none !important; }
   [data-revora-builder-workspace] [data-testid="builder-preview"] * { transition-duration: 0ms !important; }
 }

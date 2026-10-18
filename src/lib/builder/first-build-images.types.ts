@@ -17,6 +17,19 @@ export type FirstBuildImageAsset = {
   placement: string[];
   /** Positive renderer-safe ratio authored by the AI, normalized to `a:b`. */
   aspectRatio: string;
+  /**
+   * Where the picture really came from. `owner` is the business's own photo
+   * (the only kind that may be shown as completed work); `generated` and
+   * `stock` pictures are illustrative only. Absent means "decide from provider".
+   */
+  assetSource?: "owner" | "generated" | "stock";
+  /** The owner's media-library category (work, premises, team, hero …), when known. */
+  category?: string | null;
+  /** The real service this picture illustrates, as authored by the AI campaign. */
+  serviceName?: string | null;
+  /** Stock licence code and credit line, carried so stock is never shown unlicensed. */
+  license?: string | null;
+  attribution?: string | null;
 };
 
 export type FirstBuildImageSource = "standard" | "premium" | "none";

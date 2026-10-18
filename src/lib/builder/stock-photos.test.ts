@@ -136,6 +136,13 @@ describe("saving a picture", () => {
     expect(row.alt_text).toBe("Bakery counter");
   });
 
+  it("files a stock photo as 'other', never as the business's completed work", () => {
+    const row = stockMediaRow(photo());
+    expect(row.category).toBe("other");
+    expect(row.category).not.toBe("work");
+    expect(row.source.startsWith("stock")).toBe(true);
+  });
+
   it("uses supplied alt text when given", () => {
     expect(stockMediaRow(photo(), "Fresh bread on a wooden counter").alt_text).toBe(
       "Fresh bread on a wooden counter",

@@ -30,7 +30,13 @@ import { runAdvisoryPanel, runReviewPanel } from "@/lib/builder/review-panel.ser
 import { NO_EVIDENCE, allEvidence, gatherReviewEvidence, type ReviewEvidence } from "@/lib/builder/review-evidence.server";
 import { runImprovementGate, type GateReport } from "@/lib/builder/improvement-gate.server";
 import { detectGenericPhrases } from "@/lib/builder/genericity";
-import { auditPageDesign, needsDesignRepair, type DesignFinding } from "@/lib/builder/design-quality";
+import {
+  auditPageDesign,
+  depthDirectionFromLook,
+  needsDesignRepair,
+  type DepthDirection,
+  type DesignFinding,
+} from "@/lib/builder/design-quality";
 
 const IMPROVEMENT_ROUNDS = 2;
 
@@ -87,6 +93,7 @@ const RULES = [
   PRIMITIVE_GUIDE,
   "Node shape: {type, text?, href?, src?, mediaRef?, alt?, level?, items?, beforeImage?, afterImage?, initialSplit?, faqItems?, tabs?, primaryCta?, secondaryCta?, style?, responsive?: {mobile?, tablet?, desktop?}, motion?: {kind: none|fade|rise|scale|float|slide-left|slide-right|blur|reveal, delayMs?, durationMs?}, children?}.",
   "Pictures marked aiGenerated are AI-made illustrations, not the business's real work: never place them in a compare or before_after_slider, a gallery captioned as completed jobs, or any caption that calls them a real project, customer, result or team member.",
+  "Pictures marked notProof (AI-made or stockPhoto licensed pictures) are illustrative only and follow the same rule. Only parts marked proofEligible (the owner's own labelled before/after photos, pairRole before or after) may form a before/after comparison.",
   "Studio interactive primitives: before_after_slider uses beforeImage:{src,alt,label}, afterImage:{src,alt,label}, and initialSplit 0-100 (default 50); use it when supplied material genuinely shows a transformation. faq_accordion uses faqItems:[{question,answer,defaultOpen?}] and only supplied FAQ copy. tab_group uses tabs:[{label,children:[...]}] and renders one active panel at a time. mobile_sticky_bar uses primaryCta:{label,href,ariaLabel?} and optional secondaryCta with safe conversion destinations; it is mobile-only and must never duplicate a desktop CTA unnecessarily.",
   "Interactive quality: use these primitives when they clarify real content, not as decoration. Keep every control at least 44px, make labels concise, preserve 4.5:1 text contrast, and design for touch and keyboard. Do not invent phone numbers, URLs, prices, FAQs, service tiers, before/after claims or other business facts.",
   "style keys: columns, gap, padding, paddingX, paddingY, maxWidth, align, justify, items, span, size, weight, lineHeight, letterSpacing, italic, uppercase, font, color, background, gradientTo, gradientAngle, radius, borderWidth, borderColor, shadow, opacity, aspect, objectFit, minHeight, hidden, position, top, left, right, bottom, zIndex, overlap, blur, rotate, gridAreas, area. Colours are #RRGGBB.",
@@ -106,7 +113,7 @@ const RULES = [
   "For services sections, prefer a service_menu widget so prices and services stay in sync with the owner's Services tool; for social_proof sections, a review_wall widget shows the owner's published reviews (it hides itself when none exist). Never retype prices or reviews.",
   "For quote sections, the composition MUST contain one quote_calculator widget; for booking sections, one booking_form widget; for contact sections, one enquiry_form widget (the working message form) AND one contact_details widget. These widgets are the only application-owned mechanics — you own their entire surrounding layout and their widgetPresentation.",
   "Every working widget in a first build MUST include widgetPresentation with an AI-authored title, actionLabel when actionable, successTitle/successBody when it submits, appropriate fieldLabels, and a local theme using surface, text, muted, border, action and actionText. Choose the palette yourself for this specific site; do not reuse a generic form palette.",
-  'widgetPresentation shape: {"eyebrow":"...","title":"...","description":"...","optionPrompt":"...","estimateLabel":"...","extraLabel":"...","actionLabel":"...","backLabel":"...","successTitle":"...","successBody":"...","contactLabel":"...","fieldLabels":{"service":"...","name":"...","phone":"...","email":"...","location":"...","date":"...","time":"...","details":"..."},"theme":{"surface":"#RRGGBB","text":"#RRGGBB","muted":"#RRGGBB","border":"#RRGGBB","action":"#RRGGBB","actionText":"#RRGGBB","selected":"#RRGGBB","selectedText":"#RRGGBB"}}',
+  'widgetPresentation shape: {"eyebrow":"...","title":"...","description":"...","optionPrompt":"...","estimateLabel":"...","extraLabel":"...","actionLabel":"...","submitLabel":"...","backLabel":"...","successTitle":"...","successBody":"...","contactLabel":"...","fieldLabels":{"service":"...","name":"...","phone":"...","email":"...","location":"...","date":"...","time":"...","details":"..."},"theme":{"surface":"#RRGGBB","text":"#RRGGBB","muted":"#RRGGBB","border":"#RRGGBB","action":"#RRGGBB","actionText":"#RRGGBB","selected":"#RRGGBB","selectedText":"#RRGGBB"}}',
   "Widget presentation copy must be specific to the supplied business and the section's role. Avoid stock phrases and generic filler such as 'choose your options', 'request your appointment', 'lock in this price', 'anything we should know', 'before you request a time', or 'without the guesswork' unless those exact words are genuinely appropriate to the supplied business.",
   "Use any validated composition, depth, hierarchy, spacing, media treatment, and motion the authored brief calls for. On mobile, provide responsive overrides wherever needed so nothing collides at 320px.",
   // MEASURABLE CRAFT BAR (checked automatically after you answer; misses come back to you):
@@ -128,16 +135,35 @@ function materialFor(section: SectionRow, parts: ComponentRow[]) {
       body: part.body,
       mediaRef: part.media_url ? part.id : null,
       // AI_GENERATED_DRAFT / NOT_VERIFIED_WORK_PROOF: illustrative only.
-      ...(part.media_url && isGeneratedPart(part) ? { aiGenerated: true } : {}),
+      ...(part.media_url && isNotProofPart(part) ? { notProof: true } : {}),
+      ...(part.media_url && partSource(part) === "generated" ? { aiGenerated: true } : {}),
+      ...(part.media_url && partSource(part) === "stock" ? { stockPhoto: true } : {}),
+      // The owner's own labelled before/after photos are the only pictures
+      // that may sit in a compare or before_after_slider.
+      ...(part.media_url && ownerPairRole(part) ? { proofEligible: true, pairRole: ownerPairRole(part) } : {}),
       href: part.link_url && isSafeHref(part.link_url) ? part.link_url : null,
       linkLabel: part.link_label,
     })),
   };
 }
 
-function isGeneratedPart(part: ComponentRow): boolean {
-  const visual = (part.settings as { visual?: { source?: unknown } } | null | undefined)?.visual;
-  return visual?.source === "generated";
+function partSource(part: ComponentRow): unknown {
+  return (part.settings as { visual?: { source?: unknown } } | null | undefined)?.visual?.source;
+}
+
+/**
+ * Generated and stock pictures are illustrative: never proof of the
+ * business's own work, so they are kept out of proof slots.
+ */
+function isNotProofPart(part: ComponentRow): boolean {
+  const source = partSource(part);
+  return source === "generated" || source === "stock";
+}
+
+function ownerPairRole(part: ComponentRow): "before" | "after" | null {
+  if (partSource(part) !== "customer") return null;
+  const category = (part.settings as { media_category?: unknown } | null | undefined)?.media_category;
+  return category === "before" || category === "after" ? category : null;
 }
 
 function requiredWidgetForRole(role: string): "booking_form" | "quote_calculator" | "enquiry_form" | null {
@@ -213,8 +239,14 @@ export async function composeFirstBuildSections(input: {
   optionalPassDeadline?: number;
   /** Called between pages so the caller can renew its job lease. */
   onPageDone?: () => Promise<void> | void;
+  /**
+   * The brief's own motion level and shadow language. Defaults to the values
+   * inside a JSON lookSummary, so pages are held to what the AI itself asked for.
+   */
+  depthDirection?: DepthDirection | null;
 }): Promise<CompositionPassResult> {
   const { db, organizationId, facts } = input;
+  const direction = input.depthDirection ?? depthDirectionFromLook(input.lookSummary);
   const withinBudget = () => input.optionalPassDeadline === undefined || Date.now() < input.optionalPassDeadline;
   const [{ data: sections, error }, { data: components }] = await Promise.all([
     db.from("website_sections").select("id,page_id,kind,heading,subheading,body,settings").eq("organization_id", organizationId).order("sort_order"),
@@ -344,6 +376,7 @@ export async function composeFirstBuildSections(input: {
       for (const section of batch) {
         const mediaRefs = mediaRefsFor(section, parts);
         const checked = validateComposition(fixContacts(trees[section.id]), {
+          firstBuild: true,
           screenText: screen,
           allowedMediaRefs: mediaRefs,
           requiredMediaRefs: mediaRefs,
@@ -398,6 +431,7 @@ export async function composeFirstBuildSections(input: {
         const trees = parseTrees(call.text) ?? {};
         const mediaRefs = mediaRefsFor(section, parts);
         const checked = validateComposition(fixContacts(trees[section.id] ?? Object.values(trees)[0]), {
+          firstBuild: true,
           screenText: screen,
           allowedMediaRefs: mediaRefs,
           requiredMediaRefs: mediaRefs,
@@ -458,7 +492,7 @@ export async function composeFirstBuildSections(input: {
     // Optional craft rounds run only while the time budget allows; the
     // validated AI design above is always kept either way.
     if (withinBudget()) {
-      await repairDesignQuality({ organizationId, lookSummary: input.lookSummary, sections: pageSections, parts, designed, screen, result });
+      await repairDesignQuality({ organizationId, lookSummary: input.lookSummary, sections: pageSections, parts, designed, screen, result, direction });
     } else {
       result.optionalSkipped = (result.optionalSkipped ?? 0) + 1;
     }
@@ -467,8 +501,8 @@ export async function composeFirstBuildSections(input: {
       : new Map(designed);
     // The team round can only replace a tree with a validated one; if it made
     // the craft worse, the pre-team design is kept for that section.
-    const before = auditPageDesign(pageSections.filter((s) => designed.has(s.id)).map((s) => ({ id: s.id, role: s.kind, tree: designed.get(s.id)! })));
-    const after = auditPageDesign(pageSections.filter((s) => best.has(s.id)).map((s) => ({ id: s.id, role: s.kind, tree: best.get(s.id)! })));
+    const before = auditPageDesign(pageSections.filter((s) => designed.has(s.id)).map((s) => ({ id: s.id, role: s.kind, tree: designed.get(s.id)! })), { direction });
+    const after = auditPageDesign(pageSections.filter((s) => best.has(s.id)).map((s) => ({ id: s.id, role: s.kind, tree: best.get(s.id)! })), { direction });
     for (const section of pageSections) {
       const worse = (after[section.id]?.length ?? 0) > (before[section.id]?.length ?? 0);
       if (worse && designed.has(section.id)) best.set(section.id, designed.get(section.id)!);
@@ -510,10 +544,12 @@ async function repairDesignQuality(input: {
   designed: Map<string, CompositionTree>;
   screen: (text: string) => string | null;
   result: CompositionPassResult;
+  direction?: DepthDirection | null;
 }) {
+  const options = { direction: input.direction ?? null };
   for (let round = 0; round < 2; round += 1) {
     const ordered = input.sections.filter((s) => input.designed.has(s.id));
-    const audit = auditPageDesign(ordered.map((s) => ({ id: s.id, role: s.kind, tree: input.designed.get(s.id)! })));
+    const audit = auditPageDesign(ordered.map((s) => ({ id: s.id, role: s.kind, tree: input.designed.get(s.id)! })), options);
     const failing = ordered.filter((s) => audit[s.id] && needsDesignRepair(audit[s.id]!));
     if (!failing.length) return;
     const notes: Record<string, { path: string; fix: string }[]> = {};
@@ -543,6 +579,7 @@ async function repairDesignQuality(input: {
     for (const section of failing) {
       const mediaRefs = mediaRefsFor(section, input.parts);
       const checked = validateComposition(trees[section.id], {
+        firstBuild: true,
         screenText: input.screen,
         allowedMediaRefs: mediaRefs,
         requiredMediaRefs: mediaRefs,
@@ -555,7 +592,7 @@ async function repairDesignQuality(input: {
       }
       const index = ordered.findIndex((s) => s.id === section.id);
       const trial = ordered.map((s) => ({ id: s.id, role: s.kind, tree: s.id === section.id ? checked.tree : input.designed.get(s.id)! }));
-      const nextFindings = auditPageDesign(trial)[section.id] ?? [];
+      const nextFindings = auditPageDesign(trial, options)[section.id] ?? [];
       if (index >= 0 && nextFindings.length < (audit[section.id]?.length ?? 0)) {
         input.designed.set(section.id, checked.tree);
         improved += 1;
@@ -650,6 +687,7 @@ async function improveWithTeam(input: {
         const section = input.sections.find((candidate) => candidate.id === id);
         const mediaRefs = section ? mediaRefsFor(section, input.parts) : new Set<string>();
         const checked = validateComposition(trees[id], {
+          firstBuild: true,
           screenText: input.screen,
           allowedMediaRefs: mediaRefs,
           requiredMediaRefs: mediaRefs,
@@ -686,6 +724,7 @@ async function improveWithTeam(input: {
         const section = input.sections.find((candidate) => candidate.id === id);
         const mediaRefs = section ? mediaRefsFor(section, input.parts) : new Set<string>();
         const finalCheck = validateComposition(tree, {
+          firstBuild: true,
           screenText: input.screen,
           allowedMediaRefs: mediaRefs,
           requiredMediaRefs: mediaRefs,

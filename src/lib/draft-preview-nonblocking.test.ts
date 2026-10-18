@@ -42,7 +42,9 @@ for (const [file, view, emptyTitle] of [
       expect(pendingMessage).toBeGreaterThan(-1);
       expect(live).toBeLessThan(pendingMessage);
       expect(src).toMatch(/result\?\.site && sections\.length > 0 && \(result\.status === "pending" \|\| result\.status === "ready"\)/);
-      expect(src).toContain('{result.status === "pending" ? <DraftUpdatingBanner job={result.job} /> : null}');
+      expect(src).toContain(
+        '{result.status === "pending" ? <DraftUpdatingBanner job={result.job} held={result.held} /> : null}',
+      );
     });
     it("keeps polling every 2.5s while pending", () => {
       expect(src).toContain('if (result?.status !== "pending") return;');
@@ -61,6 +63,10 @@ describe("draft updating banner", () => {
     // The job stores a step key; the owner sees the readable label.
     expect(src).toContain("stepLabel(job.currentStep)");
   });
+  it("tells the owner when the preview is holding the pre-rebuild site", () => {
+    expect(src).toContain("held ? (");
+    expect(src).toContain("Showing your current site; the new version appears when it is ready.");
+  });
   it("floats over the draft without blocking it and wraps long titles", () => {
     expect(src).toContain("pointer-events-none fixed");
     expect(src).toContain("break-words");
@@ -73,5 +79,8 @@ describe("getOwnerDraftSite stall handling", () => {
   it("reads updated_at and returns ready for a stalled job on a draft with sections", () => {
     expect(src).toContain('.select("id, status, current_step, progress, updated_at")');
     expect(src).toMatch(/isStalledJob\(job\.updated_at as string \| null, sectionCount\)[\s\S]{0,80}status: "ready" as const/);
+  });
+  it("shows a stalled job's held tree as ready", () => {
+    expect(src).toMatch(/isStalledJob\(job\.updated_at as string \| null, heldSections\)[\s\S]{0,80}status: "ready" as const, site: heldSite/);
   });
 });

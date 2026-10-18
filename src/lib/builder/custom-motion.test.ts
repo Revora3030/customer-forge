@@ -4,6 +4,22 @@ import { motionStyle } from "@/components/site/CompositionRenderer";
 
 const tree = (motion: unknown) => ({ version: 1, root: { type: "stack", children: [{ type: "heading", level: 1, text: "Hi", motion }] } });
 
+describe("default hover lift", () => {
+  it("never lifts a working form under the visitor's pointer", async () => {
+    const { createElement } = await import("react");
+    const { renderToStaticMarkup } = await import("react-dom/server");
+    const { CompositionRenderer } = await import("@/components/site/CompositionRenderer");
+    const html = renderToStaticMarkup(createElement(CompositionRenderer, {
+      tree: { version: 1, root: { type: "stack", children: [{ type: "widget", text: "quote_calculator" }] } },
+      scope: "s1",
+      resolveWidget: () => createElement("form", null, "form"),
+    }));
+    const css = html.replace(/&quot;/g, '"');
+    expect(css).toContain('.rv-cn-interactive:hover:not([data-widget="booking_form"],[data-widget="quote_calculator"],[data-widget="enquiry_form"]){transform:translateY(-2px)}');
+    expect(html).toContain('data-widget="quote_calculator"');
+  });
+});
+
 describe("AI-described motion", () => {
   it("keeps a custom motion the AI designs", () => {
     const r = validateComposition(tree({ kind: "custom", from: { y: 40, rotate: -6, opacity: 0 }, easing: "spring", repeat: 2, trigger: "view" }));

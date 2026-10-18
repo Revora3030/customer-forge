@@ -53,6 +53,7 @@ import { Route as LocationsIndexRouteImport } from './routes/locations.index'
 import { Route as LocationsCityRouteImport } from './routes/locations.$city'
 import { Route as PTokenRouteImport } from './routes/p.$token'
 import { Route as SSlugRouteImport } from './routes/s.$slug'
+import { Route as SitemapsSitesDotxmlRouteImport } from './routes/sitemaps.sites[.]xml'
 import { Route as StatesIndexRouteImport } from './routes/states.index'
 import { Route as StatesStateRouteImport } from './routes/states.$state'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin.index'
@@ -96,9 +97,11 @@ import { Route as LocalIndustryIndexRouteImport } from './routes/local.$industry
 import { Route as LocalIndustryStateRouteImport } from './routes/local.$industry.$state'
 import { Route as PTokenPageRouteImport } from './routes/p.$token_.$page'
 import { Route as SSlugPageRouteImport } from './routes/s.$slug.$page'
+import { Route as SSlugSitemapDotxmlRouteImport } from './routes/s.$slug.sitemap[.]xml'
 import { Route as AuthenticatedAdminClientsOrgIdRouteImport } from './routes/_authenticated/admin.clients.$orgId'
 import { Route as AuthenticatedDraftSlugPageRouteImport } from './routes/_authenticated/draft.$slug.$page'
 import { Route as ApiPublicJobsBackupRouteImport } from './routes/api/public/jobs/backup'
+import { Route as ApiPublicJobsLeadAlertRetryRouteImport } from './routes/api/public/jobs/lead-alert-retry'
 import { Route as ApiPublicJobsLeadReminderRouteImport } from './routes/api/public/jobs/lead-reminder'
 import { Route as ApiPublicJobsLifecycleEmailRouteImport } from './routes/api/public/jobs/lifecycle-email'
 import { Route as ApiPublicJobsMediaCleanupRouteImport } from './routes/api/public/jobs/media-cleanup'
@@ -327,6 +330,11 @@ const PTokenRoute = PTokenRouteImport.update({
 const SSlugRoute = SSlugRouteImport.update({
   id: '/s/$slug',
   path: '/s/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SitemapsSitesDotxmlRoute = SitemapsSitesDotxmlRouteImport.update({
+  id: '/sitemaps/sites.xml',
+  path: '/sitemaps/sites.xml',
   getParentRoute: () => rootRouteImport,
 } as any)
 const StatesIndexRoute = StatesIndexRouteImport.update({
@@ -561,6 +569,11 @@ const SSlugPageRoute = SSlugPageRouteImport.update({
   path: '/$page',
   getParentRoute: () => SSlugRoute,
 } as any)
+const SSlugSitemapDotxmlRoute = SSlugSitemapDotxmlRouteImport.update({
+  id: '/sitemap.xml',
+  path: '/sitemap.xml',
+  getParentRoute: () => SSlugRoute,
+} as any)
 const AuthenticatedAdminClientsOrgIdRoute =
   AuthenticatedAdminClientsOrgIdRouteImport.update({
     id: '/$orgId',
@@ -578,6 +591,12 @@ const ApiPublicJobsBackupRoute = ApiPublicJobsBackupRouteImport.update({
   path: '/api/public/jobs/backup',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicJobsLeadAlertRetryRoute =
+  ApiPublicJobsLeadAlertRetryRouteImport.update({
+    id: '/api/public/jobs/lead-alert-retry',
+    path: '/api/public/jobs/lead-alert-retry',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicJobsLeadReminderRoute =
   ApiPublicJobsLeadReminderRouteImport.update({
     id: '/api/public/jobs/lead-reminder',
@@ -672,6 +691,7 @@ export interface FileRoutesByFullPath {
   '/locations/$city': typeof LocationsCityRoute
   '/p/$token': typeof PTokenRoute
   '/s/$slug': typeof SSlugRouteWithChildren
+  '/sitemaps/sites.xml': typeof SitemapsSitesDotxmlRoute
   '/states/$state': typeof StatesStateRoute
   '/compare/': typeof CompareIndexRoute
   '/crm/': typeof CrmIndexRoute
@@ -718,6 +738,7 @@ export interface FileRoutesByFullPath {
   '/local/$industry/$state': typeof LocalIndustryStateRoute
   '/p/$token/$page': typeof PTokenPageRoute
   '/s/$slug/$page': typeof SSlugPageRoute
+  '/s/$slug/sitemap.xml': typeof SSlugSitemapDotxmlRoute
   '/admin/': typeof AuthenticatedAdminIndexRoute
   '/app/': typeof AuthenticatedAppIndexRoute
   '/my/': typeof AuthenticatedMyIndexRoute
@@ -725,6 +746,7 @@ export interface FileRoutesByFullPath {
   '/admin/clients/$orgId': typeof AuthenticatedAdminClientsOrgIdRoute
   '/draft/$slug/$page': typeof AuthenticatedDraftSlugPageRoute
   '/api/public/jobs/backup': typeof ApiPublicJobsBackupRoute
+  '/api/public/jobs/lead-alert-retry': typeof ApiPublicJobsLeadAlertRetryRoute
   '/api/public/jobs/lead-reminder': typeof ApiPublicJobsLeadReminderRoute
   '/api/public/jobs/lifecycle-email': typeof ApiPublicJobsLifecycleEmailRoute
   '/api/public/jobs/media-cleanup': typeof ApiPublicJobsMediaCleanupRoute
@@ -768,6 +790,7 @@ export interface FileRoutesByTo {
   '/locations/$city': typeof LocationsCityRoute
   '/p/$token': typeof PTokenRoute
   '/s/$slug': typeof SSlugRouteWithChildren
+  '/sitemaps/sites.xml': typeof SitemapsSitesDotxmlRoute
   '/states/$state': typeof StatesStateRoute
   '/compare': typeof CompareIndexRoute
   '/crm': typeof CrmIndexRoute
@@ -814,6 +837,7 @@ export interface FileRoutesByTo {
   '/local/$industry/$state': typeof LocalIndustryStateRoute
   '/p/$token/$page': typeof PTokenPageRoute
   '/s/$slug/$page': typeof SSlugPageRoute
+  '/s/$slug/sitemap.xml': typeof SSlugSitemapDotxmlRoute
   '/admin': typeof AuthenticatedAdminIndexRoute
   '/app': typeof AuthenticatedAppIndexRoute
   '/my': typeof AuthenticatedMyIndexRoute
@@ -821,6 +845,7 @@ export interface FileRoutesByTo {
   '/admin/clients/$orgId': typeof AuthenticatedAdminClientsOrgIdRoute
   '/draft/$slug/$page': typeof AuthenticatedDraftSlugPageRoute
   '/api/public/jobs/backup': typeof ApiPublicJobsBackupRoute
+  '/api/public/jobs/lead-alert-retry': typeof ApiPublicJobsLeadAlertRetryRoute
   '/api/public/jobs/lead-reminder': typeof ApiPublicJobsLeadReminderRoute
   '/api/public/jobs/lifecycle-email': typeof ApiPublicJobsLifecycleEmailRoute
   '/api/public/jobs/media-cleanup': typeof ApiPublicJobsMediaCleanupRoute
@@ -871,6 +896,7 @@ export interface FileRoutesById {
   '/locations/$city': typeof LocationsCityRoute
   '/p/$token': typeof PTokenRoute
   '/s/$slug': typeof SSlugRouteWithChildren
+  '/sitemaps/sites.xml': typeof SitemapsSitesDotxmlRoute
   '/states/$state': typeof StatesStateRoute
   '/compare/': typeof CompareIndexRoute
   '/crm/': typeof CrmIndexRoute
@@ -917,6 +943,7 @@ export interface FileRoutesById {
   '/local/$industry/$state': typeof LocalIndustryStateRoute
   '/p/$token_/$page': typeof PTokenPageRoute
   '/s/$slug/$page': typeof SSlugPageRoute
+  '/s/$slug/sitemap.xml': typeof SSlugSitemapDotxmlRoute
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
   '/_authenticated/app/': typeof AuthenticatedAppIndexRoute
   '/_authenticated/my/': typeof AuthenticatedMyIndexRoute
@@ -924,6 +951,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/clients/$orgId': typeof AuthenticatedAdminClientsOrgIdRoute
   '/_authenticated/draft/$slug/$page': typeof AuthenticatedDraftSlugPageRoute
   '/api/public/jobs/backup': typeof ApiPublicJobsBackupRoute
+  '/api/public/jobs/lead-alert-retry': typeof ApiPublicJobsLeadAlertRetryRoute
   '/api/public/jobs/lead-reminder': typeof ApiPublicJobsLeadReminderRoute
   '/api/public/jobs/lifecycle-email': typeof ApiPublicJobsLifecycleEmailRoute
   '/api/public/jobs/media-cleanup': typeof ApiPublicJobsMediaCleanupRoute
@@ -974,6 +1002,7 @@ export interface FileRouteTypes {
     | '/locations/$city'
     | '/p/$token'
     | '/s/$slug'
+    | '/sitemaps/sites.xml'
     | '/states/$state'
     | '/compare/'
     | '/crm/'
@@ -1020,6 +1049,7 @@ export interface FileRouteTypes {
     | '/local/$industry/$state'
     | '/p/$token/$page'
     | '/s/$slug/$page'
+    | '/s/$slug/sitemap.xml'
     | '/admin/'
     | '/app/'
     | '/my/'
@@ -1027,6 +1057,7 @@ export interface FileRouteTypes {
     | '/admin/clients/$orgId'
     | '/draft/$slug/$page'
     | '/api/public/jobs/backup'
+    | '/api/public/jobs/lead-alert-retry'
     | '/api/public/jobs/lead-reminder'
     | '/api/public/jobs/lifecycle-email'
     | '/api/public/jobs/media-cleanup'
@@ -1070,6 +1101,7 @@ export interface FileRouteTypes {
     | '/locations/$city'
     | '/p/$token'
     | '/s/$slug'
+    | '/sitemaps/sites.xml'
     | '/states/$state'
     | '/compare'
     | '/crm'
@@ -1116,6 +1148,7 @@ export interface FileRouteTypes {
     | '/local/$industry/$state'
     | '/p/$token/$page'
     | '/s/$slug/$page'
+    | '/s/$slug/sitemap.xml'
     | '/admin'
     | '/app'
     | '/my'
@@ -1123,6 +1156,7 @@ export interface FileRouteTypes {
     | '/admin/clients/$orgId'
     | '/draft/$slug/$page'
     | '/api/public/jobs/backup'
+    | '/api/public/jobs/lead-alert-retry'
     | '/api/public/jobs/lead-reminder'
     | '/api/public/jobs/lifecycle-email'
     | '/api/public/jobs/media-cleanup'
@@ -1172,6 +1206,7 @@ export interface FileRouteTypes {
     | '/locations/$city'
     | '/p/$token'
     | '/s/$slug'
+    | '/sitemaps/sites.xml'
     | '/states/$state'
     | '/compare/'
     | '/crm/'
@@ -1218,6 +1253,7 @@ export interface FileRouteTypes {
     | '/local/$industry/$state'
     | '/p/$token_/$page'
     | '/s/$slug/$page'
+    | '/s/$slug/sitemap.xml'
     | '/_authenticated/admin/'
     | '/_authenticated/app/'
     | '/_authenticated/my/'
@@ -1225,6 +1261,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/clients/$orgId'
     | '/_authenticated/draft/$slug/$page'
     | '/api/public/jobs/backup'
+    | '/api/public/jobs/lead-alert-retry'
     | '/api/public/jobs/lead-reminder'
     | '/api/public/jobs/lifecycle-email'
     | '/api/public/jobs/media-cleanup'
@@ -1269,6 +1306,7 @@ export interface RootRouteChildren {
   LocationsCityRoute: typeof LocationsCityRoute
   PTokenRoute: typeof PTokenRoute
   SSlugRoute: typeof SSlugRouteWithChildren
+  SitemapsSitesDotxmlRoute: typeof SitemapsSitesDotxmlRoute
   StatesStateRoute: typeof StatesStateRoute
   CompareIndexRoute: typeof CompareIndexRoute
   CrmIndexRoute: typeof CrmIndexRoute
@@ -1281,6 +1319,7 @@ export interface RootRouteChildren {
   PTokenPageRoute: typeof PTokenPageRoute
   LocalIndustryIndexRoute: typeof LocalIndustryIndexRoute
   ApiPublicJobsBackupRoute: typeof ApiPublicJobsBackupRoute
+  ApiPublicJobsLeadAlertRetryRoute: typeof ApiPublicJobsLeadAlertRetryRoute
   ApiPublicJobsLeadReminderRoute: typeof ApiPublicJobsLeadReminderRoute
   ApiPublicJobsLifecycleEmailRoute: typeof ApiPublicJobsLifecycleEmailRoute
   ApiPublicJobsMediaCleanupRoute: typeof ApiPublicJobsMediaCleanupRoute
@@ -1603,6 +1642,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/sitemaps/sites.xml': {
+      id: '/sitemaps/sites.xml'
+      path: '/sitemaps/sites.xml'
+      fullPath: '/sitemaps/sites.xml'
+      preLoaderRoute: typeof SitemapsSitesDotxmlRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/states/': {
       id: '/states/'
       path: '/states'
@@ -1904,6 +1950,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SSlugPageRouteImport
       parentRoute: typeof SSlugRoute
     }
+    '/s/$slug/sitemap.xml': {
+      id: '/s/$slug/sitemap.xml'
+      path: '/sitemap.xml'
+      fullPath: '/s/$slug/sitemap.xml'
+      preLoaderRoute: typeof SSlugSitemapDotxmlRouteImport
+      parentRoute: typeof SSlugRoute
+    }
     '/_authenticated/admin/clients/$orgId': {
       id: '/_authenticated/admin/clients/$orgId'
       path: '/$orgId'
@@ -1923,6 +1976,13 @@ declare module '@tanstack/react-router' {
       path: '/api/public/jobs/backup'
       fullPath: '/api/public/jobs/backup'
       preLoaderRoute: typeof ApiPublicJobsBackupRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/jobs/lead-alert-retry': {
+      id: '/api/public/jobs/lead-alert-retry'
+      path: '/api/public/jobs/lead-alert-retry'
+      fullPath: '/api/public/jobs/lead-alert-retry'
+      preLoaderRoute: typeof ApiPublicJobsLeadAlertRetryRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/public/jobs/lead-reminder': {
@@ -2171,10 +2231,12 @@ const IndustriesRouteWithChildren = IndustriesRoute._addFileChildren(
 
 interface SSlugRouteChildren {
   SSlugPageRoute: typeof SSlugPageRoute
+  SSlugSitemapDotxmlRoute: typeof SSlugSitemapDotxmlRoute
 }
 
 const SSlugRouteChildren: SSlugRouteChildren = {
   SSlugPageRoute: SSlugPageRoute,
+  SSlugSitemapDotxmlRoute: SSlugSitemapDotxmlRoute,
 }
 
 const SSlugRouteWithChildren = SSlugRoute._addFileChildren(SSlugRouteChildren)
@@ -2211,6 +2273,7 @@ const rootRouteChildren: RootRouteChildren = {
   LocationsCityRoute: LocationsCityRoute,
   PTokenRoute: PTokenRoute,
   SSlugRoute: SSlugRouteWithChildren,
+  SitemapsSitesDotxmlRoute: SitemapsSitesDotxmlRoute,
   StatesStateRoute: StatesStateRoute,
   CompareIndexRoute: CompareIndexRoute,
   CrmIndexRoute: CrmIndexRoute,
@@ -2223,6 +2286,7 @@ const rootRouteChildren: RootRouteChildren = {
   PTokenPageRoute: PTokenPageRoute,
   LocalIndustryIndexRoute: LocalIndustryIndexRoute,
   ApiPublicJobsBackupRoute: ApiPublicJobsBackupRoute,
+  ApiPublicJobsLeadAlertRetryRoute: ApiPublicJobsLeadAlertRetryRoute,
   ApiPublicJobsLeadReminderRoute: ApiPublicJobsLeadReminderRoute,
   ApiPublicJobsLifecycleEmailRoute: ApiPublicJobsLifecycleEmailRoute,
   ApiPublicJobsMediaCleanupRoute: ApiPublicJobsMediaCleanupRoute,

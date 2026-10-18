@@ -1,5 +1,77 @@
-import { describe, expect, it } from "vitest";
-import { pairTurns, toTurns } from "./builder-memory";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+/** Every call made on a fake builder_messages query, and the rows it returns. */
+const db = vi.hoisted(() => ({
+  calls: [] as Array<[string, ...unknown[]]>,
+  rows: [] as Array<Record<string, unknown>>,
+}));
+
+vi.mock("@/integrations/supabase/client", () => {
+  const query = () => {
+    const chain: Record<string, (...args: unknown[]) => unknown> = {};
+    for (const name of ["from", "select", "eq", "neq", "lt", "order", "limit"]) {
+      chain[name] = (...args: unknown[]) => {
+        db.calls.push([name, ...args]);
+        return chain;
+      };
+    }
+    chain["then"] = (resolve: unknown) =>
+      Promise.resolve({ data: db.rows, error: null }).then(resolve as (value: unknown) => unknown);
+    return chain;
+  };
+  return { supabase: { from: (table: string) => (query()["from"] as (t: string) => unknown)(table) } };
+});
+
+import { loadEarlierTurns, loadTurns, MEMORY_TURNS, pairTurns, toTurns } from "./builder-memory";
+
+describe("loading one conversation branch at a time", () => {
+  beforeEach(() => {
+    db.calls.length = 0;
+    db.rows = [];
+  });
+
+  it("filters the newest page by branch", async () => {
+    db.rows = [
+      { role: "assistant", content: "Done darker.", created_at: "2026-10-07T00:00:02Z", request_id: "t2", kind: "text", branch: "darker" },
+      { role: "user", content: "Make it darker", created_at: "2026-10-07T00:00:01Z", request_id: "t2", kind: "text", branch: "darker" },
+    ];
+    const turns = await loadTurns("org-a", "darker");
+    expect(db.calls).toContainEqual(["eq", "organization_id", "org-a"]);
+    expect(db.calls).toContainEqual(["eq", "branch", "darker"]);
+    expect(turns.map((turn) => turn.content)).toEqual(["Make it darker", "Done darker."]);
+  });
+
+  it("defaults to the main branch", async () => {
+    await loadTurns("org-a");
+    expect(db.calls).toContainEqual(["eq", "branch", "main"]);
+  });
+
+  it("loads the page before the oldest shown message, and says when more may exist", async () => {
+    db.rows = Array.from({ length: MEMORY_TURNS }, (_, index) => ({
+      role: index % 2 ? "assistant" : "user",
+      content: `turn ${index}`,
+      created_at: `2026-10-06T00:00:${String(59 - (index % 60)).padStart(2, "0")}Z`,
+      branch: "main",
+    }));
+    const page = await loadEarlierTurns("org-a", "main", "2026-10-07T00:00:00Z");
+    expect(db.calls).toContainEqual(["lt", "created_at", "2026-10-07T00:00:00Z"]);
+    expect(db.calls).toContainEqual(["eq", "branch", "main"]);
+    expect(page.full).toBe(true);
+    expect(page.turns).toHaveLength(MEMORY_TURNS);
+  });
+
+  it("an apply result is shown by its card, not repeated in the reply", () => {
+    const pairs = pairTurns(
+      toTurns([
+        { role: "user", content: "Add a gallery", created_at: "1", request_id: "t5" },
+        { role: "assistant", content: "I'll add a gallery.", created_at: "2", request_id: "t5" },
+        { role: "assistant", content: "Updated your draft · 4 changes", created_at: "3", request_id: "t5", plan: { state: "complete", applied: 4 } },
+      ] as never),
+    );
+    expect(pairs[0]?.reply).toBe("I'll add a gallery.");
+    expect(pairs[0]?.taskResult?.applied).toBe(4);
+  });
+});
 
 describe("saved builder conversation", () => {
   it("pairs each request with its reply in order", () => {
@@ -46,7 +118,7 @@ describe("saved builder conversation", () => {
       { role: "user", content: "Add a gallery", created_at: "1" },
       {
         role: "assistant",
-        content: "6 changes applied to your draft.",
+        content: "Updated your draft · 6 changes",
         created_at: "2",
         plan: { state: "complete", applied: 6, snapshotVersion: 12 },
       },

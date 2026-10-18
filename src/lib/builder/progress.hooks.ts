@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 
 import { supabase } from "@/integrations/supabase/client";
+import { stepLabel } from "@/lib/site-engine";
 
 /**
  * Reads the steps Revora's server has actually recorded for this workspace's
@@ -33,7 +34,9 @@ export function useBuildProgress(
         .eq("organization_id", organizationId as string)
         .gte("created_at", since)
         .order("created_at", { ascending: false })
-        .limit(30);
+        // Long plans record 40+ rows (one per model asked); 30 dropped the
+        // early stages from the card.
+        .limit(80);
       if (requestId) request = request.eq("run_id", requestId);
       const { data, error } = await request;
       if (error) throw error;
@@ -58,7 +61,9 @@ export function useBuildProgress(
         if (job?.status === "processing" && job.current_step) {
           // The worker is actively running — surface its current step too.
           steps.unshift({
-            stage: String(job.current_step).replace(/_/g, " "),
+            // The owner-facing label for the worker's step key ("wording" →
+            // "Section wording reviewed"), not the raw key.
+            stage: stepLabel(job.current_step),
             detail: `Build progress: ${job.progress ?? 0}%`,
             at: new Date().toISOString(),
           });

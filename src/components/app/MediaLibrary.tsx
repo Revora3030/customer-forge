@@ -26,8 +26,17 @@ type MediaRow = {
   category: string | null;
   file_name: string | null;
   size_bytes: number | null;
+  source: string | null;
   preview: string;
 };
+
+/** The owner's own photo (not an AI or stock picture). */
+function isOwnerPhoto(row: Pick<MediaRow, "source" | "file_name">): boolean {
+  const source = (row.source ?? "").trim().toLowerCase();
+  if (source === "owner") return true;
+  // Older AI pictures were saved without a source; their file names give them away.
+  return source === "" && !/^(ai-|revora-image)/i.test(row.file_name ?? "");
+}
 
 /**
  * Photo step of the guided builder. Uploads go straight to the tenant's own
@@ -57,7 +66,7 @@ export function MediaLibrary({
     queryFn: async (): Promise<MediaRow[]> => {
       const { data, error } = await supabase
         .from("media")
-        .select("id, url, alt_text, category, file_name, size_bytes")
+        .select("id, url, alt_text, category, file_name, size_bytes, source")
         .eq("organization_id", organizationId!)
         .order("created_at", { ascending: false });
       if (error) throw error;
@@ -279,6 +288,14 @@ export function MediaLibrary({
                   </span>
                   {heroUrl === row.url ? <Pill tone="signal">Hero</Pill> : null}
                 </div>
+                {isOwnerPhoto(row) && !(row.alt_text ?? "").trim() ? (
+                  <p
+                    className="text-[11px] text-muted-foreground"
+                    title="Photos without a description are kept off your website until you add one."
+                  >
+                    <Pill>Needs a description</Pill>
+                  </p>
+                ) : null}
                 {canManage ? (
                   <div className="flex gap-1.5">
                     {onSetHero ? (

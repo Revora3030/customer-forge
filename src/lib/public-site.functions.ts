@@ -136,6 +136,114 @@ export function isStalledJob(updatedAt: string | null | undefined, sectionCount:
   return Number.isFinite(touched) && now - touched > DRAFT_STALL_MS;
 }
 
+type HeldJob = { id?: unknown; status?: unknown } | null | undefined;
+
+/**
+ * The restore point to keep showing while a fresh rebuild runs, or null.
+ *
+ * A fresh_replace rebuild deletes and rewrites the whole draft, so for
+ * several minutes the working tree is empty, then half-written. The builder
+ * took a full pre-rebuild backup first; this names it, but only while the
+ * very job that marker belongs to is still queued or processing. Pure.
+ */
+export function heldDraftSource(generation: unknown, activeJob: HeldJob): string | null {
+  if (!generation || typeof generation !== "object" || Array.isArray(generation)) return null;
+  const marker = (generation as Record<string, unknown>)["pendingBuild"];
+  if (!marker || typeof marker !== "object" || Array.isArray(marker)) return null;
+  const pending = marker as Record<string, unknown>;
+  if (pending["mode"] !== "fresh_replace") return null;
+  if (!activeJob || activeJob.id === undefined || activeJob.id === null) return null;
+  if (String(pending["jobId"] ?? "") !== String(activeJob.id)) return null;
+  if (activeJob.status !== "queued" && activeJob.status !== "processing") return null;
+  const backupId = pending["backupId"];
+  return typeof backupId === "string" && /^[0-9a-f-]{36}$/i.test(backupId) ? backupId : null;
+}
+
+type HeldLiveSnapshot = NonNullable<NonNullable<Parameters<typeof loadSite>[1]>["heldSnapshot"]>;
+type HeldRow = Record<string, unknown>;
+
+const isRow = (value: unknown): value is HeldRow =>
+  !!value && typeof value === "object" && !Array.isArray(value);
+
+/**
+ * Maps a pre_restore backup into the live-snapshot shape the site reader
+ * renders. Returns null for anything that is not a well-formed snapshot of
+ * this organization, so the caller falls back to the working tree.
+ */
+export function heldSnapshotFromBackup(
+  backup: { id: string; organization_id: string; snapshot: unknown },
+  organizationId: string,
+): HeldLiveSnapshot | null {
+  if (backup.organization_id !== organizationId) return null;
+  const snapshot = backup.snapshot;
+  if (!isRow(snapshot)) return null;
+  if (snapshot["organization_id"] !== undefined && snapshot["organization_id"] !== organizationId) return null;
+  const website = snapshot["website"];
+  if (!isRow(website) || !Array.isArray(website["pages"])) return null;
+  const pages = website["pages"].filter(isRow).map((page) => ({
+    ...page,
+    sections: (Array.isArray(page["sections"]) ? page["sections"] : []).filter(isRow).map((section) => ({
+      ...section,
+      components: (Array.isArray(section["components"]) ? section["components"] : []).filter(isRow),
+    })),
+  }));
+  if (!pages.some((page) => page.sections.length > 0)) return null;
+  const tables = isRow(snapshot["tables"]) ? snapshot["tables"] : {};
+  const settingsRows = Array.isArray(tables["website_settings"]) ? tables["website_settings"] : [];
+  const settings = isRow(settingsRows[0]) ? settingsRows[0] : {};
+  return {
+    versionId: `backup:${backup.id}`,
+    version: 0,
+    publishedAt: null,
+    settingsPages: settings["pages"] ?? null,
+    seo: settings["seo"] ?? null,
+    generation: settings["generation"] ?? null,
+    pages: pages as HeldLiveSnapshot["pages"],
+  };
+}
+
+type BackupReader = {
+  from(table: "data_backups"): {
+    select(columns: string): {
+      eq(column: string, value: string): unknown;
+    };
+  };
+};
+
+type BackupQuery = {
+  eq(column: string, value: string): BackupQuery;
+  maybeSingle(): PromiseLike<{ data: unknown; error: unknown }>;
+};
+
+/**
+ * Reads the held restore point. `generation` is member-writable, so the
+ * backup id is untrusted: the read is pinned to the organization resolved
+ * through the caller's own RLS client, and to pre_restore backups only.
+ */
+export async function loadHeldSnapshot(
+  db: unknown,
+  input: { backupId: string; organizationId: string },
+): Promise<HeldLiveSnapshot | null> {
+  try {
+    const query = (db as BackupReader)
+      .from("data_backups")
+      .select("id, organization_id, kind, snapshot") as unknown as BackupQuery;
+    const { data, error } = await query
+      .eq("id", input.backupId)
+      .eq("organization_id", input.organizationId)
+      .eq("kind", "pre_restore")
+      .maybeSingle();
+    if (error || !isRow(data)) return null;
+    if (data["kind"] !== "pre_restore") return null;
+    return heldSnapshotFromBackup(
+      { id: String(data["id"]), organization_id: String(data["organization_id"]), snapshot: data["snapshot"] },
+      input.organizationId,
+    );
+  } catch {
+    return null;
+  }
+}
+
 export const getOwnerDraftSite = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .validator((input: { slug: string; pageSlug?: string }) => {
@@ -164,13 +272,10 @@ export const getOwnerDraftSite = createServerFn({ method: "GET" })
         status: "empty" as const,
         site: null,
         job: null,
+        held: false,
       };
 
     const { loadSite } = await import("@/lib/public-site.server");
-    const site = await loadSite(data.slug, {
-      allowUnpublished: true,
-      ...(data.pageSlug ? { pageSlug: data.pageSlug } : {}),
-    });
 
     const { data: job } = await context.supabase
       .from("generation_jobs")
@@ -180,6 +285,52 @@ export const getOwnerDraftSite = createServerFn({ method: "GET" })
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
+
+    // A fresh rebuild wipes and rewrites the draft; keep showing the tree the
+    // owner had before it (its pre-rebuild restore point) until it finishes.
+    if (job) {
+      const { data: settingsRow } = await context.supabase
+        .from("website_settings")
+        .select("generation")
+        .eq("organization_id", org.id)
+        .maybeSingle();
+      const backupId = heldDraftSource(settingsRow?.generation ?? null, job);
+      if (backupId) {
+        const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+        const heldSnapshot = await loadHeldSnapshot(supabaseAdmin, { backupId, organizationId: org.id });
+        const heldSite = heldSnapshot
+          ? await loadSite(data.slug, {
+              allowUnpublished: true,
+              heldSnapshot,
+              ...(data.pageSlug ? { pageSlug: data.pageSlug } : {}),
+            }).catch(() => null)
+          : null;
+        // Same organization as the RLS-resolved one, and something to show.
+        if (heldSite && heldSite.org.id === org.id && (heldSite.content?.sections?.length ?? 0) > 0) {
+          const heldSections = heldSite.content?.sections?.length ?? 0;
+          if (isStalledJob(job.updated_at as string | null, heldSections)) {
+            return { ok: true as const, status: "ready" as const, site: heldSite, job: null, held: true };
+          }
+          return {
+            ok: true as const,
+            status: "pending" as const,
+            site: heldSite,
+            held: true,
+            job: {
+              id: String(job.id),
+              status: String(job.status),
+              currentStep: job.current_step ? String(job.current_step) : null,
+              progress: Number(job.progress ?? 0),
+            },
+          };
+        }
+      }
+    }
+
+    const site = await loadSite(data.slug, {
+      allowUnpublished: true,
+      ...(data.pageSlug ? { pageSlug: data.pageSlug } : {}),
+    });
 
     const sectionCount = site?.content?.sections?.length ?? 0;
     // A job untouched for longer than the stall window is a dead worker, not a
@@ -192,6 +343,7 @@ export const getOwnerDraftSite = createServerFn({ method: "GET" })
         status: "ready" as const,
         site,
         job: null,
+        held: false,
       };
     }
     if (job)
@@ -199,6 +351,7 @@ export const getOwnerDraftSite = createServerFn({ method: "GET" })
         ok: true as const,
         status: "pending" as const,
         site,
+        held: false,
         job: {
           id: String(job.id),
           status: String(job.status),
@@ -212,6 +365,7 @@ export const getOwnerDraftSite = createServerFn({ method: "GET" })
       status: sectionCount > 0 ? ("ready" as const) : ("empty" as const),
       site,
       job: null,
+      held: false,
     };
   });
 

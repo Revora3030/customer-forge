@@ -1,9 +1,23 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { splitSpeech } from "@/lib/speech-chunks";
+import {
+  browserSpeechWatchdogMs,
+  createPlaybackGate,
+  STREAM_STALL_TIMEOUT_MS,
+  STREAM_START_TIMEOUT_MS,
+  voiceFallbackCode,
+  type PlaybackGate,
+  type PlaybackOutcome,
+  type VoiceFallbackCode,
+} from "@/components/app/jarvis-voice-gate";
+
+export type { PlaybackOutcome, VoiceFallbackCode } from "@/components/app/jarvis-voice-gate";
 
 type Synthesize = (text: string) => Promise<{ audioBase64: string; contentType: string }>;
 /** Returns a signed link that streams one sentence while it is generated. */
 type StreamLink = (text: string) => Promise<string>;
+/** Why Jarvis fell back to the browser voice: the readable reason plus a text-free code safe to report. */
+type OnFallback = (reason: string, code: VoiceFallbackCode) => void;
 
 // 0.1s of silence: played inside a tap so iOS Safari lets later audio play.
 const SILENT_WAV =
@@ -16,27 +30,42 @@ const toBlobUrl = (audioBase64: string, contentType: string) => {
   return URL.createObjectURL(new Blob([bytes], { type: contentType }));
 };
 
+const hasSpeechSynthesis = () => typeof window !== "undefined" && "speechSynthesis" in window;
+
 /**
  * Jarvis's voice: ElevenLabs, sentence by sentence.
  *
  * - The first sentence is streamed: the audio element plays it while
  *   ElevenLabs is still generating it, so Jarvis starts talking after the
  *   first words. Later sentences are synthesized in full while the one before
- *   plays, so there is no gap between them. A stream that can't play falls
- *   back to the full download for that sentence.
+ *   plays, so there is no gap between them. A stream that can't play, doesn't
+ *   start within 8s or stalls falls back to the full download for that sentence.
  * - One audio element is unlocked on the owner's first tap and reused, so
- *   replies that arrive later (Live mode) are allowed to play on phones.
- * - If ElevenLabs fails, the rest of the reply is read by the browser voice.
+ *   replies that arrive later (Live mode) are allowed to play on phones. The
+ *   same tap warms speechSynthesis once, so the browser-voice fallback may be
+ *   audible on iPhones too (unverified until tested on devices).
+ * - If ElevenLabs fails, the rest of the reply is read by the browser voice,
+ *   one utterance per chunk, each with a watchdog so a dropped utterance can't
+ *   hang Jarvis.
+ * - speak() resolves to "finished", "stopped" (stop() or a newer speak()) or
+ *   "fallback" (the browser voice read some of it). stop() always settles it.
  * - `level` (0..1) animates the waveform while speaking. Audio is not routed
  *   through Web Audio to measure it: on some iPhones that plays silently.
  */
-export function useJarvisVoice(synthesize: Synthesize, onFallback?: (reason: string) => void, streamLink?: StreamLink) {
+export function useJarvisVoice(synthesize: Synthesize, onFallback?: OnFallback, streamLink?: StreamLink) {
   const audio = useRef<HTMLAudioElement | null>(null);
   const generation = useRef(0);
   const urls = useRef<string[]>([]);
   const frame = useRef<number | null>(null);
+  const gateRef = useRef<PlaybackGate | null>(null);
+  const liveUtterance = useRef<SpeechSynthesisUtterance | null>(null);
+  const active = useRef(false);
+  const warmed = useRef(false);
+  const lastFallbackRef = useRef<{ reason: string; code: VoiceFallbackCode } | null>(null);
   const [speaking, setSpeaking] = useState(false);
   const [level, setLevel] = useState(0);
+
+  const gate = useCallback(() => (gateRef.current ??= createPlaybackGate()), []);
 
   const element = useCallback(() => {
     if (!audio.current && typeof Audio !== "undefined") {
@@ -51,10 +80,22 @@ export function useJarvisVoice(synthesize: Synthesize, onFallback?: (reason: str
   /** Call from a tap or click. Safe to call repeatedly. */
   const unlock = useCallback(() => {
     const el = element();
-    if (!el) return;
-    if (!el.src || el.src === SILENT_WAV) {
+    if (el && (!el.src || el.src === SILENT_WAV)) {
       el.src = SILENT_WAV;
       void el.play().catch(() => undefined);
+    }
+    // iOS ignores speechSynthesis.speak() until it has run once inside a
+    // gesture: speak one silent space now, once per hook.
+    if (!warmed.current && hasSpeechSynthesis()) {
+      warmed.current = true;
+      try {
+        const warm = new SpeechSynthesisUtterance(" ");
+        warm.volume = 0;
+        window.speechSynthesis.speak(warm);
+        window.speechSynthesis.getVoices();
+      } catch {
+        /* no browser voice here; the ElevenLabs path is unaffected */
+      }
     }
   }, [element]);
 
@@ -81,39 +122,121 @@ export function useJarvisVoice(synthesize: Synthesize, onFallback?: (reason: str
 
   const stop = useCallback(() => {
     generation.current += 1;
+    // Pausing fires no "ended": settle the in-flight clip so speak() resolves.
+    gate().settle("stopped");
+    liveUtterance.current = null;
     audio.current?.pause();
-    if (typeof window !== "undefined" && "speechSynthesis" in window) window.speechSynthesis.cancel();
+    if (hasSpeechSynthesis()) window.speechSynthesis.cancel();
     release();
+    active.current = false;
     setSpeaking(false);
-  }, [release]);
+  }, [gate, release]);
 
-  const browserVoice = (text: string, gen: number) =>
-    new Promise<void>((resolve) => {
-      if (!("speechSynthesis" in window) || gen !== generation.current) return resolve();
-      window.speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.onend = () => resolve();
-      utterance.onerror = () => resolve();
-      window.speechSynthesis.speak(utterance);
-    });
+  /** Stops Jarvis mid-sentence; true when it was speaking. */
+  const interrupt = useCallback(() => {
+    const was = active.current;
+    stop();
+    return was;
+  }, [stop]);
 
-  const playUrl = (url: string, gen: number) =>
-    new Promise<void>((resolve, reject) => {
+  /** Reads each chunk as its own utterance; resolves "fallback", or "stopped" when stopped. */
+  const browserVoice = async (chunks: string[], gen: number): Promise<PlaybackOutcome> => {
+    if (!hasSpeechSynthesis()) return gen === generation.current ? "fallback" : "stopped";
+    window.speechSynthesis.cancel();
+    for (const chunk of chunks) {
+      if (gen !== generation.current) return "stopped";
+      const wait = gate().begin();
+      const utterance = new SpeechSynthesisUtterance(chunk);
+      liveUtterance.current = utterance;
+      // A cancelled earlier utterance may still fire its events: only this one counts.
+      const done = () => {
+        if (liveUtterance.current === utterance) gate().settle("finished");
+      };
+      utterance.onend = done;
+      utterance.onerror = done;
+      const watchdog = window.setTimeout(done, browserSpeechWatchdogMs(chunk.length));
+      try {
+        window.speechSynthesis.speak(utterance);
+      } catch {
+        done();
+      }
+      const outcome = await wait;
+      window.clearTimeout(watchdog);
+      if (outcome === "stopped") return "stopped";
+    }
+    liveUtterance.current = null;
+    return gen === generation.current ? "fallback" : "stopped";
+  };
+
+  /**
+   * Plays one clip. Resolves "finished" or "stopped"; rejects when it can't
+   * play. A stream link also rejects when it hasn't started playing within
+   * STREAM_START_TIMEOUT_MS or stalls with no progress, so the caller can use
+   * the buffered download instead.
+   */
+  const playUrl = (url: string, gen: number, stream: boolean) =>
+    new Promise<PlaybackOutcome>((resolve, reject) => {
       const el = element();
-      if (!el || gen !== generation.current) return resolve();
-      el.onended = () => resolve();
-      el.onerror = () => reject(new Error("Audio could not be played."));
+      if (!el || gen !== generation.current) return resolve("stopped");
+      const wait = gate().begin();
+      let failure: Error | null = null;
+      let started = false;
+      let startTimer: number | undefined;
+      let stallTimer: number | undefined;
+      const fail = (message: string) => {
+        failure ??= new Error(message);
+        gate().settle("fallback");
+      };
+      const cleanup = () => {
+        window.clearTimeout(startTimer);
+        window.clearTimeout(stallTimer);
+        el.onended = null;
+        el.onerror = null;
+        el.onplaying = null;
+        el.onstalled = null;
+        el.onwaiting = null;
+      };
+      void wait.then((outcome) => {
+        cleanup();
+        if (outcome === "fallback") {
+          el.pause();
+          reject(failure ?? new Error("Audio could not be played."));
+        } else resolve(outcome);
+      });
+      el.onended = () => gate().settle("finished");
+      el.onerror = () => fail("Audio could not be played.");
+      if (stream) {
+        startTimer = window.setTimeout(() => { // DevSkim: ignore DS172411 -- Fixed callback and constant delay; no untrusted data.
+          if (!started) fail("The voice stream did not start in time.");
+        }, STREAM_START_TIMEOUT_MS);
+        el.onplaying = () => {
+          started = true;
+          window.clearTimeout(startTimer);
+        };
+        const watchStall = () => {
+          if (stallTimer !== undefined) return;
+          const at = el.currentTime;
+          stallTimer = window.setTimeout(() => { // DevSkim: ignore DS172411 -- Fixed callback and constant delay; no untrusted data.
+            stallTimer = undefined;
+            if (!el.ended && el.currentTime <= at) fail("The voice stream stalled.");
+          }, STREAM_STALL_TIMEOUT_MS);
+        };
+        el.onstalled = watchStall;
+        el.onwaiting = watchStall;
+      }
       el.src = url;
-      el.play().catch(reject);
+      el.play().catch((error: unknown) => fail(error instanceof Error ? error.message : "Audio could not be played."));
     });
 
-  /** Speaks a reply; resolves when finished or stopped. */
+  /** Speaks a reply; resolves when it finished, was stopped, or fell back to the browser voice. */
   const speak = useCallback(
-    async (text: string) => {
+    async (text: string): Promise<PlaybackOutcome> => {
       stop();
       const gen = generation.current;
       const chunks = splitSpeech(text);
-      if (!chunks.length) return;
+      if (!chunks.length) return "finished";
+      active.current = true;
+      lastFallbackRef.current = null;
       setSpeaking(true);
       meter();
       const pending = new Map<number, Promise<string>>();
@@ -129,6 +252,12 @@ export function useJarvisVoice(synthesize: Synthesize, onFallback?: (reason: str
         job.catch(() => undefined);
         pending.set(i, job);
       };
+      const fallBack = (reason: string, from: number) => {
+        const code = voiceFallbackCode(reason);
+        lastFallbackRef.current = { reason, code };
+        onFallback?.(reason, code);
+        return browserVoice(chunks.slice(from), gen);
+      };
       try {
         let start = 0;
         if (streamLink) {
@@ -137,39 +266,39 @@ export function useJarvisVoice(synthesize: Synthesize, onFallback?: (reason: str
           let streamed = false;
           try {
             const link = await streamLink(chunks[0]!);
-            if (gen !== generation.current) return;
-            await playUrl(link, gen);
+            if (gen !== generation.current) return "stopped";
+            if ((await playUrl(link, gen, true)) === "stopped") return "stopped";
             streamed = true;
           } catch {
-            // Older deploys or a browser that won't play a live stream: use the
-            // full download for this sentence instead.
+            // Older deploys, a stream that never starts or stalls, or a browser
+            // that won't play a live stream: use the full download instead.
           }
           if (streamed) start = 1;
         }
+        if (gen !== generation.current) return "stopped";
         if (start === 0) fetchChunk(0);
         for (let i = start; i < chunks.length; i += 1) {
-          if (gen !== generation.current) return;
+          if (gen !== generation.current) return "stopped";
           fetchChunk(i + 1); // synthesize the next sentence while this one plays
           let url: string;
           try {
             url = await pending.get(i)!;
           } catch (error) {
-            onFallback?.(error instanceof Error ? error.message : "ElevenLabs was unavailable.");
-            await browserVoice(chunks.slice(i).join(" "), gen);
-            return;
+            if (gen !== generation.current) return "stopped";
+            return await fallBack(error instanceof Error ? error.message : "ElevenLabs was unavailable.", i);
           }
-          if (gen !== generation.current) return;
+          if (gen !== generation.current) return "stopped";
           try {
-            await playUrl(url, gen);
+            if ((await playUrl(url, gen, false)) === "stopped") return "stopped";
           } catch {
-            onFallback?.("This browser blocked the audio. Tap Listen to hear it.");
-            await browserVoice(chunks.slice(i).join(" "), gen);
-            return;
+            return await fallBack("This browser blocked the audio. Tap Listen to hear it.", i);
           }
         }
+        return "finished";
       } finally {
         if (gen === generation.current) {
           release();
+          active.current = false;
           setSpeaking(false);
         }
       }
@@ -178,7 +307,10 @@ export function useJarvisVoice(synthesize: Synthesize, onFallback?: (reason: str
     [synthesize, onFallback, streamLink, stop, meter, release],
   );
 
+  /** The reason and code of the latest fallback to the browser voice, or null. */
+  const lastFallback = useCallback(() => lastFallbackRef.current, []);
+
   useEffect(() => () => stop(), [stop]);
 
-  return { speak, stop, unlock, speaking, level };
+  return { speak, stop, interrupt, unlock, speaking, level, lastFallback };
 }

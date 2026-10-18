@@ -150,13 +150,15 @@ function record(
   } as CollectivePassRecord;
 }
 
-/**
- * Sol rewrites every section's wording in one pass, Terra approves section by
- * section, and only fact-safe changes are returned. If Terra concludes the
- * already AI-authored wording is stronger, an empty patch list preserves that
- * reviewed version instead of falsely treating no change as a failure.
- */
-export async function refineSectionWordingWithCollective(input: {
+/** Sections that are working features or openings; they need no body. */
+const NO_BODY_KINDS = new Set(["hero", "quote", "booking", "contact", "sticky_cta", "embed", "post_list", "gallery"]);
+
+/** Sections with a heading but no body, which every page call must fill. */
+export function sectionsNeedingBody(sections: SectionWording[]): SectionWording[] {
+  return sections.filter((section) => !NO_BODY_KINDS.has(section.kind) && !(section.body ?? "").trim());
+}
+
+type WordingInput = {
   organizationId: string;
   facts: DnaFacts;
   sections: SectionWording[];
@@ -165,19 +167,63 @@ export async function refineSectionWordingWithCollective(input: {
   /** New first builds fail rather than preserving known generic stock phrasing. */
   hardGenericityGate?: boolean;
   signal?: AbortSignal;
-}): Promise<SectionWordingOutcome> {
+  /**
+   * Measured page-depth shortfalls (from page-depth.ts), keyed by page slug.
+   * They are repair notes for Sol and input for Terra, never added sections.
+   */
+  depthNotes?: Record<string, string[]>;
+};
+
+/** How many pages are worded at the same time. */
+const PAGE_CONCURRENCY = 3;
+
+/**
+ * Sol rewrites each page's section wording in its own call (one page per call,
+ * so a large site is never cut off at the output limit), Terra approves
+ * section by section, and only fact-safe changes are returned. Every section
+ * with an empty body must get one, written from the facts only. If Terra
+ * concludes the already AI-authored wording is stronger, an empty patch list
+ * preserves that reviewed version instead of falsely treating no change as a
+ * failure.
+ */
+export async function refineSectionWordingWithCollective(input: WordingInput): Promise<SectionWordingOutcome> {
+  if (!input.sections.length) return { patches: [], passes: [], totalCostMicrocents: 0 };
+  const byPage = new Map<string, SectionWording[]>();
+  for (const section of input.sections) byPage.set(section.page, [...(byPage.get(section.page) ?? []), section]);
+  const pages = [...byPage.entries()];
+  const outcomes: SectionWordingOutcome[] = [];
+  let next = 0;
+  await Promise.all(
+    Array.from({ length: Math.min(PAGE_CONCURRENCY, pages.length) }, async () => {
+      while (next < pages.length) {
+        const [page, sections] = pages[next++]!;
+        outcomes.push(await refinePageWording({ ...input, sections, depthNotes: { [page]: input.depthNotes?.[page] ?? [] } }));
+      }
+    }),
+  );
+  const passes = outcomes.flatMap((outcome) => outcome.passes);
+  return {
+    patches: outcomes.flatMap((outcome) => outcome.patches),
+    passes,
+    totalCostMicrocents: passes.reduce((sum, pass) => sum + pass.costMicrocents, 0),
+  };
+}
+
+async function refinePageWording(input: WordingInput): Promise<SectionWordingOutcome> {
   const passes: CollectivePassRecord[] = [];
   if (!input.sections.length) return { patches: [], passes, totalCostMicrocents: 0 };
 
   const facts = JSON.stringify(input.facts, null, 2);
   const sheet = sectionSheet(input.sections);
+  const needBody = sectionsNeedingBody(input.sections);
+  const depthNotes = Object.values(input.depthNotes ?? {}).flat();
 
   const solCall = await callBestThinker({
     json: true,
     purpose: "content_strategy",
     complexity: "high",
     organizationId: input.organizationId,
-    maxOutputTokens: 4000,
+    maxOutputTokens: 8000,
     ...(input.signal ? { signal: input.signal } : {}),
     system: `${RULES} You are the master website copywriter. Improve the wording of each section so the page reads like a top-tier bespoke agency build. ${craftBarPrompt("copy")}`,
     user: [
@@ -191,6 +237,10 @@ export async function refineSectionWordingWithCollective(input: {
       'Return JSON: {"sections":[{"id":"...","heading":"...","subheading":"...","body":"..."}]}',
       `Limits: heading ${LIMITS.heading} characters, subheading ${LIMITS.subheading}, body ${LIMITS.body}.`,
       "Include a section only when you genuinely improve it. Omit any field you cannot improve.",
+      ...(needBody.length
+        ? [`REQUIRED: these sections have a heading and no body. Write a body for EVERY one of them, using only the facts above: ${needBody.map((section) => section.id).join(", ")}.`]
+        : []),
+      ...(depthNotes.length ? ["PAGE DEPTH NOTES (measured shortfalls to fix with real facts only):", ...depthNotes] : []),
       "Keep every id exactly as given.",
     ].join("\n"),
   });
@@ -238,7 +288,7 @@ export async function refineSectionWordingWithCollective(input: {
       purpose: "content_strategy",
       complexity: "high",
       organizationId: input.organizationId,
-      maxOutputTokens: 4000,
+      maxOutputTokens: 8000,
       ...(input.signal ? { signal: input.signal } : {}),
       system: RULES + " You are the master website copywriter repairing generic stock phrasing. Preserve factual truth and the exact section ids. Do not use the detected stock phrases.",
       user: [
@@ -286,6 +336,7 @@ export async function refineSectionWordingWithCollective(input: {
       "SECTIONS AS BUILT:",
       sheet,
       "",
+      ...(depthNotes.length ? ["MEASURED PAGE DEPTH (input only):", ...depthNotes, ""] : []),
       "PROPOSED WORDING:",
       JSON.stringify(proposal, null, 2),
       "",
@@ -396,6 +447,56 @@ export async function refineSectionWordingWithCollective(input: {
       gated.accepted = [...acceptedById.values()];
     }
   }
+  // Every empty-body section must leave with a body. Sections still without
+  // one get a single body-only call, through the same fact gate.
+  const bodied = new Set(gated.accepted.filter((patch) => patch.body).map((patch) => patch.id));
+  const stillEmpty = needBody.filter((section) => !bodied.has(section.id));
+  if (stillEmpty.length && !input.signal?.aborted) {
+    const fillCall = await callBestThinker({
+      json: true,
+      purpose: "content_strategy",
+      complexity: "high",
+      organizationId: input.organizationId,
+      maxOutputTokens: 8000,
+      ...(input.signal ? { signal: input.signal } : {}),
+      system: `${RULES} You are the master website copywriter writing the missing section bodies. Use only the supplied facts; when a fact is missing, say less rather than inventing it.`,
+      user: [
+        "FACTS (the only truth you may use):",
+        facts,
+        "",
+        "SECTIONS THAT NEED A BODY:",
+        sectionSheet(stillEmpty),
+        "",
+        'Return JSON: {"sections":[{"id":"...","body":"..."}]} with one body per listed section.',
+        `Body limit: ${LIMITS.body} characters. Keep every id exactly as given.`,
+      ].join("\n"),
+    });
+    const fillProposal = fillCall.ok ? parseRefinement(fillCall.text) : null;
+    const fillGate = reviewSectionWording({ proposal: fillProposal, facts: input.facts, baseline: stillEmpty });
+    const bodies = detectGenericPhrases(proposedStrings(fillProposal)).length
+      ? []
+      : fillGate.accepted.filter((patch) => patch.body).map((patch) => ({ id: patch.id, body: patch.body! }));
+    passes.push(
+      record(fillCall.tier ?? "hall_of_fame", "content_strategy_body_fill", {
+        model: fillCall.ok ? fillCall.model : null,
+        used: bodies.length > 0,
+        costMicrocents: fillCall.ok ? fillCall.costMicrocents : 0,
+        skipped: !fillCall.ok
+          ? fillCall.detail ?? fillCall.reason
+          : bodies.length
+            ? null
+            : "no missing body passed the factual and genericity checks",
+        acceptedFields: bodies.map((patch) => `${patch.id}.body`),
+        rejected: fillGate.rejected,
+      }),
+    );
+    if (bodies.length) {
+      const acceptedById = new Map(gated.accepted.map((patch) => [patch.id, patch]));
+      for (const patch of bodies) acceptedById.set(patch.id, { ...acceptedById.get(patch.id), ...patch });
+      gated.accepted = [...acceptedById.values()];
+    }
+  }
+
   const solPass = passes.find((pass) => pass.purpose === "content_strategy");
   if (solPass) {
     solPass.acceptedFields = gated.accepted.map((patch) => patch.id);

@@ -994,7 +994,34 @@ export function pageNavLabel(title: string | null | undefined, businessName?: st
       if (tail) return tail;
     }
   }
-  return raw;
+  // Search-title shapes with the name or place in the middle, e.g.
+  // "About Acme | Raleigh, NC": keep the first part that is not just the name
+  // or a place, then drop a business name that trails it. Never adds words.
+  const parts = raw.split(/ \| | — | – /).map((part) => part.trim()).filter(Boolean);
+  const kept = parts.length > 1 ? parts.find((part) => part.toLowerCase() !== n && !PLACE_ONLY.test(part)) : raw;
+  if (!kept) return raw;
+  return withoutTrailingName(kept, name) || kept;
+}
+
+/** A segment that is only a place, like "Raleigh, NC". */
+const PLACE_ONLY = /^[A-Za-z][A-Za-z .'-]*,\s*[A-Z]{2}$/;
+
+/** "Contact Acme Co" → "Contact"; "About Acme Co" → "About". Anything else is returned unchanged. */
+function withoutTrailingName(text: string, name: string): string {
+  const lower = text.toLowerCase();
+  const n = name.toLowerCase();
+  if (lower.endsWith(` ${n}`)) {
+    const head = text.slice(0, text.length - n.length - 1).trim();
+    if (head) return head;
+  }
+  const space = text.indexOf(" ");
+  if (space > 0) {
+    const rest = lower.slice(space + 1);
+    // "About Acme" / "About Acme | Raleigh, NC" lose the name; "Meet Acme Team" keeps it.
+    const after = rest.slice(n.length);
+    if (rest.startsWith(n) && (after.length === 0 || /^\s*(?:[|·•,:]|[-–—]\s|in\s|near\s)/.test(after))) return text.slice(0, space);
+  }
+  return text;
 }
 
 /** Menu link text cleanup: "Services — Acme" becomes "Services"; the bare business name is kept (it is usually the logo link). */

@@ -9,6 +9,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { alertRecipient } from "@/lib/lead-alert-recipient";
 
 export type PreflightFacts = {
   quoteQuestionCount: number | null;
@@ -41,23 +42,40 @@ export function usePreflightFacts(organizationId: string | undefined) {
           .eq("is_active", true),
       ]);
 
-      const questionCount = forms.error
-        ? null
-        : (forms.data ?? []).reduce(
-            (sum, form) =>
-              sum + ((form as { quote_questions?: unknown[] }).quote_questions ?? []).length,
-            0,
-          );
+      // Only questions a visitor can answer count: a question with no options
+      // leaves the calculator unable to show a price.
+      let questionCount: number | null = null;
+      if (!forms.error) {
+        const questionIds = (forms.data ?? []).flatMap((form) =>
+          ((form as { quote_questions?: { id: string }[] }).quote_questions ?? []).map((q) => q.id),
+        );
+        if (!questionIds.length) {
+          questionCount = 0;
+        } else {
+          const options = await supabase
+            .from("quote_options")
+            .select("question_id")
+            .eq("organization_id", orgId)
+            .in("question_id", questionIds);
+          questionCount = options.error
+            ? null
+            : new Set((options.data ?? []).map((row) => row.question_id)).size;
+        }
+      }
 
-      const p = (profile.data ?? null) as Record<string, unknown> | null;
-      const alertTarget = ["notification_email", "owner_email", "email"].some(
-        (key) => typeof p?.[key] === "string" && String(p[key]).trim().length > 0,
-      );
-      const hours = p?.["hours"];
+      const p = (profile.data ?? null) as {
+        notification_email?: string | null;
+        owner_email?: string | null;
+        email?: string | null;
+        notify_on_lead?: boolean | null;
+        hours?: unknown;
+      } | null;
+      const hours = p?.hours;
 
       return {
         quoteQuestionCount: questionCount,
-        notifiesOwner: alertTarget && p?.["notify_on_lead"] !== false,
+        // Same inbox rules as the real sender (valid address, alerts switched on).
+        notifiesOwner: p ? alertRecipient(p) !== null : false,
         followUpAutomations: (automations.data ?? []).length,
         hasHours: !!hours && typeof hours === "object" && Object.keys(hours).length > 0,
       };

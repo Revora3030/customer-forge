@@ -27,12 +27,29 @@ async function guardedAdmin(context: { supabase: unknown; userId: unknown }): Pr
   return supabaseAdmin as unknown as SupabaseClient;
 }
 
+/** Page size for the Jarvis history. A full page means older messages may exist. */
+export const JARVIS_HISTORY_PAGE = 200;
+const HISTORY_CURSOR = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|[+-]\d{2}:?\d{2})$/;
+
+/** `before` (optional, an ISO timestamp from a loaded message) pages back to older messages. */
+export function parseHistoryCursor(input: { before?: unknown } | undefined): { before?: string } {
+  const before = input?.before;
+  if (before === undefined || before === null || before === "") return {};
+  if (typeof before !== "string" || !HISTORY_CURSOR.test(before) || Number.isNaN(Date.parse(before))) {
+    throw new Error("That history position is not valid.");
+  }
+  return { before };
+}
+
 export const getJarvisHistory = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
+  .validator((input: { before?: string } | undefined) => parseHistoryCursor(input))
+  .handler(async ({ context, data: cursor }) => {
     const db = await guardedAdmin(context);
-    const { data, error } = await db.from("jarvis_messages").select("id,role,content,created_at")
-      .eq("user_id", String(context.userId)).order("created_at", { ascending: false }).limit(200);
+    let query = db.from("jarvis_messages").select("id,role,content,created_at")
+      .eq("user_id", String(context.userId));
+    if (cursor.before) query = query.lt("created_at", cursor.before);
+    const { data, error } = await query.order("created_at", { ascending: false }).limit(JARVIS_HISTORY_PAGE);
     if (error) throw new Error("Couldn't load your Jarvis chat.");
     return ((data ?? []) as (Turn & { id: string; created_at: string })[]).reverse();
   });

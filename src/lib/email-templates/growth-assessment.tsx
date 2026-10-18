@@ -12,6 +12,7 @@ import {
   Text,
 } from "@react-email/components";
 import type { TemplateEntry } from "./registry";
+import { GROWTH_SYSTEM } from "@/lib/offer";
 
 /** Free Growth Assessment results — sent right after a visitor submits the form. */
 interface AssessmentEmailProps {
@@ -63,7 +64,8 @@ const AssessmentEmail = (p: AssessmentEmailProps) => (
           Start 1 day of free full access
         </Link>
         <Text style={footer}>
-          $350 one-time setup, first month free, then $100/month. Cancel anytime. Questions? Reply
+          ${GROWTH_SYSTEM.setupPrice} one-time setup, first month free, then ${GROWTH_SYSTEM.monthlyPrice}/month.
+          Cancel anytime. Questions? Reply
           to this email or call (919) 622-6620.
         </Text>
       </Container>

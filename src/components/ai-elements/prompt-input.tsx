@@ -67,6 +67,7 @@ import {
   Children,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -840,7 +841,9 @@ export const PromptInput = ({
         ref={formRef}
         {...props}
       >
-        <InputGroup className="overflow-hidden">{children}</InputGroup>
+        {/* Inside the builder's own bordered composer the group's border and
+            shadow would draw a second box, so they are dropped there. */}
+        <InputGroup className="overflow-hidden [.builder-prompt_&]:border-0 [.builder-prompt_&]:shadow-none [.builder-prompt_&]:bg-transparent">{children}</InputGroup>
       </form>
     </>
   );
@@ -872,16 +875,42 @@ export type PromptInputTextareaProps = ComponentProps<
   typeof InputGroupTextarea
 >;
 
+/** Height cap for the JS auto-grow fallback (matches the composer's max-h-40). */
+const AUTO_GROW_MAX_PX = 160;
+
+const supportsFieldSizing = () =>
+  typeof CSS !== "undefined" && typeof CSS.supports === "function" && CSS.supports("field-sizing", "content");
+
 export const PromptInputTextarea = ({
   onChange,
   onKeyDown,
   className,
   placeholder = "What would you like to know?",
+  ref,
   ...props
 }: PromptInputTextareaProps) => {
   const controller = useOptionalPromptInputController();
   const attachments = usePromptInputAttachments();
   const [isComposing, setIsComposing] = useState(false);
+  const ownRef = useRef<HTMLTextAreaElement | null>(null);
+  const setRefs = useCallback(
+    (node: HTMLTextAreaElement | null) => {
+      ownRef.current = node;
+      if (typeof ref === "function") ref(node);
+      else if (ref) (ref as { current: HTMLTextAreaElement | null }).current = node;
+    },
+    [ref]
+  );
+  // Browsers without `field-sizing: content` (older iOS Safari) don't grow
+  // the box as the owner types: size it from scrollHeight instead, capped.
+  const currentValue = controller ? controller.textInput.value : props.value;
+  useLayoutEffect(() => {
+    const node = ownRef.current;
+    if (!node || supportsFieldSizing()) return;
+    node.style.height = "auto";
+    node.style.height = `${Math.min(node.scrollHeight, AUTO_GROW_MAX_PX)}px`;
+    node.style.overflowY = node.scrollHeight > AUTO_GROW_MAX_PX ? "auto" : "hidden";
+  }, [currentValue]);
 
   const handleKeyDown: KeyboardEventHandler<HTMLTextAreaElement> = useCallback(
     (e) => {
@@ -983,6 +1012,7 @@ export const PromptInputTextarea = ({
       placeholder={placeholder}
       {...props}
       {...controlledProps}
+      ref={setRefs}
     />
   );
 };

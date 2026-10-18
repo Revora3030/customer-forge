@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
 import { buildIntegrationCards, integrationSummary, type IntegrationFacts } from "./integrations";
+import { alertInbox, alertRecipient } from "./lead-alert-recipient";
 
 const base: IntegrationFacts = {
   setupPaymentStatus: "paid",
@@ -59,5 +61,69 @@ describe("integration center", () => {
       leadAlertsEnabled: false,
     });
     expect(noEmail.find((card) => card.key === "lead_alerts")!.status).toBe("not_connected");
+  });
+});
+
+describe("lead alert health follows the newest attempt", () => {
+  const alerts = (facts: Partial<IntegrationFacts>) =>
+    buildIntegrationCards({ ...base, ...facts }).find((card) => card.key === "lead_alerts")!;
+
+  it("a suppressed inbox after an earlier success needs action, not 'delivered successfully'", () => {
+    // Live shape: one sent row, then two newer recipient_suppressed rows. The
+    // hook reports the newest row, so the card sees the suppression.
+    const card = alerts({
+      lastLeadAlertAt: "2026-10-04T13:24:52.000Z",
+      lastLeadAlertStatus: "failed",
+      lastLeadAlertReason: "recipient_suppressed",
+    });
+    expect(card.status).toBe("action_needed");
+    expect(card.detail).toBe(
+      "Alerts to owner@example.com are being refused by that inbox. Add a different notification email.",
+    );
+    expect(card.detail).not.toContain("delivered successfully");
+    expect(card.action?.to).toBe("/app/settings");
+  });
+
+  it("any other newest failure is reported with its reason", () => {
+    const card = alerts({
+      lastLeadAlertAt: "2026-10-04T13:24:52.000Z",
+      lastLeadAlertStatus: "failed",
+      lastLeadAlertReason: "email_transport_error",
+    });
+    expect(card.status).toBe("action_needed");
+    expect(card.detail).toContain("Last alert failed (email_transport_error)");
+    expect(card.detail).not.toContain("delivered successfully");
+  });
+
+  it("says delivered only when the newest attempt was sent", () => {
+    const sent = alerts({ lastLeadAlertAt: "2026-10-04T13:21:49.000Z", lastLeadAlertStatus: "sent" });
+    expect(sent.status).toBe("connected");
+    expect(sent.detail).toContain("Last alert delivered successfully.");
+    const none = alerts({ lastLeadAlertAt: null, lastLeadAlertStatus: null });
+    expect(none.detail).toContain("nothing has been sent");
+    expect(none.detail).not.toContain("delivered successfully");
+  });
+
+  it("names the same inbox, in the same order, as the real sender", () => {
+    const profile = {
+      notification_email: "  ",
+      owner_email: "owner@acme.test",
+      email: "hello@acme.test",
+    };
+    // The sender prefers email over owner_email; the card must agree.
+    expect(alertInbox(profile)).toBe("hello@acme.test");
+    expect(alertInbox(profile)).toBe(alertRecipient(profile));
+    expect(alertInbox({ notification_email: "not-an-email", owner_email: "owner@acme.test" })).toBe(
+      "owner@acme.test",
+    );
+    // Switched-off alerts still name the inbox so the card can say "switched off".
+    expect(alertInbox({ email: "hello@acme.test", notify_on_lead: false })).toBe("hello@acme.test");
+    expect(alertRecipient({ email: "hello@acme.test", notify_on_lead: false })).toBeNull();
+  });
+
+  it("the Integration Center hook resolves the inbox through the shared helper", () => {
+    const hook = readFileSync("src/lib/integrations.hooks.ts", "utf8");
+    expect(hook).toContain('import { alertInbox } from "@/lib/lead-alert-recipient";');
+    expect(hook).not.toContain('["notification_email", "owner_email", "email"]');
   });
 });

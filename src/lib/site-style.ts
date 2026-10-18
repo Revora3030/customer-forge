@@ -896,6 +896,22 @@ function declarations(css: React.CSSProperties): string {
 }
 
 /**
+ * Device-layer serializer. The desktop layer is written inline on the block,
+ * and an inline style beats any non-important stylesheet rule, so the tablet
+ * and phone layers must be `!important` to take effect inside their media
+ * query (the same convention as CompositionRenderer's cssText). Outside the
+ * media query they do not apply, so the inline desktop layer still wins there.
+ */
+function declarationsImportant(css: React.CSSProperties): string {
+  return Object.entries(css)
+    .map(([property, value]) => {
+      const name = property.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`);
+      return `${name}:${String(value)} !important`;
+    })
+    .join(";");
+}
+
+/**
  * Publishable CSS for one block: the desktop layer is inline, so this emits
  * only the tablet and mobile overrides as media queries plus per-device
  * visibility. Every value came from the validated model above, and the
@@ -929,15 +945,15 @@ export function blockRules(id: string, settings: unknown, surface?: string | nul
     // not just the one it sets itself, so a mobile-only text colour is still
     // measured against the desktop background it inherits.
     const body = [
-      declarations(blockCss(only, merged.bgColor ?? surface)),
-      declarations(itemsCss(only)),
+      declarationsImportant(blockCss(only, merged.bgColor ?? surface)),
+      declarationsImportant(itemsCss(only)),
     ]
       .filter(Boolean)
       .join(";");
     const parts: string[] = [];
     if (body) parts.push(`[data-rvb="${id}"]{${body}}`);
-    if (layer.hidden === true) parts.push(`[data-rvb="${id}"]{display:none}`);
-    if (layer.hidden === false) parts.push(`[data-rvb="${id}"]{display:revert}`);
+    if (layer.hidden === true) parts.push(`[data-rvb="${id}"]{display:none !important}`);
+    if (layer.hidden === false) parts.push(`[data-rvb="${id}"]{display:revert !important}`);
     if (!parts.length) continue;
     rules.push(`@media (max-width:${DEVICE_META[device].maxWidth}px){${parts.join("")}}`);
   }

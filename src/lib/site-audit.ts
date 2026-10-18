@@ -14,6 +14,7 @@
 
 import type { ContentPage } from "@/lib/website-content";
 import type { ConversionGoal } from "@/lib/conversion-engine";
+import type { SeoIssue } from "@/lib/seo-audit";
 
 export type AuditSeverity = "critical" | "warning" | "opportunity";
 
@@ -30,6 +31,8 @@ export type AuditIssue = {
   /** Upgrade this issue can be fixed by, when Revora can do it safely. */
   upgrade?: string;
   pageId?: string;
+  /** Stable machine code for SEO findings, matching seo-audit.ts names. */
+  code?: SeoIssue["code"] | "description_too_short";
 };
 
 const CAPTURE_SECTIONS = new Set(["quote", "booking", "contact", "lead_magnet"]);
@@ -156,6 +159,8 @@ export function auditStructure(input: StructureAuditInput) {
     });
   }
 
+  issues.push(...auditPageSeo(visible));
+
   /* whole-site structure checks */
   const siteCheck = (
     ok: boolean,
@@ -211,6 +216,100 @@ export function auditStructure(input: StructureAuditInput) {
   });
 
   return { issues, pageScores };
+}
+
+/** Search-result limits for a client page title and description. */
+export const PAGE_TITLE_MAX = 60;
+export const PAGE_DESCRIPTION_MIN = 50;
+export const PAGE_DESCRIPTION_MAX = 160;
+
+/**
+ * Per-page search wording checks across a client's visible, indexable pages:
+ * duplicate titles, duplicate descriptions, titles over 60 characters and
+ * descriptions outside 50–160. Codes reuse the names in seo-audit.ts.
+ *
+ * These are owner-facing findings only. Nothing here rewrites wording: the
+ * "page_seo" upgrade hands each one to the AI site agent, which writes and
+ * safety-reviews the new title or description through set_page.
+ */
+export function auditPageSeo(pages: ContentPage[]): AuditIssue[] {
+  const indexable = pages.filter(
+    (page) => page.is_visible !== false && page.noindex !== true && page.kind !== "thanks",
+  );
+  const issues: AuditIssue[] = [];
+  const push = (page: ContentPage, code: NonNullable<AuditIssue["code"]>, title: string, detail: string, action: string) =>
+    issues.push({
+      key: `${code}-${page.id}`,
+      code,
+      scope: page.title,
+      pageId: page.id,
+      title,
+      detail,
+      action,
+      severity: "warning",
+      points: 0,
+      max: 2,
+      upgrade: "page_seo",
+    });
+
+  const groups = (pick: (page: ContentPage) => string | null | undefined) => {
+    const map = new Map<string, ContentPage[]>();
+    for (const page of indexable) {
+      const key = String(pick(page) ?? "").replace(/\s+/g, " ").trim().toLowerCase();
+      if (!key) continue;
+      map.set(key, [...(map.get(key) ?? []), page]);
+    }
+    return [...map.values()].filter((group) => group.length > 1);
+  };
+
+  for (const group of groups((page) => page.seo_title))
+    for (const page of group)
+      push(
+        page,
+        "duplicate_title",
+        "Search title shared with another page",
+        `${page.title} uses the same search title as ${group.filter((other) => other !== page).map((other) => other.title).join(", ")}.`,
+        "Give this page its own search title about what this page offers.",
+      );
+  for (const group of groups((page) => page.seo_description))
+    for (const page of group)
+      push(
+        page,
+        "duplicate_description",
+        "Search description shared with another page",
+        `${page.title} uses the same search description as ${group.filter((other) => other !== page).map((other) => other.title).join(", ")}.`,
+        "Write a description specific to this page's service, area and next step.",
+      );
+
+  for (const page of indexable) {
+    const title = String(page.seo_title ?? "").trim();
+    if (title.length > PAGE_TITLE_MAX)
+      push(
+        page,
+        "title_too_long",
+        "Search title too long",
+        `${title.length} characters — search results cut titles near ${PAGE_TITLE_MAX}.`,
+        `Shorten this page's search title to ${PAGE_TITLE_MAX} characters or fewer.`,
+      );
+    const description = String(page.seo_description ?? "").trim();
+    if (description && description.length > PAGE_DESCRIPTION_MAX)
+      push(
+        page,
+        "description_too_long",
+        "Search description too long",
+        `${description.length} characters — aim for ${PAGE_DESCRIPTION_MIN} to ${PAGE_DESCRIPTION_MAX}.`,
+        `Tighten this page's description to ${PAGE_DESCRIPTION_MAX} characters or fewer.`,
+      );
+    else if (description && description.length < PAGE_DESCRIPTION_MIN)
+      push(
+        page,
+        "description_too_short",
+        "Search description too short",
+        `${description.length} characters — aim for ${PAGE_DESCRIPTION_MIN} to ${PAGE_DESCRIPTION_MAX}.`,
+        "Expand the description with the service, area and main action.",
+      );
+  }
+  return issues;
 }
 
 /* ------------------------------- live pages ------------------------------- */

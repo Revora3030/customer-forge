@@ -90,7 +90,7 @@ export const draftDemoOutreach = createServerFn({ method: "POST" })
     const db = await guardedAdmin(context);
     const { listProspectDemos } = await import("./jarvis-demo-site.server");
     const demo = (await listProspectDemos(db, 100)).find((item) => item.organizationId === data.organizationId);
-    if (!demo) throw new Error("That demo site was not found, or it has already been claimed.");
+    if (!demo || demo.claimedAt) throw new Error("That demo site was not found, or it has already been claimed.");
     if (demo.build?.status !== "completed") throw new Error("Wait for the demo build to finish before writing the email.");
 
     const { data: profile } = await db

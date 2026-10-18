@@ -20,7 +20,7 @@ import { smartIntakeValue } from "@/lib/intake-smart";
 import { canonicalLink, ogUrl } from "@/lib/seo";
 import { useServerFn } from "@tanstack/react-start";
 import { claimProspectDemo, getProspectClaim } from "@/lib/prospect-claim.functions";
-import { CLAIM_STORAGE_KEY, isClaimToken } from "@/lib/prospect-claim";
+import { CLAIM_STORAGE_KEY, claimAwareRedirect, isClaimToken } from "@/lib/prospect-claim";
 import { readStarter } from "@/components/marketing/hero-starter-utils";
 import { applyImportedFacts, importExistingWebsite } from "@/lib/site-import.functions";
 
@@ -373,7 +373,9 @@ function GetStarted() {
   async function startFreeAccess() {
     setError(null);
     if (!signedIn) {
-      navigate({ to: "/auth", search: { mode: "signup", redirect: "/get-started" } });
+      // The claim token rides in the redirect so it survives email confirmation
+      // or a magic link opened in another browser (empty localStorage).
+      navigate({ to: "/auth", search: { mode: "signup", redirect: claimAwareRedirect(claimToken) } });
       return;
     }
     setStartingTrial(true);
@@ -688,12 +690,12 @@ function GetStarted() {
                       </p>
                       <div className="mt-3 flex flex-col gap-2 sm:flex-row">
                         <Button asChild variant="signal" size="lg">
-                          <Link to="/auth" search={{ mode: "signup", redirect: "/get-started" }}>
+                          <Link to="/auth" search={{ mode: "signup", redirect: claimAwareRedirect(claimToken) }}>
                             Create account
                           </Link>
                         </Button>
                         <Button asChild variant="outline" size="lg">
-                          <Link to="/auth" search={{ mode: "signin", redirect: "/get-started" }}>
+                          <Link to="/auth" search={{ mode: "signin", redirect: claimAwareRedirect(claimToken) }}>
                             I already have an account
                           </Link>
                         </Button>

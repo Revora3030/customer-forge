@@ -1,4 +1,6 @@
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useBuildProgress } from "@/lib/builder/progress.hooks";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "@/lib/ui/notify";
 import { friendlyError } from "@/lib/user-error";
@@ -26,6 +28,21 @@ export type AppliedUpgrade = {
   version: number | null;
   appliedAt: string;
 };
+
+/** A request id in the chat's shape ("u" + time + random), valid for the server's id check. */
+function newRunId() {
+  return `u${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+}
+
+/**
+ * The AI run an upgrade is waiting on, and its newest recorded stage, for a
+ * banner to show ("planning the change…"). Fed by the run's own request id.
+ */
+function useRunStage(organizationId: string | undefined) {
+  const [runId, setRunId] = useState<string | null>(null);
+  const { latest } = useBuildProgress(organizationId, Boolean(runId), runId);
+  return { runId, setRunId, liveStage: runId ? (latest?.stage ?? null) : null };
+}
 
 /** The restore point Revora saves before every applied upgrade. */
 async function snapshotForRollback(orgId: string, label: string) {
@@ -60,7 +77,11 @@ async function writeProposal(
   proposal: UpgradeProposal,
   currentSeo: Record<string, unknown>,
   runEngine: (args: { data: { organizationId: string } }) => Promise<unknown>,
+  onRun: (runId: string | null) => void = () => undefined,
 ) {
+  // One request id per AI run: its plan and apply report progress on it, and
+  // the caller can show that run's live stage.
+  const runId = newRunId();
   const saveSettings = async (patch: Record<string, unknown>) => {
     const { error } = await supabase
       .from("website_settings")
@@ -90,12 +111,14 @@ async function writeProposal(
     // the business's own facts. No fill-in-the-blanks title is saved.
     const where = proposal.pageTitle ? `the "${proposal.pageTitle}" page` : "this page";
     const { runWebsiteTask } = await import("@/lib/site-agent.functions");
+    onRun(runId);
     await runWebsiteTask({
       data: {
         organizationId: orgId,
         instruction: `Write a search title and search description for ${where} that fit what the page offers, using only facts I have given.`,
+        requestId: runId,
       },
-    });
+    }).finally(() => onRun(null));
   } else if (proposal.kind === "page_index") {
     const { error } = await supabase
       .from("website_pages")
@@ -118,12 +141,14 @@ async function writeProposal(
           : "a strong call to action";
     const where = proposal.pageTitle ? `the "${proposal.pageTitle}" page` : "the home page";
     const { runWebsiteTask } = await import("@/lib/site-agent.functions");
+    onRun(runId);
     await runWebsiteTask({
       data: {
         organizationId: orgId,
         instruction: `The site review found that ${where} is missing ${need}. Design and add it where it works best for this site, matching the site's look.`,
+        requestId: runId,
       },
-    });
+    }).finally(() => onRun(null));
   } else if (proposal.kind === "rebuild_site") {
     await runEngine({ data: { organizationId: orgId } });
   }
@@ -141,15 +166,16 @@ export function useApplyUpgrade(
 ) {
   const queryClient = useQueryClient();
   const runEngine = useServerFn(runSiteGeneration);
+  const stage = useRunStage(organizationId);
 
-  return useMutation({
+  const mutation = useMutation({
     mutationFn: async (proposal: UpgradeProposal): Promise<AppliedUpgrade> => {
       const orgId = organizationId!;
       if (!proposal.applyable)
         throw new Error(proposal.needs ?? "This upgrade can't be applied automatically yet.");
 
       const restore = await snapshotForRollback(orgId, `Before: ${proposal.title}`);
-      await writeProposal(orgId, proposal, currentSeo, runEngine);
+      await writeProposal(orgId, proposal, currentSeo, runEngine, stage.setRunId);
 
       return {
         proposalId: proposal.id,
@@ -173,6 +199,8 @@ export function useApplyUpgrade(
     },
     onError: (error: Error) => toast.error(friendlyError(error, "Couldn't apply that upgrade.")),
   });
+  /** `liveStage`: the running AI step of this upgrade, from its own request id. */
+  return { ...mutation, liveStage: stage.liveStage };
 }
 
 export type BatchFixResult = {
@@ -197,8 +225,9 @@ export function useBatchFix(
 ) {
   const queryClient = useQueryClient();
   const runEngine = useServerFn(runSiteGeneration);
+  const stage = useRunStage(organizationId);
 
-  return useMutation({
+  const mutation = useMutation({
     mutationFn: async ({
       proposals,
       label,
@@ -228,7 +257,7 @@ export function useBatchFix(
 
       for (const proposal of safe) {
         try {
-          await writeProposal(orgId, proposal, currentSeo, runEngine);
+          await writeProposal(orgId, proposal, currentSeo, runEngine, stage.setRunId);
           applied.push({ id: proposal.id, title: proposal.title });
         } catch (error) {
           failed.push({
@@ -276,6 +305,8 @@ export function useBatchFix(
     },
     onError: (error: Error) => toast.error(friendlyError(error, "Couldn't run that optimisation.")),
   });
+  /** `liveStage`: the running AI step of the current fix, from its own request id. */
+  return { ...mutation, liveStage: stage.liveStage };
 }
 
 /** Restores the snapshot taken before an upgrade. */

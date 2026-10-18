@@ -55,6 +55,38 @@ export const getProspectClaim = createServerFn({ method: "GET" })
   });
 
 /**
+ * Public: whether a preview link (live, expired, revoked or claimed) belongs to
+ * a Jarvis prospect demo, so a dead link can address the business itself.
+ * Returns that one boolean and nothing else.
+ */
+export const prospectLinkState = createServerFn({ method: "GET" })
+  .validator((input: { token?: unknown } | undefined) => {
+    const token = input?.token;
+    return { token: isClaimToken(token) ? token : null };
+  })
+  .handler(async ({ data }): Promise<{ isProspect: boolean }> => {
+    if (!data.token) return { isProspect: false };
+    try {
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      const { data: link } = await supabaseAdmin
+        .from("website_preview_links")
+        .select("organization_id")
+        .eq("token", data.token)
+        .maybeSingle();
+      if (!link?.organization_id) return { isProspect: false };
+      const { data: settings } = await supabaseAdmin
+        .from("website_settings")
+        .select("generation")
+        .eq("organization_id", link.organization_id as string)
+        .maybeSingle();
+      const raw = (settings?.generation as Record<string, unknown> | null)?.["prospectDemo"];
+      return { isProspect: readProspectDemoMarker(raw) !== null };
+    } catch {
+      return { isProspect: false };
+    }
+  });
+
+/**
  * Signed-in: hands the prospect demo workspace to the caller and starts the
  * standard full-access trial. Atomic and single-use in the database.
  */
@@ -77,6 +109,17 @@ export const claimProspectDemo = createServerFn({ method: "POST" })
     if (error || typeof organizationId !== "string") {
       console.error("[claim] claim_prospect_demo failed", error?.code ?? error?.message ?? "empty");
       throw new Error(claimErrorMessage(error));
+    }
+    // Funnel visibility for the operator. Best-effort: the claim already
+    // committed, so a telemetry failure must never surface to the new owner.
+    try {
+      const { error: eventError } = await supabaseAdmin.from("marketing_conversions").insert({
+        event_name: "prospect_demo_claimed",
+        metadata: { organization_id: organizationId } as never,
+      });
+      if (eventError) console.warn("[claim] conversion event not recorded", eventError.message);
+    } catch (eventFailure) {
+      console.warn("[claim] conversion event not recorded", eventFailure instanceof Error ? eventFailure.message : eventFailure);
     }
     return { organizationId };
   });

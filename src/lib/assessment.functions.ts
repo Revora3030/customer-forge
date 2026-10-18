@@ -141,6 +141,35 @@ export const submitAssessment = createServerFn({ method: "POST" })
     });
     if (error) console.error("submitAssessment insert failed", error.message);
 
+    // Operator alert: Revora's own inbox hears about every new assessment lead,
+    // the same way contact requests do. Reply goes to the visitor; one alert per
+    // address per day. Never fails the visitor's submission.
+    try {
+      const { sendTemplateEmail } = await import("@/lib/email-templates/send-email");
+      const { REVORA } = await import("@/lib/brand");
+      const day = new Date().toISOString().slice(0, 10);
+      await sendTemplateEmail("lead-alert", REVORA.email, {
+        replyTo: data.answers.email,
+        idempotencyKey: `assessment-${data.answers.email}-${day}`,
+        templateData: {
+          businessName: "Revora Growth Systems",
+          kind: data.source === "website_audit" ? "New website audit request" : "New growth assessment",
+          leadName: data.answers.businessName || data.answers.email,
+          leadEmail: data.answers.email,
+          service: data.answers.industry || "",
+          message: [
+            `Score ${result.score} (${result.band}).`,
+            `Estimated missed revenue: $${result.missedRevenueMonthly}/month.`,
+            data.websiteUrl ? `Website: ${data.websiteUrl}` : "",
+          ]
+            .filter(Boolean)
+            .join(" "),
+        },
+      });
+    } catch (err) {
+      console.error("assessment operator alert failed", err instanceof Error ? err.message : err);
+    }
+
     // Nurture: email the results so the lead has the report even if they leave.
     let emailed = false;
     try {

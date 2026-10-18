@@ -62,14 +62,9 @@ function safeSeoRepair(
     };
   }
 
-  if (!page.seo_description?.trim() && page.title?.trim()) {
-    return {
-      type: "set_page",
-      pageId: page.id,
-      patch: { seo_description: page.title.trim().slice(0, 160) },
-    };
-  }
-
+  // A missing or duplicate search description is never filled with the page
+  // title (or any other template). It stays a "page_seo" finding
+  // (site-audit.ts) that the AI site agent writes and reviews via set_page.
   return null;
 }
 

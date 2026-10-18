@@ -22,6 +22,9 @@ import { SKELETON_CONTENT_POLL_MS, canvasStatusLine } from "@/components/app/liv
 const ACTIVE = new Set(["queued", "processing"]);
 
 type JobRow = {
+  id?: string | null;
+  /** The chat request that started this build, where the job records one. */
+  request_id?: string | null;
   status?: string | null;
   current_step?: string | null;
   progress?: number | null;
@@ -45,7 +48,10 @@ export function LiveCanvasSkeleton({
   const status = row?.status ?? null;
   const active = Boolean(status && ACTIVE.has(status));
   const stalled = jobLiveness(row, job.dataUpdatedAt || Date.now()) === "stalled";
-  const { latest } = useBuildProgress(organizationId, active);
+  // Only this build's own stages: the worker writes them under the job's
+  // request id (or the job id where none is recorded), so unrelated planner
+  // rows from the same workspace never mix in.
+  const { latest } = useBuildProgress(organizationId, active, row?.request_id ?? row?.id ?? null);
   const [device, setDevice] = useState<"desktop" | "phone">("desktop");
 
   // Pages can land before the job is marked complete; keep the content query

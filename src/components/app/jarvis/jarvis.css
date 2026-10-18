@@ -1,0 +1,66 @@
+/*
+ * Jarvis operator chat (/admin/jarvis). Scoped to [data-revora-jarvis] so it never
+ * reaches other admin pages or customer sites (.rv-site).
+ *
+ * The page fills the visible screen and does not scroll; only the conversation
+ * does. --jarvis-vh and --jarvis-top are set by use-jarvis-height.ts. The body
+ * already pads the bottom safe-area inset (styles.css), so the height leaves that
+ * inset to the body instead of padding the composer a second time.
+ */
+[data-revora-jarvis] {
+  --jarvis-user-bg: color-mix(in oklab, var(--primary) 14%, var(--card));
+  --jarvis-measure: 70ch;
+  height: calc(var(--jarvis-vh, 100dvh) - var(--jarvis-top, 4rem) - env(safe-area-inset-bottom, 0px));
+  min-height: 22rem;
+  min-width: 0;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+/* styles.css lets .truncate wrap inside .product-canvas on phones; Jarvis needs real truncation. */
+[data-revora-jarvis][data-revora-jarvis] .truncate {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Code and diffs scroll sideways instead of wrapping (styles.css forces pre-wrap on phones). */
+[data-revora-jarvis][data-revora-jarvis] pre,
+[data-revora-jarvis][data-revora-jarvis] pre code {
+  white-space: pre;
+  overflow-wrap: normal;
+  word-break: normal;
+}
+[data-revora-jarvis][data-revora-jarvis] pre {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+}
+
+[data-revora-jarvis] [data-jarvis-scroll] {
+  overscroll-behavior: contain;
+}
+
+/* Followup chips: a sideways scroller that fades at the edges instead of clipping. */
+[data-revora-jarvis] [data-jarvis-chips] {
+  scrollbar-width: none;
+  -webkit-mask-image: linear-gradient(to right, transparent 0, #000 12px, #000 calc(100% - 28px), transparent 100%);
+  mask-image: linear-gradient(to right, transparent 0, #000 12px, #000 calc(100% - 28px), transparent 100%);
+}
+[data-revora-jarvis] [data-jarvis-chips]::-webkit-scrollbar { display: none; }
+
+@media (max-width: 767px) {
+  /* 16px stops iOS from zooming into the field on focus. */
+  [data-revora-jarvis] textarea { font-size: 16px; }
+  /* Primary controls get a full 44px tap target on phones. */
+  [data-revora-jarvis] [data-jarvis-tap] { min-height: 44px; min-width: 44px; }
+}
+
+/* The Operations sheet and command palette are portalled outside the root. */
+[data-jarvis-sheet] [data-jarvis-tap] { min-height: 44px; min-width: 44px; }
+
+@media (prefers-reduced-motion: reduce) {
+  [data-revora-jarvis] .animate-bounce,
+  [data-revora-jarvis] .animate-pulse,
+  [data-revora-jarvis] .chat-rise { animation: none !important; }
+}

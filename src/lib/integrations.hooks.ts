@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { IntegrationFacts } from "@/lib/integrations";
+import { alertInbox } from "@/lib/lead-alert-recipient";
 
 /**
  * Reads the real facts behind the Integration Center. Every source that fails is
@@ -45,7 +46,7 @@ export function useIntegrationFacts(organizationId: string | undefined) {
           .gte("created_at", since),
         supabase
           .from("lead_alert_log")
-          .select("status, created_at")
+          .select("status, reason, created_at")
           .eq("organization_id", orgId)
           .order("created_at", { ascending: false })
           .limit(20),
@@ -62,11 +63,15 @@ export function useIntegrationFacts(organizationId: string | undefined) {
       if (site.error) unavailable.push("website");
       if (automations.error || runs.error) unavailable.push("automations");
 
-      const p = (profile.data ?? null) as Record<string, unknown> | null;
-      const alertEmail =
-        ["notification_email", "owner_email", "email"]
-          .map((key) => (typeof p?.[key] === "string" ? String(p[key]).trim() : ""))
-          .find((value) => value.length > 0) ?? null;
+      const p = (profile.data ?? null) as {
+        notification_email?: string | null;
+        owner_email?: string | null;
+        email?: string | null;
+        notify_on_lead?: boolean | null;
+      } | null;
+      // Same inbox, same order, same validation as the real sender; the on/off
+      // switch is reported separately so the card can say "switched off".
+      const alertEmail = p ? alertInbox(p) : null;
 
       const s = (site.data ?? null) as Record<string, unknown> | null;
       const seo = (s?.["seo"] ?? null) as Record<string, unknown> | null;
@@ -75,8 +80,10 @@ export function useIntegrationFacts(organizationId: string | undefined) {
       const failedRuns = (runs.data ?? []).filter(
         (run) => (run as { status?: string }).status === "failed",
       ).length;
-      const lastGoodAlert =
-        (alerts.data ?? []).find((row) => (row as { status?: string }).status === "sent") ?? null;
+      // The newest attempt decides health: an older success must never mask a
+      // newer failure.
+      const alertRows = (alerts.data ?? []) as { status?: string; reason?: string | null; created_at?: string }[];
+      const newestAlert = alertRows[0] ?? null;
 
       return {
         setupPaymentStatus:
@@ -84,8 +91,10 @@ export function useIntegrationFacts(organizationId: string | undefined) {
         subscriptionStatus:
           (org.data as { subscription_status?: string } | null)?.subscription_status ?? null,
         leadAlertsEmail: alertEmail,
-        leadAlertsEnabled: !!alertEmail && p?.["notify_on_lead"] !== false,
-        lastLeadAlertAt: (lastGoodAlert as { created_at?: string } | null)?.created_at ?? null,
+        leadAlertsEnabled: !!alertEmail && p?.notify_on_lead !== false,
+        lastLeadAlertAt: newestAlert?.created_at ?? null,
+        lastLeadAlertStatus: newestAlert?.status ?? null,
+        lastLeadAlertReason: newestAlert?.reason ?? null,
         customDomain: (s?.["custom_domain"] as string | null) ?? null,
         domainVerified: s?.["domain_verified"] === true,
         dnsOk: s?.["dns_ok"] === true,

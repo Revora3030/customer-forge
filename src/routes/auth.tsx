@@ -19,6 +19,7 @@ import {
   resolvePostLoginPath,
   setRememberPreference,
 } from "@/lib/auth-session";
+import { isSafeRedirect } from "@/lib/prospect-claim";
 
 type Search = { mode?: "signup" | "signin"; redirect?: string };
 
@@ -81,8 +82,9 @@ function AuthPage() {
 
   const goToWorkspace = useCallback(
     async (fallback?: string) => {
-      if (redirect) {
-        navigate({ to: redirect, replace: true });
+      if (redirect && isSafeRedirect(redirect)) {
+        // href keeps the query string (e.g. ?claim=<token>); `to` would drop it.
+        navigate({ href: redirect, replace: true });
         return;
       }
       const target = fallback ?? (await resolvePostLoginPath());

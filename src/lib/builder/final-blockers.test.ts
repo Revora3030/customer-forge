@@ -74,7 +74,7 @@ describe("visual check false positives", () => {
     // The shared sheet is hoisted to <head>; specificity (doubled attribute)
     // now guarantees the safeguards win over per-block [data-cn] rules.
     const src = read("src/components/site/CompositionRenderer.tsx");
-    expect(src).toContain("[data-composition][data-composition] h1{font-size:min(2.75rem,11vw)!important");
+    expect(src).toContain("[data-composition][data-composition] h1{font-size:min(var(--rv-mfs,2.75rem),2.75rem,11vw)!important;line-height:max(1.05,var(--rv-mlh,1.05))!important");
     expect(src).toContain('precedence="rv-cn"');
   });
 });

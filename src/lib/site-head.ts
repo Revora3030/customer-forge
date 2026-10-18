@@ -10,8 +10,14 @@
  * Every value comes from the owner's verified profile. Nothing is invented;
  * an unknown field is simply left out.
  */
-import { hoursDisplay } from "@/lib/builder/presentation";
+import { hoursDisplay, placeDisplay } from "@/lib/builder/presentation";
 import { weeklyHoursFromSummary } from "@/lib/booking-hours";
+import { readSiteChrome } from "@/lib/builder/site-chrome";
+import { readCopy } from "@/lib/site-engine";
+import { readSeo } from "@/lib/site-seo";
+import { compositionFonts, siteFontsHref } from "@/lib/site-theme";
+import { metaDescription, metaTitle } from "@/lib/seo";
+import { pageNavLabel } from "@/lib/website-content";
 
 type Profile = {
   tagline?: string | null;
@@ -305,4 +311,102 @@ export function shareImageFor(input: {
       if (https(url)) return url;
     }
   return null;
+}
+
+type TenantHeadPage = {
+  slug?: string | null;
+  title?: string | null;
+  kind?: string | null;
+  seo_title?: string | null;
+  seo_description?: string | null;
+  og_title?: string | null;
+  og_description?: string | null;
+  og_image_url?: string | null;
+  noindex?: boolean | null;
+};
+
+export type TenantHeadSite = {
+  org: { name: string };
+  profile?: (Profile & { font_preference?: string | null }) | null;
+  settings?: { generation?: unknown; seo?: unknown } | null;
+  reviews?: Review[];
+  services?: Service[];
+  content?: {
+    page?: TenantHeadPage | null;
+    sections?: { settings?: unknown; components?: unknown[] | null }[] | null;
+  } | null;
+};
+
+/**
+ * The one <head> every client page uses: the /s/ share address, the custom
+ * domain home, its inner pages and its /about, /contact and /pricing paths.
+ *
+ * Wording stays the AI- or owner-authored page SEO. Code only applies safety:
+ * word-boundary length limits, business-name de-duplication, noindex, and the
+ * share image / LocalBusiness / font extras every address must carry.
+ */
+export function tenantSiteHead(input: {
+  site: TenantHeadSite;
+  pageSlug?: string | null;
+  /** Absolute canonical URL of this page (also og:url). */
+  canonical: string;
+  /** Absolute home URL of the business, used for LocalBusiness data. */
+  businessUrl: string;
+  noindex?: boolean;
+}) {
+  const { site } = input;
+  const name = site.org.name;
+  const page = site.content?.page ?? null;
+  const isHome = page ? page.kind === "home" : !input.pageSlug || input.pageSlug === "home";
+  const city = placeDisplay(site.profile?.city);
+  const generated = readCopy((site.settings?.generation as { copy?: unknown } | null)?.copy);
+  const label = pageNavLabel(page?.title, name, page?.slug ?? input.pageSlug ?? null);
+
+  const fallbackTitle = isHome
+    ? generated?.metaTitle || `${name}${city ? ` — ${city}` : ""}`
+    : `${label} — ${name}`;
+  const title = metaTitle(page?.seo_title || fallbackTitle, name);
+  const rawDescription =
+    page?.seo_description ||
+    (isHome ? generated?.metaDescription || readSeo(site.settings?.seo).meta_description : null) ||
+    site.profile?.tagline ||
+    (isHome ? `${name}${city ? ` in ${city}` : ""}.` : `${label} from ${name}.`);
+  const description = metaDescription(rawDescription);
+  const sections = site.content?.sections;
+  const shareImage = shareImageFor({
+    ogImage: page?.og_image_url ?? null,
+    heroImage: site.profile?.hero_image_url ?? null,
+    sections: Array.isArray(sections) ? sections : [],
+  });
+  const extras = clientHeadExtrasSync(
+    site as HeadSite,
+    input.businessUrl,
+    compositionFonts,
+    siteFontsHref,
+    readSiteChrome,
+  );
+  const noindex = input.noindex === true || page?.noindex === true;
+
+  return {
+    meta: [
+      { title },
+      { name: "description", content: description },
+      { property: "og:title", content: page?.og_title || title },
+      { property: "og:description", content: page?.og_description || description },
+      { property: "og:type", content: "website" },
+      { property: "og:url", content: input.canonical },
+      { property: "og:site_name", content: name },
+      { name: "twitter:card", content: "summary_large_image" },
+      ...(shareImage
+        ? [
+            { property: "og:image", content: shareImage },
+            { name: "twitter:image", content: shareImage },
+          ]
+        : []),
+      ...(noindex ? [{ name: "robots", content: "noindex" }] : []),
+      ...extras.meta,
+    ],
+    scripts: extras.scripts,
+    links: [{ rel: "canonical", href: input.canonical }, ...extras.links],
+  };
 }

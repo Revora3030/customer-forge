@@ -251,3 +251,60 @@ export function metaDescription(text: string, max = 155): string {
   const lastSpace = cut.lastIndexOf(" ");
   return `${(lastSpace > max * 0.6 ? cut.slice(0, lastSpace) : cut).replace(/[\s,;:—-]+$/, "")}…`;
 }
+
+/**
+ * True when a router match renders a client's website, so the root head must
+ * not stamp Revora's own share image, Organization/WebSite records, site
+ * verification or Ads consent script onto it. Any public route whose loader
+ * returned a client `site` counts (custom-domain /about, /contact and
+ * /pricing included). The signed-in builder's private draft frame stays a
+ * Revora app surface.
+ */
+export function isClientSiteMatch(match: { routeId?: unknown; loaderData?: unknown }): boolean {
+  const routeId = String(match.routeId ?? "");
+  if (/^\/(s|p)\/\$/.test(routeId)) return true;
+  if (routeId.startsWith("/_authenticated")) return false;
+  const data = match.loaderData as { site?: unknown; pending?: boolean } | null | undefined;
+  if (!data || typeof data !== "object") return false;
+  if (data.site) return true;
+  // A client's custom domain whose site is not published yet.
+  return (routeId === "/" || routeId === "/$") && data.pending === true;
+}
+
+const escapeRegExp =(value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+/**
+ * A search title that fits the result line. The wording is the AI- or
+ * owner-authored title; this only makes it safe to show:
+ *
+ * - a doubled business-name suffix ("Services — Acme — Acme") collapses to one;
+ * - a trailing " — Acme" / " | Acme" is dropped when the name already appears
+ *   earlier in the title;
+ * - a title over `max` characters is cut at the last word boundary that fits,
+ *   never in the middle of a word.
+ */
+export function metaTitle(raw: string, businessName: string, max = 60): string {
+  let title = raw.replace(/\s+/g, " ").trim();
+  const name = businessName.replace(/\s+/g, " ").trim();
+  if (name) {
+    const sep = String.raw`\s*[—–|-]\s*`;
+    const quoted = escapeRegExp(name);
+    // " — Name — Name" (any number of repeats) → " — Name".
+    title = title.replace(new RegExp(`(?:${sep}${quoted}){2,}$`, "i"), (match) => {
+      const first = new RegExp(`^${sep}${quoted}`, "i").exec(match);
+      return first ? first[0] : match;
+    });
+    // "Name Services — Name" → "Name Services".
+    const suffix = new RegExp(`${sep}${quoted}$`, "i").exec(title);
+    if (suffix && suffix.index > 0) {
+      const head = title.slice(0, suffix.index);
+      if (head.toLowerCase().includes(name.toLowerCase())) title = head.trim();
+    }
+  }
+  if (title.length <= max) return title;
+  const window = title.slice(0, max + 1);
+  const lastSpace = window.lastIndexOf(" ");
+  // A single word longer than the limit has no boundary to cut at.
+  const cut = lastSpace > 0 ? window.slice(0, lastSpace) : title.slice(0, max);
+  return cut.replace(/[\s,;:|—–-]+$/, "").trim();
+}

@@ -132,7 +132,7 @@ export function useRunSiteEngine(organizationId: string | undefined) {
   const queryClient = useQueryClient();
   const run = useServerFn(runSiteGeneration);
   return useMutation({
-    mutationFn: async (vars?: { mode?: "safe" | "fresh_replace"; confirmation?: string }) =>
+    mutationFn: async (vars?: { mode?: "safe" | "fresh_replace"; confirmation?: string; requestId?: string }) =>
       run({ data: { organizationId: organizationId!, ...vars } }),
     onMutate: () => {
       void queryClient.invalidateQueries({ queryKey: ["generation_job", organizationId] });
@@ -167,13 +167,15 @@ export function useGenerateSectionsFromText(organizationId: string | undefined) 
   const run = useServerFn(runSiteGeneration);
 
   return useMutation({
-    mutationFn: async () => {
+    mutationFn: async (vars?: { requestId?: string }) => {
       if (!organizationId) throw new Error("Choose a workspace before generating your website.");
       const analysis = await analyze({ data: { organizationId } });
       await save({
         data: { organizationId, brief: analysis.brief, approved: true },
       });
-      return run({ data: { organizationId, mode: "safe" } });
+      return run({
+        data: { organizationId, mode: "safe", ...(vars?.requestId ? { requestId: vars.requestId } : {}) },
+      });
     },
     onSuccess: () => {
       toast.success("Sol is planning your pages", {

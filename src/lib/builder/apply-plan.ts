@@ -25,6 +25,7 @@
 
 import type { AgentAction } from "@/lib/site-agent";
 import { readBlockStyle, readComponentVisual } from "@/lib/site-style";
+import { LEGACY_CONTENT_KINDS } from "@/lib/builder/legacy-composition";
 
 /** Ids that really exist in the database right now, per table. */
 export type KnownTargets = {
@@ -252,6 +253,88 @@ export function dropUnchangedActions(
   }
 
   return { actions: out, unchanged: unchangedLabels.length, unchangedLabels };
+}
+
+/* ---------------------------- planner feedback ---------------------------- */
+
+/** A step the planner must re-author before the plan can be applied. */
+export type PlanFeedback = {
+  /** Index of the offending step in the plan as given. */
+  index: number;
+  type: AgentAction["type"];
+  /** The section/component id or temp_* ref the feedback is about. */
+  target: string;
+  reason: "needs_composition" | "image_without_media";
+  problem: string;
+};
+
+export const NEEDS_COMPOSITION_PROBLEM =
+  "new content sections need a set_composition: compose this section's layout yourself (set_composition targeting the same ref)";
+export const IMAGE_WITHOUT_MEDIA_PROBLEM = "pick a real photo from the media library or leave the image out";
+
+const IMAGE_COMPONENT_KINDS: ReadonlySet<string> = new Set(["image", "hero_image"]);
+
+const planRows = (plan: readonly unknown[] | { actions?: unknown }): Record<string, unknown>[] => {
+  const list = Array.isArray(plan) ? plan : Array.isArray((plan as { actions?: unknown }).actions) ? ((plan as { actions: unknown[] }).actions) : [];
+  return list.map((row) => (row && typeof row === "object" && !Array.isArray(row) ? (row as Record<string, unknown>) : {}));
+};
+const text = (value: unknown) => (typeof value === "string" ? value : "");
+
+/**
+ * Every new content section (a kind that would otherwise fall back to the
+ * built-in legacy look) must come with the AI's own layout. Returns one
+ * feedback item per add_section that has no set_composition for the same ref.
+ * Pure: the caller sends these back to the planner on the same request.
+ */
+export function missingCompositionFeedback(plan: readonly unknown[] | { actions?: unknown }): PlanFeedback[] {
+  const rows = planRows(plan);
+  const composed = new Set(rows.filter((row) => row["type"] === "set_composition").map((row) => text(row["sectionId"])).filter(Boolean));
+  const out: PlanFeedback[] = [];
+  rows.forEach((row, index) => {
+    if (row["type"] !== "add_section") return;
+    const kind = text(row["kind"]);
+    if (!LEGACY_CONTENT_KINDS.has(kind)) return;
+    const ref = text(row["ref"]);
+    if (ref && composed.has(ref)) return;
+    out.push({ index, type: "add_section", target: ref || kind, reason: "needs_composition", problem: NEEDS_COMPOSITION_PROBLEM });
+  });
+  return out;
+}
+
+/**
+ * Image items must show a real picture: an image component the plan adds or
+ * edits needs a picture source in the same plan (a generated picture for that
+ * exact item, or a media-library picture) or one it already has.
+ */
+export function imageWithoutMediaFeedback(
+  plan: readonly unknown[] | { actions?: unknown },
+  existing: ReadonlyMap<string, { kind: string; hasMedia: boolean }> = new Map(),
+): PlanFeedback[] {
+  const rows = planRows(plan);
+  const pictured = new Set<string>();
+  for (const row of rows) {
+    const id = text(row["componentId"]);
+    if (!id) continue;
+    if (row["type"] === "generate_component_image") pictured.add(id);
+    const patch = row["patch"] as Record<string, unknown> | undefined;
+    if (row["type"] === "set_component_visual" && text(patch?.["media_url"]).trim()) pictured.add(id);
+  }
+  const out: PlanFeedback[] = [];
+  rows.forEach((row, index) => {
+    if (row["type"] === "add_component") {
+      if (!IMAGE_COMPONENT_KINDS.has(text(row["kind"]))) return;
+      const ref = text(row["ref"]);
+      const own = text(row["media_url"]).trim() || text(row["mediaRef"]).trim();
+      if (own || (ref && pictured.has(ref))) return;
+      out.push({ index, type: "add_component", target: ref || text(row["kind"]), reason: "image_without_media", problem: IMAGE_WITHOUT_MEDIA_PROBLEM });
+    } else if (row["type"] === "set_component") {
+      const id = text(row["componentId"]);
+      const current = existing.get(id);
+      if (!current || !IMAGE_COMPONENT_KINDS.has(current.kind) || current.hasMedia || pictured.has(id)) return;
+      out.push({ index, type: "set_component", target: id, reason: "image_without_media", problem: IMAGE_WITHOUT_MEDIA_PROBLEM });
+    }
+  });
+  return out;
 }
 
 /* ------------------------------ messages ---------------------------------- */

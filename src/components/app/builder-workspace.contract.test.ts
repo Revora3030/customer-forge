@@ -23,4 +23,23 @@ describe("builder workspace integration contracts", () => {
     expect(css).toContain("prefers-reduced-motion: reduce");
     expect(shell).toContain('reduced ? "auto" : "smooth"');
   });
+  it("sizes the phone chat from its measured top, with one scroll region", () => {
+    expect(css).toContain("calc(var(--builder-visual-height, 100dvh) - var(--builder-chat-top, 12rem))");
+    expect(css).toContain("overscroll-behavior: contain");
+    expect(css).toContain('#website-assistant :is(.builder-prompt button, [data-tap="primary"]) { min-height: 44px; }');
+    expect(css).not.toMatch(/#website-assistant button \{ min-height: 44px; \}/);
+    const hook = readFileSync(new URL("./builder-chat/use-chat-top.ts", import.meta.url), "utf8");
+    expect(hook).toContain('root.style.setProperty("--builder-chat-top"');
+    expect(hook).toContain("new ResizeObserver(measure)");
+  });
+  it("keeps the topbar to one row that only pins from sm up", () => {
+    expect(shell).toContain('data-testid="builder-topbar"');
+    expect(shell).toContain("sm:sticky");
+    expect(shell).not.toMatch(/builder-project-actions"[^>]*w-full/);
+    expect(shell).toContain('className="hidden items-center gap-0.5 sm:flex"');
+  });
+  it("restores truncation and line clamps inside the builder", () => {
+    expect(css).toContain(".product-canvas [data-revora-builder-workspace] .truncate");
+    expect(css).toContain("-webkit-line-clamp: 2");
+  });
 });

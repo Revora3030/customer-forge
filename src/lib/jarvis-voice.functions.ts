@@ -8,6 +8,8 @@ const assertAdmin = async (context: { supabase: unknown; userId: unknown }) => {
   await assertSuperAdmin(context.supabase as Parameters<typeof assertSuperAdmin>[0], String(context.userId));
 };
 
+const ADMIN_BUDGET_REFUSED = "Today's ElevenLabs voice budget for Jarvis is used up (ELEVENLABS_ADMIN_DAILY_CHARS).";
+
 /**
  * ElevenLabs TTS is called only on the server. The API key is never returned
  * to the browser; the endpoint is available only to authenticated super-admins.
@@ -23,24 +25,12 @@ export const synthesizeJarvisVoice = createServerFn({ method: "POST" })
   })
   .handler(async ({ context, data }) => {
     await assertAdmin(context);
-    const { requestElevenLabsSpeech, VOICE_MAX_BYTES } = await import("./jarvis-voice.server");
+    const { requestElevenLabsSpeech, readAudio } = await import("./jarvis-voice.server");
+    const { reserveVoiceChars } = await import("./jarvis-voice-budget.server");
+    if (!(await reserveVoiceChars("admin", data.text.length)).allowed) throw new Error(ADMIN_BUDGET_REFUSED);
     const response = await requestElevenLabsSpeech(data.text, { stream: false });
-
-    const reader = response.body!.getReader();
-    const chunks: Uint8Array[] = [];
-    let total = 0;
-    try {
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        total += value.byteLength;
-        if (total > VOICE_MAX_BYTES) throw new Error("Generated voice response exceeded the safety size limit.");
-        chunks.push(value);
-      }
-    } finally {
-      reader.releaseLock();
-    }
-    if (total === 0) throw new Error("ElevenLabs returned empty audio.");
+    const chunks = await readAudio(response);
+    if (!chunks.length) throw new Error("ElevenLabs returned empty audio.");
     const audio = Buffer.concat(chunks.map((chunk) => Buffer.from(chunk))).toString("base64");
     return { audioBase64: audio, contentType: "audio/mpeg" as const, provider: "elevenlabs" as const };
   });
@@ -49,6 +39,7 @@ export const synthesizeJarvisVoice = createServerFn({ method: "POST" })
  * One signed, two-minute streaming link per sentence, minted in a single call.
  * The audio element plays each link while ElevenLabs is still generating it,
  * so Jarvis starts talking after the first words instead of the whole sentence.
+ * The stream route spends the 'admin' daily budget when a link is played.
  */
 export const jarvisVoiceLinks = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -65,31 +56,33 @@ export const jarvisVoiceLinks = createServerFn({ method: "POST" })
     const { voiceConfig } = await import("./jarvis-voice.server");
     const { signVoiceLink } = await import("./jarvis-voice-token.server");
     const { apiKey } = voiceConfig();
-    return { urls: await Promise.all(data.texts.map((text) => signVoiceLink(apiKey, text))) };
+    return { urls: await Promise.all(data.texts.map((text) => signVoiceLink(apiKey, text, "admin"))) };
   });
 
 export type JarvisVoiceStatus =
   | { connected: true; voiceId: string; voiceName: string; customVoice: boolean }
-  | { connected: false; reason: string };
+  | { connected: false; reason: string; code?: string };
 
 /**
- * Is Jarvis really speaking in the owner's ElevenLabs voice? Looks the voice
- * up with the server's key (no speech is generated, so it costs nothing) and
- * says plainly what's missing when it isn't.
+ * Can the server's key see the configured voice? Looks the voice up (no
+ * speech is generated, so it costs nothing) and says plainly what's missing
+ * when it can't. This does not prove speech works (quota, plan and tier only
+ * show on a real generation): testJarvisVoice does that, on a click.
  */
 export const jarvisVoiceStatus = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }): Promise<JarvisVoiceStatus> => {
     await assertAdmin(context);
-    const apiKey = process.env["ELEVENLABS_API_KEY"];
-    if (!apiKey) return { connected: false, reason: "ELEVENLABS_API_KEY isn't set in the server secrets, so Jarvis uses the browser voice." };
     const configured = process.env["ELEVENLABS_VOICE_ID"]?.trim() ?? "";
-    const { voiceConfig } = await import("./jarvis-voice.server");
+    const { voiceConfig, describeElevenLabsFailure, readErrorBody } = await import("./jarvis-voice.server");
+    if (!process.env["ELEVENLABS_API_KEY"]?.trim())
+      return { connected: false, code: "not_configured", reason: "ELEVENLABS_API_KEY isn't set in the server secrets, so Jarvis uses the browser voice." };
+    let apiKey: string;
     let voiceId: string;
     try {
-      voiceId = voiceConfig().voiceId;
+      ({ apiKey, voiceId } = voiceConfig());
     } catch (error) {
-      return { connected: false, reason: error instanceof Error ? error.message : "The voice settings are invalid." };
+      return { connected: false, code: "invalid_config", reason: error instanceof Error ? error.message : "The voice settings are invalid." };
     }
     try {
       const response = await fetch(`https://api.elevenlabs.io/v1/voices/${encodeURIComponent(voiceId)}`, {
@@ -97,10 +90,14 @@ export const jarvisVoiceStatus = createServerFn({ method: "GET" })
         signal: AbortSignal.timeout(8000),
         redirect: "manual",
       });
-      if (response.status === 401) return { connected: false, reason: "ElevenLabs rejected the API key. Check ELEVENLABS_API_KEY." };
-      if (response.status === 404 || response.status === 400)
-        return { connected: false, reason: `ElevenLabs has no voice ${voiceId} on this account. Set ELEVENLABS_VOICE_ID to your voice's ID.` };
-      if (!response.ok) return { connected: false, reason: `ElevenLabs answered ${response.status}. Try again shortly.` };
+      if (!response.ok) {
+        const failure = describeElevenLabsFailure(response.status, await readErrorBody(response));
+        if (failure.code === "missing_permissions")
+          return { connected: false, code: failure.code, reason: "The ElevenLabs key can't list voices; speech may still work. Use Test voice to check." };
+        if (response.status === 404 || response.status === 400 || failure.code === "voice_not_found")
+          return { connected: false, code: "voice_not_found", reason: `ElevenLabs has no voice ${voiceId} on this account. Set ELEVENLABS_VOICE_ID to your voice's ID.` };
+        return { connected: false, code: failure.code, reason: failure.message };
+      }
       const voice = (await response.json()) as { name?: unknown };
       return {
         connected: true,
@@ -109,6 +106,38 @@ export const jarvisVoiceStatus = createServerFn({ method: "GET" })
         customVoice: Boolean(configured),
       };
     } catch {
-      return { connected: false, reason: "Couldn't reach ElevenLabs just now." };
+      return { connected: false, code: "unreachable", reason: "Couldn't reach ElevenLabs just now." };
+    }
+  });
+
+export type JarvisVoiceTest = { ok: true; ms: number; bytes: number } | { ok: false; code: string; reason: string };
+
+const TEST_PHRASE = "Jarvis voice check.";
+
+/**
+ * A real, end-to-end ElevenLabs generation of a short phrase: the only check
+ * that proves quota, plan and key permissions allow speech. It spends a few
+ * characters, so it is super-admin only and runs only when the owner clicks
+ * Test voice (never on mount or a poll).
+ */
+export const testJarvisVoice = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }): Promise<JarvisVoiceTest> => {
+    await assertAdmin(context);
+    const { requestElevenLabsSpeech, readAudio, ElevenLabsError } = await import("./jarvis-voice.server");
+    const { reserveVoiceChars } = await import("./jarvis-voice-budget.server");
+    if (!process.env["ELEVENLABS_API_KEY"]?.trim())
+      return { ok: false, code: "not_configured", reason: "ELEVENLABS_API_KEY isn't set in the server secrets." };
+    if (!(await reserveVoiceChars("admin", TEST_PHRASE.length)).allowed) return { ok: false, code: "budget_exhausted", reason: ADMIN_BUDGET_REFUSED };
+    const started = Date.now();
+    try {
+      const response = await requestElevenLabsSpeech(TEST_PHRASE, { stream: false });
+      const chunks = await readAudio(response, 200_000);
+      const bytes = chunks.reduce((sum, chunk) => sum + chunk.byteLength, 0);
+      if (!bytes) return { ok: false, code: "bad_response", reason: "ElevenLabs returned empty audio." };
+      return { ok: true, ms: Date.now() - started, bytes };
+    } catch (error) {
+      if (error instanceof ElevenLabsError) return { ok: false, code: error.code, reason: error.message };
+      return { ok: false, code: "failed", reason: error instanceof Error ? error.message : "The voice check failed." };
     }
   });

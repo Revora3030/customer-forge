@@ -8,6 +8,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { readSeo } from "@/lib/site-seo";
+import { readComposition } from "./composition-tree";
 import {
   reviewLaunchQuality,
   type LaunchReview,
@@ -33,9 +34,22 @@ function countList(value: unknown): number {
   return Array.isArray(value) ? value.length : 0;
 }
 
+/**
+ * Site-level H1 count from per-page counts. Returns 1 only when every measured
+ * page has exactly one H1 (min === max === 1); a page with none, or with
+ * several, can no longer be hidden behind another page's single H1.
+ */
+export function foldH1Counts(perPage: number[]): number {
+  if (perPage.length === 0) return 0;
+  const min = Math.min(...perPage);
+  const max = Math.max(...perPage);
+  if (min === 1 && max === 1) return 1;
+  return min === 0 ? 0 : max;
+}
+
 /** Folds the stored per-page rows into one honest site-level measurement. */
-function foldMeasurement(
-  rows: Array<{ measured_at: string; measurements: unknown }>,
+export function foldMeasurement(
+  rows: Array<{ measured_at: string; measurements: unknown; page_slug?: string | null }>,
   copy: { title: string; description: string },
 ): LaunchReviewMeasurement | null {
   if (rows.length === 0) return null;
@@ -47,7 +61,8 @@ function foldMeasurement(
   let lowContrastCount = 0;
   let unlabeledControlCount = 0;
   let zoomBlocked = false;
-  let h1Count = 0;
+  // Newest row per page wins (rows arrive newest first).
+  const h1ByPage = new Map<string, number>();
   let imagesWithAlt = 0;
   let imagesMissingAlt = 0;
   let internalLinks = 0;
@@ -59,7 +74,10 @@ function foldMeasurement(
   let cls: number | null = null;
   let inp: number | null = null;
 
-  for (const row of rows) {
+  rows.forEach((row, rowIndex) => {
+    const pageKey = row.page_slug ? `page:${row.page_slug}` : `row:${rowIndex}`;
+    const seenPage = h1ByPage.has(pageKey);
+    let rowH1: number | null = null;
     const list = Array.isArray(row.measurements) ? row.measurements : [];
     for (const raw of list) {
       const m = (raw ?? {}) as Record<string, unknown>;
@@ -76,7 +94,7 @@ function foldMeasurement(
         unlabeledControlCount +=
           countList(a11y["unlabeledControls"]) + countList(a11y["unlabeledInputs"]);
         if (a11y["zoomBlocked"] === true) zoomBlocked = true;
-        h1Count = Math.max(h1Count, Number(a11y["h1Count"]) || 0);
+        rowH1 = Math.max(rowH1 ?? 0, Number(a11y["h1Count"]) || 0);
         imagesMissingAlt += countList(a11y["imagesMissingAlt"]);
         imagesWithAlt += 1;
       }
@@ -95,8 +113,10 @@ function foldMeasurement(
         if (Number.isFinite(rawInp)) inp = Math.max(inp ?? 0, rawInp);
       }
     }
-  }
+    if (!seenPage && rowH1 !== null) h1ByPage.set(pageKey, rowH1);
+  });
 
+  const h1Count = foldH1Counts([...h1ByPage.values()]);
   const altTotal = imagesWithAlt + imagesMissingAlt;
 
   return {
@@ -154,7 +174,7 @@ export const getLaunchReview = createServerFn({ method: "POST" })
     const { supabase } = context;
     const organizationId = data.organizationId;
 
-    const [profile, settings, pages, sections, services, reviews, media, visual] = await Promise.all(
+    const [profile, settings, pages, sections, services, reviews, media, visual, components] = await Promise.all(
       [
         supabase
           .from("business_profiles")
@@ -168,24 +188,32 @@ export const getLaunchReview = createServerFn({ method: "POST" })
           .select("seo, generation, custom_domain, domain_verified, domain_status, traffic_alerts_enabled")
           .eq("organization_id", organizationId)
           .maybeSingle(),
-        supabase.from("website_pages").select("slug, is_visible").eq("organization_id", organizationId),
+        supabase.from("website_pages").select("id, slug, title, is_visible").eq("organization_id", organizationId),
         supabase
           .from("website_sections")
-          .select("kind, is_visible, settings")
+          .select("id, page_id, kind, is_visible, settings, sort_order")
           .eq("organization_id", organizationId),
-        supabase.from("services").select("id").eq("organization_id", organizationId).eq("is_active", true),
+        supabase
+          .from("services")
+          .select("id, name, description, price, starting_price")
+          .eq("organization_id", organizationId)
+          .eq("is_active", true),
         supabase
           .from("reviews")
           .select("id")
           .eq("organization_id", organizationId)
           .eq("is_published", true),
-        supabase.from("media").select("id").eq("organization_id", organizationId),
+        supabase.from("media").select("id, url, source").eq("organization_id", organizationId),
         supabase
           .from("website_visual_reports")
-          .select("measured_at, measurements, report, revision_hash")
+          .select("measured_at, measurements, report, revision_hash, page_slug")
           .eq("organization_id", organizationId)
           .order("measured_at", { ascending: false })
           .limit(20),
+        supabase
+          .from("website_components")
+          .select("section_id, kind, media_url, is_visible")
+          .eq("organization_id", organizationId),
       ],
     );
 
@@ -233,7 +261,7 @@ export const getLaunchReview = createServerFn({ method: "POST" })
       contactRouteVerified: !!(text(p["phone"]).trim() || text(p["email"]).trim()),
       customDomainConnected: !!settings.data?.custom_domain && settings.data?.domain_verified === true,
       measurement: foldMeasurement(
-        (visual.data ?? []) as Array<{ measured_at: string; measurements: unknown }>,
+        (visual.data ?? []) as Array<{ measured_at: string; measurements: unknown; page_slug?: string | null }>,
         { title: text(seo.headline), description: text(seo.meta_description) },
       ),
     };
@@ -253,6 +281,46 @@ export const getLaunchReview = createServerFn({ method: "POST" })
         typeof revision === "string" ? revision : null,
       );
     }
+
+    // The stored site, so empty picture boxes, stock photos without credit,
+    // placeholder legal pages, priced services without inclusions and empty
+    // galleries block launch.
+    const allSections = (sections.data ?? []) as Array<{ id: string; page_id: string; kind: string; is_visible: boolean | null; settings: unknown; sort_order: number | null }>;
+    const allComponents = (components.data ?? []) as Array<{ section_id: string; kind: string; media_url: string | null; is_visible: boolean | null }>;
+    const pageList = (pages.data ?? []) as Array<{ id: string; slug: string; title: string | null; is_visible: boolean | null }>;
+    const sectionsFor = (pageId: string) =>
+      allSections
+        .filter((section) => section.page_id === pageId)
+        .sort((a, b) => Number(a.sort_order ?? 0) - Number(b.sort_order ?? 0));
+    facts.pages = pageList.map((page) => ({
+      slug: page.slug,
+      visible: page.is_visible,
+      sections: sectionsFor(page.id).map((section) => ({
+        kind: String(section.kind),
+        visible: section.is_visible,
+        components: allComponents
+          .filter((component) => component.section_id === section.id)
+          .map((component) => ({ kind: component.kind, media_url: component.media_url, visible: component.is_visible })),
+      })),
+    }));
+    facts.mediaSources = ((media.data ?? []) as Array<{ url: string | null; source: string | null }>)
+      .filter((row) => Boolean(row.url))
+      .map((row) => ({ url: row.url as string, source: row.source }));
+    facts.completeness = {
+      pages: pageList
+        .filter((page) => page.is_visible)
+        .map((page) => ({
+          slug: page.slug,
+          title: page.title,
+          trees: sectionsFor(page.id)
+            .filter((section) => section.is_visible !== false)
+            .map((section) => readComposition(section.settings))
+            .filter((tree): tree is NonNullable<typeof tree> => tree !== null),
+        })),
+      services: ((services.data ?? []) as Array<{ name: string; description: string | null; price: number | null; starting_price: number | null }>).map(
+        (service) => ({ name: service.name, description: service.description, price: service.price, startingPrice: service.starting_price }),
+      ),
+    };
 
     return reviewLaunchQuality(facts);
   });

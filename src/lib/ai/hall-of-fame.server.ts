@@ -4,7 +4,16 @@
  * free eligibility remain separate integration and verification requirements.
  */
 import { selectTier, type CollectivePurpose, type CollectiveTier, type TaskComplexity } from "@/lib/ai/collective";
-import { DEFAULT_SQUAD_SIZE, capabilityForPurpose, rankHallOfFame, roleForPurpose, type HallOfFameCandidate } from "@/lib/ai/hall-of-fame";
+import {
+  DEFAULT_CHAIN_MS,
+  DEFAULT_MAX_ATTEMPTS,
+  DEFAULT_SQUAD_SIZE,
+  UNLIMITED_SQUAD,
+  capabilityForPurpose,
+  rankHallOfFame,
+  roleForPurpose,
+  type HallOfFameCandidate,
+} from "@/lib/ai/hall-of-fame";
 import { freeModelForm, recordFreeModelOutcome } from "@/lib/ai/free-reputation";
 import { callCollective, type LunaSkipReason } from "@/lib/ai/luna.server";
 import { freeAiOnly, paidCollectiveAllowed } from "@/lib/ai/free-only-policy.server";
@@ -84,17 +93,58 @@ export type HallOfFameRequest = {
   maxOutputTokens?: number;
   organizationId?: string | null;
   userId?: string | null;
+  /**
+   * Explicit cap on how many members are tried (a caller that wants a quick
+   * independent opinion). Omitted: the whole capable, ready list is walked
+   * within the attempt and time bounds below.
+   */
   squadSize?: number;
   paidReason?: string | null;
   onAttempt?: (provider: string, model: string) => void;
+  /** A cancelled build stops the walk before the next member is called. */
+  signal?: AbortSignal;
 };
+
+function positiveEnvInt(name: string, fallback: number): number {
+  const parsed = Number(process.env[name] ?? "");
+  return Number.isFinite(parsed) && parsed >= 1 ? Math.floor(parsed) : fallback;
+}
+
+/** Max members tried in one walk (HALL_OF_FAME_MAX_ATTEMPTS, default 16). */
+export function hallOfFameMaxAttempts(): number {
+  return positiveEnvInt("HALL_OF_FAME_MAX_ATTEMPTS", DEFAULT_MAX_ATTEMPTS);
+}
+
+/** Wall-clock budget for one walk (HALL_OF_FAME_CHAIN_MS, default 150s). */
+export function hallOfFameChainMs(): number {
+  return positiveEnvInt("HALL_OF_FAME_CHAIN_MS", DEFAULT_CHAIN_MS);
+}
+
+/**
+ * A rejected key or a spent account fails the same way on every model of that
+ * provider, so the walk skips that provider's remaining models (as the
+ * router's chain does). Anything else is only that one model's failure.
+ */
+function providerWideFailure(error: unknown): boolean {
+  if (!error || typeof error !== "object" || !("category" in error)) return false;
+  const category = (error as { category: unknown }).category;
+  return category === "quota" || category === "unauthorized";
+}
+
+/** A member is not started with less than this much chain time left. */
+const MIN_MEMBER_MS = 1_000;
+
 export async function callHallOfFame(request: HallOfFameRequest): Promise<HallOfFameOutcome> {
-  const { callPinnedFreeModel } = await import("@/lib/ai/router.server");
-  const { role, capability, squad } = await hallOfFameSquad(
-    request.purpose,
-    request.squadSize ?? DEFAULT_SQUAD_SIZE,
-  );
+  const { callPinnedFreeModel, extractJsonObject } = await import("@/lib/ai/router.server");
+  // Rank the whole capable list; the walk itself is what is bounded.
+  const { role, capability, squad } = await hallOfFameSquad(request.purpose, UNLIMITED_SQUAD);
+  const maxAttempts =
+    request.squadSize === undefined ? hallOfFameMaxAttempts() : Math.max(1, Math.floor(request.squadSize));
+  const chainMs = hallOfFameChainMs();
+  const walkStarted = Date.now();
+  const deadProviders = new Set<string>();
   const attempts: HallOfFameAttempt[] = [];
+  let stopReason: string | null = null;
   const finish = (answeredBy: string | null) => recordRun({
     at: Date.now(),
     purpose: request.purpose,
@@ -114,6 +164,20 @@ export async function callHallOfFame(request: HallOfFameRequest): Promise<HallOf
     };
   }
   for (const member of squad) {
+    if (attempts.length >= maxAttempts) {
+      stopReason = `attempt limit ${maxAttempts} reached`;
+      break;
+    }
+    if (request.signal?.aborted) {
+      stopReason = "request cancelled";
+      break;
+    }
+    const remainingMs = chainMs - (Date.now() - walkStarted);
+    if (remainingMs < MIN_MEMBER_MS) {
+      stopReason = `chain deadline ${Math.round(chainMs / 1000)}s reached`;
+      break;
+    }
+    if (deadProviders.has(member.provider)) continue;
     const started = Date.now();
     try {
       request.onAttempt?.(member.provider, member.model);
@@ -131,12 +195,18 @@ export async function callHallOfFame(request: HallOfFameRequest): Promise<HallOf
             { role: "system", content: request.system },
             { role: "user", content: request.user },
           ],
+          // A member may not outlive the walk's own deadline (the router
+          // never raises this above its own per-call limit).
+          timeoutMs: remainingMs,
           ...(request.json === true ? { json: true } : {}),
           ...(request.maxOutputTokens === undefined ? {} : { maxOutputTokens: request.maxOutputTokens }),
         },
       );
       const text = result.text.trim();
-      const usable = text.length > 0 && (request.json !== true || result.data !== null);
+      // A JSON answer in odd packaging (prose, fences, thinking tags) is
+      // recovered with the router's tolerant parser before it counts as unusable.
+      const usable =
+        text.length > 0 && (request.json !== true || result.data !== null || extractJsonObject(text) !== null);
       recordFreeModelOutcome({
         provider: member.provider,
         model: member.model,
@@ -157,6 +227,7 @@ export async function callHallOfFame(request: HallOfFameRequest): Promise<HallOf
     } catch (error) {
       const latencyMs = Date.now() - started;
       recordFreeModelOutcome({ provider: member.provider, model: member.model, ok: false, latencyMs });
+      if (providerWideFailure(error)) deadProviders.add(member.provider);
       attempts.push({
         provider: member.provider,
         model: member.model,
@@ -166,11 +237,12 @@ export async function callHallOfFame(request: HallOfFameRequest): Promise<HallOf
       });
     }
   }
+  // Fails closed: no deterministic substitute when the squad runs dry.
   finish(null);
   return {
     ok: false,
     reason: "squad_exhausted",
-    detail: `${attempts.length} free model(s) tried, none could answer`,
+    detail: `${attempts.length} free model(s) tried, none could answer${stopReason ? ` (${stopReason})` : ""}`,
     attempts,
   };
 }
@@ -248,6 +320,7 @@ async function callBestThinkerInner(request: {
     ...(request.organizationId === undefined ? {} : { organizationId: request.organizationId }),
     ...(request.userId === undefined ? {} : { userId: request.userId }),
     ...(request.onAttempt === undefined ? {} : { onAttempt: request.onAttempt }),
+    ...(request.signal ? { signal: request.signal } : {}),
     paidReason: handoverReason,
   });
   if (free.ok) {

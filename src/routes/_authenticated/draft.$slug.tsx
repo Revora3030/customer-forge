@@ -93,8 +93,11 @@ export function DraftMessage({
  */
 export function DraftUpdatingBanner({
   job,
+  held = false,
 }: {
   job: { currentStep: string | null; progress: number } | null | undefined;
+  /** The preview shows the pre-rebuild site while a fresh rebuild runs. */
+  held?: boolean;
 }) {
   const progress = Math.min(100, Math.max(5, job?.progress ?? 0));
   // The job stores a step KEY ("wording"); show the owner the readable label.
@@ -115,6 +118,11 @@ export function DraftUpdatingBanner({
         </span>
         <span className="min-w-0 flex-1 break-words leading-snug">
           <span className="font-medium">Sol is drafting revisions…</span>
+          {held ? (
+            <span className="block text-muted-foreground" data-testid="draft-held-note">
+              Showing your current site; the new version appears when it is ready.
+            </span>
+          ) : null}
           {step ? (
             <span className="block text-muted-foreground">
               {step} · {Math.round(job?.progress ?? 0)}%
@@ -181,7 +189,7 @@ function DraftHomeRouteContent() {
   if (result?.site && sections.length > 0 && (result.status === "pending" || result.status === "ready")) {
     return (
       <>
-        {result.status === "pending" ? <DraftUpdatingBanner job={result.job} /> : null}
+        {result.status === "pending" ? <DraftUpdatingBanner job={result.job} held={result.held} /> : null}
         <PreviewModeContext.Provider value={true}>
           <SiteBaseContext.Provider value={`/draft/${encodeURIComponent(result.site.org.slug)}`}>
             <PublicSiteView site={result.site} preview />

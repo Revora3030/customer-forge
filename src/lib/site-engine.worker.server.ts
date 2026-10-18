@@ -96,13 +96,15 @@ async function rollbackFreshBuild(
   db: Db,
   input: { orgId: string; backupId: string; userId: string | null; message: string },
 ): Promise<{ restored: boolean; restoreError: string | null }> {
-  const { restoreBackup } = await import("@/lib/backup.server");
+  // Website-only: the previous pages, settings and brand come back; leads,
+  // bookings, quote requests and uploads that arrived since stay untouched.
+  const { restoreWebsiteFromBackup } = await import("@/lib/backup.server");
   let restore: unknown = null;
   let restoreError: string | null = null;
   try {
-    restore = await restoreBackup(db, input.backupId, {
-      ...(input.userId ? { userId: input.userId } : {}),
-    });
+    const outcome = await restoreWebsiteFromBackup(db, input.backupId, input.orgId);
+    restore = outcome;
+    if (!outcome.restored) restoreError = outcome.reason ?? "Rollback failed.";
   } catch (error) {
     restoreError = error instanceof Error ? error.message : "Rollback failed.";
   }
@@ -123,6 +125,427 @@ async function rollbackFreshBuild(
   } as never);
   await clearPendingBuild(db, input.orgId);
   return { restored: restoreError === null, restoreError };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+/**
+ * The generation written when a build starts materializing. It keeps
+ * everything already there and, for a fresh rebuild, KEEPS the pendingBuild
+ * marker (stamped with this job) so a retry of the same job after a crash
+ * still runs as fresh_replace and can still find its restore point. The
+ * marker is removed only when the build settles: the final save, the
+ * rollback, or settleAbandonedFreshRebuild.
+ */
+export function materializingGeneration(
+  prior: Record<string, unknown> | null,
+  jobId: string,
+  pendingBuild: Record<string, unknown> | null,
+  freshReplace: boolean,
+  nowIso: string,
+): Record<string, unknown> {
+  return {
+    ...(prior ?? {}),
+    jobId,
+    buildState: "materializing",
+    buildStartedAt: nowIso,
+    ...(freshReplace && pendingBuild ? { pendingBuild: { ...pendingBuild, jobId } } : {}),
+  };
+}
+
+/**
+ * Decides how a claimed job builds from the stored generation. A marker
+ * tagged with this job (or an untagged legacy marker that passes validation)
+ * makes it a fresh_replace. A marker tagged with ANOTHER job is left over from
+ * a rebuild that stopped; it is reported so it can be settled, then cleared.
+ */
+export function resolveBuildMode(
+  priorGeneration: Record<string, unknown> | null,
+  job: { id: string; created_by?: string | null },
+): { freshReplace: boolean; foreignMarkerJobId: string | null } {
+  const marker = priorGeneration?.["pendingBuild"];
+  const markerJobId = isRecord(marker) ? marker["jobId"] : undefined;
+  if (typeof markerJobId === "string" && markerJobId !== job.id) {
+    return { freshReplace: false, foreignMarkerJobId: markerJobId };
+  }
+  const pending = readPendingBuild(marker, { created_by: job.created_by ?? null });
+  return { freshReplace: pending?.mode === "fresh_replace", foreignMarkerJobId: null };
+}
+
+/** The platform's own default typeface, seeded on every profile; not an owner request. */
+export function isPlatformDefaultFont(value: unknown): boolean {
+  return typeof value === "string" && value.trim() === "Space Grotesk";
+}
+
+export type SiteMediaClass = "owner" | "generated" | "stock" | "skip";
+
+/**
+ * Provenance of one media row for placement on the site. Only "owner" rows
+ * are the business's own photos. AI pictures saved without a source (older
+ * Image Studio rows named ai-… / revora-image…) are generated, never owner.
+ */
+export function classifySiteMediaRow(row: {
+  source?: string | null;
+  file_name?: string | null;
+  category?: string | null;
+  url?: string | null;
+}): SiteMediaClass {
+  const isPicture =
+    Boolean(row.url) &&
+    // A logo is the brand mark, shown in the header — never a page photo.
+    String(row.category ?? "").toLowerCase() !== "logo" &&
+    // Video clips are not pictures; an <img> of an .mp4 shows nothing.
+    !/\.(mp4|webm|mov|m4v)(\?|$)/i.test(String(row.url));
+  if (!isPicture) return "skip";
+  const source = row.source == null ? "" : String(row.source).trim();
+  if (source === "generated" || source === "ai") return "generated";
+  if (!source && /^(ai-|revora-image)/i.test(String(row.file_name ?? ""))) return "generated";
+  if (source.startsWith("stock")) return "stock";
+  return "owner";
+}
+
+const REQUEST_ID_PATTERN = /^[A-Za-z0-9_-]{4,80}$/;
+
+function isMissingColumnError(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const { code, message } = error as { code?: unknown; message?: unknown };
+  if (code === "42703" || code === "PGRST204") return true;
+  return typeof message === "string" && /column .* does not exist|could not find the '.*' column/i.test(message);
+}
+
+/**
+ * The chat request that started this job, so worker progress is recorded
+ * under the same run id the chat shows. Null when the job has none, or when
+ * the request_id column has not been migrated yet (the job id is used then).
+ */
+export async function readJobRequestId(db: Db, jobId: string): Promise<string | null> {
+  try {
+    const { data, error } = await db
+      .from("generation_jobs")
+      .select("request_id")
+      .eq("id", jobId)
+      .maybeSingle();
+    if (error) {
+      if (!isMissingColumnError(error))
+        console.warn(`[site-engine] request id for job ${jobId} unreadable: ${error.message}`);
+      return null;
+    }
+    const value = (data as { request_id?: unknown } | null)?.request_id;
+    return typeof value === "string" && REQUEST_ID_PATTERN.test(value) ? value : null;
+  } catch {
+    return null;
+  }
+}
+
+export type AbandonedJob = {
+  id: string;
+  organization_id: string;
+  created_by: string | null;
+  created_at: string;
+};
+
+export type SettleOutcome =
+  | { skipped: true; reason: string }
+  | { skipped: false; restored: boolean; disturbed: boolean; reason: string | null; backupId: string | null };
+
+/** Number of pages the backup holds, or null when it cannot be read. */
+async function backupPageCount(db: Db, backupId: string, orgId: string): Promise<number | null> {
+  const { data, error } = await db
+    .from("data_backups")
+    .select("id, pages:snapshot->website->pages")
+    .eq("id", backupId)
+    .eq("organization_id", orgId)
+    .maybeSingle();
+  if (error || !data) return null;
+  const pages = (data as { pages?: unknown }).pages;
+  return Array.isArray(pages) ? pages.length : null;
+}
+
+/**
+ * Settles a fresh rebuild whose worker is gone (the job was closed as failed
+ * or cancelled without its own cleanup running). Single-flight: the marker is
+ * claimed with a compare-and-set update, so two sweeps never both restore.
+ *
+ * When the website was disturbed (pages written since the job started, or
+ * pages missing compared with the backup), ONLY the website is restored from
+ * the rebuild's backup; leads, bookings and uploads are never touched. When it
+ * was not, only this job's unused generated first-build pictures are removed.
+ */
+export async function settleAbandonedFreshRebuild(db: Db, job: AbandonedJob): Promise<SettleOutcome> {
+  const orgId = job.organization_id;
+  const { data: settings, error: readError } = await db
+    .from("website_settings")
+    .select("generation")
+    .eq("organization_id", orgId)
+    .maybeSingle();
+  if (readError) return { skipped: true, reason: `generation unreadable: ${readError.message}` };
+  const generation = isRecord(settings?.generation) ? (settings.generation as Record<string, unknown>) : {};
+  const marker = isRecord(generation["pendingBuild"]) ? generation["pendingBuild"] : null;
+  // Only a fresh_replace marker tagged with THIS job proves it was a fresh
+  // rebuild and names its own restore point. Every build writes the
+  // "materializing" state, and guessing a backup by label and time could
+  // restore an earlier rebuild's backup over a newer site, so a build without
+  // its own marker is left to the orphan cleanup.
+  const markerMatches = marker?.["jobId"] === job.id;
+  if (!markerMatches) return { skipped: true, reason: "no fresh rebuild marker for this build" };
+  const backupId: string | null = isUuid(marker?.["backupId"]) ? (marker?.["backupId"] as string) : null;
+
+  // Claim: remove the marker only if it still names this job.
+  const ownsBuildState = generation["jobId"] === job.id;
+  const cleared = withoutPendingBuild(generation);
+  if (ownsBuildState) {
+    delete cleared["buildState"];
+    delete cleared["buildStartedAt"];
+  }
+  const claimBase = db
+    .from("website_settings")
+    .update({ generation: cleared } as never)
+    .eq("organization_id", orgId);
+  const claimQuery = claimBase.filter("generation->pendingBuild->>jobId", "eq", job.id);
+  const { data: claimed, error: claimError } = await claimQuery.select("organization_id");
+  if (claimError || !claimed?.length) return { skipped: true, reason: "already settled" };
+
+  const [newer, older, expected] = await Promise.all([
+    db
+      .from("website_pages")
+      .select("id", { count: "exact", head: true })
+      .eq("organization_id", orgId)
+      .gte("created_at", job.created_at),
+    db
+      .from("website_pages")
+      .select("id", { count: "exact", head: true })
+      .eq("organization_id", orgId)
+      .lt("created_at", job.created_at),
+    backupId ? backupPageCount(db, backupId, orgId) : Promise.resolve(null),
+  ]);
+  // An unreadable count is treated as disturbed: restoring an intact site
+  // from its own backup changes nothing, skipping a needed restore loses it.
+  const disturbed =
+    Boolean(newer.error || older.error) ||
+    (newer.count ?? 0) > 0 ||
+    (expected !== null && (older.count ?? 0) < expected);
+
+  let ok = true;
+  let reason: string | null = null;
+  if (disturbed) {
+    if (!backupId) {
+      ok = false;
+      reason = "no backup was recorded for this rebuild";
+    } else {
+      try {
+        const { restoreWebsiteFromBackup } = await import("@/lib/backup.server");
+        const outcome = await restoreWebsiteFromBackup(db, backupId, orgId);
+        ok = outcome.restored;
+        reason = outcome.restored ? null : (outcome.reason ?? "unknown error");
+      } catch (error) {
+        ok = false;
+        reason = error instanceof Error ? error.message : "unknown error";
+      }
+    }
+  } else {
+    reason = "the website was not changed; only unused generated pictures were removed";
+    const pictures = await db
+      .from("media")
+      .select("id, url")
+      .eq("organization_id", orgId)
+      .eq("source", "generated")
+      .ilike("file_name", "first-build-%")
+      .gte("created_at", job.created_at)
+      .limit(200);
+    const rows = ((pictures.data ?? []) as { id: string; url: string | null }[]).filter((row) => row.id);
+    if (!pictures.error && rows.length) {
+      const urls = rows.map((row) => row.url).filter((url): url is string => Boolean(url));
+      const refs = urls.length
+        ? await db.from("website_components").select("media_url").eq("organization_id", orgId).in("media_url", urls)
+        : { data: [] as { media_url: string | null }[], error: null };
+      if (!refs.error) {
+        const used = new Set(((refs.data ?? []) as { media_url: string | null }[]).map((row) => row.media_url));
+        const unused = rows.filter((row) => !row.url || !used.has(row.url));
+        if (unused.length) {
+          const { cleanupFirstBuildImages } = await import("@/lib/builder/first-build-images.server");
+          await cleanupFirstBuildImages(
+            db,
+            orgId,
+            unused.map((row) => ({ path: row.url ?? "", mediaId: row.id })) as unknown as Parameters<
+              typeof cleanupFirstBuildImages
+            >[2],
+          ).catch(() => undefined);
+        }
+      }
+    }
+  }
+
+  await db.from("ai_generations").insert({
+    organization_id: orgId,
+    job_id: job.id,
+    kind: "fresh_rebuild_rollback",
+    model: "revora-backup",
+    instruction: null,
+    result: { restored: ok && disturbed, disturbed, reason, backupId, at: new Date().toISOString() } as unknown as never,
+    created_by: job.created_by,
+  } as never);
+
+  const note = ok
+    ? disturbed
+      ? `Previous website restored from backup ${backupId}.`
+      : `Previous website kept unchanged; backup ${backupId} is in History.`
+    : `Rollback failed: ${reason}; restore backup ${backupId ?? "(none recorded)"} from History.`;
+  const { data: current } = await db
+    .from("generation_jobs")
+    .select("error_message")
+    .eq("id", job.id)
+    .eq("organization_id", orgId)
+    .maybeSingle();
+  const existing = String((current as { error_message?: unknown } | null)?.error_message ?? "").trim();
+  await db
+    .from("generation_jobs")
+    .update({ error_message: existing ? `${existing} ${note}` : note } as never)
+    .eq("id", job.id)
+    .eq("organization_id", orgId)
+    .in("status", ["failed", "cancelled"]);
+
+  if (!ok) {
+    await db.from("notifications").insert({
+      organization_id: orgId,
+      title: "Your previous website needs restoring",
+      body: `A fresh rebuild stopped and Revora couldn't put your previous website back automatically. Restore backup ${backupId ?? "from before the rebuild"} from History. Your leads and bookings were not affected.`,
+      kind: "website",
+      link: "/app/website",
+    } as never);
+    const { captureError } = await import("@/lib/monitoring.server");
+    await captureError(new Error(`Fresh rebuild rollback failed for job ${job.id}: ${reason}`), {
+      organizationId: orgId,
+      source: "server",
+      context: { jobId: job.id, backupId, userId: job.created_by },
+    });
+  }
+  return { skipped: false, restored: ok && disturbed, disturbed, reason, backupId };
+}
+
+async function settleQuietly(db: Db, jobs: AbandonedJob[]) {
+  for (const job of jobs.slice(0, 2)) {
+    try {
+      await settleAbandonedFreshRebuild(db, job);
+    } catch (error) {
+      console.warn(`[site-engine] settling abandoned fresh rebuild ${job.id} failed`, error);
+    }
+  }
+}
+
+/**
+ * A cancelled fresh rebuild whose worker never reached a fence (it was dead)
+ * keeps its marker. Once the lease plus the stall grace has passed since the
+ * cancel, no live worker can still be settling it, so it is settled here.
+ * Only jobs whose marker still names them are read, so settled ones are never
+ * re-read.
+ */
+export async function sweepCancelledFreshRebuilds(db: Db, organizationId?: string) {
+  const threshold = new Date(Date.now() - (LEASE_SECONDS * 1000 + STALLED_LEASE_GRACE_MS)).toISOString();
+  let pendingMarkers = db
+    .from("website_settings")
+    .select("organization_id, marker_job:generation->pendingBuild->>jobId")
+    .not("generation->pendingBuild->>jobId", "is", null)
+    .limit(20);
+  if (organizationId) pendingMarkers = pendingMarkers.eq("organization_id", organizationId);
+  let materializingMarkers = db
+    .from("website_settings")
+    .select("organization_id, marker_job:generation->>jobId")
+    .filter("generation->>buildState", "eq", "materializing")
+    .limit(20);
+  if (organizationId) materializingMarkers = materializingMarkers.eq("organization_id", organizationId);
+  const [pending, materializing] = await Promise.all([pendingMarkers, materializingMarkers]);
+  const jobIds = [
+    ...new Set(
+      [...((pending.data ?? []) as { marker_job?: unknown }[]), ...((materializing.data ?? []) as { marker_job?: unknown }[])]
+        .map((row) => row.marker_job)
+        .filter(isUuid),
+    ),
+  ];
+  if (!jobIds.length) return;
+  const { data: jobs, error } = await db
+    .from("generation_jobs")
+    .select("id, organization_id, created_by, created_at")
+    .eq("status", "cancelled")
+    .lt("cancel_requested_at", threshold)
+    .in("id", jobIds)
+    .limit(2);
+  if (error) {
+    console.warn("[site-engine] cancelled fresh rebuild sweep failed", error.message);
+    return;
+  }
+  await settleQuietly(db, (jobs ?? []) as AbandonedJob[]);
+}
+
+/** Collaborators of a failed attempt's cleanup, injectable for tests. */
+/** Removes this job's fresh-rebuild marker only if it still names this job; true when claimed. */
+async function claimFreshMarker(db: Db, orgId: string, jobId: string): Promise<boolean> {
+  const { data } = await db.from("website_settings").select("generation").eq("organization_id", orgId).maybeSingle();
+  const generation = isRecord(data?.generation) ? (data.generation as Record<string, unknown>) : {};
+  const marker = isRecord(generation["pendingBuild"]) ? generation["pendingBuild"] : null;
+  if (marker?.["jobId"] !== jobId) return false;
+  const { data: claimed, error } = await db
+    .from("website_settings")
+    .update({ generation: withoutPendingBuild(generation) } as never)
+    .eq("organization_id", orgId)
+    .filter("generation->pendingBuild->>jobId", "eq", jobId)
+    .select("organization_id");
+  return !error && Boolean(claimed?.length);
+}
+
+export type AttemptFailureDeps = {
+  cleanupImages: (assets: import("@/lib/builder/first-build-images.types").FirstBuildImageAsset[]) => Promise<unknown>;
+  rollback: (backupId: string, message: string) => Promise<{ restored: boolean; restoreError: string | null }>;
+  /**
+   * Claims the fresh-rebuild marker for this job (compare-and-set). Only the
+   * attempt that still owns the marker may restore; a newer build that already
+   * took over keeps its pages. Omitted means owned (tests).
+   */
+  claimMarker?: () => Promise<boolean>;
+};
+
+/**
+ * What a failed attempt cleans up before the error leaves runJob. A
+ * superseded attempt (StaleAttemptError on a job that was NOT cancelled) owns
+ * nothing any more: a newer attempt may be reusing its pictures and writing
+ * the site, so it rethrows without cleanup or rollback and the drain skips it.
+ * A cancelled or genuinely failed attempt removes its AI pictures and, for a
+ * fresh rebuild, restores the previous website.
+ */
+export async function settleFailedAttempt(
+  db: Db,
+  input: {
+    error: unknown;
+    jobId: string;
+    generatedAssets: import("@/lib/builder/first-build-images.types").FirstBuildImageAsset[];
+    freshReplace: boolean;
+    backupId: string | null;
+  },
+  deps: AttemptFailureDeps,
+): Promise<never> {
+  const { error } = input;
+  if (error instanceof StaleAttemptError) {
+    const { data: latest } = await db.from("generation_jobs").select("status").eq("id", input.jobId).maybeSingle();
+    if ((latest as { status?: string } | null)?.status !== "cancelled") throw error;
+  }
+  if (input.generatedAssets.length) await deps.cleanupImages(input.generatedAssets).catch(() => undefined);
+  const message = error instanceof Error ? error.message : "Generation failed.";
+  if (input.freshReplace && input.backupId) {
+    if (deps.claimMarker && !(await deps.claimMarker())) {
+      // Another build (or the abandoned-rebuild sweep) already settled this
+      // rebuild; restoring now could overwrite the newer site.
+      throw error;
+    }
+    const rollback = await deps.rollback(input.backupId, message);
+    throw new FreshRebuildRollbackError(
+      rollback.restored
+        ? `${message} The previous website was restored from backup ${input.backupId}.`
+        : `${message} Rollback also failed: ${rollback.restoreError ?? "unknown error"}.`,
+      input.backupId,
+    );
+  }
+  throw error;
 }
 
 export type QueueState = {
@@ -306,8 +729,9 @@ export async function closeAbandonedJobs(db: Db, organizationId?: string) {
     .gte("attempts", MAX_ATTEMPTS)
     .lt("lease_expires_at", now);
   if (organizationId) query = query.eq("organization_id", organizationId);
-  const { error } = await query;
+  const { data: closedRows, error } = await query.select(ABANDONED_JOB_COLUMNS);
   if (error) console.warn("[site-engine] abandoned job sweep failed", error.message);
+  const closed: AbandonedJob[] = [...((closedRows ?? []) as AbandonedJob[])];
 
   // A retryable provider error can leave the final attempt queued. It is no
   // longer claimable, so close it without waiting for another Build click.
@@ -323,9 +747,10 @@ export async function closeAbandonedJobs(db: Db, organizationId?: string) {
     .eq("status", "queued")
     .gte("attempts", MAX_ATTEMPTS);
   if (organizationId) exhausted = exhausted.eq("organization_id", organizationId);
-  const exhaustedResult = await exhausted;
+  const exhaustedResult = await exhausted.select(ABANDONED_JOB_COLUMNS);
   if (exhaustedResult.error)
     console.warn("[site-engine] exhausted queued job sweep failed", exhaustedResult.error.message);
+  closed.push(...((exhaustedResult.data ?? []) as AbandonedJob[]));
 
   // 2. A processing row with NO lease at all can never be claimed by the
   //    expired-lease check (null is not "< now" in SQL). Re-queue it if it has
@@ -357,17 +782,27 @@ export async function closeAbandonedJobs(db: Db, organizationId?: string) {
     .gte("attempts", MAX_ATTEMPTS)
     .lt("updated_at", staleBefore);
   if (organizationId) orphanFail = orphanFail.eq("organization_id", organizationId);
-  const orphanFailResult = await orphanFail;
+  const orphanFailResult = await orphanFail.select(ABANDONED_JOB_COLUMNS);
   if (orphanFailResult.error)
     console.warn("[site-engine] lease-less job close failed", orphanFailResult.error.message);
+  closed.push(...((orphanFailResult.data ?? []) as AbandonedJob[]));
+
+  // A closed fresh rebuild gets its previous website back (website only).
+  // At most two per drain, so one sweep never holds the worker for long; any
+  // marker left over is settled when that workspace builds next.
+  await settleQuietly(db, closed);
 }
 
+const ABANDONED_JOB_COLUMNS = "id, organization_id, created_by, created_at";
+
 /** Claims one runnable job with a lease. Returns null when there is nothing to do. */
-export async function claimJob(db: Db, organizationId?: string) {
+export type WorkerInvoker = "pg_net" | "kick" | "pump" | "runner" | "unknown";
+
+export async function claimJob(db: Db, organizationId?: string, invoker: WorkerInvoker = "unknown") {
   const now = new Date();
   let query = db
     .from("generation_jobs")
-    .select("id, organization_id, attempts, created_by, status, lease_expires_at")
+    .select("id, organization_id, attempts, created_by, status, lease_expires_at, current_step")
     .in("status", ["queued", "processing"])
     .lt("attempts", MAX_ATTEMPTS)
     // Filter BEFORE limit, otherwise five live/backing-off jobs starve every
@@ -408,6 +843,31 @@ export async function claimJob(db: Db, organizationId?: string) {
       .or(`lease_expires_at.is.null,lease_expires_at.lte.${now.toISOString()}`)
       .select("id, organization_id, created_by, attempts")
       .maybeSingle();
+    if (claimed && recovering) {
+      // Attribution for the attempt that died: the values are the ones read
+      // before this claim overwrote them. Recorded once, by the winning claim.
+      const previousLeaseExpiresAt = (job.lease_expires_at as string | null) ?? null;
+      const leaseAt = previousLeaseExpiresAt ? Date.parse(previousLeaseExpiresAt) : Number.NaN;
+      try {
+        await db.from("ai_generations").insert({
+          organization_id: job.organization_id,
+          job_id: job.id,
+          kind: "build_attempt_lost",
+          model: "none",
+          instruction: null,
+          result: {
+            previousAttempt: Number(job.attempts),
+            previousLeaseExpiresAt,
+            approxDeathAt: Number.isFinite(leaseAt) ? new Date(leaseAt - LEASE_SECONDS * 1000).toISOString() : null,
+            current_step: (job as { current_step?: string | null }).current_step ?? null,
+            invoker,
+          } as unknown as never,
+          created_by: (job.created_by as string | null) ?? null,
+        } as never);
+      } catch (error) {
+        console.warn(`[site-engine] lost-attempt record for job ${String(job.id)} skipped`, error);
+      }
+    }
     if (claimed)
       return claimed as { id: string; organization_id: string; created_by: string | null; attempts: number };
   }
@@ -435,6 +895,10 @@ async function runJob(
   // real worker stages ("reading your business", "writing the pages", …)
   // instead of only seeing stages from chat retries.
   const { noteStage } = await import("@/lib/builder/progress.server");
+  // One run id from the chat request through the build: a build started from
+  // the chat records its stages under that request id; otherwise the job id.
+  const requestId = await readJobRequestId(db, job.id);
+  const runId = requestId ?? job.id;
   const WORKER_STAGE_LABELS: Record<string, string> = {
     business: "reading your business",
     services: "reading your services",
@@ -459,8 +923,6 @@ async function runJob(
     stageTimings[key] = Date.now() - stageStartedAt;
     stageStartedAt = Date.now();
     const meta = GENERATION_STEPS.find((s) => s.key === key);
-    const friendly = WORKER_STAGE_LABELS[key];
-    if (friendly) noteStage(orgId, job.id, friendly);
     const { data: fenced } = await db
       .from("generation_jobs")
       .update({
@@ -480,7 +942,13 @@ async function runJob(
       .eq("attempts", job.attempts)
       .select("id");
     if (!fenced || fenced.length === 0) throw new StaleAttemptError(job.id);
+    // Progress names the stage that is STARTING now ("generating your
+    // pictures" while they are made), never the one that just finished.
+    const nextKey = GENERATION_STEPS[GENERATION_STEPS.findIndex((s) => s.key === key) + 1]?.key;
+    const starting = nextKey ? WORKER_STAGE_LABELS[nextKey] : undefined;
+    if (starting) noteStage(orgId, runId, starting);
   };
+  noteStage(orgId, runId, WORKER_STAGE_LABELS["business"] ?? "reading your business");
 
   const [org, profile, services, media, socials, forms, bookable] = await Promise.all([
     db
@@ -495,11 +963,14 @@ async function runJob(
       .eq("organization_id", orgId)
       .eq("is_active", true)
       .order("sort_order"),
-    db.from("media").select("id, category, url, alt_text, file_name, source").eq("organization_id", orgId).order("created_at"),
+    db.from("media").select("id, category, url, alt_text, file_name, source, license, attribution").eq("organization_id", orgId).order("created_at"),
     db.from("social_profiles").select("*").eq("organization_id", orgId).maybeSingle(),
-    db.from("quote_forms").select("id").eq("organization_id", orgId).eq("is_active", true),
+    // Only a calculator a visitor can actually answer counts as a quote form,
+    // so the AI never plans a quote section around an empty one.
+    import("@/lib/quote-usable.server").then(({ usableQuoteFormIds }) => usableQuoteFormIds(db, orgId)),
     db.from("services").select("id").eq("organization_id", orgId).eq("bookable", true),
   ]);
+  const usableQuoteForms = forms;
 
   if (!org.data) throw new Error("Workspace not found.");
   await step("business");
@@ -603,13 +1074,39 @@ async function runJob(
     .select("generation")
     .eq("organization_id", orgId)
     .maybeSingle();
-  const priorGeneration = (priorSettings.data?.generation ?? {}) as Record<string, unknown>;
+  let priorGeneration = (priorSettings.data?.generation ?? {}) as Record<string, unknown>;
   // A marker tagged with another build's id is left over from a fresh rebuild
   // that was cancelled or failed: it must never turn this build into a full
-  // replace of the draft. It is cleared and this build runs as requested.
-  const markerJobId = (priorGeneration["pendingBuild"] as { jobId?: unknown } | null | undefined)?.jobId;
-  if (typeof markerJobId === "string" && markerJobId !== job.id) {
+  // replace of the draft. That rebuild is settled first (its previous website
+  // comes back if it was disturbed), the marker is cleared, and this build
+  // runs as requested.
+  const buildMode = resolveBuildMode(priorGeneration, job);
+  if (buildMode.foreignMarkerJobId) {
+    const { data: foreign } = await db
+      .from("generation_jobs")
+      .select("id, organization_id, created_by, created_at, status, cancel_requested_at")
+      .eq("id", buildMode.foreignMarkerJobId)
+      .eq("organization_id", orgId)
+      .maybeSingle();
+    const foreignJob = foreign as (AbandonedJob & { status?: string; cancel_requested_at?: string | null }) | null;
+    // A just-cancelled rebuild's worker may still be running and will settle
+    // itself; only one that has certainly stopped (past its lease and grace,
+    // the same threshold the sweep uses) is settled from here.
+    const settledAfter = Date.now() - (LEASE_SECONDS * 1000 + STALLED_LEASE_GRACE_MS);
+    const cancelledLongAgo =
+      foreignJob?.status === "cancelled" &&
+      Date.parse(String(foreignJob.cancel_requested_at ?? "")) < settledAfter;
+    if (foreignJob && (foreignJob.status === "failed" || cancelledLongAgo)) {
+      await settleQuietly(db, [foreignJob]);
+    }
     await clearPendingBuild(db, orgId);
+    // Re-read: settling may have restored the previous website's settings.
+    const reread = await db
+      .from("website_settings")
+      .select("generation")
+      .eq("organization_id", orgId)
+      .maybeSingle();
+    priorGeneration = (reread.data?.generation ?? {}) as Record<string, unknown>;
     delete priorGeneration["pendingBuild"];
   }
   const pendingBuild = readPendingBuild(priorGeneration["pendingBuild"], job);
@@ -617,7 +1114,9 @@ async function runJob(
     await clearPendingBuild(db, orgId);
     throw new Error("Fresh rebuild metadata was invalid or did not match this build, so nothing was replaced.");
   }
-  const freshReplace = pendingBuild?.mode === "fresh_replace";
+  const freshReplace =
+    !buildMode.foreignMarkerJobId && buildMode.freshReplace && pendingBuild?.mode === "fresh_replace";
+  const pendingMarker = isRecord(priorGeneration["pendingBuild"]) ? priorGeneration["pendingBuild"] : null;
   const approvedBrief = readBrief(priorGeneration["brief"]);
 
   // No built-in strategy: an unapproved brief is written by the AI.
@@ -693,7 +1192,9 @@ async function runJob(
     description: (p["description"] as string) ?? null,
     city: (p["city"] as string) ?? null,
     services: serviceRows.map((service) => ({ name: service.name })),
-    requestedFont: (p["font_preference"] as string) ?? null,
+    // The platform's seeded default typeface is not an owner request; the AI
+    // chooses the pairing unless the owner really picked a font.
+    requestedFont: isPlatformDefaultFont(p["font_preference"]) ? null : ((p["font_preference"] as string) ?? null),
   });
   await touchLease(db, job);
   const direction = identity.direction;
@@ -712,7 +1213,11 @@ async function runJob(
         ? { primary: direction.primary, secondary: direction.secondary, accent: direction.accent }
         : null;
   const effectiveFont =
-    (typeof p["font_preference"] === "string" && (p["font_preference"] as string).trim()) || direction?.font || null;
+    (typeof p["font_preference"] === "string" &&
+      !isPlatformDefaultFont(p["font_preference"]) &&
+      (p["font_preference"] as string).trim()) ||
+    direction?.font ||
+    null;
   const { isLight: isLightSurface } = await import("@/lib/site-theme");
   let creative = blankFirstBuildDirection({
     organizationId: orgId,
@@ -918,6 +1423,12 @@ async function runJob(
   // started when this build will actually write pages (a first build), and its
   // outcome is recorded exactly as before.
   const architectureRef: { current: PageArchitectureOutcome | null } = { current: null };
+  const earlyOwnerWorkPhotos = ((media.data ?? []) as { category: string | null; alt_text: string | null; url: string | null; file_name: string | null; source: string | null; id: string }[]).filter(
+    (row) =>
+      classifySiteMediaRow(row) === "owner" &&
+      Boolean(row.alt_text?.trim()) &&
+      ["work", "premises", "team", "before", "after"].includes(String(row.category ?? "").trim().toLowerCase()),
+  ).length;
   const earlyName = org.data?.name ?? "";
   const earlyIndustry = org.data?.industry ?? null;
   const earlyGoal = goals[0] ?? org.data?.conversion_goal ?? null;
@@ -940,7 +1451,9 @@ async function runJob(
               copy,
               services: serviceRows,
               hasBooking: (bookable.data ?? []).length > 0,
-              hasQuoteForm: (forms.data ?? []).length > 0,
+              hasQuoteForm: usableQuoteForms.length > 0,
+              // Only the owner's own described work photos can unlock a gallery.
+              ownerWorkPhotoCount: earlyOwnerWorkPhotos,
             },
             primary,
           ),
@@ -955,7 +1468,7 @@ async function runJob(
   // Never leave an unhandled rejection if pictures fail first; the error is
   // re-raised where the plan is awaited.
   architecturePlan?.catch(() => undefined);
-  noteStage(orgId, job.id, "generating your pictures");
+  noteStage(orgId, runId, "generating your pictures");
   // A retry of an interrupted build reuses the pictures its earlier attempt
   // already stored (only this job's own generated files, by creation time).
   let reusablePictures: { id: string; url: string; file_name: string | null; alt_text: string | null; attribution: string | null }[] = [];
@@ -1028,35 +1541,43 @@ async function runJob(
   type MediaRow = { id: string; category: string | null; url: string | null; alt_text: string | null; file_name: string | null; source: string | null };
   const heroUrl = (p["hero_image_url"] as string) || "";
   // A logo is the brand mark, shown in the header — never a page photo.
-  const ownerRows = ((media.data ?? []) as MediaRow[]).filter(
-    (row) =>
-      row.url &&
-      row.source !== "generated" &&
-      row.source !== "ai" &&
-      // Stock rows ("stock:<library>") are licensed pictures the owner chose
-      // in the photo library, so they are placed like the owner's own photos.
-      String(row.category ?? "").toLowerCase() !== "logo" &&
-      // Video clips are not pictures; an <img> of an .mp4 shows nothing.
-      !/\.(mp4|webm|mov|m4v)(\?|$)/i.test(String(row.url)),
-  );
+  // Provenance decides placement: only the business's own photos are shown
+  // as their work. AI pictures saved without a source are generated, and
+  // licensed stock never goes in gallery/work/process/proof slots.
+  const mediaRows = (media.data ?? []) as MediaRow[];
+  const describedOnly = (rows: MediaRow[]) => rows.filter((row) => Boolean(row.alt_text?.trim()));
+  const ownerCandidates = mediaRows.filter((row) => classifySiteMediaRow(row) === "owner");
+  const stockCandidates = mediaRows.filter((row) => classifySiteMediaRow(row) === "stock");
+  // A photo without a description is not placed: a file name is never shown
+  // as its label or alt text. The owner is told how many need one.
+  const ownerRows = describedOnly(ownerCandidates);
+  const stockRows = describedOnly(stockCandidates);
+  const undescribedPhotos = ownerCandidates.length - ownerRows.length;
+  const photoDescriptionNote =
+    undescribedPhotos > 0
+      ? `${undescribedPhotos} of your photos need a short description before they can go on your site (Media Library)`
+      : null;
+  if (photoDescriptionNote) withheldFacts.push("photo descriptions");
   const ownerHeroRow = ownerRows.find((row) => String(row.category ?? "").toLowerCase() === "hero");
   const bizName = org.data?.name ?? "Business";
   const ownerAssets: typeof starterImages.assets = [
     ...(heroUrl
       ? [{ slot: "owner-hero", label: `${bizName} photo`, altText: `${bizName}`, path: heroUrl, mediaId: null, provider: "owner", model: "owner", prompt: "", placement: ["hero", "home:hero"], aspectRatio: "3:2" }]
       : []),
-    ...ownerRows.map((row, i) => {
+    ...ownerRows.map((row) => {
       const cat = String(row.category ?? "work").toLowerCase();
-      const label = row.alt_text || row.file_name || `${bizName} photo ${i + 1}`;
+      const label = (row.alt_text ?? "").trim();
       return {
         slot: `owner-${row.id}`,
         label,
-        altText: row.alt_text || label,
+        altText: label,
         path: row.url as string,
         mediaId: row.id,
         provider: "owner",
         model: "owner",
         prompt: "",
+        assetSource: "owner" as const,
+        category: cat,
         placement:
           cat === "hero" && !heroUrl && row.id === ownerHeroRow?.id
             ? ["hero", "home:hero"]
@@ -1068,6 +1589,27 @@ async function runJob(
         aspectRatio: "3:2",
       };
     }),
+    // Licensed stock pictures illustrate; they are never presented as the
+    // business's own work, gallery, process or proof.
+    ...stockRows.map((row) => {
+      const label = (row.alt_text ?? "").trim();
+      return {
+        slot: `stock-${row.id}`,
+        label,
+        altText: label,
+        path: row.url as string,
+        mediaId: row.id,
+        provider: "stock",
+        model: "stock",
+        prompt: "",
+        assetSource: "stock" as const,
+        category: "other",
+        license: (row as { license?: string | null }).license ?? null,
+        attribution: (row as { attribution?: string | null }).attribution ?? null,
+        placement: ["services", "about", "story"],
+        aspectRatio: "3:2",
+      };
+    }),
   ];
   // Only AI pictures are ever cleaned up on failure; owner photos are never touched.
   generatedAssets = starterImages.assets;
@@ -1075,19 +1617,22 @@ async function runJob(
   const architectBusinessName = org.data.name ?? "";
   const architectIndustry = org.data.industry ?? null;
   const architectGoal = goals[0] ?? org.data.conversion_goal ?? null;
-  noteStage(orgId, job.id, "writing the pages");
+  noteStage(orgId, runId, "writing the pages");
   // Persist ownership before materialization so a failed attempt leaves a
   // verifiable job marker for safe retry cleanup. The marker is metadata only;
   // it does not publish or replace customer content.
   const { error: buildMarkerError } = await db.from("website_settings").upsert(
     {
       organization_id: orgId,
-      generation: {
-        ...withoutPendingBuild(priorGeneration),
-        jobId: job.id,
-        buildState: "materializing",
-        buildStartedAt: new Date().toISOString(),
-      },
+      // Keeps a fresh rebuild's pendingBuild (stamped with this job), so a
+      // retry after a crash still replaces and still has its restore point.
+      generation: materializingGeneration(
+        priorGeneration,
+        job.id,
+        pendingMarker,
+        freshReplace,
+        new Date().toISOString(),
+      ),
     } as never,
     { onConflict: "organization_id" },
   );
@@ -1104,7 +1649,7 @@ async function runJob(
     email: businessEmail,
     yearsInBusiness: (p["years_in_business"] as number) ?? null,
     photoCount: realMediaCount,
-    hasQuoteForm: (forms.data ?? []).length > 0,
+    hasQuoteForm: usableQuoteForms.length > 0,
     hasBooking: (bookable.data ?? []).length > 0,
     direction,
     creativeBrief: creative.brief,
@@ -1115,8 +1660,9 @@ async function runJob(
       refined.passes.filter((pass) => pass.used && pass.model)[1]?.model ?? null,
     conversionGoal: goals[0] ?? org.data.conversion_goal ?? null,
     replaceExisting: freshReplace,
+    facts: buildFacts,
     ...(architecturePlan ? { architecture_: architecturePlan } : {}),
-    architect: async (candidate) => {
+    architect: async (candidate, revisionNotes) => {
       const { proposePageArchitecture } = await import(
         "@/lib/builder/ai-page-architecture.server"
       );
@@ -1129,6 +1675,7 @@ async function runJob(
         description: (p["description"] as string) ?? null,
         services: serviceRows.map((service) => String((service as { name?: unknown }).name ?? "")).filter(Boolean),
         serviceArea: (p["service_area"] as string) ?? null,
+        ...(revisionNotes ? { revisionNotes } : {}),
       });
       architectureRef.current = outcome;
       return outcome.architecture;
@@ -1234,6 +1781,7 @@ async function runJob(
         directionSummary: [creative.brief.concept, creative.brief.personality].filter(Boolean).join(" · "),
         hardGenericityGate: true,
         signal: wordingAbort.signal,
+        ...(built.depth ? { depthNotes: Object.fromEntries(Object.entries(built.depth).map(([slug, page]) => [slug, page.notes]).filter(([, notes]) => (notes as string[]).length)) } : {}),
       }).catch((error: unknown) => {
         if (!wordingAbort.signal.aborted) throw error;
         return keepAuthored;
@@ -1408,7 +1956,7 @@ async function runJob(
   // defaults during a first build, so onboarding produces a distinctive site
   // without overwriting deliberate colours on an existing workspace.
   const hasOwnerBrand = Boolean(
-    (p["font_preference"] as string) ||
+    ((p["font_preference"] as string) && !isPlatformDefaultFont(p["font_preference"])) ||
       (p["secondary_color"] as string) ||
       (p["accent_color"] as string) ||
       (p["primary_color"] as string),
@@ -1439,12 +1987,12 @@ async function runJob(
 
     faqs: copy.faqs.length,
     photos: realMediaCount,
-    leadForms: (forms.data ?? []).length,
+    leadForms: usableQuoteForms.length,
     bookableServices: (bookable.data ?? []).length,
     seoConfigured: Boolean(copy.metaTitle && copy.metaDescription),
     // Truthful: leads only reach the built-in customer record when at least one
     // capture route exists on the site. Never reported as connected otherwise.
-    crmConnected: (forms.data ?? []).length > 0 || (bookable.data ?? []).length > 0,
+    crmConnected: usableQuoteForms.length > 0 || (bookable.data ?? []).length > 0,
     analyticsConfigured: true,
     imagery: {
       status: creative.imagery.status,
@@ -1486,8 +2034,9 @@ async function runJob(
     copyModel,
     checks: qa.checks,
     attention: [
+      ...(photoDescriptionNote ? [photoDescriptionNote] : []),
       ...qa.blockers.map((c) => c.fix),
-      ...((forms.data ?? []).length || (bookable.data ?? []).length
+      ...(usableQuoteForms.length || (bookable.data ?? []).length
         ? []
         : ["Turn on the quote calculator or make a service bookable so visitors can enquire."]),
       ...((media.data ?? []).length >= 5 ? [] : ["Add at least five photos of your own work."]),
@@ -1559,7 +2108,7 @@ async function runJob(
     { onConflict: "organization_id" },
   );
   if (saveError) throw new Error(saveError.message);
-  noteStage(orgId, job.id, "finishing up");
+  noteStage(orgId, runId, "finishing up");
   // Final check before the owner sees the draft: the same safe automatic
   // repairs the builder runs after every chat edit (broken internal links,
   // missing page titles/descriptions). They only correct facts the site
@@ -1609,7 +2158,7 @@ async function runJob(
     return;
   }
 
-  const leadCapture = (forms.data ?? []).length > 0 || (bookable.data ?? []).length > 0;
+  const leadCapture = usableQuoteForms.length > 0 || (bookable.data ?? []).length > 0;
   await db.from("notifications").insert({
     organization_id: orgId,
     title: freshReplace ? "Your fresh website rebuild is ready" : "Your website draft is ready to review",
@@ -1624,26 +2173,27 @@ async function runJob(
     link: "/app/website",
   } as never);
   } catch (error) {
-    if (generatedAssets.length) {
-      const { cleanupFirstBuildImages } = await import("@/lib/builder/first-build-images.server");
-      await cleanupFirstBuildImages(db, orgId, generatedAssets).catch(() => undefined);
-    }
-    const message = error instanceof Error ? error.message : "Generation failed.";
-    if (freshReplace && pendingBuild?.backupId) {
-      const rollback = await rollbackFreshBuild(db, {
-        orgId,
-        backupId: pendingBuild.backupId,
-        userId: job.created_by,
-        message,
-      });
-      throw new FreshRebuildRollbackError(
-        rollback.restored
-          ? `${message} The previous website was restored from backup ${pendingBuild.backupId}.`
-          : `${message} Rollback also failed: ${rollback.restoreError ?? "unknown error"}.`,
-        pendingBuild.backupId,
-      );
-    }
-    throw error;
+    // A superseded attempt rethrows its StaleAttemptError untouched (no picture
+    // cleanup, no rollback); a cancelled or failed one cleans up as before.
+    await settleFailedAttempt(
+      db,
+      {
+        error,
+        jobId: job.id,
+        generatedAssets,
+        freshReplace,
+        backupId: pendingBuild?.backupId ?? null,
+      },
+      {
+        cleanupImages: async (assets) => {
+          const { cleanupFirstBuildImages } = await import("@/lib/builder/first-build-images.server");
+          await cleanupFirstBuildImages(db, orgId, assets);
+        },
+        rollback: (backupId, message) =>
+          rollbackFreshBuild(db, { orgId, backupId, userId: job.created_by, message }),
+        claimMarker: () => claimFreshMarker(db, orgId, job.id),
+      },
+    );
   }
 }
 
@@ -1727,7 +2277,7 @@ export type DrainResult = {
  */
 export async function drainSiteEngineQueue(
   db: Db,
-  options: { max?: number; organizationId?: string; probeWhilePaused?: boolean } = {},
+  options: { max?: number; organizationId?: string; probeWhilePaused?: boolean; invoker?: WorkerInvoker } = {},
   executeJob: typeof runJob = runJob,
 ): Promise<DrainResult> {
   const max = Math.min(Math.max(options.max ?? 2, 1), 5);
@@ -1764,6 +2314,11 @@ export async function drainSiteEngineQueue(
 
   await writeQueueState(db, { last_run_at: new Date().toISOString() });
   await closeAbandonedJobs(db, options.organizationId);
+  try {
+    await sweepCancelledFreshRebuilds(db, options.organizationId);
+  } catch (error) {
+    console.warn("[site-engine] cancelled fresh rebuild sweep threw", error);
+  }
 
   let processed = 0;
   let failed = 0;
@@ -1773,7 +2328,7 @@ export async function drainSiteEngineQueue(
     if (currentState.paused && !options.probeWhilePaused) {
       return { processed, failed, paused: true, pauseReason: currentState.pause_reason, idle: processed + failed === 0 };
     }
-    const job = await claimJob(db, options.organizationId);
+    const job = await claimJob(db, options.organizationId, options.invoker ?? "unknown");
     if (!job)
       return {
         processed,

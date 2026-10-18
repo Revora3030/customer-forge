@@ -10,6 +10,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
+import { alertRecipient } from "@/lib/lead-alert-recipient";
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[a-z]{2,}$/i;
 
@@ -22,19 +23,11 @@ export type AlertDelivery = {
   created_at: string;
 };
 
-/** Where alerts should go, in order of preference. */
-export function alertRecipient(profile: {
-  notification_email?: string | null;
-  email?: string | null;
-  owner_email?: string | null;
-  notify_on_lead?: boolean | null;
-}): string | null {
-  if (profile.notify_on_lead === false) return null;
-  const candidate = [profile.notification_email, profile.email, profile.owner_email]
-    .map((value) => (value ?? "").trim())
-    .find((value) => EMAIL.test(value));
-  return candidate ?? null;
-}
+/**
+ * Where alerts should go, in order of preference. Lives in a browser-safe module
+ * so the Integration Center resolves the exact inbox the sender uses.
+ */
+export { alertRecipient } from "@/lib/lead-alert-recipient";
 
 /** Save (or clear) the inbox that receives booking + lead alerts. */
 export const saveLeadNotifications = createServerFn({ method: "POST" })
