@@ -1,14 +1,8 @@
 import { createFileRoute, notFound, Outlet, useChildMatches } from "@tanstack/react-router";
 import { getPublicSite, trackPublicEvent, type PublicSite } from "@/lib/public-site.functions";
-import { readSeo } from "@/lib/site-seo";
-import { readCopy } from "@/lib/site-engine";
 import { canonicalSiteUrl } from "@/lib/revora-address";
 import { SitePageView } from "@/routes/s.$slug.$page";
-import { placeDisplay } from "@/lib/builder/presentation";
-import { compositionFonts, siteFontsHref } from "@/lib/site-theme";
-import { readSiteChrome } from "@/lib/builder/site-chrome";
-import { metaDescription } from "@/lib/seo";
-import { clientHeadExtrasSync, shareImageFor } from "@/lib/site-head";
+import { tenantSiteHead } from "@/lib/site-head";
 
 export const Route = createFileRoute("/s/$slug")({
   loader: async ({ params }) => {
@@ -22,68 +16,20 @@ export const Route = createFileRoute("/s/$slug")({
         meta: [{ title: "Business not found" }, { name: "robots", content: "noindex" }],
       };
     }
-    const name = loaderData.org.name;
-    const city = placeDisplay(loaderData.profile?.city);
     const page = loaderData.content?.page ?? null;
-    const generated = readCopy(
-      (loaderData.settings?.generation as { copy?: unknown } | null)?.copy,
-    );
-    const title = (
-      page?.seo_title ||
-      generated?.metaTitle ||
-      `${name}${city ? ` — ${city}` : ""}`
-    ).slice(0, 60);
-    const description = (
-      page?.seo_description ||
-      generated?.metaDescription ||
-      readSeo(loaderData.settings?.seo).meta_description ||
-      loaderData.profile?.tagline ||
-      `${name}${city ? ` in ${city}` : ""}.`
-    ).slice(0, 158);
     // Canonical and og:url point at this page itself unless the client set
     // their own canonical address (e.g. after moving to a custom domain).
     const url =
       canonicalSiteUrl(loaderData.settings, params.slug, page?.slug, page?.seo_canonical) ??
       `https://revoragrowthsystems.com/s/${params.slug}`;
-    const shareImage = shareImageFor({
-      ogImage: page?.og_image_url ?? null,
-      heroImage: loaderData.profile?.hero_image_url ?? null,
-      sections: loaderData.content?.sections ?? null,
+    // One head for every client address (title limits, share image, fonts,
+    // LocalBusiness data): src/lib/site-head.ts tenantSiteHead.
+    return tenantSiteHead({
+      site: loaderData,
+      pageSlug: null,
+      canonical: url,
+      businessUrl: canonicalSiteUrl(loaderData.settings, params.slug) ?? url,
     });
-    const extras = clientHeadExtrasSync(
-      loaderData as never,
-      canonicalSiteUrl(loaderData.settings, params.slug) ?? url,
-      compositionFonts,
-      siteFontsHref,
-      readSiteChrome,
-    );
-    return {
-      meta: [
-        { title },
-        { name: "description", content: metaDescription(description) },
-        { property: "og:title", content: page?.og_title || title },
-        { property: "og:description", content: page?.og_description || description },
-        { property: "og:type", content: "website" },
-        { property: "og:url", content: url },
-        { property: "og:site_name", content: name },
-        { name: "twitter:card", content: "summary_large_image" },
-        ...(shareImage && shareImage.startsWith("https://")
-          ? [
-              { property: "og:image", content: shareImage },
-              { name: "twitter:image", content: shareImage },
-            ]
-          : []),
-        ...(page?.noindex ? [{ name: "robots", content: "noindex" }] : []),
-        ...extras.meta,
-      ],
-      scripts: extras.scripts,
-      links: [
-        { rel: "canonical", href: url },
-        // The owner's chosen heading font has to be requested here or their
-        // look-and-feel choice would be stored but never seen.
-        ...extras.links,
-      ],
-    };
   },
   component: PublicSiteRoute,
   errorComponent: () => (

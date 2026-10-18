@@ -161,7 +161,16 @@ export async function siteIsLive(orgId: string): Promise<boolean> {
 
 export async function loadSite(
   slug: string,
-  options?: { allowUnpublished?: boolean; pageSlug?: string },
+  options?: {
+    allowUnpublished?: boolean;
+    pageSlug?: string;
+    /**
+     * Owner draft only: the restore point taken before a fresh rebuild, shown
+     * while the rebuild rewrites the working tree. Ignored unless
+     * `allowUnpublished` is true, so visitors, /p/ links and Publish never see it.
+     */
+    heldSnapshot?: LiveSnapshot | null;
+  },
 ) {
   const allowUnpublished = options?.allowUnpublished === true;
 
@@ -200,8 +209,9 @@ export async function loadSite(
     // without the setup payment, and comes back once it is paid.
     if (!(await siteIsLive(orgId))) return null;
   }
-  // Visitors see the last published version, never in-progress edits.
-  const live = allowUnpublished ? null : await loadLiveSnapshot(orgId);
+  // Visitors see the last published version, never in-progress edits. A held
+  // pre-rebuild tree is only ever honoured on the authorised draft path.
+  const live = allowUnpublished ? options?.heldSnapshot ?? null : await loadLiveSnapshot(orgId);
 
   const [profile, services, settings, social, reviews, galleryRows, quoteForm] = await Promise.all([
     supabase
@@ -287,17 +297,21 @@ export async function loadSite(
           .in("question_id", ids)
           .order("sort_order")
       : { data: [] };
-    questions = (qs ?? []).map((q) => ({
-      ...q,
-      options: (opts ?? [])
-        .filter((o) => o.question_id === q.id)
-        .map((o) => ({
-          id: o.id,
-          label: o.label,
-          price_modifier: Number(o.price_modifier),
-          modifier_type: o.modifier_type,
-        })),
-    }));
+    questions = (qs ?? [])
+      .map((q) => ({
+        ...q,
+        options: (opts ?? [])
+          .filter((o) => o.question_id === q.id)
+          .map((o) => ({
+            id: o.id,
+            label: o.label,
+            price_modifier: Number(o.price_modifier),
+            modifier_type: o.modifier_type,
+          })),
+      }))
+      // A question with no options can never be answered, so the calculator
+      // would never show a price. Drop it; a form with none left is unusable.
+      .filter((q) => q.options.length > 0);
 
     const { data: adds } = await supabase
       .from("quote_addons")
@@ -547,7 +561,8 @@ export async function loadSite(
       created_at: r.created_at as string,
     })),
     gallery: gallery.map((g) => ({ ...g, url: resolve(g.url) ?? g.url })),
-    quote: quoteForm.data ? { form: quoteForm.data, questions, addons } : null,
+    // An active form with no answerable question renders no widget at all.
+    quote: quoteForm.data && questions.length > 0 ? { form: quoteForm.data, questions, addons } : null,
     content: currentPage
       ? { page: { ...currentPage, og_image_url: resolve(currentPage.og_image_url) }, sections: sectionsWithComponents }
       : null,

@@ -51,12 +51,16 @@ describe("shared links always carry a picture when the page has one", () => {
     ).toBeNull();
   });
   it("is used by every customer-site route", () => {
+    // Every client route builds its head with the shared tenantSiteHead,
+    // which picks the share image with shareImageFor.
     for (const route of [
       "src/routes/s.$slug.tsx",
       "src/routes/s.$slug.$page.tsx",
       "src/routes/$.tsx",
     ])
-      expect(readFileSync(route, "utf8")).toMatch(/shareImageFor\(/);
+      expect(readFileSync(route, "utf8")).toMatch(/tenantSiteHead\(/);
+    const head = readFileSync("src/lib/site-head.ts", "utf8");
+    expect(head.slice(head.indexOf("export function tenantSiteHead"))).toMatch(/shareImageFor\(/);
   });
 });
 
