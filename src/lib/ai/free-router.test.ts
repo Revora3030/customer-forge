@@ -9,6 +9,7 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { isolateProviderEnvironment } from "./provider-test-environment";
 
 const KEYS = [
   "FREE_AI_ENABLED",
@@ -43,6 +44,7 @@ const KEYS = [
 const saved: Record<string, string | undefined> = {};
 
 beforeEach(() => {
+  isolateProviderEnvironment();
   for (const key of KEYS) {
     saved[key] = process.env[key];
     delete process.env[key];
@@ -56,6 +58,8 @@ afterEach(() => {
     else process.env[key] = saved[key]!;
   }
   vi.resetModules();
+  vi.unstubAllEnvs();
+  vi.unstubAllGlobals();
 });
 
 const free = async () => {

@@ -11,6 +11,15 @@
 import { describe, expect, it, beforeEach, afterEach, vi } from "vitest";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
+import { isolateProviderEnvironment } from "./provider-test-environment";
+
+// Routing tests exercise stubbed providers, not the production spend ledger.
+vi.mock("@/lib/ai/paid-budget.server", () => ({
+  reservePaidSpend: vi.fn(async (estimate: number) => ({ day: "unit-test", estimate })),
+  settlePaidSpend: vi.fn(async () => undefined),
+  routerEstimate: vi.fn(() => 1),
+  routerActual: vi.fn(() => 1),
+}));
 
 import { AI_NOT_CONFIGURED_MESSAGE } from "@/lib/ai/errors";
 import { isAiConfigured, providerChain, providerConfig, aiLimits } from "@/lib/ai/config";
@@ -98,6 +107,7 @@ describe("provider configuration", () => {
   const saved = { ...process.env };
 
   beforeEach(() => {
+    isolateProviderEnvironment();
     // These suites cover the OPTIONAL enhancement path, so they opt out of
     // zero-cost mode explicitly. Zero-cost mode itself is proven in
     // `zero-cost.test.ts`, which asserts providers stay blocked by default.
@@ -134,6 +144,9 @@ describe("provider configuration", () => {
 
   afterEach(() => {
     process.env = { ...saved };
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+    vi.resetModules();
   });
 
   it("treats Revora AI as unconfigured until Revora owns a key", () => {
@@ -193,6 +206,8 @@ describe("provider fallback", () => {
   const saved = { ...process.env };
 
   beforeEach(() => {
+    isolateProviderEnvironment();
+    vi.resetModules();
     process.env["BUILDER_EXTERNAL_AI_ALLOWED"] = "true";
     // These tests cover the optional PAID chain, so the free chain is off.
     process.env["FREE_AI_ENABLED"] = "false";
@@ -205,6 +220,7 @@ describe("provider fallback", () => {
 
   afterEach(() => {
     process.env = { ...saved };
+    vi.unstubAllEnvs();
     vi.unstubAllGlobals();
     vi.resetModules();
   });
