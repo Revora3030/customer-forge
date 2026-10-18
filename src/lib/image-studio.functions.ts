@@ -10,6 +10,18 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { MEDIA_BUCKET, buildObjectPath } from "@/lib/media";
 import { decodeBase64, encodeBase64, generateImageBase64 } from "@/lib/image-studio.server";
 
+/** Honest credit stored on every Image Studio picture. */
+const AI_IMAGE_ATTRIBUTION = "AI-generated image";
+
+/**
+ * "work", "before" and "after" mean the business's own real jobs. An AI
+ * picture is never filed there, so it can never be placed as proof.
+ */
+function studioCategory(value: unknown): string {
+  const category = String(value ?? "other").slice(0, 40);
+  return ["work", "before", "after"].includes(category.trim().toLowerCase()) ? "other" : category;
+}
+
 export type StudioImageResult = {
   ok: boolean;
   blocked?: boolean;
@@ -97,7 +109,7 @@ export const generateStudioImage = createServerFn({ method: "POST" })
       altText: String(input["altText"] ?? "")
         .trim()
         .slice(0, 200),
-      category: String(input["category"] ?? "other").slice(0, 40),
+      category: studioCategory(input["category"]),
       label: String(input["label"] ?? "revora-image").slice(0, 60),
     };
   })
@@ -179,6 +191,9 @@ export const generateStudioImage = createServerFn({ method: "POST" })
         file_name: `${data.label || "revora-image"}.${extension}`,
         size_bytes: bytes.byteLength,
         alt_text: data.altText || null,
+        // An AI picture is illustrative, never the owner's own work photo.
+        source: "generated",
+        attribution: AI_IMAGE_ATTRIBUTION,
       } as never)
       .select("id")
       .maybeSingle();
@@ -326,7 +341,7 @@ export const editStudioImage = createServerFn({ method: "POST" })
       altText: String(input["altText"] ?? "")
         .trim()
         .slice(0, 200),
-      category: String(input["category"] ?? "other").slice(0, 40),
+      category: studioCategory(input["category"]),
       label: String(input["label"] ?? "revora-image-changed").slice(0, 60),
     };
   })
@@ -389,6 +404,8 @@ export const editStudioImage = createServerFn({ method: "POST" })
         file_name: `${data.label || "revora-image-changed"}.${extension}`,
         size_bytes: bytes.byteLength,
         alt_text: data.altText || null,
+        source: "generated",
+        attribution: AI_IMAGE_ATTRIBUTION,
       } as never)
       .select("id")
       .maybeSingle();

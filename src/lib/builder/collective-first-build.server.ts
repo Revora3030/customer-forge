@@ -32,6 +32,7 @@ import { creativeQualityPrompt } from "@/lib/builder/creative-quality-matrix";
 import { craftBarPrompt } from "@/lib/builder/world-class-craft";
 import { detectGenericPhrases } from "@/lib/builder/genericity";
 import { normalizeAspect } from "@/lib/builder/composition-tree";
+import type { ServiceAwareImageSpec } from "@/lib/builder/creative-authority";
 
 export type CollectivePassRecord = {
   tier: "sol" | "terra" | "luna" | "hall_of_fame";
@@ -279,7 +280,13 @@ function imageInventoryAt(value: unknown, facts: DnaFacts): CreativeBrief["image
     // open picture spot instead of being thrown away.
     const listed = listAt(item["section"], 8, 60);
     const section = listed.length ? listed : [slot];
-    images.push({
+    // The real service this picture illustrates: kept only when it is exactly
+    // one of the supplied services, so a card can never get another's picture.
+    const namedService = textAt(item["serviceName"], 120);
+    const serviceName =
+      namedService && (facts.services ?? []).find((service) => service.trim().toLowerCase() === namedService.toLowerCase());
+    const spec: ServiceAwareImageSpec = {
+      ...(serviceName ? { serviceName } : {}),
       slot,
       label,
       purpose,
@@ -303,7 +310,8 @@ function imageInventoryAt(value: unknown, facts: DnaFacts): CreativeBrief["image
         "never presented as proof of completed work, reviews, awards or results",
       ],
       evidenceTag: "AI_GENERATED_MARKETING_VISUAL",
-    });
+    };
+    images.push(spec);
   }
   return images;
 }
@@ -571,7 +579,7 @@ async function refineCreativeWithCollective(input: {
       "Describe every creative decision in your own words; no platform style vocabulary is supplied.",
       "brief.concept is required. Author typography, color, heroComposition, sectionRhythm, density, cardLanguage, ctaLanguage, backgroundTreatment, shapeLanguage, motion, mobileStrategy, conversionStrategy, industryConventions and photography as your own words.",
       `brief.imageInventory must be a page-aware picture campaign that gives EVERY page of the site real photography on the first build: one hero picture for the home page, one picture for each real service (${(input.facts.services ?? []).length || "each"} service${(input.facts.services ?? []).length === 1 ? "" : "s"}), one for the about/story page, and one for each other page you plan — at least 5 pictures, at most 28 for generation cost. An empty or thin campaign is refused.`,
-      "Each picture's section array names the exact section roles it belongs to (for example [\"hero\"], [\"services\"], [\"story\"], [\"process\"]). Invent a short lowercase-hyphenated semantic slot for each image; there is no slot catalogue. Each item: slot, label, purpose, subject, environment, action, lighting, camera, framing, focalPoint and negativeSpace (your own words), aspectRatio (any positive ratio written like width:height), palette, mood, section (array of exact intended section roles), mobileCrop, altText.",
+      "Each picture's section array names the exact section roles it belongs to (for example [\"hero\"], [\"services\"], [\"story\"], [\"process\"]). Invent a short lowercase-hyphenated semantic slot for each image; there is no slot catalogue. Each item: slot, label, purpose, subject, environment, action, lighting, camera, framing, focalPoint and negativeSpace (your own words), aspectRatio (any positive ratio written like width:height), palette, mood, section (array of exact intended section roles), mobileCrop, altText, and serviceName (only for a picture of one real service: that service's name exactly as supplied; omit it otherwise).",
       "Every picture must have a distinct job in the final site. Generated images are marketing visuals, never staff, customer proof, completed-work evidence, reviews, awards or results.",
     ].join("\n"),
   });
@@ -690,6 +698,62 @@ async function refineCreativeWithCollective(input: {
   };
 }
 
+/** The typography fields a first build cannot ship without. */
+export function missingTypography(brief: CreativeBrief): string[] {
+  const typography = brief.typography;
+  const missing: string[] = [];
+  if (!typography?.display?.trim()) missing.push("typography.display");
+  if (!typography?.body?.trim()) missing.push("typography.body");
+  if (!(typeof typography?.scaleRatio === "number" && Number.isFinite(typography.scaleRatio) && typography.scaleRatio > 0))
+    missing.push("typography.scaleRatio");
+  return missing;
+}
+
+/** One AI pass that authors only the missing typography, through the same gate. */
+async function repairTypography(input: {
+  organizationId: string;
+  facts: DnaFacts;
+  brief: SiteBrief;
+  creative: FirstBuildCreativeDirection;
+  missing: string[];
+  signal?: AbortSignal;
+}): Promise<{ creative: FirstBuildCreativeDirection | null; pass: CollectivePassRecord }> {
+  const call = await callBestThinker({
+    json: true,
+    purpose: "creative_direction",
+    complexity: "high",
+    organizationId: input.organizationId,
+    maxOutputTokens: 1200,
+    ...(input.signal ? { signal: input.signal } : {}),
+    system: `${CREATIVE_RULES} You are Sol, the master creative director, completing the site's typography.`,
+    user: [
+      "FACTS (truth source, not copy to invent from):",
+      factSheet(input.facts, input.brief, input.creative),
+      "",
+      "CURRENT CREATIVE DIRECTION:",
+      creativeSheet(input.creative),
+      "",
+      `Your brief is missing: ${input.missing.join(", ")}.`,
+      'Return JSON: {"brief": {"typography": {"display": "your display typeface", "body": "your body typeface", "scaleRatio": 1.25, "character": "...", "headlineWeight": "...", "headlineCase": "..."}}}',
+      "display and body are real typeface names you choose for this specific business; scaleRatio is your modular type scale (a number between 1 and 2). Describe every choice in your own words.",
+    ].join("\n"),
+  });
+  if (!call.ok)
+    return { creative: null, pass: record(call.wanted, "creative_direction", { skipped: call.detail ?? call.reason }) };
+  const proposal = parseCreativeProposal(call.text);
+  const gated = reviewCreativeProposal({ proposal, facts: input.facts, baseline: input.creative });
+  const typography = gated.accepted.brief?.typography;
+  const pass = record(call.tier ?? "hall_of_fame", "creative_direction", {
+    model: call.model,
+    used: Boolean(typography),
+    costMicrocents: call.costMicrocents,
+    skipped: typography ? null : "the typography repair was not in the agreed shape",
+    acceptedFields: Object.keys(typography ?? {}).map((key) => `brief.typography.${key}`),
+    rejected: gated.rejected,
+  });
+  return { creative: typography ? mergeCreativeRefinement(input.creative, { brief: { typography } }) : null, pass };
+}
+
 function firstBuildCopyStrings(value: unknown): string[] {
   const out: string[] = [];
   const walk = (entry: unknown) => {
@@ -727,6 +791,31 @@ export async function refineFirstBuildWithCollective(input: {
   creative = creativeResult.creative;
   creativeChanged = creativeResult.changed;
   passes.push(...creativeResult.passes);
+
+  // Typography is the AI's decision. A brief without a display face, a body
+  // face and a type scale gets ONE repair pass naming what is missing; if the
+  // team still cannot author it, the build stops. No font is ever defaulted.
+  const missingType = missingTypography(creative.brief);
+  if (missingType.length) {
+    const repaired = await repairTypography({
+      organizationId: input.organizationId,
+      facts: input.facts,
+      brief: input.brief,
+      creative,
+      missing: missingType,
+      ...(input.signal ? { signal: input.signal } : {}),
+    });
+    passes.push(repaired.pass);
+    if (repaired.creative) {
+      creative = repaired.creative;
+      creativeChanged = true;
+    }
+    const stillMissing = missingTypography(creative.brief);
+    if (stillMissing.length)
+      throw new Error(
+        `The AI design team did not choose this site's typography (missing ${stillMissing.join(", ")}). The build stopped so it can be retried; Revora never fills in a default font.`,
+      );
+  }
 
   const sheet = factSheet(input.facts, input.brief, creative);
 

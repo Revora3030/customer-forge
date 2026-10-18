@@ -47,6 +47,9 @@ type Props = {
   jumpTo?: { step: WizardStepKey; anchor?: string; nonce: number } | null;
 };
 
+/** The font the database used to stamp on every profile; never an owner choice. */
+const PLATFORM_DEFAULT_FONT = "Space Grotesk";
+
 const text = (profile: ProfileRow, key: string) => {
   const value = profile?.[key];
   return typeof value === "string" ? value : typeof value === "number" ? String(value) : "";
@@ -269,8 +272,9 @@ export function BuilderWizard({
                 />
                 <AutoField
                   label="Style"
-                  placeholder="Clean and modern"
-                  value={text(profile, "font_preference")}
+                  placeholder="Let the AI choose"
+                  // The old platform default is not the owner's choice, so it starts empty.
+                  value={text(profile, "font_preference").trim() === PLATFORM_DEFAULT_FONT ? "" : text(profile, "font_preference")}
                   disabled={!canManage}
                   onCommit={(value) => field("font_preference", value)}
                 />

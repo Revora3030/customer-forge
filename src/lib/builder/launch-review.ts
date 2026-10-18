@@ -18,6 +18,7 @@ import {
   evaluatePerformanceBudget,
   type PerformanceSignals,
 } from "@/lib/performance/performance-budget";
+import { inspectImageSources, type ImageSourcePage } from "./media-integrity";
 
 export type LaunchReviewFacts = {
   /** Website + business content already stored for this workspace. */
@@ -48,6 +49,33 @@ export type LaunchReviewFacts = {
   publicAddressAvailable?: boolean;
   /** Real-browser evidence, or null when nobody has measured the site yet. */
   measurement: LaunchReviewMeasurement | null;
+  /**
+   * The stored page tree. When supplied, every visible page is checked for
+   * image blocks with no picture and for stock pictures (whose credit lines
+   * are not rendered yet). Omitted means those checks were not run.
+   */
+  pages?: LaunchReviewPage[];
+  /** The workspace's media rows: where each stored picture came from. */
+  mediaSources?: { url: string; source: string | null }[];
+};
+
+export type LaunchReviewPage = {
+  slug: string;
+  visible?: boolean | null;
+  sections: {
+    kind: string;
+    visible?: boolean | null;
+    components?: { kind: string; media_url?: string | null; visible?: boolean | null }[] | null;
+  }[];
+};
+
+/** A problem that must be fixed before launch, whatever the score says. */
+export type LaunchReviewBlocker = {
+  code: "image_without_photo" | "stock_credit_missing";
+  blocking: true;
+  page: string;
+  section: string;
+  detail: string;
 };
 
 export type LaunchReviewMeasurement = {
@@ -76,7 +104,64 @@ export type LaunchReview = {
   performance: { measured: boolean; passed: boolean; failures: string[] };
   evidence: LaunchReviewEvidence[];
   measuredAt: string | null;
+  /** Launch blockers found in the stored site (empty when none, or not checked). */
+  blockers: LaunchReviewBlocker[];
 };
+
+/** Only what a visitor can see: visible pages, sections and blocks. */
+function visiblePages(pages: LaunchReviewPage[]): ImageSourcePage[] {
+  return pages
+    .filter((page) => page.visible !== false)
+    .map((page) => ({
+      slug: page.slug,
+      sections: page.sections
+        .filter((section) => section.visible !== false)
+        .map((section) => ({
+          kind: section.kind,
+          components: (section.components ?? []).filter((component) => component.visible !== false),
+        })),
+    }));
+}
+
+/**
+ * Deterministic launch blockers from the stored site:
+ * - an image block with no picture renders as an empty box;
+ * - a stock picture needs its credit shown, and credit lines are not rendered
+ *   on customer sites yet, so stock cannot ship until that exists.
+ */
+export function launchBlockers(facts: Pick<LaunchReviewFacts, "pages" | "mediaSources">): LaunchReviewBlocker[] {
+  if (!facts.pages) return [];
+  const pages = visiblePages(facts.pages);
+  const blockers: LaunchReviewBlocker[] = inspectImageSources(pages)
+    .filter((violation) => violation.kind === "image_component_without_source")
+    .map((violation) => ({
+      code: "image_without_photo",
+      blocking: true,
+      page: violation.page,
+      section: violation.section,
+      detail: `An image block on the ${violation.page} page has no photo behind it and would show an empty box.`,
+    }));
+  const stock = new Set(
+    (facts.mediaSources ?? [])
+      .filter((row) => (row.source ?? "").trim().toLowerCase().startsWith("stock"))
+      .map((row) => row.url),
+  );
+  if (stock.size)
+    for (const page of pages)
+      for (const section of page.sections)
+        for (const component of section.components ?? []) {
+          const url = typeof component.media_url === "string" ? component.media_url : "";
+          if (!url || !stock.has(url)) continue;
+          blockers.push({
+            code: "stock_credit_missing",
+            blocking: true,
+            page: page.slug,
+            section: section.kind,
+            detail: `The ${page.slug} page shows a stock photo whose required credit is not displayed on the site yet. Replace it with your own photo before launch.`,
+          });
+        }
+  return blockers;
+}
 
 /** The eight widths every launch measurement must cover. */
 export const REQUIRED_REVIEW_WIDTHS = [320, 375, 390, 414, 768, 1024, 1280, 1440] as const;
@@ -146,9 +231,25 @@ export function buildReadinessSnapshot(facts: LaunchReviewFacts): SiteReadinessS
 
 export function reviewLaunchQuality(facts: LaunchReviewFacts): LaunchReview {
   const snapshot = buildReadinessSnapshot(facts);
-  const report = assessLaunchQuality(launchQualityInputFromSnapshot(snapshot), {
+  const assessed = assessLaunchQuality(launchQualityInputFromSnapshot(snapshot), {
     notApplicable: notApplicableFromSnapshot(snapshot),
   });
+  const blockers = launchBlockers(facts);
+  // A blocker is the next thing to fix, ahead of any score-based finding.
+  const blockerFindings = [...new Set(blockers.map((blocker) => blocker.code))].map((code) => ({
+    dimension: "publishing" as const,
+    score: 0,
+    weight: 0,
+    priority: "critical" as const,
+    title: code === "image_without_photo" ? "Fill or remove empty picture boxes" : "Replace stock photos before launch",
+    recommendation:
+      code === "image_without_photo"
+        ? "Some image blocks have no photo behind them. Add your own photo or ask the builder to redesign those sections."
+        : "Stock photos need a visible credit, which customer sites do not show yet. Swap them for your own photos.",
+  }));
+  const report = blockerFindings.length
+    ? { ...assessed, findings: [...blockerFindings, ...assessed.findings], nextAction: blockerFindings[0] ?? null }
+    : assessed;
   const m = facts.measurement;
   const seoResult = m ? evaluateSeo(m.seo) : { score: 0, failures: ["not measured"] };
   const performanceResult = m
@@ -186,6 +287,15 @@ export function reviewLaunchQuality(facts: LaunchReviewFacts): LaunchReview {
           : `Over budget: ${performanceResult.failures.join(", ")}.`
         : "Loading speed is measured in the browser, not guessed.",
     },
+    {
+      key: "media_integrity",
+      state: facts.pages ? "measured" : "not_measured",
+      detail: !facts.pages
+        ? "Pictures on the stored pages have not been checked."
+        : blockers.length
+          ? `${blockers.length} picture problem${blockers.length === 1 ? "" : "s"} must be fixed before launch.`
+          : "Every image block on a visible page has a photo, and no uncredited stock photo is shown.",
+    },
   ];
 
   return {
@@ -195,5 +305,6 @@ export function reviewLaunchQuality(facts: LaunchReviewFacts): LaunchReview {
     performance: { measured: !!m, passed: performanceResult.passed, failures: performanceResult.failures },
     evidence,
     measuredAt: m?.measuredAt ?? null,
+    blockers,
   };
 }

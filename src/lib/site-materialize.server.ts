@@ -23,10 +23,14 @@ import {
 } from "@/lib/builder/ai-design-contract";
 import {
   compileAiDesignContract,
+  imageSpecServiceName,
   requireAiDesignContract,
   type PageArchitecture,
 } from "@/lib/builder/creative-authority";
 import { adaptMissingMedia, assertMediaIntegrity } from "@/lib/builder/media-integrity";
+import type { DnaFacts } from "@/lib/business-dna";
+import { screenPageSeo } from "@/lib/builder/first-build-safety";
+import { auditSiteDepth, type PageDepth } from "@/lib/builder/page-depth";
 
 type Db = SupabaseClient;
 
@@ -93,7 +97,13 @@ export type MaterializeInput = {
    * Lets the AI author page architecture from a facts-only capability inventory.
    * Returning null is a hard failure.
    */
-  architect?: (candidate: PageArchitecture[]) => Promise<PageArchitecture[] | null>;
+  architect?: (candidate: PageArchitecture[], revisionNotes?: string) => Promise<PageArchitecture[] | null>;
+  /**
+   * The owner's verified facts, used to screen the architect's per-page search
+   * wording. When absent, the facts in this input are used (stricter: no
+   * credentials, awards or ratings are allowed through).
+   */
+  facts?: DnaFacts | null;
   /**
    * The architect's plan, already started by the caller (so it runs in
    * parallel with picture generation). Takes precedence over `architect`.
@@ -168,7 +178,67 @@ const clean = (value: string | null | undefined) => {
 
 const GENERATED_IMAGE_CREDIT = "AI-generated starter image";
 
+/** Where a first-build picture really came from. */
+export function assetProvenance(asset: FirstBuildImageAsset): "owner" | "stock" | "generated" {
+  if (asset.provider === "owner" || asset.assetSource === "owner") return "owner";
+  if (asset.provider === "stock" || asset.assetSource === "stock") return "stock";
+  return "generated";
+}
+
+/** Roles that present real work or proof. Only the owner's own photos may fill them. */
+export const PROOF_LIKE_ROLE = /gallery|work|portfolio|result|before_after|testimonial|review|case/i;
+
+const OWNER_WORK_CATEGORIES = new Set(["work", "premises", "team", "before", "after"]);
+
+/**
+ * True for the owner's own photos of their work, premises or team: the only
+ * pictures a gallery may show. Uses the media category when the caller passed
+ * it, otherwise the placement the worker derived from that category.
+ */
+export function isOwnerWorkPhoto(asset: FirstBuildImageAsset): boolean {
+  if (assetProvenance(asset) !== "owner") return false;
+  const category = (asset.category ?? "").trim().toLowerCase();
+  if (category) return OWNER_WORK_CATEGORIES.has(category);
+  return !asset.placement.includes("hero");
+}
+
+/** How many real owner work/premises/team photos a build has. */
+export function ownerWorkPhotoCount(assets: readonly FirstBuildImageAsset[] | null | undefined): number {
+  return (assets ?? []).filter(isOwnerWorkPhoto).length;
+}
+
+/** The gallery is offered only when the owner has at least this many real photos. */
+export const MIN_OWNER_GALLERY_PHOTOS = 3;
+
+/**
+ * Provenance travels with the picture: the owner's photo is the business's own
+ * (the renderer's vocabulary for that is "customer") and carries no AI credit;
+ * a stock picture carries its licence and credit line; only a generated
+ * picture is stamped as an AI starter image.
+ */
 function mediaSettings(asset: FirstBuildImageAsset): Record<string, unknown> {
+  const provenance = assetProvenance(asset);
+  if (provenance === "owner") {
+    const category = (asset.category ?? "").trim().toLowerCase();
+    // The owner's media category travels with the picture so a labelled
+    // before/after pair can be recognised as real proof downstream.
+    return writeComponentVisual(category ? { media_category: category.slice(0, 40) } : {}, {
+      alt: asset.altText,
+      aspect_ratio: asset.aspectRatio,
+      source: "customer",
+    });
+  }
+  if (provenance === "stock")
+    return writeComponentVisual(
+      {},
+      {
+        alt: asset.altText,
+        aspect_ratio: asset.aspectRatio,
+        source: "stock",
+        ...(asset.attribution?.trim() ? { credit: asset.attribution.trim() } : {}),
+        ...(asset.license?.trim() ? { license: asset.license.trim() } : {}),
+      },
+    );
   return writeComponentVisual(
     {},
     {
@@ -180,6 +250,9 @@ function mediaSettings(asset: FirstBuildImageAsset): Record<string, unknown> {
     },
   );
 }
+
+const normalName = (value: string | null | undefined) =>
+  (value ?? "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 
 function imageComponent(asset: FirstBuildImageAsset, kind = "image"): Component {
   return {
@@ -253,9 +326,20 @@ export function materializedSectionDesign(
  * parallel with picture generation (it does not depend on the pictures).
  */
 export function candidatePageInventory(
-  input: Pick<MaterializeInput, "businessName" | "copy" | "services" | "hasBooking" | "hasQuoteForm">,
+  input: Pick<MaterializeInput, "businessName" | "copy" | "services" | "hasBooking" | "hasQuoteForm"> & {
+    /**
+     * Real owner work/premises/team photos (see ownerWorkPhotoCount). A gallery
+     * is offered only when there are at least three, so it can only ever show
+     * the business's own pictures.
+     */
+    ownerWorkPhotoCount?: number;
+  },
   primaryAction: string,
 ): PageArchitecture[] {
+  const gallery =
+    (input.ownerWorkPhotoCount ?? 0) >= MIN_OWNER_GALLERY_PHOTOS
+      ? [{ role: "gallery", heading: null, subheading: null, media: "required" as const, intent: "owner work photos" }]
+      : [];
   const functionalSections = [
     ...(input.hasQuoteForm ? [{ role: "quote" }] : []),
     ...(input.hasBooking ? [{ role: "booking" }] : []),
@@ -287,6 +371,7 @@ export function candidatePageInventory(
         { role: "hero", heading: input.copy.heroHeadline || input.businessName, subheading: input.copy.heroSubheadline || null, media: "required", includes: ["primary_action"] },
         ...(hasServices ? [{ role: "services", heading: "Our Services", subheading: null, includes: ["service_cards"] as ("primary_action" | "service_cards")[] }] : []),
         { role: "process", heading: "How It Works", subheading: null },
+        ...gallery,
         { role: "social_proof", heading: null, subheading: null },
         { role: "faq", heading: "Common Questions", subheading: null },
         ...functionalSections,
@@ -350,6 +435,8 @@ export async function materializeSiteContent(
   skipped: boolean;
   /** The AI design this site was built from, when one governed the build. */
   designContract: AiDesignContract | null;
+  /** Measured depth per page slug, when pages were written. */
+  depth?: Record<string, PageDepth>;
 }> {
   const { count } = await db
     .from("website_pages")
@@ -384,7 +471,10 @@ export async function materializeSiteContent(
     const { AiStepUnavailableError } = await import("@/lib/builder/ai-step-error");
     throw new AiStepUnavailableError("main call to action", "no label was authored");
   }
-  const factInventory = candidatePageInventory(input, primaryAction);
+  const factInventory = candidatePageInventory(
+    { ...input, ownerWorkPhotoCount: ownerWorkPhotoCount(input.generatedAssets) },
+    primaryAction,
+  );
   let designContract: AiDesignContract | null = input.designContract ?? null;
   const authored = designContract
     ? null
@@ -400,7 +490,7 @@ export async function materializeSiteContent(
     throw new AiStepUnavailableError("page plan", "the architect returned no usable plan");
   }
   // The AI architect's plan, or the AI design contract's pages.
-  const architecture: PageArchitecture[] =
+  let architecture: PageArchitecture[] =
     authored ??
     (designContract
       ? designContract.pages.map((page) => ({
@@ -421,35 +511,85 @@ export async function materializeSiteContent(
   // If the AI plan left out every enquiry section, add the strongest real
   // capability this business has to the home page instead of discarding the build.
   const enquiryRoles = new Set(["booking", "quote", "contact"]);
-  if (!architecture.some((page) => page.sections.some((section) => enquiryRoles.has(section.role)))) {
-    const home = architecture.find((page) => page.slug === "home") ?? architecture[0];
-    if (home) {
-      const role = input.hasBooking ? "booking" : input.hasQuoteForm ? "quote" : "contact";
-      home.sections = [...home.sections, { role } as (typeof home.sections)[number]];
+  const withEnquiry = (plan: PageArchitecture[]): PageArchitecture[] => {
+    if (!plan.some((page) => page.sections.some((section) => enquiryRoles.has(section.role)))) {
+      const home = plan.find((page) => page.slug === "home") ?? plan[0];
+      if (home) {
+        const role = input.hasBooking ? "booking" : input.hasQuoteForm ? "quote" : "contact";
+        home.sections = [...home.sections, { role } as (typeof home.sections)[number]];
+      }
     }
+    return plan;
+  };
+  architecture = withEnquiry(architecture);
+  // Facts that screen the architect's per-page search wording.
+  const seoFacts: DnaFacts = input.facts ?? {
+    businessName: input.businessName,
+    services: input.services.map((service) => service.name),
+    city: input.city,
+    region: input.state,
+    serviceArea: input.serviceArea,
+    phone: input.phone,
+    email: input.email,
+    yearsInBusiness: input.yearsInBusiness,
+    photoCount: input.photoCount,
+    hasPrices: input.services.some((service) => service.price != null || service.starting_price != null),
+  };
+  const assets = input.generatedAssets ?? [];
+  // The AI campaign names the real service a picture illustrates; service
+  // cards match on that first and fall back to the picture's label.
+  const serviceBySlot = new Map(
+    (input.creativeBrief?.imageInventory ?? []).map((spec) => [spec.slot, imageSpecServiceName(spec)] as const),
+  );
+  const assetsByServiceName = new Map<string, FirstBuildImageAsset>();
+  for (const asset of assets) {
+    const name = normalName(asset.serviceName ?? serviceBySlot.get(asset.slot) ?? null);
+    if (name && !assetsByServiceName.has(name)) assetsByServiceName.set(name, asset);
   }
-  const authoredPrimaryAction = architecture.find((page) => page.slug === "home")?.primaryAction ?? architecture[0]?.primaryAction ?? "";
+  const generatedByLabel = new Map(assets.map((asset) => [asset.label.toLowerCase(), asset]));
+  const pictureForService = (name: string): FirstBuildImageAsset | null =>
+    assetsByServiceName.get(normalName(name)) ?? generatedByLabel.get(name.toLowerCase()) ?? null;
+  const FUNCTIONAL_ROLES = ["quote", "booking", "contact", "sticky_cta"];
+  // Illustrative (generated or stock) pictures never fill a proof-like role.
+  type Slot = { page: string; role: string; index: number; media: PageArchitecture["sections"][number]["media"] };
+  const mayHold = (slot: Slot, asset: FirstBuildImageAsset) =>
+    assetProvenance(asset) === "owner" || !PROOF_LIKE_ROLE.test(slot.role);
+
+  const buildTree = (plan: PageArchitecture[]): Page[] => {
+  const authoredPrimaryAction = plan.find((page) => page.slug === "home")?.primaryAction ?? plan[0]?.primaryAction ?? "";
   const primaryTarget = primaryActionTarget({
     authoredTarget: authoredPrimaryAction,
-    architecture,
+    architecture: plan,
     hasQuoteForm: input.hasQuoteForm,
     hasBooking: input.hasBooking,
   });
-  const generatedByLabel = new Map((input.generatedAssets ?? []).map((asset) => [asset.label.toLowerCase(), asset]));
-  const contentSlots = architecture.flatMap((page) =>
+  // Slot indexes are the section's position on its page, the same index the
+  // tree below looks pictures up by.
+  const contentSlots: Slot[] = plan.flatMap((page) =>
     page.sections
-      .filter((section) => !["quote", "booking", "contact", "sticky_cta"].includes(section.role))
-      .map((section, index) => ({ page: page.slug, role: section.role, index, media: section.media })),
+      .map((section, index) => ({ page: page.slug, role: section.role, index, media: section.media }))
+      .filter((slot) => !FUNCTIONAL_ROLES.includes(slot.role)),
   );
   const allocatedAssets = new Map<string, FirstBuildImageAsset[]>();
   const slotKey = (page: string, role: string, index: number) => `${page}:${role}:${index}`;
-  const claim = (slot: (typeof contentSlots)[number], asset: FirstBuildImageAsset) => {
+  const claim = (slot: Slot, asset: FirstBuildImageAsset) => {
     const key = slotKey(slot.page, slot.role, slot.index);
     allocatedAssets.set(key, [...(allocatedAssets.get(key) ?? []), asset]);
   };
-  const unassigned = [...(input.generatedAssets ?? [])];
+  const unassigned = [...assets];
+  // A gallery shows the owner's real work photos, all of them, and nothing else.
+  const gallerySlot = contentSlots.find((slot) => slot.role === "gallery");
+  if (gallerySlot) {
+    const placed = unassigned.filter((asset) => isOwnerWorkPhoto(asset) && asset.placement.includes("gallery"));
+    const photos = placed.length >= MIN_OWNER_GALLERY_PHOTOS ? placed : unassigned.filter(isOwnerWorkPhoto);
+    for (const photo of photos) {
+      unassigned.splice(unassigned.indexOf(photo), 1);
+      claim(gallerySlot, photo);
+    }
+  }
   for (const slot of contentSlots) {
     const exact = unassigned.findIndex((asset) =>
+      mayHold(slot, asset) &&
       asset.placement.some((placement) => placement === slot.role || placement === `${slot.page}:${slot.role}`),
     );
     if (exact >= 0) {
@@ -459,38 +599,57 @@ export async function materializeSiteContent(
   }
   for (const slot of contentSlots.filter((entry) => entry.media === "required")) {
     const key = slotKey(slot.page, slot.role, slot.index);
-    if (!(allocatedAssets.get(key)?.length) && unassigned.length) {
-      const asset = unassigned.shift();
-      if (asset) claim(slot, asset);
-    }
+    if (allocatedAssets.get(key)?.length) continue;
+    const next = unassigned.findIndex((asset) => mayHold(slot, asset));
+    if (next < 0) continue;
+    const [asset] = unassigned.splice(next, 1);
+    if (asset) claim(slot, asset);
   }
   // Every page gets a picture: before spreading the rest, give each page that
   // still has none one leftover picture on its first picture-friendly section.
-  for (const page of architecture) {
+  for (const page of plan) {
     if (!unassigned.length) break;
     const slots = contentSlots.filter((slot) => slot.page === page.slug);
     if (!slots.length) continue;
     if (slots.some((slot) => allocatedAssets.get(slotKey(slot.page, slot.role, slot.index))?.length)) continue;
+    const target = slots.find((slot) => slot.media !== "none") ?? slots[0]!;
     const pageWords = new Set([page.slug, ...page.slug.split("-"), ...slots.map((slot) => slot.role)]);
-    const fit = unassigned.findIndex((asset) =>
+    let fit = unassigned.findIndex((asset) =>
+      mayHold(target, asset) &&
       asset.placement.some((place) => pageWords.has(place) || place.startsWith(`${page.slug}:`)),
     );
-    const [asset] = unassigned.splice(fit >= 0 ? fit : 0, 1);
-    if (asset) claim(slots.find((slot) => slot.media !== "none") ?? slots[0]!, asset);
+    if (fit < 0) fit = unassigned.findIndex((asset) => mayHold(target, asset));
+    if (fit < 0) continue;
+    const [asset] = unassigned.splice(fit, 1);
+    if (asset) claim(target, asset);
   }
-  if (contentSlots.length)
-    for (const [index, asset] of unassigned.entries()) claim(contentSlots[index % contentSlots.length]!, asset);
-  let tree: Page[] = architecture.map((page) => ({
+  let turn = 0;
+  for (const asset of unassigned) {
+    const eligible = contentSlots.filter((slot) => mayHold(slot, asset));
+    if (!eligible.length) continue;
+    claim(eligible[turn % eligible.length]!, asset);
+    turn += 1;
+  }
+  // Per-page search wording is the architect's, screened by the fact gate.
+  // Only the home page uses the site copy; a sub-page never inherits it.
+  const seo = screenPageSeo({
+    facts: seoFacts,
+    pages: plan.map((page) => ({ slug: page.slug, seoTitle: page.seoTitle ?? null, seoDescription: page.seoDescription ?? null })),
+    homeDescription: input.copy.metaDescription,
+  });
+  if (seo.problems.length)
+    console.warn(`[site-materialize] page search wording withheld for ${orgId}: ${seo.problems.map((problem) => problem.code).join(", ")}`);
+  return plan.map((page) => ({
     slug: page.slug,
     title: page.slug === "home" ? page.title : pageNavLabel(page.title, input.businessName, page.slug),
     kind: page.slug === "home" ? "home" : "page",
-    seo_title: page.slug === "home" ? clean(input.copy.metaTitle) : clean(`${pageNavLabel(page.title, input.businessName, page.slug)} — ${input.businessName}`),
-    seo_description: clean(input.copy.metaDescription),
+    seo_title: page.slug === "home" ? clean(input.copy.metaTitle) : clean(seo.accepted[page.slug]?.seoTitle),
+    seo_description: page.slug === "home" ? clean(input.copy.metaDescription) : clean(seo.accepted[page.slug]?.seoDescription),
     og_title: page.slug === "home" ? clean(input.copy.ogTitle) : clean(`${pageNavLabel(page.title, input.businessName, page.slug)} — ${input.businessName}`),
-    og_description: clean(input.copy.ogDescription),
+    og_description: page.slug === "home" ? clean(input.copy.ogDescription) : clean(seo.accepted[page.slug]?.seoDescription),
     sections: page.sections.map((section, index) => {
       const role = section.role;
-      if (["quote", "booking", "contact", "sticky_cta"].includes(role))
+      if (FUNCTIONAL_ROLES.includes(role))
         return { kind: role, heading: section.heading ?? null, subheading: section.subheading ?? null, body: section.body ?? null };
       const matching = allocatedAssets.get(slotKey(page.slug, role, index)) ?? [];
       const components: Component[] = [];
@@ -501,9 +660,22 @@ export async function materializeSiteContent(
       const includes = section.includes ?? [];
       if (includes.includes("primary_action"))
         components.push({ kind: "button", label: primaryAction, link_label: primaryAction, link_url: primaryTarget });
+      // FAQ answers and benefits are the AI team's words, already through the
+      // first-build fact gate; they are attached only where the plan asked.
+      if (includes.includes("faqs"))
+        for (const faq of input.copy.faqs) {
+          const question = clean(faq.question);
+          const answer = clean(faq.answer);
+          if (question && answer) components.push({ kind: "faq_item", label: question, body: answer });
+        }
+      if (includes.includes("benefits"))
+        for (const benefit of input.copy.benefits) {
+          const line = clean(benefit);
+          if (line) components.push({ kind: "list_item", label: line });
+        }
       if (includes.includes("service_cards"))
         for (const service of input.services) {
-          const asset = generatedByLabel.get(service.name.toLowerCase()) ?? null;
+          const asset = pictureForService(service.name);
           components.push({
             kind: "card",
             label: service.name,
@@ -511,7 +683,7 @@ export async function materializeSiteContent(
             // No per-service page is ever created, so a /services/<name> link
             // was a dead end. Point at the real services page when the plan
             // has one, otherwise at the enquiry path.
-            link_url: architecture.some((candidate) => candidate.slug === "services")
+            link_url: plan.some((candidate) => candidate.slug === "services")
               ? "/services"
               : primaryTarget,
             media_url: asset?.path ?? null,
@@ -521,6 +693,27 @@ export async function materializeSiteContent(
       return { kind: role, heading: section.heading ?? null, subheading: section.subheading ?? null, body: section.body ?? null, components };
     }),
   }));
+  };
+  let tree: Page[] = buildTree(architecture);
+  // A visible page with no sections is a broken plan, not a page. The AI
+  // architect gets one retry naming the page; if it is still empty the build
+  // stops with a retryable error rather than shipping a blank page.
+  const emptyPages = (pages: Page[]) => pages.filter((page) => page.sections.length === 0).map((page) => page.slug);
+  if (emptyPages(tree).length && !designContract && input.architect) {
+    const retried = await input.architect(
+      factInventory,
+      `These pages were planned with no sections: ${emptyPages(tree).join(", ")}. Give each one real sections from the supplied facts, or leave the page out.`,
+    );
+    if (retried?.length) {
+      architecture = withEnquiry(retried);
+      tree = buildTree(architecture);
+    }
+  }
+  const stillEmpty = emptyPages(tree);
+  if (stillEmpty.length) {
+    const { AiStepUnavailableError } = await import("@/lib/builder/ai-step-error");
+    throw new AiStepUnavailableError("page plan", `the "${stillEmpty[0]}" page has no sections`);
+  }
   let authoredArchitecture: PageArchitecture[] | null = null;
   if (!designContract && input.creativeBrief) {
     // The page set, section selection and order come from the design team's
@@ -629,5 +822,8 @@ export async function materializeSiteContent(
     }
   }
 
-  return { pages: tree.length, sections, components, skipped: false, designContract };
+  // Measured depth of what was written, for the section-wording pass and the
+  // build report (repair notes for the AI, never sections added by rule).
+  const depth = auditSiteDepth(tree);
+  return { pages: tree.length, sections, components, skipped: false, designContract, depth };
 }

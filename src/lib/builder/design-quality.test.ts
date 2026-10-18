@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   auditPageDesign,
   auditSectionDesign,
+  depthDirectionFromLook,
   needsDesignRepair,
 } from "@/lib/builder/design-quality";
 import type { CompositionTree } from "@/lib/builder/composition-tree";
@@ -161,5 +162,54 @@ describe("stock AI phrasing", () => {
     const finding = auditSectionDesign(t, { lead: false }).find((f) => f.code === "stock_phrasing");
     expect(finding?.fix).toMatch(/elevate your/);
     expect(finding?.fix).toMatch(/top-notch/);
+  });
+});
+
+describe("page-level findings", () => {
+  const section = (level: 1 | 2, extra: Partial<CompositionTree["root"]> = {}) =>
+    tree({
+      type: "stack",
+      style: { paddingY: 96 },
+      children: [
+        { type: "heading", level, text: "Mobile detailing in Austin", style: { size: level === 1 ? 56 : 40 }, responsive: { mobile: { size: 32 } } },
+        { type: "text", text: "Interior and exterior detailing at your driveway.", style: { size: 18, lineHeight: 1.6, maxWidth: 680 } },
+        { type: "button", text: "Book a detail", href: "/book" },
+      ],
+      ...extra,
+    });
+
+  it("flags a second level-1 heading anywhere on the page", () => {
+    const out = auditPageDesign([
+      { id: "a", role: "hero", tree: strongHero },
+      { id: "b", role: "story", tree: section(1) },
+    ]);
+    expect(out["b"]?.map((f) => f.code)).toContain("duplicate_h1");
+    expect(out["a"]?.some((f) => f.code === "duplicate_h1") ?? false).toBe(false);
+    expect(needsDesignRepair(out["b"]!)).toBe(true);
+  });
+
+  it("does not flag a page with exactly one level-1 heading", () => {
+    const out = auditPageDesign([
+      { id: "a", role: "hero", tree: strongHero },
+      { id: "b", role: "story", tree: section(2) },
+    ]);
+    expect(Object.values(out).flat().some((f) => f.code === "duplicate_h1")).toBe(false);
+  });
+
+  it("flags a flat page only when the AI's own brief asks for motion or depth", () => {
+    const flat = [{ id: "a", role: "hero", tree: strongHero }];
+    const has = (out: Record<string, { code: string }[]>) => (out["a"] ?? []).some((f) => f.code === "flat_page");
+    expect(has(auditPageDesign(flat))).toBe(false);
+    expect(has(auditPageDesign(flat, { direction: { motionLevel: "minimal", shadow: "none" } }))).toBe(false);
+    const asked = auditPageDesign(flat, { direction: { motionLevel: "expressive scroll reveals" } })["a"] ?? [];
+    expect(asked.map((f) => f.code)).toContain("flat_page");
+    expect(needsDesignRepair(asked)).toBe(true);
+    const moving = [{ id: "a", role: "hero", tree: section(1, { motion: { kind: "rise" } }) }];
+    expect(has(auditPageDesign(moving, { direction: { motionLevel: "expressive" } }))).toBe(false);
+  });
+
+  it("reads the brief's motion and shadow from a JSON look summary", () => {
+    expect(depthDirectionFromLook(JSON.stringify({ motion: { level: "lively" }, shapeLanguage: { shadow: "soft lift" } }))).toEqual({ motionLevel: "lively", shadow: "soft lift" });
+    expect(depthDirectionFromLook("not json")).toBeNull();
   });
 });

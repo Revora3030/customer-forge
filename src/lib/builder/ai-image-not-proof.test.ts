@@ -44,4 +44,12 @@ describe("AI_GENERATED_DRAFT pictures are never shown as before/after proof", ()
     expect(src).toContain("aiGenerated: true");
     expect(src).toContain("never place them in a compare or before_after_slider");
   });
+
+  it("treats stock pictures as not-proof too, and only owner before/after pairs as proof", () => {
+    const src = readFileSync("src/lib/builder/first-build-compositions.server.ts", "utf8");
+    expect(src).toMatch(/function isNotProofPart[\s\S]*source === "generated" \|\| source === "stock"/);
+    expect(src).not.toContain("isGeneratedPart");
+    expect(src).toContain("notProof: true");
+    expect(src).toContain("proofEligible: true");
+  });
 });

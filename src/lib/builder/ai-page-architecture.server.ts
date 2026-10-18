@@ -22,6 +22,7 @@ import { parseReview } from "@/lib/builder/collective-copy";
 import { creativeQualityPrompt } from "@/lib/builder/creative-quality-matrix";
 import { craftBarPrompt } from "@/lib/builder/world-class-craft";
 import { businessNameHeadlines, stripBusinessNameHeadlines } from "@/lib/builder/headline-names";
+import { auditSiteDepth, depthNumbers, depthRepairNotes } from "@/lib/builder/page-depth";
 
 export type PageArchitectureOutcome = {
   architecture: PageArchitecture[] | null;
@@ -75,8 +76,10 @@ export async function proposePageArchitecture(input: {
       "EXISTING PAGES AND SECTIONS (reorder, omit, or add your own):",
       JSON.stringify(available, null, 2),
       "",
-       'Return JSON: {"pages": [{"slug": "home", "title": "...", "purpose": "...", "primaryAction": "...", "sections": [{"role": "...", "heading": "...", "subheading": "...", "body": "...", "layout": "your composition name", "intent": "why it exists", "media": "none|optional|required", "includes": ["primary_action", "service_cards"]}]}]}',
-      "includes is optional: add \"primary_action\" to put the business's main action button in that section, and \"service_cards\" to list the real services as cards there. Nothing is added to a section you do not ask for.",
+       'Return JSON: {"pages": [{"slug": "home", "title": "...", "purpose": "...", "primaryAction": "...", "seoTitle": "...", "seoDescription": "...", "sections": [{"role": "...", "heading": "...", "subheading": "...", "body": "...", "layout": "your composition name", "intent": "why it exists", "media": "none|optional|required", "includes": ["primary_action", "service_cards", "faqs", "benefits"]}]}]}',
+      "includes is optional: add \"primary_action\" to put the business's main action button in that section, \"service_cards\" to list the real services as cards there, \"faqs\" to attach the site's already-written, fact-checked question-and-answer pairs (for a questions section), and \"benefits\" to attach the site's already-written, fact-checked benefit list. Nothing is added to a section you do not ask for.",
+      "SEARCH WORDING PER PAGE: give every page its own seoTitle (at most 60 characters) and seoDescription (120-155 characters) written for THAT page's purpose, from the supplied facts only. Never reuse one page's description on another page, and never copy the home page's description onto a sub-page.",
+      "A \"gallery\" section appears in the existing sections only when the owner uploaded at least three real work photos. It shows ONLY those real photos; you may move it to any page, but you can never add a gallery that is not offered.",
       "Keep the home page. Omit anything that weakens the site. Order sections deliberately.",
       "There is no required page anatomy: you decide how each page opens, flows and closes. Only place working features (quote, booking, contact) where they genuinely help.",
       "You may invent any justified content sections and pages within the supplied facts. Give every section its own layout, intent and media requirement. Give each new section a plain role name, heading, and body of up to 1200 characters.",
@@ -148,6 +151,11 @@ export async function proposePageArchitecture(input: {
       costMicrocents: sol.costMicrocents,
     };
 
+  // Measured depth of the proposed plan: input for Terra and, when a page
+  // falls short, repair notes for Sol. Nothing is added to the plan by rule.
+  const depth = auditSiteDepth(normalized.architecture);
+  const depthNotes = depthRepairNotes(depth);
+
   const terra = await callBestThinker({
     json: true,
     purpose: "plan_review",
@@ -165,6 +173,9 @@ export async function proposePageArchitecture(input: {
       "",
       "PROPOSED STRUCTURE:",
       JSON.stringify(normalized.architecture, null, 2),
+      "",
+      "MEASURED PAGE DEPTH (visible characters, content beats beyond headings, closing action; input only, not a required anatomy):",
+      JSON.stringify(depthNumbers(depth), null, 2),
       "",
       "Approve only if the proposed structure gives a first-time visitor enough factual coverage to understand what this business does, which supplied services matter, where it serves, and how to take a real available action. Refuse unsupported claims, omitted critical supplied facts, fake capabilities, or stub-like plans. Do not require any specific number of pages, sections, visual beats, or a house layout.",
       '{"approvedFields": ["structure"], "rejected": [{"field": "...", "reason": "..."}]}',
@@ -192,7 +203,8 @@ export async function proposePageArchitecture(input: {
     const nameNote = namedHeadings.length
       ? ` Also remove the business name from these headings: ${namedHeadings.map((h) => JSON.stringify(h.heading)).join(", ")}.`
       : "";
-    const notes = (JSON.stringify(review.notes ?? []).slice(0, 1300) || "the structure was too thin") + nameNote.slice(0, 200);
+    const depthNote = depthNotes.length ? ` Page depth: ${depthNotes.join(" ")}` : "";
+    const notes = (JSON.stringify(review.notes ?? []).slice(0, 1300) || "the structure was too thin") + nameNote.slice(0, 200) + depthNote.slice(0, 600);
     const revised = await proposePageArchitecture({ ...input, revisionNotes: notes });
     return {
       ...revised,
@@ -210,6 +222,29 @@ export async function proposePageArchitecture(input: {
       models,
       costMicrocents: cost,
     };
+
+  // An approved plan whose pages are measurably thin goes back to Sol once with
+  // the exact shortfalls. If that revision cannot be authored and approved,
+  // the approved plan stands and the section-wording pass fills empty bodies.
+  if (depthNotes.length && !input.revisionNotes) {
+    const revised = await proposePageArchitecture({
+      ...input,
+      revisionNotes: `PAGE DEPTH SHORTFALLS: ${depthNotes.join(" ")}`,
+    });
+    if (revised.architecture?.length)
+      return {
+        ...revised,
+        models: [...models, ...revised.models],
+        costMicrocents: cost + revised.costMicrocents,
+      };
+    return {
+      architecture: stripBusinessNameHeadlines(normalized.architecture, input.businessName),
+      skipped: null,
+      rejected: normalized.rejected,
+      models: [...models, ...revised.models],
+      costMicrocents: cost + revised.costMicrocents,
+    };
+  }
 
   return {
     architecture: stripBusinessNameHeadlines(normalized.architecture, input.businessName),

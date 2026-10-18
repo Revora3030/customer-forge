@@ -32,7 +32,9 @@ export type DesignFinding = {
     | "long_line_length"
     | "wall_of_text"
     | "stock_phrasing"
-    | "missing_action";
+    | "missing_action"
+    | "duplicate_h1"
+    | "flat_page";
   severity: "critical" | "major";
   path: string;
   /** Plain repair instruction for the art director. */
@@ -243,9 +245,69 @@ export function auditSectionDesign(
   return findings;
 }
 
+/**
+ * The AI's own motion and depth direction for the site, read from its brief.
+ * Only used to hold the composed pages to what the AI itself asked for.
+ */
+export type DepthDirection = {
+  motionLevel?: string | null;
+  shadow?: string | null;
+};
+
+const NO_MOTION = /^\s*(none|no|minimal|static|off|still)\b/i;
+const NO_SHADOW = /^\s*(none|no|flat|off)\b/i;
+
+/** What the AI's brief asks for, in its own words. */
+function depthAsks(direction: DepthDirection | null | undefined): string[] {
+  const motion = (direction?.motionLevel ?? "").trim();
+  const shadow = (direction?.shadow ?? "").trim();
+  return [
+    motion && !NO_MOTION.test(motion) ? `motion ("${motion.slice(0, 80)}")` : null,
+    shadow && !NO_SHADOW.test(shadow) ? `depth ("${shadow.slice(0, 80)}")` : null,
+  ].filter((entry): entry is string => entry !== null);
+}
+
+/** True when the AI's brief calls for motion or visual depth. */
+export function briefAsksForDepth(direction: DepthDirection | null | undefined): boolean {
+  return depthAsks(direction).length > 0;
+}
+
+/** Reads the motion level and shadow language from a JSON look summary, when present. */
+export function depthDirectionFromLook(lookSummary: string | null | undefined): DepthDirection | null {
+  if (!lookSummary) return null;
+  try {
+    const parsed = JSON.parse(lookSummary) as { motion?: { level?: unknown }; shapeLanguage?: { shadow?: unknown } };
+    const motionLevel = typeof parsed?.motion?.level === "string" ? parsed.motion.level : null;
+    const shadow = typeof parsed?.shapeLanguage?.shadow === "string" ? parsed.shapeLanguage.shadow : null;
+    return motionLevel || shadow ? { motionLevel, shadow } : null;
+  } catch {
+    return null;
+  }
+}
+
+/** A node that moves, responds to the pointer, or sits on its own layer. */
+function hasDepthNode(tree: CompositionTree): boolean {
+  return walk(tree.root).some(({ node }) => {
+    if (node.motion && node.motion.kind !== "none") return true;
+    if (node.hover && Object.keys(node.hover).length > 0) return true;
+    const style = node.style;
+    if (!style) return false;
+    return (
+      style.position === "absolute" ||
+      style.position === "sticky" ||
+      typeof style.zIndex === "number" ||
+      typeof style.overlap === "number" ||
+      (typeof style.rotate === "number" && style.rotate !== 0) ||
+      (typeof style.blur === "number" && style.blur > 0) ||
+      (style.shadow !== undefined && style.shadow !== "none")
+    );
+  });
+}
+
 /** Findings for every section of one page, keyed by section id. */
 export function auditPageDesign(
   sections: { id: string; role: string; tree: CompositionTree }[],
+  options: { direction?: DepthDirection | null } = {},
 ): Record<string, DesignFinding[]> {
   const out: Record<string, DesignFinding[]> = {};
   sections.forEach((section, index) => {
@@ -271,10 +333,42 @@ export function auditPageDesign(
       });
     }
   }
+
+  // One page, one level-1 heading, across every composition on it.
+  let firstH1Seen = false;
+  for (const section of sections) {
+    for (const visit of walk(section.tree.root)) {
+      if (visit.node.type !== "heading" || visit.node.level !== 1) continue;
+      if (!firstH1Seen) {
+        firstH1Seen = true;
+        continue;
+      }
+      (out[section.id] ??= []).push({
+        code: "duplicate_h1",
+        severity: "critical",
+        path: visit.path,
+        fix: "This page already has a level-1 heading in an earlier section. A page has exactly one; make this heading level 2 (keep its look if it should stay large).",
+      });
+    }
+  }
+
+  // The AI's own brief asked for motion or depth; a page with none of it reads flat.
+  const first = sections[0];
+  if (first && briefAsksForDepth(options.direction) && !sections.some((section) => hasDepthNode(section.tree)))
+    (out[first.id] ??= []).push({
+      code: "flat_page",
+      severity: "major",
+      path: "root",
+      fix: `The approved brief calls for ${depthAsks(options.direction).join(" and ")}, but this page has no motion, hover response or layered element. Add the motion, hover or layering the brief describes where it helps the content (it is skipped for reduced-motion visitors).`,
+    });
   return out;
 }
 
 /** True when any finding must be fixed before the section ships. */
 export function needsDesignRepair(findings: DesignFinding[]): boolean {
-  return findings.some((finding) => finding.severity === "critical") || findings.length >= 3;
+  // A flat page is a miss against the AI's own brief, so it always goes back.
+  return (
+    findings.some((finding) => finding.severity === "critical" || finding.code === "flat_page") ||
+    findings.length >= 3
+  );
 }
