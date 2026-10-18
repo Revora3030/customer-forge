@@ -1,6 +1,8 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { parseVisitorReply } from "@/lib/visitor-jarvis";
+import { parseVisitorReply, visitorSpokenText } from "@/lib/visitor-jarvis";
+import { splitSpeech } from "@/lib/speech-chunks";
+import { signVoiceLink, verifyVoiceLink } from "@/lib/jarvis-voice-token.server";
 import { visitorSystemPrompt } from "@/lib/visitor-jarvis.functions";
 
 describe("Jarvis for visitors", () => {
@@ -36,6 +38,38 @@ describe("visitor Jarvis speaks in the ElevenLabs voice", () => {
     const widget = readFileSync("src/components/marketing/VisitorJarvis.tsx", "utf8");
     expect(widget).toContain("useJarvisVoice(synthesize, undefined, streamLink)");
     expect(widget).toContain("jarvisVoice.unlock();");
+  });
+
+  it("signs a link for every chunk the browser will speak, for replies with URLs, emails, dashes and long text", async () => {
+    const replies = [
+      "You can see every plan at https://revoragrowthsystems.com/pricing and start today. Questions? Ask away.",
+      "Email hello@revoragrowthsystems.com or visit www.revoragrowthsystems.com/audit for a free audit.",
+      "Setup is one fee — then the first month is free — and you can cancel anytime.",
+      `${"Revora builds your site, books jobs and follows up on every lead for you. ".repeat(14)}See https://example.com/x.`,
+    ];
+    for (const reply of replies) {
+      const text = visitorSpokenText(reply);
+      expect(text.length).toBeLessThanOrEqual(700);
+      expect(text).not.toMatch(/https?:\/\/|www\./);
+      // What replyVoice() signs: one link per splitSpeech chunk of visitorSpokenText(reply).
+      const links: Record<string, string> = {};
+      for (const chunk of splitSpeech(text)) links[chunk] = await signVoiceLink("key", chunk, "visitor");
+      // What the browser speaks: voice.text verbatim, chunked the same way by the hook.
+      const spoken = splitSpeech(text);
+      expect(spoken.length).toBeGreaterThan(0);
+      for (const chunk of spoken) {
+        expect(links[chunk]).toBeDefined();
+        const q = new URL(links[chunk]!, "https://revoragrowthsystems.com").searchParams;
+        expect((await verifyVoiceLink("key", q.get("p"), q.get("s")))?.text).toBe(chunk);
+      }
+    }
+    const fns = readFileSync("src/lib/visitor-jarvis.functions.ts", "utf8");
+    expect(fns).toContain("const text = visitorSpokenText(reply);");
+    expect(fns).toContain("const chunks = splitSpeech(text);");
+    expect(fns).toContain('signVoiceLink(apiKey, chunk, "visitor")');
+    const widget = readFileSync("src/components/marketing/VisitorJarvis.tsx", "utf8");
+    expect(widget).not.toContain(".replace(/https?:");
+    expect(widget).toContain("jarvisVoice.speak(voice ? voice.text : visitorSpokenText(content))");
   });
 
   it("lets the owner see whether their own ElevenLabs voice is connected", () => {

@@ -1,4 +1,5 @@
 /** Shared, browser-safe pieces of the visitor Jarvis (see visitor-jarvis.functions.ts). */
+import { speakableText } from "./jarvis-actions";
 
 export type VisitorTurn = { role: "user" | "assistant"; content: string };
 
@@ -12,6 +13,25 @@ export type VisitorAction = "start" | "upgrade" | "audit" | "pricing";
 export type VisitorVoice = { text: string; links: Record<string, string> };
 
 export type VisitorReply = { reply: string; action: VisitorAction | null; voice?: VisitorVoice };
+
+/** The most the visitor Jarvis reads aloud per reply. */
+export const VISITOR_SPOKEN_MAX = 700;
+
+/**
+ * Exactly what the visitor Jarvis reads aloud for a reply. The server signs
+ * ElevenLabs links for splitSpeech() of this text and the browser speaks the
+ * same text, so every spoken chunk has a matching link. Web addresses are
+ * dropped: read aloud they come out split at every dot.
+ */
+export function visitorSpokenText(reply: string): string {
+  return speakableText(reply)
+    .replace(/https?:\/\/\S+/g, " ")
+    .replace(/\bwww\.\S+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, VISITOR_SPOKEN_MAX)
+    .trim();
+}
 
 const ACTIONS: VisitorAction[] = ["start", "upgrade", "audit", "pricing"];
 
