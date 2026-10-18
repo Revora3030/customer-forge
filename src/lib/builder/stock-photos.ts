@@ -159,7 +159,8 @@ export function stockMediaRow(photo: StockPhoto, altText?: string | null): Stock
   return {
     url: photo.url,
     alt_text: alt,
-    category: "work",
+    // "work" means the business's own completed work; a stock photo never is.
+    category: "other",
     file_name: `${photo.provider}-${photo.id}`.slice(0, 120),
     source: `stock:${photo.provider}`,
     source_page: photo.sourcePage,

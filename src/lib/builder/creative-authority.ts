@@ -10,7 +10,7 @@
  * Pure module: no environment, no network, no secrets.
  */
 
-import type { CreativeBrief } from "@/lib/builder/first-build-contract";
+import type { CreativeBrief, ImageBriefSpec } from "@/lib/builder/first-build-contract";
 import {
   CREATIVE_AUTHORITY,
   REQUIRED_RESPONSIVE_WIDTHS,
@@ -39,6 +39,10 @@ export type PageArchitecture = {
   title: string;
   purpose: string;
   primaryAction: string;
+  /** The architect's own search title for this page (<= 60 characters). */
+  seoTitle?: string | null;
+  /** The architect's own page-specific search description (120-155 characters). */
+  seoDescription?: string | null;
   /** The AI's own per-width behaviour, when it described one. */
   responsive?: Partial<Record<number, Partial<ResponsiveBehaviour>>>;
   /** Section roles in the AI's intended order for this page. */
@@ -51,9 +55,22 @@ export type PageArchitecture = {
     subheading?: string | null;
     body?: string | null;
     custom?: boolean;
-    includes?: ("primary_action" | "service_cards")[];
+    includes?: ("primary_action" | "service_cards" | "faqs" | "benefits")[];
   }[];
 };
+
+/**
+ * One picture of the AI campaign, optionally tied to the real service it
+ * illustrates. The collective writes `serviceName` (exactly a supplied service
+ * name) so service cards get their picture by service, not by a guessed label.
+ */
+export type ServiceAwareImageSpec = ImageBriefSpec & { serviceName?: string | null };
+
+/** The service name the campaign tied to a picture, when it named one. */
+export function imageSpecServiceName(spec: ImageBriefSpec): string | null {
+  const value = (spec as ServiceAwareImageSpec).serviceName;
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
 
 /**
  * Records the AI's own per-width behaviour. Nothing is derived: widths the AI

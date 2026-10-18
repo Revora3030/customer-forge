@@ -58,6 +58,8 @@ type RawPage = {
   purpose?: unknown;
   primaryAction?: unknown;
   sections?: unknown;
+  seoTitle?: unknown;
+  seoDescription?: unknown;
 };
 
 /** Parses the AI's answer. Anything that is not the agreed shape returns null. */
@@ -92,9 +94,13 @@ function headingText(value: unknown, max: number): string | null {
   return value2;
 }
 
-/** Material the AI explicitly asks the materializer to attach to a section. */
-export type SectionInclude = "primary_action" | "service_cards";
-const INCLUDES = new Set<SectionInclude>(["primary_action", "service_cards"]);
+/**
+ * Material the AI explicitly asks the materializer to attach to a section:
+ * the main action button, the real service cards, the AI-written (already
+ * fact-screened) FAQ answers, or the AI-written benefit list.
+ */
+export type SectionInclude = "primary_action" | "service_cards" | "faqs" | "benefits";
+const INCLUDES = new Set<SectionInclude>(["primary_action", "service_cards", "faqs", "benefits"]);
 function readIncludes(value: unknown): SectionInclude[] {
   if (!Array.isArray(value)) return [];
   return [...new Set(value.filter((item): item is SectionInclude => typeof item === "string" && INCLUDES.has(item as SectionInclude)))];
@@ -147,7 +153,12 @@ function sameShape(a: PageArchitecture[], b: PageArchitecture[]): boolean {
  */
 /** Section roles that are working features and can never be invented. */
 const FEATURE_ROLES = new Set(["quote", "booking", "contact", "sticky_cta", "embed", "post_list", "composition", "hero", "gallery", "feature_media"]);
-const RELOCATABLE_FEATURE_ROLES = new Set(["quote", "booking", "contact", "sticky_cta", "embed", "post_list"]);
+/**
+ * Features the AI may move to any page, but only when the inventory offered
+ * them. A gallery is offered only when the owner has real work photos, so it
+ * can never be invented to hold illustrative pictures.
+ */
+const RELOCATABLE_FEATURE_ROLES = new Set(["quote", "booking", "contact", "sticky_cta", "embed", "post_list", "gallery"]);
 const SAFE_ROLE = /^[a-z][a-z0-9_]{1,30}$/;
 const SAFE_SLUG = /^[a-z0-9][a-z0-9-]{1,39}$/;
 /** Resource ceiling only; it is not a prescribed site size. */
@@ -253,11 +264,17 @@ export function normalizePageArchitecture(input: {
     }
     if (!source) invented += 1;
     seen.add(slug);
+    // Search wording is the architect's own. Length, duplicates and claims are
+    // screened by the first-build safety gate; markup is never kept.
+    const seoTitle = headingText(raw.seoTitle, 200);
+    const seoDescription = headingText(raw.seoDescription, 400);
     architecture.push({
       slug,
       title: title ?? slug,
       purpose: text(raw.purpose) ?? source?.purpose ?? "page",
       primaryAction: text(raw.primaryAction) ?? source?.primaryAction ?? input.candidate[0]?.primaryAction ?? "",
+      ...(seoTitle ? { seoTitle } : {}),
+      ...(seoDescription ? { seoDescription } : {}),
       sections,
     });
   }

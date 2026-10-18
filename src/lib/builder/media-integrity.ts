@@ -37,6 +37,47 @@ function hasResolvedMedia(section: Record<string, unknown>): boolean {
   );
 }
 
+const isImageComponent = (component: ComponentLike) =>
+  component.kind === "image" || component.kind === "hero_image";
+
+/** Minimal page shape for the source check: what is stored, not the AI contract. */
+export type ImageSourcePage = {
+  slug: string;
+  sections: { kind: string; components?: ComponentLike[] | null }[];
+};
+
+/**
+ * Checks every image block for a picture behind it. Needs no design contract,
+ * so it can run on a live site at launch (after chat or coding edits), not
+ * only during a first build.
+ */
+export function inspectImageSources(pages: ImageSourcePage[]): MediaViolation[] {
+  const violations: MediaViolation[] = [];
+  for (const page of pages)
+    for (const section of page.sections)
+      for (const component of section.components ?? []) {
+        if (!isImageComponent(component)) continue;
+        const source = typeof component.media_url === "string" ? component.media_url.trim() : "";
+        if (source.length === 0)
+          violations.push({
+            page: page.slug,
+            section: section.kind,
+            kind: "image_component_without_source",
+            detail: "an image block has no picture behind it and would render as an empty box",
+            remedy: "redesign_section",
+          });
+        else if (/^(undefined|null|about:blank)$/i.test(source))
+          violations.push({
+            page: page.slug,
+            section: section.kind,
+            kind: "broken_asset_reference",
+            detail: `an image block points at "${source}", which cannot load`,
+            remedy: "attach_verified_asset",
+          });
+      }
+  return violations;
+}
+
 /**
  * Inspects rendered material against the AI design's stated media needs. A
  * section the design marked `required` must carry a real picture.
@@ -67,26 +108,9 @@ export function inspectMediaIntegrity(
           remedy: "generate_image",
         });
 
-      for (const component of componentsOf(record)) {
-        const isImage = component.kind === "image" || component.kind === "hero_image";
-        const source = typeof component.media_url === "string" ? component.media_url.trim() : "";
-        if (isImage && source.length === 0)
-          violations.push({
-            page: page.slug,
-            section: section.kind,
-            kind: "image_component_without_source",
-            detail: "an image block has no picture behind it and would render as an empty box",
-            remedy: "redesign_section",
-          });
-        else if (isImage && /^(undefined|null|about:blank)$/i.test(source))
-          violations.push({
-            page: page.slug,
-            section: section.kind,
-            kind: "broken_asset_reference",
-            detail: `an image block points at "${source}", which cannot load`,
-            remedy: "attach_verified_asset",
-          });
-      }
+      violations.push(
+        ...inspectImageSources([{ slug: page.slug, sections: [{ kind: section.kind, components: componentsOf(record) }] }]),
+      );
     }
   }
   return violations;

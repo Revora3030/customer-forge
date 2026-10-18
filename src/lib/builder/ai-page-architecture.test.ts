@@ -141,3 +141,53 @@ describe("AI-invented sections and pages", () => {
     expect(r?.architecture[1]?.sections.map((section) => section.role)).toEqual(["story", "contact"]);
   });
 });
+
+describe("gallery, page material and page search wording", () => {
+  const base = { slug: "home", title: "Home", purpose: "home", primaryAction: "Call" };
+  it("rejects a gallery the inventory did not offer", () => {
+    const r = normalizePageArchitecture({
+      candidate: [{ ...base, sections: [{ role: "hero" }, { role: "services" }] }],
+      proposal: [{ slug: "home", sections: [{ role: "hero" }, { role: "gallery", heading: "Our work" }] }],
+    });
+    expect(r?.architecture[0]?.sections.map((s) => s.role)).toEqual(["hero"]);
+    expect(r?.rejected.some((entry) => entry.field === "page.home.gallery")).toBe(true);
+  });
+
+  it("lets the AI move an offered gallery (real owner photos) to another page", () => {
+    const r = normalizePageArchitecture({
+      candidate: [{ ...base, sections: [{ role: "hero" }, { role: "gallery" }] }],
+      proposal: [
+        { slug: "home", sections: [{ role: "hero" }] },
+        { slug: "our-work", title: "Our work", sections: [{ role: "gallery", heading: "Recent jobs" }] },
+      ],
+    });
+    expect(r?.architecture.find((page) => page.slug === "our-work")?.sections.map((s) => s.role)).toEqual(["gallery"]);
+  });
+
+  it("accepts faqs and benefits includes and keeps per-page search wording", () => {
+    const proposal = parsePageArchitecture(
+      JSON.stringify({
+        pages: [
+          {
+            slug: "home",
+            seoTitle: "Mobile detailing in Tampa",
+            seoDescription: "Mobile detailing across Tampa.",
+            sections: [
+              { role: "hero" },
+              { role: "faq", heading: "Questions", includes: ["faqs", "made_up"] },
+              { role: "why_us", heading: "Why us", includes: ["benefits"] },
+            ],
+          },
+        ],
+      }),
+    );
+    const r = normalizePageArchitecture({
+      proposal: proposal!,
+      candidate: [{ ...base, sections: [{ role: "hero" }, { role: "faq" }] }],
+    });
+    const sections = r!.architecture[0]!.sections;
+    expect(sections[1]?.includes).toEqual(["faqs"]);
+    expect(sections[2]?.includes).toEqual(["benefits"]);
+    expect(r!.architecture[0]).toMatchObject({ seoTitle: "Mobile detailing in Tampa", seoDescription: "Mobile detailing across Tampa." });
+  });
+});
