@@ -250,25 +250,6 @@ export type SettleOutcome =
   | { skipped: true; reason: string }
   | { skipped: false; restored: boolean; disturbed: boolean; reason: string | null; backupId: string | null };
 
-/** Legacy materializing-only markers lost their backup id; the rebuild's restore point is found by label and time. */
-async function findFreshRebuildBackup(db: Db, orgId: string, jobCreatedAt: string): Promise<string | null> {
-  const createdAt = Date.parse(jobCreatedAt);
-  if (!Number.isFinite(createdAt)) return null;
-  const { data, error } = await db
-    .from("data_backups")
-    .select("id")
-    .eq("organization_id", orgId)
-    .eq("kind", "pre_restore")
-    .like("label", "Before fresh AI rebuild%")
-    .lte("created_at", jobCreatedAt)
-    .gte("created_at", new Date(createdAt - 10 * 60_000).toISOString())
-    .order("created_at", { ascending: false })
-    .limit(1);
-  if (error) return null;
-  const id = ((data ?? []) as { id?: unknown }[])[0]?.id;
-  return isUuid(id) ? id : null;
-}
-
 /** Number of pages the backup holds, or null when it cannot be read. */
 async function backupPageCount(db: Db, backupId: string, orgId: string): Promise<number | null> {
   const { data, error } = await db
@@ -302,18 +283,14 @@ export async function settleAbandonedFreshRebuild(db: Db, job: AbandonedJob): Pr
   if (readError) return { skipped: true, reason: `generation unreadable: ${readError.message}` };
   const generation = isRecord(settings?.generation) ? (settings.generation as Record<string, unknown>) : {};
   const marker = isRecord(generation["pendingBuild"]) ? generation["pendingBuild"] : null;
+  // Only a fresh_replace marker tagged with THIS job proves it was a fresh
+  // rebuild and names its own restore point. Every build writes the
+  // "materializing" state, and guessing a backup by label and time could
+  // restore an earlier rebuild's backup over a newer site, so a build without
+  // its own marker is left to the orphan cleanup.
   const markerMatches = marker?.["jobId"] === job.id;
-  const materializingOnly =
-    !marker && generation["jobId"] === job.id && generation["buildState"] === "materializing";
-  if (!markerMatches && !materializingOnly) return { skipped: true, reason: "no fresh rebuild marker for this build" };
-
-  let backupId: string | null = markerMatches && isUuid(marker?.["backupId"]) ? (marker?.["backupId"] as string) : null;
-  if (materializingOnly) {
-    backupId = await findFreshRebuildBackup(db, orgId, job.created_at);
-    // A safe first build also writes the materializing marker. Without a
-    // fresh-rebuild restore point it is left for the orphan cleanup.
-    if (!backupId) return { skipped: true, reason: "no fresh rebuild backup for this build" };
-  }
+  if (!markerMatches) return { skipped: true, reason: "no fresh rebuild marker for this build" };
+  const backupId: string | null = isUuid(marker?.["backupId"]) ? (marker?.["backupId"] as string) : null;
 
   // Claim: remove the marker only if it still names this job.
   const ownsBuildState = generation["jobId"] === job.id;
@@ -326,9 +303,7 @@ export async function settleAbandonedFreshRebuild(db: Db, job: AbandonedJob): Pr
     .from("website_settings")
     .update({ generation: cleared } as never)
     .eq("organization_id", orgId);
-  const claimQuery = markerMatches
-    ? claimBase.filter("generation->pendingBuild->>jobId", "eq", job.id)
-    : claimBase.filter("generation->>jobId", "eq", job.id).filter("generation->>buildState", "eq", "materializing");
+  const claimQuery = claimBase.filter("generation->pendingBuild->>jobId", "eq", job.id);
   const { data: claimed, error: claimError } = await claimQuery.select("organization_id");
   if (claimError || !claimed?.length) return { skipped: true, reason: "already settled" };
 
@@ -504,9 +479,30 @@ export async function sweepCancelledFreshRebuilds(db: Db, organizationId?: strin
 }
 
 /** Collaborators of a failed attempt's cleanup, injectable for tests. */
+/** Removes this job's fresh-rebuild marker only if it still names this job; true when claimed. */
+async function claimFreshMarker(db: Db, orgId: string, jobId: string): Promise<boolean> {
+  const { data } = await db.from("website_settings").select("generation").eq("organization_id", orgId).maybeSingle();
+  const generation = isRecord(data?.generation) ? (data.generation as Record<string, unknown>) : {};
+  const marker = isRecord(generation["pendingBuild"]) ? generation["pendingBuild"] : null;
+  if (marker?.["jobId"] !== jobId) return false;
+  const { data: claimed, error } = await db
+    .from("website_settings")
+    .update({ generation: withoutPendingBuild(generation) } as never)
+    .eq("organization_id", orgId)
+    .filter("generation->pendingBuild->>jobId", "eq", jobId)
+    .select("organization_id");
+  return !error && Boolean(claimed?.length);
+}
+
 export type AttemptFailureDeps = {
   cleanupImages: (assets: import("@/lib/builder/first-build-images.types").FirstBuildImageAsset[]) => Promise<unknown>;
   rollback: (backupId: string, message: string) => Promise<{ restored: boolean; restoreError: string | null }>;
+  /**
+   * Claims the fresh-rebuild marker for this job (compare-and-set). Only the
+   * attempt that still owns the marker may restore; a newer build that already
+   * took over keeps its pages. Omitted means owned (tests).
+   */
+  claimMarker?: () => Promise<boolean>;
 };
 
 /**
@@ -536,6 +532,11 @@ export async function settleFailedAttempt(
   if (input.generatedAssets.length) await deps.cleanupImages(input.generatedAssets).catch(() => undefined);
   const message = error instanceof Error ? error.message : "Generation failed.";
   if (input.freshReplace && input.backupId) {
+    if (deps.claimMarker && !(await deps.claimMarker())) {
+      // Another build (or the abandoned-rebuild sweep) already settled this
+      // rebuild; restoring now could overwrite the newer site.
+      throw error;
+    }
     const rollback = await deps.rollback(input.backupId, message);
     throw new FreshRebuildRollbackError(
       rollback.restored
@@ -1083,12 +1084,19 @@ async function runJob(
   if (buildMode.foreignMarkerJobId) {
     const { data: foreign } = await db
       .from("generation_jobs")
-      .select("id, organization_id, created_by, created_at, status")
+      .select("id, organization_id, created_by, created_at, status, cancel_requested_at")
       .eq("id", buildMode.foreignMarkerJobId)
       .eq("organization_id", orgId)
       .maybeSingle();
-    const foreignJob = foreign as (AbandonedJob & { status?: string }) | null;
-    if (foreignJob && (foreignJob.status === "failed" || foreignJob.status === "cancelled")) {
+    const foreignJob = foreign as (AbandonedJob & { status?: string; cancel_requested_at?: string | null }) | null;
+    // A just-cancelled rebuild's worker may still be running and will settle
+    // itself; only one that has certainly stopped (past its lease and grace,
+    // the same threshold the sweep uses) is settled from here.
+    const settledAfter = Date.now() - (LEASE_SECONDS * 1000 + STALLED_LEASE_GRACE_MS);
+    const cancelledLongAgo =
+      foreignJob?.status === "cancelled" &&
+      Date.parse(String(foreignJob.cancel_requested_at ?? "")) < settledAfter;
+    if (foreignJob && (foreignJob.status === "failed" || cancelledLongAgo)) {
       await settleQuietly(db, [foreignJob]);
     }
     await clearPendingBuild(db, orgId);
@@ -2183,6 +2191,7 @@ async function runJob(
         },
         rollback: (backupId, message) =>
           rollbackFreshBuild(db, { orgId, backupId, userId: job.created_by, message }),
+        claimMarker: () => claimFreshMarker(db, orgId, job.id),
       },
     );
   }

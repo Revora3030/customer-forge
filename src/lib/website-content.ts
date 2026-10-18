@@ -1017,7 +1017,9 @@ function withoutTrailingName(text: string, name: string): string {
   const space = text.indexOf(" ");
   if (space > 0) {
     const rest = lower.slice(space + 1);
-    if (rest.startsWith(n) && (rest.length === n.length || rest[n.length] === " ")) return text.slice(0, space);
+    // "About Acme" / "About Acme | Raleigh, NC" lose the name; "Meet Acme Team" keeps it.
+    const after = rest.slice(n.length);
+    if (rest.startsWith(n) && (after.length === 0 || /^\s*(?:[|·•,:]|[-–—]\s|in\s|near\s)/.test(after))) return text.slice(0, space);
   }
   return text;
 }

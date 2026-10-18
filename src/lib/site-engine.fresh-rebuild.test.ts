@@ -371,16 +371,17 @@ describe("settleAbandonedFreshRebuild (3.R-b)", () => {
     expect(rpcCalls).toHaveLength(0);
   });
 
-  it("settles a legacy materializing-only marker from the labelled backup", async () => {
-    const { db, rpcCalls, tables } = database(
+  it("never guesses a restore point for a build without its own fresh-rebuild marker", async () => {
+    // Every build writes the materializing state; an earlier rebuild's
+    // labelled backup must never be restored over a newer site.
+    const { db, rpcCalls } = database(
       freshRebuildSeed({
         generation: { jobId: JOB, buildState: "materializing" },
         pages: [{ id: "new", organization_id: ORG, created_at: "2026-10-17T11:45:00Z" }],
       }),
     );
-    expect(await settleAbandonedFreshRebuild(db, job)).toMatchObject({ skipped: false, backupId: BACKUP });
-    expect(rpcCalls).toHaveLength(1);
-    expect(String(tables["generation_jobs"]![0]!["error_message"])).toContain(BACKUP);
+    expect(await settleAbandonedFreshRebuild(db, job)).toMatchObject({ skipped: true });
+    expect(rpcCalls).toHaveLength(0);
   });
 
   it("a cancel inside the grace window is left alone; after it, it is settled", async () => {
@@ -430,5 +431,21 @@ describe("restoreWebsiteFromBackup (3.R-b)", () => {
     (seed.data_backups[0]!.snapshot as Row)["website"] = { format: "1" };
     expect(await restoreWebsiteFromBackup(db, BACKUP, ORG)).toMatchObject({ restored: false, reason: "That backup is not in a restorable format." });
     expect(rpcCalls).toHaveLength(0);
+  });
+});
+
+describe("a cancelled attempt only restores while it still owns the rebuild", () => {
+  it("skips the restore when the marker was already claimed by a newer build", async () => {
+    const { db } = database({ generation_jobs: [{ id: JOB, status: "cancelled" }] });
+    const rollback = vi.fn(async () => ({ restored: true, restoreError: null }));
+    const stale = new StaleAttemptError(JOB);
+    await expect(
+      settleFailedAttempt(
+        db,
+        { error: stale, jobId: JOB, generatedAssets: [], freshReplace: true, backupId: BACKUP },
+        { cleanupImages: async () => undefined, rollback, claimMarker: async () => false },
+      ),
+    ).rejects.toBe(stale);
+    expect(rollback).not.toHaveBeenCalled();
   });
 });
