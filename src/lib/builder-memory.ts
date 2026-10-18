@@ -346,7 +346,11 @@ export async function listSavedBranches(organizationId: string): Promise<string[
     .neq("branch", MAIN_BRANCH)
     .order("created_at", { ascending: false })
     .limit(200);
-  if (error || !Array.isArray(data)) return [];
+  if (error) {
+    if (isMissingColumnError(error)) reportMissingThreadColumns(error, "load");
+    return [];
+  }
+  if (!Array.isArray(data)) return [];
   const seen = new Set<string>();
   for (const row of data as Array<{ branch?: unknown }>) {
     if (typeof row.branch === "string" && row.branch) seen.add(row.branch);

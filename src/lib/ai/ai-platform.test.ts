@@ -11,6 +11,20 @@
 import { describe, expect, it, beforeEach, afterEach, vi } from "vitest";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
+import { isolateProviderEnvironment } from "./provider-test-environment";
+
+// Routing tests exercise stubbed providers, not the production spend ledger.
+vi.mock("@/lib/ai/paid-budget.server", () => ({
+  reservePaidSpend: vi.fn(async (estimate: number) => ({ day: "unit-test", estimate })),
+  settlePaidSpend: vi.fn(async () => undefined),
+  routerEstimate: vi.fn(() => 1),
+  routerActual: vi.fn(() => 1),
+}));
+vi.mock("@/lib/ai/telemetry.server", () => ({
+  recordAiEvent: vi.fn(async () => undefined),
+  recordTeamStep: vi.fn(async () => undefined),
+  checkAiLimits: vi.fn(async () => ({ allowed: true })),
+}));
 
 import { AI_NOT_CONFIGURED_MESSAGE } from "@/lib/ai/errors";
 import { isAiConfigured, providerChain, providerConfig, aiLimits } from "@/lib/ai/config";
@@ -97,7 +111,10 @@ describe("no third-party AI gateway remains", () => {
 describe("provider configuration", () => {
   const saved = { ...process.env };
 
-  beforeEach(() => {
+  beforeEach(async () => {
+    const router = await import("@/lib/ai/router.server");
+    isolateProviderEnvironment();
+    router.resetAiRuntimeStatus();
     // These suites cover the OPTIONAL enhancement path, so they opt out of
     // zero-cost mode explicitly. Zero-cost mode itself is proven in
     // `zero-cost.test.ts`, which asserts providers stay blocked by default.
@@ -133,7 +150,13 @@ describe("provider configuration", () => {
   });
 
   afterEach(() => {
-    process.env = { ...saved };
+    for (const key of Object.keys(process.env)) {
+      if (!(key in saved)) delete process.env[key];
+    }
+    Object.assign(process.env, saved);
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+    vi.resetModules();
   });
 
   it("treats Revora AI as unconfigured until Revora owns a key", () => {
@@ -144,9 +167,9 @@ describe("provider configuration", () => {
 
   it("fails closed with one clear message when no provider is configured", async () => {
     // FREE-AI-FIRST: with no free credentials and no paid opt-in the router
-    // contacts nobody and reports the free-unavailable state, which callers
-    // treat as "use the deterministic engine" rather than an error to retry.
+    // contacts nobody and reports an unavailable state, never a non-AI builder.
     const { generateText } = await import("@/lib/ai/router.server");
+    isolateProviderEnvironment();
     await expect(
       generateText(
         { task: "test", organizationId: null, userId: null },
@@ -193,6 +216,8 @@ describe("provider fallback", () => {
   const saved = { ...process.env };
 
   beforeEach(() => {
+    isolateProviderEnvironment();
+    vi.resetModules();
     process.env["BUILDER_EXTERNAL_AI_ALLOWED"] = "true";
     // These tests cover the optional PAID chain, so the free chain is off.
     process.env["FREE_AI_ENABLED"] = "false";
@@ -204,7 +229,11 @@ describe("provider fallback", () => {
   });
 
   afterEach(() => {
-    process.env = { ...saved };
+    for (const key of Object.keys(process.env)) {
+      if (!(key in saved)) delete process.env[key];
+    }
+    Object.assign(process.env, saved);
+    vi.unstubAllEnvs();
     vi.unstubAllGlobals();
     vi.resetModules();
   });

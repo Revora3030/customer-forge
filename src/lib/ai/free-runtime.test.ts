@@ -13,6 +13,13 @@
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { isolateProviderEnvironment } from "./provider-test-environment";
+
+vi.mock("@/lib/ai/telemetry.server", () => ({
+  recordAiEvent: vi.fn(async () => undefined),
+  recordTeamStep: vi.fn(async () => undefined),
+  checkAiLimits: vi.fn(async () => ({ allowed: true })),
+}));
 
 const ENV_KEYS = [
   "FREE_AI_ENABLED",
@@ -87,6 +94,7 @@ const ok = (text: string) =>
 const caller = { task: "test", userId: null, organizationId: null } as const;
 
 beforeEach(() => {
+  isolateProviderEnvironment();
   for (const key of ENV_KEYS) {
     saved[key] = process.env[key];
     delete process.env[key];
@@ -101,6 +109,8 @@ afterEach(() => {
     else process.env[key] = saved[key]!;
   }
   vi.resetModules();
+  vi.unstubAllEnvs();
+  vi.unstubAllGlobals();
 });
 
 async function router() {
