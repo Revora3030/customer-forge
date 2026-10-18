@@ -147,6 +147,29 @@ describe("apply result card", () => {
     expect(renderToStaticMarkup(<ApplyResultCard applied={0} failedCount={3} />)).toBe("");
   });
 
+  it("offers Try again only where a retry is the right thing", () => {
+    const failed = (id: string, retryable: boolean | undefined): ChatTask => ({
+      id,
+      instruction: "Build my website",
+      state: "failed",
+      steps: [],
+      questions: [],
+      error: "The build didn't finish.",
+      ...(retryable === undefined ? {} : { retryable }),
+    });
+    // A first build that failed must not be "retried" through the edit planner.
+    expect(render([failed("t2", false)])).not.toContain("Try again");
+    expect(render([failed("t3", true)])).toContain("Try again");
+    expect(render([failed("t4", undefined)])).toContain("Try again");
+  });
+
+  it("a tracked build shows its live card without taking the queue's place", () => {
+    const tracked: ChatTask = { id: "t5", instruction: "Build my website", state: "building", steps: [], questions: [], tracking: true };
+    const html = render([tracked]);
+    expect(html).toContain("Applying…");
+    expect(html).not.toContain("Waiting — I’ll start this");
+  });
+
   it("renders the card inside the chat for an applied request", () => {
     const html = render([appliedTask]);
     expect(html).toContain("Updated your draft · 3 changes");

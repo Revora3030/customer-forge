@@ -48,11 +48,13 @@ import {
   saveTurns,
   type SavedTaskResult,
   type SavedTurn,
+  threadColumnsMissing,
 } from "@/lib/builder-memory";
 import { hydrateTasks, mergeRestored, type ChatTask } from "@/lib/builder/hydrate-tasks";
 import {
   MAIN_BRANCH,
   baseRequestId,
+  normaliseRequestId,
   listBranches,
   normaliseBranch,
   searchTurns,
@@ -70,6 +72,13 @@ export const INSTRUCTION_LIMIT = 1200;
  * limit so a large plan is applied in ordered batches rather than refused.
  */
 const APPLY_BATCH_SIZE = 400;
+
+/**
+ * A plan saved on the server is reused for a resumed request only while it is
+ * younger than this. The apply step's idempotency lookup covers 15 minutes, so
+ * a reused plan re-applied under the same operation key is still recognised.
+ */
+export const PLAN_REUSE_MAX_AGE_MS = 12 * 60 * 1000;
 
 
 /**
@@ -132,16 +141,16 @@ function isDroppedConnection(error: unknown): boolean {
 async function findSavedPlan(
   organizationId: string,
   requestId: string,
-  options: { skipDeferred?: boolean } = {},
+  options: { skipDeferred?: boolean; since?: string } = {},
 ): Promise<unknown | null> {
-  const { data, error } = await supabase
+  let query = supabase
     .from("ai_generations")
     .select("result")
     .eq("organization_id", organizationId)
     .eq("kind", "agent_plan")
-    .contains("result", { requestId } as never)
-    .order("created_at", { ascending: false })
-    .limit(5);
+    .contains("result", { requestId } as never);
+  if (options.since) query = query.gte("created_at", options.since);
+  const { data, error } = await query.order("created_at", { ascending: false }).limit(5);
   if (error) throw error;
   // A re-plan after a first-build deferral shares the request id with the
   // earlier "still building" reply: never hand that old reply back.
@@ -154,7 +163,7 @@ async function findSavedPlan(
 async function recoverPlan(
   organizationId: string,
   requestId: string,
-  options: { skipDeferred?: boolean } = {},
+  options: { skipDeferred?: boolean; since?: string } = {},
 ): Promise<unknown | null> {
   const deadline = Date.now() + 4 * 60 * 1000;
   while (Date.now() < deadline) {
@@ -236,6 +245,11 @@ export function useBuilderRequests({
         setHasEarlier(full);
         const mainTurns = turnsForBranch(turns, MAIN_BRANCH);
         setConversation(mainTurns.map(({ role, content }) => ({ role, content })).slice(-24));
+        // Owner messages already saved under a request id are not saved again
+        // when that request is resumed.
+        for (const turn of mainTurns) {
+          if (turn.role === "user" && turn.requestId) savedUserTurnRef.current.add(turn.requestId);
+        }
         // Requests sent before the owner left the builder (dashboard, preview,
         // reload) and not finished yet come back as queued work under their
         // original request id, so nothing they typed is lost. Planning has no
@@ -523,7 +537,9 @@ export function useBuilderRequests({
    * ignores a repeat, so this only keeps the saved thread tidy.
    */
   const userTurn = (task: QueueTask): Array<{ role: "user"; content: string }> => {
-    if (savedUserTurnRef.current.has(task.id)) return [];
+    // Saved ids are normalised ("t1~r2" is stored as "t1_r2").
+    const saved = normaliseRequestId(task.id);
+    if (savedUserTurnRef.current.has(task.id) || (saved && savedUserTurnRef.current.has(saved))) return [];
     savedUserTurnRef.current.add(task.id);
     return [{ role: "user", content: task.instruction }];
   };
@@ -537,9 +553,18 @@ export function useBuilderRequests({
       // paying for the same AI plan twice.
       if (resumedRef.current.has(task.id)) {
         resumedRef.current.delete(task.id);
-        const saved = await findSavedPlan(organizationId!, task.id, { skipDeferred: true }).catch(() => null);
+        // Only a plan young enough that the server's apply dedupe (which looks
+        // back 15 minutes for this operation key) still covers it: an older
+        // plan re-applied under the same key could write the change twice.
+        const saved = await findSavedPlan(organizationId!, task.id, {
+          skipDeferred: true,
+          since: new Date(Date.now() - PLAN_REUSE_MAX_AGE_MS).toISOString(),
+        }).catch(() => null);
         if (saved) result = saved as Awaited<ReturnType<typeof planFn>>;
       }
+      // Recovery only accepts a plan saved by this attempt (a resumed request
+      // can have an older one under the same id). A little slack for clocks.
+      const planStartedAt = new Date(Date.now() - 60_000).toISOString();
       if (!result) try {
         result = await planFn({
           data: {
@@ -558,6 +583,7 @@ export function useBuilderRequests({
         if (!isDroppedConnection(error)) throw error;
         const recovered = await recoverPlan(organizationId!, task.id, {
           skipDeferred: (deferRef.current.get(task.id) ?? 0) > 0,
+          since: planStartedAt,
         });
         if (!recovered) throw error;
         result = recovered as Awaited<ReturnType<typeof planFn>>;
@@ -701,7 +727,9 @@ export function useBuilderRequests({
   // Work the queue: one request at a time, in the order they were added.
   useEffect(() => {
     if (!ready || runningRef.current || held) return;
-    const next = nextRunnable(tasks);
+    // Tracked work (a first build the worker runs, a request still running on
+    // another device) is shown but never run or waited on by this queue.
+    const next = nextRunnable(tasks.filter((task) => !task.tracking));
     if (!next) return;
     runningRef.current = true;
     void runPlan(next).finally(() => {
@@ -725,7 +753,24 @@ export function useBuilderRequests({
     }
   }, [tasks, organizationId]);
 
-  const busy = tasks.some((task) => task.state === "planning" || task.state === "building");
+  const busy = tasks.some((task) => !task.tracking && (task.state === "planning" || task.state === "building"));
+
+  /** True when this request's owner message is already in the saved thread. */
+  const userTurnSaved = (id: string) => {
+    const saved = normaliseRequestId(id);
+    return savedUserTurnRef.current.has(id) || Boolean(saved && savedUserTurnRef.current.has(saved));
+  };
+
+  /**
+   * Saves the owner's message straight away under the request id. Skipped
+   * where the thread columns are missing: without request ids an early message
+   * can't be paired with its reply, and would be saved twice.
+   */
+  const rememberRequest = (id: string, instruction: string) => {
+    if (threadColumnsMissing()) return;
+    savedUserTurnRef.current.add(id);
+    remember([{ role: "user", content: instruction, kind: "text" }], id);
+  };
 
   const queue = (instruction: string, attachments: AgentAttachment[] = []) => {
     const text = instruction.trim().slice(0, INSTRUCTION_LIMIT);
@@ -744,8 +789,7 @@ export function useBuilderRequests({
     setTasks((current) => [...current, task]);
     // Saved to the conversation straight away under its request id, so a
     // reload mid-plan (or another device) still shows what the owner asked.
-    savedUserTurnRef.current.add(task.id);
-    remember([{ role: "user", content: task.instruction, kind: "text" }], task.id);
+    rememberRequest(task.id, task.instruction);
     // Funnel stage: an owner actually asked for a build (never the text itself).
     trackConversion("build_requested", { metadata: { organization_id: organizationId ?? "" } });
   };
@@ -767,7 +811,12 @@ export function useBuilderRequests({
   const trackBuild = (task: QueueTask) => {
     savedUserTurnRef.current.add(task.id);
     trackedBuildsRef.current.add(task.id);
-    setTasks((current) => [...current.filter((item) => item.id !== task.id), { ...task, state: "building" as const }]);
+    // "tracking": shown as building, but the chat queue neither waits on it
+    // nor counts it as busy, so follow-up questions still get answered.
+    setTasks((current) => [
+      ...current.filter((item) => item.id !== task.id),
+      { ...task, state: "building" as const, tracking: true },
+    ]);
   };
 
   const linkBuild = useCallback((taskId: string, runId: string | null | undefined) => {
@@ -779,9 +828,10 @@ export function useBuilderRequests({
     // Settled once; read from a ref because this is called right after
     // trackBuild, before a render has the new task in `tasks`.
     if (!trackedBuildsRef.current.delete(taskId)) return;
+    // retryable: false — "Try again" would run the edit planner, not a build.
     patch(taskId, outcome.ok
-      ? { state: "complete", reply: outcome.message, answered: true }
-      : { state: "failed", error: outcome.message, retryable: false });
+      ? { state: "complete", reply: outcome.message, answered: true, tracking: false }
+      : { state: "failed", error: outcome.message, retryable: false, tracking: false });
     remember([
       {
         role: "assistant",
@@ -798,7 +848,8 @@ export function useBuilderRequests({
     setTasks((current) =>
       mergeRestored(
         hydrateTasks(pairTurns(turns)),
-        current.filter((task) => !task.restored && (task.state === "planning" || task.state === "building")),
+        // Live work carries over, including requests still waiting their turn.
+        current.filter((task) => !task.restored && (task.state === "queued" || task.state === "planning" || task.state === "building")),
       ),
     );
     setBranch(key);
@@ -833,13 +884,24 @@ export function useBuilderRequests({
       const original = tasks.find((task) => task.id === id);
       if (!original) return;
       const nextId = `${baseRequestId(id)}~r${Date.now().toString(36)}`;
-      // The retry is its own request id, so its words are saved under it too;
-      // otherwise its result would attach to whichever request came last.
-      savedUserTurnRef.current.add(nextId);
-      remember([{ role: "user", content: original.instruction, kind: "text" }], nextId);
+      // The retry is its own request: recorded on this device like a new one
+      // (a reload resumes it instead of losing it), and its words are saved
+      // under its id so its result attaches to it, not the newest request.
+      if (organizationId) {
+        clearPending(organizationId, id);
+        addPending(organizationId, {
+          id: nextId,
+          instruction: original.instruction,
+          hadAttachments: (original.attachments?.length ?? 0) > 0,
+          sentAt: new Date().toISOString(),
+        });
+      }
+      rememberRequest(nextId, original.instruction);
       setTasks((current) =>
         current.map((task) =>
-          task.id === id ? { ...task, id: nextId, state: "queued" as const, error: "" } : task,
+          // No longer a restored entry: it is live work again, so its pending
+          // record is cleared when it ends.
+          task.id === id ? { ...task, id: nextId, state: "queued" as const, error: "", restored: false } : task,
         ),
       );
     },
@@ -849,8 +911,14 @@ export function useBuilderRequests({
      * worked on can't be stopped from here (the server keeps going).
      */
     dismiss: (id: string) => {
+      const task = tasks.find((item) => item.id === id);
       if (organizationId) clearPending(organizationId, id);
-      setTasks((current) => current.filter((task) => task.id !== id));
+      // A cancelled request whose message is already saved gets a saved end,
+      // so it doesn't come back later as an unknown, retryable failure.
+      if (task?.state === "queued" && !task.tracking && userTurnSaved(id)) {
+        remember([{ role: "assistant", content: "Cancelled.", taskResult: { state: "skipped" } }], id);
+      }
+      setTasks((current) => current.filter((item) => item.id !== id));
     },
     trackBuild,
     linkBuild,
@@ -924,7 +992,9 @@ export function useBuilderRequests({
     search: (query: string) => searchTurns(savedTurns, query),
     /** Starts a fresh conversation and forgets the saved one for this business. */
     newChat: async () => {
-      setTasks((current) => current.filter((task) => task.state === "planning" || task.state === "building"));
+      // Live work survives a new chat; restored history (including requests
+      // shown as running elsewhere) does not.
+      setTasks((current) => current.filter((task) => !task.restored && (task.state === "planning" || task.state === "building")));
       setConversation([]);
       setSavedTurns([]);
       setSavedBranches([]);

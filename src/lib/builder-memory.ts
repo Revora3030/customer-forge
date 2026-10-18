@@ -208,6 +208,16 @@ type MessageRow = Parameters<typeof toTurns>[0][number];
 
 const MISSING_COLUMN_FLAG = "rv-builder-memory-missing-column";
 let missingColumnReported = false;
+let columnsMissing = false;
+
+/**
+ * True once this page has seen builder_messages without the thread columns
+ * (request_id, kind, branch). Callers then avoid what only works with them:
+ * saving an owner message before its reply, or reading a non-main branch.
+ */
+export function threadColumnsMissing(): boolean {
+  return columnsMissing;
+}
 
 /**
  * The 42703 fallback keeps the chat working, but it means an environment is
@@ -217,6 +227,7 @@ let missingColumnReported = false;
  */
 export function reportMissingThreadColumns(error: { message?: string } | null | undefined, operation: "load" | "save"): void {
   console.warn(`[builder-memory] thread columns missing; ${operation === "load" ? "loading" : "saving"} core chat columns only`, error?.message);
+  columnsMissing = true;
   if (missingColumnReported) return;
   missingColumnReported = true;
   try {
@@ -275,6 +286,9 @@ async function readPage(
   });
   if (result.error && isMissingColumnError(result.error)) {
     reportMissingThreadColumns(result.error, "load");
+    // Without the branch column every saved row belongs to the main thread;
+    // an alternate branch has nothing of its own to show (never main's rows).
+    if (key !== MAIN_BRANCH) return { turns: [], full: false };
     result = await selectRows(organizationId, CORE_COLUMNS, before ? { before } : {});
   }
   if (result.error) throw result.error;

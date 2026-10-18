@@ -17,7 +17,20 @@ import { baseRequestId } from "@/lib/builder/chat-thread";
 export type ChatTask = QueueTask & {
   reasons?: string[];
   titles?: string[];
+  /**
+   * Shown as live work that this chat queue does not run or wait on: a first
+   * build the build worker runs, or a request still being worked on from
+   * another tab or device. Never counted as busy, never offered a retry.
+   */
+  tracking?: boolean;
 };
+
+/**
+ * A saved request with no reply yet is treated as still in flight (another
+ * tab or device is working on it) for this long after it was sent; only after
+ * that is its outcome called unknown and offered a retry.
+ */
+export const IN_FLIGHT_WINDOW_MS = 30 * 60 * 1000;
 
 export type SavedPair = {
   instruction: string;
@@ -30,7 +43,7 @@ export type SavedPair = {
 export const UNKNOWN_OUTCOME =
   "Revora didn't save how this request ended. Check your website, then send it again if nothing changed.";
 
-export function hydrateTasks(pairs: readonly SavedPair[]): ChatTask[] {
+export function hydrateTasks(pairs: readonly SavedPair[], now: number = Date.now()): ChatTask[] {
   return pairs.map((pair) => {
     const result = pair.taskResult;
     const task: ChatTask = {
@@ -43,11 +56,20 @@ export function hydrateTasks(pairs: readonly SavedPair[]): ChatTask[] {
       answered: Boolean(pair.reply) && !result,
       restored: true,
     };
-    // No reply and no saved outcome: the result was never recorded, so it is
-    // never shown as done — the owner can check and send it again.
     if (!pair.reply && !result) {
-      task.error = UNKNOWN_OUTCOME;
-      task.retryable = true;
+      const sentAt = Date.parse(pair.at);
+      if (Number.isFinite(sentAt) && now - sentAt < IN_FLIGHT_WINDOW_MS) {
+        // Sent moments ago and not answered yet: it is probably still being
+        // worked on elsewhere. Shown as working, with no retry, so it can't
+        // be planned and applied a second time from here.
+        task.state = "planning";
+        task.tracking = true;
+      } else {
+        // No reply and no saved outcome: the result was never recorded, so it
+        // is never shown as done — the owner can check and send it again.
+        task.error = UNKNOWN_OUTCOME;
+        task.retryable = true;
+      }
     }
     if (result?.applied !== undefined) task.applied = result.applied;
     if (result?.failedCount !== undefined) task.failedCount = result.failedCount;
@@ -60,6 +82,16 @@ export function hydrateTasks(pairs: readonly SavedPair[]): ChatTask[] {
     if (result?.notice && result.applied === undefined) task.notice = result.notice;
     return task;
   });
+}
+
+/**
+ * Requests applied live in this session, oldest first. Restored entries
+ * (first load, "Load earlier", branch switches) are history, not new changes:
+ * they must never re-trigger the screen check, its AI repair or an
+ * auto-revert to the version saved before them.
+ */
+export function appliedThisSession<T extends ChatTask>(tasks: readonly T[]): T[] {
+  return tasks.filter((task) => !task.restored && task.state === "complete" && (task.applied ?? 0) > 0);
 }
 
 /**

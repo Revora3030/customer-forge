@@ -30,7 +30,7 @@ vi.mock("@/integrations/supabase/client", () => {
   return { supabase: { from: () => query() } };
 });
 
-import { isMissingColumnError, loadTurns, mergeTurns, type SavedTurn } from "./builder-memory";
+import { isMissingColumnError, loadTurns, mergeTurns, threadColumnsMissing, type SavedTurn } from "./builder-memory";
 
 const turn = (role: SavedTurn["role"], content: string, at: string): SavedTurn => ({ role, content, at, branch: "main" });
 
@@ -61,6 +61,14 @@ describe("builder memory resilience", () => {
     expect(hoisted.report).toHaveBeenCalledWith({
       data: expect.objectContaining({ level: "warning", mechanism: "builder-memory-missing-column" }),
     });
+    warn.mockRestore();
+  });
+
+  it("without the branch column, an alternate branch never shows main's rows", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    expect(await loadTurns("org-a", "darker")).toEqual([]);
+    // Callers then skip what needs request ids (saving a message early).
+    expect(threadColumnsMissing()).toBe(true);
     warn.mockRestore();
   });
 });
