@@ -29,11 +29,23 @@ const composer = (overrides: Partial<Parameters<typeof JarvisComposer>[0]> = {})
   />,
 );
 
+/** Characters outside any tag, read one by one (no regex tag stripping). */
+function textOutsideTags(html: string) {
+  let out = "";
+  let depth = 0;
+  for (const ch of html) {
+    if (ch === "<") depth += 1;
+    else if (ch === ">") depth = Math.max(0, depth - 1);
+    else if (depth === 0) out += ch;
+  }
+  return out;
+}
+
 /** Every <button> must have an accessible name: an aria-label or visible text. */
 function unnamedButtons(html: string) {
   return [...html.matchAll(/<button\b([^>]*)>([\s\S]*?)<\/button>/g)].filter(([, attrs, inner]) => {
     if (/aria-label="[^"]+"/.test(attrs ?? "")) return false;
-    const visible = (inner ?? "").replace(/<[^>]+aria-hidden="true"[^>]*>[\s\S]*?<\/[^>]+>/g, "").replace(/<[^>]+>/g, "").replace(/[<>]/g, "").trim();
+    const visible = textOutsideTags((inner ?? "").replace(/<[^>]+aria-hidden="true"[^>]*>[\s\S]*?<\/[^>]+>/g, "")).trim();
     return !visible;
   });
 }

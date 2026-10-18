@@ -1,5 +1,5 @@
 import { useRef, type KeyboardEvent, type RefObject } from "react";
-import { ArrowUp, ChevronDown, ImagePlus, Loader2, Mic, MicOff, Slash } from "lucide-react";
+import { ArrowUp, ChevronDown, BadgeCheck, ImagePlus, Loader2, Mic, MicOff, Slash } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuLabel, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
@@ -83,12 +83,7 @@ export function JarvisComposer({ value, onChange, onSubmit, maxLength, busy, coa
           onClick={() => pictureInput.current?.click()}
           className="h-9 min-h-9 shrink-0 gap-1.5 rounded-full px-2 text-sm sm:h-9 sm:min-h-9 sm:px-2.5"
         >
-          {picturePreview && picturePreview.startsWith("blob:") ? (
-            <span className="relative size-6 overflow-hidden rounded">
-              <img src={picturePreview} alt="" className="size-full object-cover" />
-              {readingPicture ? <span className="absolute inset-0 flex items-center justify-center bg-background/60"><Loader2 className="size-3.5 animate-spin" aria-hidden /></span> : null}
-            </span>
-          ) : readingPicture ? <Loader2 className="size-4 animate-spin" aria-hidden /> : <ImagePlus className="size-4" aria-hidden />}
+          {readingPicture ? <Loader2 className="size-4 animate-spin" aria-hidden /> : picturePreview ? <BadgeCheck className="size-4 text-primary" aria-hidden /> : <ImagePlus className="size-4" aria-hidden />}
           <span className="hidden sm:inline">{readingPicture ? "Reading…" : "Picture"}</span>
         </Button>
         <input
