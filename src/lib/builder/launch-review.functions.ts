@@ -33,9 +33,22 @@ function countList(value: unknown): number {
   return Array.isArray(value) ? value.length : 0;
 }
 
+/**
+ * Site-level H1 count from per-page counts. Returns 1 only when every measured
+ * page has exactly one H1 (min === max === 1); a page with none, or with
+ * several, can no longer be hidden behind another page's single H1.
+ */
+export function foldH1Counts(perPage: number[]): number {
+  if (perPage.length === 0) return 0;
+  const min = Math.min(...perPage);
+  const max = Math.max(...perPage);
+  if (min === 1 && max === 1) return 1;
+  return min === 0 ? 0 : max;
+}
+
 /** Folds the stored per-page rows into one honest site-level measurement. */
-function foldMeasurement(
-  rows: Array<{ measured_at: string; measurements: unknown }>,
+export function foldMeasurement(
+  rows: Array<{ measured_at: string; measurements: unknown; page_slug?: string | null }>,
   copy: { title: string; description: string },
 ): LaunchReviewMeasurement | null {
   if (rows.length === 0) return null;
@@ -47,7 +60,8 @@ function foldMeasurement(
   let lowContrastCount = 0;
   let unlabeledControlCount = 0;
   let zoomBlocked = false;
-  let h1Count = 0;
+  // Newest row per page wins (rows arrive newest first).
+  const h1ByPage = new Map<string, number>();
   let imagesWithAlt = 0;
   let imagesMissingAlt = 0;
   let internalLinks = 0;
@@ -59,7 +73,10 @@ function foldMeasurement(
   let cls: number | null = null;
   let inp: number | null = null;
 
-  for (const row of rows) {
+  rows.forEach((row, rowIndex) => {
+    const pageKey = row.page_slug ? `page:${row.page_slug}` : `row:${rowIndex}`;
+    const seenPage = h1ByPage.has(pageKey);
+    let rowH1: number | null = null;
     const list = Array.isArray(row.measurements) ? row.measurements : [];
     for (const raw of list) {
       const m = (raw ?? {}) as Record<string, unknown>;
@@ -76,7 +93,7 @@ function foldMeasurement(
         unlabeledControlCount +=
           countList(a11y["unlabeledControls"]) + countList(a11y["unlabeledInputs"]);
         if (a11y["zoomBlocked"] === true) zoomBlocked = true;
-        h1Count = Math.max(h1Count, Number(a11y["h1Count"]) || 0);
+        rowH1 = Math.max(rowH1 ?? 0, Number(a11y["h1Count"]) || 0);
         imagesMissingAlt += countList(a11y["imagesMissingAlt"]);
         imagesWithAlt += 1;
       }
@@ -95,8 +112,10 @@ function foldMeasurement(
         if (Number.isFinite(rawInp)) inp = Math.max(inp ?? 0, rawInp);
       }
     }
-  }
+    if (!seenPage && rowH1 !== null) h1ByPage.set(pageKey, rowH1);
+  });
 
+  const h1Count = foldH1Counts([...h1ByPage.values()]);
   const altTotal = imagesWithAlt + imagesMissingAlt;
 
   return {
@@ -182,7 +201,7 @@ export const getLaunchReview = createServerFn({ method: "POST" })
         supabase.from("media").select("id").eq("organization_id", organizationId),
         supabase
           .from("website_visual_reports")
-          .select("measured_at, measurements, report, revision_hash")
+          .select("measured_at, measurements, report, revision_hash, page_slug")
           .eq("organization_id", organizationId)
           .order("measured_at", { ascending: false })
           .limit(20),
@@ -233,7 +252,7 @@ export const getLaunchReview = createServerFn({ method: "POST" })
       contactRouteVerified: !!(text(p["phone"]).trim() || text(p["email"]).trim()),
       customDomainConnected: !!settings.data?.custom_domain && settings.data?.domain_verified === true,
       measurement: foldMeasurement(
-        (visual.data ?? []) as Array<{ measured_at: string; measurements: unknown }>,
+        (visual.data ?? []) as Array<{ measured_at: string; measurements: unknown; page_slug?: string | null }>,
         { title: text(seo.headline), description: text(seo.meta_description) },
       ),
     };

@@ -12,10 +12,7 @@ import { SiteAddressProvider } from "@/components/site/site-links-context";
 import { getHostSite } from "@/lib/host-site.functions";
 import { isPossibleTenantHost } from "@/lib/revora-address";
 import { SitePageView } from "@/routes/s.$slug.$page";
-import { metaDescription } from "@/lib/seo";
-import { clientHeadExtrasSync, shareImageFor } from "@/lib/site-head";
-import { compositionFonts, siteFontsHref } from "@/lib/site-theme";
-import { readSiteChrome } from "@/lib/builder/site-chrome";
+import { tenantSiteHead } from "@/lib/site-head";
 
 export const Route = createFileRoute("/$")({
   loader: async ({ params }) => {
@@ -37,53 +34,18 @@ export const Route = createFileRoute("/$")({
     if (!page || !loaderData) {
       return { meta: [{ title: "Page not found" }, { name: "robots", content: "noindex" }] };
     }
-    const name = loaderData.site.org.name;
-    const title = (page.seo_title || `${page.title} — ${name}`).slice(0, 60);
-    const description = (
-      page.seo_description ||
-      loaderData.site.profile?.tagline ||
-      `${page.title} from ${name}.`
-    ).slice(0, 158);
     // Same rule as the other site routes: only an absolute https canonical is
     // trusted; anything else would point search engines at a broken address.
     const explicit = String(page.seo_canonical ?? "").trim();
     const url = explicit.startsWith("https://")
       ? explicit
       : `https://${loaderData.host}/${page.slug}`;
-    const shareImage = shareImageFor({
-      ogImage: page.og_image_url,
-      heroImage: loaderData.site.profile?.hero_image_url ?? null,
-      sections: loaderData.site.content?.sections ?? null,
+    return tenantSiteHead({
+      site: loaderData.site,
+      pageSlug: page.slug,
+      canonical: url,
+      businessUrl: `https://${loaderData.host}/`,
     });
-    const extras = clientHeadExtrasSync(
-      loaderData.site as never,
-      `https://${loaderData.host}/`,
-      compositionFonts,
-      siteFontsHref,
-      readSiteChrome,
-    );
-    return {
-      meta: [
-        { title },
-        { name: "description", content: metaDescription(description) },
-        { property: "og:title", content: page.og_title || title },
-        { property: "og:description", content: page.og_description || description },
-        { property: "og:type", content: "website" },
-        { property: "og:url", content: url },
-        { property: "og:site_name", content: name },
-        { name: "twitter:card", content: "summary_large_image" },
-        ...(shareImage && shareImage.startsWith("https://")
-          ? [
-              { property: "og:image", content: shareImage },
-              { name: "twitter:image", content: shareImage },
-            ]
-          : []),
-        ...(page.noindex ? [{ name: "robots", content: "noindex" }] : []),
-        ...extras.meta,
-      ],
-      scripts: extras.scripts,
-      links: [{ rel: "canonical", href: url }, ...extras.links],
-    };
   },
   component: HostPageRoute,
   notFoundComponent: NotFoundPage,

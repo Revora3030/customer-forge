@@ -23,21 +23,20 @@ import { ReviewWall } from "@/components/site/LiveBlocks";
 import { EnquiryForm } from "@/components/site/SiteForms";
 import { PreviewSelectBridge } from "@/components/site/PreviewSelectBridge";
 import { SiteBackdrop } from "@/components/site/SiteBackdrop";
-import { compositionFonts, siteFontStyle, siteFontsHref, siteThemeStyle } from "@/lib/site-theme";
+import { siteFontStyle, siteThemeStyle } from "@/lib/site-theme";
 import { readComposition } from "@/lib/visual-composition";
 import { readBackdrop, readBackdropSpec } from "@/lib/site-effects";
 import { getPublicSite, trackPublicEvent, type PublicSite } from "@/lib/public-site.functions";
 import { SiteVitals } from "@/components/site/SiteVitals";
 import { BuilderReturnBar } from "@/components/site/BuilderReturnBar";
 import { PreviewLinkBridge } from "@/components/site/PreviewLinkBridge";
-import { styleSheet } from "@/lib/site-style";
+import { readBlockStyle, styleSheet } from "@/lib/site-style";
 import { canonicalSiteUrl } from "@/lib/revora-address";
 import { CompositionRenderer } from "@/components/site/CompositionRenderer";
 import { knownPageSlugs, missingChromeLinks, readSiteChrome, repairStoredLinks, resolveSiteHref } from "@/lib/builder/site-chrome";
 import { AiSiteHeader } from "@/components/site/AiSiteHeader";
 import { useOwnAddress, useSiteBase } from "@/components/site/use-own-address";
-import { metaDescription } from "@/lib/seo";
-import { clientHeadExtrasSync, shareImageFor } from "@/lib/site-head";
+import { tenantSiteHead } from "@/lib/site-head";
 import { premiumSurface } from "@/lib/site-theme";
 
 export const Route = createFileRoute("/s/$slug/$page")({
@@ -55,55 +54,17 @@ export const Route = createFileRoute("/s/$slug/$page")({
       return { meta: [{ title: "Page not found" }, { name: "robots", content: "noindex" }] };
     }
     const page = loaderData.content.page;
-    const name = loaderData.org.name;
-    const title = (page.seo_title || `${pageNavLabel(page.title, name, page.slug)} — ${name}`).slice(0, 60);
-    const description = (
-      page.seo_description ||
-      loaderData.profile?.tagline ||
-      `${pageNavLabel(page.title, name, page.slug)} from ${name}.`
-    ).slice(0, 158);
     const url =
       canonicalSiteUrl(loaderData.settings, params.slug, params.page, page.seo_canonical) ??
       `https://revoragrowthsystems.com/s/${params.slug}/${params.page}`;
-    const shareImage = shareImageFor({
-      ogImage: page.og_image_url,
-      heroImage: loaderData.profile?.hero_image_url ?? null,
-      sections: Array.isArray(loaderData.content.sections) ? loaderData.content.sections : [],
+    // Shared client head (src/lib/site-head.ts): word-safe title, share image,
+    // fonts and LocalBusiness data, identical on every client address.
+    return tenantSiteHead({
+      site: loaderData,
+      pageSlug: params.page,
+      canonical: url,
+      businessUrl: canonicalSiteUrl(loaderData.settings, params.slug) ?? url,
     });
-    const extras = clientHeadExtrasSync(
-      loaderData as never,
-      canonicalSiteUrl(loaderData.settings, params.slug) ?? url,
-      compositionFonts,
-      siteFontsHref,
-      readSiteChrome,
-    );
-    return {
-      meta: [
-        { title },
-        { name: "description", content: metaDescription(description) },
-        { property: "og:title", content: page.og_title || title },
-        { property: "og:description", content: page.og_description || description },
-        { property: "og:type", content: "website" },
-        { property: "og:url", content: url },
-        { property: "og:site_name", content: name },
-        { name: "twitter:card", content: "summary_large_image" },
-        ...(shareImage && shareImage.startsWith("https://")
-          ? [
-              { property: "og:image", content: shareImage },
-              { name: "twitter:image", content: shareImage },
-            ]
-          : []),
-        ...(page.noindex ? [{ name: "robots", content: "noindex" }] : []),
-        ...extras.meta,
-      ],
-      scripts: extras.scripts,
-      links: [
-        { rel: "canonical", href: url },
-        // Same as the home page: the chosen heading font has to be requested
-        // here or it is stored but never seen.
-        ...extras.links,
-      ],
-    };
   },
   component: SitePageRoute,
   errorComponent: () => (
@@ -245,7 +206,10 @@ export function SitePageView({
           surface={profile?.secondary_color ?? null}
         />
 
-        <main className="scroll-mt-20 pt-2 sm:pt-4 pb-24 sm:pb-16">
+        {/* A first section that paints its own surface (a full-bleed hero)
+            sits directly under the header; only an unpainted first section
+            gets the small top gap. */}
+        <main className={`scroll-mt-20 ${firstSectionHasSurface(sections[0]?.settings) ? "" : "pt-2 sm:pt-4 "}pb-24 sm:pb-16`}>
           {(() => {
             const lead = leadSectionIndex(sections as never);
             let ready = 0;
@@ -342,6 +306,21 @@ export function SitePageView({
       </div>
     </div>
   );
+}
+
+/**
+ * Whether the opening section paints its own background: a block colour or
+ * image, or a background on its AI layout's root node.
+ */
+function firstSectionHasSurface(settings: unknown): boolean {
+  const style = readBlockStyle(settings);
+  if (style.bgColor || style.bgImage) return true;
+  const composition = (settings as { composition?: unknown } | null)?.composition;
+  const root = (composition as { root?: unknown } | null | undefined)?.root;
+  const rootStyle = (root as { style?: unknown } | null | undefined)?.style;
+  if (!rootStyle || typeof rootStyle !== "object") return false;
+  const background = (rootStyle as Record<string, unknown>)["background"];
+  return typeof background === "string" && background.trim().length > 0;
 }
 
 /**

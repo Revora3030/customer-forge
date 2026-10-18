@@ -91,7 +91,7 @@ function DraftPageRouteContent() {
   if (result?.site && sections.length > 0 && (result.status === "pending" || result.status === "ready")) {
     return (
       <>
-        {result.status === "pending" ? <DraftUpdatingBanner job={result.job} /> : null}
+        {result.status === "pending" ? <DraftUpdatingBanner job={result.job} held={result.held} /> : null}
         <PreviewModeContext.Provider value={true}>
           <SiteBaseContext.Provider value={`/draft/${encodeURIComponent(result.site.org.slug)}`}>
             <SitePageView site={result.site} preview />

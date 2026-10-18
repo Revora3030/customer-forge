@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { readFileSync } from "node:fs";
 
 vi.mock("@/integrations/supabase/client", () => ({ supabase: {} }));
 
@@ -91,6 +92,12 @@ describe("publish purge targets", () => {
     expect(urls).toContain("https://acme.com/services");
     expect(urls).toContain("https://revoragrowthsystems.com/s/acme/services");
     expect(urls).toContain("https://revoragrowthsystems.com/s/acme/sitemap.xml");
+  });
+  it("purges a /s/<slug>/sitemap.xml that a real route serves", () => {
+    const route = readFileSync("src/routes/s.$slug.sitemap[.]xml.ts", "utf8");
+    expect(route).toContain('createFileRoute("/s/$slug/sitemap.xml")');
+    expect(route).toContain("platformTenantSitemapResponse(params.slug)");
+    expect(readFileSync("src/routeTree.gen.ts", "utf8")).toContain("'/s/$slug/sitemap.xml'");
   });
   it("skips an unverified custom domain", () => {
     const urls = purgeTargets({ slug: "acme", paths: ["/"], platformOrigin: "https://revoragrowthsystems.com/", customDomain: "acme.com", domainVerified: false });

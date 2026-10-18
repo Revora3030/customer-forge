@@ -12,10 +12,12 @@ import { publicClient, publicOrganization } from "@/lib/public-site.server";
 import { indexablePlatformPaths } from "@/lib/seo-intent";
 
 import {
+  PLATFORM_ORIGIN,
   REVORA_OWN_HOSTS,
   isRevoraOwnHost,
   isTrafficDomainHost,
   normalizeHost,
+  primaryAddress,
 } from "@/lib/revora-address";
 
 export const REVORA_HOSTS = REVORA_OWN_HOSTS;
@@ -25,6 +27,8 @@ export type HostSite = {
   origin: string;
   pages: { slug: string; updatedAt: string | null }[];
   noindex: boolean;
+  /** When the served copy was published; the lastmod of every entry. */
+  publishedAt?: string | null;
 };
 
 export type TenantHost = {
@@ -112,55 +116,74 @@ export async function resolveHostSite(
   const tenant = await resolveTenantHost(rawHost);
   if (!tenant) return null;
 
-  // The sitemap advertises the published copy, not unpublished draft pages.
+  const { pages, publishedAt } = await tenantSitemapPages(tenant.organizationId);
+  // Live sites are always served over HTTPS; only local development is http, so
+  // never publish an http:// canonical or sitemap URL for a real hostname.
+  const scheme = /^(localhost|127\.0\.0\.1)(:|$)/.test(tenant.host) ? protocol : "https";
+  return {
+    slug: tenant.slug,
+    origin: `${scheme}://${tenant.host}`,
+    noindex: false,
+    publishedAt,
+    pages,
+  };
+}
+
+/**
+ * The published, indexable pages of one tenant, shared by the custom-domain
+ * sitemap and the /s/<slug> sitemap. Reads only the published copy (the live
+ * snapshot, else the published-only public projection), never draft rows.
+ * Every lastmod is the publish time, home included.
+ */
+export async function tenantSitemapPages(
+  organizationId: string,
+): Promise<{ pages: HostSite["pages"]; publishedAt: string | null }> {
   const { loadLiveSnapshot } = await import("@/lib/public-site.server");
-  const live = await loadLiveSnapshot(tenant.organizationId);
-  const scheme0 = /^(localhost|127\.0\.0\.1)(:|$)/.test(tenant.host) ? protocol : "https";
+  const live = await loadLiveSnapshot(organizationId);
   if (live) {
     return {
-      slug: tenant.slug,
-      origin: `${scheme0}://${tenant.host}`,
-      noindex: false,
+      publishedAt: live.publishedAt,
       pages: live.pages
         .filter(
           (p) =>
             p["is_visible"] !== false &&
             p["noindex"] !== true &&
             p["kind"] !== "thanks" &&
+            p["kind"] !== "home" &&
             (p.sections ?? []).some((section) => section["is_visible"] !== false),
         )
         .sort((a, b) => Number(a["sort_order"] ?? 0) - Number(b["sort_order"] ?? 0))
-        .map((p) => ({ slug: String(p["slug"] ?? ""), updatedAt: live.publishedAt })),
+        .map((p) => ({ slug: String(p["slug"] ?? ""), updatedAt: live.publishedAt }))
+        .filter((p) => /^[a-z0-9-]+$/.test(p.slug)),
     };
   }
 
   const supabase = publicClient();
-  const [{ data: pages }, { data: sections }] = await Promise.all([
+  const [{ data: pages }, { data: sections }, { data: settings }] = await Promise.all([
     supabase
       .from("website_pages")
-      .select("id, slug, kind, updated_at, noindex, is_visible")
-      .eq("organization_id", tenant.organizationId)
+      .select("id, slug, kind, noindex, is_visible")
+      .eq("organization_id", organizationId)
       .order("sort_order", { ascending: true }),
     supabase
       .from("website_sections")
       .select("page_id, is_visible")
-      .eq("organization_id", tenant.organizationId),
+      .eq("organization_id", organizationId),
+    supabase
+      .from("public_website_settings")
+      .select("last_published_at")
+      .eq("organization_id", organizationId)
+      .maybeSingle(),
   ]);
 
   // A page with no visible sections renders blank — never advertise it publicly.
   const populated = new Set(
     (sections ?? []).filter((s) => s.is_visible !== false).map((s) => s.page_id as string),
   );
-
-  // Live sites are always served over HTTPS; only local development is http, so
-  // never publish an http:// canonical or sitemap URL for a real hostname.
-  const scheme = /^(localhost|127\.0\.0\.1)(:|$)/.test(tenant.host) ? protocol : "https";
+  const publishedAt = (settings?.last_published_at as string | null | undefined) ?? null;
 
   return {
-    slug: tenant.slug,
-    origin: `${scheme}://${tenant.host}`,
-    noindex: false,
-
+    publishedAt,
     pages: (pages ?? [])
       // Hidden pages and the after-form thank-you page are never advertised.
       .filter(
@@ -168,10 +191,131 @@ export async function resolveHostSite(
           !p.noindex &&
           p.is_visible !== false &&
           p.kind !== "thanks" &&
-          populated.has(p.id as string),
+          p.kind !== "home" &&
+          populated.has(p.id as string) &&
+          /^[a-z0-9-]+$/.test(String(p.slug ?? "")),
       )
-      .map((p) => ({ slug: p.slug, updatedAt: p.updated_at ?? null })),
+      .map((p) => ({ slug: p.slug, updatedAt: publishedAt })),
   };
+}
+
+const SITEMAP_HEADERS = {
+  "content-type": "application/xml; charset=utf-8",
+  "cache-control": "public, max-age=600",
+} as const;
+
+type AddressRow = {
+  organization_id: string | null;
+  custom_domain: string | null;
+  dns_ok: boolean | null;
+  ssl_ok: boolean | null;
+};
+
+/**
+ * Response for /s/<slug>/sitemap.xml. Only a published site that is allowed
+ * to be live right now is listed; a verified custom domain owns the canonical
+ * URLs, so the request is sent to that domain's own sitemap instead.
+ */
+export async function platformTenantSitemapResponse(rawSlug: string): Promise<Response> {
+  const notFound = () =>
+    new Response("Not found", {
+      status: 404,
+      headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "public, max-age=600" },
+    });
+  const slug = String(rawSlug ?? "").trim().toLowerCase();
+  if (!/^[a-z0-9-]{1,80}$/.test(slug)) return notFound();
+  const org = await publicOrganization({ slug });
+  if (!org?.id) return notFound();
+
+  const { siteIsLive } = await import("@/lib/public-site.server");
+  const { data: gate } = await publicClient()
+    .from("public_website_settings")
+    .select("published, publish_state")
+    .eq("organization_id", org.id)
+    .maybeSingle();
+  if (!gate || gate.published !== true || gate.publish_state !== "published") return notFound();
+  if (!(await siteIsLive(org.id))) return notFound();
+
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { data: address } = await supabaseAdmin
+    .from("website_settings")
+    .select("organization_id, custom_domain, dns_ok, ssl_ok")
+    .eq("organization_id", org.id)
+    .maybeSingle();
+  const domain = address ? primaryAddress(address as AddressRow) : null;
+  if (domain) {
+    return new Response(null, {
+      status: 301,
+      headers: { location: `https://${domain}/sitemap.xml`, "cache-control": "public, max-age=600" },
+    });
+  }
+
+  const { pages, publishedAt } = await tenantSitemapPages(org.id);
+  const site: HostSite = {
+    slug: org.slug,
+    origin: `${PLATFORM_ORIGIN}/s/${org.slug}`,
+    noindex: false,
+    publishedAt,
+    pages,
+  };
+  return new Response(xmlSitemap(sitemapUrls(site, site.origin)), { headers: SITEMAP_HEADERS });
+}
+
+/**
+ * Slugs listed in the platform's /sitemaps/sites.xml index: published sites
+ * that are live right now and have no verified custom domain (those advertise
+ * their own sitemap on their own host).
+ */
+export async function platformSitemapSlugs(): Promise<string[]> {
+  // Published-only projection: drafts are not visible through it.
+  const { data: published } = await publicClient()
+    .from("public_website_settings")
+    .select("organization_id, published, publish_state")
+    .eq("published", true)
+    .eq("publish_state", "published")
+    .limit(5000);
+  const ids = [
+    ...new Set(
+      (published ?? [])
+        .filter((row) => row.published === true && row.publish_state === "published")
+        .map((row) => row.organization_id)
+        .filter((id): id is string => typeof id === "string" && id.length > 0),
+    ),
+  ];
+  if (!ids.length) return [];
+
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { SITE_ACCESS_COLUMNS, siteAccess } = await import("@/lib/site-access");
+  const [{ data: orgs }, { data: addresses }] = await Promise.all([
+    supabaseAdmin
+      .from("organizations")
+      .select(`${SITE_ACCESS_COLUMNS}, slug`)
+      .in("id", ids)
+      .eq("is_suspended", false),
+    supabaseAdmin
+      .from("website_settings")
+      .select("organization_id, custom_domain, dns_ok, ssl_ok")
+      .in("organization_id", ids),
+  ]);
+  const ownDomain = new Set(
+    ((addresses ?? []) as AddressRow[])
+      .filter((row) => row.organization_id && primaryAddress(row))
+      .map((row) => row.organization_id as string),
+  );
+  return ((orgs ?? []) as unknown as (Parameters<typeof siteAccess>[0] & { id: string; slug: string | null })[])
+    .filter((org) => org && typeof org.slug === "string" && /^[a-z0-9-]{1,80}$/.test(org.slug))
+    .filter((org) => !ownDomain.has(org.id))
+    .filter((org) => siteAccess(org).live)
+    .map((org) => org.slug as string)
+    .sort();
+}
+
+/** A <sitemapindex> pointing at each listed /s/<slug>/sitemap.xml. */
+export function xmlSitemapIndex(slugs: string[], origin = PLATFORM_ORIGIN) {
+  const body = slugs
+    .map((slug) => `  <sitemap><loc>${origin}/s/${slug}/sitemap.xml</loc></sitemap>`)
+    .join("\n");
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${body}\n</sitemapindex>\n`;
 }
 
 /** Absolute URLs for a tenant site, or for Revora's own marketing pages. */
@@ -190,7 +334,7 @@ export function sitemapUrls(site: HostSite | null, origin: string) {
       lastmod: null as string | null,
     }));
   }
-  const paths = [{ slug: "home", updatedAt: null as string | null }, ...site.pages].filter(
+  const paths = [{ slug: "home", updatedAt: site.publishedAt ?? null }, ...site.pages].filter(
     (p, i, all) => all.findIndex((x) => x.slug === p.slug) === i,
   );
   return paths.map((page) => ({

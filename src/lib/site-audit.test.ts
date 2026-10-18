@@ -9,6 +9,7 @@ import {
 import { proposeUpgrades, summarizeProposals } from "./auto-upgrade";
 import { INTAKE_FIELDS, intakeCompleteness, intakeGaps } from "./intake-map";
 import type { ContentPage } from "./website-content";
+import { foldH1Counts, foldMeasurement } from "./builder/launch-review.functions";
 
 const section = (kind: string, over: Partial<ContentPage["sections"][number]> = {}) =>
   ({
@@ -259,6 +260,81 @@ describe("auto-upgrade proposals", () => {
     const summary = summarizeProposals(proposeUpgrades([], base));
     expect(summary.count).toBeGreaterThan(0);
     expect(summary.headline).toContain("upgrade");
+  });
+});
+
+describe("tenant page SEO checks", () => {
+  const desc = "Mobile car detailing across Raleigh, Cary and Durham with online booking.";
+  const seoIssues = (pages: ContentPage[]) =>
+    auditStructure({ pages, goal: "quote", metaDescription: "x", headline: "y" }).issues.filter((issue) => issue.code);
+
+  it("flags duplicate titles and descriptions across visible pages, using seo-audit code names", () => {
+    const issues = seoIssues([
+      page({ id: "a", title: "Home" }),
+      page({ id: "b", slug: "about", title: "About", kind: "page" }),
+      page({ id: "c", slug: "faq", title: "FAQ", kind: "page", seo_title: "FAQ about detailing", seo_description: "Answers about pricing, timing and coverage for mobile detailing in Raleigh." }),
+    ]);
+    expect(issues.filter((issue) => issue.code === "duplicate_title").map((issue) => issue.pageId).sort()).toEqual(["a", "b"]);
+    expect(issues.filter((issue) => issue.code === "duplicate_description").map((issue) => issue.pageId).sort()).toEqual(["a", "b"]);
+    expect(issues.every((issue) => issue.upgrade === "page_seo" && issue.severity === "warning")).toBe(true);
+    expect(issues.some((issue) => issue.pageId === "c")).toBe(false);
+  });
+
+  it("ignores hidden, noindex and thank-you pages for duplicates", () => {
+    const issues = seoIssues([
+      page({ id: "a" }),
+      page({ id: "b", slug: "hidden", is_visible: false }),
+      page({ id: "c", slug: "private", noindex: true }),
+      page({ id: "d", slug: "thanks", kind: "thanks" }),
+    ]);
+    expect(issues).toEqual([]);
+  });
+
+  it("flags titles over 60 and descriptions outside 50-160", () => {
+    const issues = seoIssues([
+      page({ id: "long", seo_title: "x".repeat(61), seo_description: desc }),
+      page({ id: "short", slug: "s", seo_title: "Short desc page", seo_description: "Too short." }),
+      page({ id: "wordy", slug: "w", seo_title: "Wordy page", seo_description: "y".repeat(161) }),
+      page({ id: "ok", slug: "ok", seo_title: "x".repeat(60), seo_description: "z".repeat(50) }),
+    ]);
+    const codes = Object.fromEntries(issues.map((issue) => [issue.pageId, issue.code]));
+    expect(codes).toEqual({ long: "title_too_long", short: "description_too_short", wordy: "description_too_long" });
+  });
+
+  it("keeps a complete page's structure score at 100", () => {
+    const { pageScores } = auditStructure({
+      pages: [page({ id: "a" }), page({ id: "b", slug: "about" })],
+      goal: "quote",
+      metaDescription: "x",
+      headline: "y",
+    });
+    expect(pageScores.map((score) => score.score)).toEqual([100, 100]);
+  });
+});
+
+describe("launch review H1 fold", () => {
+  const row = (slug: string, h1: number) => ({
+    measured_at: "2026-10-17T00:00:00Z",
+    page_slug: slug,
+    measurements: [{ width: 390, accessibility: { h1Count: h1 } }, { width: 1280, accessibility: { h1Count: h1 } }],
+  });
+  const copy = { title: "t", description: "d" };
+
+  it("passes only when every measured page has exactly one H1", () => {
+    expect(foldH1Counts([1, 1, 1])).toBe(1);
+    expect(foldH1Counts([1, 0])).toBe(0);
+    expect(foldH1Counts([1, 2])).toBe(2);
+    expect(foldH1Counts([])).toBe(0);
+  });
+
+  it("does not hide a page without an H1 behind another page's single H1", () => {
+    expect(foldMeasurement([row("home", 1), row("about", 0)], copy)?.seo.h1Count).toBe(0);
+    expect(foldMeasurement([row("home", 1), row("about", 1)], copy)?.seo.h1Count).toBe(1);
+  });
+
+  it("uses the newest report per page", () => {
+    // Rows arrive newest first: the old failing about-page report is superseded.
+    expect(foldMeasurement([row("home", 1), row("about", 1), row("about", 0)], copy)?.seo.h1Count).toBe(1);
   });
 });
 

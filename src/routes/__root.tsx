@@ -15,7 +15,7 @@ import appCss from "../styles.css?url";
 import { Toaster } from "@/components/ui/sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { ensureProfile, enforceSessionPolicy, resolvePostLoginPath } from "@/lib/auth-session";
-import { OG_IMAGE, ORGANIZATION_SCHEMA, WEBSITE_SCHEMA } from "@/lib/seo";
+import { OG_IMAGE, ORGANIZATION_SCHEMA, WEBSITE_SCHEMA, isClientSiteMatch } from "@/lib/seo";
 import { RouteError, RouteNotFound } from "@/components/app/RouteStates";
 import { CookieConsent } from "@/components/marketing/CookieConsent";
 import { PlatformAnalytics } from "@/components/marketing/PlatformAnalytics";
@@ -57,16 +57,11 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     // onto a client's site: search engines and link previews showed Revora
     // instead of the business, and crawlers saw two conflicting Organization
     // records. Those routes set their own title, description, image and icon.
-    const clientSite = matches.some((match) => {
-      const routeId = String((match as { routeId?: string }).routeId ?? "");
-      if (/^\/(s|p)\/\$/.test(routeId)) return true;
-      // A client's own custom domain serves its site from "/" and "/$".
-      const data = (match as { loaderData?: unknown }).loaderData as
-        | { site?: unknown; pending?: boolean }
-        | null
-        | undefined;
-      return (routeId === "/" || routeId === "/$") && Boolean(data && (data.site || data.pending));
-    });
+    // Any public match whose loader returned a client site counts, whatever
+    // its routeId: a custom domain also serves /about, /contact and /pricing.
+    const clientSite = matches.some((match) =>
+      isClientSiteMatch(match as { routeId?: unknown; loaderData?: unknown }),
+    );
     if (clientSite) {
       return {
         meta: [
