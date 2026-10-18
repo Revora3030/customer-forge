@@ -208,7 +208,7 @@ export function useJarvisVoice(synthesize: Synthesize, onFallback?: OnFallback, 
       if (stream) {
         startTimer = window.setTimeout(() => {
           if (!started) fail("The voice stream did not start in time.");
-        }, STREAM_START_TIMEOUT_MS);
+        }, STREAM_START_TIMEOUT_MS); // DevSkim: ignore DS172411 -- Fixed callback and constant delay; no untrusted data.
         el.onplaying = () => {
           started = true;
           window.clearTimeout(startTimer);
@@ -219,7 +219,7 @@ export function useJarvisVoice(synthesize: Synthesize, onFallback?: OnFallback, 
           stallTimer = window.setTimeout(() => {
             stallTimer = undefined;
             if (!el.ended && el.currentTime <= at) fail("The voice stream stalled.");
-          }, STREAM_STALL_TIMEOUT_MS);
+          }, STREAM_STALL_TIMEOUT_MS); // DevSkim: ignore DS172411 -- Fixed callback and constant delay; no untrusted data.
         };
         el.onstalled = watchStall;
         el.onwaiting = watchStall;

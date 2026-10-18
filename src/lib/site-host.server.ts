@@ -119,7 +119,7 @@ export async function resolveHostSite(
   const { pages, publishedAt } = await tenantSitemapPages(tenant.organizationId);
   // Live sites are always served over HTTPS; only local development is http, so
   // never publish an http:// canonical or sitemap URL for a real hostname.
-  const scheme = /^(localhost|127\.0\.0\.1)(:|$)/.test(tenant.host) ? protocol : "https";
+  const scheme = /^(localhost|127\.0\.0\.1)(:|$)/.test(tenant.host) ? protocol : "https"; // DevSkim: ignore DS162092 -- Detects local development only, so real hosts always get https.
   return {
     slug: tenant.slug,
     origin: `${scheme}://${tenant.host}`,
@@ -315,7 +315,7 @@ export function xmlSitemapIndex(slugs: string[], origin = PLATFORM_ORIGIN) {
   const body = slugs
     .map((slug) => `  <sitemap><loc>${origin}/s/${slug}/sitemap.xml</loc></sitemap>`)
     .join("\n");
-  return `<?xml version="1.0" encoding="UTF-8"?>\n<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${body}\n</sitemapindex>\n`;
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${body}\n</sitemapindex>\n`; // DevSkim: ignore DS137138 -- XML namespace identifier required by the sitemap protocol; never fetched.
 }
 
 /** Absolute URLs for a tenant site, or for Revora's own marketing pages. */

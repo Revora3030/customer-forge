@@ -132,7 +132,7 @@ describe("tenantSiteHead (one head for every client route)", () => {
 
   it("never emits a non-https share image", () => {
     const head = tenantSiteHead({
-      site: site({ kind: "page", slug: "faq", title: "FAQ", og_image_url: "org/a.jpg" }, { profile: { hero_image_url: "http://x/y.jpg" } }),
+      site: site({ kind: "page", slug: "faq", title: "FAQ", og_image_url: "org/a.jpg" }, { profile: { hero_image_url: "http://x/y.jpg" } }), // DevSkim: ignore DS137138 -- Negative fixture: plaintext share images must be rejected.
       pageSlug: "faq",
       canonical: "https://acme.test/faq",
       businessUrl: "https://acme.test/",
