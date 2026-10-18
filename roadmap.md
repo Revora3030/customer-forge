@@ -3,7 +3,7 @@
 ## Current repair request (2026-10-18)
 - [x] Run repository-wide failure inventory and repair reproducible local failures: 335 test files pass, 2,749 tests pass, 3 integration tests skipped; lint has no errors and one existing warning.
 - [x] Verify builder preview, chat compatibility, and complete first-build regression tests locally; repaired legacy branch-column detection and provider test isolation. No new customer build or production behavior claimed.
-- [ ] Verify affected signed-in browser flows: blocked because the backend connection timed out while preparing an authorized session. No publishing, migrations, or customer-data changes performed.
+- [x] Verify affected signed-in browser flows (2026-10-18): backend woken, signed in as owner admin; /app/website builder, chat history, and /app dashboard all load — no console errors, no failed requests, no "still being built" masking, no trial-ended banner.
 
 - [x] Phase 1 inventory: no style pools remain reachable.
 - [x] Phase 2: silent label trim removed; site-style / site-effects audited.
