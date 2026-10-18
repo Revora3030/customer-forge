@@ -35,6 +35,46 @@ const FIELDS: { key: Field; label: string; placeholder: string; required?: boole
 const ACTIVE = new Set(["queued", "processing"]);
 
 type Prefill = Awaited<ReturnType<typeof prospectFromMapsFn>>;
+type DemoList = Awaited<ReturnType<typeof listProspectDemoBuilds>>;
+
+const pollWhileActive = (data: DemoList | undefined) =>
+  (data ?? []).some((demo) => demo.build && ACTIVE.has(demo.build.status)) ? 5_000 : false;
+
+/**
+ * Keeps active demo builds moving, even without a scheduler: pumps each active
+ * build's queue every 20s. Called by the Jarvis page so it runs while the page
+ * is open, not only while the operations sheet happens to be mounted.
+ */
+export function useProspectDemoPump(enabled: boolean) {
+  const list = useServerFn(listProspectDemoBuilds);
+  const pump = useServerFn(pumpSiteEngineQueue);
+  const demos = useQuery({
+    queryKey: ["jarvis", "prospect-demos"],
+    queryFn: () => list(),
+    refetchInterval: (query) => pollWhileActive(query.state.data),
+    enabled,
+  });
+  const activeIds = (demos.data ?? [])
+    .filter((demo) => demo.build && ACTIVE.has(demo.build.status))
+    .map((demo) => demo.organizationId)
+    .join(",");
+  useEffect(() => {
+    if (!enabled || !activeIds) return;
+    let stopped = false;
+    const tick = async () => {
+      for (const organizationId of activeIds.split(",")) {
+        if (stopped) return;
+        await pump({ data: { organizationId } }).catch(() => undefined);
+      }
+    };
+    void tick();
+    const timer = window.setInterval(() => void tick(), 20_000);
+    return () => {
+      stopped = true;
+      window.clearInterval(timer);
+    };
+  }, [activeIds, enabled, pump]);
+}
 
 /**
  * Jarvis panel: build a private demo website for a business with no website.
@@ -45,7 +85,6 @@ export function ProspectDemoBuilder() {
   const qc = useQueryClient();
   const start = useServerFn(startProspectDemoBuild);
   const list = useServerFn(listProspectDemoBuilds);
-  const pump = useServerFn(pumpSiteEngineQueue);
   const draftFn = useServerFn(draftDemoOutreach);
   const findFn = useServerFn(findProspectsFn);
   const [search, setSearch] = useState({ niche: "", city: "", state: "" });
@@ -110,31 +149,9 @@ export function ProspectDemoBuilder() {
   const demos = useQuery({
     queryKey: ["jarvis", "prospect-demos"],
     queryFn: () => list(),
-    refetchInterval: (query) =>
-      (query.state.data ?? []).some((demo) => demo.build && ACTIVE.has(demo.build.status)) ? 5_000 : false,
+    refetchInterval: (query) => pollWhileActive(query.state.data),
   });
-
-  // Keep active builds moving while this panel is open, even without a scheduler.
-  const activeIds = (demos.data ?? [])
-    .filter((demo) => demo.build && ACTIVE.has(demo.build.status))
-    .map((demo) => demo.organizationId)
-    .join(",");
-  useEffect(() => {
-    if (!activeIds) return;
-    let stopped = false;
-    const tick = async () => {
-      for (const organizationId of activeIds.split(",")) {
-        if (stopped) return;
-        await pump({ data: { organizationId } }).catch(() => undefined);
-      }
-    };
-    void tick();
-    const timer = window.setInterval(() => void tick(), 20_000);
-    return () => {
-      stopped = true;
-      window.clearInterval(timer);
-    };
-  }, [activeIds, pump]);
+  // The queue pump lives in useProspectDemoPump, which the Jarvis page runs.
 
   const building = useMutation({
     mutationFn: () => start({ data: form }),
@@ -152,7 +169,7 @@ export function ProspectDemoBuilder() {
 
   return (
     <details className="rounded-xl border border-border bg-card" open>
-      <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2 text-sm font-medium">
+      <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 px-3 py-2 text-sm font-medium">
         <Hammer className="size-4" aria-hidden />
         Demo site builder · for businesses with no website
       </summary>

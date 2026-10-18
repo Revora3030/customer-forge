@@ -37,8 +37,8 @@ export function ClaudeCodePanel() {
   });
 
   return (
-    <details className="rounded-xl border border-border bg-card" open>
-      <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2 text-sm font-medium">
+    <details className="rounded-xl border border-border bg-card">
+      <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 px-3 py-2 text-sm font-medium">
         <Code2 className="size-4" aria-hidden />
         Claude Code · change the platform's code
       </summary>
