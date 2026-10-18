@@ -200,8 +200,39 @@ describe("leaving the builder never loses or duplicates a request", () => {
   it("keeps plans awaiting approval pending, and never shows a resumed request twice or as 'Done.'", () => {
     const hooks = read("src/lib/builder-requests.hooks.ts");
     expect(hooks).toContain('if (task.state === "complete" || task.state === "failed" || task.state === "skipped")\n        clearPending(organizationId, task.id);');
-    expect(hooks).toContain(".filter((pair) => !(pair.requestId && resumedIds.has(pair.requestId.split(\"~\")[0])))");
-    expect(hooks).toContain("Revora didn't save how this request ended.");
+    // Pending ids keep "~r", saved ids are normalised to "_r": both sides
+    // compare by the base request id.
+    expect(hooks).toContain(".filter((pair) => !(pair.requestId && resumedIds.has(baseRequestId(pair.requestId))))");
+    expect(hooks).toContain("const resumedIds = new Set(resumed.map((request) => baseRequestId(request.id)));");
+    // One hydration for the first load and branch switches; no "Done." filler.
+    expect(hooks.match(/hydrateTasks\(/g)?.length ?? 0).toBeGreaterThanOrEqual(2);
+    expect(hooks).not.toContain('reply: pair.reply || "Done."');
+    expect(read("src/lib/builder/hydrate-tasks.ts")).toContain("Revora didn't save how this request ended.");
+  });
+
+  it("saves the request the moment it is sent, under its own id", () => {
+    const hooks = read("src/lib/builder-requests.hooks.ts");
+    expect(hooks).toContain('remember([{ role: "user", content: task.instruction, kind: "text" }], task.id);');
+    expect(hooks).toContain("findSavedPlan(organizationId!, task.id, { skipDeferred: true })");
+  });
+});
+
+describe("autonomous runs keep one request id from planning through apply", () => {
+  it("forwards the request id to the planner and a per-attempt operation key to apply", () => {
+    const fn = read("src/lib/site-agent.functions.ts");
+    const run = fn.slice(fn.indexOf("export const runWebsiteTask"), fn.indexOf("export const builderMediaCapabilities"));
+    expect(run).toContain("const requestId = normaliseRequestId(input?.requestId);");
+    expect(run).toContain("const runId = data.requestId ?? crypto.randomUUID();");
+    expect(run).toContain("requestId: runId,");
+    expect(run).toContain("operationKey: `${runId}:${attemptNumber}`,");
+  });
+  it("the screen check and audit upgrades start one id per run and show its stages", () => {
+    const panel = read("src/components/app/VisualCheckPanel.tsx");
+    expect(panel).toContain("useBuildProgress(organizationId, Boolean(repairRunId), repairRunId)");
+    expect(panel).toContain("requestId: runId");
+    const upgrades = read("src/lib/auto-upgrade.hooks.ts");
+    expect(upgrades).toContain("requestId: runId");
+    expect(read("src/lib/builder/progress.hooks.ts")).toContain("stepLabel(job.current_step)");
   });
 });
 

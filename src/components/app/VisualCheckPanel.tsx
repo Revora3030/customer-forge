@@ -30,9 +30,15 @@ import { useRestoreWebsiteVersion } from "@/lib/site-engine.hooks";
 import { supabase } from "@/integrations/supabase/client";
 import { runWebsiteTask } from "@/lib/site-agent.functions";
 import { repairBriefFrom } from "@/components/app/visual-check-utils";
+import { useBuildProgress } from "@/lib/builder/progress.hooks";
 
 /** Safety ceiling on AI repair rounds per check (spend/time), not a quality target. */
 const MAX_AI_REPAIR_ROUNDS = 3;
+
+/** A request id in the chat's shape ("v" + time + random), valid for the server's id check. */
+function newRunId() {
+  return `v${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+}
 
 export function VisualCheckPanel({
   organizationId,
@@ -80,6 +86,9 @@ export function VisualCheckPanel({
   const loadGate = useServerFn(getQaGate);
   const restoreVersion = useRestoreWebsiteVersion(organizationId);
   const [aiRepairing, setAiRepairing] = useState(false);
+  /** The request id of the repair round running now; its plan and apply share it. */
+  const [repairRunId, setRepairRunId] = useState<string | null>(null);
+  const repairProgress = useBuildProgress(organizationId, Boolean(repairRunId), repairRunId);
 
   /** Sol repairs, Terra's review keeps the stronger version, then the site is measured again. */
   const aiRepairLoop = useCallback(
@@ -97,7 +106,11 @@ export function VisualCheckPanel({
             return current;
           }
           setRepair(`The AI team is repairing what the check found (round ${round})…`);
-          await runTask({ data: { organizationId, instruction: repairBriefFrom(current) } });
+          // One id per run, so the plan and the apply report progress on the
+          // same request (shown live in the pill below).
+          const runId = newRunId();
+          setRepairRunId(runId);
+          await runTask({ data: { organizationId, instruction: repairBriefFrom(current), requestId: runId } });
           const next = await measure();
           if (!next) break;
           current = next;
@@ -111,6 +124,7 @@ export function VisualCheckPanel({
         setRepair(friendlyError(error, "The AI repair couldn't run, so the failing result stands."));
       } finally {
         setAiRepairing(false);
+        setRepairRunId(null);
         holdQueue?.(false);
       }
       return current;
@@ -268,10 +282,13 @@ export function VisualCheckPanel({
   }, [aiRepairLoop, aiRepairing, canManage, changeKey, loadGate, organizationId, queueBusy, restoreVersion, revertVersion, run, running, slug]);
 
   if (compact) {
+    const liveStage = repairRunId ? repairProgress.latest?.stage : null;
     const text = progress
       ? `Checking ${progress.label} — ${progress.done} of ${progress.total}…`
       : aiRepairing
-        ? repair
+        ? liveStage
+          ? `Repairing · ${liveStage}…`
+          : repair
         : result
           ? result.passed
             ? `Phone, tablet and desktop check passed — ${result.score}/100.`

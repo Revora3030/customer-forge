@@ -73,9 +73,11 @@ describe("skipped updates always come with a reason and a next step", () => {
     expect(skippedReasons(["skipped generate_component_image:generation_failed"])[0]).toContain("picture");
     expect(skippedReasons(["skipped set_composition:would_remove_form"])[0]).toContain("form");
     const summary = applySummary({ applied: 12, failed: 6, stale: 0, details: ["skipped set_backdrop"] });
-    expect(summary).toContain("12 of 18");
-    expect(summary).toContain("because");
-    expect(summary).toContain("Ask for the same change again");
+    expect(summary).toContain("Updated your draft · 12 changes");
+    expect(summary).toContain("6 changes didn't go through — some changes couldn't be saved just now.");
+    // The draft changed, not the live site; the next step is a button, not homework.
+    expect(summary).not.toContain("reached your website");
+    expect(summary).not.toContain("Ask for the same change again");
   });
 });
 

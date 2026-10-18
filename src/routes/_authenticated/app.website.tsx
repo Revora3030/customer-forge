@@ -1,5 +1,5 @@
 import { toast } from "sonner";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { LoadingRows } from "@/components/app/Bits";
@@ -27,7 +27,7 @@ import { BuilderWizard } from "@/components/app/BuilderWizard";
 import { BuilderShell } from "@/components/app/BuilderShell";
 import { MissingMenuBanner } from "@/components/app/MissingMenuBanner";
 import { readSiteChrome } from "@/lib/builder/site-chrome";
-import { jobIsActive } from "@/lib/builder/job-liveness";
+import { jobIsActive, jobLiveness } from "@/lib/builder/job-liveness";
 import { Disclosure, OverlayPanel } from "@/components/app/BuilderTools";
 import { BuilderHistoryProvider } from "@/lib/builder-history.hooks";
 import { GroupTabs } from "@/components/app/BuilderGroups";
@@ -59,7 +59,11 @@ import { ImageStudio } from "@/components/app/ImageStudio";
 import { readBackdrop } from "@/lib/site-effects";
 import { BuilderAudit } from "@/components/app/BuilderAudit";
 import { BuilderPreview, type PreviewSelection } from "@/components/app/BuilderPreview";
-import { Eye, History, Menu, MessageSquare, Settings2 } from "lucide-react";
+import { Eye, History, MessageSquare, MoreHorizontal, Redo2, Settings2, Undo2 } from "lucide-react";
+import { useBuilderHistory } from "@/lib/builder-history.hooks";
+import { newTask } from "@/lib/builder-queue";
+import { friendlyError } from "@/lib/user-error";
+import type { BuilderAccessUiState } from "@/lib/builder-access-status";
 import { PreFlightPanel } from "@/components/app/PreFlight";
 import { preflight } from "@/lib/preflight";
 import { usePreflightFacts } from "@/lib/preflight.hooks";
@@ -256,6 +260,67 @@ function WebsitePage() {
     canManage: manage,
     ready: !!readiness && readiness.requiredGaps.length === 0,
   });
+
+  /** Verified access, for presentation only (the server re-checks every request). */
+  const [accessState, setAccessState] = useState<BuilderAccessUiState>("checking");
+
+  // A fresh rebuild deletes and re-creates every page. While it runs the
+  // builder keeps showing the last real pages and stays in edit mode, instead
+  // of flipping into the first-build screen whenever a refetch sees 0 pages.
+  const latestRow = (latestJob.data ?? null) as { id?: string; status?: string; request_id?: string | null; error_message?: string | null } | null;
+  const pendingBuild = (settings?.generation as { pendingBuild?: { mode?: unknown; jobId?: unknown } } | null | undefined)?.pendingBuild;
+  const freshRebuildActive =
+    jobIsActive(latestJob.data as never) && pendingBuild?.mode === "fresh_replace";
+  const lastNonEmptyPages = useRef<NonNullable<typeof pages>>([]);
+  if (pages && pages.length > 0) lastNonEmptyPages.current = pages;
+  const shownPages = freshRebuildActive && !(pages ?? []).length ? lastNonEmptyPages.current : (pages ?? []);
+
+  // A first build started from the chat is one request in the thread: the
+  // build job reports its stages under that request's id (or the job id where
+  // the job can't record one yet), and its end is saved under the same id.
+  const [trackedBuild, setTrackedBuild] = useState<{ taskId: string; jobId: string | null } | null>(null);
+  const [buildTick, setBuildTick] = useState(0);
+  const { linkBuild } = requests;
+  // Read through a ref: the function changes every render, and as an effect
+  // dependency it would re-arm the stall timer below on every poll.
+  const settleRef = useRef(requests.settleBuild);
+  settleRef.current = requests.settleBuild;
+  useEffect(() => {
+    const settleBuild = settleRef.current;
+    if (!trackedBuild?.jobId || !latestRow || latestRow.id !== trackedBuild.jobId) return undefined;
+    linkBuild(trackedBuild.taskId, latestRow.request_id ?? latestRow.id);
+    const status = latestRow.status;
+    // A worker cut off mid-build leaves the row "processing" with a dead
+    // lease. Stop waiting on it here, so the owner's next messages aren't held
+    // behind it forever; nothing is claimed about how it ended.
+    if ((status === "processing" || status === "queued") && jobLiveness(latestRow as never) === "stalled") {
+      settleBuild(trackedBuild.taskId, {
+        ok: false,
+        message: "Your build stopped responding, so I've stopped waiting on it here. Nothing was published — check the preview in a minute, or start the build again.",
+      });
+      setTrackedBuild(null);
+      return undefined;
+    }
+    if (status !== "completed" && status !== "failed" && status !== "cancelled") {
+      // An unchanged row doesn't re-run this effect, so look again shortly
+      // (that is how a lease going stale is noticed).
+      const timer = window.setTimeout(() => setBuildTick((tick) => tick + 1), 30_000);
+      return () => window.clearTimeout(timer);
+    }
+    settleBuild(trackedBuild.taskId, status === "completed"
+      ? { ok: true, message: "Your website draft is ready. Have a look in Preview, then tell me what to change." }
+      : status === "cancelled"
+        ? { ok: false, message: "The build was stopped before it finished. Nothing was published." }
+        : {
+            ok: false,
+            message: friendlyError(
+              new Error(latestRow.error_message ?? ""),
+              "The build didn't finish. Nothing was published — you can start it again.",
+            ),
+          });
+    setTrackedBuild(null);
+    return undefined;
+  }, [trackedBuild, latestRow, linkBuild, buildTick]);
 
   /** Older deep links (and panels that ask to jump) resolve to the new doors. */
   const goTo = (key: string) => {
@@ -472,8 +537,11 @@ function WebsitePage() {
     </section>
   );
 
-  /** Nothing built yet: one conversation and nothing else. */
-  const firstRun = (pages ?? []).length === 0;
+  /**
+   * Nothing built yet: one conversation and nothing else. A fresh rebuild in
+   * progress is never a first run, even while its pages are being re-created.
+   */
+  const firstRun = !freshRebuildActive && (pages ?? []).length === 0;
 
   /**
    * Chat is the workspace. Preview stays beside it on desktop and one tap away
@@ -487,8 +555,8 @@ function WebsitePage() {
     <div className="min-w-0">
       {missingMenu && orgId ? <MissingMenuBanner organizationId={orgId} canManage={manage} hasHeader={Boolean(storedChrome.header)} hasFooter={Boolean(storedChrome.footer)} /> : null}
       {org?.slug ? (
-        <div className="mb-2 flex justify-center lg:hidden">
-          <div className="inline-flex rounded-full border border-border/70 bg-muted/40 p-0.5" role="tablist" aria-label="Builder view">
+        <div className="mb-2 lg:hidden">
+          <div className="grid h-10 grid-cols-2 rounded-full bg-muted/40 p-1 text-sm" role="tablist" aria-label="Builder view">
             {([
               [false, "Chat", MessageSquare],
               [true, "Preview", Eye],
@@ -500,11 +568,11 @@ function WebsitePage() {
                 aria-selected={previewOpen === isPreview}
                 onClick={() => setPreviewOpen(isPreview)}
                 className={
-                  "inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-full px-4 text-[13px] font-medium transition-all focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none " +
-                  (previewOpen === isPreview ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground")
+                  "inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-full font-medium transition-all focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none " +
+                  (previewOpen === isPreview ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground")
                 }
               >
-                <Icon className="size-3.5" aria-hidden /> {label}
+                <Icon className="size-4" aria-hidden /> {label}
               </button>
             ))}
           </div>
@@ -537,6 +605,8 @@ function WebsitePage() {
             selection={selected}
             onClearSelection={() => setSelected(null)}
             onOpenHistory={() => setHistoryOpen(true)}
+            onShowPreview={() => setPreviewOpen(true)}
+            accessBlocked={accessState === "blocked"}
             publishState={publishState}
             organizationId={orgId ?? null}
             requests={requests}
@@ -550,11 +620,11 @@ function WebsitePage() {
               await saveFacts.mutateAsync({ [key]: answer });
               const label = factQuestion?.label ?? key;
               // Keep the question and answer in the saved conversation so the
-              // chat is still there when the owner comes back.
+              // chat is still there when the owner comes back, as one request.
               requests.remember([
                 { role: "user", content: `${label}: ${answer}` },
                 { role: "assistant", content: firstRun ? "Got it — saved. I'll keep going." : `Saved. I'll update your website with your ${label.toLowerCase()}.` },
-              ]);
+              ], newTask(label).id);
               // Existing site: hand the new fact straight to the AI team.
               if (!firstRun) {
                 requests.queue(`Update my website everywhere it's relevant with my ${label.toLowerCase()}: ${answer}`);
@@ -580,13 +650,32 @@ function WebsitePage() {
                   if (text) requests.queue(text);
                   return;
                 }
-                if (text) {
-                  requests.remember([
-                    { role: "user", content: text },
-                    { role: "assistant", content: "On it — I'm building your website now. I'll show you each step as it finishes." },
-                  ]);
+                // Nothing typed (attachments only): never put words in the
+                // owner's mouth; start the build as before.
+                if (!text) {
+                  await firstBuild.mutateAsync(undefined).catch(() => undefined);
+                  return;
                 }
-                await firstBuild.mutateAsync();
+                // The build is one request in the chat, from the owner's words
+                // to its result, under one request id.
+                const task = newTask(text);
+                requests.remember([
+                  { role: "user", content: text },
+                  { role: "assistant", content: "On it — I'm building your website now. I'll show you each step as it finishes." },
+                ], task.id);
+                requests.trackBuild(task);
+                try {
+                  // The job records this chat request id and the worker writes
+                  // its stages under it; jobs without one fall back to the job id.
+                  const started = await firstBuild.mutateAsync({ requestId: task.id });
+                  setTrackedBuild({ taskId: task.id, jobId: started?.jobId ?? null });
+                  if (!started?.jobId) requests.settleBuild(task.id, { ok: true, message: "Your build is queued. I'll keep working on it in the background." });
+                } catch (error) {
+                  requests.settleBuild(task.id, {
+                    ok: false,
+                    message: friendlyError(error, "Revora couldn't start from that description. Your text is saved."),
+                  });
+                }
               },
               firstBuildBusy: firstBuild.isPending,
             } : {})}
@@ -601,7 +690,7 @@ function WebsitePage() {
             <BuilderPreview
               slug={org.slug}
               businessName={org.name ?? null}
-              pages={pages ?? []}
+              pages={shownPages}
               firstRun={firstRun}
               organizationId={orgId ?? null}
               refreshing={requests.refreshing}
@@ -652,10 +741,11 @@ function WebsitePage() {
                 : "Changes save automatically"
           }
           sections={[{ key: "workspace", label: "Website", node: workspace }]}
+          onAccessStateChange={setAccessState}
           actions={
             <>
-              <Button size="icon-sm" variant="ghost" onClick={() => setMenuOpen(true)} aria-label="Open builder menu" title="Builder menu">
-                <Menu className="size-4" aria-hidden />
+              <Button size="icon-sm" variant="ghost" onClick={() => setMenuOpen(true)} aria-label="Website tools" title="Website tools">
+                <MoreHorizontal className="size-4" aria-hidden />
               </Button>
               {org ? (
                 <PreviewSiteButton
@@ -670,7 +760,7 @@ function WebsitePage() {
                   size="sm"
                   variant="signal"
                   data-testid="builder-publish"
-                  disabled={launchFlow.isLaunching || firstRun}
+                  disabled={launchFlow.isLaunching || firstRun || freshRebuildActive}
                   onClick={launchFlow.launch}
                 >
                   {launchFlow.isLaunching ? "Publishing…" : "Publish"}
@@ -694,10 +784,10 @@ function WebsitePage() {
           <PublishVersionPanel organizationId={orgId} canManage={manage} />
         </OverlayPanel>
 
-      </BuilderHistoryProvider>
-
-      <OverlayPanel open={menuOpen} title="Website tools" onClose={() => setMenuOpen(false)}>
+        {/* Inside the history provider: on phones it also carries Undo/Redo. */}
+        <OverlayPanel open={menuOpen} title="Website tools" onClose={() => setMenuOpen(false)}>
         <div className="grid gap-2">
+          <MenuUndoRedo />
           <Button variant="outline" className="justify-start" onClick={() => { setMenuOpen(false); setSetupOpen(true); }}>
             <Settings2 className="size-4" /> Business details
           </Button>
@@ -708,7 +798,8 @@ function WebsitePage() {
             <Settings2 className="size-4" /> All settings
           </Button>
         </div>
-      </OverlayPanel>
+        </OverlayPanel>
+      </BuilderHistoryProvider>
 
       {/* ------------------------ One advanced door ------------------------ */}
       <OverlayPanel
@@ -1071,5 +1162,26 @@ function WebsitePage() {
         onDismiss={launchFlow.dismissRetry}
       />
     </>
+  );
+}
+
+/**
+ * Phones: the topbar has no room for Undo/Redo, so the Website tools menu
+ * offers the same draft edit history (useBuilderHistory). Hidden from `sm` up,
+ * where the topbar shows them.
+ */
+function MenuUndoRedo() {
+  const history = useBuilderHistory();
+  return (
+    <div className="grid grid-cols-2 gap-2 sm:hidden" role="group" aria-label="Draft edit history">
+      <Button variant="outline" className="justify-start" disabled={!history.canUndo} onClick={history.undo}
+        aria-label={history.undoLabel ? `Undo ${history.undoLabel}` : "Undo"}>
+        <Undo2 className="size-4" aria-hidden /> Undo
+      </Button>
+      <Button variant="outline" className="justify-start" disabled={!history.canRedo} onClick={history.redo}
+        aria-label={history.redoLabel ? `Redo ${history.redoLabel}` : "Redo"}>
+        <Redo2 className="size-4" aria-hidden /> Redo
+      </Button>
+    </div>
   );
 }

@@ -6,7 +6,7 @@
  * (progressive disclosure) and `OverlayPanel` shows secondary tools — history,
  * setup questions — without turning them into permanent destinations.
  */
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { ChevronDown, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -71,18 +71,28 @@ export function OverlayPanel({
   onClose: () => void;
   children: ReactNode;
 }) {
+  const closeRef = useRef<HTMLButtonElement>(null);
+  const closeHandler = useRef(onClose);
+  closeHandler.current = onClose;
   useEffect(() => {
     if (!open || typeof document === "undefined") return;
+    // Focus moves into the panel (its close button) and goes back to whatever
+    // opened it when it closes, so keyboard and screen-reader users don't get
+    // lost behind the scrim.
+    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
+      if (event.key === "Escape") closeHandler.current();
     };
     document.addEventListener("keydown", onKey);
     document.body.style.overflow = "hidden";
+    const frame = window.requestAnimationFrame(() => closeRef.current?.focus());
     return () => {
+      window.cancelAnimationFrame(frame);
       document.removeEventListener("keydown", onKey);
       document.body.style.overflow = "";
+      if (opener?.isConnected) opener.focus();
     };
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open) return null;
   return (
@@ -93,7 +103,7 @@ export function OverlayPanel({
         onClick={onClose}
         className="overlay-scrim absolute inset-0"
       />
-      <div className="absolute inset-x-0 bottom-0 max-h-[86vh] overflow-y-auto rounded-t-2xl border-t border-border bg-surface p-4 pb-10 sm:inset-x-auto sm:top-0 sm:right-0 sm:bottom-0 sm:w-[min(560px,100vw)] sm:max-h-none sm:rounded-none sm:border-t-0 sm:border-l">
+      <div className="absolute inset-x-0 bottom-0 max-h-[86vh] overflow-y-auto overscroll-contain rounded-t-2xl border-t border-border bg-surface p-4 pb-[max(2.5rem,env(safe-area-inset-bottom))] sm:inset-x-auto sm:top-0 sm:right-0 sm:bottom-0 sm:w-[min(560px,100vw)] sm:max-h-none sm:rounded-none sm:border-t-0 sm:border-l">
         <div className="mb-4 flex items-start justify-between gap-3">
           <div className="min-w-0">
             <p className="text-[14px] font-medium">{title}</p>
@@ -102,10 +112,11 @@ export function OverlayPanel({
             ) : null}
           </div>
           <button
+            ref={closeRef}
             type="button"
             aria-label="Close"
             onClick={onClose}
-            className="grid size-8 shrink-0 place-items-center rounded-md border border-border text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground"
+            className="relative grid size-9 shrink-0 place-items-center rounded-md border border-border text-muted-foreground transition-colors after:absolute after:-inset-1 hover:border-primary/40 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
           >
             <X className="size-4" aria-hidden />
           </button>
