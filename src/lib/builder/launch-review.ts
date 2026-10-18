@@ -19,6 +19,7 @@ import {
   type PerformanceSignals,
 } from "@/lib/performance/performance-budget";
 import { inspectImageSources, type ImageSourcePage } from "./media-integrity";
+import { auditContentCompleteness, type CompletenessPage, type CompletenessService } from "./content-completeness";
 
 export type LaunchReviewFacts = {
   /** Website + business content already stored for this workspace. */
@@ -57,6 +58,12 @@ export type LaunchReviewFacts = {
   pages?: LaunchReviewPage[];
   /** The workspace's media rows: where each stored picture came from. */
   mediaSources?: { url: string; source: string | null }[];
+  /**
+   * Visible pages with their authored compositions, and the active services.
+   * When supplied, placeholder legal pages, priced services with no
+   * inclusions and empty galleries block launch.
+   */
+  completeness?: { pages: CompletenessPage[]; services: CompletenessService[] };
 };
 
 export type LaunchReviewPage = {
@@ -71,7 +78,13 @@ export type LaunchReviewPage = {
 
 /** A problem that must be fixed before launch, whatever the score says. */
 export type LaunchReviewBlocker = {
-  code: "image_without_photo" | "stock_credit_missing";
+  code:
+    | "image_without_photo"
+    | "stock_credit_missing"
+    | "legal_placeholder"
+    | "legal_too_thin"
+    | "service_without_inclusions"
+    | "gallery_without_images";
   blocking: true;
   page: string;
   section: string;
@@ -129,8 +142,19 @@ function visiblePages(pages: LaunchReviewPage[]): ImageSourcePage[] {
  * - a stock picture needs its credit shown, and credit lines are not rendered
  *   on customer sites yet, so stock cannot ship until that exists.
  */
-export function launchBlockers(facts: Pick<LaunchReviewFacts, "pages" | "mediaSources">): LaunchReviewBlocker[] {
-  if (!facts.pages) return [];
+export function launchBlockers(
+  facts: Pick<LaunchReviewFacts, "pages" | "mediaSources" | "completeness">,
+): LaunchReviewBlocker[] {
+  const completeness: LaunchReviewBlocker[] = facts.completeness
+    ? auditContentCompleteness(facts.completeness).map((finding) => ({
+        code: finding.code,
+        blocking: true as const,
+        page: finding.code === "service_without_inclusions" ? "services" : finding.subject,
+        section: finding.code === "service_without_inclusions" ? finding.subject : "page",
+        detail: `${finding.detail} ${finding.fix}`,
+      }))
+    : [];
+  if (!facts.pages) return completeness;
   const pages = visiblePages(facts.pages);
   const blockers: LaunchReviewBlocker[] = inspectImageSources(pages)
     .filter((violation) => violation.kind === "image_component_without_source")
@@ -160,8 +184,35 @@ export function launchBlockers(facts: Pick<LaunchReviewFacts, "pages" | "mediaSo
             detail: `The ${page.slug} page shows a stock photo whose required credit is not displayed on the site yet. Replace it with your own photo before launch.`,
           });
         }
-  return blockers;
+  return [...blockers, ...completeness];
 }
+
+const BLOCKER_COPY: Record<LaunchReviewBlocker["code"], { title: string; recommendation: string }> = {
+  image_without_photo: {
+    title: "Fill or remove empty picture boxes",
+    recommendation: "Some image blocks have no photo behind them. Add your own photo or ask the builder to redesign those sections.",
+  },
+  stock_credit_missing: {
+    title: "Replace stock photos before launch",
+    recommendation: "Stock photos need a visible credit, which customer sites do not show yet. Swap them for your own photos.",
+  },
+  legal_placeholder: {
+    title: "Replace the placeholder privacy or legal page",
+    recommendation: "The page says its real policy is missing. Ask the builder to write it from your site's real data handling, then review it.",
+  },
+  legal_too_thin: {
+    title: "Complete the privacy or legal page",
+    recommendation: "Explain what the forms collect, why, and how visitors can ask about their information.",
+  },
+  service_without_inclusions: {
+    title: "Say what each priced service includes",
+    recommendation: "Add the inclusions (and any size or add-on pricing) to each priced service in Business details > Services.",
+  },
+  gallery_without_images: {
+    title: "Add real photos to the gallery",
+    recommendation: "Upload photos of completed work with a short description each, or remove the gallery page until you have some.",
+  },
+};
 
 /** The eight widths every launch measurement must cover. */
 export const REQUIRED_REVIEW_WIDTHS = [320, 375, 390, 414, 768, 1024, 1280, 1440] as const;
@@ -241,11 +292,8 @@ export function reviewLaunchQuality(facts: LaunchReviewFacts): LaunchReview {
     score: 0,
     weight: 0,
     priority: "critical" as const,
-    title: code === "image_without_photo" ? "Fill or remove empty picture boxes" : "Replace stock photos before launch",
-    recommendation:
-      code === "image_without_photo"
-        ? "Some image blocks have no photo behind them. Add your own photo or ask the builder to redesign those sections."
-        : "Stock photos need a visible credit, which customer sites do not show yet. Swap them for your own photos.",
+    title: BLOCKER_COPY[code].title,
+    recommendation: BLOCKER_COPY[code].recommendation,
   }));
   const report = blockerFindings.length
     ? { ...assessed, findings: [...blockerFindings, ...assessed.findings], nextAction: blockerFindings[0] ?? null }

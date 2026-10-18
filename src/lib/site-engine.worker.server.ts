@@ -962,7 +962,7 @@ async function runJob(
       .eq("organization_id", orgId)
       .eq("is_active", true)
       .order("sort_order"),
-    db.from("media").select("id, category, url, alt_text, file_name, source").eq("organization_id", orgId).order("created_at"),
+    db.from("media").select("id, category, url, alt_text, file_name, source, license, attribution").eq("organization_id", orgId).order("created_at"),
     db.from("social_profiles").select("*").eq("organization_id", orgId).maybeSingle(),
     // Only a calculator a visitor can actually answer counts as a quote form,
     // so the AI never plans a quote section around an empty one.
@@ -1415,6 +1415,12 @@ async function runJob(
   // started when this build will actually write pages (a first build), and its
   // outcome is recorded exactly as before.
   const architectureRef: { current: PageArchitectureOutcome | null } = { current: null };
+  const earlyOwnerWorkPhotos = ((media.data ?? []) as { category: string | null; alt_text: string | null; url: string | null; file_name: string | null; source: string | null; id: string }[]).filter(
+    (row) =>
+      classifySiteMediaRow(row) === "owner" &&
+      Boolean(row.alt_text?.trim()) &&
+      ["work", "premises", "team", "before", "after"].includes(String(row.category ?? "").trim().toLowerCase()),
+  ).length;
   const earlyName = org.data?.name ?? "";
   const earlyIndustry = org.data?.industry ?? null;
   const earlyGoal = goals[0] ?? org.data?.conversion_goal ?? null;
@@ -1438,6 +1444,8 @@ async function runJob(
               services: serviceRows,
               hasBooking: (bookable.data ?? []).length > 0,
               hasQuoteForm: usableQuoteForms.length > 0,
+              // Only the owner's own described work photos can unlock a gallery.
+              ownerWorkPhotoCount: earlyOwnerWorkPhotos,
             },
             primary,
           ),
@@ -1560,6 +1568,8 @@ async function runJob(
         provider: "owner",
         model: "owner",
         prompt: "",
+        assetSource: "owner" as const,
+        category: cat,
         placement:
           cat === "hero" && !heroUrl && row.id === ownerHeroRow?.id
             ? ["hero", "home:hero"]
@@ -1584,6 +1594,10 @@ async function runJob(
         provider: "stock",
         model: "stock",
         prompt: "",
+        assetSource: "stock" as const,
+        category: "other",
+        license: (row as { license?: string | null }).license ?? null,
+        attribution: (row as { attribution?: string | null }).attribution ?? null,
         placement: ["services", "about", "story"],
         aspectRatio: "3:2",
       };
@@ -1638,8 +1652,9 @@ async function runJob(
       refined.passes.filter((pass) => pass.used && pass.model)[1]?.model ?? null,
     conversionGoal: goals[0] ?? org.data.conversion_goal ?? null,
     replaceExisting: freshReplace,
+    facts: buildFacts,
     ...(architecturePlan ? { architecture_: architecturePlan } : {}),
-    architect: async (candidate) => {
+    architect: async (candidate, revisionNotes) => {
       const { proposePageArchitecture } = await import(
         "@/lib/builder/ai-page-architecture.server"
       );
@@ -1652,6 +1667,7 @@ async function runJob(
         description: (p["description"] as string) ?? null,
         services: serviceRows.map((service) => String((service as { name?: unknown }).name ?? "")).filter(Boolean),
         serviceArea: (p["service_area"] as string) ?? null,
+        ...(revisionNotes ? { revisionNotes } : {}),
       });
       architectureRef.current = outcome;
       return outcome.architecture;
@@ -1757,6 +1773,7 @@ async function runJob(
         directionSummary: [creative.brief.concept, creative.brief.personality].filter(Boolean).join(" · "),
         hardGenericityGate: true,
         signal: wordingAbort.signal,
+        ...(built.depth ? { depthNotes: Object.fromEntries(Object.entries(built.depth).map(([slug, page]) => [slug, page.notes]).filter(([, notes]) => (notes as string[]).length)) } : {}),
       }).catch((error: unknown) => {
         if (!wordingAbort.signal.aborted) throw error;
         return keepAuthored;

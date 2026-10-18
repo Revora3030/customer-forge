@@ -432,6 +432,85 @@ export async function planWebsiteChangesWithAi(input: {
     };
   }
 
+  // PLAN VERIFICATION. Every new content section needs Sol's own layout and
+  // every image item a real picture. Misses go back to Sol once on the same
+  // request; a revision is used only if it passes the same safety review.
+  // Anything still unfixed is skipped with a reason, never templated.
+  {
+    const { verifyPlan, skipUnverifiedSteps, existingComponents } = await import("@/lib/site-agent.server");
+    const existing = existingComponents(context);
+    let feedback = verifyPlan({ actions }, existing);
+    if (feedback.length) {
+      input.onStage?.("checking the plan", "making sure every new section has a layout and every picture is real");
+      const repair = await callBestThinker({
+        json: true,
+        purpose: "creative_direction",
+        complexity: "high",
+        system,
+        user: [
+          user,
+          "",
+          "YOUR PLAN CANNOT BE APPLIED YET. Fix these steps and reply with the whole corrected JSON object (same shape, non-empty \"actions\"):",
+          ...feedback.slice(0, 20).map((item) => `- action ${item.index} (${item.type} ${item.target}): ${item.problem}`),
+          "",
+          "YOUR PREVIOUS ACTIONS:",
+          JSON.stringify(actions),
+        ].join("\n"),
+        organizationId: input.organizationId,
+        maxOutputTokens: 32000,
+        ...(input.onAttempt ? { onAttempt: input.onAttempt } : {}),
+      });
+      if (repair.ok) {
+        costMicrocents += repair.costMicrocents;
+        const revised = readActions(repair.text);
+        const revisedFeedback = revised.parsed && revised.list.length ? verifyPlan({ actions: revised.list }, existing) : null;
+        if (revisedFeedback && revisedFeedback.length < feedback.length) {
+          input.onStage?.("reviewing for safety", "re-checking the corrected plan");
+          const recheck = await callBestThinker({
+            json: true,
+            purpose: "adversarial_review",
+            complexity: "high",
+            system: [
+              "You are an independent safety reviewer. Check proposed website changes only against supplied facts, accessibility, renderer support, security, and resource limits.",
+              TRUTH_RULES,
+              'Reply with ONE JSON object: {"reject":number[],"notes":string[]}. `reject` holds only zero-based indexes of actions that invent facts, fabricate claims, violate accessibility or safety, target missing data, or cannot render. Never reject for taste.',
+            ].join("\n\n"),
+            user: [
+              "BUSINESS FACTS:", businessBlock(context), "",
+              "THE OWNER'S REQUEST:", input.instruction, "",
+              "PROPOSED ACTIONS (index: action):",
+              revised.list.map((action, index) => `${index}: ${JSON.stringify(action)}`).join("\n"),
+            ].join("\n"),
+            organizationId: input.organizationId,
+            maxOutputTokens: 4000,
+            ...(input.onAttempt ? { onAttempt: input.onAttempt } : {}),
+          });
+          if (recheck.ok) {
+            costMicrocents += recheck.costMicrocents;
+            const applied = applyReview(revised.list, parseJsonObject(recheck.text));
+            if (applied.actions.length) {
+              actions = applied.actions;
+              notes = [...notes, ...applied.notes].slice(0, 8);
+              feedback = verifyPlan({ actions }, existing);
+            }
+          }
+        }
+      }
+      if (feedback.length) {
+        const kept = skipUnverifiedSteps({ actions, notes }, feedback);
+        actions = (kept["actions"] as typeof actions) ?? actions;
+        notes = (Array.isArray(kept["notes"]) ? (kept["notes"] as string[]) : notes).slice(0, 8);
+      }
+      if (!actions.length) {
+        return {
+          ok: false,
+          reason: "review_rejected",
+          detail: "every change needed a layout or a real picture the plan did not provide",
+        };
+      }
+    }
+  }
+
   // CRAFT POLISH. Layouts Sol authored for this edit are measured against the
   // same design bar as a first build (headline scale, readable copy, phone
   // grids, breathing room). Misses get one targeted revision; a revised tree is

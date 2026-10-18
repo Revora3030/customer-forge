@@ -406,7 +406,7 @@ export async function planChanges(
 /** Feedback rounds after the first plan (the planner's verification budget). */
 export const PLAN_FEEDBACK_ROUNDS = 1;
 
-function existingComponents(context: AgentContext): Map<string, { kind: string; hasMedia: boolean }> {
+export function existingComponents(context: AgentContext): Map<string, { kind: string; hasMedia: boolean }> {
   const map = new Map<string, { kind: string; hasMedia: boolean }>();
   for (const page of context.pages)
     for (const section of page.sections ?? [])
