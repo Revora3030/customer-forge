@@ -20,6 +20,11 @@ vi.mock("@/lib/ai/paid-budget.server", () => ({
   routerEstimate: vi.fn(() => 1),
   routerActual: vi.fn(() => 1),
 }));
+vi.mock("@/lib/ai/telemetry.server", () => ({
+  recordAiEvent: vi.fn(async () => undefined),
+  recordTeamStep: vi.fn(async () => undefined),
+  checkAiLimits: vi.fn(async () => ({ allowed: true })),
+}));
 
 import { AI_NOT_CONFIGURED_MESSAGE } from "@/lib/ai/errors";
 import { isAiConfigured, providerChain, providerConfig, aiLimits } from "@/lib/ai/config";
@@ -108,6 +113,7 @@ describe("provider configuration", () => {
 
   beforeEach(() => {
     isolateProviderEnvironment();
+    vi.resetModules();
     // These suites cover the OPTIONAL enhancement path, so they opt out of
     // zero-cost mode explicitly. Zero-cost mode itself is proven in
     // `zero-cost.test.ts`, which asserts providers stay blocked by default.

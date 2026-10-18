@@ -21,7 +21,7 @@ vi.mock("@/integrations/supabase/client", () => {
     };
     chain["then"] = (resolve: unknown) =>
       Promise.resolve(
-        columns.includes("request_id")
+        columns.includes("request_id") || columns === "branch"
           ? { data: null, error: { code: "42703", message: 'column "request_id" does not exist' } }
           : { data: [{ role: "user", content: "hi", created_at: "2026-10-07T00:00:00Z" }], error: null },
       ).then(resolve as (value: unknown) => unknown);
@@ -30,11 +30,18 @@ vi.mock("@/integrations/supabase/client", () => {
   return { supabase: { from: () => query() } };
 });
 
-import { isMissingColumnError, loadTurns, mergeTurns, threadColumnsMissing, type SavedTurn } from "./builder-memory";
+import { isMissingColumnError, listSavedBranches, loadTurns, mergeTurns, threadColumnsMissing, type SavedTurn } from "./builder-memory";
 
 const turn = (role: SavedTurn["role"], content: string, at: string): SavedTurn => ({ role, content, at, branch: "main" });
 
 describe("builder memory resilience", () => {
+  it("marks thread columns unavailable when the branch picker encounters the legacy schema", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    expect(threadColumnsMissing()).toBe(false);
+    expect(await listSavedBranches("org-a")).toEqual([]);
+    expect(threadColumnsMissing()).toBe(true);
+    warn.mockRestore();
+  });
   it("recognises missing-column errors from Postgres and PostgREST", () => {
     expect(isMissingColumnError({ code: "42703", message: 'column "request_id" does not exist' })).toBe(true);
     expect(isMissingColumnError({ code: "PGRST204", message: "Could not find the 'branch' column" })).toBe(true);

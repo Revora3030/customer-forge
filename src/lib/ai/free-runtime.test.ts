@@ -15,6 +15,12 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { isolateProviderEnvironment } from "./provider-test-environment";
 
+vi.mock("@/lib/ai/telemetry.server", () => ({
+  recordAiEvent: vi.fn(async () => undefined),
+  recordTeamStep: vi.fn(async () => undefined),
+  checkAiLimits: vi.fn(async () => ({ allowed: true })),
+}));
+
 const ENV_KEYS = [
   "FREE_AI_ENABLED",
   "FREE_AI_ONLY",
