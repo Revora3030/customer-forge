@@ -150,7 +150,10 @@ describe("provider configuration", () => {
   });
 
   afterEach(() => {
-    process.env = { ...saved };
+    for (const key of Object.keys(process.env)) {
+      if (!(key in saved)) delete process.env[key];
+    }
+    Object.assign(process.env, saved);
     vi.unstubAllEnvs();
     vi.unstubAllGlobals();
     vi.resetModules();
@@ -164,8 +167,7 @@ describe("provider configuration", () => {
 
   it("fails closed with one clear message when no provider is configured", async () => {
     // FREE-AI-FIRST: with no free credentials and no paid opt-in the router
-    // contacts nobody and reports the free-unavailable state, which callers
-    // treat as "use the deterministic engine" rather than an error to retry.
+    // contacts nobody and reports an unavailable state, never a non-AI builder.
     const { generateText } = await import("@/lib/ai/router.server");
     isolateProviderEnvironment();
     await expect(
@@ -227,7 +229,10 @@ describe("provider fallback", () => {
   });
 
   afterEach(() => {
-    process.env = { ...saved };
+    for (const key of Object.keys(process.env)) {
+      if (!(key in saved)) delete process.env[key];
+    }
+    Object.assign(process.env, saved);
     vi.unstubAllEnvs();
     vi.unstubAllGlobals();
     vi.resetModules();
