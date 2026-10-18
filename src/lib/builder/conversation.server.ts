@@ -1,5 +1,6 @@
 import { generateStructuredOutput } from "@/lib/ai/router.server";
 import { inspectConversation } from "./conversation-inspection.server";
+import { GROWTH_SYSTEM } from "@/lib/offer";
 
 type Turn = { role: "user" | "assistant"; content: string };
 export type ConversationDecision = { mode: "answer"; reply: string } | { mode: "change" };
@@ -34,7 +35,7 @@ export async function decideConversation(input: {
     input.firstBuildActive ? "The first build is active. Acknowledge the request without claiming its edits already landed or that browser-independent completion is verified." : "",
     "Classify the latest message as CHANGE when it requests edits, fixes, additions, redesign or applying earlier suggestions. Return change rather than merely describing those edits. A pure question or audit request can be ANSWER. On ambiguous approval, use the actual preceding proposal; do not interpret approval of inspection as approval to publish or delete.",
     "For ANSWER, respond naturally in markdown. Be candid about uninspected areas and offer concrete supported repairs. For CHANGE, return an empty reply and let the existing planner/executor handle permissions and actions.",
-    "Revora's current offer is $350 setup, first platform month free, then $100/month. The 3-day exploration window is separate from paid implementation and publishing.",
+    `Revora's current offer is $${GROWTH_SYSTEM.setupPrice} setup, first platform month free, then $${GROWTH_SYSTEM.monthlyPrice}/month. The 3-day exploration window is separate from paid implementation and publishing.`,
     'Respond with JSON only: {"mode":"answer"|"change","reply":"..."}.',
   ].join("\n");
   const turns = [...input.history.slice(-12).map((turn) => ({ role: turn.role, content: turn.content })), { role: "user" as const, content: input.instruction }];

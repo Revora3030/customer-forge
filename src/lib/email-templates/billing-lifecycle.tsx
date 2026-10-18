@@ -12,6 +12,7 @@ import {
   Text,
 } from "@react-email/components";
 import type { TemplateEntry } from "./registry";
+import { GROWTH_SYSTEM } from "@/lib/offer";
 
 interface BillingProps {
   businessName?: string;
@@ -58,12 +59,12 @@ const WelcomeEmail = (p: BillingProps) => (
     heading={`Welcome aboard, ${p.businessName || "there"} — ${p.planName || "your plan"} is live`}
   >
     <Text style={text}>
-      <strong>$350 setup payment received.</strong> Your {p.planName || "Revora Growth System"}{" "}
+      <strong>${GROWTH_SYSTEM.setupPrice} setup payment received.</strong> Your {p.planName || "Revora Growth System"}{" "}
       workspace is ready — website builder, CRM, booking calendar, quote engine and automations are
       unlocked right now.
     </Text>
     <Text style={text}>
-      <strong>First month free.</strong> Your first $100 monthly payment is charged after 30 days
+      <strong>First month free.</strong> Your first ${GROWTH_SYSTEM.monthlyPrice} monthly payment is charged after 30 days
       unless canceled{p.accessUntil ? ` — your trial ends ${p.accessUntil}` : ""}. Cancel anytime
       from billing. No hidden fees.
     </Text>

@@ -4,6 +4,7 @@ import { toast } from "@/lib/ui/notify";
 import { friendlyError } from "@/lib/user-error";
 import { isTransientFailure, withTransientRetry } from "@/lib/transient";
 import { trackConversion } from "@/lib/conversion";
+import { GROWTH_SYSTEM } from "@/lib/offer";
 import {
   activateProduction,
   checkProductionReadiness,
@@ -42,7 +43,7 @@ export function useProductionReadiness(organizationId: string | undefined) {
 function blockReason(result: ActivationResult): string {
   const text = `${result.reason} ${result.readiness.blockers.join(" ")}`.toLowerCase();
   if (text.includes("suspend")) return "suspended";
-  if (text.includes("setup") || text.includes("payment") || text.includes("$350"))
+  if (text.includes("setup") || text.includes("payment") || text.includes(`$${GROWTH_SYSTEM.setupPrice}`))
     return "setup_unpaid";
   if (!result.readiness.unlocked) return "locked";
   if (text.includes("permission") || text.includes("owner") || text.includes("allowed"))

@@ -27,7 +27,7 @@ export type GrowthSystemIntake = {
  *   • $350 one-time setup (charged on the first invoice)
  *   • $100/month recurring subscription
  * Both live on ONE Stripe subscription session, so the recurring amount is
- * never $850 — only the first invoice includes the setup line.
+ * never $450 recurring — only the first invoice includes the setup line.
  */
 export const createGrowthSystemCheckout = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])

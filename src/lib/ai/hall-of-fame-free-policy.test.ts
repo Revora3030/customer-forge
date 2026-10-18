@@ -4,7 +4,7 @@ import { freeAiOnly, paidCollectiveAllowed, type FreeOnlyEnvironment } from "@/l
 const mocks = vi.hoisted(() => ({ paid: vi.fn(), registry: vi.fn(), pinned: vi.fn(), trace: vi.fn() }));
 vi.mock("@/lib/ai/luna.server", () => ({ callCollective: mocks.paid }));
 vi.mock("@/lib/ai/registry.server", () => ({ buildFreeModelRegistry: mocks.registry }));
-vi.mock("@/lib/ai/router.server", () => ({ callPinnedFreeModel: mocks.pinned }));
+vi.mock("@/lib/ai/router.server", () => ({ callPinnedFreeModel: mocks.pinned, extractJsonObject: () => null }));
 vi.mock("@/lib/ai/telemetry.server", () => ({ recordTeamStep: mocks.trace }));
 vi.mock("@/lib/ai/free-reputation", () => ({
   freeModelForm: () => ({ score: 0 }), recordFreeModelOutcome: vi.fn(),
@@ -88,6 +88,22 @@ describe("Hall of Fame spending boundary", () => {
     expect(await callBestThinker(request)).toMatchObject({ ok: false, reason: "no_free_model" });
     expect(mocks.paid).not.toHaveBeenCalled();
     expect(mocks.pinned).not.toHaveBeenCalled();
+  });
+  it("walks the wider squad without ever reaching OpenAI or Google or the paid lane", async () => {
+    vi.stubEnv("AI_FREE_ONLY", "true");
+    const entry = (provider: string, model: string, weight: number) => ({
+      provider, model, capabilities: ["design"], weight, health: { healthy: true }, quota: { remainingToday: 10 },
+    });
+    mocks.registry.mockResolvedValue([
+      entry("openai", "direct-openai", 99), entry("google", "direct-google", 98),
+      ...Array.from({ length: 12 }, (_, i) => entry(`free${i}`, `free-model-${i}`, 90 - i)),
+    ]);
+    mocks.pinned.mockRejectedValue(Object.assign(new Error("bad"), { category: "bad_response" }));
+    expect(await callBestThinker(request)).toMatchObject({ ok: false, reason: "squad_exhausted" });
+    const providers = mocks.pinned.mock.calls.map((call) => (call[1] as { provider: string }).provider);
+    expect(providers).toHaveLength(12);
+    expect(providers.some((p) => p === "openai" || p === "google")).toBe(false);
+    expect(mocks.paid).not.toHaveBeenCalled();
   });
   it("uses the paid collective for a hard step by default, within the daily cap", async () => {
     mocks.paid.mockResolvedValue({ ok: true, tier: "sol", wanted: "sol", downgraded: false, text: "Paid answer", model: "paid-test", costMicrocents: 1 });
