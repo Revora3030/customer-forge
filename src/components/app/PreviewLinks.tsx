@@ -81,13 +81,21 @@ export function PreviewSiteButton({
           .mutateAsync({ label: "Builder preview", hours: 168 })
           .then((created) => {
             setReadyToken(created);
-            toast.success("Preview ready — tap “Preview site (draft)” to open it.");
+            // Compact mode shows only an icon, so name the button by what it is.
+            toast.success(
+              compact
+                ? "Preview ready — tap the preview button to open it."
+                : "Preview ready — tap “Preview site (draft)” to open it.",
+            );
           })
           .catch(() => undefined);
       }}
     >
       {create.isPending ? (
         <Loader2 className="size-4 animate-spin" />
+      ) : compact ? (
+        // A link icon, not "open": this makes the private link first.
+        <Link2 className="size-4" aria-hidden />
       ) : (
         <ExternalLink className="size-4" />
       )}

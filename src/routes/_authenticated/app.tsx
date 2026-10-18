@@ -397,8 +397,17 @@ function AppShell() {
                   </span>
                 </span>
               </Pill>
-            ) : org?.subscription_status === "trialing" ? (
-              <Pill tone="attention">{trialExpired ? "Trial ended" : "Trial"}</Pill>
+            ) : paymentRequired && org?.subscription_status === "trialing" ? (
+              // Only when the trial really blocks this workspace (no payment,
+              // plan, admin or support access keeps it open), and one tap
+              // from fixing it.
+              <Link
+                to="/app/billing"
+                aria-label="Trial ended — open billing"
+                className="rounded-full focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+              >
+                <Pill tone="attention">Trial ended</Pill>
+              </Link>
             ) : null}
             {org?.is_demo ? <Pill tone="info">Demo data</Pill> : null}
             <div className="relative">

@@ -15,7 +15,10 @@ import { Input } from "@/components/ui/input";
 import { MAIN_BRANCH } from "@/lib/builder/chat-thread";
 import { cn } from "@/lib/utils";
 
-type SearchHit = { turn: { role: "user" | "assistant"; at: string; branch?: string }; snippet: string };
+type SearchHit = {
+  turn: { role: "user" | "assistant"; at: string; branch?: string; requestId?: string | null };
+  snippet: string;
+};
 
 type SpeechRecognitionLike = {
   lang: string;
@@ -120,7 +123,7 @@ export function ChatSearch({
         type="button"
         onClick={() => setOpen(true)}
         aria-label="Search this conversation"
-        className="inline-flex size-8 cursor-pointer items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+        className="inline-flex size-9 cursor-pointer items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
       >
         <Search className="size-4" aria-hidden />
       </button>
@@ -161,10 +164,16 @@ export function ChatSearch({
               <li key={`${hit.turn.at}-${index}`}>
                 <button
                   type="button"
-                  onClick={() => onPick?.(hit)}
-                  className="w-full cursor-pointer rounded-lg px-2 py-1.5 text-left text-[12.5px] hover:bg-muted"
+                  onClick={() => {
+                    if (!onPick) return;
+                    // Jump to the message and get the results out of the way.
+                    setOpen(false);
+                    setQuery("");
+                    onPick(hit);
+                  }}
+                  className="min-h-11 w-full cursor-pointer rounded-lg px-2 py-1.5 text-left text-[13px] hover:bg-muted"
                 >
-                  <span className="block text-[11px] text-muted-foreground">
+                  <span className="block text-xs text-muted-foreground">
                     {hit.turn.role === "user" ? "You" : "Revora"}
                     {hit.turn.branch && hit.turn.branch !== MAIN_BRANCH ? ` · ${hit.turn.branch}` : ""} ·{" "}
                     {new Date(hit.turn.at).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" })}

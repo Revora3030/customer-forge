@@ -1,12 +1,15 @@
 /**
- * Turns the apply pipeline's internal step labels into one plain sentence the
+ * Turns the apply pipeline's internal step labels into plain sentences the
  * business owner can act on.
  *
  * The apply run records every outcome as a short code (`skipped
- * set_section:unresolved_section`, `stale set_component (component removed)`).
- * Those codes are honest but unreadable, so an owner who sees "42 of 60
- * applied" is left guessing. This maps the codes onto everyday language, with
- * no invention: a code it doesn't recognise is counted, never described.
+ * set_section:unresolved_section`, `stale set_component (missing_component)`).
+ * Those codes are honest but unreadable, so this maps them onto everyday
+ * language, with no invention: a code it doesn't recognise is counted, never
+ * described.
+ *
+ * An apply only ever writes the DRAFT. Nothing here says a change "reached
+ * your website": the live site changes only when the owner publishes.
  *
  * Pure and dependency-free so it can be unit tested and used on either side.
  */
@@ -21,9 +24,13 @@ const REASONS: Array<{ match: RegExp; text: string }> = [
     match: /cross_page_target|cross_section_target/,
     text: "a reordering step tried to move something between pages",
   },
-  { match: /\(page removed\)|stale (add|set|move|remove)_page/, text: "a page had been removed" },
-  { match: /\(section removed\)/, text: "a section had been removed" },
-  { match: /\(component removed\)/, text: "an item on the page had been removed" },
+  {
+    // The apply step labels these `stale <type> (missing_section|missing_page|
+    // missing_component)`; older runs wrote "(section removed)" and friends.
+    match:
+      /\(missing_(section|component|page)\)|\((section|component|page) removed\)|stale (add|set|move|remove)_page/,
+    text: "those parts of your page had changed since I planned them",
+  },
   { match: /duplicate/, text: "the same change appeared twice" },
   {
     match: /generate_component_image:(generation|upload|media)_failed/,
@@ -43,7 +50,7 @@ const REASONS: Array<{ match: RegExp; text: string }> = [
 const WRITE_FAILED = "some changes couldn't be saved just now";
 
 export type ApplyOutcome = {
-  /** How many steps reached the website. */
+  /** How many steps were written to the draft. */
   applied: number;
   /** Steps that were attempted and did not write. */
   failed: number;
@@ -71,19 +78,31 @@ export function skippedReasons(details: readonly string[] = []): string[] {
   return out;
 }
 
+const plural = (count: number, word: string) => `${count} ${word}${count === 1 ? "" : "s"}`;
+
+/** "Updated your draft · 5 changes" — the draft, never "your website". */
+export function applyHeadline(applied: number): string {
+  return `Updated your draft · ${plural(applied, "change")}`;
+}
+
 /**
- * One sentence explaining a partly-applied plan, or an empty string when
- * everything landed. Never claims a cause it cannot see in the labels.
+ * The skipped part, from stored counts and (when known) owner-language
+ * reasons. Without a recognisable reason it says only what it knows.
+ */
+export function skippedLine(skipped: number, reasons: readonly string[] = []): string {
+  if (skipped <= 0) return "";
+  const head = `${plural(skipped, "change")} didn't go through`;
+  return reasons.length ? `${head} — ${reasons.join("; ")}.` : `${head}. Nothing else was touched.`;
+}
+
+/**
+ * Two short sentences explaining a partly-applied plan, or an empty string
+ * when everything landed. Never claims a cause it cannot see in the labels.
  */
 export function applySummary(outcome: ApplyOutcome): string {
   const skipped = (outcome.failed ?? 0) + (outcome.stale ?? 0);
   if (skipped <= 0) return "";
-  const total = outcome.applied + skipped;
-  const head = `${outcome.applied} of ${total} update${total === 1 ? "" : "s"} reached your website`;
-  const reasons = skippedReasons(outcome.details);
-  const tail = reasons.length
-    ? ` — the other ${skipped} ${skipped === 1 ? "was" : "were"} skipped because ${reasons.join(", and ")}.`
-    : ` — the other ${skipped} ${skipped === 1 ? "was" : "were"} skipped, so nothing was left half-finished.`;
-  const fix = " Ask for the same change again and Revora will plan it against your site as it is now.";
-  return head + tail + fix;
+  // Nothing written is never reported as an update.
+  if (outcome.applied <= 0) return skippedLine(skipped, skippedReasons(outcome.details));
+  return `${applyHeadline(outcome.applied)}. ${skippedLine(skipped, skippedReasons(outcome.details))}`;
 }
