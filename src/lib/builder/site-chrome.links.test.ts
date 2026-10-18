@@ -69,6 +69,15 @@ describe("links inside AI-authored sections are repaired too", () => {
     expect(spec?.ctaHref).toBe("/services");
     expect(repairStoredLinks(sections, null, null)).toBe(sections);
   });
+
+  it("sends a button back to the page it is on to that page's form", () => {
+    const sections = [
+      { id: "s1", kind: "composition", settings: { composition: { version: 1, root: { type: "button", text: "Get a Quote", href: "/contact" } } } },
+    ];
+    const anchors = new Set(["contact", "contact-form"]);
+    expect(repairStoredLinks(sections, pages, anchors, "contact")[0]?.settings.composition.root.href).toBe("#contact-form");
+    expect(repairStoredLinks(sections, pages, anchors, "services")[0]?.settings.composition.root.href).toBe("/contact");
+  });
 });
 
 describe("buttons with no destination", () => {

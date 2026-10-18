@@ -1759,6 +1759,20 @@ async function runJob(
       subheading: section.subheading,
       body: section.body,
     }));
+    // A privacy or terms page is written from what the site really collects,
+    // so it never ships as "a policy has not been supplied".
+    const { isLegalPage } = await import("@/lib/builder/page-depth");
+    const { legalPageFacts } = await import("@/lib/builder/content-completeness");
+    const legalFacts = legalPageFacts({
+      businessName: copyFacts.businessName,
+      email: copyFacts.email ?? null,
+      goals: copyFacts.goals ?? [],
+    });
+    const pageFacts = Object.fromEntries(
+      [...new Set(wording.map((section) => section.page))]
+        .filter((slug) => slug && isLegalPage({ slug, kind: null }))
+        .map((slug) => [slug, legalFacts]),
+    );
     // Section wording is a refinement of copy that is already AI-authored and
     // fact-checked. It is bounded in time: when Sol/Terra are slow, the abort
     // makes the refinement return no patches (the authored wording stays)
@@ -1781,6 +1795,7 @@ async function runJob(
         directionSummary: [creative.brief.concept, creative.brief.personality].filter(Boolean).join(" · "),
         hardGenericityGate: true,
         signal: wordingAbort.signal,
+        ...(Object.keys(pageFacts).length ? { pageFacts } : {}),
         ...(built.depth ? { depthNotes: Object.fromEntries(Object.entries(built.depth).map(([slug, page]) => [slug, page.notes]).filter(([, notes]) => (notes as string[]).length)) } : {}),
       }).catch((error: unknown) => {
         if (!wordingAbort.signal.aborted) throw error;

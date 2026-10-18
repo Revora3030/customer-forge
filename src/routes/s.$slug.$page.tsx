@@ -131,7 +131,7 @@ export function SitePageView({
   if (addEnquiryForm || pageHasWidget(storedSections as never, "enquiry_form")) pageAnchors.add("contact-form");
   // Every button and link the AI team authored inside the page's sections
   // (layouts, custom blocks, calculators, booking pickers) gets the same repair.
-  const sections = repairStoredLinks(storedSections, knownPages, pageAnchors);
+  const sections = repairStoredLinks(storedSections, knownPages, pageAnchors, (page as { slug?: string | null } | null)?.slug ?? null);
   const chromeHref = (href: string) => resolveSiteHref(href, org.slug, ownAddress, knownPages, pageAnchors, previewBase);
   // Pages the AI menu left out are still offered, so no page is orphaned.
   const extraNav = missingChromeLinks(chrome.header, navRows as never);
