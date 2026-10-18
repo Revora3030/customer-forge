@@ -1,5 +1,10 @@
 # Roadmap — Five-phase blocker elimination
 
+## Current repair request (2026-10-18)
+- [ ] Run repository-wide failure inventory and repair reproducible local failures.
+- [ ] Verify builder preview, chat compatibility, and complete first-build regression tests.
+- [ ] Verify affected browser flows and record remaining live-environment blockers without publishing or changing customer data.
+
 - [x] Phase 1 inventory: no style pools remain reachable.
 - [x] Phase 2: silent label trim removed; site-style / site-effects audited.
 - [x] Phase 3: larger layout and motion vocabulary + Sol prompt updates.
