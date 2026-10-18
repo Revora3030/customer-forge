@@ -111,9 +111,10 @@ describe("no third-party AI gateway remains", () => {
 describe("provider configuration", () => {
   const saved = { ...process.env };
 
-  beforeEach(() => {
+  beforeEach(async () => {
+    const router = await import("@/lib/ai/router.server");
     isolateProviderEnvironment();
-    vi.resetModules();
+    router.resetAiRuntimeStatus();
     // These suites cover the OPTIONAL enhancement path, so they opt out of
     // zero-cost mode explicitly. Zero-cost mode itself is proven in
     // `zero-cost.test.ts`, which asserts providers stay blocked by default.
