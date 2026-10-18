@@ -4158,6 +4158,51 @@ export type Database = {
         }
         Relationships: []
       }
+      voice_daily_budget: {
+        Row: {
+          calls: number
+          chars_cap: number
+          chars_spent: number
+          day: string
+          scope: string
+          updated_at: string
+        }
+        Insert: {
+          calls?: number
+          chars_cap: number
+          chars_spent?: number
+          day: string
+          scope: string
+          updated_at?: string
+        }
+        Update: {
+          calls?: number
+          chars_cap?: number
+          chars_spent?: number
+          day?: string
+          scope?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      voice_link_claims: {
+        Row: {
+          expires_at: string
+          nonce: string
+          uses: number
+        }
+        Insert: {
+          expires_at: string
+          nonce: string
+          uses?: number
+        }
+        Update: {
+          expires_at?: string
+          nonce?: string
+          uses?: number
+        }
+        Relationships: []
+      }
       website_branches: {
         Row: {
           base_snapshot: Json | null
@@ -5251,6 +5296,14 @@ export type Database = {
         Returns: Json
       }
       sync_platform_accounts: { Args: never; Returns: number }
+      voice_budget_reserve: {
+        Args: { _cap: number; _chars: number; _scope: string }
+        Returns: boolean
+      }
+      voice_link_claim: {
+        Args: { _expires_at: string; _max_uses: number; _nonce: string }
+        Returns: boolean
+      }
     }
     Enums: {
       app_role: "owner" | "admin" | "manager" | "staff" | "viewer"
