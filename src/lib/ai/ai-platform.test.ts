@@ -167,6 +167,7 @@ describe("provider configuration", () => {
     // contacts nobody and reports the free-unavailable state, which callers
     // treat as "use the deterministic engine" rather than an error to retry.
     const { generateText } = await import("@/lib/ai/router.server");
+    isolateProviderEnvironment();
     await expect(
       generateText(
         { task: "test", organizationId: null, userId: null },
