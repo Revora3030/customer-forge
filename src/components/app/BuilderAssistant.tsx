@@ -270,6 +270,8 @@ export function BuilderAssistant({
   };
 
   const busy = requests.busy || firstBuildBusy || factBusy;
+  /** A tracked first build or a request running elsewhere: shown as working, never blocking. */
+  const trackingWork = requests.tasks.some((task) => task.tracking);
   const empty = requests.tasks.length === 0 && !factQuestion && factLog.length === 0;
   const composerLocked = !requests.ready || accessBlocked;
   const canSend = !composerLocked && (value.trim().length > 0 || attachments.length > 0);
@@ -300,7 +302,7 @@ export function BuilderAssistant({
           <span
             className={cn(
               "absolute -right-0.5 -bottom-0.5 size-2.5 rounded-full border-2 border-background",
-              busy ? "animate-pulse bg-primary" : "bg-emerald-400",
+              busy || trackingWork ? "animate-pulse bg-primary" : "bg-emerald-400",
             )}
             aria-hidden
           />
@@ -308,7 +310,7 @@ export function BuilderAssistant({
         <div className="min-w-0 flex-1 leading-tight">
           <p className="truncate text-sm font-semibold">Revora</p>
           <p className="truncate text-xs text-muted-foreground" aria-live="polite">
-            {busy ? "Working on your website…" : "AI website team · ready"}
+            {busy || trackingWork ? "Working on your website…" : "AI website team · ready"}
           </p>
         </div>
         {toolsVisible ? (
@@ -467,9 +469,11 @@ export function BuilderAssistant({
           {(() => {
             // Only the request being worked on right now shows the live
             // activity card; waiting requests get a quiet line.
+            // Tracked work (a first build, a request running elsewhere) always
+            // shows its own card and never takes the queue's active slot.
             const activeTaskId = requests.tasks.find(
-              (t) => t.state === "planning" || t.state === "building",
-            )?.id ?? requests.tasks.find((t) => t.state === "queued")?.id ?? null;
+              (t) => !t.tracking && (t.state === "planning" || t.state === "building"),
+            )?.id ?? requests.tasks.find((t) => !t.tracking && t.state === "queued")?.id ?? null;
             return requests.tasks.map((task) => (
               <div
                 key={task.id}
@@ -482,7 +486,7 @@ export function BuilderAssistant({
                   <TaskBody
                     task={task}
                     requests={requests}
-                    isActive={task.id === activeTaskId}
+                    isActive={task.id === activeTaskId || Boolean(task.tracking)}
                     organizationId={organizationId}
                     onAnswer={setAnswering}
                     {...(onOpenHistory ? { onOpenHistory } : {})}
@@ -527,7 +531,7 @@ export function BuilderAssistant({
             </div>
           ) : null}
 
-          {(firstBuildBusy || factBusy) && !requests.busy ? (
+          {(firstBuildBusy || factBusy) && !requests.busy && !trackingWork ? (
             <div className="chat-rise">
               <AssistantTurn>
                 <LiveActivity
@@ -1083,7 +1087,10 @@ function TaskBody({
             <History className="size-4" /> Undo or restore
           </Button>
         ) : null}
-        {task.state === "failed" || task.retryable ? (
+        {/* retryable === false means a retry here would be the wrong thing
+            (a first build would go to the edit planner; photos must be
+            re-attached; access is blocked), so no Try again is offered. */}
+        {(task.state === "failed" && task.retryable !== false) || task.retryable ? (
           <Button
             size="sm"
             variant="outline"

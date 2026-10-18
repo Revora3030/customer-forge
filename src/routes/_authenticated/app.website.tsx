@@ -62,6 +62,7 @@ import { BuilderPreview, type PreviewSelection } from "@/components/app/BuilderP
 import { Eye, History, MessageSquare, MoreHorizontal, Redo2, Settings2, Undo2 } from "lucide-react";
 import { useBuilderHistory } from "@/lib/builder-history.hooks";
 import { newTask } from "@/lib/builder-queue";
+import { appliedThisSession } from "@/lib/builder/hydrate-tasks";
 import { friendlyError } from "@/lib/user-error";
 import type { BuilderAccessUiState } from "@/lib/builder-access-status";
 import { PreFlightPanel } from "@/components/app/PreFlight";
@@ -151,6 +152,9 @@ const GROUP_ALIAS: Record<string, string> = {
   seo: "seo",
   enquiries: "enquiries",
 };
+
+/** A first build still waiting for a worker after this long is no longer tracked in the chat. */
+const FIRST_BUILD_QUEUED_TIMEOUT_MS = 10 * 60 * 1000;
 
 const resolveGroup = (key: string | null | undefined) =>
   (key ? GROUP_ALIAS[key] : undefined) ?? "build";
@@ -246,7 +250,7 @@ function WebsitePage() {
   const requests = useBuilderRequests({ organizationId: orgId ?? null, canManage: manage });
   const queryClient = useQueryClient();
   // The newest real progress stage of the running request, floated on the preview.
-  const activeTask = requests.tasks.find((task) => task.state === "planning" || task.state === "building");
+  const activeTask = requests.tasks.find((task) => !task.tracking && (task.state === "planning" || task.state === "building"));
   const progress = useBuildProgress(orgId, Boolean(activeTask), activeTask?.id ?? null);
   const liveStatus = activeTask
     ? liveStatusLine(progress.latest?.stage ?? (activeTask.state === "building" ? "designing your change" : "planning the change"), selected?.label ?? null)
@@ -267,7 +271,13 @@ function WebsitePage() {
   // A fresh rebuild deletes and re-creates every page. While it runs the
   // builder keeps showing the last real pages and stays in edit mode, instead
   // of flipping into the first-build screen whenever a refetch sees 0 pages.
-  const latestRow = (latestJob.data ?? null) as { id?: string; status?: string; request_id?: string | null; error_message?: string | null } | null;
+  const latestRow = (latestJob.data ?? null) as {
+    id?: string;
+    status?: string;
+    request_id?: string | null;
+    error_message?: string | null;
+    created_at?: string | null;
+  } | null;
   const pendingBuild = (settings?.generation as { pendingBuild?: { mode?: unknown; jobId?: unknown } } | null | undefined)?.pendingBuild;
   const freshRebuildActive =
     jobIsActive(latestJob.data as never) && pendingBuild?.mode === "fresh_replace";
@@ -291,12 +301,19 @@ function WebsitePage() {
     linkBuild(trackedBuild.taskId, latestRow.request_id ?? latestRow.id);
     const status = latestRow.status;
     // A worker cut off mid-build leaves the row "processing" with a dead
-    // lease. Stop waiting on it here, so the owner's next messages aren't held
-    // behind it forever; nothing is claimed about how it ended.
-    if ((status === "processing" || status === "queued") && jobLiveness(latestRow as never) === "stalled") {
+    // lease, and a job no worker ever claims stays "queued" (jobLiveness never
+    // calls that stalled). Stop tracking either here; nothing is claimed about
+    // how it ended.
+    const queuedFor = status === "queued" && latestRow.created_at ? Date.now() - Date.parse(latestRow.created_at) : 0;
+    if (
+      (status === "processing" && jobLiveness(latestRow as never) === "stalled") ||
+      (status === "queued" && queuedFor > FIRST_BUILD_QUEUED_TIMEOUT_MS)
+    ) {
       settleBuild(trackedBuild.taskId, {
         ok: false,
-        message: "Your build stopped responding, so I've stopped waiting on it here. Nothing was published — check the preview in a minute, or start the build again.",
+        message: status === "queued"
+          ? "Your build hasn't started yet, so I've stopped waiting on it here. Nothing was published — check the preview in a few minutes, or start the build again."
+          : "Your build stopped responding, so I've stopped waiting on it here. Nothing was published — check the preview in a minute, or start the build again.",
       });
       setTrackedBuild(null);
       return undefined;
@@ -590,12 +607,14 @@ function WebsitePage() {
               publishState={publishState}
               canManage={manage}
               changeKey={(() => {
-                const done = requests.tasks.filter((t) => t.state === "complete" && (t.applied ?? 0) > 0);
+                // Only changes applied live here; restored history never
+                // re-runs the screen check, its repair or an auto-revert.
+                const done = appliedThisSession(requests.tasks);
                 const last = done[done.length - 1];
                 return last ? `${last.id}:${done.length}` : null;
               })()}
               revertVersion={(() => {
-                const done = requests.tasks.filter((t) => t.state === "complete" && (t.applied ?? 0) > 0);
+                const done = appliedThisSession(requests.tasks);
                 return done[done.length - 1]?.snapshotVersion ?? null;
               })()}
               queueBusy={requests.busy}

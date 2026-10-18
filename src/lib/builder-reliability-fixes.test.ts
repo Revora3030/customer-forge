@@ -212,8 +212,51 @@ describe("leaving the builder never loses or duplicates a request", () => {
 
   it("saves the request the moment it is sent, under its own id", () => {
     const hooks = read("src/lib/builder-requests.hooks.ts");
-    expect(hooks).toContain('remember([{ role: "user", content: task.instruction, kind: "text" }], task.id);');
-    expect(hooks).toContain("findSavedPlan(organizationId!, task.id, { skipDeferred: true })");
+    expect(hooks).toContain('remember([{ role: "user", content: instruction, kind: "text" }], id);');
+    expect(hooks).toContain("rememberRequest(task.id, task.instruction);");
+    expect(hooks).toContain("findSavedPlan(organizationId!, task.id, {");
+  });
+});
+
+describe("review fixes for the chat request engine", () => {
+  const hooks = read("src/lib/builder-requests.hooks.ts");
+  const route = read("src/routes/_authenticated/app.website.tsx");
+
+  it("a tracked first build never blocks the chat queue or counts as busy", () => {
+    expect(hooks).toContain("const next = nextRunnable(tasks.filter((task) => !task.tracking));");
+    expect(hooks).toContain('const busy = tasks.some((task) => !task.tracking && (task.state === "planning" || task.state === "building"));');
+    expect(hooks).toContain('{ ...task, state: "building" as const, tracking: true }');
+    // A job no worker claims is not tracked forever.
+    expect(route).toContain('(status === "queued" && queuedFor > FIRST_BUILD_QUEUED_TIMEOUT_MS)');
+  });
+
+  it("a resumed request only reuses a plan the server's 15-minute apply dedupe still covers", () => {
+    expect(hooks).toContain("export const PLAN_REUSE_MAX_AGE_MS = 12 * 60 * 1000;");
+    expect(hooks).toContain("since: new Date(Date.now() - PLAN_REUSE_MAX_AGE_MS).toISOString(),");
+    expect(hooks).toContain('if (options.since) query = query.gte("created_at", options.since);');
+    // Dropped-connection recovery accepts only this attempt's plan.
+    expect(hooks).toContain("since: planStartedAt,");
+  });
+
+  it("retries are recorded on the pending list like new requests", () => {
+    const retry = hooks.slice(hooks.indexOf("retry: (id: string) => {"), hooks.indexOf("dismiss: (id: string) => {"));
+    expect(retry).toContain("addPending(organizationId, {");
+    expect(retry).toContain("clearPending(organizationId, id);");
+    expect(retry).toContain("restored: false");
+  });
+
+  it("the owner message is not saved early where thread columns are missing", () => {
+    expect(hooks).toContain("if (threadColumnsMissing()) return;");
+    expect(hooks).toContain("if (turn.role === \"user\" && turn.requestId) savedUserTurnRef.current.add(turn.requestId);");
+  });
+
+  it("cancelling a queued request saves a cancelled end, and branch switches keep queued work", () => {
+    expect(hooks).toContain('remember([{ role: "assistant", content: "Cancelled.", taskResult: { state: "skipped" } }], id);');
+    expect(hooks).toContain('current.filter((task) => !task.restored && (task.state === "queued" || task.state === "planning" || task.state === "building")),');
+  });
+
+  it("the screen check only follows changes applied live in this session", () => {
+    expect(route.match(/appliedThisSession\(requests\.tasks\)/g)).toHaveLength(2);
   });
 });
 
