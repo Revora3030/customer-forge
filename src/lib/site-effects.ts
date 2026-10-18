@@ -113,6 +113,12 @@ export function writeSectionEffect(settings: unknown, effect: SectionEffectId) {
   return { ...base, effect };
 }
 
+/** The AI-authored section effect ids that the public site draws (all but "none"). */
+export const SECTION_EFFECT_IDS: readonly SectionEffectId[] = SECTION_EFFECTS.map((s) => s.id).filter((id) => id !== "none");
+
+/** Public-site class for an AI-authored section effect ("" for the standard look). */
+export const sectionFxClassName = (effect: SectionEffectId) => (effect === "none" ? "" : `rv-fx-${effect}`);
+
 /** Class name for the wrapper around a section. */
 export const sectionEffectClass = (effect: SectionEffectId) =>
   effect === "none" ? "" : `fx-sec fx-sec-${effect.replace(/_/g, "-")}`;

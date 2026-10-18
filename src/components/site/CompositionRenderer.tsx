@@ -102,7 +102,12 @@ const MEDIA: Record<Breakpoint, string> = {
 };
 
 type ResolvedMedia = string | { url: string | null; visual?: PersistedComponentVisual };
-type Ctx = { editable?: boolean; label?: (text: string) => string; depth?: number | undefined; bg?: string | undefined; bg2?: string | undefined; fg?: string | undefined; rules: string[]; counter: { n: number; sawMedia?: boolean }; eagerFirstMedia?: boolean; scope: string; href: (h: string) => string; media: (ref: string) => ResolvedMedia | null; widget: (name: string, presentation?: WidgetPresentation) => ReactNode };
+/** Working form widgets: a hover lift under a visitor's pointer while they type is distracting, so they never lift. */
+const FORM_WIDGETS = ["booking_form", "quote_calculator", "enquiry_form"] as const;
+/** Scopes that draw the shared site header/footer: the page itself owns its headings and its single h1. */
+const CHROME_SCOPES = new Set(["site-header", "site-footer"]);
+
+type Ctx = { chrome?: boolean; editable?: boolean; label?: (text: string) => string; depth?: number | undefined; bg?: string | undefined; bg2?: string | undefined; fg?: string | undefined; rules: string[]; counter: { n: number; sawMedia?: boolean }; eagerFirstMedia?: boolean; scope: string; href: (h: string) => string; media: (ref: string) => ResolvedMedia | null; widget: (name: string, presentation?: WidgetPresentation) => ReactNode };
 
 const mediaUrl = (media: ResolvedMedia | null): string | null =>
   typeof media === "string" ? media : media?.url ?? null;
@@ -303,8 +308,21 @@ function renderNodeInner(rawNode: CompositionNode, ctx: Ctx, key: string): React
 
   switch (node.type) {
     case "heading": {
+      // The phone type cap reads the AI's own phone size (else its size) and
+      // line height, so it only ever shrinks an oversized heading and never
+      // enlarges or tightens what the AI chose.
+      const phoneSize = node.responsive?.mobile?.size ?? node.style?.size;
+      const phoneLeading = node.responsive?.mobile?.lineHeight ?? node.style?.lineHeight;
+      const headingStyle: CSSProperties = {
+        ...props.style,
+        ...(phoneSize != null ? { "--rv-mfs": `${phoneSize}px` } : {}),
+        ...(phoneLeading != null ? { "--rv-mlh": String(phoneLeading) } : {}),
+      } as CSSProperties;
+      // Site header/footer: same look, but not a document heading, so the
+      // page keeps its one h1 and a clean outline.
+      if (ctx.chrome) return <p key={key} {...props} style={headingStyle}>{node.text}{kids}</p>;
       const Tag = (`h${node.level ?? 2}`) as "h1" | "h2" | "h3" | "h4";
-      return <Tag key={key} {...props}>{node.text}{kids}</Tag>;
+      return <Tag key={key} {...props} style={headingStyle}>{node.text}{kids}</Tag>;
     }
     case "text":
       return <p key={key} {...props}>{node.text}{kids}</p>;
@@ -372,13 +390,23 @@ function renderNodeInner(rawNode: CompositionNode, ctx: Ctx, key: string): React
       const afterSource = after?.src ? resolveImageSource(after.src) : (after?.mediaRef ? mediaUrl(ctx.media(after.mediaRef)) : null);
       return before && after && beforeSource && afterSource ? <Compare key={key} props={props} before={before} after={after} beforeSource={beforeSource} afterSource={afterSource} /> : null;
     }
-    case "before_after_slider":
-      return node.beforeImage && node.afterImage ? (
+    case "before_after_slider": {
+      const { beforeImage, afterImage } = node;
+      if (!beforeImage || !afterImage) return null;
+      // Same provenance rule as compare: a generated picture is never shown
+      // as a before/after result of the business's real work.
+      const beforeMedia = beforeImage.mediaRef ? ctx.media(beforeImage.mediaRef) : null;
+      const afterMedia = afterImage.mediaRef ? ctx.media(afterImage.mediaRef) : null;
+      if (isGeneratedMedia(beforeMedia) || isGeneratedMedia(afterMedia)) return null;
+      const beforeSource = beforeImage.mediaRef ? mediaUrl(beforeMedia) : beforeImage.src ? resolveImageSource(beforeImage.src) : null;
+      const afterSource = afterImage.mediaRef ? mediaUrl(afterMedia) : afterImage.src ? resolveImageSource(afterImage.src) : null;
+      return beforeSource && afterSource ? (
         <BeforeAfterSlider key={key} props={props}
-          before={{ ...node.beforeImage, src: resolveImageSource(node.beforeImage.src) }}
-          after={{ ...node.afterImage, src: resolveImageSource(node.afterImage.src) }}
+          before={{ alt: beforeImage.alt, label: beforeImage.label, src: beforeSource }}
+          after={{ alt: afterImage.alt, label: afterImage.label, src: afterSource }}
           initialSplit={node.initialSplit ?? 50} />
       ) : null;
+    }
     case "faq_accordion":
       return node.faqItems?.length ? <FaqAccordion key={key} props={props} items={node.faqItems} /> : null;
     case "tab_group":
@@ -639,7 +667,7 @@ function mobileCtaStyle(primary: boolean): CSSProperties {
 const MARQUEE_CSS = `@media (prefers-reduced-motion: no-preference){.rv-cn-marquee{animation:rv-cn-marquee 30s linear infinite}}@keyframes rv-cn-marquee{to{transform:translateX(-50%)}}`;
 const INTERACTIVE_CSS = `
 .rv-cn-interactive{transition:transform .2s cubic-bezier(.16,1,.3,1),box-shadow .2s cubic-bezier(.16,1,.3,1),opacity .2s ease}
-.rv-cn-interactive:hover{transform:translateY(-2px)}
+.rv-cn-interactive:hover:not(${FORM_WIDGETS.map((name) => `[data-widget="${name}"]`).join(",")}){transform:translateY(-2px)}
 .rv-cn-interactive:focus-visible{outline:3px solid currentColor;outline-offset:3px}
 .rv-cn-interactive a:focus-visible,.rv-cn-interactive button:focus-visible{outline:3px solid currentColor;outline-offset:3px}
 @media (prefers-reduced-motion: reduce){.rv-cn-interactive{transition:none!important}.rv-cn-interactive:hover{transform:none}}
@@ -681,13 +709,13 @@ const INTERACTIVE_CSS = `
  * clipping). These never choose colours, fonts, order or layout — they only
  * stop AI-authored layers from becoming unusable on narrow screens.
  */
-export const PHONE_SAFETY_CSS = `[data-composition]{box-sizing:border-box;max-width:100%;min-width:0;overflow-x:clip;padding-inline-start:max(0px,env(safe-area-inset-left,0px));padding-inline-end:max(0px,env(safe-area-inset-right,0px))}[data-composition][data-composition] *{box-sizing:border-box;min-width:0;max-width:100%;overflow-wrap:break-word}[data-composition][data-composition] :is(h1,h2,h3,h4){text-wrap:balance;overflow-wrap:break-word;word-break:normal;hyphens:manual}[data-composition][data-composition] :is(p,span,li,label){overflow-wrap:break-word;word-break:normal}[data-composition][data-composition] :is(p,li){text-wrap:pretty}[data-composition][data-composition] img{image-rendering:auto}[data-composition][data-composition] img,[data-composition][data-composition] video,[data-composition][data-composition] iframe{max-width:100%;height:auto}@media (max-width:639px){[data-composition][data-composition] [style*="grid-template-columns"]:not([data-mobile-cols]),[data-composition][data-composition] .grid:not([data-mobile-cols]){width:100%!important;max-width:100%!important;grid-template-columns:minmax(0,1fr)!important}[data-composition][data-composition] [data-widget],[data-composition][data-composition] form{width:100%!important;max-width:100%!important}[data-composition][data-composition] h1{font-size:min(2.75rem,11vw)!important;line-height:1.05!important}[data-composition][data-composition] h2{font-size:min(2.25rem,9.5vw)!important;line-height:1.1!important}[data-composition][data-composition] h3{font-size:min(1.6rem,7vw)!important;line-height:1.12!important}[data-composition][data-composition] p,[data-composition][data-composition] li,[data-composition][data-composition] span,[data-composition][data-composition] a,[data-composition][data-composition] small,[data-composition][data-composition] label{font-size:max(14px,1em)!important;line-height:1.45}[data-composition][data-composition] a,[data-composition][data-composition] button{min-height:44px!important}[data-composition][data-composition] a{align-items:center}[data-composition][data-composition] [style*="grid-template-areas"]{grid-template-areas:none!important}[data-composition][data-composition] [style*="grid-area"]{grid-area:auto!important}}`;
+export const PHONE_SAFETY_CSS = `[data-composition]{box-sizing:border-box;max-width:100%;min-width:0;overflow-x:clip;padding-inline-start:max(0px,env(safe-area-inset-left,0px));padding-inline-end:max(0px,env(safe-area-inset-right,0px))}[data-composition][data-composition] *{box-sizing:border-box;min-width:0;max-width:100%;overflow-wrap:break-word}[data-composition][data-composition] :is(h1,h2,h3,h4){text-wrap:balance;overflow-wrap:break-word;word-break:normal;hyphens:manual}[data-composition][data-composition] :is(p,span,li,label){overflow-wrap:break-word;word-break:normal}[data-composition][data-composition] :is(p,li){text-wrap:pretty}[data-composition][data-composition] img{image-rendering:auto}[data-composition][data-composition] img,[data-composition][data-composition] video,[data-composition][data-composition] iframe{max-width:100%;height:auto}@media (max-width:639px){[data-composition][data-composition] [style*="grid-template-columns"]:not([data-mobile-cols]),[data-composition][data-composition] .grid:not([data-mobile-cols]){width:100%!important;max-width:100%!important;grid-template-columns:minmax(0,1fr)!important}[data-composition][data-composition] [data-widget],[data-composition][data-composition] form{width:100%!important;max-width:100%!important}[data-composition][data-composition] h1{font-size:min(var(--rv-mfs,2.75rem),2.75rem,11vw)!important;line-height:max(1.05,var(--rv-mlh,1.05))!important}[data-composition][data-composition] h2{font-size:min(var(--rv-mfs,2.25rem),2.25rem,9.5vw)!important;line-height:max(1.1,var(--rv-mlh,1.1))!important}[data-composition][data-composition] h3{font-size:min(var(--rv-mfs,1.6rem),1.6rem,7vw)!important;line-height:max(1.12,var(--rv-mlh,1.12))!important}[data-composition][data-composition] p,[data-composition][data-composition] li,[data-composition][data-composition] span,[data-composition][data-composition] a,[data-composition][data-composition] small,[data-composition][data-composition] label{font-size:max(14px,1em)!important;line-height:1.45}[data-composition][data-composition] a,[data-composition][data-composition] button{min-height:44px!important}[data-composition][data-composition] a{align-items:center}[data-composition][data-composition] [style*="grid-template-areas"]{grid-template-areas:none!important}[data-composition][data-composition] [style*="grid-area"]{grid-area:auto!important}}`;
 
 const MOTION_CSS = `@media (prefers-reduced-motion: no-preference){.rv-cn-motion{animation:rv-cn-in .7s ease both}.rv-cn-motion[data-motion=rise]{animation-name:rv-cn-rise}.rv-cn-motion[data-motion=scale]{animation-name:rv-cn-scale}.rv-cn-motion[data-motion=float]{animation:rv-cn-float 6s ease-in-out infinite}.rv-cn-motion[data-motion=slide-left]{animation-name:rv-cn-sl}.rv-cn-motion[data-motion=slide-right]{animation-name:rv-cn-sr}.rv-cn-motion[data-motion=blur]{animation-name:rv-cn-blur}.rv-cn-motion[data-motion=reveal]{animation-name:rv-cn-reveal}.rv-cn-motion[data-motion=custom]{animation-name:rv-cn-custom}}@keyframes rv-cn-custom{from{opacity:var(--rv-o,1);transform:translate(var(--rv-x,0),var(--rv-y,0)) scale(var(--rv-s,1)) rotate(var(--rv-r,0));filter:blur(var(--rv-b,0))}}@keyframes rv-cn-sl{from{opacity:0;transform:translateX(32px)}to{opacity:1;transform:none}}@keyframes rv-cn-sr{from{opacity:0;transform:translateX(-32px)}to{opacity:1;transform:none}}@keyframes rv-cn-blur{from{opacity:0;filter:blur(12px)}to{opacity:1;filter:none}}@keyframes rv-cn-reveal{from{clip-path:inset(0 0 100% 0)}to{clip-path:inset(0 0 0 0)}}@keyframes rv-cn-in{from{opacity:0}to{opacity:1}}@keyframes rv-cn-rise{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:none}}@keyframes rv-cn-scale{from{opacity:0;transform:scale(.94)}to{opacity:1;transform:none}}@keyframes rv-cn-float{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}`;
 
 export function CompositionRenderer({ tree, scope, as = "section", resolveHref, resolveMedia, resolveWidget, eagerFirstMedia = false, surface = null, linkLabel, editable = false }: { tree: CompositionTree; scope: string; editable?: boolean; surface?: string | null; linkLabel?: (text: string) => string; as?: "section" | "div"; resolveHref?: (href: string) => string; resolveMedia?: (ref: string) => ResolvedMedia | null; resolveWidget?: (name: string, presentation?: WidgetPresentation) => ReactNode; eagerFirstMedia?: boolean }) {
   const page = surface && /^#[0-9a-f]{6}$/i.test(surface) ? surface : undefined;
-  const ctx: Ctx = { ...(editable ? { editable: true } : {}), ...(linkLabel ? { label: linkLabel } : {}), ...(page ? { bg: page, fg: bestInk(page) } : {}), rules: [], counter: { n: 0 }, eagerFirstMedia, scope: scope.replace(/[^\w-]/g, "") || "cn", href: resolveHref ?? ((h) => h), media: resolveMedia ?? (() => null), widget: resolveWidget ?? (() => null) };
+  const ctx: Ctx = { ...(CHROME_SCOPES.has(scope) ? { chrome: true } : {}), ...(editable ? { editable: true } : {}), ...(linkLabel ? { label: linkLabel } : {}), ...(page ? { bg: page, fg: bestInk(page) } : {}), rules: [], counter: { n: 0 }, eagerFirstMedia, scope: scope.replace(/[^\w-]/g, "") || "cn", href: resolveHref ?? ((h) => h), media: resolveMedia ?? (() => null), widget: resolveWidget ?? (() => null) };
   const body = renderNode(tree.root, ctx, "root");
   // The shared rules are identical for every section. They used to be
   // repeated inline in each one (several KB per section, re-parsed by the

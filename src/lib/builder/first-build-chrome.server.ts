@@ -35,8 +35,47 @@ const RULES = [
   "Text contrast at least 4.5. Match the site's look — the same typography, button shape and colour language as the page sections.",
   "Header craft: one row on desktop with the business name/wordmark on the left, page links in the middle or right, and ONE primary call-to-action button (using the supplied ctaLabel and a real page, tel: or mailto: href) styled as the strongest element; 15-16px link text; a quiet background that keeps the bar readable over any hero.",
   "Footer craft: a deliberate multi-column layout on desktop (brand + short line from supplied facts, page links, contact details) collapsing to one column on mobile via responsive.mobile.columns:1, generous padding (48-80px), muted-but-readable text, and a final row with the business name.",
+  "Write each menu label yourself: 1-3 words, max 24 characters, never the business name, city or a | separator. Each page's pageTitle is context only (often a long search title), not a label.",
+  "Give every row of menu links an explicit gap. Use text or a link for the wordmark, never a level-1 heading: the page owns its h1. Set the action button's type size.",
   "Also write heroVideoBrief: one vivid 1-3 sentence art-direction brief (max 600 chars) for an optional silent, looping hero background video that fits this business and look. Show only real, generic scenes of the work — no text, logos, people's faces or invented claims.",
 ].join(" ");
+
+const CHROME_FEEDBACK = {
+  gap: "space the menu links (gap of at least 8)",
+  label: "write short menu labels (1-3 words), never the business name, city or a | separator",
+  h1: "use text or a link for the wordmark; the page owns its h1",
+  size: "set the action's type size",
+} as const;
+
+/**
+ * Design checks on Sol's own header/footer tree. Each finding is feedback for
+ * Sol to re-author; nothing here picks a gap, label, size or element for it.
+ */
+export function chromeFeedback(kind: "header" | "footer", tree: CompositionTree, ctx: { businessName: string }): CompositionIssue[] {
+  const issues: CompositionIssue[] = [];
+  const name = ctx.businessName.trim().toLowerCase();
+  const actionable = (node: CompositionNode) => node.type === "link" || node.type === "button";
+  const walk = (node: CompositionNode, path: string) => {
+    const kids = node.children ?? [];
+    if (node.type === "heading" && node.level === 1) issues.push({ path, problem: CHROME_FEEDBACK.h1 });
+    if (kind === "header") {
+      if ((node.type === "row" || node.type === "stack" || node.type === "grid") && node.style?.gap == null && kids.filter(actionable).length >= 2) {
+        issues.push({ path: `${path}.style.gap`, problem: CHROME_FEEDBACK.gap });
+      }
+      if (actionable(node)) {
+        const text = (node.text ?? "").trim();
+        // The home link is the wordmark: it may carry the business name.
+        const wordmark = node.type === "link" && node.href === "/";
+        const seoLike = text.length > 28 || text.includes(" | ") || (!wordmark && name.length > 0 && text.toLowerCase().includes(name));
+        if (seoLike) issues.push({ path: `${path}.text`, problem: CHROME_FEEDBACK.label });
+      }
+      if (node.type === "button" && node.style?.size == null) issues.push({ path: `${path}.style.size`, problem: CHROME_FEEDBACK.size });
+    }
+    kids.forEach((child, index) => walk(child, `${path}.children[${index}]`));
+  };
+  walk(tree.root, "root");
+  return issues;
+}
 
 function hasButton(node: CompositionNode): boolean {
   return (node.type === "button" && Boolean(node.href)) || (node.children ?? []).some(hasButton);
@@ -78,7 +117,9 @@ export async function composeSiteChrome(input: {
   };
   const material = {
     businessName: input.businessName,
-    pages: nav.filter((p) => p.kind !== "thanks" && p.kind !== "post").map((p) => ({ href: p.slug === "home" ? "/" : `/${p.slug}`, title: p.slug === "home" ? "Home" : pageNavLabel(p.title, input.businessName, p.slug) })),
+    // Sol writes the menu labels itself; it gets each page's real title only
+    // as context (it is often a long search title, never a ready-made label).
+    pages: nav.filter((p) => p.kind !== "thanks" && p.kind !== "post").map((p) => ({ href: p.slug === "home" ? "/" : `/${p.slug}`, kind: p.kind, pageTitle: p.title })),
     phone: facts.phone?.trim() || null,
     email: facts.email?.trim() || null,
     area: facts.serviceArea ?? facts.city ?? null,
@@ -86,6 +127,8 @@ export async function composeSiteChrome(input: {
   };
 
   const linkablePages = nav.filter((p) => p.kind !== "thanks" && p.kind !== "post");
+  /** Labels only for repairing a link Sol forgot (the existing SEO-artifact cleanup, no new words). */
+  const repairPages = linkablePages.map((p) => ({ href: p.slug === "home" ? "/" : `/${p.slug}`, title: p.slug === "home" ? "Home" : pageNavLabel(p.title, input.businessName, p.slug) }));
   const enquiryHref = enquiryPage(linkablePages);
   const enquiryTitle = enquiryHref ? linkablePages.find((p) => `/${p.slug}` === enquiryHref)?.title ?? null : null;
   const contact = { phone: material.phone, email: material.email, enquiryHref };
@@ -108,6 +151,21 @@ export async function composeSiteChrome(input: {
     }
     if (best.header && best.footer) return { models, costMicrocents: 0 };
   }
+  /** Sol's latest otherwise-sound tree that still had design feedback. */
+  const candidate: Partial<Record<"header" | "footer", CompositionTree>> = {};
+  let lastBrief: string | null = null;
+  const save = async (chrome: { header: CompositionTree; footer: CompositionTree }, brief: string | null) => {
+    if (input.repairMissingOnly) {
+      await saveMissingChrome(db, organizationId, chrome, brief, input.signal);
+      return;
+    }
+    const { data, error: readError } = await db.from("website_settings").select("generation").eq("organization_id", organizationId).maybeSingle();
+    if (readError) throw new Error("Couldn't read the website settings before saving the menu.");
+    const chromed = writeSiteChrome(data?.generation ?? {}, chrome);
+    const generation = brief ? { ...chromed, heroVideoBrief: brief } : chromed;
+    const { error: saveError } = await db.from("website_settings").upsert({ organization_id: organizationId, generation } as never, { onConflict: "organization_id" });
+    if (saveError) throw new Error(`The menu and footer couldn't be saved: ${saveError.message}`);
+  };
   for (let attempt = 0; attempt < CHROME_ATTEMPTS; attempt += 1) {
     input.signal?.throwIfAborted();
     const abort = new AbortController();
@@ -143,6 +201,8 @@ export async function composeSiteChrome(input: {
         await new Promise((resolve) => setTimeout(resolve, (Number.isFinite(pause) ? pause : 1500) * Math.min(attempt + 1, 3)));
         continue;
       }
+      // Sol's own sound design from an earlier try still stands.
+      if ((best.header ?? candidate.header) && (best.footer ?? candidate.footer)) break;
       const { AiStepUnavailableError } = await import("@/lib/builder/ai-step-error");
       throw new AiStepUnavailableError("menu and footer design", call.detail ?? call.reason);
     }
@@ -157,19 +217,24 @@ export async function composeSiteChrome(input: {
       // Invented contact details are corrected to the owner's real ones (or the
       // real contact page) rather than costing the whole design.
       const repaired = repairContactDetails(parsed[part], contact).value;
-      const checked = validateComposition(repaired, { screenText: screen });
+      const checked = validateComposition(repaired, { screenText: screen, firstBuild: true });
       if (!checked.ok) { if (!best[part]) feedback[part] = checked.issues.slice(0, 12); continue; }
+      // Design faults only Sol can fix (spacing, menu wording, heading
+      // semantics, action type size) go back to Sol; nothing is restyled here.
+      // They only add retries: Sol's own otherwise-sound tree is kept as a
+      // candidate, so they never fail a build the checks below would pass.
+      const design = chromeFeedback(part, checked.tree, { businessName: input.businessName });
       // A forgotten page link is added in the style of the AI's own links.
       let tree = checked.tree;
       const hrefs = collectHrefs(tree);
       const missing = required.filter((href) => !hrefs.has(href));
-      if (missing.length) tree = completeChromeLinks(tree, required, material.pages).tree;
+      if (missing.length) tree = completeChromeLinks(tree, required, repairPages).tree;
       // The menu bar must carry one clear call-to-action button: promote the
       // AI's own contact link, or add its authored call to action.
       if (part === "header" && !hasButton(tree.root)) {
         tree = ensureHeaderAction(tree, { ctaLabel: material.ctaLabel, enquiryHref, phone: material.phone, enquiryTitle }).tree;
       }
-      const final = validateComposition(tree, { screenText: screen });
+      const final = validateComposition(tree, { screenText: screen, firstBuild: true });
       if (!final.ok) { if (!best[part]) feedback[part] = final.issues.slice(0, 12); continue; }
       const stillMissing = required.filter((href) => !collectHrefs(final.tree).has(href));
       if (stillMissing.length) { if (!best[part]) feedback[part] = [{ path: "root", problem: `missing links to ${stillMissing.join(", ")}` }]; continue; }
@@ -177,24 +242,28 @@ export async function composeSiteChrome(input: {
         if (!best[part]) feedback[part] = [{ path: "root", problem: "the header needs one primary call-to-action button (type \"button\") linking to a real page, tel: or mailto:" }];
         continue;
       }
+      if (design.length) {
+        candidate[part] = final.tree;
+        if (!best[part]) feedback[part] = design.slice(0, 12);
+        continue;
+      }
       trees[part] = final.tree;
       best[part] = final.tree;
       delete feedback[part];
     }
+    const brief = cleanVideoBrief(parsed.heroVideoBrief, screen);
+    if (brief) lastBrief = brief;
     if (trees.header && trees.footer) {
-      const brief = cleanVideoBrief(parsed.heroVideoBrief, screen);
-      if (input.repairMissingOnly) {
-        await saveMissingChrome(db, organizationId, { header: trees.header, footer: trees.footer }, brief, input.signal);
-      } else {
-        const { data, error: readError } = await db.from("website_settings").select("generation").eq("organization_id", organizationId).maybeSingle();
-        if (readError) throw new Error("Couldn't read the website settings before saving the menu.");
-        const chromed = writeSiteChrome(data?.generation ?? {}, { header: trees.header, footer: trees.footer });
-        const generation = brief ? { ...chromed, heroVideoBrief: brief } : chromed;
-        const { error: saveError } = await db.from("website_settings").upsert({ organization_id: organizationId, generation } as never, { onConflict: "organization_id" });
-        if (saveError) throw new Error(`The menu and footer couldn't be saved: ${saveError.message}`);
-      }
+      await save({ header: trees.header, footer: trees.footer }, brief);
       return { models, costMicrocents: cost };
     }
+  }
+  // Retries used up on design feedback alone: keep Sol's own sound design.
+  const header = best.header ?? candidate.header;
+  const footer = best.footer ?? candidate.footer;
+  if (header && footer) {
+    await save({ header, footer }, lastBrief);
+    return { models, costMicrocents: cost };
   }
   const why = Object.entries(feedback)
     .map(([part, issues]) => `${part}: ${issues.slice(0, 3).map((i) => `${i.path} ${i.problem}`).join("; ")}`)

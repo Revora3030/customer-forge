@@ -1548,6 +1548,54 @@ a[href*="lovable.app"][target="_blank"][class*="fixed"],
   }
 }
 
+/* AI-authored section effects on the public site (settings.effect, see
+   SECTION_EFFECTS in site-effects.ts). The AI picks the effect; these are the
+   bounded renderings. Every movement is skipped for reduced-motion visitors,
+   and a moving wrapper never holds a fixed phone action bar (a transform would
+   pin that bar to the section instead of the screen). */
+.rv-fx-glass {
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .rv-fx-float_3d:not(:has(.rv-cn-mobile-sticky-bar)) {
+    animation: rv-fx-float 6s ease-in-out infinite;
+  }
+  .rv-fx-tilt_3d:not(:has(.rv-cn-mobile-sticky-bar)) {
+    transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .rv-fx-tilt_3d:not(:has(.rv-cn-mobile-sticky-bar)):hover {
+    transform: perspective(1400px) rotateX(2deg);
+  }
+  .rv-fx-rise:not(:has(.rv-cn-mobile-sticky-bar)) {
+    animation: rv-fx-rise 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  @media (min-width: 1024px) {
+    .rv-fx-parallax_slow {
+      background-attachment: fixed;
+    }
+  }
+}
+@keyframes rv-fx-float {
+  0%,
+  100% {
+    transform: translateY(-6px);
+  }
+  50% {
+    transform: translateY(6px);
+  }
+}
+@keyframes rv-fx-rise {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
 /* ---------------------------------------------------------------------------
    Revora Infinite Creative Engine — visual composition layers.
    Pure CSS: transforms/opacity only, driven by per-layer custom properties
@@ -1904,6 +1952,8 @@ a[href*="lovable.app"][target="_blank"][class*="fixed"],
 
 /* Header links are the first thing a visitor taps, on every screen size. */
 .rv-site-header a {
+  display: inline-flex;
+  align-items: center;
   min-height: 44px;
 }
 
@@ -2464,6 +2514,18 @@ body { padding-bottom: env(safe-area-inset-bottom); }
   }
   .rv-ai-header .rv-site-header-nav a {
     white-space: nowrap;
+  }
+  /* Safety floor for a bare AI tree: nested link rows get a 44px target and,
+     only where the AI authored no gap, WCAG target spacing. An authored gap is
+     written inline as "gap: Npx", so it always wins over this fallback. */
+  .rv-ai-header .rv-site-header-nav [data-composition] a {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+  }
+  .rv-ai-header .rv-site-header-nav [data-composition] :is(div, nav, ul):not([style*="gap"]) {
+    column-gap: 1rem;
+    row-gap: 0.25rem;
   }
 }
 

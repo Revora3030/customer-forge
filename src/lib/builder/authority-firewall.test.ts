@@ -171,6 +171,17 @@ describe("old design layer is fully removed", () => {
     expect(onboarding).not.toMatch(/seedQuoteCalculator/);
   });
 
+  it("the quote calculator never falls back to a fixed-price promise", async () => {
+    const forms = readFileSync("src/components/site/SiteForms.tsx", "utf8");
+    expect(forms).not.toContain("Lock in this price");
+    expect(forms).toContain('presentation?.submitLabel ?? "Send request"');
+    const { widgetPresentationProblems } = await import("@/lib/builder/presentation");
+    expect(widgetPresentationProblems("quote_calculator", { actionLabel: "Lock in your price" })).toHaveLength(1);
+    expect(widgetPresentationProblems("quote_calculator", { submitLabel: "Guaranteed price today" })).toHaveLength(1);
+    expect(widgetPresentationProblems("booking_form", { actionLabel: "Lock in a time" })).toEqual([]);
+    expect(widgetPresentationProblems("quote_calculator", { actionLabel: "See my estimate" })).toEqual([]);
+  });
+
   it("the AI plans a picture for every page without triggering a design fallback", () => {
     const src = readFileSync("src/lib/builder/collective-first-build.server.ts", "utf8");
     expect(src).toMatch(/gives EVERY page of the site real photography/);

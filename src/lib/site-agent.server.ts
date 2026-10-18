@@ -13,6 +13,7 @@
 
 import { COMPOSITION_PRIMITIVES, MOTION_KINDS, MOTION_EASINGS, PRIMITIVE_GUIDE } from "@/lib/builder/composition-tree";
 import { RevoraAiError } from "@/lib/ai/errors";
+import { imageWithoutMediaFeedback, missingCompositionFeedback, type PlanFeedback } from "@/lib/builder/apply-plan";
 import { generateStructuredOutput, transcribeAudio } from "@/lib/ai/router.server";
 import type { AiCaller, AiMessage, AiPart } from "@/lib/ai/types";
 import type { ModelRole } from "@/lib/ai/config";
@@ -324,7 +325,7 @@ export async function planChanges(
   const parts: ContentPart[] = [
     {
       type: "text",
-      text: `REQUEST FROM THE OWNER:\n${instruction}\n\nInterpret it yourself. For new or restructured sections prefer set_composition so the layout is entirely yours.`,
+      text: `REQUEST FROM THE OWNER:\n${instruction}\n\nInterpret it yourself. Every new content section (hero, services, process, social_proof, faq, story, values, service_area, home, page) needs its own set_composition targeting the add_section's ref, so the layout is entirely yours; restructured sections should use set_composition too. Image items need a real picture: generate one for that exact item, or leave the image out.`,
     },
   ];
   if (attachments.length) {
@@ -362,19 +363,116 @@ export async function planChanges(
     },
   ];
 
+  // Same caller (and so the same chat request) for every pass: a feedback
+  // round is a continuation of this request, never a new one.
   const plannerCaller = { ...caller, task: caller?.task ?? "site.plan" };
-  try {
-    return await callJson(AGENT_ROLE, messages, plannerCaller);
-  } catch (error) {
-    if (
-      error instanceof RevoraAiError &&
-      ["not_configured", "free_unavailable", "unauthorized", "quota", "policy", "rate_limited", "too_large"].includes(
-        error.category,
+  const ask = async (conversation: ChatMessage[]) => {
+    try {
+      return await callJson(AGENT_ROLE, conversation, plannerCaller);
+    } catch (error) {
+      if (
+        error instanceof RevoraAiError &&
+        ["not_configured", "free_unavailable", "unauthorized", "quota", "policy", "rate_limited", "too_large"].includes(
+          error.category,
+        )
       )
-    )
-      throw error;
-    return await callJson(AGENT_FALLBACK_ROLE, messages, plannerCaller);
+        throw error;
+      return await callJson(AGENT_FALLBACK_ROLE, conversation, plannerCaller);
+    }
+  };
+
+  const existing = existingComponents(context);
+  let plan = await ask(messages);
+  let feedback = verifyPlan(plan, existing);
+  for (let round = 0; feedback.length && round < PLAN_FEEDBACK_ROUNDS; round += 1) {
+    try {
+      const revised = await ask([
+        ...messages,
+        { role: "assistant", content: JSON.stringify({ actions: plan["actions"] ?? [] }).slice(0, 60_000) },
+        { role: "user", content: planFeedbackMessage(feedback) },
+      ]);
+      if (Array.isArray(revised["actions"]) && revised["actions"].length) {
+        plan = revised;
+        feedback = verifyPlan(plan, existing);
+      }
+    } catch {
+      // A failed feedback round never loses the plan: its faulty steps are skipped below.
+      break;
+    }
   }
+  return feedback.length ? skipUnverifiedSteps(plan, feedback) : plan;
+}
+
+/** Feedback rounds after the first plan (the planner's verification budget). */
+export const PLAN_FEEDBACK_ROUNDS = 1;
+
+function existingComponents(context: AgentContext): Map<string, { kind: string; hasMedia: boolean }> {
+  const map = new Map<string, { kind: string; hasMedia: boolean }>();
+  for (const page of context.pages)
+    for (const section of page.sections ?? [])
+      for (const component of section.components ?? [])
+        map.set(component.id, { kind: component.kind, hasMedia: Boolean(component.media_url) });
+  return map;
+}
+
+/** Verification the planner's own plan must pass: AI layouts for new content sections and real pictures for image items. */
+export function verifyPlan(
+  plan: Record<string, unknown>,
+  existing: ReadonlyMap<string, { kind: string; hasMedia: boolean }> = new Map(),
+): PlanFeedback[] {
+  const actions = Array.isArray(plan["actions"]) ? (plan["actions"] as unknown[]) : [];
+  return [...missingCompositionFeedback(actions), ...imageWithoutMediaFeedback(actions, existing)];
+}
+
+function planFeedbackMessage(feedback: PlanFeedback[]): string {
+  return [
+    "YOUR PLAN CANNOT BE APPLIED YET. Fix these steps and reply with the whole corrected JSON plan (same shape):",
+    ...feedback.slice(0, 20).map((item) => `- action ${item.index} (${item.type} ${item.target}): ${item.problem}`),
+  ].join("\n");
+}
+
+/**
+ * The planner still left these steps unfixed: they are skipped with a reason
+ * (never templated), along with later steps that only target what they create.
+ */
+export function skipUnverifiedSteps(plan: Record<string, unknown>, feedback: PlanFeedback[]): Record<string, unknown> {
+  const actions = Array.isArray(plan["actions"]) ? (plan["actions"] as unknown[]) : [];
+  const dropped = new Set(feedback.map((item) => item.index));
+  const refs = new Set<string>();
+  for (const item of feedback) {
+    const row = actions[item.index] as Record<string, unknown> | undefined;
+    if (typeof row?.["ref"] === "string") refs.add(row["ref"]);
+  }
+  // Cascade: anything that targets a skipped ref (or something created inside it) goes too.
+  let grew = true;
+  while (grew) {
+    grew = false;
+    actions.forEach((raw, index) => {
+      if (dropped.has(index) || !raw || typeof raw !== "object") return;
+      const row = raw as Record<string, unknown>;
+      const targets = [row["sectionId"], row["componentId"], row["targetId"]].filter((value): value is string => typeof value === "string");
+      if (!targets.some((target) => refs.has(target))) return;
+      dropped.add(index);
+      if (typeof row["ref"] === "string") refs.add(row["ref"]);
+      grew = true;
+    });
+  }
+  const skipped = feedback.map((item) => ({
+    type: item.type,
+    target: item.target,
+    reason: item.reason,
+  }));
+  const notes = Array.isArray(plan["notes"]) ? (plan["notes"] as unknown[]).filter((note): note is string => typeof note === "string") : [];
+  const reasonNote = (reason: PlanFeedback["reason"]) =>
+    reason === "needs_composition"
+      ? "Skipped a new section the design team did not lay out (needs_composition)."
+      : "Skipped an image item with no real picture (image_without_media).";
+  return {
+    ...plan,
+    actions: actions.filter((_, index) => !dropped.has(index)),
+    skipped,
+    notes: [...new Set([...notes, ...feedback.map((item) => reasonNote(item.reason))])],
+  };
 }
 
 /* ------------------------------ voice commands ----------------------------- */

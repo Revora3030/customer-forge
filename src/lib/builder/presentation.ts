@@ -1652,6 +1652,32 @@ export function isVisitorSafe(
 }
 
 /* -------------------------------------------------------------------------- */
+/* WIDGET PRESENTATION REVIEW                                                  */
+/* -------------------------------------------------------------------------- */
+
+/** Wording that promises a fixed price; a quote calculator only gives an estimate range. */
+export const PRICE_LOCK_WORDING = /lock in|guaranteed price|fixed price/i;
+
+/**
+ * Safety review of AI-authored widget labels (the AI writes them; this only
+ * rejects untrue promises). Quote widgets give an estimate, so no label may
+ * promise a locked, guaranteed or fixed price.
+ */
+export function widgetPresentationProblems(
+  widget: string | null | undefined,
+  presentation: Readonly<Record<string, unknown>> | null | undefined,
+): { key: string; problem: string }[] {
+  if (widget !== "quote_calculator" || !presentation) return [];
+  const problems: { key: string; problem: string }[] = [];
+  for (const [key, value] of Object.entries(presentation)) {
+    if (typeof value === "string" && PRICE_LOCK_WORDING.test(value)) {
+      problems.push({ key, problem: "a quote gives an estimate range: never promise a locked, guaranteed or fixed price" });
+    }
+  }
+  return problems;
+}
+
+/* -------------------------------------------------------------------------- */
 /* SEO / METADATA PRESENTATION                                                 */
 /* -------------------------------------------------------------------------- */
 
