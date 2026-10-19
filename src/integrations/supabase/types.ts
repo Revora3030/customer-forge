@@ -1341,6 +1341,7 @@ export type Database = {
         Row: {
           attempts: number
           cancel_requested_at: string | null
+          capacity_deferrals: number
           cancelled_by: string | null
           completed_at: string | null
           created_at: string
@@ -1363,6 +1364,7 @@ export type Database = {
         Insert: {
           attempts?: number
           cancel_requested_at?: string | null
+          capacity_deferrals?: number
           cancelled_by?: string | null
           completed_at?: string | null
           created_at?: string
@@ -1385,6 +1387,7 @@ export type Database = {
         Update: {
           attempts?: number
           cancel_requested_at?: string | null
+          capacity_deferrals?: number
           cancelled_by?: string | null
           completed_at?: string | null
           created_at?: string

@@ -814,6 +814,58 @@ async function repairColor(input: {
   };
 }
 
+/** The identity fields a first build cannot ship without (the design contract requires a concept). */
+export function missingConcept(brief: CreativeBrief): string[] {
+  return brief.concept?.trim() ? [] : ["concept"];
+}
+
+/** One AI pass that authors only the missing visual concept, through the same gate. */
+async function repairConcept(input: {
+  organizationId: string;
+  facts: DnaFacts;
+  brief: SiteBrief;
+  creative: FirstBuildCreativeDirection;
+  signal?: AbortSignal;
+}): Promise<{ creative: FirstBuildCreativeDirection | null; pass: CollectivePassRecord }> {
+  const call = await callBestThinker({
+    json: true,
+    purpose: "creative_direction",
+    complexity: "high",
+    organizationId: input.organizationId,
+    maxOutputTokens: 500,
+    ...(input.signal ? { signal: input.signal } : {}),
+    system: `${CREATIVE_RULES} You are Sol, the master creative director, naming the site's visual concept.`,
+    user: [
+      "FACTS (truth source, not copy to invent from):",
+      factSheet(input.facts, input.brief, input.creative),
+      "",
+      "CURRENT CREATIVE DIRECTION:",
+      creativeSheet(input.creative),
+      "",
+      "Your brief is missing: concept.",
+      'Return JSON: {"brief": {"concept": "..."}}',
+      "concept is one sentence naming the visual idea that ties this specific business's site together. Your own words, no business facts beyond those supplied.",
+    ].join("\n"),
+  });
+  if (!call.ok)
+    return { creative: null, pass: record(call.wanted, "creative_direction", { skipped: call.detail ?? call.reason }) };
+  const proposal = parseCreativeProposal(call.text);
+  const gated = reviewCreativeProposal({ proposal, facts: input.facts, baseline: input.creative });
+  const concept = gated.accepted.brief?.concept;
+  const pass = record(call.tier ?? "hall_of_fame", "creative_direction", {
+    model: call.model,
+    used: Boolean(concept),
+    costMicrocents: call.costMicrocents,
+    skipped: concept ? null : "the concept repair was not in the agreed shape",
+    acceptedFields: concept ? ["brief.concept"] : [],
+    rejected: gated.rejected,
+  });
+  return {
+    creative: concept ? mergeCreativeRefinement(input.creative, { brief: { concept } }) : null,
+    pass,
+  };
+}
+
 function firstBuildCopyStrings(value: unknown): string[] {
   const out: string[] = [];
   const walk = (entry: unknown) => {
@@ -874,6 +926,28 @@ export async function refineFirstBuildWithCollective(input: {
     if (stillMissing.length)
       throw new Error(
         `The AI design team did not choose this site's typography (missing ${stillMissing.join(", ")}). The build stopped so it can be retried; Revora never fills in a default font.`,
+      );
+  }
+
+  // The visual concept anchors the design contract. When the creative pass
+  // left it out (often a timed-out provider), one repair pass names it; if
+  // the team still cannot, the build stops rather than inventing one.
+  if (missingConcept(creative.brief).length) {
+    const repaired = await repairConcept({
+      organizationId: input.organizationId,
+      facts: input.facts,
+      brief: input.brief,
+      creative,
+      ...(input.signal ? { signal: input.signal } : {}),
+    });
+    passes.push(repaired.pass);
+    if (repaired.creative) {
+      creative = repaired.creative;
+      creativeChanged = true;
+    }
+    if (missingConcept(creative.brief).length)
+      throw new Error(
+        "The AI design team did not name this site's visual concept (the AI providers may be busy). The build stopped so it can be retried; Revora never fills in a stock concept.",
       );
   }
 

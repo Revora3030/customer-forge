@@ -2344,6 +2344,7 @@ export async function drainSiteEngineQueue(
       return { processed, failed, paused: true, pauseReason: currentState.pause_reason, idle: processed + failed === 0 };
     }
     const job = await claimJob(db, options.organizationId, options.invoker ?? "unknown");
+    const attemptStartedAt = new Date().toISOString();
     if (!job)
       return {
         processed,
@@ -2426,6 +2427,31 @@ export async function drainSiteEngineQueue(
         .maybeSingle();
       if (!current) continue;
       const attempts = (current?.attempts as number | undefined) ?? MAX_ATTEMPTS;
+      // The free AI pool ran out of capacity (rate limits, quotas, timeouts):
+      // that is not the build's fault and won't clear in seconds, so the
+      // attempt is handed back and the job waits 15 min .. 3 h instead of
+      // burning its three attempts in two minutes.
+      const deferral = await capacityDeferral(db, String(job.organization_id), attemptStartedAt, job.id);
+      if (deferral) {
+        await db
+          .from("generation_jobs")
+          .update({
+            status: "queued",
+            attempts: Math.max(0, Number(job.attempts) - 1),
+            capacity_deferrals: deferral.count,
+            error_message: tagFailureMessage(
+              "provider",
+              `The free AI team is at capacity right now (${deferral.summary}). The build will retry automatically at ${deferral.retryAt.toISOString().slice(11, 16)} UTC.`,
+            ),
+            failure_kind: "provider",
+            lease_expires_at: deferral.retryAt.toISOString(),
+          } as never)
+          .eq("id", job.id)
+          .eq("attempts", job.attempts)
+          .eq("status", "processing");
+        await writeQueueState(db, { last_error: message });
+        continue;
+      }
       // The stage the attempt was working on when it failed: the one after the
       // last completed step. Stored for the owner's message and operator metrics.
       const { GENERATION_STEPS: STAGES } = await import("@/lib/site-engine");
@@ -2465,6 +2491,54 @@ export async function drainSiteEngineQueue(
   }
 
   return { processed, failed, paused: false, pauseReason: null, idle: processed + failed === 0 };
+}
+
+/** How many times one build may wait out an exhausted free AI pool. */
+export const MAX_CAPACITY_DEFERRALS = 6;
+
+/** 15 min, 30 min, 1 h, 2 h, then 3 h. */
+export function capacityDelayMs(deferral: number): number {
+  return Math.min(3 * 3_600_000, 15 * 60_000 * 2 ** Math.max(0, deferral - 1));
+}
+
+/**
+ * True capacity pressure: during this attempt at least 5 of the workspace's
+ * AI calls failed with a rate limit, quota or timeout, and those were at
+ * least 40% of its calls. Returns the next deferral, or null when the
+ * failure was something else or the job already waited the maximum.
+ */
+export function capacityVerdict(
+  calls: { ok: boolean | null; error_category: string | null }[],
+  deferrals: number,
+  now = Date.now(),
+): { count: number; retryAt: Date; summary: string } | null {
+  if (deferrals >= MAX_CAPACITY_DEFERRALS || !calls.length) return null;
+  const pressured = calls.filter((call) => call.ok === false && ["rate_limited", "quota", "timeout"].includes(call.error_category ?? ""));
+  if (pressured.length < 5 || pressured.length / calls.length < 0.4) return null;
+  const count = deferrals + 1;
+  return {
+    count,
+    retryAt: new Date(now + capacityDelayMs(count)),
+    summary: `${pressured.length} of ${calls.length} AI calls were rate-limited or timed out`,
+  };
+}
+
+async function capacityDeferral(db: Db, organizationId: string, since: string, jobId: string) {
+  const [{ data: calls }, { data: row }] = await Promise.all([
+    db
+      .from("ai_usage_events")
+      .select("ok, error_category")
+      .eq("organization_id", organizationId)
+      .gte("created_at", since)
+      .limit(1000),
+    db.from("generation_jobs").select("capacity_deferrals").eq("id", jobId).maybeSingle(),
+  ]);
+  // Without the column (migration not applied yet) the old retry path runs.
+  if (!row || typeof (row as { capacity_deferrals?: unknown }).capacity_deferrals !== "number") return null;
+  return capacityVerdict(
+    (calls ?? []) as { ok: boolean | null; error_category: string | null }[],
+    (row as { capacity_deferrals: number }).capacity_deferrals,
+  );
 }
 
 /** Bounded per-job backoff, including an explicit workspace cooldown. */
