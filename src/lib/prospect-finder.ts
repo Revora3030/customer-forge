@@ -99,7 +99,7 @@ export function selectProspects(places: Record<string, unknown>[], existingNames
  * The demo build request for a found business. The description states only
  * the public category and area; services stay empty so nothing is invented.
  */
-export function prospectDemoInput(prospect: FoundProspect, niche: string): ProspectDemoInput {
+export function prospectDemoInput(prospect: FoundProspect, niche: string, publicEmail: string | null = null): ProspectDemoInput {
   const industry = (prospect.category || niche).slice(0, 80);
   const area = [prospect.city, prospect.state].filter(Boolean).join(", ");
   return {
@@ -108,7 +108,7 @@ export function prospectDemoInput(prospect: FoundProspect, niche: string): Prosp
     city: prospect.city ?? "",
     state: prospect.state,
     phone: prospect.phone,
-    email: null,
+    email: publicEmail,
     description: `${industry} serving ${area || "the local area"}.`.slice(0, 600),
     services: [],
   };
