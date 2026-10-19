@@ -1,7 +1,7 @@
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
-import { Copy, ExternalLink, Hammer, ImageUp, Mail, MapPin, Search } from "lucide-react";
+import { Copy, Eye, ExternalLink, Hammer, ImageUp, Mail, MapPin, Monitor, Search, Send, Smartphone } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
   draftDemoOutreach,
+  sendDemoOutreach,
   findProspectsFn,
   listProspectDemoBuilds,
   prospectFromImageFn,
@@ -19,6 +20,7 @@ import {
 import { prospectDemoInput, type FoundProspect } from "@/lib/prospect-finder";
 import { pictureDataUrl } from "@/lib/picture-data-url";
 import { pumpSiteEngineQueue } from "@/lib/site-engine.functions";
+import { OutreachAutopilotPanel } from "@/components/app/OutreachAutopilotPanel";
 
 const EMPTY = { businessName: "", industry: "", city: "", state: "", phone: "", email: "", services: "", description: "" };
 type Field = keyof typeof EMPTY;
@@ -137,6 +139,17 @@ export function ProspectDemoBuilder() {
   const reading = fromMaps.isPending || fromImage.isPending;
   const [drafts, setDrafts] = useState<Record<string, DemoOutreachDraft>>({});
   const [bodies, setBodies] = useState<Record<string, string>>({});
+  const [recipients, setRecipients] = useState<Record<string, string>>({});
+  const [previewing, setPreviewing] = useState<{ token: string; phone: boolean } | null>(null);
+  const sendFn = useServerFn(sendDemoOutreach);
+  const sending = useMutation({
+    mutationFn: (input: { organizationId: string; to: string; subject: string; body: string }) => sendFn({ data: input }),
+    onSuccess: (outcome) => {
+      if (outcome.ok) toast.success(`Sent from your Gmail to ${outcome.email}.`);
+      else toast.error(outcome.reason);
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
   const drafting = useMutation({
     mutationFn: (organizationId: string) => draftFn({ data: { organizationId } }),
     onSuccess: (draft, organizationId) => {
@@ -173,6 +186,9 @@ export function ProspectDemoBuilder() {
         <Hammer className="size-4" aria-hidden />
         Demo site builder · for businesses with no website
       </summary>
+      <div className="px-3 pb-3">
+        <OutreachAutopilotPanel />
+      </div>
       <div className="space-y-3 border-t border-border p-3">
         <p className="text-xs text-muted-foreground">
           Enter only real, public facts about the business. Jarvis creates a private draft workspace and the AI team
@@ -372,6 +388,16 @@ export function ProspectDemoBuilder() {
                     type="button"
                     size="sm"
                     variant="outline"
+                    aria-pressed={previewing?.token === demo.previewToken}
+                    onClick={() => setPreviewing((p) => (p?.token === demo.previewToken ? null : { token: demo.previewToken, phone: false }))}
+                  >
+                    <Eye className="mr-1 size-3.5" />
+                    {previewing?.token === demo.previewToken ? "Hide preview" : "Preview here"}
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
                     onClick={() => {
                       void navigator.clipboard
                         .writeText(previewUrl(demo.previewToken))
@@ -397,6 +423,26 @@ export function ProspectDemoBuilder() {
                     </Button>
                   ) : null}
                 </div>
+                {previewing?.token === demo.previewToken ? (
+                  <div className="mt-3 space-y-2">
+                    <div className="flex gap-1" role="group" aria-label="Preview size">
+                      <Button type="button" size="sm" variant={previewing.phone ? "ghost" : "outline"} aria-pressed={!previewing.phone} onClick={() => setPreviewing({ token: demo.previewToken, phone: false })}>
+                        <Monitor className="mr-1 size-3.5" />Desktop
+                      </Button>
+                      <Button type="button" size="sm" variant={previewing.phone ? "outline" : "ghost"} aria-pressed={previewing.phone} onClick={() => setPreviewing({ token: demo.previewToken, phone: true })}>
+                        <Smartphone className="mr-1 size-3.5" />Phone
+                      </Button>
+                    </div>
+                    <div className="overflow-hidden rounded-lg border border-border bg-background">
+                      <iframe
+                        title={`${demo.name} preview`}
+                        src={`/p/${demo.previewToken}`}
+                        className="mx-auto block h-[70dvh] max-h-[720px] w-full border-0 transition-[max-width]"
+                        style={{ maxWidth: previewing.phone ? 390 : "100%" }}
+                      />
+                    </div>
+                  </div>
+                ) : null}
                 {drafts[demo.organizationId] ? (() => {
                   const draft = drafts[demo.organizationId]!;
                   const body = bodies[demo.organizationId] ?? draft.body;
@@ -404,9 +450,17 @@ export function ProspectDemoBuilder() {
                   return (
                     <div className="mt-3 space-y-2 rounded-md border border-border p-2">
                       <p className="text-xs text-muted-foreground">
-                        To: {draft.email ?? "no business email on file, so copy the text and reach them another way"} ·{" "}
-                        {draft.aiWritten ? "written by the free AI pool" : "AI unavailable, plain template used"}
+                        {draft.aiWritten ? "Written by your free AI team" : "AI unavailable, plain template used"}
+                        {draft.email ? "" : " · no business email on file, add one below"}
                       </p>
+                      <Label htmlFor={`to-${demo.organizationId}`} className="text-xs">To</Label>
+                      <Input
+                        id={`to-${demo.organizationId}`}
+                        type="email"
+                        placeholder="owner@business.com"
+                        value={recipients[demo.organizationId] ?? draft.email ?? ""}
+                        onChange={(event) => setRecipients((current) => ({ ...current, [demo.organizationId]: event.target.value }))}
+                      />
                       <p className="text-sm font-medium">{draft.subject}</p>
                       <Textarea
                         rows={8}
@@ -419,6 +473,22 @@ export function ProspectDemoBuilder() {
                         </p>
                       ) : null}
                       <div className="flex flex-wrap gap-2">
+                        <Button
+                          type="button"
+                          size="sm"
+                          disabled={blocked || sending.isPending || !(recipients[demo.organizationId] ?? draft.email)}
+                          onClick={() =>
+                            sending.mutate({
+                              organizationId: demo.organizationId,
+                              to: recipients[demo.organizationId] ?? draft.email ?? "",
+                              subject: draft.subject,
+                              body,
+                            })
+                          }
+                        >
+                          <Send className="mr-1 size-3.5" />
+                          {sending.isPending && sending.variables?.organizationId === demo.organizationId ? "Sending…" : "Send from my Gmail"}
+                        </Button>
                         {draft.email && !blocked ? (
                           <a
                             className="inline-flex h-8 items-center rounded-md border border-border px-3 text-xs font-medium hover:bg-muted"
