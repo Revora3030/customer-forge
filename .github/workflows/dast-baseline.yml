@@ -22,6 +22,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      - name: Pin npm version to match quality gate
+        run: npm install --global npm@11.6.0
       - name: Install app dependencies
         run: npm install --no-audit --no-fund
       - name: Start isolated CI app
