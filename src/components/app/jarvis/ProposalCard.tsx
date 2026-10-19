@@ -65,6 +65,20 @@ export function ProposalCard({ proposal, state, url, onApprove }: Props) {
       </div>
     );
   }
+  if (proposal.id === "claude.fix") {
+    return (
+      <div className={card}>
+        <p className="flex items-center gap-1.5 text-sm font-medium"><GitPullRequest className="size-4 text-primary" aria-hidden />Ask Claude Code to fix pull request #{proposal.pr}</p>
+        {proposal.note ? <p className="mt-1 whitespace-pre-wrap break-words text-sm text-muted-foreground">{proposal.note.length > 600 ? `${proposal.note.slice(0, 600)}…` : proposal.note}</p> : null}
+        {url ? (
+          <a href={url} target="_blank" rel="noreferrer" className={linkButton}>Follow it on GitHub <ExternalLink className="size-4" aria-hidden /></a>
+        ) : (
+          <Button type="button" className="mt-3" data-jarvis-tap="" disabled={Boolean(state)} onClick={onApprove}>{state === "building" ? "Sending…" : "Approve and ask Claude Code"}</Button>
+        )}
+        <p className={disclaimer}>Claude Code reads the failing checks and review comments, fixes them on that pull request's branch and runs the checks. Nothing merges until you merge it.</p>
+      </div>
+    );
+  }
   if (proposal.id === "builds.recover") {
     return (
       <div className={card}>

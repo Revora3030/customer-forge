@@ -35,6 +35,7 @@ export type WriteProposal =
   | { id: "demo.build"; input: ProspectDemoInput }
   | { id: "code.pr"; pr: PullRequestProposal }
   | { id: "claude.code"; request: string }
+  | { id: "claude.fix"; pr: number; note: string }
   | { id: "builds.recover" };
 
 export const MAX_PR_FILES = 6;
@@ -46,6 +47,31 @@ export const MAX_PR_CHARS = 60_000;
  */
 export function writablePath(path: string): boolean {
   return safeInspectionPath(path) && /^(src|scripts|docs|supabase\/migrations)\//.test(path);
+}
+
+const NODE_BUILTINS = new Set(["buffer", "crypto", "events", "fs", "os", "path", "stream", "url", "util", "zlib", "async_hooks"]);
+
+/** The npm package a bare import specifier names ("@a/b/c" -> "@a/b", "x/y" -> "x"). */
+function packageOf(specifier: string): string | null {
+  if (/^(\.|\/|@\/|~\/|node:|virtual:|https?:)/.test(specifier) || NODE_BUILTINS.has(specifier.split("/")[0]!)) return null;
+  const parts = specifier.split("/");
+  return specifier.startsWith("@") ? parts.slice(0, 2).join("/") : parts[0]!;
+}
+
+/**
+ * Packages a change starts importing that the app doesn't depend on, e.g. an
+ * "astro" or "@sentry/node" import in a TanStack Start app. Imports already in
+ * the file before the change are not counted.
+ */
+export function unknownPackageImports(before: string, after: string, dependencies: ReadonlySet<string>): string[] {
+  const specifiers = (text: string) =>
+    new Set(
+      [...text.matchAll(/(?:\bfrom\s*|\bimport\s*\(?\s*|\brequire\(\s*)["']([^"'\n]+)["']/g)]
+        .map((match) => packageOf(match[1]!))
+        .filter((name): name is string => Boolean(name)),
+    );
+  const existing = specifiers(before);
+  return [...specifiers(after)].filter((name) => !existing.has(name) && !dependencies.has(name));
 }
 
 /** Validates a pull-request proposal; throws a plain-language reason. */
@@ -118,6 +144,7 @@ export function actionCatalogPrompt(diagnosticToolIds: string[]): string {
     '- {"id":"demo.build","args":{"businessName":"","industry":"","city":"","state":"","phone":"","email":"","services":["..."],"description":""}}: PROPOSE building a private demo website for a real business with no website. Only facts the owner gave you; never invent phone numbers, emails or services. The owner approves with one tap; you do not run it.',
     '- {"id":"code.pr","args":{"title":"","summary":"","changes":[{"path":"src/...","edits":[{"find":"exact existing text","replace":"new text"}]},{"path":"src/new-file.ts","content":"full file"}]}}: PROPOSE a GitHub pull request into lovable-sync. Read every file you edit with code.read first in this conversation; "find" must be copied exactly from it and appear once. Use "content" only for new files. Up to 6 files. Keep changes minimal, complete and type-safe; never touch auth, RLS, billing or tenant isolation unless the owner asked; never add secrets. The owner approves with one tap and reviews before merging.',
     '- {"id":"claude.code","args":{"request":"what to build or fix, with the files and acceptance checks you found"}}: PROPOSE handing a larger coding task to Claude Code, which reads the whole repository, edits any number of files, runs the checks and opens a pull request. Use it instead of code.pr when a change spans more than 6 files, needs new tests run, or is too big to write exactly here. The owner approves with one tap.',
+    '- {"id":"claude.fix","args":{"pr":123,"note":"what to fix, if you know"}}: PROPOSE asking Claude Code to fix an open pull request: it reads the failing CI checks and review comments, fixes the root cause on that PR\'s branch and runs the checks. Use it when a pull request (yours or Claude Code\'s) has red CI or review comments. The owner approves with one tap.',
     '- {"id":"builds.recover","args":{}}: PROPOSE recovering stalled website builds: closes builds whose worker died, re-queues orphaned ones and restarts the build worker. Suggest it when builder.health.summary shows stuck or long-running builds. The owner approves with one tap.',
     "Use actions whenever they would make your answer more accurate. Prefer checking over guessing. Never claim an action ran unless you received its result.",
   ].join("\n");
@@ -194,6 +221,10 @@ export function parseActions(requested: unknown[], diagnosticToolIds: string[]):
       const request = str(args["request"], 8000);
       if (request.length >= 20) out.proposals.push({ id, request });
       else out.rejected.push("claude.code: describe the task in at least a sentence");
+    } else if (id === "claude.fix") {
+      const pr = Number(args["pr"]);
+      if (Number.isInteger(pr) && pr > 0) out.proposals.push({ id, pr, note: str(args["note"], 2000) });
+      else out.rejected.push("claude.fix: needs the pull request number");
     } else if (id === "builds.recover") {
       if (!out.proposals.some((proposal) => proposal.id === "builds.recover")) out.proposals.push({ id });
     } else if (id === "demo.build") {
@@ -257,6 +288,8 @@ export function splitReplyMeta(content: string): { body: string; meta: JarvisRep
         else if (proposal?.id === "builds.recover") proposals.push({ id: "builds.recover" });
         else if (proposal?.id === "claude.code" && typeof proposal.request === "string" && proposal.request.trim().length >= 20)
           proposals.push({ id: "claude.code", request: proposal.request.trim().slice(0, 8000) });
+        else if (proposal?.id === "claude.fix" && Number.isInteger(proposal.pr) && proposal.pr > 0)
+          proposals.push({ id: "claude.fix", pr: proposal.pr, note: typeof proposal.note === "string" ? proposal.note.slice(0, 2000) : "" });
       } catch {
         /* drop anything that no longer validates */
       }

@@ -43,9 +43,27 @@ jobs:
         with:
           fetch-depth: 1
 
+      # Claude runs the same checks a contributor runs, so it needs the
+      # project's dependencies installed.
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Pin npm
+        run: npm install --global npm@11.6.0
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
       - name: Run Claude Code
         uses: anthropics/claude-code-action@v1
         with:
+          # New work starts from the Lovable-connected branch, never main.
+          base_branch: lovable-sync
+          claude_args: >-
+            --allowedTools "Bash(npm run typecheck),Bash(npm run lint),Bash(npm run build),Bash(npx tsc:*),Bash(npx eslint:*),Bash(npx vitest:*),Bash(git status:*),Bash(git diff:*),Bash(git log:*)"
+            --append-system-prompt "This is a TanStack Start + Supabase app connected to Lovable (see AGENTS.md). Never force-push or rewrite pushed history. Before you finish, run npx tsc --noEmit, npx eslint on the files you changed, and npx vitest run on the related tests, and fix what fails. Never skip or disable a test."
           # Set ONE of these repository secrets: CLAUDE_CODE_OAUTH_TOKEN (from
           # `claude setup-token`, uses a Claude subscription) or
           # ANTHROPIC_API_KEY (pay per use from console.anthropic.com).

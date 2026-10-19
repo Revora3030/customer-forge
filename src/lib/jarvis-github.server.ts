@@ -1,5 +1,5 @@
 import { Buffer } from "node:buffer";
-import { applyEdits, type PullRequestProposal } from "./jarvis-actions";
+import { applyEdits, unknownPackageImports, type PullRequestProposal } from "./jarvis-actions";
 
 const REPO = "Revora3030/customer-forge";
 const BASE = "lovable-sync";
@@ -54,6 +54,12 @@ export async function openJarvisPullRequest(pr: PullRequestProposal) {
   const baseSha = ref.object.sha;
   const baseCommit = await gh<{ tree: { sha: string } }>(token, `git/commits/${baseSha}`);
 
+  // The app's real dependencies, so a change can't import a package (or a
+  // whole framework) this TanStack Start app doesn't have.
+  const manifest = await gh<{ content?: string }>(token, `contents/package.json?ref=${baseSha}`);
+  const pkg = JSON.parse(Buffer.from(manifest.content ?? "", "base64").toString("utf8") || "{}") as Record<string, Record<string, string> | undefined>;
+  const dependencies = new Set([...Object.keys(pkg["dependencies"] ?? {}), ...Object.keys(pkg["devDependencies"] ?? {})]);
+
   const tree = await Promise.all(
     pr.changes.map(async (change) => {
       const encodedPath = change.path.split("/").map(encodeURIComponent).join("/");
@@ -73,6 +79,11 @@ export async function openJarvisPullRequest(pr: PullRequestProposal) {
         content = applyEdits(existing, change.edits, change.path);
         if (content === existing) throw new Error(`${change.path}: the edits change nothing.`);
       }
+      const unknown = unknownPackageImports(existing ?? "", content, dependencies);
+      if (unknown.length)
+        throw new Error(
+          `${change.path} imports ${unknown.join(", ")}, which this app doesn't use (it is TanStack Start with Supabase). Send larger or framework-level changes to Claude Code instead.`,
+        );
       return { path: change.path, mode: "100644", type: "blob", content };
     }),
   );

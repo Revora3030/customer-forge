@@ -21,7 +21,7 @@ import { LiveSurface, type VoiceState } from "@/components/app/jarvis/LiveSurfac
 import { useJarvisHeight } from "@/components/app/jarvis/use-jarvis-height";
 import { readApprovals, rememberApproval, type Approvals } from "@/components/app/jarvis/jarvis-approvals";
 import "@/components/app/jarvis/jarvis.css";
-import { openJarvisPullRequestFn, recoverStalledBuildsFn, sendClaudeCodeRequestFn, clearJarvisHistory, getJarvisHistory, getJarvisDiagnostics, getJarvisAcquisitionReadiness, getJarvisDiagnosticTools, runJarvisDiagnosticTool, regenerateJarvisReply, sendJarvisMessage, JARVIS_HISTORY_PAGE } from "@/lib/jarvis.functions";
+import { askClaudeToFixPullRequestFn, openJarvisPullRequestFn, recoverStalledBuildsFn, sendClaudeCodeRequestFn, clearJarvisHistory, getJarvisHistory, getJarvisDiagnostics, getJarvisAcquisitionReadiness, getJarvisDiagnosticTools, runJarvisDiagnosticTool, regenerateJarvisReply, sendJarvisMessage, JARVIS_HISTORY_PAGE } from "@/lib/jarvis.functions";
 import { draftProspectOutreach, type ProspectDraft } from "@/lib/jarvis-prospecting.functions";
 import { formatRevoraOffer } from "@/lib/jarvis-acquisition-policy";
 import { jarvisVoiceLinks, synthesizeJarvisVoice } from "@/lib/jarvis-voice.functions";
@@ -142,6 +142,7 @@ function Jarvis() {
   const buildDemo = useServerFn(startProspectDemoBuild);
   const openPr = useServerFn(openJarvisPullRequestFn);
   const sendToClaudeCode = useServerFn(sendClaudeCodeRequestFn);
+  const askClaudeFix = useServerFn(askClaudeToFixPullRequestFn);
   const recoverBuilds = useServerFn(recoverStalledBuildsFn);
   const readPicture = useServerFn(prospectFromImageFn);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -546,6 +547,21 @@ function Jarvis() {
       } catch (error) {
         forget(key);
         toast.error(error instanceof Error ? error.message : "Couldn't send the task to Claude Code.");
+      }
+      return;
+    }
+    if (proposal.id === "claude.fix") {
+      try {
+        const result = await askClaudeFix({ data: { pr: proposal.pr, note: proposal.note } });
+        markDone(key, result.url);
+        toast.success(
+          result.failing.length
+            ? `Asked Claude Code to fix pull request #${proposal.pr} (${result.failing.length} failing check${result.failing.length === 1 ? "" : "s"}).`
+            : `Asked Claude Code to address the review comments on pull request #${proposal.pr}.`,
+        );
+      } catch (error) {
+        forget(key);
+        toast.error(error instanceof Error ? error.message : "Couldn't reach Claude Code.");
       }
       return;
     }

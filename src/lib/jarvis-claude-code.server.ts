@@ -16,6 +16,8 @@ export type ClaudeCodeRequest = {
   updatedAt: string;
   comments: number;
   latest: string | null;
+  /** The pull request for this request, once Claude Code has pushed its branch. */
+  pullRequestUrl?: string | null;
 };
 
 function writeToken() {
@@ -101,7 +103,10 @@ export async function listClaudeCodeRequests(limit = 8): Promise<ClaudeCodeReque
         const comments = await gh<{ body: string }[]>(token, `issues/${issue.number}/comments?per_page=100`).catch(() => []);
         latest = comments.at(-1)?.body?.slice(0, 1200) ?? null;
       }
+      // Claude Code pushes a branch; make sure it always ends in a pull request.
+      const pull = issue.state === "open" ? await openClaudeCodePullRequest(issue).catch(() => null) : null;
       return {
+        pullRequestUrl: pull?.url ?? null,
         number: issue.number,
         title: issue.title,
         state: issue.state,
@@ -112,4 +117,80 @@ export async function listClaudeCodeRequests(limit = 8): Promise<ClaudeCodeReque
       };
     }),
   );
+}
+
+type CheckRun = { name: string; status: string; conclusion: string | null };
+
+/** The failing check names on a pull request's head commit. */
+async function failingChecks(token: string, pr: number): Promise<string[]> {
+  const pull = await gh<{ head: { sha: string } }>(token, `pulls/${pr}`);
+  const runs = await gh<{ check_runs: CheckRun[] }>(token, `commits/${pull.head.sha}/check-runs?per_page=100`);
+  return [
+    ...new Set(
+      runs.check_runs
+        .filter((run) => run.status === "completed" && ["failure", "timed_out", "action_required"].includes(run.conclusion ?? ""))
+        .map((run) => run.name),
+    ),
+  ];
+}
+
+/** The "@claude" comment that asks Claude Code to fix a pull request. */
+export function claudeFixComment(failing: string[], note: string, requestedBy: string) {
+  return [
+    "@claude please fix this pull request so it is ready to merge into lovable-sync.",
+    failing.length
+      ? `Failing checks on the current head: ${failing.join(", ")}. Read their logs, find the root cause and fix it.`
+      : "No checks are failing right now; address the open review comments.",
+    ...(note ? ["", note] : []),
+    "",
+    "Follow AGENTS.md. Push to this pull request's branch with normal commits (no force-push), run the repo's typecheck, lint and tests before pushing, and never skip or disable a test to get green.",
+    "",
+    `Requested from Jarvis by ${requestedBy}.`,
+  ].join("\n");
+}
+
+/** Asks Claude Code to fix one pull request's failing checks or review comments. */
+export async function askClaudeToFixPullRequest(pr: number, note: string, requestedBy: string) {
+  const token = writeToken();
+  const failing = await failingChecks(token, pr);
+  const comment = await gh<{ html_url: string }>(token, `issues/${pr}/comments`, {
+    method: "POST",
+    body: { body: claudeFixComment(failing, note.trim().slice(0, 2000), requestedBy) },
+  });
+  return { url: comment.html_url, failing };
+}
+
+/** Branch Claude Code's action creates for an issue: claude/issue-<n>-<timestamp>. */
+export function claudeIssueBranch(names: string[], issue: number): string | null {
+  const prefix = `claude/issue-${issue}-`;
+  return names.filter((name) => name.startsWith(prefix)).sort().at(-1) ?? null;
+}
+
+/**
+ * Opens the pull request for a Claude Code request once its branch exists, so
+ * every request ends in a reviewable PR into lovable-sync. Opened with the
+ * owner's token, which (unlike the workflow's own token) starts CI. Returns
+ * the existing PR when there already is one.
+ */
+export async function openClaudeCodePullRequest(issue: { number: number; title: string }) {
+  const token = writeToken();
+  const owner = REPO.split("/")[0]!;
+  const matching = await gh<{ ref: string }[]>(token, `git/matching-refs/heads/claude/issue-${issue.number}-`).catch(() => []);
+  const branch = claudeIssueBranch(
+    matching.map((row) => row.ref.replace(/^refs\/heads\//, "")),
+    issue.number,
+  );
+  if (!branch) return null;
+  const open = await gh<{ html_url: string; number: number }[]>(token, `pulls?state=all&head=${owner}:${encodeURIComponent(branch)}`);
+  if (open[0]) return { url: open[0].html_url, number: open[0].number, branch };
+  const pull = await gh<{ html_url: string; number: number }>(token, "pulls", {
+    method: "POST",
+    body: {
+      title: issue.title,
+      head: branch,
+      base: "lovable-sync",
+      body: `Closes #${issue.number}\n\nWritten by Claude Code from a Jarvis request. Review the diff and CI before merging.`,
+    },
+  });
+  return { url: pull.html_url, number: pull.number, branch };
 }
