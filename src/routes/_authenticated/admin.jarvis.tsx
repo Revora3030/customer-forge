@@ -26,7 +26,7 @@ import { draftProspectOutreach, type ProspectDraft } from "@/lib/jarvis-prospect
 import { formatRevoraOffer } from "@/lib/jarvis-acquisition-policy";
 import { jarvisVoiceLinks, synthesizeJarvisVoice } from "@/lib/jarvis-voice.functions";
 import { speakableText, type WriteProposal } from "@/lib/jarvis-actions";
-import { prospectFromImageFn, startProspectDemoBuild } from "@/lib/jarvis-demo-site.functions";
+import { prospectFromImageFn, sendDemoOutreachFn, startProspectDemoBuild } from "@/lib/jarvis-demo-site.functions";
 import { pictureDataUrl } from "@/lib/picture-data-url";
 
 type RecognitionResult = ArrayLike<{ transcript: string }> & { isFinal?: boolean };
@@ -140,6 +140,7 @@ function Jarvis() {
   const voiceLinks = useServerFn(jarvisVoiceLinks);
   const draftFn = useServerFn(draftProspectOutreach);
   const buildDemo = useServerFn(startProspectDemoBuild);
+  const sendDemo = useServerFn(sendDemoOutreachFn);
   const openPr = useServerFn(openJarvisPullRequestFn);
   const sendToClaudeCode = useServerFn(sendClaudeCodeRequestFn);
   const askClaudeFix = useServerFn(askClaudeToFixPullRequestFn);
@@ -562,6 +563,19 @@ function Jarvis() {
       } catch (error) {
         forget(key);
         toast.error(error instanceof Error ? error.message : "Couldn't reach Claude Code.");
+      }
+      return;
+    }
+    if (proposal.id === "demo.send") {
+      try {
+        const result = await sendDemo({ data: { organizationId: proposal.organizationId, channel: proposal.channel, to: proposal.to } });
+        if (!result.ok) throw new Error(result.message);
+        markDone(key);
+        toast.success(proposal.channel === "sms" ? "Text sent." : "Email sent.");
+        void qc.invalidateQueries({ queryKey: ["jarvis", "prospect-demos"] });
+      } catch (error) {
+        forget(key);
+        toast.error(error instanceof Error ? error.message : "Couldn't send it.");
       }
       return;
     }

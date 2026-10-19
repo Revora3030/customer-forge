@@ -17,6 +17,11 @@ const FROM_DOMAIN = "notify.revoragrowthsystems.com";
 export type SendTemplateEmailResult =
   { sent: true } | { sent: false; reason: "recipient_suppressed" };
 
+/** Whether managed email can send at all (the API key is present). Never returns the key. */
+export function emailSendingConfigured(): boolean {
+  return Boolean(process.env["LOVABLE_API_KEY"]?.trim());
+}
+
 export interface SendTemplateEmailOptions {
   templateData?: Record<string, unknown>;
   /** Dedupes retries of the same logical send; defaults to a random UUID (no dedupe). */

@@ -3285,6 +3285,129 @@ export type Database = {
         }
         Relationships: []
       }
+      prospect_contact_consent: {
+        Row: {
+          created_at: string
+          email: boolean
+          sms: boolean
+          source: string | null
+          value: string
+        }
+        Insert: {
+          created_at?: string
+          email?: boolean
+          sms?: boolean
+          source?: string | null
+          value: string
+        }
+        Update: {
+          created_at?: string
+          email?: boolean
+          sms?: boolean
+          source?: string | null
+          value?: string
+        }
+        Relationships: []
+      }
+      prospect_do_not_contact: {
+        Row: {
+          created_at: string
+          kind: string
+          reason: string | null
+          value: string
+        }
+        Insert: {
+          created_at?: string
+          kind: string
+          reason?: string | null
+          value: string
+        }
+        Update: {
+          created_at?: string
+          kind?: string
+          reason?: string | null
+          value?: string
+        }
+        Relationships: []
+      }
+      prospect_outreach: {
+        Row: {
+          body: string | null
+          channel: string
+          created_at: string
+          id: string
+          mode: string
+          organization_id: string
+          provider_id: string | null
+          reason: string | null
+          recipient: string
+          sent_by: string | null
+          status: string
+          subject: string | null
+        }
+        Insert: {
+          body?: string | null
+          channel: string
+          created_at?: string
+          id?: string
+          mode: string
+          organization_id: string
+          provider_id?: string | null
+          reason?: string | null
+          recipient: string
+          sent_by?: string | null
+          status: string
+          subject?: string | null
+        }
+        Update: {
+          body?: string | null
+          channel?: string
+          created_at?: string
+          id?: string
+          mode?: string
+          organization_id?: string
+          provider_id?: string | null
+          reason?: string | null
+          recipient?: string
+          sent_by?: string | null
+          status?: string
+          subject?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "prospect_outreach_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "prospect_outreach_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "public_organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      prospect_outreach_unsubscribe_tokens: {
+        Row: {
+          created_at: string
+          token: string
+          value: string
+        }
+        Insert: {
+          created_at?: string
+          token: string
+          value: string
+        }
+        Update: {
+          created_at?: string
+          token?: string
+          value?: string
+        }
+        Relationships: []
+      }
       public_submission_attempts: {
         Row: {
           contact_hash: string | null

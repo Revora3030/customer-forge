@@ -171,19 +171,29 @@ function fallbackDraft(name: string): { subject: string; body: string } {
   };
 }
 
-/** Sender block every outreach draft ends with: name, physical address and an opt-out line. */
-export function outreachFooter(): { address: string; footer: string } {
+/**
+ * Sender block every outreach draft ends with: name, physical address and an
+ * opt-out line. Emails Revora actually sends pass `unsubscribeUrl`, so the
+ * opt-out is a one-click link rather than a reply (they come from noreply@).
+ */
+export function outreachFooter(options: { unsubscribeUrl?: string } = {}): {
+  address: string;
+  footer: string;
+  /** Sender, company and address lines, without the separator or opt-out line. */
+  senderLines: string[];
+} {
   const address = process.env["REVORA_MAILING_ADDRESS"]?.trim() ?? "";
   const sender = process.env["REVORA_SENDER_NAME"]?.trim() || "Revora Growth Systems";
+  const senderLines = [sender, "Revora Growth Systems", address || "[ADD YOUR PHYSICAL MAILING ADDRESS BEFORE SENDING]"];
   const footer = [
     "",
     "--",
-    sender,
-    "Revora Growth Systems",
-    address || "[ADD YOUR PHYSICAL MAILING ADDRESS BEFORE SENDING]",
-    "Not interested? Reply \"no thanks\" and I won't contact you again.",
+    ...senderLines,
+    options.unsubscribeUrl
+      ? `Not interested? Unsubscribe and we won't contact you again: ${options.unsubscribeUrl}`
+      : "Not interested? Reply \"no thanks\" and I won't contact you again.",
   ].join("\n");
-  return { address, footer };
+  return { address, footer, senderLines };
 }
 
 export const draftProspectOutreach = createServerFn({ method: "POST" })

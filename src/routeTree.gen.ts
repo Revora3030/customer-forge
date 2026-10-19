@@ -98,6 +98,7 @@ import { Route as LocalIndustryStateRouteImport } from './routes/local.$industry
 import { Route as PTokenPageRouteImport } from './routes/p.$token_.$page'
 import { Route as SSlugPageRouteImport } from './routes/s.$slug.$page'
 import { Route as SSlugSitemapDotxmlRouteImport } from './routes/s.$slug.sitemap[.]xml'
+import { Route as UnsubscribeOutreachTokenRouteImport } from './routes/unsubscribe.outreach.$token'
 import { Route as AuthenticatedAdminClientsOrgIdRouteImport } from './routes/_authenticated/admin.clients.$orgId'
 import { Route as AuthenticatedDraftSlugPageRouteImport } from './routes/_authenticated/draft.$slug.$page'
 import { Route as ApiPublicJobsBackupRouteImport } from './routes/api/public/jobs/backup'
@@ -109,6 +110,7 @@ import { Route as ApiPublicJobsSiteEngineRouteImport } from './routes/api/public
 import { Route as ApiPublicJobsSiteHealthRouteImport } from './routes/api/public/jobs/site-health'
 import { Route as ApiPublicJobsWeeklyReportRouteImport } from './routes/api/public/jobs/weekly-report'
 import { Route as ApiPublicPaymentsWebhookRouteImport } from './routes/api/public/payments/webhook'
+import { Route as ApiPublicTwilioInboundRouteImport } from './routes/api/public/twilio/inbound'
 import { Route as LovableEmailAuthPreviewRouteImport } from './routes/lovable/email/auth/preview'
 import { Route as LovableEmailAuthWebhookRouteImport } from './routes/lovable/email/auth/webhook'
 import { Route as LovableEmailTransactionalPreviewRouteImport } from './routes/lovable/email/transactional/preview'
@@ -574,6 +576,12 @@ const SSlugSitemapDotxmlRoute = SSlugSitemapDotxmlRouteImport.update({
   path: '/sitemap.xml',
   getParentRoute: () => SSlugRoute,
 } as any)
+const UnsubscribeOutreachTokenRoute =
+  UnsubscribeOutreachTokenRouteImport.update({
+    id: '/unsubscribe/outreach/$token',
+    path: '/unsubscribe/outreach/$token',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const AuthenticatedAdminClientsOrgIdRoute =
   AuthenticatedAdminClientsOrgIdRouteImport.update({
     id: '/$orgId',
@@ -637,6 +645,11 @@ const ApiPublicPaymentsWebhookRoute =
     path: '/api/public/payments/webhook',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicTwilioInboundRoute = ApiPublicTwilioInboundRouteImport.update({
+  id: '/api/public/twilio/inbound',
+  path: '/api/public/twilio/inbound',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LovableEmailAuthPreviewRoute = LovableEmailAuthPreviewRouteImport.update({
   id: '/lovable/email/auth/preview',
   path: '/lovable/email/auth/preview',
@@ -739,6 +752,7 @@ export interface FileRoutesByFullPath {
   '/p/$token/$page': typeof PTokenPageRoute
   '/s/$slug/$page': typeof SSlugPageRoute
   '/s/$slug/sitemap.xml': typeof SSlugSitemapDotxmlRoute
+  '/unsubscribe/outreach/$token': typeof UnsubscribeOutreachTokenRoute
   '/admin/': typeof AuthenticatedAdminIndexRoute
   '/app/': typeof AuthenticatedAppIndexRoute
   '/my/': typeof AuthenticatedMyIndexRoute
@@ -754,6 +768,7 @@ export interface FileRoutesByFullPath {
   '/api/public/jobs/site-health': typeof ApiPublicJobsSiteHealthRoute
   '/api/public/jobs/weekly-report': typeof ApiPublicJobsWeeklyReportRoute
   '/api/public/payments/webhook': typeof ApiPublicPaymentsWebhookRoute
+  '/api/public/twilio/inbound': typeof ApiPublicTwilioInboundRoute
   '/lovable/email/auth/preview': typeof LovableEmailAuthPreviewRoute
   '/lovable/email/auth/webhook': typeof LovableEmailAuthWebhookRoute
   '/lovable/email/transactional/preview': typeof LovableEmailTransactionalPreviewRoute
@@ -838,6 +853,7 @@ export interface FileRoutesByTo {
   '/p/$token/$page': typeof PTokenPageRoute
   '/s/$slug/$page': typeof SSlugPageRoute
   '/s/$slug/sitemap.xml': typeof SSlugSitemapDotxmlRoute
+  '/unsubscribe/outreach/$token': typeof UnsubscribeOutreachTokenRoute
   '/admin': typeof AuthenticatedAdminIndexRoute
   '/app': typeof AuthenticatedAppIndexRoute
   '/my': typeof AuthenticatedMyIndexRoute
@@ -853,6 +869,7 @@ export interface FileRoutesByTo {
   '/api/public/jobs/site-health': typeof ApiPublicJobsSiteHealthRoute
   '/api/public/jobs/weekly-report': typeof ApiPublicJobsWeeklyReportRoute
   '/api/public/payments/webhook': typeof ApiPublicPaymentsWebhookRoute
+  '/api/public/twilio/inbound': typeof ApiPublicTwilioInboundRoute
   '/lovable/email/auth/preview': typeof LovableEmailAuthPreviewRoute
   '/lovable/email/auth/webhook': typeof LovableEmailAuthWebhookRoute
   '/lovable/email/transactional/preview': typeof LovableEmailTransactionalPreviewRoute
@@ -944,6 +961,7 @@ export interface FileRoutesById {
   '/p/$token_/$page': typeof PTokenPageRoute
   '/s/$slug/$page': typeof SSlugPageRoute
   '/s/$slug/sitemap.xml': typeof SSlugSitemapDotxmlRoute
+  '/unsubscribe/outreach/$token': typeof UnsubscribeOutreachTokenRoute
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
   '/_authenticated/app/': typeof AuthenticatedAppIndexRoute
   '/_authenticated/my/': typeof AuthenticatedMyIndexRoute
@@ -959,6 +977,7 @@ export interface FileRoutesById {
   '/api/public/jobs/site-health': typeof ApiPublicJobsSiteHealthRoute
   '/api/public/jobs/weekly-report': typeof ApiPublicJobsWeeklyReportRoute
   '/api/public/payments/webhook': typeof ApiPublicPaymentsWebhookRoute
+  '/api/public/twilio/inbound': typeof ApiPublicTwilioInboundRoute
   '/lovable/email/auth/preview': typeof LovableEmailAuthPreviewRoute
   '/lovable/email/auth/webhook': typeof LovableEmailAuthWebhookRoute
   '/lovable/email/transactional/preview': typeof LovableEmailTransactionalPreviewRoute
@@ -1050,6 +1069,7 @@ export interface FileRouteTypes {
     | '/p/$token/$page'
     | '/s/$slug/$page'
     | '/s/$slug/sitemap.xml'
+    | '/unsubscribe/outreach/$token'
     | '/admin/'
     | '/app/'
     | '/my/'
@@ -1065,6 +1085,7 @@ export interface FileRouteTypes {
     | '/api/public/jobs/site-health'
     | '/api/public/jobs/weekly-report'
     | '/api/public/payments/webhook'
+    | '/api/public/twilio/inbound'
     | '/lovable/email/auth/preview'
     | '/lovable/email/auth/webhook'
     | '/lovable/email/transactional/preview'
@@ -1149,6 +1170,7 @@ export interface FileRouteTypes {
     | '/p/$token/$page'
     | '/s/$slug/$page'
     | '/s/$slug/sitemap.xml'
+    | '/unsubscribe/outreach/$token'
     | '/admin'
     | '/app'
     | '/my'
@@ -1164,6 +1186,7 @@ export interface FileRouteTypes {
     | '/api/public/jobs/site-health'
     | '/api/public/jobs/weekly-report'
     | '/api/public/payments/webhook'
+    | '/api/public/twilio/inbound'
     | '/lovable/email/auth/preview'
     | '/lovable/email/auth/webhook'
     | '/lovable/email/transactional/preview'
@@ -1254,6 +1277,7 @@ export interface FileRouteTypes {
     | '/p/$token_/$page'
     | '/s/$slug/$page'
     | '/s/$slug/sitemap.xml'
+    | '/unsubscribe/outreach/$token'
     | '/_authenticated/admin/'
     | '/_authenticated/app/'
     | '/_authenticated/my/'
@@ -1269,6 +1293,7 @@ export interface FileRouteTypes {
     | '/api/public/jobs/site-health'
     | '/api/public/jobs/weekly-report'
     | '/api/public/payments/webhook'
+    | '/api/public/twilio/inbound'
     | '/lovable/email/auth/preview'
     | '/lovable/email/auth/webhook'
     | '/lovable/email/transactional/preview'
@@ -1317,6 +1342,7 @@ export interface RootRouteChildren {
   ApiPublicJarvisVoiceRoute: typeof ApiPublicJarvisVoiceRoute
   LocalIndustryStateRoute: typeof LocalIndustryStateRoute
   PTokenPageRoute: typeof PTokenPageRoute
+  UnsubscribeOutreachTokenRoute: typeof UnsubscribeOutreachTokenRoute
   LocalIndustryIndexRoute: typeof LocalIndustryIndexRoute
   ApiPublicJobsBackupRoute: typeof ApiPublicJobsBackupRoute
   ApiPublicJobsLeadAlertRetryRoute: typeof ApiPublicJobsLeadAlertRetryRoute
@@ -1327,6 +1353,7 @@ export interface RootRouteChildren {
   ApiPublicJobsSiteHealthRoute: typeof ApiPublicJobsSiteHealthRoute
   ApiPublicJobsWeeklyReportRoute: typeof ApiPublicJobsWeeklyReportRoute
   ApiPublicPaymentsWebhookRoute: typeof ApiPublicPaymentsWebhookRoute
+  ApiPublicTwilioInboundRoute: typeof ApiPublicTwilioInboundRoute
   LovableEmailAuthPreviewRoute: typeof LovableEmailAuthPreviewRoute
   LovableEmailAuthWebhookRoute: typeof LovableEmailAuthWebhookRoute
   LovableEmailTransactionalPreviewRoute: typeof LovableEmailTransactionalPreviewRoute
@@ -1957,6 +1984,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SSlugSitemapDotxmlRouteImport
       parentRoute: typeof SSlugRoute
     }
+    '/unsubscribe/outreach/$token': {
+      id: '/unsubscribe/outreach/$token'
+      path: '/unsubscribe/outreach/$token'
+      fullPath: '/unsubscribe/outreach/$token'
+      preLoaderRoute: typeof UnsubscribeOutreachTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_authenticated/admin/clients/$orgId': {
       id: '/_authenticated/admin/clients/$orgId'
       path: '/$orgId'
@@ -2032,6 +2066,13 @@ declare module '@tanstack/react-router' {
       path: '/api/public/payments/webhook'
       fullPath: '/api/public/payments/webhook'
       preLoaderRoute: typeof ApiPublicPaymentsWebhookRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/twilio/inbound': {
+      id: '/api/public/twilio/inbound'
+      path: '/api/public/twilio/inbound'
+      fullPath: '/api/public/twilio/inbound'
+      preLoaderRoute: typeof ApiPublicTwilioInboundRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/lovable/email/auth/preview': {
@@ -2284,6 +2325,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicJarvisVoiceRoute: ApiPublicJarvisVoiceRoute,
   LocalIndustryStateRoute: LocalIndustryStateRoute,
   PTokenPageRoute: PTokenPageRoute,
+  UnsubscribeOutreachTokenRoute: UnsubscribeOutreachTokenRoute,
   LocalIndustryIndexRoute: LocalIndustryIndexRoute,
   ApiPublicJobsBackupRoute: ApiPublicJobsBackupRoute,
   ApiPublicJobsLeadAlertRetryRoute: ApiPublicJobsLeadAlertRetryRoute,
@@ -2294,6 +2336,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicJobsSiteHealthRoute: ApiPublicJobsSiteHealthRoute,
   ApiPublicJobsWeeklyReportRoute: ApiPublicJobsWeeklyReportRoute,
   ApiPublicPaymentsWebhookRoute: ApiPublicPaymentsWebhookRoute,
+  ApiPublicTwilioInboundRoute: ApiPublicTwilioInboundRoute,
   LovableEmailAuthPreviewRoute: LovableEmailAuthPreviewRoute,
   LovableEmailAuthWebhookRoute: LovableEmailAuthWebhookRoute,
   LovableEmailTransactionalPreviewRoute: LovableEmailTransactionalPreviewRoute,

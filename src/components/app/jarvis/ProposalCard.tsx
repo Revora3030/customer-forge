@@ -1,4 +1,4 @@
-import { ExternalLink, GitPullRequest, Hammer, RefreshCw } from "lucide-react";
+import { ExternalLink, GitPullRequest, Hammer, RefreshCw, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { WriteProposal } from "@/lib/jarvis-actions";
 
@@ -85,6 +85,17 @@ export function ProposalCard({ proposal, state, url, onApprove }: Props) {
         <p className="flex items-center gap-1.5 text-sm font-medium"><RefreshCw className="size-4 text-primary" aria-hidden />Recover stalled builds</p>
         <p className="mt-1 text-sm text-muted-foreground">Closes builds whose worker died, re-queues orphaned ones and restarts the build worker. Builds that are still running are left alone.</p>
         <Button type="button" className="mt-3" data-jarvis-tap="" disabled={Boolean(state)} onClick={onApprove}>{state === "building" ? "Recovering…" : state === "done" ? "Done" : "Approve and recover"}</Button>
+      </div>
+    );
+  }
+  if (proposal.id === "demo.send") {
+    const channel = proposal.channel === "sms" ? "text" : "email";
+    return (
+      <div className={card}>
+        <p className="flex items-center gap-1.5 text-sm font-medium"><Send className="size-4 text-primary" aria-hidden />Send the demo by {channel}</p>
+        <p className="mt-1 break-words text-sm text-muted-foreground">To {proposal.to ?? `the ${proposal.channel === "sms" ? "phone number" : "email"} on file`}</p>
+        <Button type="button" className="mt-3" data-jarvis-tap="" disabled={Boolean(state)} onClick={onApprove}>{state === "building" ? "Sending…" : state === "done" ? "Sent" : `Approve and send ${channel}`}</Button>
+        <p className={disclaimer}>The AI writes a short, honest message with the preview link. Do-not-contact, one send per channel, daily limits, texting hours and the unsubscribe footer are checked before it goes out.</p>
       </div>
     );
   }

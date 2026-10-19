@@ -42,6 +42,18 @@ export async function runReadActions(db: SupabaseClient, reads: ReadAction[], ac
         } else if (action.id === "prospect.lookup") {
           const { prospectFromMaps } = await import("./jarvis-demo-site.server");
           result = await prospectFromMaps(db, actorId, action.input);
+        } else if (action.id === "demo.status") {
+          const { getDemoStatus } = await import("./prospect-outreach.server");
+          let organizationId = action.organizationId;
+          if (!organizationId && action.name) {
+            const { listProspectDemos } = await import("./jarvis-demo-site.server");
+            const wanted = action.name.toLowerCase();
+            const demos = await listProspectDemos(db, 100);
+            organizationId = (demos.find((demo) => demo.name.toLowerCase() === wanted) ?? demos.find((demo) => demo.name.toLowerCase().includes(wanted)))?.organizationId ?? null;
+          }
+          const status = organizationId ? await getDemoStatus(db, organizationId) : null;
+          if (!status) throw new Error("No demo site matches that. Use demos.list to find it.");
+          result = status;
         } else {
           const { listProspectDemos } = await import("./jarvis-demo-site.server");
           result = await listProspectDemos(db);
