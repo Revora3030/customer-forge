@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { Fragment, type ReactNode } from "react";
 import { Bot, Check, Copy, RotateCcw, Square, Volume2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -54,9 +54,11 @@ type AssistantProps = {
   onListen: () => void;
   onStopListening: () => void;
   onRegenerate: () => void;
+  /** Live content under a proposal once it was approved, such as a demo build card. */
+  renderAfterProposal?: ((key: string) => ReactNode) | undefined;
 };
 
-export function AssistantMessage({ message, isLast, busy, regenerating, speakingThis, approvalState, approvalUrl, onApprove, onCopy, onListen, onStopListening, onRegenerate }: AssistantProps) {
+export function AssistantMessage({ message, isLast, busy, regenerating, speakingThis, approvalState, approvalUrl, onApprove, onCopy, onListen, onStopListening, onRegenerate, renderAfterProposal }: AssistantProps) {
   const { body, meta } = splitReplyMeta(message.content);
   return (
     <article className={`group flex min-w-0 gap-3 transition-opacity ${regenerating ? "opacity-50" : ""}`}>
@@ -71,7 +73,12 @@ export function AssistantMessage({ message, isLast, busy, regenerating, speaking
         <div className="text-[15px] leading-7"><JarvisMarkdown>{body}</JarvisMarkdown></div>
         {meta.proposals.map((proposal, index) => {
           const key = `${message.id}:${index}`;
-          return <ProposalCard key={key} proposal={proposal} state={approvalState(key)} url={approvalUrl(key)} onApprove={() => onApprove(key, proposal)} />;
+          return (
+            <Fragment key={key}>
+              <ProposalCard proposal={proposal} state={approvalState(key)} url={approvalUrl(key)} onApprove={() => onApprove(key, proposal)} />
+              {renderAfterProposal?.(key)}
+            </Fragment>
+          );
         })}
         <div className="-ml-2 mt-1 flex items-center gap-0.5 text-muted-foreground transition-opacity pointer-fine:opacity-0 pointer-fine:group-hover:opacity-100 pointer-fine:focus-within:opacity-100">
           <Action label="Copy" onClick={() => onCopy(body)}><Copy className="size-4" aria-hidden /></Action>

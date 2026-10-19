@@ -1,7 +1,7 @@
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
-import { Copy, ExternalLink, Hammer, ImageUp, Mail, MapPin, Search } from "lucide-react";
+import { Copy, Eye, ExternalLink, Hammer, ImageUp, Mail, MapPin, Search } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -76,12 +76,23 @@ export function useProspectDemoPump(enabled: boolean) {
   }, [activeIds, enabled, pump]);
 }
 
+/** A demo the Jarvis chat should follow in its live build card. */
+export type DemoCardTarget = { organizationId: string; name: string; previewToken?: string | undefined };
+
+type BuilderProps = {
+  /** A build just started here; Jarvis shows its live build card in the chat. */
+  onBuildStarted?: ((demo: DemoCardTarget) => void) | undefined;
+  /** "Preview here": open this demo's build card / live preview in the chat. */
+  onPreview?: ((demo: DemoCardTarget) => void) | undefined;
+};
+
 /**
  * Jarvis panel: build a private demo website for a business with no website.
  * The build runs on the normal AI builder (free model pool, fact and safety
- * gates). Nothing is published or sent; the operator shares the preview link.
+ * gates). Nothing is published or sent from here; the operator shares the
+ * preview link, or sends it from the chat's build card.
  */
-export function ProspectDemoBuilder() {
+export function ProspectDemoBuilder({ onBuildStarted, onPreview }: BuilderProps = {}) {
   const qc = useQueryClient();
   const start = useServerFn(startProspectDemoBuild);
   const list = useServerFn(listProspectDemoBuilds);
@@ -101,9 +112,10 @@ export function ProspectDemoBuilder() {
   const buildFound = async (prospect: FoundProspect) => {
     setBuiltIds((current) => ({ ...current, [prospect.placeId]: "building" }));
     try {
-      await start({ data: prospectDemoInput(prospect, search.niche) });
+      const result = await start({ data: prospectDemoInput(prospect, search.niche) });
       setBuiltIds((current) => ({ ...current, [prospect.placeId]: "done" }));
       toast.success(`Building a demo for ${prospect.name}.`);
+      onBuildStarted?.({ organizationId: result.organizationId, name: prospect.name, previewToken: result.previewToken });
       void qc.invalidateQueries({ queryKey: ["jarvis", "prospect-demos"] });
     } catch (error) {
       setBuiltIds((current) => { const next = { ...current }; delete next[prospect.placeId]; return next; });
@@ -154,9 +166,10 @@ export function ProspectDemoBuilder() {
   // The queue pump lives in useProspectDemoPump, which the Jarvis page runs.
 
   const building = useMutation({
-    mutationFn: () => start({ data: form }),
-    onSuccess: () => {
+    mutationFn: (input: typeof EMPTY) => start({ data: input }),
+    onSuccess: (result, input) => {
       toast.success("Demo build started. The AI team is writing the site now.");
+      onBuildStarted?.({ organizationId: result.organizationId, name: input.businessName, previewToken: result.previewToken });
       setForm(EMPTY);
       setPrefilled(null);
       void qc.invalidateQueries({ queryKey: ["jarvis", "prospect-demos"] });
@@ -296,7 +309,7 @@ export function ProspectDemoBuilder() {
           className="space-y-3"
           onSubmit={(event) => {
             event.preventDefault();
-            building.mutate();
+            building.mutate(form);
           }}
         >
           <div className="grid gap-2 sm:grid-cols-2">
@@ -365,7 +378,18 @@ export function ProspectDemoBuilder() {
                 ) : null}
                 {demo.build?.error && !done ? <p className="mt-1 break-words text-xs text-destructive">{demo.build.error}</p> : null}
                 <div className="mt-2 flex flex-wrap gap-2">
-                  <a className="inline-flex h-8 items-center gap-1 rounded-md border border-border px-3 text-xs font-medium hover:bg-muted" href={`/p/${demo.previewToken}`} target="_blank" rel="noreferrer">
+                  {onPreview ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      data-jarvis-tap=""
+                      aria-label={`Preview ${demo.name} here`}
+                      onClick={() => onPreview({ organizationId: demo.organizationId, name: demo.name, previewToken: demo.previewToken })}
+                    >
+                      <Eye className="mr-1 size-3.5" aria-hidden />Preview here
+                    </Button>
+                  ) : null}
+                  <a className="inline-flex min-h-10 items-center gap-1 rounded-md border border-border px-3 text-xs font-medium hover:bg-muted sm:min-h-8" data-jarvis-tap="" href={`/p/${demo.previewToken}`} target="_blank" rel="noreferrer">
                     <ExternalLink className="size-3.5" aria-hidden />Open preview
                   </a>
                   <Button

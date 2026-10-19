@@ -20,13 +20,15 @@ import { CommandPalette } from "@/components/app/jarvis/CommandPalette";
 import { LiveSurface, type VoiceState } from "@/components/app/jarvis/LiveSurface";
 import { useJarvisHeight } from "@/components/app/jarvis/use-jarvis-height";
 import { readApprovals, rememberApproval, type Approvals } from "@/components/app/jarvis/jarvis-approvals";
+import { DemoBuildCard } from "@/components/app/jarvis/DemoBuildCard";
+import { findMapsLink, readDemoCards, readDemoSendProposal, rememberDemoCard, type DemoCardRef, type DemoChannel } from "@/components/app/jarvis/demo-build";
 import "@/components/app/jarvis/jarvis.css";
 import { askClaudeToFixPullRequestFn, openJarvisPullRequestFn, recoverStalledBuildsFn, sendClaudeCodeRequestFn, clearJarvisHistory, getJarvisHistory, getJarvisDiagnostics, getJarvisAcquisitionReadiness, getJarvisDiagnosticTools, runJarvisDiagnosticTool, regenerateJarvisReply, sendJarvisMessage, JARVIS_HISTORY_PAGE } from "@/lib/jarvis.functions";
 import { draftProspectOutreach, type ProspectDraft } from "@/lib/jarvis-prospecting.functions";
 import { formatRevoraOffer } from "@/lib/jarvis-acquisition-policy";
 import { jarvisVoiceLinks, synthesizeJarvisVoice } from "@/lib/jarvis-voice.functions";
 import { speakableText, type WriteProposal } from "@/lib/jarvis-actions";
-import { prospectFromImageFn, sendDemoOutreachFn, startProspectDemoBuild } from "@/lib/jarvis-demo-site.functions";
+import { prospectFromImageFn, startProspectDemoBuild } from "@/lib/jarvis-demo-site.functions";
 import { pictureDataUrl } from "@/lib/picture-data-url";
 
 type RecognitionResult = ArrayLike<{ transcript: string }> & { isFinal?: boolean };
@@ -140,7 +142,6 @@ function Jarvis() {
   const voiceLinks = useServerFn(jarvisVoiceLinks);
   const draftFn = useServerFn(draftProspectOutreach);
   const buildDemo = useServerFn(startProspectDemoBuild);
-  const sendDemo = useServerFn(sendDemoOutreachFn);
   const openPr = useServerFn(openJarvisPullRequestFn);
   const sendToClaudeCode = useServerFn(sendClaudeCodeRequestFn);
   const askClaudeFix = useServerFn(askClaudeToFixPullRequestFn);
@@ -194,6 +195,11 @@ function Jarvis() {
   }, []);
   const [approved, setApproved] = useState<Record<string, "building" | "done">>({});
   const [remembered, setRemembered] = useState<Approvals>({});
+  // Live demo build cards: under the chat proposal that started them (kept on this device),
+  // or at the end of the chat for builds and previews opened from Operations.
+  const [demoCards, setDemoCards] = useState<Record<string, DemoCardRef>>({});
+  const [sendCards, setSendCards] = useState<Record<string, { card: DemoCardRef; channel: DemoChannel; to: string }>>({});
+  const [liveCards, setLiveCards] = useState<DemoCardRef[]>([]);
   const [listening, setListening] = useState(false);
   const [interim, setInterim] = useState("");
   const [elapsed, setElapsed] = useState(0);
@@ -310,6 +316,7 @@ function Jarvis() {
       }
     } catch { /* storage unavailable */ }
     setRemembered(readApprovals());
+    setDemoCards(readDemoCards());
   }, []);
   useEffect(() => {
     try { if (text) localStorage.setItem(DRAFT_KEY, text); else localStorage.removeItem(DRAFT_KEY); } catch { /* storage unavailable */ }
@@ -566,19 +573,6 @@ function Jarvis() {
       }
       return;
     }
-    if (proposal.id === "demo.send") {
-      try {
-        const result = await sendDemo({ data: { organizationId: proposal.organizationId, channel: proposal.channel, to: proposal.to } });
-        if (!result.ok) throw new Error(result.message);
-        markDone(key);
-        toast.success(proposal.channel === "sms" ? "Text sent." : "Email sent.");
-        void qc.invalidateQueries({ queryKey: ["jarvis", "prospect-demos"] });
-      } catch (error) {
-        forget(key);
-        toast.error(error instanceof Error ? error.message : "Couldn't send it.");
-      }
-      return;
-    }
     if (proposal.id === "code.pr") {
       try {
         const result = await openPr({ data: { pr: proposal.pr } });
@@ -590,15 +584,43 @@ function Jarvis() {
       }
       return;
     }
+    // demo.send opens the review sheet on that demo's build card; the send itself needs a second tap.
+    const send = readDemoSendProposal(proposal);
+    if (send) {
+      setSendCards((current) => ({ ...current, [key]: { card: { organizationId: send.organizationId, name: "" }, channel: send.channel, to: send.to } }));
+      return;
+    }
+    if (proposal.id !== "demo.build") { forget(key); toast.error("This action can't be approved from this page yet."); return; }
     try {
-      await buildDemo({ data: proposal.input });
+      const result = await buildDemo({ data: proposal.input });
       markDone(key);
-      toast.success(`Building the demo site for ${proposal.input.businessName}. Track it under Operations → Demo sites.`);
+      setDemoCards(rememberDemoCard(key, { organizationId: result.organizationId, name: proposal.input.businessName, previewToken: result.previewToken }));
+      toast.success(`Building the demo site for ${proposal.input.businessName}. Watch it build below. Track it under Operations → Demo sites.`);
       void qc.invalidateQueries({ queryKey: ["jarvis", "prospect-demos"] });
     } catch (error) {
       forget(key);
       toast.error(error instanceof Error ? error.message : "Couldn't start the build.");
     }
+  };
+  /** A build started, or "Preview here" tapped, in Operations: show its card at the end of the chat. */
+  const showDemo = (demo: DemoCardRef) => {
+    setLiveCards((current) => [...current.filter((item) => item.organizationId !== demo.organizationId), demo]);
+    if (wide === false) setShowTools(false);
+    window.setTimeout(() => { void conversation.current?.scrollToBottom(); }, 60);
+  };
+  const renderAfterProposal = (key: string) => {
+    const sendCard = sendCards[key];
+    if (sendCard) {
+      return (
+        <DemoBuildCard
+          card={sendCard.card}
+          initialSend={{ channel: sendCard.channel, to: sendCard.to }}
+          onInitialSendSettled={(sent) => { if (sent) markDone(key); else forget(key); }}
+        />
+      );
+    }
+    const demo = demoCards[key];
+    return demo ? <DemoBuildCard card={demo} /> : null;
   };
 
   const voiceState: VoiceState = jarvisVoice.speaking ? "speaking" : listening ? "listening" : busy ? "thinking" : "idle";
@@ -634,7 +656,8 @@ function Jarvis() {
     onCopy: (value) => { void copy(value); },
     addressPlaceholder: ADDRESS_PLACEHOLDER,
   };
-  const panel = <OperationsPanel diagnostics={diagnostics} acquisition={acquisition} scorecard={capabilityScorecard} prospector={prospector} focusDiagnostics={focusDiagnostics} />;
+  const panel = <OperationsPanel diagnostics={diagnostics} acquisition={acquisition} scorecard={capabilityScorecard} prospector={prospector} focusDiagnostics={focusDiagnostics} onShowDemo={showDemo} />;
+  const mapsLink = findMapsLink(text);
 
   return (
     <TooltipProvider delayDuration={300}>
@@ -721,11 +744,15 @@ function Jarvis() {
                         onListen={() => { jarvisVoice.unlock(); void speak(message.content, message.id); }}
                         onStopListening={stopSpeaking}
                         onRegenerate={() => regen.mutate()}
+                        renderAfterProposal={renderAfterProposal}
                       />
                     )}
                   </Fragment>
                 );
               })}
+              {liveCards.map((demo) => (
+                <DemoBuildCard key={demo.organizationId} card={demo} onDismiss={() => setLiveCards((current) => current.filter((item) => item.organizationId !== demo.organizationId))} />
+              ))}
               {pending ? <UserMessage content={pending} /> : null}
               {busy ? (
                 <div className="flex items-center gap-3 text-sm text-muted-foreground">
@@ -756,6 +783,13 @@ function Jarvis() {
                   onTapToTalk={tapToTalk}
                   onEnd={toggleLive}
                 />
+              ) : null}
+              {mapsLink && !busy ? (
+                <div className="mb-2">
+                  <Button type="button" variant="outline" size="sm" data-jarvis-tap="" className="min-h-11 rounded-full" onClick={() => submit(`${text.trim()}\n\n${DEMO_FROM_MAPS}`)}>
+                    Build a demo from this Maps link
+                  </Button>
+                </div>
               ) : null}
               {followups.length > 0 && !busy ? (
                 <div data-jarvis-chips="" aria-label="Suggested follow-ups" className="-mx-3 mb-2 flex gap-2 overflow-x-auto px-3">

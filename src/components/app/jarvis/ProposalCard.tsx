@@ -1,6 +1,7 @@
-import { ExternalLink, GitPullRequest, Hammer, RefreshCw, Send } from "lucide-react";
+import { ExternalLink, GitPullRequest, Hammer, Mail, MessageSquare, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { WriteProposal } from "@/lib/jarvis-actions";
+import { readDemoSendProposal } from "./demo-build";
 
 export type ProposalState = "building" | "done" | undefined;
 
@@ -89,13 +90,14 @@ export function ProposalCard({ proposal, state, url, onApprove }: Props) {
     );
   }
   if (proposal.id === "demo.send") {
-    const channel = proposal.channel === "sms" ? "text" : "email";
+    // Approving opens the review sheet, not a send.
+    const send = readDemoSendProposal(proposal);
+    if (!send) return null;
     return (
       <div className={card}>
-        <p className="flex items-center gap-1.5 text-sm font-medium"><Send className="size-4 text-primary" aria-hidden />Send the demo by {channel}</p>
-        <p className="mt-1 break-words text-sm text-muted-foreground">To {proposal.to ?? `the ${proposal.channel === "sms" ? "phone number" : "email"} on file`}</p>
-        <Button type="button" className="mt-3" data-jarvis-tap="" disabled={Boolean(state)} onClick={onApprove}>{state === "building" ? "Sending…" : state === "done" ? "Sent" : `Approve and send ${channel}`}</Button>
-        <p className={disclaimer}>The AI writes a short, honest message with the preview link. Do-not-contact, one send per channel, daily limits, texting hours and the unsubscribe footer are checked before it goes out.</p>
+        <p className="flex items-start gap-1.5 text-sm font-medium">{send.channel === "sms" ? <MessageSquare className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden /> : <Mail className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden />}<span className="min-w-0 break-words">{send.channel === "sms" ? "Text" : "Email"} the demo site{send.to ? ` to ${send.to}` : ""}</span></p>
+        <Button type="button" className="mt-3" data-jarvis-tap="" disabled={Boolean(state)} onClick={onApprove}>{state === "building" ? "Opening…" : state === "done" ? "Sent" : "Review and send"}</Button>
+        <p className={disclaimer}>You see and can edit the exact message first. Nothing is sent until you tap Send.</p>
       </div>
     );
   }
