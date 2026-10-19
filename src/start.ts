@@ -8,6 +8,7 @@ import {
   trafficRedirectUrl,
 } from "@/lib/revora-address";
 import { withSecurityHeaders } from "@/lib/security-headers";
+import { createUnhandledErrorResponse } from "@/lib/api-error-response";
 
 /**
  * Production security headers on every response — platform pages, client
@@ -92,10 +93,7 @@ const errorMiddleware = createMiddleware().server(async ({ next, request }) => {
     } catch {
       /* monitoring is best-effort */
     }
-    return new Response(renderErrorPage(), {
-      status: 500,
-      headers: { "content-type": "text/html; charset=utf-8" },
-    });
+    return createUnhandledErrorResponse(request, renderErrorPage()) as never;
   }
 });
 
