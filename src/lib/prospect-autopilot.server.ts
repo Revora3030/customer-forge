@@ -35,6 +35,8 @@ export const STALE_RUN_MINUTES = 30;
 export const SEND_WITHIN_DAYS = 25;
 /** A send that failed or was skipped is retried at most once a day. */
 export const SEND_RETRY_HOURS = 24;
+/** Bound outbound page lookups per run so third-party websites cannot stall the scheduler. */
+export const MAX_PUBLIC_EMAIL_LOOKUPS_PER_RUN = 4;
 const MAX_SKIPPED = 50;
 
 export type AutopilotSkip = { reason: string; name?: string; target?: string };
@@ -306,7 +308,9 @@ async function buildPhase(
   const { findProspects, provisionProspectDemo } = await import("@/lib/jarvis-demo-site.server");
   const { isDoNotContact } = await import("@/lib/prospect-outreach.server");
   const { prospectDemoInput } = await import("@/lib/prospect-finder");
+  const { findPublicEmail } = await import("@/lib/prospect-email.server");
   const seen = await demoFingerprints(db);
+  let publicEmailLookups = 0;
   const cooldownSince = new Date(now().getTime() - SEARCH_COOLDOWN_HOURS * 3_600_000).toISOString();
 
   let searches = 0;
@@ -345,9 +349,17 @@ async function buildPhase(
         skip({ reason: "do_not_contact", name: prospect.name, target: query });
         continue;
       }
+      let publicEmail: string | null = null;
+      // A social/directory listing is not a real website, so it remains eligible
+      // for a demo. When its public page lists a business email, carry that fact
+      // into the profile; never guess addresses and cap lookups per scheduled run.
+      if (prospect.presence === "social_only" && prospect.website && publicEmailLookups < MAX_PUBLIC_EMAIL_LOOKUPS_PER_RUN) {
+        publicEmailLookups += 1;
+        publicEmail = await findPublicEmail(prospect.website).catch(() => null);
+      }
       let input;
       try {
-        input = parseProspectDemoInput(prospectDemoInput(prospect, target.niche));
+        input = parseProspectDemoInput(prospectDemoInput(prospect, target.niche, publicEmail));
       } catch (error) {
         skip({ reason: `invalid_facts: ${error instanceof Error ? error.message : "invalid"}`, name: prospect.name, target: query });
         continue;
