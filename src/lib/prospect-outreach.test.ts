@@ -325,11 +325,11 @@ describe("Twilio webhook signature", () => {
   const params = { From: "+19195550100", Body: "STOP", To: "+19195550000", MessageSid: "SM1" };
   const url = "https://revoragrowthsystems.com/api/public/twilio/inbound";
   const reference = (token: string) =>
-    createHmac("sha1", token)
+    createHmac("sha1", token) // DevSkim: ignore DS126858 -- Reference implementation of Twilio's required HMAC-SHA1 webhook signature.
       .update(url + Object.keys(params).sort().map((key) => key + params[key as keyof typeof params]).join(""))
       .digest("base64");
 
-  it("matches Twilio's HMAC-SHA1 scheme and rejects tampering", async () => {
+  it("matches Twilio's HMAC-SHA1 scheme and rejects tampering", async () => { // DevSkim: ignore DS126858 -- Reference implementation of Twilio's required HMAC-SHA1 webhook signature.
     expect(await twilioSignature("secret", url, params)).toBe(reference("secret"));
     expect(await validateTwilioSignature("secret", url, params, reference("secret"))).toBe(true);
     expect(await validateTwilioSignature("secret", url, { ...params, Body: "START" }, reference("secret"))).toBe(false);

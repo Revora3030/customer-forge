@@ -94,7 +94,7 @@ export async function sendTwilioSms(
 export async function twilioSignature(authToken: string, url: string, params: Record<string, string>): Promise<string> {
   const data = url + Object.keys(params).sort().map((key) => `${key}${params[key]}`).join("");
   const encoder = new TextEncoder();
-  const key = await crypto.subtle.importKey("raw", encoder.encode(authToken), { name: "HMAC", hash: "SHA-1" }, false, ["sign"]);
+  const key = await crypto.subtle.importKey("raw", encoder.encode(authToken), { name: "HMAC", hash: "SHA-1" }, false, ["sign"]); // DevSkim: ignore DS126858 -- Twilio signs webhooks with HMAC-SHA1 (X-Twilio-Signature); verifying that MAC requires SHA-1, and HMAC-SHA1 is not broken for authentication.
   const mac = new Uint8Array(await crypto.subtle.sign("HMAC", key, encoder.encode(data)));
   let binary = "";
   for (const byte of mac) binary += String.fromCharCode(byte);
