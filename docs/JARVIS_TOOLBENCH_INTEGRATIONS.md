@@ -1,5 +1,8 @@
 # Jarvis toolbench and integration rollout
 
+## Dependency fixes included
+- Pins transitive DOMPurify to 3.4.16, KaTeX to 0.18.2, and source-map-js to 1.2.2 using root overrides and corresponding lockfile resolutions. These address the versions flagged in the first Trivy SARIF report.
+
 ## New tooling
 - **Trivy** scans dependencies, secrets, and configuration. Critical findings fail; SARIF and artifact reports are uploaded.
 - **Semgrep** runs static analysis and uploads a JSON report. It starts report-first while the baseline is triaged.
