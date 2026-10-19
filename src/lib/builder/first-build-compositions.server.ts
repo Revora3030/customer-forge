@@ -397,9 +397,6 @@ export async function composeFirstBuildSections(input: {
           }
         }
         designed.set(section.id, checked.tree);
-        // Durable section checkpoint: if a later section/provider fails, this
-        // validated layout survives worker restart and is skipped on retry.
-        await saveTree(db, organizationId, section, checked.tree);
       }
      }
       feedback = nextFeedback;
@@ -455,8 +452,6 @@ export async function composeFirstBuildSections(input: {
           if (!widget || widgetPresentationProblem(section.kind, widget)) return false;
         }
         designed.set(section.id, checked.tree);
-        // Persist only after the strict composition and required-widget checks.
-        await saveTree(db, organizationId, section, checked.tree);
         return true;
         }));
         rescueResults.push(...chunkResults);
@@ -508,6 +503,14 @@ export async function composeFirstBuildSections(input: {
       await repairDesignQuality({ organizationId, lookSummary: input.lookSummary, sections: pageSections, parts, designed, screen, result, direction });
     } else {
       result.optionalSkipped = (result.optionalSkipped ?? 0) + 1;
+    }
+    // Durable checkpoint boundary: every persisted tree has passed structural,
+    // truth/media/link/widget validation above and the first-build quality
+    // repair pass. Save before the optional review-panel/polish stage so a
+    // worker timeout there does not discard work that can safely be resumed.
+    for (const section of pageSections) {
+      const tree = designed.get(section.id);
+      if (tree) await saveTree(db, organizationId, section, tree);
     }
     const best = withinBudget()
       ? await improveWithTeam({ organizationId, lookSummary: input.lookSummary, evidence, memory, sections: pageSections, parts, designed, screen, result })
