@@ -36,7 +36,9 @@
     "browser:journey": "node scripts/browser-journey.mjs",
     "browser:journey:ci": "node scripts/browser-journey.mjs --require-browser",
     "browser:journey:test": "node scripts/browser-journey.contract.mjs",
-    "supabase:drift": "node scripts/supabase-migration-drift-audit.mjs"
+    "supabase:drift": "node scripts/supabase-migration-drift-audit.mjs",
+    "jarvis:mcp": "node scripts/jarvis-mcp-server.mjs",
+    "jarvis:mcp:contract": "node scripts/jarvis-mcp-server.contract.mjs"
   },
   "overrides": {
     "rolldown": "1.2.1",

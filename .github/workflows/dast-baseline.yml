@@ -1,0 +1,51 @@
+name: Revora Passive DAST Baseline
+on:
+  push:
+    branches: [lovable-sync]
+  pull_request:
+    branches: [lovable-sync]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: revora-dast-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  zap:
+    name: OWASP ZAP passive baseline against CI app
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install app dependencies
+        run: npm install --no-audit --no-fund
+      - name: Start isolated CI app
+        run: |
+          npm run dev -- --host 0.0.0.0 --port 8080 > /tmp/revora-zap-app.log 2>&1 &
+          echo $! > /tmp/revora-zap-app.pid
+          for attempt in {1..90}; do
+            if curl --fail --silent http://127.0.0.1:8080/ >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/revora-zap-app.log
+          exit 1
+      - name: Run ZAP passive baseline
+        run: |
+          docker run --rm --network host -v "$PWD:/zap/wrk/:rw" ghcr.io/zaproxy/zaproxy:stable \
+            zap-baseline.py -t http://127.0.0.1:8080 -m 2 -I -r zap-baseline-report.html
+      - name: Upload ZAP report
+        if: always() && hashFiles('zap-baseline-report.html') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: zap-baseline-${{ github.run_id }}
+          path: zap-baseline-report.html
+          retention-days: 14
+      - name: Stop app
+        if: always()
+        run: |
+          if [ -f /tmp/revora-zap-app.pid ]; then kill "$(cat /tmp/revora-zap-app.pid)" 2>/dev/null || true; fi

@@ -11,6 +11,8 @@
  */
 
 import { aiLimits, estimateCostUsd, type ProviderName } from "@/lib/ai/config";
+import { runInBackground } from "@/lib/background";
+import { exportAiTelemetry } from "./observability-export.server";
 import type { AiErrorCategory } from "@/lib/ai/errors";
 
 export type AiEvent = {
@@ -74,6 +76,8 @@ export async function recordAiEvent(event: AiEvent) {
   } catch (error) {
     reportTelemetryWriteFailure("ai_usage_events", error);
   }
+  // Optional metadata-only traces use the existing waitUntil-aware helper.
+  runInBackground(() => exportAiTelemetry(event));
 }
 
 export type TeamStep = {
