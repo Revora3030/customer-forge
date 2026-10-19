@@ -45,3 +45,6 @@ Set `GITHUB_TOKEN` or `GH_TOKEN` in the MCP client environment to improve API li
 CI scanners need no API credential. Sentry, Ollama Cloud, n8n, Langfuse and a generic OTLP collector need operator-owned instances/credentials. This PR wires configuration/status reporting but does not fabricate credentials or assert live connectivity. Existing approval/audit controls for publishing, billing, customer messaging, migrations and destructive writes remain unchanged.
 
 Green CI means a check completed against that commit; ZAP passive baseline is not a penetration test, and CI does not prove production health.
+
+## CodeQL mode selection
+The prior advanced CodeQL workflow was removed from this branch because the observed GitHub run was rejected with `CodeQL analyses from advanced configurations cannot be processed when the default setup is enabled`. Do not enable both modes at once. Keep GitHub's currently enabled default setup as the source of truth, confirm a successful default CodeQL run after merging, and only restore `.github/workflows/codeql.yml` if repository/organization settings are deliberately switched to advanced setup. This requires verifying repository Settings → Security & quality → Code security → CodeQL analysis; repository code cannot change that setting by itself.
