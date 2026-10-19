@@ -336,9 +336,16 @@ export async function runOutreachAutopilot(db: SupabaseClient, base: string, opt
         return null;
       });
       const { kickWorker } = await import("@/lib/site-engine.functions");
+      const { autopilotShouldBuild } = await import("@/lib/prospect-finder");
       let built = 0;
+      let skippedNoEmail = 0;
       for (const prospect of found?.prospects ?? []) {
         if (built >= room) break;
+        // Autopilot only builds when the listing shows an email and no website.
+        if (!autopilotShouldBuild(prospect)) {
+          skippedNoEmail += 1;
+          continue;
+        }
         const industry = (prospect.category ?? target.niche).slice(0, 80);
         const city = (prospect.city ?? target.city).slice(0, 80);
         try {
@@ -350,7 +357,7 @@ export async function runOutreachAutopilot(db: SupabaseClient, base: string, opt
               city,
               state: prospect.state ?? (target.state || null),
               phone: prospect.phone,
-              email: null,
+              email: prospect.email!.trim().toLowerCase(),
               description: `${prospect.name} is a ${industry.toLowerCase()} business serving ${city}.`,
               services: [],
             },
