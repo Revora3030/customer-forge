@@ -3,7 +3,6 @@ import { getRequest } from "@tanstack/react-start/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { parseProspectDemoInput } from "./jarvis-demo-site";
-import { GROWTH_SYSTEM } from "./offer";
 
 async function guardedAdmin(context: { supabase: unknown; userId: unknown }): Promise<SupabaseClient> {
   const { assertSuperAdmin } = await import("./admin.server");
