@@ -194,11 +194,20 @@ describe("worker queue behavior", () => {
   });
 
   it("bounds retry delays without ignoring a tenant cooldown", () => {
-    expect(retryDelayMs(1)).toBe(15_000);
-    expect(retryDelayMs(2)).toBe(30_000);
-    expect(retryDelayMs(1, 600)).toBe(600_000);
-    expect(retryDelayMs(2, Infinity)).toBe(30_000);
-    expect(retryDelayMs(999, 999999)).toBe(1_800_000);
+    // Midpoint jitter preserves the previous deterministic values for these bounds.
+    expect(retryDelayMs(1, undefined, 0.5)).toBe(15_000);
+    expect(retryDelayMs(2, undefined, 0.5)).toBe(30_000);
+    expect(retryDelayMs(1, 600, 0)).toBe(600_000);
+    expect(retryDelayMs(2, Infinity, 0.5)).toBe(30_000);
+    expect(retryDelayMs(999, 999999, 0.5)).toBe(1_800_000);
+  });
+
+  it("jitters exponential retry times while respecting Retry-After and the cap", () => {
+    expect(retryDelayMs(1, undefined, 0)).toBe(11_250);
+    expect(retryDelayMs(1, undefined, 1)).toBe(18_750);
+    expect(retryDelayMs(2, 600, 0)).toBe(600_000);
+    expect(retryDelayMs(999, undefined, 1)).toBe(1_200_000);
+    expect(retryDelayMs(999, 999999, 1)).toBe(1_800_000);
   });
 
   it("respects retry-not-before times and does not claim a different tenant when scoped", async () => {
