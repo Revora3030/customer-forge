@@ -2467,10 +2467,20 @@ export async function drainSiteEngineQueue(
   return { processed, failed, paused: false, pauseReason: null, idle: processed + failed === 0 };
 }
 
-/** Bounded per-job backoff, including an explicit workspace cooldown. */
-export function retryDelayMs(attempt: number, retryAfterSeconds?: number | null): number {
-  const requested = typeof retryAfterSeconds === "number" && Number.isFinite(retryAfterSeconds)
+/** Bounded per-job exponential backoff with jitter and provider cooldown support. */
+export function retryDelayMs(
+  attempt: number,
+  retryAfterSeconds?: number | null,
+  random = Math.random(),
+): number {
+  const requested = typeof retryAfterSeconds === "number" && Number.isFinite(retryAfterSeconds) && retryAfterSeconds > 0
     ? retryAfterSeconds * 1000
     : 0;
-  return Math.min(30 * 60_000, Math.max(15_000 * 2 ** Math.max(0, Math.min(attempt - 1, 6)), requested));
+  const exponential = 15_000 * 2 ** Math.max(0, Math.min(attempt - 1, 6));
+  // Spread concurrent failed builds across a 50% jitter band so they don't
+  // all hit a recovering free provider at the same instant. Retry-After is
+  // a minimum, never shortened by jitter, and the maximum wait stays bounded.
+  const normalizedRandom = Number.isFinite(random) ? Math.max(0, Math.min(1, random)) : 0.5;
+  const jittered = exponential * (0.75 + normalizedRandom * 0.5);
+  return Math.min(30 * 60_000, Math.max(jittered, requested));
 }
