@@ -20,6 +20,11 @@ describe("public email extraction", () => {
     expect(extractBusinessEmail("owner%40shine-detailing.com")).toBe("owner@shine-detailing.com");
   });
 
+  it("rejects contacts longer than the validated business-profile field", () => {
+    const local = "a".repeat(170);
+    expect(extractBusinessEmail(local + "@shine-detailing.com")).toBeNull();
+  });
+
   it("returns null when the page does not list a business email", () => {
     expect(extractBusinessEmail("<p>Call us today</p>")).toBeNull();
   });
