@@ -370,6 +370,7 @@ export async function runOutreachAutopilot(db: SupabaseClient, base: string, opt
         }
       }
       result["built"] = built;
+      if (skippedNoEmail) notes.push(`Skipped ${skippedNoEmail} business(es) with no listed email; build those manually when you have an address.`);
       result["target"] = `${target.niche} in ${target.city}`;
     }
     result["runs"] = Number((row.last_result as { runs?: number } | null)?.runs ?? 0) + 1;
