@@ -92,6 +92,14 @@ const errorMiddleware = createMiddleware().server(async ({ next, request }) => {
     } catch {
       /* monitoring is best-effort */
     }
+    // API callers expect JSON. Returning the HTML error page here made
+    // response.json() throw "Unexpected token <" when an API handler crashed.
+    if (request && new URL(request.url).pathname.startsWith("/api/")) {
+      return Response.json(
+        { error: "Internal Server Error" },
+        { status: 500, headers: { "cache-control": "no-store" } },
+      ) as never;
+    }
     return new Response(renderErrorPage(), {
       status: 500,
       headers: { "content-type": "text/html; charset=utf-8" },
