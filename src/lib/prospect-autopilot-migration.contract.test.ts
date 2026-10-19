@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 const read = (name: string) => readFileSync(new URL(`../../supabase/migrations/${name}`, import.meta.url), "utf8");
 const tables = read("20261019090100_prospect_autopilot.sql");
 const schedule = read("20261019090200_prospect_autopilot_schedule.sql");
+const route = readFileSync(new URL("../routes/api/public/jobs/prospect-autopilot.ts", import.meta.url), "utf8");
 
 describe("prospect autopilot migrations", () => {
   it("ships autopilot off, as a server-only singleton", () => {
@@ -27,5 +28,11 @@ describe("prospect autopilot migrations", () => {
     expect(schedule).toContain("select public.call_revora_job('site-engine', 900000)");
     expect(schedule).toContain("extname = 'pg_cron'");
     expect(schedule).toContain("p.proname = 'call_revora_job'");
+  });
+
+  it("keeps the side-effecting cron route POST-only and non-cacheable", () => {
+    expect(route).toMatch(/^\s*POST:/m);
+    expect(route).not.toMatch(/^\s*GET:/m);
+    expect(route).toContain('headers.set("Cache-Control", "no-store")');
   });
 });
