@@ -754,6 +754,66 @@ async function repairTypography(input: {
   return { creative: typography ? mergeCreativeRefinement(input.creative, { brief: { typography } }) : null, pass };
 }
 
+/**
+ * The colour fields a first build cannot ship without. A brief with no colour
+ * system or strategy left every surface to the renderer's light default, so a
+ * site came out plain white whatever the business.
+ */
+export function missingColor(brief: CreativeBrief): string[] {
+  const missing: string[] = [];
+  if (!brief.color?.system?.trim()) missing.push("color.system");
+  if (!brief.color?.strategy?.trim()) missing.push("color.strategy");
+  return missing;
+}
+
+/** One AI pass that authors only the missing colour direction, through the same gate. */
+async function repairColor(input: {
+  organizationId: string;
+  facts: DnaFacts;
+  brief: SiteBrief;
+  creative: FirstBuildCreativeDirection;
+  missing: string[];
+  signal?: AbortSignal;
+}): Promise<{ creative: FirstBuildCreativeDirection | null; pass: CollectivePassRecord }> {
+  const call = await callBestThinker({
+    json: true,
+    purpose: "creative_direction",
+    complexity: "high",
+    organizationId: input.organizationId,
+    maxOutputTokens: 800,
+    ...(input.signal ? { signal: input.signal } : {}),
+    system: `${CREATIVE_RULES} You are Sol, the master creative director, completing the site's colour direction.`,
+    user: [
+      "FACTS (truth source, not copy to invent from):",
+      factSheet(input.facts, input.brief, input.creative),
+      "",
+      "CURRENT CREATIVE DIRECTION:",
+      creativeSheet(input.creative),
+      "",
+      `Your brief is missing: ${input.missing.join(", ")}.`,
+      'Return JSON: {"brief": {"color": {"system": "...", "strategy": "...", "accentUse": "..."}}}',
+      "system names the palette you choose for this specific business (the owner's brand colours, when supplied, are the starting point); strategy says how it is used across page surfaces and section bands; accentUse says where the accent appears. Describe every choice in your own words and keep body text at 4.5:1 contrast.",
+    ].join("\n"),
+  });
+  if (!call.ok)
+    return { creative: null, pass: record(call.wanted, "creative_direction", { skipped: call.detail ?? call.reason }) };
+  const proposal = parseCreativeProposal(call.text);
+  const gated = reviewCreativeProposal({ proposal, facts: input.facts, baseline: input.creative });
+  const color = gated.accepted.brief?.color;
+  const pass = record(call.tier ?? "hall_of_fame", "creative_direction", {
+    model: call.model,
+    used: Boolean(color),
+    costMicrocents: call.costMicrocents,
+    skipped: color ? null : "the colour repair was not in the agreed shape",
+    acceptedFields: Object.keys(color ?? {}).map((key) => `brief.color.${key}`),
+    rejected: gated.rejected,
+  });
+  return {
+    creative: color ? mergeCreativeRefinement(input.creative, { brief: { color: { ...input.creative.brief.color, ...color } } }) : null,
+    pass,
+  };
+}
+
 function firstBuildCopyStrings(value: unknown): string[] {
   const out: string[] = [];
   const walk = (entry: unknown) => {
@@ -814,6 +874,30 @@ export async function refineFirstBuildWithCollective(input: {
     if (stillMissing.length)
       throw new Error(
         `The AI design team did not choose this site's typography (missing ${stillMissing.join(", ")}). The build stopped so it can be retried; Revora never fills in a default font.`,
+      );
+  }
+
+  // Colour is the AI's decision too: one repair pass, then the build stops
+  // rather than shipping the renderer's plain light default.
+  const missingPalette = missingColor(creative.brief);
+  if (missingPalette.length) {
+    const repaired = await repairColor({
+      organizationId: input.organizationId,
+      facts: input.facts,
+      brief: input.brief,
+      creative,
+      missing: missingPalette,
+      ...(input.signal ? { signal: input.signal } : {}),
+    });
+    passes.push(repaired.pass);
+    if (repaired.creative) {
+      creative = repaired.creative;
+      creativeChanged = true;
+    }
+    const stillMissing = missingColor(creative.brief);
+    if (stillMissing.length)
+      throw new Error(
+        `The AI design team did not choose this site's colours (missing ${stillMissing.join(", ")}). The build stopped so it can be retried; Revora never fills in a default palette.`,
       );
   }
 

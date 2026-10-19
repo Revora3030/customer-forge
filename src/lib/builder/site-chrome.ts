@@ -8,6 +8,7 @@
  * repair or reject them instead of installing fixed copy.
  */
 import { validateComposition, type CompositionTree } from "@/lib/builder/composition-tree";
+import { selfLinkTarget } from "@/lib/builder/link-integrity";
 
 export type SiteChrome = { header: CompositionTree | null; footer: CompositionTree | null };
 
@@ -135,14 +136,22 @@ const LINK_KEYS = new Set(["href", "ctaHref", "link_url"]);
  * else is touched, so the AI's design renders exactly as authored — only a
  * destination that would have been a dead end is sent somewhere real.
  */
-export function repairStoredLinks<T>(value: T, knownPages: ReadonlySet<string> | null, pageAnchors: ReadonlySet<string> | null): T {
+export function repairStoredLinks<T>(
+  value: T,
+  knownPages: ReadonlySet<string> | null,
+  pageAnchors: ReadonlySet<string> | null,
+  /** The page being served: a button back to it scrolls to its form instead of reloading. */
+  currentSlug?: string | null,
+): T {
   if (!knownPages) return value;
+  const repair = (href: string) =>
+    (pageAnchors ? selfLinkTarget(href, currentSlug, pageAnchors) : null) ?? repairSiteHref(href, knownPages, pageAnchors);
   const walk = (node: unknown, depth: number): unknown => {
     if (depth > 40 || node == null || typeof node !== "object") return node;
     if (Array.isArray(node)) return node.map((item) => walk(item, depth + 1));
     const out: Record<string, unknown> = {};
     for (const [key, child] of Object.entries(node as Record<string, unknown>)) {
-      out[key] = LINK_KEYS.has(key) && typeof child === "string" ? repairSiteHref(child, knownPages, pageAnchors) : walk(child, depth + 1);
+      out[key] = LINK_KEYS.has(key) && typeof child === "string" ? repair(child) : walk(child, depth + 1);
     }
     // An AI button or link authored without any destination did nothing when
     // tapped. Give it the same destination as an empty link.

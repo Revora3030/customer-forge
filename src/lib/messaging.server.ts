@@ -61,15 +61,25 @@ export async function deliverEmail(
 }
 
 /**
- * Text-message delivery, resolved through the capability registry so the reason
- * is always the true one: no provider implemented, awaiting authorization, or
- * blocked because it bills per message. Delivery is never reported unless a
- * provider confirms it — and none can yet, so this never claims success.
+ * Text-message delivery. Workspace automations text through the platform's
+ * Twilio account only when it is configured AND SMS_AUTOMATIONS_ENABLED=true,
+ * because every text bills the platform; otherwise the reason comes from the
+ * capability registry so it is always the true one. Delivery is reported only
+ * when Twilio accepts the message.
  */
 export async function deliverSms(run: DeliverableRun): Promise<DeliveryResult> {
   const to = (run.recipient ?? "").trim();
   if (!to) return { ok: false, retry: false, reason: "no_phone_number" };
   if (!isE164ish(to)) return { ok: false, retry: false, reason: "invalid_phone_number" };
+
+  const { sendTwilioSms, twilioConfig } = await import("@/lib/sms/twilio.server");
+  if (twilioConfig() && process.env["SMS_AUTOMATIONS_ENABLED"]?.trim() === "true") {
+    const { normalizePhone, withStopLine } = await import("@/lib/prospect-outreach.server");
+    const phone = normalizePhone(to);
+    if (!phone) return { ok: false, retry: false, reason: "invalid_phone_number" };
+    const result = await sendTwilioSms(phone, withStopLine(run.body ?? ""));
+    return result.ok ? { ok: true } : { ok: false, retry: result.retry, reason: result.reason };
+  }
 
   const { resolveCapability } = await import("@/lib/integrations/registry.server");
   const resolution = await resolveCapability("messaging.sms");

@@ -198,6 +198,20 @@ async function forwardToSentry(event: CapturedError, fingerprint: string): Promi
 }
 
 /**
+ * Sends one info-level test event straight to Sentry (nothing is stored in
+ * error_events). `delivered` is true only when Sentry accepted it.
+ */
+export async function checkSentryDelivery(): Promise<{ configured: boolean; delivered: boolean }> {
+  const configured = Boolean(process.env["SENTRY_DSN"]);
+  if (!configured) return { configured, delivered: false };
+  const delivered = await forwardToSentry(
+    { message: "Sentry health check", level: "info", source: "server", route: "/api/public/sentry-test" },
+    "sentry-health-check",
+  );
+  return { configured, delivered };
+}
+
+/**
  * Records one error. Never throws: monitoring failing must not turn a handled
  * error into a second crash.
  */

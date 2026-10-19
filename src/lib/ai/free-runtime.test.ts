@@ -206,6 +206,31 @@ describe("automatic failover between free providers", () => {
     );
   }, 30_000);
 
+  it("keeps paid providers out inside a free-only spending scope (demo builds) without a per-call flag", async () => {
+    configureTwoFreeProviders();
+    process.env["FREE_AI_ONLY"] = "false";
+    process.env["AI_DEFAULT_PROVIDER"] = "openai";
+    process.env["GOOGLE_AI_API_KEY"] = "paid-google";
+    process.env["OPENAI_API_KEY"] = "paid-openai";
+    process.env["OPENAI_FREE_TIER_SHARING"] = "false";
+    const { calls } = stubFetch(() => new Response("nope", { status: 500 }));
+
+    const { generateStructuredOutput } = await router();
+    const { withAiSpendScope } = await import("@/lib/ai/spend-scope.server");
+    await expect(
+      withAiSpendScope({ freeOnly: true, reason: "demo_workspace" }, () =>
+        generateStructuredOutput(caller, {
+          role: "vision",
+          json: true,
+          messages: [{ role: "user", content: "read this screenshot" }],
+        }),
+      ),
+    ).rejects.toMatchObject({ name: "RevoraAiError" });
+    expect(calls.some((url) => url.includes("googleapis") || url.includes("api.openai.com"))).toBe(
+      false,
+    );
+  }, 30_000);
+
   it("explains itself without blocking when no free provider is configured", async () => {
     const { generateText } = await router();
     await expect(

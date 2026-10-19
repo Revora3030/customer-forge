@@ -11,6 +11,7 @@
  */
 import { parseProspectDemoInput, type ProspectDemoInput } from "./jarvis-demo-site";
 import { safeInspectionPath } from "./builder/inspection-paths";
+import { parseAutopilotPatch, type AutopilotSettingsPatch } from "./prospect-autopilot";
 
 export const MAX_ACTIONS_PER_STEP = 3;
 export const MAX_ACTION_STEPS = 3;
@@ -21,9 +22,11 @@ export type ReadAction =
   | { id: "code.list"; page: number; dir: string | null }
   | { id: "code.search"; query: string }
   | { id: "demos.list" }
+  | { id: "demo.status"; organizationId: string | null; name: string | null }
   | { id: "prospects.find"; niche: string; city: string; state: string | null }
   | { id: "prospect.lookup"; input: string }
-  | { id: "web.search"; query: string };
+  | { id: "web.search"; query: string }
+  | { id: "autopilot.status" };
 
 export type CodeChange =
   | { path: string; edits: { find: string; replace: string }[] }
@@ -35,7 +38,11 @@ export type WriteProposal =
   | { id: "demo.build"; input: ProspectDemoInput }
   | { id: "code.pr"; pr: PullRequestProposal }
   | { id: "claude.code"; request: string }
-  | { id: "builds.recover" };
+  | { id: "claude.fix"; pr: number; note: string }
+  | { id: "builds.recover" }
+  | { id: "demo.send"; organizationId: string; channel: "email" | "sms"; to: string | null }
+  | { id: "autopilot.configure"; settings: AutopilotSettingsPatch }
+  | { id: "autopilot.run" };
 
 export const MAX_PR_FILES = 6;
 export const MAX_PR_CHARS = 60_000;
@@ -46,6 +53,31 @@ export const MAX_PR_CHARS = 60_000;
  */
 export function writablePath(path: string): boolean {
   return safeInspectionPath(path) && /^(src|scripts|docs|supabase\/migrations)\//.test(path);
+}
+
+const NODE_BUILTINS = new Set(["buffer", "crypto", "events", "fs", "os", "path", "stream", "url", "util", "zlib", "async_hooks"]);
+
+/** The npm package a bare import specifier names ("@a/b/c" -> "@a/b", "x/y" -> "x"). */
+function packageOf(specifier: string): string | null {
+  if (/^(\.|\/|@\/|~\/|node:|virtual:|https?:)/.test(specifier) || NODE_BUILTINS.has(specifier.split("/")[0]!)) return null;
+  const parts = specifier.split("/");
+  return specifier.startsWith("@") ? parts.slice(0, 2).join("/") : parts[0]!;
+}
+
+/**
+ * Packages a change starts importing that the app doesn't depend on, e.g. an
+ * "astro" or "@sentry/node" import in a TanStack Start app. Imports already in
+ * the file before the change are not counted.
+ */
+export function unknownPackageImports(before: string, after: string, dependencies: ReadonlySet<string>): string[] {
+  const specifiers = (text: string) =>
+    new Set(
+      [...text.matchAll(/(?:\bfrom\s*|\bimport\s*\(?\s*|\brequire\(\s*)["']([^"'\n]+)["']/g)]
+        .map((match) => packageOf(match[1]!))
+        .filter((name): name is string => Boolean(name)),
+    );
+  const existing = specifiers(before);
+  return [...specifiers(after)].filter((name) => !existing.has(name) && !dependencies.has(name));
 }
 
 /** Validates a pull-request proposal; throws a plain-language reason. */
@@ -116,14 +148,31 @@ export function actionCatalogPrompt(diagnosticToolIds: string[]): string {
     '- {"id":"prospects.find","args":{"niche":"mobile detailing","city":"Raleigh","state":"NC"}}: search Google Places for businesses in a niche and city that have no real website (none, or only a social/directory page). Costs a little per search and is capped daily, so search only when the owner asks for prospects. Then propose demo.build for the best ones, using only the facts returned (name, category, city, state, phone); for services use none and set description to "<category> serving <city, state>."',
     '- {"id":"prospect.lookup","args":{"input":"https://maps.app.goo.gl/... or Joe\'s Plumbing Raleigh NC"}}: look up ONE business from a Google Maps link (place, search or share link) or its name and city, and get its public listing facts (name, category, city, state, phone, website). Use it whenever the owner pastes a Maps link or names a business to build for, then propose demo.build with only those facts plus any the owner gave you or that are visible in a picture they attached. If the listing shows a real website, say so before proposing.',
     '- {"id":"demo.build","args":{"businessName":"","industry":"","city":"","state":"","phone":"","email":"","services":["..."],"description":""}}: PROPOSE building a private demo website for a real business with no website. Only facts the owner gave you; never invent phone numbers, emails or services. The owner approves with one tap; you do not run it.',
+    '- {"id":"demo.status","args":{"organizationId":"<uuid from demos.list>"}} (or {"name":"Joe\'s Plumbing"}): one demo site\'s build progress, preview link, whether it was claimed, its known email/phone and every outreach attempt with its result.',
+    '- {"id":"demo.send","args":{"organizationId":"<uuid>","channel":"email","to":"optional address or number"}}: PROPOSE sending a FINISHED demo\'s preview link to the business by "email" or "sms". Without "to" it uses the email or phone on file. The AI writes the message; do-not-contact, one send per channel, daily caps, texting hours and the unsubscribe footer are enforced on the server. Only propose it when the owner asks to send. The owner approves with one tap; you do not run it.',
     '- {"id":"code.pr","args":{"title":"","summary":"","changes":[{"path":"src/...","edits":[{"find":"exact existing text","replace":"new text"}]},{"path":"src/new-file.ts","content":"full file"}]}}: PROPOSE a GitHub pull request into lovable-sync. Read every file you edit with code.read first in this conversation; "find" must be copied exactly from it and appear once. Use "content" only for new files. Up to 6 files. Keep changes minimal, complete and type-safe; never touch auth, RLS, billing or tenant isolation unless the owner asked; never add secrets. The owner approves with one tap and reviews before merging.',
     '- {"id":"claude.code","args":{"request":"what to build or fix, with the files and acceptance checks you found"}}: PROPOSE handing a larger coding task to Claude Code, which reads the whole repository, edits any number of files, runs the checks and opens a pull request. Use it instead of code.pr when a change spans more than 6 files, needs new tests run, or is too big to write exactly here. The owner approves with one tap.',
+    '- {"id":"claude.fix","args":{"pr":123,"note":"what to fix, if you know"}}: PROPOSE asking Claude Code to fix an open pull request: it reads the failing CI checks and review comments, fixes the root cause on that PR\'s branch and runs the checks. Use it when a pull request (yours or Claude Code\'s) has red CI or review comments. The owner approves with one tap.',
     '- {"id":"builds.recover","args":{}}: PROPOSE recovering stalled website builds: closes builds whose worker died, re-queues orphaned ones and restarts the build worker. Suggest it when builder.health.summary shows stuck or long-running builds. The owner approves with one tap.',
+    '- {"id":"autopilot.status","args":{}}: read the prospect autopilot settings (on/off, search targets, daily build limit, email/text switches) and its recent runs.',
+    '- {"id":"autopilot.configure","args":{"enabled":true,"targets":[{"niche":"mobile detailing","city":"Raleigh","state":"NC"}],"dailyBuildCap":5,"sendEmail":true,"sendSms":false}}: PROPOSE changing the prospect autopilot (every field optional; only the ones given change). Autopilot finds businesses with no website, builds free demo sites and emails the preview link when an email is known; texts only go to numbers that opted in. The owner approves with one tap.',
+    '- {"id":"autopilot.run","args":{}}: PROPOSE running one prospect autopilot pass now (it does nothing while autopilot is off). The owner approves with one tap.',
     "Use actions whenever they would make your answer more accurate. Prefer checking over guessing. Never claim an action ran unless you received its result.",
   ].join("\n");
 }
 
 const str = (value: unknown, max: number) => (typeof value === "string" ? value.trim().slice(0, max) : "");
+const ORG_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Validates a demo.send proposal; returns a plain-language reason when it is invalid. */
+export function parseDemoSendProposal(value: unknown): Extract<WriteProposal, { id: "demo.send" }> | string {
+  const raw = (value && typeof value === "object" ? value : {}) as Record<string, unknown>;
+  const organizationId = str(raw["organizationId"], 36);
+  if (!ORG_ID.test(organizationId)) return "needs the demo's organizationId from demos.list";
+  const channel = raw["channel"] === "sms" ? "sms" : raw["channel"] === "email" ? "email" : null;
+  if (!channel) return 'channel must be "email" or "sms"';
+  return { id: "demo.send", organizationId, channel, to: str(raw["to"], 200) || null };
+}
 
 export function extractActionBlock(raw: string): { text: string; requested: unknown[] } {
   const matches = [...raw.matchAll(/<actions>([\s\S]*?)<\/actions>/gi)];
@@ -169,8 +218,18 @@ export function parseActions(requested: unknown[], diagnosticToolIds: string[]):
       const query = str(args["query"], 120);
       if (query.length >= 2) out.reads.push({ id, query });
       else out.rejected.push("code.search: needs a query");
-    } else if (id === "demos.list") {
+    } else if (id === "demos.list" || id === "autopilot.status") {
       out.reads.push({ id });
+    } else if (id === "demo.status") {
+      const organizationId = str(args["organizationId"], 36);
+      const name = str(args["name"], 120);
+      if (ORG_ID.test(organizationId)) out.reads.push({ id, organizationId, name: null });
+      else if (name.length >= 2) out.reads.push({ id, organizationId: null, name });
+      else out.rejected.push("demo.status: needs an organizationId from demos.list, or the business name");
+    } else if (id === "demo.send") {
+      const proposal = parseDemoSendProposal(args);
+      if (typeof proposal === "string") out.rejected.push(`demo.send: ${proposal}`);
+      else out.proposals.push(proposal);
     } else if (id === "web.search") {
       const query = str(args["query"], 300);
       if (query.length >= 3) out.reads.push({ id, query });
@@ -194,8 +253,20 @@ export function parseActions(requested: unknown[], diagnosticToolIds: string[]):
       const request = str(args["request"], 8000);
       if (request.length >= 20) out.proposals.push({ id, request });
       else out.rejected.push("claude.code: describe the task in at least a sentence");
+    } else if (id === "claude.fix") {
+      const pr = Number(args["pr"]);
+      if (Number.isInteger(pr) && pr > 0) out.proposals.push({ id, pr, note: str(args["note"], 2000) });
+      else out.rejected.push("claude.fix: needs the pull request number");
     } else if (id === "builds.recover") {
       if (!out.proposals.some((proposal) => proposal.id === "builds.recover")) out.proposals.push({ id });
+    } else if (id === "autopilot.configure") {
+      try {
+        out.proposals.push({ id, settings: parseAutopilotPatch(args) });
+      } catch (error) {
+        out.rejected.push(`autopilot.configure: ${error instanceof Error ? error.message : "invalid settings"}`);
+      }
+    } else if (id === "autopilot.run") {
+      if (!out.proposals.some((proposal) => proposal.id === "autopilot.run")) out.proposals.push({ id });
     } else if (id === "demo.build") {
       try {
         out.proposals.push({ id, input: parseProspectDemoInput(args) });
@@ -222,6 +293,10 @@ export function describeRead(action: ReadAction): string {
       return `Searched the code for "${action.query.slice(0, 60)}"`;
     case "demos.list":
       return "Listed demo sites";
+    case "demo.status":
+      return `Checked the demo site${action.name ? ` for ${action.name.slice(0, 60)}` : ""}`;
+    case "autopilot.status":
+      return "Checked the prospect autopilot";
     case "web.search":
       return `Searched the web for "${action.query.slice(0, 60)}"`;
     case "prospect.lookup":
@@ -255,8 +330,17 @@ export function splitReplyMeta(content: string): { body: string; meta: JarvisRep
         if (proposal?.id === "demo.build") proposals.push({ id: "demo.build", input: parseProspectDemoInput(proposal.input) });
         else if (proposal?.id === "code.pr") proposals.push({ id: "code.pr", pr: parsePullRequestProposal(proposal.pr) });
         else if (proposal?.id === "builds.recover") proposals.push({ id: "builds.recover" });
+        else if (proposal?.id === "demo.send") {
+          const restored = parseDemoSendProposal(proposal);
+          if (typeof restored !== "string") proposals.push(restored);
+        }
+        else if (proposal?.id === "autopilot.configure")
+          proposals.push({ id: "autopilot.configure", settings: parseAutopilotPatch(proposal.settings) });
+        else if (proposal?.id === "autopilot.run") proposals.push({ id: "autopilot.run" });
         else if (proposal?.id === "claude.code" && typeof proposal.request === "string" && proposal.request.trim().length >= 20)
           proposals.push({ id: "claude.code", request: proposal.request.trim().slice(0, 8000) });
+        else if (proposal?.id === "claude.fix" && Number.isInteger(proposal.pr) && proposal.pr > 0)
+          proposals.push({ id: "claude.fix", pr: proposal.pr, note: typeof proposal.note === "string" ? proposal.note.slice(0, 2000) : "" });
       } catch {
         /* drop anything that no longer validates */
       }

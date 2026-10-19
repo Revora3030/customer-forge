@@ -101,7 +101,8 @@ export async function ensureLinkIntegrity(
     for (const section of sections) {
       const tree = readComposition(section.settings);
       if (!tree) continue;
-      const { tree: fixed, fixes } = repairTreeLinks(tree, pages, anchorsOn(section.page_id), homeAnchors);
+      const slug = pageRows.find((page) => page.id === section.page_id)?.slug ?? null;
+      const { tree: fixed, fixes } = repairTreeLinks(tree, pages, anchorsOn(section.page_id), homeAnchors, slug);
       if (!fixes.length) continue;
       if (!validateComposition(fixed, { lenient: true }).ok) continue;
       const { error } = await db

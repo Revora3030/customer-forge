@@ -158,21 +158,48 @@ export function collectAnchors(
   return out;
 }
 
+/** In-page targets an action on its own page should scroll to, best first. */
+const SELF_LINK_TARGETS = ["contact-form", "quote", "book", "contact"];
+
+/**
+ * A button on a page that links to that same page (a "Get a quote" on /contact
+ * that points at "/contact") only reloads it. When the page carries a form or
+ * booking block, the button scrolls to it instead. Returns null when the link
+ * is not a self-link or the page has nothing better to point at.
+ */
+export function selfLinkTarget(
+  href: string,
+  currentSlug: string | null | undefined,
+  anchors: ReadonlySet<string>,
+): string | null {
+  if (!currentSlug) return null;
+  const value = href.trim();
+  if (!value.startsWith("/") || value.startsWith("//") || /[?#]/.test(value)) return null;
+  const slug = value.replace(/^\/+|\/+$/g, "").toLowerCase() || "home";
+  if (slug !== currentSlug.toLowerCase()) return null;
+  const target = SELF_LINK_TARGETS.find((id) => anchors.has(id));
+  return target ? `#${target}` : null;
+}
+
 /**
  * Rewrites every broken link in a composition tree. Returns the fixed tree and
- * what changed; the input is never mutated.
+ * what changed; the input is never mutated. With `currentSlug`, a link back to
+ * the page the tree sits on goes to that page's form instead.
  */
 export function repairTreeLinks(
   tree: CompositionTree,
   pages: SitePage[],
   anchors: ReadonlySet<string> = new Set(),
   homeAnchors: ReadonlySet<string> = anchors,
+  currentSlug?: string | null,
 ): { tree: CompositionTree; fixes: LinkFix[] } {
   const fixes: LinkFix[] = [];
+  const fix = (href: string) =>
+    selfLinkTarget(href, currentSlug, anchors) ?? repairHref(href, pages, anchors, homeAnchors);
   const visit = (node: CompositionNode, path: string): CompositionNode => {
     const next: CompositionNode = { ...node };
     if (typeof node.href === "string") {
-      const to = repairHref(node.href, pages, anchors, homeAnchors);
+      const to = fix(node.href);
       if (to && to !== node.href) {
         fixes.push({ path: `${path}.href`, from: node.href, to });
         next.href = to;
@@ -181,7 +208,7 @@ export function repairTreeLinks(
     for (const key of ["primaryCta", "secondaryCta"] as const) {
       const cta = node[key];
       if (cta?.href) {
-        const to = repairHref(cta.href, pages, anchors, homeAnchors);
+        const to = fix(cta.href);
         if (to && to !== cta.href) {
           fixes.push({ path: `${path}.${key}.href`, from: cta.href, to });
           next[key] = { ...cta, href: to };

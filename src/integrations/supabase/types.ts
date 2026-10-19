@@ -3285,6 +3285,201 @@ export type Database = {
         }
         Relationships: []
       }
+      prospect_contact_consent: {
+        Row: {
+          created_at: string
+          email: boolean
+          sms: boolean
+          source: string | null
+          value: string
+        }
+        Insert: {
+          created_at?: string
+          email?: boolean
+          sms?: boolean
+          source?: string | null
+          value: string
+        }
+        Update: {
+          created_at?: string
+          email?: boolean
+          sms?: boolean
+          source?: string | null
+          value?: string
+        }
+        Relationships: []
+      }
+      prospect_do_not_contact: {
+        Row: {
+          created_at: string
+          kind: string
+          reason: string | null
+          value: string
+        }
+        Insert: {
+          created_at?: string
+          kind: string
+          reason?: string | null
+          value: string
+        }
+        Update: {
+          created_at?: string
+          kind?: string
+          reason?: string | null
+          value?: string
+        }
+        Relationships: []
+      }
+      prospect_outreach: {
+        Row: {
+          body: string | null
+          channel: string
+          created_at: string
+          id: string
+          mode: string
+          organization_id: string
+          provider_id: string | null
+          reason: string | null
+          recipient: string
+          sent_by: string | null
+          status: string
+          subject: string | null
+        }
+        Insert: {
+          body?: string | null
+          channel: string
+          created_at?: string
+          id?: string
+          mode: string
+          organization_id: string
+          provider_id?: string | null
+          reason?: string | null
+          recipient: string
+          sent_by?: string | null
+          status: string
+          subject?: string | null
+        }
+        Update: {
+          body?: string | null
+          channel?: string
+          created_at?: string
+          id?: string
+          mode?: string
+          organization_id?: string
+          provider_id?: string | null
+          reason?: string | null
+          recipient?: string
+          sent_by?: string | null
+          status?: string
+          subject?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "prospect_outreach_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "prospect_outreach_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "public_organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      prospect_outreach_unsubscribe_tokens: {
+        Row: {
+          created_at: string
+          token: string
+          value: string
+        }
+        Insert: {
+          created_at?: string
+          token: string
+          value: string
+        }
+        Update: {
+          created_at?: string
+          token?: string
+          value?: string
+        }
+        Relationships: []
+      }
+      prospect_autopilot_runs: {
+        Row: {
+          built: number
+          emailed: number
+          error: string | null
+          finished_at: string | null
+          found: number
+          id: string
+          skipped: Json
+          started_at: string
+          texted: number
+          trigger: string
+        }
+        Insert: {
+          built?: number
+          emailed?: number
+          error?: string | null
+          finished_at?: string | null
+          found?: number
+          id?: string
+          skipped?: Json
+          started_at?: string
+          texted?: number
+          trigger?: string
+        }
+        Update: {
+          built?: number
+          emailed?: number
+          error?: string | null
+          finished_at?: string | null
+          found?: number
+          id?: string
+          skipped?: Json
+          started_at?: string
+          texted?: number
+          trigger?: string
+        }
+        Relationships: []
+      }
+      prospect_autopilot_settings: {
+        Row: {
+          daily_build_cap: number
+          enabled: boolean
+          id: number
+          send_email: boolean
+          send_sms: boolean
+          targets: Json
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          daily_build_cap?: number
+          enabled?: boolean
+          id?: number
+          send_email?: boolean
+          send_sms?: boolean
+          targets?: Json
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          daily_build_cap?: number
+          enabled?: boolean
+          id?: number
+          send_email?: boolean
+          send_sms?: boolean
+          targets?: Json
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       public_submission_attempts: {
         Row: {
           contact_hash: string | null

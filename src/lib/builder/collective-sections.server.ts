@@ -172,6 +172,11 @@ type WordingInput = {
    * They are repair notes for Sol and input for Terra, never added sections.
    */
   depthNotes?: Record<string, string[]>;
+  /**
+   * Verified facts for one page, keyed by page slug (for example what a
+   * privacy page may say about the site's forms). Written into that page only.
+   */
+  pageFacts?: Record<string, string[]>;
 };
 
 /** How many pages are worded at the same time. */
@@ -197,7 +202,14 @@ export async function refineSectionWordingWithCollective(input: WordingInput): P
     Array.from({ length: Math.min(PAGE_CONCURRENCY, pages.length) }, async () => {
       while (next < pages.length) {
         const [page, sections] = pages[next++]!;
-        outcomes.push(await refinePageWording({ ...input, sections, depthNotes: { [page]: input.depthNotes?.[page] ?? [] } }));
+        outcomes.push(
+          await refinePageWording({
+            ...input,
+            sections,
+            depthNotes: { [page]: input.depthNotes?.[page] ?? [] },
+            pageFacts: { [page]: input.pageFacts?.[page] ?? [] },
+          }),
+        );
       }
     }),
   );
@@ -217,6 +229,10 @@ async function refinePageWording(input: WordingInput): Promise<SectionWordingOut
   const sheet = sectionSheet(input.sections);
   const needBody = sectionsNeedingBody(input.sections);
   const depthNotes = Object.values(input.depthNotes ?? {}).flat();
+  const pageFacts = Object.values(input.pageFacts ?? {}).flat();
+  const pageFactLines = pageFacts.length
+    ? ["", "PAGE FACTS (verified for this page; also the only truth you may use):", ...pageFacts.map((fact) => `- ${fact}`)]
+    : [];
 
   const solCall = await callBestThinker({
     json: true,
@@ -229,6 +245,7 @@ async function refinePageWording(input: WordingInput): Promise<SectionWordingOut
     user: [
       "FACTS (the only truth you may use):",
       facts,
+      ...pageFactLines,
       ...(input.directionSummary ? ["", "APPROVED CREATIVE DIRECTION:", input.directionSummary] : []),
       "",
        "AI-AUTHORED SECTIONS AS BUILT:",
@@ -332,6 +349,7 @@ async function refinePageWording(input: WordingInput): Promise<SectionWordingOut
     user: [
       "FACTS:",
       facts,
+      ...pageFactLines,
       "",
       "SECTIONS AS BUILT:",
       sheet,

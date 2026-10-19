@@ -25,6 +25,7 @@ import {
   lunaTenantMonthlyCapMicrocents,
   readText,
   readUsage,
+  refusesEffortNone,
 } from "@/lib/ai/luna.server";
 import { providerChain } from "@/lib/ai/config";
 
@@ -195,6 +196,15 @@ describe("paid HTTP failure detail", () => {
     expect(httpFailureReason(400, message)).toBe(
       "http 400: Unsupported value: 'reasoning_effort' does not support 'none' with this model.",
     );
+  });
+
+  it("recognises a model that refuses reasoning effort none, and nothing else", async () => {
+    const message = await readProviderErrorMessage(
+      openAi400("Unsupported value: 'reasoning_effort' does not support 'none' with this model. Supported values are: 'low', 'medium', 'high', and 'xhigh'."),
+    );
+    expect(refusesEffortNone(message ?? "")).toBe(true);
+    expect(refusesEffortNone("Unsupported parameter: 'temperature'")).toBe(false);
+    expect(refusesEffortNone("reasoning_effort must be one of low, medium")).toBe(false);
   });
 
   it("truncates the recorded reason to 200 characters", async () => {

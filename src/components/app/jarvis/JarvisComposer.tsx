@@ -1,4 +1,4 @@
-import { useRef, type KeyboardEvent, type RefObject } from "react";
+import { useRef, useState, type ClipboardEvent, type DragEvent, type KeyboardEvent, type RefObject } from "react";
 import { ArrowUp, ChevronDown, BadgeCheck, ImagePlus, Loader2, Mic, MicOff, Slash } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuLabel, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -29,11 +29,36 @@ type Props = {
 
 const iconButton = "size-9 shrink-0 rounded-full sm:size-9";
 
-/** The Jarvis message box: text, picture to demo, commands, response style, dictation and send. */
+/** The first picture in a paste or drop, if any. */
+const firstImage = (files: FileList | null | undefined) => [...(files ?? [])].find((file) => file.type.startsWith("image/")) ?? null;
+
+/** The Jarvis message box: text, picture to demo (button, paste or drop), commands, response style, dictation and send. */
 export function JarvisComposer({ value, onChange, onSubmit, maxLength, busy, coarse, listening, interim, onToggleMic, readingPicture, picturePreview, onPicture, mode, onModeChange, onOpenCommands, inputRef }: Props) {
   const pictureInput = useRef<HTMLInputElement>(null);
   const modeLabel = JARVIS_MODES.find(([id]) => id === mode)?.[1] ?? "Balanced";
   const canSend = Boolean(value.trim()) && !busy;
+  const [dropping, setDropping] = useState(false);
+  const canTakePicture = !busy && !readingPicture;
+
+  // A pasted or dropped picture (Maps screenshot, card, flyer) goes the same way as the Picture button.
+  const onPaste = (event: ClipboardEvent<HTMLTextAreaElement>) => {
+    const file = firstImage(event.clipboardData?.files);
+    if (!file || !canTakePicture) return;
+    event.preventDefault();
+    onPicture(file);
+  };
+  const onDragOver = (event: DragEvent<HTMLFormElement>) => {
+    if (!canTakePicture || ![...(event.dataTransfer?.types ?? [])].includes("Files")) return;
+    event.preventDefault();
+    setDropping(true);
+  };
+  const onDrop = (event: DragEvent<HTMLFormElement>) => {
+    setDropping(false);
+    const file = firstImage(event.dataTransfer?.files);
+    if (!file) return;
+    event.preventDefault();
+    if (canTakePicture) onPicture(file);
+  };
 
   const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
     const composing = event.nativeEvent.isComposing || event.keyCode === 229;
@@ -52,8 +77,12 @@ export function JarvisComposer({ value, onChange, onSubmit, maxLength, busy, coa
   return (
     <form
       onSubmit={(event) => { event.preventDefault(); onSubmit(); }}
-      className="rounded-2xl border border-border bg-card/80 transition-colors focus-within:border-primary/60"
+      onDragOver={onDragOver}
+      onDragLeave={() => setDropping(false)}
+      onDrop={onDrop}
+      className={`rounded-2xl border bg-card/80 transition-colors focus-within:border-primary/60 ${dropping ? "border-primary ring-2 ring-primary/40" : "border-border"}`}
     >
+      {dropping ? <p className="px-3.5 pt-2.5 text-sm text-primary" aria-live="polite">Drop the picture to build a demo from it</p> : null}
       <label htmlFor="jarvis-message" className="sr-only">Message Jarvis</label>
       {listening || interim ? (
         <p className="truncate px-3.5 pt-2.5 text-sm italic text-muted-foreground" aria-live="polite">{interim || "Listening…"}</p>
@@ -68,6 +97,7 @@ export function JarvisComposer({ value, onChange, onSubmit, maxLength, busy, coa
         autoComplete="off"
         onChange={(event) => onChange(event.target.value)}
         onKeyDown={onKeyDown}
+        onPaste={onPaste}
         placeholder="Message Jarvis"
         className="block max-h-40 min-h-11 w-full resize-none bg-transparent px-3.5 pt-3 text-base leading-6 text-foreground outline-none placeholder:text-muted-foreground"
       />

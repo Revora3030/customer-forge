@@ -25,6 +25,7 @@
 
 import { providerConfig } from "@/lib/ai/config";
 import { RevoraAiError } from "@/lib/ai/errors";
+import { scopedFreeOnly } from "@/lib/ai/spend-scope.server";
 import { callPinnedPaidImage, paidImageModelReachable } from "@/lib/ai/router.server";
 import {
   DEFAULT_IMAGE_TIER_MODELS,
@@ -111,6 +112,11 @@ export function paidImageAllowed(): boolean {
 
 /** Plain-language status for the builder, safe to show a business owner. */
 export function paidImageStatus(): { allowed: boolean; message: string } {
+  if (scopedFreeOnly())
+    return {
+      allowed: false,
+      message: "This build uses only the free picture lane (demo workspace), so no paid picture is made.",
+    };
   if (optedOut("PAID_IMAGE_ENABLED"))
     return {
       allowed: false,
