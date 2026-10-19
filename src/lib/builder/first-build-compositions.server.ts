@@ -406,8 +406,13 @@ export async function composeFirstBuildSections(input: {
     // (two rounds, each carrying the validator's notes from the last attempt).
     // A single-section answer is small, so it survives the output limits and
     // model timeouts that sink a batch of four.
-    for (let rescueRound = 0; rescueRound < 2 && pending.length; rescueRound++) {
-      const rescued = await Promise.all(pending.map(async (section) => {
+    for (let rescueRound = 0; rescueRound < 4 && pending.length; rescueRound++) {
+      // Keep rescue concurrency low. Firing one request per remaining section
+      // at once caused rate-limit storms across the free providers on large pages.
+      const rescueResults: boolean[] = [];
+      for (let offset = 0; offset < pending.length; offset += 2) {
+        const chunk = pending.slice(offset, offset + 2);
+        const chunkResults = await Promise.all(chunk.map(async (section) => {
         const call = await callBestThinker({
           json: true,
           purpose: "creative_direction",
@@ -448,8 +453,10 @@ export async function composeFirstBuildSections(input: {
         }
         designed.set(section.id, checked.tree);
         return true;
-      }));
-      pending = pending.filter((_, index) => !rescued[index]);
+        }));
+        rescueResults.push(...chunkResults);
+      }
+      pending = pending.filter((_, index) => !rescueResults[index]);
     }
     if (pending.length) {
       // Some sections could not get a safe AI layout after retries. The count
