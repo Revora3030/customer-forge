@@ -93,6 +93,7 @@ import { Route as AuthenticatedMyActivityRouteImport } from './routes/_authentic
 import { Route as AuthenticatedMySiteRouteImport } from './routes/_authenticated/my.site'
 import { Route as AuthenticatedMyStartRouteImport } from './routes/_authenticated/my.start'
 import { Route as ApiPublicJarvisVoiceRouteImport } from './routes/api/public/jarvis-voice'
+import { Route as ApiPublicSentryTestRouteImport } from './routes/api/public/sentry-test'
 import { Route as LocalIndustryIndexRouteImport } from './routes/local.$industry.index'
 import { Route as LocalIndustryStateRouteImport } from './routes/local.$industry.$state'
 import { Route as PTokenPageRouteImport } from './routes/p.$token_.$page'
@@ -552,6 +553,11 @@ const ApiPublicJarvisVoiceRoute = ApiPublicJarvisVoiceRouteImport.update({
   path: '/api/public/jarvis-voice',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicSentryTestRoute = ApiPublicSentryTestRouteImport.update({
+  id: '/api/public/sentry-test',
+  path: '/api/public/sentry-test',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LocalIndustryIndexRoute = LocalIndustryIndexRouteImport.update({
   id: '/local/$industry/',
   path: '/local/$industry/',
@@ -755,6 +761,7 @@ export interface FileRoutesByFullPath {
   '/my/site': typeof AuthenticatedMySiteRoute
   '/my/start': typeof AuthenticatedMyStartRoute
   '/api/public/jarvis-voice': typeof ApiPublicJarvisVoiceRoute
+  '/api/public/sentry-test': typeof ApiPublicSentryTestRoute
   '/local/$industry/$state': typeof LocalIndustryStateRoute
   '/p/$token/$page': typeof PTokenPageRoute
   '/s/$slug/$page': typeof SSlugPageRoute
@@ -857,6 +864,7 @@ export interface FileRoutesByTo {
   '/my/site': typeof AuthenticatedMySiteRoute
   '/my/start': typeof AuthenticatedMyStartRoute
   '/api/public/jarvis-voice': typeof ApiPublicJarvisVoiceRoute
+  '/api/public/sentry-test': typeof ApiPublicSentryTestRoute
   '/local/$industry/$state': typeof LocalIndustryStateRoute
   '/p/$token/$page': typeof PTokenPageRoute
   '/s/$slug/$page': typeof SSlugPageRoute
@@ -966,6 +974,7 @@ export interface FileRoutesById {
   '/_authenticated/my/site': typeof AuthenticatedMySiteRoute
   '/_authenticated/my/start': typeof AuthenticatedMyStartRoute
   '/api/public/jarvis-voice': typeof ApiPublicJarvisVoiceRoute
+  '/api/public/sentry-test': typeof ApiPublicSentryTestRoute
   '/local/$industry/$state': typeof LocalIndustryStateRoute
   '/p/$token_/$page': typeof PTokenPageRoute
   '/s/$slug/$page': typeof SSlugPageRoute
@@ -1075,6 +1084,7 @@ export interface FileRouteTypes {
     | '/my/site'
     | '/my/start'
     | '/api/public/jarvis-voice'
+    | '/api/public/sentry-test'
     | '/local/$industry/$state'
     | '/p/$token/$page'
     | '/s/$slug/$page'
@@ -1177,6 +1187,7 @@ export interface FileRouteTypes {
     | '/my/site'
     | '/my/start'
     | '/api/public/jarvis-voice'
+    | '/api/public/sentry-test'
     | '/local/$industry/$state'
     | '/p/$token/$page'
     | '/s/$slug/$page'
@@ -1285,6 +1296,7 @@ export interface FileRouteTypes {
     | '/_authenticated/my/site'
     | '/_authenticated/my/start'
     | '/api/public/jarvis-voice'
+    | '/api/public/sentry-test'
     | '/local/$industry/$state'
     | '/p/$token_/$page'
     | '/s/$slug/$page'
@@ -1353,6 +1365,7 @@ export interface RootRouteChildren {
   LocationsIndexRoute: typeof LocationsIndexRoute
   StatesIndexRoute: typeof StatesIndexRoute
   ApiPublicJarvisVoiceRoute: typeof ApiPublicJarvisVoiceRoute
+  ApiPublicSentryTestRoute: typeof ApiPublicSentryTestRoute
   LocalIndustryStateRoute: typeof LocalIndustryStateRoute
   PTokenPageRoute: typeof PTokenPageRoute
   UnsubscribeOutreachTokenRoute: typeof UnsubscribeOutreachTokenRoute
@@ -1963,6 +1976,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicJarvisVoiceRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/sentry-test': {
+      id: '/api/public/sentry-test'
+      path: '/api/public/sentry-test'
+      fullPath: '/api/public/sentry-test'
+      preLoaderRoute: typeof ApiPublicSentryTestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/local/$industry/': {
       id: '/local/$industry/'
       path: '/local/$industry'
@@ -2344,6 +2364,7 @@ const rootRouteChildren: RootRouteChildren = {
   LocationsIndexRoute: LocationsIndexRoute,
   StatesIndexRoute: StatesIndexRoute,
   ApiPublicJarvisVoiceRoute: ApiPublicJarvisVoiceRoute,
+  ApiPublicSentryTestRoute: ApiPublicSentryTestRoute,
   LocalIndustryStateRoute: LocalIndustryStateRoute,
   PTokenPageRoute: PTokenPageRoute,
   UnsubscribeOutreachTokenRoute: UnsubscribeOutreachTokenRoute,
