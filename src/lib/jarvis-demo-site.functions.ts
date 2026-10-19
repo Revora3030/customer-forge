@@ -86,7 +86,7 @@ export type OutreachAutopilot = {
   targets: { niche: string; city: string; state: string }[];
   dailyCap: number;
   lastRunAt: string | null;
-  lastResult: Record<string, unknown> | null;
+  lastResult: string | null;
   sentToday: number;
   recent: { email: string; status: string; source: string; createdAt: string; error: string | null }[];
 };
@@ -135,7 +135,8 @@ export const runOutreachAutopilotNow = createServerFn({ method: "POST" })
   .handler(async ({ context }) => {
     const db = await guardedAdmin(context);
     const { runOutreachAutopilot } = await import("./prospect-outreach.server");
-    return runOutreachAutopilot(db, appBase(), { force: true });
+    const result = await runOutreachAutopilot(db, appBase(), { force: true });
+    return { summary: JSON.stringify(result) };
   });
 
 /**

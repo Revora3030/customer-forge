@@ -248,7 +248,7 @@ export async function readAutopilot(db: SupabaseClient) {
     targets: (row.targets ?? []).map((t) => ({ niche: t.niche, city: t.city, state: t.state ?? "" })),
     dailyCap: row.daily_cap,
     lastRunAt: row.last_run_at ?? null,
-    lastResult: row.last_result ?? null,
+    lastResult: row.last_result ? JSON.stringify(row.last_result) : null,
     sentToday: await sentToday(db),
     recent: (recent ?? []).map((r) => ({
       email: String(r.email),
