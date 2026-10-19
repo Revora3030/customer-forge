@@ -397,6 +397,9 @@ export async function composeFirstBuildSections(input: {
           }
         }
         designed.set(section.id, checked.tree);
+        // Durable section checkpoint: if a later section/provider fails, this
+        // validated layout survives worker restart and is skipped on retry.
+        await saveTree(db, organizationId, section, checked.tree);
       }
      }
       feedback = nextFeedback;
@@ -452,6 +455,8 @@ export async function composeFirstBuildSections(input: {
           if (!widget || widgetPresentationProblem(section.kind, widget)) return false;
         }
         designed.set(section.id, checked.tree);
+        // Persist only after the strict composition and required-widget checks.
+        await saveTree(db, organizationId, section, checked.tree);
         return true;
         }));
         rescueResults.push(...chunkResults);
