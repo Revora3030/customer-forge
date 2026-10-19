@@ -3,6 +3,9 @@
 ## Dependency fixes included
 - Pins transitive DOMPurify to 3.4.16, KaTeX to 0.18.2, and source-map-js to 1.2.2 using root overrides and corresponding lockfile resolutions. These address the versions flagged in the first Trivy SARIF report.
 
+## CodeQL configuration
+GitHub Actions evidence shows this repository's GitHub **default CodeQL setup is already enabled**. Running the separate advanced-setup workflow at the same time makes GitHub reject uploads with: `CodeQL analyses from advanced configurations cannot be processed when the default setup is enabled`. This PR removes the conflicting advanced workflow and leaves the repository default CodeQL setup as the authoritative CodeQL configuration; verify that default setup covers the desired branches in repository Security settings.
+
 ## New tooling
 - **Trivy** scans dependencies, secrets, and configuration. Critical findings fail; SARIF and artifact reports are uploaded.
 - **Semgrep** runs static analysis and uploads a JSON report. It starts report-first while the baseline is triaged.
