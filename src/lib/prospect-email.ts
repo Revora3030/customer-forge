@@ -20,7 +20,7 @@ export function extractBusinessEmail(html: string): string | null {
   for (const candidate of [...mailto.map((raw) => ({ raw, suffix: "" })), ...loose]) {
     const email = candidate.raw.trim().toLowerCase();
     const at = email.lastIndexOf("@");
-    if (at < 1 || email.length > 200) continue;
+    if (at < 1 || email.length > 160) continue;
     const local = email.slice(0, at);
     const domain = email.slice(at + 1);
     if (FILE_LIKE.test(email) || /^\.(png|jpe?g|gif|webp|svg|css|js)(?:\b|$)/i.test(candidate.suffix)) continue;
