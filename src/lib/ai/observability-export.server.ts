@@ -7,6 +7,16 @@ import type { AiEvent } from "./telemetry.server";
 type Attr={key:string;value:{stringValue?:string;intValue?:string;boolValue?:boolean}};
 const env=(n:string)=>typeof process.env[n]==="string"?process.env[n]!.trim():"";
 function label(v:unknown,max=100){return String(v??"").replace(/[\r\n\t]/g," ").replace(/\b(?:sk-(?:live|test|proj)-|sk_live_|sk_test_|whsec_|AIza|Bearer\s+)\S+/gi,"[redacted]").replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi,"[email]").slice(0,max);}
+// Arbitrary caller task strings must not be exported as span attributes.
+const SAFE_TASK_LABEL = /^(?:site|copy|builder|agent|ai|verify|seo|image|video|voice|review|jarvis|router|orchestration|content|website|audit|growth|crm|email|marketing|platform|security|auth|media|design|data|conversion|support)(?:[._-][a-z0-9_-]+){0,4}$/;
+function safeTaskLabel(value: unknown): string {
+  const task = String(value ?? "").trim().toLowerCase();
+  return task.length <= 60 && SAFE_TASK_LABEL.test(task) ? task : "ai.request";
+}
+function safeModelLabel(value: unknown): string {
+  const model = String(value ?? "").trim();
+  return /^[A-Za-z0-9][A-Za-z0-9@._:/+-]{0,119}$/.test(model) ? model : "unknown";
+}
 function randomHex(n:number){const b=new Uint8Array(n);crypto.getRandomValues(b);return [...b].map(v=>v.toString(16).padStart(2,"0")).join("");}
 function traceIdOf(id:string){const value=id.replace(/-/g,"").toLowerCase();return /^[0-9a-f]{32}$/.test(value)&&!/^0+$/.test(value)?value:randomHex(16);}
 function secureUrl(raw:string):URL|null{try{const u=new URL(raw),loopback=["localhost","127.0.0.1","::1"].includes(u.hostname);if(u.protocol!=="https:"&&!(u.protocol==="http:"&&loopback))return null;if(u.username||u.password)return null;return u;}catch{return null;}}
@@ -15,7 +25,7 @@ function langfuse():{url:string;authorization:string}|null{const pub=env("LANGFU
 function attr(key:string,value:string|number|boolean):Attr{if(typeof value==="number")return {key,value:{intValue:String(Math.max(0,Math.round(value)))}};if(typeof value==="boolean")return {key,value:{boolValue:value}};return {key,value:{stringValue:label(value)}};}
 export function buildOtlpTracePayload(event:AiEvent,now=Date.now()){
  const end=BigInt(Math.max(0,Math.trunc(now*1e6))).toString(),start=BigInt(Math.max(0,Math.trunc((now-Math.max(0,event.latencyMs))*1e6))).toString();
- const attributes:Attr[]=[attr("gen_ai.provider.name",event.provider),attr("gen_ai.request.model",event.model),attr("gen_ai.operation.name",event.task),attr("gen_ai.usage.input_tokens",event.inputTokens??0),attr("gen_ai.usage.output_tokens",event.outputTokens??0),attr("revora.fallback_used",event.fallbackUsed),attr("revora.tool_calls",event.toolCalls),attr("revora.request.ok",event.ok)];
+ const attributes:Attr[]=[attr("gen_ai.provider.name",event.provider),attr("gen_ai.request.model",safeModelLabel(event.model)),attr("gen_ai.operation.name",safeTaskLabel(event.task)),attr("gen_ai.usage.input_tokens",event.inputTokens??0),attr("gen_ai.usage.output_tokens",event.outputTokens??0),attr("revora.fallback_used",event.fallbackUsed),attr("revora.tool_calls",event.toolCalls),attr("revora.request.ok",event.ok)];
  if(event.errorCategory)attributes.push(attr("error.type",event.errorCategory));
  return {resourceSpans:[{resource:{attributes:[attr("service.name","revora-growth-systems"),attr("deployment.environment.name",env("NODE_ENV")||"unknown")]},scopeSpans:[{scope:{name:"revora.ai.telemetry",version:"1.0.0"},spans:[{traceId:traceIdOf(event.requestId),spanId:randomHex(8),name:"gen_ai.provider.call",kind:3,startTimeUnixNano:start,endTimeUnixNano:end,attributes,status:{code:event.ok?1:2,...(event.errorCategory?{message:label(event.errorCategory,60)}:{})}}]}]}]};
 }
