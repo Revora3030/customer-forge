@@ -61,10 +61,13 @@ export async function hallOfFameSquad(
   try {
     const { buildFreeModelRegistry } = await import("@/lib/ai/registry.server");
     const registry = await buildFreeModelRegistry(role);
-    // The registry has already applied isFreeEligibleModel to every entry.
-    // Do not exclude an entire provider here: OpenAI and Google both expose
-    // verified free tiers, and free-only routing must retain eligible models.
+    // Keep direct OpenAI/Google API integrations outside this zero-spend
+    // fallback path: credentials may be billable even when a model catalogue
+    // lists a free tier. Those providers must only be used by a separately
+    // verified, explicitly budgeted lane. Verified free models from providers
+    // and aggregators that guarantee a zero-cost route remain eligible.
     candidates = registry
+      .filter((entry) => entry.provider !== "openai" && entry.provider !== "google")
       .map((entry) => ({
         provider: entry.provider,
         model: entry.model,
