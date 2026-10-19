@@ -31,9 +31,8 @@ describe("prospect autopilot migrations", () => {
   });
 
   it("keeps the side-effecting cron route POST-only and non-cacheable", () => {
-    const handlers = route.match(/handlers:\s*\{([\s\S]*?)\}/)?.[1] ?? "";
-    expect(handlers).toMatch(/\bPOST:/);
-    expect(handlers).not.toMatch(/\bGET:/);
+    expect(route).toMatch(/^\s*POST:/m);
+    expect(route).not.toMatch(/^\s*GET:/m);
     expect(route).toContain('headers.set("Cache-Control", "no-store")');
   });
 });
