@@ -25,7 +25,18 @@ export type FoundProspect = {
   rating: number | null;
   reviewCount: number | null;
   mapsUri: string | null;
+  /** Public email if the listing source provides one; Google Places never does. */
+  email?: string | null;
 };
+
+/**
+ * Autopilot builds only for businesses with no real website AND a listed email,
+ * so every automatic demo can actually be delivered. Manual builds are unaffected.
+ */
+export function autopilotShouldBuild(prospect: Pick<FoundProspect, "presence" | "email">): boolean {
+  const email = (prospect.email ?? "").trim();
+  return prospect.presence !== "has_website" && /^[^\s@<>,;"]+@[^\s@<>,;"]+\.[a-z]{2,}$/i.test(email);
+}
 
 const SOCIAL_OR_DIRECTORY =
   /(^|\.)(facebook\.com|fb\.com|instagram\.com|tiktok\.com|x\.com|twitter\.com|linkedin\.com|youtube\.com|yelp\.com|nextdoor\.com|linktr\.ee|linkin\.bio|business\.site|sites\.google\.com|g\.page|google\.com|thumbtack\.com|angi\.com|homeadvisor\.com|houzz\.com|bbb\.org|yellowpages\.com|mapquest\.com|square\.site|wa\.me)$/i;
