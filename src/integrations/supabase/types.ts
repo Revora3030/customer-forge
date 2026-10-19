@@ -3285,6 +3285,96 @@ export type Database = {
         }
         Relationships: []
       }
+      prospect_outreach: {
+        Row: {
+          created_at: string
+          email: string
+          error: string | null
+          gmail_message_id: string | null
+          id: string
+          organization_id: string
+          source: string
+          status: string
+          subject: string
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          error?: string | null
+          gmail_message_id?: string | null
+          id?: string
+          organization_id: string
+          source: string
+          status: string
+          subject: string
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          error?: string | null
+          gmail_message_id?: string | null
+          id?: string
+          organization_id?: string
+          source?: string
+          status?: string
+          subject?: string
+        }
+        Relationships: []
+      }
+      prospect_outreach_autopilot: {
+        Row: {
+          daily_cap: number
+          enabled: boolean
+          id: boolean
+          last_result: Json | null
+          last_run_at: string | null
+          lease_until: string | null
+          owner_id: string | null
+          targets: Json
+          updated_at: string
+        }
+        Insert: {
+          daily_cap?: number
+          enabled?: boolean
+          id?: boolean
+          last_result?: Json | null
+          last_run_at?: string | null
+          lease_until?: string | null
+          owner_id?: string | null
+          targets?: Json
+          updated_at?: string
+        }
+        Update: {
+          daily_cap?: number
+          enabled?: boolean
+          id?: boolean
+          last_result?: Json | null
+          last_run_at?: string | null
+          lease_until?: string | null
+          owner_id?: string | null
+          targets?: Json
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      prospect_outreach_suppressions: {
+        Row: {
+          created_at: string
+          email: string
+          reason: string
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          reason?: string
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          reason?: string
+        }
+        Relationships: []
+      }
       public_submission_attempts: {
         Row: {
           contact_hash: string | null
