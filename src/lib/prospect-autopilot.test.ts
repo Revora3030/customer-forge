@@ -15,6 +15,7 @@ const mocks = vi.hoisted(() => ({
   provisionProspectDemo: vi.fn(),
   sendDemoOutreach: vi.fn(),
   isDoNotContact: vi.fn(),
+  findPublicEmail: vi.fn(),
 }));
 vi.mock("@/lib/jarvis-demo-site.server", () => ({
   findProspects: mocks.findProspects,
@@ -24,6 +25,7 @@ vi.mock("@/lib/prospect-outreach.server", () => ({
   sendDemoOutreach: mocks.sendDemoOutreach,
   isDoNotContact: mocks.isDoNotContact,
 }));
+vi.mock("@/lib/prospect-email.server", () => ({ findPublicEmail: mocks.findPublicEmail }));
 import { runProspectAutopilot, saveAutopilotSettings } from "@/lib/prospect-autopilot.server";
 
 type Row = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -127,6 +129,7 @@ function seed(overrides: Record<string, Row[]> = {}) {
 beforeEach(() => {
   vi.resetAllMocks();
   mocks.isDoNotContact.mockResolvedValue(false);
+  mocks.findPublicEmail.mockResolvedValue(null);
   mocks.sendDemoOutreach.mockResolvedValue({ ok: true, outreachId: "o-1" });
   let next = 0;
   mocks.provisionProspectDemo.mockImplementation(async () => ({ organizationId: `org-new-${++next}`, jobId: "j", previewToken: "t", expiresAt: "x" }));
@@ -228,6 +231,41 @@ describe("runProspectAutopilot", () => {
     expect(run["finished_at"]).toBeTruthy();
   });
 
+  it("uses a public email from a social listing without treating it as a business website", async () => {
+    const { db } = seed();
+    mocks.findPublicEmail.mockResolvedValue("owner@shine-detailing.com");
+    mocks.findProspects.mockResolvedValue({
+      query: "mobile detailing in Raleigh, NC",
+      searched: 1,
+      prospects: [prospect({ website: "https://facebook.com/shine-detailing", presence: "social_only" })],
+    });
+
+    const result = await runProspectAutopilot(db, { now: () => NOW });
+
+    expect(result.built).toBe(1);
+    expect(mocks.findPublicEmail).toHaveBeenCalledTimes(1);
+    expect(mocks.findPublicEmail).toHaveBeenCalledWith("https://facebook.com/shine-detailing");
+    expect(mocks.provisionProspectDemo.mock.calls[0]![1]).toMatchObject({
+      email: "owner@shine-detailing.com",
+      businessName: "Shine Mobile Detailing",
+    });
+  });
+
+  it("bounds public email enrichment to four lookups per run", async () => {
+    const { db } = seed({ prospect_autopilot_settings: [settings({ daily_build_cap: 7 })] });
+    mocks.findProspects.mockResolvedValue({
+      query: "mobile detailing in Raleigh, NC",
+      searched: 6,
+      prospects: Array.from({ length: 6 }, (_, i) =>
+        prospect({ placeId: "social-" + i, name: "Detail Shop " + i, website: "https://facebook.com/shop-" + i, presence: "social_only" }),
+      ),
+    });
+
+    const result = await runProspectAutopilot(db, { now: () => NOW });
+
+    expect(result.built).toBe(5);
+    expect(mocks.findPublicEmail).toHaveBeenCalledTimes(4);
+  });
   it("stops building once today's cap is used and skips targets searched recently", async () => {
     const { db } = seed({
       prospect_autopilot_runs: [{ id: "earlier", started_at: "2026-10-19T09:00:00.000Z", finished_at: "2026-10-19T09:01:00.000Z", built: 5 }],
