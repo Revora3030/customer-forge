@@ -12,15 +12,19 @@ const FILE_LIKE = /\.(png|jpe?g|gif|webp|svg|css|js)$/i;
 export function extractBusinessEmail(html: string): string | null {
   const decoded = html.replace(/&#64;|&#x40;|\\u0040/gi, "@").replace(/%40/g, "@");
   const mailto = [...decoded.matchAll(/mailto:([^"'?\s>]+)/gi)].map((match) => match[1]!);
-  const loose = decoded.match(EMAIL) ?? [];
+  const loose = [...decoded.matchAll(new RegExp(EMAIL.source, "gi"))].map((match) => ({
+    raw: match[0],
+    suffix: decoded.slice((match.index ?? 0) + match[0].length, (match.index ?? 0) + match[0].length + 8),
+  }));
 
-  for (const raw of [...mailto, ...loose]) {
-    const email = raw.trim().toLowerCase();
+  for (const candidate of [...mailto.map((raw) => ({ raw, suffix: "" })), ...loose]) {
+    const email = candidate.raw.trim().toLowerCase();
     const at = email.lastIndexOf("@");
     if (at < 1 || email.length > 200) continue;
     const local = email.slice(0, at);
     const domain = email.slice(at + 1);
-    if (!local || !domain || FILE_LIKE.test(email) || BLOCKED_DOMAIN.test(domain) || BLOCKED_LOCAL.test(local)) continue;
+    if (FILE_LIKE.test(email) || /^\.(png|jpe?g|gif|webp|svg|css|js)(?:\b|$)/i.test(candidate.suffix)) continue;
+    if (!local || !domain || BLOCKED_DOMAIN.test(domain) || BLOCKED_LOCAL.test(local)) continue;
     if (!/^[^\s@<>,;"]+@[^\s@<>,;"]+\.[a-z]{2,}$/.test(email)) continue;
     return email;
   }
