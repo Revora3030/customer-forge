@@ -24,11 +24,23 @@ const noop = () => undefined;
 const ORG = "11111111-2222-3333-4444-555555555555";
 const card = { organizationId: ORG, name: "Triangle Detailing", previewToken: "tok123" };
 
+/** Characters outside any tag, read one by one (no regex tag stripping). */
+function textOutsideTags(html: string) {
+  let out = "";
+  let depth = 0;
+  for (const ch of html) {
+    if (ch === "<") depth += 1;
+    else if (ch === ">") depth = Math.max(0, depth - 1);
+    else if (depth === 0) out += ch;
+  }
+  return out;
+}
+
 /** Every <button> must have an accessible name: an aria-label or visible text. */
 function unnamedButtons(html: string) {
   return [...html.matchAll(/<button\b([^>]*)>([\s\S]*?)<\/button>/g)].filter(([, attrs, inner]) => {
     if (/aria-label="[^"]+"/.test(attrs ?? "")) return false;
-    return !(inner ?? "").replace(/<[^>]*>/g, "").trim();
+    return !textOutsideTags(inner ?? "").trim();
   });
 }
 
