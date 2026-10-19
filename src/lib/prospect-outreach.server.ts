@@ -14,12 +14,16 @@ import { missingTwilioSecrets, sendTwilioSms, twilioConfig } from "@/lib/sms/twi
  * - one send per demo per channel unless the operator explicitly resends
  *   (autopilot never resends; a partial unique index enforces it),
  * - daily caps per channel (OUTREACH_DAILY_EMAIL_CAP / OUTREACH_DAILY_SMS_CAP),
- * - texts only between 9:00 and 20:00 in the business's state, and from the
- *   autopilot only to numbers with recorded SMS consent (never cold texting),
- * - emails carry the sender, a physical mailing address and a one-click
- *   unsubscribe link; without REVORA_MAILING_ADDRESS nothing is emailed.
- * Every text ends with "Reply STOP to opt out." Delivery is reported only when
- * the provider accepts the message.
+ * - texts only between 9:00 and 20:00 in the recipient's zone (area code, then
+ *   state, else every continental US zone), and from the autopilot only to
+ *   numbers with recorded SMS consent (never cold texting),
+ * - emails carry the promotional notice, the sender, a physical mailing address
+ *   and a one-click unsubscribe link; without REVORA_MAILING_ADDRESS nothing is
+ *   emailed.
+ * Every text names Revora Growth Systems and ends with "Reply STOP to opt out."
+ * Delivery is reported only when the provider accepts the message; a send the
+ * provider may have accepted (the connection dropped) stays recorded as sent so
+ * it is never silently repeated.
  */
 
 export type OutreachChannel = "email" | "sms";
@@ -123,11 +127,113 @@ const STATE_NAMES: Record<string, string> = {
   virginia: "VA", washington: "WA", "west virginia": "WV", wisconsin: "WI", wyoming: "WY",
 };
 
-/** Approximate time zone for a US state (split states use their majority zone). */
-export function timeZoneForState(state: string | null | undefined): string {
+/** Every zone part of a state observes; split states list each of their zones. */
+const SPLIT_STATE_ZONES: Record<string, string[]> = {
+  AK: ["America/Anchorage", "America/Adak"],
+  AZ: ["America/Phoenix", "America/Denver"],
+  FL: ["America/New_York", "America/Chicago"],
+  ID: ["America/Denver", "America/Los_Angeles"],
+  IN: ["America/New_York", "America/Chicago"],
+  KS: ["America/Chicago", "America/Denver"],
+  KY: ["America/New_York", "America/Chicago"],
+  MI: ["America/New_York", "America/Chicago"],
+  ND: ["America/Chicago", "America/Denver"],
+  NE: ["America/Chicago", "America/Denver"],
+  NV: ["America/Los_Angeles", "America/Denver"],
+  OR: ["America/Los_Angeles", "America/Denver"],
+  SD: ["America/Chicago", "America/Denver"],
+  TN: ["America/New_York", "America/Chicago"],
+  TX: ["America/Chicago", "America/Denver"],
+};
+
+/** Every continental US zone: the window must be open in all of them when the recipient's zone is unknown. */
+export const CONTINENTAL_US_ZONES = ["America/New_York", "America/Chicago", "America/Denver", "America/Phoenix", "America/Los_Angeles"];
+
+const AREA_CODE_STATE: Record<string, string> = {};
+const areaCodes = (state: string, codes: string) => {
+  for (const code of codes.split(",")) AREA_CODE_STATE[code] = state;
+};
+areaCodes("AL", "205,251,256,334,659,938");
+areaCodes("AK", "907");
+areaCodes("AZ", "480,520,602,623,928");
+areaCodes("AR", "327,479,501,870");
+areaCodes("CA", "209,213,279,310,323,341,350,369,408,415,424,442,510,530,559,562,619,626,628,650,657,661,669,707,714,747,760,805,818,820,831,840,858,909,916,925,949,951");
+areaCodes("CO", "303,719,720,970,983");
+areaCodes("CT", "203,475,860,959");
+areaCodes("DE", "302");
+areaCodes("DC", "202,771");
+areaCodes("FL", "239,305,321,324,352,386,407,448,561,645,656,689,727,728,754,772,786,813,850,863,904,941,954");
+areaCodes("GA", "229,404,470,478,678,706,762,770,912,943");
+areaCodes("HI", "808");
+areaCodes("ID", "208,986");
+areaCodes("IL", "217,224,309,312,331,447,464,618,630,708,730,773,779,815,847,861,872");
+areaCodes("IN", "219,260,317,463,574,765,812,930");
+areaCodes("IA", "319,515,563,641,712");
+areaCodes("KS", "316,620,785,913");
+areaCodes("KY", "270,364,502,606,859");
+areaCodes("LA", "225,318,337,504,985");
+areaCodes("ME", "207");
+areaCodes("MD", "227,240,301,410,443,667");
+areaCodes("MA", "339,351,413,508,617,774,781,857,978");
+areaCodes("MI", "231,248,269,313,517,586,616,679,734,810,906,947,989");
+areaCodes("MN", "218,320,507,612,651,763,924,952");
+areaCodes("MS", "228,601,662,769");
+areaCodes("MO", "235,314,417,557,573,636,660,816,975");
+areaCodes("MT", "406");
+areaCodes("NE", "308,402,531");
+areaCodes("NV", "702,725,775");
+areaCodes("NH", "603");
+areaCodes("NJ", "201,551,609,640,732,848,856,862,908,973");
+areaCodes("NM", "505,575");
+areaCodes("NY", "212,315,329,332,347,363,516,518,585,607,624,631,646,680,716,718,838,845,914,917,929,934");
+areaCodes("NC", "252,336,472,704,743,828,910,919,980,984");
+areaCodes("ND", "701");
+areaCodes("OH", "216,220,234,283,326,330,380,419,436,440,513,567,614,740,937");
+areaCodes("OK", "405,539,572,580,918");
+areaCodes("OR", "458,503,541,971");
+areaCodes("PA", "215,223,267,272,412,445,484,570,582,610,717,724,814,835,878");
+areaCodes("RI", "401");
+areaCodes("SC", "803,821,839,843,854,864");
+areaCodes("SD", "605");
+areaCodes("TN", "423,615,629,731,865,901,931");
+areaCodes("TX", "210,214,254,281,325,346,361,409,430,432,469,512,682,713,726,737,806,817,830,832,903,915,936,940,945,956,972,979");
+areaCodes("UT", "385,435,801");
+areaCodes("VT", "802");
+areaCodes("VA", "276,434,540,571,686,703,757,804,826,948");
+areaCodes("WA", "206,253,360,425,509,564");
+areaCodes("WV", "304,681");
+areaCodes("WI", "262,274,353,414,534,608,715,920");
+areaCodes("WY", "307");
+areaCodes("PR", "787,939");
+
+function stateCode(state: string | null | undefined): string | null {
   const key = (state ?? "").trim().replace(/\./g, "");
   const code = key.length === 2 ? key.toUpperCase() : STATE_NAMES[key.toLowerCase()];
-  return (code && ZONES[code]) || "America/New_York";
+  return code && ZONES[code] ? code : null;
+}
+
+/** Approximate time zone for a US state (split states use their majority zone); null when unknown. */
+export function timeZoneForState(state: string | null | undefined): string | null {
+  const code = stateCode(state);
+  return code ? ZONES[code]! : null;
+}
+
+/** The US state a +1 number's area code belongs to, or null (Canada, non-geographic, unknown). */
+export function stateForPhone(phone: string | null | undefined): string | null {
+  const e164 = normalizePhone(phone);
+  return e164 && /^\+1\d{10}$/.test(e164) ? AREA_CODE_STATE[e164.slice(2, 5)] ?? null : null;
+}
+
+/**
+ * Zones the recipient may be in: the number's area code first, then the
+ * business's state, otherwise every continental US zone (fail closed).
+ */
+export function smsTimeZones(state: string | null | undefined, phone?: string | null): string[] {
+  // Mobile numbers keep their area code when people move, so when the number
+  // and the listing's state point at different zones, the text must fit both.
+  const codes = [...new Set([stateForPhone(phone), stateCode(state)].filter((code): code is string => Boolean(code)))];
+  if (!codes.length) return CONTINENTAL_US_ZONES;
+  return [...new Set(codes.flatMap((code) => SPLIT_STATE_ZONES[code] ?? [ZONES[code]!]))];
 }
 
 export function localHour(now: Date, timeZone: string): number {
@@ -135,10 +241,20 @@ export function localHour(now: Date, timeZone: string): number {
   return Number(hour) % 24;
 }
 
-/** Texts go out only from 9:00 to 20:00 in the business's local time. */
-export function smsAllowedNow(now: Date, state: string | null | undefined): boolean {
-  const hour = localHour(now, timeZoneForState(state));
-  return hour >= SMS_WINDOW_START_HOUR && hour < SMS_WINDOW_END_HOUR;
+/** Texts go out only from 9:00 to 20:00 in every zone the recipient may be in. */
+export function smsAllowedNow(now: Date, state: string | null | undefined, phone?: string | null): boolean {
+  return smsTimeZones(state, phone).every((timeZone) => {
+    const hour = localHour(now, timeZone);
+    return hour >= SMS_WINDOW_START_HOUR && hour < SMS_WINDOW_END_HOUR;
+  });
+}
+
+/** Every text names the sender up front, so an edited body can't drop the brand. */
+export function withSenderId(text: string): string {
+  const body = text.trim();
+  if (/revora growth systems/i.test(body)) return body;
+  const sender = process.env["REVORA_SENDER_NAME"]?.trim() || "Revora Growth Systems";
+  return `${sender === "Revora Growth Systems" ? sender : `${sender} (Revora Growth Systems)`}: ${body}`;
 }
 
 /** Every text ends with the opt-out line, exactly once. */
@@ -181,6 +297,7 @@ const MESSAGES: Record<string, string> = {
   sms_auth_failed: "Twilio rejected the credentials. Check TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN in Lovable.",
   rate_limited: "The provider is rate-limiting sends right now. Try again in a minute.",
   storage_error: "Couldn't record the send, so nothing was sent. Try again.",
+  unconfirmed_transport: "The provider didn't confirm this send (the connection dropped), so it may have been delivered. It's recorded as sent; use Resend only if you're sure it didn't arrive.",
 };
 
 export function outreachMessage(reason: string): string {
@@ -498,13 +615,15 @@ export async function sendDemoOutreach(db: SupabaseClient, input: SendDemoOutrea
   if (demo.build?.status !== "completed") return skip("build_not_finished");
   if (await isDoNotContact(db, recipient)) return skip("do_not_contact");
 
-  const { data: prior } = await db
+  const { data: prior, error: priorError } = await db
     .from("prospect_outreach")
     .select("id")
     .eq("organization_id", organizationId)
     .eq("channel", channel)
     .eq("status", "sent")
     .limit(1);
+  // Fail closed: without the history, a repeat can't be ruled out.
+  if (priorError) return fail("storage_error");
   // Autopilot asks again every run; don't fill the history with its repeats.
   if ((prior ?? []).length && !(mode === "manual" && input.force)) return mode === "autopilot" ? fail("already_sent") : skip("already_sent");
 
@@ -512,7 +631,7 @@ export async function sendDemoOutreach(db: SupabaseClient, input: SendDemoOutrea
   if (channel === "sms") {
     if (mode === "autopilot" && !(await hasSmsConsent(db, recipient))) return skip("no_consent");
     if (!twilioConfig()) return skip("sms_not_configured");
-    if (!smsAllowedNow(now, demo.state)) return skip("quiet_hours");
+    if (!smsAllowedNow(now, demo.state, recipient)) return skip("quiet_hours");
   } else {
     if (!emailSendingConfigured()) return skip("email_not_configured");
     if (!outreachFooter().address) return skip("mailing_address_missing");
@@ -531,11 +650,16 @@ export async function sendDemoOutreach(db: SupabaseClient, input: SendDemoOutrea
   const outreachId = crypto.randomUUID();
 
   if (channel === "sms") {
-    const text = input.body?.trim() ? withStopLine(stripOutreachFooter(input.body)) : composeSms(demo, previewUrl);
+    const text = input.body?.trim() ? withStopLine(withSenderId(stripOutreachFooter(input.body))) : composeSms(demo, previewUrl);
     const claim = await record({ id: outreachId, status: "sent", reason: null, body: text });
     if (claim.error) return claim.error.code === "23505" ? fail("already_sent") : fail("storage_error");
     const result = await sendTwilioSms(recipient, text);
     if (!result.ok) {
+      // A timeout or dropped connection may still have been delivered: keep it blocking.
+      if (result.reason === "sms_transport_error") {
+        await db.from("prospect_outreach").update({ reason: "unconfirmed_transport" }).eq("id", outreachId);
+        return fail("unconfirmed_transport");
+      }
       if (result.reason === "recipient_opted_out") await addDoNotContact(db, recipient, "sms_opted_out").catch(() => undefined);
       await db.from("prospect_outreach").update({ status: "failed", reason: result.reason }).eq("id", outreachId);
       return fail(result.reason);
@@ -563,7 +687,14 @@ export async function sendDemoOutreach(db: SupabaseClient, input: SendDemoOutrea
   try {
     const replyTo = normalizeEmail(process.env["REVORA_REPLY_TO_EMAIL"]);
     const sent = await sendTemplateEmail("prospect-demo", recipient, {
-      idempotencyKey: `prospect-demo-${organizationId}-${outreachId}`,
+      // Autopilot sends once per demo, so its key is stable and the provider dedupes retries.
+      // Autopilot: one key per demo per UTC day, so a lost response is never
+      // sent twice that day while the next day's retry is not stuck on a
+      // provider-cached failure. Manual sends key on their own record.
+      idempotencyKey:
+        mode === "autopilot"
+          ? `prospect-demo-${organizationId}-email-autopilot-${new Date().toISOString().slice(0, 10)}`
+          : `prospect-demo-${organizationId}-${outreachId}`,
       templateData: { subject, message, footerLines: senderLines, unsubscribeUrl },
       ...(replyTo ? { replyTo } : {}),
     });
@@ -571,6 +702,11 @@ export async function sendDemoOutreach(db: SupabaseClient, input: SendDemoOutrea
   } catch (error) {
     reason = error instanceof EmailAPIError ? (error.status === 429 ? "rate_limited" : error.code ?? `email_error_${error.status}`) : "email_transport_error";
     if (!(error instanceof EmailAPIError)) console.error("[outreach] email failed", error);
+  }
+  if (reason === "email_transport_error") {
+    // The provider may have accepted it before the connection dropped: keep it blocking.
+    await db.from("prospect_outreach").update({ reason: "unconfirmed_transport" }).eq("id", outreachId);
+    return fail("unconfirmed_transport");
   }
   if (reason) {
     if (reason === "recipient_suppressed") await addDoNotContact(db, recipient, "email_suppressed").catch(() => undefined);
@@ -583,11 +719,15 @@ export async function sendDemoOutreach(db: SupabaseClient, input: SendDemoOutrea
 const STOP_WORDS = new Set(["STOP", "STOPALL", "UNSUBSCRIBE", "CANCEL", "END", "QUIT", "REVOKE", "OPTOUT"]);
 const START_WORDS = new Set(["START", "YES", "UNSTOP"]);
 
-/** Reads an inbound text's opt-out / opt-in keyword (the whole message, one word). */
+/**
+ * Reads an inbound text's opt-out / opt-in keyword (the whole message). Opt-outs
+ * ignore spacing, hyphens and punctuation ("Opt out", "opt-out", "STOP ALL",
+ * "Stop."); opt-in stays one exact word.
+ */
 export function parseInboundKeyword(body: string): "stop" | "start" | null {
-  const word = body.trim().replace(/[.!\s]+$/g, "").toUpperCase();
-  if (STOP_WORDS.has(word)) return "stop";
-  if (START_WORDS.has(word)) return "start";
+  const upper = body.trim().toUpperCase();
+  if (STOP_WORDS.has(upper.replace(/[\s\-_.!,?'"]+/g, ""))) return "stop";
+  if (START_WORDS.has(upper.replace(/[.!\s]+$/g, ""))) return "start";
   return null;
 }
 

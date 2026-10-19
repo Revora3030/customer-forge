@@ -192,11 +192,12 @@ export function validRecipient(channel: DemoChannel, value: string) {
 }
 
 /**
- * A short text for the operator to review and edit. Jarvis's send adds the
- * "Reply STOP to opt out." line itself, so it is not part of the editable text.
+ * A short text for the operator to review and edit. It names the sender; the
+ * send adds the "Reply STOP to opt out." line itself (and the sender too, if
+ * the edited text drops it), so neither has to be kept by hand.
  */
 export function smsDraft(name: string, link: string) {
-  return `${name ? `Hi ${name} team` : "Hi"}, I couldn't find a website for your business, so I built a free private draft from your public listing: ${link}`;
+  return `${name ? `Hi ${name} team` : "Hi"}, this is Revora Growth Systems. I couldn't find a website for your business, so I built a free private draft from your public listing: ${link}`;
 }
 
 /** The latest sent message on a channel, if any (one send per demo per channel unless resent). */

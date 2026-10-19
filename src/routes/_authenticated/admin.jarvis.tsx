@@ -200,7 +200,7 @@ function Jarvis() {
   // Live demo build cards: under the chat proposal that started them (kept on this device),
   // or at the end of the chat for builds and previews opened from Operations.
   const [demoCards, setDemoCards] = useState<Record<string, DemoCardRef>>({});
-  const [sendCards, setSendCards] = useState<Record<string, { card: DemoCardRef; channel: DemoChannel; to: string }>>({});
+  const [sendCards, setSendCards] = useState<Record<string, { card: DemoCardRef; channel: DemoChannel; to: string; nonce: number }>>({});
   const [liveCards, setLiveCards] = useState<DemoCardRef[]>([]);
   const [listening, setListening] = useState(false);
   const [interim, setInterim] = useState("");
@@ -600,7 +600,8 @@ function Jarvis() {
     // demo.send opens the review sheet on that demo's build card; the send itself needs a second tap.
     const send = readDemoSendProposal(proposal);
     if (send) {
-      setSendCards((current) => ({ ...current, [key]: { card: { organizationId: send.organizationId, name: "" }, channel: send.channel, to: send.to } }));
+      // A fresh nonce per approval remounts the card, so a re-approval after Cancel opens the sheet again.
+      setSendCards((current) => ({ ...current, [key]: { card: { organizationId: send.organizationId, name: "" }, channel: send.channel, to: send.to, nonce: (current[key]?.nonce ?? 0) + 1 } }));
       return;
     }
     if (proposal.id !== "demo.build") { forget(key); toast.error("This action can't be approved from this page yet."); return; }
@@ -626,6 +627,7 @@ function Jarvis() {
     if (sendCard) {
       return (
         <DemoBuildCard
+          key={`${key}:${sendCard.nonce}`}
           card={sendCard.card}
           initialSend={{ channel: sendCard.channel, to: sendCard.to }}
           onInitialSendSettled={(sent) => { if (sent) markDone(key); else forget(key); }}

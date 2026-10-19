@@ -174,9 +174,18 @@ export function parseDemoSendProposal(value: unknown): Extract<WriteProposal, { 
   return { id: "demo.send", organizationId, channel, to: str(raw["to"], 200) || null };
 }
 
+/**
+ * The action block. Free models sometimes write it in their own token style
+ * ("<|actions|>[...]</actions><|end|>") or stop before the closing tag, so the
+ * pipes are optional and an unclosed block runs to an end token or the end.
+ */
+const ACTION_BLOCK = /<\|?\s*actions\s*\|?>([\s\S]*?)(?:<\|?\s*\/\s*\|?\s*actions\s*\|?>|<\|end\|>|$)/gi;
+/** Chat-template control tokens a model can leak into its reply text. */
+const CONTROL_TOKENS = /<\|(?:end|eot_id|eom_id|im_end|im_start|endoftext|end_of_turn|start_of_turn)\|>/gi;
+
 export function extractActionBlock(raw: string): { text: string; requested: unknown[] } {
-  const matches = [...raw.matchAll(/<actions>([\s\S]*?)<\/actions>/gi)];
-  const text = raw.replace(/<actions>[\s\S]*?<\/actions>/gi, "").trim();
+  const matches = [...raw.matchAll(ACTION_BLOCK)];
+  const text = raw.replace(ACTION_BLOCK, "").replace(CONTROL_TOKENS, "").trim();
   const requested: unknown[] = [];
   for (const match of matches) {
     try {

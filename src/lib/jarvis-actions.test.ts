@@ -19,6 +19,19 @@ describe("extractActionBlock", () => {
     expect(requested).toEqual([{ id: "demos.list", args: {} }]);
   });
 
+  it("reads the token-style tags free models write and hides control tokens", () => {
+    // The exact reply a free model sent in the Jarvis chat.
+    const reply = '<|actions|>[{"id":"prospects.find","args":{"niche":"mobile detailing","city":"Raleigh","state":"NC"}}]</actions><|end|>';
+    const { text, requested } = extractActionBlock(reply);
+    expect(text).toBe("");
+    expect(requested).toEqual([{ id: "prospects.find", args: { niche: "mobile detailing", city: "Raleigh", state: "NC" } }]);
+    expect(parseActions(requested, TOOLS).reads).toEqual([{ id: "prospects.find", niche: "mobile detailing", city: "Raleigh", state: "NC" }]);
+    expect(extractActionBlock('On it.<|actions|>[{"id":"demos.list","args":{}}]<|/actions|>').requested).toEqual([{ id: "demos.list", args: {} }]);
+    // An unclosed block still runs; reply text keeps no chat-template tokens.
+    expect(extractActionBlock('<actions>[{"id":"demos.list","args":{}}]').requested).toHaveLength(1);
+    expect(extractActionBlock("Done.<|eot_id|>").text).toBe("Done.");
+  });
+
   it("treats malformed JSON as a rejected action, not a crash", () => {
     const { requested } = extractActionBlock("<actions>[not json</actions>");
     expect(parseActions(requested, TOOLS).rejected[0]).toMatch(/unknown action/);

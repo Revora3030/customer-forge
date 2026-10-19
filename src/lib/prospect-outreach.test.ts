@@ -18,8 +18,11 @@ import {
   parseInboundKeyword,
   sendDemoOutreach,
   smsAllowedNow,
+  smsTimeZones,
+  stateForPhone,
   stripOutreachFooter,
   timeZoneForState,
+  withSenderId,
   withStopLine,
 } from "@/lib/prospect-outreach.server";
 import { twilioSignature, validateTwilioSignature } from "@/lib/sms/twilio.server";
@@ -28,7 +31,7 @@ import { parseActions, splitReplyMeta, appendReplyMeta } from "@/lib/jarvis-acti
 type Row = Record<string, unknown>;
 
 /** In-memory Supabase query builder that honours the filters this module uses. */
-function fakeDb(seed: Record<string, Row[]>) {
+function fakeDb(seed: Record<string, Row[]>, options: { failSelect?: (table: string, head: boolean) => boolean } = {}) {
   const tables: Record<string, Row[]> = Object.fromEntries(Object.entries(seed).map(([k, v]) => [k, v.map((r) => ({ ...r }))]));
   const table = (name: string) => (tables[name] ??= []);
   const from = (name: string) => {
@@ -47,6 +50,7 @@ function fakeDb(seed: Record<string, Row[]>) {
       return rows.slice(0, limit);
     };
     const run = () => {
+      if (op === "select" && options.failSelect?.(name, head)) return { data: null, count: null, error: { message: "read failed" } };
       const rows = matches();
       if (op === "update") rows.forEach((row) => Object.assign(row, patch));
       if (op === "delete") tables[name] = table(name).filter((row) => !rows.includes(row));
@@ -182,7 +186,7 @@ describe("prospect outreach safeguards", () => {
     const { db } = fakeDb(demoSeed());
     expect((await sendDemoOutreach(db, { ...sms, body: "Hi! Your free draft site: https://x.test/p/1" })).ok).toBe(true);
     const init = (twilioFetch.mock.calls[0] as unknown as [string, RequestInit])[1];
-    expect(new URLSearchParams(String(init.body)).get("Body")).toBe("Hi! Your free draft site: https://x.test/p/1\nReply STOP to opt out.");
+    expect(new URLSearchParams(String(init.body)).get("Body")).toBe("Revora Growth Systems: Hi! Your free draft site: https://x.test/p/1\nReply STOP to opt out.");
   });
 
   it("reports build stages and outreach history in the demo status", async () => {
@@ -256,7 +260,8 @@ describe("prospect outreach safeguards", () => {
   it("only texts inside 9am-8pm in the business's time zone", async () => {
     expect(timeZoneForState("NC")).toBe("America/New_York");
     expect(timeZoneForState("California")).toBe("America/Los_Angeles");
-    expect(timeZoneForState(null)).toBe("America/New_York");
+    expect(timeZoneForState(null)).toBeNull();
+    expect(timeZoneForState("Calif.")).toBeNull();
     const now = new Date("2026-10-19T14:00:00Z"); // 10:00 New York, 07:00 Los Angeles
     expect(smsAllowedNow(now, "NY")).toBe(true);
     expect(smsAllowedNow(now, "CA")).toBe(false);
@@ -318,6 +323,100 @@ describe("prospect outreach safeguards", () => {
     expect(normalizePhone("call me")).toBeNull();
     expect(withStopLine("Hi\nReply STOP to opt out.")).toBe("Hi\nReply STOP to opt out.");
     expect(stripOutreachFooter("Hello\n\n--\nSam\nRevora Growth Systems\n123 Main")).toBe("Hello");
+  });
+});
+
+describe("outreach compliance fixes", () => {
+  it("reads spaced, hyphenated and punctuated opt-outs, but START only as one exact word", async () => {
+    for (const body of ["Opt out", "opt-out", "STOP ALL", "Stop.", "stop!", "Opt_Out", " Unsubscribe. "]) expect(parseInboundKeyword(body)).toBe("stop");
+    expect(parseInboundKeyword("Start.")).toBe("start");
+    expect(parseInboundKeyword("S T A R T")).toBeNull();
+    expect(parseInboundKeyword("start please")).toBeNull();
+    expect(parseInboundKeyword("stop texting me about other things")).toBeNull();
+
+    const { db } = fakeDb(demoSeed());
+    expect(await handleInboundSms(db, "+19195550100", "Opt out")).toBe("stop");
+    expect(await isDoNotContact(db, "+19195550100")).toBe(true);
+  });
+
+  it("checks quiet hours in the number's zone, and in every continental zone when it's unknown", async () => {
+    expect(stateForPhone("(213) 555-0100")).toBe("CA");
+    expect(stateForPhone("+447700900123")).toBeNull();
+    const early = new Date("2026-10-19T13:05:00Z"); // 9:05 EDT, 6:05 PDT
+    expect(smsAllowedNow(early, null, "+12135550100")).toBe(false);
+    expect(smsAllowedNow(early, "NC", "+12135550100")).toBe(false); // must fit the number's zone and the state's
+    // A 919 (Eastern) mobile on a California listing must be in-window in both zones.
+    expect(smsTimeZones("CA", "+19195550100").sort()).toEqual(["America/Los_Angeles", "America/New_York"]);
+    expect(smsAllowedNow(new Date("2026-10-19T15:30:00Z"), "CA", "+19195550100")).toBe(false); // 11:30 EDT, 8:30 PDT
+    expect(smsAllowedNow(new Date("2026-10-19T17:00:00Z"), "CA", "+19195550100")).toBe(true); // 13:00 EDT, 10:00 PDT
+    expect(smsAllowedNow(new Date("2026-10-19T14:00:00Z"), "NC")).toBe(true);
+    expect(smsAllowedNow(new Date("2026-10-19T14:00:00Z"), "Calif.")).toBe(false); // unknown: 7:00 PDT
+    expect(smsAllowedNow(new Date("2026-10-19T17:00:00Z"), null)).toBe(true); // 13:00 EDT, 10:00 PDT
+    expect(smsAllowedNow(new Date("2026-10-19T13:30:00Z"), "TN")).toBe(false); // split state: 9:30 EDT but 8:30 CDT
+  });
+
+  it("never texts a West Coast number at 6am because the demo has no state", async () => {
+    vi.setSystemTime(new Date("2026-10-19T13:05:00Z"));
+    const { db } = fakeDb(demoSeed({ business_profiles: [{ organization_id: ORG, email: "owner@triangle.com", phone: "(213) 555-0100", city: "Los Angeles", state: null }] }));
+    expect(await sendDemoOutreach(db, { ...sms, to: "(213) 555-0100" })).toMatchObject({ ok: false, reason: "quiet_hours" });
+    expect(twilioFetch).not.toHaveBeenCalled();
+  });
+
+  it("puts the promotional notice in every email, whatever the operator's text says", async () => {
+    const { OUTREACH_PROMOTIONAL_NOTICE } = await import("@/lib/outreach-notice");
+    const { db, tables } = fakeDb(demoSeed());
+    const body = "Hi team, your draft: https://revoragrowthsystems.com/p/tok_abcdefghijklmnopqrst\n\n--\nRevora Growth Systems\n123 Main St";
+    expect((await sendDemoOutreach(db, { ...email, subject: "Your draft", body })).ok).toBe(true);
+    const data = vi.mocked(sendTemplateEmail).mock.calls[0]![2]!.templateData as { footerLines: string[]; message: string };
+    expect(data.footerLines[0]).toBe(OUTREACH_PROMOTIONAL_NOTICE);
+    expect(String(tables["prospect_outreach"]![0]!["body"])).toContain(OUTREACH_PROMOTIONAL_NOTICE);
+
+    const auto = fakeDb(demoSeed());
+    expect((await sendDemoOutreach(auto.db, { ...email, mode: "autopilot", actorId: null })).ok).toBe(true);
+    expect(String(auto.tables["prospect_outreach"]![0]!["body"])).toContain(OUTREACH_PROMOTIONAL_NOTICE);
+
+    const { render } = await import("@react-email/render");
+    const React = await import("react");
+    const { template } = await import("@/lib/email-templates/prospect-demo");
+    const props = { subject: "s", message: "Hi", footerLines: ["Revora Growth Systems", "123 Main St"], unsubscribeUrl: "https://x.test/u" };
+    const text = await render(React.createElement(template.component, props), { plainText: true });
+    const html = await render(React.createElement(template.component, props));
+    expect(text).toContain(OUTREACH_PROMOTIONAL_NOTICE);
+    expect(html).toContain(OUTREACH_PROMOTIONAL_NOTICE);
+  });
+
+  it("names Revora Growth Systems in an operator-written text", async () => {
+    const { db, tables } = fakeDb(demoSeed());
+    expect((await sendDemoOutreach(db, { ...sms, body: "Hi team, here: https://x.test/p/1" })).ok).toBe(true);
+    const sent = new URLSearchParams(String((twilioFetch.mock.calls[0] as unknown as [string, RequestInit])[1].body)).get("Body") ?? "";
+    expect(sent).toContain("Revora Growth Systems");
+    expect(sent).toMatch(/Reply STOP to opt out\.$/);
+    expect(tables["prospect_outreach"]![0]!["body"]).toBe(sent);
+    expect(withSenderId("Revora Growth Systems here: hi")).toBe("Revora Growth Systems here: hi");
+  });
+
+  it("keeps a send the provider may have accepted blocking, and dedupes autopilot email retries", async () => {
+    vi.mocked(sendTemplateEmail).mockRejectedValueOnce(new Error("socket hang up"));
+    const { db, tables } = fakeDb(demoSeed());
+    const auto = { ...email, mode: "autopilot" as const, actorId: null };
+    expect(await sendDemoOutreach(db, auto)).toMatchObject({ ok: false, reason: "unconfirmed_transport" });
+    expect(tables["prospect_outreach"]![0]).toMatchObject({ status: "sent", reason: "unconfirmed_transport" });
+    expect(vi.mocked(sendTemplateEmail).mock.calls[0]![2]!.idempotencyKey).toMatch(new RegExp(`^prospect-demo-${ORG}-email-autopilot-\\d{4}-\\d{2}-\\d{2}$`));
+    expect(await sendDemoOutreach(db, auto)).toMatchObject({ ok: false, reason: "already_sent" });
+    expect(sendTemplateEmail).toHaveBeenCalledTimes(1);
+
+    twilioFetch.mockRejectedValueOnce(new Error("timeout"));
+    expect(await sendDemoOutreach(db, sms)).toMatchObject({ ok: false, reason: "unconfirmed_transport" });
+    expect(tables["prospect_outreach"]!.find((row) => row["channel"] === "sms")).toMatchObject({ status: "sent", reason: "unconfirmed_transport" });
+    expect(await sendDemoOutreach(db, sms)).toMatchObject({ ok: false, reason: "already_sent" });
+  });
+
+  it("refuses to send when the prior-send history can't be read", async () => {
+    const { db } = fakeDb(demoSeed(), { failSelect: (table, head) => table === "prospect_outreach" && !head });
+    expect(await sendDemoOutreach(db, email)).toMatchObject({ ok: false, reason: "storage_error" });
+    expect(await sendDemoOutreach(db, sms)).toMatchObject({ ok: false, reason: "storage_error" });
+    expect(sendTemplateEmail).not.toHaveBeenCalled();
+    expect(twilioFetch).not.toHaveBeenCalled();
   });
 });
 

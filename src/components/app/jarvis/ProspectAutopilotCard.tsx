@@ -10,7 +10,10 @@ import { Switch } from "@/components/ui/switch";
 import {
   MAX_AUTOPILOT_TARGETS,
   MAX_DAILY_BUILD_CAP,
-  type AutopilotSettings,
+  changedAutopilotFields,
+  syncAutopilotDraft,
+  type AutopilotDraft,
+  type AutopilotDraftState,
   type AutopilotTarget,
 } from "@/lib/prospect-autopilot";
 import {
@@ -22,8 +25,6 @@ import {
 
 const KEY = ["jarvis", "prospect-autopilot"] as const;
 const EMPTY_TARGET = { niche: "", city: "", state: "" };
-
-type Draft = Pick<AutopilotSettings, "enabled" | "targets" | "dailyBuildCap" | "sendEmail" | "sendSms">;
 
 const when = (iso: string) => {
   const date = new Date(iso);
@@ -44,21 +45,19 @@ export function ProspectAutopilotCard({ className }: { className?: string }) {
   const runFn = useServerFn(runProspectAutopilotNowFn);
   const settings = useQuery({ queryKey: [...KEY, "settings"], queryFn: () => getFn() });
   const runs = useQuery({ queryKey: [...KEY, "runs"], queryFn: () => runsFn() });
-  const [draft, setDraft] = useState<Draft | null>(null);
+  const [form, setForm] = useState<AutopilotDraftState>(null);
+  const draft = form?.draft ?? null;
   const [target, setTarget] = useState(EMPTY_TARGET);
 
+  // Newer settings (a Jarvis-approved change, another tab) replace the form unless it has local edits.
   useEffect(() => {
-    if (settings.data && !draft) {
-      const { enabled, targets, dailyBuildCap, sendEmail, sendSms } = settings.data;
-      setDraft({ enabled, targets, dailyBuildCap, sendEmail, sendSms });
-    }
-  }, [settings.data, draft]);
+    setForm((current) => syncAutopilotDraft(current, settings.data));
+  }, [settings.data, settings.dataUpdatedAt]);
 
   const save = useMutation({
-    mutationFn: (next: Draft) => saveFn({ data: next }),
+    mutationFn: (patch: ReturnType<typeof changedAutopilotFields>) => saveFn({ data: patch }),
     onSuccess: (saved) => {
-      const { enabled, targets, dailyBuildCap, sendEmail, sendSms } = saved;
-      setDraft({ enabled, targets, dailyBuildCap, sendEmail, sendSms });
+      setForm(syncAutopilotDraft(null, saved));
       toast.success(saved.enabled ? "Autopilot saved. It runs every hour." : "Autopilot saved. It is off.");
       void qc.invalidateQueries({ queryKey: KEY });
     },
@@ -77,7 +76,8 @@ export function ProspectAutopilotCard({ className }: { className?: string }) {
     onError: (error: Error) => toast.error(error.message),
   });
 
-  const update = (patch: Partial<Draft>) => setDraft((current) => (current ? { ...current, ...patch } : current));
+  const update = (patch: Partial<AutopilotDraft>) =>
+    setForm((current) => (current ? { ...current, draft: { ...current.draft, ...patch }, dirty: true } : current));
   const addTarget = () => {
     if (!draft) return;
     const next: AutopilotTarget = { niche: target.niche.trim(), city: target.city.trim(), state: target.state.trim() || null };
@@ -116,7 +116,11 @@ export function ProspectAutopilotCard({ className }: { className?: string }) {
           className="space-y-3"
           onSubmit={(event) => {
             event.preventDefault();
-            save.mutate(draft);
+            if (!form) return;
+            // Only what was edited here, so a newer server change isn't reverted.
+            const patch = changedAutopilotFields(form.base, form.draft);
+            if (Object.keys(patch).length) save.mutate(patch);
+            else toast.message("Nothing changed.");
           }}
         >
           <fieldset className="space-y-2">

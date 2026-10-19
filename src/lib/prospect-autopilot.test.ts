@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { FoundProspect } from "@/lib/prospect-finder";
 import {
   alreadyDemoed,
+  changedAutopilotFields,
+  syncAutopilotDraft,
   describeAutopilotPatch,
   parseAutopilotPatch,
   rankProspects,
@@ -15,6 +17,7 @@ const mocks = vi.hoisted(() => ({
   provisionProspectDemo: vi.fn(),
   sendDemoOutreach: vi.fn(),
   isDoNotContact: vi.fn(),
+  smsAllowedNow: vi.fn(),
   findPublicEmail: vi.fn(),
 }));
 vi.mock("@/lib/jarvis-demo-site.server", () => ({
@@ -24,6 +27,7 @@ vi.mock("@/lib/jarvis-demo-site.server", () => ({
 vi.mock("@/lib/prospect-outreach.server", () => ({
   sendDemoOutreach: mocks.sendDemoOutreach,
   isDoNotContact: mocks.isDoNotContact,
+  smsAllowedNow: mocks.smsAllowedNow,
 }));
 vi.mock("@/lib/prospect-email.server", () => ({ findPublicEmail: mocks.findPublicEmail }));
 import { runProspectAutopilot, saveAutopilotSettings } from "@/lib/prospect-autopilot.server";
@@ -129,6 +133,7 @@ function seed(overrides: Record<string, Row[]> = {}) {
 beforeEach(() => {
   vi.resetAllMocks();
   mocks.isDoNotContact.mockResolvedValue(false);
+  mocks.smsAllowedNow.mockReturnValue(true);
   mocks.findPublicEmail.mockResolvedValue(null);
   mocks.sendDemoOutreach.mockResolvedValue({ ok: true, outreachId: "o-1" });
   let next = 0;
@@ -178,6 +183,25 @@ describe("autopilot settings contract", () => {
     expect(parseActions([{ id: "autopilot.configure", args: { dailyBuildCap: -1 } }], []).rejected[0]).toMatch(/autopilot.configure/);
     const restored = splitReplyMeta(appendReplyMeta("ok", { ran: [], proposals: parsed.proposals }));
     expect(restored.meta.proposals).toEqual(parsed.proposals);
+  });
+});
+
+describe("autopilot card form", () => {
+  const server = (overrides: Partial<ReturnType<typeof readAutopilotSettings>> = {}) => ({ ...readAutopilotSettings(null), ...overrides });
+
+  it("follows newer server settings until the operator edits, and saves only the edited fields", () => {
+    const a = syncAutopilotDraft(null, server());
+    const target = { niche: "detailing", city: "Raleigh", state: "NC" };
+    // A Jarvis-approved change lands while the form is untouched: the form shows it.
+    const b = syncAutopilotDraft(a, server({ enabled: true, targets: [target] }));
+    expect(b?.draft).toMatchObject({ enabled: true, targets: [target] });
+    expect(changedAutopilotFields(b!.base, b!.draft)).toEqual({});
+
+    // With local edits, a newer server value doesn't overwrite them, and Save sends only the edit.
+    const edited = { ...a!, draft: { ...a!.draft, sendSms: true }, dirty: true };
+    const kept = syncAutopilotDraft(edited, server({ enabled: true, targets: [target] }));
+    expect(kept).toBe(edited);
+    expect(changedAutopilotFields(kept!.base, kept!.draft)).toEqual({ sendSms: true });
   });
 });
 
@@ -333,6 +357,30 @@ describe("runProspectAutopilot", () => {
     ]);
     expect(result).toMatchObject({ emailed: 1, texted: 0 });
     expect(result.skipped).toContainEqual({ reason: "sms_no_sms_consent", name: "ready" });
+  });
+
+  it("retries a text skipped for quiet hours on the next in-window run, and waits quietly outside it", async () => {
+    const marker = { prospectDemo: { kind: "prospect_demo", createdAt: "2026-10-18T00:00:00Z", source: "autopilot" } };
+    const quiet = () =>
+      seed({
+        prospect_autopilot_settings: [settings({ targets: [], send_email: false, send_sms: true })],
+        website_settings: [{ organization_id: "quiet", generation: marker }, { organization_id: "noconsent", generation: marker }],
+        organizations: [{ id: "quiet", name: "quiet" }, { id: "noconsent", name: "noconsent" }],
+        generation_jobs: ["quiet", "noconsent"].map((id) => ({ organization_id: id, status: "completed", created_at: "2026-10-18T00:00:00Z" })),
+        business_profiles: ["quiet", "noconsent"].map((id) => ({ organization_id: id, phone: "919-555-0123", state: "NC" })),
+        prospect_outreach: [
+          { organization_id: "quiet", channel: "sms", status: "skipped", reason: "quiet_hours", mode: "autopilot", created_at: "2026-10-19T13:00:00Z" },
+          { organization_id: "noconsent", channel: "sms", status: "skipped", reason: "no_consent", mode: "autopilot", created_at: "2026-10-19T13:00:00Z" },
+        ],
+      });
+    await runProspectAutopilot(quiet().db, { now: () => NOW });
+    expect(mocks.sendDemoOutreach.mock.calls.map((call) => call[1].organizationId)).toEqual(["quiet"]);
+    expect(mocks.smsAllowedNow).toHaveBeenCalledWith(NOW, "NC", "+19195550123");
+
+    mocks.sendDemoOutreach.mockClear();
+    mocks.smsAllowedNow.mockReturnValue(false);
+    await runProspectAutopilot(quiet().db, { now: () => NOW });
+    expect(mocks.sendDemoOutreach).not.toHaveBeenCalled();
   });
 
   it("records who changed the settings and audits the change", async () => {

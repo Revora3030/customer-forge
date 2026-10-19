@@ -192,6 +192,7 @@ type SendableDemo = {
   name: string;
   email: string | null;
   phone: string | null;
+  state: string | null;
 };
 
 /** Finished, unclaimed autopilot demos young enough to share. */
@@ -210,7 +211,7 @@ async function sendableDemos(db: SupabaseClient, now: Date): Promise<SendableDem
       .select("organization_id, status, created_at")
       .in("organization_id", ids)
       .order("created_at", { ascending: false }),
-    db.from("business_profiles").select("organization_id, email, phone").in("organization_id", ids),
+    db.from("business_profiles").select("organization_id, email, phone, state").in("organization_id", ids),
   ]);
   const latest = new Map<string, string>();
   for (const job of jobs.data ?? []) if (!latest.has(String(job.organization_id))) latest.set(String(job.organization_id), String(job.status));
@@ -222,7 +223,8 @@ async function sendableDemos(db: SupabaseClient, now: Date): Promise<SendableDem
     const profile = profileByOrg.get(id);
     const email = typeof profile?.["email"] === "string" && profile["email"].includes("@") ? profile["email"] : null;
     const phone = typeof profile?.["phone"] === "string" && profile["phone"] ? profile["phone"] : null;
-    out.push({ organizationId: id, name: String(org.name ?? ""), email, phone });
+    const state = typeof profile?.["state"] === "string" && profile["state"] ? profile["state"] : null;
+    out.push({ organizationId: id, name: String(org.name ?? ""), email, phone, state });
   }
   return out;
 }
@@ -382,6 +384,8 @@ async function buildPhase(
   }
 }
 
+const RETRY_NEXT_RUN = new Set(["quiet_hours", "daily_cap", "sms_not_configured", "email_not_configured"]);
+
 async function sendPhase(
   db: SupabaseClient,
   settings: AutopilotSettings,
@@ -394,20 +398,23 @@ async function sendPhase(
   if (!demos.length) return;
   const { data: history, error } = await db
     .from("prospect_outreach")
-    .select("organization_id, channel, status, created_at")
+    .select("organization_id, channel, status, reason, created_at")
     .in("organization_id", demos.map((demo) => demo.organizationId))
     .eq("mode", "autopilot");
   if (error) return skip({ reason: "outreach_unavailable" });
   const retrySince = now().getTime() - SEND_RETRY_HOURS * 3_600_000;
+  // A skip that only means "not right now" (quiet hours, today's cap, setup)
+  // retries next run; any other recent attempt waits SEND_RETRY_HOURS.
   const blocked = (organizationId: string, channel: "email" | "sms") =>
     (history ?? []).some(
       (row) =>
         row.organization_id === organizationId &&
         row.channel === channel &&
-        (row.status === "sent" || Date.parse(String(row.created_at)) >= retrySince),
+        (row.status === "sent" ||
+          (Date.parse(String(row.created_at)) >= retrySince && !(row.status === "skipped" && RETRY_NEXT_RUN.has(String(row.reason))))),
     );
 
-  const { sendDemoOutreach } = await import("@/lib/prospect-outreach.server");
+  const { sendDemoOutreach, smsAllowedNow } = await import("@/lib/prospect-outreach.server");
   for (const demo of demos) {
     if (settings.sendEmail && demo.email && !blocked(demo.organizationId, "email")) {
       const result = await sendDemoOutreach(db, { organizationId: demo.organizationId, channel: "email", to: demo.email, mode: "autopilot", actorId: null });
@@ -417,7 +424,8 @@ async function sendPhase(
     // Texts only reach numbers with recorded consent; the outreach backend
     // refuses the rest, so autopilot never cold-texts anyone.
     const e164 = usPhoneE164(demo.phone);
-    if (settings.sendSms && e164 && !blocked(demo.organizationId, "sms")) {
+    // Outside the texting window, wait quietly instead of logging an hourly skip.
+    if (settings.sendSms && e164 && !blocked(demo.organizationId, "sms") && smsAllowedNow(now(), demo.state, e164)) {
       const result = await sendDemoOutreach(db, { organizationId: demo.organizationId, channel: "sms", to: e164, mode: "autopilot", actorId: null });
       if (result.ok) summary.texted += 1;
       else skip({ reason: `sms_${result.reason}`, name: demo.name });

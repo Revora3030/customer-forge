@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { DemoBuildCardView } from "./DemoBuildCard";
 import { DemoSendForm } from "./DemoSendSheet";
+import { pastedPicture } from "./composer-input";
 import {
   DEMO_STATUS_POLL_MS,
   currentStepLabel,
@@ -24,11 +25,23 @@ const noop = () => undefined;
 const ORG = "11111111-2222-3333-4444-555555555555";
 const card = { organizationId: ORG, name: "Triangle Detailing", previewToken: "tok123" };
 
+/** Characters outside any tag, read one by one (no regex tag stripping). */
+function textOutsideTags(html: string) {
+  let out = "";
+  let depth = 0;
+  for (const ch of html) {
+    if (ch === "<") depth += 1;
+    else if (ch === ">") depth = Math.max(0, depth - 1);
+    else if (depth === 0) out += ch;
+  }
+  return out;
+}
+
 /** Every <button> must have an accessible name: an aria-label or visible text. */
 function unnamedButtons(html: string) {
   return [...html.matchAll(/<button\b([^>]*)>([\s\S]*?)<\/button>/g)].filter(([, attrs, inner]) => {
     if (/aria-label="[^"]+"/.test(attrs ?? "")) return false;
-    return !(inner ?? "").replace(/<[^>]*>/g, "").trim();
+    return !textOutsideTags(inner ?? "").trim();
   });
 }
 
@@ -155,7 +168,14 @@ const form = (overrides: Partial<Parameters<typeof DemoSendForm>[0]> = {}) => re
 const recipientInput = (html: string) => /<input[^>]*id="demo-send-to"[^>]*>/.exec(html)?.[0] ?? "";
 const sendButton = (html: string) => /<button[^>]*type="submit"([^>]*)>/.exec(html)?.[1] ?? "";
 
+const cancelButton = (html: string) => /<button[^>]*>Cancel<\/button>/.exec(html)?.[0] ?? "";
+
 describe("demo send sheet", () => {
+  it("keeps Cancel disabled while a send is in flight", () => {
+    expect(cancelButton(form())).not.toContain('disabled=""');
+    expect(cancelButton(form({ sending: true }))).toContain('disabled=""');
+  });
+
   it("shows the prefilled recipient, editable subject and AI draft, and enables Send", () => {
     const html = form();
     expect(html).toMatch(/<label[^>]*for="demo-send-to"[^>]*>Email address<\/label>/);
@@ -205,6 +225,7 @@ describe("demo send sheet", () => {
     expect(validRecipient("sms", "555-0142")).toBe(false);
     expect(smsDraft("", "https://x/p/t")).toMatch(/^Hi, /);
     expect(smsDraft("Joe's", "https://x/p/t")).toContain("https://x/p/t");
+    expect(smsDraft("Joe's", "https://x/p/t")).toContain("Revora Growth Systems");
     expect(sendFailureHelp("something_new")).toBeNull();
   });
 });
@@ -229,5 +250,16 @@ describe("chat helpers", () => {
     rememberDemoCard("m1:0", card, storage);
     store.set("jarvis:demo-cards", JSON.stringify({ ...JSON.parse(store.get("jarvis:demo-cards")!), bad: { organizationId: "nope" } }));
     expect(readDemoCards(storage)).toEqual({ "m1:0": card });
+  });
+});
+
+describe("composer paste", () => {
+  const picture = new File(["png"], "cells.png", { type: "image/png" });
+  const clipboard = (text: string, files: File[]) => ({ files, getData: (format: string) => (format === "text/plain" ? text : "") });
+
+  it("treats a paste with text as text, even when a rendered picture rides along", () => {
+    expect(pastedPicture(clipboard("Triangle Comfort\t123 Main St", [picture]))).toBeNull();
+    expect(pastedPicture(clipboard("   ", [picture]))).toBe(picture);
+    expect(pastedPicture(clipboard("", []))).toBeNull();
   });
 });

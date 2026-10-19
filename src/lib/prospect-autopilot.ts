@@ -108,6 +108,33 @@ export function readAutopilotSettings(row: Record<string, unknown> | null | unde
   };
 }
 
+export type AutopilotDraft = Required<AutopilotSettingsPatch>;
+/** The Operations card's form: what it shows, what it was seeded from, and whether it has local edits. */
+export type AutopilotDraftState = { draft: AutopilotDraft; base: AutopilotDraft; dirty: boolean } | null;
+
+const draftOf = ({ enabled, targets, dailyBuildCap, sendEmail, sendSms }: AutopilotSettings): AutopilotDraft => ({ enabled, targets, dailyBuildCap, sendEmail, sendSms });
+
+/**
+ * Follows newer server settings (e.g. a Jarvis-approved change) while the form
+ * has no local edits; with edits, keeps them and the base they were made from.
+ */
+export function syncAutopilotDraft(state: AutopilotDraftState, server: AutopilotSettings | undefined): AutopilotDraftState {
+  if (!server || state?.dirty) return state;
+  const next = draftOf(server);
+  return { draft: next, base: next, dirty: false };
+}
+
+/** Only the fields edited since the form was seeded, so Save never reverts a newer server change. */
+export function changedAutopilotFields(base: AutopilotDraft, draft: AutopilotDraft): AutopilotSettingsPatch {
+  const patch: AutopilotSettingsPatch = {};
+  if (draft.enabled !== base.enabled) patch.enabled = draft.enabled;
+  if (JSON.stringify(draft.targets) !== JSON.stringify(base.targets)) patch.targets = draft.targets;
+  if (draft.dailyBuildCap !== base.dailyBuildCap) patch.dailyBuildCap = draft.dailyBuildCap;
+  if (draft.sendEmail !== base.sendEmail) patch.sendEmail = draft.sendEmail;
+  if (draft.sendSms !== base.sendSms) patch.sendSms = draft.sendSms;
+  return patch;
+}
+
 /** Plain-language one-line summary of a settings change, for the approval card. */
 export function describeAutopilotPatch(patch: AutopilotSettingsPatch): string {
   const parts: string[] = [];

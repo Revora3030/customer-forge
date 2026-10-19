@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { formatRevoraOffer } from "./jarvis-acquisition-policy";
+import { OUTREACH_PROMOTIONAL_NOTICE } from "./outreach-notice";
 
 const AUDIT_LINK = "https://revoragrowthsystems.com/website-audit";
 const MAX_PROSPECTS = 5;
@@ -172,19 +173,25 @@ function fallbackDraft(name: string): { subject: string; body: string } {
 }
 
 /**
- * Sender block every outreach draft ends with: name, physical address and an
- * opt-out line. Emails Revora actually sends pass `unsubscribeUrl`, so the
- * opt-out is a one-click link rather than a reply (they come from noreply@).
+ * Sender block every outreach draft ends with: the promotional notice, name,
+ * physical address and an opt-out line. Emails Revora actually sends pass
+ * `unsubscribeUrl`, so the opt-out is a one-click link rather than a reply
+ * (they come from noreply@).
  */
 export function outreachFooter(options: { unsubscribeUrl?: string } = {}): {
   address: string;
   footer: string;
-  /** Sender, company and address lines, without the separator or opt-out line. */
+  /** Notice, sender, company and address lines, without the separator or opt-out line. */
   senderLines: string[];
 } {
   const address = process.env["REVORA_MAILING_ADDRESS"]?.trim() ?? "";
   const sender = process.env["REVORA_SENDER_NAME"]?.trim() || "Revora Growth Systems";
-  const senderLines = [sender, "Revora Growth Systems", address || "[ADD YOUR PHYSICAL MAILING ADDRESS BEFORE SENDING]"];
+  const senderLines = [
+    OUTREACH_PROMOTIONAL_NOTICE,
+    sender,
+    "Revora Growth Systems",
+    address || "[ADD YOUR PHYSICAL MAILING ADDRESS BEFORE SENDING]",
+  ];
   const footer = [
     "",
     "--",

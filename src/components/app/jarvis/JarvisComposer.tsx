@@ -2,6 +2,7 @@ import { useRef, useState, type ClipboardEvent, type DragEvent, type KeyboardEve
 import { ArrowUp, ChevronDown, BadgeCheck, ImagePlus, Loader2, Mic, MicOff, Slash } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuLabel, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { firstImage, pastedPicture } from "./composer-input";
 
 export type JarvisMode = "brief" | "balanced" | "deep";
 export const JARVIS_MODES = [["brief", "Brief"], ["balanced", "Balanced"], ["deep", "Deep"]] as const;
@@ -29,9 +30,6 @@ type Props = {
 
 const iconButton = "size-9 shrink-0 rounded-full sm:size-9";
 
-/** The first picture in a paste or drop, if any. */
-const firstImage = (files: FileList | null | undefined) => [...(files ?? [])].find((file) => file.type.startsWith("image/")) ?? null;
-
 /** The Jarvis message box: text, picture to demo (button, paste or drop), commands, response style, dictation and send. */
 export function JarvisComposer({ value, onChange, onSubmit, maxLength, busy, coarse, listening, interim, onToggleMic, readingPicture, picturePreview, onPicture, mode, onModeChange, onOpenCommands, inputRef }: Props) {
   const pictureInput = useRef<HTMLInputElement>(null);
@@ -40,9 +38,10 @@ export function JarvisComposer({ value, onChange, onSubmit, maxLength, busy, coa
   const [dropping, setDropping] = useState(false);
   const canTakePicture = !busy && !readingPicture;
 
-  // A pasted or dropped picture (Maps screenshot, card, flyer) goes the same way as the Picture button.
+  // A pasted or dropped picture (Maps screenshot, card, flyer) goes the same way as the Picture button;
+  // a paste that also carries text (a spreadsheet row) stays a text paste.
   const onPaste = (event: ClipboardEvent<HTMLTextAreaElement>) => {
-    const file = firstImage(event.clipboardData?.files);
+    const file = pastedPicture(event.clipboardData);
     if (!file || !canTakePicture) return;
     event.preventDefault();
     onPicture(file);
