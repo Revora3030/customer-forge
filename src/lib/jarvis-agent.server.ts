@@ -54,6 +54,10 @@ export async function runReadActions(db: SupabaseClient, reads: ReadAction[], ac
           const status = organizationId ? await getDemoStatus(db, organizationId) : null;
           if (!status) throw new Error("No demo site matches that. Use demos.list to find it.");
           result = status;
+        } else if (action.id === "autopilot.status") {
+          const { getAutopilotSettings, listAutopilotRuns } = await import("./prospect-autopilot.server");
+          const [settings, runs] = await Promise.all([getAutopilotSettings(db), listAutopilotRuns(db, 5)]);
+          result = { settings, recentRuns: runs };
         } else {
           const { listProspectDemos } = await import("./jarvis-demo-site.server");
           result = await listProspectDemos(db);

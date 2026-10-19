@@ -10,6 +10,7 @@ vi.mock("@/lib/ai/free-reputation", () => ({
   freeModelForm: () => ({ score: 0 }), recordFreeModelOutcome: vi.fn(),
 }));
 import { callBestThinker, resetHallOfFameRuns } from "@/lib/ai/hall-of-fame.server";
+import { withAiSpendScope } from "@/lib/ai/spend-scope.server";
 
 const cases: Array<[FreeOnlyEnvironment, boolean]> = [
   [{}, true],
@@ -121,5 +122,14 @@ describe("Hall of Fame spending boundary", () => {
     expect(await callBestThinker(request)).toMatchObject({ ok: true, lane: "paid" });
     expect(mocks.paid).toHaveBeenCalledTimes(1);
     expect(mocks.pinned).not.toHaveBeenCalled();
+  });
+  it("skips the paid collective for a hard step inside a free-only spending scope (demo builds)", async () => {
+    vi.stubEnv("AI_FREE_ONLY", "false");
+    mocks.paid.mockResolvedValue({ ok: true, tier: "sol", wanted: "sol", downgraded: false, text: "Paid answer", model: "paid-test", costMicrocents: 1 });
+    const outcome = await withAiSpendScope({ freeOnly: true, reason: "demo_workspace" }, () => callBestThinker(request));
+    expect(outcome).toMatchObject({ ok: true, lane: "free", downgraded: false });
+    expect(mocks.paid).not.toHaveBeenCalled();
+    // Outside the scope the same request may use paid again.
+    expect(await callBestThinker(request)).toMatchObject({ ok: true, lane: "paid" });
   });
 });

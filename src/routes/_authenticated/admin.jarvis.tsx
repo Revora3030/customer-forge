@@ -30,6 +30,7 @@ import { jarvisVoiceLinks, synthesizeJarvisVoice } from "@/lib/jarvis-voice.func
 import { speakableText, type WriteProposal } from "@/lib/jarvis-actions";
 import { prospectFromImageFn, startProspectDemoBuild } from "@/lib/jarvis-demo-site.functions";
 import { pictureDataUrl } from "@/lib/picture-data-url";
+import { isAutopilotProposal, useApproveAutopilotProposal } from "@/components/app/jarvis/autopilot-proposal";
 
 type RecognitionResult = ArrayLike<{ transcript: string }> & { isFinal?: boolean };
 type Recognition = {
@@ -146,6 +147,7 @@ function Jarvis() {
   const sendToClaudeCode = useServerFn(sendClaudeCodeRequestFn);
   const askClaudeFix = useServerFn(askClaudeToFixPullRequestFn);
   const recoverBuilds = useServerFn(recoverStalledBuildsFn);
+  const approveAutopilot = useApproveAutopilotProposal();
   const readPicture = useServerFn(prospectFromImageFn);
   const rootRef = useRef<HTMLDivElement>(null);
   useJarvisHeight(rootRef);
@@ -543,6 +545,17 @@ function Jarvis() {
       } catch (error) {
         forget(key);
         toast.error(error instanceof Error ? error.message : "Couldn't recover the builds.");
+      }
+      return;
+    }
+    if (isAutopilotProposal(proposal)) {
+      try {
+        toast.success(await approveAutopilot(proposal));
+        markDone(key);
+        void qc.invalidateQueries({ queryKey: ["jarvis", "prospect-autopilot"] });
+      } catch (error) {
+        forget(key);
+        toast.error(error instanceof Error ? error.message : "Couldn't update the autopilot.");
       }
       return;
     }

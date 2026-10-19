@@ -2,6 +2,8 @@ import { ExternalLink, GitPullRequest, Hammer, Mail, MessageSquare, RefreshCw } 
 import { Button } from "@/components/ui/button";
 import type { WriteProposal } from "@/lib/jarvis-actions";
 import { readDemoSendProposal } from "./demo-build";
+import { AutopilotProposalCard } from "./AutopilotProposal";
+import { isAutopilotProposal } from "./autopilot-proposal";
 
 export type ProposalState = "building" | "done" | undefined;
 
@@ -20,6 +22,7 @@ const linkButton = "mt-3 inline-flex min-h-10 items-center gap-1.5 rounded-md bo
 
 /** One write proposal from Jarvis. Nothing happens until the owner approves it here. */
 export function ProposalCard({ proposal, state, url, onApprove }: Props) {
+  if (isAutopilotProposal(proposal)) return <AutopilotProposalCard proposal={proposal} state={state} onApprove={onApprove} />;
   if (proposal.id === "code.pr") {
     return (
       <div className={card}>

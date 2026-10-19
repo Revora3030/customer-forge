@@ -2360,7 +2360,12 @@ export async function drainSiteEngineQueue(
     // the whole run and stops renewing once the attempt fence no longer holds.
     const heartbeat = startLeaseHeartbeat(db, job);
     try {
-      await executeJob(db, job);
+      // Demo (is_demo) workspaces build on the free pool only. The scope is
+      // per job (AsyncLocalStorage), so a concurrent customer build in this
+      // process keeps its own paid allowance.
+      const { buildSpendScope, withAiSpendScope } = await import("@/lib/ai/spend-scope.server");
+      const spendScope = await buildSpendScope(db as never, job.organization_id);
+      await withAiSpendScope(spendScope, () => executeJob(db, job));
       heartbeat.stop();
       processed += 1;
     } catch (error) {

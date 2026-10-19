@@ -3408,6 +3408,78 @@ export type Database = {
         }
         Relationships: []
       }
+      prospect_autopilot_runs: {
+        Row: {
+          built: number
+          emailed: number
+          error: string | null
+          finished_at: string | null
+          found: number
+          id: string
+          skipped: Json
+          started_at: string
+          texted: number
+          trigger: string
+        }
+        Insert: {
+          built?: number
+          emailed?: number
+          error?: string | null
+          finished_at?: string | null
+          found?: number
+          id?: string
+          skipped?: Json
+          started_at?: string
+          texted?: number
+          trigger?: string
+        }
+        Update: {
+          built?: number
+          emailed?: number
+          error?: string | null
+          finished_at?: string | null
+          found?: number
+          id?: string
+          skipped?: Json
+          started_at?: string
+          texted?: number
+          trigger?: string
+        }
+        Relationships: []
+      }
+      prospect_autopilot_settings: {
+        Row: {
+          daily_build_cap: number
+          enabled: boolean
+          id: number
+          send_email: boolean
+          send_sms: boolean
+          targets: Json
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          daily_build_cap?: number
+          enabled?: boolean
+          id?: number
+          send_email?: boolean
+          send_sms?: boolean
+          targets?: Json
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          daily_build_cap?: number
+          enabled?: boolean
+          id?: number
+          send_email?: boolean
+          send_sms?: boolean
+          targets?: Json
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       public_submission_attempts: {
         Row: {
           contact_hash: string | null

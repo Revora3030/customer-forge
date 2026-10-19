@@ -20,6 +20,8 @@ export async function provisionProspectDemo(
   admin: SupabaseClient,
   input: ProspectDemoInput,
   actorId: string,
+  /** Autopilot demos record where they came from, so they are never built twice. */
+  origin: { source: "autopilot"; placeId: string | null } | null = null,
 ): Promise<{ organizationId: string; jobId: string; previewToken: string; expiresAt: string }> {
   const base = slugify(`${input.businessName} ${input.city}`) || "prospect";
   let slug = base;
@@ -56,7 +58,13 @@ export async function provisionProspectDemo(
   const previewToken = newPreviewToken();
   const createdAt = new Date().toISOString();
   const expiresAt = new Date(Date.now() + DEMO_PREVIEW_DAYS * 86_400_000).toISOString();
-  const marker: ProspectDemoMarker = { kind: "prospect_demo", createdBy: actorId, createdAt, previewToken };
+  const marker: ProspectDemoMarker & { source?: "autopilot"; placeId?: string | null } = {
+    kind: "prospect_demo",
+    createdBy: actorId,
+    createdAt,
+    previewToken,
+    ...(origin ? { source: origin.source, placeId: origin.placeId } : {}),
+  };
 
   await must(
     "membership",
@@ -134,7 +142,12 @@ export async function provisionProspectDemo(
     action: "jarvis.prospect_demo.created",
     entity: "organization",
     entity_id: organizationId,
-    metadata: { business_name: input.businessName, industry: input.industry, city: input.city },
+    metadata: {
+      business_name: input.businessName,
+      industry: input.industry,
+      city: input.city,
+      ...(origin ? { source: origin.source, place_id: origin.placeId } : {}),
+    },
   });
 
   return { organizationId, jobId: (job as { id: string }).id, previewToken, expiresAt };

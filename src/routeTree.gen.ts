@@ -106,6 +106,7 @@ import { Route as ApiPublicJobsLeadAlertRetryRouteImport } from './routes/api/pu
 import { Route as ApiPublicJobsLeadReminderRouteImport } from './routes/api/public/jobs/lead-reminder'
 import { Route as ApiPublicJobsLifecycleEmailRouteImport } from './routes/api/public/jobs/lifecycle-email'
 import { Route as ApiPublicJobsMediaCleanupRouteImport } from './routes/api/public/jobs/media-cleanup'
+import { Route as ApiPublicJobsProspectAutopilotRouteImport } from './routes/api/public/jobs/prospect-autopilot'
 import { Route as ApiPublicJobsSiteEngineRouteImport } from './routes/api/public/jobs/site-engine'
 import { Route as ApiPublicJobsSiteHealthRouteImport } from './routes/api/public/jobs/site-health'
 import { Route as ApiPublicJobsWeeklyReportRouteImport } from './routes/api/public/jobs/weekly-report'
@@ -623,6 +624,12 @@ const ApiPublicJobsMediaCleanupRoute =
     path: '/api/public/jobs/media-cleanup',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicJobsProspectAutopilotRoute =
+  ApiPublicJobsProspectAutopilotRouteImport.update({
+    id: '/api/public/jobs/prospect-autopilot',
+    path: '/api/public/jobs/prospect-autopilot',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicJobsSiteEngineRoute = ApiPublicJobsSiteEngineRouteImport.update({
   id: '/api/public/jobs/site-engine',
   path: '/api/public/jobs/site-engine',
@@ -764,6 +771,7 @@ export interface FileRoutesByFullPath {
   '/api/public/jobs/lead-reminder': typeof ApiPublicJobsLeadReminderRoute
   '/api/public/jobs/lifecycle-email': typeof ApiPublicJobsLifecycleEmailRoute
   '/api/public/jobs/media-cleanup': typeof ApiPublicJobsMediaCleanupRoute
+  '/api/public/jobs/prospect-autopilot': typeof ApiPublicJobsProspectAutopilotRoute
   '/api/public/jobs/site-engine': typeof ApiPublicJobsSiteEngineRoute
   '/api/public/jobs/site-health': typeof ApiPublicJobsSiteHealthRoute
   '/api/public/jobs/weekly-report': typeof ApiPublicJobsWeeklyReportRoute
@@ -865,6 +873,7 @@ export interface FileRoutesByTo {
   '/api/public/jobs/lead-reminder': typeof ApiPublicJobsLeadReminderRoute
   '/api/public/jobs/lifecycle-email': typeof ApiPublicJobsLifecycleEmailRoute
   '/api/public/jobs/media-cleanup': typeof ApiPublicJobsMediaCleanupRoute
+  '/api/public/jobs/prospect-autopilot': typeof ApiPublicJobsProspectAutopilotRoute
   '/api/public/jobs/site-engine': typeof ApiPublicJobsSiteEngineRoute
   '/api/public/jobs/site-health': typeof ApiPublicJobsSiteHealthRoute
   '/api/public/jobs/weekly-report': typeof ApiPublicJobsWeeklyReportRoute
@@ -973,6 +982,7 @@ export interface FileRoutesById {
   '/api/public/jobs/lead-reminder': typeof ApiPublicJobsLeadReminderRoute
   '/api/public/jobs/lifecycle-email': typeof ApiPublicJobsLifecycleEmailRoute
   '/api/public/jobs/media-cleanup': typeof ApiPublicJobsMediaCleanupRoute
+  '/api/public/jobs/prospect-autopilot': typeof ApiPublicJobsProspectAutopilotRoute
   '/api/public/jobs/site-engine': typeof ApiPublicJobsSiteEngineRoute
   '/api/public/jobs/site-health': typeof ApiPublicJobsSiteHealthRoute
   '/api/public/jobs/weekly-report': typeof ApiPublicJobsWeeklyReportRoute
@@ -1081,6 +1091,7 @@ export interface FileRouteTypes {
     | '/api/public/jobs/lead-reminder'
     | '/api/public/jobs/lifecycle-email'
     | '/api/public/jobs/media-cleanup'
+    | '/api/public/jobs/prospect-autopilot'
     | '/api/public/jobs/site-engine'
     | '/api/public/jobs/site-health'
     | '/api/public/jobs/weekly-report'
@@ -1182,6 +1193,7 @@ export interface FileRouteTypes {
     | '/api/public/jobs/lead-reminder'
     | '/api/public/jobs/lifecycle-email'
     | '/api/public/jobs/media-cleanup'
+    | '/api/public/jobs/prospect-autopilot'
     | '/api/public/jobs/site-engine'
     | '/api/public/jobs/site-health'
     | '/api/public/jobs/weekly-report'
@@ -1289,6 +1301,7 @@ export interface FileRouteTypes {
     | '/api/public/jobs/lead-reminder'
     | '/api/public/jobs/lifecycle-email'
     | '/api/public/jobs/media-cleanup'
+    | '/api/public/jobs/prospect-autopilot'
     | '/api/public/jobs/site-engine'
     | '/api/public/jobs/site-health'
     | '/api/public/jobs/weekly-report'
@@ -1349,6 +1362,7 @@ export interface RootRouteChildren {
   ApiPublicJobsLeadReminderRoute: typeof ApiPublicJobsLeadReminderRoute
   ApiPublicJobsLifecycleEmailRoute: typeof ApiPublicJobsLifecycleEmailRoute
   ApiPublicJobsMediaCleanupRoute: typeof ApiPublicJobsMediaCleanupRoute
+  ApiPublicJobsProspectAutopilotRoute: typeof ApiPublicJobsProspectAutopilotRoute
   ApiPublicJobsSiteEngineRoute: typeof ApiPublicJobsSiteEngineRoute
   ApiPublicJobsSiteHealthRoute: typeof ApiPublicJobsSiteHealthRoute
   ApiPublicJobsWeeklyReportRoute: typeof ApiPublicJobsWeeklyReportRoute
@@ -2040,6 +2054,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicJobsMediaCleanupRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/jobs/prospect-autopilot': {
+      id: '/api/public/jobs/prospect-autopilot'
+      path: '/api/public/jobs/prospect-autopilot'
+      fullPath: '/api/public/jobs/prospect-autopilot'
+      preLoaderRoute: typeof ApiPublicJobsProspectAutopilotRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/jobs/site-engine': {
       id: '/api/public/jobs/site-engine'
       path: '/api/public/jobs/site-engine'
@@ -2332,6 +2353,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicJobsLeadReminderRoute: ApiPublicJobsLeadReminderRoute,
   ApiPublicJobsLifecycleEmailRoute: ApiPublicJobsLifecycleEmailRoute,
   ApiPublicJobsMediaCleanupRoute: ApiPublicJobsMediaCleanupRoute,
+  ApiPublicJobsProspectAutopilotRoute: ApiPublicJobsProspectAutopilotRoute,
   ApiPublicJobsSiteEngineRoute: ApiPublicJobsSiteEngineRoute,
   ApiPublicJobsSiteHealthRoute: ApiPublicJobsSiteHealthRoute,
   ApiPublicJobsWeeklyReportRoute: ApiPublicJobsWeeklyReportRoute,
