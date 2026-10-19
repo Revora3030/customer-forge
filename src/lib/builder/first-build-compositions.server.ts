@@ -403,11 +403,16 @@ export async function composeFirstBuildSections(input: {
       pending = next;
     }
     // Rescue passes: sections still without a layout are designed one at a time
-    // (two rounds, each carrying the validator's notes from the last attempt).
+    // (four bounded rounds, each carrying the validator's notes from the last attempt).
     // A single-section answer is small, so it survives the output limits and
     // model timeouts that sink a batch of four.
-    for (let rescueRound = 0; rescueRound < 2 && pending.length; rescueRound++) {
-      const rescued = await Promise.all(pending.map(async (section) => {
+    for (let rescueRound = 0; rescueRound < 4 && pending.length; rescueRound++) {
+      // Keep rescue concurrency low. Firing one request per remaining section
+      // at once caused rate-limit storms across the free providers on large pages.
+      const rescueResults: boolean[] = [];
+      for (let offset = 0; offset < pending.length; offset += 2) {
+        const chunk = pending.slice(offset, offset + 2);
+        const chunkResults = await Promise.all(chunk.map(async (section) => {
         const call = await callBestThinker({
           json: true,
           purpose: "creative_direction",
@@ -448,8 +453,10 @@ export async function composeFirstBuildSections(input: {
         }
         designed.set(section.id, checked.tree);
         return true;
-      }));
-      pending = pending.filter((_, index) => !rescued[index]);
+        }));
+        rescueResults.push(...chunkResults);
+      }
+      pending = pending.filter((_, index) => !rescueResults[index]);
     }
     if (pending.length) {
       // Some sections could not get a safe AI layout after retries. The count
@@ -496,6 +503,14 @@ export async function composeFirstBuildSections(input: {
       await repairDesignQuality({ organizationId, lookSummary: input.lookSummary, sections: pageSections, parts, designed, screen, result, direction });
     } else {
       result.optionalSkipped = (result.optionalSkipped ?? 0) + 1;
+    }
+    // Durable checkpoint boundary: every persisted tree has passed structural,
+    // truth/media/link/widget validation above and the first-build quality
+    // repair pass. Save before the optional review-panel/polish stage so a
+    // worker timeout there does not discard work that can safely be resumed.
+    for (const section of pageSections) {
+      const tree = designed.get(section.id);
+      if (tree) await saveTree(db, organizationId, section, tree);
     }
     const best = withinBudget()
       ? await improveWithTeam({ organizationId, lookSummary: input.lookSummary, evidence, memory, sections: pageSections, parts, designed, screen, result })

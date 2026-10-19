@@ -119,7 +119,7 @@ export const DEFAULT_SQUAD_SIZE = 8;
  * keeps going until one answers usefully, but never past this many attempts
  * or this much wall-clock time (both overridable by environment).
  */
-export const DEFAULT_MAX_ATTEMPTS = 16;
+export const DEFAULT_MAX_ATTEMPTS = 32;
 export const DEFAULT_CHAIN_MS = 150_000;
 
 /** Ranks every capable candidate (no squad cap). */

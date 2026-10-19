@@ -85,6 +85,9 @@ describe("composeFirstBuildSections", () => {
     });
     expect(result.composed).toBe(3);
     expect(updates.every((u) => u.kind === "composition")).toBe(true);
+    // Each validated section is checkpointed before optional page-level QA,
+    // then may be saved again if the final QA accepts a refinement.
+    expect(updates.length).toBeGreaterThan(3);
     // Two design calls; the review panel follows (its notes here parse as empty, so no revision).
     expect(calls.filter((c) => c.includes("SECTIONS TO DESIGN"))).toHaveLength(2);
     expect(result.gateReports).toEqual([]);

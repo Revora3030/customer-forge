@@ -16,7 +16,7 @@ import {
 } from "@/lib/ai/hall-of-fame";
 import { freeModelForm, recordFreeModelOutcome } from "@/lib/ai/free-reputation";
 import { callCollective, type LunaSkipReason } from "@/lib/ai/luna.server";
-import { freeAiOnly, paidCollectiveAllowed } from "@/lib/ai/free-only-policy.server";
+import { paidCollectiveAllowed } from "@/lib/ai/free-only-policy.server";
 import { scopedFreeOnly } from "@/lib/ai/spend-scope.server";
 
 export type HallOfFameAttempt = {
@@ -57,13 +57,17 @@ export async function hallOfFameSquad(
 ): Promise<{ role: string; capability: string; squad: HallOfFameCandidate[] }> {
   const role = roleForPurpose(purpose);
   const capability = capabilityForPurpose(purpose);
-  const strictFreeOnly = freeAiOnly();
   let candidates: HallOfFameCandidate[] = [];
   try {
     const { buildFreeModelRegistry } = await import("@/lib/ai/registry.server");
     const registry = await buildFreeModelRegistry(role);
+    // Keep direct OpenAI/Google API integrations outside this zero-spend
+    // fallback path: credentials may be billable even when a model catalogue
+    // lists a free tier. Those providers must only be used by a separately
+    // verified, explicitly budgeted lane. Verified free models from providers
+    // and aggregators that guarantee a zero-cost route remain eligible.
     candidates = registry
-      .filter((entry) => !strictFreeOnly || (entry.provider !== "openai" && entry.provider !== "google"))
+      .filter((entry) => entry.provider !== "openai" && entry.provider !== "google")
       .map((entry) => ({
         provider: entry.provider,
         model: entry.model,
@@ -211,7 +215,9 @@ export async function callHallOfFame(request: HallOfFameRequest): Promise<HallOf
           ],
           // A member may not outlive the walk's own deadline (the router
           // never raises this above its own per-call limit).
-          timeoutMs: remainingMs,
+          // A slow or wedged provider must not consume the entire chain budget.
+          // Keep attempts bounded so the runner can rotate across the free pool.
+          timeoutMs: Math.min(remainingMs, positiveEnvInt("HALL_OF_FAME_MEMBER_MS", 12_000)),
           ...(request.json === true ? { json: true } : {}),
           ...(request.maxOutputTokens === undefined ? {} : { maxOutputTokens: request.maxOutputTokens }),
         },

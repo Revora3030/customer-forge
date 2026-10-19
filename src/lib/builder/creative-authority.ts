@@ -94,6 +94,27 @@ function responsivePlan(input: {
 const briefText = (value: string | null | undefined) => value?.trim() ?? "";
 
 /**
+ * Recover only the missing one-line concept from signals already authored in
+ * the brief. This is not a template selector and never invents business claims.
+ * It prevents a transient model timeout from turning an otherwise complete
+ * design into a hard validation failure.
+ */
+export function recoverVisualConcept(brief: CreativeBrief): string {
+  const authoredSignals = [
+    brief.photography.language,
+    brief.photography.treatment,
+    brief.backgroundTreatment,
+    brief.sectionRhythm,
+    brief.density,
+    brief.conversionStrategy[0],
+  ].map(briefText).filter(Boolean).slice(0, 3);
+  if (authoredSignals.length) {
+    return "A distinct, responsive visual direction shaped by " + authoredSignals.join("; ") + ".";
+  }
+  return "A clear, accessible, responsive visual experience centered on the verified business information and the visitor next action.";
+}
+
+/**
  * Compiles the AI's creative decisions into the canonical contract. The page
  * architecture argument is the AI's own page plan; this function does not invent
  * one, and refuses to produce a contract without it.
@@ -137,7 +158,7 @@ export function compileAiDesignContract(input: {
     reviewedBy: input.reviewedBy ?? null,
     identity: {
       name: input.businessName,
-      concept: briefText(input.brief.concept),
+      concept: briefText(input.brief.concept) || recoverVisualConcept(input.brief),
       personality: briefText(input.brief.personality),
       differentiators: input.differentiators ?? input.brief.industryConventions,
     },
