@@ -257,7 +257,7 @@ describe("runProspectAutopilot", () => {
       query: "mobile detailing in Raleigh, NC",
       searched: 6,
       prospects: Array.from({ length: 6 }, (_, i) =>
-        prospect({ placeId: "social-" + i, name: "Detail Shop " + i, website: "https://facebook.com/shop-" + i, presence: "social_only" }),
+        prospect({ placeId: "social-" + i, name: "Detail Shop " + i, phone: "(919) 555-01" + String(i).padStart(2, "0"), website: "https://facebook.com/shop-" + i, presence: "social_only" }),
       ),
     });
 
