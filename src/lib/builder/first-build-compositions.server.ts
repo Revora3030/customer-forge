@@ -403,7 +403,7 @@ export async function composeFirstBuildSections(input: {
       pending = next;
     }
     // Rescue passes: sections still without a layout are designed one at a time
-    // (two rounds, each carrying the validator's notes from the last attempt).
+    // (four bounded rounds, each carrying the validator's notes from the last attempt).
     // A single-section answer is small, so it survives the output limits and
     // model timeouts that sink a batch of four.
     for (let rescueRound = 0; rescueRound < 4 && pending.length; rescueRound++) {
