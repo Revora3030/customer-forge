@@ -263,7 +263,7 @@ describe("runProspectAutopilot", () => {
 
     const result = await runProspectAutopilot(db, { now: () => NOW });
 
-    expect(result.built).toBe(5);
+    expect(result.built).toBe(6);
     expect(mocks.findPublicEmail).toHaveBeenCalledTimes(4);
   });
   it("stops building once today's cap is used and skips targets searched recently", async () => {
