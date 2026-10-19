@@ -3285,6 +3285,78 @@ export type Database = {
         }
         Relationships: []
       }
+      prospect_autopilot_runs: {
+        Row: {
+          built: number
+          emailed: number
+          error: string | null
+          finished_at: string | null
+          found: number
+          id: string
+          skipped: Json
+          started_at: string
+          texted: number
+          trigger: string
+        }
+        Insert: {
+          built?: number
+          emailed?: number
+          error?: string | null
+          finished_at?: string | null
+          found?: number
+          id?: string
+          skipped?: Json
+          started_at?: string
+          texted?: number
+          trigger?: string
+        }
+        Update: {
+          built?: number
+          emailed?: number
+          error?: string | null
+          finished_at?: string | null
+          found?: number
+          id?: string
+          skipped?: Json
+          started_at?: string
+          texted?: number
+          trigger?: string
+        }
+        Relationships: []
+      }
+      prospect_autopilot_settings: {
+        Row: {
+          daily_build_cap: number
+          enabled: boolean
+          id: number
+          send_email: boolean
+          send_sms: boolean
+          targets: Json
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          daily_build_cap?: number
+          enabled?: boolean
+          id?: number
+          send_email?: boolean
+          send_sms?: boolean
+          targets?: Json
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          daily_build_cap?: number
+          enabled?: boolean
+          id?: number
+          send_email?: boolean
+          send_sms?: boolean
+          targets?: Json
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       prospect_contact_consent: {
         Row: {
           created_at: string
@@ -3390,6 +3462,96 @@ export type Database = {
           },
         ]
       }
+      prospect_outreach_autopilot_gmail_orphan: {
+        Row: {
+          daily_cap: number
+          enabled: boolean
+          id: boolean
+          last_result: Json | null
+          last_run_at: string | null
+          lease_until: string | null
+          owner_id: string | null
+          targets: Json
+          updated_at: string
+        }
+        Insert: {
+          daily_cap?: number
+          enabled?: boolean
+          id?: boolean
+          last_result?: Json | null
+          last_run_at?: string | null
+          lease_until?: string | null
+          owner_id?: string | null
+          targets?: Json
+          updated_at?: string
+        }
+        Update: {
+          daily_cap?: number
+          enabled?: boolean
+          id?: boolean
+          last_result?: Json | null
+          last_run_at?: string | null
+          lease_until?: string | null
+          owner_id?: string | null
+          targets?: Json
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      prospect_outreach_gmail_orphan: {
+        Row: {
+          created_at: string
+          email: string
+          error: string | null
+          gmail_message_id: string | null
+          id: string
+          organization_id: string
+          source: string
+          status: string
+          subject: string
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          error?: string | null
+          gmail_message_id?: string | null
+          id?: string
+          organization_id: string
+          source: string
+          status: string
+          subject: string
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          error?: string | null
+          gmail_message_id?: string | null
+          id?: string
+          organization_id?: string
+          source?: string
+          status?: string
+          subject?: string
+        }
+        Relationships: []
+      }
+      prospect_outreach_suppressions_gmail_orphan: {
+        Row: {
+          created_at: string
+          email: string
+          reason: string
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          reason?: string
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          reason?: string
+        }
+        Relationships: []
+      }
       prospect_outreach_unsubscribe_tokens: {
         Row: {
           created_at: string
@@ -3405,78 +3567,6 @@ export type Database = {
           created_at?: string
           token?: string
           value?: string
-        }
-        Relationships: []
-      }
-      prospect_autopilot_runs: {
-        Row: {
-          built: number
-          emailed: number
-          error: string | null
-          finished_at: string | null
-          found: number
-          id: string
-          skipped: Json
-          started_at: string
-          texted: number
-          trigger: string
-        }
-        Insert: {
-          built?: number
-          emailed?: number
-          error?: string | null
-          finished_at?: string | null
-          found?: number
-          id?: string
-          skipped?: Json
-          started_at?: string
-          texted?: number
-          trigger?: string
-        }
-        Update: {
-          built?: number
-          emailed?: number
-          error?: string | null
-          finished_at?: string | null
-          found?: number
-          id?: string
-          skipped?: Json
-          started_at?: string
-          texted?: number
-          trigger?: string
-        }
-        Relationships: []
-      }
-      prospect_autopilot_settings: {
-        Row: {
-          daily_build_cap: number
-          enabled: boolean
-          id: number
-          send_email: boolean
-          send_sms: boolean
-          targets: Json
-          updated_at: string
-          updated_by: string | null
-        }
-        Insert: {
-          daily_build_cap?: number
-          enabled?: boolean
-          id?: number
-          send_email?: boolean
-          send_sms?: boolean
-          targets?: Json
-          updated_at?: string
-          updated_by?: string | null
-        }
-        Update: {
-          daily_build_cap?: number
-          enabled?: boolean
-          id?: number
-          send_email?: boolean
-          send_sms?: boolean
-          targets?: Json
-          updated_at?: string
-          updated_by?: string | null
         }
         Relationships: []
       }
