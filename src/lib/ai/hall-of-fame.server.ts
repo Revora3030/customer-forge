@@ -134,6 +134,9 @@ function providerWideFailure(error: unknown): boolean {
 /** A member is not started with less than this much chain time left. */
 const MIN_MEMBER_MS = 1_000;
 
+/** ~6k tokens: above this Groq's free tier answers 413 "too large". */
+export const GROQ_MAX_PROMPT_CHARS = 24_000;
+
 export async function callHallOfFame(request: HallOfFameRequest): Promise<HallOfFameOutcome> {
   const { callPinnedFreeModel, extractJsonObject } = await import("@/lib/ai/router.server");
   const { durableProviderResting, refreshDurableRuntime } = await import("@/lib/ai/durable-health.server");
@@ -180,6 +183,8 @@ export async function callHallOfFame(request: HallOfFameRequest): Promise<HallOf
       break;
     }
     if (deadProviders.has(member.provider)) continue;
+    // Groq's free tier rejects large prompts (HTTP 413); send those elsewhere.
+    if (member.provider === "groq" && request.system.length + request.user.length > GROQ_MAX_PROMPT_CHARS) continue;
     // A provider resting on its shared circuit (spent quota, repeated failures)
     // is skipped without a call, so the walk's time goes to models that answer.
     if (durableProviderResting(member.provider)) {
