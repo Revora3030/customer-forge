@@ -18,6 +18,7 @@ import {
   parseInboundKeyword,
   sendDemoOutreach,
   smsAllowedNow,
+  smsTimeZones,
   stateForPhone,
   stripOutreachFooter,
   timeZoneForState,
@@ -343,7 +344,11 @@ describe("outreach compliance fixes", () => {
     expect(stateForPhone("+447700900123")).toBeNull();
     const early = new Date("2026-10-19T13:05:00Z"); // 9:05 EDT, 6:05 PDT
     expect(smsAllowedNow(early, null, "+12135550100")).toBe(false);
-    expect(smsAllowedNow(early, "NC", "+12135550100")).toBe(false); // the area code wins over the state
+    expect(smsAllowedNow(early, "NC", "+12135550100")).toBe(false); // must fit the number's zone and the state's
+    // A 919 (Eastern) mobile on a California listing must be in-window in both zones.
+    expect(smsTimeZones("CA", "+19195550100").sort()).toEqual(["America/Los_Angeles", "America/New_York"]);
+    expect(smsAllowedNow(new Date("2026-10-19T15:30:00Z"), "CA", "+19195550100")).toBe(false); // 11:30 EDT, 8:30 PDT
+    expect(smsAllowedNow(new Date("2026-10-19T17:00:00Z"), "CA", "+19195550100")).toBe(true); // 13:00 EDT, 10:00 PDT
     expect(smsAllowedNow(new Date("2026-10-19T14:00:00Z"), "NC")).toBe(true);
     expect(smsAllowedNow(new Date("2026-10-19T14:00:00Z"), "Calif.")).toBe(false); // unknown: 7:00 PDT
     expect(smsAllowedNow(new Date("2026-10-19T17:00:00Z"), null)).toBe(true); // 13:00 EDT, 10:00 PDT
@@ -396,7 +401,7 @@ describe("outreach compliance fixes", () => {
     const auto = { ...email, mode: "autopilot" as const, actorId: null };
     expect(await sendDemoOutreach(db, auto)).toMatchObject({ ok: false, reason: "unconfirmed_transport" });
     expect(tables["prospect_outreach"]![0]).toMatchObject({ status: "sent", reason: "unconfirmed_transport" });
-    expect(vi.mocked(sendTemplateEmail).mock.calls[0]![2]!.idempotencyKey).toBe(`prospect-demo-${ORG}-email-autopilot`);
+    expect(vi.mocked(sendTemplateEmail).mock.calls[0]![2]!.idempotencyKey).toMatch(new RegExp(`^prospect-demo-${ORG}-email-autopilot-\\d{4}-\\d{2}-\\d{2}$`));
     expect(await sendDemoOutreach(db, auto)).toMatchObject({ ok: false, reason: "already_sent" });
     expect(sendTemplateEmail).toHaveBeenCalledTimes(1);
 

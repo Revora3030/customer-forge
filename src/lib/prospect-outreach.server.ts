@@ -229,9 +229,11 @@ export function stateForPhone(phone: string | null | undefined): string | null {
  * business's state, otherwise every continental US zone (fail closed).
  */
 export function smsTimeZones(state: string | null | undefined, phone?: string | null): string[] {
-  const code = stateForPhone(phone) ?? stateCode(state);
-  if (!code) return CONTINENTAL_US_ZONES;
-  return SPLIT_STATE_ZONES[code] ?? [ZONES[code]!];
+  // Mobile numbers keep their area code when people move, so when the number
+  // and the listing's state point at different zones, the text must fit both.
+  const codes = [...new Set([stateForPhone(phone), stateCode(state)].filter((code): code is string => Boolean(code)))];
+  if (!codes.length) return CONTINENTAL_US_ZONES;
+  return [...new Set(codes.flatMap((code) => SPLIT_STATE_ZONES[code] ?? [ZONES[code]!]))];
 }
 
 export function localHour(now: Date, timeZone: string): number {
@@ -686,7 +688,13 @@ export async function sendDemoOutreach(db: SupabaseClient, input: SendDemoOutrea
     const replyTo = normalizeEmail(process.env["REVORA_REPLY_TO_EMAIL"]);
     const sent = await sendTemplateEmail("prospect-demo", recipient, {
       // Autopilot sends once per demo, so its key is stable and the provider dedupes retries.
-      idempotencyKey: mode === "autopilot" ? `prospect-demo-${organizationId}-email-autopilot` : `prospect-demo-${organizationId}-${outreachId}`,
+      // Autopilot: one key per demo per UTC day, so a lost response is never
+      // sent twice that day while the next day's retry is not stuck on a
+      // provider-cached failure. Manual sends key on their own record.
+      idempotencyKey:
+        mode === "autopilot"
+          ? `prospect-demo-${organizationId}-email-autopilot-${new Date().toISOString().slice(0, 10)}`
+          : `prospect-demo-${organizationId}-${outreachId}`,
       templateData: { subject, message, footerLines: senderLines, unsubscribeUrl },
       ...(replyTo ? { replyTo } : {}),
     });
