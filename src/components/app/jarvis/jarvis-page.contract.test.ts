@@ -115,4 +115,10 @@ describe("Jarvis page keeps every behaviour the rebuild must preserve", () => {
     expect(history).toContain('query.lt("created_at", cursor.before)');
     expect(fns).toContain("return runJarvis(db, userId, data.mode, data.page);");
   });
+
+  it("mounts a fresh send card for every demo.send approval, so re-approving after Cancel reopens the sheet", () => {
+    const after = route.slice(route.indexOf("const renderAfterProposal"));
+    expect(after).toMatch(/<DemoBuildCard\s+key=\{`\$\{key\}:\$\{sendCard\.nonce\}`\}/);
+    expect(route).toContain("nonce: (current[key]?.nonce ?? 0) + 1");
+  });
 });

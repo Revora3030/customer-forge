@@ -2,6 +2,7 @@
 import React from "react";
 import { Body, Container, Head, Hr, Html, Link, Preview, Section, Text } from "@react-email/components";
 import type { TemplateEntry } from "./registry";
+import { OUTREACH_PROMOTIONAL_NOTICE } from "@/lib/outreach-notice";
 
 interface Props {
   subject?: string;
@@ -13,11 +14,13 @@ interface Props {
 
 /**
  * First-touch email to a business Jarvis built a demo website for. Plain and
- * personal: the operator-reviewed (or AI-drafted) text, then the sender block
- * and a one-click unsubscribe link that is always present.
+ * personal: the operator-reviewed (or AI-drafted) text, then the promotional
+ * notice, the sender block and a one-click unsubscribe link, always present.
  */
 const Email = ({ subject, message, footerLines, unsubscribeUrl }: Props) => {
   const paragraphs = (message ?? "").split(/\n{2,}/).filter(Boolean);
+  // The ad notice is rendered by the template itself, whatever the caller passes.
+  const closingLines = [OUTREACH_PROMOTIONAL_NOTICE, ...(footerLines ?? []).filter((line) => line !== OUTREACH_PROMOTIONAL_NOTICE)];
   return (
     <Html lang="en" dir="ltr">
       <Head />
@@ -37,7 +40,7 @@ const Email = ({ subject, message, footerLines, unsubscribeUrl }: Props) => {
             ))}
           </Section>
           <Hr style={hr} />
-          {(footerLines ?? []).map((line, i) => (
+          {closingLines.map((line, i) => (
             <Text key={i} style={footer}>
               {line}
             </Text>

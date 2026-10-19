@@ -113,7 +113,8 @@ export function DemoSendForm(props: FormProps) {
       ) : null}
       <p className="text-xs text-muted-foreground">Jarvis checks the do-not-contact list and today's sending limit before anything goes out.</p>
       <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-        <Button type="button" variant="outline" data-jarvis-tap="" className="min-h-11" onClick={props.onCancel}>Cancel</Button>
+        {/* Closing mid-send would release the proposal while the message still goes out. */}
+        <Button type="button" variant="outline" data-jarvis-tap="" className="min-h-11" disabled={sending} onClick={props.onCancel}>Cancel</Button>
         <Button type="submit" data-jarvis-tap="" className="min-h-11 gap-1.5" disabled={!canSend}>
           {sending ? <Loader2 className="size-4 animate-spin" aria-hidden /> : email ? <Mail className="size-4" aria-hidden /> : <MessageSquare className="size-4" aria-hidden />}
           {sending ? "Sending…" : email ? "Send email" : "Send text"}
