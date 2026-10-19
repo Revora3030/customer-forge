@@ -13,6 +13,7 @@ GitHub Actions evidence shows this repository's GitHub **default CodeQL setup is
 - **Playwright + agent-browser** inspect configured routes and produce independent snapshots/screenshots.
 - **MCP server** exposes read-only repository status, path listing, bounded file reads, code search and recent CI for the fixed public `Revora3030/customer-forge` repository / `lovable-sync` branch.
 - **OpenTelemetry OTLP + Langfuse** receive optional provider-call metadata via Worker-compatible OTLP/HTTP.
+- **Future AGI** supports OpenTelemetry-native traces and can use the generic OTLP exporter after the operator supplies the actual ingest endpoint and authorization from its workspace. The PR does not invent an ingest URL or enable sending without a configured destination.
 
 ## Runtime-only configuration
 Set these in Lovable Cloud / deployment environment; never commit values:
