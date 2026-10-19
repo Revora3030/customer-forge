@@ -136,6 +136,8 @@ const MIN_MEMBER_MS = 1_000;
 
 export async function callHallOfFame(request: HallOfFameRequest): Promise<HallOfFameOutcome> {
   const { callPinnedFreeModel, extractJsonObject } = await import("@/lib/ai/router.server");
+  const { durableProviderResting, refreshDurableRuntime } = await import("@/lib/ai/durable-health.server");
+  await Promise.resolve(refreshDurableRuntime()).catch(() => undefined);
   // Rank the whole capable list; the walk itself is what is bounded.
   const { role, capability, squad } = await hallOfFameSquad(request.purpose, UNLIMITED_SQUAD);
   const maxAttempts =
@@ -178,6 +180,12 @@ export async function callHallOfFame(request: HallOfFameRequest): Promise<HallOf
       break;
     }
     if (deadProviders.has(member.provider)) continue;
+    // A provider resting on its shared circuit (spent quota, repeated failures)
+    // is skipped without a call, so the walk's time goes to models that answer.
+    if (durableProviderResting(member.provider)) {
+      deadProviders.add(member.provider);
+      continue;
+    }
     const started = Date.now();
     try {
       request.onAttempt?.(member.provider, member.model);

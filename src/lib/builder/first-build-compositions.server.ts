@@ -402,10 +402,11 @@ export async function composeFirstBuildSections(input: {
       feedback = nextFeedback;
       pending = next;
     }
-    // Rescue pass: sections still without a layout are designed one at a time.
+    // Rescue passes: sections still without a layout are designed one at a time
+    // (two rounds, each carrying the validator's notes from the last attempt).
     // A single-section answer is small, so it survives the output limits and
     // model timeouts that sink a batch of four.
-    if (pending.length) {
+    for (let rescueRound = 0; rescueRound < 2 && pending.length; rescueRound++) {
       const rescued = await Promise.all(pending.map(async (section) => {
         const call = await callBestThinker({
           json: true,
