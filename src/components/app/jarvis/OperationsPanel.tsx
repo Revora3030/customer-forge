@@ -3,8 +3,9 @@ import type { UseQueryResult } from "@tanstack/react-query";
 import { Ban, Copy, Megaphone, Stethoscope } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { ProspectDemoBuilder } from "@/components/app/ProspectDemoBuilder";
+import { ProspectDemoBuilder, type DemoCardTarget } from "@/components/app/ProspectDemoBuilder";
 import { ClaudeCodePanel } from "@/components/app/ClaudeCodePanel";
+import { ProspectAutopilotCard } from "./ProspectAutopilotCard";
 import type { getJarvisAcquisitionReadiness, getJarvisDiagnostics, runJarvisDiagnosticTool } from "@/lib/jarvis.functions";
 import type { ProspectDraft } from "@/lib/jarvis-prospecting.functions";
 
@@ -53,6 +54,8 @@ type Props = {
   prospector: ProspectorState;
   /** Increments each time the owner asks to see diagnostics (the header's Checks button). */
   focusDiagnostics: number;
+  /** Shows a demo's live build card / preview in the chat (a new build, or "Preview here"). */
+  onShowDemo?: ((demo: DemoCardTarget) => void) | undefined;
 };
 
 export const DIAGNOSTIC_SECTIONS = [["errors", "Errors"], ["builds", "Builds"], ["schema", "Schema"]] as const;
@@ -69,7 +72,7 @@ const summaryRow = "flex min-h-11 cursor-pointer list-none items-center gap-2 px
  * sheet on phones). Most-used first: the demo builder, then Claude Code, then
  * health, prospecting, acquisition and the scorecard. The honesty copy is fixed.
  */
-export function OperationsPanel({ diagnostics, acquisition, scorecard, prospector, focusDiagnostics }: Props) {
+export function OperationsPanel({ diagnostics, acquisition, scorecard, prospector, focusDiagnostics, onShowDemo }: Props) {
   const diagnosticsRef = useRef<HTMLDetailsElement>(null);
   useEffect(() => {
     if (!focusDiagnostics || !diagnosticsRef.current) return;
@@ -81,8 +84,9 @@ export function OperationsPanel({ diagnostics, acquisition, scorecard, prospecto
 
   return (
     <div className="space-y-3">
-      <ProspectDemoBuilder />
+      <ProspectDemoBuilder onBuildStarted={onShowDemo} onPreview={onShowDemo} />
       <ClaudeCodePanel />
+      <ProspectAutopilotCard />
 
       <details ref={diagnosticsRef} id="jarvis-diagnostics" className="scroll-mt-4 rounded-xl border border-border bg-card">
         <summary className={summaryRow}>

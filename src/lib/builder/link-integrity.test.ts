@@ -7,6 +7,7 @@ import {
   hasAction,
   repairHref,
   repairTreeLinks,
+  selfLinkTarget,
 } from "@/lib/builder/link-integrity";
 import type { CompositionTree } from "@/lib/builder/composition-tree";
 import { auditSectionDesign } from "@/lib/builder/design-quality";
@@ -71,6 +72,28 @@ describe("every button goes somewhere real", () => {
     expect(fixed.root.children?.[0]?.style?.background).toBe("#112233");
     expect(fixed.root.children?.[1]?.primaryCta?.href).toBe("/contact");
     expect(tree.root.children?.[0]?.href).toBe("/booking-page");
+  });
+  it("points a button back at its own page to that page's form", () => {
+    const tree: CompositionTree = {
+      version: 1,
+      root: {
+        type: "stack",
+        children: [
+          { type: "button", text: "Get a quote", href: "/contact" },
+          { type: "link", text: "Services", href: "/services" },
+        ],
+      },
+    };
+    const { tree: fixed, fixes } = repairTreeLinks(tree, pages, new Set(["contact-form"]), new Set(), "contact");
+    expect(fixed.root.children?.[0]?.href).toBe("#contact-form");
+    expect(fixed.root.children?.[1]?.href).toBe("/services");
+    expect(fixes).toEqual([{ path: "root.children[0].href", from: "/contact", to: "#contact-form" }]);
+  });
+  it("leaves a self-link alone when the page has nothing to scroll to", () => {
+    expect(selfLinkTarget("/contact", "contact", new Set())).toBeNull();
+    expect(selfLinkTarget("/", "home", new Set(["quote"]))).toBe("#quote");
+    expect(selfLinkTarget("/contact#x", "contact", new Set(["contact-form"]))).toBeNull();
+    expect(selfLinkTarget("/about", "contact", new Set(["contact-form"]))).toBeNull();
   });
   it("knows the anchors that section roles provide", () => {
     const anchors = collectAnchors([

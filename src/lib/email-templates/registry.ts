@@ -5,6 +5,7 @@ import { template as leadAlertTemplate } from "./lead-alert";
 import { template as leadConfirmationTemplate } from "./lead-confirmation";
 import { template as newSignupAlertTemplate } from "./new-signup-alert";
 import { template as growthAssessmentTemplate } from "./growth-assessment";
+import { template as prospectDemoTemplate } from "./prospect-demo";
 import {
   lifecycleBookingFollowUpTemplate,
   lifecycleSetupReminderTemplate,
@@ -46,6 +47,7 @@ export const TEMPLATES: Record<string, TemplateEntry> = {
   "lead-confirmation": leadConfirmationTemplate,
   "new-signup-alert": newSignupAlertTemplate,
   "growth-assessment": growthAssessmentTemplate,
+  "prospect-demo": prospectDemoTemplate,
   "billing-welcome": welcomeTemplate,
   "billing-sale-alert": saleAlertTemplate,
   "billing-canceled": canceledTemplate,

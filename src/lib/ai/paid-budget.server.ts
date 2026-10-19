@@ -1,5 +1,6 @@
 import { MICROCENTS_PER_DOLLAR, costMicrocents, estimateMicrocents } from "@/lib/ai/luna.server";
 import type { CollectiveTier } from "@/lib/ai/collective";
+import { scopedFreeOnly } from "@/lib/ai/spend-scope.server";
 
 /**
  * One daily dollar cap for every paid AI call (owner's choice: paid models
@@ -51,10 +52,13 @@ const UNMETERED = "unmetered";
 
 /**
  * Reserves `estimate` microcents for today. Returns null when the cap is 0,
- * today's spend would exceed it, or the configured ledger can't be read —
- * the cap fails closed wherever a database exists.
+ * today's spend would exceed it, the call runs in a free-only spending scope,
+ * or the configured ledger can't be read — the cap fails closed wherever a
+ * database exists.
  */
 export async function reservePaidSpend(estimate: number): Promise<PaidReservation | null> {
+  // A free-only spending scope (demo workspace builds) never spends.
+  if (scopedFreeOnly()) return null;
   const cap = paidDailyCapMicrocents();
   if (cap <= 0) return null;
   const amount = Math.max(0, Math.round(estimate));

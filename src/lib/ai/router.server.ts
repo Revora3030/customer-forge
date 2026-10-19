@@ -24,6 +24,7 @@
  */
 
 import { reservePaidSpend, routerActual, routerEstimate, settlePaidSpend, type PaidReservation } from "@/lib/ai/paid-budget.server";
+import { scopedFreeOnly } from "@/lib/ai/spend-scope.server";
 import {
   aiLimits,
   providerChain,
@@ -622,7 +623,8 @@ async function run<T>(
     caller,
     role,
     roleCapability(role, options?.capable),
-    options?.freeOnly === true,
+    // A free-only spending scope (demo workspace builds) also keeps paid out.
+    options?.freeOnly === true || scopedFreeOnly(),
   );
   const attemptTimeoutMs = clampPositive(options?.timeoutMs, limits.requestTimeoutMs);
   const chainBudgetMs = clampPositive(options?.chainDeadlineMs, chainDeadlineMs());
@@ -1219,6 +1221,9 @@ export async function callPinnedPaidImage(
     throw new RevoraAiError(413, "That image brief is too long for Revora AI.", {
       category: "too_large",
     });
+  // Callers reserve first (and a free-only scope refuses that reservation);
+  // this is the last line so no free-only build can reach a paid model.
+  if (scopedFreeOnly()) throw freeAiUnavailable("paid pictures are off for this free-only build");
   const config = providerConfig("openai");
   if (!config?.apiKey) throw freeAiUnavailable("openai has no credentials configured");
 
@@ -1296,6 +1301,7 @@ export async function callPinnedPaidVideo(
     throw new RevoraAiError(413, "That video brief is too long for Revora AI.", {
       category: "too_large",
     });
+  if (scopedFreeOnly()) throw freeAiUnavailable("paid video is off for this free-only build");
   const config = providerConfig("openai");
   if (!config?.apiKey) throw freeAiUnavailable("openai has no credentials configured");
 

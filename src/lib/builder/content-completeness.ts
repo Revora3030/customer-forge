@@ -140,6 +140,35 @@ export function auditContentCompleteness(input: {
   return findings;
 }
 
+/** Fields the platform's own site forms ask for (SiteForms.tsx). */
+const ENQUIRY_FIELDS = ["name", "phone", "email", "city", "service wanted", "message"];
+const BOOKING_FIELDS = ["preferred date", "preferred time"];
+
+/**
+ * The verified facts the AI author of a privacy, terms or other legal page
+ * works from, plus the questions it must leave to the owner. Every site
+ * carries the platform enquiry form and records page visits.
+ */
+export function legalPageFacts(input: {
+  businessName: string;
+  email: string | null;
+  goals: string[];
+}): string[] {
+  const hasBooking = input.goals.includes("book");
+  const { statements, unknowns } = dataHandlingInventory({
+    businessName: input.businessName,
+    contactEmail: input.email,
+    collectedFields: [...ENQUIRY_FIELDS, ...(hasBooking ? BOOKING_FIELDS : [])],
+    hasQuoteForm: input.goals.includes("quote"),
+    hasBooking,
+    analyticsEnabled: true,
+  });
+  return [
+    ...statements,
+    ...unknowns.map((unknown) => `Not known (do not state or guess; say the business can be asked): ${unknown}.`),
+  ];
+}
+
 export type DataHandlingFacts = {
   businessName: string;
   contactEmail: string | null;

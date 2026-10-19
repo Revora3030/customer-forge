@@ -244,6 +244,8 @@ export async function reserveBudget(
   calls: number;
   tenantSpent: number;
   tenantCap: number;
+  /** True when the month allowed the call but today's paid cap did not. */
+  dailyCapped: boolean;
 } | null> {
   const client = await admin();
   if (!client) return null;
@@ -255,6 +257,7 @@ export async function reserveBudget(
   });
   if (error || !Array.isArray(data) || !data.length) return null;
   const row = data[0] as ReserveRow;
+  let dailyCapped = false;
   // The owner's daily paid cap applies on top of the monthly ledger: a call
   // the month allows but today's cap doesn't is released and refused.
   if (row.allowed) {
@@ -266,10 +269,12 @@ export async function reserveBudget(
         _actual_microcents: 0,
       });
       row.allowed = false;
+      dailyCapped = true;
     }
   }
   return {
     allowed: Boolean(row.allowed),
+    dailyCapped,
     spent: Number(row.spent_microcents) || 0,
     cap: Number(row.cap_microcents) || 0,
     calls: Number(row.calls) || 0,
@@ -329,6 +334,14 @@ export const ERROR_REASON_MAX_CHARS = 200;
  * and returns OpenAI's `error.message` (or the raw text when the body is not
  * that shape). Never throws; an unreadable body yields null.
  */
+/** Models that refused reasoning effort "none" in this process. */
+const NO_EFFORT_NONE = new Set<string>();
+
+/** True for the provider's "reasoning_effort does not support 'none'" refusal. */
+export function refusesEffortNone(message: string): boolean {
+  return /reasoning_effort/i.test(message) && /['"]none['"]/i.test(message);
+}
+
 export async function readProviderErrorMessage(response: Response, timeoutMs = 3_000): Promise<string | null> {
   const body = response.body;
   if (!body) return null;
@@ -459,14 +472,16 @@ export async function callLuna(request: LunaRequest): Promise<LunaResult> {
       usage: { inputTokens: 0, cachedInputTokens: 0, outputTokens: 0 },
       cost: 0,
       outcome: "skipped",
-      reason: "monthly cap reached",
+      reason: reservation.dailyCapped ? "daily paid cap reached" : "monthly cap reached",
     });
     const tenantBlocked = reservation.tenantSpent + estimate > reservation.tenantCap;
     return skip(
       "budget_exhausted",
-      tenantBlocked
-        ? `workspace allocation ${formatUsd(reservation.tenantCap)} reached`
-        : `global cap ${formatUsd(reservation.cap)} reached`,
+      reservation.dailyCapped
+        ? "today's paid AI cap reached"
+        : tenantBlocked
+          ? `workspace allocation ${formatUsd(reservation.tenantCap)} reached`
+          : `global cap ${formatUsd(reservation.cap)} reached`,
     );
   }
 
@@ -492,9 +507,8 @@ export async function callLuna(request: LunaRequest): Promise<LunaResult> {
     () => controller.abort(new Error(`paid model did not answer within ${Math.round(timeoutMs / 1000)}s`)),
     timeoutMs,
   );
-  let response: Response;
-  try {
-    response = await fetch(`${base}/${responsesOnly ? "responses" : "chat/completions"}`, {
+  const send = (effort: "none" | "low") =>
+    fetch(`${base}/${responsesOnly ? "responses" : "chat/completions"}`, {
       method: "POST",
       headers: {
         "content-type": "application/json",
@@ -514,7 +528,7 @@ export async function callLuna(request: LunaRequest): Promise<LunaResult> {
             }
           : {
               model,
-              reasoning_effort: "none",
+              reasoning_effort: effort,
               max_completion_tokens: maxOutputTokens,
               messages: [
                 { role: "system", content: request.system },
@@ -523,6 +537,22 @@ export async function callLuna(request: LunaRequest): Promise<LunaResult> {
             },
       ),
     });
+  let response: Response;
+  // The provider's error text, when the first answer's body was already read.
+  let readFailure: string | null | undefined;
+  try {
+    response = await send(NO_EFFORT_NONE.has(model) ? "low" : "none");
+    // Some reasoning models refuse effort "none" (they accept low and up).
+    // A 400 costs nothing, so the call is re-sent once at "low" and the
+    // model is remembered for the rest of this process.
+    if (response.status === 400 && !responsesOnly && !NO_EFFORT_NONE.has(model)) {
+      readFailure = await readProviderErrorMessage(response);
+      if (readFailure && refusesEffortNone(readFailure)) {
+        NO_EFFORT_NONE.add(model);
+        readFailure = undefined;
+        response = await send("low");
+      }
+    }
   } catch (error) {
     clearTimeout(timer);
     request.signal?.removeEventListener("abort", onUserCancel);
@@ -554,7 +584,7 @@ export async function callLuna(request: LunaRequest): Promise<LunaResult> {
     // The provider's own explanation (e.g. an unsupported parameter) is the
     // only way to diagnose a repeated 400, so a sanitised, bounded excerpt of
     // it is kept on the usage row. The request shape is unchanged here.
-    const providerMessage = await readProviderErrorMessage(response);
+    const providerMessage = readFailure !== undefined ? readFailure : await readProviderErrorMessage(response);
     await recordUsage({
       organizationId,
       purpose: request.purpose,

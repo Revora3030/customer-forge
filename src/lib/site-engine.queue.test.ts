@@ -9,6 +9,7 @@ import {
   StaleAttemptError,
   touchLease,
 } from "@/lib/site-engine.worker.server";
+import { scopedFreeOnly } from "@/lib/ai/spend-scope.server";
 
 type Row = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
 
@@ -242,5 +243,54 @@ describe("worker queue behavior", () => {
     await expect(drainSiteEngineQueue(db, { max: 1 }, execute)).rejects.toThrow("queue state could not be checked");
     expect(execute).not.toHaveBeenCalled();
     expect(row["attempts"]).toBe(0);
+  });
+});
+
+describe("free-only demo builds", () => {
+  afterEach(() => vi.unstubAllEnvs());
+
+  it("runs demo workspace builds free-only and customer builds with paid allowed, even when they overlap", async () => {
+    vi.stubEnv("DEMO_BUILDS_ALLOW_PAID", "");
+    const demo = queued("demo-job", "demo-org");
+    const customer = queued("customer-job", "customer-org");
+    const { db, tables } = database([demo, customer]);
+    tables["organizations"] = [{ id: "demo-org", is_demo: true }, { id: "customer-org", is_demo: false }];
+    const seen: Record<string, boolean[]> = {};
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    const execute = vi.fn(async (_db: unknown, job: { id: string; organization_id: string }) => {
+      const notes = (seen[job.organization_id] ??= []);
+      notes.push(scopedFreeOnly());
+      // Interleave: the demo build waits while the customer build runs, so a
+      // module-level switch would leak between them.
+      if (job.organization_id === "demo-org") await gate;
+      else release();
+      await new Promise((resolve) => setTimeout(resolve, 1));
+      notes.push(scopedFreeOnly());
+    });
+    await Promise.all([
+      drainSiteEngineQueue(db, { max: 1, organizationId: "demo-org" }, execute),
+      drainSiteEngineQueue(db, { max: 1, organizationId: "customer-org" }, execute),
+    ]);
+    expect(execute).toHaveBeenCalledTimes(2);
+    expect(seen["demo-org"]).toEqual([true, true]);
+    expect(seen["customer-org"]).toEqual([false, false]);
+    expect(scopedFreeOnly()).toBe(false);
+  });
+
+  it("lets the owner opt demo builds into paid with DEMO_BUILDS_ALLOW_PAID=true", async () => {
+    vi.stubEnv("DEMO_BUILDS_ALLOW_PAID", "true");
+    const { db, tables } = database([queued("demo-job", "demo-org")]);
+    tables["organizations"] = [{ id: "demo-org", is_demo: true }];
+    let freeOnly: boolean | null = null;
+    await drainSiteEngineQueue(db, { max: 1 }, async () => { freeOnly = scopedFreeOnly(); });
+    expect(freeOnly).toBe(false);
+  });
+
+  it("builds free-only when the workspace can't be read (spending fails closed)", async () => {
+    const { db } = database([queued("orphan-job", "missing-org")]);
+    let freeOnly: boolean | null = null;
+    await drainSiteEngineQueue(db, { max: 1 }, async () => { freeOnly = scopedFreeOnly(); });
+    expect(freeOnly).toBe(true);
   });
 });

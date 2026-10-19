@@ -570,6 +570,30 @@ export const sendClaudeCodeRequestFn = createServerFn({ method: "POST" })
     return result;
   });
 
+/** Asks Claude Code to fix an open pull request's failing checks or review comments. */
+export const askClaudeToFixPullRequestFn = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((input: { pr: unknown; note?: unknown }) => {
+    const pr = Number(input?.pr);
+    if (!Number.isInteger(pr) || pr <= 0) throw new Error("Give the pull request number.");
+    return { pr, note: typeof input?.note === "string" ? input.note.slice(0, 2000) : "" };
+  })
+  .handler(async ({ context, data }) => {
+    const db = await guardedAdmin(context);
+    const { askClaudeToFixPullRequest } = await import("./jarvis-claude-code.server");
+    const email = (context as { claims?: { email?: unknown } }).claims?.email;
+    const result = await askClaudeToFixPullRequest(data.pr, data.note, typeof email === "string" && email ? email : "the platform owner");
+    await db.from("audit_logs").insert({
+      organization_id: null,
+      actor_id: String(context.userId),
+      action: "jarvis.claude_code.fix_requested",
+      entity: "github_pull_request",
+      entity_id: String(data.pr),
+      metadata: { failing: result.failing, note: data.note.slice(0, 500) },
+    });
+    return result;
+  });
+
 export const listClaudeCodeRequestsFn = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {

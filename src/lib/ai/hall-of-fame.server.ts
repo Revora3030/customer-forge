@@ -17,6 +17,7 @@ import {
 import { freeModelForm, recordFreeModelOutcome } from "@/lib/ai/free-reputation";
 import { callCollective, type LunaSkipReason } from "@/lib/ai/luna.server";
 import { freeAiOnly, paidCollectiveAllowed } from "@/lib/ai/free-only-policy.server";
+import { scopedFreeOnly } from "@/lib/ai/spend-scope.server";
 
 export type HallOfFameAttempt = {
   provider: string;
@@ -295,8 +296,9 @@ async function callBestThinkerInner(request: {
   onAttempt?: (provider: string, model: string) => void;
 }): Promise<ThinkerOutcome> {
   // Paid runs for the hardest steps within the daily cap (owner's choice);
-  // everything else, or an explicit free-only flag, stays on the free pool.
-  const strictFreeOnly = !paidCollectiveAllowed(request.purpose);
+  // everything else, an explicit free-only flag, or a free-only spending scope
+  // (demo workspace builds) stays on the free pool.
+  const strictFreeOnly = scopedFreeOnly() || !paidCollectiveAllowed(request.purpose);
   const paid = strictFreeOnly
     ? {
         ok: false as const,

@@ -1,6 +1,9 @@
-import { ExternalLink, GitPullRequest, Hammer, RefreshCw } from "lucide-react";
+import { ExternalLink, GitPullRequest, Hammer, Mail, MessageSquare, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { WriteProposal } from "@/lib/jarvis-actions";
+import { readDemoSendProposal } from "./demo-build";
+import { AutopilotProposalCard } from "./AutopilotProposal";
+import { isAutopilotProposal } from "./autopilot-proposal";
 
 export type ProposalState = "building" | "done" | undefined;
 
@@ -19,6 +22,7 @@ const linkButton = "mt-3 inline-flex min-h-10 items-center gap-1.5 rounded-md bo
 
 /** One write proposal from Jarvis. Nothing happens until the owner approves it here. */
 export function ProposalCard({ proposal, state, url, onApprove }: Props) {
+  if (isAutopilotProposal(proposal)) return <AutopilotProposalCard proposal={proposal} state={state} onApprove={onApprove} />;
   if (proposal.id === "code.pr") {
     return (
       <div className={card}>
@@ -65,12 +69,38 @@ export function ProposalCard({ proposal, state, url, onApprove }: Props) {
       </div>
     );
   }
+  if (proposal.id === "claude.fix") {
+    return (
+      <div className={card}>
+        <p className="flex items-center gap-1.5 text-sm font-medium"><GitPullRequest className="size-4 text-primary" aria-hidden />Ask Claude Code to fix pull request #{proposal.pr}</p>
+        {proposal.note ? <p className="mt-1 whitespace-pre-wrap break-words text-sm text-muted-foreground">{proposal.note.length > 600 ? `${proposal.note.slice(0, 600)}…` : proposal.note}</p> : null}
+        {url ? (
+          <a href={url} target="_blank" rel="noreferrer" className={linkButton}>Follow it on GitHub <ExternalLink className="size-4" aria-hidden /></a>
+        ) : (
+          <Button type="button" className="mt-3" data-jarvis-tap="" disabled={Boolean(state)} onClick={onApprove}>{state === "building" ? "Sending…" : "Approve and ask Claude Code"}</Button>
+        )}
+        <p className={disclaimer}>Claude Code reads the failing checks and review comments, fixes them on that pull request's branch and runs the checks. Nothing merges until you merge it.</p>
+      </div>
+    );
+  }
   if (proposal.id === "builds.recover") {
     return (
       <div className={card}>
         <p className="flex items-center gap-1.5 text-sm font-medium"><RefreshCw className="size-4 text-primary" aria-hidden />Recover stalled builds</p>
         <p className="mt-1 text-sm text-muted-foreground">Closes builds whose worker died, re-queues orphaned ones and restarts the build worker. Builds that are still running are left alone.</p>
         <Button type="button" className="mt-3" data-jarvis-tap="" disabled={Boolean(state)} onClick={onApprove}>{state === "building" ? "Recovering…" : state === "done" ? "Done" : "Approve and recover"}</Button>
+      </div>
+    );
+  }
+  if (proposal.id === "demo.send") {
+    // Approving opens the review sheet, not a send.
+    const send = readDemoSendProposal(proposal);
+    if (!send) return null;
+    return (
+      <div className={card}>
+        <p className="flex items-start gap-1.5 text-sm font-medium">{send.channel === "sms" ? <MessageSquare className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden /> : <Mail className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden />}<span className="min-w-0 break-words">{send.channel === "sms" ? "Text" : "Email"} the demo site{send.to ? ` to ${send.to}` : ""}</span></p>
+        <Button type="button" className="mt-3" data-jarvis-tap="" disabled={Boolean(state)} onClick={onApprove}>{state === "building" ? "Opening…" : state === "done" ? "Sent" : "Review and send"}</Button>
+        <p className={disclaimer}>You see and can edit the exact message first. Nothing is sent until you tap Send.</p>
       </div>
     );
   }
