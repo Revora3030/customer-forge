@@ -247,6 +247,8 @@ describe("Hall of Fame squad walk", () => {
   it("stops at the chain deadline and fails closed", async () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.stubEnv("HALL_OF_FAME_CHAIN_MS", "100000");
+    // Isolate the chain deadline from the default per-provider 12s cap.
+    vi.stubEnv("HALL_OF_FAME_MEMBER_MS", "100000");
     mocks.registry.mockResolvedValue(
       Array.from({ length: 10 }, (_, i) => registryEntry(`prov${i}`, `model-${i}`, 95 - i)),
     );
