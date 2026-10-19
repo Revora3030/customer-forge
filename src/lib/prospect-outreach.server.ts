@@ -337,11 +337,14 @@ export async function runOutreachAutopilot(db: SupabaseClient, base: string, opt
       });
       const { kickWorker } = await import("@/lib/site-engine.functions");
       const { autopilotShouldBuild } = await import("@/lib/prospect-finder");
+      const { findPublicEmail } = await import("@/lib/prospect-email.server");
       let built = 0;
       let skippedNoEmail = 0;
       for (const prospect of found?.prospects ?? []) {
         if (built >= room) break;
-        // Autopilot only builds when the listing shows an email and no website.
+        // Free lookup: read a public email from the business's own listed page.
+        if (!prospect.email && prospect.website) prospect.email = await findPublicEmail(prospect.website).catch(() => null);
+        // Autopilot only builds when the business shows an email and no website.
         if (!autopilotShouldBuild(prospect)) {
           skippedNoEmail += 1;
           continue;
