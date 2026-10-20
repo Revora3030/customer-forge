@@ -58,6 +58,9 @@ export async function runReadActions(db: SupabaseClient, reads: ReadAction[], ac
           const { getAutopilotSettings, listAutopilotRuns } = await import("./prospect-autopilot.server");
           const [settings, runs] = await Promise.all([getAutopilotSettings(db), listAutopilotRuns(db, 5)]);
           result = { settings, recentRuns: runs };
+        } else if (action.id === "inbox.list") {
+          const { listProspectInbox } = await import("./prospect-replies.server");
+          result = await listProspectInbox(db, 20);
         } else {
           const { listProspectDemos } = await import("./jarvis-demo-site.server");
           result = await listProspectDemos(db);

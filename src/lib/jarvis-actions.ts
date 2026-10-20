@@ -26,7 +26,8 @@ export type ReadAction =
   | { id: "prospects.find"; niche: string; city: string; state: string | null }
   | { id: "prospect.lookup"; input: string }
   | { id: "web.search"; query: string }
-  | { id: "autopilot.status" };
+  | { id: "autopilot.status" }
+  | { id: "inbox.list" };
 
 export type CodeChange =
   | { path: string; edits: { find: string; replace: string }[] }
@@ -155,6 +156,7 @@ export function actionCatalogPrompt(diagnosticToolIds: string[]): string {
     '- {"id":"claude.fix","args":{"pr":123,"note":"what to fix, if you know"}}: PROPOSE asking Claude Code to fix an open pull request: it reads the failing CI checks and review comments, fixes the root cause on that PR\'s branch and runs the checks. Use it when a pull request (yours or Claude Code\'s) has red CI or review comments. The owner approves with one tap.',
     '- {"id":"builds.recover","args":{}}: PROPOSE recovering stalled website builds: closes builds whose worker died, re-queues orphaned ones and restarts the build worker. Suggest it when builder.health.summary shows stuck or long-running builds. The owner approves with one tap.',
     '- {"id":"autopilot.status","args":{}}: read the prospect autopilot settings (on/off, search targets, daily build limit, email/text switches) and its recent runs.',
+    '- {"id":"inbox.list","args":{}}: read prospect replies to demo emails (from Gmail): who answered, the intent (positive, price, question, objection, stop, unclear), what was done (auto reply, a draft waiting for the owner, do-not-contact) and the drafts. Says which Gmail secrets are missing when it is not connected. The owner sends or dismisses drafts in the inbox card.',
     '- {"id":"autopilot.configure","args":{"enabled":true,"targets":[{"niche":"mobile detailing","city":"Raleigh","state":"NC"}],"dailyBuildCap":5,"sendEmail":true,"sendSms":false}}: PROPOSE changing the prospect autopilot (every field optional; only the ones given change). Autopilot finds businesses with no website, builds free demo sites and emails the preview link when an email is known; texts only go to numbers that opted in. The owner approves with one tap.',
     '- {"id":"autopilot.run","args":{}}: PROPOSE running one prospect autopilot pass now (it does nothing while autopilot is off). The owner approves with one tap.',
     "Use actions whenever they would make your answer more accurate. Prefer checking over guessing. Never claim an action ran unless you received its result.",
@@ -227,7 +229,7 @@ export function parseActions(requested: unknown[], diagnosticToolIds: string[]):
       const query = str(args["query"], 120);
       if (query.length >= 2) out.reads.push({ id, query });
       else out.rejected.push("code.search: needs a query");
-    } else if (id === "demos.list" || id === "autopilot.status") {
+    } else if (id === "demos.list" || id === "autopilot.status" || id === "inbox.list") {
       out.reads.push({ id });
     } else if (id === "demo.status") {
       const organizationId = str(args["organizationId"], 36);
@@ -306,6 +308,8 @@ export function describeRead(action: ReadAction): string {
       return `Checked the demo site${action.name ? ` for ${action.name.slice(0, 60)}` : ""}`;
     case "autopilot.status":
       return "Checked the prospect autopilot";
+    case "inbox.list":
+      return "Checked prospect replies";
     case "web.search":
       return `Searched the web for "${action.query.slice(0, 60)}"`;
     case "prospect.lookup":

@@ -6,6 +6,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { ProspectDemoBuilder, type DemoCardTarget } from "@/components/app/ProspectDemoBuilder";
 import { ClaudeCodePanel } from "@/components/app/ClaudeCodePanel";
 import { ProspectAutopilotCard } from "./ProspectAutopilotCard";
+import { ProspectInboxCard } from "./ProspectInboxCard";
 import type { getJarvisAcquisitionReadiness, getJarvisDiagnostics, runJarvisDiagnosticTool } from "@/lib/jarvis.functions";
 import type { ProspectDraft } from "@/lib/jarvis-prospecting.functions";
 
@@ -87,6 +88,7 @@ export function OperationsPanel({ diagnostics, acquisition, scorecard, prospecto
       <ProspectDemoBuilder onBuildStarted={onShowDemo} onPreview={onShowDemo} />
       <ClaudeCodePanel />
       <ProspectAutopilotCard />
+      <ProspectInboxCard />
 
       <details ref={diagnosticsRef} id="jarvis-diagnostics" className="scroll-mt-4 rounded-xl border border-border bg-card">
         <summary className={summaryRow}>
