@@ -22,8 +22,89 @@ import {
   runProspectAutopilotNowFn,
   saveProspectAutopilotFn,
 } from "@/lib/prospect-autopilot.functions";
+import {
+  ROTATION_COOLDOWN_DAYS,
+  ROTATION_METROS,
+  ROTATION_STATES,
+  ROTATION_TRADES,
+  type RotationSettings,
+} from "@/lib/prospect-rotation";
 
 const KEY = ["jarvis", "prospect-autopilot"] as const;
+
+const toggle = (list: string[], value: string) => (list.includes(value) ? list.filter((item) => item !== value) : [...list, value]);
+
+const chip = (pressed: boolean) =>
+  [
+    "min-h-11 rounded-md border px-2.5 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+    pressed ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background hover:bg-muted",
+  ].join(" ");
+
+/**
+ * Rotation settings: walk the built-in trades across metros after the
+ * explicit targets. An empty selection means all of them.
+ */
+function RotationFields({ rotation, onChange }: { rotation: RotationSettings; onChange: (next: RotationSettings) => void }) {
+  return (
+    <fieldset className="space-y-2">
+      <legend className="flex min-h-11 w-full items-center justify-between gap-2 text-xs font-medium">
+        <span>Rotate through trades and metros</span>
+        <Switch
+          id="autopilot-rotation"
+          aria-label="Rotate through trades and metros"
+          checked={rotation.enabled}
+          onCheckedChange={(enabled) => onChange({ ...rotation, enabled })}
+        />
+      </legend>
+      <p className="text-xs text-muted-foreground">
+        After your targets, searches one trade in one metro at a time, each pair at most once every {ROTATION_COOLDOWN_DAYS} days,
+        inside the shared daily Google search budget. Leave a list empty to use all of it.
+      </p>
+      {rotation.enabled ? (
+        <>
+          <details className="rounded-md border border-border p-2">
+            <summary className="min-h-11 cursor-pointer content-center text-xs">
+              Trades: {rotation.trades.length ? `${rotation.trades.length} selected` : "all"}
+            </summary>
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {ROTATION_TRADES.map((trade) => (
+                <button
+                  key={trade}
+                  type="button"
+                  aria-pressed={rotation.trades.includes(trade)}
+                  className={chip(rotation.trades.includes(trade))}
+                  onClick={() => onChange({ ...rotation, trades: toggle(rotation.trades, trade) })}
+                >
+                  {trade}
+                </button>
+              ))}
+            </div>
+          </details>
+          <details className="rounded-md border border-border p-2">
+            <summary className="min-h-11 cursor-pointer content-center text-xs">
+              States: {rotation.states.length ? rotation.states.join(", ") : "all 50"}
+            </summary>
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {ROTATION_STATES.map((state) => (
+                <button
+                  key={state}
+                  type="button"
+                  aria-pressed={rotation.states.includes(state)}
+                  aria-label={`${state}: ${(ROTATION_METROS[state] ?? []).join(", ")}`}
+                  title={(ROTATION_METROS[state] ?? []).join(", ")}
+                  className={chip(rotation.states.includes(state))}
+                  onClick={() => onChange({ ...rotation, states: toggle(rotation.states, state).sort() })}
+                >
+                  {state}
+                </button>
+              ))}
+            </div>
+          </details>
+        </>
+      ) : null}
+    </fieldset>
+  );
+}
 const EMPTY_TARGET = { niche: "", city: "", state: "" };
 
 const when = (iso: string) => {
@@ -104,7 +185,8 @@ export function ProspectAutopilotCard({ className }: { className?: string }) {
       </div>
       <p className="text-xs text-muted-foreground">
         Every hour: searches your targets for businesses with no website, builds free demo sites (free AI only) up to
-        the daily limit, and emails the preview link when an email is known. Texts only go to numbers that opted in.
+        the daily limit, and emails the preview link only to an address the business published and that passed
+        verification (real mailbox domain, not a role address, not opted out). Texts only go to numbers that opted in.
       </p>
 
       {settings.error ? (
@@ -157,6 +239,8 @@ export function ProspectAutopilotCard({ className }: { className?: string }) {
               </div>
             ) : null}
           </fieldset>
+
+          <RotationFields rotation={draft.rotation} onChange={(rotation) => update({ rotation })} />
 
           <div className="grid gap-3 sm:grid-cols-3">
             <div className="space-y-1">
