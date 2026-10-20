@@ -223,6 +223,11 @@ function stateCode(state: string | null | undefined): string | null {
 }
 
 /** Approximate time zone for a US state (split states use their majority zone); null when unknown. */
+/** Two-letter US state code for a state name or code, or null. */
+export function usStateCode(state: string | null | undefined): string | null {
+  return stateCode(state);
+}
+
 export function timeZoneForState(state: string | null | undefined): string | null {
   const code = stateCode(state);
   return code ? ZONES[code]! : null;

@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ProspectDemoBuilder, type DemoCardTarget } from "@/components/app/ProspectDemoBuilder";
 import { ClaudeCodePanel } from "@/components/app/ClaudeCodePanel";
+import { EngineTodayCard } from "./EngineTodayCard";
 import { ProspectAutopilotCard } from "./ProspectAutopilotCard";
 import { ProspectInboxCard } from "./ProspectInboxCard";
 import type { getJarvisAcquisitionReadiness, getJarvisDiagnostics, runJarvisDiagnosticTool } from "@/lib/jarvis.functions";
@@ -102,6 +103,7 @@ export function OperationsPanel({ diagnostics, acquisition, scorecard, prospecto
     <div className="space-y-3">
       <ProspectDemoBuilder onBuildStarted={onShowDemo} onPreview={onShowDemo} />
       <ClaudeCodePanel />
+      <EngineTodayCard />
       <ProspectAutopilotCard />
       <ProspectInboxCard />
       <ApprovalLogCard />
