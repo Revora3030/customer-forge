@@ -223,6 +223,15 @@ export const getPlatformFunnel = createServerFn({ method: "GET" })
   .handler(async ({ context, data }): Promise<PlatformFunnel> => {
     const { assertSuperAdmin } = await import("@/lib/admin.server");
     await assertSuperAdmin(context.supabase, context.userId);
+    return computePlatformFunnel(data.days);
+  });
+
+/**
+ * The funnel itself. Callers MUST have verified the caller is a super admin
+ * first (the admin page and Jarvis both do); this reads with elevated access.
+ */
+export async function computePlatformFunnel(days: number): Promise<PlatformFunnel> {
+    const data = { days: Math.min(365, Math.max(1, Math.round(days))) };
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
     const to = new Date();
@@ -311,8 +320,13 @@ export const getPlatformFunnel = createServerFn({ method: "GET" })
     if (orgRows.error) errors.push("workspaces");
 
     // Demo workspaces and Revora's own workspace are never customers.
+    const { loadCustomerOrgIds } = await import("@/lib/customer-orgs.server");
+    const customerIds = await loadCustomerOrgIds(supabaseAdmin).catch(() => {
+      errors.push("workspaces");
+      return new Set<string>();
+    });
     const realOrgs = new Map(
-      (orgRows.data ?? []).filter((o) => isCustomerOrg(o)).map((o) => [o.id, o] as const),
+      (orgRows.data ?? []).filter((o) => isCustomerOrg(o) && customerIds.has(o.id)).map((o) => [o.id, o] as const),
     );
     const trialsStarted =
       trialRows.error || orgRows.error
@@ -453,7 +467,7 @@ export const getPlatformFunnel = createServerFn({ method: "GET" })
       convertedTrials,
       errors,
     };
-  });
+}
 
 export interface FunnelDetails {
   /** Per-day traffic, so the visitor and session stages can be opened up too. */

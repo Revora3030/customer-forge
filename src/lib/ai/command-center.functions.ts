@@ -25,7 +25,7 @@ export const getCommandCenter = createServerFn({ method: "GET" })
     const since = new Date(Date.now() - 7 * 86_400_000).toISOString();
     const [{ data: row }, { data: usage }, { data: orgs }] = await Promise.all([
       db.from("ai_command_settings").select("*").eq("id", 1).maybeSingle(),
-      db.from("ai_usage_events").select("model,provider,ok").gte("created_at", since).limit(5000),
+      (await import("@/lib/paginate")).fetchAllRows((from, to) => db.from("ai_usage_events").select("model,provider,ok").gte("created_at", since).order("id", { ascending: true }).range(from, to)).then((r) => ({ data: r.rows, error: r.error })),
       db.from("organizations").select("id,name,slug").order("created_at", { ascending: false }).limit(200),
     ]);
     const stats = new Map<string, { model: string; provider: string; calls: number; failures: number }>();
@@ -58,7 +58,7 @@ export const saveCommandSettings = createServerFn({ method: "POST" })
       pinnedModels: ids(input?.pinnedModels),
       pausedModels: ids(input?.pausedModels),
       qaAutoRevert: input?.qaAutoRevert === true,
-      qaMinScore: Number.isFinite(score) ? Math.min(100, Math.max(0, Math.round(score))) : 70,
+      qaMinScore: Number.isFinite(score) ? Math.min(100, Math.max(0, Math.round(score))) : 40,
     };
   })
   .handler(async ({ data, context }) => {
@@ -90,7 +90,7 @@ export const getQaGate = createServerFn({ method: "GET" })
       .eq("id", 1)
       .maybeSingle();
     const row = (data ?? {}) as { qa_auto_revert?: boolean; qa_min_score?: number };
-    return { autoRevert: row.qa_auto_revert === true, minScore: row.qa_min_score ?? 70 };
+    return { autoRevert: row.qa_auto_revert === true, minScore: row.qa_min_score ?? 40 };
   });
 
 const uuid = (v: unknown) => {

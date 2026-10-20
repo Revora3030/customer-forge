@@ -334,3 +334,8 @@ export async function searchPlacesForProspects(
   })) as { places?: Record<string, unknown>[] } | null;
   return Array.isArray(payload?.places) ? payload!.places! : [];
 }
+
+/** Read-only Places (New) GET through the connected Google Maps connector (used for live demo photos). */
+export async function placesGatewayGet(path: string, fieldMask?: string): Promise<unknown> {
+  return callGateway("google_maps", path, fieldMask ? { headers: { "X-Goog-FieldMask": fieldMask } } : {});
+}

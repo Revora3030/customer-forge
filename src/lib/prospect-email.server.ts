@@ -26,6 +26,26 @@ async function boundedText(response: Response): Promise<string> {
   }
 }
 
+
+/**
+ * guardedFetch with up to 3 redirects, each hop re-validated by guardedFetch
+ * (DNS + private-network checks), so www/https redirects still work safely.
+ */
+async function fetchFollowing(url: string, init: RequestInit): Promise<{ response: Response; finalUrl: string }> {
+  const { guardedFetch } = await import("./net-guard.server");
+  let current = url;
+  for (let hop = 0; hop < 4; hop += 1) {
+    const response = await guardedFetch(current, { ...init, redirect: "manual" });
+    const location = response.status >= 300 && response.status < 400 ? response.headers.get("location") : null;
+    if (!location || hop === 3) return { response, finalUrl: current };
+    await response.body?.cancel().catch(() => undefined);
+    const next = new URL(location, current);
+    if (next.protocol !== "https:" && next.protocol !== "http:") return { response, finalUrl: current };
+    current = next.toString();
+  }
+  throw new Error("too many redirects");
+}
+
 export type PublicEmailHit = { email: string; source: EnrichmentSource; url: string };
 
 const SOCIAL_HOST = /(^|\.)(facebook\.com|fb\.com|instagram\.com|tiktok\.com|x\.com|twitter\.com|yelp\.com)$/i;
@@ -51,12 +71,11 @@ export async function lookupPublicEmail(link: string | null): Promise<PublicEmai
   }
 
   const urls = [base.toString()];
-  if (!SOCIAL_HOST.test(base.hostname)) urls.push(new URL("/contact", base).toString());
+  if (!SOCIAL_HOST.test(base.hostname)) urls.push(new URL("/contact", base).toString(), new URL("/contact-us", base).toString());
 
-  const { guardedFetch } = await import("./net-guard.server");
   for (const url of urls) {
     try {
-      const response = await guardedFetch(url, {
+      const { response } = await fetchFollowing(url, {
         signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
         headers: {
           "user-agent": "RevoraProspectLookup/1.0 (+https://revoragrowthsystems.com)",
@@ -87,4 +106,38 @@ export async function lookupPublicEmail(link: string | null): Promise<PublicEmai
 /** The published email on a public listing/profile page, or null. Never guessed. */
 export async function findPublicEmail(link: string | null): Promise<string | null> {
   return (await lookupPublicEmail(link))?.email ?? null;
+}
+
+/**
+ * Fetches a business's own homepage once and lists verified gaps (phone
+ * readiness, https, online booking/quote, load time). Returns null when the
+ * page can't be read, so an unreachable site is never pitched as "broken".
+ */
+export async function assessWebsite(link: string | null): Promise<import("./prospect-finder").SiteGap[] | null> {
+  if (!link) return null;
+  let url: URL;
+  try {
+    url = new URL(/^https?:\/\//i.test(link.trim()) ? link.trim() : "https://" + link.trim());
+    if ((url.protocol !== "https:" && url.protocol !== "http:") || url.username || url.password) return null;
+  } catch {
+    return null;
+  }
+  const started = Date.now();
+  try {
+    const { response, finalUrl } = await fetchFollowing(url.toString(), {
+      signal: AbortSignal.timeout(8_000),
+      headers: { "user-agent": "RevoraProspectLookup/1.0 (+https://revoragrowthsystems.com)", accept: "text/html" },
+    });
+    if (!response.ok || !/(text\/html|application\/xhtml\+xml)/i.test(response.headers.get("content-type") ?? "text/html")) {
+      await response.body?.cancel().catch(() => undefined);
+      return null;
+    }
+    const html = await boundedText(response);
+    const loadMs = Date.now() - started;
+    if (html.length < 200) return null;
+    const { siteGaps } = await import("./prospect-finder");
+    return siteGaps({ html, finalUrl, loadMs });
+  } catch {
+    return null;
+  }
 }

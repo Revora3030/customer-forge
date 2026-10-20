@@ -79,6 +79,8 @@ const errorMiddleware = createMiddleware().server(async ({ next, request }) => {
     if (error != null && typeof error === "object" && "statusCode" in error) {
       throw error;
     }
+    // The visitor left before the response finished: nothing crashed.
+    if (request?.signal?.aborted) throw error;
     console.error(error);
     // Record real production crashes so they are actionable instead of lost in
     // a log. Never let tracking failure mask the original error.

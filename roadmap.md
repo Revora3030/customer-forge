@@ -1,5 +1,11 @@
 # Roadmap — Five-phase blocker elimination
 
+## Admin accuracy pass (2026-10-20)
+- [x] AI health: totals were capped at 1,000 records; provider status came from one idle server's memory. Now counts every record and uses shared provider records.
+- [x] Command center model stats and build health totals count every record.
+- [x] All 15 admin pages load signed in on phone width, no errors or sideways scroll.
+- [ ] Number-by-number check of the remaining admin pages (analytics, payments, monthly, outreach, clients) against the database.
+
 ## Phase 1 — builds never stall silently (2026-10-20)
 - [x] Layout rescue wall-clock deadline; capacity-starved layouts park via the existing capacity deferral (forced park, still capped at 6).
 - [x] Resume time, reason, busy providers and earliest reset recorded on the job and shown in builder, build card and Jarvis demo list.
@@ -92,3 +98,17 @@
 - [x] Automatic 5-size look-and-fix after every change (builder open).
 - [x] Root-level legacy authoring elimination (zero-cost switch, dead builders, canned upgrades, fixed repairs removed; firewall tests; all gates pass).
 - [x] Final AI-authority cleanup: reviewer taste vetoes and fixed public sticky chrome removed; AI media treatments now reach public rendering.
+
+## Close the gaps vs Lovable/Framer (2026-10-20)
+- [x] Jarvis: one follow-up email 48h after the first, only with no reply/claim/opt-out; within daily caps; enforced in send path + DB unique index.
+- [x] Demo photos from the Google Maps listing (live, credited).
+- [ ] Phase A test build running (parked at 74% on free capacity; $20 paid cap set, takes effect on the live worker after publish).
+- [ ] Phase B point-and-edit + before/after compare (version restore already exists).
+- [ ] Phase C fact provenance + launch checklist.
+- [ ] Phase D claimed demo → Activate → setup-fee checkout (BLOCKED: canonical setup price $350 vs $750).
+- [x] Phase E approval log (Jarvis operations panel, from the permanent audit record).
+- [ ] Phase E daily brief upgrade.
+- [ ] Phase F signed-in journey/accessibility/speed pass.
+- [x] SEO review: all checks pass, indexed; targets reported.
+- [x] Jarvis targets weak existing websites (verified gaps + public email).
+- [x] Jarvis: OpenStreetMap as free second lead source.

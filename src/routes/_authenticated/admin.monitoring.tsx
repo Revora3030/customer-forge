@@ -184,7 +184,7 @@ function AdminMonitoring() {
             >
               <Pill tone={tone(row.level)}>{row.level}</Pill>
               <span className="text-muted-foreground">{when(row.createdAt)}</span>
-              <span className="min-w-0 flex-1 truncate">{row.message}</span>
+              <span className="min-w-[12rem] flex-1 break-words">{row.message}</span>
               {row.statusCode ? <Pill tone="info">{row.statusCode}</Pill> : null}
             </div>
           ))}

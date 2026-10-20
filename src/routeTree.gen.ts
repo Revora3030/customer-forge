@@ -118,6 +118,7 @@ import { Route as ApiPublicTwilioInboundRouteImport } from './routes/api/public/
 import { Route as LovableEmailAuthPreviewRouteImport } from './routes/lovable/email/auth/preview'
 import { Route as LovableEmailAuthWebhookRouteImport } from './routes/lovable/email/auth/webhook'
 import { Route as LovableEmailTransactionalPreviewRouteImport } from './routes/lovable/email/transactional/preview'
+import { Route as ApiPublicMapsPhotoOrgIndexRouteImport } from './routes/api/public/maps-photo.$org.$index'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -692,6 +693,12 @@ const LovableEmailTransactionalPreviewRoute =
     path: '/lovable/email/transactional/preview',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicMapsPhotoOrgIndexRoute =
+  ApiPublicMapsPhotoOrgIndexRouteImport.update({
+    id: '/api/public/maps-photo/$org/$index',
+    path: '/api/public/maps-photo/$org/$index',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -802,6 +809,7 @@ export interface FileRoutesByFullPath {
   '/lovable/email/auth/preview': typeof LovableEmailAuthPreviewRoute
   '/lovable/email/auth/webhook': typeof LovableEmailAuthWebhookRoute
   '/lovable/email/transactional/preview': typeof LovableEmailTransactionalPreviewRoute
+  '/api/public/maps-photo/$org/$index': typeof ApiPublicMapsPhotoOrgIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -907,6 +915,7 @@ export interface FileRoutesByTo {
   '/lovable/email/auth/preview': typeof LovableEmailAuthPreviewRoute
   '/lovable/email/auth/webhook': typeof LovableEmailAuthWebhookRoute
   '/lovable/email/transactional/preview': typeof LovableEmailTransactionalPreviewRoute
+  '/api/public/maps-photo/$org/$index': typeof ApiPublicMapsPhotoOrgIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -1019,6 +1028,7 @@ export interface FileRoutesById {
   '/lovable/email/auth/preview': typeof LovableEmailAuthPreviewRoute
   '/lovable/email/auth/webhook': typeof LovableEmailAuthWebhookRoute
   '/lovable/email/transactional/preview': typeof LovableEmailTransactionalPreviewRoute
+  '/api/public/maps-photo/$org/$index': typeof ApiPublicMapsPhotoOrgIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -1131,6 +1141,7 @@ export interface FileRouteTypes {
     | '/lovable/email/auth/preview'
     | '/lovable/email/auth/webhook'
     | '/lovable/email/transactional/preview'
+    | '/api/public/maps-photo/$org/$index'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -1236,6 +1247,7 @@ export interface FileRouteTypes {
     | '/lovable/email/auth/preview'
     | '/lovable/email/auth/webhook'
     | '/lovable/email/transactional/preview'
+    | '/api/public/maps-photo/$org/$index'
   id:
     | '__root__'
     | '/'
@@ -1347,6 +1359,7 @@ export interface FileRouteTypes {
     | '/lovable/email/auth/preview'
     | '/lovable/email/auth/webhook'
     | '/lovable/email/transactional/preview'
+    | '/api/public/maps-photo/$org/$index'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -1411,6 +1424,7 @@ export interface RootRouteChildren {
   LovableEmailAuthPreviewRoute: typeof LovableEmailAuthPreviewRoute
   LovableEmailAuthWebhookRoute: typeof LovableEmailAuthWebhookRoute
   LovableEmailTransactionalPreviewRoute: typeof LovableEmailTransactionalPreviewRoute
+  ApiPublicMapsPhotoOrgIndexRoute: typeof ApiPublicMapsPhotoOrgIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -2178,6 +2192,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LovableEmailTransactionalPreviewRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/maps-photo/$org/$index': {
+      id: '/api/public/maps-photo/$org/$index'
+      path: '/api/public/maps-photo/$org/$index'
+      fullPath: '/api/public/maps-photo/$org/$index'
+      preLoaderRoute: typeof ApiPublicMapsPhotoOrgIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -2426,6 +2447,7 @@ const rootRouteChildren: RootRouteChildren = {
   LovableEmailAuthPreviewRoute: LovableEmailAuthPreviewRoute,
   LovableEmailAuthWebhookRoute: LovableEmailAuthWebhookRoute,
   LovableEmailTransactionalPreviewRoute: LovableEmailTransactionalPreviewRoute,
+  ApiPublicMapsPhotoOrgIndexRoute: ApiPublicMapsPhotoOrgIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

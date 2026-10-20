@@ -731,6 +731,10 @@ export async function touchLease(db: Db, job: { id: string; attempts: number }):
  */
 export async function closeAbandonedJobs(db: Db, organizationId?: string) {
   const now = new Date().toISOString();
+  // 0. A last attempt cut off by the platform is not the build's fault: hand
+  //    it one more attempt through the same bounded capacity deferral so it
+  //    resumes from its checkpoints instead of telling the owner to start over.
+  await deferCutOffJobs(db, now, organizationId);
   // 1. Out of attempts: close as failed with a plain, actionable message.
   let query = db
     .from("generation_jobs")
@@ -810,6 +814,43 @@ export async function closeAbandonedJobs(db: Db, organizationId?: string) {
 }
 
 const ABANDONED_JOB_COLUMNS = "id, organization_id, created_by, created_at";
+
+async function deferCutOffJobs(db: Db, now: string, organizationId?: string) {
+  let query = db
+    .from("generation_jobs")
+    .select("id, attempts, capacity_deferrals")
+    .eq("status", "processing")
+    .gte("attempts", MAX_ATTEMPTS)
+    .lt("lease_expires_at", now)
+    .limit(5);
+  if (organizationId) query = query.eq("organization_id", organizationId);
+  const { data, error } = await query;
+  if (error || !data?.length) return;
+  const { tagFailureMessage } = await import("@/lib/builder/build-failure");
+  for (const row of data as { id: string; attempts: number; capacity_deferrals?: number | null }[]) {
+    if (typeof row.capacity_deferrals !== "number") continue;
+    const verdict = capacityVerdict([], row.capacity_deferrals, Date.now(), { forced: true });
+    if (!verdict) continue;
+    const reason = "The build was cut off before it could finish; it will pick up from its last saved step.";
+    await db
+      .from("generation_jobs")
+      .update({
+        status: "queued",
+        attempts: MAX_ATTEMPTS - 1,
+        capacity_deferrals: verdict.count,
+        error_message: tagFailureMessage("provider", `${reason} Retrying at ${verdict.retryAt.toISOString().slice(11, 16)} UTC.`),
+        failure_kind: "provider",
+        lease_expires_at: verdict.retryAt.toISOString(),
+        resumes_at: verdict.retryAt.toISOString(),
+        wait_reason: reason,
+        wait_providers: verdict.pressure,
+        updated_at: now,
+      } as never)
+      .eq("id", row.id)
+      .eq("attempts", row.attempts)
+      .eq("status", "processing");
+  }
+}
 
 /** Claims one runnable job with a lease. Returns null when there is nothing to do. */
 export type WorkerInvoker = "pg_net" | "kick" | "pump" | "runner" | "unknown";
@@ -1460,8 +1501,10 @@ async function runJob(
         if (!outcome.architecture?.length) {
           // Carry the real reason (provider, shape, or review refusal) so the
           // job record says why, instead of a generic "no usable plan".
-          const { AiStepUnavailableError } = await import("@/lib/builder/ai-step-error");
-          throw new AiStepUnavailableError("page plan", outcome.skipped ?? "the architect returned no usable plan");
+          const { AiStepUnavailableError, AiCapacityParkError } = await import("@/lib/builder/ai-step-error");
+          // Busy/unusable AI output waits through the capacity deferral; a reviewer refusal on merits still counts as a failed attempt.
+          const ErrorType = outcome.capacity || !outcome.skipped ? AiCapacityParkError : AiStepUnavailableError;
+          throw new ErrorType("page plan", outcome.skipped ?? "the architect returned no usable plan");
         }
         return outcome.architecture;
       })()

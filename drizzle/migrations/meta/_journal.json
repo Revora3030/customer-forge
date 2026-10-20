@@ -57,6 +57,13 @@
       "when": 1792511270344,
       "tag": "0007_generation_jobs_capacity_wait",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1792515549515,
+      "tag": "0008_prospect_follow_up_kind",
+      "breakpoints": true
     }
   ]
 }

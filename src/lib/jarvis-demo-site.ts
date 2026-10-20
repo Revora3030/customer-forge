@@ -1,3 +1,4 @@
+import { parseSiteGaps, type SiteGap } from "./prospect-finder";
 /**
  * Input contract for Jarvis prospect demo sites.
  *
@@ -19,6 +20,10 @@ export type ProspectDemoInput = {
   email: string | null;
   description: string | null;
   services: string[];
+  /** Google Maps place ID, when the facts came from a listing; its photos are used first. */
+  placeId?: string | null;
+  /** Verified gaps on the business's current website, when it has one. */
+  siteGaps?: SiteGap[];
 };
 
 const text = (value: unknown, max: number) =>
@@ -72,6 +77,8 @@ export function parseProspectDemoInput(input: unknown): ProspectDemoInput {
     email,
     description,
     services,
+    placeId: typeof raw["placeId"] === "string" && /^[A-Za-z0-9_-]{10,300}$/.test(raw["placeId"]) ? raw["placeId"] : null,
+    ...(parseSiteGaps(raw["siteGaps"]).length ? { siteGaps: parseSiteGaps(raw["siteGaps"]) } : {}),
   };
 }
 

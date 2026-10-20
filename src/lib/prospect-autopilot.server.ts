@@ -14,7 +14,7 @@ import {
   type DemoFingerprints,
 } from "@/lib/prospect-autopilot";
 import { emailVerifiedFor, readProspectEnrichment, type ProspectEnrichment } from "@/lib/prospect-enrichment";
-import { MAX_SEARCHES_PER_DAY } from "@/lib/prospect-finder";
+import { MAX_SEARCHES_PER_DAY, isUpgradeProspect } from "@/lib/prospect-finder";
 import { nextRotationPairs, rotationPairs, type RotationPair } from "@/lib/prospect-rotation";
 import type { OutreachChannel, OutreachResult } from "@/lib/prospect-outreach.server";
 
@@ -407,8 +407,8 @@ async function buildPhase(
     let built = 0;
     for (const prospect of rankProspects(prospects)) {
       if (remaining <= 0) break;
-      // Anti-collision: a business with any real website of its own is never a prospect.
-      if (prospect.presence === "has_website") {
+      // A business with its own website qualifies only with verified gaps worth fixing.
+      if (prospect.presence === "has_website" && !isUpgradeProspect(prospect.siteGaps)) {
         skip({ reason: "has_website", name: prospect.name, target: query });
         continue;
       }
@@ -430,7 +430,8 @@ async function buildPhase(
         enrichment = await enrichProspectEmail(db, prospect.website, { now }).catch(() => null);
       }
       // A rejected address (role mailbox, no MX, do-not-contact) is not kept on the profile.
-      const publicEmail = enrichment?.email && enrichment.status !== "rejected" ? enrichment.email : null;
+      const listedEmail = (prospect as { email?: string | null }).email ?? null; // OpenStreetMap listings can publish one
+      const publicEmail = enrichment?.email && enrichment.status !== "rejected" ? enrichment.email : listedEmail;
       let input;
       try {
         input = parseProspectDemoInput(prospectDemoInput(prospect, target.niche, publicEmail));
@@ -505,12 +506,13 @@ export type OutreachQueueItem = {
   body: string | null;
   /** Not sent before this time (random 0–20 minute spacing between autopilot sends). */
   notBefore: string;
+  kind?: "first_touch" | "follow_up";
 };
 
 /** Queued, not sent: the send queue drains it at `notBefore` through the consent/do-not-contact/cap-checked backend. */
 async function enqueueOutreach(db: SupabaseClient, item: OutreachQueueItem) {
   const { enqueueOutreach: enqueue } = await import("@/lib/prospect-send-queue.server");
-  return enqueue(db, { organizationId: item.organizationId, channel: item.channel, to: item.to, mode: item.mode, subject: item.subject, body: item.body, notBefore: new Date(item.notBefore) });
+  return enqueue(db, { organizationId: item.organizationId, channel: item.channel, to: item.to, mode: item.mode, subject: item.subject, body: item.body, notBefore: new Date(item.notBefore), ...(item.kind ? { kind: item.kind } : {}) });
 }
 
 /** Sends already waiting in the queue, so an hourly run never queues the same demo twice. */
@@ -539,7 +541,7 @@ async function sendPhase(
   const ids = demos.map((demo) => demo.organizationId);
   const { data: history, error } = await db
     .from("prospect_outreach")
-    .select("organization_id, channel, status, reason, created_at")
+    .select("organization_id, channel, status, reason, created_at, kind")
     .in("organization_id", ids)
     .eq("mode", "autopilot");
   if (error) return skip({ reason: "outreach_unavailable" });
@@ -609,5 +611,22 @@ async function sendPhase(
       if (result.ok) summary.texted += 1;
       else skip({ reason: `sms_${result.reason}`, name: demo.name });
     }
+  }
+
+  // One follow-up email, 48 hours after the first, if there was no reply.
+  if (!settings.sendEmail) return;
+  const { followUpDue } = await import("@/lib/prospect-follow-up");
+  const replied = new Set<string>();
+  const { data: inbound } = await db.from("prospect_inbound").select("organization_id").in("organization_id", ids);
+  for (const row of inbound ?? []) replied.add(String(row.organization_id));
+  for (const demo of demos) {
+    if (!demo.email || queued.has(`${demo.organizationId}|email`)) continue;
+    const sent = (history ?? []).filter((row) => row.organization_id === demo.organizationId && row.channel === "email" && row.status === "sent");
+    const firstSentAt = sent.filter((row) => (row.kind ?? "first_touch") === "first_touch").map((row) => String(row.created_at)).sort()[0] ?? null;
+    if (!followUpDue({ firstSentAt, followUpSent: sent.some((row) => row.kind === "follow_up"), replied: replied.has(demo.organizationId), claimed: false, now: now() })) continue;
+    sendAt = nextSendAt(sendAt, random);
+    const result = await enqueueOutreach(db, { organizationId: demo.organizationId, channel: "email", to: demo.email, mode: "autopilot", kind: "follow_up", subject: null, body: null, notBefore: sendAt.toISOString() });
+    if (result.ok) summary.emailed += 1;
+    else skip({ reason: `follow_up_${result.reason}`, name: demo.name });
   }
 }

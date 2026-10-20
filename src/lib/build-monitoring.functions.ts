@@ -16,14 +16,20 @@ export const getBuildHealth = createServerFn({ method: "GET" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = supabaseAdmin as unknown as import("@supabase/supabase-js").SupabaseClient;
     const since = new Date(Date.now() - 7 * 86_400_000).toISOString();
+    const { fetchAllRows } = await import("@/lib/paginate");
+    const all = (build: (from: number, to: number) => PromiseLike<{ data: unknown[] | null; error: { message: string } | null }>) =>
+      fetchAllRows(build).then((r) => ({ data: r.rows, error: r.error }));
     const [jobs, publishes, images] = await Promise.all([
-      db
-        .from("generation_jobs")
-        .select("status, failure_kind, failed_stage, error_message, stage_timings, created_at, started_at, completed_at")
-        .gte("created_at", since)
-        .limit(5000),
-      db.from("publish_events").select("smoke_status").gte("created_at", since).limit(5000),
-      db.from("image_records").select("status, source").gte("updated_at", since).limit(10000),
+      all((from, to) =>
+        db
+          .from("generation_jobs")
+          .select("status, failure_kind, failed_stage, error_message, stage_timings, created_at, started_at, completed_at")
+          .gte("created_at", since)
+          .order("id", { ascending: true })
+          .range(from, to),
+      ),
+      all((from, to) => db.from("publish_events").select("smoke_status").gte("created_at", since).order("id", { ascending: true }).range(from, to)),
+      all((from, to) => db.from("image_records").select("status, source").gte("updated_at", since).order("id", { ascending: true }).range(from, to)),
     ]);
     if (jobs.error) throw new Error("Couldn't load build health.");
     const { summariseBuilds, summarisePublishes, summariseImages, buildAlerts } = await import("@/lib/build-monitoring");

@@ -157,7 +157,9 @@ function AdminClients() {
                         : "attention"
                   }
                 >
-                  {client.setup_paid_at && client.subscription_state === "active"
+                  {client.is_demo
+                    ? "Demo — not a client"
+                    : client.setup_paid_at && client.subscription_state === "active"
                     ? "Paid & active"
                     : client.subscription_state
                       ? `Subscription ${client.subscription_state}`

@@ -170,6 +170,15 @@ export function BuilderAssistant({
     queryFn: () => fetchSuggestions({ data: { organizationId: organizationId! } }),
   });
   const SUGGESTIONS = suggestionsQuery.data?.suggestions ?? [];
+  // Suggestions come from the free AI team and can be slow; after a short
+  // wait the empty placeholders give way to the composer instead of pulsing.
+  const [suggestionsSlow, setSuggestionsSlow] = useState(false);
+  useEffect(() => {
+    if (!suggestionsQuery.isFetching) return setSuggestionsSlow(false);
+    const timer = window.setTimeout(() => setSuggestionsSlow(true), 8000);
+    return () => window.clearTimeout(timer);
+  }, [suggestionsQuery.isFetching]);
+  const suggestionsLoading = suggestionsQuery.isFetching && !suggestionsSlow;
 
   // Any panel elsewhere in the builder can hand its request to this box.
   useEffect(
@@ -279,7 +288,7 @@ export function BuilderAssistant({
     onFirstBuild ? void onFirstBuild(instruction) : requests.queue(instruction);
   const lastTask = requests.tasks[requests.tasks.length - 1];
   // Chips only where a next step is natural: after a finished change.
-  const showChips = !empty && !busy && lastTask?.state === "complete" && (SUGGESTIONS.length > 0 || suggestionsQuery.isFetching);
+  const showChips = !empty && !busy && lastTask?.state === "complete" && (SUGGESTIONS.length > 0 || suggestionsLoading);
   const toolsVisible = !onFirstBuild && requests.memoryLoaded;
 
   return (
@@ -435,12 +444,12 @@ export function BuilderAssistant({
                   {emptyHint}
                 </p>
               </div>
-              {SUGGESTIONS.length || suggestionsQuery.isFetching ? (
+              {SUGGESTIONS.length || suggestionsLoading ? (
                 <div className="mx-auto w-full max-w-xl space-y-2">
                   <p className="flex items-center gap-1.5 px-1 text-xs font-medium tracking-wide text-muted-foreground uppercase">
                     <Sparkles className="size-3.5 text-primary" aria-hidden /> Suggested for your site
                   </p>
-                  {suggestionsQuery.isFetching && SUGGESTIONS.length === 0
+                  {suggestionsLoading && SUGGESTIONS.length === 0
                     ? [0, 1, 2].map((key) => (
                         <div key={key} className="h-[52px] animate-pulse rounded-xl border border-border/60 bg-muted/40" />
                       ))
@@ -551,7 +560,7 @@ export function BuilderAssistant({
         <div className="mx-auto w-full max-w-[var(--chat-measure)]">
           {showChips ? (
             <div className="-mx-3 mb-2 flex gap-1.5 overflow-x-auto px-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-              {suggestionsQuery.isFetching && SUGGESTIONS.length === 0 ? (
+              {suggestionsLoading && SUGGESTIONS.length === 0 ? (
                 <span className="inline-flex h-9 shrink-0 items-center rounded-full border border-border/70 px-3 text-[13px] text-muted-foreground">
                   <Shimmer as="span">Finding ideas for your site…</Shimmer>
                 </span>
