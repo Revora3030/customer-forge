@@ -61,6 +61,8 @@ export type SendDemoOutreachInput = {
   body?: string;
   /** Manual resend of a channel that was already sent. Ignored for autopilot. */
   force?: boolean;
+  /** The single 48-hour follow-up email (prospect-follow-up.ts rules). */
+  kind?: "first_touch" | "follow_up";
 };
 
 export const DEFAULT_DAILY_EMAIL_CAP = 40;
@@ -291,6 +293,7 @@ const MESSAGES: Record<string, string> = {
   demo_claimed: "The business already claimed this demo, so outreach stopped.",
   build_not_finished: "Wait for the demo build to finish before sending it.",
   do_not_contact: "This contact is on the do-not-contact list (they unsubscribed or replied STOP), so nothing was sent.",
+  follow_up_not_due: "No follow-up is due: it goes once, 48 hours after the first email, and only if there was no reply.",
   already_sent: "This demo was already sent on this channel. Choose Resend if you really mean to send it again.",
   no_consent: "Autopilot only texts numbers that opted in to texts. This number hasn't, so it wasn't texted.",
   quiet_hours: "Texts only go out between 9am and 8pm in the business's time zone. Try again then.",
@@ -641,6 +644,8 @@ export async function sendDemoOutreach(db: SupabaseClient, input: SendDemoOutrea
   if (!demo) return fail("demo_not_found");
 
   const now = new Date();
+  const followUp = input.kind === "follow_up";
+  if (followUp && channel !== "email") return fail("invalid_request");
   const record = async (row: { status: "sent" | "failed" | "skipped"; reason: string | null; subject?: string | null; body?: string | null; id?: string }) =>
     db.from("prospect_outreach").insert({
       ...(row.id ? { id: row.id } : {}),
@@ -652,6 +657,7 @@ export async function sendDemoOutreach(db: SupabaseClient, input: SendDemoOutrea
       status: row.status,
       reason: row.reason,
       mode,
+      kind: followUp ? "follow_up" : "first_touch",
       sent_by: input.actorId,
     });
   const skip = async (reason: string): Promise<OutreachResult> => {
@@ -685,8 +691,23 @@ export async function sendDemoOutreach(db: SupabaseClient, input: SendDemoOutrea
     .limit(1);
   // Fail closed: without the history, a repeat can't be ruled out.
   if (priorError) return fail("storage_error");
-  // Autopilot asks again every run; don't fill the history with its repeats.
-  if ((prior ?? []).length && !(mode === "manual" && input.force)) return mode === "autopilot" ? fail("already_sent") : skip("already_sent");
+  if (followUp) {
+    const { followUpDue, composeFollowUp } = await import("@/lib/prospect-follow-up");
+    const [history, inbound] = await Promise.all([
+      db.from("prospect_outreach").select("kind, created_at").eq("organization_id", organizationId).eq("channel", "email").eq("status", "sent"),
+      db.from("prospect_inbound").select("id", { count: "exact", head: true }).eq("organization_id", organizationId),
+    ]);
+    if (history.error || inbound.error) return fail("storage_error");
+    const rows = (history.data ?? []) as { kind: string; created_at: string }[];
+    const first = rows.filter((row) => row.kind === "first_touch").map((row) => row.created_at).sort()[0] ?? null;
+    const due = followUpDue({ firstSentAt: first, followUpSent: rows.some((row) => row.kind === "follow_up"), replied: (inbound.count ?? 0) > 0, claimed: demo.claimed, now });
+    if (!due) return fail("follow_up_not_due");
+    const draft = composeFollowUp(demo.name, `${appBaseUrl()}/p/${demo.previewToken}`);
+    input = { ...input, subject: draft.subject, body: draft.body };
+  } else if ((prior ?? []).length && !(mode === "manual" && input.force)) {
+    // Autopilot asks again every run; don't fill the history with its repeats.
+    return mode === "autopilot" ? fail("already_sent") : skip("already_sent");
+  }
 
   const { outreachFooter } = await import("@/lib/jarvis-prospecting.functions");
   if (channel === "sms") {
@@ -773,7 +794,9 @@ export async function sendDemoOutreach(db: SupabaseClient, input: SendDemoOutrea
       // sent twice that day while the next day's retry is not stuck on a
       // provider-cached failure. Manual sends key on their own record.
       idempotencyKey:
-        mode === "autopilot"
+        followUp
+          ? `prospect-demo-${organizationId}-follow-up`
+          : mode === "autopilot"
           ? `prospect-demo-${organizationId}-email-autopilot-${new Date().toISOString().slice(0, 10)}`
           : `prospect-demo-${organizationId}-${outreachId}`,
       templateData: { subject, message, footerLines: senderLines, unsubscribeUrl },

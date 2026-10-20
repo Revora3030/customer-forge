@@ -9,8 +9,6 @@ import {
   type MapsPhotoRef,
 } from "@/lib/maps-photos";
 
-const GATEWAY = "https://connector-gateway.lovable.dev/google_maps";
-
 async function placesGet(path: string, fieldMask?: string): Promise<unknown> {
   const ownKey = process.env["GOOGLE_PLACES_API_KEY"]?.trim();
   const headers: Record<string, string> = fieldMask ? { "X-Goog-FieldMask": fieldMask } : {};
@@ -22,13 +20,8 @@ async function placesGet(path: string, fieldMask?: string): Promise<unknown> {
       signal: AbortSignal.timeout(10_000),
     });
   } else {
-    const lovable = process.env["LOVABLE_API_KEY"];
-    const conn = process.env["GOOGLE_MAPS_API_KEY"];
-    if (!lovable || !conn) throw new Error("Google Maps is not connected.");
-    response = await fetch(`${GATEWAY}${path}`, {
-      headers: { ...headers, Authorization: `Bearer ${lovable}`, "X-Connection-Api-Key": conn },
-      signal: AbortSignal.timeout(10_000),
-    });
+    const { placesGatewayGet } = await import("@/lib/integrations/google.server");
+    return placesGatewayGet(path, fieldMask);
   }
   if (!response.ok) throw new Error(`Google Places photos failed [${response.status}]: ${(await response.text()).slice(0, 200)}`);
   return response.json();
