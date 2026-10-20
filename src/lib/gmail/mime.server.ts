@@ -174,16 +174,31 @@ const stripHtml = (html: string) =>
     .replace(/[ \t]+/g, " ");
 
 /**
- * The new text of a reply: quoted history ("> ..." lines and everything from
- * an "On ... wrote:" line or a forwarded/original-message divider) removed.
+ * The new text of a reply: quoted history ("> ..." lines, an "On ... wrote:"
+ * line, and everything from a forwarded/original-message divider) removed.
+ * Text typed below or between the "> " lines of an "On ... wrote:" block (a
+ * bottom-posted or interleaved reply) is kept; when unmarked history follows
+ * that line (HTML-only mail), everything after it is cut.
  */
 export function stripQuotedReply(text: string): string {
   const lines = text.replace(/\r\n/g, "\n").split("\n");
   const out: string[] = [];
+  // "header": just past an "On ... wrote:" line; "quote": inside its "> " block.
+  let state: "text" | "header" | "quote" = "text";
   for (const line of lines) {
-    if (/^\s*On .{3,200} wrote:\s*$/i.test(line) || /^\s*-{2,}\s*(Original Message|Forwarded message)\s*-{2,}/i.test(line)) break;
+    if (/^\s*-{2,}\s*(Original Message|Forwarded message)\s*-{2,}/i.test(line)) break;
     if (/^\s*From:\s.+/i.test(line) && out.length) break;
-    if (/^\s*>/.test(line)) continue;
+    if (/^\s*On .{3,200} wrote:\s*$/i.test(line)) {
+      state = "header";
+      continue;
+    }
+    if (/^\s*>/.test(line)) {
+      if (state === "header") state = "quote";
+      continue;
+    }
+    if (state !== "text" && !line.trim()) continue;
+    if (state === "header") break;
+    state = "text";
     out.push(line);
   }
   return out.join("\n").replace(/\n{3,}/g, "\n\n").trim();

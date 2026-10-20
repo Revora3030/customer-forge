@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { isolateProviderEnvironment } from "@/lib/ai/provider-test-environment";
 
 vi.mock("@/lib/email-templates/send-email", () => ({ emailSendingConfigured: () => true, sendTemplateEmail: vi.fn(async () => ({ sent: true })) }));
@@ -28,6 +28,7 @@ import {
   autoReplyDecision,
   buildFactsSheet,
   factCheckReply,
+  fallbackDraft,
   keywordIntent,
   MAX_AUTO_REPLIES_PER_THREAD,
   parseReviewVerdict,
@@ -207,8 +208,8 @@ function setGmail() {
   process.env["GMAIL_SENDER_EMAIL"] = "sam@revora.test";
 }
 
-/** Inbound Gmail message payload. */
-function inbound(id: string, text: string, opts: { from?: string; subject?: string; at?: string; thread?: string; headers?: Array<{ name: string; value: string }> } = {}) {
+/** Inbound Gmail message payload; `below` is text typed under the quoted history. */
+function inbound(id: string, text: string, opts: { from?: string; subject?: string; at?: string; thread?: string; headers?: Array<{ name: string; value: string }>; below?: string } = {}) {
   return {
     id,
     threadId: opts.thread ?? THREAD,
@@ -224,7 +225,7 @@ function inbound(id: string, text: string, opts: { from?: string; subject?: stri
         { name: "References", value: "<revora.first@revora.test>" },
         ...(opts.headers ?? []),
       ],
-      body: { data: base64UrlEncode(`${text}\n\nOn Mon, Oct 19, 2026 Sam wrote:\n> old text`) },
+      body: { data: base64UrlEncode(`${text}\n\nOn Mon, Oct 19, 2026 Sam wrote:\n> old text${opts.below ? `\n\n${opts.below}` : ""}`) },
     },
   };
 }
@@ -347,6 +348,16 @@ describe("Gmail MIME building", () => {
     expect(parseGmailMessage(inbound("in2", "Out of office", { headers: [{ name: "Auto-Submitted", value: "auto-replied" }] }))?.autoSubmitted).toBe(true);
     expect(replySubject("RE: Re: A free draft")).toBe("Re: A free draft");
   });
+
+  it("keeps text typed below or between quoted lines, but never unmarked history", () => {
+    const header = "On Mon, Oct 19, 2026 at 9:00 AM Sam <sam@revora.test> wrote:";
+    expect(stripQuotedReply(`${header}\n> Here's your free draft.\n> Unsubscribe: https://x.test/u\n\nRemove us from your list please`)).toBe("Remove us from your list please");
+    expect(stripQuotedReply(`Thanks.\n\n${header}\n>\n> Want it?\nYes please\n> It's $350 setup.\nWhat's included?`)).toBe("Thanks.\n\nYes please\nWhat's included?");
+    // HTML-only mail loses the "> " marks: our own footer below the header must not become the prospect's text.
+    expect(stripQuotedReply(`Sounds good\n\n${header}\nHere's your free draft.\nUnsubscribe: https://x.test/u`)).toBe("Sounds good");
+    expect(stripQuotedReply("Sure\n-----Original Message-----\nFrom: Sam\nUnsubscribe: https://x.test/u")).toBe("Sure");
+    expect(parseGmailMessage(inbound("in3", "", { below: "Please take us off your list" }))?.text).toBe("Please take us off your list");
+  });
 });
 
 describe("intent and guardrails", () => {
@@ -360,6 +371,29 @@ describe("intent and guardrails", () => {
     expect(resolveIntent("hm", "", null)).toMatchObject({ intent: "unclear", source: "fallback" });
     expect(riskFlags("I'll have my lawyer contact you")).toContain("legal");
     expect(riskFlags("WHY ARE YOU EMAILING ME ABOUT THIS NONSENSE")).toContain("anger");
+  });
+
+  it("matches curly apostrophes and the remove-us / take-us-off family, without matching \"don't stop\" or \"off-site\"", () => {
+    const stops = [
+      "don’t email me again",
+      "Don’t contact us",
+      "Please remove us from your list",
+      "Can you take us off your list?",
+      "take us off",
+      "Unsubscribe us please",
+      "I already unsubscribed",
+      "Please opt us out",
+      "Not interested, stop.",
+      "Do not contact us again",
+      "Leave us alone",
+    ];
+    for (const text of stops) {
+      expect(keywordIntent(text), text).toBe("stop");
+      // With the AI down the override still holds.
+      expect(resolveIntent(text, "", null), text).toMatchObject({ intent: "stop", source: "keyword" });
+    }
+    const notStops = ["Don't stop, this looks great!", "Please don’t stop working on it", "Can you take us off-site?", "Take us offline for now", "Please remove the menu link", "Remove user reviews"];
+    for (const text of notStops) expect(keywordIntent(text), text).toBeNull();
   });
 
   it("auto-replies only to positive/price/question, at most twice per thread", () => {
@@ -386,6 +420,32 @@ describe("intent and guardrails", () => {
     expect(factCheckReply("Your site is live now", facts).join()).toMatch(/live or published/);
     expect(parseReviewVerdict('{"pass":true,"problems":["mentions a discount"]}')).toEqual({ pass: false, problems: ["mentions a discount"] });
     expect(parseReviewVerdict("no json")).toBeNull();
+  });
+
+  it("flags bare domains, unseparated phone numbers and other price forms, but passes the facts sheet", () => {
+    const facts = buildFactsSheet({ businessName: "Triangle Comfort", previewUrl: PREVIEW, claimUrl: CLAIM, senderName: "Sam", senderEmail: "sam.smith@revora.test" });
+    const flagged = (body: string, pattern: RegExp) => expect(factCheckReply(body, facts).join("; "), body).toMatch(pattern);
+    flagged("Book a call: calendly.com/sam", /bare web address not in the facts sheet: calendly\.com\/sam/);
+    flagged("More at Example.co.", /bare web address not in the facts sheet: Example\.co$/);
+    flagged("See www.evil.test", /bare web address/);
+    flagged("Call (555)123-4567", /phone/);
+    flagged("Call 5551234567", /phone/);
+    flagged("Text +15551234567", /phone/);
+    flagged("Only 500$ today", /price not in the facts sheet: 500\$/);
+    flagged("Just USD 500", /price written in words/);
+    flagged("It's €500", /currency/);
+    flagged("About £", /currency/);
+
+    // Everything the facts sheet holds still passes, including its links without the scheme.
+    for (const body of [
+      fallbackDraft("price", facts),
+      fallbackDraft("positive", facts),
+      `${facts.plan} is $350 setup (350$ once) and $100/month. Draft: ${PREVIEW.replace("https://", "")} and claim: ${CLAIM.replace("https://", "")}.`,
+      `Hi, it's Sam from ${facts.company}. Write me at sam.smith@revora.test, e.g. on 2026-10-19 at 10:00 a.m. Thanks.`,
+    ])
+      expect(factCheckReply(body, facts), body).toEqual([]);
+    // A long reference number is not a phone number.
+    expect(factCheckReply("Your reference is 123456789012.", facts)).toEqual([]);
   });
 });
 
@@ -441,6 +501,23 @@ describe("reply polling and follow-up", () => {
     // The operator can't answer it either.
     const approved = await approveReplyDraft(db, { inboundId: String(tables["prospect_inbound"]![0]!["id"]), body: "Sorry!", actorId: "admin" });
     expect(approved).toMatchObject({ ok: false, reason: "do_not_contact" });
+  });
+
+  it("stops a reply typed below the quoted history even with the AI down", async () => {
+    isolateProviderEnvironment();
+    onTestFinished(() => {
+      vi.unstubAllEnvs();
+    });
+    vi.stubGlobal("fetch", gmailFetch);
+    setGmail();
+    ai.intent = new Error("provider down");
+    threadMessages = [inbound("in1", "", { below: "Please don’t email us again, take us off your list." })];
+    const { db, tables } = fakeDb(demoSeed({ prospect_outreach: [sentOutreach()] }));
+    expect(await runProspectReplies(db)).toMatchObject({ stopped: 1, autoReplied: 0, drafted: 0 });
+    expect(sends).toHaveLength(0);
+    expect(generateText).not.toHaveBeenCalled();
+    expect(await isDoNotContact(db, "owner@triangle.com")).toBe(true);
+    expect(tables["prospect_inbound"]![0]).toMatchObject({ intent: "stop", intent_source: "keyword", action: "do_not_contact", body: "Please don’t email us again, take us off your list." });
   });
 
   it("drafts instead of sending when the reply fails the facts-only check", async () => {
