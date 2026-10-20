@@ -106,5 +106,6 @@
 - [ ] Phase B point-and-edit + before/after compare (version restore already exists).
 - [ ] Phase C fact provenance + launch checklist.
 - [ ] Phase D claimed demo → Activate → setup-fee checkout (BLOCKED: canonical setup price $350 vs $750).
-- [ ] Phase E durable approval log, daily brief.
+- [x] Phase E approval log (Jarvis operations panel, from the permanent audit record).
+- [ ] Phase E daily brief upgrade.
 - [ ] Phase F signed-in journey/accessibility/speed pass.
