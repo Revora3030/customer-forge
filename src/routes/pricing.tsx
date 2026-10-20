@@ -17,7 +17,14 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { GROWTH_SYSTEM, usdExact } from "@/lib/offer";
 import { getPublicOfferRates } from "@/lib/offer.functions";
-import { GROWTH_SYSTEM_SCHEMA, breadcrumbSchema, canonicalLink, ogUrl } from "@/lib/seo";
+import {
+  GROWTH_SYSTEM_SCHEMA,
+  breadcrumbSchema,
+  canonicalLink,
+  faqPageSchema,
+  jsonLdScript,
+  ogUrl,
+} from "@/lib/seo";
 import { useExperiment } from "@/lib/experiments.hooks";
 import { trackConversion } from "@/lib/conversion";
 import { LocalPriceEstimate } from "@/components/marketing/LocalPriceEstimate";
@@ -46,16 +53,14 @@ export const Route = createFileRoute("/pricing")({
       ],
       links: [canonicalLink("/pricing")],
       scripts: [
-        { type: "application/ld+json", children: JSON.stringify(GROWTH_SYSTEM_SCHEMA) },
-        {
-          type: "application/ld+json",
-          children: JSON.stringify(
-            breadcrumbSchema([
-              { name: "Revora", path: "/" },
-              { name: "Pricing", path: "/pricing" },
-            ]),
-          ),
-        },
+        jsonLdScript(GROWTH_SYSTEM_SCHEMA),
+        jsonLdScript(
+          breadcrumbSchema([
+            { name: "Revora", path: "/" },
+            { name: "Pricing", path: "/pricing" },
+          ]),
+        ),
+        jsonLdScript(faqPageSchema(FAQ)),
       ],
     },
   component: PricingRoute,
@@ -71,6 +76,7 @@ function PricingRoute() {
   );
 }
 
+/** Rendered below and emitted as FAQPage data from the same list. */
 const FAQ = [
   {
     q: "What does the $350 setup cover?",

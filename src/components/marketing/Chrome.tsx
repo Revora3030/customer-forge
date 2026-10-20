@@ -54,7 +54,7 @@ export function SiteHeader() {
   return (
     <header className="sticky top-0 z-40 pt-[env(safe-area-inset-top)] border-b border-border bg-background/90 backdrop-blur-sm">
       <div className="mx-auto grid h-16 max-w-6xl grid-cols-[minmax(0,1fr)_auto] items-center gap-2 px-4 md:flex md:justify-between">
-        <Link to="/" aria-label="Revora home" className="min-w-0">
+        <Link to="/" aria-label="Revora home" className="inline-flex min-h-11 min-w-0 items-center">
           <Logo />
         </Link>
 
@@ -266,7 +266,7 @@ export function SiteFooter() {
                   <Mail className="size-3.5 text-primary" aria-hidden="true" />
                   <a
                     href={revoraMailto(MAIL_SUBJECTS.inquiry)}
-                    className="inline-flex min-h-11 items-center text-muted-foreground transition-colors hover:text-primary sm:min-h-0"
+                    className="inline-flex min-h-11 min-w-11 items-center text-muted-foreground transition-colors hover:text-primary sm:min-h-0 sm:min-w-0"
                   >
                     {REVORA.email}
                   </a>
@@ -284,7 +284,7 @@ export function SiteFooter() {
                     <li key={link.label}>
                       <Link
                         to={link.to}
-                        className="inline-flex min-h-11 items-center text-muted-foreground transition-colors hover:text-primary sm:min-h-0"
+                        className="inline-flex min-h-11 min-w-11 items-center text-muted-foreground transition-colors hover:text-primary sm:min-h-0 sm:min-w-0"
                       >
                         {link.label}
                       </Link>
@@ -299,7 +299,7 @@ export function SiteFooter() {
                 <li>
                   <Link
                     to="/get-started"
-                    className="inline-flex min-h-11 items-center text-muted-foreground transition-colors hover:text-primary sm:min-h-0"
+                    className="inline-flex min-h-11 min-w-11 items-center text-muted-foreground transition-colors hover:text-primary sm:min-h-0 sm:min-w-0"
                   >
                     Start my Revora system
                   </Link>
@@ -309,7 +309,7 @@ export function SiteFooter() {
                   <Link
                     to="/auth"
                     search={SIGN_UP_SEARCH}
-                    className="inline-flex min-h-11 items-center text-muted-foreground transition-colors hover:text-primary sm:min-h-0"
+                    className="inline-flex min-h-11 min-w-11 items-center text-muted-foreground transition-colors hover:text-primary sm:min-h-0 sm:min-w-0"
                   >
                     Create a free account
                   </Link>
@@ -318,7 +318,7 @@ export function SiteFooter() {
                   <Link
                     to="/auth"
                     search={SIGN_IN_SEARCH}
-                    className="inline-flex min-h-11 items-center text-muted-foreground transition-colors hover:text-primary sm:min-h-0"
+                    className="inline-flex min-h-11 min-w-11 items-center text-muted-foreground transition-colors hover:text-primary sm:min-h-0 sm:min-w-0"
                   >
                     Sign in
                   </Link>
@@ -326,7 +326,7 @@ export function SiteFooter() {
                 <li>
                   <Link
                     to="/share"
-                    className="inline-flex min-h-11 items-center text-muted-foreground transition-colors hover:text-primary sm:min-h-0"
+                    className="inline-flex min-h-11 min-w-11 items-center text-muted-foreground transition-colors hover:text-primary sm:min-h-0 sm:min-w-0"
                   >
                     Share Revora
                   </Link>
@@ -334,7 +334,7 @@ export function SiteFooter() {
                 <li>
                   <Link
                     to="/demo/dashboard"
-                    className="inline-flex min-h-11 items-center text-muted-foreground transition-colors hover:text-primary sm:min-h-0"
+                    className="inline-flex min-h-11 min-w-11 items-center text-muted-foreground transition-colors hover:text-primary sm:min-h-0 sm:min-w-0"
                   >
                     Live demo site
                   </Link>
