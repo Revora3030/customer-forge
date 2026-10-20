@@ -13,7 +13,7 @@ export const DEFAULT_COMMAND_SETTINGS: CommandSettings = {
   pinnedModels: [],
   pausedModels: [],
   qaAutoRevert: false,
-  qaMinScore: 70,
+  qaMinScore: 40,
 };
 
 let cache: { at: number; value: CommandSettings } | null = null;
@@ -26,7 +26,7 @@ export function toCommandSettings(row: Record<string, unknown> | null | undefine
     pinnedModels: list(row["pinned_models"]),
     pausedModels: list(row["paused_models"]),
     qaAutoRevert: row["qa_auto_revert"] === true,
-    qaMinScore: typeof row["qa_min_score"] === "number" ? row["qa_min_score"] : 70,
+    qaMinScore: typeof row["qa_min_score"] === "number" ? row["qa_min_score"] : 40,
   };
 }
 
