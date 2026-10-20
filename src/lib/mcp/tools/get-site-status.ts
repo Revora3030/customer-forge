@@ -28,7 +28,7 @@ export default defineTool({
     const org = orgs?.[0];
     if (!org) throw new ToolError("No workspace with that slug or ID is visible to your account.");
 
-    const { data: settings, error: settingsError } = await supabase
+    const { data: settingsData, error: settingsError } = await supabase
       .from("website_settings")
       .select(
         "published,publish_state,review_state,custom_domain,domain_status,domain_verified," +
@@ -37,6 +37,20 @@ export default defineTool({
       .eq("organization_id", org.id)
       .maybeSingle();
     if (settingsError) return { content: [{ type: "text", text: settingsError.message }], isError: true };
+    const settings = settingsData as unknown as {
+      published: boolean;
+      publish_state: string;
+      review_state: string;
+      custom_domain: string | null;
+      domain_status: string;
+      domain_verified: boolean;
+      ssl_active: boolean;
+      ssl_ok: boolean;
+      last_published_at: string | null;
+      generated_at: string | null;
+      pages: unknown;
+      template: string;
+    } | null;
     if (!settings) throw new ToolError(`"${org.name}" has no website yet.`);
 
     const pageCount = Array.isArray(settings.pages) ? settings.pages.length : 0;
