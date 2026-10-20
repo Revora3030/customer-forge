@@ -848,10 +848,11 @@ export function freeProviderCredentials(
     const apiKey = env("GITHUB_MODELS_TOKEN");
     return apiKey ? { apiKey } : null;
   }
-  // Keyless free tiers: opt-in (they need no key, and Kilo's NVIDIA models log
-  // prompts), so they never switch on by themselves. A key is never sent.
-  if (provider === "ovh") return flag("OVH_AI_FREE", false) ? { apiKey: ANONYMOUS_KEY } : null;
-  if (provider === "kilo") return flag("KILO_FREE", false) ? { apiKey: ANONYMOUS_KEY } : null;
+  // Keyless free tiers: on by default (no key exists to add), and switched off
+  // with OVH_AI_FREE=false / KILO_FREE=false. A key is never sent: OVH bills
+  // keyed calls, and Kilo's free model hosts may log prompts.
+  if (provider === "ovh") return flag("OVH_AI_FREE", true) ? { apiKey: ANONYMOUS_KEY } : null;
+  if (provider === "kilo") return flag("KILO_FREE", true) ? { apiKey: ANONYMOUS_KEY } : null;
   // Gemini needs its OWN free-tier key. A general Google key may sit on a
   // billing-enabled project, where the same models are charged — so it is only
   // treated as free when an operator opts in explicitly.

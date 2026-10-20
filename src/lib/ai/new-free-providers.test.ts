@@ -121,7 +121,7 @@ describe("web search", () => {
 
 describe("second wave of free providers", () => {
   it("are registered and only use their own keys", () => {
-    for (const provider of ["zai", "ollama", "ovh", "kilo", "modelscope", "github"] as const) {
+    for (const provider of ["zai", "ollama", "modelscope", "github"] as const) {
       expect(FREE_PROVIDERS).toContain(provider);
       expect(freeProviderOrder()).toContain(provider);
       expect(freeProviderCredentials(provider)).toBeNull();
@@ -136,7 +136,16 @@ describe("second wave of free providers", () => {
     expect(freeProviderCredentials("github")?.apiKey).toBe("g");
   });
 
-  it("keeps keyless tiers opt-in and never sends them a key", () => {
+  it("turns keyless tiers on by default, lets the operator switch them off, and never sends them a key", () => {
+    for (const provider of ["ovh", "kilo"] as const) {
+      expect(FREE_PROVIDERS).toContain(provider);
+      expect(freeProviderOrder()).toContain(provider);
+      expect(freeProviderCredentials(provider)?.apiKey).toBe(ANONYMOUS_KEY);
+    }
+    process.env["OVH_AI_FREE"] = "false";
+    process.env["KILO_FREE"] = "false";
+    expect(freeProviderCredentials("ovh")).toBeNull();
+    expect(freeProviderCredentials("kilo")).toBeNull();
     process.env["OVH_AI_FREE"] = "true";
     process.env["KILO_FREE"] = "true";
     expect(freeProviderCredentials("ovh")?.apiKey).toBe(ANONYMOUS_KEY);
