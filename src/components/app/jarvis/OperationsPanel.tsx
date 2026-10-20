@@ -1,3 +1,4 @@
+import { ApprovalLogCard } from "./ApprovalLogCard";
 import { useEffect, useRef } from "react";
 import type { UseQueryResult } from "@tanstack/react-query";
 import { Ban, Copy, Megaphone, Stethoscope } from "lucide-react";
@@ -91,6 +92,7 @@ export function OperationsPanel({ diagnostics, acquisition, scorecard, prospecto
       <ClaudeCodePanel />
       <ProspectAutopilotCard />
       <ProspectInboxCard />
+      <ApprovalLogCard />
 
       <details ref={diagnosticsRef} id="jarvis-diagnostics" className="scroll-mt-4 rounded-xl border border-border bg-card">
         <summary className={summaryRow}>
