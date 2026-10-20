@@ -65,7 +65,8 @@ export async function provisionProspectDemo(
     createdBy: actorId,
     createdAt,
     previewToken,
-    ...(origin ? { source: origin.source, placeId: origin.placeId } : {}),
+    ...(origin ? { source: origin.source } : {}),
+    ...(origin?.placeId ?? input.placeId ? { placeId: origin?.placeId ?? input.placeId ?? null } : {}),
     // Where the email came from and whether it was verified; autopilot's send gate reads it.
     ...(origin?.enrichment ? { enrichment: origin.enrichment } : {}),
   };
@@ -122,6 +123,13 @@ export async function provisionProspectDemo(
       created_by: actorId,
     }),
   );
+
+  // The listing's own Google Maps photos go on the site first; AI fills the rest.
+  const placeId = origin?.placeId ?? input.placeId ?? null;
+  if (placeId) {
+    const { attachMapsPhotos } = await import("@/lib/maps-photos.server");
+    await attachMapsPhotos(admin, organizationId, input.businessName, placeId);
+  }
 
   const { data: job, error: jobError } = await admin
     .from("generation_jobs")
@@ -296,6 +304,7 @@ export type ProspectPrefill = {
   email: string;
   services: string;
   description: string;
+  placeId?: string;
 };
 
 export type ProspectSourceResult = {
@@ -374,6 +383,7 @@ export async function prospectFromMaps(db: SupabaseClient, actorId: string, inpu
       email: "",
       services: "",
       description: "",
+      placeId: place.placeId,
     },
     source: "google_maps",
     note: `From the Google Maps listing: ${[place.name, place.address].filter(Boolean).join(", ")}.`,
