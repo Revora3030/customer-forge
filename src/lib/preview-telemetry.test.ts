@@ -14,6 +14,7 @@ import {
   hashPreviewIp,
   localRateLimited,
   previewEngagement,
+  readCappedBody,
   recordPreviewBeacon,
   resetLocalRateLimit,
 } from "./preview-telemetry.server";
@@ -191,5 +192,45 @@ describe("recording beacons", () => {
     expect((await handlePreviewBeaconRequest(request(JSON.stringify({ token: TOKEN, event: "view" })), ignored.db)).status).toBe(204);
     const limited = prospectDb({}, BEACON_RATE_LIMIT);
     expect((await handlePreviewBeaconRequest(request(JSON.stringify({ token: TOKEN, event: "view" })), limited.db)).status).toBe(429);
+  });
+
+  it("caps a chunked body with no content-length while streaming and cancels the rest", async () => {
+    const encoder = new TextEncoder();
+    let pulls = 0;
+    let cancelled = false;
+    const endless = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        pulls += 1;
+        controller.enqueue(encoder.encode("x".repeat(512)));
+      },
+      cancel() {
+        cancelled = true;
+      },
+    });
+    const chunked = new Request("https://app.example.com/api/public/preview-beacon", {
+      method: "POST",
+      body: endless,
+      duplex: "half",
+    } as RequestInit);
+    expect(chunked.headers.get("content-length")).toBeNull();
+    const { db, calls } = prospectDb();
+    expect((await handlePreviewBeaconRequest(chunked, db)).status).toBe(413);
+    expect(cancelled).toBe(true);
+    expect(pulls).toBeLessThan(10);
+    // Rejected before any token lookup, so the 413 can't reveal whether a token is live.
+    expect(calls).toHaveLength(0);
+  });
+
+  it("rejects a declared oversize body before reading and counts bytes, not characters", async () => {
+    const declared = new Request("https://app.example.com/api/public/preview-beacon", {
+      method: "POST",
+      body: "{}",
+      headers: { "content-length": "999999" },
+    });
+    expect((await handlePreviewBeaconRequest(declared, prospectDb().db)).status).toBe(413);
+    const multibyte = new Request("https://app.example.com/api/public/preview-beacon", { method: "POST", body: "é".repeat(1500) });
+    expect((await readCappedBody(multibyte, 2048))).toEqual({ ok: false, reason: "too_large" });
+    const small = new Request("https://app.example.com/api/public/preview-beacon", { method: "POST", body: "too_large" });
+    expect(await readCappedBody(small, 2048)).toEqual({ ok: true, text: "too_large" });
   });
 });

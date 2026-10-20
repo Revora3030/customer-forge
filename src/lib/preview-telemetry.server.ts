@@ -134,20 +134,51 @@ export async function recordPreviewBeacon(
 
 const BEACON_HEADERS = { "cache-control": "no-store", "x-content-type-options": "nosniff" };
 
+/**
+ * Reads at most `limit` bytes of the body, cancelling the stream once it goes
+ * over, so a chunked upload without content-length is never buffered whole.
+ */
+export async function readCappedBody(
+  request: Request,
+  limit: number,
+): Promise<{ ok: true; text: string } | { ok: false; reason: "too_large" | "unreadable" }> {
+  if (!request.body) return { ok: true, text: "" };
+  const reader = request.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      if (total > limit) {
+        await reader.cancel().catch(() => undefined);
+        return { ok: false, reason: "too_large" };
+      }
+      chunks.push(value);
+    }
+  } catch {
+    return { ok: false, reason: "unreadable" };
+  }
+  const bytes = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return { ok: true, text: new TextDecoder().decode(bytes) };
+}
+
 /** The /api/public/preview-beacon handler: size cap, validation, then recordPreviewBeacon. */
 export async function handlePreviewBeaconRequest(request: Request, db: SupabaseClient): Promise<Response> {
   const reply = (status: number, extra: Record<string, string> = {}) =>
     new Response(null, { status, headers: { ...BEACON_HEADERS, ...extra } });
   if (request.method !== "POST") return reply(405, { allow: "POST" });
+  // The size cap runs before any token lookup, so a 413 says nothing about the token.
   if (Number(request.headers.get("content-length") ?? 0) > MAX_BEACON_BYTES) return reply(413);
-  let text: string;
-  try {
-    text = await request.text();
-  } catch {
-    return reply(400);
-  }
-  if (text.length > MAX_BEACON_BYTES) return reply(413);
-  const beacon = parsePreviewBeacon(text);
+  const body = await readCappedBody(request, MAX_BEACON_BYTES);
+  if (!body.ok) return reply(body.reason === "too_large" ? 413 : 400);
+  const beacon = parsePreviewBeacon(body.text);
   if (!beacon) return reply(400);
   let outcome: BeaconOutcome;
   try {
