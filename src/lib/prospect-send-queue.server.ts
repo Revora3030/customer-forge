@@ -108,8 +108,8 @@ export async function claimQueuedOutreach(db: SupabaseClient, owner: string, lim
 export const TRANSIENT_SEND_REASONS = new Set(["rate_limited", "gmail_unavailable", "storage_error", "email_error_500", "email_error_502", "email_error_503"]);
 /** "Not right now": rescheduled without spending an attempt. */
 export const WAIT_SEND_REASONS = new Set(["quiet_hours", "daily_cap"]);
-/** The send must never happen: cancelled. */
-export const CANCEL_SEND_REASONS = new Set(["do_not_contact", "already_sent", "demo_claimed", "recipient_suppressed", "recipient_opted_out", "no_consent", "quality_gate", "demo_not_found"]);
+/** The send must never happen (or may already have): cancelled. unconfirmed_transport is recorded as sent. */
+export const CANCEL_SEND_REASONS = new Set(["do_not_contact", "already_sent", "unconfirmed_transport", "demo_claimed", "recipient_suppressed", "recipient_opted_out", "no_consent", "quality_gate", "demo_not_found"]);
 
 export const queueBackoffMs = (attempts: number) => 5 * 60_000 * 2 ** Math.max(0, attempts - 1);
 

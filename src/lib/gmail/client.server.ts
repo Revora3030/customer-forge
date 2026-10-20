@@ -6,8 +6,9 @@ import type { GmailApiMessage } from "./mime.server";
  * four, gmailConfig() is null and callers keep the Lovable email path.
  *
  * Transient provider errors (429, 5xx) are retried with exponential backoff,
- * at most GMAIL_MAX_ATTEMPTS attempts. A send whose connection dropped is
- * never retried here: Gmail may have accepted it.
+ * at most GMAIL_MAX_ATTEMPTS attempts. A send retries only 429: a 5xx or a
+ * dropped connection may come after Gmail accepted it, so it is reported as
+ * gmail_transport_error (unconfirmed) and never resent here.
  */
 
 export const GMAIL_SECRETS = ["GMAIL_CLIENT_ID", "GMAIL_CLIENT_SECRET", "GMAIL_REFRESH_TOKEN", "GMAIL_SENDER_EMAIL"] as const;
@@ -114,13 +115,15 @@ function errorFor(status: number): GmailError {
 }
 
 /**
- * One Gmail API call with backoff on 429/5xx. `retryOnNetworkError` is off for
- * sends: a dropped connection may mean Gmail already accepted the message.
+ * One Gmail API call with backoff on 429/5xx. `idempotent` is off for sends:
+ * a dropped connection or a 5xx may mean Gmail already accepted the message,
+ * so only 429 (rejected before acceptance) is retried and the rest is
+ * reported as an unconfirmed gmail_transport_error.
  */
 async function gmailRequest<T>(
   config: GmailConfig,
   path: string,
-  init: { method?: string; body?: unknown; retryOnNetworkError: boolean },
+  init: { method?: string; body?: unknown; idempotent: boolean },
 ): Promise<{ ok: true; data: T } | GmailError> {
   const token = await accessToken(config);
   if (!token.ok) return token;
@@ -137,15 +140,16 @@ async function gmailRequest<T>(
         signal: AbortSignal.timeout(TIMEOUT_MS),
       });
     } catch {
-      if (init.retryOnNetworkError && attempt < GMAIL_MAX_ATTEMPTS) {
+      if (init.idempotent && attempt < GMAIL_MAX_ATTEMPTS) {
         await sleep(backoffMs(attempt));
         continue;
       }
-      return { ok: false, reason: init.retryOnNetworkError ? "gmail_unavailable" : "gmail_transport_error", status: null, transient: init.retryOnNetworkError };
+      return { ok: false, reason: init.idempotent ? "gmail_unavailable" : "gmail_transport_error", status: null, transient: init.idempotent };
     }
     if (response.ok) return { ok: true, data: (await response.json().catch(() => ({}))) as T };
     await response.body?.cancel().catch(() => undefined);
     if (response.status === 401) resetGmailTokenCache();
+    if (!init.idempotent && response.status >= 500) return { ok: false, reason: "gmail_transport_error", status: response.status, transient: false };
     if (transientStatus(response.status) && attempt < GMAIL_MAX_ATTEMPTS) {
       await sleep(backoffMs(attempt));
       continue;
@@ -162,7 +166,7 @@ export async function sendGmailRaw(config: GmailConfig, raw: string, threadId?: 
   const result = await gmailRequest<{ id?: string; threadId?: string }>(config, "/messages/send", {
     method: "POST",
     body: { raw, ...(threadId ? { threadId } : {}) },
-    retryOnNetworkError: false,
+    idempotent: false,
   });
   if (!result.ok) return result;
   if (typeof result.data.id !== "string" || typeof result.data.threadId !== "string")
@@ -176,7 +180,7 @@ export async function getGmailThread(
   threadId: string,
 ): Promise<{ ok: true; messages: GmailApiMessage[] } | GmailError> {
   if (!/^[A-Za-z0-9_-]{6,64}$/.test(threadId)) return { ok: false, reason: "gmail_not_found", status: null, transient: false };
-  const result = await gmailRequest<{ messages?: GmailApiMessage[] }>(config, `/threads/${threadId}?format=full`, { retryOnNetworkError: true });
+  const result = await gmailRequest<{ messages?: GmailApiMessage[] }>(config, `/threads/${threadId}?format=full`, { idempotent: true });
   if (!result.ok) return result;
   return { ok: true, messages: Array.isArray(result.data.messages) ? result.data.messages : [] };
 }

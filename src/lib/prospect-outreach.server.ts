@@ -750,7 +750,7 @@ export async function sendDemoOutreach(db: SupabaseClient, input: SendDemoOutrea
     const sent = await sendGmailOutreach(gmail, { to: recipient, subject, text: `${message}\n${footer}`, unsubscribeUrl });
     if (!sent.ok) {
       if (sent.reason === "gmail_transport_error") {
-        // Gmail may have accepted it before the connection dropped: keep it blocking.
+        // A dropped connection or a 5xx may come after Gmail accepted it: keep it blocking.
         await db.from("prospect_outreach").update({ reason: "unconfirmed_transport", provider: "gmail" }).eq("id", outreachId);
         return fail("unconfirmed_transport");
       }
