@@ -27,10 +27,14 @@ export async function searchOsmProspects(niche: string, city: string, state: str
       body: new URLSearchParams({ data: overpassQuery(niche, bbox) }),
       signal: AbortSignal.timeout(25_000),
     });
-    if (!res.ok) return [];
+    if (!res.ok) {
+      console.warn(`OpenStreetMap search failed [${res.status}]`);
+      return [];
+    }
     const json = (await res.json()) as { elements?: { type?: unknown; id?: unknown; tags?: unknown }[] };
     return (json.elements ?? []).map((el) => osmElementToProspect(el, city, state)).filter((p) => p !== null);
-  } catch {
+  } catch (error) {
+    console.warn("OpenStreetMap search failed:", error instanceof Error ? error.message : error);
     return [];
   }
 }
