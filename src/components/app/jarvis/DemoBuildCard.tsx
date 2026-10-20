@@ -77,7 +77,7 @@ export function DemoBuildCardView({ card, status, loadError, checking, onRetry, 
         <Hammer className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden />
         <div className="min-w-0 flex-1">
           <h3 className="break-words text-sm font-semibold">{name}</h3>
-          <p className="text-xs text-muted-foreground">{phase === "ready" ? (status?.claimed ? "Claimed by the business" : "Private draft · not published") : label}</p>
+          <p className="text-xs text-muted-foreground">{phase === "ready" ? (status?.claimed ? "Claimed by the business" : "Private draft · not published") : phase === "active" ? "Building the demo site" : label}</p>
         </div>
         {onDismiss ? (
           <Button type="button" variant="ghost" size="icon-sm" data-jarvis-tap="" className="size-9 shrink-0 rounded-full" aria-label={`Close the ${name} build card`} onClick={onDismiss}>
@@ -115,7 +115,7 @@ export function DemoBuildCardView({ card, status, loadError, checking, onRetry, 
               ))}
             </ol>
           </details>
-          <p className="text-xs text-muted-foreground">The AI team builds on your free model pool. This card updates every few seconds and turns into a live preview when the draft is ready.</p>
+          <p className="text-xs text-muted-foreground">Your AI team (paid and free models) is building this site. This card updates every few seconds and turns into a live preview when the draft is ready.</p>
         </div>
       ) : null}
 
