@@ -778,21 +778,50 @@ describe("outreach send queue", () => {
     expect(tables["prospect_outreach"]![0]).toMatchObject({ mode: "autopilot", status: "sent" });
   });
 
-  it("backs off on transient provider errors and gives up after three attempts", async () => {
+  it("backs off on Gmail rate limits and gives up after three attempts", async () => {
     setGmail();
-    sendStatus = 503;
+    sendStatus = 429;
     const { db, tables } = fakeDb(demoSeed({ prospect_send_queue: [{ id: "q1", organization_id: ORG, channel: "email", recipient: "owner@triangle.com", mode: "autopilot", status: "queued", not_before: "2026-10-19T17:59:00Z", attempts: 0 }] }));
     const row = () => tables["prospect_send_queue"]![0]!;
     for (let attempt = 1; attempt <= MAX_QUEUE_ATTEMPTS; attempt += 1) {
       vi.setSystemTime(new Date(Date.parse(String(row()["not_before"])) + 1000));
       await drainSendQueue(db);
       expect(row()["attempts"]).toBe(attempt);
-      expect(row()["last_error"]).toBe("gmail_unavailable");
+      expect(row()["last_error"]).toBe("rate_limited");
     }
     expect(row()["status"]).toBe("failed");
-    // Each drain tried Gmail's send up to three times with backoff.
+    // Each drain tried Gmail's send up to three times with backoff: a 429 is rejected before acceptance.
     expect(gmailFetch.mock.calls.filter(([url]) => String(url).endsWith("/messages/send"))).toHaveLength(9);
     expect(sendTemplateEmail).not.toHaveBeenCalled();
+  });
+
+  it("never resends after a Gmail 5xx on send: recorded as unconfirmed and cancelled", async () => {
+    setGmail();
+    sendStatus = 500;
+    const { db, tables } = fakeDb(demoSeed({ prospect_send_queue: [{ id: "q1", organization_id: ORG, channel: "email", recipient: "owner@triangle.com", mode: "autopilot", status: "queued", not_before: "2026-10-19T17:59:00Z", attempts: 0 }] }));
+    expect(await drainSendQueue(db)).toMatchObject({ claimed: 1, cancelled: 1, retried: 0 });
+    vi.setSystemTime(new Date("2026-10-20T18:00:00Z"));
+    expect(await drainSendQueue(db)).toMatchObject({ claimed: 0 });
+    expect(gmailFetch.mock.calls.filter(([url]) => String(url).endsWith("/messages/send"))).toHaveLength(1);
+    expect(tables["prospect_send_queue"]![0]).toMatchObject({ status: "cancelled", last_error: "unconfirmed_transport" });
+    expect(tables["prospect_outreach"]![0]).toMatchObject({ status: "sent", reason: "unconfirmed_transport", provider: "gmail" });
+    expect(sendTemplateEmail).not.toHaveBeenCalled();
+  });
+
+  it("does not retry a Gmail send whose connection dropped, but still retries thread reads", async () => {
+    setGmail();
+    const { getGmailThread, gmailConfig, sendGmailRaw } = await import("@/lib/gmail/client.server");
+    const config = gmailConfig()!;
+    gmailFetch.mockImplementationOnce(async () => new Response(JSON.stringify({ access_token: "at", expires_in: 3600 }), { status: 200 }));
+    gmailFetch.mockImplementationOnce(async () => {
+      throw new TypeError("socket hang up");
+    });
+    expect(await sendGmailRaw(config, "cmF3")).toMatchObject({ ok: false, reason: "gmail_transport_error", transient: false });
+    gmailFetch.mockImplementationOnce(async () => new Response("{}", { status: 503 }));
+    expect(await getGmailThread(config, THREAD)).toMatchObject({ ok: true });
+    const urls = gmailFetch.mock.calls.map(([url]) => String(url));
+    expect(urls.filter((url) => url.endsWith("/messages/send"))).toHaveLength(1);
+    expect(urls.filter((url) => url.includes("/threads/"))).toHaveLength(2);
   });
 
   it("cancels an item whose contact is on do-not-contact", async () => {
