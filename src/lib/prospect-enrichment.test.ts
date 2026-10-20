@@ -10,7 +10,7 @@ import { extractMetaEmail } from "@/lib/prospect-email";
 
 const mocks = vi.hoisted(() => ({ isDoNotContact: vi.fn(), fetch: vi.fn() }));
 vi.mock("@/lib/prospect-outreach.server", () => ({ isDoNotContact: mocks.isDoNotContact }));
-import { enrichProspectEmail, mxStatus, verifyProspectEmail } from "@/lib/prospect-enrichment.server";
+import { enrichProspectEmail, mxStatus, reverifyLegacyDemos, verifyProspectEmail } from "@/lib/prospect-enrichment.server";
 import { lookupPublicEmail } from "@/lib/prospect-email.server";
 
 const db = {} as never;
@@ -154,5 +154,118 @@ describe("public email lookup reuses the SSRF guard", () => {
       checkedAt: "2026-10-19T00:00:00.000Z",
     });
     expect(await enrichProspectEmail(db, null)).toMatchObject({ status: "none", email: null, reason: "no_listing_link" });
+  });
+});
+
+describe("reverifyLegacyDemos", () => {
+  type Row = Record<string, unknown>;
+  const ORG = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
+  /** Reads "a->b->>c" style paths like PostgREST does (a missing key is SQL NULL). */
+  const path = (row: Row, column: string): unknown =>
+    column.split(/->>?/).reduce<unknown>((value, key) => (value && typeof value === "object" ? (value as Row)[key] : undefined), row);
+
+  function fakeDb(seed: Record<string, Row[]>) {
+    const tables: Record<string, Row[]> = Object.fromEntries(Object.entries(seed).map(([k, v]) => [k, v.map((r) => structuredClone(r))]));
+    const writes: Array<{ table: string; filters: string[]; patch: Row }> = [];
+    const from = (name: string) => {
+      const filters: Array<(row: Row) => boolean> = [];
+      const described: string[] = [];
+      let patch: Row | null = null;
+      let limit = Infinity;
+      const rows = () => (tables[name] ?? []).filter((row) => filters.every((f) => f(row))).slice(0, limit);
+      const run = () => {
+        const matched = rows();
+        if (patch) {
+          writes.push({ table: name, filters: described, patch });
+          matched.forEach((row) => Object.assign(row, structuredClone(patch)));
+        }
+        return { data: matched.map((r) => structuredClone(r)), error: null };
+      };
+      const chain: Record<string, unknown> = {
+        select: () => chain,
+        eq: (column: string, value: unknown) => (described.push(`eq:${column}`), filters.push((row) => path(row, column) === value), chain),
+        in: (column: string, values: unknown[]) => (filters.push((row) => values.includes(path(row, column))), chain),
+        not: (column: string) => (filters.push((row) => path(row, column) != null), chain),
+        is: (column: string) => (described.push(`is:${column}`), filters.push((row) => path(row, column) == null), chain),
+        order: () => chain,
+        limit: (n: number) => ((limit = n), chain),
+        update: (values: Row) => ((patch = values), chain),
+        maybeSingle: async () => ({ data: rows()[0] ?? null, error: null }),
+        then: (resolve: (value: unknown) => unknown) => resolve(run()),
+      };
+      return chain;
+    };
+    return { db: { from } as never, tables, writes };
+  }
+
+  const demo = (n: number, marker: Row = {}) => ({
+    organization_id: ORG(n),
+    generation: { theme: "kept", prospectDemo: { kind: "prospect_demo", source: "autopilot", previewToken: `tok_${n}`, createdAt: "2026-09-01T00:00:00Z", ...marker } },
+  });
+  const profile = (n: number, email: string | null) => ({ organization_id: ORG(n), email });
+  const NOW = () => new Date("2026-10-20T12:00:00Z");
+  const markerOf = (row: Row | undefined) => (row?.["generation"] as Row)["prospectDemo"] as Row;
+
+  it("verifies the profile email of legacy autopilot demos and writes a legacy_profile record, tenant-scoped", async () => {
+    mocks.fetch.mockResolvedValue(mx(MX_OK));
+    const recorded = { status: "none", email: null, source: null, sourceUrl: null, reason: "no_published_email", checkedAt: "x" };
+    const { db, tables, writes } = fakeDb({
+      website_settings: [demo(1), demo(2, { enrichment: recorded }), demo(3, { source: "admin" }), demo(4)],
+      business_profiles: [profile(1, " Owner@Shine-Detailing.com "), profile(2, "x@shop.com"), profile(3, "y@shop.com"), profile(4, null)],
+    });
+    const result = await reverifyLegacyDemos(db, { now: NOW });
+    expect(result).toEqual({ checked: 1, written: 1, results: [{ organizationId: ORG(1), status: "verified", reason: "ok", written: true }] });
+    const settings = tables["website_settings"]!;
+    expect((settings[0]!["generation"] as Row)["theme"]).toBe("kept");
+    expect(markerOf(settings[0])["previewToken"]).toBe("tok_1");
+    expect(markerOf(settings[0])["enrichment"]).toEqual({
+      status: "verified",
+      email: "owner@shine-detailing.com",
+      source: "legacy_profile",
+      sourceUrl: null,
+      reason: "ok",
+      checkedAt: "2026-10-20T12:00:00.000Z",
+    });
+    // The record passes the autopilot gate for exactly that address.
+    expect(emailVerifiedFor(readProspectEnrichment(markerOf(settings[0])["enrichment"]), "owner@shine-detailing.com")).toBe(true);
+    // Already-recorded, non-autopilot and email-less demos are untouched.
+    expect(markerOf(settings[1])["enrichment"]).toEqual(recorded);
+    expect(markerOf(settings[2])["enrichment"]).toBeUndefined();
+    expect(markerOf(settings[3])["enrichment"]).toBeUndefined();
+    expect(mocks.isDoNotContact).toHaveBeenCalledTimes(1);
+    // One write, scoped to the tenant and guarded on the record still being absent.
+    expect(writes).toEqual([{ table: "website_settings", filters: ["eq:organization_id", "is:generation->prospectDemo->enrichment"], patch: expect.any(Object) }]);
+
+    // Never re-verified once it has a record.
+    expect(await reverifyLegacyDemos(db, { now: NOW })).toEqual({ checked: 0, written: 0, results: [] });
+    expect(mocks.isDoNotContact).toHaveBeenCalledTimes(1);
+  });
+
+  it("is bounded by limit (default 5) and records rejections and DNS trouble too", async () => {
+    mocks.fetch.mockRejectedValue(new Error("offline"));
+    const ids = [1, 2, 3, 4, 5, 6, 7];
+    const { db, tables } = fakeDb({
+      website_settings: ids.map((n) => demo(n)),
+      business_profiles: ids.map((n) => profile(n, n === 1 ? "noreply@shop.com" : `owner${n}@shop${n}.com`)),
+    });
+    const first = await reverifyLegacyDemos(db, { now: NOW });
+    expect(first.checked).toBe(5);
+    expect(first.results[0]).toEqual({ organizationId: ORG(1), status: "rejected", reason: "role_address", written: true });
+    expect(first.results[1]).toMatchObject({ status: "unverified", reason: "dns_unavailable" });
+    const second = await reverifyLegacyDemos(db, { now: NOW, limit: 1 });
+    expect(second.results.map((r) => r.organizationId)).toEqual([ORG(6)]);
+    expect(await reverifyLegacyDemos(db, { now: NOW, limit: 0 })).toEqual({ checked: 0, written: 0, results: [] });
+    expect(tables["website_settings"]!.filter((row) => markerOf(row)["enrichment"])).toHaveLength(6);
+  });
+
+  it("skips claimed demos and records a do-not-contact address as rejected", async () => {
+    mocks.isDoNotContact.mockResolvedValue(true);
+    const { db } = fakeDb({
+      website_settings: [demo(1, { claimedAt: "2026-10-01T00:00:00Z" }), demo(2)],
+      business_profiles: [profile(1, "a@shop.com"), profile(2, "b@shop.com")],
+    });
+    const result = await reverifyLegacyDemos(db, { now: NOW });
+    expect(result.results).toEqual([{ organizationId: ORG(2), status: "rejected", reason: "do_not_contact", written: true }]);
+    expect(mocks.fetch).not.toHaveBeenCalled();
   });
 });

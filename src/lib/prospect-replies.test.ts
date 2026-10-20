@@ -43,12 +43,13 @@ import { parseActions } from "@/lib/jarvis-actions";
 type Row = Record<string, unknown>;
 
 /** Writes a test can make fail, e.g. the do-not-contact upsert. */
-type Faults = { failUpsert?: string[] };
+type Faults = { failUpsert?: string[]; missingPollLock?: boolean };
 
 /** In-memory Supabase stand-in covering the filters, returning updates, unique keys and the queue claim RPC. */
 function fakeDb(seed: Record<string, Row[]>, faults: Faults = {}) {
   const tables: Record<string, Row[]> = Object.fromEntries(Object.entries(seed).map(([k, v]) => [k, v.map((r) => ({ ...r }))]));
   const table = (name: string) => (tables[name] ??= []);
+  const pollClaims: Array<{ p_owner: string; p_seconds: number }> = [];
   const autoReply = (row: Row) => row["kind"] === "reply" && row["mode"] === "autopilot";
   /** prospect_outreach_auto_reply_seq_check: automatic replies carry slot 1 or 2, nothing else does. */
   const checkViolation = (name: string, row: Row) =>
@@ -136,7 +137,20 @@ function fakeDb(seed: Record<string, Row[]>, faults: Faults = {}) {
     return chain;
   };
   /** Same semantics as claim_prospect_send_queue in the migration. */
-  const rpc = async (fn: string, args: { p_owner: string; p_limit: number; p_lease_seconds: number }) => {
+  const rpc = async (fn: string, args: { p_owner: string; p_limit: number; p_lease_seconds: number; p_seconds: number }) => {
+    if (fn === "claim_prospect_reply_poll") {
+      // Same semantics as the migration: one UPDATE on the singleton, only while the lease is free or expired.
+      if (faults.missingPollLock) return { data: null, error: { code: "PGRST202", message: "Could not find the function public.claim_prospect_reply_poll(p_owner, p_seconds) in the schema cache" } };
+      const state = table("prospect_reply_poll_state");
+      if (!state.length) state.push({ id: 1, last_result: {} });
+      const row = state[0]!;
+      const nowIso = new Date().toISOString();
+      if (row["leased_until"] != null && String(row["leased_until"]) >= nowIso) return { data: [], error: null };
+      row["leased_until"] = new Date(Date.now() + args.p_seconds * 1000).toISOString();
+      row["lease_owner"] = args.p_owner;
+      pollClaims.push(args);
+      return { data: [{ ...row }], error: null };
+    }
     if (fn !== "claim_prospect_send_queue") return { data: null, error: { message: "unknown function" } };
     const now = new Date().toISOString();
     const due = table("prospect_send_queue")
@@ -150,7 +164,7 @@ function fakeDb(seed: Record<string, Row[]>, faults: Faults = {}) {
     }
     return { data: due.map((r) => ({ ...r })), error: null };
   };
-  return { db: { from, rpc } as never, tables };
+  return { db: { from, rpc } as never, tables, pollClaims };
 }
 
 const ORG = "11111111-1111-4111-8111-111111111111";
@@ -480,9 +494,125 @@ describe("intent and guardrails", () => {
     // A long reference number is not a phone number.
     expect(factCheckReply("Your reference is 123456789012.", facts)).toEqual([]);
   });
+
+  it("allows the business's own website domain and the sender's mail domain, any case, and nothing else", () => {
+    const facts = buildFactsSheet({ businessName: "Triangle Comfort", previewUrl: PREVIEW, claimUrl: CLAIM, senderEmail: "sam@Revora.test", businessWebsite: "https://www.TriangleComfort.com/home" });
+    expect(facts.businessDomain).toBe("trianglecomfort.com");
+    for (const body of [
+      "We kept everything from trianglecomfort.com in the draft.",
+      "Your current site TriangleComfort.COM stays as it is.",
+      "Your site www.trianglecomfort.com stays as it is.",
+      "Your site https://TriangleComfort.com/ stays as it is.",
+      "Reach us any time at revora.test.",
+      "Reach us at https://REVORA.test.",
+    ])
+      expect(factCheckReply(body, facts), body).toEqual([]);
+    const flagged = (body: string) => expect(factCheckReply(body, facts).length, body).toBeGreaterThan(0);
+    flagged("See trianglecomfort.com/specials for the deal");
+    flagged("See https://trianglecomfort.com/specials");
+    flagged("See https://user@trianglecomfort.com");
+    flagged("See trianglecomfort.co");
+    flagged("See shop.trianglecomfort.com");
+    flagged("See revora.test/pricing");
+    flagged("See evil.test");
+    flagged("Write owner@trianglecomfort.com");
+
+    // No website on the profile, or a social/listing page: no extra domain is allowed.
+    const plain = buildFactsSheet({ businessName: "Triangle Comfort", previewUrl: PREVIEW, claimUrl: CLAIM, senderEmail: "sam@revora.test" });
+    expect(plain.businessDomain).toBeUndefined();
+    expect(factCheckReply("We kept trianglecomfort.com in mind.", plain).join()).toMatch(/bare web address/);
+    const social = buildFactsSheet({ businessName: "Triangle Comfort", previewUrl: PREVIEW, claimUrl: CLAIM, senderEmail: "sam@revora.test", businessWebsite: "facebook.com/trianglecomfort" });
+    expect(social.businessDomain).toBeUndefined();
+    expect(factCheckReply("Find us on facebook.com", social).join()).toMatch(/bare web address/);
+  });
+});
+
+describe("single-flight run lock", () => {
+  it("claims the lease, releases it at the end, and answers busy while another run holds it", async () => {
+    setGmail();
+    threadMessages = [inbound("in1", "Yes, I like it! What next?")];
+    const { db, tables, pollClaims } = fakeDb(demoSeed({ prospect_outreach: [sentOutreach()], prospect_reply_poll_state: [{ id: 1, last_result: {} }] }));
+    expect(await runProspectReplies(db)).toMatchObject({ status: "done", stored: 1, autoReplied: 1 });
+    expect(pollClaims).toHaveLength(1);
+    expect(pollClaims[0]!.p_seconds).toBe(15 * 60);
+    // Released: the next run can claim again.
+    expect(tables["prospect_reply_poll_state"]![0]).toMatchObject({ lease_owner: null, leased_until: null });
+
+    // Another run holds an unexpired lease: nothing is drained, read or sent.
+    Object.assign(tables["prospect_reply_poll_state"]![0]!, { lease_owner: "other-run", leased_until: "2026-10-19T18:10:00.000Z" });
+    threadMessages = [inbound("in2", "Also, what does it cost?")];
+    gmailFetch.mockClear();
+    const busy = await runProspectReplies(db);
+    expect(busy).toMatchObject({ status: "busy", stored: 0, threadsChecked: 0, queue: null });
+    expect(gmailFetch).not.toHaveBeenCalled();
+    // The other run's lease is left alone.
+    expect(tables["prospect_reply_poll_state"]![0]).toMatchObject({ lease_owner: "other-run", leased_until: "2026-10-19T18:10:00.000Z" });
+
+    // An expired lease (a run that died) is claimed again.
+    tables["prospect_reply_poll_state"]![0]!["leased_until"] = "2026-10-19T17:00:00.000Z";
+    expect(await runProspectReplies(db)).toMatchObject({ status: "done", stored: 1 });
+    expect(pollClaims).toHaveLength(2);
+    expect(tables["prospect_reply_poll_state"]![0]).toMatchObject({ lease_owner: null, leased_until: null });
+  });
+
+  it("releases the lease when Gmail isn't configured", async () => {
+    const { db, tables, pollClaims } = fakeDb(demoSeed());
+    expect((await runProspectReplies(db)).status).toBe("gmail_not_configured");
+    expect(pollClaims).toHaveLength(1);
+    expect(tables["prospect_reply_poll_state"]![0]).toMatchObject({ lease_owner: null, leased_until: null });
+  });
+
+  it("runs without the lock, and logs it, when the migration isn't applied", async () => {
+    setGmail();
+    threadMessages = [inbound("in1", "Yes, I like it! What next?")];
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    onTestFinished(() => warn.mockRestore());
+    const { db, pollClaims } = fakeDb(demoSeed({ prospect_outreach: [sentOutreach()] }), { missingPollLock: true });
+    expect(await runProspectReplies(db)).toMatchObject({ status: "done", stored: 1, autoReplied: 1 });
+    expect(pollClaims).toHaveLength(0);
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("claim_prospect_reply_poll is missing"));
+  });
+
+  it("skips the run when the claim itself fails for another reason", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    onTestFinished(() => error.mockRestore());
+    const db = { rpc: async () => ({ data: null, error: { code: "08006", message: "connection failure" } }), from: () => { throw new Error("must not read"); } } as never;
+    expect(await runProspectReplies(db)).toMatchObject({ status: "failed", stored: 0, queue: null });
+  });
+
+  it("migration adds the lease columns and a locked-down SECURITY INVOKER claim function", () => {
+    const sql = readFileSync("supabase/migrations/20261020120100_prospect_reply_poll_lock.sql", "utf8");
+    expect(sql).toMatch(/ADD COLUMN IF NOT EXISTS lease_owner TEXT/);
+    expect(sql).toMatch(/ADD COLUMN IF NOT EXISTS leased_until TIMESTAMPTZ/);
+    expect(sql).toMatch(/FUNCTION public\.claim_prospect_reply_poll\(p_owner TEXT, p_seconds INTEGER/);
+    expect(sql).toMatch(/SECURITY INVOKER\s+SET search_path = public/);
+    expect(sql).toMatch(/WHERE s\.id = 1\s+AND \(s\.leased_until IS NULL OR s\.leased_until < now\(\)\)\s+RETURNING/);
+    expect(sql).toMatch(/REVOKE ALL ON FUNCTION public\.claim_prospect_reply_poll\(TEXT, INTEGER\) FROM PUBLIC, anon, authenticated/);
+    expect(sql).toMatch(/GRANT EXECUTE ON FUNCTION public\.claim_prospect_reply_poll\(TEXT, INTEGER\) TO service_role/);
+  });
 });
 
 describe("reply polling and follow-up", () => {
+  it("lets an automatic reply name the business's own website domain from its profile", async () => {
+    setGmail();
+    threadMessages = [inbound("in1", "Yes, I like it! What next?")];
+    ai.reply = `{"body":"Great to hear! We kept the details from TriangleComfort.com. Your draft is here: ${PREVIEW}"}`;
+    const seed: Record<string, Row[]> = demoSeed({ prospect_outreach: [sentOutreach()] });
+    seed["business_profiles"]![0] = { ...seed["business_profiles"]![0]!, website: "https://www.trianglecomfort.com" };
+    const { db, tables } = fakeDb(seed);
+    expect(await runProspectReplies(db)).toMatchObject({ status: "done", autoReplied: 1, drafted: 0 });
+    expect(tables["prospect_inbound"]![0]).toMatchObject({ action: "auto_replied" });
+  });
+
+  it("drafts instead when the reply names the business domain but the profile lists no website", async () => {
+    setGmail();
+    threadMessages = [inbound("in1", "Yes, I like it! What next?")];
+    ai.reply = `{"body":"Great to hear! We kept the details from trianglecomfort.com. Your draft is here: ${PREVIEW}"}`;
+    const { db, tables } = fakeDb(demoSeed({ prospect_outreach: [sentOutreach()] }));
+    expect(await runProspectReplies(db)).toMatchObject({ status: "done", autoReplied: 0, drafted: 1 });
+    expect(String(tables["prospect_inbound"]![0]!["draft_reason"])).toMatch(/bare web address not in the facts sheet: trianglecomfort\.com/);
+  });
+
   it("returns gmail_not_configured cleanly and names the four secrets", async () => {
     const { db } = fakeDb(demoSeed({ prospect_outreach: [sentOutreach()] }));
     const result = await runProspectReplies(db);

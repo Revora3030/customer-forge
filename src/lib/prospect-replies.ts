@@ -1,4 +1,5 @@
 import { GROWTH_SYSTEM, usd } from "@/lib/offer";
+import { isPlatformEmailDomain } from "@/lib/prospect-email";
 
 /**
  * Pure rules for prospect replies: intent, risk flags, the facts sheet every
@@ -122,10 +123,44 @@ export type FactsSheet = {
   senderName: string;
   senderEmail: string;
   company: string;
+  /**
+   * The host of the business's own website when its profile has one (lowercase,
+   * no "www."). A reply may name that domain: it is the prospect's own site.
+   * Never a listing/social platform (a Facebook page is not their domain).
+   */
+  businessDomain?: string | null;
 };
 
+/** Host of a website address, lowercase without "www."; null when unusable. */
+export function websiteHost(value: string | null | undefined): string | null {
+  const raw = value?.trim();
+  if (!raw) return null;
+  try {
+    const url = new URL(/^https?:\/\//i.test(raw) ? raw : `https://${raw}`);
+    if (url.protocol !== "https:" && url.protocol !== "http:") return null;
+    const host = url.hostname.toLowerCase().replace(/\.$/, "").replace(/^www\./, "");
+    return /^(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,24}$/.test(host) ? host : null;
+  } catch {
+    return null;
+  }
+}
+
+/** The business's own website domain for the facts sheet: never a listing or social platform. */
+export function businessDomainFor(website: string | null | undefined): string | null {
+  const host = websiteHost(website);
+  return host && !isPlatformEmailDomain(host) ? host : null;
+}
+
 /** The only facts an automatic reply may state. Prices come from the one offer. */
-export function buildFactsSheet(input: { businessName: string; previewUrl: string; claimUrl: string; senderName?: string | null | undefined; senderEmail: string }): FactsSheet {
+export function buildFactsSheet(input: {
+  businessName: string;
+  previewUrl: string;
+  claimUrl: string;
+  senderName?: string | null | undefined;
+  senderEmail: string;
+  businessWebsite?: string | null | undefined;
+}): FactsSheet {
+  const businessDomain = businessDomainFor(input.businessWebsite);
   return {
     businessName: input.businessName,
     plan: GROWTH_SYSTEM.name,
@@ -141,6 +176,7 @@ export function buildFactsSheet(input: { businessName: string; previewUrl: strin
     senderName: input.senderName?.trim() || "Revora Growth Systems",
     senderEmail: input.senderEmail,
     company: "Revora Growth Systems",
+    ...(businessDomain ? { businessDomain } : {}),
   };
 }
 
@@ -161,9 +197,24 @@ export function factCheckReply(body: string, facts: FactsSheet): string[] {
   if (!text) problems.push("empty reply");
   if (text.length > MAX_REPLY_CHARS) problems.push("reply is too long");
   const allowedUrls = new Set([facts.previewUrl, facts.claimUrl].map(trimUrl));
+  // The prospect's own website domain and the sender's mail domain may be named
+  // (just the domain, any case, with or without www./a scheme/a trailing slash);
+  // a path on them, or any other domain, is still off the sheet.
+  const allowedHosts = new Set(
+    [facts.businessDomain ? businessDomainFor(facts.businessDomain) : null, websiteHost(facts.senderEmail.slice(facts.senderEmail.lastIndexOf("@") + 1))].filter(
+      (host): host is string => Boolean(host),
+    ),
+  );
+  const isAllowedDomain = (address: string) => {
+    const bare = address.replace(/^https?:\/\//i, "").replace(/\/$/, "");
+    // Only a plain host: no path, query, port or credentials.
+    if (/[/?#:@\\]/.test(bare)) return false;
+    const host = websiteHost(bare);
+    return host !== null && allowedHosts.has(host);
+  };
   for (const match of text.matchAll(/https?:\/\/[^\s<>"']+/gi)) {
     const url = trimUrl(match[0]);
-    if (!allowedUrls.has(url)) problems.push(`link not in the facts sheet: ${url.slice(0, 120)}`);
+    if (!allowedUrls.has(url) && !isAllowedDomain(url)) problems.push(`link not in the facts sheet: ${url.slice(0, 120)}`);
   }
   const withoutUrls = text.replace(/https?:\/\/[^\s<>"']+/gi, " ");
   // The facts-sheet links written without their scheme are still the facts-sheet links.
@@ -171,7 +222,7 @@ export function factCheckReply(body: string, facts: FactsSheet): string[] {
   const allowedBare = new Set([...allowedUrls].map((url) => url.replace(/^https?:\/\//i, "").toLowerCase()));
   for (const match of withoutUrls.matchAll(BARE_DOMAIN)) {
     const address = trimUrl(match[0]);
-    if (!allowedBare.has(address.toLowerCase())) problems.push(`bare web address not in the facts sheet: ${address.slice(0, 120)}`);
+    if (!allowedBare.has(address.toLowerCase()) && !isAllowedDomain(address)) problems.push(`bare web address not in the facts sheet: ${address.slice(0, 120)}`);
   }
   // Prices and phone numbers are read with every link removed (a link's digits are not a phone number).
   const rest = withoutUrls.replace(BARE_DOMAIN, " ");

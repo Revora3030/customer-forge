@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { extractBusinessEmail } from "./prospect-email";
+import { decodeEmailText, deobfuscateEmailText, extractBusinessEmail, extractMetaEmail } from "./prospect-email";
 
 describe("public email extraction", () => {
   it("prefers a listed mailto contact and normalizes it", () => {
@@ -18,6 +18,55 @@ describe("public email extraction", () => {
   it("decodes common at-sign encodings", () => {
     expect(extractBusinessEmail("owner&#64;shine-detailing.com")).toBe("owner@shine-detailing.com");
     expect(extractBusinessEmail("owner%40shine-detailing.com")).toBe("owner@shine-detailing.com");
+  });
+
+  it("decodes numeric entities for @ and . in visible text and mailto links", () => {
+    expect(extractBusinessEmail("owner&#x40;shine-detailing&#46;com")).toBe("owner@shine-detailing.com");
+    expect(extractBusinessEmail("owner&#X40;shine-detailing&#x2E;com")).toBe("owner@shine-detailing.com");
+    expect(extractBusinessEmail("owner&commat;shine-detailing&period;com")).toBe("owner@shine-detailing.com");
+    expect(extractBusinessEmail('<a href="mailto:owner&#64;shine-detailing.com">Email</a>')).toBe("owner@shine-detailing.com");
+    expect(extractBusinessEmail('<a href="mailto:owner%40shine-detailing.com?subject=hi">Email</a>')).toBe("owner@shine-detailing.com");
+  });
+
+  it("decodes entities in one pass, never twice", () => {
+    expect(decodeEmailText("&amp;#64;")).toBe("&#64;");
+    expect(decodeEmailText("&amp;lt;")).toBe("&lt;");
+    expect(extractBusinessEmail("owner&amp;#64;shine-detailing.com")).toBeNull();
+    // Non-ASCII or control code points are left as written.
+    expect(decodeEmailText("&#0;&#x1F600;&#9999999;")).toBe("&#0;&#x1F600;&#9999999;");
+  });
+
+  it("decodes bracketed at/dot spellings, case-insensitive and with inner spaces", () => {
+    for (const text of [
+      "owner (at) shine-detailing (dot) com",
+      "owner{at}shine-detailing{dot}com",
+      "owner [AT] shine-detailing [Dot] com",
+      "owner [ at ] shine-detailing ( dot ) com",
+      "<p>Email: owner(at)shine-detailing(dot)com</p>",
+      '<a href="mailto:owner[at]shine-detailing[dot]com">Email</a>',
+    ])
+      expect(extractBusinessEmail(text), text).toBe("owner@shine-detailing.com");
+    // Bracketed spellings inside meta tags are left to extractMetaEmail.
+    expect(extractBusinessEmail('<meta name="keywords" content="joe [at] joesplumbing [dot] com">')).toBeNull();
+  });
+
+  it("never turns bare prose at/dot into an address", () => {
+    for (const text of [
+      "call us at 5",
+      "meet at the shop dot com",
+      "owner at shine-detailing dot com",
+      "owner (at shine-detailing dot com)",
+      "owner [at) shine-detailing (dot] com",
+    ])
+      expect(extractBusinessEmail(text), text).toBeNull();
+    expect(deobfuscateEmailText("meet at the shop dot com")).toBe("meet at the shop dot com");
+    expect(extractMetaEmail('<meta name="description" content="Call us at 5 or meet at the shop dot com">')).toBeNull();
+  });
+
+  it("decodes entity and bracketed spellings in meta tags once", () => {
+    expect(extractMetaEmail('<meta property="og:description" content="Email owner&#64;shine-detailing&#46;com">')).toBe("owner@shine-detailing.com");
+    expect(extractMetaEmail('<meta property="og:description" content="owner {at} shine-detailing {dot} com">')).toBe("owner@shine-detailing.com");
+    expect(extractMetaEmail('<meta property="og:description" content="owner&amp;#64;shine-detailing.com">')).toBeNull();
   });
 
   it("rejects contacts longer than the validated business-profile field", () => {

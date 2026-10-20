@@ -75,7 +75,8 @@ export type InboundItem = {
 };
 
 export type RepliesRunSummary = {
-  status: "done" | "gmail_not_configured" | "failed";
+  /** "busy": another run held the single-flight lease, so this one did nothing. */
+  status: "done" | "gmail_not_configured" | "failed" | "busy";
   message: string | null;
   missingSecrets: string[];
   queue: { claimed: number; sent: number; retried: number; failed: number; cancelled: number } | null;
@@ -477,6 +478,10 @@ const fullInbound = (row: Row): FullInbound => ({
 async function factsFor(db: SupabaseClient, inbound: InboundItem, config: GmailConfig): Promise<{ facts: FactsSheet; available: boolean } | null> {
   const demo = await loadDemoForOutreach(db, inbound.organizationId);
   if (!demo) return null;
+  // The business's own website, when its profile lists one, so a reply may name the prospect's domain.
+  // Unreadable is just "no website": the fact check then flags that domain like any other.
+  const profile = await db.from("business_profiles").select("website").eq("organization_id", inbound.organizationId).maybeSingle();
+  const website = profile.error ? null : text((profile.data as Row | null)?.["website"]);
   const base = appBaseUrl();
   const facts = buildFactsSheet({
     businessName: demo.name,
@@ -484,6 +489,7 @@ async function factsFor(db: SupabaseClient, inbound: InboundItem, config: GmailC
     claimUrl: `${base}/get-started?claim=${encodeURIComponent(demo.previewToken)}`,
     senderName: process.env["REVORA_SENDER_NAME"],
     senderEmail: config.sender,
+    businessWebsite: website,
   });
   return { facts, available: !demo.claimed };
 }
@@ -606,21 +612,86 @@ async function followUpPending(db: SupabaseClient, config: GmailConfig, summary:
   }
 }
 
-/** One job pass: drain the send queue, then (with Gmail) poll and follow up. */
+/** How long one run holds the single-flight lease; a run that dies frees it when this passes. */
+export const REPLY_POLL_LEASE_SECONDS = 15 * 60;
+
+export type ReplyPollLease = "claimed" | "busy" | "unlocked" | "error";
+
+/** PostgREST "function not in the schema cache" or Postgres "undefined function": the migration isn't applied yet. */
+function isMissingFunction(error: { code?: string; message?: string } | null | undefined): boolean {
+  if (!error) return false;
+  if (error.code === "PGRST202" || error.code === "42883") return true;
+  return /could not find the function|function .*claim_prospect_reply_poll.* does not exist/i.test(error.message ?? "");
+}
+
+/**
+ * Claims the single-flight lease on the prospect_reply_poll_state singleton
+ * through claim_prospect_reply_poll (one atomic UPDATE ... WHERE the lease is
+ * free or expired ... RETURNING). "busy": another run holds it. "unlocked": the
+ * migration isn't applied yet, so the run proceeds without the lock as before.
+ * "error": the claim itself failed; the run is skipped rather than risk a double run.
+ */
+export async function claimReplyPollLease(db: SupabaseClient, owner: string, seconds = REPLY_POLL_LEASE_SECONDS): Promise<ReplyPollLease> {
+  try {
+    const { data, error } = await db.rpc("claim_prospect_reply_poll", { p_owner: owner, p_seconds: seconds });
+    if (error) {
+      if (isMissingFunction(error)) {
+        console.warn("[prospect replies] claim_prospect_reply_poll is missing (migration 20261020120100 not applied); running without the single-flight lock");
+        return "unlocked";
+      }
+      console.error("[prospect replies] couldn't claim the poll lease:", error.message);
+      return "error";
+    }
+    return Array.isArray(data) ? (data.length > 0 ? "claimed" : "busy") : data ? "claimed" : "busy";
+  } catch (error) {
+    console.error("[prospect replies] couldn't claim the poll lease:", error instanceof Error ? error.message : error);
+    return "error";
+  }
+}
+
+/** Frees the lease, only while this run still holds it (an expired lease another run took is left alone). */
+export async function releaseReplyPollLease(db: SupabaseClient, owner: string): Promise<void> {
+  try {
+    const { error } = await db.from("prospect_reply_poll_state").update({ lease_owner: null, leased_until: null }).eq("id", 1).eq("lease_owner", owner);
+    if (error) console.error("[prospect replies] couldn't release the poll lease:", error.message);
+  } catch (error) {
+    console.error("[prospect replies] couldn't release the poll lease:", error instanceof Error ? error.message : error);
+  }
+}
+
+const emptySummary = (): RepliesRunSummary => ({
+  status: "done",
+  message: null,
+  missingSecrets: [],
+  queue: null,
+  threadsChecked: 0,
+  stored: 0,
+  autoReplied: 0,
+  drafted: 0,
+  stopped: 0,
+  errors: [],
+});
+
+/**
+ * One job pass: drain the send queue, then (with Gmail) poll and follow up.
+ * Single-flight: a run that finds the lease held returns status "busy" and does nothing.
+ */
 export async function runProspectReplies(db: SupabaseClient, options: { now?: () => Date } = {}): Promise<RepliesRunSummary> {
-  const now = options.now ?? (() => new Date());
-  const summary: RepliesRunSummary = {
-    status: "done",
-    message: null,
-    missingSecrets: [],
-    queue: null,
-    threadsChecked: 0,
-    stored: 0,
-    autoReplied: 0,
-    drafted: 0,
-    stopped: 0,
-    errors: [],
-  };
+  const owner = crypto.randomUUID();
+  const lease = await claimReplyPollLease(db, owner);
+  if (lease === "busy") return { ...emptySummary(), status: "busy", message: "Another prospect-replies run is in progress." };
+  if (lease === "error") {
+    return { ...emptySummary(), status: "failed", message: "Couldn't claim the prospect-replies run lock.", errors: ["lease: claim failed"] };
+  }
+  try {
+    return await runLeased(db, owner, options.now ?? (() => new Date()));
+  } finally {
+    if (lease === "claimed") await releaseReplyPollLease(db, owner);
+  }
+}
+
+async function runLeased(db: SupabaseClient, owner: string, now: () => Date): Promise<RepliesRunSummary> {
+  const summary = emptySummary();
   try {
     const { drainSendQueue } = await import("@/lib/prospect-send-queue.server");
     summary.queue = await drainSendQueue(db, { now });
@@ -632,7 +703,6 @@ export async function runProspectReplies(db: SupabaseClient, options: { now?: ()
   if (!config) {
     return { ...summary, status: "gmail_not_configured", message: gmailNotConfiguredMessage(), missingSecrets: missingGmailSecrets() };
   }
-  const owner = crypto.randomUUID();
   const started = now();
   try {
     // A thread that failed marks the run failed but doesn't hold back follow-ups already stored.
