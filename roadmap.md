@@ -98,3 +98,13 @@
 - [x] Automatic 5-size look-and-fix after every change (builder open).
 - [x] Root-level legacy authoring elimination (zero-cost switch, dead builders, canned upgrades, fixed repairs removed; firewall tests; all gates pass).
 - [x] Final AI-authority cleanup: reviewer taste vetoes and fixed public sticky chrome removed; AI media treatments now reach public rendering.
+
+## Close the gaps vs Lovable/Framer (2026-10-20)
+- [x] Jarvis: one follow-up email 48h after the first, only with no reply/claim/opt-out; within daily caps; enforced in send path + DB unique index.
+- [x] Demo photos from the Google Maps listing (live, credited).
+- [ ] Phase A real end-to-end build (BLOCKED: owner approval to spend AI credits).
+- [ ] Phase B point-and-edit + before/after compare (version restore already exists).
+- [ ] Phase C fact provenance + launch checklist.
+- [ ] Phase D claimed demo → Activate → setup-fee checkout (BLOCKED: canonical setup price $350 vs $750).
+- [ ] Phase E durable approval log, daily brief.
+- [ ] Phase F signed-in journey/accessibility/speed pass.
